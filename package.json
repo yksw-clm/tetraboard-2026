@@ -1,0 +1,8 @@
+{
+  "name": "tetraboard-new",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
