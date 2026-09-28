@@ -1,3 +1,4 @@
+import { healthzContract } from "@tetraboard/protocol";
 import { useEffect, useState } from "react";
 
 type ApiStatus = "確認中" | "OK" | "接続失敗";
@@ -10,8 +11,9 @@ export function App() {
 
     async function checkHealth(): Promise<void> {
       try {
-        const response = await fetch("/api/healthz", {
+        const response = await fetch(`/api${healthzContract.path}`, {
           cache: "no-store",
+          method: healthzContract.method,
           signal: controller.signal,
         });
 
@@ -20,14 +22,7 @@ export function App() {
         }
 
         const body: unknown = await response.json();
-        if (
-          typeof body !== "object" ||
-          body === null ||
-          !("status" in body) ||
-          body.status !== "ok"
-        ) {
-          throw new Error("Unexpected health response");
-        }
+        healthzContract.response.parse(body);
 
         if (!controller.signal.aborted) {
           setApiStatus("OK");

@@ -7,6 +7,7 @@
 - 開発環境はBunに統一し、Bun Workspaceでフロントエンド、サーバー、共有コードを管理する。実際のパッケージ配置は実装開始時に決める。
 - フロントエンドはVite、React、TypeScriptで作る。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。
+- WebとWorkerの境界を通るデータのスキーマ、型、エンドポイント定義は `packages/protocol` に置く。ゲームの判定ロジックは `packages/game-core` やゲーム別パッケージに分け、通信契約と混在させない。
 - ルームごとに1つのDurable Objectを使い、参加者、対局進行、持ち時間、チャットと接続を管理する。ゲーム固有の合法手・終局判定は、ルーム管理から分離したTypeScriptのロジックとして扱う。
 - 公開ロビーのルーム索引、通報、利用状況の計測はD1に保存する。通報には確認に必要な部屋IDも含む。棋譜、対局履歴、プレイヤーごとの戦績は保存しない。
 

@@ -1,0 +1,21 @@
+{
+  "name": "@tetraboard/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run format:check && bun run lint && bun run typecheck"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.2"
+  }
+}
