@@ -13,7 +13,7 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 
 ## Naming
 
-- ファイル名: PascalCase
+- ファイル名: camelCase（Reactコンポーネントファイルは基本PascalCase）
 - クラス名: PascalCase
 - 型名: PascalCase
 - 関数・メソッド名: camelCase
