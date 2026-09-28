@@ -1,10 +1,20 @@
-import { healthzContract } from "@tetraboard/protocol";
-import { useEffect, useState } from "react";
+import {
+  createRoomContract,
+  healthzContract,
+  type Room,
+  type RoomError,
+} from "@tetraboard/protocol";
+import { useEffect, useState, type FormEvent } from "react";
 
 type ApiStatus = "確認中" | "OK" | "接続失敗";
 
 export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("確認中");
+  const [name, setName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [roomResponse, setRoomResponse] = useState<Room | RoomError | null>(null);
+  const [responseStatus, setResponseStatus] = useState<number | null>(null);
+  const [creationMessage, setCreationMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,5 +48,61 @@ export function App() {
     return () => controller.abort();
   }, []);
 
-  return <p>APIステータス：{apiStatus}</p>;
+  async function createRoom(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+
+    const request = createRoomContract.request.safeParse({ name });
+    setRoomResponse(null);
+    setResponseStatus(null);
+    setCreationMessage(null);
+
+    if (!request.success) {
+      setCreationMessage("ニックネームを1〜10文字で入力してください。");
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      const response = await fetch(`/api${createRoomContract.path}`, {
+        method: createRoomContract.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.data),
+      });
+      const body: unknown = await response.json();
+
+      if (response.status === 201) {
+        setRoomResponse(createRoomContract.response.parse(body));
+      } else {
+        setRoomResponse(createRoomContract.error.parse(body));
+      }
+      setResponseStatus(response.status);
+    } catch {
+      setCreationMessage("ルーム作成の応答を確認できませんでした。");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  return (
+    <>
+      <p>APIステータス：{apiStatus}</p>
+      <form onSubmit={(event) => void createRoom(event)}>
+        <label htmlFor="nickname">ニックネーム</label>
+        <input id="nickname" value={name} onChange={(event) => setName(event.target.value)} />
+        <button type="submit" disabled={isCreating}>
+          {isCreating ? "作成中" : "ルーム作成"}
+        </button>
+      </form>
+      {creationMessage && <p role="status">{creationMessage}</p>}
+      {roomResponse && (
+        <section aria-label="ルーム作成の応答">
+          <p>HTTP {responseStatus}</p>
+          <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {JSON.stringify(roomResponse, null, 2)}
+          </pre>
+        </section>
+      )}
+    </>
+  );
 }

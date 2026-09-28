@@ -7,6 +7,12 @@
     "ip": "0.0.0.0",
     "port": 8787
   },
+  "durable_objects": {
+    "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
+  },
+  "exports": {
+    "GameRoom": { "type": "durable-object", "storage": "sqlite" }
+  },
   "observability": {
     "enabled": true
   }
