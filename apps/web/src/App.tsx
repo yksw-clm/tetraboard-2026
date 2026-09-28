@@ -1,3 +1,3 @@
 export function App() {
-  return <div>Hello, Tetra Board!</div>
+  return <div>Hello, Tetra Board!</div>;
 }

@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "sortPackageJson": false,
+  "ignorePatterns": ["README.md", "docs/**", "apps/*/README.md", "**/worker-configuration.d.ts"],
+  "overrides": [
+    {
+      "files": ["apps/worker/wrangler.jsonc"],
+      "options": { "trailingComma": "none" }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tetraboard-worker",
+  "main": "src/Worker.ts",
+  "compatibility_date": "2026-09-25",
+  "observability": {
+    "enabled": true
+  }
+}
