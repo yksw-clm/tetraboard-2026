@@ -9,9 +9,11 @@
     "typecheck": "bun run --workspaces typecheck",
     "lint": "oxlint .",
     "format": "oxfmt .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0"
   }
