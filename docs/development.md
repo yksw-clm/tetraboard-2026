@@ -11,6 +11,8 @@
 どちらもLANから接続できます。
 
 スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。
+WebがWorkerの `/healthz` と通信できると、画面に「APIステータス：OK」と表示されます。
+開発機からは `http://127.0.0.1:8787/healthz` でWorkerを直接、Viteの `Network` URLに `/api/healthz` を付けてWeb経由の通信を確認できます。
 
 ## Code Principles
 
