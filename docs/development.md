@@ -15,7 +15,7 @@ WebがWorkerの `/healthz` と通信できると、画面に「APIステータ�
 開発機からは `http://127.0.0.1:8787/healthz` でWorkerを直接、Viteの `Network` URLに `/api/healthz` を付けてWeb経由の通信を確認できます。
 
 ルーム作成は `POST http://127.0.0.1:8787/rooms` に `{"name":"てとら"}` をJSONで送ります。返された5桁のIDを使い、`GET http://127.0.0.1:8787/rooms/<ID>` で保存した部屋を確認できます。Workerを再起動した後も同じIDで取得できます。開発時のDurable Objectの状態は `apps/worker/.wrangler/state` に保存されます。公開ロビー用のD1索引はロビー実装時に追加します。
-Web画面ではニックネームを入力して「ルーム作成」を押すと、HTTPステータスとAPIの返却JSONを確認できます。
+Web画面ではニックネームを入力して「ルーム作成」を押すと、`/rooms/<ID>` に移動します。ルームページはGETで保存済みの情報を確認してから表示し、WebSocket接続後に受信したルーム情報と接続状態を表示します。ページを再読み込みしても同じルームを取得できます。接続が切れた場合はGETで状態を再取得してから再接続します。開発機のブラウザで確認後、スマートフォンでもViteの `Network` URLから同じルームURLを開いて確認します。
 
 ## Code Principles
 

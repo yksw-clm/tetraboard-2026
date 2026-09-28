@@ -22,7 +22,13 @@ export const roomSchema = z.strictObject({
 });
 
 const roomErrorSchema = z.strictObject({
-  error: z.enum(["invalid_request", "not_found", "code_unavailable", "internal_error"]),
+  error: z.enum([
+    "invalid_request",
+    "not_found",
+    "code_unavailable",
+    "upgrade_required",
+    "internal_error",
+  ]),
 });
 
 export const createRoomContract = {
@@ -41,6 +47,18 @@ export const getRoomContract = {
   error: roomErrorSchema,
 } as const;
 
+export const roomSocketContract = {
+  method: "GET",
+  path: "/rooms/:id/ws",
+  pathFor: (id: string) => `/rooms/${id}/ws`,
+  message: z.strictObject({
+    type: z.literal("room.snapshot"),
+    room: roomSchema,
+  }),
+  error: roomErrorSchema,
+} as const;
+
 export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;
+export type RoomSocketMessage = z.infer<typeof roomSocketContract.message>;

@@ -2,6 +2,7 @@ import {
   createRoomContract,
   getRoomContract,
   roomCodeSchema,
+  roomSocketContract,
   type Room,
   type RoomError,
 } from "@tetraboard/protocol";
@@ -76,6 +77,23 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
     return room === null
       ? context.json(roomError("not_found"), 404)
       : context.json(getRoomContract.response.parse(room));
+  } catch {
+    return context.json(roomError("internal_error"), 500);
+  }
+});
+
+roomRoutes.on(roomSocketContract.method, roomSocketContract.path, async (context) => {
+  const code = context.req.param("id");
+  if (!roomCodeSchema.safeParse(code).success) {
+    return context.json(roomError("invalid_request"), 400);
+  }
+
+  if (context.req.header("Upgrade")?.toLowerCase() !== "websocket") {
+    return context.json(roomError("upgrade_required"), 426);
+  }
+
+  try {
+    return await context.env.GAME_ROOM.getByName(code).fetch(context.req.raw);
   } catch {
     return context.json(roomError("internal_error"), 500);
   }

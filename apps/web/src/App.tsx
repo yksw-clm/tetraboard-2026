@@ -1,18 +1,20 @@
 import {
   createRoomContract,
+  getRoomContract,
   healthzContract,
-  type Room,
   type RoomError,
 } from "@tetraboard/protocol";
 import { useEffect, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router";
 
 type ApiStatus = "確認中" | "OK" | "接続失敗";
 
 export function App() {
+  const navigate = useNavigate();
   const [apiStatus, setApiStatus] = useState<ApiStatus>("確認中");
   const [name, setName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
-  const [roomResponse, setRoomResponse] = useState<Room | RoomError | null>(null);
+  const [roomResponse, setRoomResponse] = useState<RoomError | null>(null);
   const [responseStatus, setResponseStatus] = useState<number | null>(null);
   const [creationMessage, setCreationMessage] = useState<string | null>(null);
 
@@ -72,11 +74,12 @@ export function App() {
       const body: unknown = await response.json();
 
       if (response.status === 201) {
-        setRoomResponse(createRoomContract.response.parse(body));
+        const room = createRoomContract.response.parse(body);
+        void navigate(getRoomContract.pathFor(room.id));
       } else {
         setRoomResponse(createRoomContract.error.parse(body));
+        setResponseStatus(response.status);
       }
-      setResponseStatus(response.status);
     } catch {
       setCreationMessage("ルーム作成の応答を確認できませんでした。");
     } finally {

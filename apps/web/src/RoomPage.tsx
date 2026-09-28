@@ -1,0 +1,127 @@
+import { roomSocketContract, type Room } from "@tetraboard/protocol";
+import { useEffect, useState } from "react";
+import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
+import { fetchRoom } from "./roomLoader";
+
+function RoomDetail({ initialRoom }: { initialRoom: Room }) {
+  const [room, setRoom] = useState(initialRoom);
+  const [connection, setConnection] = useState("接続中");
+
+  useEffect(() => {
+    let active = true;
+    let socket: WebSocket | null = null;
+    let controller: AbortController | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 1000;
+
+    function scheduleReconnect(): void {
+      if (!active) return;
+      setConnection("再接続中");
+      timer = setTimeout(() => void reconnect(), retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 30_000);
+    }
+
+    async function reconnect(): Promise<void> {
+      controller = new AbortController();
+      try {
+        const latestRoom = await fetchRoom(initialRoom.id, controller.signal);
+        if (!active) return;
+        setRoom(latestRoom);
+        connect();
+      } catch (error) {
+        if (!active) return;
+        if (error instanceof Response && error.status === 404) {
+          setConnection("ルームが見つかりません");
+          return;
+        }
+        scheduleReconnect();
+      }
+    }
+
+    function connect(): void {
+      const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}`;
+      try {
+        socket = new WebSocket(url);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      const currentSocket = socket;
+      currentSocket.onmessage = (event: MessageEvent) => {
+        let body: unknown;
+        try {
+          body = JSON.parse(event.data as string);
+        } catch {
+          currentSocket.close(1003, "Invalid room message");
+          return;
+        }
+        const message = roomSocketContract.message.safeParse(body);
+        if (!message.success || message.data.room.id !== initialRoom.id) {
+          currentSocket.close(1003, "Invalid room message");
+          return;
+        }
+        if (active) {
+          setRoom(message.data.room);
+          setConnection("接続済み");
+          retryDelay = 1000;
+        }
+      };
+      currentSocket.onerror = () => currentSocket.close();
+      currentSocket.onclose = () => scheduleReconnect();
+    }
+
+    connect();
+    return () => {
+      active = false;
+      if (timer !== null) clearTimeout(timer);
+      controller?.abort();
+      socket?.close();
+    };
+  }, [initialRoom.id]);
+
+  return (
+    <>
+      <p>
+        <Link to="/">トップへ</Link>
+      </p>
+      <h1>ルーム {room.id}</h1>
+      <p>接続状態：{connection}</p>
+      <p>状態：{room.status}</p>
+      <h2>プレイヤー</h2>
+      <ul>
+        {room.players.map((player) => (
+          <li key={player.id}>
+            {player.name} ({player.id})
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+export function RoomPage() {
+  const room = useLoaderData<Room>();
+  return <RoomDetail key={room.id} initialRoom={room} />;
+}
+
+export function RoomErrorPage() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? error.status === 404
+      ? "ルームが見つかりません。"
+      : error.status === 400
+        ? "ルームIDが不正です。"
+        : "ルーム情報を取得できませんでした。"
+    : "ルーム情報を取得できませんでした。";
+
+  return (
+    <>
+      <p>{message}</p>
+      <p>
+        <Link to="/">トップへ</Link>
+      </p>
+    </>
+  );
+}
