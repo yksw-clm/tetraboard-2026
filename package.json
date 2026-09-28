@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "bun run --parallel --filter './apps/*' dev",
     "typecheck": "bun run --workspaces typecheck",
     "lint": "oxlint .",
     "format": "oxfmt .",

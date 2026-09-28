@@ -5,6 +5,13 @@
 土台 → Vertical Slice → ロビー → ルーム → 四人リバーシ → E2E
 の順で開発します。
 
+## Local Development
+
+リポジトリのルートで `bun run dev` を実行すると、WebとWorkerの開発サーバーが同時に起動します。
+どちらもLANから接続できます。
+
+スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。
+
 ## Code Principles
 
 C#/.NET標準ライブラリのような、一貫性があり読みやすいコードを目指します。
