@@ -11,8 +11,8 @@
     "lint": "oxlint .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "bun run --cwd packages/four-reversi test",
-    "check": "bun run format:check && bun run lint && bun run typecheck",
+    "test": "bun run --cwd packages/four-reversi test && bun run --cwd apps/worker test",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
     "prepare": "husky"
   },
   "devDependencies": {

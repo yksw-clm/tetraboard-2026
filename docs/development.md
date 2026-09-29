@@ -22,6 +22,12 @@ Web画面ではニックネームを入力して「ルーム作成」を押す�
 四人リバーシの着手を確認するには、4つの独立したタブで同じルームへ入室し、全員が準備完了にします。ホストが「対局開始」を押すと担当色がランダムに割り当てられ、黒の担当者が盤面のC4をクリックできます。座標は左上A1が `{x:0,y:0}` で、C4は `{x:2,y:3}` です。Durable Objectが `packages/four-reversi` で合法手を判定し、更新した盤面と手番を全接続へ配信します。`bun run test` でエンジンの判定を確認できます。
 この段階では続く合法手も受け付けますが、パス、終局、順位、持ち時間、通信切れなどは実装していません。次の担当色に合法手がなければ進行は止まります。対局開始後は入室とReady変更を受け付けません。
 
+## Checks
+
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、四人リバーシとWorkerのテストを実行します。`bun run test` では両方のテストのみを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+
+GitHub Actionsは `main` へのpushと `main` 宛てのPRで同じ4種類のチェックを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
+
 ## Code Principles
 
 C#/.NET標準ライブラリのような、一貫性があり読みやすいコードを目指します。
