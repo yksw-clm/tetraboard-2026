@@ -19,6 +19,7 @@ export const roomSchema = z.strictObject({
     z.strictObject({
       id: z.uuid(),
       name: nicknameSchema,
+      ready: z.boolean().default(false),
     }),
   ),
 });
@@ -91,10 +92,18 @@ export const roomSocketContract = {
   method: "GET",
   path: "/rooms/:id/ws",
   pathFor: (id: string) => `/rooms/${id}/ws`,
-  message: z.strictObject({
-    type: z.literal("room.snapshot"),
-    room: roomSchema,
-  }),
+  clientMessage: z.discriminatedUnion("type", [
+    z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
+    z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
+  ]),
+  message: z.discriminatedUnion("type", [
+    z.strictObject({ type: z.literal("room.snapshot"), room: roomSchema }),
+    z.strictObject({ type: z.literal("room.authenticated"), membership: roomMembershipSchema }),
+    z.strictObject({
+      type: z.literal("room.error"),
+      error: z.enum(["invalid_request", "unauthorized", "not_found", "internal_error"]),
+    }),
+  ]),
   error: roomErrorSchema,
 } as const;
 
@@ -103,4 +112,5 @@ export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;
 export type RoomMembership = z.infer<typeof roomMembershipSchema>;
+export type RoomSocketClientMessage = z.infer<typeof roomSocketContract.clientMessage>;
 export type RoomSocketMessage = z.infer<typeof roomSocketContract.message>;

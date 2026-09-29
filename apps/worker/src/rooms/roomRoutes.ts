@@ -67,7 +67,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     const initialRoom: Room = {
       id: code,
       status: "waiting",
-      players: [{ id: crypto.randomUUID(), name: request.data.name }],
+      players: [{ id: crypto.randomUUID(), name: request.data.name, ready: false }],
     };
 
     try {

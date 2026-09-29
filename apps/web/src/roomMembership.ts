@@ -19,7 +19,7 @@ export function canStoreRoomMembership(): boolean {
   }
 }
 
-function readRoomMembershipToken(roomId: string): string | null {
+export function readRoomMembershipToken(roomId: string): string | null {
   try {
     const token = sessionStorage.getItem(storageKey(roomId));
     if (token !== null && !membershipTokenSchema.safeParse(token).success) {

@@ -17,5 +17,6 @@ export type {
   Room,
   RoomError,
   RoomMembership,
+  RoomSocketClientMessage,
   RoomSocketMessage,
 } from "./rooms";

@@ -1,7 +1,7 @@
 import { roomSocketContract, type Room, type RoomMembership } from "@tetraboard/protocol";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
-import { fetchRoomMembership } from "./roomMembership";
+import { fetchRoomMembership, readRoomMembershipToken } from "./roomMembership";
 import { fetchRoom, type RoomLoaderData } from "./roomLoader";
 
 function RoomDetail({
@@ -14,6 +14,11 @@ function RoomDetail({
   const [room, setRoom] = useState(initialRoom);
   const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [pendingReady, setPendingReady] = useState<boolean | null>(null);
+  const [socketError, setSocketError] = useState<string | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const pendingReadyRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -21,6 +26,12 @@ function RoomDetail({
     let controller: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let retryDelay = 1000;
+    let currentMembership = initialMembership;
+
+    function clearPendingReady(): void {
+      pendingReadyRef.current = null;
+      setPendingReady(null);
+    }
 
     function scheduleReconnect(): void {
       if (!active) return;
@@ -35,6 +46,13 @@ function RoomDetail({
         const latestRoom = await fetchRoom(initialRoom.id, controller.signal);
         const latestMembership = await fetchRoomMembership(initialRoom.id, controller.signal);
         if (!active) return;
+        if (
+          latestMembership !== null &&
+          !latestRoom.players.some((player) => player.id === latestMembership.playerId)
+        ) {
+          throw new Error("Membership does not match room");
+        }
+        currentMembership = latestMembership;
         setRoom(latestRoom);
         setMembership(latestMembership);
         connect();
@@ -49,6 +67,8 @@ function RoomDetail({
     }
 
     function connect(): void {
+      setAuthenticated(false);
+      setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
       const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}`;
       try {
@@ -59,6 +79,19 @@ function RoomDetail({
       }
 
       const currentSocket = socket;
+      socketRef.current = currentSocket;
+      currentSocket.onopen = () => {
+        if (!active || currentMembership === null) return;
+        const token = readRoomMembershipToken(initialRoom.id);
+        if (token === null) {
+          currentMembership = null;
+          setMembership(null);
+          return;
+        }
+        currentSocket.send(
+          JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.auth", token })),
+        );
+      };
       currentSocket.onmessage = (event: MessageEvent) => {
         let body: unknown;
         try {
@@ -68,18 +101,70 @@ function RoomDetail({
           return;
         }
         const message = roomSocketContract.message.safeParse(body);
-        if (!message.success || message.data.room.id !== initialRoom.id) {
+        if (!message.success) {
           currentSocket.close(1003, "Invalid room message");
           return;
         }
-        if (active) {
+        if (!active) return;
+
+        if (message.data.type === "room.snapshot") {
+          if (message.data.room.id !== initialRoom.id) {
+            currentSocket.close(1003, "Invalid room message");
+            return;
+          }
           setRoom(message.data.room);
           setConnection("接続済み");
           retryDelay = 1000;
+          if (
+            pendingReadyRef.current !== null &&
+            message.data.room.players.find((player) => player.id === currentMembership?.playerId)
+              ?.ready === pendingReadyRef.current
+          ) {
+            clearPendingReady();
+          }
+          return;
+        }
+
+        if (message.data.type === "room.authenticated") {
+          if (
+            currentMembership === null ||
+            message.data.membership.playerId !== currentMembership.playerId ||
+            message.data.membership.role !== currentMembership.role
+          ) {
+            setAuthenticated(false);
+            setSocketError("WebSocketの本人確認結果が一致しません。再読み込みしてください。");
+            return;
+          }
+          setAuthenticated(true);
+          setSocketError(null);
+          return;
+        }
+
+        clearPendingReady();
+        if (message.data.error === "unauthorized") {
+          setAuthenticated(false);
+          setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
+          void fetchRoomMembership(initialRoom.id)
+            .then((latestMembership) => {
+              if (!active) return;
+              currentMembership = latestMembership;
+              setMembership(latestMembership);
+            })
+            .catch(() => {
+              if (active) setSocketError("本人確認に失敗しました。再読み込みしてください。");
+            });
+        } else {
+          setSocketError("ルーム操作に失敗しました。再読み込みしてください。");
         }
       };
       currentSocket.onerror = () => currentSocket.close();
-      currentSocket.onclose = () => scheduleReconnect();
+      currentSocket.onclose = () => {
+        if (socketRef.current === currentSocket) socketRef.current = null;
+        if (!active) return;
+        setAuthenticated(false);
+        clearPendingReady();
+        scheduleReconnect();
+      };
     }
 
     connect();
@@ -87,9 +172,38 @@ function RoomDetail({
       active = false;
       if (timer !== null) clearTimeout(timer);
       controller?.abort();
+      socketRef.current = null;
       socket?.close();
     };
-  }, [initialRoom.id]);
+  }, [initialRoom.id, initialMembership]);
+
+  const self = room.players.find((player) => player.id === membership?.playerId);
+
+  function handleReadyClick(): void {
+    const currentSocket = socketRef.current;
+    if (
+      self === undefined ||
+      !authenticated ||
+      pendingReadyRef.current !== null ||
+      currentSocket?.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+
+    const ready = !self.ready;
+    pendingReadyRef.current = ready;
+    setPendingReady(ready);
+    setSocketError(null);
+    try {
+      currentSocket.send(
+        JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.ready.set", ready })),
+      );
+    } catch {
+      pendingReadyRef.current = null;
+      setPendingReady(null);
+      setSocketError("準備状態を送信できませんでした。");
+    }
+  }
 
   return (
     <>
@@ -101,13 +215,23 @@ function RoomDetail({
         参加区分：{membership?.role === "host" ? "ホスト" : membership ? "プレイヤー" : "観戦者"}
       </p>
       <p>接続状態：{connection}</p>
+      {socketError && <p>{socketError}</p>}
       <p>状態：{room.status}</p>
+      {membership !== null && self !== undefined && (
+        <button
+          type="button"
+          onClick={handleReadyClick}
+          disabled={!authenticated || connection !== "接続済み" || pendingReady !== null}
+        >
+          {self.ready ? "準備取消" : "準備完了"}
+        </button>
+      )}
       <h2>プレイヤー</h2>
       <ul>
         {room.players.map((player) => (
           <li key={player.id}>
             {membership?.playerId === player.id && "[あなた] "}
-            {player.name} ({player.id})
+            {player.name} ({player.id}) {player.ready && "✅"}
           </li>
         ))}
       </ul>
