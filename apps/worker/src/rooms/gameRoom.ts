@@ -1,4 +1,4 @@
-import { roomSchema, roomSocketContract, type Room } from "@tetraboard/protocol";
+import { joinRoomContract, roomSchema, roomSocketContract, type Room } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
 
 const roomStorageKey = "room";
@@ -24,6 +24,45 @@ export class GameRoom extends DurableObject<Env> {
   getRoom(): Room | null {
     const room = this.ctx.storage.kv.get(roomStorageKey);
     return room === undefined ? null : roomSchema.parse(room);
+  }
+
+  joinRoom(
+    name: string,
+  ): { status: "joined"; room: Room } | { status: "not_found" } | { status: "room_full" } {
+    const playerName = joinRoomContract.request.parse({ name }).name;
+    const result = this.ctx.storage.transactionSync(() => {
+      const room = this.getRoom();
+      if (room === null) {
+        return { status: "not_found" } as const;
+      }
+      if (room.players.length >= 4) {
+        return { status: "room_full" } as const;
+      }
+
+      const updatedRoom = roomSchema.parse({
+        ...room,
+        players: [...room.players, { id: crypto.randomUUID(), name: playerName }],
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
+      return { status: "joined", room: updatedRoom } as const;
+    });
+
+    if (result.status === "joined") {
+      const message = JSON.stringify(
+        roomSocketContract.message.parse({ type: "room.snapshot", room: result.room }),
+      );
+      for (const socket of this.ctx.getWebSockets()) {
+        if (socket.readyState === WebSocket.OPEN) {
+          try {
+            socket.send(message);
+          } catch {
+            // 切断中の接続への送信失敗は、保存済みの入室結果に影響させません。
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   async fetch(request: Request): Promise<Response> {

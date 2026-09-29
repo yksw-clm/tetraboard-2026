@@ -2,6 +2,8 @@ import {
   createRoomContract,
   getRoomContract,
   healthzContract,
+  joinRoomContract,
+  roomCodeSchema,
   type RoomError,
 } from "@tetraboard/protocol";
 import { useEffect, useState, type FormEvent } from "react";
@@ -13,10 +15,11 @@ export function App() {
   const navigate = useNavigate();
   const [apiStatus, setApiStatus] = useState<ApiStatus>("確認中");
   const [name, setName] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
+  const [roomCode, setRoomCode] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState<"create" | "join" | null>(null);
   const [roomResponse, setRoomResponse] = useState<RoomError | null>(null);
   const [responseStatus, setResponseStatus] = useState<number | null>(null);
-  const [creationMessage, setCreationMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,56 +53,95 @@ export function App() {
     return () => controller.abort();
   }, []);
 
-  async function createRoom(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function submitRoom(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (isSubmitting !== null) return;
 
-    const request = createRoomContract.request.safeParse({ name });
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const intent =
+      submitter instanceof HTMLButtonElement && submitter.value === "join" ? "join" : "create";
+    const contract = intent === "join" ? joinRoomContract : createRoomContract;
+
+    const request = contract.request.safeParse({ name });
     setRoomResponse(null);
     setResponseStatus(null);
-    setCreationMessage(null);
+    setMessage(null);
 
     if (!request.success) {
-      setCreationMessage("ニックネームを1〜10文字で入力してください。");
+      setMessage("ニックネームを1〜10文字で入力してください。");
       return;
     }
 
-    setIsCreating(true);
+    if (intent === "join" && !roomCodeSchema.safeParse(roomCode).success) {
+      setMessage("部屋番号は5桁の数字で入力してください。");
+      return;
+    }
+
+    setIsSubmitting(intent);
 
     try {
-      const response = await fetch(`/api${createRoomContract.path}`, {
-        method: createRoomContract.method,
+      const path = intent === "join" ? joinRoomContract.pathFor(roomCode) : createRoomContract.path;
+      const response = await fetch(`/api${path}`, {
+        method: contract.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request.data),
       });
       const body: unknown = await response.json();
 
-      if (response.status === 201) {
-        const room = createRoomContract.response.parse(body);
+      if (response.status === (intent === "join" ? 200 : 201)) {
+        const room = contract.response.parse(body);
+        if (intent === "join" && room.id !== roomCode) {
+          throw new Error("Room code does not match response");
+        }
         void navigate(getRoomContract.pathFor(room.id));
       } else {
-        setRoomResponse(createRoomContract.error.parse(body));
+        const error = contract.error.parse(body);
+        setRoomResponse(error);
         setResponseStatus(response.status);
+        if (intent === "join") {
+          setMessage(
+            error.error === "not_found"
+              ? "ルームが見つかりません。"
+              : error.error === "room_full"
+                ? "このルームは満室です。"
+                : "入室できませんでした。",
+          );
+        }
       }
     } catch {
-      setCreationMessage("ルーム作成の応答を確認できませんでした。");
+      setMessage(
+        intent === "join"
+          ? "入室の応答を確認できませんでした。"
+          : "ルーム作成の応答を確認できませんでした。",
+      );
     } finally {
-      setIsCreating(false);
+      setIsSubmitting(null);
     }
   }
 
   return (
     <>
       <p>APIステータス：{apiStatus}</p>
-      <form onSubmit={(event) => void createRoom(event)}>
+      <form onSubmit={(event) => void submitRoom(event)}>
         <label htmlFor="nickname">ニックネーム</label>
         <input id="nickname" value={name} onChange={(event) => setName(event.target.value)} />
-        <button type="submit" disabled={isCreating}>
-          {isCreating ? "作成中" : "ルーム作成"}
+        <button type="submit" value="create" disabled={isSubmitting !== null}>
+          {isSubmitting === "create" ? "作成中" : "ルーム作成"}
+        </button>
+        <label htmlFor="room-code">部屋番号</label>
+        <input
+          id="room-code"
+          inputMode="numeric"
+          value={roomCode}
+          onChange={(event) => setRoomCode(event.target.value)}
+        />
+        <button type="submit" value="join" disabled={isSubmitting !== null}>
+          {isSubmitting === "join" ? "入室中" : "入室"}
         </button>
       </form>
-      {creationMessage && <p role="status">{creationMessage}</p>}
+      {message && <p role="status">{message}</p>}
       {roomResponse && (
-        <section aria-label="ルーム作成の応答">
+        <section aria-label="APIの応答">
           <p>HTTP {responseStatus}</p>
           <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
             {JSON.stringify(roomResponse, null, 2)}

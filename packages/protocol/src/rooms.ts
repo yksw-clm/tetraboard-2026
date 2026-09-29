@@ -8,6 +8,8 @@ const nicknameSchema = z
   .min(1)
   .refine((name) => Array.from(segmenter.segment(name)).length <= 10);
 
+const playerNameRequestSchema = z.strictObject({ name: nicknameSchema });
+
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
 export const roomSchema = z.strictObject({
@@ -26,6 +28,7 @@ const roomErrorSchema = z.strictObject({
     "invalid_request",
     "not_found",
     "code_unavailable",
+    "room_full",
     "upgrade_required",
     "internal_error",
   ]),
@@ -34,7 +37,16 @@ const roomErrorSchema = z.strictObject({
 export const createRoomContract = {
   method: "POST",
   path: "/rooms",
-  request: z.strictObject({ name: nicknameSchema }),
+  request: playerNameRequestSchema,
+  response: roomSchema,
+  error: roomErrorSchema,
+} as const;
+
+export const joinRoomContract = {
+  method: "POST",
+  path: "/rooms/:id/players",
+  pathFor: (id: string) => `/rooms/${id}/players`,
+  request: playerNameRequestSchema,
   response: roomSchema,
   error: roomErrorSchema,
 } as const;
@@ -59,6 +71,7 @@ export const roomSocketContract = {
 } as const;
 
 export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
+export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;
 export type RoomSocketMessage = z.infer<typeof roomSocketContract.message>;

@@ -1,6 +1,7 @@
 import {
   createRoomContract,
   getRoomContract,
+  joinRoomContract,
   roomCodeSchema,
   roomSocketContract,
   type Room,
@@ -77,6 +78,38 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
     return room === null
       ? context.json(roomError("not_found"), 404)
       : context.json(getRoomContract.response.parse(room));
+  } catch {
+    return context.json(roomError("internal_error"), 500);
+  }
+});
+
+roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) => {
+  const code = context.req.param("id");
+  if (!roomCodeSchema.safeParse(code).success) {
+    return context.json(roomError("invalid_request"), 400);
+  }
+
+  let body: unknown;
+  try {
+    body = await context.req.json();
+  } catch {
+    return context.json(roomError("invalid_request"), 400);
+  }
+
+  const request = joinRoomContract.request.safeParse(body);
+  if (!request.success) {
+    return context.json(roomError("invalid_request"), 400);
+  }
+
+  try {
+    const result = await context.env.GAME_ROOM.getByName(code).joinRoom(request.data.name);
+    if (result.status === "not_found") {
+      return context.json(roomError("not_found"), 404);
+    }
+    if (result.status === "room_full") {
+      return context.json(roomError("room_full"), 409);
+    }
+    return context.json(joinRoomContract.response.parse(result.room));
   } catch {
     return context.json(roomError("internal_error"), 500);
   }
