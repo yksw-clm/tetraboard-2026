@@ -13,11 +13,51 @@ const playerNameRequestSchema = z.strictObject({ name: nicknameSchema });
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
 export const fourReversiColorSchema = z.enum(["black", "white", "red", "blue"]);
-export const fourReversiStateSchema = z.strictObject({
-  board: z.array(z.array(fourReversiColorSchema.nullable()).length(8)).length(8),
-  turn: fourReversiColorSchema,
-  moveNumber: z.int().nonnegative(),
+const fourReversiModeSchema = z.enum(["singles", "doubles"]);
+const teamSchema = z.enum(["black-red", "white-blue"]);
+const singlesResultSchema = z.strictObject({
+  mode: z.literal("singles"),
+  reason: z.enum(["board_full", "all_passed", "last_player"]),
+  standings: z.array(
+    z.strictObject({
+      color: fourReversiColorSchema,
+      rank: z.int().min(1).max(4),
+      stoneCount: z.int().nonnegative().optional(),
+    }),
+  ),
 });
+const doublesResultSchema = z.strictObject({
+  mode: z.literal("doubles"),
+  reason: z.enum(["board_full", "all_passed", "team_eliminated"]),
+  winner: teamSchema.nullable(),
+  stoneCounts: z.array(
+    z.strictObject({ color: fourReversiColorSchema, count: z.int().nonnegative() }),
+  ),
+  teamTotals: z
+    .strictObject({ "black-red": z.int().nonnegative(), "white-blue": z.int().nonnegative() })
+    .nullable(),
+});
+const gameStateBaseSchema = z.strictObject({
+  mode: fourReversiModeSchema,
+  board: z.array(z.array(fourReversiColorSchema.nullable()).length(8)).length(8),
+  moveNumber: z.int().nonnegative(),
+  eliminatedColors: z.array(fourReversiColorSchema),
+  consecutivePasses: z.array(fourReversiColorSchema),
+});
+const playingGameSchema = gameStateBaseSchema.extend({
+  status: z.literal("playing"),
+  turn: fourReversiColorSchema,
+  result: z.null(),
+});
+const finishedGameSchema = gameStateBaseSchema.extend({
+  status: z.literal("finished"),
+  turn: z.null(),
+  result: z.discriminatedUnion("mode", [singlesResultSchema, doublesResultSchema]),
+});
+export const fourReversiStateSchema = z.discriminatedUnion("status", [
+  playingGameSchema,
+  finishedGameSchema,
+]);
 
 const playerSchema = z.strictObject({
   id: z.uuid(),
@@ -32,16 +72,26 @@ const waitingRoomSchema = z.strictObject({
   game: z.null().default(null),
 });
 
-const playingRoomSchema = z
+const activeRoomBaseSchema = z
   .strictObject({
     id: roomCodeSchema,
-    status: z.literal("playing"),
     players: z.array(playerSchema.extend({ color: fourReversiColorSchema })).length(4),
-    game: fourReversiStateSchema,
   })
   .refine((room) => new Set(room.players.map((player) => player.color)).size === 4);
 
-export const roomSchema = z.discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema]);
+const playingRoomSchema = activeRoomBaseSchema.safeExtend({
+  status: z.literal("playing"),
+  game: playingGameSchema,
+});
+const finishedRoomSchema = activeRoomBaseSchema.safeExtend({
+  status: z.literal("finished"),
+  game: finishedGameSchema,
+});
+export const roomSchema = z.discriminatedUnion("status", [
+  waitingRoomSchema,
+  playingRoomSchema,
+  finishedRoomSchema,
+]);
 
 export const membershipTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
@@ -138,6 +188,7 @@ export const roomSocketContract = {
         "not_ready",
         "already_started",
         "game_not_started",
+        "game_finished",
         "not_your_turn",
         "invalid_move",
       ]),

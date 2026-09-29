@@ -24,6 +24,8 @@ function operationErrorMessage(error: string): string {
       return "対局はすでに始まっています。";
     case "game_not_started":
       return "対局はまだ始まっていません。";
+    case "game_finished":
+      return "対局は終了しています。";
     case "not_your_turn":
       return "現在はあなたの手番ではありません。";
     case "invalid_move":
@@ -162,7 +164,7 @@ function RoomDetail({
           if (
             (pending?.type === "start" && message.data.room.status === "playing") ||
             (pending?.type === "move" &&
-              message.data.room.status === "playing" &&
+              message.data.room.status !== "waiting" &&
               message.data.room.game.moveNumber > pending.moveNumber)
           ) {
             clearPendingGameAction();
@@ -225,10 +227,10 @@ function RoomDetail({
   }, [initialRoom.id, initialMembership]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
-  const game = room.status === "playing" ? room.game : null;
+  const game = room.status === "waiting" ? null : room.game;
   const legalMoves = game === null ? [] : getLegalMoves(game);
   const canPlay =
-    game !== null &&
+    game?.status === "playing" &&
     self?.color === game.turn &&
     authenticated &&
     connection === "接続済み" &&
@@ -356,9 +358,8 @@ function RoomDetail({
       </ul>
       {game !== null && (
         <>
-          <p>手番：{colorNames[game.turn]}</p>
+          <p>{game.status === "finished" ? "対局終了" : `手番：${colorNames[game.turn]}`}</p>
           <p>着手数：{game.moveNumber}</p>
-          {legalMoves.length === 0 && <p>合法手がありません。パスはまだ実装していません。</p>}
           <table>
             <thead>
               <tr>

@@ -8,6 +8,7 @@ import {
   type RoomSocketClientMessage,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
+import { getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test } from "vitest";
 
 const baseUrl = "https://example.com";
@@ -201,6 +202,7 @@ test("4人全員がReadyのときだけホストが開始できる", async () =>
   expect(started.status).toBe("playing");
   expect(new Set(started.players.map((player) => player.color)).size).toBe(4);
   if (started.status === "playing") {
+    expect(started.game.mode).toBe("singles");
     expect(started.game.turn).toBe("black");
     expect(started.game.moveNumber).toBe(0);
   }
@@ -247,4 +249,40 @@ test("手番外と不正な着手は状態を変えず、合法手は保存・�
     expect(updated.game.board[3][3]).toBe("black");
     expect(updated.game.turn).toBe("white");
   }
+});
+
+test("終局したルームを保存・配信し、以後の着手を拒否する", async () => {
+  const { id, connections } = await fourPlayers();
+  await readyPlayers(id, connections);
+  connections[0].send({ type: "room.game.start" });
+  let room = await connections[0].nextSnapshotWhere((snapshot) => snapshot.status === "playing");
+
+  for (let move = 0; move < 64 && room.status === "playing"; move++) {
+    const turn = room.game.turn;
+    const playerIndex = room.players.findIndex((player) => player.color === turn);
+    const [position] = getLegalMoves(room.game);
+    expect(playerIndex).toBeGreaterThanOrEqual(0);
+    expect(position).toBeDefined();
+    const previousMoveNumber = room.game.moveNumber;
+    connections[playerIndex].send({
+      type: "room.game.action",
+      action: { type: "placeStone", position },
+    });
+    room = await connections[0].nextSnapshotWhere(
+      (snapshot) => snapshot.status !== "waiting" && snapshot.game.moveNumber > previousMoveNumber,
+    );
+  }
+
+  expect(room.status).toBe("finished");
+  if (room.status !== "finished") return;
+  expect(room.game.status).toBe("finished");
+  expect(room.game.result.mode).toBe("singles");
+  expect(await getRoom(id)).toEqual(room);
+
+  connections[0].send({
+    type: "room.game.action",
+    action: { type: "placeStone", position: { x: 0, y: 0 } },
+  });
+  expect((await connections[0].nextType("room.error")).error).toBe("game_finished");
+  expect(await getRoom(id)).toEqual(room);
 });

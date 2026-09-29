@@ -218,7 +218,7 @@ export class GameRoom extends DurableObject<Env> {
           ready: false,
           color: assignments[index],
         })),
-        game: createInitialState(),
+        game: createInitialState("singles"),
       });
       this.ctx.storage.kv.put(roomStorageKey, startedRoom);
       return { status: "started", room: startedRoom };
@@ -235,13 +235,15 @@ export class GameRoom extends DurableObject<Env> {
           | "not_found"
           | "unauthorized"
           | "game_not_started"
+          | "game_finished"
           | "not_your_turn"
           | "invalid_move";
       } {
     return this.ctx.storage.transactionSync(() => {
       const room = this.getRoom();
       if (room === null) return { status: "not_found" };
-      if (room.status !== "playing") return { status: "game_not_started" };
+      if (room.status === "waiting") return { status: "game_not_started" };
+      if (room.status === "finished") return { status: "game_finished" };
 
       const membership = this.getRoomMembership(tokenHash);
       if (membership.status !== "found") return { status: membership.status };
@@ -250,7 +252,11 @@ export class GameRoom extends DurableObject<Env> {
 
       const result = applyAction(room.game, action);
       if (!result.ok) return { status: "invalid_move" };
-      const updatedRoom = roomSchema.parse({ ...room, game: result.state });
+      const updatedRoom = roomSchema.parse({
+        ...room,
+        status: result.state.status,
+        game: result.state,
+      });
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
       return { status: "placed", room: updatedRoom };
     });
