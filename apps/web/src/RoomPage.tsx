@@ -1,10 +1,18 @@
-import { roomSocketContract, type Room } from "@tetraboard/protocol";
+import { roomSocketContract, type Room, type RoomMembership } from "@tetraboard/protocol";
 import { useEffect, useState } from "react";
 import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
-import { fetchRoom } from "./roomLoader";
+import { fetchRoomMembership } from "./roomMembership";
+import { fetchRoom, type RoomLoaderData } from "./roomLoader";
 
-function RoomDetail({ initialRoom }: { initialRoom: Room }) {
+function RoomDetail({
+  initialRoom,
+  initialMembership,
+}: {
+  initialRoom: Room;
+  initialMembership: RoomMembership | null;
+}) {
   const [room, setRoom] = useState(initialRoom);
+  const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
 
   useEffect(() => {
@@ -25,8 +33,10 @@ function RoomDetail({ initialRoom }: { initialRoom: Room }) {
       controller = new AbortController();
       try {
         const latestRoom = await fetchRoom(initialRoom.id, controller.signal);
+        const latestMembership = await fetchRoomMembership(initialRoom.id, controller.signal);
         if (!active) return;
         setRoom(latestRoom);
+        setMembership(latestMembership);
         connect();
       } catch (error) {
         if (!active) return;
@@ -87,12 +97,16 @@ function RoomDetail({ initialRoom }: { initialRoom: Room }) {
         <Link to="/">トップへ</Link>
       </p>
       <h1>ルーム {room.id}</h1>
+      <p>
+        参加区分：{membership?.role === "host" ? "ホスト" : membership ? "プレイヤー" : "観戦者"}
+      </p>
       <p>接続状態：{connection}</p>
       <p>状態：{room.status}</p>
       <h2>プレイヤー</h2>
       <ul>
         {room.players.map((player) => (
           <li key={player.id}>
+            {membership?.playerId === player.id && "[あなた] "}
             {player.name} ({player.id})
           </li>
         ))}
@@ -102,8 +116,14 @@ function RoomDetail({ initialRoom }: { initialRoom: Room }) {
 }
 
 export function RoomPage() {
-  const room = useLoaderData<Room>();
-  return <RoomDetail key={room.id} initialRoom={room} />;
+  const { room, membership } = useLoaderData<RoomLoaderData>();
+  return (
+    <RoomDetail
+      key={`${room.id}:${membership?.playerId ?? "spectator"}`}
+      initialRoom={room}
+      initialMembership={membership}
+    />
+  );
 }
 
 export function RoomErrorPage() {
@@ -113,7 +133,9 @@ export function RoomErrorPage() {
       ? "ルームが見つかりません。"
       : error.status === 400
         ? "ルームIDが不正です。"
-        : "ルーム情報を取得できませんでした。"
+        : error.status === 503
+          ? "本人確認ができませんでした。再読み込みしてください。"
+          : "ルーム情報を取得できませんでした。"
     : "ルーム情報を取得できませんでした。";
 
   return (

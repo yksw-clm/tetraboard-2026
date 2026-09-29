@@ -23,12 +23,31 @@ export const roomSchema = z.strictObject({
   ),
 });
 
+export const membershipTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
+export const roomMembershipSchema = z.strictObject({
+  playerId: z.uuid(),
+  role: z.enum(["host", "player"]),
+});
+
+const roomMembershipIssuedSchema = z.strictObject({
+  playerId: z.uuid(),
+  role: z.enum(["host", "player"]),
+  token: membershipTokenSchema,
+});
+
+const roomEntryResponseSchema = z.strictObject({
+  room: roomSchema,
+  membership: roomMembershipIssuedSchema,
+});
+
 const roomErrorSchema = z.strictObject({
   error: z.enum([
     "invalid_request",
     "not_found",
     "code_unavailable",
     "room_full",
+    "unauthorized",
     "upgrade_required",
     "internal_error",
   ]),
@@ -38,7 +57,7 @@ export const createRoomContract = {
   method: "POST",
   path: "/rooms",
   request: playerNameRequestSchema,
-  response: roomSchema,
+  response: roomEntryResponseSchema,
   error: roomErrorSchema,
 } as const;
 
@@ -47,7 +66,16 @@ export const joinRoomContract = {
   path: "/rooms/:id/players",
   pathFor: (id: string) => `/rooms/${id}/players`,
   request: playerNameRequestSchema,
-  response: roomSchema,
+  response: roomEntryResponseSchema,
+  error: roomErrorSchema,
+} as const;
+
+export const getRoomMembershipContract = {
+  method: "GET",
+  path: "/rooms/:id/me",
+  pathFor: (id: string) => `/rooms/${id}/me`,
+  request: z.strictObject({ token: membershipTokenSchema }),
+  response: roomMembershipSchema,
   error: roomErrorSchema,
 } as const;
 
@@ -74,4 +102,5 @@ export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
 export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;
+export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type RoomSocketMessage = z.infer<typeof roomSocketContract.message>;

@@ -1,6 +1,7 @@
 import {
   createRoomContract,
   getRoomContract,
+  getRoomMembershipContract,
   joinRoomContract,
   roomCodeSchema,
   roomSocketContract,
@@ -14,6 +15,21 @@ export const roomRoutes = new Hono<{ Bindings: Env }>();
 const roomCodeCount = 100_000;
 const maxRoomCodeAttempts = 20;
 const randomLimit = Math.floor(2 ** 32 / roomCodeCount) * roomCodeCount;
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function createMembershipToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return toHex(bytes);
+}
+
+async function hashMembershipToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return toHex(new Uint8Array(digest));
+}
 
 function generateRoomCode(): string {
   const values = new Uint32Array(1);
@@ -43,6 +59,9 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     return context.json(roomError("invalid_request"), 400);
   }
 
+  const token = createMembershipToken();
+  const tokenHash = await hashMembershipToken(token);
+
   for (let attempt = 0; attempt < maxRoomCodeAttempts; attempt++) {
     const code = generateRoomCode();
     const initialRoom: Room = {
@@ -52,13 +71,20 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     };
 
     try {
-      const room = await context.env.GAME_ROOM.getByName(code).createRoom(initialRoom);
+      const room = await context.env.GAME_ROOM.getByName(code).createRoom(initialRoom, tokenHash);
       if (room === null) {
         continue;
       }
 
       context.header("Location", getRoomContract.pathFor(code));
-      return context.json(createRoomContract.response.parse(room), 201);
+      context.header("Cache-Control", "no-store");
+      return context.json(
+        createRoomContract.response.parse({
+          room,
+          membership: { playerId: room.players[0].id, role: "host", token },
+        }),
+        201,
+      );
     } catch {
       return context.json(roomError("internal_error"), 500);
     }
@@ -102,14 +128,53 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
   }
 
   try {
-    const result = await context.env.GAME_ROOM.getByName(code).joinRoom(request.data.name);
+    const token = createMembershipToken();
+    const tokenHash = await hashMembershipToken(token);
+    const result = await context.env.GAME_ROOM.getByName(code).joinRoom(
+      request.data.name,
+      tokenHash,
+    );
     if (result.status === "not_found") {
       return context.json(roomError("not_found"), 404);
     }
     if (result.status === "room_full") {
       return context.json(roomError("room_full"), 409);
     }
-    return context.json(joinRoomContract.response.parse(result.room));
+    context.header("Cache-Control", "no-store");
+    return context.json(
+      joinRoomContract.response.parse({
+        room: result.room,
+        membership: { ...result.membership, token },
+      }),
+    );
+  } catch {
+    return context.json(roomError("internal_error"), 500);
+  }
+});
+
+roomRoutes.on(getRoomMembershipContract.method, getRoomMembershipContract.path, async (context) => {
+  const code = context.req.param("id");
+  if (!roomCodeSchema.safeParse(code).success) {
+    return context.json(roomError("invalid_request"), 400);
+  }
+
+  const authorization = context.req.header("Authorization");
+  const token = authorization?.match(/^Bearer ([0-9a-f]{64})$/)?.[1];
+  if (token === undefined || !getRoomMembershipContract.request.safeParse({ token }).success) {
+    return context.json(roomError("unauthorized"), 401);
+  }
+
+  try {
+    const tokenHash = await hashMembershipToken(token);
+    const result = await context.env.GAME_ROOM.getByName(code).getRoomMembership(tokenHash);
+    if (result.status === "not_found") {
+      return context.json(roomError("not_found"), 404);
+    }
+    if (result.status === "unauthorized") {
+      return context.json(roomError("unauthorized"), 401);
+    }
+    context.header("Cache-Control", "no-store");
+    return context.json(getRoomMembershipContract.response.parse(result.membership));
   } catch {
     return context.json(roomError("internal_error"), 500);
   }

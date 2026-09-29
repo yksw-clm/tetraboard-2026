@@ -1,10 +1,18 @@
-import { joinRoomContract, roomSchema, roomSocketContract, type Room } from "@tetraboard/protocol";
+import {
+  joinRoomContract,
+  roomMembershipSchema,
+  roomSchema,
+  roomSocketContract,
+  type Room,
+  type RoomMembership,
+} from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
 
 const roomStorageKey = "room";
+const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 
 export class GameRoom extends DurableObject<Env> {
-  createRoom(room: Room): Room | null {
+  createRoom(room: Room, tokenHash: string): Room | null {
     const initialRoom = roomSchema.parse(room);
 
     if (initialRoom.id !== this.ctx.id.name) {
@@ -12,11 +20,18 @@ export class GameRoom extends DurableObject<Env> {
     }
 
     return this.ctx.storage.transactionSync(() => {
-      if (this.ctx.storage.kv.get(roomStorageKey) !== undefined) {
+      if (
+        this.ctx.storage.kv.get(roomStorageKey) !== undefined ||
+        this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined
+      ) {
         return null;
       }
 
       this.ctx.storage.kv.put(roomStorageKey, initialRoom);
+      this.ctx.storage.kv.put(
+        membershipStorageKey(tokenHash),
+        roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
+      );
       return initialRoom;
     });
   }
@@ -26,9 +41,35 @@ export class GameRoom extends DurableObject<Env> {
     return room === undefined ? null : roomSchema.parse(room);
   }
 
+  getRoomMembership(
+    tokenHash: string,
+  ):
+    | { status: "found"; membership: RoomMembership }
+    | { status: "not_found" }
+    | { status: "unauthorized" } {
+    const room = this.getRoom();
+    if (room === null) {
+      return { status: "not_found" };
+    }
+
+    const value = this.ctx.storage.kv.get(membershipStorageKey(tokenHash));
+    if (value === undefined) {
+      return { status: "unauthorized" };
+    }
+
+    const membership = roomMembershipSchema.parse(value);
+    return room.players.some((player) => player.id === membership.playerId)
+      ? { status: "found", membership }
+      : { status: "unauthorized" };
+  }
+
   joinRoom(
     name: string,
-  ): { status: "joined"; room: Room } | { status: "not_found" } | { status: "room_full" } {
+    tokenHash: string,
+  ):
+    | { status: "joined"; room: Room; membership: RoomMembership }
+    | { status: "not_found" }
+    | { status: "room_full" } {
     const playerName = joinRoomContract.request.parse({ name }).name;
     const result = this.ctx.storage.transactionSync(() => {
       const room = this.getRoom();
@@ -38,13 +79,19 @@ export class GameRoom extends DurableObject<Env> {
       if (room.players.length >= 4) {
         return { status: "room_full" } as const;
       }
+      if (this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined) {
+        throw new Error("Membership token collision");
+      }
 
+      const playerId = crypto.randomUUID();
       const updatedRoom = roomSchema.parse({
         ...room,
-        players: [...room.players, { id: crypto.randomUUID(), name: playerName }],
+        players: [...room.players, { id: playerId, name: playerName }],
       });
+      const membership = roomMembershipSchema.parse({ playerId, role: "player" });
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
-      return { status: "joined", room: updatedRoom } as const;
+      this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
+      return { status: "joined", room: updatedRoom, membership } as const;
     });
 
     if (result.status === "joined") {

@@ -8,6 +8,11 @@ import {
 } from "@tetraboard/protocol";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
+import {
+  canStoreRoomMembership,
+  fetchRoomMembership,
+  saveRoomMembershipToken,
+} from "./roomMembership";
 
 type ApiStatus = "確認中" | "OK" | "接続失敗";
 
@@ -62,24 +67,37 @@ export function App() {
       submitter instanceof HTMLButtonElement && submitter.value === "join" ? "join" : "create";
     const contract = intent === "join" ? joinRoomContract : createRoomContract;
 
-    const request = contract.request.safeParse({ name });
     setRoomResponse(null);
     setResponseStatus(null);
     setMessage(null);
-
-    if (!request.success) {
-      setMessage("ニックネームを1〜10文字で入力してください。");
-      return;
-    }
 
     if (intent === "join" && !roomCodeSchema.safeParse(roomCode).success) {
       setMessage("部屋番号は5桁の数字で入力してください。");
       return;
     }
 
+    if (!canStoreRoomMembership()) {
+      setMessage("このタブでは参加情報を保存できません。ブラウザの設定を確認してください。");
+      return;
+    }
+
     setIsSubmitting(intent);
 
     try {
+      if (intent === "join") {
+        const existingMembership = await fetchRoomMembership(roomCode);
+        if (existingMembership !== null) {
+          void navigate(getRoomContract.pathFor(roomCode));
+          return;
+        }
+      }
+
+      const request = contract.request.safeParse({ name });
+      if (!request.success) {
+        setMessage("ニックネームを1〜10文字で入力してください。");
+        return;
+      }
+
       const path = intent === "join" ? joinRoomContract.pathFor(roomCode) : createRoomContract.path;
       const response = await fetch(`/api${path}`, {
         method: contract.method,
@@ -89,11 +107,20 @@ export function App() {
       const body: unknown = await response.json();
 
       if (response.status === (intent === "join" ? 200 : 201)) {
-        const room = contract.response.parse(body);
-        if (intent === "join" && room.id !== roomCode) {
+        const result = contract.response.parse(body);
+        if (intent === "join" && result.room.id !== roomCode) {
           throw new Error("Room code does not match response");
         }
-        void navigate(getRoomContract.pathFor(room.id));
+        if (
+          result.membership.role !== (intent === "join" ? "player" : "host") ||
+          !result.room.players.some((player) => player.id === result.membership.playerId)
+        ) {
+          throw new Error("Membership does not match room");
+        }
+        if (!saveRoomMembershipToken(result.room.id, result.membership.token)) {
+          throw new Error("Failed to store membership");
+        }
+        void navigate(getRoomContract.pathFor(result.room.id));
       } else {
         const error = contract.error.parse(body);
         setRoomResponse(error);
@@ -108,11 +135,13 @@ export function App() {
           );
         }
       }
-    } catch {
+    } catch (error) {
       setMessage(
-        intent === "join"
-          ? "入室の応答を確認できませんでした。"
-          : "ルーム作成の応答を確認できませんでした。",
+        error instanceof Response && error.status === 404
+          ? "ルームが見つかりません。"
+          : intent === "join"
+            ? "入室または本人確認の応答を確認できませんでした。"
+            : "ルーム作成の応答を確認できませんでした。",
       );
     } finally {
       setIsSubmitting(null);
