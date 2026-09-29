@@ -1,8 +1,37 @@
 import { roomSocketContract, type Room, type RoomMembership } from "@tetraboard/protocol";
+import { getLegalMoves, type Color, type Position } from "@tetraboard/four-reversi";
 import { useEffect, useRef, useState } from "react";
 import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
 import { fetchRoomMembership, readRoomMembershipToken } from "./roomMembership";
 import { fetchRoom, type RoomLoaderData } from "./roomLoader";
+
+const colorNames: Record<Color, string> = {
+  black: "黒",
+  white: "白",
+  red: "赤",
+  blue: "青",
+};
+const columns = "ABCDEFGH";
+type PendingGameAction = { type: "start" } | { type: "move"; moveNumber: number };
+
+function operationErrorMessage(error: string): string {
+  switch (error) {
+    case "not_ready":
+      return "4人全員の準備完了が必要です。";
+    case "forbidden":
+      return "対局を開始できるのはホストだけです。";
+    case "already_started":
+      return "対局はすでに始まっています。";
+    case "game_not_started":
+      return "対局はまだ始まっていません。";
+    case "not_your_turn":
+      return "現在はあなたの手番ではありません。";
+    case "invalid_move":
+      return "その場所には石を置けません。";
+    default:
+      return "ルーム操作に失敗しました。再読み込みしてください。";
+  }
+}
 
 function RoomDetail({
   initialRoom,
@@ -16,9 +45,11 @@ function RoomDetail({
   const [connection, setConnection] = useState("接続中");
   const [authenticated, setAuthenticated] = useState(false);
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
+  const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
+  const pendingGameActionRef = useRef<PendingGameAction | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -31,6 +62,11 @@ function RoomDetail({
     function clearPendingReady(): void {
       pendingReadyRef.current = null;
       setPendingReady(null);
+    }
+
+    function clearPendingGameAction(): void {
+      pendingGameActionRef.current = null;
+      setPendingGameAction(null);
     }
 
     function scheduleReconnect(): void {
@@ -122,6 +158,15 @@ function RoomDetail({
           ) {
             clearPendingReady();
           }
+          const pending = pendingGameActionRef.current;
+          if (
+            (pending?.type === "start" && message.data.room.status === "playing") ||
+            (pending?.type === "move" &&
+              message.data.room.status === "playing" &&
+              message.data.room.game.moveNumber > pending.moveNumber)
+          ) {
+            clearPendingGameAction();
+          }
           return;
         }
 
@@ -141,6 +186,7 @@ function RoomDetail({
         }
 
         clearPendingReady();
+        clearPendingGameAction();
         if (message.data.error === "unauthorized") {
           setAuthenticated(false);
           setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
@@ -154,7 +200,7 @@ function RoomDetail({
               if (active) setSocketError("本人確認に失敗しました。再読み込みしてください。");
             });
         } else {
-          setSocketError("ルーム操作に失敗しました。再読み込みしてください。");
+          setSocketError(operationErrorMessage(message.data.error));
         }
       };
       currentSocket.onerror = () => currentSocket.close();
@@ -163,6 +209,7 @@ function RoomDetail({
         if (!active) return;
         setAuthenticated(false);
         clearPendingReady();
+        clearPendingGameAction();
         scheduleReconnect();
       };
     }
@@ -178,6 +225,62 @@ function RoomDetail({
   }, [initialRoom.id, initialMembership]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
+  const game = room.status === "playing" ? room.game : null;
+  const legalMoves = game === null ? [] : getLegalMoves(game);
+  const canPlay =
+    game !== null &&
+    self?.color === game.turn &&
+    authenticated &&
+    connection === "接続済み" &&
+    pendingGameAction === null;
+
+  function sendGameMessage(message: unknown, pending: PendingGameAction): void {
+    const currentSocket = socketRef.current;
+    if (
+      !authenticated ||
+      pendingGameActionRef.current !== null ||
+      currentSocket?.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+
+    pendingGameActionRef.current = pending;
+    setPendingGameAction(pending);
+    setSocketError(null);
+    try {
+      currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+    } catch {
+      pendingGameActionRef.current = null;
+      setPendingGameAction(null);
+      setSocketError("対局操作を送信できませんでした。");
+    }
+  }
+
+  function handleStartClick(): void {
+    if (
+      room.status !== "waiting" ||
+      membership?.role !== "host" ||
+      room.players.length !== 4 ||
+      room.players.some((player) => !player.ready)
+    ) {
+      return;
+    }
+    sendGameMessage({ type: "room.game.start" }, { type: "start" });
+  }
+
+  function handlePlaceStone(position: Position): void {
+    if (
+      !canPlay ||
+      game === null ||
+      !legalMoves.some((move) => move.x === position.x && move.y === position.y)
+    ) {
+      return;
+    }
+    sendGameMessage(
+      { type: "room.game.action", action: { type: "placeStone", position } },
+      { type: "move", moveNumber: game.moveNumber },
+    );
+  }
 
   function handleReadyClick(): void {
     const currentSocket = socketRef.current;
@@ -217,7 +320,7 @@ function RoomDetail({
       <p>接続状態：{connection}</p>
       {socketError && <p>{socketError}</p>}
       <p>状態：{room.status}</p>
-      {membership !== null && self !== undefined && (
+      {membership !== null && self !== undefined && room.status === "waiting" && (
         <button
           type="button"
           onClick={handleReadyClick}
@@ -226,15 +329,70 @@ function RoomDetail({
           {self.ready ? "準備取消" : "準備完了"}
         </button>
       )}
+      {room.status === "waiting" && membership?.role === "host" && (
+        <button
+          type="button"
+          onClick={handleStartClick}
+          disabled={
+            !authenticated ||
+            connection !== "接続済み" ||
+            room.players.length !== 4 ||
+            room.players.some((player) => !player.ready) ||
+            pendingGameAction !== null
+          }
+        >
+          対局開始
+        </button>
+      )}
       <h2>プレイヤー</h2>
       <ul>
         {room.players.map((player) => (
           <li key={player.id}>
             {membership?.playerId === player.id && "[あなた] "}
-            {player.name} ({player.id}) {player.ready && "✅"}
+            {player.name} ({player.id}) {room.status === "waiting" && player.ready && "✅"}
+            {player.color !== null && ` ${colorNames[player.color]}`}
           </li>
         ))}
       </ul>
+      {game !== null && (
+        <>
+          <p>手番：{colorNames[game.turn]}</p>
+          <p>着手数：{game.moveNumber}</p>
+          {legalMoves.length === 0 && <p>合法手がありません。パスはまだ実装していません。</p>}
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                {[...columns].map((column) => (
+                  <th key={column}>{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {game.board.map((row, y) => (
+                <tr key={y}>
+                  <th>{y + 1}</th>
+                  {row.map((cell, x) => {
+                    const legal = legalMoves.some((move) => move.x === x && move.y === y);
+                    return (
+                      <td key={x}>
+                        <button
+                          type="button"
+                          aria-label={`${columns[x]}${y + 1}: ${cell === null ? "空き" : colorNames[cell]}`}
+                          disabled={!canPlay || !legal}
+                          onClick={() => handlePlaceStone({ x, y })}
+                        >
+                          {cell === null ? (legal && canPlay ? "＋" : "・") : colorNames[cell]}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
     </>
   );
 }

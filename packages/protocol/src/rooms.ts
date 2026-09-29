@@ -12,17 +12,36 @@ const playerNameRequestSchema = z.strictObject({ name: nicknameSchema });
 
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
-export const roomSchema = z.strictObject({
+export const fourReversiColorSchema = z.enum(["black", "white", "red", "blue"]);
+export const fourReversiStateSchema = z.strictObject({
+  board: z.array(z.array(fourReversiColorSchema.nullable()).length(8)).length(8),
+  turn: fourReversiColorSchema,
+  moveNumber: z.int().nonnegative(),
+});
+
+const playerSchema = z.strictObject({
+  id: z.uuid(),
+  name: nicknameSchema,
+  ready: z.boolean().default(false),
+});
+
+const waitingRoomSchema = z.strictObject({
   id: roomCodeSchema,
   status: z.literal("waiting"),
-  players: z.array(
-    z.strictObject({
-      id: z.uuid(),
-      name: nicknameSchema,
-      ready: z.boolean().default(false),
-    }),
-  ),
+  players: z.array(playerSchema.extend({ color: z.null().default(null) })),
+  game: z.null().default(null),
 });
+
+const playingRoomSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    status: z.literal("playing"),
+    players: z.array(playerSchema.extend({ color: fourReversiColorSchema })).length(4),
+    game: fourReversiStateSchema,
+  })
+  .refine((room) => new Set(room.players.map((player) => player.color)).size === 4);
+
+export const roomSchema = z.discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema]);
 
 export const membershipTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
@@ -48,6 +67,7 @@ const roomErrorSchema = z.strictObject({
     "not_found",
     "code_unavailable",
     "room_full",
+    "room_started",
     "unauthorized",
     "upgrade_required",
     "internal_error",
@@ -95,13 +115,32 @@ export const roomSocketContract = {
   clientMessage: z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
+    z.strictObject({ type: z.literal("room.game.start") }),
+    z.strictObject({
+      type: z.literal("room.game.action"),
+      action: z.strictObject({
+        type: z.literal("placeStone"),
+        position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
+      }),
+    }),
   ]),
   message: z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("room.snapshot"), room: roomSchema }),
     z.strictObject({ type: z.literal("room.authenticated"), membership: roomMembershipSchema }),
     z.strictObject({
       type: z.literal("room.error"),
-      error: z.enum(["invalid_request", "unauthorized", "not_found", "internal_error"]),
+      error: z.enum([
+        "invalid_request",
+        "unauthorized",
+        "not_found",
+        "internal_error",
+        "forbidden",
+        "not_ready",
+        "already_started",
+        "game_not_started",
+        "not_your_turn",
+        "invalid_move",
+      ]),
     }),
   ]),
   error: roomErrorSchema,

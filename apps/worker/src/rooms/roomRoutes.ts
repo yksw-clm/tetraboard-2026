@@ -67,7 +67,8 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     const initialRoom: Room = {
       id: code,
       status: "waiting",
-      players: [{ id: crypto.randomUUID(), name: request.data.name, ready: false }],
+      players: [{ id: crypto.randomUUID(), name: request.data.name, ready: false, color: null }],
+      game: null,
     };
 
     try {
@@ -139,6 +140,9 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     }
     if (result.status === "room_full") {
       return context.json(roomError("room_full"), 409);
+    }
+    if (result.status === "room_started") {
+      return context.json(roomError("room_started"), 409);
     }
     context.header("Cache-Control", "no-store");
     return context.json(

@@ -2,6 +2,8 @@ export { healthzContract } from "./healthz";
 export type { HealthzResponse } from "./healthz";
 export {
   createRoomContract,
+  fourReversiColorSchema,
+  fourReversiStateSchema,
   getRoomContract,
   getRoomMembershipContract,
   joinRoomContract,

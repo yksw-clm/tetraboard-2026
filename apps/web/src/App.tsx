@@ -131,7 +131,9 @@ export function App() {
               ? "ルームが見つかりません。"
               : error.error === "room_full"
                 ? "このルームは満室です。"
-                : "入室できませんでした。",
+                : error.error === "room_started"
+                  ? "このルームの対局は始まっています。"
+                  : "入室できませんでした。",
           );
         }
       }

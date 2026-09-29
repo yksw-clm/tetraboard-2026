@@ -8,6 +8,12 @@ import {
   type RoomMembership,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
+import {
+  applyAction,
+  colors,
+  createInitialState,
+  type FourReversiAction,
+} from "@tetraboard/four-reversi";
 import { DurableObject } from "cloudflare:workers";
 
 const roomStorageKey = "room";
@@ -19,6 +25,25 @@ async function hashMembershipToken(token: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join(
     "",
   );
+}
+
+function randomIndex(length: number): number {
+  const range = 2 ** 32;
+  const limit = Math.floor(range / length) * length;
+  const value = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(value);
+  } while (value[0] >= limit);
+  return value[0] % length;
+}
+
+function shuffledColors(): (typeof colors)[number][] {
+  const result: (typeof colors)[number][] = [...colors];
+  for (let index = result.length - 1; index > 0; index--) {
+    const other = randomIndex(index + 1);
+    [result[index], result[other]] = [result[other], result[index]];
+  }
+  return result;
 }
 
 export class GameRoom extends DurableObject<Env> {
@@ -79,12 +104,16 @@ export class GameRoom extends DurableObject<Env> {
   ):
     | { status: "joined"; room: Room; membership: RoomMembership }
     | { status: "not_found" }
-    | { status: "room_full" } {
+    | { status: "room_full" }
+    | { status: "room_started" } {
     const playerName = joinRoomContract.request.parse({ name }).name;
     const result = this.ctx.storage.transactionSync(() => {
       const room = this.getRoom();
       if (room === null) {
         return { status: "not_found" } as const;
+      }
+      if (room.status !== "waiting") {
+        return { status: "room_started" } as const;
       }
       if (room.players.length >= 4) {
         return { status: "room_full" } as const;
@@ -96,7 +125,7 @@ export class GameRoom extends DurableObject<Env> {
       const playerId = crypto.randomUUID();
       const updatedRoom = roomSchema.parse({
         ...room,
-        players: [...room.players, { id: playerId, name: playerName, ready: false }],
+        players: [...room.players, { id: playerId, name: playerName, ready: false, color: null }],
       });
       const membership = roomMembershipSchema.parse({ playerId, role: "player" });
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
@@ -138,10 +167,12 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "updated"; room: Room }
     | { status: "unchanged" }
     | { status: "not_found" }
-    | { status: "unauthorized" } {
+    | { status: "unauthorized" }
+    | { status: "already_started" } {
     return this.ctx.storage.transactionSync(() => {
       const room = this.getRoom();
       if (room === null) return { status: "not_found" };
+      if (room.status !== "waiting") return { status: "already_started" };
 
       const value = this.ctx.storage.kv.get(membershipStorageKey(tokenHash));
       if (value === undefined) return { status: "unauthorized" };
@@ -159,6 +190,80 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
       return { status: "updated", room: updatedRoom };
     });
+  }
+
+  private startGame(
+    tokenHash: string,
+  ):
+    | { status: "started"; room: Room }
+    | { status: "not_found" | "unauthorized" | "forbidden" | "not_ready" | "already_started" } {
+    return this.ctx.storage.transactionSync(() => {
+      const room = this.getRoom();
+      if (room === null) return { status: "not_found" };
+      if (room.status !== "waiting") return { status: "already_started" };
+
+      const membership = this.getRoomMembership(tokenHash);
+      if (membership.status !== "found") return { status: membership.status };
+      if (membership.membership.role !== "host") return { status: "forbidden" };
+      if (room.players.length !== 4 || room.players.some((player) => !player.ready)) {
+        return { status: "not_ready" };
+      }
+
+      const assignments = shuffledColors();
+      const startedRoom = roomSchema.parse({
+        ...room,
+        status: "playing",
+        players: room.players.map((player, index) => ({
+          ...player,
+          ready: false,
+          color: assignments[index],
+        })),
+        game: createInitialState(),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, startedRoom);
+      return { status: "started", room: startedRoom };
+    });
+  }
+
+  private placeStone(
+    tokenHash: string,
+    action: FourReversiAction,
+  ):
+    | { status: "placed"; room: Room }
+    | {
+        status:
+          | "not_found"
+          | "unauthorized"
+          | "game_not_started"
+          | "not_your_turn"
+          | "invalid_move";
+      } {
+    return this.ctx.storage.transactionSync(() => {
+      const room = this.getRoom();
+      if (room === null) return { status: "not_found" };
+      if (room.status !== "playing") return { status: "game_not_started" };
+
+      const membership = this.getRoomMembership(tokenHash);
+      if (membership.status !== "found") return { status: membership.status };
+      const player = room.players.find((entry) => entry.id === membership.membership.playerId);
+      if (player?.color !== room.game.turn) return { status: "not_your_turn" };
+
+      const result = applyAction(room.game, action);
+      if (!result.ok) return { status: "invalid_move" };
+      const updatedRoom = roomSchema.parse({ ...room, game: result.state });
+      this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
+      return { status: "placed", room: updatedRoom };
+    });
+  }
+
+  private rejectAction(socket: WebSocket, error: RoomSocketError): void {
+    this.sendSocketError(socket, error);
+    const room = this.getRoom();
+    if (room !== null && socket.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify(roomSocketContract.message.parse({ type: "room.snapshot", room })),
+      );
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -236,19 +341,33 @@ export class GameRoom extends DurableObject<Env> {
         return;
       }
 
-      const result = this.setReady(tokenHash.data, parsed.data.ready);
-      if (result.status === "updated") {
-        this.broadcastRoom(result.room);
-      } else if (result.status === "unchanged") {
-        const room = this.getRoom();
-        if (room !== null) {
-          socket.send(
-            JSON.stringify(roomSocketContract.message.parse({ type: "room.snapshot", room })),
-          );
+      if (parsed.data.type === "room.ready.set") {
+        const result = this.setReady(tokenHash.data, parsed.data.ready);
+        if (result.status === "updated") {
+          this.broadcastRoom(result.room);
+        } else if (result.status === "unchanged") {
+          const room = this.getRoom();
+          if (room !== null) {
+            socket.send(
+              JSON.stringify(roomSocketContract.message.parse({ type: "room.snapshot", room })),
+            );
+          }
+        } else {
+          this.rejectAction(socket, result.status);
         }
-      } else {
-        this.sendSocketError(socket, result.status);
+        return;
       }
+
+      if (parsed.data.type === "room.game.start") {
+        const result = this.startGame(tokenHash.data);
+        if (result.status === "started") this.broadcastRoom(result.room);
+        else this.rejectAction(socket, result.status);
+        return;
+      }
+
+      const result = this.placeStone(tokenHash.data, parsed.data.action);
+      if (result.status === "placed") this.broadcastRoom(result.room);
+      else this.rejectAction(socket, result.status);
     } catch {
       this.sendSocketError(socket, "internal_error");
     }
