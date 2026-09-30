@@ -1,5 +1,7 @@
 import {
   joinRoomContract,
+  chatMessageSchema,
+  chatTextSchema,
   membershipTokenSchema,
   roomMembershipSchema,
   roomPublicMetadataSchema,
@@ -11,6 +13,7 @@ import {
   type RoomPublicMetadata,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
+  type ChatMessage,
 } from "@tetraboard/protocol";
 import {
   applyAction,
@@ -19,6 +22,8 @@ import {
   createInitialState,
   eliminateColor,
   type FourReversiAction,
+  type FourReversiState,
+  type Color,
 } from "@tetraboard/four-reversi";
 import { DurableObject } from "cloudflare:workers";
 import { advanceClock, createClock, isClockExpired } from "./clock";
@@ -27,10 +32,17 @@ import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
 const roomStorageKey = "room";
 const indexRevisionKey = "room-index-revision";
 const pendingIndexKey = "room-index-pending";
+const chatKey = "chat";
+const mutedKey = "chat-muted";
+const viewerSecretKey = "viewer-secret";
+const disconnectedAtKey = (playerId: string) => `disconnected-at:${playerId}`;
+const lastChatAtKey = (playerId: string) => `last-chat-at:${playerId}`;
 const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
 const reconnectGraceMs = 30_000;
 const cpuMoveDelayMs = 500;
+const idleMs = 24 * 60 * 60 * 1000;
+const chatIntervalMs = 3_000;
 type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
 type CpuCommand = Extract<
   RoomSocketClientMessage,
@@ -73,6 +85,14 @@ function shuffledColors(): (typeof colors)[number][] {
   return result;
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(value: string): Uint8Array {
+  return Uint8Array.from(value.match(/../g) ?? [], (part) => Number.parseInt(part, 16));
+}
+
 export class GameRoom extends DurableObject<Env> {
   private indexFlush: Promise<void> | null = null;
 
@@ -88,6 +108,104 @@ export class GameRoom extends DurableObject<Env> {
 
   private playerTokenHash(playerId: string): string | null {
     return this.ctx.storage.kv.get<string>(playerTokenKey(playerId)) ?? null;
+  }
+
+  private readChat(): ChatMessage[] {
+    return this.ctx.storage.kv.get<ChatMessage[]>(chatKey) ?? [];
+  }
+
+  private chatSnapshot(): RoomSocketMessage {
+    return roomSocketContract.message.parse({
+      type: "room.chat.snapshot",
+      messages: this.readChat(),
+    });
+  }
+
+  private broadcastChat(): void {
+    const payload = JSON.stringify(this.chatSnapshot());
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket.readyState === WebSocket.OPEN) socket.send(payload);
+    }
+  }
+
+  private closeRoom(): void {
+    const room = this.readRoom();
+    for (const player of room?.players ?? []) {
+      if (player.kind !== "human") continue;
+      const tokenHash = this.playerTokenHash(player.id);
+      if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
+      this.ctx.storage.kv.delete(playerTokenKey(player.id));
+      this.ctx.storage.kv.delete(disconnectedAtKey(player.id));
+      this.ctx.storage.kv.delete(lastChatAtKey(player.id));
+    }
+    this.ctx.storage.kv.delete(roomStorageKey);
+    this.ctx.storage.kv.delete(chatKey);
+    this.ctx.storage.kv.delete(mutedKey);
+    this.ctx.storage.kv.delete(viewerSecretKey);
+  }
+
+  private finishGame(
+    room: Extract<Room, { status: "playing" }>,
+    game: Extract<FourReversiState, { status: "finished" }>,
+    at: number,
+  ): Room | null {
+    const lastRound = {
+      game,
+      players: room.players.map((player) => ({
+        id: player.id,
+        name: player.name,
+        color: player.color,
+      })),
+    };
+    const players = room.players.filter((player) => {
+      if (player.kind === "cpu") return true;
+      const hash = this.playerTokenHash(player.id);
+      if (hash === null || this.readMembership(hash) === null) return false;
+      if (this.hasOpenConnection(hash)) return true;
+      const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
+      return disconnectedAt !== undefined && disconnectedAt + reconnectGraceMs > at;
+    });
+    const humans = players.filter((player) => player.kind === "human");
+    if (humans.length === 0) {
+      this.closeRoom();
+      return null;
+    }
+    for (const player of room.players) {
+      if (player.kind !== "human" || players.includes(player)) continue;
+      const hash = this.playerTokenHash(player.id);
+      if (hash !== null) this.ctx.storage.kv.delete(membershipStorageKey(hash));
+      this.ctx.storage.kv.delete(playerTokenKey(player.id));
+      this.ctx.storage.kv.delete(disconnectedAtKey(player.id));
+      this.ctx.storage.kv.delete(lastChatAtKey(player.id));
+    }
+    const host = humans.find((player) => {
+      const hash = this.playerTokenHash(player.id);
+      return hash !== null && this.readMembership(hash)?.role === "host";
+    });
+    const nextHost = host ?? humans[0];
+    if (host === undefined) {
+      const hash = this.playerTokenHash(nextHost.id)!;
+      this.ctx.storage.kv.put(membershipStorageKey(hash), { playerId: nextHost.id, role: "host" });
+    }
+    const ordered = [nextHost, ...players.filter((player) => player.id !== nextHost.id)];
+    return roomSchema.parse({
+      ...room,
+      status: "waiting",
+      publicUpdatedAtMs: nextPublicUpdateAt(room),
+      lastActivityAtMs: at,
+      players: ordered.map((player) => ({
+        ...player,
+        ready: player.kind === "cpu",
+        color: null,
+        reconnectDeadline:
+          player.kind === "cpu" || this.hasOpenConnection(this.playerTokenHash(player.id)!)
+            ? null
+            : this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id))! + reconnectGraceMs,
+      })),
+      game: null,
+      clock: null,
+      lastRound,
+    });
   }
 
   private publicMetadata(room: Room): RoomPublicMetadata {
@@ -193,12 +311,11 @@ export class GameRoom extends DurableObject<Env> {
 
   private async syncAlarm(room: Room | null): Promise<void> {
     const deadlines =
-      room?.status === "finished"
-        ? []
-        : (room?.players
-            .filter((player) => player.kind === "human")
-            .map((player) => player.reconnectDeadline)
-            .filter((value) => value !== null) ?? []);
+      room?.players
+        .filter((player) => player.kind === "human")
+        .map((player) => player.reconnectDeadline)
+        .filter((value) => value !== null) ?? [];
+    if (room !== null) deadlines.push(room.lastActivityAtMs + idleMs);
     if (room?.status === "playing") {
       deadlines.push(room.clock.turnExpiresAt);
       if (currentCpu(room) !== null) deadlines.push(room.clock.turnStartedAt + cpuMoveDelayMs);
@@ -242,6 +359,13 @@ export class GameRoom extends DurableObject<Env> {
         roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
       );
       this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
+      this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
+      const secret = new Uint8Array(32);
+      crypto.getRandomValues(secret);
+      this.ctx.storage.kv.put(
+        viewerSecretKey,
+        Array.from(secret, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+      );
       return pendingRoom;
     });
     if (created !== null) await this.syncAlarm(created);
@@ -315,6 +439,7 @@ export class GameRoom extends DurableObject<Env> {
       const updatedRoom = roomSchema.parse({
         ...room,
         publicUpdatedAtMs: nextPublicUpdateAt(room),
+        lastActivityAtMs: Date.now(),
         players: [
           ...room.players,
           {
@@ -331,6 +456,7 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
       this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
       this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
+      this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
       return { status: "joined", room: updatedRoom, membership } as const;
     });
 
@@ -353,7 +479,7 @@ export class GameRoom extends DurableObject<Env> {
     let remaining = room.players.filter((player) => player.id !== playerId);
     const successor = remaining.find((player) => player.kind === "human");
     if (successor === undefined) {
-      this.ctx.storage.kv.delete(roomStorageKey);
+      this.closeRoom();
       return null;
     }
 
@@ -369,6 +495,7 @@ export class GameRoom extends DurableObject<Env> {
     const updated = roomSchema.parse({
       ...room,
       publicUpdatedAtMs: nextPublicUpdateAt(room),
+      lastActivityAtMs: Date.now(),
       players: remaining,
     });
     this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -421,8 +548,14 @@ export class GameRoom extends DurableObject<Env> {
     let changed = false;
     let closed = false;
     const room = this.withIndexTransaction(() => {
-      let current = this.readRoom();
-      if (current === null || current.status === "finished") return current;
+      let current: Room | null = this.readRoom();
+      if (current === null) return current;
+      if (current.lastActivityAtMs + idleMs <= now) {
+        this.closeRoom();
+        closed = true;
+        changed = true;
+        return null;
+      }
       const activeRoom = current;
       const disconnected = current.players.map((player) => {
         const tokenHash = this.playerTokenHash(player.id);
@@ -437,24 +570,26 @@ export class GameRoom extends DurableObject<Env> {
         )
           return player;
         changed = true;
+        if (player.kind === "human") this.ctx.storage.kv.put(disconnectedAtKey(player.id), now);
         return { ...player, reconnectDeadline: now + reconnectGraceMs };
       });
       if (changed) {
         current = roomSchema.parse({ ...current, players: disconnected });
         this.ctx.storage.kv.put(roomStorageKey, current);
       }
-      while (current !== null && current.status !== "finished") {
-        const nextDisconnect = current.players
-          .map((player, index) => ({ player, index }))
-          .filter(
-            ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
-          )
-          .sort(
-            (left, right) =>
-              left.player.reconnectDeadline! - right.player.reconnectDeadline! ||
-              left.index - right.index,
-          )[0];
-        const clockDeadline =
+      while (current !== null) {
+        const nextDisconnect: { player: Room["players"][number]; index: number } | undefined =
+          current.players
+            .map((player, index) => ({ player, index }))
+            .filter(
+              ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
+            )
+            .sort(
+              (left, right) =>
+                left.player.reconnectDeadline! - right.player.reconnectDeadline! ||
+                left.index - right.index,
+            )[0];
+        const clockDeadline: number | null =
           current.status === "playing" && isClockExpired(current.clock, now)
             ? current.clock.turnExpiresAt
             : null;
@@ -468,32 +603,29 @@ export class GameRoom extends DurableObject<Env> {
         ) {
           const result = eliminateColor(current.game, current.game.turn);
           if (!result.ok) throw new Error("Could not eliminate timed-out player");
-          const timedOutColor = current.game.turn;
-          current = roomSchema.parse({
-            ...current,
-            status: result.state.status,
-            publicUpdatedAtMs:
-              result.state.status === "finished"
-                ? nextPublicUpdateAt(current)
-                : current.publicUpdatedAtMs,
-            game: result.state,
-            clock: advanceClock(
-              current.clock,
-              timedOutColor,
-              result.state.turn,
-              clockDeadline,
-              true,
-            ),
-            players: current.players.map((entry) => ({
-              ...entry,
-              reconnectDeadline:
-                result.state.status === "finished" || entry.color === timedOutColor
-                  ? null
-                  : entry.reconnectDeadline,
-            })),
-          });
+          const timedOutColor: Color = current.game.turn;
+          current =
+            result.state.status === "finished"
+              ? this.finishGame(current, result.state, clockDeadline)
+              : roomSchema.parse({
+                  ...current,
+                  game: result.state,
+                  clock: advanceClock(
+                    current.clock,
+                    timedOutColor,
+                    result.state.turn,
+                    clockDeadline,
+                    true,
+                  ),
+                  players: current.players.map((entry) => ({
+                    ...entry,
+                    reconnectDeadline:
+                      entry.color === timedOutColor ? null : entry.reconnectDeadline,
+                  })),
+                  lastActivityAtMs: clockDeadline,
+                });
         } else if (nextDisconnect !== undefined) {
-          const player = nextDisconnect.player;
+          const player: Room["players"][number] = nextDisconnect.player;
           if (current.status === "waiting") {
             const hostLeaving = current.players[0].id === player.id;
             current = this.removeWaitingPlayer(current, player.id);
@@ -506,29 +638,25 @@ export class GameRoom extends DurableObject<Env> {
             if (player.color === null) throw new Error("Playing player has no color");
             const result = eliminateColor(current.game, player.color);
             if (!result.ok) throw new Error("Could not eliminate disconnected player");
-            current = roomSchema.parse({
-              ...current,
-              status: result.state.status,
-              publicUpdatedAtMs:
-                result.state.status === "finished"
-                  ? nextPublicUpdateAt(current)
-                  : current.publicUpdatedAtMs,
-              game: result.state,
-              clock: advanceClock(
-                current.clock,
-                current.game.turn,
-                result.state.turn,
-                player.reconnectDeadline!,
-                result.state.turn !== current.game.turn,
-              ),
-              players: current.players.map((entry) => ({
-                ...entry,
-                reconnectDeadline:
-                  result.state.status === "finished" || entry.id === player.id
-                    ? null
-                    : entry.reconnectDeadline,
-              })),
-            });
+            current =
+              result.state.status === "finished"
+                ? this.finishGame(current, result.state, player.reconnectDeadline!)
+                : roomSchema.parse({
+                    ...current,
+                    game: result.state,
+                    clock: advanceClock(
+                      current.clock,
+                      current.game.turn,
+                      result.state.turn,
+                      player.reconnectDeadline!,
+                      result.state.turn !== current.game.turn,
+                    ),
+                    players: current.players.map((entry) => ({
+                      ...entry,
+                      reconnectDeadline: entry.id === player.id ? null : entry.reconnectDeadline,
+                    })),
+                    lastActivityAtMs: player.reconnectDeadline!,
+                  });
           }
         }
         changed = true;
@@ -549,32 +677,26 @@ export class GameRoom extends DurableObject<Env> {
             ? eliminateColor(current.game, current.game.turn)
             : applyAction(current.game, { type: "placeStone", position: move });
           if (!result.ok) throw new Error("CPU selected an invalid move");
-          current = roomSchema.parse({
-            ...current,
-            status: result.state.status,
-            publicUpdatedAtMs:
-              result.state.status === "finished"
-                ? nextPublicUpdateAt(current)
-                : current.publicUpdatedAtMs,
-            game: result.state,
-            clock: advanceClock(
-              current.clock,
-              current.game.turn,
-              result.state.turn,
-              expired ? current.clock.turnExpiresAt : decidedAt,
-              true,
-            ),
-            players:
-              result.state.status === "finished"
-                ? current.players.map((player) =>
-                    player.kind === "human" ? { ...player, reconnectDeadline: null } : player,
-                  )
-                : current.players,
-          });
-          this.ctx.storage.kv.put(roomStorageKey, current);
+          current =
+            result.state.status === "finished"
+              ? this.finishGame(current, result.state, decidedAt)
+              : roomSchema.parse({
+                  ...current,
+                  game: result.state,
+                  clock: advanceClock(
+                    current.clock,
+                    current.game.turn,
+                    result.state.turn,
+                    expired ? current.clock.turnExpiresAt : decidedAt,
+                    true,
+                  ),
+                  lastActivityAtMs: decidedAt,
+                });
+          if (current !== null) this.ctx.storage.kv.put(roomStorageKey, current);
           changed = true;
         }
       }
+      if (current === null) closed = true;
       return current;
     });
 
@@ -617,37 +739,33 @@ export class GameRoom extends DurableObject<Env> {
             ? eliminateColor(room.game, player.color)
             : null;
         if (game !== null && !game.ok) throw new Error("Could not eliminate leaving player");
-        updated = roomSchema.parse({
-          ...room,
-          status: game?.ok ? game.state.status : room.status,
-          publicUpdatedAtMs:
-            membership.role === "host" || (game?.ok && game.state.status === "finished")
-              ? nextPublicUpdateAt(room)
-              : room.publicUpdatedAtMs,
-          game: game?.ok ? game.state : room.game,
-          clock:
-            game?.ok && room.status === "playing"
-              ? advanceClock(
-                  room.clock,
-                  room.game.turn,
-                  game.state.turn,
-                  Date.now(),
-                  game.state.turn !== room.game.turn,
-                )
-              : room.clock,
-          players: room.players.map((entry) => ({
-            ...entry,
-            reconnectDeadline:
-              game?.ok && game.state.status === "finished"
-                ? null
-                : entry.id === player.id
-                  ? null
-                  : entry.reconnectDeadline,
-          })),
-        });
-        this.ctx.storage.kv.put(roomStorageKey, updated);
         this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
         this.ctx.storage.kv.delete(playerTokenKey(player.id));
+        const at = Date.now();
+        updated =
+          game?.ok && game.state.status === "finished"
+            ? this.finishGame(room, game.state, at)
+            : roomSchema.parse({
+                ...room,
+                publicUpdatedAtMs:
+                  membership.role === "host" ? nextPublicUpdateAt(room) : room.publicUpdatedAtMs,
+                game: game?.ok ? game.state : room.game,
+                clock: game?.ok
+                  ? advanceClock(
+                      room.clock,
+                      room.game.turn,
+                      game.state.turn,
+                      at,
+                      game.state.turn !== room.game.turn,
+                    )
+                  : room.clock,
+                players: room.players.map((entry) => ({
+                  ...entry,
+                  reconnectDeadline: entry.id === player.id ? null : entry.reconnectDeadline,
+                })),
+                lastActivityAtMs: at,
+              });
+        if (updated !== null) this.ctx.storage.kv.put(roomStorageKey, updated);
       }
       return { status: "left" as const, room: updated };
     });
@@ -674,6 +792,17 @@ export class GameRoom extends DurableObject<Env> {
         // 切断中の接続への送信失敗は、保存済みのルーム状態に影響させません。
       }
     }
+    if (room.status === "waiting" && room.lastRound !== null) {
+      const host = room.players.find(
+        (player) =>
+          player.kind === "human" &&
+          this.readMembership(this.playerTokenHash(player.id) ?? "")?.role === "host",
+      );
+      if (host !== undefined) {
+        const hash = this.playerTokenHash(host.id);
+        if (hash !== null) this.sendCurrentMembership(hash);
+      }
+    }
   }
 
   private roomSnapshot(room: Room): RoomSocketMessage {
@@ -688,6 +817,111 @@ export class GameRoom extends DurableObject<Env> {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(roomSocketContract.message.parse({ type: "room.error", error })));
     }
+  }
+
+  private sendChat(
+    tokenHash: string,
+    rawText: string,
+  ): "sent" | "unauthorized" | "rate_limited" | "muted" | "invalid_request" {
+    const parsed = chatTextSchema.safeParse(rawText);
+    if (!parsed.success) return "invalid_request";
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      const membership = this.readMembership(tokenHash);
+      if (room === null || membership === null) return "unauthorized";
+      const player = room.players.find((entry) => entry.id === membership.playerId);
+      if (player?.kind !== "human") return "unauthorized";
+      if ((this.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id)) return "muted";
+      const now = Date.now();
+      if (
+        now - (this.ctx.storage.kv.get<number>(lastChatAtKey(player.id)) ?? -Infinity) <
+        chatIntervalMs
+      )
+        return "rate_limited";
+      const message = chatMessageSchema.parse({
+        id: crypto.randomUUID(),
+        senderId: player.id,
+        senderName: player.name,
+        text: parsed.data,
+        sentAtMs: now,
+      });
+      this.ctx.storage.kv.put(chatKey, [...this.readChat(), message].slice(-50));
+      this.ctx.storage.kv.put(lastChatAtKey(player.id), now);
+      this.ctx.storage.kv.put(roomStorageKey, roomSchema.parse({ ...room, lastActivityAtMs: now }));
+      return "sent";
+    });
+  }
+
+  private async viewerMac(nonce: string): Promise<string> {
+    const secret = this.ctx.storage.kv.get<string>(viewerSecretKey);
+    if (secret === undefined) throw new Error("Missing viewer secret");
+    const key = await crypto.subtle.importKey(
+      "raw",
+      hexToBytes(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const mac = new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(nonce)),
+    );
+    return bytesToHex(mac.slice(0, 16));
+  }
+
+  async issueViewerToken(): Promise<string | null> {
+    await this.reconcileDeadlines();
+    if (this.readRoom() === null) return null;
+    const nonce = new Uint8Array(16);
+    crypto.getRandomValues(nonce);
+    const prefix = bytesToHex(nonce);
+    return prefix + (await this.viewerMac(prefix));
+  }
+
+  async inspectReport(
+    token: string,
+    messageId: string,
+  ): Promise<
+    | { status: "found"; instanceId: string; message: ChatMessage; reporterHash: string }
+    | { status: "not_found" | "unauthorized" | "message_not_found" }
+  > {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (room === null) return { status: "not_found" };
+    const tokenHash = await hashMembershipToken(token);
+    const membership = this.readMembership(tokenHash);
+    const isPlayer =
+      membership !== null && room.players.some((player) => player.id === membership.playerId);
+    const isViewer =
+      token.length === 64 && (await this.viewerMac(token.slice(0, 32))) === token.slice(32);
+    if (!isPlayer && !isViewer) return { status: "unauthorized" };
+    const message = this.readChat().find((entry) => entry.id === messageId);
+    if (message === undefined) return { status: "message_not_found" };
+    return { status: "found", instanceId: room.instanceId, message, reporterHash: tokenHash };
+  }
+
+  async moderateMessage(
+    instanceId: string,
+    messageId: string,
+    senderId: string,
+    remove: boolean,
+    mute: boolean,
+  ): Promise<"applied" | "room_changed"> {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (room === null || room.instanceId !== instanceId) return "room_changed";
+    this.ctx.storage.transactionSync(() => {
+      if (remove)
+        this.ctx.storage.kv.put(
+          chatKey,
+          this.readChat().filter((message) => message.id !== messageId),
+        );
+      if (mute)
+        this.ctx.storage.kv.put(mutedKey, [
+          ...new Set([...(this.ctx.storage.kv.get<string[]>(mutedKey) ?? []), senderId]),
+        ]);
+    });
+    if (remove) this.broadcastChat();
+    return "applied";
   }
 
   private setReady(
@@ -712,6 +946,7 @@ export class GameRoom extends DurableObject<Env> {
 
       const updatedRoom = roomSchema.parse({
         ...room,
+        lastActivityAtMs: Date.now(),
         players: room.players.map((entry) =>
           entry.id === player.id ? { ...entry, ready } : entry,
         ),
@@ -739,6 +974,7 @@ export class GameRoom extends DurableObject<Env> {
         ...room,
         settings: { ...room.settings, mode },
         publicUpdatedAtMs: nextPublicUpdateAt(room),
+        lastActivityAtMs: Date.now(),
         players: room.players.map((player) =>
           player.kind === "human" ? { ...player, ready: false } : player,
         ),
@@ -771,6 +1007,7 @@ export class GameRoom extends DurableObject<Env> {
         const updated = roomSchema.parse({
           ...room,
           publicUpdatedAtMs: nextPublicUpdateAt(room),
+          lastActivityAtMs: Date.now(),
           players: [
             ...room.players,
             {
@@ -794,6 +1031,7 @@ export class GameRoom extends DurableObject<Env> {
         const updated = roomSchema.parse({
           ...room,
           publicUpdatedAtMs: nextPublicUpdateAt(room),
+          lastActivityAtMs: Date.now(),
           players: room.players.filter((player) => player.id !== cpu.id),
         });
         this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -803,6 +1041,7 @@ export class GameRoom extends DurableObject<Env> {
       const updated = roomSchema.parse({
         ...room,
         publicUpdatedAtMs: nextPublicUpdateAt(room),
+        lastActivityAtMs: Date.now(),
         players: room.players.map((player) =>
           player.id === cpu.id ? { ...cpu, level: command.level } : player,
         ),
@@ -841,6 +1080,8 @@ export class GameRoom extends DurableObject<Env> {
         ...room,
         status: "playing",
         publicUpdatedAtMs: nextPublicUpdateAt(room),
+        lastActivityAtMs: Date.now(),
+        lastRound: null,
         players: room.players.map((player, index) => ({
           ...player,
           ready: player.kind === "cpu" ? true : false,
@@ -858,7 +1099,7 @@ export class GameRoom extends DurableObject<Env> {
     tokenHash: string,
     action: FourReversiAction,
   ):
-    | { status: "placed"; room: Room }
+    | { status: "placed"; room: Room | null }
     | {
         status:
           | "not_found"
@@ -873,8 +1114,8 @@ export class GameRoom extends DurableObject<Env> {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
-      if (room.status === "waiting") return { status: "game_not_started" };
-      if (room.status === "finished") return { status: "game_finished" };
+      if (room.status === "waiting")
+        return { status: room.lastRound ? "game_finished" : "game_not_started" };
       if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
 
       const membership = this.readMembership(tokenHash);
@@ -886,25 +1127,23 @@ export class GameRoom extends DurableObject<Env> {
       if (player?.color !== room.game.turn) return { status: "not_your_turn" };
       const result = applyAction(room.game, action);
       if (!result.ok) return { status: "invalid_move" };
-      const updatedRoom = roomSchema.parse({
-        ...room,
-        status: result.state.status,
-        publicUpdatedAtMs:
-          result.state.status === "finished" ? nextPublicUpdateAt(room) : room.publicUpdatedAtMs,
-        clock: advanceClock(room.clock, room.game.turn, result.state.turn, Date.now(), true),
-        players:
-          result.state.status === "finished"
-            ? room.players.map((entry) => ({ ...entry, reconnectDeadline: null }))
-            : room.players,
-        game: result.state,
-      });
-      this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
+      const at = Date.now();
+      const updatedRoom =
+        result.state.status === "finished"
+          ? this.finishGame(room, result.state, at)
+          : roomSchema.parse({
+              ...room,
+              game: result.state,
+              clock: advanceClock(room.clock, room.game.turn, result.state.turn, at, true),
+              lastActivityAtMs: at,
+            });
+      if (updatedRoom !== null) this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
       return { status: "placed", room: updatedRoom };
     });
   }
 
   private resign(tokenHash: string):
-    | { status: "resigned"; room: Room }
+    | { status: "resigned"; room: Room | null }
     | {
         status:
           | "not_found"
@@ -918,8 +1157,8 @@ export class GameRoom extends DurableObject<Env> {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
-      if (room.status === "waiting") return { status: "game_not_started" };
-      if (room.status === "finished") return { status: "game_finished" };
+      if (room.status === "waiting")
+        return { status: room.lastRound ? "game_finished" : "game_not_started" };
       if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
       const membership = this.readMembership(tokenHash);
       if (membership === null) return { status: "unauthorized" };
@@ -931,22 +1170,21 @@ export class GameRoom extends DurableObject<Env> {
       if (room.game.turn !== player.color) return { status: "not_your_turn" };
       const result = eliminateColor(room.game, player.color);
       if (!result.ok) throw new Error("Could not resign current player");
-      const updated = roomSchema.parse({
-        ...room,
-        status: result.state.status,
-        publicUpdatedAtMs:
-          result.state.status === "finished" ? nextPublicUpdateAt(room) : room.publicUpdatedAtMs,
-        game: result.state,
-        clock: advanceClock(room.clock, room.game.turn, result.state.turn, Date.now(), true),
-        players: room.players.map((entry) => ({
-          ...entry,
-          reconnectDeadline:
-            result.state.status === "finished" || entry.id === player.id
-              ? null
-              : entry.reconnectDeadline,
-        })),
-      });
-      this.ctx.storage.kv.put(roomStorageKey, updated);
+      const at = Date.now();
+      const updated =
+        result.state.status === "finished"
+          ? this.finishGame(room, result.state, at)
+          : roomSchema.parse({
+              ...room,
+              game: result.state,
+              clock: advanceClock(room.clock, room.game.turn, result.state.turn, at, true),
+              players: room.players.map((entry) => ({
+                ...entry,
+                reconnectDeadline: entry.id === player.id ? null : entry.reconnectDeadline,
+              })),
+              lastActivityAtMs: at,
+            });
+      if (updated !== null) this.ctx.storage.kv.put(roomStorageKey, updated);
       return { status: "resigned", room: updated };
     });
   }
@@ -976,12 +1214,13 @@ export class GameRoom extends DurableObject<Env> {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.send(JSON.stringify(this.roomSnapshot(room)));
+    server.send(JSON.stringify(this.chatSnapshot()));
 
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (typeof message !== "string" || message.length > 1024) {
+    if (typeof message !== "string" || message.length > 8192) {
       this.sendSocketError(socket, "invalid_request");
       return;
     }
@@ -1029,6 +1268,7 @@ export class GameRoom extends DurableObject<Env> {
         }
 
         socket.serializeAttachment({ tokenHash });
+        this.ctx.storage.kv.delete(disconnectedAtKey(result.membership.playerId));
         const room = this.readRoom();
         const player = room?.players.find((entry) => entry.id === result.membership.playerId);
         if (player !== undefined && player.reconnectDeadline !== null) {
@@ -1085,6 +1325,18 @@ export class GameRoom extends DurableObject<Env> {
         return;
       }
 
+      if (parsed.data.type === "room.chat.send") {
+        const status = this.sendChat(tokenHash.data, parsed.data.text);
+        if (status === "sent") this.broadcastChat();
+        else
+          socket.send(
+            JSON.stringify(
+              roomSocketContract.message.parse({ type: "room.chat.error", error: status }),
+            ),
+          );
+        return;
+      }
+
       if (parsed.data.type === "room.mode.set") {
         const result = this.setMode(tokenHash.data, parsed.data.mode);
         if (result.status === "updated") this.broadcastRoom(result.room);
@@ -1122,7 +1374,8 @@ export class GameRoom extends DurableObject<Env> {
         const result = this.resign(tokenHash.data);
         if (result.status === "resigned") {
           await this.syncAlarm(result.room);
-          this.broadcastRoom(result.room);
+          if (result.room === null) this.closeSockets();
+          else this.broadcastRoom(result.room);
         } else if (result.status === "time_expired") {
           await this.reconcileDeadlines();
           this.rejectAction(socket, result.status);
@@ -1133,7 +1386,8 @@ export class GameRoom extends DurableObject<Env> {
       const result = this.placeStone(tokenHash.data, parsed.data.action);
       if (result.status === "placed") {
         await this.syncAlarm(result.room);
-        this.broadcastRoom(result.room);
+        if (result.room === null) this.closeSockets();
+        else this.broadcastRoom(result.room);
       } else if (result.status === "time_expired") {
         await this.reconcileDeadlines();
         this.rejectAction(socket, result.status);
@@ -1158,7 +1412,7 @@ export class GameRoom extends DurableObject<Env> {
     if (this.hasOpenConnection(tokenHash, socket)) return;
     const membership = this.readMembership(tokenHash);
     const room = this.readRoom();
-    if (membership === null || room === null || room.status === "finished") return;
+    if (membership === null || room === null) return;
     const player = room.players.find((entry) => entry.id === membership.playerId);
     if (
       player === undefined ||
@@ -1170,7 +1424,8 @@ export class GameRoom extends DurableObject<Env> {
       return;
     const updated = this.withIndexTransaction(() => {
       const current = this.readRoom();
-      if (current === null || current.status === "finished") return null;
+      if (current === null) return null;
+      this.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
       const next = roomSchema.parse({
         ...current,
         players: current.players.map((entry) =>

@@ -7,10 +7,14 @@ import {
   joinRoomContract,
   leaveRoomContract,
   listRoomsContract,
+  listReportsContract,
+  moderateReportContract,
+  reportContract,
   roomSchema,
   roomPublicMetadataSchema,
   roomSocketContract,
   roomTimeControl,
+  viewerContract,
   type Room,
   type RoomMode,
   type RoomPublicMetadata,
@@ -20,6 +24,7 @@ import {
 import { getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test, vi } from "vitest";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
+import worker from "../src/worker";
 
 const baseUrl = "https://example.com";
 const clients: RoomClient[] = [];
@@ -74,6 +79,17 @@ class RoomClient {
     for (;;) {
       const message = await this.nextType("room.snapshot");
       if (predicate(message.room)) return message.room;
+    }
+  }
+
+  async nextChatWhere(
+    predicate: (
+      messages: Extract<RoomSocketMessage, { type: "room.chat.snapshot" }>["messages"],
+    ) => boolean,
+  ) {
+    for (;;) {
+      const message = await this.nextType("room.chat.snapshot");
+      if (predicate(message.messages)) return message.messages;
     }
   }
 
@@ -385,18 +401,22 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
       type: "room.game.action",
       action: { type: "placeStone", position },
     });
-    room = await connections[0].nextSnapshotWhere(
-      (snapshot) => snapshot.status !== "waiting" && snapshot.game.moveNumber > previousMoveNumber,
+    room = await connections[0].nextSnapshotWhere((snapshot) =>
+      snapshot.status === "playing"
+        ? snapshot.game.moveNumber > previousMoveNumber
+        : (snapshot.lastRound?.game.moveNumber ?? 0) > previousMoveNumber,
     );
   }
 
-  expect(room.status).toBe("finished");
-  if (room.status !== "finished") return;
-  expect(room.game.status).toBe("finished");
-  expect(room.game.result.mode).toBe("singles");
+  expect(room.status).toBe("waiting");
+  if (room.status !== "waiting") return;
+  expect(room.lastRound?.game.status).toBe("finished");
+  expect(room.lastRound?.game.result.mode).toBe("singles");
   for (const connection of connections.slice(1)) {
     expect(
-      await connection.nextSnapshotWhere((snapshot) => snapshot.status === "finished"),
+      await connection.nextSnapshotWhere(
+        (snapshot) => snapshot.status === "waiting" && snapshot.lastRound !== null,
+      ),
     ).toEqual(room);
   }
   expect(await getRoom(id)).toEqual(room);
@@ -742,15 +762,16 @@ test("遅れたAlarmでも保存期限の順に連続時間切れを確定し、
   }));
   expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
   const result = await getRoom(id);
-  expect(result.status).toBe("finished");
-  if (result.status !== "finished") throw new Error("Game did not finish");
-  expect(result.game.eliminatedColors).toEqual(["black", "white", "red"]);
-  expect(result.clock.turnStartedAt).toBeNull();
-  expect(result.clock.turnExpiresAt).toBeNull();
+  expect(result.status).toBe("waiting");
+  if (result.status !== "waiting") throw new Error("Game did not finish");
+  expect(result.lastRound?.game.eliminatedColors).toEqual(["black", "white", "red"]);
+  expect(result.clock).toBeNull();
   for (const connection of connections) {
-    expect(await connection.nextSnapshotWhere((room) => room.status === "finished")).toEqual(
-      result,
-    );
+    expect(
+      await connection.nextSnapshotWhere(
+        (room) => room.status === "waiting" && room.lastRound !== null,
+      ),
+    ).toEqual(result);
   }
 });
 
@@ -859,6 +880,7 @@ test("対局中に最後の人間が退室してもCPUは着手を続ける", as
   expect(await getRoom(id)).toEqual(moved);
 
   let completed = moved;
+  let closed = false;
   for (let turn = 0; turn < 64 && completed.status === "playing"; turn++) {
     await setRoomDeadlines(id, (room) => ({
       ...room,
@@ -869,9 +891,17 @@ test("対局中に最後の人間が退室してもCPUは着手を続ける", as
       },
     }));
     expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
-    completed = await getRoom(id);
+    const response = await exports.default.fetch(
+      new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
+    );
+    if (response.status === 404) {
+      closed = true;
+      break;
+    }
+    completed = getRoomContract.response.parse(await response.json()).room;
   }
-  expect(completed.status).toBe("finished");
+  expect(closed).toBe(true);
+  await waitForIndexedRoom(id, (row) => row.closed === 1);
 });
 
 test("ルーム作成のモードは必須で、すぐ遊ぶにも選択したモードを保存する", async () => {
@@ -1051,24 +1081,24 @@ test("ダブルス開始と終局は公開情報を更新し、通常の着手�
 
   expect((await leaveRoom(setup.id, setup.participants[0].token)).status).toBe(204);
   const finished = await setup.connections[1].nextSnapshotWhere(
-    (room) => room.status === "finished",
+    (room) => room.status === "waiting" && room.lastRound !== null,
   );
-  if (finished.status !== "finished" || finished.game.result.mode !== "doubles") {
+  if (finished.status !== "waiting" || finished.lastRound?.game.result.mode !== "doubles") {
     throw new Error("Doubles game did not finish");
   }
-  expect(finished.game.result.reason).toBe("team_eliminated");
-  const hostColor = finished.players.find(
+  expect(finished.lastRound.game.result.reason).toBe("team_eliminated");
+  const hostColor = finished.lastRound.players.find(
     (player) => player.id === setup.participants[0].playerId,
   )?.color;
-  expect(finished.game.result.winner).toBe(
+  expect(finished.lastRound.game.result.winner).toBe(
     hostColor === "black" || hostColor === "red" ? "white-blue" : "black-red",
   );
   const metadata = await getMetadata(setup.id);
-  expect(metadata?.status).toBe("finished");
-  expect(metadata?.hostName).toBeNull();
-  expect(metadata?.humanCount).toBe(4);
+  expect(metadata?.status).toBe("waiting");
+  expect(metadata?.hostName).toBe("参加者2");
+  expect(metadata?.humanCount).toBe(3);
   expect(metadata!.updatedAtMs).toBeGreaterThan(playing!.updatedAtMs);
-  await waitForIndexedRoom(setup.id, (row) => row.status === "finished");
+  await waitForIndexedRoom(setup.id, (row) => row.status === "waiting");
 });
 
 test("D1の公開索引は作成・入室・ホスト交代・閉鎖を反映する", async () => {
@@ -1129,8 +1159,8 @@ test("CPU席・モード・開始・終了は索引を更新し、通常の着�
   }
 
   expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
-  await waitForIndexedRoom(id, (row) => row.status === "finished" && row.host_name === null);
-  expect((await listRooms()).rooms.find((room) => room.id === id)?.status).toBe("finished");
+  await waitForIndexedRoom(id, (row) => row.closed === 1);
+  expect((await listRooms()).rooms.find((room) => room.id === id)).toBeUndefined();
 });
 
 test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、不正カーソルを拒否する", async () => {
@@ -1179,6 +1209,8 @@ test("古い索引更新は部屋番号再利用後の新しい更新を上書�
 
   const replacement = roomSchema.parse({
     ...created.room,
+    instanceId: crypto.randomUUID(),
+    lastActivityAtMs: Date.now(),
     players: [{ ...created.room.players[0], id: crypto.randomUUID(), name: "新ホスト" }],
     publicUpdatedAtMs: Date.now(),
   });
@@ -1222,4 +1254,263 @@ test("D1障害中も部屋を作成し、Alarmで索引反映を再試行する"
   });
   expect(await runDurableObjectAlarm(stub)).toBe(true);
   await waitForIndexedRoom(created.room.id, (row) => row.closed === 0);
+});
+
+test("チャットは認証・文字数・間隔を検証し、直近50件を再接続先へ送る", async () => {
+  const created = await createRoom();
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  const spectator = await openRoom(created.room.id);
+  spectator.send({ type: "room.chat.send", text: "観戦者" });
+  expect((await spectator.nextType("room.error")).error).toBe("unauthorized");
+  host.send({ type: "room.chat.send", text: "最初" });
+  expect((await spectator.nextChatWhere((messages) => messages.length === 1))[0].text).toBe("最初");
+  host.send({ type: "room.chat.send", text: "連投" });
+  expect((await host.nextType("room.chat.error")).error).toBe("rate_limited");
+  host.send({ type: "room.chat.send", text: "https://example.com" });
+  expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
+  host.send({ type: "room.chat.send", text: "あ".repeat(201) });
+  expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
+  for (let index = 1; index <= 50; index++) {
+    await runInDurableObject(env.GAME_ROOM.getByName(created.room.id), (_instance, state) => {
+      state.storage.kv.put(`last-chat-at:${created.membership.playerId}`, Date.now() - 3_001);
+    });
+    host.send({ type: "room.chat.send", text: `投稿${index}` });
+    await spectator.nextChatWhere((messages) => messages.at(-1)?.text === `投稿${index}`);
+  }
+  const reloaded = await openRoom(created.room.id);
+  const history = await reloaded.nextChatWhere((messages) => messages.length === 50);
+  expect(history[0].text).toBe("投稿1");
+  expect(history.at(-1)?.text).toBe("投稿50");
+  expect((await getRoom(created.room.id)).status).toBe("waiting");
+});
+
+test("観戦者は匿名資格で通報し、運営者が削除・送信停止できる", async () => {
+  const created = await createRoom();
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  host.send({ type: "room.chat.send", text: "確認対象" });
+  const [message] = await host.nextChatWhere((messages) => messages.length === 1);
+  const viewerResponse = await exports.default.fetch(
+    new Request(`${baseUrl}${viewerContract.pathFor(created.room.id)}`, { method: "POST" }),
+  );
+  expect(viewerResponse.status).toBe(201);
+  const viewer = viewerContract.response.parse(await viewerResponse.json());
+  const reportRequest = () =>
+    new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${viewer.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: message.id }),
+    });
+  const reported = await exports.default.fetch(reportRequest());
+  expect(reported.status).toBe(201);
+  const reportId = reportContract.response.parse(await reported.json()).id;
+  expect((await exports.default.fetch(reportRequest())).status).toBe(409);
+  const unauthorized = await exports.default.fetch(
+    new Request(`${baseUrl}${listReportsContract.path}`),
+  );
+  expect(unauthorized.status).toBe(401);
+  const auth = { Authorization: "Bearer test-moderator-token" };
+  const listing = await exports.default.fetch(
+    new Request(`${baseUrl}${listReportsContract.path}`, { headers: auth }),
+  );
+  expect(listing.status).toBe(200);
+  expect(
+    listReportsContract.response
+      .parse(await listing.json())
+      .reports.some((report) => report.id === reportId),
+  ).toBe(true);
+  const action = await exports.default.fetch(
+    new Request(`${baseUrl}${moderateReportContract.pathFor(reportId)}`, {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_and_mute" }),
+    }),
+  );
+  expect(action.status).toBe(200);
+  expect(moderateReportContract.response.parse(await action.json()).status).toBe("resolved");
+  expect(await host.nextChatWhere((messages) => messages.length === 0)).toEqual([]);
+  host.send({ type: "room.chat.send", text: "再投稿" });
+  expect((await host.nextType("room.chat.error")).error).toBe("muted");
+});
+
+test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除する", async () => {
+  const created = await createRoom();
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  host.send({ type: "room.chat.send", text: "通報対象" });
+  const [message] = await host.nextChatWhere((messages) => messages.length === 1);
+  const request = () =>
+    new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.membership.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messageId: message.id }),
+    });
+  await env.LOBBY_DB.exec("ALTER TABLE reports RENAME TO reports_unavailable");
+  try {
+    expect((await exports.default.fetch(request())).status).toBe(500);
+  } finally {
+    await env.LOBBY_DB.exec("ALTER TABLE reports_unavailable RENAME TO reports");
+  }
+  const response = await exports.default.fetch(request());
+  expect(response.status).toBe(201);
+  const id = reportContract.response.parse(await response.json()).id;
+  await env.LOBBY_DB.prepare("UPDATE reports SET expires_at_ms = ? WHERE id = ?")
+    .bind(Date.now() - 1, id)
+    .run();
+  const listing = await exports.default.fetch(
+    new Request(`${baseUrl}${listReportsContract.path}`, {
+      headers: { Authorization: "Bearer test-moderator-token" },
+    }),
+  );
+  expect(
+    listReportsContract.response
+      .parse(await listing.json())
+      .reports.some((entry) => entry.id === id),
+  ).toBe(false);
+  await worker.scheduled({} as ScheduledController, env);
+  expect(
+    await env.LOBBY_DB.prepare("SELECT id FROM reports WHERE id = ?").bind(id).first(),
+  ).toBeNull();
+});
+
+test("24時間の活動停止でルームを閉鎖し、索引から除外する", async () => {
+  const created = await createRoom();
+  const stub = env.GAME_ROOM.getByName(created.room.id);
+  await runInDurableObject(stub, (_instance, state) => {
+    const room = roomSchema.parse(state.storage.kv.get("room"));
+    state.storage.kv.put(
+      "room",
+      roomSchema.parse({ ...room, lastActivityAtMs: Date.now() - 24 * 60 * 60 * 1000 - 1 }),
+    );
+  });
+  expect(await runDurableObjectAlarm(stub)).toBe(true);
+  expect(
+    (
+      await exports.default.fetch(
+        new Request(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
+      )
+    ).status,
+  ).toBe(404);
+  await waitForIndexedRoom(created.room.id, (row) => row.closed === 1);
+});
+
+test("対局終了時に人間が残っていなければ部屋を閉鎖する", async () => {
+  const created = await createRoom(true, "doubles");
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  host.send({ type: "room.game.start" });
+  await host.nextSnapshotWhere((room) => room.status === "playing");
+  expect((await leaveRoom(created.room.id, created.membership.token)).status).toBe(204);
+  const response = await exports.default.fetch(
+    new Request(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
+  );
+  expect(response.status).toBe(404);
+  await waitForIndexedRoom(created.room.id, (row) => row.closed === 1);
+});
+
+test("終局後は自動で再戦待機になり、ホストを引き継いで次局を開始できる", async () => {
+  const setup = await fourPlayers();
+  setup.connections[0].send({ type: "room.mode.set", mode: "doubles" });
+  await setup.connections[0].nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  await readyPlayers(setup.id, setup.connections);
+  setup.connections[0].send({ type: "room.game.start" });
+  await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
+  expect((await leaveRoom(setup.id, setup.participants[0].token)).status).toBe(204);
+  const waiting = await setup.connections[1].nextSnapshotWhere(
+    (room) => room.status === "waiting" && room.lastRound !== null,
+  );
+  if (waiting.status !== "waiting") throw new Error("Rematch waiting state missing");
+  expect(waiting.players).toHaveLength(3);
+  expect(waiting.players.every((player) => player.kind === "cpu" || !player.ready)).toBe(true);
+  expect(waiting.lastRound?.players).toHaveLength(4);
+  const promoted = getRoomMembershipContract.response.parse(
+    await (await getMembership(setup.id, setup.participants[1].token)).json(),
+  );
+  expect(promoted.role).toBe("host");
+  setup.connections[1].send({ type: "room.cpu.add", level: 1 });
+  await setup.connections[1].nextSnapshotWhere(
+    (room) => room.players.length === 4 && room.status === "waiting",
+  );
+  for (const connection of setup.connections.slice(1))
+    connection.send({ type: "room.ready.set", ready: true });
+  await setup.connections[1].nextSnapshotWhere((room) =>
+    room.players.every((player) => player.ready),
+  );
+  setup.connections[1].send({ type: "room.game.start" });
+  const restarted = await setup.connections[1].nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.moveNumber === 0,
+  );
+  expect(restarted.lastRound).toBeNull();
+  expect(new Set(restarted.players.map((player) => player.color)).size).toBe(4);
+});
+
+test("再戦では切断からの元の30秒期限を引き継ぐ", async () => {
+  const setup = await fourPlayers();
+  setup.connections[0].send({ type: "room.mode.set", mode: "doubles" });
+  await setup.connections[0].nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  await readyPlayers(setup.id, setup.connections);
+  setup.connections[0].send({ type: "room.game.start" });
+  await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
+  setup.connections[3].close();
+  await vi.waitFor(async () => {
+    expect(
+      (await getRoom(setup.id)).players.find(
+        (player) => player.id === setup.participants[3].playerId,
+      )?.reconnectDeadline,
+    ).not.toBeNull();
+  });
+  const deadline = (await getRoom(setup.id)).players.find(
+    (player) => player.id === setup.participants[3].playerId,
+  )?.reconnectDeadline;
+  expect((await leaveRoom(setup.id, setup.participants[1].token)).status).toBe(204);
+  const waiting = await getRoom(setup.id);
+  expect(waiting.status).toBe("waiting");
+  expect(
+    waiting.players.find((player) => player.id === setup.participants[3].playerId)
+      ?.reconnectDeadline,
+  ).toBe(deadline);
+  await expirePlayers(setup.id, [setup.participants[3].playerId]);
+  expect(
+    (await getRoom(setup.id)).players.some(
+      (player) => player.id === setup.participants[3].playerId,
+    ),
+  ).toBe(false);
+});
+
+test("通報済みの旧世代へ処分しても再利用された部屋を変更しない", async () => {
+  const created = await createRoom();
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  host.send({ type: "room.chat.send", text: "旧ルーム" });
+  const [message] = await host.nextChatWhere((messages) => messages.length === 1);
+  const report = await exports.default.fetch(
+    new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.membership.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messageId: message.id }),
+    }),
+  );
+  expect(report.status).toBe(201);
+  const reportId = reportContract.response.parse(await report.json()).id;
+  expect((await leaveRoom(created.room.id, created.membership.token)).status).toBe(204);
+  const replacement = roomSchema.parse({
+    ...created.room,
+    instanceId: crypto.randomUUID(),
+    lastActivityAtMs: Date.now(),
+    players: [{ ...created.room.players[0], id: crypto.randomUUID(), reconnectDeadline: null }],
+  });
+  expect(
+    await env.GAME_ROOM.getByName(created.room.id).createRoom(replacement, "b".repeat(64)),
+  ).not.toBeNull();
+  const action = await exports.default.fetch(
+    new Request(`${baseUrl}${moderateReportContract.pathFor(reportId)}`, {
+      method: "POST",
+      headers: { Authorization: "Bearer test-moderator-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_and_mute" }),
+    }),
+  );
+  expect(action.status).toBe(409);
+  expect((await getRoom(created.room.id)).instanceId).toBe(replacement.instanceId);
 });

@@ -88,7 +88,7 @@ export async function listRoomIndex(
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
       host_name, human_count, cpu_count, capacity, open_seats, updated_at_ms
     FROM room_index
-    WHERE closed = 0`;
+    WHERE closed = 0 AND status IN ('waiting', 'playing')`;
   const statement = cursor
     ? db
         .prepare(

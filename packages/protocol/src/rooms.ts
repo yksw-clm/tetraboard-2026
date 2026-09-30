@@ -81,6 +81,12 @@ const finishedGameSchema = gameStateBaseSchema.extend({
   turn: z.null(),
   result: z.discriminatedUnion("mode", [singlesResultSchema, doublesResultSchema]),
 });
+const lastRoundSchema = z.strictObject({
+  game: finishedGameSchema,
+  players: z
+    .array(z.strictObject({ id: z.uuid(), name: nicknameSchema, color: fourReversiColorSchema }))
+    .length(4),
+});
 export const fourReversiStateSchema = z.discriminatedUnion("status", [
   playingGameSchema,
   finishedGameSchema,
@@ -103,9 +109,11 @@ const cpuPlayerSchema = playerBaseSchema.extend({
 });
 const waitingRoomSchema = z.strictObject({
   id: roomCodeSchema,
+  instanceId: z.uuid(),
   status: z.literal("waiting"),
   settings: roomSettingsSchema,
   publicUpdatedAtMs: serverNowMsSchema,
+  lastActivityAtMs: serverNowMsSchema,
   players: z.array(
     z.union([
       cpuPlayerSchema.extend({ color: z.null() }),
@@ -114,13 +122,16 @@ const waitingRoomSchema = z.strictObject({
   ),
   game: z.null(),
   clock: z.null(),
+  lastRound: lastRoundSchema.nullable(),
 });
 
 const activeRoomBaseSchema = z
   .strictObject({
     id: roomCodeSchema,
+    instanceId: z.uuid(),
     settings: roomSettingsSchema,
     publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
     players: z
       .array(
         z.union([
@@ -136,14 +147,10 @@ const playingRoomSchema = activeRoomBaseSchema.safeExtend({
   status: z.literal("playing"),
   game: playingGameSchema,
   clock: playingClockSchema,
-});
-const finishedRoomSchema = activeRoomBaseSchema.safeExtend({
-  status: z.literal("finished"),
-  game: finishedGameSchema,
-  clock: finishedClockSchema,
+  lastRound: z.null(),
 });
 export const roomSchema = z
-  .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema, finishedRoomSchema])
+  .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema])
   .superRefine((room, context) => {
     if (room.status !== "waiting" && room.game.mode !== room.settings.mode) {
       context.addIssue({
@@ -160,7 +167,7 @@ export const roomPublicMetadataSchema = z
     game: roomSettingsSchema.shape.game,
     mode: roomModeSchema,
     timeControl: roomSettingsSchema.shape.timeControl,
-    status: z.enum(["waiting", "playing", "finished"]),
+    status: z.enum(["waiting", "playing"]),
     hostName: nicknameSchema.nullable(),
     humanCount: z.int().min(0).max(4),
     cpuCount: z.int().min(0).max(4),
@@ -179,6 +186,19 @@ export const roomPublicMetadataSchema = z
   );
 
 export const membershipTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
+export const chatTextSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((text) => Array.from(segmenter.segment(text)).length <= 200)
+  .refine((text) => !/(?:https?:\/\/|www\.|\b[a-z0-9-]+\.[a-z]{2,}\b)/i.test(text));
+export const chatMessageSchema = z.strictObject({
+  id: z.uuid(),
+  senderId: z.uuid(),
+  senderName: nicknameSchema,
+  text: chatTextSchema,
+  sentAtMs: serverNowMsSchema,
+});
 
 export const roomMembershipSchema = z.strictObject({
   playerId: z.uuid(),
@@ -206,6 +226,8 @@ const roomErrorSchema = z.strictObject({
     "unauthorized",
     "upgrade_required",
     "internal_error",
+    "conflict",
+    "rate_limited",
   ]),
 });
 
@@ -265,6 +287,49 @@ export const leaveRoomContract = {
   request: z.strictObject({ token: membershipTokenSchema }),
   error: roomErrorSchema,
 } as const;
+export const viewerContract = {
+  method: "POST",
+  path: "/rooms/:id/viewers",
+  pathFor: (id: string) => `/rooms/${id}/viewers`,
+  response: z.strictObject({ token: membershipTokenSchema }),
+  error: roomErrorSchema,
+} as const;
+export const reportContract = {
+  method: "POST",
+  path: "/rooms/:id/reports",
+  pathFor: (id: string) => `/rooms/${id}/reports`,
+  request: z.strictObject({ messageId: z.uuid() }),
+  response: z.strictObject({ id: z.uuid() }),
+  error: roomErrorSchema,
+} as const;
+export const moderationActionSchema = z.enum(["dismiss", "delete", "mute", "delete_and_mute"]);
+export const moderationReportSchema = z.strictObject({
+  id: z.uuid(),
+  roomId: roomCodeSchema,
+  instanceId: z.uuid(),
+  message: chatMessageSchema,
+  reportedAtMs: serverNowMsSchema,
+  status: z.enum(["open", "resolved"]),
+  action: moderationActionSchema.nullable(),
+});
+export const listReportsContract = {
+  method: "GET",
+  path: "/admin/reports",
+  query: z.strictObject({ cursor: z.string().optional() }),
+  response: z.strictObject({
+    reports: z.array(moderationReportSchema).max(20),
+    nextCursor: z.string().nullable(),
+  }),
+  error: roomErrorSchema,
+} as const;
+export const moderateReportContract = {
+  method: "POST",
+  path: "/admin/reports/:id/actions",
+  pathFor: (id: string) => `/admin/reports/${id}/actions`,
+  request: z.strictObject({ action: moderationActionSchema }),
+  response: moderationReportSchema,
+  error: roomErrorSchema,
+} as const;
 
 export const roomSocketContract = {
   method: "GET",
@@ -283,6 +348,7 @@ export const roomSocketContract = {
     }),
     z.strictObject({ type: z.literal("room.game.start") }),
     z.strictObject({ type: z.literal("room.game.resign") }),
+    z.strictObject({ type: z.literal("room.chat.send"), text: z.string() }),
     z.strictObject({
       type: z.literal("room.game.action"),
       action: z.strictObject({
@@ -298,6 +364,14 @@ export const roomSocketContract = {
       serverNowMs: serverNowMsSchema,
     }),
     z.strictObject({ type: z.literal("room.authenticated"), membership: roomMembershipSchema }),
+    z.strictObject({
+      type: z.literal("room.chat.snapshot"),
+      messages: z.array(chatMessageSchema).max(50),
+    }),
+    z.strictObject({
+      type: z.literal("room.chat.error"),
+      error: z.enum(["unauthorized", "rate_limited", "muted", "invalid_request", "internal_error"]),
+    }),
     z.strictObject({
       type: z.literal("room.error"),
       error: z.enum([
@@ -330,6 +404,9 @@ export type RoomPublicMetadata = z.infer<typeof roomPublicMetadataSchema>;
 export type CpuLevel = z.infer<typeof cpuLevelSchema>;
 export type PlayingRoomClock = z.infer<typeof playingClockSchema>;
 export type FinishedRoomClock = z.infer<typeof finishedClockSchema>;
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type LastRound = z.infer<typeof lastRoundSchema>;
+export type ModerationReport = z.infer<typeof moderationReportSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;
 export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type RoomSocketClientMessage = z.infer<typeof roomSocketContract.clientMessage>;

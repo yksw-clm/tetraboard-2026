@@ -1,13 +1,19 @@
 import {
   leaveRoomContract,
+  reportContract,
   roomSocketContract,
+  viewerContract,
+  chatTextSchema,
+  membershipTokenSchema,
+  type ChatMessage,
   type CpuLevel,
+  type LastRound,
   type Room,
   type RoomMembership,
   type RoomMode,
 } from "@tetraboard/protocol";
 import { getLegalMoves, type Color, type Position } from "@tetraboard/four-reversi";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   isRouteErrorResponse,
   Link,
@@ -41,10 +47,10 @@ type PendingGameAction =
   | { type: "move"; moveNumber: number }
   | { type: "resign"; color: Color };
 
-function GameResultView({ room }: { room: Extract<Room, { status: "finished" }> }) {
-  const { result } = room.game;
+function GameResultView({ lastRound }: { lastRound: LastRound }) {
+  const { result } = lastRound.game;
   const playerName = (color: Color) =>
-    room.players.find((player) => player.color === color)?.name ?? colorNames[color];
+    lastRound.players.find((player) => player.color === color)?.name ?? colorNames[color];
 
   return (
     <section aria-label="対局結果">
@@ -149,6 +155,19 @@ function RoomDetail({
   const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [reporting, setReporting] = useState<string | null>(null);
+  const [hiddenSenders, setHiddenSenders] = useState<string[]>(() => {
+    try {
+      return JSON.parse(
+        sessionStorage.getItem(`tetraboard:hidden:${initialRoom.instanceId}`) ?? "[]",
+      ) as string[];
+    } catch {
+      return [];
+    }
+  });
   const [clockSync, setClockSync] = useState(() => ({
     serverNowMs: initialServerNowMs,
     receivedAt: performance.now(),
@@ -288,14 +307,31 @@ function RoomDetail({
           if (
             (pending?.type === "start" && message.data.room.status === "playing") ||
             (pending?.type === "move" &&
-              message.data.room.status !== "waiting" &&
-              message.data.room.game.moveNumber > pending.moveNumber) ||
+              (message.data.room.status === "playing"
+                ? message.data.room.game.moveNumber > pending.moveNumber
+                : message.data.room.lastRound !== null)) ||
             (pending?.type === "resign" &&
-              message.data.room.status !== "waiting" &&
-              message.data.room.game.eliminatedColors.includes(pending.color))
+              (message.data.room.status === "playing"
+                ? message.data.room.game.eliminatedColors.includes(pending.color)
+                : message.data.room.lastRound !== null))
           ) {
             clearPendingGameAction();
           }
+          return;
+        }
+
+        if (message.data.type === "room.chat.snapshot") {
+          setChatMessages(message.data.messages);
+          return;
+        }
+        if (message.data.type === "room.chat.error") {
+          setChatError(
+            message.data.error === "rate_limited"
+              ? "3秒おいてから送信してください。"
+              : message.data.error === "muted"
+                ? "このルームでは送信を停止されています。"
+                : "チャットを送信できませんでした。",
+          );
           return;
         }
 
@@ -364,6 +400,7 @@ function RoomDetail({
     connection === "接続済み" &&
     !pendingSettings;
   const game = room.status === "waiting" ? null : room.game;
+  const displayGame = room.status === "playing" ? room.game : (room.lastRound?.game ?? null);
   const legalMoves = game === null ? [] : getLegalMoves(game);
   const canPlay =
     game?.status === "playing" &&
@@ -494,6 +531,76 @@ function RoomDetail({
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);
+    }
+  }
+
+  function handleChatSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const parsed = chatTextSchema.safeParse(chatInput);
+    if (!parsed.success) {
+      setChatError("チャットは1～200文字で、URLは投稿できません。");
+      return;
+    }
+    if (!authenticated || socketRef.current?.readyState !== WebSocket.OPEN) return;
+    socketRef.current.send(
+      JSON.stringify(
+        roomSocketContract.clientMessage.parse({ type: "room.chat.send", text: parsed.data }),
+      ),
+    );
+    setChatInput("");
+    setChatError(null);
+  }
+
+  function toggleSender(senderId: string): void {
+    const updated = hiddenSenders.includes(senderId)
+      ? hiddenSenders.filter((id) => id !== senderId)
+      : [...hiddenSenders, senderId];
+    setHiddenSenders(updated);
+    try {
+      sessionStorage.setItem(`tetraboard:hidden:${room.instanceId}`, JSON.stringify(updated));
+    } catch {
+      /* 保存できない場合も現在の画面では反映します。 */
+    }
+  }
+
+  async function handleReport(messageId: string): Promise<void> {
+    if (reporting !== null) return;
+    setReporting(messageId);
+    setChatError(null);
+    try {
+      let token = membership === null ? null : readRoomMembershipToken(room.id);
+      if (token === null) {
+        const key = `tetraboard:viewer:${room.instanceId}`;
+        try {
+          token = sessionStorage.getItem(key);
+        } catch {
+          /* 保存できない場合は新たに発行します。 */
+        }
+        if (token === null || !membershipTokenSchema.safeParse(token).success) {
+          const issued = await fetch(`/api${viewerContract.pathFor(room.id)}`, {
+            method: viewerContract.method,
+          });
+          if (!issued.ok) throw new Error("Viewer token failed");
+          token = viewerContract.response.parse(await issued.json()).token;
+          try {
+            sessionStorage.setItem(key, token);
+          } catch {
+            /* 現在の通報には発行済みの資格を使います。 */
+          }
+        }
+      }
+      const response = await fetch(`/api${reportContract.pathFor(room.id)}`, {
+        method: reportContract.method,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(reportContract.request.parse({ messageId })),
+      });
+      if (!response.ok) throw new Error("Report failed");
+      reportContract.response.parse(await response.json());
+      setChatError("通報を受け付けました。");
+    } catch {
+      setChatError("通報できませんでした。時間をおいて再度お試しください。");
+    } finally {
+      setReporting(null);
     }
   }
 
@@ -629,19 +736,28 @@ function RoomDetail({
           </li>
         ))}
       </ul>
-      {game !== null && (
+      {room.status === "waiting" && room.lastRound !== null && (
+        <GameResultView lastRound={room.lastRound} />
+      )}
+      {displayGame !== null && (
         <>
-          <p>{game.status === "finished" ? "対局終了" : `手番：${colorNames[game.turn]}`}</p>
+          <p>
+            {room.status === "waiting"
+              ? "前局は終了しました。再戦待機中です。"
+              : `手番：${room.game.turn ? colorNames[room.game.turn] : ""}`}
+          </p>
           {canPlay && (
             <button type="button" onClick={handleResignClick} disabled={pendingGameAction !== null}>
               投了
             </button>
           )}
-          <p>着手数：{game.moveNumber}</p>
-          {game.consecutivePasses.length > 0 && (
-            <p>自動パス：{game.consecutivePasses.map((color) => colorNames[color]).join(" → ")}</p>
+          <p>着手数：{displayGame.moveNumber}</p>
+          {displayGame.consecutivePasses.length > 0 && (
+            <p>
+              自動パス：
+              {displayGame.consecutivePasses.map((color) => colorNames[color]).join(" → ")}
+            </p>
           )}
-          {room.status === "finished" && <GameResultView room={room} />}
           <table>
             <thead>
               <tr>
@@ -652,7 +768,7 @@ function RoomDetail({
               </tr>
             </thead>
             <tbody>
-              {game.board.map((row, y) => (
+              {displayGame.board.map((row, y) => (
                 <tr key={y}>
                   <th>{y + 1}</th>
                   {row.map((cell, x) => {
@@ -676,6 +792,42 @@ function RoomDetail({
           </table>
         </>
       )}
+      <section aria-label="ルームチャット">
+        <h2>チャット</h2>
+        {chatError && <p>{chatError}</p>}
+        <ul>
+          {chatMessages.map((message) => (
+            <li key={message.id}>
+              {hiddenSenders.includes(message.senderId)
+                ? `${message.senderName}の発言を非表示中`
+                : `${message.senderName}: ${message.text}`}
+              <button type="button" onClick={() => toggleSender(message.senderId)}>
+                {hiddenSenders.includes(message.senderId) ? "表示" : "非表示"}
+              </button>
+              <button
+                type="button"
+                disabled={reporting !== null}
+                onClick={() => void handleReport(message.id)}
+              >
+                通報
+              </button>
+            </li>
+          ))}
+        </ul>
+        {membership !== null && (
+          <form onSubmit={handleChatSubmit}>
+            <label htmlFor="chat-message">メッセージ</label>
+            <input
+              id="chat-message"
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+            />
+            <button type="submit" disabled={!authenticated || connection !== "接続済み"}>
+              送信
+            </button>
+          </form>
+        )}
+      </section>
     </>
   );
 }

@@ -2,6 +2,8 @@ export { healthzContract } from "./healthz";
 export type { HealthzResponse } from "./healthz";
 export {
   createRoomContract,
+  chatMessageSchema,
+  chatTextSchema,
   cpuLevelSchema,
   fourReversiColorSchema,
   fourReversiStateSchema,
@@ -10,7 +12,12 @@ export {
   joinRoomContract,
   leaveRoomContract,
   listRoomsContract,
+  listReportsContract,
   membershipTokenSchema,
+  moderateReportContract,
+  moderationActionSchema,
+  moderationReportSchema,
+  reportContract,
   roomCodeSchema,
   roomMembershipSchema,
   roomListCursorSchema,
@@ -20,11 +27,15 @@ export {
   roomSettingsSchema,
   roomSocketContract,
   roomTimeControl,
+  viewerContract,
 } from "./rooms";
 export type {
   CreateRoomRequest,
+  ChatMessage,
   CpuLevel,
   JoinRoomRequest,
+  LastRound,
+  ModerationReport,
   Room,
   RoomError,
   RoomMembership,
