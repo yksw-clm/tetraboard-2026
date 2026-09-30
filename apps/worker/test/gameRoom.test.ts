@@ -277,6 +277,11 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
   if (room.status !== "finished") return;
   expect(room.game.status).toBe("finished");
   expect(room.game.result.mode).toBe("singles");
+  for (const connection of connections.slice(1)) {
+    expect(
+      await connection.nextSnapshotWhere((snapshot) => snapshot.status === "finished"),
+    ).toEqual(room);
+  }
   expect(await getRoom(id)).toEqual(room);
 
   connections[0].send({
