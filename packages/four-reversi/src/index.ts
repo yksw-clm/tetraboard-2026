@@ -305,6 +305,12 @@ export function getLegalMoves(state: FourReversiState): Position[] {
     : legalMovesForColor(state.board, state.turn, getActiveColors(state));
 }
 
+export function getLegalMovesForColor(state: FourReversiState, color: Color): Position[] {
+  return state.status === "finished" || state.eliminatedColors.includes(color)
+    ? []
+    : legalMovesForColor(state.board, color, getActiveColors(state));
+}
+
 export function eliminateColor(state: FourReversiState, color: Color): EliminateColorResult {
   if (state.status === "finished") return { ok: false, reason: "game_finished" };
   if (state.eliminatedColors.includes(color)) {
@@ -326,3 +332,6 @@ export function eliminateColor(state: FourReversiState, color: Color): Eliminate
   }
   return { ok: true, ...advanceTurn(eliminated, color) };
 }
+
+export { chooseCpuMove } from "./cpu";
+export type { CpuLevel } from "./cpu";

@@ -80,12 +80,12 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.close();
 });
 
-async function createRoom() {
+async function createRoom(quickPlay = false) {
   const response = await exports.default.fetch(
     new Request(`${baseUrl}${createRoomContract.path}`, {
       method: createRoomContract.method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "ホスト" }),
+      body: JSON.stringify({ name: "ホスト", quickPlay }),
     }),
   );
   expect(response.status).toBe(201);
@@ -648,7 +648,7 @@ test("同時刻の時計切れを復帰期限より先に処理する", async ()
       turnExpiresAt: deadline,
     },
     players: current.players.map((player) =>
-      player.id === participants[other].playerId
+      player.kind === "human" && player.id === participants[other].playerId
         ? { ...player, reconnectDeadline: deadline }
         : player,
     ),
@@ -674,7 +674,7 @@ test("復帰期限が時計より先なら、切断による脱落を先に処�
       turnExpiresAt: disconnectDeadline + 1,
     },
     players: current.players.map((player) =>
-      player.id === participants[other].playerId
+      player.kind === "human" && player.id === participants[other].playerId
         ? { ...player, reconnectDeadline: disconnectDeadline }
         : player,
     ),
@@ -708,4 +708,124 @@ test("遅れたAlarmでも保存期限の順に連続時間切れを確定し、
       result,
     );
   }
+});
+
+test("ホストだけが待機中のCPU席を追加・変更・削除できる", async () => {
+  const created = await createRoom();
+  const joined = await joinRoom(created.room.id, "参加者");
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  const participant = await authenticatedRoom(created.room.id, joined.membership.token);
+
+  participant.send({ type: "room.cpu.add", level: 1 });
+  expect((await participant.nextType("room.error")).error).toBe("forbidden");
+  expect((await getRoom(created.room.id)).players).toHaveLength(2);
+
+  host.send({ type: "room.cpu.add", level: 1 });
+  const withCpu = await host.nextSnapshotWhere((room) => room.players.length === 3);
+  const cpu = withCpu.players.find((player) => player.kind === "cpu");
+  expect(cpu?.kind).toBe("cpu");
+  if (cpu?.kind !== "cpu") throw new Error("CPU was not added");
+  expect(cpu.level).toBe(1);
+  expect(cpu.reconnectDeadline).toBeNull();
+  host.send({ type: "room.cpu.level.set", playerId: cpu.id, level: 2 });
+  const changed = await host.nextSnapshotWhere((room) =>
+    room.players.some(
+      (player) => player.id === cpu.id && player.kind === "cpu" && player.level === 2,
+    ),
+  );
+  expect(changed.players.find((player) => player.id === cpu.id)?.kind).toBe("cpu");
+  host.send({ type: "room.cpu.add", level: 1 });
+  await host.nextSnapshotWhere((room) => room.players.length === 4);
+  host.send({ type: "room.cpu.add", level: 1 });
+  expect((await host.nextType("room.error")).error).toBe("room_full");
+  host.send({ type: "room.cpu.remove", playerId: cpu.id });
+  const removed = await host.nextSnapshotWhere((room) => room.players.length === 3);
+  expect(removed.players.some((player) => player.id === cpu.id)).toBe(false);
+  expect(await getRoom(created.room.id)).toEqual(removed);
+});
+
+test("すぐ遊ぶは1人とCPU3体を作成し、CPU手番をDOが保存・配信する", async () => {
+  const created = await createRoom(true);
+  const id = created.room.id;
+  expect(created.room.players.filter((player) => player.kind === "human")).toHaveLength(1);
+  expect(created.room.players.filter((player) => player.kind === "cpu")).toHaveLength(3);
+  expect(created.room.players.every((player) => player.ready)).toBe(true);
+  const host = await authenticatedRoom(id, created.membership.token);
+  host.send({ type: "room.game.start" });
+  let room = await host.nextSnapshotWhere((snapshot) => snapshot.status === "playing");
+  if (room.status !== "playing") throw new Error("Game did not start");
+  const openingTurn = room.game.turn;
+  if (room.players.find((player) => player.color === openingTurn)?.kind === "human") {
+    host.send({
+      type: "room.game.action",
+      action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
+    });
+    room = await host.nextSnapshotWhere(
+      (snapshot) => snapshot.status === "playing" && snapshot.game.moveNumber === 1,
+    );
+    if (room.status !== "playing") throw new Error("Game did not continue");
+  }
+  const cpuTurn = room.game.turn;
+  expect(room.players.find((player) => player.color === cpuTurn)?.kind).toBe("cpu");
+  const before = room.game.moveNumber;
+  await setRoomDeadlines(id, (current) => ({
+    ...current,
+    clock: {
+      ...current.clock,
+      turnStartedAt: Date.now() - 501,
+      turnExpiresAt: Date.now() + 329_499,
+    },
+  }));
+  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+  const moved = await host.nextSnapshotWhere(
+    (snapshot) => snapshot.status !== "waiting" && snapshot.game.moveNumber > before,
+  );
+  expect(moved.status).not.toBe("waiting");
+  expect(await getRoom(id)).toEqual(moved);
+});
+
+test("対局中に最後の人間が退室してもCPUは着手を続ける", async () => {
+  const created = await createRoom(true);
+  const id = created.room.id;
+  const host = await authenticatedRoom(id, created.membership.token);
+  const observer = await openRoom(id);
+  host.send({ type: "room.game.start" });
+  await observer.nextSnapshotWhere((room) => room.status === "playing");
+
+  expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+  const remaining = await observer.nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.eliminatedColors.length === 1,
+  );
+  if (remaining.status !== "playing") throw new Error("Game did not continue");
+  const cpuTurn = remaining.game.turn;
+  expect(remaining.players.find((player) => player.color === cpuTurn)?.kind).toBe("cpu");
+  const before = remaining.game.moveNumber;
+  await setRoomDeadlines(id, (room) => ({
+    ...room,
+    clock: {
+      ...room.clock,
+      turnStartedAt: Date.now() - 501,
+      turnExpiresAt: Date.now() + 329_499,
+    },
+  }));
+  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+  const moved = await observer.nextSnapshotWhere(
+    (room) => room.status !== "waiting" && room.game.moveNumber > before,
+  );
+  expect(await getRoom(id)).toEqual(moved);
+
+  let completed = moved;
+  for (let turn = 0; turn < 64 && completed.status === "playing"; turn++) {
+    await setRoomDeadlines(id, (room) => ({
+      ...room,
+      clock: {
+        ...room.clock,
+        turnStartedAt: Date.now() - 501,
+        turnExpiresAt: Date.now() + 300_000,
+      },
+    }));
+    expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+    completed = await getRoom(id);
+  }
+  expect(completed.status).toBe("finished");
 });

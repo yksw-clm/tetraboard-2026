@@ -6,10 +6,12 @@ import {
   roomSocketContract,
   type Room,
   type RoomMembership,
+  type RoomSocketClientMessage,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
 import {
   applyAction,
+  chooseCpuMove,
   colors,
   createInitialState,
   eliminateColor,
@@ -22,7 +24,18 @@ const roomStorageKey = "room";
 const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
 const reconnectGraceMs = 30_000;
+const cpuMoveDelayMs = 500;
 type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
+type CpuCommand = Extract<
+  RoomSocketClientMessage,
+  { type: "room.cpu.add" | "room.cpu.remove" | "room.cpu.level.set" }
+>;
+
+function currentCpu(room: Room): Extract<Room["players"][number], { kind: "cpu" }> | null {
+  if (room.status !== "playing") return null;
+  const player = room.players.find((entry) => entry.color === room.game.turn);
+  return player?.kind === "cpu" ? player : null;
+}
 
 async function hashMembershipToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
@@ -83,9 +96,13 @@ export class GameRoom extends DurableObject<Env> {
       room?.status === "finished"
         ? []
         : (room?.players
+            .filter((player) => player.kind === "human")
             .map((player) => player.reconnectDeadline)
             .filter((value) => value !== null) ?? []);
-    if (room?.status === "playing") deadlines.push(room.clock.turnExpiresAt);
+    if (room?.status === "playing") {
+      deadlines.push(room.clock.turnExpiresAt);
+      if (currentCpu(room) !== null) deadlines.push(room.clock.turnStartedAt + cpuMoveDelayMs);
+    }
     const next = deadlines.length === 0 ? null : Math.min(...deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -111,10 +128,11 @@ export class GameRoom extends DurableObject<Env> {
 
       const pendingRoom = roomSchema.parse({
         ...initialRoom,
-        players: initialRoom.players.map((player) => ({
-          ...player,
-          reconnectDeadline: Date.now() + reconnectGraceMs,
-        })),
+        players: initialRoom.players.map((player) =>
+          player.kind === "human"
+            ? { ...player, reconnectDeadline: Date.now() + reconnectGraceMs }
+            : player,
+        ),
       });
       this.ctx.storage.kv.put(roomStorageKey, pendingRoom);
       this.ctx.storage.kv.put(
@@ -151,7 +169,9 @@ export class GameRoom extends DurableObject<Env> {
       return { status: "unauthorized" };
     }
 
-    return room.players.some((player) => player.id === membership.playerId)
+    return room.players.some(
+      (player) => player.kind === "human" && player.id === membership.playerId,
+    )
       ? { status: "found", membership }
       : { status: "unauthorized" };
   }
@@ -190,6 +210,7 @@ export class GameRoom extends DurableObject<Env> {
           {
             id: playerId,
             name: playerName,
+            kind: "human",
             ready: false,
             color: null,
             reconnectDeadline: Date.now() + reconnectGraceMs,
@@ -219,14 +240,16 @@ export class GameRoom extends DurableObject<Env> {
     if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
     this.ctx.storage.kv.delete(playerTokenKey(playerId));
 
-    const remaining = room.players.filter((player) => player.id !== playerId);
-    if (remaining.length === 0) {
+    let remaining = room.players.filter((player) => player.id !== playerId);
+    const successor = remaining.find((player) => player.kind === "human");
+    if (successor === undefined) {
       this.ctx.storage.kv.delete(roomStorageKey);
       return null;
     }
 
     if (room.players[0].id === playerId) {
-      const nextHash = this.playerTokenHash(remaining[0].id);
+      remaining = [successor, ...remaining.filter((player) => player.id !== successor.id)];
+      const nextHash = this.playerTokenHash(successor.id);
       if (nextHash === null) throw new Error("Host successor has no membership");
       this.ctx.storage.kv.put(
         membershipStorageKey(nextHash),
@@ -389,6 +412,43 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         if (current !== null) this.ctx.storage.kv.put(roomStorageKey, current);
       }
+      if (
+        current?.status === "playing" &&
+        current.clock.turnStartedAt + cpuMoveDelayMs <= now &&
+        !isClockExpired(current.clock, now)
+      ) {
+        const cpu = currentCpu(current);
+        if (cpu !== null) {
+          const move = chooseCpuMove(current.game, cpu.level);
+          if (move === null) throw new Error("CPU has no legal move");
+          const decidedAt = Date.now();
+          const expired = isClockExpired(current.clock, decidedAt);
+          const result = expired
+            ? eliminateColor(current.game, current.game.turn)
+            : applyAction(current.game, { type: "placeStone", position: move });
+          if (!result.ok) throw new Error("CPU selected an invalid move");
+          current = roomSchema.parse({
+            ...current,
+            status: result.state.status,
+            game: result.state,
+            clock: advanceClock(
+              current.clock,
+              current.game.turn,
+              result.state.turn,
+              expired ? current.clock.turnExpiresAt : decidedAt,
+              true,
+            ),
+            players:
+              result.state.status === "finished"
+                ? current.players.map((player) =>
+                    player.kind === "human" ? { ...player, reconnectDeadline: null } : player,
+                  )
+                : current.players,
+          });
+          this.ctx.storage.kv.put(roomStorageKey, current);
+          changed = true;
+        }
+      }
       return current;
     });
 
@@ -530,6 +590,67 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  private updateCpu(
+    tokenHash: string,
+    command: CpuCommand,
+  ):
+    | { status: "updated"; room: Room }
+    | { status: "unchanged" }
+    | { status: "not_found" | "forbidden" | "already_started" | "room_full" | "cpu_not_found" } {
+    return this.ctx.storage.transactionSync(() => {
+      const room = this.readRoom();
+      if (room === null) return { status: "not_found" };
+      if (room.status !== "waiting") return { status: "already_started" };
+      if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
+
+      if (command.type === "room.cpu.add") {
+        if (room.players.length >= 4) return { status: "room_full" };
+        const used = new Set(
+          room.players.filter((player) => player.kind === "cpu").map((player) => player.name),
+        );
+        const number = [1, 2, 3].find((value) => !used.has(`CPU ${value}`));
+        if (number === undefined) return { status: "room_full" };
+        const updated = roomSchema.parse({
+          ...room,
+          players: [
+            ...room.players,
+            {
+              id: crypto.randomUUID(),
+              name: `CPU ${number}`,
+              kind: "cpu",
+              level: command.level,
+              ready: true,
+              color: null,
+              reconnectDeadline: null,
+            },
+          ],
+        });
+        this.ctx.storage.kv.put(roomStorageKey, updated);
+        return { status: "updated", room: updated };
+      }
+
+      const cpu = room.players.find((player) => player.id === command.playerId);
+      if (cpu?.kind !== "cpu") return { status: "cpu_not_found" };
+      if (command.type === "room.cpu.remove") {
+        const updated = roomSchema.parse({
+          ...room,
+          players: room.players.filter((player) => player.id !== cpu.id),
+        });
+        this.ctx.storage.kv.put(roomStorageKey, updated);
+        return { status: "updated", room: updated };
+      }
+      if (cpu.level === command.level) return { status: "unchanged" };
+      const updated = roomSchema.parse({
+        ...room,
+        players: room.players.map((player) =>
+          player.id === cpu.id ? { ...cpu, level: command.level } : player,
+        ),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "updated", room: updated };
+    });
+  }
+
   private startGame(
     tokenHash: string,
   ):
@@ -546,6 +667,7 @@ export class GameRoom extends DurableObject<Env> {
       if (
         room.players.length !== 4 ||
         room.players.some((player) => {
+          if (player.kind === "cpu") return false;
           const hash = this.playerTokenHash(player.id);
           return !player.ready || hash === null || !this.hasOpenConnection(hash);
         })
@@ -559,7 +681,7 @@ export class GameRoom extends DurableObject<Env> {
         status: "playing",
         players: room.players.map((player, index) => ({
           ...player,
-          ready: false,
+          ready: player.kind === "cpu" ? true : false,
           color: assignments[index],
         })),
         game: createInitialState("singles"),
@@ -794,6 +916,20 @@ export class GameRoom extends DurableObject<Env> {
         } else {
           this.rejectAction(socket, result.status);
         }
+        return;
+      }
+
+      if (
+        parsed.data.type === "room.cpu.add" ||
+        parsed.data.type === "room.cpu.remove" ||
+        parsed.data.type === "room.cpu.level.set"
+      ) {
+        const result = this.updateCpu(tokenHash.data, parsed.data);
+        if (result.status === "updated") this.broadcastRoom(result.room);
+        else if (result.status === "unchanged") {
+          const room = this.readRoom();
+          if (room !== null) socket.send(JSON.stringify(this.roomSnapshot(room)));
+        } else this.rejectAction(socket, result.status);
         return;
       }
 

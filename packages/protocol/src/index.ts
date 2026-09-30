@@ -2,6 +2,7 @@ export { healthzContract } from "./healthz";
 export type { HealthzResponse } from "./healthz";
 export {
   createRoomContract,
+  cpuLevelSchema,
   fourReversiColorSchema,
   fourReversiStateSchema,
   getRoomContract,
@@ -17,6 +18,7 @@ export {
 } from "./rooms";
 export type {
   CreateRoomRequest,
+  CpuLevel,
   JoinRoomRequest,
   Room,
   RoomError,

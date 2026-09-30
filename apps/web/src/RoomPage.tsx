@@ -2,6 +2,7 @@ import {
   leaveRoomContract,
   roomSocketContract,
   roomTimeControl,
+  type CpuLevel,
   type Room,
   type RoomMembership,
 } from "@tetraboard/protocol";
@@ -100,6 +101,10 @@ function operationErrorMessage(error: string): string {
       return "すでに脱落しています。";
     case "time_expired":
       return "持ち時間が切れました。";
+    case "room_full":
+      return "このルームは満室です。";
+    case "cpu_not_found":
+      return "指定したCPUが見つかりません。";
     default:
       return "ルーム操作に失敗しました。再読み込みしてください。";
   }
@@ -139,6 +144,8 @@ function RoomDetail({
   const [connection, setConnection] = useState("接続中");
   const [authenticated, setAuthenticated] = useState(false);
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
+  const [pendingCpu, setPendingCpu] = useState(false);
+  const [newCpuLevel, setNewCpuLevel] = useState<CpuLevel>(1);
   const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -149,6 +156,7 @@ function RoomDetail({
   const [serverNowMs, setServerNowMs] = useState(initialServerNowMs);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
+  const pendingCpuRef = useRef(false);
   const pendingGameActionRef = useRef<PendingGameAction | null>(null);
 
   useEffect(() => {
@@ -171,6 +179,11 @@ function RoomDetail({
     function clearPendingReady(): void {
       pendingReadyRef.current = null;
       setPendingReady(null);
+    }
+
+    function clearPendingCpu(): void {
+      pendingCpuRef.current = false;
+      setPendingCpu(false);
     }
 
     function clearPendingGameAction(): void {
@@ -260,6 +273,7 @@ function RoomDetail({
             return;
           }
           setRoom(message.data.room);
+          clearPendingCpu();
           setClockSync({ serverNowMs: message.data.serverNowMs, receivedAt: performance.now() });
           setConnection("接続済み");
           retryDelay = 1000;
@@ -302,6 +316,7 @@ function RoomDetail({
         }
 
         clearPendingReady();
+        clearPendingCpu();
         clearPendingGameAction();
         if (message.data.error === "unauthorized") {
           setAuthenticated(false);
@@ -325,6 +340,7 @@ function RoomDetail({
         if (!active) return;
         setAuthenticated(false);
         clearPendingReady();
+        clearPendingCpu();
         clearPendingGameAction();
         scheduleReconnect();
       };
@@ -341,6 +357,12 @@ function RoomDetail({
   }, [initialRoom.id, initialMembership]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
+  const canManageCpu =
+    room.status === "waiting" &&
+    membership?.role === "host" &&
+    authenticated &&
+    connection === "接続済み" &&
+    !pendingCpu;
   const game = room.status === "waiting" ? null : room.game;
   const legalMoves = game === null ? [] : getLegalMoves(game);
   const canPlay =
@@ -425,6 +447,22 @@ function RoomDetail({
     }
   }
 
+  function sendCpuMessage(message: unknown): void {
+    const currentSocket = socketRef.current;
+    if (!canManageCpu || pendingCpuRef.current || currentSocket?.readyState !== WebSocket.OPEN)
+      return;
+    pendingCpuRef.current = true;
+    setPendingCpu(true);
+    setSocketError(null);
+    try {
+      currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+    } catch {
+      pendingCpuRef.current = false;
+      setPendingCpu(false);
+      setSocketError("CPU席を変更できませんでした。");
+    }
+  }
+
   function handleResignClick(): void {
     if (!canPlay || self?.color === null || self?.color === undefined) return;
     sendGameMessage({ type: "room.game.resign" }, { type: "resign", color: self.color });
@@ -496,12 +534,34 @@ function RoomDetail({
           対局開始
         </button>
       )}
+      {room.status === "waiting" && membership?.role === "host" && (
+        <div>
+          <label htmlFor="new-cpu-level">追加するCPUのレベル</label>
+          <select
+            id="new-cpu-level"
+            value={newCpuLevel}
+            onChange={(event) => setNewCpuLevel(Number(event.target.value) as CpuLevel)}
+            disabled={!canManageCpu}
+          >
+            <option value={1}>レベル1（よわい）</option>
+            <option value={2}>レベル2（ふつう）</option>
+          </select>
+          <button
+            type="button"
+            disabled={!canManageCpu || room.players.length >= 4}
+            onClick={() => sendCpuMessage({ type: "room.cpu.add", level: newCpuLevel })}
+          >
+            CPUを追加
+          </button>
+        </div>
+      )}
       <h2>プレイヤー</h2>
       <ul>
         {room.players.map((player) => (
           <li key={player.id}>
             {membership?.playerId === player.id && "[あなた] "}
-            {player.name} ({player.id}) {room.status === "waiting" && player.ready && "✅"}
+            {player.name} ({player.id}) {player.kind === "cpu" && ` CPU レベル${player.level}`}{" "}
+            {room.status === "waiting" && player.ready && "✅"}
             {player.color !== null && ` ${colorNames[player.color]}`}
             {player.reconnectDeadline !== null && " 復帰待ち"}
             {room.status !== "waiting" &&
@@ -511,6 +571,32 @@ function RoomDetail({
             {player.color !== null &&
               playerClockText(room, player.color, serverNowMs) !== null &&
               ` ${playerClockText(room, player.color, serverNowMs)}`}
+            {room.status === "waiting" && membership?.role === "host" && player.kind === "cpu" && (
+              <>
+                <select
+                  aria-label={`${player.name}のレベル`}
+                  value={player.level}
+                  disabled={!canManageCpu}
+                  onChange={(event) =>
+                    sendCpuMessage({
+                      type: "room.cpu.level.set",
+                      playerId: player.id,
+                      level: Number(event.target.value),
+                    })
+                  }
+                >
+                  <option value={1}>レベル1</option>
+                  <option value={2}>レベル2</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={!canManageCpu}
+                  onClick={() => sendCpuMessage({ type: "room.cpu.remove", playerId: player.id })}
+                >
+                  {player.name}を削除
+                </button>
+              </>
+            )}
           </li>
         ))}
       </ul>

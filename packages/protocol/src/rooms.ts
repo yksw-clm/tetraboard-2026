@@ -9,6 +9,7 @@ const nicknameSchema = z
   .refine((name) => Array.from(segmenter.segment(name)).length <= 10);
 
 const playerNameRequestSchema = z.strictObject({ name: nicknameSchema });
+export const cpuLevelSchema = z.union([z.literal(1), z.literal(2)]);
 
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
@@ -77,17 +78,30 @@ export const fourReversiStateSchema = z.discriminatedUnion("status", [
   finishedGameSchema,
 ]);
 
-const playerSchema = z.strictObject({
+const playerBaseSchema = z.strictObject({
   id: z.uuid(),
   name: nicknameSchema,
+});
+const humanPlayerSchema = playerBaseSchema.extend({
+  kind: z.literal("human").default("human"),
   ready: z.boolean().default(false),
   reconnectDeadline: z.int().nonnegative().nullable().default(null),
 });
-
+const cpuPlayerSchema = playerBaseSchema.extend({
+  kind: z.literal("cpu"),
+  level: cpuLevelSchema,
+  ready: z.literal(true),
+  reconnectDeadline: z.null(),
+});
 const waitingRoomSchema = z.strictObject({
   id: roomCodeSchema,
   status: z.literal("waiting"),
-  players: z.array(playerSchema.extend({ color: z.null().default(null) })),
+  players: z.array(
+    z.union([
+      cpuPlayerSchema.extend({ color: z.null() }),
+      humanPlayerSchema.extend({ color: z.null().default(null) }),
+    ]),
+  ),
   game: z.null().default(null),
   clock: z.null().default(null),
 });
@@ -95,7 +109,14 @@ const waitingRoomSchema = z.strictObject({
 const activeRoomBaseSchema = z
   .strictObject({
     id: roomCodeSchema,
-    players: z.array(playerSchema.extend({ color: fourReversiColorSchema })).length(4),
+    players: z
+      .array(
+        z.union([
+          cpuPlayerSchema.extend({ color: fourReversiColorSchema }),
+          humanPlayerSchema.extend({ color: fourReversiColorSchema }),
+        ]),
+      )
+      .length(4),
   })
   .refine((room) => new Set(room.players.map((player) => player.color)).size === 4);
 
@@ -149,7 +170,7 @@ const roomErrorSchema = z.strictObject({
 export const createRoomContract = {
   method: "POST",
   path: "/rooms",
-  request: playerNameRequestSchema,
+  request: playerNameRequestSchema.extend({ quickPlay: z.boolean().default(false) }),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
 } as const;
@@ -195,6 +216,13 @@ export const roomSocketContract = {
   clientMessage: z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
+    z.strictObject({ type: z.literal("room.cpu.add"), level: cpuLevelSchema }),
+    z.strictObject({ type: z.literal("room.cpu.remove"), playerId: z.uuid() }),
+    z.strictObject({
+      type: z.literal("room.cpu.level.set"),
+      playerId: z.uuid(),
+      level: cpuLevelSchema,
+    }),
     z.strictObject({ type: z.literal("room.game.start") }),
     z.strictObject({ type: z.literal("room.game.resign") }),
     z.strictObject({
@@ -228,6 +256,8 @@ export const roomSocketContract = {
         "invalid_move",
         "already_eliminated",
         "time_expired",
+        "room_full",
+        "cpu_not_found",
       ]),
     }),
   ]),
@@ -237,6 +267,7 @@ export const roomSocketContract = {
 export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
 export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
+export type CpuLevel = z.infer<typeof cpuLevelSchema>;
 export type PlayingRoomClock = z.infer<typeof playingClockSchema>;
 export type FinishedRoomClock = z.infer<typeof finishedClockSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;

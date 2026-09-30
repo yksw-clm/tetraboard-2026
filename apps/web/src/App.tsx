@@ -21,7 +21,7 @@ export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("確認中");
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState<"create" | "join" | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<"create" | "quick" | "join" | null>(null);
   const [roomResponse, setRoomResponse] = useState<RoomError | null>(null);
   const [responseStatus, setResponseStatus] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -64,7 +64,11 @@ export function App() {
 
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     const intent =
-      submitter instanceof HTMLButtonElement && submitter.value === "join" ? "join" : "create";
+      submitter instanceof HTMLButtonElement && submitter.value === "join"
+        ? "join"
+        : submitter instanceof HTMLButtonElement && submitter.value === "quick"
+          ? "quick"
+          : "create";
     const contract = intent === "join" ? joinRoomContract : createRoomContract;
 
     setRoomResponse(null);
@@ -92,7 +96,9 @@ export function App() {
         }
       }
 
-      const request = contract.request.safeParse({ name });
+      const request = contract.request.safeParse(
+        intent === "join" ? { name } : { name, quickPlay: intent === "quick" },
+      );
       if (!request.success) {
         setMessage("ニックネームを1〜10文字で入力してください。");
         return;
@@ -158,6 +164,9 @@ export function App() {
         <input id="nickname" value={name} onChange={(event) => setName(event.target.value)} />
         <button type="submit" value="create" disabled={isSubmitting !== null}>
           {isSubmitting === "create" ? "作成中" : "ルーム作成"}
+        </button>
+        <button type="submit" value="quick" disabled={isSubmitting !== null}>
+          {isSubmitting === "quick" ? "作成中" : "すぐ遊ぶ"}
         </button>
         <label htmlFor="room-code">部屋番号</label>
         <input

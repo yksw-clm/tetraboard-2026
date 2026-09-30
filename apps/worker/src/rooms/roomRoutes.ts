@@ -72,10 +72,22 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         {
           id: crypto.randomUUID(),
           name: request.data.name,
-          ready: false,
+          kind: "human",
+          ready: request.data.quickPlay,
           color: null,
           reconnectDeadline: null,
         },
+        ...(request.data.quickPlay
+          ? [1, 2, 3].map((index) => ({
+              id: crypto.randomUUID(),
+              name: `CPU ${index}`,
+              kind: "cpu" as const,
+              level: 1 as const,
+              ready: true as const,
+              color: null,
+              reconnectDeadline: null,
+            }))
+          : []),
       ],
       game: null,
       clock: null,
