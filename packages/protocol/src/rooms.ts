@@ -15,6 +15,15 @@ export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
 export const fourReversiColorSchema = z.enum(["black", "white", "red", "blue"]);
 export const roomTimeControl = { mainTimeMs: 300_000, byoyomiMs: 30_000 } as const;
+export const roomModeSchema = z.enum(["singles", "doubles"]);
+export const roomSettingsSchema = z.strictObject({
+  game: z.literal("four-reversi"),
+  mode: roomModeSchema,
+  timeControl: z.strictObject({
+    mainTimeMs: z.literal(roomTimeControl.mainTimeMs),
+    byoyomiMs: z.literal(roomTimeControl.byoyomiMs),
+  }),
+});
 const serverNowMsSchema = z.int().nonnegative();
 const remainingMainMsSchema = z.strictObject({
   black: z.int().nonnegative(),
@@ -32,7 +41,6 @@ const finishedClockSchema = z.strictObject({
   turnStartedAt: z.null(),
   turnExpiresAt: z.null(),
 });
-const fourReversiModeSchema = z.enum(["singles", "doubles"]);
 const teamSchema = z.enum(["black-red", "white-blue"]);
 const singlesResultSchema = z.strictObject({
   mode: z.literal("singles"),
@@ -57,7 +65,7 @@ const doublesResultSchema = z.strictObject({
     .nullable(),
 });
 const gameStateBaseSchema = z.strictObject({
-  mode: fourReversiModeSchema,
+  mode: roomModeSchema,
   board: z.array(z.array(fourReversiColorSchema.nullable()).length(8)).length(8),
   moveNumber: z.int().nonnegative(),
   eliminatedColors: z.array(fourReversiColorSchema),
@@ -83,9 +91,9 @@ const playerBaseSchema = z.strictObject({
   name: nicknameSchema,
 });
 const humanPlayerSchema = playerBaseSchema.extend({
-  kind: z.literal("human").default("human"),
-  ready: z.boolean().default(false),
-  reconnectDeadline: z.int().nonnegative().nullable().default(null),
+  kind: z.literal("human"),
+  ready: z.boolean(),
+  reconnectDeadline: z.int().nonnegative().nullable(),
 });
 const cpuPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("cpu"),
@@ -96,19 +104,23 @@ const cpuPlayerSchema = playerBaseSchema.extend({
 const waitingRoomSchema = z.strictObject({
   id: roomCodeSchema,
   status: z.literal("waiting"),
+  settings: roomSettingsSchema,
+  publicUpdatedAtMs: serverNowMsSchema,
   players: z.array(
     z.union([
       cpuPlayerSchema.extend({ color: z.null() }),
-      humanPlayerSchema.extend({ color: z.null().default(null) }),
+      humanPlayerSchema.extend({ color: z.null() }),
     ]),
   ),
-  game: z.null().default(null),
-  clock: z.null().default(null),
+  game: z.null(),
+  clock: z.null(),
 });
 
 const activeRoomBaseSchema = z
   .strictObject({
     id: roomCodeSchema,
+    settings: roomSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
     players: z
       .array(
         z.union([
@@ -130,11 +142,41 @@ const finishedRoomSchema = activeRoomBaseSchema.safeExtend({
   game: finishedGameSchema,
   clock: finishedClockSchema,
 });
-export const roomSchema = z.discriminatedUnion("status", [
-  waitingRoomSchema,
-  playingRoomSchema,
-  finishedRoomSchema,
-]);
+export const roomSchema = z
+  .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema, finishedRoomSchema])
+  .superRefine((room, context) => {
+    if (room.status !== "waiting" && room.game.mode !== room.settings.mode) {
+      context.addIssue({
+        code: "custom",
+        message: "Room mode does not match game mode",
+        path: ["game", "mode"],
+      });
+    }
+  });
+
+export const roomPublicMetadataSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    game: roomSettingsSchema.shape.game,
+    mode: roomModeSchema,
+    timeControl: roomSettingsSchema.shape.timeControl,
+    status: z.enum(["waiting", "playing", "finished"]),
+    hostName: nicknameSchema.nullable(),
+    humanCount: z.int().min(0).max(4),
+    cpuCount: z.int().min(0).max(4),
+    capacity: z.literal(4),
+    openSeats: z.int().min(0).max(4),
+    updatedAtMs: serverNowMsSchema,
+  })
+  .refine(
+    (metadata) =>
+      metadata.humanCount + metadata.cpuCount <= metadata.capacity &&
+      metadata.openSeats ===
+        (metadata.status === "waiting"
+          ? metadata.capacity - metadata.humanCount - metadata.cpuCount
+          : 0),
+    { message: "Room occupancy does not match available seats" },
+  );
 
 export const membershipTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
@@ -170,7 +212,7 @@ const roomErrorSchema = z.strictObject({
 export const createRoomContract = {
   method: "POST",
   path: "/rooms",
-  request: playerNameRequestSchema.extend({ quickPlay: z.boolean().default(false) }),
+  request: playerNameRequestSchema.extend({ quickPlay: z.boolean(), mode: roomModeSchema }),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
 } as const;
@@ -216,6 +258,7 @@ export const roomSocketContract = {
   clientMessage: z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
+    z.strictObject({ type: z.literal("room.mode.set"), mode: roomModeSchema }),
     z.strictObject({ type: z.literal("room.cpu.add"), level: cpuLevelSchema }),
     z.strictObject({ type: z.literal("room.cpu.remove"), playerId: z.uuid() }),
     z.strictObject({
@@ -267,6 +310,8 @@ export const roomSocketContract = {
 export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
 export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
+export type RoomMode = z.infer<typeof roomModeSchema>;
+export type RoomPublicMetadata = z.infer<typeof roomPublicMetadataSchema>;
 export type CpuLevel = z.infer<typeof cpuLevelSchema>;
 export type PlayingRoomClock = z.infer<typeof playingClockSchema>;
 export type FinishedRoomClock = z.infer<typeof finishedClockSchema>;

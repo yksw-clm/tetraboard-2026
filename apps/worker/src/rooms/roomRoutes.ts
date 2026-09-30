@@ -6,6 +6,7 @@ import {
   leaveRoomContract,
   roomCodeSchema,
   roomSocketContract,
+  roomTimeControl,
   type Room,
   type RoomError,
 } from "@tetraboard/protocol";
@@ -68,6 +69,8 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     const initialRoom: Room = {
       id: code,
       status: "waiting",
+      settings: { game: "four-reversi", mode: request.data.mode, timeControl: roomTimeControl },
+      publicUpdatedAtMs: Date.now(),
       players: [
         {
           id: crypto.randomUUID(),

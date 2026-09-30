@@ -2,10 +2,13 @@ import {
   joinRoomContract,
   membershipTokenSchema,
   roomMembershipSchema,
+  roomPublicMetadataSchema,
   roomSchema,
   roomSocketContract,
   type Room,
   type RoomMembership,
+  type RoomMode,
+  type RoomPublicMetadata,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
@@ -35,6 +38,10 @@ function currentCpu(room: Room): Extract<Room["players"][number], { kind: "cpu" 
   if (room.status !== "playing") return null;
   const player = room.players.find((entry) => entry.color === room.game.turn);
   return player?.kind === "cpu" ? player : null;
+}
+
+function nextPublicUpdateAt(room: Room): number {
+  return Math.max(Date.now(), room.publicUpdatedAtMs + 1);
 }
 
 async function hashMembershipToken(token: string): Promise<string> {
@@ -151,6 +158,31 @@ export class GameRoom extends DurableObject<Env> {
     return this.readRoom();
   }
 
+  async getPublicMetadata(): Promise<RoomPublicMetadata | null> {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (room === null) return null;
+    const host = room.players.find((player) => {
+      if (player.kind !== "human") return false;
+      const tokenHash = this.playerTokenHash(player.id);
+      return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
+    });
+    const humanCount = room.players.filter((player) => player.kind === "human").length;
+    return roomPublicMetadataSchema.parse({
+      id: room.id,
+      game: room.settings.game,
+      mode: room.settings.mode,
+      timeControl: room.settings.timeControl,
+      status: room.status,
+      hostName: host?.name ?? null,
+      humanCount,
+      cpuCount: room.players.length - humanCount,
+      capacity: 4,
+      openSeats: room.status === "waiting" ? 4 - room.players.length : 0,
+      updatedAtMs: room.publicUpdatedAtMs,
+    });
+  }
+
   async getRoomMembership(
     tokenHash: string,
   ): Promise<
@@ -205,6 +237,7 @@ export class GameRoom extends DurableObject<Env> {
       const playerId = crypto.randomUUID();
       const updatedRoom = roomSchema.parse({
         ...room,
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
         players: [
           ...room.players,
           {
@@ -256,7 +289,11 @@ export class GameRoom extends DurableObject<Env> {
         roomMembershipSchema.parse({ playerId: remaining[0].id, role: "host" }),
       );
     }
-    const updated = roomSchema.parse({ ...room, players: remaining });
+    const updated = roomSchema.parse({
+      ...room,
+      publicUpdatedAtMs: nextPublicUpdateAt(room),
+      players: remaining,
+    });
     this.ctx.storage.kv.put(roomStorageKey, updated);
     return updated;
   }
@@ -358,6 +395,10 @@ export class GameRoom extends DurableObject<Env> {
           current = roomSchema.parse({
             ...current,
             status: result.state.status,
+            publicUpdatedAtMs:
+              result.state.status === "finished"
+                ? nextPublicUpdateAt(current)
+                : current.publicUpdatedAtMs,
             game: result.state,
             clock: advanceClock(
               current.clock,
@@ -391,6 +432,10 @@ export class GameRoom extends DurableObject<Env> {
             current = roomSchema.parse({
               ...current,
               status: result.state.status,
+              publicUpdatedAtMs:
+                result.state.status === "finished"
+                  ? nextPublicUpdateAt(current)
+                  : current.publicUpdatedAtMs,
               game: result.state,
               clock: advanceClock(
                 current.clock,
@@ -430,6 +475,10 @@ export class GameRoom extends DurableObject<Env> {
           current = roomSchema.parse({
             ...current,
             status: result.state.status,
+            publicUpdatedAtMs:
+              result.state.status === "finished"
+                ? nextPublicUpdateAt(current)
+                : current.publicUpdatedAtMs,
             game: result.state,
             clock: advanceClock(
               current.clock,
@@ -493,6 +542,10 @@ export class GameRoom extends DurableObject<Env> {
         updated = roomSchema.parse({
           ...room,
           status: game?.ok ? game.state.status : room.status,
+          publicUpdatedAtMs:
+            membership.role === "host" || (game?.ok && game.state.status === "finished")
+              ? nextPublicUpdateAt(room)
+              : room.publicUpdatedAtMs,
           game: game?.ok ? game.state : room.game,
           clock:
             game?.ok && room.status === "playing"
@@ -590,6 +643,33 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  private setMode(
+    tokenHash: string,
+    mode: RoomMode,
+  ):
+    | { status: "updated"; room: Room }
+    | { status: "unchanged" }
+    | { status: "not_found" | "forbidden" | "already_started" } {
+    return this.ctx.storage.transactionSync(() => {
+      const room = this.readRoom();
+      if (room === null) return { status: "not_found" };
+      if (room.status !== "waiting") return { status: "already_started" };
+      if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
+      if (room.settings.mode === mode) return { status: "unchanged" };
+
+      const updated = roomSchema.parse({
+        ...room,
+        settings: { ...room.settings, mode },
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
+        players: room.players.map((player) =>
+          player.kind === "human" ? { ...player, ready: false } : player,
+        ),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "updated", room: updated };
+    });
+  }
+
   private updateCpu(
     tokenHash: string,
     command: CpuCommand,
@@ -612,6 +692,7 @@ export class GameRoom extends DurableObject<Env> {
         if (number === undefined) return { status: "room_full" };
         const updated = roomSchema.parse({
           ...room,
+          publicUpdatedAtMs: nextPublicUpdateAt(room),
           players: [
             ...room.players,
             {
@@ -634,6 +715,7 @@ export class GameRoom extends DurableObject<Env> {
       if (command.type === "room.cpu.remove") {
         const updated = roomSchema.parse({
           ...room,
+          publicUpdatedAtMs: nextPublicUpdateAt(room),
           players: room.players.filter((player) => player.id !== cpu.id),
         });
         this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -642,6 +724,7 @@ export class GameRoom extends DurableObject<Env> {
       if (cpu.level === command.level) return { status: "unchanged" };
       const updated = roomSchema.parse({
         ...room,
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
         players: room.players.map((player) =>
           player.id === cpu.id ? { ...cpu, level: command.level } : player,
         ),
@@ -679,12 +762,13 @@ export class GameRoom extends DurableObject<Env> {
       const startedRoom = roomSchema.parse({
         ...room,
         status: "playing",
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
         players: room.players.map((player, index) => ({
           ...player,
           ready: player.kind === "cpu" ? true : false,
           color: assignments[index],
         })),
-        game: createInitialState("singles"),
+        game: createInitialState(room.settings.mode),
         clock: createClock(Date.now()),
       });
       this.ctx.storage.kv.put(roomStorageKey, startedRoom);
@@ -727,6 +811,8 @@ export class GameRoom extends DurableObject<Env> {
       const updatedRoom = roomSchema.parse({
         ...room,
         status: result.state.status,
+        publicUpdatedAtMs:
+          result.state.status === "finished" ? nextPublicUpdateAt(room) : room.publicUpdatedAtMs,
         clock: advanceClock(room.clock, room.game.turn, result.state.turn, Date.now(), true),
         players:
           result.state.status === "finished"
@@ -770,6 +856,8 @@ export class GameRoom extends DurableObject<Env> {
       const updated = roomSchema.parse({
         ...room,
         status: result.state.status,
+        publicUpdatedAtMs:
+          result.state.status === "finished" ? nextPublicUpdateAt(room) : room.publicUpdatedAtMs,
         game: result.state,
         clock: advanceClock(room.clock, room.game.turn, result.state.turn, Date.now(), true),
         players: room.players.map((entry) => ({
@@ -916,6 +1004,16 @@ export class GameRoom extends DurableObject<Env> {
         } else {
           this.rejectAction(socket, result.status);
         }
+        return;
+      }
+
+      if (parsed.data.type === "room.mode.set") {
+        const result = this.setMode(tokenHash.data, parsed.data.mode);
+        if (result.status === "updated") this.broadcastRoom(result.room);
+        else if (result.status === "unchanged") {
+          const room = this.readRoom();
+          if (room !== null) socket.send(JSON.stringify(this.roomSnapshot(room)));
+        } else this.rejectAction(socket, result.status);
         return;
       }
 

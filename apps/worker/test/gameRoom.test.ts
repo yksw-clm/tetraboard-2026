@@ -7,8 +7,12 @@ import {
   joinRoomContract,
   leaveRoomContract,
   roomSchema,
+  roomPublicMetadataSchema,
   roomSocketContract,
+  roomTimeControl,
   type Room,
+  type RoomMode,
+  type RoomPublicMetadata,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
@@ -80,12 +84,12 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.close();
 });
 
-async function createRoom(quickPlay = false) {
+async function createRoom(quickPlay = false, mode: RoomMode = "singles") {
   const response = await exports.default.fetch(
     new Request(`${baseUrl}${createRoomContract.path}`, {
       method: createRoomContract.method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "ホスト", quickPlay }),
+      body: JSON.stringify({ name: "ホスト", quickPlay, mode }),
     }),
   );
   expect(response.status).toBe(201);
@@ -110,6 +114,10 @@ async function getRoom(id: string): Promise<Room> {
   );
   expect(response.status).toBe(200);
   return getRoomContract.response.parse(await response.json()).room;
+}
+
+async function getMetadata(id: string): Promise<RoomPublicMetadata | null> {
+  return env.GAME_ROOM.getByName(id).getPublicMetadata();
 }
 
 async function leaveRoom(id: string, token: string): Promise<Response> {
@@ -828,4 +836,191 @@ test("対局中に最後の人間が退室してもCPUは着手を続ける", as
     completed = await getRoom(id);
   }
   expect(completed.status).toBe("finished");
+});
+
+test("ルーム作成のモードは必須で、すぐ遊ぶにも選択したモードを保存する", async () => {
+  for (const body of [
+    { name: "ホスト", quickPlay: false },
+    { name: "ホスト", quickPlay: false, mode: "other" },
+  ]) {
+    const response = await exports.default.fetch(
+      new Request(`${baseUrl}${createRoomContract.path}`, {
+        method: createRoomContract.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()) as unknown).toEqual({ error: "invalid_request" });
+  }
+
+  const singles = await createRoom(false, "singles");
+  const doubles = await createRoom(true, "doubles");
+  expect(singles.room.settings).toEqual({
+    game: "four-reversi",
+    mode: "singles",
+    timeControl: roomTimeControl,
+  });
+  expect(singles.room.players).toHaveLength(1);
+  expect(doubles.room.settings.mode).toBe("doubles");
+  expect(doubles.room.players.filter((player) => player.kind === "cpu")).toHaveLength(3);
+  expect(doubles.room.players.every((player) => player.ready)).toBe(true);
+});
+
+test("待機中のモード変更はホストのみ可能で、人間のReadyを解除する", async () => {
+  const created = await createRoom();
+  const joined = await joinRoom(created.room.id, "二人目");
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  const guest = await authenticatedRoom(created.room.id, joined.membership.token);
+  host.send({ type: "room.ready.set", ready: true });
+  await host.nextSnapshotWhere((room) => room.players[0].ready);
+  guest.send({ type: "room.ready.set", ready: true });
+  await host.nextSnapshotWhere((room) => room.players[1].ready);
+
+  guest.send({ type: "room.mode.set", mode: "doubles" });
+  expect((await guest.nextType("room.error")).error).toBe("forbidden");
+  const before = await getMetadata(created.room.id);
+  host.send({ type: "room.mode.set", mode: "doubles" });
+  const changed = await host.nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  expect(changed.players.filter((player) => player.kind === "human" && player.ready)).toHaveLength(
+    0,
+  );
+  expect((await getMetadata(created.room.id))?.updatedAtMs).toBeGreaterThan(before!.updatedAtMs);
+  expect((await getRoom(created.room.id)).settings.mode).toBe("doubles");
+
+  const updatedAtMs = (await getMetadata(created.room.id))!.updatedAtMs;
+  host.send({ type: "room.mode.set", mode: "doubles" });
+  await host.nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  expect((await getMetadata(created.room.id))?.updatedAtMs).toBe(updatedAtMs);
+});
+
+test("すぐ遊ぶのモード変更ではCPUだけがReadyを維持する", async () => {
+  const created = await createRoom(true);
+  const host = await authenticatedRoom(created.room.id, created.membership.token);
+  host.send({ type: "room.mode.set", mode: "doubles" });
+  const changed = await host.nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  expect(changed.players.filter((player) => player.kind === "human" && player.ready)).toHaveLength(
+    0,
+  );
+  expect(changed.players.filter((player) => player.kind === "cpu" && player.ready)).toHaveLength(3);
+});
+
+test("公開メタデータは参加・CPU席・ホスト交代を反映し、閉鎖時は消える", async () => {
+  const created = await createRoom();
+  const id = created.room.id;
+  const initial = await getMetadata(id);
+  expect(initial).toEqual({
+    id,
+    game: "four-reversi",
+    mode: "singles",
+    timeControl: roomTimeControl,
+    status: "waiting",
+    hostName: "ホスト",
+    humanCount: 1,
+    cpuCount: 0,
+    capacity: 4,
+    openSeats: 3,
+    updatedAtMs: created.room.publicUpdatedAtMs,
+  });
+  expect(roomPublicMetadataSchema.safeParse({ ...initial, openSeats: 0 }).success).toBe(false);
+
+  const joined = await joinRoom(id, "二人目");
+  const afterJoin = await getMetadata(id);
+  expect(afterJoin?.humanCount).toBe(2);
+  expect(afterJoin?.openSeats).toBe(2);
+  expect(afterJoin!.updatedAtMs).toBeGreaterThan(initial!.updatedAtMs);
+
+  const host = await authenticatedRoom(id, created.membership.token);
+  const guest = await authenticatedRoom(id, joined.membership.token);
+  host.send({ type: "room.cpu.add", level: 1 });
+  await host.nextSnapshotWhere((room) => room.players.length === 3);
+  const afterCpu = await getMetadata(id);
+  expect(afterCpu?.cpuCount).toBe(1);
+  expect(afterCpu?.openSeats).toBe(1);
+  expect(afterCpu!.updatedAtMs).toBeGreaterThan(afterJoin!.updatedAtMs);
+
+  const cpu = (await getRoom(id)).players.find((player) => player.kind === "cpu");
+  if (cpu?.kind !== "cpu") throw new Error("CPU was not added");
+  host.send({ type: "room.cpu.level.set", playerId: cpu.id, level: 2 });
+  await host.nextSnapshotWhere((room) =>
+    room.players.some(
+      (player) => player.id === cpu.id && player.kind === "cpu" && player.level === 2,
+    ),
+  );
+  const afterLevel = await getMetadata(id);
+  expect(afterLevel?.cpuCount).toBe(1);
+  expect(afterLevel!.updatedAtMs).toBeGreaterThan(afterCpu!.updatedAtMs);
+
+  expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+  await guest.nextSnapshotWhere((room) => room.players[0]?.name === "二人目");
+  const afterHandoff = await getMetadata(id);
+  expect(afterHandoff?.hostName).toBe("二人目");
+  expect(afterHandoff?.humanCount).toBe(1);
+  expect(afterHandoff?.cpuCount).toBe(1);
+  expect(afterHandoff!.updatedAtMs).toBeGreaterThan(afterLevel!.updatedAtMs);
+
+  guest.send({ type: "room.cpu.remove", playerId: cpu.id });
+  await guest.nextSnapshotWhere((room) => room.players.length === 1);
+  const afterRemove = await getMetadata(id);
+  expect(afterRemove?.cpuCount).toBe(0);
+  expect(afterRemove?.openSeats).toBe(3);
+  expect(afterRemove!.updatedAtMs).toBeGreaterThan(afterHandoff!.updatedAtMs);
+
+  expect((await leaveRoom(id, joined.membership.token)).status).toBe(204);
+  expect(await getMetadata(id)).toBeNull();
+});
+
+test("ダブルス開始と終局は公開情報を更新し、通常の着手は更新しない", async () => {
+  const setup = await fourPlayers();
+  setup.connections[0].send({ type: "room.mode.set", mode: "doubles" });
+  await setup.connections[0].nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  await readyPlayers(setup.id, setup.connections);
+  const waiting = await getMetadata(setup.id);
+
+  setup.connections[0].send({ type: "room.game.start" });
+  const started = await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
+  if (started.status !== "playing") throw new Error("Game did not start");
+  expect(started.game.mode).toBe("doubles");
+  expect(
+    roomSchema.safeParse({ ...started, settings: { ...started.settings, mode: "singles" } })
+      .success,
+  ).toBe(false);
+  expect(new Set(started.players.map((player) => player.color)).size).toBe(4);
+  const playing = await getMetadata(setup.id);
+  expect(playing?.status).toBe("playing");
+  expect(playing?.openSeats).toBe(0);
+  expect(playing!.updatedAtMs).toBeGreaterThan(waiting!.updatedAtMs);
+
+  setup.connections[1].send({ type: "room.mode.set", mode: "singles" });
+  expect((await setup.connections[1].nextType("room.error")).error).toBe("already_started");
+
+  const black = started.players.findIndex((player) => player.color === "black");
+  setup.connections[black].send({
+    type: "room.game.action",
+    action: { type: "placeStone", position: getLegalMoves(started.game)[0] },
+  });
+  await setup.connections[0].nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.moveNumber === 1,
+  );
+  expect((await getMetadata(setup.id))?.updatedAtMs).toBe(playing!.updatedAtMs);
+
+  expect((await leaveRoom(setup.id, setup.participants[0].token)).status).toBe(204);
+  const finished = await setup.connections[1].nextSnapshotWhere(
+    (room) => room.status === "finished",
+  );
+  if (finished.status !== "finished" || finished.game.result.mode !== "doubles") {
+    throw new Error("Doubles game did not finish");
+  }
+  expect(finished.game.result.reason).toBe("team_eliminated");
+  const hostColor = finished.players.find(
+    (player) => player.id === setup.participants[0].playerId,
+  )?.color;
+  expect(finished.game.result.winner).toBe(
+    hostColor === "black" || hostColor === "red" ? "white-blue" : "black-red",
+  );
+  const metadata = await getMetadata(setup.id);
+  expect(metadata?.status).toBe("finished");
+  expect(metadata?.hostName).toBeNull();
+  expect(metadata?.humanCount).toBe(4);
+  expect(metadata!.updatedAtMs).toBeGreaterThan(playing!.updatedAtMs);
 });

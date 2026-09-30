@@ -1,10 +1,10 @@
 import {
   leaveRoomContract,
   roomSocketContract,
-  roomTimeControl,
   type CpuLevel,
   type Room,
   type RoomMembership,
+  type RoomMode,
 } from "@tetraboard/protocol";
 import { getLegalMoves, type Color, type Position } from "@tetraboard/four-reversi";
 import { useEffect, useRef, useState } from "react";
@@ -86,7 +86,7 @@ function operationErrorMessage(error: string): string {
     case "not_ready":
       return "4人全員の準備完了が必要です。";
     case "forbidden":
-      return "対局を開始できるのはホストだけです。";
+      return "この操作はホストだけが行えます。";
     case "already_started":
       return "対局はすでに始まっています。";
     case "game_not_started":
@@ -121,7 +121,7 @@ function playerClockText(room: Room, color: Color, serverNowMs: number): string 
   if (room.game.turn !== color) {
     return main > 0
       ? `残り ${formatClock(main)}`
-      : `秒読み ${formatClock(roomTimeControl.byoyomiMs)}/手`;
+      : `秒読み ${formatClock(room.settings.timeControl.byoyomiMs)}/手`;
   }
   const remainingMain = Math.max(0, main - Math.max(0, serverNowMs - room.clock.turnStartedAt));
   return remainingMain > 0
@@ -144,7 +144,7 @@ function RoomDetail({
   const [connection, setConnection] = useState("接続中");
   const [authenticated, setAuthenticated] = useState(false);
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
-  const [pendingCpu, setPendingCpu] = useState(false);
+  const [pendingSettings, setPendingSettings] = useState(false);
   const [newCpuLevel, setNewCpuLevel] = useState<CpuLevel>(1);
   const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
@@ -156,7 +156,7 @@ function RoomDetail({
   const [serverNowMs, setServerNowMs] = useState(initialServerNowMs);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
-  const pendingCpuRef = useRef(false);
+  const pendingSettingsRef = useRef(false);
   const pendingGameActionRef = useRef<PendingGameAction | null>(null);
 
   useEffect(() => {
@@ -181,9 +181,9 @@ function RoomDetail({
       setPendingReady(null);
     }
 
-    function clearPendingCpu(): void {
-      pendingCpuRef.current = false;
-      setPendingCpu(false);
+    function clearPendingSettings(): void {
+      pendingSettingsRef.current = false;
+      setPendingSettings(false);
     }
 
     function clearPendingGameAction(): void {
@@ -273,7 +273,7 @@ function RoomDetail({
             return;
           }
           setRoom(message.data.room);
-          clearPendingCpu();
+          clearPendingSettings();
           setClockSync({ serverNowMs: message.data.serverNowMs, receivedAt: performance.now() });
           setConnection("接続済み");
           retryDelay = 1000;
@@ -316,7 +316,7 @@ function RoomDetail({
         }
 
         clearPendingReady();
-        clearPendingCpu();
+        clearPendingSettings();
         clearPendingGameAction();
         if (message.data.error === "unauthorized") {
           setAuthenticated(false);
@@ -340,7 +340,7 @@ function RoomDetail({
         if (!active) return;
         setAuthenticated(false);
         clearPendingReady();
-        clearPendingCpu();
+        clearPendingSettings();
         clearPendingGameAction();
         scheduleReconnect();
       };
@@ -357,12 +357,12 @@ function RoomDetail({
   }, [initialRoom.id, initialMembership]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
-  const canManageCpu =
+  const canManageSettings =
     room.status === "waiting" &&
     membership?.role === "host" &&
     authenticated &&
     connection === "接続済み" &&
-    !pendingCpu;
+    !pendingSettings;
   const game = room.status === "waiting" ? null : room.game;
   const legalMoves = game === null ? [] : getLegalMoves(game);
   const canPlay =
@@ -447,19 +447,23 @@ function RoomDetail({
     }
   }
 
-  function sendCpuMessage(message: unknown): void {
+  function sendSettingsMessage(message: unknown): void {
     const currentSocket = socketRef.current;
-    if (!canManageCpu || pendingCpuRef.current || currentSocket?.readyState !== WebSocket.OPEN)
+    if (
+      !canManageSettings ||
+      pendingSettingsRef.current ||
+      currentSocket?.readyState !== WebSocket.OPEN
+    )
       return;
-    pendingCpuRef.current = true;
-    setPendingCpu(true);
+    pendingSettingsRef.current = true;
+    setPendingSettings(true);
     setSocketError(null);
     try {
       currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
     } catch {
-      pendingCpuRef.current = false;
-      setPendingCpu(false);
-      setSocketError("CPU席を変更できませんでした。");
+      pendingSettingsRef.current = false;
+      setPendingSettings(false);
+      setSocketError("ルーム設定を変更できませんでした。");
     }
   }
 
@@ -505,6 +509,29 @@ function RoomDetail({
       <p>接続状態：{connection}</p>
       {socketError && <p>{socketError}</p>}
       <p>状態：{room.status}</p>
+      <p>ゲーム：四人リバーシ</p>
+      <p>
+        持ち時間：{room.settings.timeControl.mainTimeMs / 60_000}分＋1手
+        {room.settings.timeControl.byoyomiMs / 1000}秒
+      </p>
+      {room.status === "waiting" && membership?.role === "host" ? (
+        <>
+          <label htmlFor="room-mode">対局モード</label>
+          <select
+            id="room-mode"
+            value={room.settings.mode}
+            disabled={!canManageSettings}
+            onChange={(event) =>
+              sendSettingsMessage({ type: "room.mode.set", mode: event.target.value as RoomMode })
+            }
+          >
+            <option value="singles">シングルス</option>
+            <option value="doubles">ダブルス</option>
+          </select>
+        </>
+      ) : (
+        <p>対局モード：{room.settings.mode === "singles" ? "シングルス" : "ダブルス"}</p>
+      )}
       {membership !== null && (
         <button type="button" disabled={leaving} onClick={() => void handleLeaveClick()}>
           退室
@@ -541,15 +568,15 @@ function RoomDetail({
             id="new-cpu-level"
             value={newCpuLevel}
             onChange={(event) => setNewCpuLevel(Number(event.target.value) as CpuLevel)}
-            disabled={!canManageCpu}
+            disabled={!canManageSettings}
           >
             <option value={1}>レベル1（よわい）</option>
             <option value={2}>レベル2（ふつう）</option>
           </select>
           <button
             type="button"
-            disabled={!canManageCpu || room.players.length >= 4}
-            onClick={() => sendCpuMessage({ type: "room.cpu.add", level: newCpuLevel })}
+            disabled={!canManageSettings || room.players.length >= 4}
+            onClick={() => sendSettingsMessage({ type: "room.cpu.add", level: newCpuLevel })}
           >
             CPUを追加
           </button>
@@ -576,9 +603,9 @@ function RoomDetail({
                 <select
                   aria-label={`${player.name}のレベル`}
                   value={player.level}
-                  disabled={!canManageCpu}
+                  disabled={!canManageSettings}
                   onChange={(event) =>
-                    sendCpuMessage({
+                    sendSettingsMessage({
                       type: "room.cpu.level.set",
                       playerId: player.id,
                       level: Number(event.target.value),
@@ -590,8 +617,10 @@ function RoomDetail({
                 </select>
                 <button
                   type="button"
-                  disabled={!canManageCpu}
-                  onClick={() => sendCpuMessage({ type: "room.cpu.remove", playerId: player.id })}
+                  disabled={!canManageSettings}
+                  onClick={() =>
+                    sendSettingsMessage({ type: "room.cpu.remove", playerId: player.id })
+                  }
                 >
                   {player.name}を削除
                 </button>

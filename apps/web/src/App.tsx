@@ -4,7 +4,9 @@ import {
   healthzContract,
   joinRoomContract,
   roomCodeSchema,
+  roomTimeControl,
   type RoomError,
+  type RoomMode,
 } from "@tetraboard/protocol";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
@@ -21,6 +23,7 @@ export function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("確認中");
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
+  const [mode, setMode] = useState<RoomMode>("singles");
   const [isSubmitting, setIsSubmitting] = useState<"create" | "quick" | "join" | null>(null);
   const [roomResponse, setRoomResponse] = useState<RoomError | null>(null);
   const [responseStatus, setResponseStatus] = useState<number | null>(null);
@@ -97,7 +100,7 @@ export function App() {
       }
 
       const request = contract.request.safeParse(
-        intent === "join" ? { name } : { name, quickPlay: intent === "quick" },
+        intent === "join" ? { name } : { name, quickPlay: intent === "quick", mode },
       );
       if (!request.success) {
         setMessage("ニックネームを1〜10文字で入力してください。");
@@ -162,6 +165,20 @@ export function App() {
       <form onSubmit={(event) => void submitRoom(event)}>
         <label htmlFor="nickname">ニックネーム</label>
         <input id="nickname" value={name} onChange={(event) => setName(event.target.value)} />
+        <label htmlFor="room-mode">作成するルームの対局モード</label>
+        <select
+          id="room-mode"
+          value={mode}
+          onChange={(event) => setMode(event.target.value as RoomMode)}
+          disabled={isSubmitting !== null}
+        >
+          <option value="singles">シングルス</option>
+          <option value="doubles">ダブルス</option>
+        </select>
+        <p>
+          持ち時間：{roomTimeControl.mainTimeMs / 60_000}分＋1手
+          {roomTimeControl.byoyomiMs / 1000}秒
+        </p>
         <button type="submit" value="create" disabled={isSubmitting !== null}>
           {isSubmitting === "create" ? "作成中" : "ルーム作成"}
         </button>
