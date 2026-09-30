@@ -78,6 +78,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         },
       ],
       game: null,
+      clock: null,
     };
 
     try {
@@ -111,9 +112,10 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
 
   try {
     const room = await context.env.GAME_ROOM.getByName(code).getRoom();
+    context.header("Cache-Control", "no-store");
     return room === null
       ? context.json(roomError("not_found"), 404)
-      : context.json(getRoomContract.response.parse(room));
+      : context.json(getRoomContract.response.parse({ room, serverNowMs: Date.now() }));
   } catch {
     return context.json(roomError("internal_error"), 500);
   }

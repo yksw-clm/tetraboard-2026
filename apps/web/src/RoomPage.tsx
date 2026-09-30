@@ -1,6 +1,7 @@
 import {
   leaveRoomContract,
   roomSocketContract,
+  roomTimeControl,
   type Room,
   type RoomMembership,
 } from "@tetraboard/protocol";
@@ -97,17 +98,40 @@ function operationErrorMessage(error: string): string {
       return "その場所には石を置けません。";
     case "already_eliminated":
       return "すでに脱落しています。";
+    case "time_expired":
+      return "持ち時間が切れました。";
     default:
       return "ルーム操作に失敗しました。再読み込みしてください。";
   }
 }
 
+function formatClock(milliseconds: number): string {
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function playerClockText(room: Room, color: Color, serverNowMs: number): string | null {
+  if (room.status !== "playing" || room.game.eliminatedColors.includes(color)) return null;
+  const main = room.clock.remainingMainMs[color];
+  if (room.game.turn !== color) {
+    return main > 0
+      ? `残り ${formatClock(main)}`
+      : `秒読み ${formatClock(roomTimeControl.byoyomiMs)}/手`;
+  }
+  const remainingMain = Math.max(0, main - Math.max(0, serverNowMs - room.clock.turnStartedAt));
+  return remainingMain > 0
+    ? `残り ${formatClock(remainingMain)}`
+    : `秒読み ${formatClock(room.clock.turnExpiresAt - serverNowMs)}`;
+}
+
 function RoomDetail({
   initialRoom,
   initialMembership,
+  initialServerNowMs,
 }: {
   initialRoom: Room;
   initialMembership: RoomMembership | null;
+  initialServerNowMs: number;
 }) {
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
@@ -118,9 +142,23 @@ function RoomDetail({
   const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const [clockSync, setClockSync] = useState(() => ({
+    serverNowMs: initialServerNowMs,
+    receivedAt: performance.now(),
+  }));
+  const [serverNowMs, setServerNowMs] = useState(initialServerNowMs);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
   const pendingGameActionRef = useRef<PendingGameAction | null>(null);
+
+  useEffect(() => {
+    if (room.status !== "playing") return;
+    const update = () =>
+      setServerNowMs(clockSync.serverNowMs + performance.now() - clockSync.receivedAt);
+    update();
+    const timer = window.setInterval(update, 250);
+    return () => window.clearInterval(timer);
+  }, [room.status, clockSync]);
 
   useEffect(() => {
     let active = true;
@@ -150,7 +188,8 @@ function RoomDetail({
     async function reconnect(): Promise<void> {
       controller = new AbortController();
       try {
-        const latestRoom = await fetchRoom(initialRoom.id, controller.signal);
+        const latest = await fetchRoom(initialRoom.id, controller.signal);
+        const latestRoom = latest.room;
         const latestMembership = await fetchRoomMembership(initialRoom.id, controller.signal);
         if (!active) return;
         if (
@@ -161,6 +200,7 @@ function RoomDetail({
         }
         currentMembership = latestMembership;
         setRoom(latestRoom);
+        setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
         setMembership(latestMembership);
         connect();
       } catch (error) {
@@ -220,6 +260,7 @@ function RoomDetail({
             return;
           }
           setRoom(message.data.room);
+          setClockSync({ serverNowMs: message.data.serverNowMs, receivedAt: performance.now() });
           setConnection("接続済み");
           retryDelay = 1000;
           if (
@@ -467,6 +508,9 @@ function RoomDetail({
               player.color !== null &&
               room.game.eliminatedColors.includes(player.color) &&
               " 脱落"}
+            {player.color !== null &&
+              playerClockText(room, player.color, serverNowMs) !== null &&
+              ` ${playerClockText(room, player.color, serverNowMs)}`}
           </li>
         ))}
       </ul>
@@ -522,12 +566,13 @@ function RoomDetail({
 }
 
 export function RoomPage() {
-  const { room, membership } = useLoaderData<RoomLoaderData>();
+  const { room, membership, serverNowMs } = useLoaderData<RoomLoaderData>();
   return (
     <RoomDetail
       key={`${room.id}:${membership?.playerId ?? "spectator"}`}
       initialRoom={room}
       initialMembership={membership}
+      initialServerNowMs={serverNowMs}
     />
   );
 }

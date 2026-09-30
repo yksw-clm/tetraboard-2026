@@ -7,9 +7,16 @@ import {
 import type { LoaderFunctionArgs } from "react-router";
 import { fetchRoomMembership } from "./roomMembership";
 
-export type RoomLoaderData = { room: Room; membership: RoomMembership | null };
+export type RoomLoaderData = {
+  room: Room;
+  membership: RoomMembership | null;
+  serverNowMs: number;
+};
 
-export async function fetchRoom(id: string, signal: AbortSignal): Promise<Room> {
+export async function fetchRoom(
+  id: string,
+  signal: AbortSignal,
+): Promise<{ room: Room; serverNowMs: number }> {
   const response = await fetch(`/api${getRoomContract.pathFor(id)}`, {
     method: getRoomContract.method,
     cache: "no-store",
@@ -25,7 +32,7 @@ export async function fetchRoom(id: string, signal: AbortSignal): Promise<Room> 
   }
 
   const room = getRoomContract.response.safeParse(body);
-  if (!room.success || room.data.id !== id) {
+  if (!room.success || room.data.room.id !== id) {
     throw new Response("ルーム情報の応答が不正です。", { status: 502 });
   }
   return room.data;
@@ -36,10 +43,10 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
   if (!roomCodeSchema.safeParse(id).success) {
     throw new Response("ルームIDが不正です。", { status: 400 });
   }
-  const room = await fetchRoom(id!, request.signal);
+  const { room, serverNowMs } = await fetchRoom(id!, request.signal);
   const membership = await fetchRoomMembership(room.id, request.signal);
   if (membership !== null && !room.players.some((player) => player.id === membership.playerId)) {
     throw new Response("本人確認の結果がルーム情報と一致しません。", { status: 503 });
   }
-  return { room, membership };
+  return { room, membership, serverNowMs };
 }

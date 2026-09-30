@@ -13,6 +13,7 @@ export {
   roomMembershipSchema,
   roomSchema,
   roomSocketContract,
+  roomTimeControl,
 } from "./rooms";
 export type {
   CreateRoomRequest,
@@ -20,6 +21,8 @@ export type {
   Room,
   RoomError,
   RoomMembership,
+  PlayingRoomClock,
+  FinishedRoomClock,
   RoomSocketClientMessage,
   RoomSocketMessage,
 } from "./rooms";

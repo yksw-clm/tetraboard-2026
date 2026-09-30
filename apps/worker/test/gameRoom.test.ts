@@ -21,6 +21,7 @@ const clients: RoomClient[] = [];
 class RoomClient {
   private readonly messages: RoomSocketMessage[] = [];
   private readonly waiters: ((message: RoomSocketMessage) => void)[] = [];
+  initialSnapshot: Extract<RoomSocketMessage, { type: "room.snapshot" }> | null = null;
 
   constructor(private readonly socket: WebSocket) {
     socket.addEventListener("message", (event) => {
@@ -108,7 +109,7 @@ async function getRoom(id: string): Promise<Room> {
     new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
   );
   expect(response.status).toBe(200);
-  return getRoomContract.response.parse(await response.json());
+  return getRoomContract.response.parse(await response.json()).room;
 }
 
 async function leaveRoom(id: string, token: string): Promise<Response> {
@@ -166,7 +167,7 @@ async function openRoom(id: string): Promise<RoomClient> {
   if (!socket) throw new Error("WebSocket upgrade failed");
   const client = new RoomClient(socket);
   clients.push(client);
-  await client.nextType("room.snapshot");
+  client.initialSnapshot = await client.nextType("room.snapshot");
   return client;
 }
 
@@ -198,6 +199,28 @@ async function readyPlayers(id: string, connections: RoomClient[]): Promise<void
     );
   }
   expect((await getRoom(id)).players.every((player) => player.ready)).toBe(true);
+}
+
+async function startFourPlayerRoom() {
+  const setup = await fourPlayers();
+  await readyPlayers(setup.id, setup.connections);
+  setup.connections[0].send({ type: "room.game.start" });
+  const room = await setup.connections[0].nextSnapshotWhere(
+    (snapshot) => snapshot.status === "playing",
+  );
+  if (room.status !== "playing") throw new Error("Game did not start");
+  return { ...setup, room };
+}
+
+async function setRoomDeadlines(
+  id: string,
+  change: (room: Extract<Room, { status: "playing" }>) => Room,
+): Promise<void> {
+  await runInDurableObject(env.GAME_ROOM.getByName(id), (_instance, state) => {
+    const room = roomSchema.parse(state.storage.kv.get("room"));
+    if (room.status !== "playing") throw new Error("Game did not start");
+    state.storage.kv.put("room", roomSchema.parse(change(room)));
+  });
 }
 
 test("未認証の接続はReadyを変更できない", async () => {
@@ -535,4 +558,154 @@ test("同時に期限切れになった対局者は入室順に脱落する", as
     started.players[1].color,
     started.players[2].color,
   ]);
+});
+
+test("開始・着手・再取得で時計の基準時刻と期限を維持する", async () => {
+  const { id, connections, room } = await startFourPlayerRoom();
+  expect(room.clock.remainingMainMs).toEqual({
+    black: 300_000,
+    white: 300_000,
+    red: 300_000,
+    blue: 300_000,
+  });
+  expect(room.clock.turnExpiresAt - room.clock.turnStartedAt).toBe(330_000);
+  const fetched = await exports.default.fetch(
+    new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
+  );
+  const getPayload = getRoomContract.response.parse(await fetched.json());
+  expect(getPayload.room).toEqual(room);
+  expect(getPayload.serverNowMs).toBeGreaterThanOrEqual(room.clock.turnStartedAt);
+  const reconnected = await openRoom(id);
+  const snapshot = reconnected.initialSnapshot;
+  if (snapshot === null) throw new Error("Room snapshot missing");
+  expect(snapshot.room).toEqual(room);
+  expect(snapshot.serverNowMs).toBeGreaterThanOrEqual(getPayload.serverNowMs);
+
+  const black = room.players.findIndex((player) => player.color === "black");
+  connections[black].send({
+    type: "room.game.action",
+    action: { type: "placeStone", position: { x: 2, y: 3 } },
+  });
+  const moved = await connections[0].nextSnapshotWhere(
+    (next) => next.status === "playing" && next.game.moveNumber === 1,
+  );
+  if (moved.status !== "playing") throw new Error("Game did not continue");
+  expect(moved.clock.remainingMainMs.black).toBeLessThanOrEqual(300_000);
+  expect(moved.clock.turnStartedAt).toBeGreaterThanOrEqual(room.clock.turnStartedAt);
+  expect(moved.clock.turnExpiresAt - moved.clock.turnStartedAt).toBe(330_000);
+  expect(await getRoom(id)).toEqual(moved);
+});
+
+test("期限到達後の着手を拒否し、時間切れを全接続へ配信する", async () => {
+  const { id, connections, participants, room } = await startFourPlayerRoom();
+  const black = room.players.findIndex((player) => player.color === "black");
+  await setRoomDeadlines(id, (current) => ({
+    ...current,
+    clock: {
+      ...current.clock,
+      remainingMainMs: { ...current.clock.remainingMainMs, black: 0 },
+      turnStartedAt: Date.now() - 30_001,
+      turnExpiresAt: Date.now() - 1,
+    },
+  }));
+  connections[black].send({
+    type: "room.game.action",
+    action: { type: "placeStone", position: { x: 2, y: 3 } },
+  });
+  const updated = await connections[0].nextSnapshotWhere(
+    (next) => next.status !== "waiting" && next.game.eliminatedColors.includes("black"),
+  );
+  expect(updated.status).toBe("playing");
+  if (updated.status !== "playing") throw new Error("Game ended too soon");
+  expect(updated.game.moveNumber).toBe(0);
+  expect(updated.game.turn).not.toBe("black");
+  expect(updated.clock.remainingMainMs.black).toBe(0);
+  expect(updated.clock.turnStartedAt).toBe(updated.clock.turnExpiresAt - 330_000);
+  for (const connection of connections.slice(1)) {
+    expect(
+      await connection.nextSnapshotWhere(
+        (next) => next.status !== "waiting" && next.game.eliminatedColors.includes("black"),
+      ),
+    ).toEqual(updated);
+  }
+  expect(await getRoom(id)).toEqual(updated);
+  expect((await getMembership(id, participants[black].token)).status).toBe(200);
+  expect((await connections[black].nextType("room.error")).error).toBe("already_eliminated");
+});
+
+test("同時刻の時計切れを復帰期限より先に処理する", async () => {
+  const { id, connections, participants, room } = await startFourPlayerRoom();
+  const other = room.players.findIndex((player) => player.color !== "black");
+  connections[other].close();
+  await expectPending(id, participants[other].playerId);
+  const deadline = Date.now() - 1;
+  await setRoomDeadlines(id, (current) => ({
+    ...current,
+    clock: {
+      ...current.clock,
+      remainingMainMs: { black: 0, white: 300_000, red: 300_000, blue: 300_000 },
+      turnStartedAt: deadline - 30_000,
+      turnExpiresAt: deadline,
+    },
+    players: current.players.map((player) =>
+      player.id === participants[other].playerId
+        ? { ...player, reconnectDeadline: deadline }
+        : player,
+    ),
+  }));
+  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+  const updated = await getRoom(id);
+  if (updated.status === "waiting") throw new Error("Game did not start");
+  expect(updated.game.eliminatedColors).toEqual(["black", room.players[other].color]);
+});
+
+test("復帰期限が時計より先なら、切断による脱落を先に処理する", async () => {
+  const { id, connections, participants, room } = await startFourPlayerRoom();
+  const other = room.players.findIndex((player) => player.color !== "black");
+  connections[other].close();
+  await expectPending(id, participants[other].playerId);
+  const disconnectDeadline = Date.now() - 2;
+  await setRoomDeadlines(id, (current) => ({
+    ...current,
+    clock: {
+      ...current.clock,
+      remainingMainMs: { ...current.clock.remainingMainMs, black: 0 },
+      turnStartedAt: disconnectDeadline - 29_999,
+      turnExpiresAt: disconnectDeadline + 1,
+    },
+    players: current.players.map((player) =>
+      player.id === participants[other].playerId
+        ? { ...player, reconnectDeadline: disconnectDeadline }
+        : player,
+    ),
+  }));
+  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+  const updated = await getRoom(id);
+  if (updated.status === "waiting") throw new Error("Game did not start");
+  expect(updated.game.eliminatedColors).toEqual([room.players[other].color, "black"]);
+});
+
+test("遅れたAlarmでも保存期限の順に連続時間切れを確定し、時計を止める", async () => {
+  const { id, connections } = await startFourPlayerRoom();
+  const deadline = Date.now() - 90_001;
+  await setRoomDeadlines(id, (room) => ({
+    ...room,
+    clock: {
+      remainingMainMs: { black: 0, white: 0, red: 0, blue: 0 },
+      turnStartedAt: deadline - 30_000,
+      turnExpiresAt: deadline,
+    },
+  }));
+  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+  const result = await getRoom(id);
+  expect(result.status).toBe("finished");
+  if (result.status !== "finished") throw new Error("Game did not finish");
+  expect(result.game.eliminatedColors).toEqual(["black", "white", "red"]);
+  expect(result.clock.turnStartedAt).toBeNull();
+  expect(result.clock.turnExpiresAt).toBeNull();
+  for (const connection of connections) {
+    expect(await connection.nextSnapshotWhere((room) => room.status === "finished")).toEqual(
+      result,
+    );
+  }
 });

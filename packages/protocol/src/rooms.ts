@@ -13,6 +13,24 @@ const playerNameRequestSchema = z.strictObject({ name: nicknameSchema });
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
 export const fourReversiColorSchema = z.enum(["black", "white", "red", "blue"]);
+export const roomTimeControl = { mainTimeMs: 300_000, byoyomiMs: 30_000 } as const;
+const serverNowMsSchema = z.int().nonnegative();
+const remainingMainMsSchema = z.strictObject({
+  black: z.int().nonnegative(),
+  white: z.int().nonnegative(),
+  red: z.int().nonnegative(),
+  blue: z.int().nonnegative(),
+});
+const playingClockSchema = z.strictObject({
+  remainingMainMs: remainingMainMsSchema,
+  turnStartedAt: serverNowMsSchema,
+  turnExpiresAt: serverNowMsSchema,
+});
+const finishedClockSchema = z.strictObject({
+  remainingMainMs: remainingMainMsSchema,
+  turnStartedAt: z.null(),
+  turnExpiresAt: z.null(),
+});
 const fourReversiModeSchema = z.enum(["singles", "doubles"]);
 const teamSchema = z.enum(["black-red", "white-blue"]);
 const singlesResultSchema = z.strictObject({
@@ -71,6 +89,7 @@ const waitingRoomSchema = z.strictObject({
   status: z.literal("waiting"),
   players: z.array(playerSchema.extend({ color: z.null().default(null) })),
   game: z.null().default(null),
+  clock: z.null().default(null),
 });
 
 const activeRoomBaseSchema = z
@@ -83,10 +102,12 @@ const activeRoomBaseSchema = z
 const playingRoomSchema = activeRoomBaseSchema.safeExtend({
   status: z.literal("playing"),
   game: playingGameSchema,
+  clock: playingClockSchema,
 });
 const finishedRoomSchema = activeRoomBaseSchema.safeExtend({
   status: z.literal("finished"),
   game: finishedGameSchema,
+  clock: finishedClockSchema,
 });
 export const roomSchema = z.discriminatedUnion("status", [
   waitingRoomSchema,
@@ -155,7 +176,7 @@ export const getRoomContract = {
   method: "GET",
   path: "/rooms/:id",
   pathFor: (id: string) => `/rooms/${id}`,
-  response: roomSchema,
+  response: z.strictObject({ room: roomSchema, serverNowMs: serverNowMsSchema }),
   error: roomErrorSchema,
 } as const;
 
@@ -185,7 +206,11 @@ export const roomSocketContract = {
     }),
   ]),
   message: z.discriminatedUnion("type", [
-    z.strictObject({ type: z.literal("room.snapshot"), room: roomSchema }),
+    z.strictObject({
+      type: z.literal("room.snapshot"),
+      room: roomSchema,
+      serverNowMs: serverNowMsSchema,
+    }),
     z.strictObject({ type: z.literal("room.authenticated"), membership: roomMembershipSchema }),
     z.strictObject({
       type: z.literal("room.error"),
@@ -202,6 +227,7 @@ export const roomSocketContract = {
         "not_your_turn",
         "invalid_move",
         "already_eliminated",
+        "time_expired",
       ]),
     }),
   ]),
@@ -211,6 +237,8 @@ export const roomSocketContract = {
 export type CreateRoomRequest = z.infer<typeof createRoomContract.request>;
 export type JoinRoomRequest = z.infer<typeof joinRoomContract.request>;
 export type Room = z.infer<typeof roomSchema>;
+export type PlayingRoomClock = z.infer<typeof playingClockSchema>;
+export type FinishedRoomClock = z.infer<typeof finishedClockSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;
 export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type RoomSocketClientMessage = z.infer<typeof roomSocketContract.clientMessage>;
