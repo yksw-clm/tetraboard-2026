@@ -7,6 +7,7 @@ export {
   getRoomContract,
   getRoomMembershipContract,
   joinRoomContract,
+  leaveRoomContract,
   membershipTokenSchema,
   roomCodeSchema,
   roomMembershipSchema,

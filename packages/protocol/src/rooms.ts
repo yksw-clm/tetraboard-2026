@@ -63,6 +63,7 @@ const playerSchema = z.strictObject({
   id: z.uuid(),
   name: nicknameSchema,
   ready: z.boolean().default(false),
+  reconnectDeadline: z.int().nonnegative().nullable().default(null),
 });
 
 const waitingRoomSchema = z.strictObject({
@@ -158,6 +159,14 @@ export const getRoomContract = {
   error: roomErrorSchema,
 } as const;
 
+export const leaveRoomContract = {
+  method: "POST",
+  path: "/rooms/:id/leave",
+  pathFor: (id: string) => `/rooms/${id}/leave`,
+  request: z.strictObject({ token: membershipTokenSchema }),
+  error: roomErrorSchema,
+} as const;
+
 export const roomSocketContract = {
   method: "GET",
   path: "/rooms/:id/ws",
@@ -166,6 +175,7 @@ export const roomSocketContract = {
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
     z.strictObject({ type: z.literal("room.game.start") }),
+    z.strictObject({ type: z.literal("room.game.resign") }),
     z.strictObject({
       type: z.literal("room.game.action"),
       action: z.strictObject({
@@ -191,6 +201,7 @@ export const roomSocketContract = {
         "game_finished",
         "not_your_turn",
         "invalid_move",
+        "already_eliminated",
       ]),
     }),
   ]),

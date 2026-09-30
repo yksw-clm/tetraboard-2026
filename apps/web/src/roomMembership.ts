@@ -42,7 +42,7 @@ export function saveRoomMembershipToken(roomId: string, token: string): boolean 
   }
 }
 
-function clearRoomMembershipToken(roomId: string): void {
+export function clearRoomMembershipToken(roomId: string): void {
   try {
     sessionStorage.removeItem(storageKey(roomId));
   } catch {

@@ -3,6 +3,7 @@ import {
   getRoomContract,
   getRoomMembershipContract,
   joinRoomContract,
+  leaveRoomContract,
   roomCodeSchema,
   roomSocketContract,
   type Room,
@@ -67,7 +68,15 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     const initialRoom: Room = {
       id: code,
       status: "waiting",
-      players: [{ id: crypto.randomUUID(), name: request.data.name, ready: false, color: null }],
+      players: [
+        {
+          id: crypto.randomUUID(),
+          name: request.data.name,
+          ready: false,
+          color: null,
+          reconnectDeadline: null,
+        },
+      ],
       game: null,
     };
 
@@ -179,6 +188,28 @@ roomRoutes.on(getRoomMembershipContract.method, getRoomMembershipContract.path, 
     }
     context.header("Cache-Control", "no-store");
     return context.json(getRoomMembershipContract.response.parse(result.membership));
+  } catch {
+    return context.json(roomError("internal_error"), 500);
+  }
+});
+
+roomRoutes.on(leaveRoomContract.method, leaveRoomContract.path, async (context) => {
+  const code = context.req.param("id");
+  if (!roomCodeSchema.safeParse(code).success) {
+    return context.json(roomError("invalid_request"), 400);
+  }
+  const authorization = context.req.header("Authorization");
+  const token = authorization?.match(/^Bearer ([0-9a-f]{64})$/)?.[1];
+  if (token === undefined || !leaveRoomContract.request.safeParse({ token }).success) {
+    return context.json(roomError("unauthorized"), 401);
+  }
+  try {
+    const result = await context.env.GAME_ROOM.getByName(code).leaveRoom(
+      await hashMembershipToken(token),
+    );
+    if (result === "not_found") return context.json(roomError("not_found"), 404);
+    if (result === "unauthorized") return context.json(roomError("unauthorized"), 401);
+    return context.body(null, 204);
   } catch {
     return context.json(roomError("internal_error"), 500);
   }

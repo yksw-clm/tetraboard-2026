@@ -1,8 +1,23 @@
-import { roomSocketContract, type Room, type RoomMembership } from "@tetraboard/protocol";
+import {
+  leaveRoomContract,
+  roomSocketContract,
+  type Room,
+  type RoomMembership,
+} from "@tetraboard/protocol";
 import { getLegalMoves, type Color, type Position } from "@tetraboard/four-reversi";
 import { useEffect, useRef, useState } from "react";
-import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
-import { fetchRoomMembership, readRoomMembershipToken } from "./roomMembership";
+import {
+  isRouteErrorResponse,
+  Link,
+  useLoaderData,
+  useNavigate,
+  useRouteError,
+} from "react-router";
+import {
+  clearRoomMembershipToken,
+  fetchRoomMembership,
+  readRoomMembershipToken,
+} from "./roomMembership";
 import { fetchRoom, type RoomLoaderData } from "./roomLoader";
 
 const colorNames: Record<Color, string> = {
@@ -19,7 +34,10 @@ const endReasonNames = {
 } as const;
 const teamNames = { "black-red": "黒・赤チーム", "white-blue": "白・青チーム" } as const;
 const columns = "ABCDEFGH";
-type PendingGameAction = { type: "start" } | { type: "move"; moveNumber: number };
+type PendingGameAction =
+  | { type: "start" }
+  | { type: "move"; moveNumber: number }
+  | { type: "resign"; color: Color };
 
 function GameResultView({ room }: { room: Extract<Room, { status: "finished" }> }) {
   const { result } = room.game;
@@ -77,6 +95,8 @@ function operationErrorMessage(error: string): string {
       return "現在はあなたの手番ではありません。";
     case "invalid_move":
       return "その場所には石を置けません。";
+    case "already_eliminated":
+      return "すでに脱落しています。";
     default:
       return "ルーム操作に失敗しました。再読み込みしてください。";
   }
@@ -89,6 +109,7 @@ function RoomDetail({
   initialRoom: Room;
   initialMembership: RoomMembership | null;
 }) {
+  const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
   const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
@@ -96,6 +117,7 @@ function RoomDetail({
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
   const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
   const pendingGameActionRef = useRef<PendingGameAction | null>(null);
@@ -212,7 +234,10 @@ function RoomDetail({
             (pending?.type === "start" && message.data.room.status === "playing") ||
             (pending?.type === "move" &&
               message.data.room.status !== "waiting" &&
-              message.data.room.game.moveNumber > pending.moveNumber)
+              message.data.room.game.moveNumber > pending.moveNumber) ||
+            (pending?.type === "resign" &&
+              message.data.room.status !== "waiting" &&
+              message.data.room.game.eliminatedColors.includes(pending.color))
           ) {
             clearPendingGameAction();
           }
@@ -222,13 +247,14 @@ function RoomDetail({
         if (message.data.type === "room.authenticated") {
           if (
             currentMembership === null ||
-            message.data.membership.playerId !== currentMembership.playerId ||
-            message.data.membership.role !== currentMembership.role
+            message.data.membership.playerId !== currentMembership.playerId
           ) {
             setAuthenticated(false);
             setSocketError("WebSocketの本人確認結果が一致しません。再読み込みしてください。");
             return;
           }
+          currentMembership = message.data.membership;
+          setMembership(message.data.membership);
           setAuthenticated(true);
           setSocketError(null);
           return;
@@ -279,6 +305,7 @@ function RoomDetail({
   const canPlay =
     game?.status === "playing" &&
     self?.color === game.turn &&
+    !game.eliminatedColors.includes(game.turn) &&
     authenticated &&
     connection === "接続済み" &&
     pendingGameAction === null;
@@ -357,6 +384,36 @@ function RoomDetail({
     }
   }
 
+  function handleResignClick(): void {
+    if (!canPlay || self?.color === null || self?.color === undefined) return;
+    sendGameMessage({ type: "room.game.resign" }, { type: "resign", color: self.color });
+  }
+
+  async function handleLeaveClick(): Promise<void> {
+    if (membership === null || leaving) return;
+    const token = readRoomMembershipToken(room.id);
+    if (token === null) {
+      setSocketError("参加資格が見つかりません。再読み込みしてください。");
+      return;
+    }
+    setLeaving(true);
+    setSocketError(null);
+    try {
+      const response = await fetch(`/api${leaveRoomContract.pathFor(room.id)}`, {
+        method: leaveRoomContract.method,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.status !== 204 && response.status !== 401 && response.status !== 404) {
+        throw new Error("Room leave failed");
+      }
+      clearRoomMembershipToken(room.id);
+      void navigate("/");
+    } catch {
+      setSocketError("退室できませんでした。再度お試しください。");
+      setLeaving(false);
+    }
+  }
+
   return (
     <>
       <p>
@@ -369,6 +426,11 @@ function RoomDetail({
       <p>接続状態：{connection}</p>
       {socketError && <p>{socketError}</p>}
       <p>状態：{room.status}</p>
+      {membership !== null && (
+        <button type="button" disabled={leaving} onClick={() => void handleLeaveClick()}>
+          退室
+        </button>
+      )}
       {membership !== null && self !== undefined && room.status === "waiting" && (
         <button
           type="button"
@@ -386,7 +448,7 @@ function RoomDetail({
             !authenticated ||
             connection !== "接続済み" ||
             room.players.length !== 4 ||
-            room.players.some((player) => !player.ready) ||
+            room.players.some((player) => !player.ready || player.reconnectDeadline !== null) ||
             pendingGameAction !== null
           }
         >
@@ -400,12 +462,22 @@ function RoomDetail({
             {membership?.playerId === player.id && "[あなた] "}
             {player.name} ({player.id}) {room.status === "waiting" && player.ready && "✅"}
             {player.color !== null && ` ${colorNames[player.color]}`}
+            {player.reconnectDeadline !== null && " 復帰待ち"}
+            {room.status !== "waiting" &&
+              player.color !== null &&
+              room.game.eliminatedColors.includes(player.color) &&
+              " 脱落"}
           </li>
         ))}
       </ul>
       {game !== null && (
         <>
           <p>{game.status === "finished" ? "対局終了" : `手番：${colorNames[game.turn]}`}</p>
+          {canPlay && (
+            <button type="button" onClick={handleResignClick} disabled={pendingGameAction !== null}>
+              投了
+            </button>
+          )}
           <p>着手数：{game.moveNumber}</p>
           {game.consecutivePasses.length > 0 && (
             <p>自動パス：{game.consecutivePasses.map((color) => colorNames[color]).join(" → ")}</p>
