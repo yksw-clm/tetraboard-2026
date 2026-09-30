@@ -39,6 +39,16 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 
 過度な抽象化より、意図が明確なコードを優先します。
 
+## Webの編集先
+
+- ルート定義と部屋の存在確認：`apps/web/src/app/router.tsx`、`apps/web/src/features/room/roomLoader.ts`
+- ルーム作成・入室：`apps/web/src/features/home/useRoomEntry.ts`、フォーム表示は同じ場所の `HomeView.tsx`
+- 公開ロビー：`apps/web/src/features/home/useLobby.ts`、一覧表示は `LobbyList.tsx`
+- ルームの接続・認証・操作：`apps/web/src/features/room/useRoomSession.ts`、HTTP処理は `roomApi.ts`
+- 盤面・結果・待機設定・参加者表示：`apps/web/src/features/room/` 内の各表示コンポーネント
+- チャット入力・非表示・通報：`apps/web/src/features/room/useRoomChat.ts`、表示は `RoomChat.tsx`
+- ルーム参加資格の保存と確認：`apps/web/src/shared/roomMembership.ts`
+
 ## Naming
 
 - ファイル名: camelCase（Reactコンポーネントファイルは基本PascalCase）
