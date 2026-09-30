@@ -4,6 +4,7 @@ import {
   getRoomMembershipContract,
   joinRoomContract,
   leaveRoomContract,
+  listRoomsContract,
   roomCodeSchema,
   roomSocketContract,
   roomTimeControl,
@@ -11,6 +12,7 @@ import {
   type RoomError,
 } from "@tetraboard/protocol";
 import { Hono } from "hono";
+import { listRoomIndex } from "./roomIndex";
 
 export const roomRoutes = new Hono<{ Bindings: Env }>();
 
@@ -117,6 +119,22 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
   }
 
   return context.json(roomError("code_unavailable"), 503);
+});
+
+roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) => {
+  const query = listRoomsContract.query.safeParse(context.req.query());
+  if (!query.success) return context.json(roomError("invalid_request"), 400);
+  const cursor = query.data.cursor;
+  const position = cursor
+    ? { updatedAtMs: Number(cursor.split(":")[0]), id: cursor.split(":")[1] }
+    : null;
+  try {
+    const rooms = await listRoomIndex(context.env.LOBBY_DB, position);
+    context.header("Cache-Control", "no-store");
+    return context.json(listRoomsContract.response.parse(rooms));
+  } catch {
+    return context.json(roomError("internal_error"), 500);
+  }
 });
 
 roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {

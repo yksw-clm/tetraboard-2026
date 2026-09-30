@@ -22,8 +22,11 @@ import {
 } from "@tetraboard/four-reversi";
 import { DurableObject } from "cloudflare:workers";
 import { advanceClock, createClock, isClockExpired } from "./clock";
+import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
 
 const roomStorageKey = "room";
+const indexRevisionKey = "room-index-revision";
+const pendingIndexKey = "room-index-pending";
 const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
 const reconnectGraceMs = 30_000;
@@ -71,6 +74,8 @@ function shuffledColors(): (typeof colors)[number][] {
 }
 
 export class GameRoom extends DurableObject<Env> {
+  private indexFlush: Promise<void> | null = null;
+
   private readRoom(): Room | null {
     const room = this.ctx.storage.kv.get(roomStorageKey);
     return room === undefined ? null : roomSchema.parse(room);
@@ -83,6 +88,94 @@ export class GameRoom extends DurableObject<Env> {
 
   private playerTokenHash(playerId: string): string | null {
     return this.ctx.storage.kv.get<string>(playerTokenKey(playerId)) ?? null;
+  }
+
+  private publicMetadata(room: Room): RoomPublicMetadata {
+    const host = room.players.find((player) => {
+      if (player.kind !== "human") return false;
+      const tokenHash = this.playerTokenHash(player.id);
+      return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
+    });
+    const humanCount = room.players.filter((player) => player.kind === "human").length;
+    return roomPublicMetadataSchema.parse({
+      id: room.id,
+      game: room.settings.game,
+      mode: room.settings.mode,
+      timeControl: room.settings.timeControl,
+      status: room.status,
+      hostName: host?.name ?? null,
+      humanCount,
+      cpuCount: room.players.length - humanCount,
+      capacity: 4,
+      openSeats: room.status === "waiting" ? 4 - room.players.length : 0,
+      updatedAtMs: room.publicUpdatedAtMs,
+    });
+  }
+
+  private withIndexTransaction<T>(action: () => T): T {
+    let changed = false;
+    const result = this.ctx.storage.transactionSync(() => {
+      const before = this.readRoom();
+      const previous = before === null ? null : this.publicMetadata(before);
+      const value = action();
+      const after = this.readRoom();
+      changed =
+        (before === null && after !== null) ||
+        (before !== null && after === null) ||
+        (before !== null && after !== null && after.publicUpdatedAtMs !== before.publicUpdatedAtMs);
+      if (changed) {
+        const revision = (this.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0) + 1;
+        const metadata = after === null ? previous : this.publicMetadata(after);
+        if (metadata === null) throw new Error("Missing room metadata for index update");
+        this.ctx.storage.kv.put(indexRevisionKey, revision);
+        this.ctx.storage.kv.put(pendingIndexKey, {
+          revision,
+          closed: after === null,
+          metadata,
+          retryAtMs: Date.now(),
+        } satisfies PendingRoomIndex);
+      }
+      return value;
+    });
+    if (changed) this.ctx.waitUntil(this.flushRoomIndex());
+    return result;
+  }
+
+  private async flushRoomIndex(): Promise<void> {
+    if (this.indexFlush !== null) return this.indexFlush;
+    const flush = async () => {
+      for (;;) {
+        const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
+        if (pending === undefined || pending.retryAtMs > Date.now()) break;
+        try {
+          await writeRoomIndex(this.env.LOBBY_DB, pending);
+          this.ctx.storage.transactionSync(() => {
+            if (
+              this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.revision ===
+              pending.revision
+            )
+              this.ctx.storage.kv.delete(pendingIndexKey);
+          });
+        } catch (error) {
+          console.error("Room index update failed", error);
+          this.ctx.storage.transactionSync(() => {
+            const current = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
+            if (current?.revision === pending.revision) {
+              this.ctx.storage.kv.put(pendingIndexKey, {
+                ...current,
+                retryAtMs: Date.now() + 5_000,
+              } satisfies PendingRoomIndex);
+            }
+          });
+          break;
+        }
+      }
+      await this.syncAlarm(this.readRoom());
+    };
+    this.indexFlush = flush().finally(() => {
+      this.indexFlush = null;
+    });
+    return this.indexFlush;
   }
 
   private hasOpenConnection(tokenHash: string, excluded?: WebSocket): boolean {
@@ -110,6 +203,8 @@ export class GameRoom extends DurableObject<Env> {
       deadlines.push(room.clock.turnExpiresAt);
       if (currentCpu(room) !== null) deadlines.push(room.clock.turnStartedAt + cpuMoveDelayMs);
     }
+    const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
+    if (pending !== undefined) deadlines.push(pending.retryAtMs);
     const next = deadlines.length === 0 ? null : Math.min(...deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -125,7 +220,7 @@ export class GameRoom extends DurableObject<Env> {
       throw new Error("Room code does not match Durable Object name");
     }
 
-    const created = this.ctx.storage.transactionSync(() => {
+    const created = this.withIndexTransaction(() => {
       if (
         this.ctx.storage.kv.get(roomStorageKey) !== undefined ||
         this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined
@@ -162,25 +257,7 @@ export class GameRoom extends DurableObject<Env> {
     await this.reconcileDeadlines();
     const room = this.readRoom();
     if (room === null) return null;
-    const host = room.players.find((player) => {
-      if (player.kind !== "human") return false;
-      const tokenHash = this.playerTokenHash(player.id);
-      return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
-    });
-    const humanCount = room.players.filter((player) => player.kind === "human").length;
-    return roomPublicMetadataSchema.parse({
-      id: room.id,
-      game: room.settings.game,
-      mode: room.settings.mode,
-      timeControl: room.settings.timeControl,
-      status: room.status,
-      hostName: host?.name ?? null,
-      humanCount,
-      cpuCount: room.players.length - humanCount,
-      capacity: 4,
-      openSeats: room.status === "waiting" ? 4 - room.players.length : 0,
-      updatedAtMs: room.publicUpdatedAtMs,
-    });
+    return this.publicMetadata(room);
   }
 
   async getRoomMembership(
@@ -219,7 +296,7 @@ export class GameRoom extends DurableObject<Env> {
   > {
     await this.reconcileDeadlines();
     const playerName = joinRoomContract.request.parse({ name }).name;
-    const result = this.ctx.storage.transactionSync(() => {
+    const result = this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) {
         return { status: "not_found" } as const;
@@ -343,7 +420,7 @@ export class GameRoom extends DurableObject<Env> {
     const promoted: string[] = [];
     let changed = false;
     let closed = false;
-    const room = this.ctx.storage.transactionSync(() => {
+    const room = this.withIndexTransaction(() => {
       let current = this.readRoom();
       if (current === null || current.status === "finished") return current;
       const activeRoom = current;
@@ -502,6 +579,7 @@ export class GameRoom extends DurableObject<Env> {
     });
 
     await this.syncAlarm(room);
+    await this.flushRoomIndex();
     if (!changed) return;
     if (closed) this.closeSockets();
     else if (room !== null) this.broadcastRoom(room);
@@ -515,7 +593,7 @@ export class GameRoom extends DurableObject<Env> {
   async leaveRoom(tokenHash: string): Promise<"left" | "not_found" | "unauthorized"> {
     await this.reconcileDeadlines();
     let promoted: string | null = null;
-    const result = this.ctx.storage.transactionSync(() => {
+    const result = this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" as const, room: null };
       if (room.status === "playing" && isClockExpired(room.clock, Date.now())) {
@@ -621,7 +699,7 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "not_found" }
     | { status: "unauthorized" }
     | { status: "already_started" } {
-    return this.ctx.storage.transactionSync(() => {
+    return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
@@ -650,7 +728,7 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "updated"; room: Room }
     | { status: "unchanged" }
     | { status: "not_found" | "forbidden" | "already_started" } {
-    return this.ctx.storage.transactionSync(() => {
+    return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
@@ -677,7 +755,7 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "updated"; room: Room }
     | { status: "unchanged" }
     | { status: "not_found" | "forbidden" | "already_started" | "room_full" | "cpu_not_found" } {
-    return this.ctx.storage.transactionSync(() => {
+    return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
@@ -739,7 +817,7 @@ export class GameRoom extends DurableObject<Env> {
   ):
     | { status: "started"; room: Room }
     | { status: "not_found" | "unauthorized" | "forbidden" | "not_ready" | "already_started" } {
-    return this.ctx.storage.transactionSync(() => {
+    return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
@@ -792,7 +870,7 @@ export class GameRoom extends DurableObject<Env> {
           | "already_eliminated"
           | "time_expired";
       } {
-    return this.ctx.storage.transactionSync(() => {
+    return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status === "waiting") return { status: "game_not_started" };
@@ -837,7 +915,7 @@ export class GameRoom extends DurableObject<Env> {
           | "already_eliminated"
           | "time_expired";
       } {
-    return this.ctx.storage.transactionSync(() => {
+    return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status === "waiting") return { status: "game_not_started" };
@@ -954,7 +1032,7 @@ export class GameRoom extends DurableObject<Env> {
         const room = this.readRoom();
         const player = room?.players.find((entry) => entry.id === result.membership.playerId);
         if (player !== undefined && player.reconnectDeadline !== null) {
-          const updated = this.ctx.storage.transactionSync(() => {
+          const updated = this.withIndexTransaction(() => {
             const current = this.readRoom();
             if (current === null) return null;
             const next = roomSchema.parse({
@@ -1090,7 +1168,7 @@ export class GameRoom extends DurableObject<Env> {
       player.reconnectDeadline !== null
     )
       return;
-    const updated = this.ctx.storage.transactionSync(() => {
+    const updated = this.withIndexTransaction(() => {
       const current = this.readRoom();
       if (current === null || current.status === "finished") return null;
       const next = roomSchema.parse({

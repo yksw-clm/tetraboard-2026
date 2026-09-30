@@ -10,6 +10,14 @@
   "durable_objects": {
     "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
   },
+  "d1_databases": [
+    {
+      "binding": "LOBBY_DB",
+      "database_name": "tetraboard-lobby-local",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ],
   "exports": {
     "GameRoom": { "type": "durable-object", "storage": "sqlite" }
   },

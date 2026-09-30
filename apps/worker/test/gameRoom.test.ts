@@ -6,6 +6,7 @@ import {
   getRoomMembershipContract,
   joinRoomContract,
   leaveRoomContract,
+  listRoomsContract,
   roomSchema,
   roomPublicMetadataSchema,
   roomSocketContract,
@@ -18,6 +19,7 @@ import {
 } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test, vi } from "vitest";
+import { writeRoomIndex } from "../src/rooms/roomIndex";
 
 const baseUrl = "https://example.com";
 const clients: RoomClient[] = [];
@@ -118,6 +120,40 @@ async function getRoom(id: string): Promise<Room> {
 
 async function getMetadata(id: string): Promise<RoomPublicMetadata | null> {
   return env.GAME_ROOM.getByName(id).getPublicMetadata();
+}
+
+async function listRooms(cursor?: string) {
+  const path = cursor
+    ? `${listRoomsContract.path}?cursor=${encodeURIComponent(cursor)}`
+    : listRoomsContract.path;
+  const response = await exports.default.fetch(new Request(`${baseUrl}${path}`));
+  expect(response.status).toBe(200);
+  return listRoomsContract.response.parse(await response.json());
+}
+
+async function indexedRoom(id: string): Promise<{
+  revision: number;
+  closed: number;
+  status: string;
+  host_name: string | null;
+  updated_at_ms: number;
+} | null> {
+  return env.LOBBY_DB.prepare(
+    "SELECT revision, closed, status, host_name, updated_at_ms FROM room_index WHERE room_id = ?",
+  )
+    .bind(id)
+    .first();
+}
+
+async function waitForIndexedRoom(
+  id: string,
+  predicate: (row: NonNullable<Awaited<ReturnType<typeof indexedRoom>>>) => boolean,
+) {
+  await vi.waitFor(async () => {
+    const row = await indexedRoom(id);
+    expect(row !== null && predicate(row)).toBe(true);
+  });
+  return (await indexedRoom(id))!;
 }
 
 async function leaveRoom(id: string, token: string): Promise<Response> {
@@ -938,6 +974,8 @@ test("公開メタデータは参加・CPU席・ホスト交代を反映し、�
   expect(afterCpu?.cpuCount).toBe(1);
   expect(afterCpu?.openSeats).toBe(1);
   expect(afterCpu!.updatedAtMs).toBeGreaterThan(afterJoin!.updatedAtMs);
+  await waitForIndexedRoom(id, (row) => row.updated_at_ms === afterCpu!.updatedAtMs);
+  expect((await listRooms()).rooms.find((room) => room.id === id)?.cpuCount).toBe(1);
 
   const cpu = (await getRoom(id)).players.find((player) => player.kind === "cpu");
   if (cpu?.kind !== "cpu") throw new Error("CPU was not added");
@@ -965,6 +1003,8 @@ test("公開メタデータは参加・CPU席・ホスト交代を反映し、�
   expect(afterRemove?.cpuCount).toBe(0);
   expect(afterRemove?.openSeats).toBe(3);
   expect(afterRemove!.updatedAtMs).toBeGreaterThan(afterHandoff!.updatedAtMs);
+  await waitForIndexedRoom(id, (row) => row.updated_at_ms === afterRemove!.updatedAtMs);
+  expect((await listRooms()).rooms.find((room) => room.id === id)?.cpuCount).toBe(0);
 
   expect((await leaveRoom(id, joined.membership.token)).status).toBe(204);
   expect(await getMetadata(id)).toBeNull();
@@ -990,6 +1030,10 @@ test("ダブルス開始と終局は公開情報を更新し、通常の着手�
   expect(playing?.status).toBe("playing");
   expect(playing?.openSeats).toBe(0);
   expect(playing!.updatedAtMs).toBeGreaterThan(waiting!.updatedAtMs);
+  const indexedBeforeMove = await waitForIndexedRoom(
+    setup.id,
+    (row) => row.status === "playing" && row.updated_at_ms === playing!.updatedAtMs,
+  );
 
   setup.connections[1].send({ type: "room.mode.set", mode: "singles" });
   expect((await setup.connections[1].nextType("room.error")).error).toBe("already_started");
@@ -1003,6 +1047,7 @@ test("ダブルス開始と終局は公開情報を更新し、通常の着手�
     (room) => room.status === "playing" && room.game.moveNumber === 1,
   );
   expect((await getMetadata(setup.id))?.updatedAtMs).toBe(playing!.updatedAtMs);
+  expect(await indexedRoom(setup.id)).toEqual(indexedBeforeMove);
 
   expect((await leaveRoom(setup.id, setup.participants[0].token)).status).toBe(204);
   const finished = await setup.connections[1].nextSnapshotWhere(
@@ -1023,4 +1068,158 @@ test("ダブルス開始と終局は公開情報を更新し、通常の着手�
   expect(metadata?.hostName).toBeNull();
   expect(metadata?.humanCount).toBe(4);
   expect(metadata!.updatedAtMs).toBeGreaterThan(playing!.updatedAtMs);
+  await waitForIndexedRoom(setup.id, (row) => row.status === "finished");
+});
+
+test("D1の公開索引は作成・入室・ホスト交代・閉鎖を反映する", async () => {
+  const created = await createRoom();
+  const id = created.room.id;
+  await waitForIndexedRoom(id, (row) => row.revision === 1 && row.closed === 0);
+  expect((await listRooms()).rooms.some((room) => room.id === id)).toBe(true);
+
+  const joined = await joinRoom(id, "二人目");
+  await waitForIndexedRoom(id, (row) => row.revision === 2 && row.closed === 0);
+  expect((await listRooms()).rooms.find((room) => room.id === id)?.humanCount).toBe(2);
+
+  expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+  await waitForIndexedRoom(id, (row) => row.revision === 3 && row.host_name === "二人目");
+  expect((await listRooms()).rooms.find((room) => room.id === id)?.hostName).toBe("二人目");
+
+  expect((await leaveRoom(id, joined.membership.token)).status).toBe(204);
+  await waitForIndexedRoom(id, (row) => row.revision === 4 && row.closed === 1);
+  expect((await listRooms()).rooms.some((room) => room.id === id)).toBe(false);
+});
+
+test("CPU席・モード・開始・終了は索引を更新し、通常の着手は更新しない", async () => {
+  const created = await createRoom(true, "singles");
+  const id = created.room.id;
+  const host = await authenticatedRoom(id, created.membership.token);
+  const initial = await waitForIndexedRoom(id, (row) => row.revision === 1);
+  host.send({ type: "room.cpu.level.set", playerId: created.room.players[1].id, level: 2 });
+  await host.nextSnapshotWhere(
+    (room) => room.players[1].kind === "cpu" && room.players[1].level === 2,
+  );
+  await waitForIndexedRoom(id, (row) => row.revision > initial.revision);
+
+  host.send({ type: "room.mode.set", mode: "doubles" });
+  await host.nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  await vi.waitFor(async () => {
+    expect((await listRooms()).rooms.find((room) => room.id === id)?.mode).toBe("doubles");
+  });
+  host.send({ type: "room.ready.set", ready: true });
+  await host.nextSnapshotWhere((room) => room.players[0].ready);
+  const beforeStart = await indexedRoom(id);
+  host.send({ type: "room.game.start" });
+  const playing = await host.nextSnapshotWhere((room) => room.status === "playing");
+  if (playing.status !== "playing") throw new Error("Game did not start");
+  await waitForIndexedRoom(
+    id,
+    (row) => row.revision > beforeStart!.revision && row.status === "playing",
+  );
+
+  const beforeMove = await indexedRoom(id);
+  const black = playing.players.find((player) => player.color === "black");
+  if (black?.kind === "human") {
+    host.send({
+      type: "room.game.action",
+      action: { type: "placeStone", position: getLegalMoves(playing.game)[0] },
+    });
+    await host.nextSnapshotWhere((room) => room.status === "playing" && room.game.moveNumber === 1);
+    expect(await indexedRoom(id)).toEqual(beforeMove);
+  }
+
+  expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+  await waitForIndexedRoom(id, (row) => row.status === "finished" && row.host_name === null);
+  expect((await listRooms()).rooms.find((room) => room.id === id)?.status).toBe("finished");
+});
+
+test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、不正カーソルを拒否する", async () => {
+  const updatedAtMs = Date.now() + 1_000_000;
+  const base: RoomPublicMetadata = {
+    id: "99900",
+    game: "four-reversi",
+    mode: "singles",
+    timeControl: roomTimeControl,
+    status: "waiting",
+    hostName: "テスト",
+    humanCount: 1,
+    cpuCount: 0,
+    capacity: 4,
+    openSeats: 3,
+    updatedAtMs,
+  };
+  for (let index = 0; index < 22; index++) {
+    await writeRoomIndex(env.LOBBY_DB, {
+      metadata: { ...base, id: String(99900 + index) },
+      revision: 1,
+      closed: false,
+      retryAtMs: 0,
+    });
+  }
+  const first = await listRooms();
+  expect(first.rooms).toHaveLength(20);
+  expect(first.rooms.map((room) => room.id)).toEqual(
+    Array.from({ length: 20 }, (_, index) => String(99921 - index)),
+  );
+  expect(first.nextCursor).toBe(`${updatedAtMs}:99902`);
+  const second = await listRooms(first.nextCursor!);
+  expect(second.rooms.slice(0, 2).map((room) => room.id)).toEqual(["99901", "99900"]);
+  const invalid = await exports.default.fetch(
+    new Request(`${baseUrl}${listRoomsContract.path}?cursor=invalid`),
+  );
+  expect(invalid.status).toBe(400);
+});
+
+test("古い索引更新は部屋番号再利用後の新しい更新を上書きしない", async () => {
+  const created = await createRoom();
+  const id = created.room.id;
+  await waitForIndexedRoom(id, (row) => row.revision === 1);
+  expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+  await waitForIndexedRoom(id, (row) => row.revision === 2 && row.closed === 1);
+
+  const replacement = roomSchema.parse({
+    ...created.room,
+    players: [{ ...created.room.players[0], id: crypto.randomUUID(), name: "新ホスト" }],
+    publicUpdatedAtMs: Date.now(),
+  });
+  const newRoom = await env.GAME_ROOM.getByName(id).createRoom(replacement, "a".repeat(64));
+  expect(newRoom?.players[0].name).toBe("新ホスト");
+  await waitForIndexedRoom(id, (row) => row.revision === 3 && row.closed === 0);
+  await writeRoomIndex(env.LOBBY_DB, {
+    metadata: roomPublicMetadataSchema.parse({
+      ...(await getMetadata(id)),
+      hostName: "古いホスト",
+    }),
+    revision: 2,
+    closed: true,
+    retryAtMs: 0,
+  });
+  expect((await indexedRoom(id))?.host_name).toBe("新ホスト");
+  expect((await indexedRoom(id))?.closed).toBe(0);
+});
+
+test("D1障害中も部屋を作成し、Alarmで索引反映を再試行する", async () => {
+  await env.LOBBY_DB.exec("ALTER TABLE room_index RENAME TO room_index_unavailable");
+  let created!: Awaited<ReturnType<typeof createRoom>>;
+  try {
+    created = await createRoom();
+    await vi.waitFor(async () => {
+      const pending = await runInDurableObject(
+        env.GAME_ROOM.getByName(created.room.id),
+        (_instance, state) => state.storage.kv.get<{ retryAtMs: number }>("room-index-pending"),
+      );
+      expect(pending?.retryAtMs).toBeGreaterThan(Date.now());
+    });
+  } finally {
+    await env.LOBBY_DB.exec("ALTER TABLE room_index_unavailable RENAME TO room_index");
+  }
+  const stub = env.GAME_ROOM.getByName(created.room.id);
+  await runInDurableObject(stub, async (_instance, state) => {
+    const pending = state.storage.kv.get<{ retryAtMs: number }>("room-index-pending");
+    if (!pending) throw new Error("Missing pending index update");
+    state.storage.kv.put("room-index-pending", { ...pending, retryAtMs: Date.now() - 1 });
+    await state.storage.setAlarm(Date.now() + 60_000);
+  });
+  expect(await runDurableObjectAlarm(stub)).toBe(true);
+  await waitForIndexedRoom(created.room.id, (row) => row.closed === 0);
 });

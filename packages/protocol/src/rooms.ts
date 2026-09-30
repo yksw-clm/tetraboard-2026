@@ -217,6 +217,21 @@ export const createRoomContract = {
   error: roomErrorSchema,
 } as const;
 
+export const roomListCursorSchema = z
+  .string()
+  .regex(/^\d{1,16}:\d{5}$/)
+  .refine((cursor) => Number.isSafeInteger(Number(cursor.split(":")[0])));
+export const listRoomsContract = {
+  method: "GET",
+  path: "/rooms",
+  query: z.strictObject({ cursor: roomListCursorSchema.optional() }),
+  response: z.strictObject({
+    rooms: z.array(roomPublicMetadataSchema).max(20),
+    nextCursor: roomListCursorSchema.nullable(),
+  }),
+  error: roomErrorSchema,
+} as const;
+
 export const joinRoomContract = {
   method: "POST",
   path: "/rooms/:id/players",
