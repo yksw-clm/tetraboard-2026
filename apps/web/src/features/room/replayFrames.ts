@@ -1,14 +1,8 @@
 import { type FourReversiState } from "@tetraboard/four-reversi";
 import { type LastRound } from "@tetraboard/protocol";
-import { colorNames } from "./roomPresentation";
+import { colorNames, eliminationLabels } from "./roomPresentation";
 
 export type ReplayFrame = { label: string; game: FourReversiState };
-const eliminationLabels = {
-  resigned: "投了",
-  left: "退室",
-  timeout: "時間切れ",
-  disconnected: "通信切れ",
-} as const;
 
 export function replayFrames(lastRound: LastRound): ReplayFrame[] {
   const replay = lastRound.replay;

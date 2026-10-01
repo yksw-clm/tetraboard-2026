@@ -5,15 +5,18 @@ import { deleteExpiredReports } from "./rooms/reportStore";
 
 export { GameRoom } from "./rooms/gameRoom";
 
-const app = new Hono<{ Bindings: Env }>();
+const api = new Hono<{ Bindings: Env }>();
 
-app.on(healthzContract.method, healthzContract.path, (context) => {
+api.on(healthzContract.method, healthzContract.path, (context) => {
   context.header("Cache-Control", "no-store");
   const response = healthzContract.response.parse({ status: "ok" });
   return context.json(response);
 });
 
-app.route("/", roomRoutes);
+api.route("/", roomRoutes);
+
+// 本番の同一オリジン配信と、既存のWorker直接アクセスを両方扱います。
+const app = new Hono<{ Bindings: Env }>().route("/api", api).route("/", api);
 
 app.notFound((context) => context.text("Not Found", 404));
 

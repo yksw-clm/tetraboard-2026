@@ -87,6 +87,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
   for (let attempt = 0; attempt < maxRoomCodeAttempts; attempt++) {
     const code = generateRoomCode();
     const initialRoom: Room = {
+      eliminations: [],
       id: code,
       instanceId: crypto.randomUUID(),
       status: "waiting",

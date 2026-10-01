@@ -90,17 +90,17 @@ export const fourReversiStateSchema = z.discriminatedUnion("status", [
   playingGameSchema,
   finishedGameSchema,
 ]);
+const eliminationSchema = z.strictObject({
+  color: fourReversiColorSchema,
+  reason: z.enum(["resigned", "left", "timeout", "disconnected"]),
+});
 const replayActionSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("place"),
     color: fourReversiColorSchema,
     position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
   }),
-  z.strictObject({
-    type: z.literal("eliminate"),
-    color: fourReversiColorSchema,
-    reason: z.enum(["resigned", "left", "timeout", "disconnected"]),
-  }),
+  eliminationSchema.extend({ type: z.literal("eliminate") }),
 ]);
 export const roundReplaySchema = z.strictObject({
   id: z.uuid(),
@@ -138,6 +138,7 @@ const cpuPlayerSchema = playerBaseSchema.extend({
   reconnectDeadline: z.null(),
 });
 const waitingRoomSchema = z.strictObject({
+  eliminations: z.array(eliminationSchema).length(0).default([]),
   id: roomCodeSchema,
   instanceId: z.uuid(),
   status: z.literal("waiting"),
@@ -174,6 +175,7 @@ const activeRoomBaseSchema = z
   .refine((room) => new Set(room.players.map((player) => player.color)).size === 4);
 
 const playingRoomSchema = activeRoomBaseSchema.safeExtend({
+  eliminations: z.array(eliminationSchema).max(4).default([]),
   status: z.literal("playing"),
   game: playingGameSchema,
   clock: playingClockSchema,

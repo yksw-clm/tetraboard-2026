@@ -217,7 +217,7 @@ export function RoomView({
           <p>
             {dialog === "leave"
               ? "対局中に退室すると脱落になります。"
-              : "投了すると脱落になります。対局の観戦とチャットは続けられます。"}
+              : "投了すると脱落になります。"}
           </p>
           {session.socketError && (
             <p className="room-error" role="alert">

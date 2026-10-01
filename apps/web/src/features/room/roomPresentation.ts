@@ -55,3 +55,19 @@ export function orderedSeats(room: Room, selfId: string | undefined) {
         );
   return Array.from({ length: 4 }, (_, index) => seats[(anchor + index) % 4]);
 }
+
+export const eliminationLabels = {
+  resigned: "投了",
+  left: "退室",
+  timeout: "時間切れ",
+  disconnected: "通信切れ",
+} as const;
+
+export function playerRank(room: Room, color: Color | null) {
+  if (room.status !== "playing" || color === null) return null;
+  const index = room.game.eliminatedColors.indexOf(color);
+  if (index < 0) return null;
+  const rank = 4 - index;
+  const reason = room.eliminations.find((entry) => entry.color === color)?.reason;
+  return { rank, label: `${rank}位${reason ? `（${eliminationLabels[reason]}）` : ""}` };
+}

@@ -83,6 +83,7 @@ body:has(.four-reversi-room) {
 .room-desktop > .room-board-panel {
   grid-column: 1;
   grid-row: 1 / 4;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -107,7 +108,10 @@ body:has(.four-reversi-room) {
   box-shadow: none;
 }
 .room-desktop .room-replay {
-  align-self: flex-end;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
   width: 310px;
   flex-shrink: 0;
 }
@@ -128,9 +132,13 @@ body:has(.four-reversi-room) {
   min-width: 0;
   height: 34px;
   min-height: 34px;
-  padding: 4px 8px;
+  padding: 0 8px;
+  align-items: center;
   font-size: 13px;
   background: #eef4ee;
+}
+.room-replay .select__value {
+  line-height: 20px;
 }
 .room-replay-popover {
   --accent: #2d9663;
@@ -242,6 +250,7 @@ body:has(.four-reversi-room) {
   grid-area: right;
 }
 .room-player {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   grid-template-rows: 20px 22px;
@@ -362,7 +371,12 @@ body:has(.four-reversi-room) {
   align-items: center;
   gap: 3px;
 }
+.room-player.is-eliminated .room-stone-count {
+  gap: 4px;
+  font-size: 12px;
+}
 .room-player-score {
+  flex-shrink: 0;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -393,10 +407,12 @@ body:has(.four-reversi-room) {
 }
 .room-rank {
   height: 22px;
-  padding: 2px 8px;
+  padding: 2px 4px;
   border-radius: 6px;
   font-weight: 700;
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .room-rank-1 {
   background: #fff0ba;
@@ -415,6 +431,7 @@ body:has(.four-reversi-room) {
   color: #62717b;
 }
 .room-stone-count {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1133,7 +1150,7 @@ body:has(.four-reversi-room) {
   .room-mobile .room-replay .select__trigger {
     height: 24px;
     min-height: 24px;
-    padding: 2px 14px 2px 4px;
+    padding: 0 14px 0 4px;
     font-size: 11px;
     border-radius: 6px;
   }
@@ -1217,4 +1234,33 @@ body:has(.four-reversi-room) {
   justify-content: center;
   gap: 16px;
   padding: 24px;
+}
+
+@media (max-width: 767px) {
+  .room-join-unavailable {
+    width: 100%;
+    max-width: none;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .room-rank {
+    font-size: 10px;
+    padding-inline: 4px;
+  }
+}
+
+/* 狭いカードでも石数と脱落理由をアイコン右側の一行に収めます。 */
+@container (max-width: 160px) {
+  .room-rank {
+    font-size: 8px;
+    padding-inline: 3px;
+  }
+  .room-player.is-eliminated .room-stone-count {
+    font-size: 11px;
+    gap: 3px;
+  }
+  .room-player.is-eliminated .room-stone-count .room-stone {
+    width: 16px;
+    height: 16px;
+  }
 }

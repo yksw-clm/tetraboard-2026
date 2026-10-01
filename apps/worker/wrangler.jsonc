@@ -24,5 +24,34 @@
   "observability": {
     "enabled": true
   },
-  "triggers": { "crons": ["0 * * * *"] }
+  "triggers": { "crons": ["0 * * * *"] },
+  "env": {
+    "production": {
+      "name": "tetraboard-2026",
+      "workers_dev": true,
+      "preview_urls": false,
+      "assets": {
+        "directory": "../web/dist",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api", "/api/*"]
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
+      },
+      "d1_databases": [
+        {
+          "binding": "LOBBY_DB",
+          "database_name": "tetraboard-2026-prod-db",
+          "database_id": "196b58e7-0df3-40db-b3ec-d196c88241bf",
+          "migrations_dir": "migrations",
+          "remote": false
+        }
+      ],
+      "exports": {
+        "GameRoom": { "type": "durable-object", "storage": "sqlite" }
+      },
+      "observability": { "enabled": true },
+      "triggers": { "crons": ["0 * * * *"] }
+    }
+  }
 }

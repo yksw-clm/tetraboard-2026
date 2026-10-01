@@ -526,6 +526,56 @@ async function setRoomDeadlines(
   });
 }
 
+test.each(["resigned", "left", "timeout", "disconnected"] as const)(
+  "脱落理由 %s を保存・配信し、再取得・途中観戦・旧データの復元で維持する",
+  async (reason) => {
+    const setup = await startFourPlayerRoom();
+    const observer = await openRoom(setup.id);
+    const black = setup.room.players.findIndex((player) => player.color === "black");
+    const participant = setup.participants[black];
+    if (reason === "resigned") setup.connections[black].send({ type: "room.game.resign" });
+    else if (reason === "left") await leaveRoom(setup.id, participant.token);
+    else if (reason === "disconnected") {
+      setup.connections[black].close();
+      await expectPending(setup.id, participant.playerId);
+      expect((await getRoom(setup.id)).eliminations).toEqual([]);
+      await expirePlayers(setup.id, [participant.playerId]);
+    } else {
+      await setRoomDeadlines(setup.id, (room) => ({
+        ...room,
+        clock: {
+          ...room.clock,
+          turnStartedAt: Date.now() - 330_001,
+          turnExpiresAt: Date.now() - 1,
+        },
+      }));
+      await runDurableObjectAlarm(env.GAME_ROOM.getByName(setup.id));
+    }
+    const expected = [{ color: "black", reason }];
+    const snapshot = await observer.nextSnapshotWhere(
+      (room) => room.status === "playing" && room.game.eliminatedColors.includes("black"),
+    );
+    expect(snapshot.eliminations).toEqual(expected);
+    expect((await getRoom(setup.id)).eliminations).toEqual(expected);
+    expect((await openRoom(setup.id)).initialSnapshot?.room.eliminations).toEqual(expected);
+    await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_instance, state) => {
+      const saved = state.storage.kv.get<Room>("room")!;
+      expect(saved.eliminations).toEqual(expected);
+      Reflect.deleteProperty(saved, "eliminations");
+      state.storage.kv.put("room", saved);
+    });
+    expect((await getRoom(setup.id)).eliminations).toEqual(expected);
+    expect((await openRoom(setup.id)).initialSnapshot?.room.eliminations).toEqual(expected);
+    await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_instance, state) => {
+      state.storage.kv.delete("round-replay");
+    });
+    const legacy = await getRoom(setup.id);
+    expect(legacy.eliminations).toEqual([]);
+    if (legacy.status !== "playing") throw new Error("Expected playing room");
+    expect(legacy.game.eliminatedColors).toEqual(["black"]);
+  },
+);
+
 test("投了・通信切れ・時間切れを順に記録し、終局後の再取得と観戦でも同じ棋譜を返す", async () => {
   const setup = await startFourPlayerRoom();
   const byColor = (color: string) =>
@@ -1758,6 +1808,8 @@ test("終局後は自動で再戦待機になり、ホストを引き継いで�
     (room) => room.status === "playing" && room.game.moveNumber === 0,
   );
   expect(restarted.lastRound).toBeNull();
+  expect(waiting.eliminations).toEqual([]);
+  expect(restarted.eliminations).toEqual([]);
   await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_instance, state) => {
     const replay = roundReplaySchema.parse(state.storage.kv.get("round-replay"));
     expect(replay.id).not.toBe(waiting.lastRound?.replay?.id);

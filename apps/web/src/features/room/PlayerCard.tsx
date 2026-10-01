@@ -1,7 +1,7 @@
 import { Avatar, Badge, Card, Chip } from "@heroui/react";
 import { type Room } from "@tetraboard/protocol";
 import { useLayoutEffect, useRef } from "react";
-import { colorNames, playerClock, playerName } from "./roomPresentation";
+import { colorNames, playerClock, playerName, playerRank } from "./roomPresentation";
 import { RoomIcon } from "./RoomIcon";
 
 export function PlayerCard({
@@ -22,7 +22,7 @@ export function PlayerCard({
   position: string;
 }) {
   const color = room.status === "playing" ? player?.color : null;
-  const rank = room.status === "playing" && color ? room.game.eliminatedColors.indexOf(color) : -1;
+  const rank = playerRank(room, color ?? null);
   const count =
     room.status === "playing" && color
       ? room.game.board.flat().filter((cell) => cell === color).length
@@ -55,7 +55,7 @@ export function PlayerCard({
   }, [name, host, player?.kind]);
   return (
     <Card
-      className={`room-player room-seat-${position}${!player ? " is-empty" : ""}${self ? " is-self" : ""}${current ? " is-current" : ""}`}
+      className={`room-player room-seat-${position}${!player ? " is-empty" : ""}${self ? " is-self" : ""}${current ? " is-current" : ""}${rank ? " is-eliminated" : ""}`}
       aria-label={
         player ? `${playerName(player)}${self ? "、あなた" : ""}${host ? "、ホスト" : ""}` : "空席"
       }
@@ -105,9 +105,9 @@ export function PlayerCard({
                 </span>
               )}
         </span>
-        {rank >= 0 ? (
-          <Chip className={`room-rank room-rank-${4 - rank}`} size="sm">
-            {4 - rank}位
+        {rank ? (
+          <Chip className={`room-rank room-rank-${rank.rank}`} size="sm">
+            {rank.label}
           </Chip>
         ) : (
           clock && (
