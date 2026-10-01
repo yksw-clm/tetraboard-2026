@@ -1,80 +1,39 @@
-import { type LastRound, type Room } from "@tetraboard/protocol";
-import { type Position } from "@tetraboard/four-reversi";
+import { Button } from "@heroui/react";
+import { type FourReversiState, type Position } from "@tetraboard/four-reversi";
 import { colorNames } from "./roomPresentation";
 
-const columns = "ABCDEFGH";
-type DisplayGame = Exclude<Room["game"] | LastRound["game"], null>;
-
-type Props = {
-  room: Room;
-  game: DisplayGame;
-  legalMoves: Position[];
-  canPlay: boolean;
-  pendingGameAction: boolean;
-  onResign: () => void;
-  onPlaceStone: (position: Position) => void;
-};
-
 export function FourReversiBoard({
-  room,
   game,
   legalMoves,
   canPlay,
-  pendingGameAction,
-  onResign,
   onPlaceStone,
-}: Props) {
+}: {
+  game: FourReversiState;
+  legalMoves: Position[];
+  canPlay: boolean;
+  onPlaceStone: (position: Position) => void;
+}) {
   return (
-    <>
-      <p>
-        {room.status === "waiting"
-          ? "前局は終了しました。再戦待機中です。"
-          : `手番：${room.game.turn ? colorNames[room.game.turn] : ""}`}
-      </p>
-      {canPlay && (
-        <button type="button" onClick={onResign} disabled={pendingGameAction}>
-          投了
-        </button>
+    <div className="room-board" role="group" aria-label="四人リバーシの盤面">
+      {game.board.flatMap((row, y) =>
+        row.map((cell, x) => {
+          const legal = canPlay && legalMoves.some((move) => move.x === x && move.y === y);
+          const lastMove = game.lastMove?.x === x && game.lastMove?.y === y;
+          return (
+            <Button
+              key={`${x}-${y}`}
+              isIconOnly
+              className={`room-cell${lastMove ? " is-last-move" : ""}`}
+              aria-label={`${"ABCDEFGH"[x]}${y + 1}：${cell ? colorNames[cell] : "空き"}${legal ? "、置けます" : ""}${lastMove ? "、直前の手" : ""}`}
+              isDisabled={!legal}
+              onPress={() => onPlaceStone({ x, y })}
+            >
+              {cell && <span className={`room-stone room-stone-${cell}`} />}
+              {legal && <span className="room-legal" aria-hidden="true" />}
+            </Button>
+          );
+        }),
       )}
-      <p>着手数：{game.moveNumber}</p>
-      {game.consecutivePasses.length > 0 && (
-        <p>
-          自動パス：
-          {game.consecutivePasses.map((color) => colorNames[color]).join(" → ")}
-        </p>
-      )}
-      <table>
-        <thead>
-          <tr>
-            <th></th>
-            {[...columns].map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {game.board.map((row, y) => (
-            <tr key={y}>
-              <th>{y + 1}</th>
-              {row.map((cell, x) => {
-                const legal = legalMoves.some((move) => move.x === x && move.y === y);
-                return (
-                  <td key={x}>
-                    <button
-                      type="button"
-                      aria-label={`${columns[x]}${y + 1}: ${cell === null ? "空き" : colorNames[cell]}`}
-                      disabled={!canPlay || !legal}
-                      onClick={() => onPlaceStone({ x, y })}
-                    >
-                      {cell === null ? (legal && canPlay ? "＋" : "・") : colorNames[cell]}
-                    </button>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+    </div>
   );
 }

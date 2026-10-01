@@ -13,7 +13,13 @@ export const router = createBrowserRouter([
       return { Component: FourReversiLobbyPage };
     },
   },
-  { path: "/rooms/:id", Component: RoomPage, loader: roomLoader, ErrorBoundary: RoomErrorPage },
+  {
+    path: "/rooms/:id",
+    Component: RoomPage,
+    loader: roomLoader,
+    ErrorBoundary: RoomErrorPage,
+    hydrateFallbackElement: <p role="status">ルームを読み込んでいます…</p>,
+  },
   {
     path: "*",
     element: (

@@ -1,6 +1,9 @@
 import {
   joinRoomContract,
   chatMessageSchema,
+  chatEntrySchema,
+  chatHistoryLimit,
+  systemChatMessageSchema,
   chatTextSchema,
   membershipTokenSchema,
   roomMembershipSchema,
@@ -14,6 +17,9 @@ import {
   type RoomSocketClientMessage,
   type RoomSocketMessage,
   type ChatMessage,
+  type ChatEntry,
+  type RoomPresence,
+  type SystemChatMessage,
 } from "@tetraboard/protocol";
 import {
   applyAction,
@@ -43,6 +49,7 @@ const reconnectGraceMs = 30_000;
 const cpuMoveDelayMs = 500;
 const idleMs = 24 * 60 * 60 * 1000;
 const chatIntervalMs = 3_000;
+const departedKey = (playerId: string) => `departed:${playerId}`;
 type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
 type CpuCommand = Extract<
   RoomSocketClientMessage,
@@ -95,6 +102,7 @@ function hexToBytes(value: string): Uint8Array {
 
 export class GameRoom extends DurableObject<Env> {
   private indexFlush: Promise<void> | null = null;
+  private chatDirty = false;
 
   private readRoom(): Room | null {
     const room = this.ctx.storage.kv.get(roomStorageKey);
@@ -110,8 +118,52 @@ export class GameRoom extends DurableObject<Env> {
     return this.ctx.storage.kv.get<string>(playerTokenKey(playerId)) ?? null;
   }
 
-  private readChat(): ChatMessage[] {
-    return this.ctx.storage.kv.get<ChatMessage[]>(chatKey) ?? [];
+  private readChat(): ChatEntry[] {
+    return (this.ctx.storage.kv.get<unknown[]>(chatKey) ?? []).map((entry) =>
+      chatEntrySchema.parse(entry),
+    );
+  }
+
+  private appendSystem(event: SystemChatMessage["event"], text: string): void {
+    const message = systemChatMessageSchema.parse({
+      id: crypto.randomUUID(),
+      kind: "system",
+      event,
+      text,
+      sentAtMs: Date.now(),
+    });
+    this.ctx.storage.kv.put(chatKey, [...this.readChat(), message].slice(-chatHistoryLimit));
+    this.chatDirty = true;
+  }
+
+  private playerLabel(player: Room["players"][number]): string {
+    return player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
+  }
+
+  private recordDeparture(player: Room["players"][number]): void {
+    if (this.ctx.storage.kv.get(departedKey(player.id))) return;
+    if (this.readRoom()?.status === "playing")
+      this.ctx.storage.kv.put(departedKey(player.id), true);
+    this.appendSystem("left", `${this.playerLabel(player)}が退室しました`);
+  }
+
+  private presence(room: Room): RoomPresence {
+    const host = room.players.find((player) => {
+      const hash = this.playerTokenHash(player.id);
+      return hash !== null && this.readMembership(hash)?.role === "host";
+    });
+    return {
+      hostPlayerId: host?.id ?? null,
+      connectedPlayerIds: room.players
+        .filter((player) => {
+          if (player.kind === "cpu") return true;
+          const hash = this.playerTokenHash(player.id);
+          return (
+            hash !== null && this.readMembership(hash) !== null && this.hasOpenConnection(hash)
+          );
+        })
+        .map((player) => player.id),
+    };
   }
 
   private chatSnapshot(): RoomSocketMessage {
@@ -122,9 +174,15 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private broadcastChat(): void {
+    this.chatDirty = false;
     const payload = JSON.stringify(this.chatSnapshot());
     for (const socket of this.ctx.getWebSockets()) {
-      if (socket.readyState === WebSocket.OPEN) socket.send(payload);
+      if (socket.readyState !== WebSocket.OPEN) continue;
+      try {
+        socket.send(payload);
+      } catch {
+        // 切断中の相手への配信失敗で、保存済みの投稿や操作を失敗にしません。
+      }
     }
   }
 
@@ -137,6 +195,7 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.delete(playerTokenKey(player.id));
       this.ctx.storage.kv.delete(disconnectedAtKey(player.id));
       this.ctx.storage.kv.delete(lastChatAtKey(player.id));
+      this.ctx.storage.kv.delete(departedKey(player.id));
     }
     this.ctx.storage.kv.delete(roomStorageKey);
     this.ctx.storage.kv.delete(chatKey);
@@ -153,7 +212,7 @@ export class GameRoom extends DurableObject<Env> {
       game,
       players: room.players.map((player) => ({
         id: player.id,
-        name: player.name,
+        name: this.playerLabel(player),
         color: player.color,
       })),
     };
@@ -172,6 +231,8 @@ export class GameRoom extends DurableObject<Env> {
     }
     for (const player of room.players) {
       if (player.kind !== "human" || players.includes(player)) continue;
+      this.recordDeparture(player);
+      this.ctx.storage.kv.delete(departedKey(player.id));
       const hash = this.playerTokenHash(player.id);
       if (hash !== null) this.ctx.storage.kv.delete(membershipStorageKey(hash));
       this.ctx.storage.kv.delete(playerTokenKey(player.id));
@@ -188,6 +249,7 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(membershipStorageKey(hash), { playerId: nextHost.id, role: "host" });
     }
     const ordered = [nextHost, ...players.filter((player) => player.id !== nextHost.id)];
+    for (const player of ordered) this.ctx.storage.kv.delete(departedKey(player.id));
     return roomSchema.parse({
       ...room,
       status: "waiting",
@@ -360,6 +422,9 @@ export class GameRoom extends DurableObject<Env> {
       );
       this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
       this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
+      for (const player of initialRoom.players) {
+        this.appendSystem("joined", `${this.playerLabel(player)}が入室しました`);
+      }
       const secret = new Uint8Array(32);
       crypto.getRandomValues(secret);
       this.ctx.storage.kv.put(
@@ -375,6 +440,11 @@ export class GameRoom extends DurableObject<Env> {
   async getRoom(): Promise<Room | null> {
     await this.reconcileDeadlines();
     return this.readRoom();
+  }
+
+  async getRoomSnapshot() {
+    const room = await this.getRoom();
+    return room === null ? null : { room, presence: this.presence(room), serverNowMs: Date.now() };
   }
 
   async getPublicMetadata(): Promise<RoomPublicMetadata | null> {
@@ -457,6 +527,7 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
       this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
       this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
+      this.appendSystem("joined", `${playerName}が入室しました`);
       return { status: "joined", room: updatedRoom, membership } as const;
     });
 
@@ -472,6 +543,8 @@ export class GameRoom extends DurableObject<Env> {
     room: Extract<Room, { status: "waiting" }>,
     playerId: string,
   ): Room | null {
+    const departing = room.players.find((player) => player.id === playerId);
+    if (departing) this.recordDeparture(departing);
     const tokenHash = this.playerTokenHash(playerId);
     if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
     this.ctx.storage.kv.delete(playerTokenKey(playerId));
@@ -635,6 +708,7 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (current === null) closed = true;
           } else {
+            this.recordDeparture(player);
             if (player.color === null) throw new Error("Playing player has no color");
             const result = eliminateColor(current.game, player.color);
             if (!result.ok) throw new Error("Could not eliminate disconnected player");
@@ -732,6 +806,7 @@ export class GameRoom extends DurableObject<Env> {
         updated = this.removeWaitingPlayer(room, player.id);
         if (hostLeaving && updated !== null) promoted = this.playerTokenHash(updated.players[0].id);
       } else {
+        this.recordDeparture(player);
         const game =
           room.status === "playing" &&
           player.color !== null &&
@@ -792,6 +867,7 @@ export class GameRoom extends DurableObject<Env> {
         // 切断中の接続への送信失敗は、保存済みのルーム状態に影響させません。
       }
     }
+    if (this.chatDirty) this.broadcastChat();
     if (room.status === "waiting" && room.lastRound !== null) {
       const host = room.players.find(
         (player) =>
@@ -809,6 +885,7 @@ export class GameRoom extends DurableObject<Env> {
     return roomSocketContract.message.parse({
       type: "room.snapshot",
       room,
+      presence: this.presence(room),
       serverNowMs: Date.now(),
     });
   }
@@ -845,7 +922,7 @@ export class GameRoom extends DurableObject<Env> {
         text: parsed.data,
         sentAtMs: now,
       });
-      this.ctx.storage.kv.put(chatKey, [...this.readChat(), message].slice(-50));
+      this.ctx.storage.kv.put(chatKey, [...this.readChat(), message].slice(-chatHistoryLimit));
       this.ctx.storage.kv.put(lastChatAtKey(player.id), now);
       this.ctx.storage.kv.put(roomStorageKey, roomSchema.parse({ ...room, lastActivityAtMs: now }));
       return "sent";
@@ -895,7 +972,7 @@ export class GameRoom extends DurableObject<Env> {
       token.length === 64 && (await this.viewerMac(token.slice(0, 32))) === token.slice(32);
     if (!isPlayer && !isViewer) return { status: "unauthorized" };
     const message = this.readChat().find((entry) => entry.id === messageId);
-    if (message === undefined) return { status: "message_not_found" };
+    if (message === undefined || message.kind !== "player") return { status: "message_not_found" };
     return { status: "found", instanceId: room.instanceId, message, reporterHash: tokenHash };
   }
 
@@ -970,6 +1047,11 @@ export class GameRoom extends DurableObject<Env> {
       if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
       if (room.settings.mode === mode) return { status: "unchanged" };
 
+      this.appendSystem(
+        "mode_changed",
+        `対局形式が${mode === "singles" ? "シングルス" : "ダブルス"}に変更されました`,
+      );
+
       const updated = roomSchema.parse({
         ...room,
         settings: { ...room.settings, mode },
@@ -1004,6 +1086,7 @@ export class GameRoom extends DurableObject<Env> {
         );
         const number = [1, 2, 3].find((value) => !used.has(`CPU ${value}`));
         if (number === undefined) return { status: "room_full" };
+        this.appendSystem("joined", `CPU Lv${command.level}が入室しました`);
         const updated = roomSchema.parse({
           ...room,
           publicUpdatedAtMs: nextPublicUpdateAt(room),
@@ -1028,6 +1111,7 @@ export class GameRoom extends DurableObject<Env> {
       const cpu = room.players.find((player) => player.id === command.playerId);
       if (cpu?.kind !== "cpu") return { status: "cpu_not_found" };
       if (command.type === "room.cpu.remove") {
+        this.recordDeparture(cpu);
         const updated = roomSchema.parse({
           ...room,
           publicUpdatedAtMs: nextPublicUpdateAt(room),
@@ -1286,9 +1370,10 @@ export class GameRoom extends DurableObject<Env> {
           });
           if (updated !== null) {
             await this.syncAlarm(updated);
-            this.broadcastRoom(updated);
           }
         }
+        const connectedRoom = this.readRoom();
+        if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
         socket.send(
           JSON.stringify(
             roomSocketContract.message.parse({
@@ -1415,13 +1500,21 @@ export class GameRoom extends DurableObject<Env> {
     if (membership === null || room === null) return;
     const player = room.players.find((entry) => entry.id === membership.playerId);
     if (
+      player !== undefined &&
+      this.ctx.storage.kv.get(disconnectedAtKey(player.id)) === undefined
+    ) {
+      this.ctx.storage.kv.put(disconnectedAtKey(player.id), Date.now());
+    }
+    if (
       player === undefined ||
       (room.status === "playing" &&
         player.color !== null &&
         room.game.eliminatedColors.includes(player.color)) ||
       player.reconnectDeadline !== null
-    )
+    ) {
+      this.broadcastRoom(room);
       return;
+    }
     const updated = this.withIndexTransaction(() => {
       const current = this.readRoom();
       if (current === null) return null;

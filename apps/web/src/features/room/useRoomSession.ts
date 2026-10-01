@@ -1,10 +1,11 @@
 import {
   roomSocketContract,
-  type ChatMessage,
+  type ChatEntry,
   type CpuLevel,
   type Room,
   type RoomMembership,
   type RoomMode,
+  type RoomPresence,
 } from "@tetraboard/protocol";
 import { getLegalMoves, type Color, type Position } from "@tetraboard/four-reversi";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +17,7 @@ import {
   readRoomMembershipToken,
 } from "../../shared/roomMembership";
 import { fetchRoom, leaveRoom } from "./roomApi";
+import { displayGameForRoom } from "./roomPresentation";
 
 type PendingGameAction =
   | { type: "start" }
@@ -55,13 +57,16 @@ export function useRoomSession({
   initialRoom,
   initialMembership,
   initialServerNowMs,
+  initialPresence,
 }: {
   initialRoom: Room;
   initialMembership: RoomMembership | null;
   initialServerNowMs: number;
+  initialPresence: RoomPresence;
 }) {
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
+  const [presence, setPresence] = useState(initialPresence);
   const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
   const [authenticated, setAuthenticated] = useState(false);
@@ -71,7 +76,8 @@ export function useRoomSession({
   const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
+  const [chatNotifications, setChatNotifications] = useState<ChatEntry[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
   const [clockSync, setClockSync] = useState(() => ({
     serverNowMs: initialServerNowMs,
@@ -137,6 +143,7 @@ export function useRoomSession({
         }
         currentMembership = latestMembership;
         setRoom(latestRoom);
+        setPresence(latest.presence);
         setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
         setMembership(latestMembership);
         connect();
@@ -163,6 +170,7 @@ export function useRoomSession({
       }
 
       const currentSocket = socket;
+      let chatIds: Set<string> | null = null;
       socketRef.current = currentSocket;
       currentSocket.onopen = () => {
         if (!active || currentMembership === null) return;
@@ -197,6 +205,7 @@ export function useRoomSession({
             return;
           }
           setRoom(message.data.room);
+          setPresence(message.data.presence);
           clearPendingSettings();
           setClockSync({ serverNowMs: message.data.serverNowMs, receivedAt: performance.now() });
           setConnection("接続済み");
@@ -226,6 +235,13 @@ export function useRoomSession({
         }
 
         if (message.data.type === "room.chat.snapshot") {
+          const incoming = message.data.messages;
+          if (chatIds !== null) {
+            const added = incoming.filter((entry) => !chatIds!.has(entry.id));
+            if (added.length > 0)
+              setChatNotifications((previous) => [...previous, ...added].slice(-100));
+          }
+          chatIds = new Set(incoming.map((entry) => entry.id));
           setChatMessages(message.data.messages);
           return;
         }
@@ -246,7 +262,7 @@ export function useRoomSession({
             message.data.membership.playerId !== currentMembership.playerId
           ) {
             setAuthenticated(false);
-            setSocketError("WebSocketの本人確認結果が一致しません。再読み込みしてください。");
+            setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
             return;
           }
           currentMembership = message.data.membership;
@@ -305,7 +321,7 @@ export function useRoomSession({
     connection === "接続済み" &&
     !pendingSettings;
   const game = room.status === "waiting" ? null : room.game;
-  const displayGame = room.status === "playing" ? room.game : (room.lastRound?.game ?? null);
+  const displayGame = displayGameForRoom(room);
   const legalMoves = game === null ? [] : getLegalMoves(game);
   const canPlay =
     game?.status === "playing" &&
@@ -342,7 +358,9 @@ export function useRoomSession({
       room.status !== "waiting" ||
       membership?.role !== "host" ||
       room.players.length !== 4 ||
-      room.players.some((player) => !player.ready)
+      room.players.some(
+        (player) => !player.ready || !presence.connectedPlayerIds.includes(player.id),
+      )
     ) {
       return;
     }
@@ -367,6 +385,7 @@ export function useRoomSession({
     const currentSocket = socketRef.current;
     if (
       self === undefined ||
+      room.status !== "waiting" ||
       !authenticated ||
       pendingReadyRef.current !== null ||
       currentSocket?.readyState !== WebSocket.OPEN
@@ -451,11 +470,16 @@ export function useRoomSession({
 
   function sendChat(text: string): boolean {
     if (!authenticated || socketRef.current?.readyState !== WebSocket.OPEN) return false;
-    socketRef.current.send(
-      JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.chat.send", text })),
-    );
-    setChatError(null);
-    return true;
+    try {
+      socketRef.current.send(
+        JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.chat.send", text })),
+      );
+      setChatError(null);
+      return true;
+    } catch {
+      setChatError("送信できませんでした。接続を確認して、もう一度お試しください。");
+      return false;
+    }
   }
 
   function clearChatError(): void {
@@ -464,6 +488,7 @@ export function useRoomSession({
 
   return {
     room,
+    presence,
     membership,
     connection,
     authenticated,
@@ -474,6 +499,7 @@ export function useRoomSession({
     socketError,
     leaving,
     chatMessages,
+    chatNotifications,
     chatError,
     clearChatError,
     sendChat,

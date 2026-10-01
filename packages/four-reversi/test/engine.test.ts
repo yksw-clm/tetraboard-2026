@@ -37,6 +37,7 @@ function playing(
     board,
     turn,
     moveNumber: 0,
+    lastMove: null,
     eliminatedColors: [],
     consecutivePasses: [],
     result: null,
@@ -85,6 +86,7 @@ test("初期盤面と黒の手番はルール文書どおり", () => {
   expect(state.status).toBe("playing");
   expect(state.turn).toBe("black");
   expect(state.moveNumber).toBe(0);
+  expect(state.lastMove).toBeNull();
   expect(state.eliminatedColors).toEqual([]);
   expect(state.consecutivePasses).toEqual([]);
   expect(getActiveColors(state)).toEqual(["black", "white", "red", "blue"]);
@@ -104,12 +106,19 @@ test("C4の合法手で赤石を返し、入力を変えずに白の手番へ進
   expect(result.state.board[4][2]).toBe("red");
   expect(result.state.turn).toBe("white");
   expect(result.state.moveNumber).toBe(1);
+  expect(result.state.lastMove).toEqual({ x: 2, y: 3 });
   expect(state).toEqual(original);
   const whiteMove = getLegalMoves(result.state)[0];
   expect(whiteMove).toBeDefined();
   const next = applyAction(result.state, place(whiteMove.x, whiteMove.y));
   expect(next.ok).toBe(true);
-  if (next.ok) expect(next.state.turn).toBe("red");
+  if (next.ok) {
+    expect(next.state.turn).toBe("red");
+    expect(next.state.lastMove).toEqual(whiteMove);
+    const eliminated = eliminateColor(next.state, "blue");
+    if (!eliminated.ok) throw new Error("Could not eliminate player");
+    expect(eliminated.state.lastMove).toEqual(whiteMove);
+  }
 });
 
 test("複数方向で複数色が連続していても同時に返す", () => {

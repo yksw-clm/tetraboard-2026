@@ -165,11 +165,11 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
   }
 
   try {
-    const room = await context.env.GAME_ROOM.getByName(code).getRoom();
+    const snapshot = await context.env.GAME_ROOM.getByName(code).getRoomSnapshot();
     context.header("Cache-Control", "no-store");
-    return room === null
+    return snapshot === null
       ? context.json(roomError("not_found"), 404)
-      : context.json(getRoomContract.response.parse({ room, serverNowMs: Date.now() }));
+      : context.json(getRoomContract.response.parse(snapshot));
   } catch {
     return context.json(roomError("internal_error"), 500);
   }

@@ -1,6 +1,6 @@
 @layer theme, base, components, utilities;
 
-/* 全体のリセットは読み込まず、既存のルーム画面のスタイルを保ちます。 */
+/* 全体のリセットは読み込まず、画面ごとのスタイルで見た目を定義します。 */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
@@ -18,3 +18,8 @@
 @import "@heroui/styles/components/radio.css" layer(components);
 @import "@heroui/styles/components/radio-group.css" layer(components);
 @import "@heroui/styles/components/chip.css" layer(components);
+@import "@heroui/styles/components/avatar.css" layer(components);
+@import "@heroui/styles/components/badge.css" layer(components);
+@import "@heroui/styles/components/tabs.css" layer(components);
+@import "@heroui/styles/components/toast.css" layer(components);
+@import "@heroui/styles/components/accordion.css" layer(components);

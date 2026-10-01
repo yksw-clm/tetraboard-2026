@@ -8,7 +8,7 @@ import { LobbyIcon } from "./LobbyIcon";
 import { LobbyList } from "./LobbyList";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
-import "./heroui.css";
+import "../../shared/heroui.css";
 import "./lobby.css";
 
 type Props = {

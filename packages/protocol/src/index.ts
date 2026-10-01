@@ -1,6 +1,15 @@
 export { healthzContract } from "./healthz";
 export type { HealthzResponse } from "./healthz";
 export {
+  chatEntrySchema,
+  chatHistoryLimit,
+  chatCharacterLimit,
+  countCharacters,
+  systemChatMessageSchema,
+  roomPresenceSchema,
+  type ChatEntry,
+  type SystemChatMessage,
+  type RoomPresence,
   createRoomContract,
   chatMessageSchema,
   chatTextSchema,

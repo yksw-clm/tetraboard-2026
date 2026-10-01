@@ -26,6 +26,7 @@ type StateBase = {
   mode: GameMode;
   board: readonly (readonly Cell[])[];
   moveNumber: number;
+  lastMove: Position | null;
   eliminatedColors: readonly Color[];
   consecutivePasses: readonly Color[];
 };
@@ -80,6 +81,7 @@ export function createInitialState(mode: GameMode): FourReversiState {
     board: initialRows.map((row) => [...row].map((symbol) => symbolToCell[symbol])),
     turn: "black",
     moveNumber: 0,
+    lastMove: null,
     eliminatedColors: [],
     consecutivePasses: [],
     result: null,
@@ -285,6 +287,7 @@ export function applyAction(state: FourReversiState, action: FourReversiAction):
     ...state,
     board: placement.board,
     moveNumber: state.moveNumber + 1,
+    lastMove: { ...action.position },
     consecutivePasses: [],
   };
   if (boardIsFull(moved.board)) {

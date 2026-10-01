@@ -27,6 +27,149 @@ import { writeRoomIndex } from "../src/rooms/roomIndex";
 import worker from "../src/worker";
 
 const baseUrl = "https://example.com";
+
+test("接続情報は観戦者にも配信し、脱落後の切断と復帰も反映する", async () => {
+  const setup = await startFourPlayerRoom();
+  const observer = await openRoom(setup.id);
+  expect(observer.initialSnapshot?.presence.hostPlayerId).toBe(setup.participants[0].playerId);
+  expect(observer.initialSnapshot?.presence.connectedPlayerIds).toHaveLength(4);
+  const index = setup.room.players.findIndex((player) => player.color === setup.room.game.turn);
+  const playerId = setup.participants[index].playerId;
+  setup.connections[index].send({ type: "room.game.resign" });
+  await observer.nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.eliminatedColors.length === 1,
+  );
+  setup.connections[index].close();
+  let snapshot;
+  do {
+    snapshot = await observer.nextType("room.snapshot");
+  } while (snapshot.presence.connectedPlayerIds.includes(playerId));
+  expect(snapshot.room.players).toHaveLength(4);
+  expect(
+    snapshot.room.players.find((player) => player.id === playerId)?.reconnectDeadline,
+  ).toBeNull();
+  await authenticatedRoom(setup.id, setup.participants[index].token);
+  do {
+    snapshot = await observer.nextType("room.snapshot");
+  } while (!snapshot.presence.connectedPlayerIds.includes(playerId));
+  expect(snapshot.room.players).toHaveLength(4);
+  const response = await exports.default.fetch(new Request(`${baseUrl}/rooms/${setup.id}`));
+  expect(getRoomContract.response.parse(await response.json()).presence).toEqual(snapshot.presence);
+});
+
+test("入退室・CPU操作・モード変更のログは一度だけ記録し、再接続では追加しない", async () => {
+  const created = await createRoom();
+  const id = created.room.id;
+  const host = await authenticatedRoom(id, created.membership.token);
+  const observer = await openRoom(id);
+  const initial = await observer.nextChatWhere((entries) => entries.length === 1);
+  expect(initial[0]).toMatchObject({
+    kind: "system",
+    event: "joined",
+    text: "ホストが入室しました",
+  });
+  const joined = await joinRoom(id, "二人目");
+  const player = await authenticatedRoom(id, joined.membership.token);
+  await host.nextChatWhere((entries) => entries.at(-1)?.text === "二人目が入室しました");
+  host.send({ type: "room.cpu.add", level: 2 });
+  const withCpu = await host.nextSnapshotWhere((room) => room.players.length === 3);
+  const cpu = withCpu.players.find((entry) => entry.kind === "cpu")!;
+  await host.nextChatWhere((entries) => entries.at(-1)?.text === "CPU Lv2が入室しました");
+  host.send({ type: "room.cpu.remove", playerId: cpu.id });
+  await host.nextChatWhere((entries) => entries.at(-1)?.text === "CPU Lv2が退室しました");
+  host.send({ type: "room.mode.set", mode: "doubles" });
+  await host.nextChatWhere(
+    (entries) => entries.at(-1)?.text === "対局形式がダブルスに変更されました",
+  );
+  host.send({ type: "room.mode.set", mode: "doubles" });
+  await host.nextSnapshotWhere((room) => room.settings.mode === "doubles");
+  player.close();
+  await expectPending(id, joined.membership.playerId);
+  await authenticatedRoom(id, joined.membership.token);
+  const reloaded = await openRoom(id);
+  const history = await reloaded.nextChatWhere((entries) => entries.length === 5);
+  expect(
+    history.filter((entry) => entry.kind === "system" && entry.event === "mode_changed"),
+  ).toHaveLength(1);
+  expect((await leaveRoom(id, joined.membership.token)).status).toBe(204);
+  const afterLeave = await host.nextChatWhere(
+    (entries) => entries.at(-1)?.text === "二人目が退室しました",
+  );
+  expect(afterLeave.filter((entry) => entry.text === "二人目が退室しました")).toHaveLength(1);
+  const report = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms/${id}/reports`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.membership.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messageId: initial[0].id }),
+    }),
+  );
+  expect(report.status).toBe(404);
+});
+
+test("新規投稿は絵文字を含め100文字までとし、旧200文字履歴も閲覧・通報できる", async () => {
+  const created = await createRoom();
+  const id = created.room.id;
+  const host = await authenticatedRoom(id, created.membership.token);
+  const legacy = {
+    id: crypto.randomUUID(),
+    senderId: created.membership.playerId,
+    senderName: "ホスト",
+    text: "あ".repeat(200),
+    sentAtMs: Date.now(),
+  };
+  await runInDurableObject(env.GAME_ROOM.getByName(id), (_instance, state) => {
+    state.storage.kv.put("chat", [legacy]);
+  });
+  const observer = await openRoom(id);
+  expect(
+    (await observer.nextChatWhere((entries) => entries[0]?.id === legacy.id))[0],
+  ).toMatchObject({ kind: "player", text: legacy.text });
+  host.send({ type: "room.chat.send", text: "👨‍👩‍👧‍👦".repeat(100) });
+  expect((await observer.nextChatWhere((entries) => entries.length === 2)).at(-1)?.text).toBe(
+    "👨‍👩‍👧‍👦".repeat(100),
+  );
+  host.send({ type: "room.chat.send", text: "👨‍👩‍👧‍👦".repeat(101) });
+  expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
+  const response = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms/${id}/reports`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${created.membership.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messageId: legacy.id }),
+    }),
+  );
+  expect(response.status).toBe(201);
+});
+
+test("対局中の復帰期限切れログは、終局時に重複せずカード情報も残す", async () => {
+  const { id, participants, connections, room } = await startFourPlayerRoom();
+  const observer = await openRoom(id);
+  const player = participants[1];
+  connections[1].close();
+  await expectPending(id, player.playerId);
+  await expirePlayers(id, [player.playerId]);
+  const entries = await observer.nextChatWhere((messages) =>
+    messages.some((entry) => entry.text === "参加者2が退室しました"),
+  );
+  expect(entries.filter((entry) => entry.text === "参加者2が退室しました")).toHaveLength(1);
+  expect((await getRoom(id)).players).toHaveLength(4);
+  const remaining = room.players.filter((entry) => entry.id !== player.playerId);
+  for (const entry of remaining.slice(1)) {
+    const member = participants.find((participant) => participant.playerId === entry.id)!;
+    await leaveRoom(id, member.token);
+  }
+  const after = await openRoom(id);
+  const history = await after.nextChatWhere((messages) =>
+    messages.some((entry) => entry.text === "参加者2が退室しました"),
+  );
+  expect(history.filter((entry) => entry.text === "参加者2が退室しました")).toHaveLength(1);
+});
+
 const clients: RoomClient[] = [];
 
 class RoomClient {
@@ -378,6 +521,7 @@ test("手番外と不正な着手は状態を変えず、合法手は保存・�
   expect(senderView).toEqual(updated);
   expect(await getRoom(id)).toEqual(updated);
   if (updated.status === "playing") {
+    expect(updated.game.lastMove).toEqual({ x: 2, y: 3 });
     expect(updated.game.board[3][2]).toBe("black");
     expect(updated.game.board[3][3]).toBe("black");
     expect(updated.game.turn).toBe("white");
@@ -1256,21 +1400,23 @@ test("D1障害中も部屋を作成し、Alarmで索引反映を再試行する"
   await waitForIndexedRoom(created.room.id, (row) => row.closed === 0);
 });
 
-test("チャットは認証・文字数・間隔を検証し、直近50件を再接続先へ送る", async () => {
+test("チャットは認証・文字数・間隔を検証し、直近100件を再接続先へ送る", async () => {
   const created = await createRoom();
   const host = await authenticatedRoom(created.room.id, created.membership.token);
   const spectator = await openRoom(created.room.id);
   spectator.send({ type: "room.chat.send", text: "観戦者" });
   expect((await spectator.nextType("room.error")).error).toBe("unauthorized");
   host.send({ type: "room.chat.send", text: "最初" });
-  expect((await spectator.nextChatWhere((messages) => messages.length === 1))[0].text).toBe("最初");
+  expect(
+    (await spectator.nextChatWhere((messages) => messages.at(-1)?.text === "最初")).at(-1)?.text,
+  ).toBe("最初");
   host.send({ type: "room.chat.send", text: "連投" });
   expect((await host.nextType("room.chat.error")).error).toBe("rate_limited");
   host.send({ type: "room.chat.send", text: "https://example.com" });
   expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
-  host.send({ type: "room.chat.send", text: "あ".repeat(201) });
+  host.send({ type: "room.chat.send", text: "あ".repeat(101) });
   expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
-  for (let index = 1; index <= 50; index++) {
+  for (let index = 1; index <= 100; index++) {
     await runInDurableObject(env.GAME_ROOM.getByName(created.room.id), (_instance, state) => {
       state.storage.kv.put(`last-chat-at:${created.membership.playerId}`, Date.now() - 3_001);
     });
@@ -1278,9 +1424,9 @@ test("チャットは認証・文字数・間隔を検証し、直近50件を再
     await spectator.nextChatWhere((messages) => messages.at(-1)?.text === `投稿${index}`);
   }
   const reloaded = await openRoom(created.room.id);
-  const history = await reloaded.nextChatWhere((messages) => messages.length === 50);
+  const history = await reloaded.nextChatWhere((messages) => messages.length === 100);
   expect(history[0].text).toBe("投稿1");
-  expect(history.at(-1)?.text).toBe("投稿50");
+  expect(history.at(-1)?.text).toBe("投稿100");
   expect((await getRoom(created.room.id)).status).toBe("waiting");
 });
 
@@ -1288,7 +1434,9 @@ test("観戦者は匿名資格で通報し、運営者が削除・送信停止�
   const created = await createRoom();
   const host = await authenticatedRoom(created.room.id, created.membership.token);
   host.send({ type: "room.chat.send", text: "確認対象" });
-  const [message] = await host.nextChatWhere((messages) => messages.length === 1);
+  const message = (await host.nextChatWhere((messages) => messages.at(-1)?.text === "確認対象")).at(
+    -1,
+  )!;
   const viewerResponse = await exports.default.fetch(
     new Request(`${baseUrl}${viewerContract.pathFor(created.room.id)}`, { method: "POST" }),
   );
@@ -1327,7 +1475,11 @@ test("観戦者は匿名資格で通報し、運営者が削除・送信停止�
   );
   expect(action.status).toBe(200);
   expect(moderateReportContract.response.parse(await action.json()).status).toBe("resolved");
-  expect(await host.nextChatWhere((messages) => messages.length === 0)).toEqual([]);
+  expect(
+    (
+      await host.nextChatWhere((messages) => messages.every((entry) => entry.kind === "system"))
+    ).every((entry) => entry.kind === "system"),
+  ).toBe(true);
   host.send({ type: "room.chat.send", text: "再投稿" });
   expect((await host.nextType("room.chat.error")).error).toBe("muted");
 });
@@ -1336,7 +1488,9 @@ test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除
   const created = await createRoom();
   const host = await authenticatedRoom(created.room.id, created.membership.token);
   host.send({ type: "room.chat.send", text: "通報対象" });
-  const [message] = await host.nextChatWhere((messages) => messages.length === 1);
+  const message = (await host.nextChatWhere((messages) => messages.at(-1)?.text === "通報対象")).at(
+    -1,
+  )!;
   const request = () =>
     new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
       method: "POST",
@@ -1481,7 +1635,9 @@ test("通報済みの旧世代へ処分しても再利用された部屋を変�
   const created = await createRoom();
   const host = await authenticatedRoom(created.room.id, created.membership.token);
   host.send({ type: "room.chat.send", text: "旧ルーム" });
-  const [message] = await host.nextChatWhere((messages) => messages.length === 1);
+  const message = (await host.nextChatWhere((messages) => messages.at(-1)?.text === "旧ルーム")).at(
+    -1,
+  )!;
   const report = await exports.default.fetch(
     new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
       method: "POST",

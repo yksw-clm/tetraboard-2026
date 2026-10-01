@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
+export const countCharacters = (text: string): number => Array.from(segmenter.segment(text)).length;
 
 const nicknameSchema = z
   .string()
@@ -68,6 +69,10 @@ const gameStateBaseSchema = z.strictObject({
   mode: roomModeSchema,
   board: z.array(z.array(fourReversiColorSchema.nullable()).length(8)).length(8),
   moveNumber: z.int().nonnegative(),
+  lastMove: z
+    .strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) })
+    .nullable()
+    .default(null),
   eliminatedColors: z.array(fourReversiColorSchema),
   consecutivePasses: z.array(fourReversiColorSchema),
 });
@@ -186,18 +191,36 @@ export const roomPublicMetadataSchema = z
   );
 
 export const membershipTokenSchema = z.string().regex(/^[0-9a-f]{64}$/);
-export const chatTextSchema = z
+export const chatCharacterLimit = 100;
+export const chatHistoryLimit = 100;
+const storedChatTextSchema = z
   .string()
   .trim()
   .min(1)
   .refine((text) => Array.from(segmenter.segment(text)).length <= 200)
   .refine((text) => !/(?:https?:\/\/|www\.|\b[a-z0-9-]+\.[a-z]{2,}\b)/i.test(text));
+export const chatTextSchema = storedChatTextSchema.refine(
+  (text) => countCharacters(text) <= chatCharacterLimit,
+);
 export const chatMessageSchema = z.strictObject({
   id: z.uuid(),
+  kind: z.literal("player").default("player"),
   senderId: z.uuid(),
   senderName: nicknameSchema,
-  text: chatTextSchema,
+  text: storedChatTextSchema,
   sentAtMs: serverNowMsSchema,
+});
+export const systemChatMessageSchema = z.strictObject({
+  id: z.uuid(),
+  kind: z.literal("system"),
+  event: z.enum(["joined", "left", "mode_changed"]),
+  text: z.string().min(1).max(200),
+  sentAtMs: serverNowMsSchema,
+});
+export const chatEntrySchema = z.union([chatMessageSchema, systemChatMessageSchema]);
+export const roomPresenceSchema = z.strictObject({
+  hostPlayerId: z.uuid().nullable(),
+  connectedPlayerIds: z.array(z.uuid()).max(4),
 });
 
 export const roomMembershipSchema = z.strictObject({
@@ -276,7 +299,11 @@ export const getRoomContract = {
   method: "GET",
   path: "/rooms/:id",
   pathFor: (id: string) => `/rooms/${id}`,
-  response: z.strictObject({ room: roomSchema, serverNowMs: serverNowMsSchema }),
+  response: z.strictObject({
+    room: roomSchema,
+    presence: roomPresenceSchema,
+    serverNowMs: serverNowMsSchema,
+  }),
   error: roomErrorSchema,
 } as const;
 
@@ -361,12 +388,13 @@ export const roomSocketContract = {
     z.strictObject({
       type: z.literal("room.snapshot"),
       room: roomSchema,
+      presence: roomPresenceSchema,
       serverNowMs: serverNowMsSchema,
     }),
     z.strictObject({ type: z.literal("room.authenticated"), membership: roomMembershipSchema }),
     z.strictObject({
       type: z.literal("room.chat.snapshot"),
-      messages: z.array(chatMessageSchema).max(50),
+      messages: z.array(chatEntrySchema).max(chatHistoryLimit),
     }),
     z.strictObject({
       type: z.literal("room.chat.error"),
@@ -405,6 +433,9 @@ export type CpuLevel = z.infer<typeof cpuLevelSchema>;
 export type PlayingRoomClock = z.infer<typeof playingClockSchema>;
 export type FinishedRoomClock = z.infer<typeof finishedClockSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type ChatEntry = z.infer<typeof chatEntrySchema>;
+export type SystemChatMessage = z.infer<typeof systemChatMessageSchema>;
+export type RoomPresence = z.infer<typeof roomPresenceSchema>;
 export type LastRound = z.infer<typeof lastRoundSchema>;
 export type ModerationReport = z.infer<typeof moderationReportSchema>;
 export type RoomError = z.infer<typeof roomErrorSchema>;

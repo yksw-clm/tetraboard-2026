@@ -16,8 +16,7 @@ export function GameResultView({ lastRound }: { lastRound: LastRound }) {
     lastRound.players.find((player) => player.color === color)?.name ?? colorNames[color];
 
   return (
-    <section aria-label="対局結果">
-      <h2>対局結果</h2>
+    <section className="room-result" aria-label="対局結果の詳細">
       <p>終局理由：{endReasonNames[result.reason]}</p>
       {result.mode === "singles" ? (
         <ul>

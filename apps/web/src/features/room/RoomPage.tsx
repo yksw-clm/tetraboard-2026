@@ -9,28 +9,39 @@ function RoomDetail({
   initialRoom,
   initialMembership,
   initialServerNowMs,
+  initialPresence,
 }: {
   initialRoom: RoomLoaderData["room"];
   initialMembership: RoomLoaderData["membership"];
   initialServerNowMs: number;
+  initialPresence: RoomLoaderData["presence"];
 }) {
-  const session = useRoomSession({ initialRoom, initialMembership, initialServerNowMs });
+  const session = useRoomSession({
+    initialRoom,
+    initialMembership,
+    initialServerNowMs,
+    initialPresence,
+  });
   const chat = useRoomChat({
     room: session.room,
     membership: session.membership,
     remoteError: session.chatError,
     sendChat: session.sendChat,
     clearRemoteError: session.clearChatError,
+    notifications: session.chatNotifications,
+    messages: session.chatMessages,
+    connected: session.authenticated && session.connection === "接続済み",
   });
   return <RoomView session={session} chat={chat} />;
 }
 
 export function RoomPage() {
-  const { room, membership, serverNowMs } = useLoaderData<RoomLoaderData>();
+  const { room, membership, presence, serverNowMs } = useLoaderData<RoomLoaderData>();
   return (
     <RoomDetail
       key={`${room.id}:${membership?.playerId ?? "spectator"}`}
       initialRoom={room}
+      initialPresence={presence}
       initialMembership={membership}
       initialServerNowMs={serverNowMs}
     />
