@@ -1,4 +1,5 @@
 import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
+import { fourReversiLobbyPath } from "../../app/paths";
 import { type RoomLoaderData } from "./roomLoader";
 import { RoomView } from "./RoomView";
 import { useRoomChat } from "./useRoomChat";
@@ -52,7 +53,7 @@ export function RoomErrorPage() {
     <>
       <p>{message}</p>
       <p>
-        <Link to="/">トップへ</Link>
+        <Link to={fourReversiLobbyPath}>ロビーへ</Link>
       </p>
     </>
   );

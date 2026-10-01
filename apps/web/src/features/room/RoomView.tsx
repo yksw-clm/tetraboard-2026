@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { fourReversiLobbyPath } from "../../app/paths";
 import { FourReversiBoard } from "./FourReversiBoard";
 import { GameResultView } from "./GameResultView";
 import { PlayerList } from "./PlayerList";
@@ -19,7 +20,7 @@ export function RoomView({
   return (
     <>
       <p>
-        <Link to="/">トップへ</Link>
+        <Link to={fourReversiLobbyPath}>ロビーへ</Link>
       </p>
       <h1>ルーム {room.id}</h1>
       <p>

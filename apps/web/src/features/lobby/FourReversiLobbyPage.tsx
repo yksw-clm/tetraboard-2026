@@ -1,25 +1,20 @@
 import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate } from "react-router";
-import { HomeView } from "./HomeView";
-import { useApiStatus } from "./useApiStatus";
+import { FourReversiLobbyView } from "./FourReversiLobbyView";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
-export function HomePage() {
+export function FourReversiLobbyPage() {
   const navigate = useNavigate();
-  const apiStatus = useApiStatus();
   const lobby = useLobby();
   const entry = useRoomEntry();
 
   return (
-    <HomeView
-      apiStatus={apiStatus}
+    <FourReversiLobbyView
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}
       isSubmitting={entry.isSubmitting}
-      roomResponse={entry.roomResponse}
-      responseStatus={entry.responseStatus}
       message={entry.message}
       lobbyRooms={lobby.rooms}
       lobbyNextCursor={lobby.nextCursor}
@@ -29,6 +24,7 @@ export function HomePage() {
       onNameChange={entry.setName}
       onRoomCodeChange={entry.setRoomCode}
       onModeChange={entry.setMode}
+      onClearMessage={entry.clearMessage}
       onSubmitRoom={(intent, roomId) => void entry.submitRoom(intent, roomId)}
       onWatchRoom={(roomId) => void navigate(getRoomContract.pathFor(roomId))}
       onLobbyRefresh={() => void lobby.refresh()}

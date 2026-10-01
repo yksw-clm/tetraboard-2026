@@ -9,6 +9,7 @@ import {
 import { getLegalMoves, type Color, type Position } from "@tetraboard/four-reversi";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { fourReversiLobbyPath } from "../../app/paths";
 import {
   clearRoomMembershipToken,
   fetchRoomMembership,
@@ -441,7 +442,7 @@ export function useRoomSession({
     try {
       await leaveRoom(room.id, token);
       clearRoomMembershipToken(room.id);
-      void navigate("/");
+      void navigate(fourReversiLobbyPath);
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);

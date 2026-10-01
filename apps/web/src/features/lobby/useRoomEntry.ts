@@ -6,7 +6,7 @@ import {
   type RoomError,
   type RoomMode,
 } from "@tetraboard/protocol";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   canStoreRoomMembership,
@@ -16,22 +16,38 @@ import {
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
+function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
+  switch (error.error) {
+    case "not_found":
+      return "ルームが見つかりません。番号を確認するか、一覧を更新してください。";
+    case "room_full":
+      return "このルームは満室です。ほかのルームへの参加や観戦をお試しください。";
+    case "room_started":
+      return "このルームの対局は始まっています。観戦するか、ほかのルームを選んでください。";
+    case "invalid_request":
+      return "入力内容を確認して、もう一度お試しください。";
+    case "rate_limited":
+      return "しばらく待ってから、もう一度お試しください。";
+    default:
+      return intent === "join"
+        ? "ルームに参加できませんでした。もう一度お試しください。"
+        : "ルームを作成できませんでした。もう一度お試しください。";
+  }
+}
+
 export function useRoomEntry() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState<RoomMode>("singles");
   const [isSubmitting, setIsSubmitting] = useState<RoomEntryIntent | null>(null);
-  const [roomResponse, setRoomResponse] = useState<RoomError | null>(null);
-  const [responseStatus, setResponseStatus] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const submitting = useRef(false);
 
   async function submitRoom(intent: RoomEntryIntent, selectedRoomCode = roomCode): Promise<void> {
-    if (isSubmitting !== null) return;
+    if (submitting.current) return;
     const contract = intent === "join" ? joinRoomContract : createRoomContract;
 
-    setRoomResponse(null);
-    setResponseStatus(null);
     setMessage(null);
 
     if (intent === "join" && !roomCodeSchema.safeParse(selectedRoomCode).success) {
@@ -44,13 +60,14 @@ export function useRoomEntry() {
       return;
     }
 
+    submitting.current = true;
     setIsSubmitting(intent);
 
     try {
       if (intent === "join") {
         const existingMembership = await fetchRoomMembership(selectedRoomCode);
         if (existingMembership !== null) {
-          void navigate(getRoomContract.pathFor(selectedRoomCode));
+          await navigate(getRoomContract.pathFor(selectedRoomCode));
           return;
         }
       }
@@ -86,32 +103,21 @@ export function useRoomEntry() {
         if (!saveRoomMembershipToken(result.room.id, result.membership.token)) {
           throw new Error("Failed to store membership");
         }
-        void navigate(getRoomContract.pathFor(result.room.id));
+        await navigate(getRoomContract.pathFor(result.room.id));
       } else {
         const error = contract.error.parse(body);
-        setRoomResponse(error);
-        setResponseStatus(response.status);
-        if (intent === "join") {
-          setMessage(
-            error.error === "not_found"
-              ? "ルームが見つかりません。"
-              : error.error === "room_full"
-                ? "このルームは満室です。"
-                : error.error === "room_started"
-                  ? "このルームの対局は始まっています。"
-                  : "入室できませんでした。",
-          );
-        }
+        setMessage(entryErrorMessage(error, intent));
       }
     } catch (error) {
       setMessage(
         error instanceof Response && error.status === 404
           ? "ルームが見つかりません。"
           : intent === "join"
-            ? "入室または本人確認の応答を確認できませんでした。"
-            : "ルーム作成の応答を確認できませんでした。",
+            ? "ルームに参加できませんでした。通信を確認して、もう一度お試しください。"
+            : "ルームを作成できませんでした。通信を確認して、もう一度お試しください。",
       );
     } finally {
+      submitting.current = false;
       setIsSubmitting(null);
     }
   }
@@ -124,9 +130,8 @@ export function useRoomEntry() {
     mode,
     setMode,
     isSubmitting,
-    roomResponse,
-    responseStatus,
     message,
+    clearMessage: () => setMessage(null),
     submitRoom,
   };
 }

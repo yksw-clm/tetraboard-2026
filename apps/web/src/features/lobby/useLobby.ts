@@ -18,7 +18,7 @@ export function useLobby() {
   const [rooms, setRooms] = useState<RoomPublicMetadata[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [moreLoading, setMoreLoading] = useState(false);
   const [moreLoaded, setMoreLoaded] = useState(false);
   const request = useRef<AbortController | null>(null);
@@ -53,13 +53,13 @@ export function useLobby() {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !moreLoaded) void refresh();
+      if (document.visibilityState === "visible" && !moreLoaded && !moreLoading) void refresh();
     }, 10_000);
     return () => window.clearInterval(interval);
-  }, [moreLoaded]);
+  }, [moreLoaded, moreLoading]);
 
   async function loadMore(): Promise<void> {
-    if (nextCursor === null || moreLoading) return;
+    if (nextCursor === null || loading || moreLoading) return;
     setMoreLoading(true);
     const controller = new AbortController();
     request.current?.abort();
