@@ -15,6 +15,7 @@ import {
   displayGameForRoom,
   orderedSeats,
   playerClock,
+  playerRank,
 } from "../src/features/room/roomPresentation";
 
 function waitingRoom(): Room {
@@ -162,4 +163,23 @@ describe("ルームの表示", () => {
     room.game.eliminatedColors.push("red");
     expect(playerClock(room, "red", 36000)).toBeNull();
   });
+});
+
+test("脱落順位に理由を添え、記録がない場合は順位だけを表示する", () => {
+  const room = playingRoom();
+  if (room.status !== "playing") throw new Error("Expected playing room");
+  expect(playerRank(room, "black")).toBeNull();
+  room.game.eliminatedColors = ["black", "white", "red"];
+  room.eliminations = [
+    { color: "black", reason: "left" },
+    { color: "white", reason: "timeout" },
+    { color: "red", reason: "resigned" },
+  ];
+  expect(playerRank(room, "black")).toEqual({ rank: 4, label: "4位（退室）" });
+  expect(playerRank(room, "white")).toEqual({ rank: 3, label: "3位（時間切れ）" });
+  expect(playerRank(room, "red")).toEqual({ rank: 2, label: "2位（投了）" });
+  room.eliminations = [{ color: "black", reason: "disconnected" }];
+  expect(playerRank(room, "black")?.label).toBe("4位（通信切れ）");
+  expect(playerRank(room, "white")?.label).toBe("3位");
+  expect(playerRank(waitingRoom(), "black")).toBeNull();
 });
