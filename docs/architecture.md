@@ -6,6 +6,7 @@
 
 - 開発環境はBunに統一し、Bun Workspaceでフロントエンド、サーバー、共有コードを管理する。実際のパッケージ配置は実装開始時に決める。
 - フロントエンドはVite、React、TypeScriptで作る。
+- 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。
 - WebとWorkerの境界を通るデータのスキーマ、型、エンドポイント定義は `packages/protocol` に置く。四人リバーシの純粋な判定ロジックは `packages/four-reversi` に置き、通信契約と混在させない。
 - ルームごとに1つのDurable Objectを使い、参加者、対局進行、持ち時間、チャットと接続を管理する。ゲーム固有の合法手・終局判定は、ルーム管理から分離したTypeScriptのロジックとして扱う。

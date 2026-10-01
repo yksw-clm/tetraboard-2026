@@ -3,7 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --env production",
+    "deploy:dry-run": "wrangler deploy --env production --dry-run",
+    "preview:production": "wrangler dev --env production --local --ip 127.0.0.1 --port 8788 --persist-to .wrangler/production-preview",
+    "db:migrate:preview": "wrangler d1 migrations apply LOBBY_DB --env production --local --persist-to .wrangler/production-preview",
+    "db:migrate:production": "wrangler d1 migrations apply LOBBY_DB --env production --remote",
     "dev": "bun run db:migrate:local && wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply tetraboard-lobby-local --local",
     "cf-typegen": "wrangler types",
