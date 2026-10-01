@@ -11,6 +11,7 @@ import {
   moderateReportContract,
   reportContract,
   roomSchema,
+  roundReplaySchema,
   roomPublicMetadataSchema,
   roomSocketContract,
   roomTimeControl,
@@ -21,7 +22,7 @@ import {
   type RoomSocketClientMessage,
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
-import { getLegalMoves } from "@tetraboard/four-reversi";
+import { applyAction, createInitialState, getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test, vi } from "vitest";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import worker from "../src/worker";
@@ -257,6 +258,105 @@ async function createRoom(quickPlay = false, mode: RoomMode = "singles") {
   return createRoomContract.response.parse(await response.json());
 }
 
+test("招待先と同じ世代に参加し、既存の番号参加も引き続き利用できる", async () => {
+  const { room, membership } = await createRoom();
+  const host = await authenticatedRoom(room.id, membership.token);
+  const response = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms/${room.id}/players`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "招待された人", instanceId: room.instanceId }),
+    }),
+  );
+  expect(response.status).toBe(200);
+  const joined = joinRoomContract.response.parse(await response.json());
+  expect(
+    joined.room.players.find((player) => player.id === joined.membership.playerId)?.ready,
+  ).toBe(false);
+  await host.nextSnapshotWhere((snapshot) => snapshot.players.length === 2);
+  const player = await authenticatedRoom(room.id, joined.membership.token);
+  player.send({ type: "room.ready.set", ready: true });
+  await host.nextSnapshotWhere((snapshot) =>
+    snapshot.players.some((entry) => entry.id === joined.membership.playerId && entry.ready),
+  );
+  await joinRoom(room.id, "番号から参加");
+  const socketResponse = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
+      headers: { Upgrade: "websocket" },
+    }),
+  );
+  expect(socketResponse.status).toBe(101);
+  socketResponse.webSocket!.accept();
+  socketResponse.webSocket!.close();
+});
+
+test("閉鎖・番号再利用後の古い招待は参加とWebSocket接続を拒否する", async () => {
+  const { room, membership } = await createRoom();
+  expect((await leaveRoom(room.id, membership.token)).status).toBe(204);
+  const request = () =>
+    new Request(`${baseUrl}/rooms/${room.id}/players`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "招待された人", instanceId: room.instanceId }),
+    });
+  expect((await exports.default.fetch(request())).status).toBe(404);
+  const replacement = roomSchema.parse({
+    ...room,
+    instanceId: crypto.randomUUID(),
+    lastActivityAtMs: Date.now(),
+    players: [{ ...room.players[0], id: crypto.randomUUID(), reconnectDeadline: null }],
+  });
+  await env.GAME_ROOM.getByName(room.id).createRoom(replacement, "c".repeat(64));
+  const before = await getRoom(room.id);
+  const response = await exports.default.fetch(request());
+  expect(response.status).toBe(410);
+  expect(await response.json()).toEqual({ error: "room_changed" });
+  const socketResponse = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
+      headers: { Upgrade: "websocket" },
+    }),
+  );
+  expect(socketResponse.status).toBe(410);
+  expect(await socketResponse.json()).toEqual({ error: "room_changed" });
+  expect((await getRoom(room.id)).players).toEqual(before.players);
+});
+
+test("招待の不正な識別子、参加前の満室化・開始を案内する", async () => {
+  const setup = await startFourPlayerRoom();
+  for (const instanceId of ["invalid", setup.room.instanceId]) {
+    const response = await exports.default.fetch(
+      new Request(`${baseUrl}/rooms/${setup.id}/players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "招待された人", instanceId }),
+      }),
+    );
+    expect(response.status).toBe(instanceId === "invalid" ? 400 : 409);
+    expect(await response.json()).toEqual({
+      error: instanceId === "invalid" ? "invalid_request" : "room_started",
+    });
+  }
+  const full = await createRoom(true);
+  const response = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms/${full.room.id}/players`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "招待された人", instanceId: full.room.instanceId }),
+    }),
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "room_full" });
+  expect(
+    (
+      await exports.default.fetch(
+        new Request(`${baseUrl}/rooms/${full.room.id}/ws?instanceId=invalid`, {
+          headers: { Upgrade: "websocket" },
+        }),
+      )
+    ).status,
+  ).toBe(400);
+});
+
 async function joinRoom(id: string, name: string) {
   const response = await exports.default.fetch(
     new Request(`${baseUrl}${joinRoomContract.pathFor(id)}`, {
@@ -426,6 +526,39 @@ async function setRoomDeadlines(
   });
 }
 
+test("投了・通信切れ・時間切れを順に記録し、終局後の再取得と観戦でも同じ棋譜を返す", async () => {
+  const setup = await startFourPlayerRoom();
+  const byColor = (color: string) =>
+    setup.room.players.findIndex((player) => player.color === color);
+  const observer = await openRoom(setup.id);
+  setup.connections[byColor("black")].send({ type: "room.game.resign" });
+  await observer.nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.turn === "white",
+  );
+  setup.connections[byColor("white")].close();
+  const whiteId = setup.participants[byColor("white")].playerId;
+  await expectPending(setup.id, whiteId);
+  await expirePlayers(setup.id, [whiteId]);
+  await observer.nextSnapshotWhere((room) => room.status === "playing" && room.game.turn === "red");
+  await setRoomDeadlines(setup.id, (room) => ({
+    ...room,
+    clock: { ...room.clock, turnStartedAt: Date.now() - 330_001, turnExpiresAt: Date.now() - 1 },
+  }));
+  await runDurableObjectAlarm(env.GAME_ROOM.getByName(setup.id));
+  const ended = await observer.nextSnapshotWhere(
+    (room) => room.status === "waiting" && room.lastRound !== null,
+  );
+  const replay = ended.lastRound?.replay;
+  expect(replay?.steps.map((step) => step.action)).toEqual([
+    { type: "eliminate", color: "black", reason: "resigned" },
+    { type: "eliminate", color: "white", reason: "disconnected" },
+    { type: "eliminate", color: "red", reason: "timeout" },
+  ]);
+  expect(replay?.steps.at(-1)?.game).toEqual(ended.lastRound?.game);
+  expect((await getRoom(setup.id)).lastRound).toEqual(ended.lastRound);
+  expect((await openRoom(setup.id)).initialSnapshot?.room.lastRound).toEqual(ended.lastRound);
+});
+
 test("未認証の接続はReadyを変更できない", async () => {
   const created = await createRoom();
   const client = await openRoom(created.room.id);
@@ -556,6 +689,22 @@ test("終局したルームを保存・配信し、以後の着手を拒否す�
   if (room.status !== "waiting") return;
   expect(room.lastRound?.game.status).toBe("finished");
   expect(room.lastRound?.game.result.mode).toBe("singles");
+  const replay = room.lastRound?.replay;
+  expect(replay).toBeTruthy();
+  if (!replay) throw new Error("Replay missing");
+  let replayed = createInitialState("singles");
+  expect(replay.initial).toEqual(replayed);
+  for (const step of replay.steps) {
+    if (step.action.type !== "place") throw new Error("Unexpected elimination");
+    expect(step.action.color).toBe(replayed.turn);
+    const applied = applyAction(replayed, { type: "placeStone", position: step.action.position });
+    if (!applied.ok) throw new Error("Recorded move is invalid");
+    expect(step.game).toEqual(applied.state);
+    expect(step.passedColors).toEqual(applied.passedColors);
+    replayed = applied.state;
+  }
+  expect(replay.steps.some((step) => step.passedColors.length > 0)).toBe(true);
+  expect(replayed).toEqual(room.lastRound?.game);
   for (const connection of connections.slice(1)) {
     expect(
       await connection.nextSnapshotWhere(
@@ -802,6 +951,11 @@ test("開始・着手・再取得で時計の基準時刻と期限を維持す�
   expect(moved.clock.turnStartedAt).toBeGreaterThanOrEqual(room.clock.turnStartedAt);
   expect(moved.clock.turnExpiresAt - moved.clock.turnStartedAt).toBe(330_000);
   expect(await getRoom(id)).toEqual(moved);
+  await runInDurableObject(env.GAME_ROOM.getByName(id), (_instance, state) => {
+    const replay = roundReplaySchema.parse(state.storage.kv.get("round-replay"));
+    expect(replay.steps.at(-1)?.action).toMatchObject({ type: "place", color: "black" });
+    if (moved.status === "playing") expect(replay.steps.at(-1)?.game).toEqual(moved.game);
+  });
 });
 
 test("期限到達後の着手を拒否し、時間切れを全接続へ配信する", async () => {
@@ -991,6 +1145,11 @@ test("すぐ遊ぶは1人とCPU3体を作成し、CPU手番をDOが保存・配�
   );
   expect(moved.status).not.toBe("waiting");
   expect(await getRoom(id)).toEqual(moved);
+  await runInDurableObject(env.GAME_ROOM.getByName(id), (_instance, state) => {
+    const replay = roundReplaySchema.parse(state.storage.kv.get("round-replay"));
+    expect(replay.steps.at(-1)?.action).toMatchObject({ type: "place", color: cpuTurn });
+    if (moved.status === "playing") expect(replay.steps.at(-1)?.game).toEqual(moved.game);
+  });
 });
 
 test("対局中に最後の人間が退室してもCPUは着手を続ける", async () => {
@@ -1577,6 +1736,10 @@ test("終局後は自動で再戦待機になり、ホストを引き継いで�
   expect(waiting.players).toHaveLength(3);
   expect(waiting.players.every((player) => player.kind === "cpu" || !player.ready)).toBe(true);
   expect(waiting.lastRound?.players).toHaveLength(4);
+  expect(waiting.lastRound?.replay?.steps.at(-1)?.action).toMatchObject({
+    type: "eliminate",
+    reason: "left",
+  });
   const promoted = getRoomMembershipContract.response.parse(
     await (await getMembership(setup.id, setup.participants[1].token)).json(),
   );
@@ -1595,6 +1758,11 @@ test("終局後は自動で再戦待機になり、ホストを引き継いで�
     (room) => room.status === "playing" && room.game.moveNumber === 0,
   );
   expect(restarted.lastRound).toBeNull();
+  await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_instance, state) => {
+    const replay = roundReplaySchema.parse(state.storage.kv.get("round-replay"));
+    expect(replay.id).not.toBe(waiting.lastRound?.replay?.id);
+    expect(replay.steps).toEqual([]);
+  });
   expect(new Set(restarted.players.map((player) => player.color)).size).toBe(4);
 });
 

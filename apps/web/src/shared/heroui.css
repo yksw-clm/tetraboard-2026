@@ -23,3 +23,6 @@
 @import "@heroui/styles/components/tabs.css" layer(components);
 @import "@heroui/styles/components/toast.css" layer(components);
 @import "@heroui/styles/components/accordion.css" layer(components);
+@import "@heroui/styles/components/select.css" layer(components);
+@import "@heroui/styles/components/list-box.css" layer(components);
+@import "@heroui/styles/components/list-box-item.css" layer(components);

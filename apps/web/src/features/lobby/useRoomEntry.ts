@@ -1,18 +1,15 @@
 import {
   createRoomContract,
   getRoomContract,
-  joinRoomContract,
   roomCodeSchema,
   type RoomError,
   type RoomMode,
 } from "@tetraboard/protocol";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import {
-  canStoreRoomMembership,
-  fetchRoomMembership,
-  saveRoomMembershipToken,
-} from "../../shared/roomMembership";
+import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
+
+import { joinRoom, roomEntryErrorMessage } from "../../shared/roomAccess";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
@@ -46,7 +43,7 @@ export function useRoomEntry() {
 
   async function submitRoom(intent: RoomEntryIntent, selectedRoomCode = roomCode): Promise<void> {
     if (submitting.current) return;
-    const contract = intent === "join" ? joinRoomContract : createRoomContract;
+    const contract = createRoomContract;
 
     setMessage(null);
 
@@ -65,23 +62,18 @@ export function useRoomEntry() {
 
     try {
       if (intent === "join") {
-        const existingMembership = await fetchRoomMembership(selectedRoomCode);
-        if (existingMembership !== null) {
-          await navigate(getRoomContract.pathFor(selectedRoomCode));
-          return;
-        }
+        await joinRoom(selectedRoomCode, name);
+        await navigate(getRoomContract.pathFor(selectedRoomCode));
+        return;
       }
 
-      const request = contract.request.safeParse(
-        intent === "join" ? { name } : { name, quickPlay: intent === "quick", mode },
-      );
+      const request = contract.request.safeParse({ name, quickPlay: intent === "quick", mode });
       if (!request.success) {
         setMessage("ニックネームを1〜10文字で入力してください。");
         return;
       }
 
-      const path =
-        intent === "join" ? joinRoomContract.pathFor(selectedRoomCode) : createRoomContract.path;
+      const path = createRoomContract.path;
       const response = await fetch(`/api${path}`, {
         method: contract.method,
         headers: { "Content-Type": "application/json" },
@@ -89,13 +81,10 @@ export function useRoomEntry() {
       });
       const body: unknown = await response.json();
 
-      if (response.status === (intent === "join" ? 200 : 201)) {
+      if (response.status === 201) {
         const result = contract.response.parse(body);
-        if (intent === "join" && result.room.id !== selectedRoomCode) {
-          throw new Error("Room code does not match response");
-        }
         if (
-          result.membership.role !== (intent === "join" ? "player" : "host") ||
+          result.membership.role !== "host" ||
           !result.room.players.some((player) => player.id === result.membership.playerId)
         ) {
           throw new Error("Membership does not match room");
@@ -113,7 +102,7 @@ export function useRoomEntry() {
         error instanceof Response && error.status === 404
           ? "ルームが見つかりません。"
           : intent === "join"
-            ? "ルームに参加できませんでした。通信を確認して、もう一度お試しください。"
+            ? roomEntryErrorMessage(error)
             : "ルームを作成できませんでした。通信を確認して、もう一度お試しください。",
       );
     } finally {

@@ -86,16 +86,41 @@ const finishedGameSchema = gameStateBaseSchema.extend({
   turn: z.null(),
   result: z.discriminatedUnion("mode", [singlesResultSchema, doublesResultSchema]),
 });
+export const fourReversiStateSchema = z.discriminatedUnion("status", [
+  playingGameSchema,
+  finishedGameSchema,
+]);
+const replayActionSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("place"),
+    color: fourReversiColorSchema,
+    position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
+  }),
+  z.strictObject({
+    type: z.literal("eliminate"),
+    color: fourReversiColorSchema,
+    reason: z.enum(["resigned", "left", "timeout", "disconnected"]),
+  }),
+]);
+export const roundReplaySchema = z.strictObject({
+  id: z.uuid(),
+  initial: playingGameSchema,
+  steps: z.array(
+    z.strictObject({
+      action: replayActionSchema,
+      game: fourReversiStateSchema,
+      passedColors: z.array(fourReversiColorSchema),
+    }),
+  ),
+});
+export type RoundReplay = z.infer<typeof roundReplaySchema>;
 const lastRoundSchema = z.strictObject({
   game: finishedGameSchema,
   players: z
     .array(z.strictObject({ id: z.uuid(), name: nicknameSchema, color: fourReversiColorSchema }))
     .length(4),
+  replay: roundReplaySchema.nullable().default(null),
 });
-export const fourReversiStateSchema = z.discriminatedUnion("status", [
-  playingGameSchema,
-  finishedGameSchema,
-]);
 
 const playerBaseSchema = z.strictObject({
   id: z.uuid(),
@@ -246,6 +271,7 @@ const roomErrorSchema = z.strictObject({
     "code_unavailable",
     "room_full",
     "room_started",
+    "room_changed",
     "unauthorized",
     "upgrade_required",
     "internal_error",
@@ -281,7 +307,7 @@ export const joinRoomContract = {
   method: "POST",
   path: "/rooms/:id/players",
   pathFor: (id: string) => `/rooms/${id}/players`,
-  request: playerNameRequestSchema,
+  request: playerNameRequestSchema.extend({ instanceId: z.uuid().optional() }),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
 } as const;
@@ -362,6 +388,7 @@ export const roomSocketContract = {
   method: "GET",
   path: "/rooms/:id/ws",
   pathFor: (id: string) => `/rooms/${id}/ws`,
+  query: z.strictObject({ instanceId: z.uuid().optional() }),
   clientMessage: z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),

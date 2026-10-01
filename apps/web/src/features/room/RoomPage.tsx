@@ -1,4 +1,5 @@
 import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
+import { roomChangedMessage } from "../../shared/roomAccess";
 import { fourReversiLobbyPath } from "../../app/paths";
 import { type RoomLoaderData } from "./roomLoader";
 import { RoomView } from "./RoomView";
@@ -10,9 +11,11 @@ function RoomDetail({
   initialMembership,
   initialServerNowMs,
   initialPresence,
+  invited,
 }: {
   initialRoom: RoomLoaderData["room"];
   initialMembership: RoomLoaderData["membership"];
+  invited: boolean;
   initialServerNowMs: number;
   initialPresence: RoomLoaderData["presence"];
 }) {
@@ -32,14 +35,15 @@ function RoomDetail({
     messages: session.chatMessages,
     connected: session.authenticated && session.connection === "接続済み",
   });
-  return <RoomView session={session} chat={chat} />;
+  return <RoomView session={session} chat={chat} invited={invited} />;
 }
 
 export function RoomPage() {
-  const { room, membership, presence, serverNowMs } = useLoaderData<RoomLoaderData>();
+  const { room, membership, presence, serverNowMs, invited } = useLoaderData<RoomLoaderData>();
   return (
     <RoomDetail
-      key={`${room.id}:${membership?.playerId ?? "spectator"}`}
+      key={`${room.instanceId}:${membership?.playerId ?? "spectator"}`}
+      invited={invited}
       initialRoom={room}
       initialPresence={presence}
       initialMembership={membership}
@@ -54,10 +58,12 @@ export function RoomErrorPage() {
     ? error.status === 404
       ? "ルームが見つかりません。"
       : error.status === 400
-        ? "ルームIDが不正です。"
-        : error.status === 503
-          ? "本人確認ができませんでした。再読み込みしてください。"
-          : "ルーム情報を取得できませんでした。"
+        ? "ルームURLが不正です。招待リンクや部屋番号を確認してください。"
+        : error.status === 410
+          ? roomChangedMessage
+          : error.status === 503
+            ? "本人確認ができませんでした。再読み込みしてください。"
+            : "ルーム情報を取得できませんでした。"
     : "ルーム情報を取得できませんでした。";
 
   return (

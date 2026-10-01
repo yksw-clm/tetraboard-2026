@@ -2,7 +2,9 @@ import { type Room } from "@tetraboard/protocol";
 import { createInitialState, type Color } from "@tetraboard/four-reversi";
 
 export const displayGameForRoom = (room: Room) =>
-  room.status === "playing" ? room.game : createInitialState(room.settings.mode);
+  room.status === "playing"
+    ? room.game
+    : (room.lastRound?.game ?? createInitialState(room.settings.mode));
 
 export const colorNames: Record<Color, string> = {
   black: "黒",

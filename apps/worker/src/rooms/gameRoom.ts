@@ -9,8 +9,10 @@ import {
   roomMembershipSchema,
   roomPublicMetadataSchema,
   roomSchema,
+  roundReplaySchema,
   roomSocketContract,
   type Room,
+  type RoundReplay,
   type RoomMembership,
   type RoomMode,
   type RoomPublicMetadata,
@@ -39,6 +41,7 @@ const roomStorageKey = "room";
 const indexRevisionKey = "room-index-revision";
 const pendingIndexKey = "room-index-pending";
 const chatKey = "chat";
+const replayKey = "round-replay";
 const mutedKey = "chat-muted";
 const viewerSecretKey = "viewer-secret";
 const disconnectedAtKey = (playerId: string) => `disconnected-at:${playerId}`;
@@ -198,9 +201,28 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.delete(departedKey(player.id));
     }
     this.ctx.storage.kv.delete(roomStorageKey);
+    this.ctx.storage.kv.delete(replayKey);
     this.ctx.storage.kv.delete(chatKey);
     this.ctx.storage.kv.delete(mutedKey);
     this.ctx.storage.kv.delete(viewerSecretKey);
+  }
+
+  private recordReplayStep(
+    action: RoundReplay["steps"][number]["action"],
+    result: { state: FourReversiState; passedColors: readonly Color[] },
+  ): void {
+    const saved = this.ctx.storage.kv.get(replayKey);
+    // 記録導入前に開始した対局の棋譜は、途中から補完しません。
+    if (saved === undefined) return;
+    const replay = roundReplaySchema.parse(saved);
+    replay.steps.push(
+      roundReplaySchema.shape.steps.element.parse({
+        action,
+        game: result.state,
+        passedColors: result.passedColors,
+      }),
+    );
+    this.ctx.storage.kv.put(replayKey, replay);
   }
 
   private finishGame(
@@ -210,12 +232,14 @@ export class GameRoom extends DurableObject<Env> {
   ): Room | null {
     const lastRound = {
       game,
+      replay: this.ctx.storage.kv.get(replayKey) ?? null,
       players: room.players.map((player) => ({
         id: player.id,
         name: this.playerLabel(player),
         color: player.color,
       })),
     };
+    this.ctx.storage.kv.delete(replayKey);
     const players = room.players.filter((player) => {
       if (player.kind === "cpu") return true;
       const hash = this.playerTokenHash(player.id);
@@ -482,11 +506,13 @@ export class GameRoom extends DurableObject<Env> {
   async joinRoom(
     name: string,
     tokenHash: string,
+    instanceId?: string,
   ): Promise<
     | { status: "joined"; room: Room; membership: RoomMembership }
     | { status: "not_found" }
     | { status: "room_full" }
     | { status: "room_started" }
+    | { status: "room_changed" }
   > {
     await this.reconcileDeadlines();
     const playerName = joinRoomContract.request.parse({ name }).name;
@@ -494,6 +520,9 @@ export class GameRoom extends DurableObject<Env> {
       const room = this.readRoom();
       if (room === null) {
         return { status: "not_found" } as const;
+      }
+      if (instanceId !== undefined && room.instanceId !== instanceId) {
+        return { status: "room_changed" } as const;
       }
       if (room.status !== "waiting") {
         return { status: "room_started" } as const;
@@ -676,6 +705,10 @@ export class GameRoom extends DurableObject<Env> {
         ) {
           const result = eliminateColor(current.game, current.game.turn);
           if (!result.ok) throw new Error("Could not eliminate timed-out player");
+          this.recordReplayStep(
+            { type: "eliminate", color: current.game.turn, reason: "timeout" },
+            result,
+          );
           const timedOutColor: Color = current.game.turn;
           current =
             result.state.status === "finished"
@@ -712,6 +745,10 @@ export class GameRoom extends DurableObject<Env> {
             if (player.color === null) throw new Error("Playing player has no color");
             const result = eliminateColor(current.game, player.color);
             if (!result.ok) throw new Error("Could not eliminate disconnected player");
+            this.recordReplayStep(
+              { type: "eliminate", color: player.color, reason: "disconnected" },
+              result,
+            );
             current =
               result.state.status === "finished"
                 ? this.finishGame(current, result.state, player.reconnectDeadline!)
@@ -751,6 +788,12 @@ export class GameRoom extends DurableObject<Env> {
             ? eliminateColor(current.game, current.game.turn)
             : applyAction(current.game, { type: "placeStone", position: move });
           if (!result.ok) throw new Error("CPU selected an invalid move");
+          this.recordReplayStep(
+            expired
+              ? { type: "eliminate", color: current.game.turn, reason: "timeout" }
+              : { type: "place", color: current.game.turn, position: move },
+            result,
+          );
           current =
             result.state.status === "finished"
               ? this.finishGame(current, result.state, decidedAt)
@@ -814,6 +857,8 @@ export class GameRoom extends DurableObject<Env> {
             ? eliminateColor(room.game, player.color)
             : null;
         if (game !== null && !game.ok) throw new Error("Could not eliminate leaving player");
+        if (game?.ok && player.color !== null)
+          this.recordReplayStep({ type: "eliminate", color: player.color, reason: "left" }, game);
         this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
         this.ctx.storage.kv.delete(playerTokenKey(player.id));
         const at = Date.now();
@@ -1175,6 +1220,14 @@ export class GameRoom extends DurableObject<Env> {
         clock: createClock(Date.now()),
       });
       this.ctx.storage.kv.put(roomStorageKey, startedRoom);
+      this.ctx.storage.kv.put(
+        replayKey,
+        roundReplaySchema.parse({
+          id: crypto.randomUUID(),
+          initial: startedRoom.game,
+          steps: [],
+        }),
+      );
       return { status: "started", room: startedRoom };
     });
   }
@@ -1211,6 +1264,10 @@ export class GameRoom extends DurableObject<Env> {
       if (player?.color !== room.game.turn) return { status: "not_your_turn" };
       const result = applyAction(room.game, action);
       if (!result.ok) return { status: "invalid_move" };
+      this.recordReplayStep(
+        { type: "place", color: room.game.turn, position: action.position },
+        result,
+      );
       const at = Date.now();
       const updatedRoom =
         result.state.status === "finished"
@@ -1254,6 +1311,7 @@ export class GameRoom extends DurableObject<Env> {
       if (room.game.turn !== player.color) return { status: "not_your_turn" };
       const result = eliminateColor(room.game, player.color);
       if (!result.ok) throw new Error("Could not resign current player");
+      this.recordReplayStep({ type: "eliminate", color: player.color, reason: "resigned" }, result);
       const at = Date.now();
       const updated =
         result.state.status === "finished"
@@ -1282,10 +1340,19 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const query = roomSocketContract.query.safeParse(
+      Object.fromEntries(new URL(request.url).searchParams),
+    );
+    if (!query.success) {
+      return Response.json({ error: "invalid_request" }, { status: 400 });
+    }
     await this.reconcileDeadlines();
     const room = this.readRoom();
     if (room === null) {
       return Response.json(roomSocketContract.error.parse({ error: "not_found" }), { status: 404 });
+    }
+    if (query.data.instanceId !== undefined && room.instanceId !== query.data.instanceId) {
+      return Response.json({ error: "room_changed" }, { status: 410 });
     }
 
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {

@@ -199,7 +199,11 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     const result = await context.env.GAME_ROOM.getByName(code).joinRoom(
       request.data.name,
       tokenHash,
+      request.data.instanceId,
     );
+    if (result.status === "room_changed") {
+      return context.json(roomError("room_changed"), 410);
+    }
     if (result.status === "not_found") {
       return context.json(roomError("not_found"), 404);
     }

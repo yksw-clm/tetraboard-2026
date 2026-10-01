@@ -8,9 +8,11 @@ import { type useRoomSession } from "./useRoomSession";
 export function RoomInfo({
   session,
   onLeave,
+  onCopyInvite,
 }: {
   session: ReturnType<typeof useRoomSession>;
   onLeave: () => void;
+  onCopyInvite: () => void;
 }) {
   const { room, membership, canManageSettings } = session;
   return (
@@ -51,6 +53,10 @@ export function RoomInfo({
           </div>
         </div>
       </dl>
+      <Button className="room-button room-button-secondary room-invite-copy" onPress={onCopyInvite}>
+        <RoomIcon name="copy" />
+        招待リンクをコピー
+      </Button>
       {membership === null && <p className="room-muted">観戦中です</p>}
       {room.status === "waiting" && membership?.role === "host" && (
         <Accordion className="room-settings">

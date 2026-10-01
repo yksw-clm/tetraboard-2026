@@ -1,5 +1,9 @@
 import { Button, Tabs, Toast } from "@heroui/react";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { Link } from "react-router";
+import { fourReversiLobbyPath } from "../../app/paths";
+import { useRoomInvitation } from "./useRoomInvitation";
+import { RoomInvitationDialogs } from "./RoomInvitationDialogs";
 import { FourReversiBoard } from "./FourReversiBoard";
 import { GameResultView } from "./GameResultView";
 import { RoomChat } from "./RoomChat";
@@ -8,6 +12,8 @@ import { RoomStatus } from "./RoomStatus";
 import { RoomDialog } from "./RoomDialog";
 import { RoomIcon } from "./RoomIcon";
 import { PlayerCard } from "./PlayerCard";
+import { ReplayCard } from "./ReplayCard";
+import { useRoomReplay } from "./useRoomReplay";
 import { colorNames, orderedSeats } from "./roomPresentation";
 import { type useRoomChat } from "./useRoomChat";
 import { type useRoomSession } from "./useRoomSession";
@@ -27,14 +33,23 @@ const tabLabels = { board: "盤面", room: "ルーム", chat: "チャット" } a
 export function RoomView({
   session,
   chat,
+  invited,
 }: {
   session: ReturnType<typeof useRoomSession>;
   chat: ReturnType<typeof useRoomChat>;
+  invited: boolean;
 }) {
   const desktop = useSyncExternalStore(subscribeDesktop, readDesktop, () => false);
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<"result" | "leave" | "resign" | null>(null);
   const { room, membership, presence } = session;
+  const replay = useRoomReplay(room);
+  const replayCard = replay.frame ? <ReplayCard replay={replay} /> : null;
+  const joinButtonRef = useRef<HTMLButtonElement>(null);
+  const fallbackFocusRef = useRef<HTMLElement>(null);
+  const invitation = useRoomInvitation(room, membership, invited, () => {
+    (joinButtonRef.current ?? fallbackFocusRef.current)?.focus();
+  });
   const busy = session.leaving || session.pendingGameAction?.type === "resign";
   if (
     (room.status !== "playing" && dialog === "resign") ||
@@ -46,6 +61,16 @@ export function RoomView({
   ) {
     setDialog(null);
   }
+
+  if (session.unavailable)
+    return (
+      <main className="four-reversi-room room-unavailable">
+        <p role="alert">{session.unavailable}</p>
+        <Link className="room-button room-button-secondary" to={fourReversiLobbyPath}>
+          ロビーへ戻る
+        </Link>
+      </main>
+    );
 
   const board = (
     <div className="room-table">
@@ -62,7 +87,7 @@ export function RoomView({
         />
       ))}
       <FourReversiBoard
-        game={session.displayGame}
+        game={replay.frame?.game ?? session.displayGame}
         legalMoves={session.legalMoves}
         canPlay={session.canPlay}
         onPlaceStone={session.handlePlaceStone}
@@ -77,6 +102,17 @@ export function RoomView({
   const info = (
     <RoomInfo
       session={session}
+      onCopyInvite={() =>
+        void invitation.copy(() =>
+          chat.toastQueue.add(
+            {
+              title: "招待リンクをコピーしました",
+              description: "友達にリンクを送って招待できます。",
+            },
+            { timeout: 3000 },
+          ),
+        )
+      }
       onLeave={() => {
         if (room.status === "playing") setDialog("leave");
         else void session.handleLeaveClick();
@@ -86,6 +122,10 @@ export function RoomView({
   const status = (
     <RoomStatus
       session={session}
+      replay={desktop ? undefined : replayCard}
+      onJoin={invitation.openJoin}
+      joinButtonRef={joinButtonRef}
+      joinUnavailable={invitation.unavailableReason}
       onResults={() => setDialog("result")}
       onResign={() => setDialog("resign")}
     />
@@ -94,7 +134,7 @@ export function RoomView({
   const connectionNotice = session.connection !== "接続済み" ? session.connection : null;
 
   return (
-    <main className="four-reversi-room">
+    <main className="four-reversi-room" ref={fallbackFocusRef} tabIndex={-1}>
       {(connectionNotice || session.socketError) && (
         <div className="room-notice" role="status">
           {connectionNotice}
@@ -104,8 +144,12 @@ export function RoomView({
       )}
       {desktop ? (
         <div className="room-layout room-desktop">
-          <section className="room-board-panel" aria-label="盤面とプレイヤー">
-            {board}
+          <section
+            className={`room-board-panel${replayCard ? " has-replay" : ""}`}
+            aria-label="盤面とプレイヤー"
+          >
+            <div className="room-board-stage">{board}</div>
+            {replayCard}
           </section>
           <section className="room-info-panel" aria-label="ルーム">
             {info}
@@ -158,6 +202,7 @@ export function RoomView({
           </Toast>
         )}
       </Toast.Provider>
+      <RoomInvitationDialogs invitation={invitation} roomId={room.id} />
       {dialog === "result" && room.lastRound && (
         <RoomDialog title="対局結果" onClose={() => setDialog(null)}>
           <GameResultView lastRound={room.lastRound} />

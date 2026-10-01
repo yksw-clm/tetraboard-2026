@@ -1,4 +1,5 @@
 const paths = {
+  copy: "M8 8h13v13H8V8ZM16 8V3H3v13h5",
   user: "M5 21v-2a7 7 0 0 1 14 0v2",
   crown: "m3 6 4 4 5-7 5 7 4-4-2 13H5L3 6Zm3 10h12",
   robot: "M12 2v3M5 7h14v13H5V7ZM2 11v5m20-5v5M8 11h1m6 0h1m-7 5h6",

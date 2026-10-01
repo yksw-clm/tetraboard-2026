@@ -67,7 +67,7 @@ describe("ルームの表示", () => {
     expect(fourReversiStateSchema.parse(moved.state).lastMove).toEqual({ x: 2, y: 3 });
   });
 
-  test("初回・再戦待機は同じ初期盤面で、前局の結果は保持する", () => {
+  test("初回待機は初期盤面、再戦待機は前局の最終盤面を表示する", () => {
     const room = waitingRoom();
     const initial = createInitialState("singles");
     expect(displayGameForRoom(room)).toEqual(initial);
@@ -94,7 +94,7 @@ describe("ルームの表示", () => {
       },
     });
     expect(rematch.lastRound?.game.board).not.toEqual(initial.board);
-    expect(displayGameForRoom(rematch)).toEqual(initial);
+    expect(displayGameForRoom(rematch)).toEqual(finished);
     expect(rematch.lastRound?.game.status).toBe("finished");
   });
 

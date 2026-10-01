@@ -83,6 +83,100 @@ body:has(.four-reversi-room) {
 .room-desktop > .room-board-panel {
   grid-column: 1;
   grid-row: 1 / 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.room-board-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+  overflow: auto;
+}
+.room-replay {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--room-border);
+  border-radius: 12px;
+  background: #ffffffed;
+  min-width: 0;
+  box-shadow: none;
+}
+.room-desktop .room-replay {
+  align-self: flex-end;
+  width: 310px;
+  flex-shrink: 0;
+}
+.room-replay > .button {
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  height: 34px;
+  padding: 0;
+  color: #268355;
+}
+.room-replay-select {
+  flex: 1;
+  min-width: 0;
+}
+.room-replay .select__trigger {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 13px;
+  background: #eef4ee;
+}
+.room-replay-popover {
+  --accent: #2d9663;
+  --foreground: #24352e;
+  --focus: #2878c8;
+  min-width: 200px;
+  max-height: min(360px, 60dvh);
+  background: #fff;
+  font: 13px/1.5 sans-serif;
+}
+.room-replay-popover,
+.room-replay-popover * {
+  box-sizing: border-box;
+}
+.room-replay-popover .list-box {
+  max-height: min(350px, 55dvh);
+  overflow-y: auto;
+  margin: 0;
+  list-style: none;
+}
+.room-replay-popover .list-box-item {
+  min-height: 34px;
+  border-radius: 8px;
+}
+.room-mobile .has-replay .room-status-copy {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.room-mobile .has-replay .room-status-copy > * {
+  grid-row: 1;
+}
+.room-mobile .has-replay .room-replay {
+  grid-column: 2;
+  width: min(100%, 320px);
+  justify-self: center;
+}
+.room-mobile > .has-replay {
+  display: flex;
+  flex-direction: column;
+}
+.room-mobile .has-replay .room-join-unavailable {
+  width: 100%;
+  max-width: none;
+  text-align: center;
 }
 .room-desktop > .room-info-panel {
   grid-column: 2;
@@ -119,7 +213,7 @@ body:has(.four-reversi-room) {
     min(
       640px,
       calc(100cqw - 2 * var(--seat-width) - 16px),
-      calc(100cqh - 2 * var(--player-height) - 24px)
+      calc(100cqh - 2 * var(--player-height) - 32px)
     )
   );
   display: grid;
@@ -1002,14 +1096,64 @@ body:has(.four-reversi-room) {
   .room-status {
     margin-inline: 2px;
     padding: 8px 12px;
-    min-height: 88px;
+    height: 92px;
+    min-height: 92px;
     gap: 8px;
   }
+  .room-status-copy {
+    height: 28px;
+    min-height: 28px;
+    flex-shrink: 0;
+  }
   .room-status-copy > strong {
-    font-size: 14px;
+    font-size: clamp(12px, 3.6vw, 14px);
+    line-height: 1.15;
+  }
+  .room-mobile .has-replay .room-status-copy {
+    gap: 4px;
+  }
+  .room-mobile .has-replay .room-status-copy > strong {
+    white-space: nowrap;
+  }
+  .room-mobile .has-replay .room-replay {
+    width: min(100%, 200px);
+    height: 28px;
+    padding: 1px;
+    gap: 0;
+    border-radius: 8px;
+  }
+  .room-mobile .room-replay > .button {
+    flex-basis: 24px;
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    min-height: 24px;
+    font-size: 12px;
+  }
+  .room-mobile .room-replay .select__trigger {
+    height: 24px;
+    min-height: 24px;
+    padding: 2px 14px 2px 4px;
+    font-size: 11px;
+    border-radius: 6px;
+  }
+  .room-mobile .room-replay .select__value {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .room-mobile .room-replay .select__indicator {
+    width: 10px;
+    height: 10px;
+    right: 3px;
+  }
+  .room-mobile .has-replay .room-result-button {
+    padding-inline: 6px;
+    min-width: 36px;
   }
   .room-status-actions {
+    height: 38px;
     min-height: 38px;
+    flex-shrink: 0;
   }
   .room-info-panel,
   .room-chat-panel {
@@ -1035,4 +1179,42 @@ body:has(.four-reversi-room) {
     animation: none !important;
     transition: none !important;
   }
+}
+
+.room-invite-copy {
+  width: 100%;
+}
+.room-entry-form,
+.room-entry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.room-entry-field {
+  gap: 6px;
+}
+.room-entry-field .input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--room-border);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 16px;
+}
+.room-entry-field .description {
+  color: var(--room-muted);
+  font-size: 12px;
+}
+.room-join-unavailable {
+  max-width: 180px;
+  text-align: right;
+}
+.room-unavailable {
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
 }

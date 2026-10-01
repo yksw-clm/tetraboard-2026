@@ -16,6 +16,7 @@ import {
   fetchRoomMembership,
   readRoomMembershipToken,
 } from "../../shared/roomMembership";
+import { assertRoomIdentity, roomChangedMessage } from "../../shared/roomAccess";
 import { fetchRoom, leaveRoom } from "./roomApi";
 import { displayGameForRoom } from "./roomPresentation";
 
@@ -69,6 +70,7 @@ export function useRoomSession({
   const [presence, setPresence] = useState(initialPresence);
   const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
   const [pendingSettings, setPendingSettings] = useState(false);
@@ -121,6 +123,16 @@ export function useRoomSession({
       setPendingGameAction(null);
     }
 
+    function stopUnavailable(message: string): void {
+      active = false;
+      if (timer !== null) clearTimeout(timer);
+      controller?.abort();
+      socketRef.current = null;
+      socket?.close();
+      setAuthenticated(false);
+      setUnavailable(message);
+    }
+
     function scheduleReconnect(): void {
       if (!active) return;
       setConnection("再接続中");
@@ -131,7 +143,7 @@ export function useRoomSession({
     async function reconnect(): Promise<void> {
       controller = new AbortController();
       try {
-        const latest = await fetchRoom(initialRoom.id, controller.signal);
+        const latest = await fetchRoom(initialRoom.id, controller.signal, initialRoom.instanceId);
         const latestRoom = latest.room;
         const latestMembership = await fetchRoomMembership(initialRoom.id, controller.signal);
         if (!active) return;
@@ -149,8 +161,12 @@ export function useRoomSession({
         connect();
       } catch (error) {
         if (!active) return;
-        if (error instanceof Response && error.status === 404) {
-          setConnection("ルームが見つかりません");
+        if (error instanceof Response && (error.status === 404 || error.status === 410)) {
+          stopUnavailable(
+            error.status === 410
+              ? roomChangedMessage
+              : "ルームは閉鎖されています。ロビーへ戻ってください。",
+          );
           return;
         }
         scheduleReconnect();
@@ -161,7 +177,7 @@ export function useRoomSession({
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}`;
+      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}`;
       try {
         socket = new WebSocket(url);
       } catch {
@@ -200,8 +216,10 @@ export function useRoomSession({
         if (!active) return;
 
         if (message.data.type === "room.snapshot") {
-          if (message.data.room.id !== initialRoom.id) {
-            currentSocket.close(1003, "Invalid room message");
+          try {
+            assertRoomIdentity(message.data.room, initialRoom.id, initialRoom.instanceId);
+          } catch {
+            stopUnavailable(roomChangedMessage);
             return;
           }
           setRoom(message.data.room);
@@ -311,7 +329,7 @@ export function useRoomSession({
       socketRef.current = null;
       socket?.close();
     };
-  }, [initialRoom.id, initialMembership]);
+  }, [initialRoom.id, initialRoom.instanceId, initialMembership]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
   const canManageSettings =
@@ -488,6 +506,7 @@ export function useRoomSession({
 
   return {
     room,
+    unavailable,
     presence,
     membership,
     connection,

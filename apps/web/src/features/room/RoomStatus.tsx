@@ -1,4 +1,5 @@
 import { Button, Card } from "@heroui/react";
+import { type ReactNode, type Ref } from "react";
 import { playerClock, playerName } from "./roomPresentation";
 import { type useRoomSession } from "./useRoomSession";
 
@@ -6,10 +7,18 @@ export function RoomStatus({
   session,
   onResults,
   onResign,
+  onJoin,
+  joinButtonRef,
+  joinUnavailable,
+  replay,
 }: {
   session: ReturnType<typeof useRoomSession>;
   onResults: () => void;
   onResign: () => void;
+  onJoin: () => void;
+  joinButtonRef: Ref<HTMLButtonElement>;
+  joinUnavailable: string | null;
+  replay?: ReactNode;
 }) {
   const { room, self, membership, presence, authenticated, connection } = session;
   const waiting = room.status === "waiting";
@@ -30,7 +39,7 @@ export function RoomStatus({
     room.players.length === 4 &&
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
   return (
-    <Card className="room-status" aria-label="対局状況">
+    <Card className={`room-status${replay ? " has-replay" : ""}`} aria-label="対局状況">
       <div className="room-status-copy">
         <strong className={myTurn ? "room-my-turn" : undefined} aria-live="polite">
           {waiting
@@ -39,6 +48,7 @@ export function RoomStatus({
               ? "あなたの番です。"
               : `${turn ? playerName(turn) : ""}の番です。`}
         </strong>
+        {replay}
         <div className="room-status-secondary">
           {waiting ? (
             room.lastRound ? (
@@ -61,6 +71,18 @@ export function RoomStatus({
         </div>
       </div>
       <div className="room-status-actions">
+        {membership === null &&
+          (joinUnavailable ? (
+            <p className="room-muted room-join-unavailable">{joinUnavailable}</p>
+          ) : (
+            <Button
+              ref={joinButtonRef}
+              className="room-button room-button-primary"
+              onPress={onJoin}
+            >
+              参加する
+            </Button>
+          ))}
         {waiting && self && membership && (
           <Button
             className={`room-button ${self.ready ? "room-button-secondary" : "room-button-primary"}`}
