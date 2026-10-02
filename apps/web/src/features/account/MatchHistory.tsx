@@ -47,6 +47,7 @@ function Participant({ player }: { player: MatchHistoryParticipant }) {
 }
 function MatchHistoryCard({ match }: { match: MatchSummary }) {
   const result = match.result;
+  const gameLabel = `四人リバーシ・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
   const teamColors = { "black-red": ["black", "red"], "white-blue": ["white", "blue"] } as const;
   const teams =
     result.mode === "doubles" && result.winner === "white-blue"
@@ -54,14 +55,14 @@ function MatchHistoryCard({ match }: { match: MatchSummary }) {
       : (["black-red", "white-blue"] as const);
   return (
     <article
-      aria-label={`対局 ${match.id}`}
+      aria-label={`${dateFormat.format(match.startedAtMs)} ${gameLabel}の対局`}
       className="flex flex-col gap-3 rounded-control border border-solid border-line bg-white p-3"
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
         <time dateTime={new Date(match.startedAtMs).toISOString()}>
           {dateFormat.format(match.startedAtMs)}
         </time>
-        <span>四人リバーシ・{match.mode === "singles" ? "シングルス" : "ダブルス"}</span>
+        <span>{gameLabel}</span>
       </div>
       {result.mode === "singles" ? (
         <ol className="m-0 grid list-none grid-cols-2 gap-x-3 gap-y-2 p-0">

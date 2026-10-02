@@ -134,6 +134,7 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     );
     await expect(card.getByRole("article")).toHaveCount(20);
     const first = card.getByRole("article").first();
+    await expect(first).toHaveAccessibleName("2026/10/02 15:29 四人リバーシ・シングルスの対局");
     await expect(first.getByText("四人リバーシ・シングルス", { exact: true })).toBeVisible();
     await expect(first.getByText("2026/10/02 15:29", { exact: true })).toBeVisible();
     await expect(first.getByText("優勝", { exact: true })).toHaveCount(2);
