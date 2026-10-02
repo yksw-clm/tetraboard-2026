@@ -5,7 +5,7 @@ import { LoginPage, ProfilePage } from "../features/account/AccountPages";
 import { createBrowserRouter, Link, Navigate } from "react-router";
 import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
-import { fourReversiLobbyPath } from "./paths";
+import { fourReversiLobbyPath, fourShogiLobbyPath } from "./paths";
 
 export const router = createBrowserRouter([
   {
@@ -28,6 +28,14 @@ export const router = createBrowserRouter([
         lazy: async () => {
           const { FourReversiLobbyPage } = await import("../features/lobby/FourReversiLobbyPage");
           return { Component: FourReversiLobbyPage };
+        },
+      },
+      {
+        path: fourShogiLobbyPath,
+        hydrateFallbackElement: <p role="status">ロビーを読み込んでいます…</p>,
+        lazy: async () => {
+          const { FourShogiLobbyPage } = await import("../features/lobby/FourShogiLobbyPage");
+          return { Component: FourShogiLobbyPage };
         },
       },
       {

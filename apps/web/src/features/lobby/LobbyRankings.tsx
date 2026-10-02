@@ -5,6 +5,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppTabs } from "../../shared/ui/AppTabs";
+import { type AppTheme } from "../../shared/ui/appTheme";
 import { useRankings } from "./useRankings";
 
 function ModeTabs({
@@ -65,14 +66,14 @@ function RankingContent({
   total = false,
   limit,
 }: {
-  state: ReturnType<typeof useRankings>;
+  state?: ReturnType<typeof useRankings>;
   mode: RoomMode;
   total?: boolean;
   limit: number;
 }) {
   const label = total ? "対局数" : mode === "singles" ? "優勝数" : "勝利数";
   const entries =
-    state.rankings &&
+    state?.rankings &&
     (total
       ? state.rankings[mode].total
       : mode === "singles"
@@ -81,13 +82,14 @@ function RankingContent({
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm font-semibold text-muted">{label}</h3>
-      {state.loading && (
+      {!state && <p className="text-sm text-muted">四人将棋のランキングは準備中です。</p>}
+      {state?.loading && (
         <p role="status" className="text-sm text-muted">
           ランキングを読み込んでいます…
         </p>
       )}
       {entries && <RankingList entries={entries.slice(0, limit)} label={label} />}
-      {state.error && (
+      {state?.error && (
         <div className="flex flex-col items-start gap-2">
           <p role="alert" className="text-sm text-danger">
             {state.error}
@@ -105,15 +107,17 @@ function RankingsDialog({
   state,
   initialMode,
   onClose,
+  theme,
 }: {
-  state: ReturnType<typeof useRankings>;
+  state?: ReturnType<typeof useRankings>;
   initialMode: RoomMode;
   onClose: () => void;
+  theme: AppTheme;
 }) {
   const [mode, setMode] = useState(initialMode);
   const [metric, setMetric] = useState("victories");
   return (
-    <AppDialog title="ランキング" onClose={onClose}>
+    <AppDialog title="ランキング" onClose={onClose} theme={theme}>
       <div className="flex flex-col gap-4">
         <ModeTabs mode={mode} onChange={setMode}>
           <AppTabs selectedKey={metric} onSelectionChange={(key) => setMetric(String(key))}>
@@ -139,8 +143,8 @@ function RankingsDialog({
         <AppButton
           appearance="quiet"
           size="compact"
-          isDisabled={state.loading}
-          onPress={() => void state.refresh()}
+          isDisabled={!state || state.loading}
+          onPress={() => void state?.refresh()}
         >
           更新
         </AppButton>
@@ -149,8 +153,13 @@ function RankingsDialog({
   );
 }
 
-export function LobbyRankings() {
-  const state = useRankings();
+function LobbyRankingsView({
+  state,
+  theme,
+}: {
+  state?: ReturnType<typeof useRankings>;
+  theme: AppTheme;
+}) {
   const [mode, setMode] = useState<RoomMode>("singles");
   const [open, setOpen] = useState(false);
   return (
@@ -164,8 +173,8 @@ export function LobbyRankings() {
             appearance="quiet"
             size="compact"
             aria-label="ランキングを更新"
-            isDisabled={state.loading}
-            onPress={() => void state.refresh()}
+            isDisabled={!state || state.loading}
+            onPress={() => void state?.refresh()}
           >
             更新
           </AppButton>
@@ -182,7 +191,33 @@ export function LobbyRankings() {
           もっと見る
         </AppButton>
       </AppCard>
-      {open && <RankingsDialog state={state} initialMode={mode} onClose={() => setOpen(false)} />}
+      {open && (
+        <RankingsDialog
+          state={state}
+          initialMode={mode}
+          onClose={() => setOpen(false)}
+          theme={theme}
+        />
+      )}
     </section>
+  );
+}
+
+function AvailableLobbyRankings({ theme }: { theme: AppTheme }) {
+  const state = useRankings();
+  return <LobbyRankingsView state={state} theme={theme} />;
+}
+
+export function LobbyRankings({
+  unavailable = false,
+  theme = "default",
+}: {
+  unavailable?: boolean;
+  theme?: AppTheme;
+}) {
+  return unavailable ? (
+    <LobbyRankingsView theme={theme} />
+  ) : (
+    <AvailableLobbyRankings theme={theme} />
   );
 }

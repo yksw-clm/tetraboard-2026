@@ -7,7 +7,7 @@ type Size = "default" | "compact";
 
 const appearances = {
   primary:
-    "border-transparent bg-brand text-white shadow-action [&:hover:not(:disabled)]:bg-brand-hover data-[hovered=true]:bg-brand-hover",
+    "border-transparent bg-primary text-primary-foreground shadow-action [&:hover:not(:disabled)]:bg-primary-hover data-[hovered=true]:bg-primary-hover",
   secondary:
     "border-line bg-white text-ink-secondary [&:hover:not(:disabled)]:border-line-hover [&:hover:not(:disabled)]:bg-surface-hover data-[hovered=true]:bg-surface-hover",
   quiet:

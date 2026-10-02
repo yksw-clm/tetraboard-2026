@@ -19,16 +19,16 @@ export function AppActionCard({
       <AppButton
         appearance="secondary"
         onPress={onPress}
-        className="w-full h-auto justify-start whitespace-normal gap-4 min-w-0 py-[14px] px-6 rounded-panel text-left text-ink font-normal leading-[1.6] shadow-panel hover:border-[#a6c8b5] hover:shadow-[0_4px_16px_#243e2909] [@media(max-width:650px)]:px-[18px] [@media(max-width:650px)]:gap-[13px]"
+        className="w-full h-auto justify-start whitespace-normal gap-4 min-w-0 py-[14px] px-6 rounded-panel text-left text-ink font-normal leading-[1.6] shadow-panel hover:border-action-card-line-hover hover:shadow-action-card-hover [@media(max-width:650px)]:px-[18px] [@media(max-width:650px)]:gap-[13px]"
       >
-        <span className="grid place-items-center shrink-0 size-11 rounded-[13px] text-brand-hover bg-[#edf6f0]">
+        <span className="grid place-items-center shrink-0 size-11 rounded-[13px] text-brand-hover bg-action-card-icon">
           <AppIcon name={icon} />
         </span>
         <span className="flex-1 min-w-0">
           <strong className="block text-base [@media(max-width:650px)]:text-[15px]">{title}</strong>
           <span className="block mt-[3px] text-muted text-xs">{description}</span>
         </span>
-        <AppIcon name="arrow" className="text-[#8b9c91]" />
+        <AppIcon name="arrow" className="text-action-card-arrow" />
       </AppButton>
     </AppCard>
   );
