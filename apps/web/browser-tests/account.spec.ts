@@ -112,7 +112,8 @@ test("戦績をプロフィール内、棋譜を独立カードとしてヘッ�
   await expect(profileCard.getByRole("heading", { name: "戦績", exact: true })).toBeVisible();
   await expect(profileCard.getByText("今後追加予定です。", { exact: true })).toBeVisible();
   await expect(replayCard.getByRole("heading", { name: "棋譜", exact: true })).toBeVisible();
-  await expect(replayCard.getByText("今後追加予定です。", { exact: true })).toBeVisible();
+  await expect(replayCard.getByRole("tab", { name: "シングルス" })).toBeVisible();
+  await expect(replayCard.getByText("まだ対局履歴がありません。", { exact: true })).toBeVisible();
   const back = page.getByRole("link", { name: "ロビーへ", exact: true });
   await expect(back).toHaveCount(1);
   for (const width of [320, 390, 650, 651, 768, 1023, 1024, 1440]) {

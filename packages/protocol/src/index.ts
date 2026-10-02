@@ -1,5 +1,13 @@
 export { healthzContract } from "./healthz";
 export {
+  listMatchesContract,
+  matchSummarySchema,
+  matchParticipantSchema,
+  matchCursorSchema,
+  type MatchSummary,
+  type MatchHistoryParticipant,
+} from "./matches";
+export {
   usernameSchema,
   profileInputSchema,
   accountProfileSchema,

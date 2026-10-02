@@ -65,6 +65,10 @@ const doublesResultSchema = z.strictObject({
     .strictObject({ "black-red": z.int().nonnegative(), "white-blue": z.int().nonnegative() })
     .nullable(),
 });
+export const gameResultSchema = z.discriminatedUnion("mode", [
+  singlesResultSchema,
+  doublesResultSchema,
+]);
 const gameStateBaseSchema = z.strictObject({
   mode: roomModeSchema,
   board: z.array(z.array(fourReversiColorSchema.nullable()).length(8)).length(8),
@@ -84,7 +88,7 @@ const playingGameSchema = gameStateBaseSchema.extend({
 const finishedGameSchema = gameStateBaseSchema.extend({
   status: z.literal("finished"),
   turn: z.null(),
-  result: z.discriminatedUnion("mode", [singlesResultSchema, doublesResultSchema]),
+  result: gameResultSchema,
 });
 export const fourReversiStateSchema = z.discriminatedUnion("status", [
   playingGameSchema,
