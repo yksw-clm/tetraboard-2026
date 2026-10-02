@@ -34,23 +34,35 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [ui-1, ui-2, ui-3, ui-4, ui-5, ui-6, worker]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Install Bun archive support
+        run: apt-get update && apt-get install -y --no-install-recommends unzip
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium webkit
-        working-directory: apps/web
-      - run: bun run --cwd apps/web test:browser
+      - name: Run UI shard
+        if: matrix.suite != 'worker'
+        env:
+          BROWSER_SUITE: ${{ matrix.suite }}
+        run: bun run --cwd apps/web test:browser --shard="${BROWSER_SUITE#ui-}/6"
       - run: bun run --cwd apps/web test:browser:worker
+        if: matrix.suite == 'worker'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: browser-report-${{ github.sha }}
+          name: browser-report-${{ github.sha }}-${{ matrix.suite }}
           path: |
             apps/web/playwright-report
             apps/web/test-results

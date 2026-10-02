@@ -12,7 +12,9 @@ for (const width of [320, 390, 768, 1440]) {
     await page.keyboard.press("Enter");
     await expect(page.getByRole("menuitem")).toHaveCount(2);
     await expect(page.getByRole("menuitem", { name: "マイページ" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCSS("animation-name", "none");
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("menuitem")).toHaveCount(0);
     await expect(trigger).toBeFocused();
     await trigger.click();
     await page.getByRole("menuitem", { name: "マイページ" }).click();

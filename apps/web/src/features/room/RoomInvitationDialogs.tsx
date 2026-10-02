@@ -1,3 +1,5 @@
+import { RoomIdentityFields } from "../account/RoomIdentityFields";
+import { useAccount } from "../account/useAccount";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
@@ -10,6 +12,7 @@ export function RoomInvitationDialogs({
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
 }) {
+  const account = useAccount();
   if (invitation.dialog === "copy")
     return (
       <AppDialog size="compact" title="招待リンク" onClose={invitation.close}>
@@ -41,18 +44,11 @@ export function RoomInvitationDialogs({
           void invitation.submit();
         }}
       >
-        <p>対局で使うニックネームを入力してください。</p>
-        <AppTextField
-          value={invitation.name}
+        <RoomIdentityFields
+          name={invitation.name}
           onChange={invitation.setName}
-          isDisabled={invitation.busy}
-        >
-          <AppTextField.Label>ニックネーム</AppTextField.Label>
-          <AppTextField.Input autoFocus autoComplete="nickname" placeholder="例：てとら" />
-          <AppTextField.Description>
-            1〜10文字。ユーザー登録は必要ありません。
-          </AppTextField.Description>
-        </AppTextField>
+          busy={invitation.busy}
+        />
         {(invitation.message || invitation.unavailableReason) && (
           <p className="text-danger text-xs" role="alert">
             {invitation.message ?? invitation.unavailableReason}
@@ -70,7 +66,12 @@ export function RoomInvitationDialogs({
           <AppButton
             type="submit"
             size="compact"
-            isDisabled={invitation.busy || invitation.unavailableReason !== null}
+            isDisabled={
+              invitation.busy ||
+              invitation.unavailableReason !== null ||
+              account.loading ||
+              Boolean(account.error)
+            }
           >
             {invitation.busy ? "参加中…" : "参加する"}
           </AppButton>

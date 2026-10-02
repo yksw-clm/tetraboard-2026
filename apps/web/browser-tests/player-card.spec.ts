@@ -126,7 +126,15 @@ for (const width of widths) {
     if (mixed.status !== "waiting") throw new Error("Expected waiting fixture");
     mixed.players = [
       mixed.players[0]!,
-      { ...mixed.players[1]!, kind: "cpu", level: 2, ready: true, reconnectDeadline: null },
+      {
+        id: mixed.players[1]!.id,
+        name: mixed.players[1]!.name,
+        color: null,
+        kind: "cpu",
+        level: 2,
+        ready: true,
+        reconnectDeadline: null,
+      },
     ];
     control.update(mixed, { hostPlayerId: playerIds[1]!, connectedPlayerIds: [playerIds[1]!] });
     await expect(cards.getByText("空席", { exact: true })).toHaveCount(2);

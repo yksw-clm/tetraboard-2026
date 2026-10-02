@@ -70,7 +70,11 @@ export function roomEntryErrorMessage(error: unknown): string {
   return "ルームに参加できませんでした。通信を確認して、もう一度お試しください。";
 }
 
-export async function joinRoom(id: string, name: string, instanceId?: string): Promise<void> {
+export async function joinRoom(
+  id: string,
+  name: string | undefined,
+  instanceId?: string,
+): Promise<void> {
   if (!canStoreRoomMembership()) {
     throw new RoomEntryError(
       "このタブでは参加情報を保存できません。ブラウザの設定を確認してください。",
@@ -93,6 +97,9 @@ export async function joinRoom(id: string, name: string, instanceId?: string): P
     if (error === "room_changed") throw new Response(roomChangedMessage, { status: 410 });
     if (error === "not_found") throw new Response(null, { status: 404 });
     const messages = {
+      account_seated:
+        "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。",
+      profile_required: "プロフィールの初回設定を完了してください。",
       room_full: "このルームは満室です。観戦するか、空席ができるまでお待ちください。",
       room_started: "このルームの対局は始まっています。対局が終わるまで観戦できます。",
       invalid_request: "入力内容を確認して、もう一度お試しください。",

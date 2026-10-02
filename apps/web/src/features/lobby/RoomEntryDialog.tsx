@@ -1,3 +1,5 @@
+import { RoomIdentityFields } from "../account/RoomIdentityFields";
+import { useAccount } from "../account/useAccount";
 import { Label, Radio, RadioGroup } from "@heroui/react";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
@@ -33,6 +35,8 @@ export function RoomEntryDialog({
   onSubmit: () => void;
   onClose: () => void;
 }) {
+  const account = useAccount();
+  const blocked = busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
       ? "すぐ遊ぶ"
@@ -49,7 +53,9 @@ export function RoomEntryDialog({
           ? "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
           : intent === "create"
             ? "ルームを作って、URLやルーム番号で友達を招待しましょう。"
-            : "対局で使うニックネームを入力してください。"}
+            : account.user
+              ? "アカウントのプロフィールで参加します。"
+              : "対局で使うニックネームを入力してください。"}
       </p>
       <form
         className="flex flex-col gap-[22px] mt-6"
@@ -59,18 +65,7 @@ export function RoomEntryDialog({
           onSubmit();
         }}
       >
-        <AppTextField value={name} onChange={onNameChange} isDisabled={busy}>
-          <AppTextField.Label>ニックネーム</AppTextField.Label>
-          <AppTextField.Input
-            id="nickname"
-            autoFocus
-            autoComplete="nickname"
-            placeholder="例：てとら"
-          />
-          <AppTextField.Description>
-            1〜10文字。ユーザー登録は必要ありません。
-          </AppTextField.Description>
-        </AppTextField>
+        <RoomIdentityFields name={name} onChange={onNameChange} busy={busy} id="nickname" />
         {intent === "join" ? (
           selectedRoomId ? (
             <p className="py-[13px] px-4 rounded-control text-muted bg-[#f0f6f2] text-[13px] [&_strong]:ml-3 [&_strong]:text-ink [&_strong]:text-[17px] [&_strong]:tabular-nums [&_strong]:tracking-[0.08em]">
@@ -132,7 +127,7 @@ export function RoomEntryDialog({
             {message}
           </p>
         )}
-        <AppButton type="submit" className="w-full min-h-12" isDisabled={busy}>
+        <AppButton type="submit" className="w-full min-h-12" isDisabled={blocked}>
           {busy
             ? intent === "join"
               ? "参加中…"

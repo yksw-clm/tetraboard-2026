@@ -68,13 +68,12 @@ export function prepareLegacyAccounts(source: AccountSnapshot, target: AccountSn
       (account) => account.userId === user.id && account.providerId === "google",
     );
     if (accounts.length !== 1) throw new Error("Each migrated user must have one Google identity");
-    let image = user.image;
+    let image: string | null = null;
     if (user.avatarKey) {
       if (!avatarPattern.test(user.avatarKey)) throw new Error("Unsupported legacy avatar key");
       image = `/api/avatars/${user.avatarKey.slice(8, -5)}`;
       avatars.add(user.avatarKey);
-    } else if (image && !image.startsWith("https://"))
-      throw new Error("Unsupported legacy image URL");
+    }
     const values = {
       id: user.id,
       name: profile?.success ? profile.data.name : "",

@@ -70,7 +70,13 @@ export function publicProfile(user: StoredProfile): AccountProfile {
   return {
     name: user.name,
     username: user.username,
-    avatarUrl: user.image,
+    avatarUrl: profileAvatarUrl(user.avatarKey),
     profileCompleted: Boolean(user.profileCompleted),
   };
+}
+
+export const avatarKeyPattern =
+  /^avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
+export function profileAvatarUrl(key: string | null): string | null {
+  return key && avatarKeyPattern.test(key) ? `/api/avatars/${key.slice(8, -5)}` : null;
 }

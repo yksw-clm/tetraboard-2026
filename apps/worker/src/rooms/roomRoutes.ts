@@ -15,6 +15,14 @@ import {
   type Room,
   type RoomError,
 } from "@tetraboard/protocol";
+import { profileAvatarUrl } from "../accounts/auth";
+import {
+  roomEntryProfile,
+  reserveAccountSeat,
+  cancelReservation,
+  RoomAccountError,
+  type AccountAdmission,
+} from "../accounts/roomAccounts";
 import { Hono } from "hono";
 import { listRoomIndex } from "./roomIndex";
 import { createReport, getReport, listReports, resolveReport } from "./reportStore";
@@ -81,6 +89,15 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     return context.json(roomError("invalid_request"), 400);
   }
 
+  let profile;
+  try {
+    profile = await roomEntryProfile(context.req.raw, context.env, request.data.name);
+  } catch (error) {
+    return context.json(
+      roomError(error instanceof RoomAccountError ? error.code : "internal_error"),
+      error instanceof RoomAccountError ? error.status : 503,
+    );
+  }
   const token = createMembershipToken();
   const tokenHash = await hashMembershipToken(token);
 
@@ -97,8 +114,9 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
       players: [
         {
           id: crypto.randomUUID(),
-          name: request.data.name,
+          name: profile.name,
           kind: "human",
+          avatarUrl: null,
           ready: request.data.quickPlay,
           color: null,
           reconnectDeadline: null,
@@ -120,9 +138,27 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
       lastRound: null,
     };
 
+    let admission: AccountAdmission | undefined;
     try {
-      const room = await context.env.GAME_ROOM.getByName(code).createRoom(initialRoom, tokenHash);
+      if (profile.user) {
+        admission = await reserveAccountSeat(
+          context.req.raw,
+          context.env,
+          profile.user,
+          initialRoom,
+          initialRoom.players[0].id,
+        );
+        initialRoom.players[0].name = admission.name;
+        if (initialRoom.players[0].kind === "human")
+          initialRoom.players[0].avatarUrl = profileAvatarUrl(admission.avatarKey);
+      }
+      const room = await context.env.GAME_ROOM.getByName(code).createRoom(
+        initialRoom,
+        tokenHash,
+        admission,
+      );
       if (room === null) {
+        if (admission) await cancelReservation(context.env, admission);
         continue;
       }
 
@@ -135,8 +171,19 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         }),
         201,
       );
-    } catch {
-      return context.json(roomError("internal_error"), 500);
+    } catch (error) {
+      // A failed response may follow a committed admission. Only the DO can decide.
+      if (admission) {
+        try {
+          await cancelReservation(context.env, admission);
+        } catch {
+          /* recovered later */
+        }
+      }
+      return context.json(
+        roomError(error instanceof RoomAccountError ? error.code : "internal_error"),
+        error instanceof RoomAccountError ? error.status : 500,
+      );
     }
   }
 
@@ -194,14 +241,33 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     return context.json(roomError("invalid_request"), 400);
   }
 
+  let admission: AccountAdmission | undefined;
   try {
+    const profile = await roomEntryProfile(context.req.raw, context.env, request.data.name);
+    if (profile.user) {
+      const current = await context.env.GAME_ROOM.getByName(code).getRoom();
+      if (!current) return context.json(roomError("not_found"), 404);
+      if (request.data.instanceId && request.data.instanceId !== current.instanceId)
+        return context.json(roomError("room_changed"), 410);
+      admission = await reserveAccountSeat(
+        context.req.raw,
+        context.env,
+        profile.user,
+        current,
+        crypto.randomUUID(),
+      );
+    }
     const token = createMembershipToken();
     const tokenHash = await hashMembershipToken(token);
     const result = await context.env.GAME_ROOM.getByName(code).joinRoom(
-      request.data.name,
+      admission?.name ?? profile.name,
       tokenHash,
       request.data.instanceId,
+      admission,
     );
+    if (result.status !== "joined" && admission) await cancelReservation(context.env, admission);
+    if (result.status === "account_reservation_invalid")
+      return context.json(roomError("internal_error"), 503);
     if (result.status === "room_changed") {
       return context.json(roomError("room_changed"), 410);
     }
@@ -221,8 +287,18 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
         membership: { ...result.membership, token },
       }),
     );
-  } catch {
-    return context.json(roomError("internal_error"), 500);
+  } catch (error) {
+    if (admission) {
+      try {
+        await cancelReservation(context.env, admission);
+      } catch {
+        /* recovered later */
+      }
+    }
+    return context.json(
+      roomError(error instanceof RoomAccountError ? error.code : "internal_error"),
+      error instanceof RoomAccountError ? error.status : 500,
+    );
   }
 });
 
