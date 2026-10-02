@@ -1,5 +1,8 @@
 export { healthzContract } from "./healthz";
 export {
+  getAccountStatsContract,
+  accountStatsSchema,
+  type AccountStats,
   listMatchesContract,
   matchSummarySchema,
   matchParticipantSchema,
