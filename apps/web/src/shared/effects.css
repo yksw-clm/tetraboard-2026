@@ -1,17 +1,22 @@
 /* 背景と石の陰影。配置・サイズ・状態は部品のTailwindクラスで指定します。 */
 .lobby-background {
-  background-color: #f4f7f5;
+  background-color: var(--lobby-background);
   background-image:
-    radial-gradient(ellipse at 50% 0%, #e3f2e980, transparent 65%),
-    linear-gradient(#dfe8e438 1px, transparent 1px),
-    linear-gradient(90deg, #dfe8e438 1px, transparent 1px);
+    radial-gradient(ellipse at 50% 0%, var(--lobby-glow), transparent 65%),
+    linear-gradient(var(--lobby-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lobby-grid) 1px, transparent 1px);
   background-size:
     auto,
     32px 32px,
     32px 32px;
 }
 .lobby-quick-background {
-  background: linear-gradient(110deg, #fff 0%, #f8fcf9 45%, #e8f4ed 100%);
+  background: linear-gradient(
+    110deg,
+    #fff 0%,
+    var(--lobby-quick-middle) 45%,
+    var(--lobby-quick-end) 100%
+  );
 }
 .preview-stone-black {
   background: radial-gradient(circle at 30% 25%, #516158, #17261e 75%);

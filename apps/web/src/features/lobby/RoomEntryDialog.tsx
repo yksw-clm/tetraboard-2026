@@ -7,6 +7,7 @@ import { roomTimeControl, type RoomMode } from "@tetraboard/protocol";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
+import { type AppTheme } from "../../shared/ui/appTheme";
 
 export function RoomEntryDialog({
   intent,
@@ -16,6 +17,8 @@ export function RoomEntryDialog({
   mode,
   busy,
   message,
+  theme = "default",
+  unavailable = false,
   onNameChange,
   onRoomCodeChange,
   onModeChange,
@@ -29,6 +32,8 @@ export function RoomEntryDialog({
   mode: RoomMode;
   busy: boolean;
   message: string | null;
+  theme?: AppTheme;
+  unavailable?: boolean;
   onNameChange: (value: string) => void;
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
@@ -36,7 +41,7 @@ export function RoomEntryDialog({
   onClose: () => void;
 }) {
   const account = useAccount();
-  const blocked = busy || account.loading || Boolean(account.error);
+  const blocked = unavailable || busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
       ? "すぐ遊ぶ"
@@ -47,28 +52,30 @@ export function RoomEntryDialog({
           : "ルーム番号で参加";
 
   return (
-    <AppDialog title={title} busy={busy} onClose={onClose}>
+    <AppDialog title={title} busy={busy} onClose={onClose} theme={theme}>
       <p className="text-muted text-[13px] leading-[1.8]">
-        {intent === "quick"
-          ? "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
-          : intent === "create"
-            ? "ルームを作って、URLやルーム番号で友達を招待しましょう。"
-            : account.user
-              ? "アカウントのプロフィールで参加します。"
-              : "対局で使うニックネームを入力してください。"}
+        {unavailable
+          ? "四人将棋のオンライン対局は準備中です。入力項目は確認できますが、まだルームの作成・参加はできません。"
+          : intent === "quick"
+            ? "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
+            : intent === "create"
+              ? "ルームを作って、URLやルーム番号で友達を招待しましょう。"
+              : account.user
+                ? "アカウントのプロフィールで参加します。"
+                : "対局で使うニックネームを入力してください。"}
       </p>
       <form
         className="flex flex-col gap-[22px] mt-6"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          onSubmit();
+          if (!blocked) onSubmit();
         }}
       >
         <RoomIdentityFields name={name} onChange={onNameChange} busy={busy} id="nickname" />
         {intent === "join" ? (
           selectedRoomId ? (
-            <p className="py-[13px] px-4 rounded-control text-muted bg-[#f0f6f2] text-[13px] [&_strong]:ml-3 [&_strong]:text-ink [&_strong]:text-[17px] [&_strong]:tabular-nums [&_strong]:tracking-[0.08em]">
+            <p className="py-[13px] px-4 rounded-control text-muted bg-entry-room-surface text-[13px] [&_strong]:ml-3 [&_strong]:text-ink [&_strong]:text-[17px] [&_strong]:tabular-nums [&_strong]:tracking-[0.08em]">
               参加するルーム <strong>{selectedRoomId}</strong>
             </p>
           ) : (
@@ -100,7 +107,7 @@ export function RoomEntryDialog({
               <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
                 {(["singles", "doubles"] as const).map((option) => (
                   <Radio key={option} value={option}>
-                    <Radio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-[#60a981] data-[selected=true]:bg-[#f0f8f3] [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
+                    <Radio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
                       <Radio.Control className="shrink-0 border border-solid border-input">
                         <Radio.Indicator />
                       </Radio.Control>
@@ -128,16 +135,18 @@ export function RoomEntryDialog({
           </p>
         )}
         <AppButton type="submit" className="w-full min-h-12" isDisabled={blocked}>
-          {busy
-            ? intent === "join"
-              ? "参加中…"
-              : "ルームを作成中…"
-            : intent === "join"
-              ? "参加する"
-              : intent === "quick"
-                ? "CPUとの待機室へ"
-                : "ルームを作る"}
-          {!busy && <AppIcon name="arrow" />}
+          {unavailable
+            ? "準備中"
+            : busy
+              ? intent === "join"
+                ? "参加中…"
+                : "ルームを作成中…"
+              : intent === "join"
+                ? "参加する"
+                : intent === "quick"
+                  ? "CPUとの待機室へ"
+                  : "ルームを作る"}
+          {!busy && !unavailable && <AppIcon name="arrow" />}
         </AppButton>
         {busy && (
           <p className="text-xs text-muted" role="status">

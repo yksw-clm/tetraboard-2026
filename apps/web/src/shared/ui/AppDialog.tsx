@@ -1,6 +1,7 @@
 import { Modal, cn } from "@heroui/react";
 import { type ReactNode } from "react";
 import { AppIcon } from "./AppIcon";
+import { appThemeClasses, type AppTheme } from "./appTheme";
 
 export type AppDialogProps = {
   title: string;
@@ -8,6 +9,7 @@ export type AppDialogProps = {
   onClose: () => void;
   children: ReactNode;
   size?: "default" | "compact";
+  theme?: AppTheme;
 };
 
 export function AppDialog({
@@ -16,11 +18,13 @@ export function AppDialog({
   onClose,
   children,
   size = "default",
+  theme = "default",
 }: AppDialogProps) {
   return (
     <Modal.Backdrop
       className={cn(
-        "app-modal app-theme min-h-full h-lvh items-start bg-[#182e265e] bg-none text-ink backdrop-blur-none",
+        "app-modal app-theme min-h-full h-lvh items-start bg-modal-backdrop bg-none text-ink backdrop-blur-none",
+        appThemeClasses[theme],
       )}
       isOpen
       isDismissable={!busy}

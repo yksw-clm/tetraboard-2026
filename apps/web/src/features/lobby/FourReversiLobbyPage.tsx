@@ -1,6 +1,8 @@
 import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate } from "react-router";
-import { FourReversiLobbyView } from "./FourReversiLobbyView";
+import { LobbyView } from "./LobbyView";
+import { LobbyList } from "./LobbyList";
+import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
@@ -10,25 +12,32 @@ export function FourReversiLobbyPage() {
   const entry = useRoomEntry();
 
   return (
-    <FourReversiLobbyView
+    <LobbyView
+      game="four-reversi"
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}
       isSubmitting={entry.isSubmitting}
       message={entry.message}
-      lobbyRooms={lobby.rooms}
-      lobbyNextCursor={lobby.nextCursor}
-      lobbyError={lobby.error}
-      lobbyLoading={lobby.loading}
-      lobbyMoreLoading={lobby.moreLoading}
+      renderRooms={(onJoin) => (
+        <LobbyList
+          rooms={lobby.rooms}
+          nextCursor={lobby.nextCursor}
+          error={lobby.error}
+          loading={lobby.loading}
+          moreLoading={lobby.moreLoading}
+          onRefresh={() => void lobby.refresh()}
+          onLoadMore={() => void lobby.loadMore()}
+          onJoin={onJoin}
+          onWatch={(roomId) => void navigate(getRoomContract.pathFor(roomId))}
+        />
+      )}
+      rankings={<LobbyRankings />}
       onNameChange={entry.setName}
       onRoomCodeChange={entry.setRoomCode}
       onModeChange={entry.setMode}
       onClearMessage={entry.clearMessage}
       onSubmitRoom={(intent, roomId) => void entry.submitRoom(intent, roomId)}
-      onWatchRoom={(roomId) => void navigate(getRoomContract.pathFor(roomId))}
-      onLobbyRefresh={() => void lobby.refresh()}
-      onLobbyLoadMore={() => void lobby.loadMore()}
     />
   );
 }
