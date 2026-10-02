@@ -16,6 +16,7 @@ import type {
 
 export { getActiveSides, sides, handPieceKinds } from "./types";
 export { getCheckState } from "./board";
+export { chooseCpuAction, type CpuLevel } from "./cpu";
 export type {
   ApplyActionResult,
   AttackReason,
