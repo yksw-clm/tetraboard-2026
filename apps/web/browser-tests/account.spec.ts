@@ -26,7 +26,8 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(
       page.locator("main").getByText(`@${profile.username}`, { exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "戦績・棋譜" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "戦績", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "棋譜", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -98,6 +99,63 @@ for (const width of [320, 390, 768, 1440]) {
     });
   });
 }
+test("戦績をプロフィール内、棋譜を独立カードとしてヘッダー幅に合わせて配置する", async ({
+  page,
+}, info) => {
+  await mockAccount(page, profile);
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: profile.name, exact: true })).toBeVisible();
+  const profileCard = page.getByTestId("account-profile-card");
+  const replayCard = page.getByTestId("account-replay-card");
+  await expect(profileCard.getByRole("heading", { name: "戦績", exact: true })).toBeVisible();
+  await expect(profileCard.getByText("今後追加予定です。", { exact: true })).toBeVisible();
+  await expect(replayCard.getByRole("heading", { name: "棋譜", exact: true })).toBeVisible();
+  await expect(replayCard.getByText("今後追加予定です。", { exact: true })).toBeVisible();
+  const back = page.getByRole("link", { name: "ロビーへ", exact: true });
+  await expect(back).toHaveCount(1);
+  for (const width of [320, 390, 650, 651, 768, 1023, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 850 });
+    const [left, right, stats, lobby, header, logo, menu] = await Promise.all([
+      profileCard.boundingBox(),
+      replayCard.boundingBox(),
+      page.getByRole("heading", { name: "戦績", exact: true }).boundingBox(),
+      back.boundingBox(),
+      page.getByRole("banner").boundingBox(),
+      page.getByRole("link", { name: "TetraBoard ロビー", exact: true }).boundingBox(),
+      page.getByRole("button", { name: /のアカウントメニュー/ }).boundingBox(),
+    ]);
+    const closeTo = (actual: number, expected: number) =>
+      expect(Math.abs(actual - expected), `${width}px`).toBeLessThanOrEqual(1);
+    closeTo(left!.x, logo!.x);
+    closeTo(right!.x + right!.width, menu!.x + menu!.width);
+    closeTo(lobby!.x, left!.x);
+    expect(lobby!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
+    expect(lobby!.y + lobby!.height).toBeLessThan(left!.y);
+    expect(stats!.y).toBeGreaterThan(left!.y);
+    expect(stats!.y + stats!.height).toBeLessThan(left!.y + left!.height);
+    if (width >= 1024) {
+      closeTo(left!.width, 560);
+      closeTo(right!.x - (left!.x + left!.width), 20);
+      closeTo(right!.y, left!.y);
+      closeTo(right!.width, width === 1440 ? 520 : 396);
+    } else {
+      closeTo(right!.x, left!.x);
+      closeTo(right!.width, left!.width);
+      closeTo(right!.y - (left!.y + left!.height), 20);
+      closeTo(left!.width, width - (width <= 650 ? 40 : 48));
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    if ([320, 1023, 1024, 1440].includes(width))
+      await info.attach(`mypage-layout-${width}`, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: "image/png",
+      });
+  }
+  await back.click();
+  await expect(page).toHaveURL(/\/games\/four-reversi$/);
+});
 test("未完了の誘導、入力チェック、重複IDの再試行、送信中の連打防止", async ({ page }, info) => {
   const account = await mockAccount(page, {
     name: "",

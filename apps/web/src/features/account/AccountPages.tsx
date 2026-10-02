@@ -6,21 +6,43 @@ import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import type { AccountProfile } from "@tetraboard/protocol";
+import { cn } from "@heroui/react";
+import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { accountRequest } from "./accountApi";
 import { ProfileForm } from "./ProfileForm";
-export function AccountPageShell({ children }: { children: ReactNode }) {
+export function AccountPageShell({
+  children,
+  layout = "form",
+}: {
+  children: ReactNode;
+  layout?: "form" | "profile";
+}) {
+  const profileLayout = layout === "profile";
+  const lobbyLink = (
+    <AppButtonLink
+      to="/games/four-reversi"
+      appearance="quiet"
+      className={profileLayout ? "self-start" : undefined}
+    >
+      ロビーへ
+    </AppButtonLink>
+  );
   return (
     <div className="app-theme lobby-background min-h-dvh text-ink">
       <AppHeader homeTo="/games/four-reversi" homeLabel="TetraBoard ロビー">
         <AccountMenu />
       </AppHeader>
-      <main className="mx-auto flex max-w-[600px] flex-col gap-5 px-5 py-8">
+      <main
+        className={cn(
+          "flex flex-col gap-5 py-8",
+          profileLayout ? appPageWidthClasses : "mx-auto max-w-[600px] px-5",
+        )}
+      >
+        {profileLayout && lobbyLink}
         {children}
-        <AppButtonLink to="/games/four-reversi" appearance="quiet">
-          ロビーへ
-        </AppButtonLink>
+        {!profileLayout && lobbyLink}
       </main>
     </div>
   );
@@ -94,7 +116,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error } = useAccount();
   if (loading || error)
     return (
-      <AccountPageShell>
+      <AccountPageShell layout={setup ? "form" : "profile"}>
         <AccountStatus />
       </AccountPageShell>
     );
@@ -103,7 +125,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   if (!setup && !user.profileCompleted) return <Navigate to="/account/setup" replace />;
   if (!setup)
     return (
-      <AccountPageShell>
+      <AccountPageShell layout="profile">
         <AccountProfileView user={user} />
       </AccountPageShell>
     );
@@ -127,38 +149,49 @@ function AccountProfileView({ user }: { user: AccountProfile }) {
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <>
-      <AppCard>
-        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 [@media(min-width:651px)]:grid-cols-[64px_minmax(0,1fr)_auto]">
-          <AppButton
-            appearance="secondary"
-            className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
-            onPress={() => {
-              setNotice(null);
-              setEditing(true);
-            }}
-          >
-            プロフィールを編集
-          </AppButton>
-          <AppAvatar
-            src={user.avatarUrl}
-            label="プロフィールアイコン"
-            className="col-start-1 row-start-2 size-16 [&_svg]:size-7 [@media(min-width:651px)]:row-start-1"
-          />
-          <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
-            <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
-            <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">@{user.username}</p>
+      <div className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]">
+        <AppCard data-testid="account-profile-card">
+          <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 [@media(min-width:651px)]:grid-cols-[64px_minmax(0,1fr)_auto]">
+            <AppButton
+              appearance="secondary"
+              className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
+              onPress={() => {
+                setNotice(null);
+                setEditing(true);
+              }}
+            >
+              プロフィールを編集
+            </AppButton>
+            <AppAvatar
+              src={user.avatarUrl}
+              label="プロフィールアイコン"
+              className="col-start-1 row-start-2 size-16 [&_svg]:size-7 [@media(min-width:651px)]:row-start-1"
+            />
+            <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
+              <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
+              <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">@{user.username}</p>
+            </div>
           </div>
-        </div>
-        {notice && (
-          <p role="status" className="text-sm text-brand">
-            {notice}
-          </p>
-        )}
-      </AppCard>
-      <AppCard>
-        <h2 className="text-lg font-bold">戦績・棋譜</h2>
-        <p className="text-sm text-muted">今後追加予定です。</p>
-      </AppCard>
+          {notice && (
+            <p role="status" className="text-sm text-brand">
+              {notice}
+            </p>
+          )}
+          <section
+            aria-labelledby="account-stats-title"
+            className="mt-2 flex flex-col gap-3 border-0 border-t border-solid border-line pt-5"
+          >
+            <h2 id="account-stats-title" className="text-lg font-bold">
+              戦績
+            </h2>
+            <p className="text-sm text-muted">今後追加予定です。</p>
+          </section>
+        </AppCard>
+        <AppCard data-testid="account-replay-card">
+          <h2 className="text-lg font-bold">棋譜</h2>
+          <p className="text-sm text-muted">今後追加予定です。</p>
+        </AppCard>
+      </div>
       {editing && (
         <AppDialog title="プロフィールを編集" busy={busy} onClose={() => setEditing(false)}>
           <ProfileForm
