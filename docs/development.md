@@ -31,7 +31,7 @@ Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します�
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、四人リバーシ、Worker、Webの表示ロジックのテストを実行します。`bun run test` ではエンジン・Worker・Webのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、四人リバーシ・四人将棋、Worker、Webの表示ロジックのテストを実行します。`bun run test` では両エンジン・Worker・Webのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
 GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型チェック・テストに加え、Webビルドと本番デプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
 
@@ -43,6 +43,31 @@ GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型�
 盤面の `lastMove` はエンジンの着手時に更新し、ルームとともに保存・配信します。旧保存状態に座標がない場合は `null` として読み込み、次の着手から表示します。再読み込み・観戦でも最終手の枠が残り、棋譜では選択局面に追従し、開始局面では消えること、着手可能なマスの丸い点、名前と王冠の一行表示、円形の接続バッジ、3秒の通知、PCで設定展開時の配置を確認します。
 
 招待導線ではコピー成功と手動コピー、自動ダイアログと閉鎖・再表示、資格の再利用、入力不正、送信中の連打・閉鎖、入力中の満室化・開始・閉鎖を確認します。番号再利用後の古い招待は、読み込み・参加・WebSocket接続・再接続で別の部屋へ進まないことをWorkerとWebのテストで検証します。PC・タブレット・スマホで操作とフォーカス移動を確認します。
+
+## 四人将棋エンジン
+
+`packages/four-shogi` は `@tetraboard/four-shogi` として利用する独立したパッケージです。ランタイム依存はなく、既存の四人リバーシと同じTypeScript・Bunの構成を使います。`bun run --cwd packages/four-shogi check` で単体の整形・lint・型・テストを確認できます。
+
+```ts
+import { applyAction, createInitialState, getLegalActions } from "@tetraboard/four-shogi";
+
+const state = createInitialState({
+  mode: "singles",
+  players: { south: "player-1", west: "player-2", north: "player-3", east: "player-4" },
+  threePlayerAttackProhibited: true,
+});
+const actions = getLegalActions(state);
+const result = applyAction(state, "south", actions[0]);
+if (result.ok) {
+  const saved = JSON.stringify(result.state);
+}
+```
+
+担当方向は呼び出し側で決め、重複しない4人のIDを入力します。三人攻撃禁止は省略時ONです。状態は `playing` と `finished` の型で区別し、終局時は `turn: null` と結果を保持します。座標はルール正本と同じ左上 `{ x: 0, y: 0 }` です。
+
+`getLegalActionsForSide` は指定した生存陣営の候補、`getCheckState` は全陣営の王手状態、`getActiveSides` は生存陣営を返します。着手は `movePiece { from, to, promote }` と `dropPiece { pieceKind, to }` を使います。`promote` はこの手で新たに成る指定なので、成駒の移動ではfalseです。`eliminateSide` は確定した投了・退室・時間切れ・通信切れを渡す入口で、投了は自手番だけ受理します。
+
+成功時は新状態・捕獲駒・今回の脱落一覧を、失敗時は理由を返し、入力状態を変更しません。詰み・合法手なしは着手や外部脱落に伴って自動処理し、同時脱落の群と理由・順位を保持します。持ち時間、接続期限、乱数、プロフィール、ネットワークはエンジンへ持ち込みません。保存した状態はJSONで復元して同じAPIへ渡せます。外部入力の検証と認証は、将来のルーム接続側で行います。
 
 ## ブラウザ回帰テスト
 

@@ -64,6 +64,14 @@
         "typescript": "^5.5.2",
       },
     },
+    "packages/four-shogi": {
+      "name": "@tetraboard/four-shogi",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
     "packages/protocol": {
       "name": "@tetraboard/protocol",
       "version": "0.0.0",
@@ -489,6 +497,8 @@
     "@tailwindcss/vite": ["@tailwindcss/vite@4.3.3", "", { "dependencies": { "@tailwindcss/node": "4.3.3", "@tailwindcss/oxide": "4.3.3", "tailwindcss": "4.3.3" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7 || ^8" } }, "sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw=="],
 
     "@tetraboard/four-reversi": ["@tetraboard/four-reversi@workspace:packages/four-reversi"],
+
+    "@tetraboard/four-shogi": ["@tetraboard/four-shogi@workspace:packages/four-shogi"],
 
     "@tetraboard/protocol": ["@tetraboard/protocol@workspace:packages/protocol"],
 

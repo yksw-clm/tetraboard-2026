@@ -1,6 +1,6 @@
 # TetraBoardの構成
 
-この文書は技術構成と状態の置き場所を記す。ゲーム共通の利用仕様は `README.md`、四人リバーシ固有のルールは `docs/rules/four-reversi.md` を正本とする。
+この文書は技術構成と状態の置き場所を記す。ゲーム共通の利用仕様は `README.md`、ゲーム固有のルールは `docs/rules/four-reversi.md` と `docs/rules/four-shogi.md` を正本とする。
 
 ## 採用する構成
 
@@ -9,6 +9,7 @@
 - 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。
 - WebとWorkerの境界を通るデータのスキーマ、型、エンドポイント定義は `packages/protocol` に置く。四人リバーシの純粋な判定ロジックは `packages/four-reversi` に置き、通信契約と混在させない。
+- 四人将棋の純粋な判定ロジックは独立した `packages/four-shogi` に置く。盤面・持ち駒・手番・脱落・三人攻撃履歴・反復回数をJSONで保存できる状態として管理する。時刻、通信、参加者の担当抽選は呼び出し側で扱う。現在のWeb・Worker・protocolとは接続していない。
 - ルームごとに1つのDurable Objectを使い、参加者、対局進行、持ち時間、チャットと接続を管理する。ゲーム固有の合法手・終局判定は、ルーム管理から分離したTypeScriptのロジックとして扱う。
 - CPUの着手候補の選択は `packages/four-reversi` の純粋なロジックで行う。Durable Objectが選択を起動し、通常の着手と同じエンジンで確定・保存・配信する。
 - 公開ロビーのルーム索引、通報、アカウントと認証セッション、利用状況の計測はD1に保存する。通報には確認に必要な部屋IDも含む。長期の棋譜、対局履歴、プレイヤーごとの戦績はD1に保存しない。
