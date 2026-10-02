@@ -73,6 +73,7 @@ body:has(.app-modal) #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :where(.app-theme),
   :where(.app-theme) :where(*, *::before, *::after) {
     animation: none !important;
     transition: none !important;
