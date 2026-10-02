@@ -3,6 +3,9 @@
   "name": "tetraboard-worker",
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": { "APP_ORIGIN": "http://localhost:5173" },
+  "r2_buckets": [{ "binding": "OBJECT_STORAGE", "bucket_name": "tetraboard-2026-objects-local" }],
   "dev": {
     "ip": "0.0.0.0",
     "port": 8787
@@ -12,7 +15,7 @@
   },
   "d1_databases": [
     {
-      "binding": "LOBBY_DB",
+      "binding": "APP_DB",
       "database_name": "tetraboard-lobby-local",
       "database_id": "00000000-0000-4000-8000-000000000001",
       "migrations_dir": "migrations"
@@ -28,6 +31,14 @@
   "env": {
     "production": {
       "name": "tetraboard-2026",
+      "vars": { "APP_ORIGIN": "https://tetraboard-2026.chaossi-lab.workers.dev" },
+      "r2_buckets": [
+        {
+          "binding": "OBJECT_STORAGE",
+          "bucket_name": "tetraboard-2026-objects-prod",
+          "remote": false
+        }
+      ],
       "workers_dev": true,
       "preview_urls": false,
       "assets": {
@@ -40,7 +51,7 @@
       },
       "d1_databases": [
         {
-          "binding": "LOBBY_DB",
+          "binding": "APP_DB",
           "database_name": "tetraboard-2026-prod-db",
           "database_id": "196b58e7-0df3-40db-b3ec-d196c88241bf",
           "migrations_dir": "migrations",

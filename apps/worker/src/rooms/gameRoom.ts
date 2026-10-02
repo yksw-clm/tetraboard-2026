@@ -380,7 +380,7 @@ export class GameRoom extends DurableObject<Env> {
         const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
         if (pending === undefined || pending.retryAtMs > Date.now()) break;
         try {
-          await writeRoomIndex(this.env.LOBBY_DB, pending);
+          await writeRoomIndex(this.env.APP_DB, pending);
           this.ctx.storage.transactionSync(() => {
             if (
               this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.revision ===

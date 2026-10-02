@@ -9,6 +9,9 @@ export default defineConfig({
       miniflare: {
         bindings: {
           MODERATOR_TOKEN: "test-moderator-token",
+          BETTER_AUTH_SECRET: "tetraboard-local-only-secret-at-least-32-characters",
+          GOOGLE_CLIENT_ID: "test-google",
+          GOOGLE_CLIENT_SECRET: "test-google-secret",
           TEST_MIGRATIONS: await readD1Migrations(
             fileURLToPath(new URL("./migrations", import.meta.url)),
           ),

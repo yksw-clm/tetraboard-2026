@@ -151,7 +151,7 @@ roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) 
     ? { updatedAtMs: Number(cursor.split(":")[0]), id: cursor.split(":")[1] }
     : null;
   try {
-    const rooms = await listRoomIndex(context.env.LOBBY_DB, position);
+    const rooms = await listRoomIndex(context.env.APP_DB, position);
     context.header("Cache-Control", "no-store");
     return context.json(listRoomsContract.response.parse(rooms));
   } catch {
@@ -330,7 +330,7 @@ roomRoutes.on(reportContract.method, reportContract.path, async (context) => {
       return target.status === "unauthorized"
         ? context.json(roomError("unauthorized"), 401)
         : context.json(roomError("not_found"), 404);
-    const result = await createReport(context.env.LOBBY_DB, {
+    const result = await createReport(context.env.APP_DB, {
       roomId: code,
       instanceId: target.instanceId,
       message: target.message,
@@ -361,9 +361,7 @@ roomRoutes.on(listReportsContract.method, listReportsContract.path, async (conte
   try {
     context.header("Cache-Control", "no-store");
     return context.json(
-      listReportsContract.response.parse(
-        await listReports(context.env.LOBBY_DB, query.data.cursor),
-      ),
+      listReportsContract.response.parse(await listReports(context.env.APP_DB, query.data.cursor)),
     );
   } catch {
     return context.json(roomError("internal_error"), 500);
@@ -387,7 +385,7 @@ roomRoutes.on(moderateReportContract.method, moderateReportContract.path, async 
   const request = moderateReportContract.request.safeParse(body);
   if (!request.success) return context.json(roomError("invalid_request"), 400);
   try {
-    const report = await getReport(context.env.LOBBY_DB, id);
+    const report = await getReport(context.env.APP_DB, id);
     if (report === null) return context.json(roomError("not_found"), 404);
     if (report.status === "resolved")
       return report.action === request.data.action
@@ -404,7 +402,7 @@ roomRoutes.on(moderateReportContract.method, moderateReportContract.path, async 
       );
       if (status === "room_changed") return context.json(roomError("conflict"), 409);
     }
-    const resolved = await resolveReport(context.env.LOBBY_DB, id, action);
+    const resolved = await resolveReport(context.env.APP_DB, id, action);
     if (resolved === null) return context.json(roomError("not_found"), 404);
     if (resolved.action !== action) return context.json(roomError("conflict"), 409);
     context.header("Cache-Control", "no-store");

@@ -1,0 +1,66 @@
+import { type Page, type Route } from "@playwright/test";
+import type { AccountProfile } from "@tetraboard/protocol";
+import { mockLobby } from "./fixtures";
+export const profile: AccountProfile = {
+  name: "あいうえおかきくけこ",
+  username: "abcdefghijklmnopqrst",
+  avatarUrl: null,
+  profileCompleted: true,
+};
+export async function mockAccount(page: Page, initial: AccountProfile | null) {
+  await mockLobby(page);
+  let user = initial;
+  let failure = false;
+  let held: Route | null = null;
+  let hold = false;
+  const saves: FormData[] = [];
+  await page.route("**/api/account/session", (route) => route.fulfill({ json: { user } }));
+  async function save(route: Route) {
+    const data = await new Response(new Uint8Array(route.request().postDataBuffer()!), {
+      headers: { "Content-Type": route.request().headers()["content-type"] },
+    }).formData();
+    saves.push(data);
+    if (failure)
+      return route.fulfill({ status: 409, json: { message: "このIDはすでに使われています。" } });
+    user = {
+      name: String(data.get("name")).trim(),
+      username: String(data.get("username")).replace(/^@/, "").trim().toLowerCase(),
+      avatarUrl:
+        data.get("avatarAction") === "replace"
+          ? "/test-avatar.webp"
+          : data.get("avatarAction") === "remove"
+            ? null
+            : (user?.avatarUrl ?? null),
+      profileCompleted: true,
+    };
+    await route.fulfill({ json: user });
+  }
+  for (const path of ["setup", "profile"])
+    await page.route(`**/api/account/${path}`, async (route) => {
+      if (hold) held = route;
+      else await save(route);
+    });
+  await page.route("**/api/auth/sign-out", async (route) => {
+    user = null;
+    await route.fulfill({ json: { success: true } });
+  });
+  return {
+    saves,
+    fail: () => {
+      failure = true;
+    },
+    succeed: () => {
+      failure = false;
+    },
+    hold: () => {
+      hold = true;
+    },
+    release: async () => {
+      hold = false;
+      if (held) {
+        await save(held);
+        held = null;
+      }
+    },
+  };
+}
