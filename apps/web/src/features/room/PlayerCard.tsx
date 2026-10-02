@@ -37,12 +37,24 @@ export function PlayerCard({
     const content = nameContent.current;
     if (!box || !content) return;
     const fit = () => {
-      if (box.clientWidth === 0) return;
+      const availableWidth = box.getBoundingClientRect().width;
+      if (availableWidth === 0) return;
       content.style.fontSize = "";
       const naturalWidth = content.getBoundingClientRect().width;
       const fontSize = Number.parseFloat(getComputedStyle(content).fontSize);
-      if (naturalWidth > box.clientWidth)
-        content.style.fontSize = `${fontSize * (box.clientWidth / naturalWidth)}px`;
+      if (naturalWidth <= availableWidth) return;
+      let upper = fontSize * (availableWidth / naturalWidth);
+      content.style.fontSize = `${upper}px`;
+      // フォントによって字幅は文字サイズに比例しないため、実測で収まりを確かめます。
+      if (content.getBoundingClientRect().width <= availableWidth) return;
+      let lower = 0;
+      for (let index = 0; index < 10; index++) {
+        const candidate = (lower + upper) / 2;
+        content.style.fontSize = `${candidate}px`;
+        if (content.getBoundingClientRect().width <= availableWidth) lower = candidate;
+        else upper = candidate;
+      }
+      content.style.fontSize = `${lower}px`;
     };
     fit();
     // 計測による文字サイズ変更をobserverの通知フレームから分離します。
@@ -53,10 +65,12 @@ export function PlayerCard({
     });
     observer.observe(box);
     document.fonts.addEventListener("loadingdone", fit);
+    document.addEventListener("visibilitychange", fit);
     return () => {
       observer.disconnect();
       cancelAnimationFrame(frame);
       document.fonts.removeEventListener("loadingdone", fit);
+      document.removeEventListener("visibilitychange", fit);
     };
   }, [name, host, player?.kind]);
   return (
