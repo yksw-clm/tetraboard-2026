@@ -1,1 +1,8 @@
 MODERATOR_TOKEN="replace-with-a-long-random-secret"
+
+# ローカルOAuthを使う場合だけ設定します。値はコミットしません。
+# BETTER_AUTH_SECRET=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# DISCORD_CLIENT_ID=
+# DISCORD_CLIENT_SECRET=

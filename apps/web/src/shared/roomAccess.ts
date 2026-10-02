@@ -93,6 +93,8 @@ export async function joinRoom(id: string, name: string, instanceId?: string): P
     if (error === "room_changed") throw new Response(roomChangedMessage, { status: 410 });
     if (error === "not_found") throw new Response(null, { status: 404 });
     const messages = {
+      profile_incomplete: "アカウント設定を完了してください。",
+      already_joined: "このアカウントは参加済みです。元のタブから操作してください。",
       room_full: "このルームは満室です。観戦するか、空席ができるまでお待ちください。",
       room_started: "このルームの対局は始まっています。対局が終わるまで観戦できます。",
       invalid_request: "入力内容を確認して、もう一度お試しください。",

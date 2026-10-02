@@ -1,3 +1,4 @@
+import { useAccount } from "../account/useAccount";
 import { Button, Description, Input, Label, Radio, RadioGroup, TextField } from "@heroui/react";
 import { roomTimeControl, type RoomMode } from "@tetraboard/protocol";
 import { LobbyDialog } from "./LobbyDialog";
@@ -31,6 +32,7 @@ export function RoomEntryDialog({
   onSubmit: () => void;
   onClose: () => void;
 }) {
+  const account = useAccount();
   const title =
     intent === "quick"
       ? "すぐ遊ぶ"
@@ -57,11 +59,19 @@ export function RoomEntryDialog({
           onSubmit();
         }}
       >
-        <TextField className="lobby-field" value={name} onChange={onNameChange} isDisabled={busy}>
-          <Label>ニックネーム</Label>
+        <TextField
+          className="lobby-field"
+          value={name}
+          onChange={onNameChange}
+          isDisabled={busy}
+          isReadOnly={Boolean(account.user)}
+        >
+          <Label>{account.user ? "アカウント名" : "ニックネーム"}</Label>
           <Input id="nickname" autoFocus autoComplete="nickname" placeholder="例：てとら" />
           <Description className="lobby-field-hint">
-            1〜10文字。ユーザー登録は必要ありません。
+            {account.user
+              ? "アカウントに設定した名前で参加します。"
+              : "1〜10文字。ユーザー登録は必要ありません。"}
           </Description>
         </TextField>
         {intent === "join" ? (
@@ -132,7 +142,7 @@ export function RoomEntryDialog({
         <Button
           type="submit"
           className="lobby-button lobby-button-primary lobby-submit"
-          isDisabled={busy}
+          isDisabled={busy || account.loading || Boolean(account.error)}
         >
           {busy
             ? intent === "join"

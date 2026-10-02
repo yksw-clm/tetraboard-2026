@@ -3,7 +3,7 @@ import { z } from "zod";
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
 export const countCharacters = (text: string): number => Array.from(segmenter.segment(text)).length;
 
-const nicknameSchema = z
+export const nicknameSchema = z
   .string()
   .trim()
   .min(1)
@@ -117,7 +117,17 @@ export type RoundReplay = z.infer<typeof roundReplaySchema>;
 const lastRoundSchema = z.strictObject({
   game: finishedGameSchema,
   players: z
-    .array(z.strictObject({ id: z.uuid(), name: nicknameSchema, color: fourReversiColorSchema }))
+    .array(
+      z.strictObject({
+        id: z.uuid(),
+        name: nicknameSchema,
+        color: fourReversiColorSchema,
+        username: z.string().nullable().optional(),
+        avatarUrl: z.string().nullable().optional(),
+        kind: z.enum(["human", "cpu"]).optional(),
+        level: cpuLevelSchema.optional(),
+      }),
+    )
     .length(4),
   replay: roundReplaySchema.nullable().default(null),
 });
@@ -125,6 +135,8 @@ const lastRoundSchema = z.strictObject({
 const playerBaseSchema = z.strictObject({
   id: z.uuid(),
   name: nicknameSchema,
+  username: z.string().nullable().optional(),
+  avatarUrl: z.string().nullable().optional(),
 });
 const humanPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("human"),
@@ -201,6 +213,7 @@ export const roomPublicMetadataSchema = z
     timeControl: roomSettingsSchema.shape.timeControl,
     status: z.enum(["waiting", "playing"]),
     hostName: nicknameSchema.nullable(),
+    hostAvatarUrl: z.string().nullable().optional(),
     humanCount: z.int().min(0).max(4),
     cpuCount: z.int().min(0).max(4),
     capacity: z.literal(4),
@@ -269,6 +282,8 @@ const roomEntryResponseSchema = z.strictObject({
 const roomErrorSchema = z.strictObject({
   error: z.enum([
     "invalid_request",
+    "profile_incomplete",
+    "already_joined",
     "not_found",
     "code_unavailable",
     "room_full",

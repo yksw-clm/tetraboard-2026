@@ -1,3 +1,4 @@
+import { useAccount } from "../account/useAccount";
 import {
   createRoomContract,
   getRoomContract,
@@ -21,6 +22,10 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
       return "このルームは満室です。ほかのルームへの参加や観戦をお試しください。";
     case "room_started":
       return "このルームの対局は始まっています。観戦するか、ほかのルームを選んでください。";
+    case "profile_incomplete":
+      return "アカウント設定を完了してください。";
+    case "already_joined":
+      return "このアカウントは参加済みです。元のタブから操作してください。";
     case "invalid_request":
       return "入力内容を確認して、もう一度お試しください。";
     case "rate_limited":
@@ -34,7 +39,9 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
 
 export function useRoomEntry() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
+  const account = useAccount();
+  const [guestName, setName] = useState("");
+  const name = account.user?.profileCompleted ? account.user.name : guestName;
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState<RoomMode>("singles");
   const [isSubmitting, setIsSubmitting] = useState<RoomEntryIntent | null>(null);
@@ -43,6 +50,14 @@ export function useRoomEntry() {
 
   async function submitRoom(intent: RoomEntryIntent, selectedRoomCode = roomCode): Promise<void> {
     if (submitting.current) return;
+    if (account.loading || account.error) {
+      setMessage("ログイン状態を確認できません。ページを再読み込みしてください。");
+      return;
+    }
+    if (account.user && !account.user.profileCompleted) {
+      await navigate("/account/setup");
+      return;
+    }
     const contract = createRoomContract;
 
     setMessage(null);

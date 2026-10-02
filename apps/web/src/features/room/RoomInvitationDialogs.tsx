@@ -1,3 +1,4 @@
+import { useAccount } from "../account/useAccount";
 import { Button, Description, Input, Label, TextField } from "@heroui/react";
 import { RoomDialog } from "./RoomDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
@@ -9,6 +10,7 @@ export function RoomInvitationDialogs({
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
 }) {
+  const account = useAccount();
   if (invitation.dialog === "copy")
     return (
       <RoomDialog title="招待リンク" onClose={invitation.close}>
@@ -41,10 +43,15 @@ export function RoomInvitationDialogs({
           value={invitation.name}
           onChange={invitation.setName}
           isDisabled={invitation.busy}
+          isReadOnly={Boolean(account.user)}
         >
           <Label>ニックネーム</Label>
           <Input autoFocus autoComplete="nickname" placeholder="例：てとら" />
-          <Description>1〜10文字。ユーザー登録は必要ありません。</Description>
+          <Description>
+            {account.user
+              ? "アカウントに設定した名前で参加します。"
+              : "1〜10文字。ユーザー登録は必要ありません。"}
+          </Description>
         </TextField>
         {(invitation.message || invitation.unavailableReason) && (
           <p className="room-error" role="alert">
@@ -62,7 +69,12 @@ export function RoomInvitationDialogs({
           <Button
             type="submit"
             className="room-button room-button-primary"
-            isDisabled={invitation.busy || invitation.unavailableReason !== null}
+            isDisabled={
+              invitation.busy ||
+              account.loading ||
+              Boolean(account.error) ||
+              invitation.unavailableReason !== null
+            }
           >
             {invitation.busy ? "参加中…" : "参加する"}
           </Button>

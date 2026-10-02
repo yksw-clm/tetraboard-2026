@@ -19,6 +19,8 @@ import { Hono } from "hono";
 import { listRoomIndex } from "./roomIndex";
 import { createReport, getReport, listReports, resolveReport } from "./reportStore";
 
+import { accountIdentity, entryIdentity } from "../accounts/auth";
+
 export const roomRoutes = new Hono<{ Bindings: Env }>();
 
 const roomCodeCount = 100_000;
@@ -76,6 +78,12 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     return context.json(roomError("invalid_request"), 400);
   }
 
+  const user = await accountIdentity(context.req.raw, context.env);
+  if (user && context.req.header("Origin") !== context.env.APP_ORIGIN)
+    return context.json(roomError("unauthorized"), 403);
+  if (user && !user.profileCompleted) return context.json(roomError("profile_incomplete"), 403);
+  if (user && body && typeof body === "object" && !Array.isArray(body))
+    body = { ...body, name: user.name };
   const request = createRoomContract.request.safeParse(body);
   if (!request.success) {
     return context.json(roomError("invalid_request"), 400);
@@ -98,6 +106,8 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         {
           id: crypto.randomUUID(),
           name: request.data.name,
+          username: user?.username ?? null,
+          avatarUrl: user?.image ?? null,
           kind: "human",
           ready: request.data.quickPlay,
           color: null,
@@ -121,7 +131,11 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
     };
 
     try {
-      const room = await context.env.GAME_ROOM.getByName(code).createRoom(initialRoom, tokenHash);
+      const room = await context.env.GAME_ROOM.getByName(code).createRoom(
+        initialRoom,
+        tokenHash,
+        entryIdentity(user),
+      );
       if (room === null) {
         continue;
       }
@@ -151,7 +165,7 @@ roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) 
     ? { updatedAtMs: Number(cursor.split(":")[0]), id: cursor.split(":")[1] }
     : null;
   try {
-    const rooms = await listRoomIndex(context.env.LOBBY_DB, position);
+    const rooms = await listRoomIndex(context.env.APP_DB, position);
     context.header("Cache-Control", "no-store");
     return context.json(listRoomsContract.response.parse(rooms));
   } catch {
@@ -189,6 +203,12 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     return context.json(roomError("invalid_request"), 400);
   }
 
+  const user = await accountIdentity(context.req.raw, context.env);
+  if (user && context.req.header("Origin") !== context.env.APP_ORIGIN)
+    return context.json(roomError("unauthorized"), 403);
+  if (user && !user.profileCompleted) return context.json(roomError("profile_incomplete"), 403);
+  if (user && body && typeof body === "object" && !Array.isArray(body))
+    body = { ...body, name: user.name };
   const request = joinRoomContract.request.safeParse(body);
   if (!request.success) {
     return context.json(roomError("invalid_request"), 400);
@@ -201,7 +221,9 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
       request.data.name,
       tokenHash,
       request.data.instanceId,
+      entryIdentity(user),
     );
+    if (result.status === "already_joined") return context.json(roomError("already_joined"), 409);
     if (result.status === "room_changed") {
       return context.json(roomError("room_changed"), 410);
     }
@@ -330,7 +352,7 @@ roomRoutes.on(reportContract.method, reportContract.path, async (context) => {
       return target.status === "unauthorized"
         ? context.json(roomError("unauthorized"), 401)
         : context.json(roomError("not_found"), 404);
-    const result = await createReport(context.env.LOBBY_DB, {
+    const result = await createReport(context.env.APP_DB, {
       roomId: code,
       instanceId: target.instanceId,
       message: target.message,
@@ -361,9 +383,7 @@ roomRoutes.on(listReportsContract.method, listReportsContract.path, async (conte
   try {
     context.header("Cache-Control", "no-store");
     return context.json(
-      listReportsContract.response.parse(
-        await listReports(context.env.LOBBY_DB, query.data.cursor),
-      ),
+      listReportsContract.response.parse(await listReports(context.env.APP_DB, query.data.cursor)),
     );
   } catch {
     return context.json(roomError("internal_error"), 500);
@@ -387,7 +407,7 @@ roomRoutes.on(moderateReportContract.method, moderateReportContract.path, async 
   const request = moderateReportContract.request.safeParse(body);
   if (!request.success) return context.json(roomError("invalid_request"), 400);
   try {
-    const report = await getReport(context.env.LOBBY_DB, id);
+    const report = await getReport(context.env.APP_DB, id);
     if (report === null) return context.json(roomError("not_found"), 404);
     if (report.status === "resolved")
       return report.action === request.data.action
@@ -404,7 +424,7 @@ roomRoutes.on(moderateReportContract.method, moderateReportContract.path, async 
       );
       if (status === "room_changed") return context.json(roomError("conflict"), 409);
     }
-    const resolved = await resolveReport(context.env.LOBBY_DB, id, action);
+    const resolved = await resolveReport(context.env.APP_DB, id, action);
     if (resolved === null) return context.json(roomError("not_found"), 404);
     if (resolved.action !== action) return context.json(roomError("conflict"), 409);
     context.header("Cache-Control", "no-store");

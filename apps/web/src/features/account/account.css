@@ -1,0 +1,332 @@
+.player-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  color: #68766e;
+  background: #e8eee9;
+}
+.player-avatar .avatar__fallback {
+  color: inherit;
+  background: inherit;
+}
+.player-avatar svg {
+  width: 24px;
+  height: 24px;
+}
+.player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.player-avatar.cpu-level-1 {
+  color: #2077c2;
+  background: #e2f0ff;
+}
+.player-avatar.cpu-level-2 {
+  color: #b75b0e;
+  background: #fff0d9;
+}
+.account-main {
+  max-width: 1000px;
+  margin: auto;
+  padding: 32px 24px 64px;
+  display: grid;
+  gap: 24px;
+}
+.account-main h1 {
+  font-size: 28px;
+  font-weight: 750;
+}
+.account-main h2,
+.ranking-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+.account-card {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+  border: 1px solid #dfe7e2;
+  background: #fff;
+  border-radius: 20px;
+}
+.account-muted,
+.ranking-card small {
+  color: #65736c;
+  font-size: 13px;
+  font-weight: 400;
+}
+.account-link {
+  color: #20764d;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.account-profile {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.account-avatar-edit {
+  position: relative;
+  flex-shrink: 0;
+}
+.account-avatar {
+  width: 88px;
+  height: 88px;
+}
+.account-avatar svg {
+  width: 45px;
+  height: 45px;
+}
+.account-pencil {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+.account-profile-fields {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.account-profile-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.account-profile-value h2 {
+  font-size: 24px;
+}
+.account-actions,
+.account-modes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.account-avatar-dialog {
+  display: grid;
+  gap: 16px;
+  padding-block: 12px;
+}
+.account-avatar-dialog input {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+}
+.account-statistics {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  max-width: 440px;
+}
+.account-statistics > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.account-statistics dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.account-records {
+  display: grid;
+  gap: 20px;
+}
+.account-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.account-history-card {
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid #dfe7e2;
+  background: #fff;
+}
+.account-history-players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.account-history-players > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.account-history-players > div > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.account-history-players strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.account-history-players small {
+  color: #65736c;
+}
+.account-final-board {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  aspect-ratio: 1;
+  border: 3px solid #265e40;
+  background: #367f54;
+  gap: 1px;
+}
+.account-board-cell {
+  background: #439462;
+  display: grid;
+  place-items: center;
+}
+.account-stone {
+  width: 79%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: 0 2px 3px #0004;
+}
+.account-stone-black {
+  background: #242b30;
+}
+.account-stone-white {
+  background: #fafaf7;
+}
+.account-stone-red {
+  background: #e66a5c;
+}
+.account-stone-blue {
+  background: #5996dd;
+}
+.login-card {
+  max-width: 480px;
+  width: 100%;
+  justify-self: center;
+}
+.lobby-top-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.lobby-top-grid .lobby-quick {
+  min-height: 330px;
+  height: 100%;
+  padding: 24px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+}
+.lobby-top-grid .lobby-quick-content {
+  align-items: center;
+  text-align: center;
+}
+.lobby-top-grid .lobby-board-scene {
+  max-width: 190px;
+}
+.ranking-card {
+  padding: 22px;
+  border: 1px solid #dfe7e2;
+  background: #fff;
+  display: grid;
+  gap: 14px;
+}
+.ranking-card h2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 350px;
+  overflow-y: auto;
+}
+.ranking-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #edf1ee;
+}
+.ranking-position {
+  min-width: 20px;
+  color: #65736c;
+  text-align: center;
+  font-weight: 650;
+}
+.ranking-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.ranking-list strong {
+  white-space: nowrap;
+}
+.ranking-list strong small {
+  margin-left: 4px;
+}
+.lobby-host-identity {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+@media (max-width: 767px) {
+  .lobby-top-grid,
+  .account-history-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lobby-top-grid .lobby-quick {
+    min-height: 230px;
+  }
+  .account-main {
+    padding: 24px 14px 48px;
+  }
+  .account-card {
+    padding: 18px;
+  }
+  .account-profile {
+    gap: 14px;
+  }
+  .account-avatar {
+    width: 64px;
+    height: 64px;
+  }
+  .account-profile-value h2 {
+    font-size: 20px;
+  }
+  .account-actions > button {
+    padding-inline: 14px;
+  }
+  .account-history-card {
+    padding: 14px;
+  }
+  .ranking-card {
+    padding: 18px;
+  }
+}
+
+.account-page button,
+.ranking-card button {
+  border: 0;
+}
+.account-profile-value button {
+  flex-shrink: 0;
+}
+.player-avatar {
+  border-radius: 50%;
+}
+@media (max-width: 767px) {
+  .lobby-top-grid .lobby-quick {
+    min-height: 0;
+  }
+}

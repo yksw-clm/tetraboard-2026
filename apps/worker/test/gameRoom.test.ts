@@ -1,5 +1,5 @@
 import { env, exports } from "cloudflare:workers";
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import {
   createRoomContract,
   getRoomContract,
@@ -397,7 +397,7 @@ async function indexedRoom(id: string): Promise<{
   host_name: string | null;
   updated_at_ms: number;
 } | null> {
-  return env.LOBBY_DB.prepare(
+  return env.APP_DB.prepare(
     "SELECT revision, closed, status, host_name, updated_at_ms FROM room_index WHERE room_id = ?",
   )
     .bind(id)
@@ -1335,6 +1335,7 @@ test("公開メタデータは参加・CPU席・ホスト交代を反映し、�
     timeControl: roomTimeControl,
     status: "waiting",
     hostName: "ホスト",
+    hostAvatarUrl: null,
     humanCount: 1,
     cpuCount: 0,
     capacity: 4,
@@ -1532,7 +1533,7 @@ test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、
     updatedAtMs,
   };
   for (let index = 0; index < 22; index++) {
-    await writeRoomIndex(env.LOBBY_DB, {
+    await writeRoomIndex(env.APP_DB, {
       metadata: { ...base, id: String(99900 + index) },
       revision: 1,
       closed: false,
@@ -1570,7 +1571,7 @@ test("古い索引更新は部屋番号再利用後の新しい更新を上書�
   const newRoom = await env.GAME_ROOM.getByName(id).createRoom(replacement, "a".repeat(64));
   expect(newRoom?.players[0].name).toBe("新ホスト");
   await waitForIndexedRoom(id, (row) => row.revision === 3 && row.closed === 0);
-  await writeRoomIndex(env.LOBBY_DB, {
+  await writeRoomIndex(env.APP_DB, {
     metadata: roomPublicMetadataSchema.parse({
       ...(await getMetadata(id)),
       hostName: "古いホスト",
@@ -1584,7 +1585,7 @@ test("古い索引更新は部屋番号再利用後の新しい更新を上書�
 });
 
 test("D1障害中も部屋を作成し、Alarmで索引反映を再試行する", async () => {
-  await env.LOBBY_DB.exec("ALTER TABLE room_index RENAME TO room_index_unavailable");
+  await env.APP_DB.exec("ALTER TABLE room_index RENAME TO room_index_unavailable");
   let created!: Awaited<ReturnType<typeof createRoom>>;
   try {
     created = await createRoom();
@@ -1596,7 +1597,7 @@ test("D1障害中も部屋を作成し、Alarmで索引反映を再試行する"
       expect(pending?.retryAtMs).toBeGreaterThan(Date.now());
     });
   } finally {
-    await env.LOBBY_DB.exec("ALTER TABLE room_index_unavailable RENAME TO room_index");
+    await env.APP_DB.exec("ALTER TABLE room_index_unavailable RENAME TO room_index");
   }
   const stub = env.GAME_ROOM.getByName(created.room.id);
   await runInDurableObject(stub, async (_instance, state) => {
@@ -1709,16 +1710,16 @@ test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除
       },
       body: JSON.stringify({ messageId: message.id }),
     });
-  await env.LOBBY_DB.exec("ALTER TABLE reports RENAME TO reports_unavailable");
+  await env.APP_DB.exec("ALTER TABLE reports RENAME TO reports_unavailable");
   try {
     expect((await exports.default.fetch(request())).status).toBe(500);
   } finally {
-    await env.LOBBY_DB.exec("ALTER TABLE reports_unavailable RENAME TO reports");
+    await env.APP_DB.exec("ALTER TABLE reports_unavailable RENAME TO reports");
   }
   const response = await exports.default.fetch(request());
   expect(response.status).toBe(201);
   const id = reportContract.response.parse(await response.json()).id;
-  await env.LOBBY_DB.prepare("UPDATE reports SET expires_at_ms = ? WHERE id = ?")
+  await env.APP_DB.prepare("UPDATE reports SET expires_at_ms = ? WHERE id = ?")
     .bind(Date.now() - 1, id)
     .run();
   const listing = await exports.default.fetch(
@@ -1733,7 +1734,7 @@ test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除
   ).toBe(false);
   await worker.scheduled({} as ScheduledController, env);
   expect(
-    await env.LOBBY_DB.prepare("SELECT id FROM reports WHERE id = ?").bind(id).first(),
+    await env.APP_DB.prepare("SELECT id FROM reports WHERE id = ?").bind(id).first(),
   ).toBeNull();
 });
 
@@ -1889,4 +1890,103 @@ test("通報済みの旧世代へ処分しても再利用された部屋を変�
   );
   expect(action.status).toBe(409);
   expect((await getRoom(created.room.id)).instanceId).toBe(replacement.instanceId);
+});
+
+test("複数の終局記録はD1障害・部屋閉鎖・番号再利用・DO再起動をまたいでも各一度だけ保存する", async () => {
+  const { accountFixture } = await import("./accountFixtures");
+  const account = await accountFixture();
+  const response = await exports.default.fetch(
+    new Request(`${baseUrl}/rooms`, {
+      method: "POST",
+      headers: account.headers,
+      body: JSON.stringify({ name: "無視される名前", quickPlay: true, mode: "doubles" }),
+    }),
+  );
+  expect(response.status).toBe(201);
+  const created = createRoomContract.response.parse(await response.json());
+  const id = created.room.id;
+  const host = await authenticatedRoom(id, created.membership.token);
+  host.send({ type: "room.game.start" });
+  await host.nextSnapshotWhere((room) => room.status === "playing");
+  const stub = env.GAME_ROOM.getByName(id);
+  const active = await runInDurableObject(stub, (_instance, state) =>
+    state.storage.kv.get<{ id: string }>("active-match"),
+  );
+  await env.APP_DB.exec("ALTER TABLE gameMatchOwner RENAME TO gameMatchOwner_unavailable");
+  try {
+    // ダブルスでは人間の退室が終局と部屋閉鎖を同時に引き起こします。
+    expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+    await expect
+      .poll(async () =>
+        runInDurableObject(
+          stub,
+          (_instance, state) =>
+            Array.from(state.storage.kv.list({ prefix: "archive-pending:" })).length,
+        ),
+      )
+      .toBe(1);
+    expect(await stub.getRoom()).toBeNull();
+    const tokenHash = Array.from(
+      new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(created.membership.token)),
+      ),
+      (byte) => byte.toString(16).padStart(2, "0"),
+    ).join("");
+    const replacement = roomSchema.parse({
+      ...created.room,
+      instanceId: crypto.randomUUID(),
+      lastActivityAtMs: Date.now(),
+    });
+    expect(
+      await stub.createRoom(replacement, tokenHash, {
+        userId: account.id,
+        username: "retry_user",
+        avatarUrl: null,
+      }),
+    ).not.toBeNull();
+    const nextHost = await authenticatedRoom(id, created.membership.token);
+    nextHost.send({ type: "room.game.start" });
+    await nextHost.nextSnapshotWhere((room) => room.status === "playing");
+    expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
+    await expect
+      .poll(() =>
+        runInDurableObject(
+          stub,
+          (_instance, state) =>
+            Array.from(state.storage.kv.list({ prefix: "archive-pending:" })).length,
+        ),
+      )
+      .toBe(2);
+    await evictDurableObject(stub);
+  } finally {
+    await env.APP_DB.exec("ALTER TABLE gameMatchOwner_unavailable RENAME TO gameMatchOwner");
+  }
+  await runInDurableObject(stub, (_instance, state) => {
+    for (const [key, pending] of state.storage.kv.list<{ retryAtMs: number }>({
+      prefix: "archive-pending:",
+    }))
+      state.storage.kv.put(key, { ...pending, retryAtMs: Date.now() - 1 });
+  });
+  await runDurableObjectAlarm(stub);
+  await stub.getRoom();
+  const rows = await env.APP_DB.prepare("SELECT * FROM gameMatchOwner WHERE userId = ?")
+    .bind(account.id)
+    .all();
+  expect(rows.results).toHaveLength(2);
+  expect(rows.results.some((row) => row.matchId === active!.id)).toBe(true);
+  const players = await env.APP_DB.prepare(
+    "SELECT name, kind FROM gameMatchPlayer WHERE matchId = ?",
+  )
+    .bind(active!.id)
+    .all();
+  expect(players.results).toHaveLength(4);
+  expect(players.results.filter((p) => p.kind === "cpu")).toHaveLength(3);
+  expect(players.results.some((p) => p.name === "登録名")).toBe(true);
+  expect(
+    await runInDurableObject(
+      stub,
+      (_instance, state) =>
+        Array.from(state.storage.kv.list({ prefix: "archive-pending:" })).length,
+    ),
+  ).toBe(0);
 });

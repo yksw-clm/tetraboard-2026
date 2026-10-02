@@ -1,3 +1,4 @@
+import { useAccount } from "../account/useAccount";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { type Room, type RoomMembership } from "@tetraboard/protocol";
@@ -19,7 +20,9 @@ export function useRoomInvitation(
   const [dialog, setDialog] = useState<"join" | "copy" | null>(() =>
     invited && membership === null && joinUnavailableReason(room) === null ? "join" : null,
   );
-  const [name, setName] = useState("");
+  const account = useAccount();
+  const [guestName, setName] = useState("");
+  const name = account.user?.profileCompleted ? account.user.name : guestName;
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
@@ -50,6 +53,14 @@ export function useRoomInvitation(
 
   async function submit(): Promise<void> {
     if (submitting.current) return;
+    if (account.loading || account.error) {
+      setMessage("ログイン状態を確認できません。ページを再読み込みしてください。");
+      return;
+    }
+    if (account.user && !account.user.profileCompleted) {
+      await navigate("/account/setup");
+      return;
+    }
     submitting.current = true;
     setBusy(true);
     setMessage(null);

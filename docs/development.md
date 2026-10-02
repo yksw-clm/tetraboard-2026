@@ -56,7 +56,7 @@ GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型�
 | Worker | `tetraboard-2026` |
 | URL | `https://tetraboard-2026.chaossi-lab.workers.dev` |
 | D1 | `tetraboard-2026-prod-db` |
-| D1接続名 | `LOBBY_DB` |
+| D1接続名 | `APP_DB` |
 | Durable Object | `GAME_ROOM` / `GameRoom`（SQLite） |
 
 本番用D1はAPACの配置ヒントで新規作成済みです。IDは `env.production.d1_databases` に記載しています。通常の `bun run dev` とWorkerテストはトップレベルのローカルDBだけを利用します。productionの `remote: false` はローカル実行時にリモートDBへ接続しない指定で、本番Workerでは本番D1へ接続します。ローカルデータは移行しません。
@@ -153,3 +153,17 @@ PCの盤面領域右下と、タブレット・スマートフォンの状況カ
 PCでは棋譜表示の有無で盤面と全プレイヤーカードの座標・寸法が一致し、右下の棋譜カードと重ならないことを確認します。320px・390px・タブレット・PCでSelectの上下中央揃え、44×44pxの閉じるボタン、順位と理由・石数の収まり、観戦案内の一行表示を確認します。
 ロビー・ルームのダイアログはiOS Safariのキーボード開閉、入力欄への移動、スクロール、画面回転で背景全体のぼかしと確定ボタンへの到達を確認します。実機未確認の場合は、画面幅やVisual Viewportのエミュレーションと区別して報告します。フォーカスの閉じ込めと復帰、送信中の閉鎖防止も確認します。
 `Room.eliminations` は対局中の色と脱落理由を保持し、待機中と次局開始時は空になります。脱落を盤面・棋譜と同じトランザクションで記録し、GETとWebSocketに配信します。旧保存データでこの項目がない場合は保存済み棋譜から復元し、記録がなければ理由を推測しません。Workerテストは4種類の理由の保存・配信・再取得・途中観戦・旧形式の復元と次局の初期化を、Webテストは順位ラベルと記録がない場合の表示を確認します。
+
+## アカウント開発・公開準備
+
+Better Authは1.7.5に固定し、WebとWorkerで同じバージョンを使う。認証テーブルの変更は通常のD1マイグレーションへ含め、リクエスト中に自動マイグレーションしない。接続名APP_DBは既存本番DBへの参照であり、DBの新設やコピーではない。
+
+- `APP_ORIGIN` は公開するWebのオリジンに一致させる。ローカル既定値は `http://localhost:5173`。LAN端末や本番プレビューでログインを試す場合は、同じオリジンを明示設定し、OAuth側にも登録する。任意Originの自動信頼は行わない。
+- Worker Secretは `BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`DISCORD_CLIENT_ID`、`DISCORD_CLIENT_SECRET`。値は追跡外の `.dev.vars` またはWranglerの非表示入力で設定し、ログ・PR・ソースへ記載しない。本番Secret未設定時の認証は失敗させ、開発用Secretを本番で使わない。
+- Google／DiscordのOAuthアプリに、公開オリジンの `/api/auth/callback/google` と `/api/auth/callback/discord` をそれぞれ登録する。ローカルは `http://localhost:5173` を使う。新規設定、復帰、キャンセル、拒否、再ログイン、ログアウトと両側メール確認を実アプリで確認する。
+- R2は新専用バケット `tetraboard-2026-objects-prod` を作成し、`OBJECT_STORAGE` にバインドする。旧版のバケットは使用しない。バケットは直接公開せず、画像だけWorkerの `/api/avatars/:id` から配信する。棋譜オブジェクトの公開APIは設けない。
+- ローカルD1・R2・DOはWranglerのローカル状態に保存する。テストもローカル資源だけを使う。既存D1へのマイグレーション適用、Webビルド、本番dry-runを確認する。
+- `Match archive failed` と対局IDをWorkerログで確認できる。D1/R2の障害から回復すればAlarmで再試行する。部屋のデータを手動削除すると未反映履歴を失うため、保存待ちを含むDOの消去は行わない。
+- デプロイ前にOAuth・Secret・R2を揃え、PRのCIと差分を確認してマージ承認を得る。dry-run成功は実OAuthや本番資源の準備完了を意味しない。
+
+WorkerテストはアカウントCookieと旧形式文字列IDの合成データ、プロフィール制約・所有権、D1/R2障害、終局と閉鎖を確認する。OAuthテストはプロバイダー通信を差し替えてコールバックを確認し、実サービスでの確認とは区別する。画面は320px・スマホ・タブレット・PCで、設定、編集取消、画像、統計、履歴、ランキング、既存のゲスト参加・観戦を確認する。

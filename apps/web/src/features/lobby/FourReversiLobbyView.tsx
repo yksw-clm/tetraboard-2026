@@ -8,6 +8,8 @@ import { LobbyIcon } from "./LobbyIcon";
 import { LobbyList } from "./LobbyList";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
+import { AccountLink } from "../account/AccountSession";
+import { RankingCard } from "../account/RankingCard";
 import "../../shared/heroui.css";
 import "./lobby.css";
 
@@ -76,7 +78,7 @@ export function FourReversiLobbyView(props: Props) {
               Tetra<span className="lobby-brand-accent">Board</span>
             </span>
           </Link>
-          <span className="lobby-header-caption">4人の遊びを、もっと気軽に。</span>
+          <AccountLink />
         </div>
       </header>
       <main className="lobby-main">
@@ -96,34 +98,39 @@ export function FourReversiLobbyView(props: Props) {
           </Button>
         </div>
 
-        <section aria-label="すぐ遊ぶ">
-          <Card className="lobby-quick">
-            <Card.Content className="lobby-quick-content">
-              <Button
-                className="lobby-button lobby-button-primary lobby-quick-button"
-                type="button"
-                onPress={() => openEntry("quick")}
-              >
-                すぐ遊ぶ
-                <LobbyIcon name="arrow" />
-              </Button>
-              <p className="lobby-quick-caption">CPU3人と対戦</p>
-            </Card.Content>
-            <div className="lobby-board-scene" aria-hidden="true">
-              <div className="lobby-preview-board">
-                {Array.from({ length: 64 }, (_, index) => (
-                  <span className="lobby-preview-cell" key={index}>
-                    {previewStones[index] && (
-                      <span className={`lobby-preview-stone lobby-stone-${previewStones[index]}`} />
-                    )}
-                  </span>
-                ))}
+        <div className="lobby-top-grid">
+          <section aria-label="すぐ遊ぶ">
+            <Card className="lobby-quick">
+              <Card.Content className="lobby-quick-content">
+                <Button
+                  className="lobby-button lobby-button-primary lobby-quick-button"
+                  type="button"
+                  onPress={() => openEntry("quick")}
+                >
+                  すぐ遊ぶ
+                  <LobbyIcon name="arrow" />
+                </Button>
+                <p className="lobby-quick-caption">CPU3人と対戦</p>
+              </Card.Content>
+              <div className="lobby-board-scene" aria-hidden="true">
+                <div className="lobby-preview-board">
+                  {Array.from({ length: 64 }, (_, index) => (
+                    <span className="lobby-preview-cell" key={index}>
+                      {previewStones[index] && (
+                        <span
+                          className={`lobby-preview-stone lobby-stone-${previewStones[index]}`}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </div>
+                <span className="lobby-board-caption">黒 → 白 → 赤 → 青</span>
               </div>
-              <span className="lobby-board-caption">黒 → 白 → 赤 → 青</span>
-            </div>
-          </Card>
-        </section>
+            </Card>
+          </section>
 
+          <RankingCard />
+        </div>
         <section className="lobby-friends" aria-labelledby="friends-title">
           <div className="lobby-section-heading">
             <div>

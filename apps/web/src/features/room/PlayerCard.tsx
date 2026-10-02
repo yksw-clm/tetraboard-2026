@@ -1,7 +1,8 @@
-import { Avatar, Badge, Card, Chip } from "@heroui/react";
+import { Badge, Card, Chip } from "@heroui/react";
 import { type Room } from "@tetraboard/protocol";
 import { useLayoutEffect, useRef } from "react";
 import { colorNames, playerClock, playerName, playerRank } from "./roomPresentation";
+import { PlayerAvatar } from "../../shared/PlayerAvatar";
 import { RoomIcon } from "./RoomIcon";
 
 export function PlayerCard({
@@ -61,11 +62,12 @@ export function PlayerCard({
       }
     >
       <Badge.Anchor className="room-avatar-anchor">
-        <Avatar className="room-avatar" aria-hidden="true">
-          <Avatar.Fallback>
-            <RoomIcon name="user" />
-          </Avatar.Fallback>
-        </Avatar>
+        <PlayerAvatar
+          className="room-avatar"
+          avatarUrl={player?.avatarUrl}
+          kind={player?.kind}
+          level={player?.kind === "cpu" ? player.level : null}
+        />
         {player && (
           <Badge
             className={`room-presence ${connected ? "is-connected" : "is-disconnected"}`}

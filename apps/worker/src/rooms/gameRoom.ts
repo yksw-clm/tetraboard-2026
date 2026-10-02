@@ -37,6 +37,13 @@ import { DurableObject } from "cloudflare:workers";
 import { advanceClock, createClock, isClockExpired } from "./clock";
 import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
 
+import type { EntryIdentity } from "../accounts/auth";
+import { persistMatch, type ArchivedMatch } from "../accounts/historyStore";
+
+const ownerKey = (playerId: string) => `account-owner:${playerId}`;
+const archivePrefix = "archive-pending:";
+const activeMatchKey = "active-match";
+
 const roomStorageKey = "room";
 const indexRevisionKey = "room-index-revision";
 const pendingIndexKey = "room-index-pending";
@@ -106,6 +113,7 @@ function hexToBytes(value: string): Uint8Array {
 export class GameRoom extends DurableObject<Env> {
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
+  private archiveFlush: Promise<void> | null = null;
 
   private readRoom(): Room | null {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
@@ -216,6 +224,9 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.delete(lastChatAtKey(player.id));
       this.ctx.storage.kv.delete(departedKey(player.id));
     }
+    for (const [key] of this.ctx.storage.kv.list({ prefix: "account-owner:" }))
+      this.ctx.storage.kv.delete(key);
+    this.ctx.storage.kv.delete(activeMatchKey);
     this.ctx.storage.kv.delete(roomStorageKey);
     this.ctx.storage.kv.delete(replayKey);
     this.ctx.storage.kv.delete(chatKey);
@@ -257,12 +268,35 @@ export class GameRoom extends DurableObject<Env> {
     game: Extract<FourReversiState, { status: "finished" }>,
     at: number,
   ): Room | null {
+    const active = this.ctx.storage.kv.get<{
+      id: string;
+      startedAt: number;
+      owners: Record<string, string>;
+    }>(activeMatchKey);
+    if (active && Object.keys(active.owners).length) {
+      const match: ArchivedMatch = {
+        formatVersion: 1,
+        ...active,
+        roomId: room.id,
+        instanceId: room.instanceId,
+        finishedAt: at,
+        game,
+        players: room.players,
+        replay: this.ctx.storage.kv.get<RoundReplay>(replayKey) ?? null,
+      };
+      this.ctx.storage.kv.put(`${archivePrefix}${active.id}`, { match, retryAtMs: at });
+    }
+    this.ctx.storage.kv.delete(activeMatchKey);
     const lastRound = {
       game,
       replay: this.ctx.storage.kv.get(replayKey) ?? null,
       players: room.players.map((player) => ({
         id: player.id,
         name: this.playerLabel(player),
+        username: player.username ?? null,
+        avatarUrl: player.avatarUrl ?? null,
+        kind: player.kind,
+        ...(player.kind === "cpu" ? { level: player.level } : {}),
         color: player.color,
       })),
     };
@@ -336,6 +370,7 @@ export class GameRoom extends DurableObject<Env> {
       timeControl: room.settings.timeControl,
       status: room.status,
       hostName: host?.name ?? null,
+      hostAvatarUrl: host?.avatarUrl ?? null,
       humanCount,
       cpuCount: room.players.length - humanCount,
       capacity: 4,
@@ -370,6 +405,8 @@ export class GameRoom extends DurableObject<Env> {
       return value;
     });
     if (changed) this.ctx.waitUntil(this.flushRoomIndex());
+    if (Array.from(this.ctx.storage.kv.list({ prefix: archivePrefix, limit: 1 })).length)
+      this.ctx.waitUntil(this.flushArchives());
     return result;
   }
 
@@ -380,7 +417,7 @@ export class GameRoom extends DurableObject<Env> {
         const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
         if (pending === undefined || pending.retryAtMs > Date.now()) break;
         try {
-          await writeRoomIndex(this.env.LOBBY_DB, pending);
+          await writeRoomIndex(this.env.APP_DB, pending);
           this.ctx.storage.transactionSync(() => {
             if (
               this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.revision ===
@@ -410,6 +447,30 @@ export class GameRoom extends DurableObject<Env> {
     return this.indexFlush;
   }
 
+  private async flushArchives(): Promise<void> {
+    if (this.archiveFlush) return this.archiveFlush;
+    this.archiveFlush = (async () => {
+      for (const [key, pending] of Array.from(
+        this.ctx.storage.kv.list<{ match: ArchivedMatch; retryAtMs: number }>({
+          prefix: archivePrefix,
+        }),
+      )) {
+        if (pending.retryAtMs > Date.now()) continue;
+        try {
+          await persistMatch(this.env, pending.match);
+          this.ctx.storage.kv.delete(key);
+        } catch {
+          console.error("Match archive failed", pending.match.id);
+          this.ctx.storage.kv.put(key, { ...pending, retryAtMs: Date.now() + 5_000 });
+        }
+      }
+      await this.syncAlarm(this.readRoom());
+    })().finally(() => {
+      this.archiveFlush = null;
+    });
+    return this.archiveFlush;
+  }
+
   private hasOpenConnection(tokenHash: string, excluded?: WebSocket): boolean {
     return this.ctx.getWebSockets().some((socket) => {
       if (socket === excluded || socket.readyState !== WebSocket.OPEN) return false;
@@ -436,6 +497,10 @@ export class GameRoom extends DurableObject<Env> {
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
+    for (const [, pending] of this.ctx.storage.kv.list<{ retryAtMs: number }>({
+      prefix: archivePrefix,
+    }))
+      deadlines.push(pending.retryAtMs);
     const next = deadlines.length === 0 ? null : Math.min(...deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -443,7 +508,7 @@ export class GameRoom extends DurableObject<Env> {
     else await this.ctx.storage.setAlarm(next);
   }
 
-  async createRoom(room: Room, tokenHash: string): Promise<Room | null> {
+  async createRoom(room: Room, tokenHash: string, identity?: EntryIdentity): Promise<Room | null> {
     await this.reconcileDeadlines();
     const initialRoom = roomSchema.parse(room);
 
@@ -468,6 +533,7 @@ export class GameRoom extends DurableObject<Env> {
         ),
       });
       this.ctx.storage.kv.put(roomStorageKey, pendingRoom);
+      if (identity) this.ctx.storage.kv.put(ownerKey(initialRoom.players[0].id), identity.userId);
       this.ctx.storage.kv.put(
         membershipStorageKey(tokenHash),
         roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
@@ -535,12 +601,14 @@ export class GameRoom extends DurableObject<Env> {
     name: string,
     tokenHash: string,
     instanceId?: string,
+    identity?: EntryIdentity,
   ): Promise<
     | { status: "joined"; room: Room; membership: RoomMembership }
     | { status: "not_found" }
     | { status: "room_full" }
     | { status: "room_started" }
     | { status: "room_changed" }
+    | { status: "already_joined" }
   > {
     await this.reconcileDeadlines();
     const playerName = joinRoomContract.request.parse({ name }).name;
@@ -555,6 +623,13 @@ export class GameRoom extends DurableObject<Env> {
       if (room.status !== "waiting") {
         return { status: "room_started" } as const;
       }
+      if (
+        identity &&
+        room.players.some(
+          (player) => this.ctx.storage.kv.get(ownerKey(player.id)) === identity.userId,
+        )
+      )
+        return { status: "already_joined" } as const;
       if (room.players.length >= 4) {
         return { status: "room_full" } as const;
       }
@@ -572,6 +647,8 @@ export class GameRoom extends DurableObject<Env> {
           {
             id: playerId,
             name: playerName,
+            username: identity?.username ?? null,
+            avatarUrl: identity?.avatarUrl ?? null,
             kind: "human",
             ready: false,
             color: null,
@@ -579,6 +656,7 @@ export class GameRoom extends DurableObject<Env> {
           },
         ],
       });
+      if (identity) this.ctx.storage.kv.put(ownerKey(playerId), identity.userId);
       const membership = roomMembershipSchema.parse({ playerId, role: "player" });
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
       this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
@@ -841,6 +919,7 @@ export class GameRoom extends DurableObject<Env> {
 
     await this.syncAlarm(room);
     await this.flushRoomIndex();
+    await this.flushArchives();
     if (!changed) return;
     if (closed) this.closeSockets();
     else if (room !== null) this.broadcastRoom(room);
@@ -1243,10 +1322,17 @@ export class GameRoom extends DurableObject<Env> {
         clock: createClock(Date.now()),
       });
       this.ctx.storage.kv.put(roomStorageKey, startedRoom);
+      const matchId = crypto.randomUUID();
+      const owners: Record<string, string> = {};
+      for (const player of startedRoom.players) {
+        const userId = this.ctx.storage.kv.get<string>(ownerKey(player.id));
+        if (userId) owners[player.id] = userId;
+      }
+      this.ctx.storage.kv.put(activeMatchKey, { id: matchId, startedAt: Date.now(), owners });
       this.ctx.storage.kv.put(
         replayKey,
         roundReplaySchema.parse({
-          id: crypto.randomUUID(),
+          id: matchId,
           initial: startedRoom.game,
           steps: [],
         }),

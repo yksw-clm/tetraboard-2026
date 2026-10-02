@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
 import { deleteExpiredReports } from "./rooms/reportStore";
 
+import { accountRoutes } from "./accounts/accountRoutes";
+
 export { GameRoom } from "./rooms/gameRoom";
 
 const api = new Hono<{ Bindings: Env }>();
@@ -13,6 +15,7 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
   return context.json(response);
 });
 
+api.route("/", accountRoutes);
 api.route("/", roomRoutes);
 
 // 本番の同一オリジン配信と、既存のWorker直接アクセスを両方扱います。
@@ -22,6 +25,6 @@ app.notFound((context) => context.text("Not Found", 404));
 
 export default Object.assign(app, {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await deleteExpiredReports(env.LOBBY_DB);
+    await deleteExpiredReports(env.APP_DB);
   },
 });

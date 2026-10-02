@@ -1,5 +1,6 @@
 import { Button, Card, Chip } from "@heroui/react";
 import { type RoomPublicMetadata } from "@tetraboard/protocol";
+import { PlayerAvatar } from "../../shared/PlayerAvatar";
 import { LobbyIcon } from "./LobbyIcon";
 
 type Props = {
@@ -77,12 +78,15 @@ export function LobbyList({
               return (
                 <li key={room.id}>
                   <Card className="lobby-room">
-                    <div className="lobby-room-identity">
-                      <strong>
-                        <span className="lobby-room-hash">#</span>
-                        {room.id}
-                      </strong>
-                      <span>ホスト：{room.hostName ?? "なし"}</span>
+                    <div className="lobby-host-identity">
+                      <PlayerAvatar avatarUrl={room.hostAvatarUrl} />
+                      <div className="lobby-room-identity">
+                        <strong>
+                          <span className="lobby-room-hash">#</span>
+                          {room.id}
+                        </strong>
+                        <span>ホスト：{room.hostName ?? "なし"}</span>
+                      </div>
                     </div>
                     <span className="lobby-room-mode">
                       {room.mode === "singles" ? "シングルス" : "ダブルス"}
