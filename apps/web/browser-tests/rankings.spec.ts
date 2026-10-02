@@ -29,6 +29,19 @@ async function setup(page: Page) {
   await page.goto("/games/four-reversi");
 }
 
+function lobbyRegionNames(page: Page) {
+  return page
+    .locator("main > div")
+    .last()
+    .evaluate((element) =>
+      Array.from(element.children).map(
+        (child) =>
+          child.getAttribute("aria-label") ??
+          document.getElementById(child.getAttribute("aria-labelledby") ?? "")?.textContent,
+      ),
+    );
+}
+
 for (const width of [320, 390, 767, 768, 1024, 1440]) {
   test(`ロビーの盤面・等幅配置・上位3人と詳細10人 ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -263,18 +276,7 @@ test("スマートフォンとPCの切替でDOM順を合わせ、ランキング
     await expect(dialog.getByRole("list", { name: "対局数ランキング" })).toContainText("複局2");
     // モーダル表示中の背景もDOM順だけを確認します。
     await expect
-      .poll(() =>
-        page
-          .locator("main > div")
-          .last()
-          .evaluate((element) =>
-            Array.from(element.children).map(
-              (child) =>
-                child.getAttribute("aria-label") ??
-                document.getElementById(child.getAttribute("aria-labelledby") ?? "")?.textContent,
-            ),
-          ),
-      )
+      .poll(() => lobbyRegionNames(page))
       .toEqual(
         width < 768
           ? ["対局を始める", "公開ルーム", "ランキング"]
@@ -282,6 +284,7 @@ test("スマートフォンとPCの切替でDOM順を合わせ、ランキング
       );
   }
   await page.keyboard.press("Escape");
+  await expect(ranking.getByRole("button", { name: "もっと見る" })).toBeFocused();
   await expect(ranking.getByRole("tab", { name: "ダブルス", exact: true })).toHaveAttribute(
     "aria-selected",
     "true",
@@ -289,8 +292,14 @@ test("スマートフォンとPCの切替でDOM順を合わせ、ランキング
   await expect(ranking.getByRole("list", { name: "勝利数ランキング" })).toContainText("勝利2");
   expect(requests).toBe(1);
   await page.setViewportSize({ width: 320, height: 900 });
+  // matchMediaによるDOMの並べ替えを待ってから、キーボード順を確認します。
+  await expect
+    .poll(() => lobbyRegionNames(page))
+    .toEqual(["対局を始める", "公開ルーム", "ランキング"]);
   const play = page.getByRole("region", { name: "対局を始める" });
-  await play.getByRole("button", { name: /^ルーム番号で参加/ }).focus();
+  const join = play.getByRole("button", { name: /^ルーム番号で参加/ });
+  await join.focus();
+  await expect(join).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
     page
