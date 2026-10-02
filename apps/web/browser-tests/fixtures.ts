@@ -120,6 +120,11 @@ export async function mockRoom(
 }
 
 export async function mockLobby(page: Page) {
+  await page.route("**/api/games/four-reversi/rankings", (route) =>
+    route.fulfill({
+      json: { singles: { first: [], total: [] }, doubles: { wins: [], total: [] } },
+    }),
+  );
   await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
   await page.route("**/api/rooms", (route) =>
     route.fulfill({ json: { rooms: [], nextCursor: null } }),

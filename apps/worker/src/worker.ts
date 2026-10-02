@@ -3,6 +3,7 @@ import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { recoverAccountReservations } from "./accounts/roomAccounts";
 import { matchRoutes } from "./accounts/matchRoutes";
 import { statsRoutes } from "./accounts/statsRoutes";
+import { rankingRoutes } from "./rooms/rankingRoutes";
 import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
 import { deleteExpiredReports } from "./rooms/reportStore";
@@ -19,6 +20,7 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 
 api.route("/", matchRoutes);
 api.route("/", statsRoutes);
+api.route("/", rankingRoutes);
 api.route("/", accountRoutes);
 api.route("/", roomRoutes);
 
