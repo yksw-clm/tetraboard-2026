@@ -1,0 +1,58 @@
+/* 背景と石の陰影。配置・サイズ・状態は部品のTailwindクラスで指定します。 */
+.lobby-background {
+  background-color: #f4f7f5;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, #e3f2e980, transparent 65%),
+    linear-gradient(#dfe8e438 1px, transparent 1px),
+    linear-gradient(90deg, #dfe8e438 1px, transparent 1px);
+  background-size:
+    auto,
+    32px 32px,
+    32px 32px;
+}
+.lobby-quick-background {
+  background: linear-gradient(110deg, #fff 0%, #f8fcf9 45%, #e8f4ed 100%);
+}
+.preview-stone-black {
+  background: radial-gradient(circle at 30% 25%, #516158, #17261e 75%);
+}
+.preview-stone-white {
+  background: radial-gradient(circle at 30% 25%, #fff, #e0e7e2 85%);
+}
+.preview-stone-red {
+  background: radial-gradient(circle at 30% 25%, #f9887b, #d34e44 85%);
+}
+.preview-stone-blue {
+  background: radial-gradient(circle at 30% 25%, #8dbdef, #397fc8 85%);
+}
+
+.room-background {
+  background: radial-gradient(ellipse at 48% 24%, #f7fce9, #eaf4e1);
+}
+.stone-black {
+  background: radial-gradient(circle at 35% 25%, #53635c, #18241f 66%, #0d1812);
+}
+.stone-white {
+  background: radial-gradient(circle at 35% 25%, #fff, #f4f7f5 60%, #d6ded9);
+}
+.stone-red {
+  background: radial-gradient(circle at 35% 25%, #ff9197, #ed5661 65%, #c73748);
+}
+.stone-blue {
+  background: radial-gradient(circle at 35% 25%, #93c2ff, #438fe2 65%, #2b68b7);
+}
+
+.stone {
+  box-shadow:
+    inset 0 -3px 5px #0003,
+    0 2px 3px #0003;
+}
+@keyframes room-urgency {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

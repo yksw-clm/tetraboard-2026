@@ -1,0 +1,80 @@
+@theme {
+  --color-brand: #278455;
+  --color-brand-hover: #20764d;
+  --color-ink: #19251f;
+  --color-ink-secondary: #455b4e;
+  --color-muted: #65736c;
+  --color-line: #dfe7e2;
+  --color-line-hover: #b8c9bf;
+  --color-input: #ccd9d0;
+  --color-surface-input: #fcfdfc;
+  --color-surface-muted: #f3f6f4;
+  --color-surface-hover: #e7eeea;
+  --color-danger: #dc4c50;
+  --color-danger-hover: #c33c43;
+  --color-focus: #236fce;
+  --radius-control: 10px;
+  --radius-panel: 16px;
+  --radius-dialog: 20px;
+  --shadow-action: 0 3px 10px #298f6114;
+  --shadow-panel: 0 3px 10px #243e2903;
+  --shadow-dialog: 0 24px 80px #14291f29;
+  --font-app: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
+
+@layer base {
+  /* Portalも同じテーマを継承し、遅延読み込みの順序に依存しないようにします。 */
+  :root,
+  .app-theme {
+    --accent: var(--color-brand);
+    --accent-foreground: #fff;
+    --foreground: var(--color-ink);
+    --muted: var(--color-muted);
+    --focus: var(--color-focus);
+    --z-index-overlay: 100000;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  :where(.app-theme) {
+    font-family: var(--font-app);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :where(.app-theme) :where(*, *::before, *::after) {
+    box-sizing: border-box;
+    border: 0 solid;
+  }
+
+  :where(.app-theme) :where(h1, h2, h3, p, dl, dd) {
+    margin: 0;
+  }
+
+  :where(.app-theme) :where(button, a, input, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 4px;
+  }
+}
+
+@layer components {
+  /* ブラウザ標準の操作部品を本文と揃え、個別のutilityを優先します。 */
+  :is(.app-theme) :is(button, input) {
+    font: inherit;
+  }
+}
+
+/* Visual Viewportが縮んでも、背景ページ全体をぼかします。 */
+body:has(.app-modal) #root {
+  filter: blur(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.app-theme) :where(*, *::before, *::after) {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,4 +1,7 @@
-import { Button, Card } from "@heroui/react";
+import { RoomClock } from "./RoomClock";
+import { AppCard } from "../../shared/ui/AppCard";
+import { AppButton } from "../../shared/ui/AppButton";
+
 import { type ReactNode, type Ref } from "react";
 import { playerClock, playerName } from "./roomPresentation";
 import { type useRoomSession } from "./useRoomSession";
@@ -39,9 +42,20 @@ export function RoomStatus({
     room.players.length === 4 &&
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
   return (
-    <Card className={`room-status${replay ? " has-replay" : ""}`} aria-label="対局状況">
-      <div className="room-status-copy">
-        <strong className={myTurn ? "room-my-turn" : undefined} aria-live="polite">
+    <AppCard
+      density="compact"
+      className={`min-h-[88px] flex flex-col justify-center gap-2 shrink-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-2 [@media(max-width:1279px)]:col-start-1 [@media(max-width:1279px)]:row-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:min-h-20 [@media(min-width:768px)_and_(max-width:1279px)]:grid [@media(min-width:768px)_and_(max-width:1279px)]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] [@media(min-width:768px)_and_(max-width:1279px)]:items-center [@media(max-width:767px)]:mx-[2px] [@media(max-width:767px)]:py-2 [@media(max-width:767px)]:px-3 [@media(max-width:767px)]:h-[92px] [@media(max-width:767px)]:min-h-[92px] ${replay ? "flex! flex-col!" : ""}`}
+      aria-label="対局状況"
+    >
+      <div
+        className={`flex justify-between items-center gap-[10px] min-h-6 [&>strong]:text-[15px] [&>strong]:leading-[1.45] [&>strong]:wrap-anywhere [@media(min-width:768px)_and_(max-width:1279px)]:contents [@media(min-width:768px)_and_(max-width:1279px)]:[&>strong]:col-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:[&>strong]:row-start-1 [@media(max-width:767px)]:h-7 [@media(max-width:767px)]:min-h-7 [@media(max-width:767px)]:shrink-0 [@media(max-width:767px)]:[&>strong]:text-[clamp(12px,3.6vw,14px)] [@media(max-width:767px)]:[&>strong]:leading-[1.15] ${replay ? "grid! w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-2 [&>*]:row-start-1 [&>strong]:whitespace-nowrap [@media(max-width:767px)]:gap-1" : ""}`}
+      >
+        <strong
+          className={
+            myTurn ? "text-[#ca771d] animate-[room-urgency_1.5s_ease-in-out_infinite]" : undefined
+          }
+          aria-live="polite"
+        >
           {waiting
             ? "待機中です。"
             : myTurn
@@ -49,68 +63,62 @@ export function RoomStatus({
               : `${turn ? playerName(turn) : ""}の番です。`}
         </strong>
         {replay}
-        <div className="room-status-secondary">
+        <div className="text-muted text-xs whitespace-nowrap [&>span]:text-xs [@media(min-width:768px)_and_(max-width:1279px)]:col-start-3 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:text-right">
           {waiting ? (
             room.lastRound ? (
-              <Button variant="ghost" size="sm" className="room-result-button" onPress={onResults}>
+              <AppButton
+                appearance="quiet"
+                size="compact"
+                className="text-brand bg-[#e9f4ec] rounded-lg h-7 min-h-7 text-xs py-[3px] px-[15px] [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:min-w-9"
+                onPress={onResults}
+              >
                 結果
-              </Button>
+              </AppButton>
             ) : (
               `参加者 ${room.players.length}/4`
             )
           ) : (
-            clock && (
-              <span
-                className={`room-clock${clock.byoyomi ? " is-byoyomi" : ""}${clock.urgent ? " is-urgent" : ""}`}
-              >
-                {clock.byoyomi ? "秒読み " : "残り "}
-                {clock.text}
-              </span>
-            )
+            clock && <RoomClock clock={clock} describe className="text-xs" />
           )}
         </div>
       </div>
-      <div className="room-status-actions">
+      <div className="flex gap-2 min-h-[38px] [&>button]:flex-1 [@media(min-width:768px)_and_(max-width:1279px)]:col-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:min-w-[140px] [@media(max-width:767px)]:h-[38px] [@media(max-width:767px)]:min-h-[38px] [@media(max-width:767px)]:shrink-0">
         {membership === null &&
           (joinUnavailable ? (
-            <p className="room-muted room-join-unavailable">{joinUnavailable}</p>
+            <p className="text-muted text-xs max-w-[180px] text-right [@media(max-width:767px)]:w-full [@media(max-width:767px)]:max-w-none [@media(max-width:767px)]:text-center [@media(max-width:767px)]:whitespace-nowrap">
+              {joinUnavailable}
+            </p>
           ) : (
-            <Button
-              ref={joinButtonRef}
-              className="room-button room-button-primary"
-              onPress={onJoin}
-            >
+            <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
               参加する
-            </Button>
+            </AppButton>
           ))}
         {waiting && self && membership && (
-          <Button
-            className={`room-button ${self.ready ? "room-button-secondary" : "room-button-primary"}`}
+          <AppButton
+            size="compact"
+            appearance={self.ready ? "secondary" : "primary"}
             isDisabled={!ready}
             onPress={session.handleReadyClick}
           >
             {self.ready ? "準備取消" : "準備完了"}
-          </Button>
+          </AppButton>
         )}
         {waiting && membership?.role === "host" && (
-          <Button
-            className="room-button room-button-primary"
-            isDisabled={!canStart}
-            onPress={session.handleStartClick}
-          >
+          <AppButton size="compact" isDisabled={!canStart} onPress={session.handleStartClick}>
             対局開始
-          </Button>
+          </AppButton>
         )}
         {myTurn && (
-          <Button
-            className="room-button room-button-danger"
+          <AppButton
+            size="compact"
             isDisabled={!session.canPlay}
             onPress={onResign}
+            appearance="danger"
           >
             投了
-          </Button>
+          </AppButton>
         )}
       </div>
-    </Card>
+    </AppCard>
   );
 }

@@ -1,5 +1,6 @@
-import { Button, Description, Input, Label, TextField } from "@heroui/react";
-import { RoomDialog } from "./RoomDialog";
+import { AppButton } from "../../shared/ui/AppButton";
+import { AppTextField } from "../../shared/ui/AppTextField";
+import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 
 export function RoomInvitationDialogs({
@@ -11,24 +12,29 @@ export function RoomInvitationDialogs({
 }) {
   if (invitation.dialog === "copy")
     return (
-      <RoomDialog title="招待リンク" onClose={invitation.close}>
-        <div className="room-entry-form">
+      <AppDialog size="compact" title="招待リンク" onClose={invitation.close}>
+        <div className="flex flex-col gap-3 min-w-0">
           <p>リンクを選択してコピーし、友達に送ってください。</p>
-          <TextField className="room-entry-field" isReadOnly value={invitation.invitationUrl}>
-            <Label>招待リンク</Label>
-            <Input autoFocus onFocus={(event) => event.currentTarget.select()} />
-          </TextField>
-          <Button className="room-button room-button-secondary" onPress={invitation.close}>
+          <AppTextField isReadOnly value={invitation.invitationUrl}>
+            <AppTextField.Label>招待リンク</AppTextField.Label>
+            <AppTextField.Input autoFocus onFocus={(event) => event.currentTarget.select()} />
+          </AppTextField>
+          <AppButton appearance="secondary" size="compact" onPress={invitation.close}>
             閉じる
-          </Button>
+          </AppButton>
         </div>
-      </RoomDialog>
+      </AppDialog>
     );
   if (invitation.dialog !== "join") return null;
   return (
-    <RoomDialog title={`ルーム ${roomId} に参加`} busy={invitation.busy} onClose={invitation.close}>
+    <AppDialog
+      size="compact"
+      title={`ルーム ${roomId} に参加`}
+      busy={invitation.busy}
+      onClose={invitation.close}
+    >
       <form
-        className="room-entry-form"
+        className="flex flex-col gap-3 min-w-0"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -36,38 +42,40 @@ export function RoomInvitationDialogs({
         }}
       >
         <p>対局で使うニックネームを入力してください。</p>
-        <TextField
-          className="room-entry-field"
+        <AppTextField
           value={invitation.name}
           onChange={invitation.setName}
           isDisabled={invitation.busy}
         >
-          <Label>ニックネーム</Label>
-          <Input autoFocus autoComplete="nickname" placeholder="例：てとら" />
-          <Description>1〜10文字。ユーザー登録は必要ありません。</Description>
-        </TextField>
+          <AppTextField.Label>ニックネーム</AppTextField.Label>
+          <AppTextField.Input autoFocus autoComplete="nickname" placeholder="例：てとら" />
+          <AppTextField.Description>
+            1〜10文字。ユーザー登録は必要ありません。
+          </AppTextField.Description>
+        </AppTextField>
         {(invitation.message || invitation.unavailableReason) && (
-          <p className="room-error" role="alert">
+          <p className="text-danger text-xs" role="alert">
             {invitation.message ?? invitation.unavailableReason}
           </p>
         )}
-        <div className="room-dialog-actions">
-          <Button
-            className="room-button room-button-secondary"
+        <div className="flex justify-end gap-[10px] mt-[22px]">
+          <AppButton
+            appearance="secondary"
+            size="compact"
             isDisabled={invitation.busy}
             onPress={invitation.close}
           >
             観戦する
-          </Button>
-          <Button
+          </AppButton>
+          <AppButton
             type="submit"
-            className="room-button room-button-primary"
+            size="compact"
             isDisabled={invitation.busy || invitation.unavailableReason !== null}
           >
             {invitation.busy ? "参加中…" : "参加する"}
-          </Button>
+          </AppButton>
         </div>
       </form>
-    </RoomDialog>
+    </AppDialog>
   );
 }

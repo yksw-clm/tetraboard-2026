@@ -1,7 +1,9 @@
-import { Button, Card, Input, Label, TextField } from "@heroui/react";
+import { AppCard } from "../../shared/ui/AppCard";
+import { AppButton } from "../../shared/ui/AppButton";
+import { AppTextField } from "../../shared/ui/AppTextField";
 import { chatCharacterLimit, countCharacters } from "@tetraboard/protocol";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import { RoomIcon } from "./RoomIcon";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import { type useRoomChat } from "./useRoomChat";
 import { type useRoomSession } from "./useRoomSession";
 
@@ -82,21 +84,30 @@ export function RoomChat({
   }, [visible, capturePosition]);
 
   return (
-    <Card className="room-chat">
+    <AppCard
+      density="compact"
+      className="flex flex-col h-full min-h-0 [&>h2]:text-base [&>h2]:font-[750] [@media(max-width:1279px)]:max-w-[720px] [@media(max-width:1279px)]:mx-auto"
+    >
       <h2>チャット</h2>
-      <div className="room-chat-history">
+      <div className="flex-1 min-h-0 relative flex">
         <ul
           ref={log}
-          className="room-chat-log"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain [overflow-anchor:none] p-3 m-0 border border-solid border-line rounded-panel list-none [scrollbar-width:thin]"
           onScroll={capturePosition}
           aria-label="チャット履歴"
           tabIndex={0}
         >
-          {messages.length === 0 && <li className="room-chat-empty">まだメッセージはありません</li>}
+          {messages.length === 0 && (
+            <li className="text-muted text-xs text-center pt-6">まだメッセージはありません</li>
+          )}
           {messages.map((message) => {
             if (message.kind === "system")
               return (
-                <li key={message.id} data-message-id={message.id} className="room-system-message">
+                <li
+                  key={message.id}
+                  data-message-id={message.id}
+                  className="text-center text-muted text-[11px] leading-[1.7] mt-2 mb-[14px] wrap-anywhere"
+                >
                   {message.text}
                 </li>
               );
@@ -105,20 +116,21 @@ export function RoomChat({
               <li
                 key={message.id}
                 data-message-id={message.id}
-                className={`room-chat-message${message.senderId === membership?.playerId ? " is-own" : ""}`}
+                data-own={message.senderId === membership?.playerId}
+                className="mt-0 mb-[14px] group/message"
               >
-                <div className="room-chat-meta">
+                <div className="flex items-center gap-[7px] text-[11px] text-muted [&_strong]:text-ink-secondary [&_strong]:wrap-anywhere [&_strong]:min-w-0 [&_time]:ml-auto [&_time]:text-[10px] [&_time]:whitespace-nowrap">
                   <strong>{message.senderName}</strong>
                   <time dateTime={new Date(message.sentAtMs).toISOString()}>
                     {new Intl.DateTimeFormat("ja", { hour: "2-digit", minute: "2-digit" }).format(
                       message.sentAtMs,
                     )}
                   </time>
-                  <Button
-                    size="sm"
-                    variant="ghost"
+                  <AppButton
+                    size="compact"
+                    appearance="quiet"
                     isIconOnly
-                    className="room-message-menu"
+                    className="h-[22px] min-h-[22px] min-w-[22px] w-[22px] p-0 text-muted font-extrabold"
                     aria-label={`${message.senderName}の発言の操作`}
                     aria-expanded={expandedMessage === message.id}
                     onPress={() =>
@@ -126,28 +138,34 @@ export function RoomChat({
                     }
                   >
                     ···
-                  </Button>
+                  </AppButton>
                 </div>
-                <p className={hidden ? "room-muted" : "room-message-text"}>
+                <p
+                  className={
+                    hidden
+                      ? "text-muted text-xs"
+                      : "whitespace-pre-wrap wrap-anywhere bg-[#f1f5f1] rounded-[0_12px_12px] py-[7px] px-[10px] text-[13px] group-data-[own=true]/message:bg-[#e9f4ec]"
+                  }
+                >
                   {hidden ? "この人の発言を非表示中" : message.text}
                 </p>
                 {expandedMessage === message.id && (
-                  <div className="room-message-actions">
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                  <div className="flex gap-1 flex-wrap pt-1 [&>button]:text-[11px] [&>button]:min-h-7 [&>button]:h-auto [&>button]:whitespace-normal">
+                    <AppButton
+                      size="compact"
+                      appearance="quiet"
                       onPress={() => chat.toggleSender(message.senderId)}
                     >
                       {hidden ? "発言を表示" : "この人の発言を非表示"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    </AppButton>
+                    <AppButton
+                      size="compact"
+                      appearance="quiet"
                       isDisabled={chat.reporting !== null}
                       onPress={() => void chat.handleReport(message.id)}
                     >
                       通報
-                    </Button>
+                    </AppButton>
                   </div>
                 )}
               </li>
@@ -155,36 +173,40 @@ export function RoomChat({
           })}
         </ul>
         {!atBottom && (
-          <Button
+          <AppButton
+            size="compact"
             isIconOnly
-            className="room-scroll-bottom"
+            className="absolute bottom-[10px] right-[10px] rounded-full bg-white border border-solid border-line text-brand shadow-[0_3px_10px_#13331c20] w-[38px] h-[38px] min-w-[38px] p-0"
             aria-label="最新のメッセージへ"
             onPress={toBottom}
           >
-            <RoomIcon name="down" />
-          </Button>
+            <AppIcon name="down" />
+          </AppButton>
         )}
       </div>
       {chat.error && (
-        <p className="room-error" role="alert">
+        <p className="text-danger text-xs" role="alert">
           {chat.error}
         </p>
       )}
       {membership ? (
-        <form className="room-chat-form" onSubmit={chat.handleSubmit}>
-          <TextField
-            className="room-chat-field"
+        <form
+          className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-end"
+          onSubmit={chat.handleSubmit}
+        >
+          <AppTextField
+            className="min-w-0 gap-0 [&_input]:min-h-[38px] [&_input]:h-[38px] [&_input]:py-2 [&_input]:px-[10px] [&_input]:text-[13px] [@media(max-width:767px)]:[&_input]:text-base"
             value={chat.input}
             onChange={chat.setInput}
             isInvalid={count > chatCharacterLimit}
           >
-            <div className="room-chat-label">
-              <Label>メッセージ</Label>
-              <span className={count > chatCharacterLimit ? "room-error" : ""}>
+            <div className="flex justify-between items-center text-muted text-[10px] mb-[5px] [&_.label]:text-[11px]">
+              <AppTextField.Label>メッセージ</AppTextField.Label>
+              <span className={count > chatCharacterLimit ? "text-danger text-xs" : ""}>
                 {count} / {chatCharacterLimit}
               </span>
             </div>
-            <Input
+            <AppTextField.Input
               placeholder="メッセージを入力"
               autoComplete="off"
               onCompositionStart={() => {
@@ -198,19 +220,20 @@ export function RoomChat({
                   event.preventDefault();
               }}
             />
-          </TextField>
-          <Button
+          </AppTextField>
+          <AppButton
+            size="compact"
             type="submit"
-            className="room-button room-button-primary room-chat-send"
+            className="px-[10px] [&_svg]:w-[17px]"
             isDisabled={!canSend}
           >
-            <RoomIcon name="send" />
+            <AppIcon name="send" />
             <span>{chat.pending ? "送信中" : "送信"}</span>
-          </Button>
+          </AppButton>
         </form>
       ) : (
-        <p className="room-chat-readonly">観戦中はチャットの閲覧のみできます</p>
+        <p className="text-muted text-xs text-center">観戦中はチャットの閲覧のみできます</p>
       )}
-    </Card>
+    </AppCard>
   );
 }

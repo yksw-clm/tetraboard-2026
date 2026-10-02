@@ -1,12 +1,15 @@
-import { Button } from "@heroui/react";
+import { AppButton } from "../../shared/ui/AppButton";
+
 import { roomTimeControl } from "@tetraboard/protocol";
-import { LobbyDialog } from "./LobbyDialog";
+import { AppDialog } from "../../shared/ui/AppDialog";
 
 export function HowToPlayDialog({ onClose }: { onClose: () => void }) {
   return (
-    <LobbyDialog title="四人リバーシの遊び方" onClose={onClose}>
-      <div className="lobby-rules">
-        <p className="lobby-dialog-intro">8×8の盤で、黒・白・赤・青の4色が競うリバーシです。</p>
+    <AppDialog title="四人リバーシの遊び方" onClose={onClose}>
+      <div className="flex flex-col gap-[22px] [&_h3]:mb-[6px] [&_h3]:text-[15px] [&_section_p]:text-[#54675b] [&_section_p]:text-[13px] [&_section_p]:leading-[1.9] [&_section_p+p]:mt-2">
+        <p className="text-muted text-[13px] leading-[1.8]">
+          8×8の盤で、黒・白・赤・青の4色が競うリバーシです。
+        </p>
         <section>
           <h3>まずは遊んでみよう</h3>
           <p>
@@ -46,10 +49,10 @@ export function HowToPlayDialog({ onClose }: { onClose: () => void }) {
             投了は自分の手番でできます。投了・退室・時間切れ・30秒以内に復帰しない通信切れで脱落すると、シングルスはその時点の最下位になり、残り1人で終局します。ダブルスは1人の脱落でそのチームの敗北になります。
           </p>
         </section>
-        <Button slot="close" className="lobby-button lobby-button-primary lobby-submit">
+        <AppButton slot="close" className="w-full min-h-12">
           わかった、遊んでみよう
-        </Button>
+        </AppButton>
       </div>
-    </LobbyDialog>
+    </AppDialog>
   );
 }
