@@ -44,6 +44,18 @@ GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型�
 
 招待導線ではコピー成功と手動コピー、自動ダイアログと閉鎖・再表示、資格の再利用、入力不正、送信中の連打・閉鎖、入力中の満室化・開始・閉鎖を確認します。番号再利用後の古い招待は、読み込み・参加・WebSocket接続・再接続で別の部屋へ進まないことをWorkerとWebのテストで検証します。PC・タブレット・スマホで操作とフォーカス移動を確認します。
 
+## ブラウザ回帰テスト
+
+初回は `cd apps/web && bunx playwright install chromium webkit` でテスト用ブラウザを用意し、ルートから `bun run --cwd apps/web test:browser` を実行します。Viteを `127.0.0.1:4173` で起動します。既存の `bun run check` はブラウザテストの型チェックも含みますが、ブラウザ起動は別コマンドです。
+
+`apps/web/browser-tests/` は実際のルート・画面・HeroUIを使う統合テストです。HTTP／WebSocket境界に固定ID・時刻の応答を用意し、ローカルWorkerや外部サービスに依存させません。hookや部品の内部状態はモックしません。幾何の検証に必要なカード部分だけ `data-testid` を使い、その他はラベルとroleから操作します。
+
+Chromium・WebKitで320・390・650・651・767・768・900・901・1024・1279・1280・1440pxのロビーと4席の外寸、10文字名＋王冠の収まり、準備前後の外寸を確認します。ダイアログは320・390・768・1440pxで閉じるボタンの44×44px・右上12px、フォーカスと復帰、送信中の閉鎖防止、入力値、失敗表示、表示領域縮小時の操作を検証します。作成成功後の遷移、投了確認、タブ切替でのチャット入力保持、縦横のリサイズも対象です。色が未生成のまま操作テストだけ通らないよう、共通の主要ボタンがテーマ色で表示されることも確認します。
+
+スクリーンショットはHTMLレポートへ添付し、失敗時は画面とtraceを保存します。`cd apps/web && bunx playwright show-report` で確認できます。CIのbrowserジョブは両ブラウザを実行し、成功時も含めて `browser-report-<コミットSHA>` を7日間保存します。本番デプロイは通常のchecksとbrowserの両方の成功を条件とします。
+
+現段階では画素一致の自動判定は行わず、移行前後の添付画像と寸法・操作結果を比較します。プレイヤーカード内部の状態別固定領域、全脱落理由、棋譜・チャットの全導線は後続のルーム移行で拡充します。WebKitでの幅・高さ変更はiOS Safari実機でのキーボード確認とは区別し、未確認の場合は報告します。
+
 ## 本番デプロイ
 
 ### ブランチと公開先
@@ -71,7 +83,7 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-PRとmainのpushでは `bun install --frozen-lockfile` → `bun run check` → Webビルド → `deploy:dry-run` を実行します。PRジョブはCloudflareの認証情報を使いません。
+PRとmainのpushでは `bun install --frozen-lockfile` → `bun run check` → Webビルド → `deploy:dry-run` を実行します。並行するbrowserジョブでChromium・WebKitのUI回帰テストを実行します。PRジョブはCloudflareの認証情報を使いません。
 
 mainでは同じ実行で生成したWeb成果物をデプロイジョブへ渡し、mainの先頭コミットであることを確認します。本番D1マイグレーション適用後にもう一度mainを確認し、古い実行ならWorkerの公開をスキップします。現行mainなら `wrangler deploy --env production` で画面とWorkerを一緒に公開します。同時デプロイを禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後にmainが更新された場合は、進行中の公開完了後に次の実行で更新します。
 
@@ -111,7 +123,13 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 ## Webの編集先
 
 ロビーとルームでは `@heroui/react` v3と `@heroui/styles` を使います。スタイルの生成にTailwind CSS v4、`@tailwindcss/vite`、HeroUIのアニメーションに `tw-animate-css` を使用します。導入は通常の `bun install` に含まれ、追加のセットアップは不要です。
-`shared/heroui.css` で必要なコンポーネントの公式スタイルを読み込み、`lobby.css` でロビーの色と配置を調整します。Tailwindの全体リセットは読み込まず、ロビーの `.four-reversi-lobby` とルームの `.four-reversi-room` に見た目を限定します。ロビーはルート単位で遅延読み込みします。ダイアログにはHeroUIのModalを使い、フォーカス制御・Esc・スクロール抑止はライブラリに任せ、送信中の閉鎖を無効にします。
+`main.tsx` から `shared/heroui.css` を一度だけ読み込みます。このCSS内でTailwindのtheme／utilities、HeroUIの必要な公式スタイル、`shared/theme.css` を同じ生成単位として読み込みます。テーマを別のCSS入口に分けると独自色のutilityが生成されないため、読み込みを分割しません。Tailwindの全体リセットは使わず、最小リセットと共通テーマをロビー・ルーム・Portalに適用します。
+
+共通部品は `shared/ui/` の `AppHeader`、`AppButton`／`AppButtonLink`、`AppTextField`、`AppCard`、`AppDialog`、`AppTabs`、`AppIcon` です。HeroUIのprops・ref・キーボード操作を引き継ぎ、繰り返す見た目は部品内のTailwindクラスへ集約します。`AppButton` は `appearance`（primary／secondary／quiet／danger）と `size`（default／compact）、`AppDialog` は `size`（default／compact）で用途を指定します。`AppTextField` はLabel・Input・Description・Errorを組み合わせ、入力プロパティとrefはInputに渡します。フィールド単位のErrorはTextFieldの `isInvalid` とともに使い、フォーム全体の通信エラーは独立したalertに表示します。
+
+現在は共通基盤への移行段階です。ヘッダー・ダイアログ・参加フォーム・アイコンを共通化し、カードとタブは後続のページ移行で適用します。`LobbyDialog`／`RoomDialog` とアイコンの薄いラッパーは未移行の本文・寸法用CSSを引き継ぎます。`lobby.css` と `room.css` は `shared/heroui.css` からcomponents layerに読み込み、共通部品のutilitiesを優先します。各ページの移行完了時に旧CSSと互換ラッパーを削除します。新しいページCSSや旧CSSの重複追加は行いません。
+
+ロビーはルート単位で遅延読み込みします。ダイアログのフォーカス制御・Esc・スクロール抑止はHeroUIのModalに任せ、送信中は閉鎖を無効にします。背景全体のぼかしだけを共通CSSに残し、閉じるボタンの寸法・位置、Visual Viewport内のスクロールは共通部品のクラスで指定します。
 
 - ルート定義と部屋の存在確認：`apps/web/src/app/router.tsx`、`apps/web/src/features/room/roomLoader.ts`
 - ロビー全体と入力・遊び方ダイアログ：`apps/web/src/features/lobby/FourReversiLobbyView.tsx`、`RoomEntryDialog.tsx`、`HowToPlayDialog.tsx`、スタイルは同じ場所の `lobby.css`

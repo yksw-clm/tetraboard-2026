@@ -1,15 +1,13 @@
 import { Button, Card } from "@heroui/react";
 import { type RoomMode, type RoomPublicMetadata } from "@tetraboard/protocol";
 import { useState } from "react";
-import { Link } from "react-router";
+import { AppHeader } from "../../shared/ui/AppHeader";
 import { fourReversiLobbyPath } from "../../app/paths";
 import { HowToPlayDialog } from "./HowToPlayDialog";
 import { LobbyIcon } from "./LobbyIcon";
 import { LobbyList } from "./LobbyList";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
-import "../../shared/heroui.css";
-import "./lobby.css";
 
 type Props = {
   name: string;
@@ -62,23 +60,7 @@ export function FourReversiLobbyView(props: Props) {
 
   return (
     <div className="four-reversi-lobby">
-      <header className="lobby-header">
-        <div className="lobby-header-inner">
-          <Link
-            className="lobby-brand"
-            to={fourReversiLobbyPath}
-            aria-label="TetraBoard 四人リバーシのロビー"
-          >
-            <span className="lobby-brand-icon">
-              <img src="/favicon.ico" width="34" height="34" alt="" />
-            </span>
-            <span>
-              Tetra<span className="lobby-brand-accent">Board</span>
-            </span>
-          </Link>
-          <span className="lobby-header-caption">4人の遊びを、もっと気軽に。</span>
-        </div>
-      </header>
+      <AppHeader homeTo={fourReversiLobbyPath} homeLabel="TetraBoard 四人リバーシのロビー" />
       <main className="lobby-main">
         <div className="lobby-title-row">
           <div>

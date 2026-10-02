@@ -45,23 +45,30 @@ export function PlayerCard({
         content.style.fontSize = `${fontSize * (box.clientWidth / naturalWidth)}px`;
     };
     fit();
-    const observer = new ResizeObserver(fit);
+    // 計測による文字サイズ変更をobserverの通知フレームから分離します。
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    });
     observer.observe(box);
     document.fonts.addEventListener("loadingdone", fit);
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
       document.fonts.removeEventListener("loadingdone", fit);
     };
   }, [name, host, player?.kind]);
   return (
     <Card
+      data-testid="player-card"
       className={`room-player room-seat-${position}${!player ? " is-empty" : ""}${self ? " is-self" : ""}${current ? " is-current" : ""}${rank ? " is-eliminated" : ""}`}
       aria-label={
         player ? `${playerName(player)}${self ? "、あなた" : ""}${host ? "、ホスト" : ""}` : "空席"
       }
     >
       <Badge.Anchor className="room-avatar-anchor">
-        <Avatar className="room-avatar" aria-hidden="true">
+        <Avatar data-testid="player-avatar" className="room-avatar" aria-hidden="true">
           <Avatar.Fallback>
             <RoomIcon name="user" />
           </Avatar.Fallback>
@@ -75,7 +82,7 @@ export function PlayerCard({
           />
         )}
       </Badge.Anchor>
-      <div className="room-player-name" ref={nameBox}>
+      <div data-testid="player-name" className="room-player-name" ref={nameBox}>
         <span className="room-player-name-content" ref={nameContent}>
           {name}
           {host && (

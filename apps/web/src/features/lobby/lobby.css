@@ -1,19 +1,9 @@
-body:has(.four-reversi-lobby) {
-  margin: 0;
-}
-
 .four-reversi-lobby {
   --lobby-ink: #19251f;
   --lobby-muted: #65736c;
   --lobby-green: #278455;
   --lobby-green-dark: #20764d;
   --lobby-line: #dfe7e2;
-  --accent: var(--lobby-green);
-  --accent-foreground: #fff;
-  --foreground: var(--lobby-ink);
-  --muted: var(--lobby-muted);
-  --focus: #236fce;
-  --z-index-overlay: 100000;
   min-height: 100dvh;
   color: var(--lobby-ink);
   background-color: #f4f7f5;
@@ -29,20 +19,6 @@ body:has(.four-reversi-lobby) {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-}
-
-.four-reversi-lobby *,
-.four-reversi-lobby *::before,
-.four-reversi-lobby *::after {
-  box-sizing: border-box;
-}
-
-.four-reversi-lobby :is(h1, h2, h3, p) {
-  margin: 0;
-}
-
-.four-reversi-lobby :is(button, input) {
-  font: inherit;
 }
 
 .four-reversi-lobby button {
@@ -62,58 +38,6 @@ body:has(.four-reversi-lobby) {
 .lobby-icon {
   flex-shrink: 0;
   vertical-align: middle;
-}
-
-.lobby-header {
-  border-bottom: 1px solid var(--lobby-line);
-  background: #f9fbfac9;
-}
-
-.lobby-header-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1148px;
-  min-height: 68px;
-  margin: 0 auto;
-  padding: 0 24px;
-  gap: 20px;
-}
-
-.lobby-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--lobby-ink);
-  font-size: 25px;
-  font-weight: 750;
-  letter-spacing: -0.9px;
-  text-decoration: none;
-}
-
-.lobby-brand-icon {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid #e6ebe8;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 3px 8px #193c2310;
-}
-
-.lobby-brand-icon img {
-  display: block;
-}
-
-.lobby-brand-accent {
-  color: var(--lobby-green);
-}
-
-.lobby-header-caption {
-  color: var(--lobby-muted);
-  font-size: 12px;
-  letter-spacing: 0.06em;
 }
 
 .lobby-main {
@@ -554,56 +478,6 @@ body:has(.four-reversi-lobby) {
   text-align: center;
 }
 
-.lobby-dialog {
-  width: 100%;
-  max-width: 500px;
-  padding: 28px;
-  border: 1px solid var(--lobby-line);
-  border-radius: 20px;
-  color: var(--lobby-ink);
-  background: #fff;
-  box-shadow: 0 24px 80px #14291f29;
-}
-
-.lobby-modal {
-  min-height: 0;
-  background-image: none;
-  background: #182e265e;
-  backdrop-filter: blur(3px);
-}
-
-.lobby-dialog-heading {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.lobby-dialog-heading h2 {
-  font-size: 22px;
-  line-height: 1.5;
-}
-
-.lobby-icon-button {
-  position: static;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border: 0;
-  border-radius: 10px;
-  color: var(--lobby-muted);
-  background: #f3f6f4;
-}
-
-.lobby-icon-button:hover:not(:disabled) {
-  background: #e7eeea;
-}
-
 .lobby-dialog-intro {
   color: var(--lobby-muted);
   font-size: 13px;
@@ -617,40 +491,9 @@ body:has(.four-reversi-lobby) {
   margin-top: 24px;
 }
 
-.lobby-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.lobby-field > label,
 .lobby-mode-field > .label {
   font-size: 13px;
   font-weight: 650;
-}
-
-.lobby-field input {
-  width: 100%;
-  min-height: 48px;
-  padding: 10px 13px;
-  border: 1px solid #ccd9d0;
-  border-radius: 10px;
-  color: var(--lobby-ink);
-  background: #fcfdfc;
-  font-size: 16px;
-}
-
-.lobby-field input::placeholder {
-  color: var(--lobby-muted);
-}
-
-.four-reversi-lobby .lobby-field input:focus-visible {
-  outline: none;
-}
-
-.lobby-field input:disabled {
-  color: var(--lobby-muted);
-  background: #f0f4f1;
 }
 
 .lobby-field-hint {
@@ -748,11 +591,6 @@ body:has(.four-reversi-lobby) {
   margin-bottom: 0 !important;
 }
 
-.lobby-submit {
-  width: 100%;
-  min-height: 48px;
-}
-
 .lobby-rules {
   display: flex;
   flex-direction: column;
@@ -838,20 +676,6 @@ body:has(.four-reversi-lobby) {
 }
 
 @media (max-width: 650px) {
-  .lobby-header-inner {
-    min-height: 60px;
-    padding-inline: 20px;
-  }
-
-  .lobby-brand {
-    font-size: 23px;
-    gap: 10px;
-  }
-
-  .lobby-header-caption {
-    display: none;
-  }
-
   .lobby-main {
     gap: 18px;
     padding: 20px 20px 0;
@@ -929,20 +753,6 @@ body:has(.four-reversi-lobby) {
   .lobby-empty {
     min-height: 140px;
     padding: 20px 18px;
-  }
-
-  .lobby-dialog {
-    padding: 24px 20px;
-  }
-
-  .lobby-dialog-heading h2 {
-    font-size: 20px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .four-reversi-lobby * {
-    transition: none;
   }
 }
 

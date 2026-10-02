@@ -17,8 +17,6 @@ import { useRoomReplay } from "./useRoomReplay";
 import { colorNames, orderedSeats } from "./roomPresentation";
 import { type useRoomChat } from "./useRoomChat";
 import { type useRoomSession } from "./useRoomSession";
-import "../../shared/heroui.css";
-import "./room.css";
 
 const desktopQuery = "(min-width: 1280px)";
 function subscribeDesktop(callback: () => void) {

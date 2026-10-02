@@ -1,6 +1,6 @@
 @layer theme, base, components, utilities;
 
-/* 全体のリセットは読み込まず、画面ごとのスタイルで見た目を定義します。 */
+/* 全体のリセットは読み込まず、共通テーマと各部品のクラスで見た目を定義します。 */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
@@ -15,6 +15,7 @@
 @import "@heroui/styles/components/input.css" layer(components);
 @import "@heroui/styles/components/label.css" layer(components);
 @import "@heroui/styles/components/description.css" layer(components);
+@import "@heroui/styles/components/field-error.css" layer(components);
 @import "@heroui/styles/components/radio.css" layer(components);
 @import "@heroui/styles/components/radio-group.css" layer(components);
 @import "@heroui/styles/components/chip.css" layer(components);
@@ -26,3 +27,9 @@
 @import "@heroui/styles/components/select.css" layer(components);
 @import "@heroui/styles/components/list-box.css" layer(components);
 @import "@heroui/styles/components/list-box-item.css" layer(components);
+
+@import "./theme.css";
+
+/* ページ移行中だけ旧CSSを同じlayerに置き、utilitiesで上書き可能にします。 */
+@import "../features/lobby/lobby.css" layer(components);
+@import "../features/room/room.css" layer(components);

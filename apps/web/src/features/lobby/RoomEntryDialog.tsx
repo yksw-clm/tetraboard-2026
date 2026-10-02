@@ -1,4 +1,6 @@
-import { Button, Description, Input, Label, Radio, RadioGroup, TextField } from "@heroui/react";
+import { Label, Radio, RadioGroup } from "@heroui/react";
+import { AppButton } from "../../shared/ui/AppButton";
+import { AppTextField } from "../../shared/ui/AppTextField";
 import { roomTimeControl, type RoomMode } from "@tetraboard/protocol";
 import { LobbyDialog } from "./LobbyDialog";
 import { LobbyIcon } from "./LobbyIcon";
@@ -57,37 +59,35 @@ export function RoomEntryDialog({
           onSubmit();
         }}
       >
-        <TextField className="lobby-field" value={name} onChange={onNameChange} isDisabled={busy}>
-          <Label>ニックネーム</Label>
-          <Input id="nickname" autoFocus autoComplete="nickname" placeholder="例：てとら" />
-          <Description className="lobby-field-hint">
+        <AppTextField value={name} onChange={onNameChange} isDisabled={busy}>
+          <AppTextField.Label>ニックネーム</AppTextField.Label>
+          <AppTextField.Input
+            id="nickname"
+            autoFocus
+            autoComplete="nickname"
+            placeholder="例：てとら"
+          />
+          <AppTextField.Description>
             1〜10文字。ユーザー登録は必要ありません。
-          </Description>
-        </TextField>
+          </AppTextField.Description>
+        </AppTextField>
         {intent === "join" ? (
           selectedRoomId ? (
             <p className="lobby-room-number">
               参加するルーム <strong>{selectedRoomId}</strong>
             </p>
           ) : (
-            <TextField
-              className="lobby-field"
-              value={roomCode}
-              onChange={onRoomCodeChange}
-              isDisabled={busy}
-            >
-              <Label>ルーム番号</Label>
-              <Input
+            <AppTextField value={roomCode} onChange={onRoomCodeChange} isDisabled={busy}>
+              <AppTextField.Label>ルーム番号</AppTextField.Label>
+              <AppTextField.Input
                 id="room-code"
                 className="lobby-code-input"
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="12345"
               />
-              <Description className="lobby-field-hint">
-                友達から教えてもらった5桁の番号
-              </Description>
-            </TextField>
+              <AppTextField.Description>友達から教えてもらった5桁の番号</AppTextField.Description>
+            </AppTextField>
           )
         ) : (
           <>
@@ -118,7 +118,7 @@ export function RoomEntryDialog({
                 ))}
               </div>
             </RadioGroup>
-            <p className="lobby-field-hint">
+            <p className="text-xs text-muted">
               持ち時間：1人{roomTimeControl.mainTimeMs / 60_000}分＋1手
               {roomTimeControl.byoyomiMs / 1000}秒の秒読み
             </p>
@@ -129,11 +129,7 @@ export function RoomEntryDialog({
             {message}
           </p>
         )}
-        <Button
-          type="submit"
-          className="lobby-button lobby-button-primary lobby-submit"
-          isDisabled={busy}
-        >
+        <AppButton type="submit" className="w-full min-h-12" isDisabled={busy}>
           {busy
             ? intent === "join"
               ? "参加中…"
@@ -144,9 +140,9 @@ export function RoomEntryDialog({
                 ? "CPUとの待機室へ"
                 : "ルームを作る"}
           {!busy && <LobbyIcon name="arrow" />}
-        </Button>
+        </AppButton>
         {busy && (
-          <p className="lobby-field-hint" role="status">
+          <p className="text-xs text-muted" role="status">
             ルームを開いています。そのままお待ちください。
           </p>
         )}
