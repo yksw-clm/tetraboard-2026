@@ -1,10 +1,15 @@
 import { listRoomsContract, type RoomPublicMetadata } from "@tetraboard/protocol";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-async function fetchLobby(cursor: string | null, signal: AbortSignal) {
-  const path = cursor
-    ? `${listRoomsContract.path}?cursor=${encodeURIComponent(cursor)}`
-    : listRoomsContract.path;
+async function fetchLobby(
+  game: "four-reversi" | "four-shogi",
+  cursor: string | null,
+  signal: AbortSignal,
+) {
+  const query = new URLSearchParams();
+  if (game !== "four-reversi") query.set("game", game);
+  if (cursor !== null) query.set("cursor", cursor);
+  const path = `${listRoomsContract.path}${query.size > 0 ? `?${query}` : ""}`;
   const response = await fetch(`/api${path}`, {
     method: listRoomsContract.method,
     cache: "no-store",
@@ -14,7 +19,7 @@ async function fetchLobby(cursor: string | null, signal: AbortSignal) {
   return listRoomsContract.response.parse(await response.json());
 }
 
-export function useLobby() {
+export function useLobby(game: "four-reversi" | "four-shogi" = "four-reversi") {
   const [rooms, setRooms] = useState<RoomPublicMetadata[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,16 +28,16 @@ export function useLobby() {
   const [moreLoaded, setMoreLoaded] = useState(false);
   const request = useRef<AbortController | null>(null);
 
-  async function refresh(): Promise<void> {
+  const refresh = useCallback(async (): Promise<void> => {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
     setMoreLoading(false);
     setLoading(true);
     try {
-      const page = await fetchLobby(null, controller.signal);
+      const page = await fetchLobby(game, null, controller.signal);
       if (controller.signal.aborted) return;
-      setRooms(page.rooms);
+      setRooms(page.rooms.filter((room) => room.game === game));
       setNextCursor(page.nextCursor);
       setMoreLoaded(false);
       setError(null);
@@ -41,7 +46,7 @@ export function useLobby() {
     } finally {
       if (request.current === controller) setLoading(false);
     }
-  }
+  }, [game]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void refresh(), 0);
@@ -49,14 +54,14 @@ export function useLobby() {
       window.clearTimeout(timeout);
       request.current?.abort();
     };
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible" && !moreLoaded && !moreLoading) void refresh();
     }, 10_000);
     return () => window.clearInterval(interval);
-  }, [moreLoaded, moreLoading]);
+  }, [refresh, moreLoaded, moreLoading]);
 
   async function loadMore(): Promise<void> {
     if (nextCursor === null || loading || moreLoading) return;
@@ -66,11 +71,13 @@ export function useLobby() {
     request.current = controller;
     setLoading(false);
     try {
-      const page = await fetchLobby(nextCursor, controller.signal);
+      const page = await fetchLobby(game, nextCursor, controller.signal);
       if (controller.signal.aborted) return;
       setRooms((current) => [
         ...current,
-        ...page.rooms.filter((room) => !current.some((entry) => entry.id === room.id)),
+        ...page.rooms.filter(
+          (room) => room.game === game && !current.some((entry) => entry.id === room.id),
+        ),
       ]);
       setNextCursor(page.nextCursor);
       setMoreLoaded(true);

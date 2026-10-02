@@ -85,3 +85,28 @@ export type {
   RoomSocketClientMessage,
   RoomSocketMessage,
 } from "./rooms";
+
+export {
+  fourReversiRoomSchema,
+  fourReversiRoomSettingsSchema,
+  fourShogiRoomSchema,
+  fourShogiRoomSettingsSchema,
+  isFourReversiRoom,
+  isFourShogiRoom,
+  getFourShogiReplayContract,
+  type FourReversiRoom,
+  type FourShogiRoom,
+  type FourShogiLastRound,
+  type PlayingShogiClock,
+} from "./rooms";
+export {
+  fourShogiActionSchema,
+  fourShogiSideSchema,
+  fourShogiPublicStateSchema,
+  fourShogiReplayPageSchema,
+  fourShogiReplayEventSchema,
+  type FourShogiPublicState,
+  type FourShogiReplayPage,
+  type FourShogiReplayEvent,
+  type FourShogiAction,
+} from "./fourShogi";

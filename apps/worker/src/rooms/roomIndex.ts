@@ -88,19 +88,20 @@ function parseRow(row: IndexRow): RoomPublicMetadata {
 export async function listRoomIndex(
   db: D1Database,
   cursor: { updatedAtMs: number; id: string } | null,
+  game: "four-reversi" | "four-shogi" = "four-reversi",
 ): Promise<{ rooms: RoomPublicMetadata[]; nextCursor: string | null }> {
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
       host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms
     FROM room_index
-    WHERE closed = 0 AND status IN ('waiting', 'playing')`;
+    WHERE closed = 0 AND status IN ('waiting', 'playing') AND game = ?`;
   const statement = cursor
     ? db
         .prepare(
           `${query} AND (updated_at_ms < ? OR (updated_at_ms = ? AND room_id < ?))
            ORDER BY updated_at_ms DESC, room_id DESC LIMIT 21`,
         )
-        .bind(cursor.updatedAtMs, cursor.updatedAtMs, cursor.id)
-    : db.prepare(`${query} ORDER BY updated_at_ms DESC, room_id DESC LIMIT 21`);
+        .bind(game, cursor.updatedAtMs, cursor.updatedAtMs, cursor.id)
+    : db.prepare(`${query} ORDER BY updated_at_ms DESC, room_id DESC LIMIT 21`).bind(game);
   const result = await statement.all<IndexRow>();
   const rooms = result.results.slice(0, 20).map(parseRow);
   const last = rooms.at(-1);

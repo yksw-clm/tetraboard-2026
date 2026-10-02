@@ -16,7 +16,10 @@ export function createClock(at: number): PlayingRoomClock {
   };
 }
 
-export function isClockExpired(clock: PlayingRoomClock, at: number): boolean {
+export function isClockExpired(
+  clock: Pick<PlayingRoomClock, "turnExpiresAt">,
+  at: number,
+): boolean {
   return at >= clock.turnExpiresAt;
 }
 

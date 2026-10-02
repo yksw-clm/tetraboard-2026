@@ -6,6 +6,10 @@ import { type RoomLoaderData } from "./roomLoader";
 import { RoomView } from "./RoomView";
 import { useRoomChat } from "./useRoomChat";
 import { useRoomSession } from "./useRoomSession";
+import { isFourShogiRoom, type FourReversiRoom, type FourShogiRoom } from "@tetraboard/protocol";
+import { FourShogiRoomView } from "./FourShogiRoomView";
+import { useFourShogiRoomSession } from "./useFourShogiRoomSession";
+import { type useRoomTransport } from "./useRoomTransport";
 
 function RoomDetail({
   initialRoom,
@@ -14,7 +18,7 @@ function RoomDetail({
   initialPresence,
   invited,
 }: {
-  initialRoom: RoomLoaderData["room"];
+  initialRoom: FourReversiRoom;
   initialMembership: RoomLoaderData["membership"];
   invited: boolean;
   initialServerNowMs: number;
@@ -26,7 +30,12 @@ function RoomDetail({
     initialServerNowMs,
     initialPresence,
   });
-  const chat = useRoomChat({
+  const chat = useSessionChat(session);
+  return <RoomView session={session} chat={chat} invited={invited} />;
+}
+
+function useSessionChat(session: ReturnType<typeof useRoomTransport>) {
+  return useRoomChat({
     room: session.room,
     membership: session.membership,
     remoteError: session.chatError,
@@ -36,11 +45,33 @@ function RoomDetail({
     messages: session.chatMessages,
     connected: session.authenticated && session.connection === "接続済み",
   });
-  return <RoomView session={session} chat={chat} invited={invited} />;
+}
+
+function FourShogiRoomDetail({
+  invited,
+  ...options
+}: Parameters<typeof useFourShogiRoomSession>[0] & {
+  invited: boolean;
+  initialRoom: FourShogiRoom;
+}) {
+  const session = useFourShogiRoomSession(options);
+  const chat = useSessionChat(session);
+  return <FourShogiRoomView session={session} chat={chat} invited={invited} />;
 }
 
 export function RoomPage() {
   const { room, membership, presence, serverNowMs, invited } = useLoaderData<RoomLoaderData>();
+  if (isFourShogiRoom(room))
+    return (
+      <FourShogiRoomDetail
+        key={`${room.instanceId}:${membership?.playerId ?? "spectator"}`}
+        invited={invited}
+        initialRoom={room}
+        initialPresence={presence}
+        initialMembership={membership}
+        initialServerNowMs={serverNowMs}
+      />
+    );
   return (
     <RoomDetail
       key={`${room.instanceId}:${membership?.playerId ?? "spectator"}`}

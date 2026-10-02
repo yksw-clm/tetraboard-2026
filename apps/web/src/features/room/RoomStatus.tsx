@@ -4,7 +4,9 @@ import { AppButton } from "../../shared/ui/AppButton";
 
 import { type ReactNode, type Ref } from "react";
 import { playerClock, playerName } from "./roomPresentation";
-import { type useRoomSession } from "./useRoomSession";
+import { type useRoomTransport } from "./useRoomTransport";
+import { isFourShogiRoom, isFourReversiRoom } from "@tetraboard/protocol";
+import { shogiPlayerClock } from "./fourShogiRoomPresentation";
 
 export function RoomStatus({
   session,
@@ -15,7 +17,7 @@ export function RoomStatus({
   joinUnavailable,
   replay,
 }: {
-  session: ReturnType<typeof useRoomSession>;
+  session: ReturnType<typeof useRoomTransport> & { canPlay: boolean };
   onResults: () => void;
   onResign: () => void;
   onJoin: () => void;
@@ -27,10 +29,18 @@ export function RoomStatus({
   const waiting = room.status === "waiting";
   const turn =
     room.status === "playing"
-      ? room.players.find((player) => player.color === room.game.turn)
+      ? isFourShogiRoom(room)
+        ? room.players.find((player) => player.side === room.game.turn)
+        : room.players.find((player) => player.color === room.game.turn)
       : null;
   const myTurn = !!turn && turn.id === self?.id;
-  const clock = turn ? playerClock(room, turn.color, session.serverNowMs) : null;
+  const clock = turn
+    ? isFourShogiRoom(room) && "side" in turn
+      ? shogiPlayerClock(room, turn.side, session.serverNowMs)
+      : isFourReversiRoom(room) && "color" in turn
+        ? playerClock(room, turn.color, session.serverNowMs)
+        : null
+    : null;
   const available =
     authenticated &&
     connection === "接続済み" &&
@@ -69,7 +79,7 @@ export function RoomStatus({
               <AppButton
                 appearance="quiet"
                 size="compact"
-                className="text-brand bg-[#e9f4ec] rounded-lg h-7 min-h-7 text-xs py-[3px] px-[15px] [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:min-w-9"
+                className="text-brand bg-surface-muted rounded-lg h-7 min-h-7 text-xs py-[3px] px-[15px] [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:min-w-9"
                 onPress={onResults}
               >
                 結果

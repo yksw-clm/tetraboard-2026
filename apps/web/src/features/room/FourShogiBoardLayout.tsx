@@ -1,0 +1,439 @@
+import type { FourShogiAction, Piece, Position, Side } from "@tetraboard/four-shogi";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
+import boardImage from "../../assets/shogi/board.png";
+import { AppButton } from "../../shared/ui/AppButton";
+import { AppDialog } from "../../shared/ui/AppDialog";
+import { FourShogiHand } from "./FourShogiHand";
+import { ShogiPiece } from "./ShogiPiece";
+import {
+  shogiActionChoices,
+  shogiBoardPosition,
+  shogiBoardPositionAtPoint,
+  shogiDragThresholdReached,
+  shogiPieceDirection,
+  shogiPieceNames,
+  shogiSamePosition,
+  shogiSameSelection,
+  shogiSideNames,
+  shogiSidePlacement,
+  shogiSides,
+  type ShogiBoardView,
+  type ShogiPieceDirection,
+  type ShogiSelection,
+} from "./shogiBoardPresentation";
+
+type Revision = string | number;
+type Selected = { selection: ShogiSelection; revision: Revision };
+type Promotion = { choices: FourShogiAction[]; revision: Revision };
+type DragSource = {
+  selection: ShogiSelection;
+  kind: Piece["kind"];
+  promoted: boolean;
+  direction: ShogiPieceDirection;
+};
+type PointerTrace = DragSource & {
+  pointerId: number;
+  element: HTMLButtonElement;
+  start: Position;
+  moved: boolean;
+  width: number;
+  revision: Revision;
+};
+type Drag = DragSource & { point: Position; width: number };
+
+const groupClasses = {
+  top: "[grid-area:top] flex-row-reverse items-center [@media(max-width:767px)]:flex-col",
+  bottom: "[grid-area:bottom] flex-row items-center [@media(max-width:767px)]:flex-col-reverse",
+  left: "[grid-area:left] flex-col items-end justify-start h-full [@media(max-width:767px)]:h-auto [@media(max-width:767px)]:items-center",
+  right:
+    "[grid-area:right] flex-col-reverse items-start justify-start h-full [@media(max-width:767px)]:h-auto [@media(max-width:767px)]:items-center",
+} as const;
+
+export type FourShogiBoardLayoutProps = {
+  game: ShogiBoardView;
+  viewerSide: Side;
+  revision: Revision;
+  canPlay: boolean;
+  legalActions: readonly FourShogiAction[];
+  checkState?: Readonly<Record<Side, boolean>>;
+  onAction: (action: FourShogiAction) => void;
+  playerCards: Readonly<Record<Side, ReactNode>>;
+};
+
+export function FourShogiBoardLayout({
+  game,
+  viewerSide,
+  revision,
+  canPlay,
+  legalActions,
+  checkState,
+  onAction,
+  playerCards,
+}: FourShogiBoardLayoutProps) {
+  const grid = useRef<HTMLDivElement>(null);
+  const trace = useRef<PointerTrace | null>(null);
+  const suppressClick = useRef(false);
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const [promotion, setPromotion] = useState<Promotion | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const eliminated = game.eliminations.map((entry) => entry.side);
+  const enabled = canPlay && game.status === "playing" && game.turn === viewerSide;
+  const [interactionScope, setInteractionScope] = useState({ revision, viewerSide, enabled });
+
+  // 局面や操作権限の変更と同じ描画で解除し、以前の選択が再表示されることを防ぎます。
+  if (
+    interactionScope.revision !== revision ||
+    interactionScope.viewerSide !== viewerSide ||
+    interactionScope.enabled !== enabled
+  ) {
+    setInteractionScope({ revision, viewerSide, enabled });
+    setSelected(null);
+    setPromotion(null);
+    setDrag(null);
+  }
+  const selection = enabled && selected?.revision === revision ? selected.selection : null;
+  const promotionChoices = enabled && promotion?.revision === revision ? promotion.choices : null;
+
+  function resetPointer(): void {
+    const active = trace.current;
+    trace.current = null;
+    if (active?.element.hasPointerCapture(active.pointerId)) {
+      active.element.releasePointerCapture(active.pointerId);
+    }
+    setDrag(null);
+  }
+
+  function cancelSelection(): void {
+    resetPointer();
+    setSelected(null);
+    setPromotion(null);
+  }
+
+  useEffect(() => {
+    const active = trace.current;
+    trace.current = null;
+    if (active?.element.hasPointerCapture(active.pointerId)) {
+      active.element.releasePointerCapture(active.pointerId);
+    }
+    // 更新前のpointerupに続くclickを、新しい局面の選択として受け付けません。
+    suppressClick.current = active !== null;
+  }, [revision, viewerSide, enabled]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== "Escape") return;
+      const active = trace.current;
+      trace.current = null;
+      if (active?.element.hasPointerCapture(active.pointerId)) {
+        active.element.releasePointerCapture(active.pointerId);
+      }
+      setDrag(null);
+      setSelected(null);
+      setPromotion(null);
+      suppressClick.current = active !== null;
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      const active = trace.current;
+      trace.current = null;
+      if (active?.element.hasPointerCapture(active.pointerId)) {
+        active.element.releasePointerCapture(active.pointerId);
+      }
+    };
+  }, []);
+
+  function consumeClick(): boolean {
+    if (!suppressClick.current) return false;
+    suppressClick.current = false;
+    return true;
+  }
+
+  function select(next: ShogiSelection): void {
+    if (!enabled || consumeClick()) return;
+    setPromotion(null);
+    setSelected(
+      selection && shogiSameSelection(selection, next) ? null : { selection: next, revision },
+    );
+  }
+
+  function send(action: FourShogiAction): void {
+    if (!enabled) return;
+    cancelSelection();
+    onAction(action);
+  }
+
+  function chooseDestination(source: ShogiSelection, to: Position): void {
+    if (!enabled) return;
+    const choices = shogiActionChoices(legalActions, source, to);
+    if (choices.length === 1) send(choices[0]);
+    else if (choices.length > 1) setPromotion({ choices, revision });
+  }
+
+  function onSquareClick(position: Position, canSelect: boolean): void {
+    if (consumeClick() || !enabled) return;
+    if (selection && shogiActionChoices(legalActions, selection, position).length > 0) {
+      chooseDestination(selection, position);
+    } else if (canSelect) {
+      select({ type: "movePiece", from: position });
+    }
+  }
+
+  function startPointer(event: PointerEvent<HTMLButtonElement>, source: DragSource): void {
+    if (!enabled || event.button !== 0 || !event.isPrimary || promotionChoices) return;
+    suppressClick.current = false;
+    const image = event.currentTarget.querySelector("img");
+    trace.current = {
+      ...source,
+      pointerId: event.pointerId,
+      element: event.currentTarget,
+      start: { x: event.clientX, y: event.clientY },
+      moved: false,
+      width: image?.clientWidth ?? 30,
+      revision,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function movePointer(event: PointerEvent<HTMLButtonElement>): void {
+    const active = trace.current;
+    if (!active || active.pointerId !== event.pointerId || active.revision !== revision || !enabled)
+      return;
+    const point = { x: event.clientX, y: event.clientY };
+    if (!active.moved && !shogiDragThresholdReached(active.start, point)) return;
+    active.moved = true;
+    event.preventDefault();
+    setPromotion(null);
+    setSelected({ selection: active.selection, revision });
+    setDrag({ ...active, point });
+  }
+
+  function endPointer(event: PointerEvent<HTMLButtonElement>): void {
+    const active = trace.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    resetPointer();
+    if (!active.moved) return;
+    suppressClick.current = true;
+    if (!enabled || active.revision !== revision || !grid.current) return;
+    const to = shogiBoardPositionAtPoint(
+      { x: event.clientX, y: event.clientY },
+      grid.current.getBoundingClientRect(),
+      viewerSide,
+    );
+    if (to) chooseDestination(active.selection, to);
+  }
+
+  function cancelPointer(): void {
+    suppressClick.current = true;
+    cancelSelection();
+  }
+
+  function lostPointer(): void {
+    if (trace.current) cancelPointer();
+  }
+
+  function hand(side: Side, direction: ShogiPieceDirection, vertical = false) {
+    const availableKinds =
+      enabled && side === viewerSide
+        ? legalActions.flatMap((action) => (action.type === "dropPiece" ? [action.pieceKind] : []))
+        : [];
+    return (
+      <FourShogiHand
+        hand={game.hands[side]}
+        label={`${shogiSideNames[side]}の持ち駒`}
+        direction={direction}
+        vertical={vertical}
+        selectedKind={
+          side === viewerSide && selection?.type === "dropPiece" ? selection.pieceKind : null
+        }
+        availableKinds={availableKinds}
+        onSelect={(kind, event) => {
+          if (event.detail === 0) suppressClick.current = false;
+          select({ type: "dropPiece", pieceKind: kind });
+        }}
+        onPointerDown={(event, kind) =>
+          startPointer(event, {
+            selection: { type: "dropPiece", pieceKind: kind },
+            kind,
+            promoted: false,
+            direction,
+          })
+        }
+        onPointerMove={movePointer}
+        onPointerUp={endPointer}
+        onPointerCancel={cancelPointer}
+        onLostPointerCapture={lostPointer}
+      />
+    );
+  }
+
+  const lastAction = game.lastMove?.action;
+  return (
+    <div
+      data-testid="shogi-board-layout"
+      className="[--player-height:60px] [--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'._top_.'_'left_board_right'_'._bottom_.'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:100cqw] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[6px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
+    >
+      {shogiSides.map((side) => {
+        const placement = shogiSidePlacement(side, viewerSide);
+        const vertical = placement === "left" || placement === "right";
+        const above = placement === "left" || placement === "top";
+        return (
+          <div
+            key={side}
+            data-side={side}
+            data-board-position={placement}
+            className={`flex min-w-0 gap-[6px] ${groupClasses[placement]}`}
+          >
+            <div
+              className={`${vertical ? "w-full" : "w-1/2"} shrink-0 min-w-0 [@media(max-width:767px)]:w-full`}
+            >
+              {playerCards[side]}
+            </div>
+            <div
+              className={`${vertical ? "" : "w-1/2"} hidden min-w-0 [@media(min-width:768px)]:flex justify-center`}
+            >
+              {hand(side, shogiPieceDirection(side, viewerSide), vertical)}
+            </div>
+            <div className="flex justify-center [@media(min-width:768px)]:hidden">
+              {hand(side, above ? "down" : "up")}
+            </div>
+          </div>
+        );
+      })}
+      <div
+        data-testid="shogi-board"
+        className="[grid-area:board] relative w-full aspect-[458/500] self-center shadow-[0_8px_24px_#71531c25]"
+        role="group"
+        aria-label="四人将棋の盤面"
+      >
+        <img
+          src={boardImage}
+          alt=""
+          draggable={false}
+          className="absolute inset-0 block size-full select-none pointer-events-none"
+        />
+        <div
+          ref={grid}
+          className="absolute inset-x-[1.3100437%] inset-y-[1.2%] grid grid-cols-9 grid-rows-9"
+        >
+          {Array.from({ length: 81 }, (_, index) => {
+            const position = shogiBoardPosition(
+              { x: index % 9, y: Math.floor(index / 9) },
+              viewerSide,
+            );
+            const piece = game.board[position.y][position.x];
+            const dead = piece !== null && eliminated.includes(piece.side);
+            const canSelect =
+              enabled &&
+              piece?.side === viewerSide &&
+              legalActions.some(
+                (action) => action.type === "movePiece" && shogiSamePosition(action.from, position),
+              );
+            const choices = selection ? shogiActionChoices(legalActions, selection, position) : [];
+            const destination = enabled && choices.length > 0;
+            const selectedSquare =
+              selection?.type === "movePiece" && shogiSamePosition(selection.from, position);
+            const lastFrom =
+              lastAction?.type === "movePiece" && shogiSamePosition(lastAction.from, position);
+            const lastTo = lastAction && shogiSamePosition(lastAction.to, position);
+            const checked = piece?.kind === "king" && !dead && checkState?.[piece.side];
+            const pieceLabel = piece
+              ? `${shogiSideNames[piece.side]}の${piece.kind === "king" && dead ? "裏王" : piece.promoted ? (piece.kind === "rook" ? "龍" : piece.kind === "silver" ? "成銀" : "と金") : shogiPieceNames[piece.kind]}`
+              : "空き";
+            return (
+              <button
+                key={index}
+                type="button"
+                disabled={!canSelect && !destination}
+                data-square={`${"ABCDEFGHI"[position.x]}${position.y + 1}`}
+                data-selected={selectedSquare || undefined}
+                data-legal-destination={destination || undefined}
+                data-last-move={lastTo ? "to" : lastFrom ? "from" : undefined}
+                data-check={checked || undefined}
+                aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}`}
+                aria-pressed={!!selectedSquare}
+                className={`relative grid place-items-center min-w-0 min-h-0 w-full h-full p-0 rounded-none border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-3px] ${canSelect ? "touch-none" : "touch-auto"}${canSelect || destination ? " cursor-pointer enabled:hover:bg-[#fff0b735]" : " cursor-default"}${selectedSquare ? " bg-[#ffeb8980] ring-2 ring-inset ring-[#9c6f14]" : ""}${lastTo || lastFrom ? " shadow-[inset_0_0_0_2px_#9c6f1480] bg-[#ffe79e30]" : ""}${checked ? " bg-[#e93f3540] ring-2 ring-inset ring-[#b84625]" : ""}`}
+                onClick={(event) => {
+                  if (event.detail === 0) suppressClick.current = false;
+                  onSquareClick(position, !!canSelect);
+                }}
+                onPointerDown={(event) => {
+                  if (piece && canSelect)
+                    startPointer(event, {
+                      selection: { type: "movePiece", from: position },
+                      kind: piece.kind,
+                      promoted: piece.promoted,
+                      direction: shogiPieceDirection(piece.side, viewerSide),
+                    });
+                }}
+                onPointerMove={movePointer}
+                onPointerUp={endPointer}
+                onPointerCancel={cancelPointer}
+                onLostPointerCapture={lostPointer}
+              >
+                {piece && (
+                  <span className={dead && piece.kind !== "king" ? "opacity-55" : ""}>
+                    <ShogiPiece
+                      kind={piece.kind}
+                      promoted={piece.promoted}
+                      deadKing={piece.kind === "king" && dead}
+                      direction={shogiPieceDirection(piece.side, viewerSide)}
+                    />
+                  </span>
+                )}
+                {destination && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute size-[18%] rounded-full bg-[#267541b0] ring-1 ring-[#f6ffd8c7] pointer-events-none"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {drag && (
+        <div
+          aria-hidden="true"
+          data-testid="shogi-drag-ghost"
+          className="fixed z-[100] pointer-events-none opacity-85 drop-shadow-[0_4px_4px_#54361870]"
+          style={
+            {
+              left: drag.point.x - drag.width / 2,
+              top: drag.point.y - (drag.width * 148) / 140 / 2,
+              "--shogi-piece-width": `${drag.width}px`,
+            } as CSSProperties
+          }
+        >
+          <ShogiPiece kind={drag.kind} promoted={drag.promoted} direction={drag.direction} />
+        </div>
+      )}
+      {promotionChoices && (
+        <AppDialog title="成りますか？" theme="four-shogi" size="compact" onClose={cancelSelection}>
+          <p className="mb-4 text-sm text-muted">この手で駒を成るか選んでください。</p>
+          <div className="flex flex-wrap gap-3">
+            {promotionChoices.map(
+              (action) =>
+                action.type === "movePiece" && (
+                  <AppButton
+                    key={String(action.promote)}
+                    appearance={action.promote ? "primary" : "secondary"}
+                    onPress={() => send(action)}
+                  >
+                    {action.promote ? "成る" : "成らない"}
+                  </AppButton>
+                ),
+            )}
+          </div>
+        </AppDialog>
+      )}
+    </div>
+  );
+}

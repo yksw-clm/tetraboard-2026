@@ -34,6 +34,9 @@
 .room-background {
   background: radial-gradient(ellipse at 48% 24%, #f7fce9, #eaf4e1);
 }
+.game-theme-four-shogi.room-background {
+  background: radial-gradient(ellipse at 48% 24%, #fffdf2, #fff1cf);
+}
 .stone-black {
   background: radial-gradient(circle at 35% 25%, #53635c, #18241f 66%, #0d1812);
 }

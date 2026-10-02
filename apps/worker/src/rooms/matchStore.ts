@@ -1,4 +1,4 @@
-import { type Room, type RoundReplay } from "@tetraboard/protocol";
+import { type FourReversiRoom as Room, type RoundReplay } from "@tetraboard/protocol";
 
 import { type FourReversiState } from "@tetraboard/four-reversi";
 

@@ -69,7 +69,7 @@ export function LobbyList({
       )}
       {rooms.length === 0 && !loading && !error && (
         <AppCard className="flex flex-col items-center justify-center gap-2 min-h-[140px] py-[22px] px-5 border-dashed border-[#d7e1da] rounded-[18px] bg-[#ffffffdf] text-center shadow-none [&_h3]:text-[15px] [&_p]:text-muted [&_p]:text-[13px] [@media(max-width:650px)]:py-5 [@media(max-width:650px)]:px-[18px]">
-          <span className="grid place-items-center shrink-0 size-11 rounded-[13px] text-brand-hover bg-[#edf6f0]">
+          <span className="grid place-items-center shrink-0 size-11 rounded-[13px] text-brand-hover bg-surface-muted">
             <AppIcon name="users" />
           </span>
           <h3>公開ルームはまだありません</h3>

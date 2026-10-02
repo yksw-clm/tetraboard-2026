@@ -24,6 +24,7 @@ type Props = {
   name: string;
   roomCode: string;
   mode: RoomMode;
+  threePlayerAttackProhibited?: boolean;
   isSubmitting: RoomEntryIntent | null;
   message: string | null;
   renderRooms: (onJoin: (roomId: string) => void) => ReactNode;
@@ -31,6 +32,7 @@ type Props = {
   onNameChange: (value: string) => void;
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
+  onThreePlayerAttackChange?: (prohibited: boolean) => void;
   onClearMessage: () => void;
   onSubmitRoom?: (intent: RoomEntryIntent, roomId?: string) => void;
 };
@@ -111,7 +113,6 @@ export function LobbyView(props: Props) {
   const [dialog, setDialog] = useState<ActiveDialog>(null);
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = games[props.game];
-  const unavailable = props.game === "four-shogi";
 
   function openEntry(intent: RoomEntryIntent, roomId?: string): void {
     props.onClearMessage();
@@ -231,7 +232,7 @@ export function LobbyView(props: Props) {
         <RoomEntryDialog
           intent={dialog.intent}
           theme={game.theme}
-          unavailable={unavailable}
+          threePlayerAttackProhibited={props.threePlayerAttackProhibited}
           selectedRoomId={dialog.roomId}
           name={props.name}
           roomCode={props.roomCode}
@@ -241,6 +242,7 @@ export function LobbyView(props: Props) {
           onNameChange={props.onNameChange}
           onRoomCodeChange={props.onRoomCodeChange}
           onModeChange={props.onModeChange}
+          onThreePlayerAttackChange={props.onThreePlayerAttackChange}
           onSubmit={() => props.onSubmitRoom?.(dialog.intent, dialog.roomId)}
           onClose={closeDialog}
         />

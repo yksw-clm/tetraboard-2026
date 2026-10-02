@@ -11,6 +11,13 @@ import {
   roomSchema,
   roundReplaySchema,
   roomSocketContract,
+  isFourShogiRoom,
+  isFourReversiRoom,
+  type FourShogiRoom,
+  type FourReversiRoom,
+  type FourShogiReplayEvent,
+  type FourShogiLastRound,
+  type LastRound,
   type Room,
   type RoundReplay,
   type RoomMembership,
@@ -33,6 +40,21 @@ import {
   type FourReversiState,
   type Color,
 } from "@tetraboard/four-reversi";
+import {
+  applyAction as applyShogiAction,
+  chooseCpuAction,
+  createInitialState as createShogiState,
+  eliminateSide,
+  getLegalActions,
+  getCheckState,
+  sides,
+  type Side,
+  type FourShogiAction,
+  type FourShogiState,
+  type ExternalEliminationReason,
+} from "@tetraboard/four-shogi";
+import { ShogiStore } from "./shogiStore";
+import { createShogiClock, advanceShogiClock } from "./shogiClock";
 import { profileAvatarUrl } from "../accounts/auth";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
@@ -56,6 +78,14 @@ const indexRevisionKey = "room-index-revision";
 const pendingIndexKey = "room-index-pending";
 const chatKey = "chat";
 const replayKey = "round-replay";
+const shogiCpuJobKey = "shogi-cpu-job";
+type ShogiCpuJob = {
+  roundId: string;
+  positionRevision: number;
+  side: Side;
+  action: FourShogiAction;
+  applyAt: number;
+};
 const mutedKey = "chat-muted";
 const viewerSecretKey = "viewer-secret";
 const disconnectedAtKey = (playerId: string) => `disconnected-at:${playerId}`;
@@ -75,7 +105,9 @@ type CpuCommand = Extract<
 
 function currentCpu(room: Room): Extract<Room["players"][number], { kind: "cpu" }> | null {
   if (room.status !== "playing") return null;
-  const player = room.players.find((entry) => entry.color === room.game.turn);
+  const player = isFourShogiRoom(room)
+    ? room.players.find((entry) => entry.side === room.game.turn)
+    : room.players.find((entry) => entry.color === room.game.turn);
   return player?.kind === "cpu" ? player : null;
 }
 
@@ -100,8 +132,8 @@ function randomIndex(length: number): number {
   return value[0] % length;
 }
 
-function shuffledColors(): (typeof colors)[number][] {
-  const result: (typeof colors)[number][] = [...colors];
+function shuffledAssignments<T>(values: readonly T[]): T[] {
+  const result: T[] = [...values];
   for (let index = result.length - 1; index > 0; index--) {
     const other = randomIndex(index + 1);
     [result[index], result[other]] = [result[other], result[index]];
@@ -122,6 +154,11 @@ export class GameRoom extends DurableObject<Env> {
   private chatDirty = false;
   private accountFlush: Promise<void> | null = null;
   private matchFlush: Promise<void> | null = null;
+  private shogiStore: ShogiStore | null = null;
+
+  private shogi(): ShogiStore {
+    return (this.shogiStore ??= new ShogiStore(this.ctx.storage.sql));
+  }
 
   private pendingMatches() {
     return new Map(this.ctx.storage.kv.list<PendingMatch>({ prefix: pendingMatchPrefix }));
@@ -290,7 +327,11 @@ export class GameRoom extends DurableObject<Env> {
     if (saved === undefined) return null;
     const room = roomSchema.parse(saved);
     // 旧保存データの理由は、記録されている棋譜からだけ復元します。
-    if (room.status === "playing" && !Object.hasOwn(saved, "eliminations")) {
+    if (
+      isFourReversiRoom(room) &&
+      room.status === "playing" &&
+      !Object.hasOwn(saved, "eliminations")
+    ) {
       const replay = this.ctx.storage.kv.get(replayKey);
       if (replay !== undefined) {
         for (const { action } of roundReplaySchema.parse(replay).steps) {
@@ -304,6 +345,22 @@ export class GameRoom extends DurableObject<Env> {
       }
     }
     return room;
+  }
+
+  private parseReversiRoom(value: unknown): FourReversiRoom {
+    const room = roomSchema.parse(value);
+    if (!isFourReversiRoom(room)) throw new Error("Expected Reversi room");
+    return room;
+  }
+
+  private isPlayerEliminated(room: Room, playerId: string): boolean {
+    if (room.status !== "playing") return false;
+    if (isFourShogiRoom(room)) {
+      const player = room.players.find((p) => p.id === playerId);
+      return !!player && room.game.eliminations.some((e) => e.side === player.side);
+    }
+    const player = room.players.find((p) => p.id === playerId);
+    return !!player && room.game.eliminatedColors.includes(player.color);
   }
 
   private readMembership(tokenHash: string): RoomMembership | null {
@@ -401,12 +458,14 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(chatKey);
     this.ctx.storage.kv.delete(mutedKey);
     this.ctx.storage.kv.delete(viewerSecretKey);
+    this.ctx.storage.kv.delete(shogiCpuJobKey);
+    if (room && isFourShogiRoom(room)) this.shogi().clear();
   }
 
   private recordElimination(
-    room: Extract<Room, { status: "playing" }>,
+    room: Extract<FourReversiRoom, { status: "playing" }>,
     color: Color,
-    reason: Room["eliminations"][number]["reason"],
+    reason: FourReversiRoom["eliminations"][number]["reason"],
     result: { state: FourReversiState; passedColors: readonly Color[] },
   ): void {
     // 呼び出し元のトランザクションで、理由を盤面・棋譜と一緒に保存します。
@@ -433,10 +492,10 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private finishGame(
-    room: Extract<Room, { status: "playing" }>,
+    room: Extract<FourReversiRoom, { status: "playing" }>,
     game: Extract<FourReversiState, { status: "finished" }>,
     at: number,
-  ): Room | null {
+  ): FourReversiRoom | null {
     const start = this.ctx.storage.kv.get<MatchStart>(matchStartKey);
     const replay = this.ctx.storage.kv.get<RoundReplay>(replayKey);
     if (start && replay && start.id === replay.id) {
@@ -456,6 +515,14 @@ export class GameRoom extends DurableObject<Env> {
       })),
     };
     this.ctx.storage.kv.delete(replayKey);
+    return this.finishToWaiting(room, lastRound as LastRound, at) as FourReversiRoom | null;
+  }
+
+  private finishToWaiting(
+    room: Extract<Room, { status: "playing" }>,
+    lastRound: LastRound | FourShogiLastRound,
+    at: number,
+  ): Room | null {
     const players = room.players.filter((player) => {
       if (player.kind === "cpu") return true;
       if (this.storedAccount(player.id)?.occupying === false) return false;
@@ -499,9 +566,11 @@ export class GameRoom extends DurableObject<Env> {
       publicUpdatedAtMs: nextPublicUpdateAt(room),
       lastActivityAtMs: at,
       players: ordered.map((player) => ({
-        ...player,
+        ...Object.fromEntries(
+          Object.entries(player).filter(([key]) => key !== "side" && key !== "color"),
+        ),
         ready: player.kind === "cpu",
-        color: null,
+        ...(isFourShogiRoom(room) ? { side: null } : { color: null }),
         reconnectDeadline:
           player.kind === "cpu" || this.hasOpenConnection(this.playerTokenHash(player.id)!)
             ? null
@@ -510,7 +579,364 @@ export class GameRoom extends DurableObject<Env> {
       game: null,
       clock: null,
       lastRound,
+      ...(isFourShogiRoom(room)
+        ? {
+            roundId: null,
+            positionRevision: 0,
+            legalActions: [],
+            checkState: { south: false, west: false, north: false, east: false },
+          }
+        : {}),
     });
+  }
+
+  private startShogiGame(room: Extract<FourShogiRoom, { status: "waiting" }>): FourShogiRoom {
+    const assignments = shuffledAssignments(sides);
+    const players = room.players.map((player, index) => ({
+      ...player,
+      side: assignments[index],
+      ready: player.kind === "cpu",
+    }));
+    const initial = {
+      mode: room.settings.mode,
+      threePlayerAttackProhibited: room.settings.threePlayerAttackProhibited,
+      players: Object.fromEntries(players.map((p) => [p.side, p.id])) as Record<Side, string>,
+    };
+    const state = createShogiState(initial);
+    const roundId = crypto.randomUUID();
+    const at = Date.now();
+    this.shogi().startReplay(roundId, initial);
+    this.ctx.storage.kv.delete(shogiCpuJobKey);
+    const started = roomSchema.parse({
+      ...room,
+      status: "playing",
+      lastRound: null,
+      players,
+      roundId,
+      positionRevision: 0,
+      game: this.shogi().saveState(roundId, state),
+      legalActions: getLegalActions(state),
+      checkState: getCheckState(state),
+      eliminations: [],
+      clock: createShogiClock(at),
+      publicUpdatedAtMs: nextPublicUpdateAt(room),
+      lastActivityAtMs: at,
+    });
+    this.ctx.storage.kv.put(roomStorageKey, started);
+    return started as FourShogiRoom;
+  }
+
+  private acceptShogiState(
+    room: Extract<FourShogiRoom, { status: "playing" }>,
+    state: FourShogiState,
+    event: FourShogiReplayEvent,
+    at: number,
+    turnEnded: boolean,
+  ): FourShogiRoom | null {
+    this.shogi().appendEvent(room.roundId, event);
+    const core = this.shogi().saveState(room.roundId, state);
+    this.ctx.storage.kv.delete(shogiCpuJobKey);
+    if (state.status === "finished") {
+      const lastRound: FourShogiLastRound = {
+        roundId: room.roundId,
+        game: core as FourShogiLastRound["game"],
+        players: room.players.map((player) => ({
+          id: player.id,
+          name: this.playerLabel(player),
+          side: player.side,
+        })),
+        eventCount: this.shogi().eventCount(room.roundId),
+      };
+      return this.finishToWaiting(room, lastRound, at) as FourShogiRoom | null;
+    }
+    return roomSchema.parse({
+      ...room,
+      game: core,
+      eliminations: state.eliminations,
+      positionRevision: room.positionRevision + 1,
+      legalActions: getLegalActions(state),
+      checkState: getCheckState(state),
+      clock: advanceShogiClock(room.clock, room.game.turn, state.turn, at, turnEnded),
+      lastActivityAtMs: at,
+    }) as FourShogiRoom;
+  }
+
+  private eliminateShogiPlayer(
+    room: Extract<FourShogiRoom, { status: "playing" }>,
+    playerId: string,
+    reason: ExternalEliminationReason,
+    at: number,
+  ): FourShogiRoom | null {
+    const player = room.players.find((entry) => entry.id === playerId);
+    if (!player) throw new Error("Unknown Shogi player");
+    const clearDeadline =
+      reason === "left" || reason === "disconnected" || !this.storedAccount(playerId)?.occupying;
+    const players = room.players.map((entry) => ({
+      ...entry,
+      reconnectDeadline: entry.id === playerId && clearDeadline ? null : entry.reconnectDeadline,
+    }));
+    if (this.isPlayerEliminated(room, playerId))
+      return roomSchema.parse({ ...room, players }) as FourShogiRoom;
+    const state = this.shogi().loadState(room.roundId, room.game);
+    const result = eliminateSide(state, player.side, reason);
+    if (!result.ok) throw new Error(`Could not eliminate Shogi player: ${result.reason}`);
+    const input = roomSchema.parse({ ...room, players }) as Extract<
+      FourShogiRoom,
+      { status: "playing" }
+    >;
+    return this.acceptShogiState(
+      input,
+      result.state,
+      { type: "eliminate", side: player.side, reason },
+      at,
+      result.state.turn !== room.game.turn,
+    );
+  }
+
+  private playShogi(
+    tokenHash: string,
+    action: FourShogiAction,
+    roundId: string | undefined,
+    positionRevision: number | undefined,
+  ): { status: "placed"; room: Room | null } | { status: RoomSocketError } {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" };
+      if (!isFourShogiRoom(room)) return { status: "invalid_move" };
+      if (room.status !== "playing")
+        return { status: room.lastRound ? "game_finished" : "game_not_started" };
+      const membership = this.readMembership(tokenHash);
+      if (!membership) return { status: "unauthorized" };
+      const player = room.players.find((p) => p.id === membership.playerId);
+      if (!player) return { status: "unauthorized" };
+      if (roundId !== room.roundId || positionRevision !== room.positionRevision)
+        return { status: "stale_position" };
+      if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
+      if (this.isPlayerEliminated(room, player.id)) return { status: "already_eliminated" };
+      if (player.side !== room.game.turn) return { status: "not_your_turn" };
+      const result = applyShogiAction(
+        this.shogi().loadState(room.roundId, room.game),
+        player.side,
+        action,
+      );
+      if (!result.ok) return { status: "invalid_move" };
+      const updated = this.acceptShogiState(
+        room,
+        result.state,
+        { type: "action", side: player.side, action },
+        Date.now(),
+        true,
+      );
+      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "placed", room: updated };
+    });
+  }
+
+  private resignShogi(
+    room: FourShogiRoom,
+    tokenHash: string,
+  ):
+    | { status: "resigned"; room: Room | null }
+    | {
+        status:
+          | "game_finished"
+          | "game_not_started"
+          | "unauthorized"
+          | "already_eliminated"
+          | "not_your_turn"
+          | "time_expired";
+      } {
+    if (room.status !== "playing")
+      return { status: room.lastRound ? "game_finished" : "game_not_started" };
+    if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
+    const membership = this.readMembership(tokenHash);
+    const player = room.players.find((p) => p.id === membership?.playerId);
+    if (!player) return { status: "unauthorized" };
+    if (this.isPlayerEliminated(room, player.id)) return { status: "already_eliminated" };
+    if (player.side !== room.game.turn) return { status: "not_your_turn" };
+    const updated = this.eliminateShogiPlayer(room, player.id, "resigned", Date.now());
+    if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
+    return { status: "resigned", room: updated };
+  }
+
+  private setThreePlayerAttack(
+    tokenHash: string,
+    prohibited: boolean,
+  ):
+    | { status: "updated"; room: Room }
+    | { status: "unchanged" | "not_found" | "forbidden" | "already_started" | "invalid_request" } {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" };
+      if (!isFourShogiRoom(room)) return { status: "invalid_request" };
+      if (room.status !== "waiting") return { status: "already_started" };
+      if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
+      if (room.settings.threePlayerAttackProhibited === prohibited) return { status: "unchanged" };
+      const updated = roomSchema.parse({
+        ...room,
+        settings: { ...room.settings, threePlayerAttackProhibited: prohibited },
+        players: room.players.map((p) => (p.kind === "human" ? { ...p, ready: false } : p)),
+        lastActivityAtMs: Date.now(),
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "updated", room: updated };
+    });
+  }
+
+  async getShogiReplay(
+    instanceId: string,
+    roundId: string,
+    cursor: number,
+  ): Promise<
+    | { status: "found"; page: import("@tetraboard/protocol").FourShogiReplayPage }
+    | { status: "not_found" | "room_changed" }
+  > {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (!room) return { status: "not_found" };
+    if (room.instanceId !== instanceId) return { status: "room_changed" };
+    if (!isFourShogiRoom(room) || room.status !== "waiting" || room.lastRound?.roundId !== roundId)
+      return { status: "not_found" };
+    const page = this.shogi().getPage(instanceId, roundId, cursor);
+    return page ? { status: "found", page } : { status: "not_found" };
+  }
+
+  private async reconcileShogiDeadlines(applyCpu: boolean): Promise<void> {
+    const now = Date.now();
+    const promoted: string[] = [];
+    let changed = false;
+    const updated = this.withIndexTransaction(() => {
+      const saved = this.readRoom();
+      if (!saved || !isFourShogiRoom(saved)) return saved;
+      let room: FourShogiRoom | null = saved;
+      if (room.lastActivityAtMs + idleMs <= now) {
+        this.closeRoom();
+        changed = true;
+        return null;
+      }
+      const players = room.players.map((player) => {
+        const hash = this.playerTokenHash(player.id);
+        const active =
+          this.storedAccount(player.id)?.occupying === true ||
+          !this.isPlayerEliminated(saved, player.id);
+        if (
+          player.kind !== "human" ||
+          !active ||
+          player.reconnectDeadline !== null ||
+          hash === null ||
+          this.hasOpenConnection(hash)
+        )
+          return player;
+        this.ctx.storage.kv.put(disconnectedAtKey(player.id), now);
+        changed = true;
+        return { ...player, reconnectDeadline: now + reconnectGraceMs };
+      });
+      if (changed) {
+        room = roomSchema.parse({ ...room, players }) as FourShogiRoom;
+        this.ctx.storage.kv.put(roomStorageKey, room);
+      }
+      while (room) {
+        const disconnect = room.players
+          .map((player, index) => ({ player, index }))
+          .filter(
+            ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
+          )
+          .sort(
+            (a, b) =>
+              a.player.reconnectDeadline! - b.player.reconnectDeadline! || a.index - b.index,
+          )[0]?.player;
+        const timeout =
+          room.status === "playing" && isClockExpired(room.clock, now)
+            ? room.clock.turnExpiresAt
+            : null;
+        if (timeout === null && !disconnect) break;
+        if (
+          room.status === "playing" &&
+          timeout !== null &&
+          (!disconnect || timeout <= disconnect.reconnectDeadline!)
+        ) {
+          const timedOut = room.players.find((player) => player.side === room!.game!.turn)!;
+          room = this.eliminateShogiPlayer(room, timedOut.id, "timeout", timeout);
+        } else if (disconnect) {
+          if (room.status === "waiting") {
+            const host = room.players[0].id === disconnect.id;
+            room = this.removeWaitingPlayer(room, disconnect.id) as FourShogiRoom | null;
+            if (host && room) {
+              const hash = this.playerTokenHash(room.players[0].id);
+              if (hash) promoted.push(hash);
+            }
+          } else {
+            this.recordDeparture(disconnect);
+            this.releaseAccount(disconnect.id, false);
+            room = this.eliminateShogiPlayer(
+              room,
+              disconnect.id,
+              "disconnected",
+              disconnect.reconnectDeadline!,
+            );
+          }
+        }
+        changed = true;
+        if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+      }
+      if (
+        applyCpu &&
+        room?.status === "playing" &&
+        room.clock.turnStartedAt + cpuMoveDelayMs <= now &&
+        !isClockExpired(room.clock, now)
+      ) {
+        const cpu = currentCpu(room);
+        if (cpu) {
+          const job = this.ctx.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey);
+          if (job) {
+            if (
+              job.roundId !== room.roundId ||
+              job.positionRevision !== room.positionRevision ||
+              job.side !== room.game.turn
+            )
+              this.ctx.storage.kv.delete(shogiCpuJobKey);
+            else if (job.applyAt <= now) {
+              const state = this.shogi().loadState(room.roundId, room.game);
+              const result = applyShogiAction(state, job.side, job.action);
+              if (!result.ok) throw new Error("Saved CPU action is no longer legal");
+              room = this.acceptShogiState(
+                room,
+                result.state,
+                { type: "action", side: job.side, action: job.action },
+                now,
+                true,
+              );
+              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+              changed = true;
+            }
+          } else {
+            const action = chooseCpuAction(
+              this.shogi().loadState(room.roundId, room.game),
+              cpu.level,
+            );
+            if (!action) throw new Error("Shogi CPU has no legal action");
+            // A separate alarm supplies a fresh wall clock after synchronous CPU work.
+            this.ctx.storage.kv.put(shogiCpuJobKey, {
+              roundId: room.roundId,
+              positionRevision: room.positionRevision,
+              side: room.game.turn,
+              action,
+              applyAt: Date.now() + 1,
+            } satisfies ShogiCpuJob);
+          }
+        }
+      }
+      return room;
+    });
+    await this.syncAlarm(updated);
+    await this.flushRoomIndex();
+    await this.flushAccountCleanup();
+    if (changed) {
+      if (updated) this.broadcastRoom(updated);
+      else this.closeSockets();
+    }
+    for (const hash of promoted) this.sendCurrentMembership(hash);
   }
 
   private publicMetadata(room: Room): RoomPublicMetadata {
@@ -627,7 +1053,12 @@ export class GameRoom extends DurableObject<Env> {
     if (room !== null) deadlines.push(room.lastActivityAtMs + idleMs);
     if (room?.status === "playing") {
       deadlines.push(room.clock.turnExpiresAt);
-      if (currentCpu(room) !== null) deadlines.push(room.clock.turnStartedAt + cpuMoveDelayMs);
+      if (currentCpu(room) !== null) {
+        const job = isFourShogiRoom(room)
+          ? this.ctx.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey)
+          : undefined;
+        deadlines.push(job ? job.applyAt : room.clock.turnStartedAt + cpuMoveDelayMs);
+      }
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
@@ -801,7 +1232,7 @@ export class GameRoom extends DurableObject<Env> {
               kind: "human",
               avatarUrl: admission ? profileAvatarUrl(admission.avatarKey) : null,
               ready: false,
-              color: null,
+              ...(isFourShogiRoom(room) ? { side: null } : { color: null }),
               reconnectDeadline: Date.now() + reconnectGraceMs,
             },
           ],
@@ -904,13 +1335,18 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private async reconcileDeadlines(): Promise<void> {
+  private async reconcileDeadlines(applyCpu = false): Promise<void> {
+    const initial = this.readRoom();
+    if (initial && isFourShogiRoom(initial)) {
+      await this.reconcileShogiDeadlines(applyCpu);
+      return;
+    }
     const now = Date.now();
     const promoted: string[] = [];
     let changed = false;
     let closed = false;
     const room = this.withIndexTransaction(() => {
-      let current: Room | null = this.readRoom();
+      let current: FourReversiRoom | null = initial;
       if (current === null) return current;
       if (current.lastActivityAtMs + idleMs <= now) {
         this.closeRoom();
@@ -937,21 +1373,22 @@ export class GameRoom extends DurableObject<Env> {
         return { ...player, reconnectDeadline: now + reconnectGraceMs };
       });
       if (changed) {
-        current = roomSchema.parse({ ...current, players: disconnected });
+        current = this.parseReversiRoom({ ...current, players: disconnected });
         this.ctx.storage.kv.put(roomStorageKey, current);
       }
       while (current !== null) {
-        const nextDisconnect: { player: Room["players"][number]; index: number } | undefined =
-          current.players
-            .map((player, index) => ({ player, index }))
-            .filter(
-              ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
-            )
-            .sort(
-              (left, right) =>
-                left.player.reconnectDeadline! - right.player.reconnectDeadline! ||
-                left.index - right.index,
-            )[0];
+        const nextDisconnect:
+          | { player: FourReversiRoom["players"][number]; index: number }
+          | undefined = current.players
+          .map((player, index) => ({ player, index }))
+          .filter(
+            ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
+          )
+          .sort(
+            (left, right) =>
+              left.player.reconnectDeadline! - right.player.reconnectDeadline! ||
+              left.index - right.index,
+          )[0];
         const clockDeadline: number | null =
           current.status === "playing" && isClockExpired(current.clock, now)
             ? current.clock.turnExpiresAt
@@ -970,8 +1407,8 @@ export class GameRoom extends DurableObject<Env> {
           const timedOutColor: Color = current.game.turn;
           current =
             result.state.status === "finished"
-              ? this.finishGame(current, result.state, clockDeadline)
-              : roomSchema.parse({
+              ? (this.finishGame(current, result.state, clockDeadline) as FourReversiRoom | null)
+              : this.parseReversiRoom({
                   ...current,
                   game: result.state,
                   clock: advanceClock(
@@ -991,10 +1428,10 @@ export class GameRoom extends DurableObject<Env> {
                   lastActivityAtMs: clockDeadline,
                 });
         } else if (nextDisconnect !== undefined) {
-          const player: Room["players"][number] = nextDisconnect.player;
+          const player: FourReversiRoom["players"][number] = nextDisconnect.player;
           if (current.status === "waiting") {
             const hostLeaving = current.players[0].id === player.id;
-            current = this.removeWaitingPlayer(current, player.id);
+            current = this.removeWaitingPlayer(current, player.id) as FourReversiRoom | null;
             if (hostLeaving && current !== null) {
               const successor = this.playerTokenHash(current.players[0].id);
               if (successor !== null) promoted.push(successor);
@@ -1004,7 +1441,7 @@ export class GameRoom extends DurableObject<Env> {
             this.recordDeparture(player);
             this.releaseAccount(player.id, false);
             if (player.color !== null && current.game.eliminatedColors.includes(player.color)) {
-              current = roomSchema.parse({
+              current = this.parseReversiRoom({
                 ...current,
                 players: current.players.map((entry) =>
                   entry.id === player.id ? { ...entry, reconnectDeadline: null } : entry,
@@ -1020,8 +1457,12 @@ export class GameRoom extends DurableObject<Env> {
             this.recordElimination(current, player.color, "disconnected", result);
             current =
               result.state.status === "finished"
-                ? this.finishGame(current, result.state, player.reconnectDeadline!)
-                : roomSchema.parse({
+                ? (this.finishGame(
+                    current,
+                    result.state,
+                    player.reconnectDeadline!,
+                  ) as FourReversiRoom | null)
+                : this.parseReversiRoom({
                     ...current,
                     game: result.state,
                     clock: advanceClock(
@@ -1065,8 +1506,8 @@ export class GameRoom extends DurableObject<Env> {
             );
           current =
             result.state.status === "finished"
-              ? this.finishGame(current, result.state, decidedAt)
-              : roomSchema.parse({
+              ? (this.finishGame(current, result.state, decidedAt) as FourReversiRoom | null)
+              : this.parseReversiRoom({
                   ...current,
                   game: result.state,
                   clock: advanceClock(
@@ -1097,7 +1538,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    await this.reconcileDeadlines();
+    await this.reconcileDeadlines(true);
   }
 
   async leaveRoom(tokenHash: string): Promise<"left" | "not_found" | "unauthorized"> {
@@ -1119,7 +1560,26 @@ export class GameRoom extends DurableObject<Env> {
         const hostLeaving = room.players[0].id === player.id;
         updated = this.removeWaitingPlayer(room, player.id);
         if (hostLeaving && updated !== null) promoted = this.playerTokenHash(updated.players[0].id);
+      } else if (isFourShogiRoom(room)) {
+        this.recordDeparture(player);
+        this.releaseAccount(player.id, false);
+        this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
+        this.ctx.storage.kv.delete(playerTokenKey(player.id));
+        const at = Date.now();
+        updated = this.eliminateShogiPlayer(room, player.id, "left", at);
+        if (updated) {
+          updated = roomSchema.parse({
+            ...updated,
+            publicUpdatedAtMs:
+              membership.role === "host" && updated.status === "playing"
+                ? nextPublicUpdateAt(room)
+                : updated.publicUpdatedAtMs,
+            lastActivityAtMs: at,
+          });
+          this.ctx.storage.kv.put(roomStorageKey, updated);
+        }
       } else {
+        const player = room.players.find((entry) => entry.id === membership.playerId)!;
         this.recordDeparture(player);
         this.releaseAccount(player.id, false);
         const game =
@@ -1416,7 +1876,7 @@ export class GameRoom extends DurableObject<Env> {
               kind: "cpu",
               level: command.level,
               ready: true,
-              color: null,
+              ...(isFourShogiRoom(room) ? { side: null } : { color: null }),
               reconnectDeadline: null,
             },
           ],
@@ -1476,10 +1936,11 @@ export class GameRoom extends DurableObject<Env> {
         return { status: "not_ready" };
       }
 
-      const assignments = shuffledColors();
+      if (isFourShogiRoom(room)) return { status: "started", room: this.startShogiGame(room) };
+      const assignments = shuffledAssignments(colors);
       const startedAtMs = Date.now();
       const matchId = crypto.randomUUID();
-      const startedRoom = roomSchema.parse({
+      const startedRoom = this.parseReversiRoom({
         ...room,
         status: "playing",
         eliminations: [],
@@ -1546,6 +2007,7 @@ export class GameRoom extends DurableObject<Env> {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
+      if (isFourShogiRoom(room)) return { status: "invalid_move" };
       if (room.status === "waiting")
         return { status: room.lastRound ? "game_finished" : "game_not_started" };
       if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
@@ -1593,6 +2055,7 @@ export class GameRoom extends DurableObject<Env> {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
+      if (isFourShogiRoom(room)) return this.resignShogi(room, tokenHash);
       if (room.status === "waiting")
         return { status: room.lastRound ? "game_finished" : "game_not_started" };
       if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
@@ -1787,6 +2250,15 @@ export class GameRoom extends DurableObject<Env> {
         return;
       }
 
+      if (parsed.data.type === "room.three-player-attack.set") {
+        const result = this.setThreePlayerAttack(tokenHash.data, parsed.data.prohibited);
+        if (result.status === "updated") this.broadcastRoom(result.room);
+        else if (result.status === "unchanged") {
+          const room = this.readRoom();
+          if (room) socket.send(JSON.stringify(this.roomSnapshot(room)));
+        } else this.rejectAction(socket, result.status);
+        return;
+      }
       if (parsed.data.type === "room.mode.set") {
         const result = this.setMode(tokenHash.data, parsed.data.mode);
         if (result.status === "updated") this.broadcastRoom(result.room);
@@ -1833,7 +2305,16 @@ export class GameRoom extends DurableObject<Env> {
         return;
       }
 
-      const result = this.placeStone(tokenHash.data, parsed.data.action);
+      const command = parsed.data;
+      const result =
+        command.action.type === "placeStone"
+          ? this.placeStone(tokenHash.data, command.action)
+          : this.playShogi(
+              tokenHash.data,
+              command.action,
+              command.roundId,
+              command.positionRevision,
+            );
       if (result.status === "placed") {
         await this.syncAlarm(result.room);
         if (result.room === null) this.closeSockets();
@@ -1874,8 +2355,7 @@ export class GameRoom extends DurableObject<Env> {
       player === undefined ||
       (room.status === "playing" &&
         this.storedAccount(player.id)?.occupying !== true &&
-        player.color !== null &&
-        room.game.eliminatedColors.includes(player.color)) ||
+        this.isPlayerEliminated(room, player.id)) ||
       player.reconnectDeadline !== null
     ) {
       this.broadcastRoom(room);

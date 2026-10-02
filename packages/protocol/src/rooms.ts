@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  fourShogiSideSchema,
+  fourShogiActionSchema,
+  fourShogiEliminationSchema,
+  playingFourShogiStateSchema,
+  finishedFourShogiStateSchema,
+  fourShogiReplayPageSchema,
+} from "./fourShogi";
 
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
 export const countCharacters = (text: string): number => Array.from(segmenter.segment(text)).length;
@@ -17,7 +25,7 @@ export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 export const fourReversiColorSchema = z.enum(["black", "white", "red", "blue"]);
 export const roomTimeControl = { mainTimeMs: 300_000, byoyomiMs: 30_000 } as const;
 export const roomModeSchema = z.enum(["singles", "doubles"]);
-export const roomSettingsSchema = z.strictObject({
+export const fourReversiRoomSettingsSchema = z.strictObject({
   game: z.literal("four-reversi"),
   mode: roomModeSchema,
   timeControl: z.strictObject({
@@ -151,7 +159,7 @@ const waitingRoomSchema = z.strictObject({
   id: roomCodeSchema,
   instanceId: z.uuid(),
   status: z.literal("waiting"),
-  settings: roomSettingsSchema,
+  settings: fourReversiRoomSettingsSchema,
   publicUpdatedAtMs: serverNowMsSchema,
   lastActivityAtMs: serverNowMsSchema,
   players: z.array(
@@ -169,7 +177,7 @@ const activeRoomBaseSchema = z
   .strictObject({
     id: roomCodeSchema,
     instanceId: z.uuid(),
-    settings: roomSettingsSchema,
+    settings: fourReversiRoomSettingsSchema,
     publicUpdatedAtMs: serverNowMsSchema,
     lastActivityAtMs: serverNowMsSchema,
     players: z
@@ -190,7 +198,7 @@ const playingRoomSchema = activeRoomBaseSchema.safeExtend({
   clock: playingClockSchema,
   lastRound: z.null(),
 });
-export const roomSchema = z
+export const fourReversiRoomSchema = z
   .discriminatedUnion("status", [waitingRoomSchema, playingRoomSchema])
   .superRefine((room, context) => {
     if (room.status !== "waiting" && room.game.mode !== room.settings.mode) {
@@ -202,12 +210,116 @@ export const roomSchema = z
     }
   });
 
+export const roomGameSchema = z.enum(["four-reversi", "four-shogi"]);
+export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend({
+  game: z.literal("four-shogi"),
+  threePlayerAttackProhibited: z.boolean(),
+});
+export const roomSettingsSchema = z.discriminatedUnion("game", [
+  fourReversiRoomSettingsSchema,
+  fourShogiRoomSettingsSchema,
+]);
+const shogiRemaining = z.strictObject({
+  south: z.int().nonnegative(),
+  west: z.int().nonnegative(),
+  north: z.int().nonnegative(),
+  east: z.int().nonnegative(),
+});
+export const playingShogiClockSchema = z.strictObject({
+  remainingMainMs: shogiRemaining,
+  turnStartedAt: serverNowMsSchema,
+  turnExpiresAt: serverNowMsSchema,
+});
+const fourShogiLastRoundSchema = z.strictObject({
+  roundId: z.uuid(),
+  game: finishedFourShogiStateSchema,
+  players: z
+    .array(z.strictObject({ id: z.uuid(), name: nicknameSchema, side: fourShogiSideSchema }))
+    .length(4),
+  eventCount: z.int().nonnegative(),
+});
+const shogiCheckStateSchema = z.strictObject({
+  south: z.boolean(),
+  west: z.boolean(),
+  north: z.boolean(),
+  east: z.boolean(),
+});
+const shogiWaitingSchema = z.strictObject({
+  id: roomCodeSchema,
+  instanceId: z.uuid(),
+  status: z.literal("waiting"),
+  settings: fourShogiRoomSettingsSchema,
+  publicUpdatedAtMs: serverNowMsSchema,
+  lastActivityAtMs: serverNowMsSchema,
+  players: z.array(
+    z.union([
+      cpuPlayerSchema.extend({ side: z.null() }),
+      humanPlayerSchema.extend({ side: z.null() }),
+    ]),
+  ),
+  eliminations: z.array(fourShogiEliminationSchema).length(0),
+  game: z.null(),
+  clock: z.null(),
+  lastRound: fourShogiLastRoundSchema.nullable(),
+  checkState: shogiCheckStateSchema,
+  roundId: z.null(),
+  positionRevision: z.literal(0),
+  legalActions: z.array(fourShogiActionSchema).length(0),
+});
+const shogiPlayingSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    instanceId: z.uuid(),
+    status: z.literal("playing"),
+    settings: fourShogiRoomSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
+    players: z
+      .array(
+        z.union([
+          cpuPlayerSchema.extend({ side: fourShogiSideSchema }),
+          humanPlayerSchema.extend({ side: fourShogiSideSchema }),
+        ]),
+      )
+      .length(4),
+    eliminations: z.array(fourShogiEliminationSchema).max(4),
+    game: playingFourShogiStateSchema,
+    clock: playingShogiClockSchema,
+    lastRound: z.null(),
+    checkState: shogiCheckStateSchema,
+    roundId: z.uuid(),
+    positionRevision: z.int().nonnegative(),
+    legalActions: z.array(fourShogiActionSchema),
+  })
+  .refine(
+    (room) =>
+      new Set(room.players.map((p) => p.side)).size === 4 &&
+      room.game.mode === room.settings.mode &&
+      room.game.threePlayerAttackProhibited === room.settings.threePlayerAttackProhibited &&
+      room.players.every((p) => room.game.players[p.side] === p.id),
+  );
+export const fourShogiRoomSchema = z.discriminatedUnion("status", [
+  shogiWaitingSchema,
+  shogiPlayingSchema,
+]);
+export const roomSchema = z.union([fourReversiRoomSchema, fourShogiRoomSchema]);
+export type FourReversiRoom = z.infer<typeof fourReversiRoomSchema>;
+export type FourShogiRoom = z.infer<typeof fourShogiRoomSchema>;
+export type FourShogiLastRound = z.infer<typeof fourShogiLastRoundSchema>;
+export type PlayingShogiClock = z.infer<typeof playingShogiClockSchema>;
+export function isFourShogiRoom(room: Room): room is FourShogiRoom {
+  return room.settings.game === "four-shogi";
+}
+export function isFourReversiRoom(room: Room): room is FourReversiRoom {
+  return room.settings.game === "four-reversi";
+}
+
 export const roomPublicMetadataSchema = z
   .strictObject({
     id: roomCodeSchema,
-    game: roomSettingsSchema.shape.game,
+    game: roomGameSchema,
     mode: roomModeSchema,
-    timeControl: roomSettingsSchema.shape.timeControl,
+    timeControl: fourReversiRoomSettingsSchema.shape.timeControl,
     status: z.enum(["waiting", "playing"]),
     hostName: nicknameSchema.nullable(),
     hostAvatarUrl: z
@@ -301,7 +413,12 @@ const roomErrorSchema = z.strictObject({
 export const createRoomContract = {
   method: "POST",
   path: "/rooms",
-  request: playerNameRequestSchema.extend({ quickPlay: z.boolean(), mode: roomModeSchema }),
+  request: playerNameRequestSchema.extend({
+    quickPlay: z.boolean(),
+    mode: roomModeSchema,
+    game: roomGameSchema.optional(),
+    threePlayerAttackProhibited: z.boolean().optional(),
+  }),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
 } as const;
@@ -313,7 +430,10 @@ export const roomListCursorSchema = z
 export const listRoomsContract = {
   method: "GET",
   path: "/rooms",
-  query: z.strictObject({ cursor: roomListCursorSchema.optional() }),
+  query: z.strictObject({
+    cursor: roomListCursorSchema.optional(),
+    game: roomGameSchema.optional(),
+  }),
   response: z.strictObject({
     rooms: z.array(roomPublicMetadataSchema).max(20),
     nextCursor: roomListCursorSchema.nullable(),
@@ -411,6 +531,7 @@ export const roomSocketContract = {
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
     z.strictObject({ type: z.literal("room.mode.set"), mode: roomModeSchema }),
+    z.strictObject({ type: z.literal("room.three-player-attack.set"), prohibited: z.boolean() }),
     z.strictObject({ type: z.literal("room.cpu.add"), level: cpuLevelSchema }),
     z.strictObject({ type: z.literal("room.cpu.remove"), playerId: z.uuid() }),
     z.strictObject({
@@ -421,13 +542,37 @@ export const roomSocketContract = {
     z.strictObject({ type: z.literal("room.game.start") }),
     z.strictObject({ type: z.literal("room.game.resign") }),
     z.strictObject({ type: z.literal("room.chat.send"), text: z.string() }),
-    z.strictObject({
-      type: z.literal("room.game.action"),
-      action: z.strictObject({
-        type: z.literal("placeStone"),
-        position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
+    z
+      .strictObject({
+        type: z.literal("room.game.action"),
+        roundId: z.uuid().optional(),
+        positionRevision: z.int().nonnegative().optional(),
+        action: z.union([
+          fourShogiActionSchema,
+          z.strictObject({
+            type: z.literal("placeStone"),
+            position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
+          }),
+        ]),
+      })
+      .superRefine((message, context) => {
+        if (
+          message.action.type !== "placeStone" &&
+          (message.roundId === undefined || message.positionRevision === undefined)
+        )
+          context.addIssue({
+            code: "custom",
+            message: "Shogi actions require roundId and positionRevision",
+          });
+        if (
+          message.action.type === "placeStone" &&
+          (message.roundId !== undefined || message.positionRevision !== undefined)
+        )
+          context.addIssue({
+            code: "custom",
+            message: "Reversi actions do not use Shogi position metadata",
+          });
       }),
-    }),
   ]),
   message: z.discriminatedUnion("type", [
     z.strictObject({
@@ -463,6 +608,7 @@ export const roomSocketContract = {
         "time_expired",
         "room_full",
         "cpu_not_found",
+        "stale_position",
       ]),
     }),
   ]),
@@ -487,3 +633,21 @@ export type RoomError = z.infer<typeof roomErrorSchema>;
 export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type RoomSocketClientMessage = z.infer<typeof roomSocketContract.clientMessage>;
 export type RoomSocketMessage = z.infer<typeof roomSocketContract.message>;
+
+export const getFourShogiReplayContract = {
+  method: "GET",
+  path: "/rooms/:id/rounds/:roundId/replay",
+  pathFor: (id: string, roundId: string) => `/rooms/${id}/rounds/${roundId}/replay`,
+  params: z.strictObject({ id: roomCodeSchema, roundId: z.uuid() }),
+  query: z.strictObject({
+    instanceId: z.uuid(),
+    cursor: z
+      .string()
+      .regex(/^\d{1,10}$/)
+      .transform(Number)
+      .pipe(z.int().nonnegative())
+      .optional(),
+  }),
+  response: fourShogiReplayPageSchema,
+  error: roomErrorSchema,
+} as const;

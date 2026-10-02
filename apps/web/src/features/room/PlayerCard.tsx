@@ -1,7 +1,12 @@
 import { Avatar, Badge, Chip, cn } from "@heroui/react";
-import { type Room, type MatchHistoryParticipant, type MatchDetail } from "@tetraboard/protocol";
+import {
+  type Room,
+  type FourReversiRoom,
+  type MatchHistoryParticipant,
+  type MatchDetail,
+} from "@tetraboard/protocol";
 import { type FourReversiState } from "@tetraboard/four-reversi";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import {
   colorNames,
   playerClock,
@@ -12,7 +17,7 @@ import {
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppCard } from "../../shared/ui/AppCard";
 import { Stone } from "./Stone";
-import { RoomClock } from "./RoomClock";
+import { RoomClock, type RoomClockPresentation } from "./RoomClock";
 
 const seatClasses = {
   top: "[grid-area:top]",
@@ -37,13 +42,13 @@ export function PlayerCard({
   now,
   position,
 }: {
-  player: Room["players"][number] | MatchHistoryParticipant | null;
+  player: FourReversiRoom["players"][number] | MatchHistoryParticipant | null;
   self: boolean;
   host: boolean;
   connected?: boolean;
   position: keyof typeof seatClasses;
 } & (
-  | { room: Room; now: number; replay?: never }
+  | { room: FourReversiRoom; now: number; replay?: never }
   | {
       room?: never;
       now?: never;
@@ -61,6 +66,71 @@ export function PlayerCard({
       : 0;
   const clock = room && player ? playerClock(room, player.color, now) : null;
   const current = room?.status === "playing" && color === room.game.turn;
+  return (
+    <PlayerCardView
+      player={player}
+      self={self}
+      host={host}
+      connected={connected}
+      position={position}
+      current={current}
+      rank={rank}
+      clock={clock}
+      score={
+        room?.status === "waiting"
+          ? player && "ready" in player && player.ready && <PlayerReadyBadge />
+          : color && (
+              <span
+                data-testid="player-stone-count"
+                className="inline-flex shrink-0 items-center gap-[6px] text-[13px] font-bold tabular-nums [@container(max-width:160px)]:text-[11px] [@container(max-width:160px)]:gap-[3px]"
+                aria-label={`${colorNames[color]}${count === null ? "" : `、${count}石`}`}
+              >
+                <Stone
+                  color={color}
+                  className="size-[19px] shadow-[inset_0_-1px_2px_#0002] [@container(max-width:160px)]:size-4"
+                />
+                {count}
+              </span>
+            )
+      }
+    />
+  );
+}
+
+export function PlayerReadyBadge() {
+  return (
+    <Chip
+      className="h-5 py-px px-[5px] text-[10px] font-bold text-[#247c51] bg-[#e3f2e8] rounded-[6px] whitespace-nowrap [@container(max-width:160px)]:text-[8px] [@container(max-width:160px)]:px-[3px]"
+      size="sm"
+    >
+      準備完了
+    </Chip>
+  );
+}
+
+export function PlayerCardView({
+  player,
+  self,
+  host,
+  connected,
+  position,
+  current = false,
+  score,
+  rank,
+  clock,
+  shogi = false,
+}: {
+  player: Room["players"][number] | MatchHistoryParticipant | null;
+  self: boolean;
+  host: boolean;
+  connected?: boolean;
+  position: keyof typeof seatClasses;
+  current?: boolean;
+  score: ReactNode;
+  rank: { rank: number; label: string } | null;
+  clock: RoomClockPresentation | null;
+  shogi?: boolean;
+}) {
   const name = player ? playerName(player) : "空席";
   const nameBox = useRef<HTMLDivElement>(null);
   const nameContent = useRef<HTMLSpanElement>(null);
@@ -112,7 +182,10 @@ export function PlayerCard({
         "[container-type:inline-size] grid grid-cols-[32px_minmax(0,1fr)] grid-rows-[20px_22px] content-center gap-x-2 gap-y-[2px] py-[6px] px-2 w-[var(--seat-width)] h-[var(--player-height)] justify-self-center rounded-[17px] overflow-visible shadow-[0_2px_5px_#203b2210] [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:gap-x-1 [@media(max-width:767px)]:grid-cols-[26px_minmax(0,1fr)]",
         seatClasses[position],
         !player && "bg-[#e9ede9] text-muted shadow-none",
-        self && "border-[#81b99d] shadow-[0_0_0_1px_#8ec4a62b]",
+        self &&
+          (shogi
+            ? "border-[#d5b35d] shadow-[0_0_0_1px_#d5b35d2b]"
+            : "border-[#81b99d] shadow-[0_0_0_1px_#8ec4a62b]"),
         current && "border-[#dc9a39] shadow-[0_0_0_2px_#e8b76640]",
       )}
       aria-label={
@@ -170,30 +243,7 @@ export function PlayerCard({
       </div>
       <div className="col-start-2 row-start-2 min-w-0 grid grid-cols-[54px_minmax(0,1fr)] items-center gap-[3px] [@container(max-width:160px)]:grid-cols-[40px_minmax(0,1fr)] [@container(max-width:160px)]:gap-[2px]">
         <span data-testid="player-score-slot" className="flex items-center min-w-0 h-[22px]">
-          {room?.status === "waiting"
-            ? player &&
-              "ready" in player &&
-              player.ready && (
-                <Chip
-                  className="h-5 py-px px-[5px] text-[10px] font-bold text-[#247c51] bg-[#e3f2e8] rounded-[6px] whitespace-nowrap [@container(max-width:160px)]:text-[8px] [@container(max-width:160px)]:px-[3px]"
-                  size="sm"
-                >
-                  準備完了
-                </Chip>
-              )
-            : color && (
-                <span
-                  data-testid="player-stone-count"
-                  className="inline-flex shrink-0 items-center gap-[6px] text-[13px] font-bold tabular-nums [@container(max-width:160px)]:text-[11px] [@container(max-width:160px)]:gap-[3px]"
-                  aria-label={`${colorNames[color]}${count === null ? "" : `、${count}石`}`}
-                >
-                  <Stone
-                    color={color}
-                    className="size-[19px] shadow-[inset_0_-1px_2px_#0002] [@container(max-width:160px)]:size-4"
-                  />
-                  {count}
-                </span>
-              )}
+          {score}
         </span>
         <span
           data-testid="player-time-slot"
@@ -202,7 +252,8 @@ export function PlayerCard({
           {rank ? (
             <Chip
               className={cn(
-                "h-[22px] py-[2px] px-1 rounded-[6px] font-bold text-[clamp(8px,5cqw,12px)] whitespace-nowrap shrink-0 [@container(max-width:160px)]:px-[3px]",
+                "h-[22px] py-[2px] px-1 rounded-[6px] font-bold whitespace-nowrap shrink-0 [@container(max-width:160px)]:px-[3px]",
+                shogi ? "text-[clamp(7px,4cqw,11px)]" : "text-[clamp(8px,5cqw,12px)]",
                 rankClasses[rank.rank as keyof typeof rankClasses],
               )}
               size="sm"
