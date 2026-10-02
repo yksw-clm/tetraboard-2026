@@ -8,12 +8,12 @@ import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 
 import { type RoomMode, type RoomPublicMetadata } from "@tetraboard/protocol";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { fourReversiLobbyPath } from "../../app/paths";
 import { HowToPlayDialog } from "./HowToPlayDialog";
-import { AppIcon } from "../../shared/ui/AppIcon";
+import { AppIcon, type AppIconName } from "../../shared/ui/AppIcon";
 import { LobbyList } from "./LobbyList";
 import { LobbyRankings } from "./LobbyRankings";
 import { RoomEntryDialog } from "./RoomEntryDialog";
@@ -56,8 +56,50 @@ const previewStones: Record<number, keyof typeof previewStoneClasses> = {
   36: "blue",
 };
 
+const mobileQuery = "(max-width: 767px)";
+function subscribeToLobbyWidth(onChange: () => void) {
+  const query = window.matchMedia(mobileQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const isMobileWidth = () => window.matchMedia(mobileQuery).matches;
+
+function LobbyEntryButton({
+  title,
+  description,
+  icon,
+  primary = false,
+  onPress,
+}: {
+  title: string;
+  description: string;
+  icon: AppIconName;
+  primary?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <AppButton
+      className="w-full min-h-[72px] justify-between gap-3 px-[18px] py-3 text-left whitespace-normal"
+      appearance={primary ? "primary" : "secondary"}
+      type="button"
+      onPress={onPress}
+    >
+      <span className="min-w-0 flex-1">
+        <strong className="block text-base">{title}</strong>
+        <span
+          className={`mt-1 block text-xs font-normal ${primary ? "text-white/85" : "text-muted"}`}
+        >
+          {description}
+        </span>
+      </span>
+      <AppIcon name={icon} className="shrink-0" />
+    </AppButton>
+  );
+}
+
 export function FourReversiLobbyView(props: Props) {
   const [dialog, setDialog] = useState<ActiveDialog>(null);
+  const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
 
   function openEntry(intent: RoomEntryIntent, roomId?: string): void {
     props.onClearMessage();
@@ -67,6 +109,55 @@ export function FourReversiLobbyView(props: Props) {
   function closeDialog(): void {
     if (props.isSubmitting === null) setDialog(null);
   }
+
+  // 同じ親内のkey付き領域を並べ替え、幅変更でもランキングの状態を保持します。
+  const sections = {
+    play: (
+      <section key="play" aria-label="対局を始める" className="min-w-0">
+        <AppCard className="lobby-quick-background h-full gap-3 p-5 border-[#d2e6d9]">
+          <h2 className="text-lg font-bold">一人で遊ぶ</h2>
+          <LobbyEntryButton
+            title="すぐ遊ぶ"
+            description="CPU3人と対戦"
+            icon="arrow"
+            primary
+            onPress={() => openEntry("quick")}
+          />
+          <h2 className="mt-2! text-lg font-bold">みんなで遊ぶ</h2>
+          <LobbyEntryButton
+            title="ルームを作る"
+            description="友達を招待して、一緒に対戦"
+            icon="plus"
+            onPress={() => openEntry("create")}
+          />
+          <LobbyEntryButton
+            title="ルーム番号で参加"
+            description="5桁の番号を入力して合流"
+            icon="join"
+            onPress={() => openEntry("join")}
+          />
+        </AppCard>
+      </section>
+    ),
+    rooms: (
+      <LobbyList
+        key="rooms"
+        rooms={props.lobbyRooms}
+        nextCursor={props.lobbyNextCursor}
+        error={props.lobbyError}
+        loading={props.lobbyLoading}
+        moreLoading={props.lobbyMoreLoading}
+        onRefresh={props.onLobbyRefresh}
+        onLoadMore={props.onLobbyLoadMore}
+        onJoin={(roomId) => openEntry("join", roomId)}
+        onWatch={props.onWatchRoom}
+      />
+    ),
+    rankings: <LobbyRankings key="rankings" />,
+  };
+  const order = mobile
+    ? (["play", "rooms", "rankings"] as const)
+    : (["play", "rankings", "rooms"] as const);
 
   return (
     <div className="app-theme lobby-background min-h-dvh text-ink text-[15px] leading-[1.6]">
@@ -121,53 +212,8 @@ export function FourReversiLobbyView(props: Props) {
         </div>
 
         <div className="grid grid-cols-2 gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
-          <section aria-labelledby="play-title" className="min-w-0">
-            <AppCard className="lobby-quick-background h-full gap-3 p-5 border-[#d2e6d9]">
-              <h2 id="play-title" className="text-lg font-bold">
-                一人で遊ぶ
-              </h2>
-              <AppButton
-                className="w-full min-h-[52px] justify-between px-6 text-base"
-                type="button"
-                onPress={() => openEntry("quick")}
-              >
-                すぐ遊ぶ
-                <AppIcon name="arrow" />
-              </AppButton>
-              <AppButton
-                className="w-full min-h-[52px] justify-between px-6 text-base"
-                appearance="secondary"
-                type="button"
-                onPress={() => openEntry("create")}
-              >
-                ルームを作る
-                <AppIcon name="plus" />
-              </AppButton>
-              <AppButton
-                className="w-full min-h-[52px] justify-between px-6 text-base"
-                appearance="secondary"
-                type="button"
-                onPress={() => openEntry("join")}
-              >
-                ルーム番号で参加
-                <AppIcon name="join" />
-              </AppButton>
-            </AppCard>
-          </section>
-          <LobbyRankings />
+          {order.map((section) => sections[section])}
         </div>
-
-        <LobbyList
-          rooms={props.lobbyRooms}
-          nextCursor={props.lobbyNextCursor}
-          error={props.lobbyError}
-          loading={props.lobbyLoading}
-          moreLoading={props.lobbyMoreLoading}
-          onRefresh={props.onLobbyRefresh}
-          onLoadMore={props.onLobbyLoadMore}
-          onJoin={(roomId) => openEntry("join", roomId)}
-          onWatch={props.onWatchRoom}
-        />
         <footer className="mt-0 pt-[14px] pb-5 border-t border-solid border-[#e0e8e2] text-muted text-xs text-center">
           TetraBoard
         </footer>

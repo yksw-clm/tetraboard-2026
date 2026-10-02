@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { type FourReversiRankings, type RankingEntry } from "@tetraboard/protocol";
-import { mockLobby } from "./fixtures";
+import { roomTimeControl, type FourReversiRankings, type RankingEntry } from "@tetraboard/protocol";
+import { mockLobby, now, playerIds, waitingRoom } from "./fixtures";
 
 const path = "**/api/games/four-reversi/rankings";
 const list = (prefix: string): RankingEntry[] =>
@@ -33,7 +33,7 @@ for (const width of [320, 390, 767, 768, 1024, 1440]) {
   test(`ロビーの盤面・等幅配置・上位3人と詳細10人 ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
     await setup(page);
-    const play = page.getByRole("region", { name: "一人で遊ぶ", exact: true });
+    const play = page.getByRole("region", { name: "対局を始める", exact: true });
     const ranking = page.getByRole("region", { name: "ランキング", exact: true });
     const rows = ranking.getByRole("list", { name: "優勝数ランキング" }).getByRole("listitem");
     await expect(rows).toHaveCount(3);
@@ -45,18 +45,64 @@ for (const width of [320, 390, 767, 768, 1024, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
+    const rooms = page.getByRole("region", { name: "公開ルーム", exact: true });
+    const roomBounds = (await rooms.boundingBox())!;
     const left = (await play.boundingBox())!;
     const right = (await ranking.boundingBox())!;
     if (width >= 768) {
       expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(left.y - right.y)).toBeLessThanOrEqual(1);
       expect(right.x).toBeGreaterThan(left.x + left.width);
+      expect(roomBounds.y).toBeGreaterThan(left.y + left.height);
     } else {
       expect(Math.abs(left.x - right.x)).toBeLessThanOrEqual(1);
-      expect(right.y).toBeGreaterThan(left.y + left.height);
+      expect(roomBounds.y).toBeGreaterThan(left.y + left.height);
+      expect(right.y).toBeGreaterThan(roomBounds.y + roomBounds.height);
     }
     const buttons = play.getByRole("button");
-    await expect(buttons).toHaveText(["すぐ遊ぶ", "ルームを作る", "ルーム番号で参加"]);
+    await expect(buttons).toHaveText([
+      /すぐ遊ぶ.*CPU3人と対戦/,
+      /ルームを作る.*友達を招待して、一緒に対戦/,
+      /ルーム番号で参加.*5桁の番号を入力して合流/,
+    ]);
+    for (const description of [
+      "CPU3人と対戦",
+      "友達を招待して、一緒に対戦",
+      "5桁の番号を入力して合流",
+    ]) {
+      const text = play.getByText(description, { exact: true });
+      await expect(text).toBeVisible();
+      const lines = await text.evaluate(
+        (element) =>
+          element.getBoundingClientRect().height /
+          Number.parseFloat(getComputedStyle(element).lineHeight),
+      );
+      expect(lines).toBeLessThanOrEqual(1.1);
+    }
+    await expect(buttons.nth(0)).toHaveCSS("background-color", "rgb(39, 132, 85)");
+    await expect(buttons.nth(1)).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    const groupLabel = (await play.getByRole("heading", { name: "みんなで遊ぶ" }).boundingBox())!;
+    const quickBounds = (await buttons.nth(0).boundingBox())!;
+    const createBounds = (await buttons.nth(1).boundingBox())!;
+    expect(groupLabel.y).toBeGreaterThan(quickBounds.y + quickBounds.height);
+    expect(createBounds.y).toBeGreaterThan(groupLabel.y + groupLabel.height);
+    const regionNames = await play
+      .locator("..")
+      .getByRole("region")
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const labelId = element.getAttribute("aria-labelledby");
+          return (
+            element.getAttribute("aria-label") ??
+            document.getElementById(labelId ?? "")?.textContent
+          );
+        }),
+      );
+    expect(regionNames).toEqual(
+      width < 768
+        ? ["対局を始める", "公開ルーム", "ランキング"]
+        : ["対局を始める", "ランキング", "公開ルーム"],
+    );
     const bounds = await buttons.evaluateAll((elements) =>
       elements.map((element) => element.getBoundingClientRect().y),
     );
@@ -68,7 +114,7 @@ for (const width of [320, 390, 767, 768, 1024, 1440]) {
     const board = (await preview.boundingBox())!;
     const heading = (await title.boundingBox())!;
     expect(board.x + board.width).toBeLessThan(heading.x);
-    await expect(page.getByText("CPU3人と対戦", { exact: true })).toHaveCount(0);
+    await expect(play.getByText("CPU3人と対戦", { exact: true })).toHaveCount(1);
     await expect(page.getByText("友達と遊ぶ", { exact: true })).toHaveCount(0);
     await testInfo.attach("lobby-rankings", {
       body: await page.screenshot({ fullPage: true }),
@@ -188,3 +234,173 @@ test("遅延した取得中でもモードを切り替え、閉じた詳細か�
   await expect(ranking.getByRole("listitem").first()).toContainText("新しい勝者");
   await expect(ranking.getByRole("status")).toHaveCount(0);
 });
+
+test("スマートフォンとPCの切替でDOM順を合わせ、ランキングの選択・取得結果・詳細を保持する", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockLobby(page);
+  await page.route("**/api/avatars/*", (route) => route.fulfill({ status: 404 }));
+  let requests = 0;
+  await page.route(path, (route) => {
+    requests++;
+    return route.fulfill({ json: data });
+  });
+  await page.goto("/games/four-reversi");
+  const ranking = page.getByRole("region", { name: "ランキング", exact: true });
+  await expect(ranking.getByRole("listitem")).toHaveCount(3);
+  await ranking.getByRole("tab", { name: "ダブルス", exact: true }).click();
+  await ranking.getByRole("button", { name: "もっと見る" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: "対局数", exact: true }).click();
+  for (const width of [767, 768, 320, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("tab", { name: "対局数", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(dialog.getByRole("list", { name: "対局数ランキング" })).toContainText("複局2");
+    // モーダル表示中の背景もDOM順だけを確認します。
+    await expect
+      .poll(() =>
+        page
+          .locator("main > div")
+          .last()
+          .evaluate((element) =>
+            Array.from(element.children).map(
+              (child) =>
+                child.getAttribute("aria-label") ??
+                document.getElementById(child.getAttribute("aria-labelledby") ?? "")?.textContent,
+            ),
+          ),
+      )
+      .toEqual(
+        width < 768
+          ? ["対局を始める", "公開ルーム", "ランキング"]
+          : ["対局を始める", "ランキング", "公開ルーム"],
+      );
+  }
+  await page.keyboard.press("Escape");
+  await expect(ranking.getByRole("tab", { name: "ダブルス", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(ranking.getByRole("list", { name: "勝利数ランキング" })).toContainText("勝利2");
+  expect(requests).toBe(1);
+  await page.setViewportSize({ width: 320, height: 900 });
+  const play = page.getByRole("region", { name: "対局を始める" });
+  await play.getByRole("button", { name: /^ルーム番号で参加/ }).focus();
+  await page.keyboard.press("Tab");
+  await expect(
+    page
+      .getByRole("region", { name: "公開ルーム" })
+      .getByRole("button", { name: "更新", exact: true }),
+  ).toBeFocused();
+});
+
+for (const width of [320, 390, 767, 768, 1024, 1440]) {
+  test(`公開ルーム0件・少数・多数の高さと末尾の操作 ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await mockLobby(page);
+    let count = 0;
+    let more = false;
+    const metadata = (id: string) => ({
+      id,
+      game: "four-reversi",
+      mode: "singles",
+      timeControl: roomTimeControl,
+      status: "waiting",
+      hostName: "あいうえおかきくけこ",
+      hostAvatarUrl: null,
+      humanCount: 1,
+      cpuCount: 0,
+      capacity: 4,
+      openSeats: 3,
+      updatedAtMs: now,
+    });
+    await page.route("**/api/rooms", (route) =>
+      route.fulfill({
+        json: {
+          rooms: Array.from({ length: count }, (_, index) => metadata(String(10001 + index))),
+          nextCursor: more ? `${now}:10020` : null,
+        },
+      }),
+    );
+    await page.route("**/api/rooms?*", (route) =>
+      route.fulfill({ json: { rooms: [metadata("20000")], nextCursor: null } }),
+    );
+    const room = { ...waitingRoom(), id: "20000" };
+    room.players = room.players.slice(0, 1);
+    const snapshot = {
+      room,
+      presence: { hostPlayerId: playerIds[0], connectedPlayerIds: [playerIds[0]] },
+      serverNowMs: now,
+    };
+    await page.route("**/api/rooms/20000", (route) => route.fulfill({ json: snapshot }));
+    await page.routeWebSocket("**/api/rooms/20000/ws?*", (socket) => {
+      socket.send(JSON.stringify({ type: "room.snapshot", ...snapshot }));
+      socket.send(JSON.stringify({ type: "room.chat.snapshot", messages: [] }));
+    });
+    await page.goto("/games/four-reversi");
+    const rooms = page.getByRole("region", { name: "公開ルーム", exact: true });
+    await expect(rooms.getByText("公開ルームはまだありません", { exact: true })).toBeVisible();
+    await expect(rooms.getByRole("list")).toHaveCount(0);
+    const emptyHeight = (await rooms.boundingBox())!.height;
+    expect(emptyHeight).toBeLessThan(400);
+    count = 1;
+    await rooms.getByRole("button", { name: "更新", exact: true }).click();
+    const list = rooms.getByRole("list");
+    const viewport = list.locator("..");
+    await expect(list.getByRole("listitem")).toHaveCount(1);
+    const small = (await viewport.boundingBox())!.height;
+    expect(small).toBeLessThan(400);
+    count = 20;
+    more = true;
+    await rooms.getByRole("button", { name: "更新", exact: true }).click();
+    await expect(list.getByRole("listitem")).toHaveCount(20);
+    const height = (await viewport.boundingBox())!.height;
+    if (width < 768) {
+      expect(height).toBe(400);
+      await expect(viewport).toHaveCSS("overflow-y", "auto");
+      expect(await viewport.evaluate((element) => element.scrollHeight)).toBeGreaterThan(400);
+      await rooms.getByRole("button", { name: "ルーム 10020 に参加" }).focus();
+      expect(await viewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    } else {
+      expect(height).toBeGreaterThan(400);
+      await expect(viewport).toHaveCSS("max-height", "none");
+    }
+    const join = rooms.getByRole("button", { name: "ルーム 10020 に参加" });
+    await join.click();
+    await expect(page.getByRole("dialog")).toContainText("10020");
+    await page.keyboard.press("Escape");
+    await expect(join).toBeFocused();
+    const outside = [
+      rooms.getByRole("heading", { name: "公開ルーム", exact: true }),
+      rooms.getByRole("button", { name: "更新", exact: true }),
+      rooms.getByText("CPUを含む席数です。対局中は開始時の参加人数を表示しています。", {
+        exact: true,
+      }),
+      rooms.getByRole("button", { name: "もっと見る" }),
+    ];
+    for (const locator of outside)
+      expect(
+        await locator.evaluate((element) =>
+          element.closest("section")!.querySelector("ul")!.parentElement!.contains(element),
+        ),
+      ).toBe(false);
+    await rooms.getByRole("button", { name: "もっと見る" }).click();
+    await expect(list.getByRole("listitem")).toHaveCount(21);
+    if (width < 768) expect((await viewport.boundingBox())!.height).toBe(400);
+    await expect(rooms.getByRole("button", { name: "もっと見る" })).toHaveCount(0);
+    await rooms.getByRole("button", { name: "ルーム 20000 を観戦" }).focus();
+    await info.attach("lobby-room-scroll", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+    await rooms.getByRole("button", { name: "ルーム 20000 を観戦" }).click();
+    await expect(page).toHaveURL(/\/rooms\/20000$/);
+    await expect(page.getByRole("button", { name: "参加する", exact: true })).toBeVisible();
+    await expect(page.getByRole("status")).toHaveCount(0);
+  });
+}

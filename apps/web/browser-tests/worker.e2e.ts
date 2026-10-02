@@ -3,7 +3,7 @@ import { mockAccount, profile } from "./accountFixtures";
 
 test("ローカルWorkerで作成・CPU対局・チャット・退室する", async ({ page }) => {
   await page.goto("/games/four-reversi");
-  await page.getByRole("button", { name: "すぐ遊ぶ", exact: true }).click();
+  await page.getByRole("button", { name: /^すぐ遊ぶ/ }).click();
   await page.getByRole("textbox", { name: "ニックネーム" }).fill("動作確認");
   await page.getByRole("button", { name: "CPUとの待機室へ" }).click();
   await expect(page).toHaveURL(/\/rooms\/\d{5}$/);

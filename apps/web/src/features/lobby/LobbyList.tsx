@@ -30,7 +30,10 @@ export function LobbyList({
   onWatch,
 }: Props) {
   return (
-    <section aria-labelledby="public-rooms-title">
+    <section
+      aria-labelledby="public-rooms-title"
+      className="min-w-0 [@media(min-width:768px)]:col-span-2"
+    >
       <AppSectionHeading
         id="public-rooms-title"
         title="公開ルーム"
@@ -85,77 +88,79 @@ export function LobbyList({
             <span>状態</span>
             <span />
           </div>
-          <ul className="m-0 p-0 overflow-hidden border border-solid border-line rounded-panel bg-white list-none [&>li+li>div]:border-t [&>li+li>div]:border-line [@media(max-width:900px)]:grid [@media(650px<width<=900px)]:grid-cols-2 [@media(650px<width<=900px)]:gap-[14px] [@media(max-width:900px)]:overflow-visible [@media(max-width:900px)]:border-0 [@media(max-width:900px)]:rounded-none [@media(max-width:900px)]:bg-transparent [@media(max-width:650px)]:grid-cols-1 [@media(max-width:650px)]:gap-[10px]">
-            {rooms.map((room) => {
-              const canJoin = room.status === "waiting" && room.openSeats > 0;
-              return (
-                <li key={room.id}>
-                  <AppCard className="grid grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px] items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white">
-                    <div className="flex items-center min-w-0 gap-3">
-                      <AppAvatar src={room.hostAvatarUrl} label={room.hostName ?? "ホストなし"} />
-                      <div className="min-w-0">
-                        <strong className="block text-sm wrap-anywhere">
-                          {room.hostName ?? "ホストなし"}
-                        </strong>
-                        <span className="block text-xs text-muted tabular-nums">{room.id}</span>
+          <div className="[@media(max-width:767px)]:max-h-[400px] [@media(max-width:767px)]:overflow-y-auto">
+            <ul className="m-0 p-0 overflow-hidden border border-solid border-line rounded-panel bg-white list-none [&>li+li>div]:border-t [&>li+li>div]:border-line [@media(max-width:900px)]:grid [@media(650px<width<=900px)]:grid-cols-2 [@media(650px<width<=900px)]:gap-[14px] [@media(max-width:900px)]:overflow-visible [@media(max-width:900px)]:border-0 [@media(max-width:900px)]:rounded-none [@media(max-width:900px)]:bg-transparent [@media(max-width:650px)]:grid-cols-1 [@media(max-width:650px)]:gap-[10px]">
+              {rooms.map((room) => {
+                const canJoin = room.status === "waiting" && room.openSeats > 0;
+                return (
+                  <li key={room.id}>
+                    <AppCard className="grid grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px] items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white">
+                      <div className="flex items-center min-w-0 gap-3">
+                        <AppAvatar src={room.hostAvatarUrl} label={room.hostName ?? "ホストなし"} />
+                        <div className="min-w-0">
+                          <strong className="block text-sm wrap-anywhere">
+                            {room.hostName ?? "ホストなし"}
+                          </strong>
+                          <span className="block text-xs text-muted tabular-nums">{room.id}</span>
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
-                      {room.mode === "singles" ? "シングルス" : "ダブルス"}
-                    </span>
-                    <div className="flex items-center min-w-0 gap-3 [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-3">
-                      <strong className="text-base tabular-nums whitespace-nowrap">
-                        {room.humanCount + room.cpuCount}/{room.capacity}
-                      </strong>
-                      <span
-                        className="inline-flex gap-1"
-                        role="img"
-                        aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${room.capacity - room.humanCount - room.cpuCount}席`}
-                      >
-                        {Array.from({ length: room.capacity }, (_, index) => (
-                          <span
-                            key={index}
-                            className={`size-2 rounded-full ${index < room.humanCount ? "bg-[#34a871]" : index < room.humanCount + room.cpuCount ? "bg-[#376597]" : "bg-[#cbd3ce]"}`}
-                          />
-                        ))}
+                      <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
+                        {room.mode === "singles" ? "シングルス" : "ダブルス"}
                       </span>
-                    </div>
-                    <div className="flex items-center flex-wrap gap-1 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-1 [@media(max-width:900px)]:justify-end">
-                      <Chip
-                        className={`inline-flex items-center gap-[6px] w-fit rounded-[20px] py-1 px-[10px] text-[11px] font-semibold whitespace-nowrap ${room.status === "playing" ? "text-[#806323] bg-[#fcf5e4]" : "text-[#27794f] bg-[#edf7f0]"}`}
-                      >
-                        <Chip.Label className="inline-flex items-center gap-[6px]">
-                          <span className="size-[5px] rounded-full bg-current" />
-                          {room.status === "waiting" ? "対局前" : "対局中"}
-                        </Chip.Label>
-                      </Chip>
-                    </div>
-                    <div className="flex justify-end gap-2 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-3">
-                      {canJoin && (
+                      <div className="flex items-center min-w-0 gap-3 [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-3">
+                        <strong className="text-base tabular-nums whitespace-nowrap">
+                          {room.humanCount + room.cpuCount}/{room.capacity}
+                        </strong>
+                        <span
+                          className="inline-flex gap-1"
+                          role="img"
+                          aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${room.capacity - room.humanCount - room.cpuCount}席`}
+                        >
+                          {Array.from({ length: room.capacity }, (_, index) => (
+                            <span
+                              key={index}
+                              className={`size-2 rounded-full ${index < room.humanCount ? "bg-[#34a871]" : index < room.humanCount + room.cpuCount ? "bg-[#376597]" : "bg-[#cbd3ce]"}`}
+                            />
+                          ))}
+                        </span>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-1 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-1 [@media(max-width:900px)]:justify-end">
+                        <Chip
+                          className={`inline-flex items-center gap-[6px] w-fit rounded-[20px] py-1 px-[10px] text-[11px] font-semibold whitespace-nowrap ${room.status === "playing" ? "text-[#806323] bg-[#fcf5e4]" : "text-[#27794f] bg-[#edf7f0]"}`}
+                        >
+                          <Chip.Label className="inline-flex items-center gap-[6px]">
+                            <span className="size-[5px] rounded-full bg-current" />
+                            {room.status === "waiting" ? "対局前" : "対局中"}
+                          </Chip.Label>
+                        </Chip>
+                      </div>
+                      <div className="flex justify-end gap-2 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-3">
+                        {canJoin && (
+                          <AppButton
+                            size="compact"
+                            type="button"
+                            aria-label={`ルーム ${room.id} に参加`}
+                            onPress={() => onJoin(room.id)}
+                          >
+                            参加
+                          </AppButton>
+                        )}
                         <AppButton
                           size="compact"
+                          appearance="secondary"
                           type="button"
-                          aria-label={`ルーム ${room.id} に参加`}
-                          onPress={() => onJoin(room.id)}
+                          aria-label={`ルーム ${room.id} を観戦`}
+                          onPress={() => onWatch(room.id)}
                         >
-                          参加
+                          観戦
                         </AppButton>
-                      )}
-                      <AppButton
-                        size="compact"
-                        appearance="secondary"
-                        type="button"
-                        aria-label={`ルーム ${room.id} を観戦`}
-                        onPress={() => onWatch(room.id)}
-                      >
-                        観戦
-                      </AppButton>
-                    </div>
-                  </AppCard>
-                </li>
-              );
-            })}
-          </ul>
+                      </div>
+                    </AppCard>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
           <p className="mt-[10px]! text-muted text-[11px]">
             CPUを含む席数です。対局中は開始時の参加人数を表示しています。
           </p>
