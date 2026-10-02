@@ -221,3 +221,37 @@ test("取得中を案内し、局面操作で再取得せず、既存の参加�
   ).toBe("a".repeat(64));
   expect(traffic).toEqual({ online: [], sockets: [] });
 });
+
+test("再試行中は連打を防ぎ、連続失敗の後も成功した棋譜へ戻れる", async ({ page }) => {
+  const match = replayMatch();
+  const traffic = await mockReplay(page, match);
+  let reads = 0;
+  let finishRetry!: () => void;
+  const retryResponse = new Promise<void>((resolve) => {
+    finishRetry = resolve;
+  });
+  await page.route("**/api/account/matches/*", async (route) => {
+    reads++;
+    if (reads === 2) await retryResponse;
+    await route.fulfill(
+      reads < 3 ? { status: 503, json: { message: "取得失敗" } } : { json: { match } },
+    );
+  });
+  await page.goto(`/account/matches/${match.id}`);
+  const retry = page.getByRole("button", { name: "再試行", exact: true });
+  await expect(retry).toBeEnabled();
+  const historyLength = await page.evaluate(() => history.length);
+  await retry.click();
+  await expect(retry).toBeDisabled();
+  finishRetry();
+  await expect(retry).toBeEnabled();
+  await expect(page.getByRole("alert")).toHaveText(
+    "棋譜を取得できませんでした。もう一度お試しください。",
+  );
+  await retry.click();
+  await expect(page.getByText("対局終了", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  expect(reads).toBe(3);
+  expect(await page.evaluate(() => history.length)).toBe(historyLength);
+  expect(traffic).toEqual({ online: [], sockets: [] });
+});

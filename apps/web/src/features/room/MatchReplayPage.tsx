@@ -1,7 +1,14 @@
 import { useRoomDesktop } from "./useRoomDesktop";
 import { type MatchDetail } from "@tetraboard/protocol";
 import { useState } from "react";
-import { isRouteErrorResponse, useLoaderData, useRevalidator, useRouteError } from "react-router";
+import {
+  isRouteErrorResponse,
+  useLoaderData,
+  useLocation,
+  useNavigate,
+  useNavigation,
+  useRouteError,
+} from "react-router";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppDialog } from "../../shared/ui/AppDialog";
@@ -101,7 +108,9 @@ function MatchReplayView({ match }: { match: MatchDetail }) {
 
 export function MatchReplayErrorPage() {
   const error = useRouteError();
-  const revalidator = useRevalidator();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const navigation = useNavigation();
   const status = isRouteErrorResponse(error) ? error.status : 503;
   const retryable = status !== 400 && status !== 404;
   return (
@@ -116,8 +125,13 @@ export function MatchReplayErrorPage() {
       {retryable && (
         <AppButton
           size="compact"
-          isDisabled={revalidator.state === "loading"}
-          onPress={() => void revalidator.revalidate()}
+          isDisabled={navigation.state === "loading"}
+          onPress={() => {
+            // 同じURLでも遷移を行い、成功時にルーターのエラー境界を解除します。
+            void navigate(`${location.pathname}${location.search}${location.hash}`, {
+              replace: true,
+            });
+          }}
         >
           再試行
         </AppButton>
