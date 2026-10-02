@@ -11,6 +11,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 
 import { type RoomMode, type RoomPublicMetadata } from "@tetraboard/protocol";
 import { useState } from "react";
+import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { fourReversiLobbyPath } from "../../app/paths";
 import { HowToPlayDialog } from "./HowToPlayDialog";
@@ -70,7 +71,9 @@ export function FourReversiLobbyView(props: Props) {
 
   return (
     <div className="app-theme lobby-background min-h-dvh text-ink text-[15px] leading-[1.6]">
-      <AppHeader homeTo={fourReversiLobbyPath} homeLabel="TetraBoard 四人リバーシのロビー" />
+      <AppHeader homeTo={fourReversiLobbyPath} homeLabel="TetraBoard 四人リバーシのロビー">
+        <AccountMenu />
+      </AppHeader>
       <main className="flex flex-col gap-[22px] max-w-[1148px] mx-auto px-6 pt-6 [@media(max-width:650px)]:gap-[18px] [@media(max-width:650px)]:px-5 [@media(max-width:650px)]:pt-5">
         <div className="flex items-center justify-between gap-5 [&_h1]:text-[36px] [&_h1]:leading-[1.35] [&_h1]:tracking-[0.02em] [@media(max-width:650px)]:grid [@media(max-width:650px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:650px)]:gap-x-2 [@media(max-width:650px)]:gap-y-0 [@media(max-width:650px)]:[&>div]:contents [@media(max-width:650px)]:[&_h1]:text-[27px] [@media(max-width:650px)]:[&>button]:col-start-2 [@media(max-width:650px)]:[&>button]:row-start-1 [@media(max-width:650px)]:[&>button]:px-[3px] [@media(max-width:650px)]:[&>button]:gap-[5px] [@media(max-width:650px)]:[&_svg]:size-[17px]">
           <div>

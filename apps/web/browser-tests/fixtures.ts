@@ -64,6 +64,7 @@ export async function mockRoom(
   asPlayer = true,
   identity: RoomMembership = membership,
 ) {
+  await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
   let room = initial;
   const received: ReturnType<typeof roomSocketContract.clientMessage.parse>[] = [];
   let presence = { hostPlayerId: playerIds[0]!, connectedPlayerIds: room.players.map((p) => p.id) };
@@ -119,6 +120,7 @@ export async function mockRoom(
 }
 
 export async function mockLobby(page: Page) {
+  await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
   await page.route("**/api/rooms", (route) =>
     route.fulfill({ json: { rooms: [], nextCursor: null } }),
   );

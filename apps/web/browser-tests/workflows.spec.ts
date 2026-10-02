@@ -49,7 +49,9 @@ for (const width of widths) {
       ),
     );
     await page.goto("/games/four-reversi");
-    await expect(page.getByRole("status")).toContainText("更新");
+    await expect(
+      page.getByRole("region", { name: "公開ルーム" }).getByRole("status"),
+    ).toContainText("更新");
     failed = false;
     await page.getByRole("button", { name: "更新", exact: true }).click();
     await page.getByRole("button", { name: "もっと見る" }).click();

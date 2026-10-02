@@ -1,4 +1,11 @@
 export { healthzContract } from "./healthz";
+export {
+  usernameSchema,
+  profileInputSchema,
+  accountProfileSchema,
+  accountSessionSchema,
+  type AccountProfile,
+} from "./accounts";
 export type { HealthzResponse } from "./healthz";
 export {
   chatEntrySchema,

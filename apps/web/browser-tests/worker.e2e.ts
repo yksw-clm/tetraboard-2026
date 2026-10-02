@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockAccount, profile } from "./accountFixtures";
 
 test("ローカルWorkerで作成・CPU対局・チャット・退室する", async ({ page }) => {
   await page.goto("/games/four-reversi");
@@ -26,4 +27,39 @@ test("ローカルWorkerで作成・CPU対局・チャット・退室する", as
   await page.getByRole("button", { name: "退室", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
   await expect(page).toHaveURL(/games\/four-reversi$/);
+});
+
+test("本番ビルドで同一オリジンの資産を使いWebPへ変換する", async ({ page }) => {
+  // 画像変換では認証API境界だけを固定し、JS・WASM・画像デコードは実際の本番ビルドを使います。
+  await mockAccount(page, profile);
+  const external: string[] = [];
+  page.on("request", (request) => {
+    if (!request.url().startsWith("http://127.0.0.1:8788/") && !request.url().startsWith("blob:"))
+      external.push(request.url());
+  });
+  await page.goto("/account");
+  await page.getByRole("button", { name: "プロフィールを編集", exact: true }).click();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 256;
+    canvas.getContext("2d")!.fillRect(0, 0, 512, 256);
+    return canvas.toDataURL("image/png").split(",")[1]!;
+  });
+  await page.getByLabel("アイコン画像", { exact: true }).setInputFiles({
+    name: "image.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(png, "base64"),
+  });
+  const preview = page.getByRole("img", { name: "アイコンのプレビュー" });
+  await expect(preview).toBeVisible();
+  const image = await preview.evaluate(async (element) => {
+    const blob = await (await fetch((element as HTMLImageElement).src)).blob();
+    const bitmap = await createImageBitmap(blob);
+    const result = { width: bitmap.width, height: bitmap.height, type: blob.type };
+    bitmap.close();
+    return result;
+  });
+  expect(image).toEqual({ width: 256, height: 256, type: "image/webp" });
+  expect(external).toEqual([]);
 });

@@ -9,7 +9,10 @@ export default defineConfig({
   timeout: 60_000,
   outputDir: "test-results-worker",
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report-worker" }]],
-  projects: [{ name: "chromium-worker", use: { browserName: "chromium" } }],
+  projects: [
+    { name: "chromium-worker", use: { browserName: "chromium" } },
+    { name: "webkit-worker", use: { browserName: "webkit" } },
+  ],
   use: {
     ...browserConfig.use,
     baseURL: "http://127.0.0.1:8788",

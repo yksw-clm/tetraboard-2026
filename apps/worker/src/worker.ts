@@ -1,4 +1,5 @@
 import { healthzContract } from "@tetraboard/protocol";
+import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
 import { deleteExpiredReports } from "./rooms/reportStore";
@@ -13,6 +14,7 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
   return context.json(response);
 });
 
+api.route("/", accountRoutes);
 api.route("/", roomRoutes);
 
 // 本番の同一オリジン配信と、既存のWorker直接アクセスを両方扱います。
@@ -22,6 +24,12 @@ app.notFound((context) => context.text("Not Found", 404));
 
 export default Object.assign(app, {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await deleteExpiredReports(env.LOBBY_DB);
+    await deleteExpiredReports(env.APP_DB);
+    await deleteUnusedAvatars(env);
+    await env.APP_DB.batch([
+      env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(Date.now()),
+      env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(Date.now()),
+      env.APP_DB.prepare("DELETE FROM rateLimit WHERE lastRequest < ?").bind(Date.now() - 86400000),
+    ]);
   },
 });

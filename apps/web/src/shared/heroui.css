@@ -28,6 +28,8 @@
 @import "@heroui/styles/components/list-box.css" layer(components);
 @import "@heroui/styles/components/list-box-item.css" layer(components);
 
+@import "@heroui/styles/components/dropdown.css" layer(components);
+@import "@heroui/styles/components/popover.css" layer(components);
 @import "./theme.css";
 
 @import "./effects.css" layer(components);

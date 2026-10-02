@@ -2,6 +2,9 @@ import { cn } from "@heroui/react";
 import { type ComponentPropsWithRef } from "react";
 
 const paths = {
+  camera:
+    "M4 6h4l2-3h4l2 3h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm12 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+  chevronDown: "m6 9 6 6 6-6",
   arrow: "M5 12h14m-6-6 6 6-6 6",
   plus: "M12 5v14M5 12h14",
   join: "M14 4h5v16h-5M3 12h11m-4-4 4 4-4 4",
