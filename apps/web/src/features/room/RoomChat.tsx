@@ -5,16 +5,22 @@ import { chatCharacterLimit, countCharacters } from "@tetraboard/protocol";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type useRoomChat } from "./useRoomChat";
-import { type useRoomSession } from "./useRoomSession";
+import { type useRoomTransport } from "./useRoomTransport";
+import { type AppTheme } from "../../shared/ui/appTheme";
 
 export function RoomChat({
   chat,
   session,
   visible,
+  theme = "default",
 }: {
   chat: ReturnType<typeof useRoomChat>;
-  session: ReturnType<typeof useRoomSession>;
+  session: Pick<
+    ReturnType<typeof useRoomTransport>,
+    "chatMessages" | "membership" | "authenticated" | "connection"
+  >;
   visible: boolean;
+  theme?: AppTheme;
 }) {
   const log = useRef<HTMLUListElement>(null);
   const pinned = useRef(true);
@@ -144,7 +150,7 @@ export function RoomChat({
                   className={
                     hidden
                       ? "text-muted text-xs"
-                      : "whitespace-pre-wrap wrap-anywhere bg-[#f1f5f1] rounded-[0_12px_12px] py-[7px] px-[10px] text-[13px] group-data-[own=true]/message:bg-[#e9f4ec]"
+                      : `whitespace-pre-wrap wrap-anywhere rounded-[0_12px_12px] py-[7px] px-[10px] text-[13px] ${theme === "four-shogi" ? "bg-surface-muted group-data-[own=true]/message:bg-entry-selection-surface" : "bg-[#f1f5f1] group-data-[own=true]/message:bg-[#e9f4ec]"}`
                   }
                 >
                   {hidden ? "この人の発言を非表示中" : message.text}

@@ -4,18 +4,21 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
+import { type AppTheme } from "../../shared/ui/appTheme";
 
 export function RoomInvitationDialogs({
   invitation,
   roomId,
+  theme = "default",
 }: {
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
+  theme?: AppTheme;
 }) {
   const account = useAccount();
   if (invitation.dialog === "copy")
     return (
-      <AppDialog size="compact" title="招待リンク" onClose={invitation.close}>
+      <AppDialog size="compact" title="招待リンク" onClose={invitation.close} theme={theme}>
         <div className="flex flex-col gap-3 min-w-0">
           <p>リンクを選択してコピーし、友達に送ってください。</p>
           <AppTextField isReadOnly value={invitation.invitationUrl}>
@@ -35,6 +38,7 @@ export function RoomInvitationDialogs({
       title={`ルーム ${roomId} に参加`}
       busy={invitation.busy}
       onClose={invitation.close}
+      theme={theme}
     >
       <form
         className="flex flex-col gap-3 min-w-0"

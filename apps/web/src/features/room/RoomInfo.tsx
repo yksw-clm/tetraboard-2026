@@ -4,17 +4,18 @@ import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Accordion, Chip, Label, Radio, RadioGroup } from "@heroui/react";
 import { AppButtonLink } from "../../shared/ui/AppButton";
-import { fourReversiLobbyPath } from "../../app/paths";
+import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { formatClock, playerName } from "./roomPresentation";
-import { type useRoomSession } from "./useRoomSession";
+import { type useRoomTransport } from "./useRoomTransport";
+import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
 
 export function RoomInfo({
   session,
   onLeave,
   onCopyInvite,
 }: {
-  session: ReturnType<typeof useRoomSession>;
+  session: ReturnType<typeof useRoomTransport>;
   onLeave: () => void;
   onCopyInvite: () => void;
 }) {
@@ -61,6 +62,15 @@ export function RoomInfo({
                     ))}
                   </div>
                 </RadioGroup>
+                {room.settings.game === "four-shogi" && (
+                  <div className="mb-3">
+                    <ThreePlayerAttackSetting
+                      prohibited={room.settings.threePlayerAttackProhibited}
+                      disabled={!canManageSettings}
+                      onChange={session.changeThreePlayerAttack}
+                    />
+                  </div>
+                )}
                 <div>
                   <p className="text-[11px] font-bold text-muted">CPUの設定</p>
                   {room.players
@@ -151,7 +161,11 @@ export function RoomInfo({
           {session.leaving ? "退室中…" : "退室"}
         </AppButton>
       ) : (
-        <AppButtonLink size="compact" className="w-full" to={fourReversiLobbyPath}>
+        <AppButtonLink
+          size="compact"
+          className="w-full"
+          to={room.settings.game === "four-shogi" ? fourShogiLobbyPath : fourReversiLobbyPath}
+        >
           ロビーへ戻る
         </AppButtonLink>
       )}
@@ -182,12 +196,14 @@ export function RoomInfoCard({
           #{roomId}
         </Chip>
       </div>
-      <dl className="grid grid-cols-2 py-1 px-[10px] bg-[#f9fbf9] border border-solid border-[#e8eee8] rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:bg-[#edf5ef] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line">
+      <dl
+        className={`grid grid-cols-2 py-1 px-[10px] border border-solid rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line ${settings.game === "four-shogi" ? "bg-[#fffaf0] border-[#eee4cd] [&>div>svg]:bg-[#fff0c9]" : "bg-[#f9fbf9] border-[#e8eee8] [&>div>svg]:bg-[#edf5ef]"}`}
+      >
         <div>
           <AppIcon name="board" />
           <div>
             <dt>ゲーム名</dt>
-            <dd>四人リバーシ</dd>
+            <dd>{settings.game === "four-shogi" ? "四人将棋" : "四人リバーシ"}</dd>
           </div>
         </div>
         <div>
@@ -212,6 +228,11 @@ export function RoomInfoCard({
           </div>
         </div>
       </dl>
+      {settings.game === "four-shogi" && (
+        <p className="text-xs text-muted">
+          三人攻撃禁止：{settings.threePlayerAttackProhibited ? "ON" : "OFF"}
+        </p>
+      )}
       {children}
     </AppCard>
   );

@@ -4,7 +4,7 @@ export function FourShogiRules() {
   return (
     <>
       <p className="text-muted text-[13px] leading-[1.8]">
-        9×9の盤を4人で囲み、相手の王を詰ませる将棋です。オンライン対局は準備中です。
+        9×9の盤を4人で囲み、相手の王を詰ませる将棋です。CPUや友達とオンラインで遊べます。
       </p>
       <section>
         <h3>4つの方向から指す将棋</h3>

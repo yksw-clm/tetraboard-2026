@@ -12,7 +12,9 @@ const brown = "rgb(56, 43, 18)";
 async function watchGameRequests(page: Page) {
   const requests: string[] = [];
   await page.route(/\/api\/(?:rooms(?:\/|\?|$)|games\/four-reversi\/rankings)/, (route) => {
-    requests.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
+    requests.push(
+      `${route.request().method()} ${new URL(route.request().url()).pathname + new URL(route.request().url()).search}`,
+    );
     return route.fallback();
   });
   return requests;
@@ -37,13 +39,13 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   await expect(page.getByRole("heading", { name: "四人将棋", exact: true })).toBeVisible();
   await expectSelectedGame(page, "四人将棋");
   await expect(page.getByTestId("lobby-board-preview")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "公開ルーム" })).toContainText("準備中");
+  await expect(page.getByRole("region", { name: "公開ルーム" })).not.toContainText("準備中");
   await expect(page.getByRole("region", { name: "ランキング" })).toBeVisible();
   await expect(page.getByRole("region", { name: "ランキング" })).toContainText("準備中");
   await expect(page.getByRole("button", { name: /^ルーム \d{5} / })).toHaveCount(0);
   await page.reload();
   await expectSelectedGame(page, "四人将棋");
-  expect(requests).toEqual([]);
+  expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
 
   const navigation = page.getByRole("navigation", { name: "ゲームを選択" });
   const reversi = navigation.getByRole("link", { name: "四人リバーシ", exact: true });
@@ -141,16 +143,20 @@ test("将棋の準備中ランキングはモードと集計項目を切り替�
     "aria-selected",
     "true",
   );
-  expect(requests).toEqual([]);
+  expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
 });
 
 for (const width of [320, 390, 768, 1440]) {
-  test(`将棋の入力と遊び方を操作でき、確定操作は準備中のまま ${width}px`, async ({
-    page,
-  }, info) => {
+  test(`将棋の入力・設定・遊び方と送信失敗を扱う ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await mockLobby(page);
     const requests = await watchGameRequests(page);
+    const payloads: unknown[] = [];
+    await page.route(/\/api\/rooms(?:\/\d{5}\/players)?$/, (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      payloads.push(route.request().postDataJSON());
+      return route.fulfill({ status: 503, json: { error: "internal_error" } });
+    });
     await page.goto(shogiPath);
     const quick = page.getByRole("button", { name: /^すぐ遊ぶ/ });
     await expect(quick).toHaveCSS("background-color", yellow);
@@ -171,12 +177,19 @@ for (const width of [320, 390, 768, 1440]) {
     await nickname.fill("将棋の名前");
     await dialog.getByText("ダブルス", { exact: true }).click();
     await expect(dialog.getByRole("radio", { name: /ダブルス/ })).toBeChecked();
-    const confirm = dialog.getByRole("button", { name: "準備中", exact: true });
-    await expect(confirm).toBeDisabled();
+    const confirm = dialog.getByRole("button", { name: "CPUとの待機室へ", exact: true });
+    await expect(confirm).toBeEnabled();
     await expect(confirm).toHaveCSS("background-color", yellow);
     await expect(confirm).toHaveCSS("color", brown);
-    await expect(dialog).toContainText("準備中");
+    await expect(dialog).toContainText("CPU3人と対戦");
     await nickname.press("Enter");
+    await expect(dialog.getByRole("alert")).toBeVisible();
+    expect(payloads[0]).toMatchObject({
+      name: "将棋の名前",
+      game: "four-shogi",
+      mode: "doubles",
+      threePlayerAttackProhibited: true,
+    });
     await expect(dialog).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`${shogiPath}$`));
     const close = dialog.getByRole("button", { name: "閉じる", exact: true });
@@ -201,7 +214,7 @@ for (const width of [320, 390, 768, 1440]) {
     const create = page.getByRole("dialog", { name: "ルームを作る", exact: true });
     await expect(create.getByRole("textbox", { name: "ニックネーム" })).toHaveValue("将棋の名前");
     await expect(create.getByRole("radio", { name: /ダブルス/ })).toBeChecked();
-    await expect(create.getByRole("button", { name: "準備中", exact: true })).toBeDisabled();
+    await expect(create.getByRole("button", { name: "ルームを作る", exact: true })).toBeEnabled();
     await create.getByRole("button", { name: "閉じる", exact: true }).click();
 
     await page.getByRole("button", { name: /^ルーム番号で参加/ }).click();
@@ -210,17 +223,19 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(join.getByRole("textbox", { name: "ルーム番号", exact: true })).toHaveValue(
       "12345",
     );
-    await expect(join.getByRole("button", { name: "準備中", exact: true })).toBeDisabled();
+    await expect(join.getByRole("button", { name: "参加する", exact: true })).toBeEnabled();
     await join.getByRole("textbox", { name: "ルーム番号", exact: true }).press("Enter");
-    await expect(join).toBeVisible();
+    await expect(join.getByRole("alert")).toBeVisible();
+    await expect(join.getByRole("button", { name: "参加する", exact: true })).toBeEnabled();
     await page.keyboard.press("Escape");
+    await expect(join).toHaveCount(0);
 
     const help = page.getByRole("button", { name: "遊び方", exact: true });
     await help.click();
     const rules = page.getByRole("dialog", { name: "四人将棋の遊び方", exact: true });
     await expect(rules).toContainText("三人攻撃");
     await expect(rules).toContainText("初期値はON");
-    await expect(rules).toContainText("準備中");
+    await expect(rules).not.toContainText("オンライン対局は準備中");
     await expect(rules).not.toContainText("石数");
     const understood = rules.getByRole("button", { name: "わかった", exact: true });
     await expect(understood).toHaveCSS("background-color", yellow);
@@ -230,7 +245,7 @@ for (const width of [320, 390, 768, 1440]) {
     });
     await understood.click();
     await expect(help).toBeFocused();
-    expect(requests).toEqual([]);
+    expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
 
     await page
       .getByRole("navigation", { name: "ゲームを選択" })
@@ -257,13 +272,14 @@ for (const width of [320, 390, 768, 1440]) {
     await quick.click();
     await expect(nickname).toHaveValue("");
     await expect(dialog.getByRole("radio", { name: /シングルス/ })).toBeChecked();
-    expect(requests).toEqual([]);
+    expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
   });
 }
 
 test("将棋でもログイン済みのプロフィールを確認でき、アカウント画面とメニューは共通テーマを保つ", async ({
   page,
 }) => {
+  await mockLobby(page);
   await mockAccount(page, profile);
   const requests = await watchGameRequests(page);
   await page.goto(shogiPath);
@@ -271,9 +287,9 @@ test("将棋でもログイン済みのプロフィールを確認でき、ア�
   const entry = page.getByRole("dialog", { name: "ルームを作る", exact: true });
   await expect(entry.getByLabel("参加するアカウント")).toContainText(profile.name);
   await expect(entry.getByRole("textbox", { name: "ニックネーム" })).toHaveCount(0);
-  await expect(entry.getByRole("button", { name: "準備中", exact: true })).toBeDisabled();
+  await expect(entry.getByRole("button", { name: "ルームを作る", exact: true })).toBeEnabled();
   await page.keyboard.press("Escape");
-  expect(requests).toEqual([]);
+  expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
   const menu = page.getByRole("button", { name: /のアカウントメニュー/ });
   await menu.focus();
   await page.keyboard.press("Enter");

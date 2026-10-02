@@ -1,6 +1,7 @@
 import {
   createRoomContract,
   getRoomContract,
+  getFourShogiReplayContract,
   getRoomMembershipContract,
   joinRoomContract,
   leaveRoomContract,
@@ -103,12 +104,20 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
 
   for (let attempt = 0; attempt < maxRoomCodeAttempts; attempt++) {
     const code = generateRoomCode();
-    const initialRoom: Room = {
+    const game = request.data.game ?? "four-reversi";
+    const initialRoom = {
       eliminations: [],
       id: code,
       instanceId: crypto.randomUUID(),
       status: "waiting",
-      settings: { game: "four-reversi", mode: request.data.mode, timeControl: roomTimeControl },
+      settings: {
+        game,
+        mode: request.data.mode,
+        timeControl: roomTimeControl,
+        ...(game === "four-shogi"
+          ? { threePlayerAttackProhibited: request.data.threePlayerAttackProhibited ?? true }
+          : {}),
+      },
       publicUpdatedAtMs: Date.now(),
       lastActivityAtMs: Date.now(),
       players: [
@@ -118,7 +127,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
           kind: "human",
           avatarUrl: null,
           ready: request.data.quickPlay,
-          color: null,
+          ...(game === "four-shogi" ? { side: null } : { color: null }),
           reconnectDeadline: null,
         },
         ...(request.data.quickPlay
@@ -128,7 +137,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
               kind: "cpu" as const,
               level: 1 as const,
               ready: true as const,
-              color: null,
+              ...(game === "four-shogi" ? { side: null } : { color: null }),
               reconnectDeadline: null,
             }))
           : []),
@@ -136,7 +145,15 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
       game: null,
       clock: null,
       lastRound: null,
-    };
+      ...(game === "four-shogi"
+        ? {
+            roundId: null,
+            positionRevision: 0,
+            legalActions: [],
+            checkState: { south: false, west: false, north: false, east: false },
+          }
+        : {}),
+    } as Room;
 
     let admission: AccountAdmission | undefined;
     try {
@@ -198,7 +215,11 @@ roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) 
     ? { updatedAtMs: Number(cursor.split(":")[0]), id: cursor.split(":")[1] }
     : null;
   try {
-    const rooms = await listRoomIndex(context.env.APP_DB, position);
+    const rooms = await listRoomIndex(
+      context.env.APP_DB,
+      position,
+      query.data.game ?? "four-reversi",
+    );
     context.header("Cache-Control", "no-store");
     return context.json(listRoomsContract.response.parse(rooms));
   } catch {
@@ -222,6 +243,29 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
     return context.json(roomError("internal_error"), 500);
   }
 });
+
+roomRoutes.on(
+  getFourShogiReplayContract.method,
+  getFourShogiReplayContract.path,
+  async (context) => {
+    const params = getFourShogiReplayContract.params.safeParse(context.req.param());
+    const query = getFourShogiReplayContract.query.safeParse(context.req.query());
+    if (!params.success || !query.success) return context.json(roomError("invalid_request"), 400);
+    try {
+      const result = await context.env.GAME_ROOM.getByName(params.data.id).getShogiReplay(
+        query.data.instanceId,
+        params.data.roundId,
+        query.data.cursor ?? 0,
+      );
+      context.header("Cache-Control", "no-store");
+      if (result.status === "room_changed") return context.json(roomError("room_changed"), 410);
+      if (result.status !== "found") return context.json(roomError("not_found"), 404);
+      return context.json(getFourShogiReplayContract.response.parse(result.page));
+    } catch {
+      return context.json(roomError("internal_error"), 500);
+    }
+  },
+);
 
 roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) => {
   const code = context.req.param("id");

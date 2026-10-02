@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@tetraboard/four-reversi": "workspace:*",
+    "@tetraboard/four-shogi": "workspace:*",
     "@tetraboard/protocol": "workspace:*",
     "better-auth": "1.7.5",
     "hono": "^4.13.10"

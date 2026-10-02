@@ -63,3 +63,183 @@ test("本番ビルドで同一オリジンの資産を使いWebPへ変換する"
   expect(image).toEqual({ width: 256, height: 256, type: "image/webp" });
   expect(external).toEqual([]);
 });
+
+test("将棋を独立した4人で開始し、観戦・チャット・再接続・棋譜・再戦を行う", async ({
+  browser,
+}, info) => {
+  test.setTimeout(120_000);
+  const contexts = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: "ja-JP" }),
+    ),
+  );
+  const pages = await Promise.all(contexts.map((context) => context.newPage()));
+  try {
+    const host = pages[0]!;
+    await host.goto("http://127.0.0.1:8788/games/four-shogi");
+    await host.getByRole("button", { name: /^ルームを作る/ }).click();
+    await host.getByRole("textbox", { name: "ニックネーム" }).fill("将棋接続1");
+    await host
+      .getByRole("dialog")
+      .getByRole("button", { name: "ルームを作る", exact: true })
+      .click();
+    await expect(host).toHaveURL(/\/rooms\/\d{5}$/);
+    const roomId = new URL(host.url()).pathname.split("/").at(-1)!;
+    const roomURL = host.url();
+    for (let i = 1; i < 4; i++) {
+      const page = pages[i]!;
+      await page.goto("http://127.0.0.1:8788/games/four-shogi");
+      await page.getByRole("button", { name: /^ルーム番号で参加/ }).click();
+      await page.getByRole("textbox", { name: "ニックネーム" }).fill("将棋接続" + (i + 1));
+      await page.getByRole("textbox", { name: "ルーム番号", exact: true }).fill(roomId);
+      await page.getByRole("dialog").getByRole("button", { name: "参加する", exact: true }).click();
+      await expect(page).toHaveURL(new RegExp("/rooms/" + roomId + "$"));
+    }
+    const spectator = pages[4]!;
+    await spectator.goto(roomURL);
+    await expect(spectator.getByText("観戦中です", { exact: true })).toBeVisible();
+    await expect(host.getByTestId("player-card")).toHaveCount(4);
+    await Promise.all(
+      pages
+        .slice(0, 4)
+        .map((page) => page.getByRole("button", { name: "準備完了", exact: true }).click()),
+    );
+    await expect(host.getByRole("button", { name: "対局開始", exact: true })).toBeEnabled();
+    await host.getByRole("button", { name: "ルーム設定" }).click();
+    await host.getByText("OFF", { exact: true }).click();
+    await expect(host.getByRole("radio", { name: "OFF", exact: true })).toBeChecked();
+    await expect(host.getByRole("button", { name: "対局開始", exact: true })).toBeDisabled();
+    for (const page of pages.slice(0, 4))
+      await expect(page.getByRole("button", { name: "準備完了", exact: true })).toBeEnabled();
+    await Promise.all(
+      pages
+        .slice(0, 4)
+        .map((page) => page.getByRole("button", { name: "準備完了", exact: true }).click()),
+    );
+    await host.getByRole("button", { name: "対局開始", exact: true }).click();
+    const readRoom = async () =>
+      (await (await host.request.get("http://127.0.0.1:8788/api/rooms/" + roomId)).json()).room;
+    await expect.poll(async () => (await readRoom()).status).toBe("playing");
+    let snapshot = await readRoom();
+    const firstRound = snapshot.roundId;
+    expect(snapshot.settings.game).toBe("four-shogi");
+    expect(snapshot.settings.threePlayerAttackProhibited).toBe(false);
+    expect(snapshot.game.board.flat().filter(Boolean)).toHaveLength(36);
+    expect(snapshot.game).not.toHaveProperty("repetitions");
+    const currentPage = (data: typeof snapshot) => {
+      const name = data.players.find((p: { side: string }) => p.side === data.game.turn).name;
+      return pages[Number(name.slice(-1)) - 1]!;
+    };
+    const mover = currentPage(snapshot);
+    const action = snapshot.legalActions.find(
+      (a: { type: string; promote: boolean }) => a.type === "movePiece" && !a.promote,
+    )!;
+    const square = (position: { x: number; y: number }) =>
+      '[data-square="' + "ABCDEFGHI"[position.x] + (position.y + 1) + '"]';
+    await mover.locator(square(action.from)).click();
+    await mover.locator(square(action.to)).click();
+    await expect.poll(async () => (await readRoom()).positionRevision).toBe(1);
+    await expect(spectator.locator('[data-last-move="to"]')).toHaveCount(1);
+    const input = host.getByRole("textbox", { name: "メッセージ" });
+    await input.fill("将棋4人接続確認");
+    await host.getByRole("button", { name: "送信", exact: true }).click();
+    await expect(spectator.getByRole("list", { name: "チャット履歴" })).toContainText(
+      "将棋4人接続確認",
+    );
+    await pages[1]!.reload();
+    await expect(
+      pages[1]!.getByTestId("player-card").filter({ hasText: "将棋接続2" }),
+    ).toHaveAttribute("aria-label", "将棋接続2、あなた");
+    for (let i = 0; i < 3; i++) {
+      snapshot = await readRoom();
+      const turnPage = currentPage(snapshot);
+      await turnPage.getByRole("button", { name: "投了", exact: true }).click();
+      await turnPage
+        .getByRole("dialog")
+        .getByRole("button", { name: "投了する", exact: true })
+        .click();
+      await expect
+        .poll(async () => {
+          const next = await readRoom();
+          return next.status === "waiting" ? 4 : next.game.eliminations.length;
+        })
+        .toBe(i === 2 ? 4 : i + 1);
+    }
+    snapshot = await readRoom();
+    expect(snapshot.lastRound.roundId).toBe(firstRound);
+    const replay = await (
+      await host.request.get(
+        "http://127.0.0.1:8788/api/rooms/" +
+          roomId +
+          "/rounds/" +
+          firstRound +
+          "/replay?instanceId=" +
+          snapshot.instanceId,
+      )
+    ).json();
+    expect(replay.events).toHaveLength(4);
+    await expect(host.getByRole("button", { name: "棋譜を1つ戻る" })).toBeEnabled();
+    await host.getByRole("button", { name: "結果", exact: true }).click();
+    await expect(host.getByRole("dialog", { name: "対局結果" })).toContainText("1位");
+    await host.keyboard.press("Escape");
+    await host.getByRole("button", { name: "棋譜を1つ戻る" }).click();
+    await info.attach("shogi-four-players", {
+      body: await host.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+    for (const page of pages.slice(0, 4))
+      await page.getByRole("button", { name: "準備完了", exact: true }).click();
+    await host.getByRole("button", { name: "対局開始", exact: true }).click();
+    await expect.poll(async () => (await readRoom()).roundId).not.toBe(firstRound);
+    await expect(host.getByRole("button", { name: "棋譜を1つ戻る" })).toHaveCount(0);
+    const old = await host.request.get(
+      "http://127.0.0.1:8788/api/rooms/" +
+        roomId +
+        "/rounds/" +
+        firstRound +
+        "/replay?instanceId=" +
+        snapshot.instanceId,
+    );
+    expect(old.status()).toBe(404);
+  } finally {
+    for (const context of contexts) await context.close();
+  }
+});
+
+test("将棋のすぐ遊ぶでCPU Lv1とLv2が実際に着手する", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/games/four-shogi");
+  await page.getByRole("button", { name: /^すぐ遊ぶ/ }).click();
+  await page.getByRole("textbox", { name: "ニックネーム" }).fill("将棋CPU確認");
+  await page.getByRole("button", { name: "CPUとの待機室へ" }).click();
+  await expect(page).toHaveURL(/\/rooms\/\d{5}$/);
+  await page.getByRole("button", { name: "ルーム設定" }).click();
+  const second = page.getByRole("group", { name: "CPU 2のレベル" });
+  await second.getByRole("button", { name: "Lv2", exact: true }).click();
+  await expect(second.getByRole("button", { name: "Lv2", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("button", { name: "対局開始", exact: true }).click();
+  for (let i = 0; i < 2; i++) {
+    const source = page
+      .getByTestId("shogi-board")
+      .getByRole("button", { name: /選択できます/ })
+      .first();
+    await expect(source).toBeEnabled({ timeout: 60_000 });
+    await source.click();
+    await page
+      .getByTestId("shogi-board")
+      .getByRole("button", { name: /移動できます/ })
+      .first()
+      .click();
+    const promotion = page.getByRole("dialog", { name: "成りますか？" });
+    if (await promotion.isVisible())
+      await promotion.getByRole("button", { name: "成る", exact: true }).click();
+  }
+  const snapshot = await (await page.request.get("/api" + new URL(page.url()).pathname)).json();
+  expect(snapshot.room.game.moveNumber).toBeGreaterThanOrEqual(4);
+  await page.getByRole("button", { name: "退室", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
+  await expect(page).toHaveURL(/games\/four-shogi$/);
+});

@@ -8,6 +8,7 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import { type AppTheme } from "../../shared/ui/appTheme";
+import { ThreePlayerAttackSetting } from "./ThreePlayerAttackSetting";
 
 export function RoomEntryDialog({
   intent,
@@ -15,6 +16,7 @@ export function RoomEntryDialog({
   name,
   roomCode,
   mode,
+  threePlayerAttackProhibited,
   busy,
   message,
   theme = "default",
@@ -22,6 +24,7 @@ export function RoomEntryDialog({
   onNameChange,
   onRoomCodeChange,
   onModeChange,
+  onThreePlayerAttackChange,
   onSubmit,
   onClose,
 }: {
@@ -30,6 +33,7 @@ export function RoomEntryDialog({
   name: string;
   roomCode: string;
   mode: RoomMode;
+  threePlayerAttackProhibited?: boolean;
   busy: boolean;
   message: string | null;
   theme?: AppTheme;
@@ -37,6 +41,7 @@ export function RoomEntryDialog({
   onNameChange: (value: string) => void;
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
+  onThreePlayerAttackChange?: (prohibited: boolean) => void;
   onSubmit: () => void;
   onClose: () => void;
 }) {
@@ -120,6 +125,13 @@ export function RoomEntryDialog({
                 ))}
               </div>
             </RadioGroup>
+            {threePlayerAttackProhibited !== undefined && onThreePlayerAttackChange && (
+              <ThreePlayerAttackSetting
+                prohibited={threePlayerAttackProhibited}
+                disabled={busy}
+                onChange={onThreePlayerAttackChange}
+              />
+            )}
             <p className="text-xs text-muted">
               持ち時間：1人{roomTimeControl.mainTimeMs / 60_000}分＋1手
               {roomTimeControl.byoyomiMs / 1000}秒の秒読み

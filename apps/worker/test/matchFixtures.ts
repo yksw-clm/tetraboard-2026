@@ -6,7 +6,8 @@ import {
   joinRoomContract,
   getRoomContract,
   roomSocketContract,
-  type Room,
+  type FourReversiRoom as Room,
+  fourReversiRoomSchema,
   type RoomMode,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
@@ -17,7 +18,9 @@ type TokenMembership = { playerId: string; role: "host" | "player"; token: strin
 export const matchRequest = (path: string, init?: RequestInit) =>
   exports.default.fetch(new Request(`${origin}/api${path}`, init));
 export async function matchRoom(id: string) {
-  return getRoomContract.response.parse(await (await matchRequest(`/rooms/${id}`)).json()).room;
+  return fourReversiRoomSchema.parse(
+    getRoomContract.response.parse(await (await matchRequest(`/rooms/${id}`)).json()).room,
+  );
 }
 export class MatchClient {
   private messages: RoomSocketMessage[] = [];
@@ -59,9 +62,11 @@ export class MatchClient {
     }
   }
   async snapshot(predicate: (room: Room) => boolean) {
-    const message = await this.until((m) => m.type === "room.snapshot" && predicate(m.room));
+    const message = await this.until(
+      (m) => m.type === "room.snapshot" && predicate(fourReversiRoomSchema.parse(m.room)),
+    );
     if (message.type !== "room.snapshot") throw new Error("Snapshot missing");
-    return message.room;
+    return fourReversiRoomSchema.parse(message.room);
   }
 }
 export const matchClients: MatchClient[] = [];

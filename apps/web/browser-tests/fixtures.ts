@@ -2,9 +2,11 @@ import { type Page, type WebSocketRoute } from "@playwright/test";
 import { createInitialState } from "@tetraboard/four-reversi";
 import {
   roomSchema,
+  fourReversiRoomSchema,
   roomTimeControl,
   roomSocketContract,
   type Room,
+  type FourReversiRoom,
   type RoomMembership,
 } from "@tetraboard/protocol";
 
@@ -15,7 +17,7 @@ export const membership = { playerId: playerIds[0]!, role: "host" as const };
 export const token = "a".repeat(64);
 
 export function waitingRoom() {
-  const room = roomSchema.parse({
+  const room = fourReversiRoomSchema.parse({
     id: "12345",
     instanceId: "00000000-0000-4000-8000-000000000010",
     status: "waiting",
@@ -38,9 +40,9 @@ export function waitingRoom() {
   return room;
 }
 
-export function playingRoom(): Room {
+export function playingRoom(): FourReversiRoom {
   const room = waitingRoom();
-  return roomSchema.parse({
+  return fourReversiRoomSchema.parse({
     ...room,
     status: "playing",
     players: room.players.map((player, index) => ({
@@ -126,7 +128,7 @@ export async function mockLobby(page: Page) {
     }),
   );
   await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
-  await page.route("**/api/rooms", (route) =>
+  await page.route(/\/api\/rooms(?:\?.*)?$/, (route) =>
     route.fulfill({ json: { rooms: [], nextCursor: null } }),
   );
 }

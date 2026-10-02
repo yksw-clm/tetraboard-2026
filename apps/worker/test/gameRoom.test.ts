@@ -10,22 +10,32 @@ import {
   listReportsContract,
   moderateReportContract,
   reportContract,
-  roomSchema,
+  fourReversiRoomSchema as roomSchema,
   roundReplaySchema,
   roomPublicMetadataSchema,
   roomSocketContract,
   roomTimeControl,
   viewerContract,
-  type Room,
+  type FourReversiRoom as Room,
   type RoomMode,
   type RoomPublicMetadata,
   type RoomSocketClientMessage,
-  type RoomSocketMessage,
+  type RoomSocketMessage as ProtocolRoomSocketMessage,
 } from "@tetraboard/protocol";
 import { applyAction, createInitialState, getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test, vi } from "vitest";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import worker from "../src/worker";
+
+type RoomSocketMessage =
+  | Exclude<ProtocolRoomSocketMessage, { type: "room.snapshot" }>
+  | (Omit<Extract<ProtocolRoomSocketMessage, { type: "room.snapshot" }>, "room"> & { room: Room });
+function parseReversiMessage(value: unknown): RoomSocketMessage {
+  const message = roomSocketContract.message.parse(value);
+  return message.type === "room.snapshot"
+    ? { ...message, room: roomSchema.parse(message.room) }
+    : message;
+}
 
 const baseUrl = "https://example.com";
 
@@ -180,7 +190,7 @@ class RoomClient {
 
   constructor(private readonly socket: WebSocket) {
     socket.addEventListener("message", (event) => {
-      const message = roomSocketContract.message.parse(JSON.parse(String(event.data)));
+      const message = parseReversiMessage(JSON.parse(String(event.data)));
       const waiter = this.waiters.shift();
       if (waiter) waiter(message);
       else this.messages.push(message);
@@ -255,7 +265,8 @@ async function createRoom(quickPlay = false, mode: RoomMode = "singles") {
     }),
   );
   expect(response.status).toBe(201);
-  return createRoomContract.response.parse(await response.json());
+  const result = createRoomContract.response.parse(await response.json());
+  return { ...result, room: roomSchema.parse(result.room) };
 }
 
 test("招待先と同じ世代に参加し、既存の番号参加も引き続き利用できる", async () => {
@@ -366,7 +377,8 @@ async function joinRoom(id: string, name: string) {
     }),
   );
   expect(response.status).toBe(200);
-  return joinRoomContract.response.parse(await response.json());
+  const result = joinRoomContract.response.parse(await response.json());
+  return { ...result, room: roomSchema.parse(result.room) };
 }
 
 async function getRoom(id: string): Promise<Room> {
@@ -374,7 +386,7 @@ async function getRoom(id: string): Promise<Room> {
     new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
   );
   expect(response.status).toBe(200);
-  return getRoomContract.response.parse(await response.json()).room;
+  return roomSchema.parse(getRoomContract.response.parse(await response.json()).room);
 }
 
 async function getMetadata(id: string): Promise<RoomPublicMetadata | null> {
@@ -1251,7 +1263,7 @@ test("対局中に最後の人間が退室してもCPUは着手を続ける", as
       closed = true;
       break;
     }
-    completed = getRoomContract.response.parse(await response.json()).room;
+    completed = roomSchema.parse(getRoomContract.response.parse(await response.json()).room);
   }
   expect(closed).toBe(true);
   await waitForIndexedRoom(id, (row) => row.closed === 1);

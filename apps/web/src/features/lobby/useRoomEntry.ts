@@ -38,12 +38,13 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
   }
 }
 
-export function useRoomEntry() {
+export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi") {
   const navigate = useNavigate();
   const account = useAccount();
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState<RoomMode>("singles");
+  const [threePlayerAttackProhibited, setThreePlayerAttackProhibited] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState<RoomEntryIntent | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const submitting = useRef(false);
@@ -87,6 +88,7 @@ export function useRoomEntry() {
         name: entryName,
         quickPlay: intent === "quick",
         mode,
+        ...(game === "four-shogi" ? { game, threePlayerAttackProhibited } : {}),
       });
       if (!request.success) {
         setMessage("ニックネームを1〜10文字で入力してください。");
@@ -104,6 +106,7 @@ export function useRoomEntry() {
       if (response.status === 201) {
         const result = contract.response.parse(body);
         if (
+          result.room.settings.game !== game ||
           result.membership.role !== "host" ||
           !result.room.players.some((player) => player.id === result.membership.playerId)
         ) {
@@ -140,6 +143,8 @@ export function useRoomEntry() {
     setRoomCode,
     mode,
     setMode,
+    threePlayerAttackProhibited,
+    setThreePlayerAttackProhibited,
     isSubmitting,
     message,
     clearMessage: () => setMessage(null),

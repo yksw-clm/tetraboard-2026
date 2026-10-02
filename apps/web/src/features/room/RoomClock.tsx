@@ -1,12 +1,12 @@
 import { cn } from "@heroui/react";
-import { type playerClock } from "./roomPresentation";
+export type RoomClockPresentation = { text: string; byoyomi: boolean; urgent: boolean };
 
 export function RoomClock({
   clock,
   describe = false,
   className,
 }: {
-  clock: NonNullable<ReturnType<typeof playerClock>>;
+  clock: RoomClockPresentation;
   describe?: boolean;
   className?: string;
 }) {

@@ -1,7 +1,13 @@
-import { type Room, type MatchDetail, type MatchHistoryParticipant } from "@tetraboard/protocol";
+import {
+  type Room,
+  type FourReversiRoom,
+  type MatchDetail,
+  type MatchHistoryParticipant,
+} from "@tetraboard/protocol";
+import { clockPresentation } from "./roomClockPresentation";
 import { createInitialState, type Color, type FourReversiState } from "@tetraboard/four-reversi";
 
-export const displayGameForRoom = (room: Room) =>
+export const displayGameForRoom = (room: FourReversiRoom) =>
   room.status === "playing"
     ? room.game
     : (room.lastRound?.game ?? createInitialState(room.settings.mode));
@@ -15,36 +21,25 @@ export const colorNames: Record<Color, string> = {
 export const playerName = (player: Room["players"][number] | MatchHistoryParticipant): string =>
   player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
 
-export function formatClock(milliseconds: number): string {
-  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
+export { formatClock } from "./roomClockPresentation";
 
-export function playerClock(room: Room, color: Color | null, serverNowMs: number) {
-  let remaining = room.settings.timeControl.mainTimeMs as number;
-  let byoyomi = remaining === 0;
+export function playerClock(room: FourReversiRoom, color: Color | null, serverNowMs: number) {
   if (room.status === "playing" && color !== null) {
     if (room.game.eliminatedColors.includes(color)) return null;
-    const main = room.clock.remainingMainMs[color];
-    const elapsed =
-      room.game.turn === color ? Math.max(0, serverNowMs - room.clock.turnStartedAt) : 0;
-    remaining = Math.max(0, main - elapsed);
-    byoyomi = remaining === 0;
-    if (byoyomi)
-      remaining =
-        room.game.turn === color
-          ? Math.max(0, room.clock.turnExpiresAt - serverNowMs)
-          : room.settings.timeControl.byoyomiMs;
-  } else if (byoyomi) remaining = room.settings.timeControl.byoyomiMs;
-  return {
-    text: formatClock(remaining),
-    byoyomi,
-    urgent: byoyomi && Math.ceil(remaining / 1000) < 10,
-  };
+    return clockPresentation({
+      timeControl: room.settings.timeControl,
+      remainingMainMs: room.clock.remainingMainMs[color],
+      turnStartedAt: room.clock.turnStartedAt,
+      turnExpiresAt: room.clock.turnExpiresAt,
+      isTurn: room.game.turn === color,
+      serverNowMs,
+    });
+  }
+  return clockPresentation({ timeControl: room.settings.timeControl, serverNowMs });
 }
 
-export function orderedSeats(room: Room, selfId: string | undefined) {
-  const seats: (Room["players"][number] | null)[] = [...room.players];
+export function orderedSeats<T extends Room>(room: T, selfId: string | undefined) {
+  const seats: (T["players"][number] | null)[] = [...room.players];
   while (seats.length < 4) seats.push(null);
   const anchor =
     selfId === undefined
@@ -63,7 +58,7 @@ export const eliminationLabels = {
   disconnected: "通信切れ",
 } as const;
 
-export function playerRank(room: Room, color: Color | null) {
+export function playerRank(room: FourReversiRoom, color: Color | null) {
   if (room.status !== "playing" || color === null) return null;
   const index = room.game.eliminatedColors.indexOf(color);
   if (index < 0) return null;

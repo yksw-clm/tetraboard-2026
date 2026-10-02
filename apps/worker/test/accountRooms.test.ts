@@ -7,7 +7,7 @@ import {
   createRoomContract,
   joinRoomContract,
   getRoomContract,
-  roomSchema,
+  fourReversiRoomSchema as roomSchema,
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { accountIdentity, publicProfile } from "../src/accounts/auth";
@@ -45,7 +45,9 @@ async function created(user?: Awaited<ReturnType<typeof accountFixture>>, extra 
   return createRoomContract.response.parse(await response.json());
 }
 async function snapshot(id: string) {
-  return getRoomContract.response.parse(await (await request(`/rooms/${id}`)).json()).room;
+  return roomSchema.parse(
+    getRoomContract.response.parse(await (await request(`/rooms/${id}`)).json()).room,
+  );
 }
 async function leave(id: string, token: string) {
   expect(

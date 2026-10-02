@@ -1,8 +1,8 @@
-import { type Room, type LastRound } from "@tetraboard/protocol";
+import { type FourReversiRoom, type LastRound } from "@tetraboard/protocol";
 import { useState } from "react";
 import { replayFrames } from "./replayFrames";
 
-export function useRoomReplay(room: Room) {
+export function useRoomReplay(room: FourReversiRoom) {
   const lastRound = room.status === "waiting" ? room.lastRound : null;
   return useRoundReplay(lastRound);
 }
