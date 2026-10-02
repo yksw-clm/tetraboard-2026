@@ -1,7 +1,7 @@
-import { AppTabs } from "../../shared/ui/AppTabs";
+import { useRoomDesktop } from "./useRoomDesktop";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Toast } from "@heroui/react";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState } from "react";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { fourReversiLobbyPath } from "../../app/paths";
 import { useRoomInvitation } from "./useRoomInvitation";
@@ -12,23 +12,13 @@ import { RoomChat } from "./RoomChat";
 import { RoomInfo } from "./RoomInfo";
 import { RoomStatus } from "./RoomStatus";
 import { AppDialog } from "../../shared/ui/AppDialog";
-import { AppIcon } from "../../shared/ui/AppIcon";
+import { RoomBoardLayout, RoomLayout } from "./RoomLayout";
 import { PlayerCard } from "./PlayerCard";
 import { ReplayCard } from "./ReplayCard";
 import { useRoomReplay } from "./useRoomReplay";
-import { colorNames, orderedSeats } from "./roomPresentation";
+import { colorNames, orderedSeats, seatPositions } from "./roomPresentation";
 import { type useRoomChat } from "./useRoomChat";
 import { type useRoomSession } from "./useRoomSession";
-
-const desktopQuery = "(min-width: 1280px)";
-function subscribeDesktop(callback: () => void) {
-  const media = window.matchMedia(desktopQuery);
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-}
-const readDesktop = () => window.matchMedia(desktopQuery).matches;
-const seats = ["bottom", "left", "top", "right"] as const;
-const tabLabels = { board: "盤面", room: "ルーム", chat: "チャット" } as const;
 
 export function RoomView({
   session,
@@ -39,7 +29,7 @@ export function RoomView({
   chat: ReturnType<typeof useRoomChat>;
   invited: boolean;
 }) {
-  const desktop = useSyncExternalStore(subscribeDesktop, readDesktop, () => false);
+  const desktop = useRoomDesktop();
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<"result" | "leave" | "resign" | null>(null);
   const { room, membership, presence } = session;
@@ -73,11 +63,11 @@ export function RoomView({
     );
 
   const board = (
-    <div className="[--player-height:60px] [--seat-width:clamp(168px,23cqw,280px)] [--board-size:max(160px,min(640px,calc(100cqw_-_2_*_var(--seat-width)_-_16px),calc(100cqh_-_2_*_var(--player-height)_-_32px)))] grid w-full min-h-full py-2 px-0 grid-cols-[var(--seat-width)_var(--board-size)_var(--seat-width)] grid-rows-[var(--player-height)_var(--board-size)_var(--player-height)] [grid-template-areas:'._top_.'_'left_board_right'_'._bottom_.'] gap-2 content-center justify-center items-center relative [@media(max-width:767px)]:[--seat-width:100%] [@media(max-width:767px)]:grid-cols-2 [@media(max-width:767px)]:grid-rows-[var(--player-height)_auto_var(--player-height)] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[6px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:p-0">
+    <RoomBoardLayout>
       {orderedSeats(room, membership?.playerId).map((player, index) => (
         <PlayerCard
-          key={seats[index]}
-          position={seats[index]}
+          key={seatPositions[index]}
+          position={seatPositions[index]}
           player={player}
           room={room}
           self={!!player && player.id === membership?.playerId}
@@ -100,7 +90,7 @@ export function RoomView({
           自動パス：{room.game.consecutivePasses.map((color) => colorNames[color]).join(" → ")}
         </p>
       )}
-    </div>
+    </RoomBoardLayout>
   );
   const info = (
     <RoomInfo
@@ -152,70 +142,16 @@ export function RoomView({
           {session.socketError}
         </div>
       )}
-      {desktop ? (
-        <div className="flex-1 min-w-0 min-h-0 p-3 gap-3 grid grid-cols-[minmax(0,1fr)_360px] grid-rows-[auto_auto_minmax(140px,1fr)]">
-          <section
-            className="min-w-0 min-h-0 [container-type:size] overflow-auto col-start-1 row-span-3 relative flex flex-col gap-2"
-            aria-label="盤面とプレイヤー"
-          >
-            <div className="flex-1 min-w-0 min-h-0 [container-type:size] overflow-auto">
-              {board}
-            </div>
-            {replayCard}
-          </section>
-          <section
-            className="min-w-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-1 [@media(max-width:1279px)]:overflow-y-auto [@media(max-width:767px)]:p-[2px]"
-            aria-label="ルーム"
-          >
-            {info}
-          </section>
-          {status}
-          <section
-            className="min-w-0 min-h-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-3 [@media(max-width:767px)]:p-[2px]"
-            aria-label="チャット"
-          >
-            {chatPanel}
-          </section>
-        </div>
-      ) : (
-        <AppTabs
-          className="flex-1 min-w-0 min-h-0 grid grid-cols-1 grid-rows-[minmax(0,1fr)_auto_auto] gap-2 pt-[6px] px-3 pb-[max(6px,env(safe-area-inset-bottom))] [@media(max-width:767px)]:pt-1 [@media(max-width:767px)]:px-1 [@media(max-width:767px)]:pb-[max(4px,env(safe-area-inset-bottom))] [@media(max-width:767px)]:gap-[6px]"
-          selectedKey={tab}
-          onSelectionChange={(key) => setTab(String(key))}
-        >
-          <AppTabs.List aria-label="ルームの表示" className="col-start-1 row-start-3 w-full h-12">
-            {(Object.keys(tabLabels) as (keyof typeof tabLabels)[]).map((key) => (
-              <AppTabs.Tab key={key} id={key} className="h-full p-2 text-xs [&_svg]:size-4">
-                <AppIcon name={key === "room" ? "user" : key} />
-                {tabLabels[key]}
-                <AppTabs.Indicator />
-              </AppTabs.Tab>
-            ))}
-          </AppTabs.List>
-          <AppTabs.Panel
-            id="board"
-            className="min-w-0 min-h-0 [container-type:size] overflow-auto [@media(min-width:1280px)]:col-start-1 [@media(min-width:1280px)]:row-span-3 [@media(min-width:1280px)]:relative [@media(min-width:1280px)]:flex [@media(min-width:1280px)]:flex-col [@media(min-width:1280px)]:gap-2 col-start-1 row-start-1 p-0 min-w-0 min-h-0 [&[inert]]:hidden [&[hidden]]:hidden"
-            shouldForceMount
-          >
-            {board}
-          </AppTabs.Panel>
-          <AppTabs.Panel
-            id="room"
-            className="min-w-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-1 [@media(max-width:1279px)]:overflow-y-auto [@media(max-width:767px)]:p-[2px] col-start-1 row-start-1 p-0 min-w-0 min-h-0 [&[inert]]:hidden [&[hidden]]:hidden"
-            shouldForceMount
-          >
-            {info}
-          </AppTabs.Panel>
-          <AppTabs.Panel
-            id="chat"
-            className="min-w-0 min-h-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-3 [@media(max-width:767px)]:p-[2px] col-start-1 row-start-1 p-0 min-w-0 min-h-0 [&[inert]]:hidden [&[hidden]]:hidden"
-            shouldForceMount
-          >
-            {chatPanel}
-          </AppTabs.Panel>
-          {status}
-        </AppTabs>
-      )}
+      <RoomLayout
+        desktop={desktop}
+        tab={tab}
+        onTabChange={setTab}
+        board={board}
+        info={info}
+        status={status}
+        chat={chatPanel}
+        replay={replayCard}
+      />
       <Toast.Provider
         queue={chat.toastQueue}
         placement="top"

@@ -5,6 +5,11 @@ import {
   gameResultSchema,
   roomModeSchema,
   countCharacters,
+  roomCodeSchema,
+  roomSettingsSchema,
+  finishedGameSchema,
+  eliminationSchema,
+  roundReplaySchema,
 } from "./rooms";
 
 const participantBase = z.strictObject({
@@ -82,3 +87,34 @@ export const getAccountStatsContract = {
   response: accountStatsSchema,
 } as const;
 export type AccountStats = z.infer<typeof accountStatsSchema>;
+
+export const matchDetailSchema = z
+  .strictObject({
+    id: z.uuid(),
+    roomId: roomCodeSchema,
+    startedAtMs: z.int().nonnegative(),
+    endedAtMs: z.int().nonnegative(),
+    settings: roomSettingsSchema,
+    participants: z.array(matchParticipantSchema).length(4),
+    selfPlayerId: z.uuid(),
+    game: finishedGameSchema,
+    eliminations: z.array(eliminationSchema).max(4),
+    replay: roundReplaySchema,
+  })
+  .refine(
+    (match) =>
+      match.game.mode === match.settings.mode &&
+      match.replay.id === match.id &&
+      match.participants.some((player) => player.id === match.selfPlayerId) &&
+      new Set(match.participants.map((player) => player.id)).size === 4 &&
+      new Set(match.participants.map((player) => player.color)).size === 4 &&
+      new Set(match.participants.map((player) => player.seat)).size === 4,
+  );
+export const getMatchContract = {
+  method: "GET",
+  path: "/account/matches/:matchId",
+  pathFor: (id: string) => `/account/matches/${id}`,
+  params: z.strictObject({ matchId: z.uuid() }),
+  response: z.strictObject({ match: matchDetailSchema }),
+} as const;
+export type MatchDetail = z.infer<typeof matchDetailSchema>;

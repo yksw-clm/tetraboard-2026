@@ -140,8 +140,11 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     await expect(first.getByText("優勝", { exact: true })).toHaveCount(2);
     await expect(first.getByText("2位", { exact: true })).toHaveCount(0);
     await expect(first.getByText("3位", { exact: true })).toBeVisible();
-    await expect(first.getByRole("button", { name: "棋譜を見る", exact: true })).toBeDisabled();
-    await expect(first.getByText("準備中", { exact: true })).toBeVisible();
+    await expect(first.getByRole("link", { name: "棋譜を見る", exact: true })).toHaveAttribute(
+      "href",
+      `/account/matches/${match(1).id}`,
+    );
+    await expect(first.getByText("準備中", { exact: true })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
