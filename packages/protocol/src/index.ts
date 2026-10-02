@@ -1,5 +1,12 @@
 export { healthzContract } from "./healthz";
 export {
+  getFourReversiRankingsContract,
+  fourReversiRankingsSchema,
+  rankingEntrySchema,
+  type FourReversiRankings,
+  type RankingEntry,
+} from "./rankings";
+export {
   getAccountStatsContract,
   accountStatsSchema,
   type AccountStats,

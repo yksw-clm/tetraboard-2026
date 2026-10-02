@@ -30,7 +30,7 @@ for (const width of [320, 390, 768, 1440]) {
       await route.fulfill({ status: 429, json: { error: "rate_limited" } });
     });
     await page.goto("/games/four-reversi");
-    const trigger = page.getByRole("button", { name: "すぐ遊ぶ", exact: true });
+    const trigger = page.getByRole("button", { name: /^すぐ遊ぶ/ });
     await trigger.click();
     const dialog = page.getByRole("dialog");
     await expectDialogGeometry(page);
