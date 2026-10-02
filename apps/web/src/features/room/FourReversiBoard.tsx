@@ -1,3 +1,4 @@
+import { Stone } from "./Stone";
 import { Button } from "@heroui/react";
 import { type FourReversiState, type Position } from "@tetraboard/four-reversi";
 import { colorNames } from "./roomPresentation";
@@ -14,7 +15,11 @@ export function FourReversiBoard({
   onPlaceStone: (position: Position) => void;
 }) {
   return (
-    <div className="room-board" role="group" aria-label="四人リバーシの盤面">
+    <div
+      className="[grid-area:board] w-full aspect-square grid grid-cols-8 grid-rows-8 bg-[#238657] border-2 border-solid border-[#175c3d] rounded-[3px] shadow-[0_10px_25px_#19402a20] overflow-hidden"
+      role="group"
+      aria-label="四人リバーシの盤面"
+    >
       {game.board.flatMap((row, y) =>
         row.map((cell, x) => {
           const legal = canPlay && legalMoves.some((move) => move.x === x && move.y === y);
@@ -23,13 +28,18 @@ export function FourReversiBoard({
             <Button
               key={`${x}-${y}`}
               isIconOnly
-              className={`room-cell${lastMove ? " is-last-move" : ""}`}
+              className={`relative grid place-items-center w-full h-full min-w-0 min-h-0 p-0 border-0 border-r border-b border-solid border-[#185c407a] rounded-none bg-transparent text-white transform-none [&:nth-child(8n)]:border-r-0 [&:nth-last-child(-n+8)]:border-b-0 disabled:opacity-100 enabled:cursor-pointer enabled:hover:bg-[#aee5aa35] focus-visible:outline-offset-[-4px] focus-visible:outline-[#fff4a8] focus-visible:z-[1]${lastMove ? " after:content-[''] after:absolute after:inset-0 after:border-[3px] after:border-solid after:border-[#ffad32] after:pointer-events-none" : ""}`}
               aria-label={`${"ABCDEFGH"[x]}${y + 1}：${cell ? colorNames[cell] : "空き"}${legal ? "、置けます" : ""}${lastMove ? "、直前の手" : ""}`}
               isDisabled={!legal}
               onPress={() => onPlaceStone({ x, y })}
             >
-              {cell && <span className={`room-stone room-stone-${cell}`} />}
-              {legal && <span className="room-legal" aria-hidden="true" />}
+              {cell && <Stone color={cell} className="absolute inset-[12%]" />}
+              {legal && (
+                <span
+                  className="absolute block w-[17%] aspect-square rounded-full bg-[#daf1d4a3]"
+                  aria-hidden="true"
+                />
+              )}
             </Button>
           );
         }),

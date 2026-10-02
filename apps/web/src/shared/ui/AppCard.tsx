@@ -1,12 +1,17 @@
 import { Card, cn } from "@heroui/react";
 import { type ComponentPropsWithRef } from "react";
 
-export function AppCard({ className, ...props }: ComponentPropsWithRef<typeof Card>) {
+export function AppCard({
+  className,
+  density = "default",
+  ...props
+}: ComponentPropsWithRef<typeof Card> & { density?: "default" | "compact" }) {
   return (
     <Card
       {...props}
       className={cn(
-        "rounded-panel border border-solid border-line bg-white p-5 text-ink shadow-panel",
+        "rounded-panel border border-solid border-line bg-white text-ink shadow-panel",
+        density === "compact" ? "py-[10px] px-[14px] gap-2 [@media(max-width:767px)]:px-3" : "p-5",
         className,
       )}
     />

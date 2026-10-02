@@ -8,8 +8,6 @@ export type AppDialogProps = {
   onClose: () => void;
   children: ReactNode;
   size?: "default" | "compact";
-  /** ページ移行が完了するまで、本文内の既存スタイルを適用します。 */
-  legacyScope?: "four-reversi-lobby" | "four-reversi-room";
 };
 
 export function AppDialog({
@@ -18,12 +16,10 @@ export function AppDialog({
   onClose,
   children,
   size = "default",
-  legacyScope,
 }: AppDialogProps) {
   return (
     <Modal.Backdrop
       className={cn(
-        legacyScope,
         "app-modal app-theme min-h-full h-lvh items-start bg-[#182e265e] bg-none text-ink backdrop-blur-none",
       )}
       isOpen

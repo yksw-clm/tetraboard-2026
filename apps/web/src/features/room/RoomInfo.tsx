@@ -1,7 +1,9 @@
-import { Accordion, Button, Card, Chip, Label, Radio, RadioGroup } from "@heroui/react";
-import { Link } from "react-router";
+import { AppCard } from "../../shared/ui/AppCard";
+import { AppButton } from "../../shared/ui/AppButton";
+import { Accordion, Chip, Label, Radio, RadioGroup } from "@heroui/react";
+import { AppButtonLink } from "../../shared/ui/AppButton";
 import { fourReversiLobbyPath } from "../../app/paths";
-import { RoomIcon } from "./RoomIcon";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import { formatClock, playerName } from "./roomPresentation";
 import { type useRoomSession } from "./useRoomSession";
 
@@ -16,60 +18,66 @@ export function RoomInfo({
 }) {
   const { room, membership, canManageSettings } = session;
   return (
-    <Card className="room-info">
-      <div className="room-card-heading">
+    <AppCard
+      density="compact"
+      className="[&_h1]:text-base [&_h1]:font-[750] [@media(max-width:1279px)]:max-w-[720px] [@media(max-width:1279px)]:mx-auto"
+    >
+      <div className="flex justify-between items-center gap-3">
         <h1>ルーム情報</h1>
-        <Chip className="room-number" size="sm">
+        <Chip
+          className="bg-surface-muted text-ink-secondary text-xs font-bold tracking-[0.04em]"
+          size="sm"
+        >
           #{room.id}
         </Chip>
       </div>
-      <dl className="room-facts">
+      <dl className="grid grid-cols-2 py-1 px-[10px] bg-[#f9fbf9] border border-solid border-[#e8eee8] rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:bg-[#edf5ef] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line">
         <div>
-          <RoomIcon name="board" />
+          <AppIcon name="board" />
           <div>
             <dt>ゲーム名</dt>
             <dd>四人リバーシ</dd>
           </div>
         </div>
         <div>
-          <RoomIcon name="user" />
+          <AppIcon name="user" />
           <div>
             <dt>対局形式</dt>
             <dd>{room.settings.mode === "singles" ? "シングルス" : "ダブルス"}</dd>
           </div>
         </div>
         <div>
-          <RoomIcon name="clock" />
+          <AppIcon name="clock" />
           <div>
             <dt>持ち時間</dt>
             <dd>{formatClock(room.settings.timeControl.mainTimeMs)}</dd>
           </div>
         </div>
         <div>
-          <RoomIcon name="clock" />
+          <AppIcon name="clock" />
           <div>
             <dt>秒読み</dt>
             <dd>{formatClock(room.settings.timeControl.byoyomiMs)}</dd>
           </div>
         </div>
       </dl>
-      <Button className="room-button room-button-secondary room-invite-copy" onPress={onCopyInvite}>
-        <RoomIcon name="copy" />
+      <AppButton size="compact" className="w-full" onPress={onCopyInvite} appearance="secondary">
+        <AppIcon name="copy" />
         招待リンクをコピー
-      </Button>
-      {membership === null && <p className="room-muted">観戦中です</p>}
+      </AppButton>
+      {membership === null && <p className="text-muted text-xs">観戦中です</p>}
       {room.status === "waiting" && membership?.role === "host" && (
-        <Accordion className="room-settings">
+        <Accordion className="text-xs">
           <Accordion.Item>
             <Accordion.Heading>
-              <Accordion.Trigger>
-                <RoomIcon name="settings" />
+              <Accordion.Trigger className="py-2 px-0 font-[650] gap-2 min-h-9 border-0 bg-transparent cursor-pointer">
+                <AppIcon name="settings" />
                 ルーム設定
                 <Accordion.Indicator />
               </Accordion.Trigger>
             </Accordion.Heading>
             <Accordion.Panel>
-              <Accordion.Body>
+              <Accordion.Body className="pt-[2px] px-0 pb-1 [&>div]:p-0">
                 <RadioGroup
                   value={room.settings.mode}
                   isDisabled={!canManageSettings}
@@ -77,10 +85,10 @@ export function RoomInfo({
                     if (value === "singles" || value === "doubles") session.changeMode(value);
                   }}
                   orientation="horizontal"
-                  className="room-mode"
+                  className="[&_.label]:text-[11px] [&_.label]:font-bold [&_.label]:text-muted"
                 >
                   <Label>対局形式</Label>
-                  <div className="room-radio-options">
+                  <div className="flex gap-4 mt-1 mb-2 [&_.radio]:text-xs [&_.radio]:flex [&_.radio]:flex-row [&_.radio]:items-center [&_.radio]:gap-[6px]">
                     {(["singles", "doubles"] as const).map((mode) => (
                       <Radio key={mode} value={mode}>
                         <Radio.Control>
@@ -93,74 +101,77 @@ export function RoomInfo({
                     ))}
                   </div>
                 </RadioGroup>
-                <div className="room-cpu-settings">
-                  <p className="room-settings-label">CPUの設定</p>
+                <div>
+                  <p className="text-[11px] font-bold text-muted">CPUの設定</p>
                   {room.players
                     .filter((player) => player.kind === "cpu")
                     .map((cpu, index) => (
-                      <div key={cpu.id} className="room-cpu-row">
+                      <div
+                        key={cpu.id}
+                        className="flex justify-between gap-2 items-center mt-1 [&>span]:flex-1 [&>span]:whitespace-nowrap [&_svg]:size-4 [&_svg]:mr-[5px]"
+                      >
                         <span>
-                          <RoomIcon name="robot" />
+                          <AppIcon name="robot" />
                           CPU {index + 1}
                         </span>
                         <div
-                          className="room-level-buttons"
+                          className="flex rounded-lg bg-surface-muted p-[2px]"
                           role="group"
                           aria-label={`CPU ${index + 1}のレベル`}
                         >
                           {([1, 2] as const).map((level) => (
-                            <Button
+                            <AppButton
                               key={level}
-                              size="sm"
-                              className={`room-level ${cpu.level === level ? "is-selected" : ""}`}
+                              size="compact"
+                              className="text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand"
                               aria-pressed={cpu.level === level}
                               isDisabled={!canManageSettings}
                               onPress={() => session.changeCpuLevel(cpu.id, level)}
                             >
                               Lv{level}
-                            </Button>
+                            </AppButton>
                           ))}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="room-remove"
+                        <AppButton
+                          size="compact"
+                          appearance="quiet"
+                          className="text-danger text-[11px] h-7 min-h-7"
                           aria-label={`${playerName(cpu)}を削除`}
                           isDisabled={!canManageSettings}
                           onPress={() => session.removeCpu(cpu.id)}
                         >
                           削除
-                        </Button>
+                        </AppButton>
                       </div>
                     ))}
-                  <div className="room-cpu-add">
+                  <div className="flex justify-between gap-2 items-center mt-1">
                     <div
-                      className="room-level-buttons"
+                      className="flex rounded-lg bg-surface-muted p-[2px]"
                       role="group"
                       aria-label="追加するCPUのレベル"
                     >
                       {([1, 2] as const).map((level) => (
-                        <Button
+                        <AppButton
                           key={level}
-                          size="sm"
-                          className={`room-level ${session.newCpuLevel === level ? "is-selected" : ""}`}
+                          size="compact"
+                          className="text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand"
                           aria-pressed={session.newCpuLevel === level}
                           isDisabled={!canManageSettings}
                           onPress={() => session.setNewCpuLevel(level)}
                         >
                           Lv{level}
-                        </Button>
+                        </AppButton>
                       ))}
                     </div>
-                    <Button
-                      className="room-button room-button-secondary"
-                      size="sm"
+                    <AppButton
+                      size="compact"
+                      appearance="secondary"
                       isDisabled={!canManageSettings || room.players.length >= 4}
                       onPress={() => session.addCpu(session.newCpuLevel)}
                     >
-                      <RoomIcon name="plus" />
+                      <AppIcon name="plus" />
                       CPUを追加
-                    </Button>
+                    </AppButton>
                   </div>
                 </div>
               </Accordion.Body>
@@ -169,19 +180,21 @@ export function RoomInfo({
         </Accordion>
       )}
       {membership ? (
-        <Button
-          className="room-button room-button-danger room-leave"
+        <AppButton
+          size="compact"
+          className="w-full"
           isDisabled={session.leaving}
           onPress={onLeave}
+          appearance="danger"
         >
-          <RoomIcon name="leave" />
+          <AppIcon name="leave" />
           {session.leaving ? "退室中…" : "退室"}
-        </Button>
+        </AppButton>
       ) : (
-        <Link className="room-button room-button-secondary room-leave" to={fourReversiLobbyPath}>
+        <AppButtonLink size="compact" className="w-full" to={fourReversiLobbyPath}>
           ロビーへ戻る
-        </Link>
+        </AppButtonLink>
       )}
-    </Card>
+    </AppCard>
   );
 }

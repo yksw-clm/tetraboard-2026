@@ -16,7 +16,10 @@ export function GameResultView({ lastRound }: { lastRound: LastRound }) {
     lastRound.players.find((player) => player.color === color)?.name ?? colorNames[color];
 
   return (
-    <section className="room-result" aria-label="対局結果の詳細">
+    <section
+      className="[&_ul]:list-none [&_ul]:p-0 [&_ul]:mt-[14px] [&_li]:py-[10px] [&_li]:border-b [&_li]:border-solid [&_li]:border-line [&_p]:text-muted [&_p]:text-[13px]"
+      aria-label="対局結果の詳細"
+    >
       <p>終局理由：{endReasonNames[result.reason]}</p>
       {result.mode === "singles" ? (
         <ul>

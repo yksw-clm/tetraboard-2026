@@ -52,9 +52,11 @@ GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型�
 
 Chromium・WebKitで320・390・650・651・767・768・900・901・1024・1279・1280・1440pxのロビーと4席の外寸、10文字名＋王冠の収まり、準備前後の外寸を確認します。ダイアログは320・390・768・1440pxで閉じるボタンの44×44px・右上12px、フォーカスと復帰、送信中の閉鎖防止、入力値、失敗表示、表示領域縮小時の操作を検証します。作成成功後の遷移、投了確認、タブ切替でのチャット入力保持、縦横のリサイズも対象です。色が未生成のまま操作テストだけ通らないよう、共通の主要ボタンがテーマ色で表示されることも確認します。
 
-スクリーンショットはHTMLレポートへ添付し、失敗時は画面とtraceを保存します。`cd apps/web && bunx playwright show-report` で確認できます。CIのbrowserジョブは両ブラウザを実行し、成功時も含めて `browser-report-<コミットSHA>` を7日間保存します。本番デプロイは通常のchecksとbrowserの両方の成功を条件とします。
+スクリーンショットはHTMLレポートへ添付し、失敗時は画面とtraceを保存します。`cd apps/web && bunx playwright show-report` で確認できます。CIのbrowserジョブは両ブラウザとローカルWorkerの主要導線を実行し、成功時も含めて `browser-report-<コミットSHA>` を7日間保存します。本番デプロイは通常のchecksとbrowserの両方の成功を条件とします。
 
-現段階では画素一致の自動判定は行わず、移行前後の添付画像と寸法・操作結果を比較します。プレイヤーカード内部の状態別固定領域、全脱落理由、棋譜・チャットの全導線は後続のルーム移行で拡充します。WebKitでの幅・高さ変更はiOS Safari実機でのキーボード確認とは区別し、未確認の場合は報告します。
+現段階では画素一致の自動判定は行わず、移行前後の添付画像と寸法・操作結果を比較します。カードのアバター・名前・下段2領域は、待機／準備完了／対局中／各脱落理由／空席・CPU／ホスト交代・切断で座標と寸法を比較します。石と石数の大きさが脱落前後で変わらないこと、長い順位理由と名前が収まることを1 CSS px以内の許容差で検証します。320・900・1440pxでは一覧の取得失敗・追加読込・参加・観戦、設定・招待・準備・開始・着手・退室、再戦の結果・棋譜、チャットの入力・スクロール保持と送信を確認します。WebKitでの幅・高さ変更はiOS Safari実機でのキーボード確認とは区別し、未確認の場合は報告します。
+
+`bun run --cwd apps/web test:browser:worker` はWebをビルドし、production設定のローカルWorker（127.0.0.1:8788、ローカルD1）で作成・CPU対局・着手・チャット・再読み込み・退室を確認します。外部APIは差し替えず、本番への接続や公開は行いません。ローカル状態は `.wrangler/production-preview`、レポートは `playwright-report-worker` に保存します。通常のブラウザテストとは別コマンドです。
 
 ## 本番デプロイ
 
@@ -127,16 +129,18 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 
 共通部品は `shared/ui/` の `AppHeader`、`AppButton`／`AppButtonLink`、`AppTextField`、`AppCard`、`AppDialog`、`AppTabs`、`AppIcon` です。HeroUIのprops・ref・キーボード操作を引き継ぎ、繰り返す見た目は部品内のTailwindクラスへ集約します。`AppButton` は `appearance`（primary／secondary／quiet／danger）と `size`（default／compact）、`AppDialog` は `size`（default／compact）で用途を指定します。`AppTextField` はLabel・Input・Description・Errorを組み合わせ、入力プロパティとrefはInputに渡します。フィールド単位のErrorはTextFieldの `isInvalid` とともに使い、フォーム全体の通信エラーは独立したalertに表示します。
 
-現在は共通基盤への移行段階です。ヘッダー・ダイアログ・参加フォーム・アイコンを共通化し、カードとタブは後続のページ移行で適用します。`LobbyDialog`／`RoomDialog` とアイコンの薄いラッパーは未移行の本文・寸法用CSSを引き継ぎます。`lobby.css` と `room.css` は `shared/heroui.css` からcomponents layerに読み込み、共通部品のutilitiesを優先します。各ページの移行完了時に旧CSSと互換ラッパーを削除します。新しいページCSSや旧CSSの重複追加は行いません。
+ロビー・ルームともページ別CSSと移行用ラッパーは撤去済みです。各部品のTailwindクラスを編集し、状態別クラスは静的な対応表にします。共通の見た目は `shared/ui/` に集約し、ゲーム固有の `PlayerCard`・`Stone`・`RoomClock`・`ReplayCard` はfeature側に置きます。`AppCard` の `density="compact"` はルームの狭い領域向けの余白です。`AppActionCard` と `AppSectionHeading` は操作カードと見出しの共通表現です。
+
+CSSを追加できる範囲は `shared/theme.css` の共通テーマ／最小リセットと、`shared/effects.css` の背景・石の陰影・アニメーションです。`shared/heroui.css` は読み込み専用です。特定ページのレイアウト、通常の色や操作状態をCSSへ戻さず、同じTailwindクラス群を複製しないで共通部品を使います。Preflightを導入せず、box-sizing・margin・border幅など必要な最小リセットを共通テーマにまとめます。
 
 ロビーはルート単位で遅延読み込みします。ダイアログのフォーカス制御・Esc・スクロール抑止はHeroUIのModalに任せ、送信中は閉鎖を無効にします。背景全体のぼかしだけを共通CSSに残し、閉じるボタンの寸法・位置、Visual Viewport内のスクロールは共通部品のクラスで指定します。
 
 - ルート定義と部屋の存在確認：`apps/web/src/app/router.tsx`、`apps/web/src/features/room/roomLoader.ts`
-- ロビー全体と入力・遊び方ダイアログ：`apps/web/src/features/lobby/FourReversiLobbyView.tsx`、`RoomEntryDialog.tsx`、`HowToPlayDialog.tsx`、スタイルは同じ場所の `lobby.css`
+- ロビー全体と入力・遊び方ダイアログ：`apps/web/src/features/lobby/FourReversiLobbyView.tsx`、`RoomEntryDialog.tsx`、`HowToPlayDialog.tsx`
 - ルーム作成・入室：`apps/web/src/features/lobby/useRoomEntry.ts`
 - 公開ロビー：`apps/web/src/features/lobby/useLobby.ts`、一覧表示は `LobbyList.tsx`
 - ルームの接続・認証・操作：`apps/web/src/features/room/useRoomSession.ts`、HTTP処理は `roomApi.ts`
-- 盤面・参加者・状況・設定：`apps/web/src/features/room/` の `FourReversiBoard`、`PlayerCard`、`RoomStatus`、`RoomInfo`。配置とタブは `RoomView.tsx`、スタイルは `room.css`
+- 盤面・参加者・状況・設定：`apps/web/src/features/room/` の `FourReversiBoard`、`PlayerCard`、`RoomStatus`、`RoomInfo`。配置とタブは `RoomView.tsx`
 - チャット入力・非表示・通報：`apps/web/src/features/room/useRoomChat.ts`、表示は `RoomChat.tsx`
 - 招待URLの照合・共通の参加処理：`apps/web/src/shared/roomAccess.ts`、ルーム内の招待操作：`apps/web/src/features/room/useRoomInvitation.ts`
 - ルーム参加資格の保存と確認：`apps/web/src/shared/roomMembership.ts`

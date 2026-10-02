@@ -30,6 +30,4 @@
 
 @import "./theme.css";
 
-/* ページ移行中だけ旧CSSを同じlayerに置き、utilitiesで上書き可能にします。 */
-@import "../features/lobby/lobby.css" layer(components);
-@import "../features/room/room.css" layer(components);
+@import "./effects.css" layer(components);

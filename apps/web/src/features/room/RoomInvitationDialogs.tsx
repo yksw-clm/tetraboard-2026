@@ -1,6 +1,6 @@
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
-import { RoomDialog } from "./RoomDialog";
+import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 
 export function RoomInvitationDialogs({
@@ -12,8 +12,8 @@ export function RoomInvitationDialogs({
 }) {
   if (invitation.dialog === "copy")
     return (
-      <RoomDialog title="招待リンク" onClose={invitation.close}>
-        <div className="room-entry-form">
+      <AppDialog size="compact" title="招待リンク" onClose={invitation.close}>
+        <div className="flex flex-col gap-3 min-w-0">
           <p>リンクを選択してコピーし、友達に送ってください。</p>
           <AppTextField isReadOnly value={invitation.invitationUrl}>
             <AppTextField.Label>招待リンク</AppTextField.Label>
@@ -23,13 +23,18 @@ export function RoomInvitationDialogs({
             閉じる
           </AppButton>
         </div>
-      </RoomDialog>
+      </AppDialog>
     );
   if (invitation.dialog !== "join") return null;
   return (
-    <RoomDialog title={`ルーム ${roomId} に参加`} busy={invitation.busy} onClose={invitation.close}>
+    <AppDialog
+      size="compact"
+      title={`ルーム ${roomId} に参加`}
+      busy={invitation.busy}
+      onClose={invitation.close}
+    >
       <form
-        className="room-entry-form"
+        className="flex flex-col gap-3 min-w-0"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -49,11 +54,11 @@ export function RoomInvitationDialogs({
           </AppTextField.Description>
         </AppTextField>
         {(invitation.message || invitation.unavailableReason) && (
-          <p className="room-error" role="alert">
+          <p className="text-danger text-xs" role="alert">
             {invitation.message ?? invitation.unavailableReason}
           </p>
         )}
-        <div className="room-dialog-actions">
+        <div className="flex justify-end gap-[10px] mt-[22px]">
           <AppButton
             appearance="secondary"
             size="compact"
@@ -71,6 +76,6 @@ export function RoomInvitationDialogs({
           </AppButton>
         </div>
       </form>
-    </RoomDialog>
+    </AppDialog>
   );
 }

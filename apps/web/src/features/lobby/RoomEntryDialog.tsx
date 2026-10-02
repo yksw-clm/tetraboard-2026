@@ -2,8 +2,8 @@ import { Label, Radio, RadioGroup } from "@heroui/react";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { roomTimeControl, type RoomMode } from "@tetraboard/protocol";
-import { LobbyDialog } from "./LobbyDialog";
-import { LobbyIcon } from "./LobbyIcon";
+import { AppDialog } from "../../shared/ui/AppDialog";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
 
 export function RoomEntryDialog({
@@ -43,8 +43,8 @@ export function RoomEntryDialog({
           : "ルーム番号で参加";
 
   return (
-    <LobbyDialog title={title} busy={busy} onClose={onClose}>
-      <p className="lobby-dialog-intro">
+    <AppDialog title={title} busy={busy} onClose={onClose}>
+      <p className="text-muted text-[13px] leading-[1.8]">
         {intent === "quick"
           ? "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
           : intent === "create"
@@ -52,7 +52,7 @@ export function RoomEntryDialog({
             : "対局で使うニックネームを入力してください。"}
       </p>
       <form
-        className="lobby-entry-form"
+        className="flex flex-col gap-[22px] mt-6"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -73,7 +73,7 @@ export function RoomEntryDialog({
         </AppTextField>
         {intent === "join" ? (
           selectedRoomId ? (
-            <p className="lobby-room-number">
+            <p className="py-[13px] px-4 rounded-control text-muted bg-[#f0f6f2] text-[13px] [&_strong]:ml-3 [&_strong]:text-ink [&_strong]:text-[17px] [&_strong]:tabular-nums [&_strong]:tracking-[0.08em]">
               参加するルーム <strong>{selectedRoomId}</strong>
             </p>
           ) : (
@@ -81,7 +81,7 @@ export function RoomEntryDialog({
               <AppTextField.Label>ルーム番号</AppTextField.Label>
               <AppTextField.Input
                 id="room-code"
-                className="lobby-code-input"
+                className="tabular-nums tracking-[0.2em]"
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="12345"
@@ -92,7 +92,7 @@ export function RoomEntryDialog({
         ) : (
           <>
             <RadioGroup
-              className="lobby-mode-field"
+              className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"
               name="mode"
               value={mode}
               onChange={(value) => {
@@ -102,11 +102,11 @@ export function RoomEntryDialog({
               orientation="horizontal"
             >
               <Label>対局モード</Label>
-              <div className="lobby-mode-options">
+              <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
                 {(["singles", "doubles"] as const).map((option) => (
                   <Radio key={option} value={option}>
-                    <Radio.Content className="lobby-mode-option">
-                      <Radio.Control>
+                    <Radio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-[#60a981] data-[selected=true]:bg-[#f0f8f3] [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
+                      <Radio.Control className="shrink-0 border border-solid border-input">
                         <Radio.Indicator />
                       </Radio.Control>
                       <span>
@@ -125,7 +125,10 @@ export function RoomEntryDialog({
           </>
         )}
         {message && (
-          <p className="lobby-error" role="alert">
+          <p
+            className="mb-0 py-[13px] px-4 border border-solid border-[#efd9d2] rounded-[11px] text-[#98472f] bg-[#fdf4f0] text-[13px] wrap-anywhere"
+            role="alert"
+          >
             {message}
           </p>
         )}
@@ -139,7 +142,7 @@ export function RoomEntryDialog({
               : intent === "quick"
                 ? "CPUとの待機室へ"
                 : "ルームを作る"}
-          {!busy && <LobbyIcon name="arrow" />}
+          {!busy && <AppIcon name="arrow" />}
         </AppButton>
         {busy && (
           <p className="text-xs text-muted" role="status">
@@ -147,6 +150,6 @@ export function RoomEntryDialog({
           </p>
         )}
       </form>
-    </LobbyDialog>
+    </AppDialog>
   );
 }

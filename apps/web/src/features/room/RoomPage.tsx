@@ -1,4 +1,5 @@
-import { isRouteErrorResponse, Link, useLoaderData, useRouteError } from "react-router";
+import { AppButtonLink } from "../../shared/ui/AppButton";
+import { isRouteErrorResponse, useLoaderData, useRouteError } from "react-router";
 import { roomChangedMessage } from "../../shared/roomAccess";
 import { fourReversiLobbyPath } from "../../app/paths";
 import { type RoomLoaderData } from "./roomLoader";
@@ -70,7 +71,9 @@ export function RoomErrorPage() {
     <>
       <p>{message}</p>
       <p>
-        <Link to={fourReversiLobbyPath}>ロビーへ</Link>
+        <AppButtonLink size="compact" to={fourReversiLobbyPath}>
+          ロビーへ
+        </AppButtonLink>
       </p>
     </>
   );

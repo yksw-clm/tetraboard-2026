@@ -34,35 +34,35 @@
     --z-index-overlay: 100000;
   }
 
-  body:has(.four-reversi-lobby, .four-reversi-room) {
+  body {
     margin: 0;
   }
 
-  :where(.app-theme, .four-reversi-lobby, .four-reversi-room) {
+  :where(.app-theme) {
     font-family: var(--font-app);
     font-size: 15px;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
 
-  :where(.app-theme, .four-reversi-lobby, .four-reversi-room) :where(*, *::before, *::after) {
+  :where(.app-theme) :where(*, *::before, *::after) {
     box-sizing: border-box;
+    border: 0 solid;
   }
 
-  :where(.app-theme, .four-reversi-lobby, .four-reversi-room) :where(h1, h2, h3, p, dl, dd) {
+  :where(.app-theme) :where(h1, h2, h3, p, dl, dd) {
     margin: 0;
   }
 
-  :where(.app-theme, .four-reversi-lobby, .four-reversi-room)
-    :where(button, a, input, summary, [tabindex]):focus-visible {
+  :where(.app-theme) :where(button, a, input, summary, [tabindex]):focus-visible {
     outline: 3px solid var(--focus);
     outline-offset: 4px;
   }
 }
 
 @layer components {
-  /* 未移行の操作部品も従来の文字寸法を保ち、個別のutilityを優先します。 */
-  :is(.app-theme, .four-reversi-lobby, .four-reversi-room) :is(button, input) {
+  /* ブラウザ標準の操作部品を本文と揃え、個別のutilityを優先します。 */
+  :is(.app-theme) :is(button, input) {
     font: inherit;
   }
 }
@@ -73,7 +73,7 @@ body:has(.app-modal) #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :where(.app-theme, .four-reversi-lobby, .four-reversi-room) :where(*, *::before, *::after) {
+  :where(.app-theme) :where(*, *::before, *::after) {
     animation: none !important;
     transition: none !important;
   }
