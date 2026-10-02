@@ -1,3 +1,5 @@
+import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
+import { type MatchRecord } from "../src/rooms/matchStore";
 import { env, exports } from "cloudflare:workers";
 import {
   createRoomContract,
@@ -122,4 +124,63 @@ export async function storedMatch(id: string) {
   return env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
     .bind(id)
     .first<{ record_json: string }>();
+}
+
+const namespaces = new Map<string, string>();
+export function fixtureRecord(
+  accountId: string,
+  index: number,
+  mode: RoomMode = "singles",
+): MatchRecord {
+  const initial = createInitialState(mode);
+  let game = initial;
+  const steps: MatchRecord["replay"]["steps"] = [];
+  for (const color of (mode === "singles" ? ["black", "white", "red"] : ["black"]) as (
+    | "black"
+    | "white"
+    | "red"
+  )[]) {
+    const result = eliminateColor(game, color);
+    if (!result.ok) throw new Error("Elimination failed");
+    game = result.state;
+    steps.push({
+      action: { type: "eliminate", color, reason: "left" },
+      game: JSON.parse(JSON.stringify(game)),
+      passedColors: [...result.passedColors],
+    });
+  }
+  if (game.status !== "finished") throw new Error("Fixture should finish");
+  if (!namespaces.has(accountId)) namespaces.set(accountId, crypto.randomUUID().slice(0, 8));
+  const id = `${namespaces.get(accountId)}-0000-4000-8000-${String(index).padStart(12, "0")}`;
+  return {
+    id,
+    roomId: "12345",
+    instanceId: crypto.randomUUID(),
+    startedAtMs: 1700000000000,
+    endedAtMs: 1700000001000,
+    settings: { game: "four-reversi", mode, timeControl: { mainTimeMs: 300000, byoyomiMs: 30000 } },
+    participants: [
+      {
+        id: crypto.randomUUID(),
+        name: "開始時の名前",
+        kind: "human",
+        color: "black",
+        seat: 0,
+        accountId,
+      },
+      {
+        id: crypto.randomUUID(),
+        name: "ゲスト",
+        kind: "human",
+        color: "white",
+        seat: 1,
+        accountId: null,
+      },
+      { id: crypto.randomUUID(), name: "CPU Lv1", kind: "cpu", color: "red", seat: 2, level: 1 },
+      { id: crypto.randomUUID(), name: "CPU Lv2", kind: "cpu", color: "blue", seat: 3, level: 2 },
+    ],
+    game,
+    eliminations: steps.map((step) => ({ color: step.action.color, reason: "left" })),
+    replay: { id, initial: JSON.parse(JSON.stringify(initial)), steps },
+  };
 }

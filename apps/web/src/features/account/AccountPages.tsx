@@ -1,4 +1,5 @@
 import { MatchHistory } from "./MatchHistory";
+import { AccountStats } from "./AccountStats";
 import { useState, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -178,15 +179,7 @@ function AccountProfileView({ user }: { user: AccountProfile }) {
               {notice}
             </p>
           )}
-          <section
-            aria-labelledby="account-stats-title"
-            className="mt-2 flex flex-col gap-3 border-0 border-t border-solid border-line pt-5"
-          >
-            <h2 id="account-stats-title" className="text-lg font-bold">
-              戦績
-            </h2>
-            <p className="text-sm text-muted">今後追加予定です。</p>
-          </section>
+          <AccountStats />
         </AppCard>
         <MatchHistory />
       </div>

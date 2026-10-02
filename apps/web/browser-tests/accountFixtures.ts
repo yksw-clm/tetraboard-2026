@@ -24,6 +24,14 @@ export async function mockAccount(page: Page, initial: AccountProfile | null) {
       ),
     }),
   );
+  await page.route("**/api/account/stats", (route) =>
+    route.fulfill({
+      json: {
+        singles: { total: 0, first: 0, second: 0, third: 0, fourth: 0 },
+        doubles: { total: 0, wins: 0, losses: 0, draws: 0 },
+      },
+    }),
+  );
   await page.route("**/api/account/matches?**", (route) =>
     route.fulfill({ json: { matches: [], nextCursor: null } }),
   );

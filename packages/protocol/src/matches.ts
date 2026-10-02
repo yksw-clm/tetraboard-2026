@@ -55,3 +55,30 @@ export const listMatchesContract = {
 } as const;
 export type MatchSummary = z.infer<typeof matchSummarySchema>;
 export type MatchHistoryParticipant = z.infer<typeof matchParticipantSchema>;
+
+const matchCountSchema = z.int().nonnegative();
+export const accountStatsSchema = z.strictObject({
+  singles: z
+    .strictObject({
+      total: matchCountSchema,
+      first: matchCountSchema,
+      second: matchCountSchema,
+      third: matchCountSchema,
+      fourth: matchCountSchema,
+    })
+    .refine((stats) => stats.total === stats.first + stats.second + stats.third + stats.fourth),
+  doubles: z
+    .strictObject({
+      total: matchCountSchema,
+      wins: matchCountSchema,
+      losses: matchCountSchema,
+      draws: matchCountSchema,
+    })
+    .refine((stats) => stats.total === stats.wins + stats.losses + stats.draws),
+});
+export const getAccountStatsContract = {
+  method: "GET",
+  path: "/account/stats",
+  response: accountStatsSchema,
+} as const;
+export type AccountStats = z.infer<typeof accountStatsSchema>;

@@ -110,7 +110,8 @@ test("戦績をプロフィール内、棋譜を独立カードとしてヘッ�
   const profileCard = page.getByTestId("account-profile-card");
   const replayCard = page.getByTestId("account-replay-card");
   await expect(profileCard.getByRole("heading", { name: "戦績", exact: true })).toBeVisible();
-  await expect(profileCard.getByText("今後追加予定です。", { exact: true })).toBeVisible();
+  await expect(profileCard.getByRole("tab", { name: "シングルス" })).toBeVisible();
+  await expect(profileCard.getByText("対局数", { exact: true })).toBeVisible();
   await expect(replayCard.getByRole("heading", { name: "棋譜", exact: true })).toBeVisible();
   await expect(replayCard.getByRole("tab", { name: "シングルス" })).toBeVisible();
   await expect(replayCard.getByText("まだ対局履歴がありません。", { exact: true })).toBeVisible();
