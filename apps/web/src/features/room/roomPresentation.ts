@@ -1,7 +1,7 @@
 import {
   type Room,
   type FourReversiRoom,
-  type MatchDetail,
+  type FourReversiMatchDetail,
   type MatchHistoryParticipant,
 } from "@tetraboard/protocol";
 import { clockPresentation } from "./roomClockPresentation";
@@ -67,7 +67,7 @@ export function playerRank(room: FourReversiRoom, color: Color | null) {
   return { rank, label: `${rank}位${reason ? `（${eliminationLabels[reason]}）` : ""}` };
 }
 
-export function matchSeats(match: MatchDetail) {
+export function matchSeats(match: FourReversiMatchDetail) {
   const players = [...match.participants].sort((a, b) => a.seat - b.seat);
   const anchor = players.findIndex((player) => player.id === match.selfPlayerId);
   return players.map((_, index) => players[(anchor + index) % 4]);
@@ -76,7 +76,7 @@ export function matchSeats(match: MatchDetail) {
 export function replayPlayerDetails(
   game: FourReversiState,
   color: Color,
-  eliminations: MatchDetail["eliminations"],
+  eliminations: FourReversiMatchDetail["eliminations"],
 ) {
   const index = game.eliminatedColors.indexOf(color);
   const eliminated = index >= 0;

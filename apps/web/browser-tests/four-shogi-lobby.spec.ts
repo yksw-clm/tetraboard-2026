@@ -11,12 +11,15 @@ const brown = "rgb(56, 43, 18)";
 // 部屋とランキングのHTTP境界を監視し、将棋から既存のリバーシAPIへ進まないことを確認します。
 async function watchGameRequests(page: Page) {
   const requests: string[] = [];
-  await page.route(/\/api\/(?:rooms(?:\/|\?|$)|games\/four-reversi\/rankings)/, (route) => {
-    requests.push(
-      `${route.request().method()} ${new URL(route.request().url()).pathname + new URL(route.request().url()).search}`,
-    );
-    return route.fallback();
-  });
+  await page.route(
+    /\/api\/(?:rooms(?:\/|\?|$)|games\/four-(?:reversi|shogi)\/rankings)/,
+    (route) => {
+      requests.push(
+        `${route.request().method()} ${new URL(route.request().url()).pathname + new URL(route.request().url()).search}`,
+      );
+      return route.fallback();
+    },
+  );
   return requests;
 }
 
@@ -41,7 +44,7 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   await expect(page.getByTestId("lobby-board-preview")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "公開ルーム" })).not.toContainText("準備中");
   await expect(page.getByRole("region", { name: "ランキング" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "ランキング" })).toContainText("準備中");
+  await expect(page.getByRole("region", { name: "ランキング" })).not.toContainText("準備中");
   await expect(page.getByRole("button", { name: /^ルーム \d{5} / })).toHaveCount(0);
   await page.reload();
   await expectSelectedGame(page, "四人将棋");
@@ -83,7 +86,7 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   await expect(page).toHaveURL(new RegExp(`${reversiPath}$`));
 });
 
-test("将棋の準備中ランキングはモードと集計項目を切り替えられ、画面幅を変えても選択を保つ", async ({
+test("将棋ランキングはモードと集計項目を切り替えられ、画面幅を変えても選択を保つ", async ({
   page,
 }, info) => {
   await mockLobby(page);
@@ -91,8 +94,8 @@ test("将棋の準備中ランキングはモードと集計項目を切り替�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(shogiPath);
   const rankings = page.getByRole("region", { name: "ランキング", exact: true });
-  await expect(rankings).toContainText("準備中");
-  await expect(rankings.getByRole("button", { name: "ランキングを更新" })).toBeDisabled();
+  await expect(rankings).not.toContainText("準備中");
+  await expect(rankings.getByRole("button", { name: "ランキングを更新" })).toBeEnabled();
   await rankings.getByRole("tab", { name: "ダブルス", exact: true }).click();
   await expect(rankings.getByRole("tab", { name: "ダブルス", exact: true })).toHaveAttribute(
     "aria-selected",
@@ -107,12 +110,12 @@ test("将棋の準備中ランキングはモードと集計項目を切り替�
   const more = rankings.getByRole("button", { name: "もっと見る", exact: true });
   await more.click();
   const dialog = page.getByRole("dialog", { name: "ランキング", exact: true });
-  await expect(dialog).toContainText("準備中");
+  await expect(dialog).not.toContainText("準備中");
   await expect(dialog.getByRole("tab", { name: "ダブルス", exact: true })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(dialog.getByRole("button", { name: "更新", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "更新", exact: true })).toBeEnabled();
   await dialog.getByRole("tab", { name: "対局数", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "対局数", exact: true })).toBeVisible();
   await dialog.getByRole("tab", { name: "シングルス", exact: true }).click();

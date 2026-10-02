@@ -1,4 +1,4 @@
-import { useNavigation } from "react-router";
+import { useLocation, useNavigation } from "react-router";
 import { Avatar } from "@heroui/react";
 import {
   type MatchSummary,
@@ -11,8 +11,9 @@ import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { useMatchHistory } from "./useMatchHistory";
+import { GameSelect } from "../../shared/ui/GameSelect";
+import { matchResultGroups } from "./matchSummaryPresentation";
 
-const colorOrder = ["black", "white", "red", "blue"] as const;
 const dateFormat = new Intl.DateTimeFormat("ja-JP", {
   year: "numeric",
   month: "2-digit",
@@ -48,16 +49,13 @@ function Participant({ player }: { player: MatchHistoryParticipant }) {
 }
 function MatchHistoryCard({ match }: { match: MatchSummary }) {
   const navigation = useNavigation();
+  const location = useLocation();
   const loading =
     navigation.state === "loading" &&
     navigation.location?.pathname === `/account/matches/${match.id}`;
   const result = match.result;
-  const gameLabel = `四人リバーシ・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
-  const teamColors = { "black-red": ["black", "red"], "white-blue": ["white", "blue"] } as const;
-  const teams =
-    result.mode === "doubles" && result.winner === "white-blue"
-      ? (["white-blue", "black-red"] as const)
-      : (["black-red", "white-blue"] as const);
+  const gameLabel = `${match.game === "four-shogi" ? "四人将棋" : "四人リバーシ"}・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
+  const groups = matchResultGroups(match);
   return (
     <article
       aria-label={`${dateFormat.format(match.startedAtMs)} ${gameLabel}の対局`}
@@ -71,42 +69,34 @@ function MatchHistoryCard({ match }: { match: MatchSummary }) {
       </div>
       {result.mode === "singles" ? (
         <ol className="m-0 grid list-none grid-cols-2 gap-x-3 gap-y-2 p-0">
-          {[...result.standings]
-            .sort(
-              (a, b) =>
-                a.rank - b.rank || colorOrder.indexOf(a.color) - colorOrder.indexOf(b.color),
-            )
-            .map((standing) => {
-              const player = match.participants.find((p) => p.color === standing.color)!;
-              return (
-                <li key={player.id} className="flex min-w-0 items-center gap-1.5">
-                  <span
-                    className={`w-7 shrink-0 text-xs font-bold ${standing.rank === 1 ? "text-brand" : "text-muted"}`}
-                  >
-                    {standing.rank === 1 ? "優勝" : `${standing.rank}位`}
-                  </span>
-                  <Participant player={player} />
-                </li>
-              );
-            })}
+          {groups.map((group) => {
+            const player = group.players[0]!;
+            return (
+              <li key={player.id} className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className={`w-7 shrink-0 text-xs font-bold ${group.emphasized ? "text-brand" : "text-muted"}`}
+                >
+                  {group.label}
+                </span>
+                <Participant player={player} />
+              </li>
+            );
+          })}
         </ol>
       ) : (
         <div className="flex flex-col gap-2">
-          {teams.map((team) => (
+          {groups.map((group) => (
             <div
-              key={team}
+              key={group.players[0]!.id}
               className="grid grid-cols-[48px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5"
             >
               <span
-                className={`text-xs font-bold ${result.winner === team ? "text-brand" : "text-muted"}`}
+                className={`text-xs font-bold ${group.emphasized ? "text-brand" : "text-muted"}`}
               >
-                {result.winner === null ? "引き分け" : result.winner === team ? "勝利" : "敗北"}
+                {group.label}
               </span>
-              {teamColors[team].map((color) => (
-                <Participant
-                  key={color}
-                  player={match.participants.find((p) => p.color === color)!}
-                />
+              {group.players.map((player) => (
+                <Participant key={player.id} player={player} />
               ))}
             </div>
           ))}
@@ -118,7 +108,12 @@ function MatchHistoryCard({ match }: { match: MatchSummary }) {
             棋譜を読み込んでいます…
           </span>
         )}
-        <AppButtonLink size="compact" appearance="secondary" to={`/account/matches/${match.id}`}>
+        <AppButtonLink
+          size="compact"
+          appearance="secondary"
+          to={`/account/matches/${match.id}`}
+          state={location.state}
+        >
           棋譜を見る
         </AppButtonLink>
       </div>
@@ -127,7 +122,7 @@ function MatchHistoryCard({ match }: { match: MatchSummary }) {
 }
 export function MatchHistory() {
   const history = useMatchHistory();
-  const { page, mode } = history;
+  const { page, mode, game } = history;
   return (
     <AppCard data-testid="account-replay-card">
       <div className="flex items-center justify-between gap-2">
@@ -141,6 +136,7 @@ export function MatchHistory() {
           更新
         </AppButton>
       </div>
+      <GameSelect label="棋譜のゲーム" game={game} onChange={history.setGame} />
       <AppTabs selectedKey={mode} onSelectionChange={(key) => history.setMode(key as RoomMode)}>
         <AppTabs.List aria-label="棋譜の対局モード">
           <AppTabs.Tab id="singles">

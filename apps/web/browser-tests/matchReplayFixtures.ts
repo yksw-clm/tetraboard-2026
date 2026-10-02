@@ -5,17 +5,21 @@ import {
   getLegalMoves,
 } from "@tetraboard/four-reversi";
 import {
-  matchDetailSchema,
+  fourReversiMatchDetailSchema,
   roundReplaySchema,
-  type MatchDetail,
+  type FourReversiMatchDetail,
   type RoomMode,
 } from "@tetraboard/protocol";
 
-export function replayMatch(mode: RoomMode = "singles", normal = false, index = 1): MatchDetail {
+export function replayMatch(
+  mode: RoomMode = "singles",
+  normal = false,
+  index = 1,
+): FourReversiMatchDetail {
   const id = `55555555-5555-4555-8555-${String(index).padStart(12, "0")}`;
   const initial = createInitialState(mode);
   let game = initial;
-  const steps: MatchDetail["replay"]["steps"] = [];
+  const steps: FourReversiMatchDetail["replay"]["steps"] = [];
   function place() {
     const color = game.turn;
     if (!color) throw new Error("Fixture already finished");
@@ -32,7 +36,7 @@ export function replayMatch(mode: RoomMode = "singles", normal = false, index = 
     );
   }
   place();
-  const eliminations: MatchDetail["eliminations"] = [];
+  const eliminations: FourReversiMatchDetail["eliminations"] = [];
   if (normal) {
     while (game.status === "playing") place();
   } else {
@@ -59,7 +63,7 @@ export function replayMatch(mode: RoomMode = "singles", normal = false, index = 
     }
   }
   if (game.status !== "finished") throw new Error("Fixture should finish");
-  const participants: MatchDetail["participants"] = [
+  const participants: FourReversiMatchDetail["participants"] = [
     {
       id: "11111111-1111-4111-8111-111111111111",
       name: "さしすせそたちつてと",
@@ -93,7 +97,7 @@ export function replayMatch(mode: RoomMode = "singles", normal = false, index = 
       seat: 3,
     },
   ];
-  return matchDetailSchema.parse({
+  return fourReversiMatchDetailSchema.parse({
     id,
     roomId: "12345",
     startedAtMs: 1700000000000,

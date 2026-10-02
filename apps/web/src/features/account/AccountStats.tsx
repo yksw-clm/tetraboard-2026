@@ -1,9 +1,11 @@
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import { type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { formatStatsRate } from "./statsPresentation";
 import { useAccountStats } from "./useAccountStats";
+import { GameSelect } from "../../shared/ui/GameSelect";
+import { useAccountSelection } from "./useAccountSelection";
 
 function Metric({
   label,
@@ -25,8 +27,8 @@ function Metric({
 }
 
 export function AccountStats() {
-  const [mode, setMode] = useState<RoomMode>("singles");
-  const { stats, loading, error, refresh } = useAccountStats();
+  const { game, mode, setGame, setMode } = useAccountSelection("stats");
+  const { stats, loading, error, refresh } = useAccountStats(game);
   return (
     <section
       aria-labelledby="account-stats-title"
@@ -45,6 +47,7 @@ export function AccountStats() {
           更新
         </AppButton>
       </div>
+      <GameSelect label="戦績のゲーム" game={game} onChange={setGame} />
       <AppTabs selectedKey={mode} onSelectionChange={(key) => setMode(key as RoomMode)}>
         <AppTabs.List aria-label="戦績の対局モード">
           <AppTabs.Tab id="singles">
@@ -68,6 +71,15 @@ export function AccountStats() {
                 {stats && (
                   <dl className="m-0 grid grid-cols-2 gap-x-5 gap-y-3">
                     <Metric className="col-span-2" label="対局数" value={stats[mode].total} />
+                    {mode === "singles" &&
+                      game === "four-shogi" &&
+                      "knockouts" in stats.singles && (
+                        <Metric
+                          className="col-span-2"
+                          label="撃破数"
+                          value={stats.singles.knockouts}
+                        />
+                      )}
                     {(mode === "singles"
                       ? [
                           { label: "優勝", count: stats.singles.first },

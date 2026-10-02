@@ -43,9 +43,11 @@ for (const width of [320, 390, 768, 1024, 1440]) {
     ])
       await metric(section, label, value);
     const title = await section.getByRole("heading", { name: "戦績" }).boundingBox();
+    const game = await section.getByRole("button", { name: /戦績のゲーム$/ }).boundingBox();
     const tabs = await section.getByRole("tablist").boundingBox();
-    expect(tabs!.y).toBeGreaterThan(title!.y + title!.height);
-    expect(tabs!.y - (title!.y + title!.height)).toBeLessThan(30);
+    expect(game!.y).toBeGreaterThan(title!.y + title!.height);
+    expect(tabs!.y).toBeGreaterThan(game!.y + game!.height);
+    expect(tabs!.y - (game!.y + game!.height)).toBeLessThan(30);
     const card = await page.getByTestId("account-profile-card").boundingBox();
     const stats = await section.boundingBox();
     expect(stats!.x).toBeGreaterThanOrEqual(card!.x);

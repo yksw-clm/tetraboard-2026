@@ -38,7 +38,7 @@ export function FourShogiLobbyPage() {
           onWatch={(roomId) => void navigate(getRoomContract.pathFor(roomId))}
         />
       )}
-      rankings={<LobbyRankings unavailable theme="four-shogi" />}
+      rankings={<LobbyRankings game="four-shogi" theme="four-shogi" />}
     />
   );
 }

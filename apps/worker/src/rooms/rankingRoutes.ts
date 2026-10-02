@@ -1,32 +1,21 @@
 import { Hono } from "hono";
 import {
   getFourReversiRankingsContract,
+  getFourShogiRankingsContract,
+  type MatchGame,
   type FourReversiRankings,
   type RoomMode,
 } from "@tetraboard/protocol";
 import { profileAvatarUrl } from "../accounts/auth";
+import { matchOutcomesCte } from "../accounts/matchOutcomes";
 
-export async function readFourReversiRankings(db: D1Database): Promise<FourReversiRankings> {
+export async function readGameRankings(
+  db: D1Database,
+  game: MatchGame = "four-reversi",
+): Promise<FourReversiRankings> {
   // 保存済みの結果を一度集計し、同順位の判定と人数制限を別々に扱います。
   const rows = await db
-    .prepare(`WITH account_matches AS (
-    SELECT h.account_id, m.mode,
-      json_extract(m.record_json, '$.game.result') AS result,
-      (SELECT json_extract(p.value, '$.color')
-       FROM json_each(m.record_json, '$.participants') p
-       WHERE json_extract(p.value, '$.kind') = 'human'
-         AND json_extract(p.value, '$.accountId') = h.account_id) AS color
-    FROM account_match_history h JOIN matches m ON m.id = h.match_id
-    WHERE m.game = 'four-reversi'
-  ), outcomes AS (
-    SELECT account_id, mode,
-      (SELECT json_extract(s.value, '$.rank')
-       FROM json_each(result, '$.standings') s
-       WHERE json_extract(s.value, '$.color') = account_matches.color) AS rank,
-      json_extract(result, '$.winner') AS winner,
-      CASE WHEN color IN ('black', 'red') THEN 'black-red' ELSE 'white-blue' END AS team
-    FROM account_matches
-  ), totals AS (
+    .prepare(`${matchOutcomesCte(false)}, totals AS (
     SELECT account_id, mode, COUNT(*) AS total,
       SUM(CASE WHEN mode = 'singles' AND rank = 1 THEN 1
         WHEN mode = 'doubles' AND winner = team THEN 1 ELSE 0 END) AS victories
@@ -49,6 +38,7 @@ export async function readFourReversiRankings(db: D1Database): Promise<FourRever
   )
   SELECT mode, metric, value, username, name, avatarKey, rank
   FROM ranked WHERE position <= 10 ORDER BY mode, metric, position`)
+    .bind(game)
     .all<{
       mode: RoomMode;
       metric: "first" | "wins" | "total";
@@ -78,12 +68,17 @@ export async function readFourReversiRankings(db: D1Database): Promise<FourRever
 }
 
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
-rankingRoutes.get(getFourReversiRankingsContract.path, async (c) => {
-  c.header("Cache-Control", "no-store");
-  try {
-    return c.json(await readFourReversiRankings(c.env.APP_DB));
-  } catch {
-    console.error("Four reversi rankings request failed");
-    return c.json({ message: "ランキングを取得できませんでした。もう一度お試しください。" }, 503);
-  }
-});
+for (const [game, contract] of [
+  ["four-reversi", getFourReversiRankingsContract],
+  ["four-shogi", getFourShogiRankingsContract],
+] as const) {
+  rankingRoutes.get(contract.path, async (c) => {
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readGameRankings(c.env.APP_DB, game));
+    } catch {
+      console.error("Game rankings request failed", game);
+      return c.json({ message: "ランキングを取得できませんでした。もう一度お試しください。" }, 503);
+    }
+  });
+}

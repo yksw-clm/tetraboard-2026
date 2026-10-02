@@ -54,6 +54,14 @@ import {
   type ExternalEliminationReason,
 } from "@tetraboard/four-shogi";
 import { ShogiStore } from "./shogiStore";
+import {
+  advanceShogiMatchSave,
+  emptyKnockouts,
+  pendingShogiMatchPrefix,
+  shogiMatchStartKey,
+  type ActiveShogiMatch,
+  type PendingShogiMatch,
+} from "./shogiMatchStore";
 import { createShogiClock, advanceShogiClock } from "./shogiClock";
 import { profileAvatarUrl } from "../accounts/auth";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
@@ -154,6 +162,7 @@ export class GameRoom extends DurableObject<Env> {
   private chatDirty = false;
   private accountFlush: Promise<void> | null = null;
   private matchFlush: Promise<void> | null = null;
+  private shogiMatchFlush: Promise<void> | null = null;
   private shogiStore: ShogiStore | null = null;
 
   private shogi(): ShogiStore {
@@ -162,6 +171,51 @@ export class GameRoom extends DurableObject<Env> {
 
   private pendingMatches() {
     return new Map(this.ctx.storage.kv.list<PendingMatch>({ prefix: pendingMatchPrefix }));
+  }
+  private pendingShogiMatches() {
+    return new Map(
+      this.ctx.storage.kv.list<PendingShogiMatch>({ prefix: pendingShogiMatchPrefix }),
+    );
+  }
+  private async flushShogiMatches(): Promise<void> {
+    if (this.shogiMatchFlush) return this.shogiMatchFlush;
+    const flush = async () => {
+      const next = [...this.pendingShogiMatches()].find(([, job]) => job.retryAtMs <= Date.now());
+      if (next) {
+        const [key, job] = next;
+        try {
+          const progress = await advanceShogiMatchSave(
+            this.env.APP_DB,
+            job.record,
+            job.progress,
+            (cursor) => this.shogi().replayEvents(job.record.id, cursor),
+          );
+          this.ctx.storage.transactionSync(() => {
+            if (progress)
+              this.ctx.storage.kv.put(key, { ...job, progress, retryAtMs: Date.now() + 1 });
+            else {
+              this.ctx.storage.kv.delete(key);
+              const room = this.readRoom();
+              const keep = Boolean(
+                room &&
+                isFourShogiRoom(room) &&
+                room.status === "waiting" &&
+                room.lastRound?.roundId === job.record.id,
+              );
+              this.shogi().releaseArchive(job.record.id, keep);
+            }
+          });
+        } catch {
+          console.error("Shogi match save will be retried", job.record.id);
+          this.ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() + 5_000 });
+        }
+      }
+      await this.syncAlarm(this.readRoom());
+    };
+    this.shogiMatchFlush = flush().finally(() => {
+      this.shogiMatchFlush = null;
+    });
+    return this.shogiMatchFlush;
   }
 
   private async flushMatches(): Promise<void> {
@@ -455,6 +509,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(roomStorageKey);
     this.ctx.storage.kv.delete(replayKey);
     this.ctx.storage.kv.delete(matchStartKey);
+    this.ctx.storage.kv.delete(shogiMatchStartKey);
     this.ctx.storage.kv.delete(chatKey);
     this.ctx.storage.kv.delete(mutedKey);
     this.ctx.storage.kv.delete(viewerSecretKey);
@@ -622,7 +677,31 @@ export class GameRoom extends DurableObject<Env> {
       publicUpdatedAtMs: nextPublicUpdateAt(room),
       lastActivityAtMs: at,
     });
+    if (!isFourShogiRoom(started) || started.status !== "playing")
+      throw new Error("Shogi game did not start");
     this.ctx.storage.kv.put(roomStorageKey, started);
+    this.ctx.storage.kv.put(shogiMatchStartKey, {
+      start: {
+        id: roundId,
+        roomId: room.id,
+        instanceId: room.instanceId,
+        startedAtMs: at,
+        settings: room.settings,
+        participants: started.players.map((player, seat) => ({
+          id: player.id,
+          name: this.playerLabel(player),
+          side: player.side!,
+          seat,
+          ...(player.kind === "cpu"
+            ? { kind: "cpu" as const, level: player.level }
+            : {
+                kind: "human" as const,
+                accountId: this.storedAccount(player.id)?.accountId ?? null,
+              }),
+        })),
+      },
+      knockouts: emptyKnockouts(),
+    } satisfies ActiveShogiMatch);
     return started as FourShogiRoom;
   }
 
@@ -635,8 +714,41 @@ export class GameRoom extends DurableObject<Env> {
   ): FourShogiRoom | null {
     this.shogi().appendEvent(room.roundId, event);
     const core = this.shogi().saveState(room.roundId, state);
+    const active = this.ctx.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
+    if (
+      active?.start.id === room.roundId &&
+      event.type === "action" &&
+      room.settings.mode === "singles"
+    ) {
+      const prior = new Set(room.game.eliminations.map((entry) => entry.side));
+      const count = state.eliminations.filter(
+        (entry) =>
+          entry.reason === "checkmate" && entry.side !== event.side && !prior.has(entry.side),
+      ).length;
+      active.knockouts[event.side] += count;
+      this.ctx.storage.kv.put(shogiMatchStartKey, active);
+    }
     this.ctx.storage.kv.delete(shogiCpuJobKey);
     if (state.status === "finished") {
+      if (active?.start.id === room.roundId) {
+        this.shogi().protectArchive(room.roundId);
+        this.ctx.storage.kv.put(pendingShogiMatchPrefix + room.roundId, {
+          record: {
+            ...active.start,
+            endedAtMs: at,
+            game: core as FourShogiLastRound["game"],
+            knockouts: active.knockouts,
+            replay: {
+              rulesVersion: 1,
+              initial: this.shogi().replayInfo(room.roundId),
+              eventCount: this.shogi().eventCount(room.roundId),
+            },
+          },
+          progress: { phase: "upload", cursor: 0 },
+          retryAtMs: Date.now(),
+        } satisfies PendingShogiMatch);
+      }
+      this.ctx.storage.kv.delete(shogiMatchStartKey);
       const lastRound: FourShogiLastRound = {
         roundId: room.roundId,
         game: core as FourShogiLastRound["game"],
@@ -991,6 +1103,7 @@ export class GameRoom extends DurableObject<Env> {
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
       this.ctx.waitUntil(this.flushAccountCleanup());
     if (this.pendingMatches().size) this.ctx.waitUntil(this.flushMatches());
+    if (this.pendingShogiMatches().size) this.ctx.waitUntil(this.flushShogiMatches());
     return result;
   }
 
@@ -1065,6 +1178,7 @@ export class GameRoom extends DurableObject<Env> {
     for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
       deadlines.push(job.retryAtMs);
     for (const job of this.pendingMatches().values()) deadlines.push(job.retryAtMs);
+    for (const job of this.pendingShogiMatches().values()) deadlines.push(job.retryAtMs);
     const next = deadlines.length === 0 ? null : Math.min(...deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;

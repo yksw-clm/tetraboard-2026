@@ -24,3 +24,10 @@ export const getFourReversiRankingsContract = {
 } as const;
 export type RankingEntry = z.infer<typeof rankingEntrySchema>;
 export type FourReversiRankings = z.infer<typeof fourReversiRankingsSchema>;
+export const fourShogiRankingsSchema = fourReversiRankingsSchema;
+export const getFourShogiRankingsContract = {
+  method: "GET",
+  path: "/games/four-shogi/rankings",
+  response: fourShogiRankingsSchema,
+} as const;
+export type FourShogiRankings = z.infer<typeof fourShogiRankingsSchema>;
