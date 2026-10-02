@@ -15,6 +15,7 @@ type IndexRow = {
   byoyomi_ms: number;
   status: string;
   host_name: string | null;
+  host_avatar_url: string | null;
   human_count: number;
   cpu_count: number;
   capacity: number;
@@ -27,9 +28,9 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
   await db
     .prepare(
       `INSERT INTO room_index (
-        room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name,
+        room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
         human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -37,6 +38,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         byoyomi_ms = excluded.byoyomi_ms,
         status = excluded.status,
         host_name = excluded.host_name,
+        host_avatar_url = excluded.host_avatar_url,
         human_count = excluded.human_count,
         cpu_count = excluded.cpu_count,
         capacity = excluded.capacity,
@@ -54,6 +56,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
       room.timeControl.byoyomiMs,
       room.status,
       room.hostName,
+      room.hostAvatarUrl ?? null,
       room.humanCount,
       room.cpuCount,
       room.capacity,
@@ -73,6 +76,7 @@ function parseRow(row: IndexRow): RoomPublicMetadata {
     timeControl: { mainTimeMs: row.main_time_ms, byoyomiMs: row.byoyomi_ms },
     status: row.status,
     hostName: row.host_name,
+    hostAvatarUrl: row.host_avatar_url,
     humanCount: row.human_count,
     cpuCount: row.cpu_count,
     capacity: row.capacity,
@@ -86,7 +90,7 @@ export async function listRoomIndex(
   cursor: { updatedAtMs: number; id: string } | null,
 ): Promise<{ rooms: RoomPublicMetadata[]; nextCursor: string | null }> {
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
-      host_name, human_count, cpu_count, capacity, open_seats, updated_at_ms
+      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms
     FROM room_index
     WHERE closed = 0 AND status IN ('waiting', 'playing')`;
   const statement = cursor

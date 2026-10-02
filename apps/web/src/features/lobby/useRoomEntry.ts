@@ -1,3 +1,5 @@
+import { useAccount } from "../account/useAccount";
+import { readAccount } from "../account/accountApi";
 import {
   createRoomContract,
   getRoomContract,
@@ -9,12 +11,16 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
 
-import { joinRoom, roomEntryErrorMessage } from "../../shared/roomAccess";
+import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
 function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
   switch (error.error) {
+    case "account_seated":
+      return "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。";
+    case "profile_required":
+      return "プロフィールの初回設定を完了してください。";
     case "not_found":
       return "ルームが見つかりません。番号を確認するか、一覧を更新してください。";
     case "room_full":
@@ -34,6 +40,7 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
 
 export function useRoomEntry() {
   const navigate = useNavigate();
+  const account = useAccount();
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [mode, setMode] = useState<RoomMode>("singles");
@@ -42,7 +49,7 @@ export function useRoomEntry() {
   const submitting = useRef(false);
 
   async function submitRoom(intent: RoomEntryIntent, selectedRoomCode = roomCode): Promise<void> {
-    if (submitting.current) return;
+    if (submitting.current || account.loading || account.error) return;
     const contract = createRoomContract;
 
     setMessage(null);
@@ -61,13 +68,26 @@ export function useRoomEntry() {
     setIsSubmitting(intent);
 
     try {
+      const user = await readAccount();
+      const wasAccount = Boolean(account.user);
+      account.update(user);
+      if (wasAccount && !user)
+        throw new RoomEntryError(
+          "ログインの有効期限が切れました。ログインするか、ニックネームを入力して参加してください。",
+        );
+      if (user && !user.profileCompleted) return;
+      const entryName = user ? undefined : name;
       if (intent === "join") {
-        await joinRoom(selectedRoomCode, name);
+        await joinRoom(selectedRoomCode, entryName);
         await navigate(getRoomContract.pathFor(selectedRoomCode));
         return;
       }
 
-      const request = contract.request.safeParse({ name, quickPlay: intent === "quick", mode });
+      const request = contract.request.safeParse({
+        name: entryName,
+        quickPlay: intent === "quick",
+        mode,
+      });
       if (!request.success) {
         setMessage("ニックネームを1〜10文字で入力してください。");
         return;
@@ -99,11 +119,13 @@ export function useRoomEntry() {
       }
     } catch (error) {
       setMessage(
-        error instanceof Response && error.status === 404
-          ? "ルームが見つかりません。"
-          : intent === "join"
-            ? roomEntryErrorMessage(error)
-            : "ルームを作成できませんでした。通信を確認して、もう一度お試しください。",
+        error instanceof RoomEntryError
+          ? error.message
+          : error instanceof Response && error.status === 404
+            ? "ルームが見つかりません。"
+            : intent === "join"
+              ? roomEntryErrorMessage(error)
+              : "ルームを作成できませんでした。通信を確認して、もう一度お試しください。",
       );
     } finally {
       submitting.current = false;

@@ -162,8 +162,8 @@ test("画像の保存・置換・削除、重複ID時のロールバックと削
   await deleteUnusedAvatars(env);
   expect(await env.OBJECT_STORAGE.get(key)).toBeNull();
 });
-test("プロフィールの有無は対局の名前・部屋参加資格を変更しない", async () => {
-  const user = await accountFixture(false);
+test("ログイン参加ではプロフィールを使い、Cookieだけでは席の操作資格にならない", async () => {
+  const user = await accountFixture();
   const response = await request("/rooms", {
     method: "POST",
     headers: user.headers,
@@ -171,7 +171,7 @@ test("プロフィールの有無は対局の名前・部屋参加資格を変�
   });
   expect(response.status).toBe(201);
   const { room, membership } = createRoomContract.response.parse(await response.json());
-  expect(room.players[0].name).toBe("対局の名前");
+  expect(room.players[0].name).toBe("登録名");
   expect(JSON.stringify(room)).not.toContain(user.id);
   expect((await request(`/rooms/${room.id}/me`, { headers: { Cookie: user.cookie } })).status).toBe(
     401,

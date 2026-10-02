@@ -1,5 +1,6 @@
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
+import { recoverAccountReservations } from "./accounts/roomAccounts";
 import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
 import { deleteExpiredReports } from "./rooms/reportStore";
@@ -25,6 +26,7 @@ app.notFound((context) => context.text("Not Found", 404));
 export default Object.assign(app, {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     await deleteExpiredReports(env.APP_DB);
+    await recoverAccountReservations(env);
     await deleteUnusedAvatars(env);
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(Date.now()),

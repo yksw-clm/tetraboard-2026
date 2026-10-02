@@ -9,7 +9,7 @@ const nicknameSchema = z
   .min(1)
   .refine((name) => Array.from(segmenter.segment(name)).length <= 10);
 
-const playerNameRequestSchema = z.strictObject({ name: nicknameSchema });
+const playerNameRequestSchema = z.strictObject({ name: nicknameSchema.optional() });
 export const cpuLevelSchema = z.union([z.literal(1), z.literal(2)]);
 
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
@@ -128,6 +128,11 @@ const playerBaseSchema = z.strictObject({
 });
 const humanPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("human"),
+  avatarUrl: z
+    .string()
+    .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
+    .nullable()
+    .default(null),
   ready: z.boolean(),
   reconnectDeadline: z.int().nonnegative().nullable(),
 });
@@ -201,6 +206,11 @@ export const roomPublicMetadataSchema = z
     timeControl: roomSettingsSchema.shape.timeControl,
     status: z.enum(["waiting", "playing"]),
     hostName: nicknameSchema.nullable(),
+    hostAvatarUrl: z
+      .string()
+      .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
+      .nullable()
+      .default(null),
     humanCount: z.int().min(0).max(4),
     cpuCount: z.int().min(0).max(4),
     capacity: z.literal(4),
@@ -272,6 +282,8 @@ const roomErrorSchema = z.strictObject({
     "not_found",
     "code_unavailable",
     "room_full",
+    "account_seated",
+    "profile_required",
     "room_started",
     "room_changed",
     "unauthorized",

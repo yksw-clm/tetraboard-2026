@@ -1,7 +1,14 @@
+import { useAccount } from "../account/useAccount";
+import { readAccount } from "../account/accountApi";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { type Room, type RoomMembership } from "@tetraboard/protocol";
-import { joinRoom, roomEntryErrorMessage, roomInvitationPath } from "../../shared/roomAccess";
+import {
+  joinRoom,
+  roomEntryErrorMessage,
+  RoomEntryError,
+  roomInvitationPath,
+} from "../../shared/roomAccess";
 
 export function joinUnavailableReason(room: Room): string | null {
   if (room.status === "playing") return "対局中のため、今は観戦のみできます。";
@@ -16,6 +23,7 @@ export function useRoomInvitation(
   restoreJoinFocus: () => void,
 ) {
   const navigate = useNavigate();
+  const account = useAccount();
   const [dialog, setDialog] = useState<"join" | "copy" | null>(() =>
     invited && membership === null && joinUnavailableReason(room) === null ? "join" : null,
   );
@@ -49,12 +57,20 @@ export function useRoomInvitation(
   }
 
   async function submit(): Promise<void> {
-    if (submitting.current) return;
+    if (submitting.current || account.loading || account.error) return;
     submitting.current = true;
     setBusy(true);
     setMessage(null);
     try {
-      await joinRoom(room.id, name, room.instanceId);
+      const user = await readAccount();
+      const wasAccount = Boolean(account.user);
+      account.update(user);
+      if (wasAccount && !user)
+        throw new RoomEntryError(
+          "ログインの有効期限が切れました。ログインするか、ニックネームを入力して参加してください。",
+        );
+      if (user && !user.profileCompleted) return;
+      await joinRoom(room.id, user ? undefined : name, room.instanceId);
       // 同じURLでもloaderを再実行し、観戦用の接続を本人の接続へ切り替えます。
       await navigate(roomInvitationPath(room), { replace: true });
     } catch (error) {

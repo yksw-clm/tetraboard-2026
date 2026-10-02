@@ -109,11 +109,18 @@ export function PlayerCard({
       >
         <Avatar
           data-testid="player-avatar"
-          className="size-full min-w-0 min-h-0 aspect-square bg-[#e1e6e3] rounded-full text-[#7a8880]"
+          title={player?.kind === "cpu" ? "CPU" : undefined}
+          className={cn(
+            "size-full min-w-0 min-h-0 aspect-square rounded-full",
+            player?.kind === "cpu" ? "bg-[#e0edff] text-[#376597]" : "bg-[#e1e6e3] text-[#7a8880]",
+          )}
           aria-hidden="true"
         >
+          {player?.kind === "human" && player.avatarUrl && (
+            <Avatar.Image src={player.avatarUrl} alt="" className="size-full object-cover" />
+          )}
           <Avatar.Fallback className="bg-transparent text-inherit">
-            <AppIcon name="user" className="block size-5" />
+            <AppIcon name={player?.kind === "cpu" ? "robot" : "user"} className="block size-5" />
           </Avatar.Fallback>
         </Avatar>
         {player && (
@@ -141,11 +148,6 @@ export function PlayerCard({
           {host && (
             <span className="inline-flex ml-[0.28em] text-[#b58a28]" title="ホスト">
               <AppIcon name="crown" className="size-[1em]" />
-            </span>
-          )}
-          {player?.kind === "cpu" && (
-            <span className="inline-flex ml-[0.28em] text-muted" title="CPU">
-              <AppIcon name="robot" className="size-[1em]" />
             </span>
           )}
         </span>

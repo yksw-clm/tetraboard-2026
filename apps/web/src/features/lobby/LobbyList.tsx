@@ -1,3 +1,4 @@
+import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -90,23 +91,33 @@ export function LobbyList({
               return (
                 <li key={room.id}>
                   <AppCard className="grid grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px] items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white">
-                    <div className="flex flex-col min-w-0 gap-1 [&_strong]:text-lg [&_strong]:tabular-nums [&_strong]:tracking-[0.05em] [&>span]:text-muted [&>span]:text-xs [&>span]:wrap-anywhere">
-                      <strong>
-                        <span className="mr-[5px] text-[#8fa397] text-[13px]">#</span>
-                        {room.id}
-                      </strong>
-                      <span>ホスト：{room.hostName ?? "なし"}</span>
+                    <div className="flex items-center min-w-0 gap-3">
+                      <AppAvatar src={room.hostAvatarUrl} label={room.hostName ?? "ホストなし"} />
+                      <div className="min-w-0">
+                        <strong className="block text-sm wrap-anywhere">
+                          {room.hostName ?? "ホストなし"}
+                        </strong>
+                        <span className="block text-xs text-muted tabular-nums">{room.id}</span>
+                      </div>
                     </div>
                     <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
                       {room.mode === "singles" ? "シングルス" : "ダブルス"}
                     </span>
-                    <div className="flex flex-col min-w-0 gap-1 [&_strong]:text-base [&_strong]:tabular-nums [&_span]:text-muted [&_span]:text-xs [&_span]:font-normal [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-3">
-                      <strong>
-                        {room.humanCount + room.cpuCount}
-                        <span> / {room.capacity}席</span>
+                    <div className="flex items-center min-w-0 gap-3 [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-3">
+                      <strong className="text-base tabular-nums whitespace-nowrap">
+                        {room.humanCount + room.cpuCount}/{room.capacity}
                       </strong>
-                      <span>
-                        人間{room.humanCount}人・CPU{room.cpuCount}人
+                      <span
+                        className="inline-flex gap-1"
+                        role="img"
+                        aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${room.capacity - room.humanCount - room.cpuCount}席`}
+                      >
+                        {Array.from({ length: room.capacity }, (_, index) => (
+                          <span
+                            key={index}
+                            className={`size-2 rounded-full ${index < room.humanCount ? "bg-[#34a871]" : index < room.humanCount + room.cpuCount ? "bg-[#376597]" : "bg-[#cbd3ce]"}`}
+                          />
+                        ))}
                       </span>
                     </div>
                     <div className="flex items-center flex-wrap gap-1 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-1 [@media(max-width:900px)]:justify-end">
@@ -118,9 +129,6 @@ export function LobbyList({
                           {room.status === "waiting" ? "対局前" : "対局中"}
                         </Chip.Label>
                       </Chip>
-                      {room.status === "waiting" && !canJoin && (
-                        <span className="text-muted text-[11px]">満室</span>
-                      )}
                     </div>
                     <div className="flex justify-end gap-2 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-3">
                       {canJoin && (

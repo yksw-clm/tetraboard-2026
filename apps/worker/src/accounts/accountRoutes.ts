@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { accountSessionSchema, profileInputSchema } from "@tetraboard/protocol";
 import {
   accountIdentity,
+  avatarKeyPattern,
   createAuth,
   publicProfile,
   type AuthEnv,
@@ -10,8 +11,6 @@ import {
 
 export const accountRoutes = new Hono<{ Bindings: AuthEnv; Variables: { user: StoredProfile } }>();
 const error = (message: string) => ({ message });
-const avatarKeyPattern =
-  /^avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 accountRoutes.use("*", async (c, next) => {
   if (/\/(auth|account)(\/|$)/.test(new URL(c.req.url).pathname))
     c.header("Cache-Control", "no-store");
@@ -150,7 +149,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   if (!["keep", "replace", "remove"].includes(String(avatarAction)))
     return c.json(error("アイコンの指定が正しくありません。"), 400);
   let avatarKey = user.avatarKey;
-  let image = user.image;
+  let image = publicProfile(user).avatarUrl;
   let uploadedKey: string | null = null;
   if (avatarAction === "replace") {
     const file = data.get("avatar");
@@ -209,7 +208,11 @@ export async function deleteUnusedAvatars(env: Env) {
   for (const { key } of rows.results) {
     if (!avatarKeyPattern.test(key)) continue;
     if (
-      await env.APP_DB.prepare("SELECT id FROM user WHERE avatarKey = ? LIMIT 1").bind(key).first()
+      await env.APP_DB.prepare(
+        "SELECT id FROM user WHERE avatarKey = ? UNION ALL SELECT operation_id AS id FROM room_avatar_refs WHERE avatar_key = ? LIMIT 1",
+      )
+        .bind(key, key)
+        .first()
     )
       continue;
     try {

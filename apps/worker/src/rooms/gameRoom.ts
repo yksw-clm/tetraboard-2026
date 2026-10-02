@@ -33,10 +33,17 @@ import {
   type FourReversiState,
   type Color,
 } from "@tetraboard/four-reversi";
+import { profileAvatarUrl } from "../accounts/auth";
+import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
 import { advanceClock, createClock, isClockExpired } from "./clock";
 import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
 
+const accountKey = (playerId: string) => `seat-account:${playerId}`;
+const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
+const accountCleanupKey = "account-cleanups";
+type StoredAccountSeat = AccountAdmission & { occupying: boolean };
+type AccountCleanup = { reservation: AccountAdmission; releaseAvatar: boolean; retryAtMs: number };
 const roomStorageKey = "room";
 const indexRevisionKey = "room-index-revision";
 const pendingIndexKey = "room-index-pending";
@@ -106,6 +113,141 @@ function hexToBytes(value: string): Uint8Array {
 export class GameRoom extends DurableObject<Env> {
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
+  private accountFlush: Promise<void> | null = null;
+
+  private storedAccount(playerId: string) {
+    return this.ctx.storage.kv.get<StoredAccountSeat>(accountKey(playerId)) ?? null;
+  }
+
+  private queueAccountCleanup(reservation: AccountAdmission, releaseAvatar: boolean) {
+    const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
+    const existing = jobs.find((job) => job.reservation.operationId === reservation.operationId);
+    if (existing) existing.releaseAvatar ||= releaseAvatar;
+    else jobs.push({ reservation, releaseAvatar, retryAtMs: Date.now() });
+    this.ctx.storage.kv.put(accountCleanupKey, jobs);
+  }
+
+  private releaseAccount(playerId: string, removeAvatar: boolean) {
+    const seat = this.storedAccount(playerId);
+    if (!seat) return;
+    this.ctx.storage.kv.put(cancelledAdmissionKey(seat.operationId), true);
+    this.queueAccountCleanup(seat, removeAvatar);
+    if (removeAvatar) this.ctx.storage.kv.delete(accountKey(playerId));
+    else this.ctx.storage.kv.put(accountKey(playerId), { ...seat, occupying: false });
+  }
+
+  private async flushAccountCleanup(): Promise<void> {
+    if (this.accountFlush) return this.accountFlush;
+    const flush = async () => {
+      for (;;) {
+        const job = (this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).find(
+          (entry) => entry.retryAtMs <= Date.now(),
+        );
+        if (!job) break;
+        try {
+          await releaseReservation(this.env, job.reservation, job.releaseAvatar);
+          this.ctx.storage.transactionSync(() => {
+            const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
+            // A departure may have added image release while D1 was responding.
+            const latest = jobs.find(
+              (entry) => entry.reservation.operationId === job.reservation.operationId,
+            );
+            if (latest && latest.releaseAvatar && !job.releaseAvatar) return;
+            this.ctx.storage.kv.put(
+              accountCleanupKey,
+              jobs.filter((entry) => entry.reservation.operationId !== job.reservation.operationId),
+            );
+            this.ctx.storage.kv.delete(cancelledAdmissionKey(job.reservation.operationId));
+          });
+        } catch {
+          console.error("Account seat cleanup will be retried");
+          const jobs = this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [];
+          for (const entry of jobs)
+            if (entry.reservation.operationId === job.reservation.operationId)
+              entry.retryAtMs = Date.now() + 5_000;
+          this.ctx.storage.kv.put(accountCleanupKey, jobs);
+          break;
+        }
+      }
+      await this.syncAlarm(this.readRoom());
+    };
+    this.accountFlush = flush().finally(() => {
+      this.accountFlush = null;
+    });
+    return this.accountFlush;
+  }
+
+  private async withAccountAdmission<T>(
+    admission: AccountAdmission | undefined,
+    action: () => T,
+  ): Promise<T | null> {
+    if (!admission) return action();
+    const outcome = await this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        if (this.ctx.storage.kv.get(cancelledAdmissionKey(admission.operationId)))
+          return { ok: true as const, value: null };
+        const reservation =
+          await this.env.APP_DB.prepare(`SELECT operation_id FROM account_room_seats
+        WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ?`)
+            .bind(
+              admission.accountId,
+              admission.operationId,
+              this.ctx.id.name,
+              admission.instanceId,
+              admission.playerId,
+              admission.name,
+              admission.avatarKey,
+            )
+            .first();
+        if (!reservation) return { ok: true as const, value: null };
+        return { ok: true as const, value: action() };
+      } catch (error) {
+        // Expected admission rejection must not break the DO input gate.
+        return {
+          ok: false as const,
+          message: error instanceof Error ? error.message : "Account admission failed",
+        };
+      }
+    });
+    if (!outcome.ok) throw new Error(outcome.message);
+    return outcome.value;
+  }
+
+  async accountReservationState(
+    admission: AccountAdmission,
+  ): Promise<"occupied" | "released" | "pending"> {
+    await this.reconcileDeadlines();
+    const seat = this.storedAccount(admission.playerId);
+    if (seat?.operationId === admission.operationId)
+      return seat.occupying ? "occupied" : "released";
+    return this.ctx.storage.kv.get(cancelledAdmissionKey(admission.operationId))
+      ? "released"
+      : "pending";
+  }
+
+  async cancelAccountReservation(admission: AccountAdmission) {
+    await this.reconcileDeadlines();
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const seat = this.storedAccount(admission.playerId);
+      if (seat?.operationId === admission.operationId && seat.occupying)
+        return { occupied: true, avatarReferenced: true };
+      const room = this.readRoom();
+      const avatarReferenced =
+        room?.instanceId === admission.instanceId &&
+        room.players.some(
+          (player) =>
+            player.id === admission.playerId &&
+            player.kind === "human" &&
+            player.avatarUrl === profileAvatarUrl(admission.avatarKey),
+        );
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.kv.put(cancelledAdmissionKey(admission.operationId), true);
+        this.queueAccountCleanup(admission, !avatarReferenced);
+      });
+      await this.syncAlarm(room);
+      return { occupied: false, avatarReferenced: Boolean(avatarReferenced) };
+    });
+  }
 
   private readRoom(): Room | null {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
@@ -209,6 +351,7 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.readRoom();
     for (const player of room?.players ?? []) {
       if (player.kind !== "human") continue;
+      this.releaseAccount(player.id, true);
       const tokenHash = this.playerTokenHash(player.id);
       if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
       this.ctx.storage.kv.delete(playerTokenKey(player.id));
@@ -269,6 +412,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(replayKey);
     const players = room.players.filter((player) => {
       if (player.kind === "cpu") return true;
+      if (this.storedAccount(player.id)?.occupying === false) return false;
       const hash = this.playerTokenHash(player.id);
       if (hash === null || this.readMembership(hash) === null) return false;
       if (this.hasOpenConnection(hash)) return true;
@@ -283,6 +427,7 @@ export class GameRoom extends DurableObject<Env> {
     for (const player of room.players) {
       if (player.kind !== "human" || players.includes(player)) continue;
       this.recordDeparture(player);
+      this.releaseAccount(player.id, true);
       this.ctx.storage.kv.delete(departedKey(player.id));
       const hash = this.playerTokenHash(player.id);
       if (hash !== null) this.ctx.storage.kv.delete(membershipStorageKey(hash));
@@ -336,6 +481,7 @@ export class GameRoom extends DurableObject<Env> {
       timeControl: room.settings.timeControl,
       status: room.status,
       hostName: host?.name ?? null,
+      hostAvatarUrl: host?.kind === "human" ? host.avatarUrl : null,
       humanCount,
       cpuCount: room.players.length - humanCount,
       capacity: 4,
@@ -370,6 +516,8 @@ export class GameRoom extends DurableObject<Env> {
       return value;
     });
     if (changed) this.ctx.waitUntil(this.flushRoomIndex());
+    if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
+      this.ctx.waitUntil(this.flushAccountCleanup());
     return result;
   }
 
@@ -436,6 +584,8 @@ export class GameRoom extends DurableObject<Env> {
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
+    for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
+      deadlines.push(job.retryAtMs);
     const next = deadlines.length === 0 ? null : Math.min(...deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -443,7 +593,11 @@ export class GameRoom extends DurableObject<Env> {
     else await this.ctx.storage.setAlarm(next);
   }
 
-  async createRoom(room: Room, tokenHash: string): Promise<Room | null> {
+  async createRoom(
+    room: Room,
+    tokenHash: string,
+    admission?: AccountAdmission,
+  ): Promise<Room | null> {
     await this.reconcileDeadlines();
     const initialRoom = roomSchema.parse(room);
 
@@ -451,40 +605,56 @@ export class GameRoom extends DurableObject<Env> {
       throw new Error("Room code does not match Durable Object name");
     }
 
-    const created = this.withIndexTransaction(() => {
-      if (
-        this.ctx.storage.kv.get(roomStorageKey) !== undefined ||
-        this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined
-      ) {
-        return null;
-      }
+    const created = await this.withAccountAdmission(admission, () =>
+      this.withIndexTransaction(() => {
+        if (
+          this.ctx.storage.kv.get(roomStorageKey) !== undefined ||
+          this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined
+        ) {
+          return null;
+        }
 
-      const pendingRoom = roomSchema.parse({
-        ...initialRoom,
-        players: initialRoom.players.map((player) =>
-          player.kind === "human"
-            ? { ...player, reconnectDeadline: Date.now() + reconnectGraceMs }
-            : player,
-        ),
-      });
-      this.ctx.storage.kv.put(roomStorageKey, pendingRoom);
-      this.ctx.storage.kv.put(
-        membershipStorageKey(tokenHash),
-        roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
-      );
-      this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
-      this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
-      for (const player of initialRoom.players) {
-        this.appendSystem("joined", `${this.playerLabel(player)}が入室しました`);
-      }
-      const secret = new Uint8Array(32);
-      crypto.getRandomValues(secret);
-      this.ctx.storage.kv.put(
-        viewerSecretKey,
-        Array.from(secret, (byte) => byte.toString(16).padStart(2, "0")).join(""),
-      );
-      return pendingRoom;
-    });
+        const pendingRoom = roomSchema.parse({
+          ...initialRoom,
+          players: initialRoom.players.map((player) =>
+            player.kind === "human"
+              ? { ...player, reconnectDeadline: Date.now() + reconnectGraceMs }
+              : player,
+          ),
+        });
+        if (admission) {
+          if (
+            initialRoom.instanceId !== admission.instanceId ||
+            initialRoom.players[0].id !== admission.playerId ||
+            initialRoom.players[0].name !== admission.name ||
+            initialRoom.players[0].kind !== "human" ||
+            initialRoom.players[0].avatarUrl !== profileAvatarUrl(admission.avatarKey)
+          )
+            throw new Error("Admission does not match host");
+          this.ctx.storage.kv.put(accountKey(admission.playerId), {
+            ...admission,
+            occupying: true,
+          });
+        }
+        this.ctx.storage.kv.put(roomStorageKey, pendingRoom);
+        this.ctx.storage.kv.put(
+          membershipStorageKey(tokenHash),
+          roomMembershipSchema.parse({ playerId: initialRoom.players[0].id, role: "host" }),
+        );
+        this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
+        this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
+        for (const player of initialRoom.players) {
+          this.appendSystem("joined", `${this.playerLabel(player)}が入室しました`);
+        }
+        const secret = new Uint8Array(32);
+        crypto.getRandomValues(secret);
+        this.ctx.storage.kv.put(
+          viewerSecretKey,
+          Array.from(secret, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+        );
+        return pendingRoom;
+      }),
+    );
     if (created !== null) await this.syncAlarm(created);
     return created;
   }
@@ -535,59 +705,72 @@ export class GameRoom extends DurableObject<Env> {
     name: string,
     tokenHash: string,
     instanceId?: string,
+    admission?: AccountAdmission,
   ): Promise<
     | { status: "joined"; room: Room; membership: RoomMembership }
     | { status: "not_found" }
     | { status: "room_full" }
     | { status: "room_started" }
     | { status: "room_changed" }
+    | { status: "account_reservation_invalid" }
   > {
     await this.reconcileDeadlines();
-    const playerName = joinRoomContract.request.parse({ name }).name;
-    const result = this.withIndexTransaction(() => {
-      const room = this.readRoom();
-      if (room === null) {
-        return { status: "not_found" } as const;
-      }
-      if (instanceId !== undefined && room.instanceId !== instanceId) {
-        return { status: "room_changed" } as const;
-      }
-      if (room.status !== "waiting") {
-        return { status: "room_started" } as const;
-      }
-      if (room.players.length >= 4) {
-        return { status: "room_full" } as const;
-      }
-      if (this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined) {
-        throw new Error("Membership token collision");
-      }
+    const playerName = joinRoomContract.request.parse({ name }).name!;
+    const result = await this.withAccountAdmission(admission, () =>
+      this.withIndexTransaction(() => {
+        const room = this.readRoom();
+        if (room === null) {
+          return { status: "not_found" } as const;
+        }
+        if (instanceId !== undefined && room.instanceId !== instanceId) {
+          return { status: "room_changed" } as const;
+        }
+        if (room.status !== "waiting") {
+          return { status: "room_started" } as const;
+        }
+        if (room.players.length >= 4) {
+          return { status: "room_full" } as const;
+        }
+        if (this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined) {
+          throw new Error("Membership token collision");
+        }
 
-      const playerId = crypto.randomUUID();
-      const updatedRoom = roomSchema.parse({
-        ...room,
-        publicUpdatedAtMs: nextPublicUpdateAt(room),
-        lastActivityAtMs: Date.now(),
-        players: [
-          ...room.players,
-          {
-            id: playerId,
-            name: playerName,
-            kind: "human",
-            ready: false,
-            color: null,
-            reconnectDeadline: Date.now() + reconnectGraceMs,
-          },
-        ],
-      });
-      const membership = roomMembershipSchema.parse({ playerId, role: "player" });
-      this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
-      this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
-      this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
-      this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
-      this.appendSystem("joined", `${playerName}が入室しました`);
-      return { status: "joined", room: updatedRoom, membership } as const;
-    });
+        if (
+          admission &&
+          (room.instanceId !== admission.instanceId || playerName !== admission.name)
+        )
+          throw new Error("Admission does not match room");
+        const playerId = admission?.playerId ?? crypto.randomUUID();
+        const updatedRoom = roomSchema.parse({
+          ...room,
+          publicUpdatedAtMs: nextPublicUpdateAt(room),
+          lastActivityAtMs: Date.now(),
+          players: [
+            ...room.players,
+            {
+              id: playerId,
+              name: playerName,
+              kind: "human",
+              avatarUrl: admission ? profileAvatarUrl(admission.avatarKey) : null,
+              ready: false,
+              color: null,
+              reconnectDeadline: Date.now() + reconnectGraceMs,
+            },
+          ],
+        });
+        const membership = roomMembershipSchema.parse({ playerId, role: "player" });
+        this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
+        if (admission)
+          this.ctx.storage.kv.put(accountKey(playerId), { ...admission, occupying: true });
+        this.ctx.storage.kv.put(membershipStorageKey(tokenHash), membership);
+        this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
+        this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
+        this.appendSystem("joined", `${playerName}が入室しました`);
+        return { status: "joined", room: updatedRoom, membership } as const;
+      }),
+    );
 
+    if (result === null) return { status: "account_reservation_invalid" };
     if (result.status === "joined") {
       await this.syncAlarm(result.room);
       this.broadcastRoom(result.room);
@@ -602,6 +785,7 @@ export class GameRoom extends DurableObject<Env> {
   ): Room | null {
     const departing = room.players.find((player) => player.id === playerId);
     if (departing) this.recordDeparture(departing);
+    this.releaseAccount(playerId, true);
     const tokenHash = this.playerTokenHash(playerId);
     if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
     this.ctx.storage.kv.delete(playerTokenKey(playerId));
@@ -690,6 +874,7 @@ export class GameRoom extends DurableObject<Env> {
       const disconnected = current.players.map((player) => {
         const tokenHash = this.playerTokenHash(player.id);
         const active =
+          this.storedAccount(player.id)?.occupying === true ||
           activeRoom.status === "waiting" ||
           (player.color !== null && !activeRoom.game.eliminatedColors.includes(player.color));
         if (
@@ -751,7 +936,9 @@ export class GameRoom extends DurableObject<Env> {
                   players: current.players.map((entry) => ({
                     ...entry,
                     reconnectDeadline:
-                      entry.color === timedOutColor ? null : entry.reconnectDeadline,
+                      entry.color === timedOutColor && !this.storedAccount(entry.id)?.occupying
+                        ? null
+                        : entry.reconnectDeadline,
                   })),
                   lastActivityAtMs: clockDeadline,
                 });
@@ -767,6 +954,18 @@ export class GameRoom extends DurableObject<Env> {
             if (current === null) closed = true;
           } else {
             this.recordDeparture(player);
+            this.releaseAccount(player.id, false);
+            if (player.color !== null && current.game.eliminatedColors.includes(player.color)) {
+              current = roomSchema.parse({
+                ...current,
+                players: current.players.map((entry) =>
+                  entry.id === player.id ? { ...entry, reconnectDeadline: null } : entry,
+                ),
+              });
+              this.ctx.storage.kv.put(roomStorageKey, current);
+              changed = true;
+              continue;
+            }
             if (player.color === null) throw new Error("Playing player has no color");
             const result = eliminateColor(current.game, player.color);
             if (!result.ok) throw new Error("Could not eliminate disconnected player");
@@ -841,6 +1040,7 @@ export class GameRoom extends DurableObject<Env> {
 
     await this.syncAlarm(room);
     await this.flushRoomIndex();
+    await this.flushAccountCleanup();
     if (!changed) return;
     if (closed) this.closeSockets();
     else if (room !== null) this.broadcastRoom(room);
@@ -872,6 +1072,7 @@ export class GameRoom extends DurableObject<Env> {
         if (hostLeaving && updated !== null) promoted = this.playerTokenHash(updated.players[0].id);
       } else {
         this.recordDeparture(player);
+        this.releaseAccount(player.id, false);
         const game =
           room.status === "playing" &&
           player.color !== null &&
@@ -1345,7 +1546,10 @@ export class GameRoom extends DurableObject<Env> {
               clock: advanceClock(room.clock, room.game.turn, result.state.turn, at, true),
               players: room.players.map((entry) => ({
                 ...entry,
-                reconnectDeadline: entry.id === player.id ? null : entry.reconnectDeadline,
+                reconnectDeadline:
+                  entry.id === player.id && !this.storedAccount(entry.id)?.occupying
+                    ? null
+                    : entry.reconnectDeadline,
               })),
               lastActivityAtMs: at,
             });
@@ -1598,6 +1802,7 @@ export class GameRoom extends DurableObject<Env> {
     if (
       player === undefined ||
       (room.status === "playing" &&
+        this.storedAccount(player.id)?.occupying !== true &&
         player.color !== null &&
         room.game.eliminatedColors.includes(player.color)) ||
       player.reconnectDeadline !== null
