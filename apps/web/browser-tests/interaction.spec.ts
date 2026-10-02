@@ -17,7 +17,7 @@ test("作成ダイアログの入力を引き継ぎ、作成成功後に待機�
     await route.fulfill({ status: 201, json: { room, membership: { ...membership, token } } });
   });
   await page.goto("/games/four-reversi");
-  const open = page.getByRole("button", { name: "ルームを作る 友達を招待して、一緒に対戦" });
+  const open = page.getByRole("button", { name: "ルームを作る", exact: true });
   await open.click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: "ニックネーム" }).fill("てとら");

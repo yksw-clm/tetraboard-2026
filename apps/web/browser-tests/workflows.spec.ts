@@ -18,6 +18,7 @@ for (const width of widths) {
     const room = waitingRoom();
     room.players = room.players.slice(0, 1);
     const joinedIdentity = { playerId: playerIds[1]!, role: "player" as const };
+    await mockLobby(page);
     await mockRoom(page, room, false, joinedIdentity);
     let failed = true;
     const metadata = {
@@ -53,8 +54,9 @@ for (const width of widths) {
       page.getByRole("region", { name: "公開ルーム" }).getByRole("status"),
     ).toContainText("更新");
     failed = false;
-    await page.getByRole("button", { name: "更新", exact: true }).click();
-    await page.getByRole("button", { name: "もっと見る" }).click();
+    const lobby = page.getByRole("region", { name: "公開ルーム" });
+    await lobby.getByRole("button", { name: "更新", exact: true }).click();
+    await lobby.getByRole("button", { name: "もっと見る" }).click();
     await expect(page.getByRole("button", { name: "ルーム 23456 を観戦" })).toBeVisible();
     await expect(page.getByRole("button", { name: "ルーム 23456 に参加" })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
