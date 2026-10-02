@@ -1,9 +1,13 @@
-import { type Room } from "@tetraboard/protocol";
+import { type Room, type LastRound } from "@tetraboard/protocol";
 import { useState } from "react";
 import { replayFrames } from "./replayFrames";
 
 export function useRoomReplay(room: Room) {
   const lastRound = room.status === "waiting" ? room.lastRound : null;
+  return useRoundReplay(lastRound);
+}
+
+export function useRoundReplay(lastRound: LastRound | null) {
   const id = lastRound ? (lastRound.replay?.id ?? "legacy") : null;
   const frames = lastRound ? replayFrames(lastRound) : [];
   const [selection, setSelection] = useState({ id, index: frames.length - 1 });

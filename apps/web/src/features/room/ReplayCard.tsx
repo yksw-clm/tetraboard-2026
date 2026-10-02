@@ -1,12 +1,12 @@
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { ListBox, Select } from "@heroui/react";
-import { type useRoomReplay } from "./useRoomReplay";
+import { type useRoundReplay } from "./useRoomReplay";
 
 const stepButtonClasses =
   "shrink-0 basis-8 w-8 min-w-8 h-[34px] min-h-[34px] p-0 text-brand [@media(max-width:767px)]:basis-6 [@media(max-width:767px)]:w-6 [@media(max-width:767px)]:min-w-6 [@media(max-width:767px)]:h-6 [@media(max-width:767px)]:min-h-6 [@media(max-width:767px)]:text-xs";
 
-export function ReplayCard({ replay }: { replay: ReturnType<typeof useRoomReplay> }) {
+export function ReplayCard({ replay }: { replay: ReturnType<typeof useRoundReplay> }) {
   return (
     <AppCard
       className="flex flex-row items-center gap-1 p-1 border border-solid border-line rounded-xl bg-[#ffffffed] min-w-0 shadow-none [@media(min-width:1280px)]:absolute [@media(min-width:1280px)]:right-0 [@media(min-width:1280px)]:bottom-0 [@media(min-width:1280px)]:z-[1] [@media(min-width:1280px)]:w-[310px] [@media(min-width:1280px)]:shrink-0 [@media(max-width:1279px)]:col-start-2 [@media(max-width:1279px)]:w-[min(100%,320px)] [@media(max-width:1279px)]:justify-self-center [@media(max-width:767px)]:w-[min(100%,200px)] [@media(max-width:767px)]:h-7 [@media(max-width:767px)]:p-px [@media(max-width:767px)]:gap-0 [@media(max-width:767px)]:rounded-lg"

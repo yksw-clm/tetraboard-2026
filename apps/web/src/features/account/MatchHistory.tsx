@@ -1,3 +1,4 @@
+import { useNavigation } from "react-router";
 import { Avatar } from "@heroui/react";
 import {
   type MatchSummary,
@@ -5,7 +6,7 @@ import {
   type RoomMode,
 } from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
-import { AppButton } from "../../shared/ui/AppButton";
+import { AppButtonLink, AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppTabs } from "../../shared/ui/AppTabs";
@@ -46,6 +47,10 @@ function Participant({ player }: { player: MatchHistoryParticipant }) {
   );
 }
 function MatchHistoryCard({ match }: { match: MatchSummary }) {
+  const navigation = useNavigation();
+  const loading =
+    navigation.state === "loading" &&
+    navigation.location?.pathname === `/account/matches/${match.id}`;
   const result = match.result;
   const gameLabel = `四人リバーシ・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
   const teamColors = { "black-red": ["black", "red"], "white-blue": ["white", "blue"] } as const;
@@ -107,11 +112,15 @@ function MatchHistoryCard({ match }: { match: MatchSummary }) {
           ))}
         </div>
       )}
-      <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-muted">準備中</span>
-        <AppButton size="compact" appearance="secondary" isDisabled>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {loading && (
+          <span className="text-xs text-muted" role="status">
+            棋譜を読み込んでいます…
+          </span>
+        )}
+        <AppButtonLink size="compact" appearance="secondary" to={`/account/matches/${match.id}`}>
           棋譜を見る
-        </AppButton>
+        </AppButtonLink>
       </div>
     </article>
   );

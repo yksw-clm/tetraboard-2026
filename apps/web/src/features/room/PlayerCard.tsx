@@ -1,7 +1,14 @@
 import { Avatar, Badge, Chip, cn } from "@heroui/react";
-import { type Room } from "@tetraboard/protocol";
+import { type Room, type MatchHistoryParticipant, type MatchDetail } from "@tetraboard/protocol";
+import { type FourReversiState } from "@tetraboard/four-reversi";
 import { useLayoutEffect, useRef } from "react";
-import { colorNames, playerClock, playerName, playerRank } from "./roomPresentation";
+import {
+  colorNames,
+  playerClock,
+  playerName,
+  playerRank,
+  replayPlayerDetails,
+} from "./roomPresentation";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppCard } from "../../shared/ui/AppCard";
 import { Stone } from "./Stone";
@@ -23,28 +30,37 @@ const rankClasses = {
 export function PlayerCard({
   player,
   room,
+  replay,
   self,
   host,
   connected,
   now,
   position,
 }: {
-  player: Room["players"][number] | null;
-  room: Room;
+  player: Room["players"][number] | MatchHistoryParticipant | null;
   self: boolean;
   host: boolean;
-  connected: boolean;
-  now: number;
+  connected?: boolean;
   position: keyof typeof seatClasses;
-}) {
-  const color = room.status === "playing" ? player?.color : null;
-  const rank = playerRank(room, color ?? null);
-  const count =
-    room.status === "playing" && color
+} & (
+  | { room: Room; now: number; replay?: never }
+  | {
+      room?: never;
+      now?: never;
+      replay: { game: FourReversiState; eliminations: MatchDetail["eliminations"] };
+    }
+)) {
+  const color = replay ? player?.color : room.status === "playing" ? player?.color : null;
+  const replayDetails =
+    replay && color ? replayPlayerDetails(replay.game, color, replay.eliminations) : null;
+  const rank = replayDetails ? replayDetails.rank : room ? playerRank(room, color ?? null) : null;
+  const count = replayDetails
+    ? replayDetails.count
+    : room?.status === "playing" && color
       ? room.game.board.flat().filter((cell) => cell === color).length
       : 0;
-  const clock = player ? playerClock(room, player.color, now) : null;
-  const current = room.status === "playing" && color === room.game.turn;
+  const clock = room && player ? playerClock(room, player.color, now) : null;
+  const current = room?.status === "playing" && color === room.game.turn;
   const name = player ? playerName(player) : "空席";
   const nameBox = useRef<HTMLDivElement>(null);
   const nameContent = useRef<HTMLSpanElement>(null);
@@ -123,7 +139,7 @@ export function PlayerCard({
             <AppIcon name={player?.kind === "cpu" ? "robot" : "user"} className="block size-5" />
           </Avatar.Fallback>
         </Avatar>
-        {player && (
+        {player && connected !== undefined && (
           <Badge
             className={cn(
               "absolute right-0 bottom-0 size-[11px] min-w-[11px] min-h-[11px] max-w-[11px] max-h-[11px] aspect-square border-2 border-solid border-white p-0 rounded-full [transform:translate(20%,20%)]",
@@ -154,8 +170,10 @@ export function PlayerCard({
       </div>
       <div className="col-start-2 row-start-2 min-w-0 grid grid-cols-[54px_minmax(0,1fr)] items-center gap-[3px] [@container(max-width:160px)]:grid-cols-[40px_minmax(0,1fr)] [@container(max-width:160px)]:gap-[2px]">
         <span data-testid="player-score-slot" className="flex items-center min-w-0 h-[22px]">
-          {room.status === "waiting"
-            ? player?.ready && (
+          {room?.status === "waiting"
+            ? player &&
+              "ready" in player &&
+              player.ready && (
                 <Chip
                   className="h-5 py-px px-[5px] text-[10px] font-bold text-[#247c51] bg-[#e3f2e8] rounded-[6px] whitespace-nowrap [@container(max-width:160px)]:text-[8px] [@container(max-width:160px)]:px-[3px]"
                   size="sm"
@@ -167,7 +185,7 @@ export function PlayerCard({
                 <span
                   data-testid="player-stone-count"
                   className="inline-flex shrink-0 items-center gap-[6px] text-[13px] font-bold tabular-nums [@container(max-width:160px)]:text-[11px] [@container(max-width:160px)]:gap-[3px]"
-                  aria-label={`${colorNames[color]}、${count}石`}
+                  aria-label={`${colorNames[color]}${count === null ? "" : `、${count}石`}`}
                 >
                   <Stone
                     color={color}

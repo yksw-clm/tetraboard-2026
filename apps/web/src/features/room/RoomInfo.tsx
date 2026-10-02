@@ -1,3 +1,5 @@
+import { type ReactNode } from "react";
+import { type Room } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Accordion, Chip, Label, Radio, RadioGroup } from "@heroui/react";
@@ -18,49 +20,7 @@ export function RoomInfo({
 }) {
   const { room, membership, canManageSettings } = session;
   return (
-    <AppCard
-      density="compact"
-      className="[&_h1]:text-base [&_h1]:font-[750] [@media(max-width:1279px)]:max-w-[720px] [@media(max-width:1279px)]:mx-auto"
-    >
-      <div className="flex justify-between items-center gap-3">
-        <h1>ルーム情報</h1>
-        <Chip
-          className="bg-surface-muted text-ink-secondary text-xs font-bold tracking-[0.04em]"
-          size="sm"
-        >
-          #{room.id}
-        </Chip>
-      </div>
-      <dl className="grid grid-cols-2 py-1 px-[10px] bg-[#f9fbf9] border border-solid border-[#e8eee8] rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:bg-[#edf5ef] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line">
-        <div>
-          <AppIcon name="board" />
-          <div>
-            <dt>ゲーム名</dt>
-            <dd>四人リバーシ</dd>
-          </div>
-        </div>
-        <div>
-          <AppIcon name="user" />
-          <div>
-            <dt>対局形式</dt>
-            <dd>{room.settings.mode === "singles" ? "シングルス" : "ダブルス"}</dd>
-          </div>
-        </div>
-        <div>
-          <AppIcon name="clock" />
-          <div>
-            <dt>持ち時間</dt>
-            <dd>{formatClock(room.settings.timeControl.mainTimeMs)}</dd>
-          </div>
-        </div>
-        <div>
-          <AppIcon name="clock" />
-          <div>
-            <dt>秒読み</dt>
-            <dd>{formatClock(room.settings.timeControl.byoyomiMs)}</dd>
-          </div>
-        </div>
-      </dl>
+    <RoomInfoCard roomId={room.id} settings={room.settings}>
       <AppButton size="compact" className="w-full" onPress={onCopyInvite} appearance="secondary">
         <AppIcon name="copy" />
         招待リンクをコピー
@@ -195,6 +155,64 @@ export function RoomInfo({
           ロビーへ戻る
         </AppButtonLink>
       )}
+    </RoomInfoCard>
+  );
+}
+
+export function RoomInfoCard({
+  roomId,
+  settings,
+  children,
+}: {
+  roomId: string;
+  settings: Room["settings"];
+  children: ReactNode;
+}) {
+  return (
+    <AppCard
+      density="compact"
+      className="[&_h1]:text-base [&_h1]:font-[750] [@media(max-width:1279px)]:max-w-[720px] [@media(max-width:1279px)]:mx-auto"
+    >
+      <div className="flex justify-between items-center gap-3">
+        <h1>ルーム情報</h1>
+        <Chip
+          className="bg-surface-muted text-ink-secondary text-xs font-bold tracking-[0.04em]"
+          size="sm"
+        >
+          #{roomId}
+        </Chip>
+      </div>
+      <dl className="grid grid-cols-2 py-1 px-[10px] bg-[#f9fbf9] border border-solid border-[#e8eee8] rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:bg-[#edf5ef] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line">
+        <div>
+          <AppIcon name="board" />
+          <div>
+            <dt>ゲーム名</dt>
+            <dd>四人リバーシ</dd>
+          </div>
+        </div>
+        <div>
+          <AppIcon name="user" />
+          <div>
+            <dt>対局形式</dt>
+            <dd>{settings.mode === "singles" ? "シングルス" : "ダブルス"}</dd>
+          </div>
+        </div>
+        <div>
+          <AppIcon name="clock" />
+          <div>
+            <dt>持ち時間</dt>
+            <dd>{formatClock(settings.timeControl.mainTimeMs)}</dd>
+          </div>
+        </div>
+        <div>
+          <AppIcon name="clock" />
+          <div>
+            <dt>秒読み</dt>
+            <dd>{formatClock(settings.timeControl.byoyomiMs)}</dd>
+          </div>
+        </div>
+      </dl>
+      {children}
     </AppCard>
   );
 }

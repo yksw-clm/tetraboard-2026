@@ -1,5 +1,5 @@
-import { type Room } from "@tetraboard/protocol";
-import { createInitialState, type Color } from "@tetraboard/four-reversi";
+import { type Room, type MatchDetail, type MatchHistoryParticipant } from "@tetraboard/protocol";
+import { createInitialState, type Color, type FourReversiState } from "@tetraboard/four-reversi";
 
 export const displayGameForRoom = (room: Room) =>
   room.status === "playing"
@@ -12,7 +12,7 @@ export const colorNames: Record<Color, string> = {
   red: "赤",
   blue: "青",
 };
-export const playerName = (player: Room["players"][number]): string =>
+export const playerName = (player: Room["players"][number] | MatchHistoryParticipant): string =>
   player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
 
 export function formatClock(milliseconds: number): string {
@@ -71,3 +71,42 @@ export function playerRank(room: Room, color: Color | null) {
   const reason = room.eliminations.find((entry) => entry.color === color)?.reason;
   return { rank, label: `${rank}位${reason ? `（${eliminationLabels[reason]}）` : ""}` };
 }
+
+export function matchSeats(match: MatchDetail) {
+  const players = [...match.participants].sort((a, b) => a.seat - b.seat);
+  const anchor = players.findIndex((player) => player.id === match.selfPlayerId);
+  return players.map((_, index) => players[(anchor + index) % 4]);
+}
+
+export function replayPlayerDetails(
+  game: FourReversiState,
+  color: Color,
+  eliminations: MatchDetail["eliminations"],
+) {
+  const index = game.eliminatedColors.indexOf(color);
+  const eliminated = index >= 0;
+  const reason = eliminated
+    ? eliminations.find((entry) => entry.color === color)?.reason
+    : undefined;
+  let rank: { rank: number; label: string } | null = null;
+  if (game.mode === "singles") {
+    const standing =
+      game.status === "finished" && game.result.mode === "singles"
+        ? game.result.standings.find((entry) => entry.color === color)
+        : null;
+    const position = standing?.rank ?? (eliminated ? 4 - index : null);
+    if (position !== null)
+      rank = {
+        rank: position,
+        label: `${position}位${reason ? `（${eliminationLabels[reason]}）` : ""}`,
+      };
+  } else if (eliminated) {
+    rank = { rank: 4, label: `脱落${reason ? `（${eliminationLabels[reason]}）` : ""}` };
+  }
+  return {
+    count: eliminated ? null : game.board.flat().filter((cell) => cell === color).length,
+    rank,
+  };
+}
+
+export const seatPositions = ["bottom", "left", "top", "right"] as const;

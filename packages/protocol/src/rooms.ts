@@ -85,7 +85,7 @@ const playingGameSchema = gameStateBaseSchema.extend({
   turn: fourReversiColorSchema,
   result: z.null(),
 });
-const finishedGameSchema = gameStateBaseSchema.extend({
+export const finishedGameSchema = gameStateBaseSchema.extend({
   status: z.literal("finished"),
   turn: z.null(),
   result: gameResultSchema,
@@ -94,7 +94,7 @@ export const fourReversiStateSchema = z.discriminatedUnion("status", [
   playingGameSchema,
   finishedGameSchema,
 ]);
-const eliminationSchema = z.strictObject({
+export const eliminationSchema = z.strictObject({
   color: fourReversiColorSchema,
   reason: z.enum(["resigned", "left", "timeout", "disconnected"]),
 });

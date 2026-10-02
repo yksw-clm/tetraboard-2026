@@ -1,3 +1,5 @@
+import { matchReplayLoader } from "../features/room/matchReplayLoader";
+import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
 import { createBrowserRouter, Link, Navigate } from "react-router";
@@ -12,6 +14,13 @@ export const router = createBrowserRouter([
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },
+      {
+        path: "/account/matches/:matchId",
+        Component: MatchReplayPage,
+        loader: matchReplayLoader,
+        ErrorBoundary: MatchReplayErrorPage,
+        hydrateFallbackElement: <p role="status">棋譜を読み込んでいます…</p>,
+      },
       { path: "/", element: <Navigate to={fourReversiLobbyPath} replace /> },
       {
         path: fourReversiLobbyPath,
