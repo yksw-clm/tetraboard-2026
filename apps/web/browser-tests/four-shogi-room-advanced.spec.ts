@@ -441,7 +441,9 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     try {
       await page.goto(`/games/${game}`);
       const trigger = page.getByRole("button", { name: /^すぐ遊ぶ/ });
-      await trigger.click();
+      await trigger.focus();
+      await expect(trigger).toBeFocused();
+      await trigger.press("Enter");
       const dialog = page.getByRole("dialog", { name: "すぐ遊ぶ", exact: true });
       const nickname = dialog.getByRole("textbox", { name: "ニックネーム", exact: true });
       await nickname.fill("入力を保持");

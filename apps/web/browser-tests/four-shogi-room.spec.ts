@@ -16,6 +16,14 @@ const square = (page: Page, x: number, y: number) =>
   page.getByTestId("shogi-board").locator('[data-square="' + "ABCDEFGHI"[x] + (y + 1) + '"]');
 const actions = (received: { type: string }[]) =>
   received.filter((message) => message.type === "room.game.action");
+async function resizeRoom(page: Page, width: number): Promise<void> {
+  await page.setViewportSize({ width, height: 1000 });
+  const tabs = page.getByRole("tablist", { name: "ルームの表示" });
+  // CSSの幅変更だけでなく、1280px境界で外側のレイアウトが切り替わったことを待ちます。
+  if (width >= 1280) await expect(tabs).toHaveCount(0);
+  else await expect(tabs).toBeVisible();
+  await expect(page.getByTestId("shogi-board")).toBeVisible();
+}
 async function drag(page: Page, from: ReturnType<typeof square>, to: ReturnType<typeof square>) {
   const a = (await from.boundingBox())!,
     b = (await to.boundingBox())!;
@@ -35,7 +43,7 @@ test("盤と持ち駒の比率・順・向き・空領域を全境界で維持�
   await page.goto("/rooms/12345");
   await expect(square(page, 4, 6)).toBeEnabled();
   for (const width of widths) {
-    await page.setViewportSize({ width, height: 1000 });
+    await resizeRoom(page, width);
     const board = page.getByTestId("shogi-board"),
       layout = page.getByTestId("shogi-board-layout");
     await expect(board).toBeVisible();
@@ -226,7 +234,7 @@ test("ドラッグ・盤外・Escape・ポインター取消とタッチで不�
   });
   for (const width of [768, 1280, 1440]) {
     fixture.send({ type: "room.error", error: "invalid_move" });
-    await page.setViewportSize({ width, height: 1000 });
+    await resizeRoom(page, width);
     await expect(source).toBeVisible();
     await expect(source).toBeEnabled();
     const count = actions(fixture.received).length;
