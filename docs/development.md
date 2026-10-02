@@ -192,9 +192,9 @@ Google CloudのOAuthクライアントはWebアプリケーション用を使い
 
 専用R2 `tetraboard-2026-objects-prod` は存在を確認済みです。旧版の `tetraboard-objects-prod` はそのまま保持します。バケットを公開せず、画像はWorker経由で配信します。productionのR2も `remote: false` のため、ローカルプレビューから本番画像を変更しません。D1の本番名・IDとローカル名・IDも維持します。
 
-Webの編集先は `features/account/`、プロフィールの共通フォームは `ProfileForm.tsx`、認証処理はWorkerの `src/accounts/` です。フォームは名前・ID・任意アイコンをmultipartでまとめて保存します。画像は選択後にプレビューし、「プロフィールを保存／作成」で反映します。保存前に削除した場合も同じです。
+Webの編集先は `features/account/`、プロフィールの共通フォームは `ProfileForm.tsx`、認証処理はWorkerの `src/accounts/` です。初回設定はページ内、マイページの編集は共通 `AppDialog` 内に同じフォームを表示し、名前・ID・任意アイコンをmultipartでまとめて保存します。カメラボタンから画像を選択してプレビューし、「保存」（初回設定は「プロフィールを作成」）で反映します。アイコンの削除も同じです。フォームの `onBusyChange` で画像変換・保存中の閉鎖を防ぎ、`onSaved` で成功時にダイアログを閉じてページに通知します。閉じた未保存フォームは破棄し、再度開くと保存済みプロフィールで初期化します。
 
-`bun run check` にCookie本人確認、期限切れ、ログアウト、Originチェック、入力境界、ID競合、画像変更・削除、移行計画、Google通信を差し替えたOAuth往復を含めます。`test:browser` にChromium／WebKitの320・390・768・1440pxでログイン・メニュー・編集・再読み込み・ログアウト、未完了誘導、送信中の連打防止、画像の256px WebP変換を含めます。画像はブラウザでもデコードして寸法を確認します。WebKitでCanvasのWebP出力が使えない場合は、承認済みの `@jsquash/webp` を遅延読み込みします。Viteではこの依存をprebundleから除外し、WASMは明示的なasset URLで読み込みます。実GoogleとのOAuthとiOS Safari実機のキーボード・回転確認は別途必要です。
+`bun run check` にCookie本人確認、期限切れ、ログアウト、Originチェック、入力境界、ID競合、画像変更・削除、移行計画、Google通信を差し替えたOAuth往復を含めます。`test:browser` にChromium／WebKitの320・390・768・1440pxでログイン・メニュー・編集・再読み込み・ログアウト、未完了誘導、編集ダイアログの開閉・フォーカス復帰・未保存変更の破棄、保存後の表示とヘッダー更新、画像変換中・送信中の連打と閉鎖防止、画像の256px WebP変換を含めます。画像はブラウザでもデコードして寸法を確認します。WebKitでCanvasのWebP出力が使えない場合は、承認済みの `@jsquash/webp` を遅延読み込みします。Viteではこの依存をprebundleから除外し、WASMは明示的なasset URLで読み込みます。実GoogleとのOAuthは2026-10-02に開発者によるローカル確認済みです。本番Google認証の設定・動作とiOS Safari実機のキーボード・回転確認は別途必要です。
 
 ### 旧版からの移行準備
 

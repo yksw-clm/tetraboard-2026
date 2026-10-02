@@ -38,6 +38,7 @@ test("本番ビルドで同一オリジンの資産を使いWebPへ変換する"
       external.push(request.url());
   });
   await page.goto("/account");
+  await page.getByRole("button", { name: "プロフィールを編集", exact: true }).click();
   const png = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 512;
@@ -45,7 +46,7 @@ test("本番ビルドで同一オリジンの資産を使いWebPへ変換する"
     canvas.getContext("2d")!.fillRect(0, 0, 512, 256);
     return canvas.toDataURL("image/png").split(",")[1]!;
   });
-  await page.getByLabel("アイコン画像").setInputFiles({
+  await page.getByLabel("アイコン画像", { exact: true }).setInputFiles({
     name: "image.png",
     mimeType: "image/png",
     buffer: Buffer.from(png, "base64"),

@@ -14,6 +14,16 @@ export async function mockAccount(page: Page, initial: AccountProfile | null) {
   let held: Route | null = null;
   let hold = false;
   const saves: FormData[] = [];
+  // 保存後のアバター表示用。変換結果自体はテスト中の実画像をデコードして検証します。
+  await page.route("**/test-avatar.webp", (route) =>
+    route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE8sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    }),
+  );
   await page.route("**/api/account/session", (route) => route.fulfill({ json: { user } }));
   async function save(route: Route) {
     const data = await new Response(new Uint8Array(route.request().postDataBuffer()!), {

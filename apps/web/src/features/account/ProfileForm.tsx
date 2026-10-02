@@ -4,9 +4,20 @@ import { countCharacters, usernameSchema, type AccountProfile } from "@tetraboar
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "./useAccount";
 import { convertAvatar, saveProfile } from "./accountApi";
-export function ProfileForm({ user, setup }: { user: AccountProfile; setup: boolean }) {
+export function ProfileForm({
+  user,
+  setup,
+  onSaved,
+  onBusyChange,
+}: {
+  user: AccountProfile;
+  setup: boolean;
+  onSaved?: (profile: AccountProfile) => void;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const { update } = useAccount();
   const navigate = useNavigate();
   const [name, setName] = useState(user.name);
@@ -18,7 +29,6 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const submission = useRef(false);
   const busy = processing || saving;
@@ -32,8 +42,8 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
   );
   async function selectImage(file: File) {
     setProcessing(true);
+    onBusyChange?.(true);
     setError(null);
-    setNotice(null);
     try {
       const converted = await convertAvatar(file);
       setAvatar(converted);
@@ -43,6 +53,7 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
       setError(err instanceof Error ? err.message : "画像を読み込めませんでした。");
     } finally {
       setProcessing(false);
+      onBusyChange?.(false);
       if (fileInput.current) fileInput.current.value = "";
     }
   }
@@ -51,10 +62,10 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
     if (busy || submission.current) return;
     setSubmitted(true);
     setError(null);
-    setNotice(null);
     if (nameInvalid || usernameInvalid) return;
     submission.current = true;
     setSaving(true);
+    onBusyChange?.(true);
     const data = new FormData();
     data.set("name", name);
     data.set("username", username);
@@ -70,12 +81,13 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
       setPreview(null);
       setSubmitted(false);
       if (setup) navigate("/account", { replace: true });
-      else setNotice("プロフィールを保存しました。");
+      else onSaved?.(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存できませんでした。");
     } finally {
       submission.current = false;
       setSaving(false);
+      onBusyChange?.(false);
     }
   }
   const image =
@@ -83,17 +95,20 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-3">
-        <AppAvatar src={image} label="アイコンのプレビュー" className="size-24 [&_svg]:size-10" />
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="relative size-24">
+          <AppAvatar src={image} label="アイコンのプレビュー" className="size-24 [&_svg]:size-10" />
           <AppButton
             type="button"
-            appearance="secondary"
-            size="compact"
+            appearance="quiet"
+            aria-label="アイコン画像を選択"
+            className="absolute left-1/2 top-1/2 size-11 min-h-11 -translate-x-1/2 -translate-y-1/2 rounded-full border-0 bg-black/50 p-0 text-white enabled:hover:bg-black/65 enabled:hover:text-white data-[hovered=true]:bg-black/65 data-[hovered=true]:text-white"
             isDisabled={busy}
             onPress={() => fileInput.current?.click()}
           >
-            アイコンをアップロード
+            <AppIcon name="camera" className="size-6" />
           </AppButton>
+        </div>
+        {image && (
           <AppButton
             type="button"
             appearance="quiet"
@@ -103,12 +118,11 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
               setAvatarAction("remove");
               setAvatar(null);
               setPreview(null);
-              setNotice(null);
             }}
           >
-            削除
+            アイコンを削除
           </AppButton>
-        </div>
+        )}
         <input
           ref={fileInput}
           type="file"
@@ -139,7 +153,6 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
           value={name}
           onChange={(event) => {
             setName(event.target.value);
-            setNotice(null);
           }}
           autoComplete="nickname"
         />
@@ -152,7 +165,6 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
           value={username}
           onChange={(event) => {
             setUsername(event.target.value);
-            setNotice(null);
           }}
           autoComplete="username"
           autoCapitalize="none"
@@ -168,13 +180,8 @@ export function ProfileForm({ user, setup }: { user: AccountProfile; setup: bool
           {error}
         </p>
       )}
-      {notice && (
-        <p role="status" className="text-sm text-brand">
-          {notice}
-        </p>
-      )}
-      <AppButton type="submit" isDisabled={busy}>
-        {saving ? "保存しています…" : setup ? "プロフィールを作成" : "プロフィールを保存"}
+      <AppButton type="submit" isDisabled={busy} className={setup ? undefined : "self-end"}>
+        {saving ? "保存しています…" : setup ? "プロフィールを作成" : "保存"}
       </AppButton>
     </form>
   );

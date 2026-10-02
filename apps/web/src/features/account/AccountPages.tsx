@@ -3,6 +3,9 @@ import { Navigate, useSearchParams } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
+import { AppAvatar } from "../../shared/ui/AppAvatar";
+import { AppDialog } from "../../shared/ui/AppDialog";
+import type { AccountProfile } from "@tetraboard/protocol";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { accountRequest } from "./accountApi";
@@ -98,27 +101,77 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   if (!user) return <Navigate to="/login" replace />;
   if (setup && user.profileCompleted) return <Navigate to="/account" replace />;
   if (!setup && !user.profileCompleted) return <Navigate to="/account/setup" replace />;
+  if (!setup)
+    return (
+      <AccountPageShell>
+        <AccountProfileView user={user} />
+      </AccountPageShell>
+    );
   return (
     <AccountPageShell>
       <AppCard>
         <AppCard.Header>
-          <h1 className="text-2xl font-bold">{setup ? "プロフィールを作成" : "マイページ"}</h1>
-          <p className="text-sm text-muted">
-            {setup
-              ? "名前とIDを設定してください。アイコンは任意です。"
-              : "名前・ID・アイコンを変更できます。"}
-          </p>
+          <h1 className="text-2xl font-bold">プロフィールを作成</h1>
+          <p className="text-sm text-muted">名前とIDを設定してください。アイコンは任意です。</p>
         </AppCard.Header>
         <AppCard.Content>
-          <ProfileForm user={user} setup={setup} />
+          <ProfileForm user={user} setup />
         </AppCard.Content>
       </AppCard>
-      {!setup && (
-        <AppCard>
-          <h2 className="text-lg font-bold">戦績・棋譜</h2>
-          <p className="text-sm text-muted">今後追加予定です。</p>
-        </AppCard>
-      )}
     </AccountPageShell>
+  );
+}
+function AccountProfileView({ user }: { user: AccountProfile }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  return (
+    <>
+      <AppCard>
+        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 [@media(min-width:651px)]:grid-cols-[64px_minmax(0,1fr)_auto]">
+          <AppButton
+            appearance="secondary"
+            className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
+            onPress={() => {
+              setNotice(null);
+              setEditing(true);
+            }}
+          >
+            プロフィールを編集
+          </AppButton>
+          <AppAvatar
+            src={user.avatarUrl}
+            label="プロフィールアイコン"
+            className="col-start-1 row-start-2 size-16 [&_svg]:size-7 [@media(min-width:651px)]:row-start-1"
+          />
+          <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
+            <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
+            <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">@{user.username}</p>
+          </div>
+        </div>
+        {notice && (
+          <p role="status" className="text-sm text-brand">
+            {notice}
+          </p>
+        )}
+      </AppCard>
+      <AppCard>
+        <h2 className="text-lg font-bold">戦績・棋譜</h2>
+        <p className="text-sm text-muted">今後追加予定です。</p>
+      </AppCard>
+      {editing && (
+        <AppDialog title="プロフィールを編集" busy={busy} onClose={() => setEditing(false)}>
+          <ProfileForm
+            user={user}
+            setup={false}
+            onBusyChange={setBusy}
+            onSaved={() => {
+              setEditing(false);
+              setNotice("プロフィールを保存しました。");
+            }}
+          />
+        </AppDialog>
+      )}
+    </>
   );
 }
