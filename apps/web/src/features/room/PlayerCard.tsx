@@ -3,7 +3,8 @@ import {
   type Room,
   type FourReversiRoom,
   type MatchHistoryParticipant,
-  type MatchDetail,
+  type FourReversiMatchDetail,
+  type FourReversiMatchHistoryParticipant,
 } from "@tetraboard/protocol";
 import { type FourReversiState } from "@tetraboard/four-reversi";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
@@ -42,7 +43,7 @@ export function PlayerCard({
   now,
   position,
 }: {
-  player: FourReversiRoom["players"][number] | MatchHistoryParticipant | null;
+  player: FourReversiRoom["players"][number] | FourReversiMatchHistoryParticipant | null;
   self: boolean;
   host: boolean;
   connected?: boolean;
@@ -52,7 +53,7 @@ export function PlayerCard({
   | {
       room?: never;
       now?: never;
-      replay: { game: FourReversiState; eliminations: MatchDetail["eliminations"] };
+      replay: { game: FourReversiState; eliminations: FourReversiMatchDetail["eliminations"] };
     }
 )) {
   const color = replay ? player?.color : room.status === "playing" ? player?.color : null;

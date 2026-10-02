@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getFourReversiRankingsContract, type FourReversiRankings } from "@tetraboard/protocol";
+import {
+  getFourReversiRankingsContract,
+  getFourShogiRankingsContract,
+  type FourReversiRankings,
+  type MatchGame,
+} from "@tetraboard/protocol";
 
-export function useRankings() {
+export function useRankings(game: MatchGame = "four-reversi") {
   const [rankings, setRankings] = useState<FourReversiRankings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,12 +18,14 @@ export function useRankings() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api${getFourReversiRankingsContract.path}`, {
+      const contract =
+        game === "four-shogi" ? getFourShogiRankingsContract : getFourReversiRankingsContract;
+      const response = await fetch(`/api${contract.path}`, {
         cache: "no-store",
         signal: controller.signal,
       });
       if (!response.ok) throw new Error("Rankings request failed");
-      const result = getFourReversiRankingsContract.response.parse(await response.json());
+      const result = contract.response.parse(await response.json());
       if (!controller.signal.aborted) setRankings(result);
     } catch {
       if (!controller.signal.aborted) setError("ランキングを取得できませんでした。");
@@ -26,7 +33,7 @@ export function useRankings() {
       if (!controller.signal.aborted) setLoading(false);
       if (request.current === controller) request.current = null;
     }
-  }, []);
+  }, [game]);
   useEffect(() => {
     const timeout = window.setTimeout(() => void refresh(), 0);
     return () => {

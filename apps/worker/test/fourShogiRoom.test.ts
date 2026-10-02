@@ -1,6 +1,6 @@
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   applyAction,
   createInitialState,
@@ -24,6 +24,13 @@ import {
   type RoomSocketMessage,
 } from "@tetraboard/protocol";
 import { ShogiStore } from "../src/rooms/shogiStore";
+import {
+  pendingShogiMatchPrefix,
+  readShogiMatchRecord,
+  shogiMatchStartKey,
+  type ActiveShogiMatch,
+  type PendingShogiMatch,
+} from "../src/rooms/shogiMatchStore";
 import { accountFixture, origin } from "./accountFixtures";
 
 const base = "https://example.com";
@@ -281,7 +288,7 @@ test("サーバー合法手を受理し、古い局面・対局・手番違い�
   expect((await get(prepared.id)).game).toEqual(moved.game);
 });
 
-test("投了は本人手番だけで順位を保存し、直前棋譜を再取得でき、将棋の恒久履歴は保存しない", async () => {
+test("投了は本人手番だけで順位を保存し、直前棋譜と恒久棋譜を保存する", async () => {
   const prepared = await start();
   prepared.clients[sideIndex(prepared, "west")].send({ type: "room.game.resign" });
   expect(await prepared.clients[sideIndex(prepared, "west")].error()).toBe("not_your_turn");
@@ -322,13 +329,12 @@ test("投了は本人手番だけで順位を保存し、直前棋譜を再取�
   expect(core).toEqual(room.lastRound.game);
   expect((await request(`${url}?instanceId=${crypto.randomUUID()}`)).status).toBe(410);
   expect((await request(`${url}?instanceId=${room.instanceId}&cursor=4`)).status).toBe(404);
-  expect(
-    (
-      await env.APP_DB.prepare("SELECT id FROM matches WHERE id = ?")
-        .bind(room.lastRound.roundId)
-        .all()
-    ).results,
-  ).toHaveLength(0);
+  const matchId = room.lastRound.roundId;
+  await vi.waitFor(async () => {
+    expect(
+      (await env.APP_DB.prepare("SELECT id FROM matches WHERE id = ?").bind(matchId).all()).results,
+    ).toHaveLength(1);
+  });
   expect(await get(prepared.id)).toEqual(room);
 });
 
@@ -388,6 +394,20 @@ test("接続復帰は期限を解除し、通信期限切れと時計期限は�
   ]);
   expect(room.game.turn).toBe("west");
   expect(room.positionRevision).toBe(2);
+  const finished = await resignCurrent(prepared, room);
+  if (finished.status !== "waiting") throw new Error("Not finished");
+  await vi.waitFor(async () => {
+    const row = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+      .bind(finished.lastRound!.roundId)
+      .first<{ record_json: string }>();
+    expect(row).not.toBeNull();
+    expect(readShogiMatchRecord(row!.record_json).knockouts).toEqual({
+      south: 0,
+      west: 0,
+      north: 0,
+      east: 0,
+    });
+  });
 });
 
 test("CPUは選択を保存した次のAlarmで期限を照合し、期限切れの選択を着手しない", async () => {
@@ -420,6 +440,12 @@ test("CPUは選択を保存した次のAlarmで期限を照合し、期限切れ
     expect(job).toMatchObject({ roundId: room.roundId, positionRevision: 0, side: cpu.side });
     const selected = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
     expect(selected.game?.moveNumber).toBe(0);
+    expect(state.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)?.knockouts).toEqual({
+      south: 0,
+      west: 0,
+      north: 0,
+      east: 0,
+    });
     state.storage.kv.put("shogi-cpu-job", { ...job, applyAt: Date.now() + 60000 });
     state.storage.kv.put(
       "room",
@@ -965,6 +991,250 @@ test("南が東を撃破したら西へ時計と手番を移し、自動詰み�
     const page = new ShogiStore(state.storage.sql).getPage(stored.instanceId, stored.roundId, 0)!;
     expect(page.eventCount).toBe(1);
     expect(page.events[0].event).toEqual({ type: "action", side: "south", action });
+  });
+});
+
+test.each([
+  { mode: "singles" as const, simultaneous: false, stalled: false, cpu: true, count: 1 },
+  { mode: "singles" as const, simultaneous: true, stalled: false, cpu: false, count: 2 },
+  { mode: "singles" as const, simultaneous: false, stalled: true, cpu: false, count: 0 },
+  { mode: "doubles" as const, simultaneous: true, stalled: false, cpu: false, count: 0 },
+])("受理した着手だけに撃破数を帰属する %j", async ({ mode, simultaneous, stalled, cpu, count }) => {
+  const prepared = await start(mode);
+  const pieces: Parameters<typeof seedPosition>[1] = [
+    { side: "south", kind: "king", x: simultaneous ? 4 : 0, y: 8 },
+    { side: "west", kind: "king", x: 0, y: 0 },
+    {
+      side: "north",
+      kind: "king",
+      x: simultaneous && mode === "doubles" ? 8 : stalled || simultaneous ? 8 : 4,
+      y: mode === "doubles" ? 8 : 0,
+    },
+    { side: "east", kind: "king", x: 8, y: mode === "doubles" ? 0 : 8 },
+  ];
+  if (simultaneous)
+    pieces.push(
+      { side: "south", kind: "rook", x: 4, y: 1 },
+      { side: "south", kind: "gold", x: 1, y: 2 },
+      { side: "south", kind: "gold", x: 7, y: 2 },
+    );
+  else if (stalled)
+    pieces.push(
+      { side: "south", kind: "gold", x: 1, y: 2 },
+      { side: "south", kind: "gold", x: 2, y: 1 },
+      { side: "south", kind: "pawn", x: 5, y: 5 },
+    );
+  else
+    pieces.push(
+      { side: "south", kind: "rook", x: 8, y: 4 },
+      { side: "south", kind: "gold", x: 8, y: 6 },
+      { side: "south", kind: "gold", x: 7, y: 7 },
+    );
+  await seedPosition(prepared, pieces, true);
+  const stub = env.GAME_ROOM.getByName(prepared.id);
+  if (cpu)
+    await runInDurableObject(stub, (_instance, state) => {
+      const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
+      // CPU席の保存境界を作る際は、元の人間席の接続権限も解除します。
+      const player = room.players.find((entry) => entry.side === "east")!;
+      const tokenHash = state.storage.kv.get<string>(`player-token:${player.id}`)!;
+      state.storage.kv.delete(`membership:${tokenHash}`);
+      state.storage.kv.delete(`player-token:${player.id}`);
+      state.storage.kv.put(
+        "room",
+        fourShogiRoomSchema.parse({
+          ...room,
+          players: room.players.map((player) =>
+            player.side === "east"
+              ? {
+                  id: player.id,
+                  name: player.name,
+                  side: player.side,
+                  reconnectDeadline: null,
+                  kind: "cpu",
+                  level: 1,
+                  ready: true,
+                }
+              : player,
+          ),
+        }),
+      );
+      const active = state.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)!;
+      active.start.participants = active.start.participants.map((player) =>
+        player.side === "east"
+          ? {
+              id: player.id,
+              name: player.name,
+              side: player.side,
+              seat: player.seat,
+              kind: "cpu",
+              level: 1,
+            }
+          : player,
+      );
+      state.storage.kv.put(shogiMatchStartKey, active);
+    });
+  const before = await get(prepared.id);
+  if (before.status !== "playing") throw new Error("Not playing");
+  const action = {
+    type: "movePiece" as const,
+    from: simultaneous ? { x: 4, y: 1 } : stalled ? { x: 5, y: 5 } : { x: 8, y: 6 },
+    to: simultaneous ? { x: 4, y: 0 } : stalled ? { x: 5, y: 4 } : { x: 7, y: 6 },
+    promote: false,
+  };
+  const actor = prepared.clients[sideIndex(prepared, "south")];
+  actor.send({ type: "room.game.action", roundId: before.roundId, positionRevision: 1, action });
+  expect(await actor.error()).toBe("stale_position");
+  actor.send({ type: "room.game.action", roundId: before.roundId, positionRevision: 0, action });
+  let room = await actor.room((next) => next.status === "waiting" || next.positionRevision === 1);
+  const eliminations =
+    room.status === "waiting" ? room.lastRound!.game.eliminations : room.game.eliminations;
+  expect(eliminations).toHaveLength(simultaneous ? 2 : 1);
+  expect(
+    eliminations.every((entry) => entry.reason === (stalled ? "no_legal_actions" : "checkmate")),
+  ).toBe(true);
+  if (room.status === "playing") {
+    actor.send({ type: "room.game.action", roundId: before.roundId, positionRevision: 0, action });
+    expect(await actor.error()).toBe("stale_position");
+  }
+  while (room.status === "playing") room = await resignCurrent(prepared, room);
+  const matchId = room.lastRound!.roundId;
+  await vi.waitFor(async () => {
+    const row = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+      .bind(matchId)
+      .first<{ record_json: string }>();
+    expect(row).not.toBeNull();
+    const saved = readShogiMatchRecord(row!.record_json);
+    expect(saved.knockouts).toEqual({ south: count, west: 0, north: 0, east: 0 });
+    if (cpu)
+      expect(saved.participants.find((player) => player.side === "east")).toMatchObject({
+        kind: "cpu",
+        level: 1,
+      });
+  });
+});
+
+test("導入前の進行局は開始メタデータを推測して恒久保存しない", async () => {
+  const prepared = await start();
+  await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, state) =>
+    state.storage.kv.delete(shogiMatchStartKey),
+  );
+  let room: FourShogiRoom = prepared.room;
+  while (room.status === "playing") room = await resignCurrent(prepared, room);
+  expect(
+    await env.APP_DB.prepare("SELECT id FROM matches WHERE id = ?")
+      .bind(prepared.room.roundId)
+      .first(),
+  ).toBeNull();
+  expect(
+    await runInDurableObject(
+      env.GAME_ROOM.getByName(prepared.id),
+      (_instance, state) =>
+        new Map(state.storage.kv.list({ prefix: pendingShogiMatchPrefix })).size,
+    ),
+  ).toBe(0);
+});
+
+test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたいで棋譜を保持し、5秒再送で復旧する", async () => {
+  const prepared = await start();
+  const stub = env.GAME_ROOM.getByName(prepared.id);
+  const ids: string[] = [];
+  await env.APP_DB.exec("ALTER TABLE matches RENAME TO matches_unavailable");
+  try {
+    let room: FourShogiRoom = prepared.room;
+    for (let round = 0; round < 2; round++) {
+      if (round > 0) {
+        for (let index = 0; index < 4; index++) {
+          prepared.clients[index].send({ type: "room.ready.set", ready: true });
+          await prepared.clients[0].room(
+            (next) => next.players.filter((player) => player.ready).length === index + 1,
+          );
+        }
+        prepared.clients[0].send({ type: "room.game.start" });
+        room = await prepared.clients[0].room((next) => next.status === "playing");
+      }
+      if (room.status !== "playing") throw new Error("Not playing");
+      ids.push(room.roundId);
+      // 再戦で担当方向が再抽選されるため、この局の席対応を使います。
+      const currentPrepared = { ...prepared, room };
+      while (room.status === "playing") room = await resignCurrent(currentPrepared, room);
+    }
+    await vi.waitFor(async () => {
+      const jobs = await runInDurableObject(stub, (_instance, state) => [
+        ...new Map(
+          state.storage.kv.list<PendingShogiMatch>({ prefix: pendingShogiMatchPrefix }),
+        ).values(),
+      ]);
+      expect(jobs).toHaveLength(2);
+      expect(
+        jobs.every((job) => job.retryAtMs > Date.now() && job.retryAtMs <= Date.now() + 5000),
+      ).toBe(true);
+    });
+    const waiting = await get(prepared.id);
+    for (const member of prepared.memberships)
+      expect(
+        (
+          await request(`/rooms/${prepared.id}/leave`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${member.token}` },
+          })
+        ).status,
+      ).toBe(204);
+    expect(
+      await runInDurableObject(stub, (_instance, state) => ({
+        archives: state.storage.sql
+          .exec("SELECT round_id FROM shogi_archives ORDER BY round_id")
+          .toArray(),
+        events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM shogi_events").one(),
+      })),
+    ).toEqual({ archives: [...ids].sort().map((round_id) => ({ round_id })), events: { n: 6 } });
+    const replacement = fourShogiRoomSchema.parse({
+      ...waiting,
+      instanceId: crypto.randomUUID(),
+      lastRound: null,
+      players: [{ ...waiting.players[0], id: crypto.randomUUID() }],
+      lastActivityAtMs: Date.now(),
+    });
+    expect(await stub.createRoom(replacement, "a".repeat(64))).not.toBeNull();
+  } finally {
+    await env.APP_DB.exec("ALTER TABLE matches_unavailable RENAME TO matches");
+  }
+  for (let pass = 0; pass < 4; pass++) {
+    await runInDurableObject(stub, async (_instance, state) => {
+      for (const [key, job] of state.storage.kv.list<PendingShogiMatch>({
+        prefix: pendingShogiMatchPrefix,
+      }))
+        state.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
+      await state.storage.setAlarm(Date.now() + 60000);
+    });
+    await runDurableObjectAlarm(stub);
+  }
+  await vi.waitFor(async () => {
+    for (const id of ids) {
+      const row = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+        .bind(id)
+        .first<{ record_json: string }>();
+      expect(readShogiMatchRecord(row!.record_json).knockouts).toEqual({
+        south: 0,
+        west: 0,
+        north: 0,
+        east: 0,
+      });
+      expect(
+        await env.APP_DB.prepare(
+          "SELECT SUM(event_count) AS n FROM shogi_match_chunks WHERE match_id = ?",
+        )
+          .bind(id)
+          .first(),
+      ).toEqual({ n: 3 });
+    }
+    expect(
+      await runInDurableObject(stub, (_instance, state) => ({
+        pending: new Map(state.storage.kv.list({ prefix: pendingShogiMatchPrefix })).size,
+        archives: state.storage.sql.exec("SELECT COUNT(*) AS n FROM shogi_archives").one(),
+        events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM shogi_events").one(),
+      })),
+    ).toEqual({ pending: 0, archives: { n: 0 }, events: { n: 0 } });
   });
 });
 

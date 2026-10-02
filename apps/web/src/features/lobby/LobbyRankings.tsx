@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { type RankingEntry, type RoomMode } from "@tetraboard/protocol";
+import { type RankingEntry, type RoomMode, type MatchGame } from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -66,14 +66,14 @@ function RankingContent({
   total = false,
   limit,
 }: {
-  state?: ReturnType<typeof useRankings>;
+  state: ReturnType<typeof useRankings>;
   mode: RoomMode;
   total?: boolean;
   limit: number;
 }) {
   const label = total ? "対局数" : mode === "singles" ? "優勝数" : "勝利数";
   const entries =
-    state?.rankings &&
+    state.rankings &&
     (total
       ? state.rankings[mode].total
       : mode === "singles"
@@ -82,14 +82,13 @@ function RankingContent({
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm font-semibold text-muted">{label}</h3>
-      {!state && <p className="text-sm text-muted">四人将棋のランキングは準備中です。</p>}
-      {state?.loading && (
+      {state.loading && (
         <p role="status" className="text-sm text-muted">
           ランキングを読み込んでいます…
         </p>
       )}
       {entries && <RankingList entries={entries.slice(0, limit)} label={label} />}
-      {state?.error && (
+      {state.error && (
         <div className="flex flex-col items-start gap-2">
           <p role="alert" className="text-sm text-danger">
             {state.error}
@@ -109,7 +108,7 @@ function RankingsDialog({
   onClose,
   theme,
 }: {
-  state?: ReturnType<typeof useRankings>;
+  state: ReturnType<typeof useRankings>;
   initialMode: RoomMode;
   onClose: () => void;
   theme: AppTheme;
@@ -143,8 +142,8 @@ function RankingsDialog({
         <AppButton
           appearance="quiet"
           size="compact"
-          isDisabled={!state || state.loading}
-          onPress={() => void state?.refresh()}
+          isDisabled={state.loading}
+          onPress={() => void state.refresh()}
         >
           更新
         </AppButton>
@@ -157,7 +156,7 @@ function LobbyRankingsView({
   state,
   theme,
 }: {
-  state?: ReturnType<typeof useRankings>;
+  state: ReturnType<typeof useRankings>;
   theme: AppTheme;
 }) {
   const [mode, setMode] = useState<RoomMode>("singles");
@@ -173,8 +172,8 @@ function LobbyRankingsView({
             appearance="quiet"
             size="compact"
             aria-label="ランキングを更新"
-            isDisabled={!state || state.loading}
-            onPress={() => void state?.refresh()}
+            isDisabled={state.loading}
+            onPress={() => void state.refresh()}
           >
             更新
           </AppButton>
@@ -203,21 +202,17 @@ function LobbyRankingsView({
   );
 }
 
-function AvailableLobbyRankings({ theme }: { theme: AppTheme }) {
-  const state = useRankings();
+function AvailableLobbyRankings({ theme, game }: { theme: AppTheme; game: MatchGame }) {
+  const state = useRankings(game);
   return <LobbyRankingsView state={state} theme={theme} />;
 }
 
 export function LobbyRankings({
-  unavailable = false,
+  game = "four-reversi",
   theme = "default",
 }: {
-  unavailable?: boolean;
+  game?: MatchGame;
   theme?: AppTheme;
 }) {
-  return unavailable ? (
-    <LobbyRankingsView theme={theme} />
-  ) : (
-    <AvailableLobbyRankings theme={theme} />
-  );
+  return <AvailableLobbyRankings key={game} theme={theme} game={game} />;
 }

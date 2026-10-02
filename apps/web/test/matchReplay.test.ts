@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { matchDetailSchema } from "@tetraboard/protocol";
+import { fourReversiMatchDetailSchema } from "@tetraboard/protocol";
 import { replayMatch } from "../browser-tests/matchReplayFixtures";
 import { matchSeats, replayPlayerDetails } from "../src/features/room/roomPresentation";
 import { replayFrames } from "../src/features/room/replayFrames";
 
 for (const mode of ["singles", "doubles"] as const) {
   test(`${mode}の本人を手前に配置し、選択局面の石数・脱落だけを表示する`, () => {
-    const match = matchDetailSchema.parse(replayMatch(mode));
+    const match = fourReversiMatchDetailSchema.parse(replayMatch(mode));
     expect(matchSeats(match).map((p) => p.seat)).toEqual([1, 2, 3, 0]);
     const frames = replayFrames({ ...match, players: match.participants });
     expect(replayPlayerDetails(frames[0].game, "white", match.eliminations)).toEqual({

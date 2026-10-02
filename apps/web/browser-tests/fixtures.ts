@@ -122,7 +122,7 @@ export async function mockRoom(
 }
 
 export async function mockLobby(page: Page) {
-  await page.route("**/api/games/four-reversi/rankings", (route) =>
+  await page.route(/\/api\/games\/four-(?:reversi|shogi)\/rankings$/, (route) =>
     route.fulfill({
       json: { singles: { first: [], total: [] }, doubles: { wins: [], total: [] } },
     }),

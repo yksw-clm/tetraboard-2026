@@ -1,6 +1,10 @@
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
-import { getMatchContract, listMatchesContract } from "@tetraboard/protocol";
+import {
+  getMatchContract,
+  fourReversiMatchDetailSchema,
+  listMatchesContract,
+} from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
 import {
   fixtureRecord,
@@ -12,6 +16,10 @@ import {
 } from "./matchFixtures";
 import { writeMatch } from "../src/rooms/matchStore";
 
+function reversiDetail(value: unknown) {
+  const body = getMatchContract.response.parse(value);
+  return { match: fourReversiMatchDetailSchema.parse(body.match) };
+}
 const detail = (id: string, cookie?: string) =>
   matchRequest(`/account/matches/${id}`, { headers: cookie ? { Cookie: cookie } : {} });
 afterEach(() => {
@@ -28,7 +36,7 @@ for (const mode of ["singles", "doubles"] as const) {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const body = await response.json();
-    const { match } = getMatchContract.response.parse(body);
+    const { match } = reversiDetail(body);
     expect(match.selfPlayerId).toBe(record.participants[0].id);
     expect(match.game).toEqual(record.game);
     expect(match.replay).toEqual(record.replay);
@@ -56,8 +64,7 @@ test("名前は開始時、アイコンは現在のプロフィールを使う",
   await env.APP_DB.prepare("UPDATE user SET name = ?, avatarKey = ? WHERE id = ?")
     .bind("変更後", key, user.id)
     .run();
-  const read = async () =>
-    getMatchContract.response.parse(await (await detail(record.id, user.cookie)).json()).match;
+  const read = async () => reversiDetail(await (await detail(record.id, user.cookie)).json()).match;
   expect((await read()).participants[0]).toMatchObject({
     name: "開始時の名前",
     avatarUrl: `/api/avatars/${key.slice(8, -5)}`,
@@ -103,7 +110,7 @@ test("実終局から部屋閉鎖後も同じ保存済み棋譜を取得でき�
   expect((await matchRequest(`/rooms/${setup.id}`)).status).toBe(404);
   const response = await detail(id, setup.user.cookie);
   expect(response.status).toBe(200);
-  const { match } = getMatchContract.response.parse(await response.json());
+  const { match } = reversiDetail(await response.json());
   expect(match.participants.map((p) => p.color)).toEqual(started.players.map((p) => p.color));
   expect(match.game.status).toBe("finished");
   expect(match.replay.steps.at(-1)?.action).toMatchObject({ type: "eliminate", reason: "left" });

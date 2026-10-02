@@ -59,6 +59,10 @@ function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+export function replayDataEqual(left: unknown, right: unknown): boolean {
+  return stableJson(left) === stableJson(right);
+}
+
 function replayLabel(event: FourShogiReplayEvent, state: FourShogiState): string {
   if (event.type === "eliminate")
     return `${shogiSideNames[event.side]} ${shogiEliminationLabels[event.reason]}`;
@@ -113,7 +117,7 @@ export async function fetchFourShogiReplay({
         throw new Error("Replay players mismatch");
       state = createInitialState(initial);
       frames.push(createFourShogiReplayFrame(state));
-    } else if (stableJson(initial) !== stableJson(page.initial))
+    } else if (!replayDataEqual(initial, page.initial))
       throw new Error("Replay initial options changed");
     const next = cursor + page.events.length;
     if (
@@ -139,7 +143,7 @@ export async function fetchFourShogiReplay({
     if (page.nextCursor === null) break;
   }
   const final = frames.at(-1)?.game;
-  if (!final || final.status !== "finished" || stableJson(final) !== stableJson(lastRound.game))
+  if (!final || final.status !== "finished" || !replayDataEqual(final, lastRound.game))
     throw new Error("Replay final position mismatch");
   return frames;
 }
