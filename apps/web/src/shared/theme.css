@@ -53,14 +53,17 @@
     margin: 0;
   }
 
-  :where(.app-theme, .four-reversi-lobby, .four-reversi-room) :where(button, input) {
-    font: inherit;
-  }
-
   :where(.app-theme, .four-reversi-lobby, .four-reversi-room)
     :where(button, a, input, summary, [tabindex]):focus-visible {
     outline: 3px solid var(--focus);
     outline-offset: 4px;
+  }
+}
+
+@layer components {
+  /* 未移行の操作部品も従来の文字寸法を保ち、個別のutilityを優先します。 */
+  :is(.app-theme, .four-reversi-lobby, .four-reversi-room) :is(button, input) {
+    font: inherit;
   }
 }
 
