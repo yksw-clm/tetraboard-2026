@@ -34,6 +34,9 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
     strategy:
       fail-fast: false
       matrix:
@@ -47,8 +50,6 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium webkit
-        working-directory: apps/web
       - name: Run UI shard
         if: matrix.suite != 'worker'
         env:
