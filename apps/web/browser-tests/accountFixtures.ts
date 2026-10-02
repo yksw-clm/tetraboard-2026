@@ -24,6 +24,9 @@ export async function mockAccount(page: Page, initial: AccountProfile | null) {
       ),
     }),
   );
+  await page.route("**/api/account/matches?**", (route) =>
+    route.fulfill({ json: { matches: [], nextCursor: null } }),
+  );
   await page.route("**/api/account/session", (route) => route.fulfill({ json: { user } }));
   async function save(route: Route) {
     const data = await new Response(new Uint8Array(route.request().postDataBuffer()!), {

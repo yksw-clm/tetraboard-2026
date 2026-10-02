@@ -1,3 +1,4 @@
+import { MatchHistory } from "./MatchHistory";
 import { useState, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -187,10 +188,7 @@ function AccountProfileView({ user }: { user: AccountProfile }) {
             <p className="text-sm text-muted">今後追加予定です。</p>
           </section>
         </AppCard>
-        <AppCard data-testid="account-replay-card">
-          <h2 className="text-lg font-bold">棋譜</h2>
-          <p className="text-sm text-muted">今後追加予定です。</p>
-        </AppCard>
+        <MatchHistory />
       </div>
       {editing && (
         <AppDialog title="プロフィールを編集" busy={busy} onClose={() => setEditing(false)}>

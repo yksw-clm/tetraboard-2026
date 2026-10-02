@@ -38,6 +38,13 @@ import { releaseReservation, type AccountAdmission } from "../accounts/roomAccou
 import { DurableObject } from "cloudflare:workers";
 import { advanceClock, createClock, isClockExpired } from "./clock";
 import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
+import {
+  matchStartKey,
+  pendingMatchPrefix,
+  writeMatch,
+  type MatchStart,
+  type PendingMatch,
+} from "./matchStore";
 
 const accountKey = (playerId: string) => `seat-account:${playerId}`;
 const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
@@ -114,6 +121,35 @@ export class GameRoom extends DurableObject<Env> {
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
   private accountFlush: Promise<void> | null = null;
+  private matchFlush: Promise<void> | null = null;
+
+  private pendingMatches() {
+    return new Map(this.ctx.storage.kv.list<PendingMatch>({ prefix: pendingMatchPrefix }));
+  }
+
+  private async flushMatches(): Promise<void> {
+    if (this.matchFlush) return this.matchFlush;
+    const flush = async () => {
+      for (;;) {
+        const next = [...this.pendingMatches()].find(([, job]) => job.retryAtMs <= Date.now());
+        if (!next) break;
+        const [key, job] = next;
+        try {
+          await writeMatch(this.env.APP_DB, job.record);
+          this.ctx.storage.kv.delete(key);
+        } catch {
+          console.error("Match save will be retried", job.record.id);
+          this.ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() + 5_000 });
+          break;
+        }
+      }
+      await this.syncAlarm(this.readRoom());
+    };
+    this.matchFlush = flush().finally(() => {
+      this.matchFlush = null;
+    });
+    return this.matchFlush;
+  }
 
   private storedAccount(playerId: string) {
     return this.ctx.storage.kv.get<StoredAccountSeat>(accountKey(playerId)) ?? null;
@@ -361,6 +397,7 @@ export class GameRoom extends DurableObject<Env> {
     }
     this.ctx.storage.kv.delete(roomStorageKey);
     this.ctx.storage.kv.delete(replayKey);
+    this.ctx.storage.kv.delete(matchStartKey);
     this.ctx.storage.kv.delete(chatKey);
     this.ctx.storage.kv.delete(mutedKey);
     this.ctx.storage.kv.delete(viewerSecretKey);
@@ -400,6 +437,15 @@ export class GameRoom extends DurableObject<Env> {
     game: Extract<FourReversiState, { status: "finished" }>,
     at: number,
   ): Room | null {
+    const start = this.ctx.storage.kv.get<MatchStart>(matchStartKey);
+    const replay = this.ctx.storage.kv.get<RoundReplay>(replayKey);
+    if (start && replay && start.id === replay.id) {
+      this.ctx.storage.kv.put(`${pendingMatchPrefix}${start.id}`, {
+        record: { ...start, endedAtMs: at, game, eliminations: room.eliminations, replay },
+        retryAtMs: Date.now(),
+      } satisfies PendingMatch);
+    }
+    this.ctx.storage.kv.delete(matchStartKey);
     const lastRound = {
       game,
       replay: this.ctx.storage.kv.get(replayKey) ?? null,
@@ -518,6 +564,7 @@ export class GameRoom extends DurableObject<Env> {
     if (changed) this.ctx.waitUntil(this.flushRoomIndex());
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
       this.ctx.waitUntil(this.flushAccountCleanup());
+    if (this.pendingMatches().size) this.ctx.waitUntil(this.flushMatches());
     return result;
   }
 
@@ -586,6 +633,7 @@ export class GameRoom extends DurableObject<Env> {
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
     for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
       deadlines.push(job.retryAtMs);
+    for (const job of this.pendingMatches().values()) deadlines.push(job.retryAtMs);
     const next = deadlines.length === 0 ? null : Math.min(...deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -1041,6 +1089,7 @@ export class GameRoom extends DurableObject<Env> {
     await this.syncAlarm(room);
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
+    this.ctx.waitUntil(this.flushMatches());
     if (!changed) return;
     if (closed) this.closeSockets();
     else if (room !== null) this.broadcastRoom(room);
@@ -1428,12 +1477,14 @@ export class GameRoom extends DurableObject<Env> {
       }
 
       const assignments = shuffledColors();
+      const startedAtMs = Date.now();
+      const matchId = crypto.randomUUID();
       const startedRoom = roomSchema.parse({
         ...room,
         status: "playing",
         eliminations: [],
         publicUpdatedAtMs: nextPublicUpdateAt(room),
-        lastActivityAtMs: Date.now(),
+        lastActivityAtMs: startedAtMs,
         lastRound: null,
         players: room.players.map((player, index) => ({
           ...player,
@@ -1441,17 +1492,37 @@ export class GameRoom extends DurableObject<Env> {
           color: assignments[index],
         })),
         game: createInitialState(room.settings.mode),
-        clock: createClock(Date.now()),
+        clock: createClock(startedAtMs),
       });
       this.ctx.storage.kv.put(roomStorageKey, startedRoom);
       this.ctx.storage.kv.put(
         replayKey,
         roundReplaySchema.parse({
-          id: crypto.randomUUID(),
+          id: matchId,
           initial: startedRoom.game,
           steps: [],
         }),
       );
+      if (startedRoom.status !== "playing") throw new Error("Game did not start");
+      this.ctx.storage.kv.put(matchStartKey, {
+        id: matchId,
+        roomId: startedRoom.id,
+        instanceId: startedRoom.instanceId,
+        startedAtMs,
+        settings: startedRoom.settings,
+        participants: startedRoom.players.map((player, seat) => ({
+          id: player.id,
+          name: this.playerLabel(player),
+          color: player.color,
+          seat,
+          ...(player.kind === "cpu"
+            ? { kind: "cpu" as const, level: player.level }
+            : {
+                kind: "human" as const,
+                accountId: this.storedAccount(player.id)?.accountId ?? null,
+              }),
+        })),
+      } satisfies MatchStart);
       return { status: "started", room: startedRoom };
     });
   }
