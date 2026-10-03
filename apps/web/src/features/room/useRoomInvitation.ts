@@ -9,6 +9,7 @@ import {
   RoomEntryError,
   roomInvitationPath,
 } from "../../shared/roomAccess";
+import { useRegistrationRestore } from "../account/useRegistrationRestore";
 
 export function joinUnavailableReason(room: Room): string | null {
   if (room.status === "playing") return "対局中のため、今は観戦のみできます。";
@@ -24,6 +25,7 @@ export function useRoomInvitation(
 ) {
   const navigate = useNavigate();
   const account = useAccount();
+  const restored = useRegistrationRestore();
   const storageKey = `tetraboard:room:${room.id}:${room.instanceId}:invitation-shown`;
   const [autoJoin] = useState(() => {
     if (!invited || membership !== null || joinUnavailableReason(room) !== null) return false;
@@ -33,7 +35,9 @@ export function useRoomInvitation(
       return true;
     }
   });
-  const [dialog, setDialog] = useState<"join" | "copy" | null>(autoJoin ? "join" : null);
+  const [dialog, setDialog] = useState<"join" | "copy" | null>(
+    autoJoin || restored?.joinName !== undefined ? "join" : null,
+  );
   useEffect(() => {
     if (!autoJoin) return;
     // 初期化中には書き込まず、自動表示が描画された後に同じタブの履歴へ記録します。
@@ -43,7 +47,7 @@ export function useRoomInvitation(
       // 保存領域が利用できない場合も、ダイアログを閉じて観戦できます。
     }
   }, [autoJoin, storageKey]);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(restored?.joinName ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);

@@ -14,6 +14,7 @@ export function FourReversiLobbyPage() {
   return (
     <LobbyView
       game="four-reversi"
+      registrationDraft={entry.registrationDraft}
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}

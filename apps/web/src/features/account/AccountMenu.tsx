@@ -1,14 +1,20 @@
 import { Dropdown } from "@heroui/react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "./useAccount";
 import { accountRequest } from "./accountApi";
+import {
+  clearRegistrationReturn,
+  registrationPath,
+  saveRegistrationReturn,
+} from "./registrationReturn";
 export function AccountMenu() {
   const { user, loading, error, refresh } = useAccount();
   const navigate = useNavigate();
+  const location = useLocation();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   async function logout() {
@@ -22,6 +28,7 @@ export function AccountMenu() {
         body: "{}",
       });
       // Cookie失効後の画面と認証状態を同じページ読み込みで確定します。
+      clearRegistrationReturn();
       window.location.replace("/games/four-reversi");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "ログアウトできませんでした。");
@@ -42,8 +49,16 @@ export function AccountMenu() {
     );
   if (!user)
     return (
-      <AppButtonLink to="/login" size="compact">
-        ログイン
+      <AppButtonLink
+        to="/login"
+        size="compact"
+        onClick={() => {
+          const path = registrationPath(location.pathname + location.search);
+          if (path) saveRegistrationReturn({ path }, false);
+          else clearRegistrationReturn();
+        }}
+      >
+        登録・ログイン
       </AppButtonLink>
     );
   return (

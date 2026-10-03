@@ -18,8 +18,10 @@ import { HowToPlayDialog } from "./HowToPlayDialog";
 import { AppIcon, type AppIconName } from "../../shared/ui/AppIcon";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
+import type { RegistrationEntryDraft } from "../account/registrationReturn";
 
 type Props = {
+  registrationDraft?: RegistrationEntryDraft;
   game: "four-reversi" | "four-shogi";
   name: string;
   roomCode: string;
@@ -27,7 +29,7 @@ type Props = {
   threePlayerAttackProhibited?: boolean;
   isSubmitting: RoomEntryIntent | null;
   message: string | null;
-  renderRooms: (onJoin: (roomId: string) => void) => ReactNode;
+  renderRooms: (onJoin: (roomId: string, humanOnly?: boolean) => void) => ReactNode;
   rankings?: ReactNode;
   boardPreview?: ReactNode;
   onNameChange: (value: string) => void;
@@ -54,7 +56,7 @@ const games = {
 } as const;
 
 type ActiveDialog =
-  | { type: "entry"; intent: RoomEntryIntent; roomId?: string }
+  | { type: "entry"; intent: RoomEntryIntent; roomId?: string; humanOnly?: boolean }
   | { type: "rules" }
   | null;
 
@@ -111,13 +113,22 @@ function LobbyEntryButton({
 }
 
 export function LobbyView(props: Props) {
-  const [dialog, setDialog] = useState<ActiveDialog>(null);
+  const [dialog, setDialog] = useState<ActiveDialog>(() =>
+    props.registrationDraft
+      ? {
+          type: "entry",
+          intent: props.registrationDraft.intent,
+          roomId: props.registrationDraft.selectedRoomId,
+          humanOnly: props.registrationDraft.humanOnly,
+        }
+      : null,
+  );
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = games[props.game];
 
-  function openEntry(intent: RoomEntryIntent, roomId?: string): void {
+  function openEntry(intent: RoomEntryIntent, roomId?: string, humanOnly?: boolean): void {
     props.onClearMessage();
-    setDialog({ type: "entry", intent, roomId });
+    setDialog({ type: "entry", intent, roomId, humanOnly });
   }
 
   function closeDialog(): void {
@@ -154,7 +165,9 @@ export function LobbyView(props: Props) {
       </section>
     ),
     rooms: (
-      <Fragment key="rooms">{props.renderRooms((roomId) => openEntry("join", roomId))}</Fragment>
+      <Fragment key="rooms">
+        {props.renderRooms((roomId, humanOnly) => openEntry("join", roomId, humanOnly))}
+      </Fragment>
     ),
     rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
   };
@@ -250,6 +263,8 @@ export function LobbyView(props: Props) {
           onThreePlayerAttackChange={props.onThreePlayerAttackChange}
           onSubmit={() => props.onSubmitRoom?.(dialog.intent, dialog.roomId)}
           onClose={closeDialog}
+          registrationPath={game.homeTo}
+          humanOnly={dialog.humanOnly}
         />
       )}
       {dialog?.type === "rules" && <HowToPlayDialog game={props.game} onClose={closeDialog} />}

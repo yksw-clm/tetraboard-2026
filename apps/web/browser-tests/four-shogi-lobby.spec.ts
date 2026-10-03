@@ -256,7 +256,7 @@ for (const width of [320, 390, 768, 1440]) {
       "color",
       green,
     );
-    await expect(page.getByRole("banner").getByRole("link", { name: "ログイン" })).toHaveCSS(
+    await expect(page.getByRole("banner").getByRole("link", { name: "登録・ログイン" })).toHaveCSS(
       "background-color",
       "rgb(255, 255, 255)",
     );
