@@ -20,6 +20,8 @@ import {
 import { assertRoomIdentity, roomChangedMessage } from "../../shared/roomAccess";
 import { fetchRoom, leaveRoom } from "./roomApi";
 
+const roomClosedMessage = "ルームは閉鎖されています。ロビーへ戻ってください。";
+
 export type PendingGameAction =
   | { type: "start" }
   | { type: "move"; moveNumber: number; roundId?: string; positionRevision?: number }
@@ -175,11 +177,7 @@ export function useRoomTransport<T extends Room>({
       } catch (error) {
         if (!active) return;
         if (error instanceof Response && (error.status === 404 || error.status === 410)) {
-          stopUnavailable(
-            error.status === 410
-              ? roomChangedMessage
-              : "ルームは閉鎖されています。ロビーへ戻ってください。",
-          );
+          stopUnavailable(error.status === 410 ? roomChangedMessage : roomClosedMessage);
           return;
         }
         scheduleReconnect();
@@ -326,6 +324,10 @@ export function useRoomTransport<T extends Room>({
         clearPendingReady();
         clearPendingSettings();
         clearPendingGameAction();
+        if (message.data.error === "not_found") {
+          stopUnavailable(roomClosedMessage);
+          return;
+        }
         if (message.data.error === "unauthorized") {
           setAuthenticated(false);
           setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
