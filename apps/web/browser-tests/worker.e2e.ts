@@ -243,3 +243,38 @@ test("将棋のすぐ遊ぶでCPU Lv1とLv2が実際に着手する", async ({ p
   await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
   await expect(page).toHaveURL(/games\/four-shogi$/);
 });
+
+for (const game of ["four-reversi", "four-shogi"]) {
+  test(game + " 最後の参加者が退室すると観戦者に閉鎖を案内する", async ({ page, browser }) => {
+    const context = await browser.newContext({ locale: "ja-JP" });
+    try {
+      await page.goto("/games/" + game);
+      await page.getByRole("button", { name: /^すぐ遊ぶ/ }).click();
+      await page.getByRole("textbox", { name: "ニックネーム" }).fill("閉鎖確認");
+      await page.getByRole("button", { name: "CPUとの待機室へ" }).click();
+      await expect(page).toHaveURL(/\/rooms\/\d{5}$/);
+      const roomURL = page.url();
+      await page.getByRole("button", { name: "対局開始", exact: true }).click();
+      await expect
+        .poll(
+          async () =>
+            (await (await page.request.get("/api" + new URL(roomURL).pathname)).json()).room.status,
+        )
+        .toBe("playing");
+      const observer = await context.newPage();
+      await observer.goto(roomURL);
+      await expect(observer.getByText("観戦中です", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "退室", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
+      await expect(page).toHaveURL(new RegExp("/games/" + game + "$"));
+      await expect(observer.getByRole("alert")).toHaveText(
+        "ルームは閉鎖されています。ロビーへ戻ってください。",
+      );
+      expect((await page.request.get("/api" + new URL(roomURL).pathname)).status()).toBe(404);
+      await observer.getByRole("link", { name: "ロビーへ戻る", exact: true }).click();
+      await expect(observer).toHaveURL(new RegExp("/games/" + game + "$"));
+    } finally {
+      await context.close();
+    }
+  });
+}

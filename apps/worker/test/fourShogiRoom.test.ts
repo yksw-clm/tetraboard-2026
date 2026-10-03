@@ -1135,7 +1135,7 @@ test("導入前の進行局は開始メタデータを推測して恒久保存�
   ).toBe(0);
 });
 
-test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたいで棋譜を保持し、5秒再送で復旧する", async () => {
+test("将棋の保存失敗中も再戦・未決着の打ち切り・番号再利用をまたいで棋譜を保持し、5秒再送で復旧する", async () => {
   const prepared = await start();
   const stub = env.GAME_ROOM.getByName(prepared.id);
   const ids: string[] = [];
@@ -1171,7 +1171,7 @@ test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたい�
       ).toBe(true);
     });
     const waiting = await get(prepared.id);
-    for (const member of prepared.memberships)
+    for (const member of prepared.memberships.slice(1))
       expect(
         (
           await request(`/rooms/${prepared.id}/leave`, {
@@ -1180,6 +1180,30 @@ test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたい�
           })
         ).status,
       ).toBe(204);
+    for (let count = 2; count <= 4; count++) {
+      prepared.clients[0].send({ type: "room.cpu.add", level: 1 });
+      await prepared.clients[0].room((room) => room.players.length === count);
+    }
+    prepared.clients[0].send({ type: "room.ready.set", ready: true });
+    await prepared.clients[0].room((room) => room.players.every((player) => player.ready));
+    prepared.clients[0].send({ type: "room.game.start" });
+    const interrupted = await prepared.clients[0].room((room) => room.status === "playing");
+    if (interrupted.status !== "playing") throw new Error("Not playing");
+    expect(
+      (
+        await request(`/rooms/${prepared.id}/leave`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${prepared.memberships[0].token}` },
+        })
+      ).status,
+    ).toBe(204);
+    expect((await request(`/rooms/${prepared.id}`)).status).toBe(404);
+    expect(
+      await runInDurableObject(
+        stub,
+        (_, state) => new Map(state.storage.kv.list({ prefix: pendingShogiMatchPrefix })).size,
+      ),
+    ).toBe(2);
     expect(
       await runInDurableObject(stub, (_instance, state) => ({
         archives: state.storage.sql
