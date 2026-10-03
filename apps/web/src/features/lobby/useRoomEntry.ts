@@ -2,6 +2,8 @@ import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
 import {
   createRoomContract,
+  roomTimeControl,
+  type RoomTimeControl,
   getRoomContract,
   roomCodeSchema,
   type RoomError,
@@ -45,6 +47,9 @@ export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi
   const restored = useRegistrationRestore();
   const [name, setName] = useState(restored?.entry?.name ?? "");
   const [roomCode, setRoomCode] = useState(restored?.entry?.roomCode ?? "");
+  const [timeControl, setTimeControl] = useState<RoomTimeControl>(
+    restored?.entry?.timeControl ?? roomTimeControl,
+  );
   const [mode, setMode] = useState<RoomMode>(restored?.entry?.mode ?? "singles");
   const [threePlayerAttackProhibited, setThreePlayerAttackProhibited] = useState(
     restored?.entry?.threePlayerAttackProhibited ?? true,
@@ -92,6 +97,7 @@ export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi
         name: entryName,
         quickPlay: intent === "quick",
         mode,
+        timeControl,
         ...(game === "four-shogi" ? { game, threePlayerAttackProhibited } : {}),
       });
       if (!request.success) {
@@ -148,6 +154,8 @@ export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi
     setRoomCode,
     mode,
     setMode,
+    timeControl,
+    setTimeControl,
     threePlayerAttackProhibited,
     setThreePlayerAttackProhibited,
     isSubmitting,

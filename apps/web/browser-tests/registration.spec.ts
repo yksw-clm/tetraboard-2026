@@ -137,6 +137,10 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         await dialog.getByRole("textbox", { name: "ルーム番号", exact: true }).fill("12345");
       else {
         await dialog.getByText("ダブルス", { exact: true }).click();
+        await dialog.getByRole("button", { name: /持ち時間$/ }).click();
+        await page.getByRole("option", { name: "なし", exact: true }).click();
+        await dialog.getByRole("button", { name: /秒読み$/ }).click();
+        await page.getByRole("option", { name: "10秒", exact: true }).click();
         if (game === "four-shogi") await dialog.getByText("OFF", { exact: true }).click();
       }
       if (intent === "quick") await expect(prompt(page)).not.toContainText("ランキング");
@@ -166,6 +170,8 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         );
       else {
         await expect(page.getByRole("radio", { name: /ダブルス/ })).toBeChecked();
+        await expect(page.getByRole("button", { name: /持ち時間$/ })).toContainText("なし");
+        await expect(page.getByRole("button", { name: /秒読み$/ })).toContainText("10秒");
         if (game === "four-shogi")
           await expect(page.getByRole("radio", { name: "OFF", exact: true })).toBeChecked();
       }
@@ -269,7 +275,7 @@ test("招待からの登録は部屋世代を維持して参加ダイアログ�
   await expect(page).toHaveURL("https://accounts.google.com/registration-test");
   await mockAccount(page, profile);
   await page.goto("/account");
-  await expect(page).toHaveURL(`http://127.0.0.1:4173${path}`);
+  await expect(page).toHaveURL((url) => url.pathname + url.search === path);
   await expect(page.getByRole("dialog", { name: "ルーム 12345 に参加" })).toBeVisible();
   await expect(page.getByLabel("参加するアカウント")).toBeVisible();
   expect(joins).toBe(0);

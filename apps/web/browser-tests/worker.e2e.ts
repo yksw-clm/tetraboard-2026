@@ -11,10 +11,20 @@ test("ローカルWorkerで作成・CPU対局・チャット・退室する", as
   expect(measurement.status()).toBe(204);
   await page.getByRole("button", { name: /^すぐ遊ぶ/ }).click();
   await page.getByRole("textbox", { name: "ニックネーム" }).fill("動作確認");
+  await page.getByRole("button", { name: /持ち時間$/ }).click();
+  await page.getByRole("option", { name: "1分", exact: true }).click();
+  await page.getByRole("button", { name: /秒読み$/ }).click();
+  await page.getByRole("option", { name: "10秒", exact: true }).click();
   await page.getByRole("button", { name: "CPUとの待機室へ" }).click();
   await expect(page).toHaveURL(/\/rooms\/\d{5}$/);
   await expect(page.getByTestId("player-card")).toHaveCount(4);
   await page.getByRole("button", { name: "対局開始", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const { room } = await (await page.request.get("/api" + new URL(page.url()).pathname)).json();
+      return room.clock ? room.clock.turnExpiresAt - room.clock.turnStartedAt : null;
+    })
+    .toBe(70_000);
   const legalMove = page.getByRole("button", { name: /置けます/ }).first();
   await expect(legalMove).toBeEnabled({ timeout: 20_000 });
   await legalMove.click();
@@ -112,6 +122,13 @@ test("将棋を独立した4人で開始し、観戦・チャット・再接続�
     );
     await expect(host.getByRole("button", { name: "対局開始", exact: true })).toBeEnabled();
     await host.getByRole("button", { name: "ルーム設定" }).click();
+    await host.getByRole("button", { name: /持ち時間$/ }).click();
+    await host.getByRole("option", { name: "1分", exact: true }).click();
+    await expect(host.getByRole("button", { name: /持ち時間$/ })).toContainText("1分");
+    await expect(host.getByRole("button", { name: "対局開始", exact: true })).toBeDisabled();
+    await host.getByRole("button", { name: /秒読み$/ }).click();
+    await host.getByRole("option", { name: "10秒", exact: true }).click();
+    await expect(spectator.locator("dl")).toContainText("00:10");
     await host.getByText("OFF", { exact: true }).click();
     await expect(host.getByRole("radio", { name: "OFF", exact: true })).toBeChecked();
     await expect(host.getByRole("button", { name: "対局開始", exact: true })).toBeDisabled();
@@ -126,6 +143,9 @@ test("将棋を独立した4人で開始し、観戦・チャット・再接続�
     const readRoom = async () =>
       (await (await host.request.get("http://127.0.0.1:8788/api/rooms/" + roomId)).json()).room;
     await expect.poll(async () => (await readRoom()).status).toBe("playing");
+    const timed = await readRoom();
+    expect(timed.settings.timeControl).toEqual({ mainTimeMs: 60_000, byoyomiMs: 10_000 });
+    expect(timed.clock.turnExpiresAt - timed.clock.turnStartedAt).toBe(70_000);
     let snapshot = await readRoom();
     const firstRound = snapshot.roundId;
     expect(snapshot.settings.game).toBe("four-shogi");

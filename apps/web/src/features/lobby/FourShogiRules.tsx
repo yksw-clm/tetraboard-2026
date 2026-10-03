@@ -1,5 +1,3 @@
-import { roomTimeControl } from "@tetraboard/protocol";
-
 export function FourShogiRules() {
   return (
     <>
@@ -61,8 +59,9 @@ export function FourShogiRules() {
         <h3>引き分けと持ち時間</h3>
         <p>
           同じ局面が4回現れると、連続王手でも引き分けです。シングルスでは残っている人全員が同率1位になります。
-          持ち時間は1人{roomTimeControl.mainTimeMs / 60_000}分。その後は1手
-          {roomTimeControl.byoyomiMs / 1000}秒の秒読みです。
+          持ち時間は、なし・1分・3分・5分・10分から、秒読みは、なし・10秒・30秒からルームごとに選べます。
+          初期設定は1人5分＋1手30秒です。持ち時間なしでは最初から秒読みになり、秒読みなしでは持ち時間を使い切ると時間切れです。
+          秒読みは毎手リセットされ、持ち越しません。両方なしにはできません。
         </p>
         <p>
           自分の手番で「引分提案」を押し、生存者全員が提案すると引き分けになります。提案中は「引分取消」で取り消せます。

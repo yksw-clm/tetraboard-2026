@@ -18,6 +18,7 @@ import {
   viewerContract,
   type FourReversiRoom as Room,
   type RoomMode,
+  type RoomTimeControl,
   type RoomPublicMetadata,
   type RoomSocketClientMessage,
   type RoomSocketMessage as ProtocolRoomSocketMessage,
@@ -199,7 +200,11 @@ class RoomClient {
   }
 
   send(message: RoomSocketClientMessage): void {
-    this.socket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+    this.sendRaw(roomSocketContract.clientMessage.parse(message));
+  }
+
+  sendRaw(message: unknown): void {
+    this.socket.send(JSON.stringify(message));
   }
 
   private next(): Promise<RoomSocketMessage> {
@@ -256,12 +261,16 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.close();
 });
 
-async function createRoom(quickPlay = false, mode: RoomMode = "singles") {
+async function createRoom(
+  quickPlay = false,
+  mode: RoomMode = "singles",
+  timeControl?: RoomTimeControl,
+) {
   const response = await exports.default.fetch(
     new Request(`${baseUrl}${createRoomContract.path}`, {
       method: createRoomContract.method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "ホスト", quickPlay, mode }),
+      body: JSON.stringify({ name: "ホスト", quickPlay, mode, timeControl }),
     }),
   );
   expect(response.status).toBe(201);
@@ -493,8 +502,8 @@ async function authenticatedRoom(id: string, token: string): Promise<RoomClient>
   return client;
 }
 
-async function fourPlayers() {
-  const created = await createRoom();
+async function fourPlayers(timeControl?: RoomTimeControl) {
+  const created = await createRoom(false, "singles", timeControl);
   const id = created.room.id;
   const participants = [created.membership];
   for (let index = 2; index <= 4; index++) {
@@ -1169,8 +1178,12 @@ test("ホストだけが待機中のCPU席を追加・変更・削除できる",
   expect(await getRoom(created.room.id)).toEqual(removed);
 });
 
-test("すぐ遊ぶは1人とCPU3体を作成し、CPU手番をDOが保存・配信する", async () => {
-  const created = await createRoom(true);
+test.each([
+  roomTimeControl,
+  { mainTimeMs: 0, byoyomiMs: 10_000 },
+  { mainTimeMs: 60_000, byoyomiMs: 0 },
+] as const)("すぐ遊ぶのCPU手番は $mainTimeMs + $byoyomiMs で保存・配信する", async (control) => {
+  const created = await createRoom(true, "singles", control);
   const id = created.room.id;
   expect(created.room.players.filter((player) => player.kind === "human")).toHaveLength(1);
   expect(created.room.players.filter((player) => player.kind === "cpu")).toHaveLength(3);
@@ -1198,7 +1211,7 @@ test("すぐ遊ぶは1人とCPU3体を作成し、CPU手番をDOが保存・配�
     clock: {
       ...current.clock,
       turnStartedAt: Date.now() - 501,
-      turnExpiresAt: Date.now() + 329_499,
+      turnExpiresAt: Date.now() + control.mainTimeMs + control.byoyomiMs - 501,
     },
   }));
   expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
@@ -1206,6 +1219,11 @@ test("すぐ遊ぶは1人とCPU3体を作成し、CPU手番をDOが保存・配�
     (snapshot) => snapshot.status !== "waiting" && snapshot.game.moveNumber > before,
   );
   expect(moved.status).not.toBe("waiting");
+  if (moved.status === "playing") {
+    expect(moved.clock.turnExpiresAt - moved.clock.turnStartedAt).toBe(
+      moved.clock.remainingMainMs[moved.game.turn] + control.byoyomiMs,
+    );
+  }
   expect(await getRoom(id)).toEqual(moved);
   await runInDurableObject(env.GAME_ROOM.getByName(id), (_instance, state) => {
     const replay = roundReplaySchema.parse(state.storage.kv.get("round-replay"));
@@ -1848,4 +1866,129 @@ test("通報済みの旧世代へ処分しても再利用された部屋を変�
   );
   expect(action.status).toBe(409);
   expect((await getRoom(created.room.id)).instanceId).toBe(replacement.instanceId);
+});
+
+test("時間設定は待機中のホストだけが変更でき、準備解除・配信・永続化・公開索引へ反映する", async () => {
+  const setup = await fourPlayers();
+  await readyPlayers(setup.id, setup.connections);
+  const host = setup.connections[0];
+  const observer = await openRoom(setup.id);
+  const control = { mainTimeMs: 60_000, byoyomiMs: 10_000 } as const;
+  setup.connections[1].send({ type: "room.time-control.set", timeControl: control });
+  expect((await setup.connections[1].nextType("room.error")).error).toBe("forbidden");
+  observer.send({ type: "room.time-control.set", timeControl: control });
+  expect((await observer.nextType("room.error")).error).toBe("unauthorized");
+  host.sendRaw({ type: "room.time-control.set", timeControl: { mainTimeMs: 0, byoyomiMs: 0 } });
+  expect((await host.nextType("room.error")).error).toBe("invalid_request");
+  host.send({ type: "room.time-control.set", timeControl: control });
+  const updated = await host.nextSnapshotWhere(
+    (room) => room.settings.timeControl.mainTimeMs === 60_000,
+  );
+  expect(updated.players.every((player) => !player.ready)).toBe(true);
+  expect(
+    (await observer.nextSnapshotWhere((room) => room.settings.timeControl.mainTimeMs === 60_000))
+      .settings.timeControl,
+  ).toEqual(control);
+  expect((await getRoom(setup.id)).settings.timeControl).toEqual(control);
+  await vi.waitFor(async () => {
+    let page = await listRooms();
+    let metadata = page.rooms.find((room) => room.id === setup.id);
+    while (!metadata && page.nextCursor) {
+      page = await listRooms(page.nextCursor);
+      metadata = page.rooms.find((room) => room.id === setup.id);
+    }
+    expect(metadata?.timeControl).toEqual(control);
+  });
+  expect((await openRoom(setup.id)).initialSnapshot?.room.settings.timeControl).toEqual(control);
+  await readyPlayers(setup.id, setup.connections);
+  const ready = await getRoom(setup.id);
+  host.send({ type: "room.time-control.set", timeControl: control });
+  const unchanged = await host.nextSnapshotWhere((room) =>
+    room.players.every((player) => player.ready),
+  );
+  expect(unchanged.publicUpdatedAtMs).toBe(ready.publicUpdatedAtMs);
+  expect(unchanged.lastActivityAtMs).toBe(ready.lastActivityAtMs);
+  host.send({ type: "room.game.start" });
+  const started = await host.nextSnapshotWhere((room) => room.status === "playing");
+  if (started.status !== "playing") throw new Error("Not playing");
+  expect(started.clock.turnExpiresAt - started.clock.turnStartedAt).toBe(70_000);
+  host.send({ type: "room.time-control.set", timeControl: roomTimeControl });
+  expect((await host.nextType("room.error")).error).toBe("already_started");
+});
+
+test.each([
+  { mainTimeMs: 0, byoyomiMs: 10_000 },
+  { mainTimeMs: 60_000, byoyomiMs: 0 },
+  { mainTimeMs: 180_000, byoyomiMs: 30_000 },
+] as const)("リバーシの着手・時間切れ・再戦は $mainTimeMs + $byoyomiMs を使う", async (control) => {
+  const setup = await fourPlayers(control);
+  await readyPlayers(setup.id, setup.connections);
+  setup.connections[0].send({ type: "room.game.start" });
+  let room = await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
+  if (room.status !== "playing") throw new Error("Not playing");
+  expect(room.clock.turnExpiresAt - room.clock.turnStartedAt).toBe(
+    control.mainTimeMs + control.byoyomiMs,
+  );
+  const black = room.players.findIndex((p) => p.color === "black");
+  setup.connections[black].send({
+    type: "room.game.action",
+    action: { type: "placeStone", position: { x: 2, y: 3 } },
+  });
+  room = await setup.connections[0].nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.moveNumber === 1,
+  );
+  if (room.status !== "playing") throw new Error("Not playing");
+  expect(room.clock.turnExpiresAt - room.clock.turnStartedAt).toBe(
+    control.mainTimeMs + control.byoyomiMs,
+  );
+  const turn = room.game.turn;
+  const turnIndex = room.players.findIndex((p) => p.color === turn);
+  await setRoomDeadlines(setup.id, (current) => ({
+    ...current,
+    clock: { ...current.clock, turnExpiresAt: Date.now() },
+  }));
+  setup.connections[turnIndex].send({
+    type: "room.game.action",
+    action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
+  });
+  expect((await setup.connections[turnIndex].nextType("room.error")).error).toBe(
+    "already_eliminated",
+  );
+  const expired = await setup.connections[0].nextSnapshotWhere(
+    (room) => room.status === "playing" && room.game.eliminatedColors.includes(turn),
+  );
+  if (expired.status !== "playing") throw new Error("Not playing");
+  expect(
+    expired.eliminations.some((entry) => entry.color === turn && entry.reason === "timeout"),
+  ).toBe(true);
+  room = expired;
+  while (room.status === "playing") {
+    const currentTurn = room.game.turn;
+    const index = room.players.findIndex((p) => p.color === currentTurn);
+    const eliminated = room.game.eliminatedColors.length;
+    setup.connections[index].send({ type: "room.game.resign" });
+    room = await setup.connections[0].nextSnapshotWhere(
+      (room) => room.status === "waiting" || room.game.eliminatedColors.length > eliminated,
+    );
+  }
+  expect(room.settings.timeControl).toEqual(control);
+  const lastRound = room.lastRound;
+  const matchId = lastRound!.replay!.id;
+  setup.connections[0].send({ type: "room.time-control.set", timeControl: roomTimeControl });
+  const changed = await setup.connections[0].nextSnapshotWhere(
+    (room) => room.settings.timeControl.mainTimeMs === 300_000,
+  );
+  expect(changed.lastRound).toEqual(lastRound);
+  await vi.waitFor(async () => {
+    const row = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+      .bind(matchId)
+      .first<{ record_json: string }>();
+    expect(row).not.toBeNull();
+    expect(JSON.parse(row!.record_json).settings.timeControl).toEqual(control);
+  });
+  await readyPlayers(setup.id, setup.connections);
+  setup.connections[0].send({ type: "room.game.start" });
+  const rematch = await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
+  if (rematch.status !== "playing") throw new Error("Not playing");
+  expect(rematch.clock.turnExpiresAt - rematch.clock.turnStartedAt).toBe(330_000);
 });

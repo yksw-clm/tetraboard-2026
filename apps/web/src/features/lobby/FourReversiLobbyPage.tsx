@@ -18,6 +18,7 @@ export function FourReversiLobbyPage() {
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}
+      timeControl={entry.timeControl}
       isSubmitting={entry.isSubmitting}
       message={entry.message}
       renderRooms={(onJoin) => (
@@ -37,6 +38,7 @@ export function FourReversiLobbyPage() {
       onNameChange={entry.setName}
       onRoomCodeChange={entry.setRoomCode}
       onModeChange={entry.setMode}
+      onTimeControlChange={entry.setTimeControl}
       onClearMessage={entry.clearMessage}
       onSubmitRoom={(intent, roomId) => void entry.submitRoom(intent, roomId)}
     />

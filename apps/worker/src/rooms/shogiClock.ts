@@ -1,13 +1,20 @@
-import { roomTimeControl, type PlayingShogiClock } from "@tetraboard/protocol";
+import {
+  roomTimeControl,
+  type RoomTimeControl,
+  type PlayingShogiClock,
+} from "@tetraboard/protocol";
 import { sides, type Side } from "@tetraboard/four-shogi";
 
-export function createShogiClock(at: number): PlayingShogiClock {
+export function createShogiClock(
+  at: number,
+  timeControl: RoomTimeControl = roomTimeControl,
+): PlayingShogiClock {
   return {
     remainingMainMs: Object.fromEntries(
-      sides.map((side) => [side, roomTimeControl.mainTimeMs]),
+      sides.map((side) => [side, timeControl.mainTimeMs]),
     ) as Record<Side, number>,
     turnStartedAt: at,
-    turnExpiresAt: at + roomTimeControl.mainTimeMs + roomTimeControl.byoyomiMs,
+    turnExpiresAt: at + timeControl.mainTimeMs + timeControl.byoyomiMs,
   };
 }
 export function advanceShogiClock(
@@ -16,6 +23,7 @@ export function advanceShogiClock(
   next: Side,
   at: number,
   turnEnded: boolean,
+  timeControl: RoomTimeControl = roomTimeControl,
 ): PlayingShogiClock {
   if (!turnEnded && previous === next) return clock;
   const remainingMainMs = {
@@ -28,6 +36,6 @@ export function advanceShogiClock(
   return {
     remainingMainMs,
     turnStartedAt: at,
-    turnExpiresAt: at + remainingMainMs[next] + roomTimeControl.byoyomiMs,
+    turnExpiresAt: at + remainingMainMs[next] + timeControl.byoyomiMs,
   };
 }

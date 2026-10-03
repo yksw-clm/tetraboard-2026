@@ -31,6 +31,7 @@ import {
   type RoundReplay,
   type RoomMembership,
   type RoomMode,
+  type RoomTimeControl,
   type RoomPublicMetadata,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
@@ -778,7 +779,7 @@ export class GameRoom extends DurableObject<Env> {
       legalActions: getLegalActions(state),
       checkState: getCheckState(state),
       eliminations: [],
-      clock: createShogiClock(at),
+      clock: createShogiClock(at, room.settings.timeControl),
       publicUpdatedAtMs: nextPublicUpdateAt(room),
       lastActivityAtMs: at,
     });
@@ -875,7 +876,14 @@ export class GameRoom extends DurableObject<Env> {
       positionRevision: room.positionRevision + 1,
       legalActions: getLegalActions(state),
       checkState: getCheckState(state),
-      clock: advanceShogiClock(room.clock, room.game.turn, state.turn, at, turnEnded),
+      clock: advanceShogiClock(
+        room.clock,
+        room.game.turn,
+        state.turn,
+        at,
+        turnEnded,
+        room.settings.timeControl,
+      ),
       lastActivityAtMs: at,
     }) as FourShogiRoom;
   }
@@ -1717,6 +1725,7 @@ export class GameRoom extends DurableObject<Env> {
                     result.state.turn,
                     clockDeadline,
                     true,
+                    current.settings.timeControl,
                   ),
                   lastActivityAtMs: clockDeadline,
                 });
@@ -1765,6 +1774,7 @@ export class GameRoom extends DurableObject<Env> {
                       result.state.turn,
                       player.reconnectDeadline!,
                       result.state.turn !== current.game.turn,
+                      current.settings.timeControl,
                     ),
                     players: current.players.map((entry) => ({
                       ...entry,
@@ -1814,6 +1824,7 @@ export class GameRoom extends DurableObject<Env> {
                     result.state.turn,
                     expired ? current.clock.turnExpiresAt : decidedAt,
                     true,
+                    current.settings.timeControl,
                   ),
                   lastActivityAtMs: decidedAt,
                 });
@@ -1907,6 +1918,7 @@ export class GameRoom extends DurableObject<Env> {
                       game.state.turn,
                       at,
                       game.state.turn !== room.game.turn,
+                      room.settings.timeControl,
                     )
                   : room.clock,
                 players: room.players.map((entry) => ({
@@ -2109,6 +2121,36 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  private setTimeControl(
+    tokenHash: string,
+    timeControl: RoomTimeControl,
+  ):
+    | { status: "updated"; room: Room }
+    | { status: "unchanged" | "not_found" | "forbidden" | "already_started" } {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" };
+      if (room.status !== "waiting") return { status: "already_started" };
+      if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
+      if (
+        room.settings.timeControl.mainTimeMs === timeControl.mainTimeMs &&
+        room.settings.timeControl.byoyomiMs === timeControl.byoyomiMs
+      )
+        return { status: "unchanged" };
+      const updated = roomSchema.parse({
+        ...room,
+        settings: { ...room.settings, timeControl },
+        players: room.players.map((player) =>
+          player.kind === "human" ? { ...player, ready: false } : player,
+        ),
+        lastActivityAtMs: Date.now(),
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "updated", room: updated };
+    });
+  }
+
   private setMode(
     tokenHash: string,
     mode: RoomMode,
@@ -2252,7 +2294,7 @@ export class GameRoom extends DurableObject<Env> {
           color: assignments[index],
         })),
         game: createInitialState(room.settings.mode),
-        clock: createClock(startedAtMs),
+        clock: createClock(startedAtMs, room.settings.timeControl),
       });
       this.ctx.storage.kv.put(roomStorageKey, startedRoom);
       this.ctx.storage.kv.put(
@@ -2332,7 +2374,14 @@ export class GameRoom extends DurableObject<Env> {
           : roomSchema.parse({
               ...room,
               game: result.state,
-              clock: advanceClock(room.clock, room.game.turn, result.state.turn, at, true),
+              clock: advanceClock(
+                room.clock,
+                room.game.turn,
+                result.state.turn,
+                at,
+                true,
+                room.settings.timeControl,
+              ),
               lastActivityAtMs: at,
             });
       if (updatedRoom !== null) this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
@@ -2377,7 +2426,14 @@ export class GameRoom extends DurableObject<Env> {
           : roomSchema.parse({
               ...room,
               game: result.state,
-              clock: advanceClock(room.clock, room.game.turn, result.state.turn, at, true),
+              clock: advanceClock(
+                room.clock,
+                room.game.turn,
+                result.state.turn,
+                at,
+                true,
+                room.settings.timeControl,
+              ),
               lastActivityAtMs: at,
             });
       if (updated !== null) this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -2545,6 +2601,15 @@ export class GameRoom extends DurableObject<Env> {
 
       if (parsed.data.type === "room.three-player-attack.set") {
         const result = this.setThreePlayerAttack(tokenHash.data, parsed.data.prohibited);
+        if (result.status === "updated") this.broadcastRoom(result.room);
+        else if (result.status === "unchanged") {
+          const room = this.readRoom();
+          if (room) socket.send(JSON.stringify(this.roomSnapshot(room)));
+        } else this.rejectAction(socket, result.status);
+        return;
+      }
+      if (parsed.data.type === "room.time-control.set") {
+        const result = this.setTimeControl(tokenHash.data, parsed.data.timeControl);
         if (result.status === "updated") this.broadcastRoom(result.room);
         else if (result.status === "unchanged") {
           const room = this.readRoom();

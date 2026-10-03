@@ -1,3 +1,4 @@
+import { TimeControlSetting } from "../room/TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
@@ -5,7 +6,7 @@ import { useAccount } from "../account/useAccount";
 import { Label, RadioGroup } from "@heroui/react";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
-import { roomTimeControl, type RoomMode } from "@tetraboard/protocol";
+import { type RoomTimeControl, type RoomMode } from "@tetraboard/protocol";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
@@ -19,6 +20,8 @@ export function RoomEntryDialog({
   name,
   roomCode,
   mode,
+  timeControl,
+  onTimeControlChange,
   threePlayerAttackProhibited,
   busy: entryBusy,
   message,
@@ -38,6 +41,8 @@ export function RoomEntryDialog({
   name: string;
   roomCode: string;
   mode: RoomMode;
+  timeControl: RoomTimeControl;
+  onTimeControlChange: (value: RoomTimeControl) => void;
   threePlayerAttackProhibited?: boolean;
   busy: boolean;
   message: string | null;
@@ -106,6 +111,7 @@ export function RoomEntryDialog({
                   name,
                   roomCode,
                   mode,
+                  timeControl,
                   selectedRoomId,
                   humanOnly,
                   threePlayerAttackProhibited,
@@ -172,10 +178,12 @@ export function RoomEntryDialog({
                 onChange={onThreePlayerAttackChange}
               />
             )}
-            <p className="text-xs text-muted">
-              持ち時間：1人{roomTimeControl.mainTimeMs / 60_000}分＋1手
-              {roomTimeControl.byoyomiMs / 1000}秒の秒読み
-            </p>
+            <TimeControlSetting
+              timeControl={timeControl}
+              onChange={onTimeControlChange}
+              disabled={busy}
+              theme={theme}
+            />
           </>
         )}
         {message && (
