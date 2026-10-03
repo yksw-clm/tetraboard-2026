@@ -24,6 +24,7 @@ import {
   type FourShogiRoom,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
+  type RoomTimeControl,
 } from "@tetraboard/protocol";
 import { ShogiStore } from "../src/rooms/shogiStore";
 import {
@@ -113,10 +114,14 @@ async function connect(id: string, token?: string) {
   }
   return socket;
 }
-async function create(quickPlay = false, mode: "singles" | "doubles" = "singles") {
+async function create(
+  quickPlay = false,
+  mode: "singles" | "doubles" = "singles",
+  timeControl?: RoomTimeControl,
+) {
   const response = await request(
     "/rooms",
-    json({ name: "将棋ホスト", game: "four-shogi", quickPlay, mode }),
+    json({ name: "将棋ホスト", game: "four-shogi", quickPlay, mode, timeControl }),
   );
   expect(response.status).toBe(201);
   const entry = createRoomContract.response.parse(await response.json());
@@ -127,8 +132,8 @@ async function get(id: string) {
   expect(response.status).toBe(200);
   return fourShogiRoomSchema.parse(getRoomContract.response.parse(await response.json()).room);
 }
-async function setup(mode: "singles" | "doubles" = "singles") {
-  const created = await create(false, mode);
+async function setup(mode: "singles" | "doubles" = "singles", timeControl?: RoomTimeControl) {
+  const created = await create(false, mode, timeControl);
   const memberships = [created.membership];
   for (let index = 1; index < 4; index++) {
     const response = await request(
@@ -1612,4 +1617,167 @@ test("旧保存状態の提案欠落を復元し、秒読み中も提案・取�
   expect(offered.clock).toEqual(restored.clock);
   const cancelled = await drawCurrent(prepared, offered, false);
   expect(cancelled.clock).toEqual(restored.clock);
+});
+
+test("将棋の時間設定もホスト限定で準備を解除し、同値再送・開始後の変更を扱う", async () => {
+  const prepared = await setup();
+  const host = prepared.clients[0];
+  const observer = await connect(prepared.id);
+  const control = { mainTimeMs: 60_000, byoyomiMs: 10_000 } as const;
+  prepared.clients[1].send({ type: "room.time-control.set", timeControl: control });
+  expect(await prepared.clients[1].error()).toBe("forbidden");
+  observer.send({ type: "room.time-control.set", timeControl: control });
+  expect(await observer.error()).toBe("unauthorized");
+  host.send({ type: "room.time-control.set", timeControl: { mainTimeMs: 0, byoyomiMs: 0 } });
+  expect(await host.error()).toBe("invalid_request");
+  host.send({ type: "room.time-control.set", timeControl: control });
+  const changed = await host.room((room) => room.settings.timeControl.mainTimeMs === 60_000);
+  expect(changed.players.every((p) => !p.ready)).toBe(true);
+  expect(
+    (await observer.room((room) => room.settings.timeControl.mainTimeMs === 60_000)).settings
+      .timeControl,
+  ).toEqual(control);
+  expect((await get(prepared.id)).settings.timeControl).toEqual(control);
+  await vi.waitFor(async () => {
+    const listing = await request("/rooms?game=four-shogi");
+    expect(
+      listRoomsContract.response
+        .parse(await listing.json())
+        .rooms.find((room) => room.id === prepared.id)?.timeControl,
+    ).toEqual(control);
+  });
+  for (let i = 0; i < 4; i++) {
+    prepared.clients[i].send({ type: "room.ready.set", ready: true });
+    await host.room((room) => room.players.filter((p) => p.ready).length === i + 1);
+  }
+  const ready = await get(prepared.id);
+  host.send({ type: "room.time-control.set", timeControl: control });
+  const unchanged = await host.room((room) => room.players.every((p) => p.ready));
+  expect(unchanged.publicUpdatedAtMs).toBe(ready.publicUpdatedAtMs);
+  expect(unchanged.lastActivityAtMs).toBe(ready.lastActivityAtMs);
+  host.send({ type: "room.game.start" });
+  const started = await host.room((room) => room.status === "playing");
+  if (started.status !== "playing") throw new Error("Not playing");
+  expect(started.clock.turnExpiresAt - started.clock.turnStartedAt).toBe(70_000);
+  host.send({
+    type: "room.time-control.set",
+    timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+  });
+  expect(await host.error()).toBe("already_started");
+});
+
+test.each([
+  { mainTimeMs: 0, byoyomiMs: 10_000 },
+  { mainTimeMs: 60_000, byoyomiMs: 0 },
+  { mainTimeMs: 180_000, byoyomiMs: 30_000 },
+] as const)("将棋の着手・時間切れは $mainTimeMs + $byoyomiMs を使う", async (control) => {
+  const prepared = await setup("singles", control);
+  const host = prepared.clients[0];
+  host.send({ type: "room.game.start" });
+  const started = await host.room((room) => room.status === "playing");
+  if (started.status !== "playing") throw new Error("Not playing");
+  expect(started.clock.turnExpiresAt - started.clock.turnStartedAt).toBe(
+    control.mainTimeMs + control.byoyomiMs,
+  );
+  const index = started.players.findIndex((p) => p.side === started.game.turn);
+  prepared.clients[index].send({
+    type: "room.game.action",
+    roundId: started.roundId,
+    positionRevision: started.positionRevision,
+    action: started.legalActions[0],
+  });
+  const moved = await host.room(
+    (room) => room.status === "playing" && room.positionRevision > started.positionRevision,
+  );
+  if (moved.status !== "playing") throw new Error("Not playing");
+  expect(moved.clock.turnExpiresAt - moved.clock.turnStartedAt).toBe(
+    control.mainTimeMs + control.byoyomiMs,
+  );
+  const turn = moved.game.turn;
+  await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, state) => {
+    state.storage.kv.put("room", {
+      ...moved,
+      clock: { ...moved.clock, turnExpiresAt: Date.now() },
+    });
+  });
+  const turnIndex = moved.players.findIndex((p) => p.side === turn);
+  prepared.clients[turnIndex].send({
+    type: "room.game.action",
+    roundId: moved.roundId,
+    positionRevision: moved.positionRevision,
+    action: moved.legalActions[0],
+  });
+  expect(await prepared.clients[turnIndex].error()).toBe("stale_position");
+  const expired = await host.room((room) =>
+    room.eliminations.some((entry) => entry.side === turn && entry.reason === "timeout"),
+  );
+  if (expired.status !== "playing") throw new Error("Not playing");
+  expect(expired.clock.turnExpiresAt - expired.clock.turnStartedAt).toBe(
+    control.mainTimeMs + control.byoyomiMs,
+  );
+});
+
+test.each([
+  { mainTimeMs: 0, byoyomiMs: 10_000 },
+  { mainTimeMs: 60_000, byoyomiMs: 0 },
+] as const)("将棋CPUの着手・再戦・保存履歴は $mainTimeMs + $byoyomiMs を使う", async (control) => {
+  const created = await create(true, "singles", control);
+  const client = await connect(created.room.id, created.membership.token);
+  client.send({ type: "room.game.start" });
+  let room = await client.room((room) => room.status === "playing");
+  if (room.status !== "playing") throw new Error("Not playing");
+  const roundId = room.roundId;
+  const openingTurn = room.game.turn;
+  if (room.players.find((p) => p.side === openingTurn)?.kind === "human") {
+    client.send({
+      type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
+      action: room.legalActions[0],
+    });
+    room = await client.room((room) => room.status === "playing" && room.positionRevision > 0);
+    if (room.status !== "playing") throw new Error("Not playing");
+  }
+  const moveNumber = room.game.moveNumber;
+  const cpuTurn = room.game.turn;
+  const cpu = room.players.find((p) => p.side === cpuTurn)!;
+  expect(cpu.kind).toBe("cpu");
+  const moved = await client.room(
+    (room) => room.status === "playing" && room.game.moveNumber > moveNumber,
+  );
+  if (moved.status !== "playing") throw new Error("Not playing");
+  expect(moved.clock.turnExpiresAt - moved.clock.turnStartedAt).toBe(
+    moved.clock.remainingMainMs[moved.game.turn] + control.byoyomiMs,
+  );
+  await runInDurableObject(env.GAME_ROOM.getByName(created.room.id), async (instance, state) => {
+    const current = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
+    if (current.status !== "playing") throw new Error("Not playing");
+    // Alarmの遅延による全員の時間切れで、CPUの追加着手なしに終局させます。
+    state.storage.kv.put("room", {
+      ...current,
+      clock: {
+        ...current.clock,
+        turnStartedAt: Date.now() - 300_000,
+        turnExpiresAt: Date.now() - 200_000,
+      },
+    });
+    await instance.alarm();
+  });
+  const waiting = await client.room((room) => room.status === "waiting");
+  expect(waiting.settings.timeControl).toEqual(control);
+  const lastRound = waiting.lastRound;
+  client.send({
+    type: "room.time-control.set",
+    timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+  });
+  const changed = await client.room((room) => room.settings.timeControl.mainTimeMs === 300_000);
+  expect(changed.lastRound).toEqual(lastRound);
+  expect(changed.players.filter((p) => p.kind === "cpu").every((p) => p.ready)).toBe(true);
+  await vi.waitFor(async () => {
+    const row = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+      .bind(roundId)
+      .first<{ record_json: string }>();
+    expect(row).not.toBeNull();
+    expect(JSON.parse(row!.record_json).settings.timeControl).toEqual(control);
+  });
 });

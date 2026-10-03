@@ -7,7 +7,7 @@ const previewStoneClasses = {
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 
-import { type RoomMode } from "@tetraboard/protocol";
+import { type RoomTimeControl, type RoomMode } from "@tetraboard/protocol";
 import { Fragment, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -26,6 +26,7 @@ type Props = {
   name: string;
   roomCode: string;
   mode: RoomMode;
+  timeControl: RoomTimeControl;
   threePlayerAttackProhibited?: boolean;
   isSubmitting: RoomEntryIntent | null;
   message: string | null;
@@ -35,6 +36,7 @@ type Props = {
   onNameChange: (value: string) => void;
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
+  onTimeControlChange: (value: RoomTimeControl) => void;
   onThreePlayerAttackChange?: (prohibited: boolean) => void;
   onClearMessage: () => void;
   onSubmitRoom?: (intent: RoomEntryIntent, roomId?: string) => void;
@@ -255,6 +257,8 @@ export function LobbyView(props: Props) {
           name={props.name}
           roomCode={props.roomCode}
           mode={props.mode}
+          timeControl={props.timeControl}
+          onTimeControlChange={props.onTimeControlChange}
           busy={props.isSubmitting !== null}
           message={props.message}
           onNameChange={props.onNameChange}

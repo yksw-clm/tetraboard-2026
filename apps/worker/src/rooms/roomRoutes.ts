@@ -114,7 +114,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
       settings: {
         game,
         mode: request.data.mode,
-        timeControl: roomTimeControl,
+        timeControl: request.data.timeControl ?? roomTimeControl,
         ...(game === "four-shogi"
           ? { threePlayerAttackProhibited: request.data.threePlayerAttackProhibited ?? true }
           : {}),

@@ -22,7 +22,7 @@ export function clockPresentation({
     0,
     remainingMainMs - (isTurn ? Math.max(0, serverNowMs - turnStartedAt) : 0),
   );
-  const byoyomi = remainingMain === 0;
+  const byoyomi = timeControl.byoyomiMs > 0 && remainingMain === 0;
   const remaining = byoyomi
     ? isTurn
       ? Math.max(0, turnExpiresAt - serverNowMs)
