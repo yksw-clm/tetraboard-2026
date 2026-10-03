@@ -1,3 +1,4 @@
+import { ShogiSideBadge } from "./FourShogiPlayerCard";
 import { ViewerControls } from "./ViewerControls";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex, rotatedShogiViewer } from "./boardRotation";
@@ -31,7 +32,7 @@ import { matchSeats, seatPositions } from "./roomPresentation";
 import { useRoundReplay } from "./useRoomReplay";
 import { FourShogiBoardLayout } from "./FourShogiBoardLayout";
 import { FourShogiGameResultView } from "./FourShogiGameResultView";
-import { shogiCardPosition, shogiPlayerRank, shogiSideNames } from "./fourShogiRoomPresentation";
+import { shogiCardPosition, shogiPlayerRank } from "./fourShogiRoomPresentation";
 import { appThemeClasses, type AppTheme } from "../../shared/ui/appTheme";
 import { type FourShogiReplayFrame } from "./fourShogiReplay";
 import { type MatchReplayData } from "./matchReplayLoader";
@@ -111,12 +112,13 @@ function FourShogiMatchReplayView({
           clock={null}
           rank={shogiPlayerRank(frame.game, side)}
           score={
-            <span
-              className="text-brand text-xs font-bold"
-              aria-label={`担当方向 ${shogiSideNames[side]}`}
-            >
-              {shogiSideNames[side]}
-            </span>
+            <ShogiSideBadge
+              side={side}
+              proposed={
+                frame.game.drawProposals.includes(side) &&
+                !frame.game.eliminations.some((entry) => entry.side === side)
+              }
+            />
           }
         />,
       ];

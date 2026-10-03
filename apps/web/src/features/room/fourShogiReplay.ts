@@ -2,6 +2,7 @@ import {
   applyAction,
   createInitialState,
   eliminateSide,
+  setDrawProposal,
   getCheckState,
   sides,
   type FourShogiState,
@@ -21,6 +22,17 @@ export type FourShogiReplayFrame = {
   game: FourShogiPublicState;
   checkState: ReturnType<typeof getCheckState>;
 };
+
+export function applyFourShogiReplayEvent(state: FourShogiState, event: FourShogiReplayEvent) {
+  switch (event.type) {
+    case "action":
+      return applyAction(state, event.side, event.action);
+    case "eliminate":
+      return eliminateSide(state, event.side, event.reason);
+    case "drawProposal":
+      return setDrawProposal(state, event.side, event.proposed);
+  }
+}
 
 export function createFourShogiReplayFrame(
   state: FourShogiState,
@@ -46,6 +58,8 @@ export function replayDataEqual(left: unknown, right: unknown): boolean {
 }
 
 function replayLabel(event: FourShogiReplayEvent, state: FourShogiState): string {
+  if (event.type === "drawProposal")
+    return `${shogiSideNames[event.side]} ${event.proposed ? "引分提案" : "引分取消"}`;
   if (event.type === "eliminate")
     return `${shogiSideNames[event.side]} ${shogiEliminationLabels[event.reason]}`;
   const action = event.action;
@@ -113,10 +127,7 @@ export async function fetchFourShogiReplay({
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       if (entry.index !== cursor || state === null) throw new Error("Replay event index mismatch");
       const event = entry.event;
-      const result =
-        event.type === "action"
-          ? applyAction(state, event.side, event.action)
-          : eliminateSide(state, event.side, event.reason);
+      const result = applyFourShogiReplayEvent(state, event);
       if (!result.ok) throw new Error("Replay event is invalid");
       state = result.state;
       frames.push(createFourShogiReplayFrame(state, event));
@@ -125,7 +136,11 @@ export async function fetchFourShogiReplay({
     if (page.nextCursor === null) break;
   }
   const final = frames.at(-1)?.game;
-  if (!final || final.status !== "finished" || !replayDataEqual(final, lastRound.game))
+  if (
+    !final ||
+    final.status !== "finished" ||
+    !replayDataEqual(final, fourShogiPublicStateSchema.parse(lastRound.game))
+  )
     throw new Error("Replay final position mismatch");
   return frames;
 }

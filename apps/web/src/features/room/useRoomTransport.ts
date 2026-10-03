@@ -1,3 +1,4 @@
+import { type Side } from "@tetraboard/four-shogi";
 import {
   roomSocketContract,
   isFourShogiRoom,
@@ -22,7 +23,14 @@ import { fetchRoom, leaveRoom } from "./roomApi";
 export type PendingGameAction =
   | { type: "start" }
   | { type: "move"; moveNumber: number; roundId?: string; positionRevision?: number }
-  | { type: "resign"; participant: string };
+  | { type: "resign"; participant: string }
+  | {
+      type: "draw";
+      participant: Side;
+      proposed: boolean;
+      roundId: string;
+      positionRevision: number;
+    };
 
 function operationErrorMessage(error: string, game: Room["settings"]["game"]): string {
   switch (error) {
@@ -254,6 +262,13 @@ export function useRoomTransport<T extends Room>({
                     message.data.room.positionRevision > (pending.positionRevision ?? -1)
                   : message.data.room.game.moveNumber > pending.moveNumber
                 : message.data.room.lastRound !== null)) ||
+            (pending?.type === "draw" &&
+              isFourShogiRoom(message.data.room) &&
+              (message.data.room.status === "waiting" ||
+                message.data.room.roundId !== pending.roundId ||
+                message.data.room.positionRevision > pending.positionRevision ||
+                message.data.room.game.drawProposals.includes(pending.participant) ===
+                  pending.proposed)) ||
             (pending?.type === "resign" &&
               (message.data.room.status === "playing"
                 ? isFourShogiRoom(message.data.room)

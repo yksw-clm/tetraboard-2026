@@ -29,12 +29,12 @@ export const fourShogiEliminationSchema = z.strictObject({
 const result = z.discriminatedUnion("mode", [
   z.strictObject({
     mode: z.literal("singles"),
-    reason: z.enum(["last_player", "no_survivors", "repetition"]),
+    reason: z.enum(["last_player", "no_survivors", "repetition", "agreement"]),
     standings: z.array(z.strictObject({ side: fourShogiSideSchema, rank: z.int().min(1).max(4) })),
   }),
   z.strictObject({
     mode: z.literal("doubles"),
-    reason: z.enum(["team_eliminated", "simultaneous_mate", "repetition"]),
+    reason: z.enum(["team_eliminated", "simultaneous_mate", "repetition", "agreement"]),
     winner: z.enum(["south-north", "west-east"]).nullable(),
   }),
 ]);
@@ -53,6 +53,11 @@ const base = z.strictObject({
     }),
   ),
   eliminations: z.array(fourShogiEliminationSchema).max(4),
+  drawProposals: z
+    .array(fourShogiSideSchema)
+    .max(4)
+    .refine((entries) => new Set(entries).size === entries.length)
+    .default([]),
   attackRelations: z.array(
     z.strictObject({
       attacker: fourShogiSideSchema,
@@ -95,6 +100,11 @@ export const fourShogiReplayInitialSchema = z.strictObject({
   threePlayerAttackProhibited: z.boolean(),
 });
 export const fourShogiReplayEventSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("drawProposal"),
+    side: fourShogiSideSchema,
+    proposed: z.boolean(),
+  }),
   z.strictObject({
     type: z.literal("action"),
     side: fourShogiSideSchema,
