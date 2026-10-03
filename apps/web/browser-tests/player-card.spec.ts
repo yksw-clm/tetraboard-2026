@@ -23,7 +23,7 @@ function expectStable(actual: number[][][], expected: number[][][]) {
     ),
   );
 }
-async function expectContentsFit(cards: Locator) {
+async function expectContentsFit(cards: Locator, width: number) {
   await expect
     .poll(() =>
       cards.evaluateAll((elements) =>
@@ -64,7 +64,7 @@ async function expectContentsFit(cards: Locator) {
   );
   for (const size of sizes) {
     expect(Math.abs(size.w - sizes[0]!.w)).toBeLessThanOrEqual(1);
-    expect(size.h).toBe(60);
+    expect(size.h).toBe(width <= 767 ? 48 : 60);
   }
 }
 
@@ -81,6 +81,13 @@ for (const width of widths) {
       expect(box?.height).toBe(width <= 767 ? 26 : 32);
     }
     const initial = await geometry(cards);
+    if (width <= 767) {
+      for (const slots of initial) {
+        // 枠線1pxとpadding1pxだけを残し、固定高による余分な中央揃えを検出します。
+        expect(Math.abs(slots[1]![1] - 2)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(slots[2]![1] + slots[2]![3] - 46)).toBeLessThanOrEqual(0.5);
+      }
+    }
     const ready = waitingRoom();
     ready.players.forEach((p) => {
       p.ready = true;
@@ -88,7 +95,7 @@ for (const width of widths) {
     control.update(ready);
     await expect(page.getByRole("button", { name: "準備取消", exact: true })).toBeEnabled();
     expectStable(await geometry(cards), initial);
-    await expectContentsFit(cards);
+    await expectContentsFit(cards, width);
     const playing = playingRoom();
     if (playing.status !== "playing") throw new Error("Expected playing fixture");
     // 10文字＋王冠・2桁の石数・最長の脱落理由を同時に表示します。
@@ -116,7 +123,7 @@ for (const width of widths) {
       const stoneAfter = (await cards.getByTestId("player-stone-count").first().boundingBox())!;
       for (const key of ["x", "y", "width", "height"] as const)
         expect(Math.abs(stoneAfter[key] - stoneBefore![key])).toBeLessThanOrEqual(1);
-      await expectContentsFit(cards);
+      await expectContentsFit(cards, width);
     }
     await testInfo.attach("eliminated-cards", {
       body: await page.screenshot(),
@@ -141,6 +148,6 @@ for (const width of widths) {
     await expect(cards.getByTitle("ホスト")).toHaveCount(1);
     await expect(cards.getByTitle("CPU")).toHaveCount(1);
     expectStable(await geometry(cards), initial);
-    await expectContentsFit(cards);
+    await expectContentsFit(cards, width);
   });
 }

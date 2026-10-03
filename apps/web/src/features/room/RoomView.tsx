@@ -21,8 +21,9 @@ export function RoomView({
   const { room, membership, presence } = session;
   const replay = useRoomReplay(room);
   const replayCard = replay.frame ? <ReplayCard replay={replay} /> : null;
+  const hasPassNotice = room.status === "playing" && room.game.consecutivePasses.length > 0;
   const board = (
-    <RoomBoardLayout>
+    <RoomBoardLayout hasNotice={hasPassNotice}>
       {orderedSeats(room, membership?.playerId).map((player, index) => (
         <PlayerCard
           key={seatPositions[index]}

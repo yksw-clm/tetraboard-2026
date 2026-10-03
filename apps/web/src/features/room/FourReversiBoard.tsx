@@ -16,7 +16,7 @@ export function FourReversiBoard({
 }) {
   return (
     <div
-      className="[grid-area:board] w-full aspect-square grid grid-cols-8 grid-rows-8 bg-[#238657] border-2 border-solid border-[#175c3d] rounded-[3px] shadow-[0_10px_25px_#19402a20] overflow-hidden"
+      className="[grid-area:board] w-[var(--board-size)] aspect-square place-self-center grid grid-cols-8 grid-rows-8 bg-[#238657] border-2 border-solid border-[#175c3d] rounded-[3px] shadow-[0_10px_25px_#19402a20] overflow-hidden"
       role="group"
       aria-label="四人リバーシの盤面"
     >

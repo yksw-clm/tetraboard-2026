@@ -121,6 +121,44 @@ for (const width of [320, 390, 768, 1279, 1280, 1440]) {
   });
 }
 
+test("低いスマホ画面の保存リバーシ棋譜でも盤だけ縮小して4席と操作を保つ", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 522, height: 640 });
+  const match = replayMatch();
+  await mockReplay(page, match);
+  await page.goto(`/account/matches/${match.id}`);
+  await expect(page.getByText("対局終了", { exact: true })).toBeVisible();
+  for (const height of [640, 360]) {
+    await page.setViewportSize({ width: 522, height });
+    await expect
+      .poll(() =>
+        board(page).evaluate((element) => {
+          const panel = element.closest('[role="tabpanel"]')!;
+          return (
+            panel.scrollHeight <= panel.clientHeight + 1 &&
+            panel.scrollWidth <= panel.clientWidth + 1
+          );
+        }),
+      )
+      .toBe(true);
+    const box = (await board(page).boundingBox())!;
+    expect(Math.abs(box.width - box.height)).toBeLessThan(1);
+    expect(box.width).toBeLessThan(514);
+    for (const card of await page.getByTestId("player-card").all()) {
+      expect((await card.boundingBox())!.height).toBe(48);
+      await expect(card).toBeInViewport({ ratio: 1 });
+    }
+    await expect(page.getByRole("button", { name: "棋譜を1つ戻る" })).toBeInViewport({ ratio: 1 });
+  }
+  await selectFrame(page, "開始局面");
+  await expect(board(page).getByRole("button", { name: /直前の手/ })).toHaveCount(0);
+  await info.attach("低い画面のリバーシ棋譜", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+});
+
 test("ダブルスの脱落・勝敗と通常終局の自動パスを閲覧できる", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const match = replayMatch("doubles");
