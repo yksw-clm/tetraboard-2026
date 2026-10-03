@@ -132,6 +132,16 @@ export async function storedMatch(id: string) {
 }
 
 const namespaces = new Map<string, string>();
+export function humanFixtureRecord(accountId: string, index: number, mode: RoomMode = "singles") {
+  const record = fixtureRecord(accountId, index, mode);
+  record.participants = record.participants.map((player) => {
+    if (player.kind === "human") return player;
+    const { level: _level, ...identity } = player;
+    return { ...identity, name: "ゲスト", kind: "human", accountId: null };
+  });
+  return record;
+}
+
 export function fixtureRecord(
   accountId: string,
   index: number,

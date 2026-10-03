@@ -13,10 +13,10 @@ import {
   fourShogiMatchSummarySchema,
 } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
-import { fixtureRecord, matchRequest } from "./matchFixtures";
+import { fixtureRecord, humanFixtureRecord, matchRequest } from "./matchFixtures";
 import { writeMatch } from "../src/rooms/matchStore";
 import { advanceShogiMatchSave } from "../src/rooms/shogiMatchStore";
-import { shogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
+import { shogiRecord, humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 
 beforeEach(async () => {
   await env.APP_DB.batch([
@@ -51,21 +51,21 @@ test("戦績はゲーム別に全方向・順位・撃破を集計し、ゲス�
   const user = await accountFixture(),
     other = await accountFixture();
   for (const [index, side] of sides.entries()) {
-    const fixture = shogiRecord(user.id, side);
+    const fixture = humanShogiRecord(user.id, side);
     // Persisted knockout totals are the account aggregation's input; room tests cover attribution.
     fixture.record.knockouts[side] = index % 3;
     await saveShogiFixture(fixture);
   }
-  await saveShogiFixture(shogiRecord(other.id));
-  await saveShogiFixture(shogiRecord(null));
-  const pending = shogiRecord(user.id);
+  await saveShogiFixture(humanShogiRecord(other.id));
+  await saveShogiFixture(humanShogiRecord(null));
+  const pending = humanShogiRecord(user.id);
   await advanceShogiMatchSave(
     env.APP_DB,
     pending.record,
     { phase: "upload", cursor: 0 },
     (cursor) => pending.events.slice(cursor, cursor + 100),
   );
-  const reversi = fixtureRecord(user.id, 1);
+  const reversi = humanFixtureRecord(user.id, 1);
   await writeMatch(env.APP_DB, reversi);
   expect(fourShogiAccountStatsSchema.parse(await stats(user.cookie))).toEqual({
     singles: { total: 4, first: 1, second: 1, third: 1, fourth: 1, knockouts: 3 },
@@ -89,8 +89,8 @@ test("戦績はゲーム別に全方向・順位・撃破を集計し、ゲス�
 
 test("将棋ダブルスの両チームの勝敗・引き分けを集計し、撃破項目を含めない", async () => {
   const user = await accountFixture();
-  for (const side of sides) await saveShogiFixture(shogiRecord(user.id, side, "doubles"));
-  const draw = shogiRecord(user.id, "south", "doubles");
+  for (const side of sides) await saveShogiFixture(humanShogiRecord(user.id, side, "doubles"));
+  const draw = humanShogiRecord(user.id, "south", "doubles");
   if (draw.record.game.result.mode !== "doubles") throw new Error("Wrong mode");
   draw.record.game.result = { mode: "doubles", reason: "repetition", winner: null };
   await saveShogiFixture(draw);
@@ -186,13 +186,13 @@ test("保存棋譜は開始時の本人だけが取得でき、名前と現在�
   expect((await matchRequest(replayPath, authenticated(user.cookie))).status).toBe(503);
 });
 
-test("将棋ランキングは同率優勝・CPU戦・引き分けを数え、ゲームと未公開局を混在させない", async () => {
+test("将棋ランキングは同率優勝・対人戦・引き分けを数え、ゲームと未公開局を混在させない", async () => {
   const user = await accountFixture(),
     other = await accountFixture(),
     incomplete = await accountFixture(false);
-  await saveShogiFixture(shogiRecord(user.id));
-  await saveShogiFixture(shogiRecord(other.id));
-  const tied = shogiRecord(user.id);
+  await saveShogiFixture(humanShogiRecord(user.id));
+  await saveShogiFixture(humanShogiRecord(other.id));
+  const tied = humanShogiRecord(user.id);
   if (tied.record.game.result.mode !== "singles") throw new Error("Wrong mode");
   tied.record.game.result = {
     mode: "singles",
@@ -200,15 +200,15 @@ test("将棋ランキングは同率優勝・CPU戦・引き分けを数え、�
     standings: sides.map((side) => ({ side, rank: 1 })),
   };
   await saveShogiFixture(tied);
-  await saveShogiFixture(shogiRecord(incomplete.id));
-  await saveShogiFixture(shogiRecord(null));
-  await saveShogiFixture(shogiRecord(user.id, "south", "doubles"));
-  await saveShogiFixture(shogiRecord(user.id, "west", "doubles"));
-  const draw = shogiRecord(user.id, "south", "doubles");
+  await saveShogiFixture(humanShogiRecord(incomplete.id));
+  await saveShogiFixture(humanShogiRecord(null));
+  await saveShogiFixture(humanShogiRecord(user.id, "south", "doubles"));
+  await saveShogiFixture(humanShogiRecord(user.id, "west", "doubles"));
+  const draw = humanShogiRecord(user.id, "south", "doubles");
   draw.record.game.result = { mode: "doubles", reason: "repetition", winner: null };
   await saveShogiFixture(draw);
-  await writeMatch(env.APP_DB, fixtureRecord(user.id, 3));
-  const pending = shogiRecord(user.id);
+  await writeMatch(env.APP_DB, humanFixtureRecord(user.id, 3));
+  const pending = humanShogiRecord(user.id);
   await advanceShogiMatchSave(
     env.APP_DB,
     pending.record,
@@ -250,7 +250,7 @@ test("不正ゲーム指定を拒否し、省略時には従来のリバーシ�
 
 test("認証基盤のUUIDではない内部アカウントIDも将棋履歴へ紐付けられる", async () => {
   const user = await accountFixture(true, `auth_${crypto.randomUUID().replaceAll("-", "")}`);
-  const fixture = shogiRecord(user.id);
+  const fixture = humanShogiRecord(user.id);
   await saveShogiFixture(fixture);
   expect((await stats(user.cookie)).singles.total).toBe(1);
   expect((await history(user.cookie)).matches.map((match) => match.id)).toEqual([

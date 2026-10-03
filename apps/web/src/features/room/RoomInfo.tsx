@@ -1,5 +1,5 @@
-import { type ReactNode } from "react";
-import { type Room } from "@tetraboard/protocol";
+import { type ReactNode, type RefObject } from "react";
+import { type Room, type CpuLevel } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Accordion, Chip, Label, Radio, RadioGroup } from "@heroui/react";
@@ -9,17 +9,25 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { formatClock, playerName } from "./roomPresentation";
 import { type useRoomTransport } from "./useRoomTransport";
 import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
+import { useAccount } from "../account/useAccount";
 
 export function RoomInfo({
   session,
   onLeave,
   onCopyInvite,
+  onAddCpu,
+  cpuAddButtonRef,
+  canAddCpu,
 }: {
   session: ReturnType<typeof useRoomTransport>;
   onLeave: () => void;
   onCopyInvite: () => void;
+  onAddCpu: (level: CpuLevel) => void;
+  cpuAddButtonRef: RefObject<HTMLButtonElement | null>;
+  canAddCpu: boolean;
 }) {
   const { room, membership, canManageSettings } = session;
+  const account = useAccount();
   return (
     <RoomInfoCard roomId={room.id} settings={room.settings}>
       <AppButton size="compact" className="w-full" onPress={onCopyInvite} appearance="secondary">
@@ -134,15 +142,35 @@ export function RoomInfo({
                       ))}
                     </div>
                     <AppButton
+                      ref={cpuAddButtonRef}
                       size="compact"
                       appearance="secondary"
-                      isDisabled={!canManageSettings || room.players.length >= 4}
-                      onPress={() => session.addCpu(session.newCpuLevel)}
+                      isDisabled={!canAddCpu}
+                      onPress={() => onAddCpu(session.newCpuLevel)}
                     >
                       <AppIcon name="plus" />
                       CPUを追加
                     </AppButton>
                   </div>
+                  {account.loading && (
+                    <p className="mt-2 text-xs text-muted" role="status">
+                      ログイン状態を確認しています…
+                    </p>
+                  )}
+                  {account.error && (
+                    <div className="mt-2 flex flex-col items-start gap-2">
+                      <p className="text-xs text-danger" role="alert">
+                        {account.error}
+                      </p>
+                      <AppButton
+                        size="compact"
+                        appearance="secondary"
+                        onPress={() => void account.refresh()}
+                      >
+                        ログイン状態を再確認
+                      </AppButton>
+                    </div>
+                  )}
                 </div>
               </Accordion.Body>
             </Accordion.Panel>

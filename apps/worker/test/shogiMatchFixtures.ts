@@ -63,6 +63,16 @@ export function shogiRecord(
   return { record, events };
 }
 
+export function humanShogiRecord(...args: Parameters<typeof shogiRecord>) {
+  const fixture = shogiRecord(...args);
+  fixture.record.participants = fixture.record.participants.map((player) => {
+    if (player.kind === "human") return player;
+    const { level: _level, ...identity } = player;
+    return { ...identity, name: "ゲスト", kind: "human", accountId: null };
+  });
+  return fixture;
+}
+
 export async function saveShogiFixture(fixture: ReturnType<typeof shogiRecord>) {
   let progress: ShogiSaveProgress | null = { phase: "upload", cursor: 0 };
   while (progress) {

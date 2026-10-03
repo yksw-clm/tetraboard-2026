@@ -1,4 +1,5 @@
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
+import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { useAccount } from "../account/useAccount";
 import { Label, Radio, RadioGroup } from "@heroui/react";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -69,6 +70,11 @@ export function RoomEntryDialog({
                 ? "アカウントのプロフィールで参加します。"
                 : "対局で使うニックネームを入力してください。"}
       </p>
+      {intent === "quick" && account.user && (
+        <div className="mt-3">
+          <CpuMatchNotice />
+        </div>
+      )}
       <form
         className="flex flex-col gap-[22px] mt-6"
         noValidate
