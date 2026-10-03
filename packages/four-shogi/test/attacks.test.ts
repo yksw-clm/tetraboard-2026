@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { applyAction, getLegalActions } from "../src/index";
+import { applyAction, getLegalActions, getActionAvailability } from "../src/index";
 import type {
   AttackRelation,
   AttackReason,
@@ -280,7 +280,11 @@ test("三人目の新しい取りを合法手から除き、拒否時には履�
     attackRelations: twoAttacks,
   });
   const before = structuredClone(state);
-  expect(getLegalActions(state)).not.toContainEqual(move("D5", "D4"));
+  const availability = getActionAvailability(state);
+  expect(availability.legalActions).toEqual(getLegalActions(state));
+  expect(availability.legalActions).not.toContainEqual(move("D5", "D4"));
+  expect(availability.threePlayerAttackForbiddenActions).toContainEqual(move("D5", "D4"));
+  expect(availability.threePlayerAttackForbiddenActions).not.toContainEqual(move("D5", "E4"));
   expect(applyAction(state, "south", move("D5", "D4"))).toEqual({
     ok: false,
     reason: "three_player_attack",
@@ -299,6 +303,9 @@ test("自王への王手の応手では同時に作った取りも全相手へ�
     ],
     attackRelations: twoAttacks,
   });
+  expect(getActionAvailability(state).threePlayerAttackForbiddenActions).not.toContainEqual(
+    move("D8", "E8"),
+  );
   const result = succeeded(applyAction(state, "south", move("D8", "E8")));
   expect(result.state.attackRelations.filter((entry) => entry.attacker === "south")).toEqual([]);
 });
@@ -465,6 +472,9 @@ test("禁止対象を直ちに詰ませる一手撃破は三人目でも受理�
     ],
     attackRelations: twoAttacks,
   });
+  expect(getActionAvailability(state).threePlayerAttackForbiddenActions).not.toContainEqual(
+    move("G2", "E2"),
+  );
   const result = succeeded(applyAction(state, "south", move("G2", "E2")));
   expect(
     result.eliminations.some((entry) => entry.side === "west" && entry.reason === "checkmate"),
@@ -619,3 +629,107 @@ for (const target of [
     expect(relation(result.state)?.targetPieceIds).toContain(200);
   });
 }
+
+test("禁止候補には通常不正手を含めず、移動と打ち駒を区別する", () => {
+  const state = fixture({
+    threePlayerAttackProhibited: true,
+    pieces: [{ side: "west", kind: "gold", at: "D3" }],
+    hands: { south: { pawn: 1 } },
+    attackRelations: twoAttacks,
+  });
+  const before = structuredClone(state);
+  const availability = getActionAvailability(state);
+  expect(availability.threePlayerAttackForbiddenActions).toContainEqual(drop("pawn", "D4"));
+  expect(availability.threePlayerAttackForbiddenActions).not.toContainEqual(drop("pawn", "D3"));
+  expect(availability.threePlayerAttackForbiddenActions).not.toContainEqual(drop("pawn", "D1"));
+  const nifu = fixture({
+    threePlayerAttackProhibited: true,
+    attackRelations: twoAttacks,
+    pieces: [
+      { side: "south", kind: "pawn", at: "D6" },
+      { side: "west", kind: "gold", at: "D3" },
+    ],
+    hands: { south: { pawn: 1 } },
+  });
+  expect(getActionAvailability(nifu).threePlayerAttackForbiddenActions).not.toContainEqual(
+    drop("pawn", "D4"),
+  );
+  expect(state).toEqual(before);
+});
+
+test("成りの一方だけが禁止される移動先では合法な選択を保持する", () => {
+  const state = fixture({
+    threePlayerAttackProhibited: true,
+    pieces: [
+      { side: "south", kind: "rook", at: "D4" },
+      { side: "west", kind: "gold", at: "E2" },
+    ],
+    attackRelations: twoAttacks,
+  });
+  const availability = getActionAvailability(state);
+  expect(availability.legalActions).toContainEqual(move("D4", "D3", false));
+  expect(availability.threePlayerAttackForbiddenActions).toContainEqual(move("D4", "D3", true));
+});
+
+test("設定OFF・ダブルス・脱落後・終局には禁止候補を返さない", () => {
+  const state = fixture({
+    threePlayerAttackProhibited: true,
+    pieces: [
+      { side: "south", kind: "pawn", at: "D5" },
+      { side: "west", kind: "gold", at: "D3" },
+    ],
+    attackRelations: twoAttacks,
+  });
+  for (const excluded of [
+    { ...state, threePlayerAttackProhibited: false },
+    { ...state, mode: "doubles" as const },
+    {
+      ...state,
+      eliminations: [{ side: "east" as const, reason: "resigned" as const, rank: null, group: 1 }],
+    },
+  ]) {
+    const availability = getActionAvailability(excluded);
+    expect(availability.threePlayerAttackForbiddenActions).toEqual([]);
+    expect(availability.legalActions).toEqual(getLegalActions(excluded));
+  }
+  expect(
+    getActionAvailability({
+      ...state,
+      status: "finished",
+      turn: null,
+      result: { mode: "singles", reason: "agreement", standings: [] },
+    }),
+  ).toEqual({
+    legalActions: [],
+    threePlayerAttackForbiddenActions: [],
+  });
+});
+
+test("禁止手だけの持ち駒でも通常合法候補を失わず、王手放置は赤い候補にしない", () => {
+  const state = fixture({
+    threePlayerAttackProhibited: true,
+    pieces: [{ side: "west", kind: "gold", at: "D3" }],
+    hands: { south: { pawn: 1 } },
+    attackRelations: twoAttacks,
+  });
+  const board = state.board.map((row) => [...row]);
+  for (let y = 0; y < 9; y++)
+    for (let x = 0; x < 9; x++) {
+      if (!board[y][x] && !(x === 3 && y === 3))
+        board[y][x] = { id: 500 + y * 9 + x, side: "west", kind: "pawn", promoted: false };
+    }
+  const availability = getActionAvailability({ ...state, board, nextPieceId: 600 });
+  expect(availability.legalActions.some((action) => action.type === "dropPiece")).toBe(false);
+  expect(availability.threePlayerAttackForbiddenActions).toEqual([drop("pawn", "D4")]);
+  const checked = fixture({
+    threePlayerAttackProhibited: true,
+    pieces: [
+      { side: "south", kind: "pawn", at: "D5" },
+      { side: "west", kind: "gold", at: "D3" },
+      { side: "east", kind: "rook", at: "A3" },
+    ],
+    attackRelations: twoAttacks,
+  });
+  expect(getActionAvailability(checked).threePlayerAttackForbiddenActions).toEqual([]);
+  expect(getActionAvailability(checked).legalActions).not.toContainEqual(move("D5", "D4"));
+});

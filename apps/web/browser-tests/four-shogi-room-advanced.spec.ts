@@ -96,7 +96,7 @@ async function mockReconnectRoom(page: Page, initial: FourShogiRoom) {
   };
 }
 
-function restrictedCaptureState(prohibited: boolean): FourShogiState {
+function restrictedCaptureState(prohibited: boolean): FourShogiState & { status: "playing" } {
   const board: (Piece | null)[][] = Array.from({ length: 9 }, () => Array(9).fill(null));
   const pieces: [number, number, Piece["side"], Piece["kind"]][] = [
     [0, 8, "south", "king"],
@@ -134,7 +134,16 @@ function restrictedCaptureState(prohibited: boolean): FourShogiState {
   };
 }
 
-test("三人攻撃ONは三人目の捕獲候補を除外し、OFFでは同じ駒を取れる", async ({ page }) => {
+function restrictedStateWithPieces(pieces: [number, number, Piece][], pawn = 0) {
+  const state = restrictedCaptureState(true);
+  const board = state.board.map((row) => [...row]);
+  board[5]![3] = null;
+  board[2]![3] = null;
+  for (const [x, y, piece] of pieces) board[y]![x] = piece;
+  return { ...state, board, hands: { ...state.hands, south: { ...state.hands.south, pawn } } };
+}
+
+test("三人攻撃ONは赤い禁止候補を表示し、OFFでは同じ駒を取れる", async ({ page }) => {
   const fixture = await mockRoom(page, playingShogiRoom(restrictedCaptureState(true)));
   await page.goto("/rooms/12345");
   const source = square(page, "D6"),
@@ -143,6 +152,27 @@ test("三人攻撃ONは三人目の捕獲候補を除外し、OFFでは同じ駒
   await source.click();
   await expect(source).toHaveAttribute("aria-pressed", "true");
   await expect(target).toBeDisabled();
+  await expect(target).toHaveAttribute("data-three-player-attack-forbidden", "true");
+  await expect(target).toHaveAccessibleName(/三人攻撃のため着手できません/);
+  await expect(target.locator(".rounded-full")).toHaveCSS(
+    "background-color",
+    "rgba(233, 63, 53, 0.69)",
+  );
+  // 無効なマスへのクリック・キーボード操作から着手しません。
+  await target.click({ force: true });
+  await source.focus();
+  await page.keyboard.press("Enter");
+  await expect(target).not.toHaveAttribute("data-three-player-attack-forbidden");
+  await page.keyboard.press("Space");
+  await expect(target).toHaveAttribute("data-three-player-attack-forbidden", "true");
+  const from = await source.boundingBox(),
+    to = await target.boundingBox();
+  if (!from || !to) throw new Error("Missing square bounds");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByRole("group", { name: "成りの選択" })).toHaveCount(0);
   expect(gameActions(fixture.received)).toHaveLength(0);
   fixture.update(playingShogiRoom(restrictedCaptureState(false), 1));
   await expect(page.getByText("三人攻撃禁止：OFF", { exact: true })).toBeVisible();
@@ -159,6 +189,110 @@ test("三人攻撃ONは三人目の捕獲候補を除外し、OFFでは同じ駒
     roundId: shogiRoundId,
     positionRevision: 1,
     action: { type: "movePiece", from: { x: 3, y: 5 }, to: { x: 3, y: 2 }, promote: false },
+  });
+});
+
+for (const width of [320, 390, 768, 1440]) {
+  test(`禁止候補だけの駒を選択・解除でき、赤い丸へタップしても送信しない ${width}px`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: true });
+    const page = await context.newPage();
+    try {
+      const state = restrictedStateWithPieces([
+        [3, 4, { id: 5, side: "south", kind: "pawn", promoted: false }],
+        [3, 2, { id: 6, side: "west", kind: "gold", promoted: false }],
+      ]);
+      const fixture = await mockRoom(page, playingShogiRoom(state));
+      await page.goto("/rooms/12345");
+      const source = square(page, "D5"),
+        target = square(page, "D4");
+      await expect(source).toBeEnabled();
+      await source.tap();
+      await expect(target).toHaveAttribute("data-three-player-attack-forbidden", "true");
+      await expect(target).toBeDisabled();
+      const box = await target.boundingBox();
+      if (!box) throw new Error("Missing target");
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(source).toHaveAttribute("aria-pressed", "true");
+      expect(gameActions(fixture.received)).toHaveLength(0);
+      await source.tap();
+      await expect(target).not.toHaveAttribute("data-three-player-attack-forbidden");
+      await source.tap();
+      await page.keyboard.press("Escape");
+      await expect(target).not.toHaveAttribute("data-three-player-attack-forbidden");
+      fixture.update(playingShogiRoom({ ...state, turn: "west" }, 1));
+      await expect(source).toBeDisabled();
+      await expect(page.locator("[data-three-player-attack-forbidden]")).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+}
+
+test("打ち駒の禁止候補は赤く、通常不正手には丸を出さない", async ({ page }) => {
+  const state = restrictedStateWithPieces(
+    [[3, 2, { id: 6, side: "west", kind: "gold", promoted: false }]],
+    1,
+  );
+  const fixture = await mockRoom(page, playingShogiRoom(state));
+  await page.goto("/rooms/12345");
+  const hand = page.getByRole("button", { name: "南の持ち駒、歩1枚、選択できます" });
+  await expect(hand).toBeEnabled();
+  await hand.click();
+  const target = square(page, "D4");
+  await expect(target).toHaveAttribute("data-three-player-attack-forbidden", "true");
+  await expect(target).toBeDisabled();
+  await expect(square(page, "D1")).not.toHaveAttribute("data-three-player-attack-forbidden");
+  await expect(square(page, "D3")).not.toHaveAttribute("data-three-player-attack-forbidden");
+  await target.click({ force: true });
+  expect(gameActions(fixture.received)).toHaveLength(0);
+});
+
+test("禁止候補だけの持ち駒を選択でき、解除まで赤い候補を表示する", async ({ page }) => {
+  const state = restrictedStateWithPieces(
+    [[3, 2, { id: 6, side: "west", kind: "gold", promoted: false }]],
+    1,
+  );
+  const board = state.board.map((row) => [...row]);
+  for (let y = 0; y < 9; y++)
+    for (let x = 0; x < 9; x++) {
+      if (!board[y]![x] && !(x === 3 && y === 3))
+        board[y]![x] = { id: 500 + y * 9 + x, side: "west", kind: "pawn", promoted: false };
+    }
+  const room = playingShogiRoom({ ...state, board, nextPieceId: 600 });
+  expect(room.legalActions.some((action) => action.type === "dropPiece")).toBe(false);
+  const fixture = await mockRoom(page, room);
+  await page.goto("/rooms/12345");
+  const hand = page.getByRole("button", { name: "南の持ち駒、歩1枚、選択できます" });
+  await expect(hand).toBeEnabled();
+  await hand.click();
+  const target = square(page, "D4");
+  await expect(target).toHaveAttribute("data-three-player-attack-forbidden", "true");
+  await expect(target).toBeDisabled();
+  await target.click({ force: true });
+  expect(gameActions(fixture.received)).toHaveLength(0);
+  await page.keyboard.press("Escape");
+  await expect(target).not.toHaveAttribute("data-three-player-attack-forbidden");
+});
+
+test("成りだけが禁止でも合法な不成の移動先を緑で表示して直接送信する", async ({ page }) => {
+  const state = restrictedStateWithPieces([
+    [3, 3, { id: 5, side: "south", kind: "rook", promoted: false }],
+    [4, 1, { id: 6, side: "west", kind: "gold", promoted: false }],
+  ]);
+  const fixture = await mockRoom(page, playingShogiRoom(state));
+  await page.goto("/rooms/12345");
+  await square(page, "D4").click();
+  const target = square(page, "D3");
+  await expect(target).toBeEnabled();
+  await expect(target).toHaveAttribute("data-legal-destination", "true");
+  await expect(target).not.toHaveAttribute("data-three-player-attack-forbidden");
+  await target.click();
+  await expect(page.getByRole("group", { name: "成りの選択" })).toHaveCount(0);
+  await expect.poll(() => gameActions(fixture.received)).toHaveLength(1);
+  expect(gameActions(fixture.received)[0]).toMatchObject({
+    action: { type: "movePiece", promote: false },
   });
 });
 

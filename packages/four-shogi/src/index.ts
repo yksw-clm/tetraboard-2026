@@ -110,6 +110,24 @@ export function getLegalActions(state: FourShogiState): FourShogiAction[] {
   return state.status === "finished" ? [] : getLegalActionsForSide(state, state.turn);
 }
 
+/** Classifies ordinary moves without reading repetition history or changing the position. */
+export function getActionAvailability(state: FourShogiState): {
+  legalActions: FourShogiAction[];
+  threePlayerAttackForbiddenActions: FourShogiAction[];
+} {
+  if (state.status === "finished" || !getActiveSides(state).includes(state.turn))
+    return { legalActions: [], threePlayerAttackForbiddenActions: [] };
+  const ordinary = getOrdinaryMoves(state, state.turn);
+  const allowed = getLegalMovesWithAttacks(state, state.turn, ordinary);
+  const allowedSet = new Set(allowed);
+  return {
+    legalActions: allowed.map((move) => move.action),
+    threePlayerAttackForbiddenActions: ordinary
+      .filter((move) => !allowedSet.has(move))
+      .map((move) => move.action),
+  };
+}
+
 export function applyAction(
   state: FourShogiState,
   side: Side,

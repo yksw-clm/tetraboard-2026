@@ -55,7 +55,7 @@ import {
   createInitialState as createShogiState,
   eliminateSide,
   setDrawProposal,
-  getLegalActions,
+  getActionAvailability,
   getCheckState,
   sides,
   type Side,
@@ -466,6 +466,14 @@ export class GameRoom extends DurableObject<Env> {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
     if (saved === undefined) return null;
     const room = roomSchema.parse(saved);
+    // 公開局面だけで導出し、旧局面の千日手全履歴は読み込みません。
+    if (
+      isFourShogiRoom(room) &&
+      room.status === "playing" &&
+      !Object.hasOwn(saved, "threePlayerAttackForbiddenActions")
+    ) {
+      Object.assign(room, getActionAvailability({ ...room.game, repetitions: {} }));
+    }
     // 旧保存データの理由は、記録されている棋譜からだけ復元します。
     if (
       isFourReversiRoom(room) &&
@@ -744,6 +752,7 @@ export class GameRoom extends DurableObject<Env> {
             roundId: null,
             positionRevision: 0,
             legalActions: [],
+            threePlayerAttackForbiddenActions: [],
             checkState: { south: false, west: false, north: false, east: false },
           }
         : {}),
@@ -775,7 +784,7 @@ export class GameRoom extends DurableObject<Env> {
       roundId,
       positionRevision: 0,
       game: this.shogi().saveState(roundId, state),
-      legalActions: getLegalActions(state),
+      ...getActionAvailability(state),
       checkState: getCheckState(state),
       eliminations: [],
       clock: createShogiClock(at),
@@ -873,7 +882,7 @@ export class GameRoom extends DurableObject<Env> {
       game: core,
       eliminations: state.eliminations,
       positionRevision: room.positionRevision + 1,
-      legalActions: getLegalActions(state),
+      ...getActionAvailability(state),
       checkState: getCheckState(state),
       clock: advanceShogiClock(room.clock, room.game.turn, state.turn, at, turnEnded),
       lastActivityAtMs: at,

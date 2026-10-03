@@ -3,7 +3,7 @@ import {
   createInitialState,
   eliminateSide,
   getCheckState,
-  getLegalActions,
+  getActionAvailability,
   sides,
   type FourShogiState,
   type Piece,
@@ -45,6 +45,7 @@ export function waitingShogiRoom(): FourShogiRoom & { status: "waiting" } {
     roundId: null,
     positionRevision: 0,
     legalActions: [],
+    threePlayerAttackForbiddenActions: [],
   });
   if (parsed.status !== "waiting") throw new Error("Expected waiting shogi fixture");
   return parsed;
@@ -68,7 +69,7 @@ export function playingShogiRoom(
     roundId: shogiRoundId,
     positionRevision,
     checkState: getCheckState(state),
-    legalActions: getLegalActions(state),
+    ...getActionAvailability(state),
     clock: {
       remainingMainMs: { south: 300000, west: 300000, north: 300000, east: 300000 },
       turnStartedAt: now,
@@ -111,7 +112,7 @@ export function tacticalShogiState(turn: Side = "south"): FourShogiState {
 }
 export function finishedShogiRound() {
   let state: FourShogiState = initialShogiState();
-  const action = getLegalActions(state)[0]!;
+  const action = getActionAvailability(state).legalActions[0]!;
   const moved = applyAction(state, state.status === "playing" ? state.turn : "south", action);
   if (!moved.ok) throw new Error("Invalid initial fixture action");
   state = moved.state;
