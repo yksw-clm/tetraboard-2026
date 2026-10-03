@@ -105,6 +105,9 @@ export async function mockRoom(
   });
   return {
     received,
+    get connectedSocketCount() {
+      return sockets.size;
+    },
     disconnect() {
       paused = true;
       for (const socket of [...sockets]) socket.close({ code: 1012 });

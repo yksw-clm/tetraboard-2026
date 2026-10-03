@@ -427,7 +427,7 @@ export class GameRoom extends DurableObject<Env> {
     return this.ctx.storage.kv.get<string>(playerTokenKey(playerId)) ?? null;
   }
 
-  // 期限イベントを順に処理してから使い、復帰待ちと脱落後の在室を含めます。
+  // 復帰期限切れの退室は期限イベントで確定し、復帰待ちと脱落後の在室を含めます。
   private isHumanParticipant(player: Room["players"][number]): boolean {
     if (player.kind !== "human" || this.ctx.storage.kv.get(departedKey(player.id))) return false;
     if (this.storedAccount(player.id)?.occupying === false) return false;
@@ -1519,6 +1519,13 @@ export class GameRoom extends DurableObject<Env> {
           attachment.tokenHash !== tokenHash
         )
           continue;
+      }
+      if (tokenHash === undefined) {
+        try {
+          this.sendSocketError(socket, "not_found");
+        } catch {
+          // 通知に失敗しても接続を終了します。
+        }
       }
       try {
         socket.close(1000, "Room membership ended");
