@@ -36,23 +36,23 @@ export function ReplayCard({
         onChange={(key) => replay.select(Number(key))}
       >
         <Select.Trigger className="w-full min-w-0 h-[34px] min-h-[34px] px-2 py-0 items-center text-[13px] bg-surface-muted [@media(max-width:767px)]:h-6 [@media(max-width:767px)]:min-h-6 [@media(max-width:767px)]:pl-1 [@media(max-width:767px)]:pr-[14px] [@media(max-width:767px)]:text-[11px] [@media(max-width:767px)]:rounded-[6px]">
-          <Select.Value className="leading-5 [@media(max-width:767px)]:text-xs [@media(max-width:767px)]:leading-[18px]" />
-          <Select.Indicator className="[@media(max-width:767px)]:size-[10px] [@media(max-width:767px)]:right-[3px]" />
+          <Select.Value className="min-w-0 flex-1 truncate leading-5 [@media(max-width:767px)]:text-xs [@media(max-width:767px)]:leading-[18px]" />
+          <Select.Indicator className="shrink-0 [@media(max-width:767px)]:size-[10px] [@media(max-width:767px)]:right-[3px]" />
         </Select.Trigger>
         <Select.Popover
-          className={`app-theme ${appThemeClasses[theme]} box-border min-w-[200px] max-h-[min(360px,60dvh)] bg-white text-[13px] leading-normal [&_*]:box-border`}
+          className={`app-theme ${appThemeClasses[theme]} box-border min-w-[200px] max-w-[calc(100dvw_-_16px)] max-h-[min(360px,60dvh)] bg-white text-[13px] leading-normal [&_*]:box-border`}
           placement="top"
         >
           <ListBox className="max-h-[min(350px,55dvh)] overflow-y-auto m-0 list-none">
             {replay.frames.map((frame, index) => (
               <ListBox.Item
-                className="min-h-[34px] rounded-lg"
+                className="min-w-0 min-h-[34px] rounded-lg flex items-center gap-2"
                 key={index}
                 id={String(index)}
                 textValue={frame.label}
               >
-                {frame.label}
-                <ListBox.ItemIndicator />
+                <span className="min-w-0 flex-1 truncate">{frame.label}</span>
+                <ListBox.ItemIndicator className="shrink-0" />
               </ListBox.Item>
             ))}
           </ListBox>

@@ -1,4 +1,5 @@
-import { Label, Radio, RadioGroup } from "@heroui/react";
+import { AppRadio } from "../../shared/ui/AppRadio";
+import { Label, RadioGroup } from "@heroui/react";
 
 export function ThreePlayerAttackSetting({
   prohibited,
@@ -22,12 +23,14 @@ export function ThreePlayerAttackSetting({
       <Label>三人攻撃禁止</Label>
       <div className="flex gap-4">
         {(["on", "off"] as const).map((value) => (
-          <Radio key={value} value={value}>
-            <Radio.Control>
-              <Radio.Indicator />
-            </Radio.Control>
-            <Radio.Content>{value === "on" ? "ON" : "OFF"}</Radio.Content>
-          </Radio>
+          <AppRadio key={value} value={value}>
+            <AppRadio.Content className="flex items-center gap-[6px]">
+              <AppRadio.Control>
+                <AppRadio.Indicator />
+              </AppRadio.Control>
+              {value === "on" ? "ON" : "OFF"}
+            </AppRadio.Content>
+          </AppRadio>
         ))}
       </div>
       <p className="text-xs text-muted">

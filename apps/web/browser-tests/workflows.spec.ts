@@ -1,3 +1,4 @@
+import { expectReplaySelectFits } from "./replaySelectAssertions";
 import { expect, test } from "@playwright/test";
 import { applyAction, createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { roomSchema, roomTimeControl, type ChatEntry } from "@tetraboard/protocol";
@@ -244,6 +245,7 @@ for (const width of [320, 900, 1440]) {
     await page.getByRole("button", { name: "棋譜を1つ進む" }).click();
     await expect(page.getByRole("button", { name: "棋譜を1つ進む" })).toBeDisabled();
     await page.getByRole("button", { name: "棋譜の局面" }).click();
+    await expectReplaySelectFits(page);
     await page.getByRole("option", { name: "開始局面" }).click();
     await expect(page.getByRole("button", { name: "棋譜を1つ戻る" })).toBeDisabled();
     await expect(page.getByRole("listbox")).toBeHidden();

@@ -71,6 +71,7 @@ export async function mockRoom(
   const received: ReturnType<typeof roomSocketContract.clientMessage.parse>[] = [];
   let presence = { hostPlayerId: playerIds[0]!, connectedPlayerIds: room.players.map((p) => p.id) };
   const sockets = new Set<WebSocketRoute>();
+  let paused = false;
   const snapshot = () => ({
     room,
     presence,
@@ -92,7 +93,7 @@ export async function mockRoom(
   await page.route("**/api/rooms/12345/me", (route) => route.fulfill({ json: identity }));
   await page.routeWebSocket("**/api/rooms/12345/ws?*", (socket) => {
     sockets.add(socket);
-    send(socket, { type: "room.snapshot", ...snapshot() });
+    if (!paused) send(socket, { type: "room.snapshot", ...snapshot() });
     send(socket, { type: "room.chat.snapshot", messages: [] });
     socket.onClose(() => sockets.delete(socket));
     socket.onMessage((raw) => {
@@ -104,6 +105,14 @@ export async function mockRoom(
   });
   return {
     received,
+    disconnect() {
+      paused = true;
+      for (const socket of [...sockets]) socket.close({ code: 1012 });
+    },
+    reconnect() {
+      paused = false;
+      for (const socket of sockets) send(socket, { type: "room.snapshot", ...snapshot() });
+    },
     update(
       next: Room,
       nextPresence = {

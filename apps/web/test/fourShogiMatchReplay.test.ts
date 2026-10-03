@@ -104,7 +104,7 @@ test("保存棋譜の分割取得から開始・着手・各脱落を復元し�
   expect(frames[1]!.game.board[6]![4]).toBeNull();
   expect(frames[1]!.game.board[5]![4]?.side).toBe("south");
   expect(frames[1]!.game.eliminations).toEqual([]);
-  expect(frames[2]!.label).toContain("西4位（退室）");
+  expect(frames[2]!.label).toBe("西 退室");
   expect(frames.at(-1)!.game).toEqual(round.match.game);
   expect(frames.every((frame) => !("repetitions" in frame.game))).toBe(true);
 });

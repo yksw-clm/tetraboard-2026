@@ -1,7 +1,8 @@
+import { AppRadio } from "../../shared/ui/AppRadio";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { useAccount } from "../account/useAccount";
-import { Label, Radio, RadioGroup } from "@heroui/react";
+import { Label, RadioGroup } from "@heroui/react";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { roomTimeControl, type RoomMode } from "@tetraboard/protocol";
@@ -117,17 +118,17 @@ export function RoomEntryDialog({
               <Label>対局モード</Label>
               <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
                 {(["singles", "doubles"] as const).map((option) => (
-                  <Radio key={option} value={option}>
-                    <Radio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
-                      <Radio.Control className="shrink-0 border border-solid border-input">
-                        <Radio.Indicator />
-                      </Radio.Control>
+                  <AppRadio key={option} value={option}>
+                    <AppRadio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
+                      <AppRadio.Control>
+                        <AppRadio.Indicator />
+                      </AppRadio.Control>
                       <span>
                         <strong>{option === "singles" ? "シングルス" : "ダブルス"}</strong>
                         <small>{option === "singles" ? "4人で個人戦" : "2対2のチーム戦"}</small>
                       </span>
-                    </Radio.Content>
-                  </Radio>
+                    </AppRadio.Content>
+                  </AppRadio>
                 ))}
               </div>
             </RadioGroup>
