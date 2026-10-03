@@ -19,6 +19,9 @@ import { AppIcon, type AppIconName } from "../../shared/ui/AppIcon";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import type { RegistrationEntryDraft } from "../account/registrationReturn";
+import { FeedbackEntry } from "../feedback/FeedbackEntry";
+import { Link } from "react-router";
+import { sortedUpdates } from "../updates/updates";
 
 type Props = {
   registrationDraft?: RegistrationEntryDraft;
@@ -244,7 +247,23 @@ export function LobbyView(props: Props) {
             {order.map((section) => sections[section])}
           </div>
           <footer className="mt-0 pt-[14px] pb-5 border-t border-solid border-lobby-footer-line text-muted text-xs text-center">
-            TetraBoard
+            <div className="flex flex-wrap justify-center items-center gap-3">
+              <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />
+              <Link
+                to="/updates"
+                className="inline-flex min-h-11 items-center text-brand underline"
+              >
+                改善のお知らせ
+              </Link>
+            </div>
+            {sortedUpdates()[0] && (
+              <p className="mt-2">
+                <Link to="/updates" className="text-brand underline">
+                  最新：{sortedUpdates()[0]!.title}
+                </Link>
+              </p>
+            )}
+            <p className="mt-3">TetraBoard</p>
           </footer>
         </main>
       </div>

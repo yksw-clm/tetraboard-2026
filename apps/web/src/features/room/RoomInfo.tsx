@@ -20,6 +20,8 @@ export function RoomInfo({
   onAddCpu,
   cpuAddButtonRef,
   canAddCpu,
+  onFeedback,
+  feedbackButtonRef,
 }: {
   session: ReturnType<typeof useRoomTransport>;
   onLeave: () => void;
@@ -27,11 +29,16 @@ export function RoomInfo({
   onAddCpu: (level: CpuLevel) => void;
   cpuAddButtonRef: RefObject<HTMLButtonElement | null>;
   canAddCpu: boolean;
+  onFeedback: () => void;
+  feedbackButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { room, membership, canManageSettings } = session;
   const account = useAccount();
   return (
     <RoomInfoCard roomId={room.id} settings={room.settings}>
+      <AppButton appearance="quiet" size="compact" onPress={onFeedback} ref={feedbackButtonRef}>
+        不具合・ご意見
+      </AppButton>
       <AppButton size="compact" className="w-full" onPress={onCopyInvite} appearance="secondary">
         <AppIcon name="copy" />
         招待リンクをコピー

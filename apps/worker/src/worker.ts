@@ -10,6 +10,8 @@ import { rankingRoutes } from "./rooms/rankingRoutes";
 import { Hono } from "hono";
 import { roomRoutes } from "./rooms/roomRoutes";
 import { deleteExpiredReports } from "./rooms/reportStore";
+import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
+import { cleanupFeedback } from "./feedback/store";
 
 export { GameRoom } from "./rooms/gameRoom";
 
@@ -22,6 +24,8 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 });
 
 api.route("/", adminRoutes);
+api.route("/", feedbackAdminRoutes);
+api.route("/", feedbackRoutes);
 api.route("/", analyticsRoutes);
 api.route("/", matchRoutes);
 api.route("/", statsRoutes);
@@ -86,6 +90,7 @@ export default {
     return app.fetch(request, env, context);
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await cleanupFeedback(env);
     await deleteExpiredReports(env.APP_DB);
     await recoverAccountReservations(env);
     await deleteUnusedAvatars(env);
