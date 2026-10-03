@@ -103,9 +103,9 @@ describe("四人将棋の直前局棋譜", () => {
     expect(frames.map((frame) => frame.label)).toEqual([
       "開始局面",
       "1: 南E6歩",
-      "西 時間切れ / 脱落：西4位（時間切れ）",
-      "北 通信切れ / 脱落：北3位（通信切れ）",
-      "東 退室 / 脱落：東2位（退室）",
+      "西 時間切れ",
+      "北 通信切れ",
+      "東 退室",
     ]);
     expect(frames[0].game.board[6][4]?.kind).toBe("pawn");
     expect(frames[1].game.board[6][4]).toBeNull();
@@ -206,7 +206,7 @@ function tactical(
   return { ...state, board, nextPieceId: id, repetitions: {} };
 }
 
-test("一手で発生した同時詰みを同じ棋譜項目にまとめ、次の外部脱落へ持ち越さない", () => {
+test("同時詰みの局面を保持し、ラベルは着手と次の外部脱落だけを表示する", () => {
   const state = tactical([
     { side: "south", kind: "rook", x: 4, y: 1 },
     { side: "south", kind: "gold", x: 1, y: 2 },
@@ -224,8 +224,8 @@ test("一手で発生した同時詰みを同じ棋譜項目にまとめ、次�
   };
   const result = applyAction(state, event.side, event.action);
   if (!result.ok) throw new Error("Fixed simultaneous mate must be legal");
-  const frame = createFourShogiReplayFrame(result.state, event, result.eliminations);
-  expect(frame.label).toBe("1: 南E1飛 / 同時脱落：西3位（詰み）・北3位（詰み）");
+  const frame = createFourShogiReplayFrame(result.state, event);
+  expect(frame.label).toBe("1: 南E1飛");
   expect(frame.game.eliminations).toMatchObject([
     { side: "west", group: 1 },
     { side: "north", group: 1 },
@@ -233,12 +233,10 @@ test("一手で発生した同時詰みを同じ棋譜項目にまとめ、次�
   const leave = { type: "eliminate" as const, side: "east" as const, reason: "left" as const };
   const final = eliminateSide(result.state, leave.side, leave.reason);
   if (!final.ok) throw new Error("Fixed departure must be legal");
-  expect(createFourShogiReplayFrame(final.state, leave, final.eliminations).label).toBe(
-    "東 退室 / 脱落：東2位（退室）",
-  );
+  expect(createFourShogiReplayFrame(final.state, leave).label).toBe("東 退室");
 });
 
-test("王手なしの合法手0件による自動脱落も理由と確定順位を棋譜に表示する", () => {
+test("合法手0件による脱落を局面に保持し、ラベルには着手だけを表示する", () => {
   const state = tactical([
     { side: "south", kind: "gold", x: 1, y: 2 },
     { side: "south", kind: "gold", x: 2, y: 1 },
@@ -256,7 +254,9 @@ test("王手なしの合法手0件による自動脱落も理由と確定順位�
   };
   const result = applyAction(state, event.side, event.action);
   if (!result.ok) throw new Error("Fixed immobilization must be legal");
-  expect(createFourShogiReplayFrame(result.state, event, result.eliminations).label).toBe(
-    "1: 南F5歩 / 脱落：西4位（合法手なし）",
+  const frame = createFourShogiReplayFrame(result.state, event);
+  expect(frame.label).toBe("1: 南F5歩");
+  expect(frame.game.eliminations).toContainEqual(
+    expect.objectContaining({ side: "west", reason: "no_legal_actions", rank: 4 }),
   );
 });

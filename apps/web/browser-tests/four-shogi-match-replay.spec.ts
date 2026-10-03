@@ -1,3 +1,4 @@
+import { expectReplaySelectFits } from "./replaySelectAssertions";
 import { expect, test, type Page } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
 import { shogiReplayMatch } from "./fourShogiRecordFixtures";
@@ -9,6 +10,7 @@ async function chooseGame(page: Page, label: string, name: string) {
 }
 async function selectFrame(page: Page, label: string) {
   await page.getByRole("button", { name: /棋譜の局面$/ }).click();
+  await expectReplaySelectFits(page);
   await page.getByRole("option", { name: new RegExp(`${label}$`) }).click();
 }
 async function setup(page: Page, fixture = shogiReplayMatch()) {
@@ -96,7 +98,7 @@ for (const width of [320, 390, 768, 1279, 1280, 1440]) {
       "data-last-move",
       "to",
     );
-    await selectFrame(page, "西 退室 / 脱落：西4位（退室）");
+    await selectFrame(page, "西 退室");
     await expect(board.getByRole("button", { name: /裏王/ })).toHaveCount(1);
     await expect(page.getByText("4位（退室）", { exact: true })).toBeVisible();
     await expect(page.getByText("3位（時間切れ）", { exact: true })).toHaveCount(0);

@@ -48,7 +48,7 @@ export async function fetchFourShogiMatchReplay(
           : eliminateSide(state, event.side, event.reason);
       if (!result.ok) throw new Error("Saved replay event is invalid");
       state = result.state;
-      frames.push(createFourShogiReplayFrame(state, event, result.eliminations));
+      frames.push(createFourShogiReplayFrame(state, event));
       cursor++;
     }
     if (page.nextCursor === null) break;

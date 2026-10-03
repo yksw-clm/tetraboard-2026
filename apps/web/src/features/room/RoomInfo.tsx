@@ -1,8 +1,9 @@
+import { AppRadio } from "../../shared/ui/AppRadio";
 import { type ReactNode, type RefObject } from "react";
 import { type Room, type CpuLevel } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
-import { Accordion, Chip, Label, Radio, RadioGroup } from "@heroui/react";
+import { Accordion, Chip, Label, RadioGroup } from "@heroui/react";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
 import { AppIcon } from "../../shared/ui/AppIcon";
@@ -59,14 +60,14 @@ export function RoomInfo({
                   <Label>対局形式</Label>
                   <div className="flex gap-4 mt-1 mb-2 [&_.radio]:text-xs [&_.radio]:flex [&_.radio]:flex-row [&_.radio]:items-center [&_.radio]:gap-[6px]">
                     {(["singles", "doubles"] as const).map((mode) => (
-                      <Radio key={mode} value={mode}>
-                        <Radio.Control>
-                          <Radio.Indicator />
-                        </Radio.Control>
-                        <Radio.Content>
+                      <AppRadio key={mode} value={mode}>
+                        <AppRadio.Content className="flex items-center gap-[6px]">
+                          <AppRadio.Control>
+                            <AppRadio.Indicator />
+                          </AppRadio.Control>
                           {mode === "singles" ? "シングルス" : "ダブルス"}
-                        </Radio.Content>
-                      </Radio>
+                        </AppRadio.Content>
+                      </AppRadio>
                     ))}
                   </div>
                 </RadioGroup>

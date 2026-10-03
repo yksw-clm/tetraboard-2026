@@ -4,7 +4,6 @@ import {
   eliminateSide,
   getCheckState,
   sides,
-  type Elimination,
   type FourShogiState,
 } from "@tetraboard/four-shogi";
 import {
@@ -26,26 +25,9 @@ export type FourShogiReplayFrame = {
 export function createFourShogiReplayFrame(
   state: FourShogiState,
   event?: FourShogiReplayEvent,
-  eliminations: readonly Elimination[] = [],
 ): FourShogiReplayFrame {
   const { repetitions: _repetitions, ...game } = state;
-  const groups = new Map<number, Elimination[]>();
-  for (const entry of eliminations) {
-    const group = groups.get(entry.group) ?? [];
-    group.push(entry);
-    groups.set(entry.group, group);
-  }
-  // 一つの着手で自動確定した脱落も、同時処理群を保って同じ棋譜項目に表示します。
-  const departures = [...groups.values()].map(
-    (group) =>
-      `${group.length > 1 ? "同時脱落" : "脱落"}：${group
-        .map(
-          (entry) =>
-            `${shogiSideNames[entry.side]}${entry.rank === null ? "" : `${entry.rank}位`}（${shogiEliminationLabels[entry.reason]}）`,
-        )
-        .join("・")}`,
-  );
-  const label = [event ? replayLabel(event, state) : "開始局面", ...departures].join(" / ");
+  const label = event ? replayLabel(event, state) : "開始局面";
   return { label, game: fourShogiPublicStateSchema.parse(game), checkState: getCheckState(state) };
 }
 
@@ -137,7 +119,7 @@ export async function fetchFourShogiReplay({
           : eliminateSide(state, event.side, event.reason);
       if (!result.ok) throw new Error("Replay event is invalid");
       state = result.state;
-      frames.push(createFourShogiReplayFrame(state, event, result.eliminations));
+      frames.push(createFourShogiReplayFrame(state, event));
       cursor++;
     }
     if (page.nextCursor === null) break;

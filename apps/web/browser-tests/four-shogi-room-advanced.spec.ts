@@ -1,3 +1,4 @@
+import { expectReplaySelectFits } from "./replaySelectAssertions";
 import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
 import {
   applyAction,
@@ -336,6 +337,7 @@ test("100件ずつ取得する直前棋譜を最終局面から開始局面ま�
   expect(cursors[0]).toBeNull();
   expect(cursors.filter((cursor) => cursor !== null)).toEqual(["100"]);
   await page.getByRole("button", { name: "棋譜の局面" }).click();
+  await expectReplaySelectFits(page);
   await expect(page.getByRole("option")).toHaveCount(104);
   await page.getByRole("option", { name: "開始局面", exact: true }).click();
   await expect(previous).toBeDisabled();

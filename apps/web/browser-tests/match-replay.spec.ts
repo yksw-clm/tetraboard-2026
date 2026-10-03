@@ -1,3 +1,4 @@
+import { expectReplaySelectFits } from "./replaySelectAssertions";
 import { expect, test, type Page } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
 import { replayMatch } from "./matchReplayFixtures";
@@ -39,6 +40,7 @@ async function mockReplay(page: Page, match = replayMatch()) {
 const board = (page: Page) => page.getByRole("group", { name: "四人リバーシの盤面" });
 async function selectFrame(page: Page, label: string) {
   await page.getByRole("button", { name: "棋譜の局面" }).click();
+  await expectReplaySelectFits(page);
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 

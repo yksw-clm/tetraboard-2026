@@ -141,13 +141,13 @@ export function RoomViewShell({
 
   return (
     <main
-      className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal`}
+      className={`app-theme ${appThemeClasses[theme]} room-background relative flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal`}
       ref={fallbackFocusRef}
       tabIndex={-1}
     >
       {(connectionNotice || session.socketError) && (
         <div
-          className="shrink-0 py-[7px] px-4 bg-[#fff4dc] text-[#755b21] text-xs text-center"
+          className="absolute top-[calc(env(safe-area-inset-top)_+_8px)] left-1/2 -translate-x-1/2 z-10 pointer-events-none w-max max-w-[min(480px,calc(100%_-_16px))] rounded-lg py-[7px] px-4 bg-[#fff4dc] text-[#755b21] text-xs text-center break-words"
           role="status"
         >
           {connectionNotice}
