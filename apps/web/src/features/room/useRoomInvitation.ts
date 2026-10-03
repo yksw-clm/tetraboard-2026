@@ -1,6 +1,6 @@
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { type Room, type RoomMembership } from "@tetraboard/protocol";
 import {
@@ -24,9 +24,25 @@ export function useRoomInvitation(
 ) {
   const navigate = useNavigate();
   const account = useAccount();
-  const [dialog, setDialog] = useState<"join" | "copy" | null>(() =>
-    invited && membership === null && joinUnavailableReason(room) === null ? "join" : null,
-  );
+  const storageKey = `tetraboard:room:${room.id}:${room.instanceId}:invitation-shown`;
+  const [autoJoin] = useState(() => {
+    if (!invited || membership !== null || joinUnavailableReason(room) !== null) return false;
+    try {
+      return sessionStorage.getItem(storageKey) !== "1";
+    } catch {
+      return true;
+    }
+  });
+  const [dialog, setDialog] = useState<"join" | "copy" | null>(autoJoin ? "join" : null);
+  useEffect(() => {
+    if (!autoJoin) return;
+    // 初期化中には書き込まず、自動表示が描画された後に同じタブの履歴へ記録します。
+    try {
+      sessionStorage.setItem(storageKey, "1");
+    } catch {
+      // 保存領域が利用できない場合も、ダイアログを閉じて観戦できます。
+    }
+  }, [autoJoin, storageKey]);
   const [name, setName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
