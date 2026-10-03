@@ -10,6 +10,11 @@ export function matchOutcomesCte(personal: boolean): string {
          AND json_extract(p.value, '$.accountId') = h.account_id) AS direction
     FROM account_match_history h JOIN matches m ON m.id = h.match_id
     WHERE h.game = ? AND m.game = h.game ${personal ? "AND h.account_id = ?" : ""}
+      AND json_array_length(m.record_json, '$.participants') = 4
+      AND NOT EXISTS (
+        SELECT 1 FROM json_each(m.record_json, '$.participants') participant
+        WHERE json_extract(participant.value, '$.kind') IS NOT 'human'
+      )
   ), outcomes AS (
     SELECT account_id, mode,
       (SELECT json_extract(s.value, '$.rank')

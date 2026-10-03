@@ -3,7 +3,7 @@ import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import { getFourReversiRankingsContract } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
 import {
-  fixtureRecord,
+  humanFixtureRecord as fixtureRecord,
   matchClients,
   matchLeave,
   matchRequest,
@@ -48,7 +48,7 @@ test("匿名で両モードの空ランキングを取得できる", async () =>
   expect(response.status).toBe(200);
 });
 
-test("CPU戦・全色・同率優勝を集計し、0回・ゲスト・CPU・未設定プロフィールを掲載しない", async () => {
+test("対人戦・全色・同率優勝を集計し、0回・ゲスト・未設定プロフィールを掲載しない", async () => {
   const black = await accountFixture();
   const white = await accountFixture();
   const loser = await accountFixture();

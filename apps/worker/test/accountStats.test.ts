@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { getAccountStatsContract, type AccountStats } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
 import {
-  fixtureRecord,
+  humanFixtureRecord as fixtureRecord,
   matchClients,
   matchLeave,
   matchRequest,

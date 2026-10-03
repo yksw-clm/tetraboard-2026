@@ -17,6 +17,7 @@ export function AccountLayout() {
   }, []);
   const refresh = useCallback(async () => {
     const current = ++version.current;
+    setState((previous) => ({ ...previous, loading: true, error: null }));
     try {
       const user = await readAccount();
       if (current === version.current) setState({ user, loading: false, error: null });

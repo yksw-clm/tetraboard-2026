@@ -47,6 +47,7 @@ export function AccountStats() {
           更新
         </AppButton>
       </div>
+      <p className="text-xs text-muted">対人戦のみ集計</p>
       <GameSelect label="戦績のゲーム" game={game} onChange={setGame} />
       <AppTabs selectedKey={mode} onSelectionChange={(key) => setMode(key as RoomMode)}>
         <AppTabs.List aria-label="戦績の対局モード">
