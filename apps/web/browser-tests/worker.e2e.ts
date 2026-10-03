@@ -267,10 +267,12 @@ for (const game of ["four-reversi", "four-shogi"]) {
       await page.getByRole("button", { name: "退室", exact: true }).click();
       await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
       await expect(page).toHaveURL(new RegExp("/games/" + game + "$"));
+      expect((await page.request.get("/api" + new URL(roomURL).pathname)).status()).toBe(404);
+      // Linux WebKit suspends background pages; resume the observer before checking its notification.
+      await observer.bringToFront();
       await expect(observer.getByRole("alert")).toHaveText(
         "ルームは閉鎖されています。ロビーへ戻ってください。",
       );
-      expect((await page.request.get("/api" + new URL(roomURL).pathname)).status()).toBe(404);
       await observer.getByRole("link", { name: "ロビーへ戻る", exact: true }).click();
       await expect(observer).toHaveURL(new RegExp("/games/" + game + "$"));
     } finally {
