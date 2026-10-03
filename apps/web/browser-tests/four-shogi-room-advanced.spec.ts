@@ -151,7 +151,7 @@ test("三人攻撃ONは三人目の捕獲候補を除外し、OFFでは同じ駒
   await expect(target).toBeEnabled();
   await target.click();
   await page
-    .getByRole("dialog", { name: "成りますか？" })
+    .getByRole("group", { name: "成りの選択" })
     .getByRole("button", { name: "成らない", exact: true })
     .click();
   await expect.poll(() => gameActions(fixture.received)).toHaveLength(1);
@@ -260,7 +260,7 @@ test("選択中とドラッグ中のrevision更新は選択・候補・ghostを�
   await expect(source).toHaveAttribute("aria-pressed", "false");
   await page.mouse.up();
   await expect(source).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByRole("dialog", { name: "成りますか？" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "成りの選択" })).toHaveCount(0);
   expect(gameActions(fixture.received)).toHaveLength(0);
   await source.click();
   await target.click();
