@@ -1,3 +1,4 @@
+import { boardPositionForDisplay, type QuarterTurn } from "./boardRotation";
 import { Stone } from "./Stone";
 import { Button } from "@heroui/react";
 import { type FourReversiState, type Position } from "@tetraboard/four-reversi";
@@ -8,7 +9,9 @@ export function FourReversiBoard({
   legalMoves,
   canPlay,
   onPlaceStone,
+  rotation = 0,
 }: {
+  rotation?: QuarterTurn;
   game: FourReversiState;
   legalMoves: Position[];
   canPlay: boolean;
@@ -20,8 +23,10 @@ export function FourReversiBoard({
       role="group"
       aria-label="四人リバーシの盤面"
     >
-      {game.board.flatMap((row, y) =>
-        row.map((cell, x) => {
+      {Array.from({ length: 8 }, (_, displayY) =>
+        Array.from({ length: 8 }, (_, displayX) => {
+          const { x, y } = boardPositionForDisplay({ x: displayX, y: displayY }, 8, rotation);
+          const cell = game.board[y][x];
           const legal = canPlay && legalMoves.some((move) => move.x === x && move.y === y);
           const lastMove = game.lastMove?.x === x && game.lastMove?.y === y;
           return (

@@ -1,3 +1,5 @@
+import { useBoardRotation } from "./useBoardRotation";
+import { rotatedSeatIndex } from "./boardRotation";
 import { FourReversiBoard } from "./FourReversiBoard";
 import { GameResultView } from "./GameResultView";
 import { RoomBoardLayout } from "./RoomLayout";
@@ -19,6 +21,8 @@ export function RoomView({
   invited: boolean;
 }) {
   const { room, membership, presence } = session;
+  const { rotation, rotate } = useBoardRotation();
+  const viewerRotation = membership === null ? rotation : 0;
   const replay = useRoomReplay(room);
   const replayCard = replay.frame ? <ReplayCard replay={replay} /> : null;
   const hasPassNotice = room.status === "playing" && room.game.consecutivePasses.length > 0;
@@ -27,7 +31,7 @@ export function RoomView({
       {orderedSeats(room, membership?.playerId).map((player, index) => (
         <PlayerCard
           key={seatPositions[index]}
-          position={seatPositions[index]}
+          position={seatPositions[rotatedSeatIndex(index, viewerRotation)]}
           player={player}
           room={room}
           self={!!player && player.id === membership?.playerId}
@@ -37,6 +41,7 @@ export function RoomView({
         />
       ))}
       <FourReversiBoard
+        rotation={viewerRotation}
         game={replay.frame?.game ?? session.displayGame}
         legalMoves={session.legalMoves}
         canPlay={session.canPlay}
@@ -55,6 +60,7 @@ export function RoomView({
   return (
     <RoomViewShell
       session={session}
+      onRotate={rotate}
       chat={chat}
       invited={invited}
       board={board}

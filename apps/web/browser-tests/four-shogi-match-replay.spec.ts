@@ -106,7 +106,7 @@ for (const width of [320, 390, 768, 1279, 1280, 1440]) {
       await expect(page.getByRole("tab", { name: "チャット", exact: true })).toHaveCount(0);
       await page.getByRole("tab", { name: "ルーム", exact: true }).click();
     }
-    await expect(page.getByText("棋譜を閲覧中です。", { exact: true })).toBeVisible();
+    await expect(page.getByText("棋譜閲覧中", { exact: true })).toBeVisible();
     for (const name of [
       "準備完了",
       "対局開始",

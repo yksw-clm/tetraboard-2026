@@ -1,3 +1,5 @@
+import { useBoardRotation } from "./useBoardRotation";
+import { rotatedShogiViewer } from "./boardRotation";
 import { sides, type Side } from "@tetraboard/four-shogi";
 import { type ReactNode } from "react";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -21,8 +23,13 @@ export function FourShogiRoomView({
   invited: boolean;
 }) {
   const { room, membership, presence } = session;
+  const { rotation, rotate } = useBoardRotation();
+  const viewerRotation = membership === null ? rotation : 0;
   const replay = useFourShogiRoomReplay(room);
-  const viewerSide = shogiViewerSide(room, membership?.playerId);
+  const viewerSide = rotatedShogiViewer(
+    shogiViewerSide(room, membership?.playerId),
+    viewerRotation,
+  );
   const seats = shogiRoomSeats(room, membership?.playerId);
   const playerCards = Object.fromEntries(
     sides.map((side) => {
@@ -74,6 +81,7 @@ export function FourShogiRoomView({
   return (
     <RoomViewShell
       session={session}
+      onRotate={rotate}
       chat={chat}
       invited={invited}
       board={board}

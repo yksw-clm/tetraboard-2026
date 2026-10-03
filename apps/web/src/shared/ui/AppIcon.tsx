@@ -8,6 +8,7 @@ const paths = {
   arrow: "M5 12h14m-6-6 6 6-6 6",
   plus: "M12 5v14M5 12h14",
   join: "M14 4h5v16h-5M3 12h11m-4-4 4 4-4 4",
+  rotateClockwise: "M20 7v5h-5M20 12a8 8 0 1 0-2.3 5.7",
   refresh: "M20 7v5h-5M4 17v-5h5m-4.4-4A8 8 0 0 1 18 6l2 2M4 16l2 2a8 8 0 0 0 13.4-2",
   help: "M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-1.1.8-1.7 1.2-1.7 2.7M12 17h.01",
   close: "m6 6 12 12M6 18 18 6",
