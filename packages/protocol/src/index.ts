@@ -137,3 +137,4 @@ export {
   fourShogiReplayInitialSchema,
   fourShogiEliminationSchema,
 } from "./fourShogi";
+export * from "./admin";

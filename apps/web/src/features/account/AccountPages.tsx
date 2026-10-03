@@ -1,6 +1,6 @@
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -65,6 +65,13 @@ export function LoginPage() {
   const [params] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const adminDestination = params.get("destination") === "admin";
+  useEffect(() => {
+    if (!loading && !error && user && adminDestination) window.location.replace("/admin");
+  }, [loading, error, user, adminDestination]);
+  if (!loading && !error && user && adminDestination) {
+    return <p role="status">管理画面へ移動しています…</p>;
+  }
   if (!loading && !error && user)
     return <Navigate to={user.profileCompleted ? "/account" : "/account/setup"} replace />;
   async function login() {
@@ -75,7 +82,7 @@ export function LoginPage() {
       const result = (await accountRequest("/api/auth/sign-in/social", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(params.get("destination") === "admin" ? { destination: "admin" } : {}),
       })) as { url?: string };
       if (!result.url || new URL(result.url).origin !== "https://accounts.google.com")
         throw new Error("Googleログインを開始できませんでした。");

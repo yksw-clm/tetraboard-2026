@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["vite/client", "node"],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["src", "browser-tests", "*.config.ts"]
+}

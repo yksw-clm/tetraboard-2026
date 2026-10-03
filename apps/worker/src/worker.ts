@@ -1,3 +1,6 @@
+import { adminRoutes } from "./admin/routes";
+import { adminIdentity, type AdminEnv } from "./admin/auth";
+import { analyticsRoutes } from "./analytics/routes";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { recoverAccountReservations } from "./accounts/roomAccounts";
@@ -18,6 +21,8 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
   return context.json(response);
 });
 
+api.route("/", adminRoutes);
+api.route("/", analyticsRoutes);
 api.route("/", matchRoutes);
 api.route("/", statsRoutes);
 api.route("/", rankingRoutes);
@@ -39,6 +44,39 @@ export default {
       return Response.redirect(`${env.APP_ORIGIN}${url.pathname}${url.search}`, 308);
     // 画面・画像はアセットへ渡し、APIだけをHonoで処理します。
     if (env.ASSETS && url.pathname !== "/api" && !url.pathname.startsWith("/api/")) {
+      let assetPath: string;
+      try {
+        const decoded = decodeURIComponent(url.pathname)
+          .replace(/\\/g, "/")
+          .replace(/\/{2,}/g, "/");
+        assetPath = new URL(decoded, "https://assets.invalid").pathname;
+      } catch {
+        return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
+      }
+      if (assetPath === "/admin" || assetPath.startsWith("/admin/")) {
+        const identity = await adminIdentity(request, env as AdminEnv);
+        if (identity.status === 401)
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: `${env.APP_ORIGIN}/login?destination=admin`,
+              "Cache-Control": "no-store",
+            },
+          });
+        if (identity.status !== 200)
+          return new Response(identity.message, {
+            status: identity.status,
+            headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" },
+          });
+        const assetUrl = new URL(request.url);
+        assetUrl.pathname = assetPath.startsWith("/admin/assets/")
+          ? assetPath
+          : "/admin/index.html";
+        const asset = await env.ASSETS.fetch(new Request(assetUrl, request));
+        const headers = new Headers(asset.headers);
+        headers.set("Cache-Control", "no-store");
+        return new Response(asset.body, { status: asset.status, headers });
+      }
       if (url.pathname === "/profile")
         return Response.redirect(new URL("/account", request.url).toString(), 302);
       if (/^\/games\/game-[^/]+$/.test(url.pathname) || url.pathname === "/guest/name")

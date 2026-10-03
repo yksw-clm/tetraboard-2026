@@ -35,6 +35,14 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     return c.json(error("操作元を確認できません。ページを開き直してください。"), 403);
   if (path === "/auth/sign-in/social" && (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET))
     return c.json(error("Googleログインは準備中です。"), 503);
+  let adminLogin = false;
+  if (path === "/auth/sign-in/social") {
+    try {
+      adminLogin = (await c.req.json()).destination === "admin";
+    } catch {
+      /* 既存の空入力も受け付けます。 */
+    }
+  }
   // 遷移先とプロバイダーはサーバーで固定し、汎用プロフィール更新APIを公開しません。
   return createAuth(c.env).handler(
     new Request(`${c.env.APP_ORIGIN}/api${path}`, {
@@ -45,9 +53,11 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
           ? {}
           : {
               provider: "google",
-              callbackURL: "/account",
-              newUserCallbackURL: "/account/setup",
-              errorCallbackURL: "/login?error=oauth",
+              callbackURL: adminLogin ? "/admin" : "/account",
+              newUserCallbackURL: adminLogin ? "/admin" : "/account/setup",
+              errorCallbackURL: adminLogin
+                ? "/login?error=oauth&destination=admin"
+                : "/login?error=oauth",
             },
       ),
     }),

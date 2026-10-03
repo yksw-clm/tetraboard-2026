@@ -22,13 +22,13 @@ jobs:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
       - run: bun run check
-      - run: bun run --cwd apps/web build
+      - run: bun run build
       - run: bun run --cwd apps/worker deploy:dry-run
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           name: web-${{ github.sha }}
-          path: apps/web/dist
+          path: apps/worker/dist/assets
           if-no-files-found: error
           retention-days: 7
 
@@ -70,8 +70,33 @@ jobs:
             apps/web/test-results-worker
           retention-days: 7
 
+  admin-browser:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: apt-get update && apt-get install -y --no-install-recommends unzip
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd apps/admin test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-browser-${{ github.sha }}
+          path: |
+            apps/admin/playwright-report
+            apps/admin/test-results
+          retention-days: 7
+
   deploy:
-    needs: [checks, browser]
+    needs: [checks, browser, admin-browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
@@ -91,7 +116,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: web-${{ github.sha }}
-          path: apps/web/dist
+          path: apps/worker/dist/assets
       - name: Check main before migrations
         id: current
         env:
