@@ -32,6 +32,27 @@ async function expectSelectedGame(page: Page, name: string) {
   await expect(navigation.locator('[aria-current="page"]')).toHaveCount(1);
 }
 
+async function expectLobbySectionOrder(page: Page, width: number) {
+  await expect
+    .poll(() =>
+      page
+        .locator("main")
+        .getByRole("region")
+        .evaluateAll((sections) =>
+          sections.map(
+            (section) =>
+              section.getAttribute("aria-label") ??
+              document.getElementById(section.getAttribute("aria-labelledby") ?? "")?.textContent,
+          ),
+        ),
+    )
+    .toEqual(
+      width <= 767
+        ? ["対局を始める", "公開ルーム", "ランキング"]
+        : ["対局を始める", "ランキング", "公開ルーム"],
+    );
+}
+
 test("ゲーム切り替えはURL・履歴と一致し、将棋からリバーシの部屋やランキングを取得しない", async ({
   page,
   browserName,
@@ -110,6 +131,8 @@ test("将棋の初期盤面図はタイトル左に表示し、幅を変えて�
   ).toBe(0);
   for (const width of [320, 390, 767, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
+    // CSSの幅変更だけでは盤面図の再描画前に進むため、DOMの並べ替えも待ちます。
+    await expectLobbySectionOrder(page, width);
     await expect(preview).toBeVisible();
     const boardWidth = width <= 767 ? 56 : 88;
     await expect(preview).toHaveCSS("width", `${boardWidth}px`);
@@ -402,25 +425,7 @@ test("両ゲームの切り替えはスマートフォンでも2項目が収ま�
       const play = page.getByRole("region", { name: "対局を始める", exact: true });
       const rankings = page.getByRole("region", { name: "ランキング", exact: true });
       const rooms = page.getByRole("region", { name: "公開ルーム", exact: true });
-      await expect
-        .poll(() =>
-          page
-            .locator("main")
-            .getByRole("region")
-            .evaluateAll((sections) =>
-              sections.map(
-                (section) =>
-                  section.getAttribute("aria-label") ??
-                  document.getElementById(section.getAttribute("aria-labelledby") ?? "")
-                    ?.textContent,
-              ),
-            ),
-        )
-        .toEqual(
-          width <= 767
-            ? ["対局を始める", "公開ルーム", "ランキング"]
-            : ["対局を始める", "ランキング", "公開ルーム"],
-        );
+      await expectLobbySectionOrder(page, width);
       const [playBox, rankingsBox, roomsBox] = await Promise.all([
         play.boundingBox(),
         rankings.boundingBox(),
