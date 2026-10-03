@@ -262,16 +262,23 @@ for (const game of ["four-reversi", "four-shogi"]) {
         )
         .toBe("playing");
       const observer = await context.newPage();
+      const connected = observer.waitForEvent("websocket");
       await observer.goto(roomURL);
+      const socket = await connected;
       await expect(observer.getByText("観戦中です", { exact: true })).toBeVisible();
       await page.getByRole("textbox", { name: "メッセージ" }).fill("観戦接続の確認");
       await page.getByRole("button", { name: "送信", exact: true }).click();
       await expect(observer.getByRole("list", { name: "チャット履歴" })).toContainText(
         "観戦接続の確認",
       );
-      await page.getByRole("button", { name: "退室", exact: true }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
-      await observer.bringToFront();
+      await Promise.all([
+        socket.waitForEvent("close", { timeout: 35_000 }),
+        (async () => {
+          await page.getByRole("button", { name: "退室", exact: true }).click();
+          await page.getByRole("dialog").getByRole("button", { name: "退室する" }).click();
+          await observer.bringToFront();
+        })(),
+      ]);
       await expect(page).toHaveURL(new RegExp("/games/" + game + "$"));
       expect((await page.request.get("/api" + new URL(roomURL).pathname)).status()).toBe(404);
       await expect(observer.getByRole("alert")).toHaveText(
