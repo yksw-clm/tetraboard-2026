@@ -26,6 +26,7 @@ export function RoomViewShell({
   replayCard,
   result,
   selfEliminated,
+  onRotate,
 }: {
   session: ReturnType<typeof useRoomTransport> & {
     canPlay: boolean;
@@ -37,6 +38,7 @@ export function RoomViewShell({
   replayCard: ReactNode;
   result: ReactNode;
   selfEliminated: boolean;
+  onRotate: () => void;
 }) {
   const desktop = useRoomDesktop();
   const account = useAccount();
@@ -126,6 +128,7 @@ export function RoomViewShell({
   const status = (
     <RoomStatus
       session={session}
+      onRotate={onRotate}
       replay={desktop ? undefined : replayCard}
       onJoin={invitation.openJoin}
       joinButtonRef={joinButtonRef}

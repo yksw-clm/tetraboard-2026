@@ -1,3 +1,6 @@
+import { ViewerControls } from "./ViewerControls";
+import { useBoardRotation } from "./useBoardRotation";
+import { rotatedSeatIndex, rotatedShogiViewer } from "./boardRotation";
 import { useRoomDesktop } from "./useRoomDesktop";
 import {
   isFourShogiMatch,
@@ -43,6 +46,7 @@ export function MatchReplayPage() {
 }
 
 function FourReversiMatchReplayView({ match }: { match: FourReversiMatchDetail }) {
+  const { rotation, rotate } = useBoardRotation();
   const lastRound = { game: match.game, players: match.participants, replay: match.replay };
   const replay = useRoundReplay(lastRound);
   const game = replay.frame?.game ?? match.game;
@@ -52,19 +56,26 @@ function FourReversiMatchReplayView({ match }: { match: FourReversiMatchDetail }
         <PlayerCard
           key={player.id}
           player={player}
-          position={seatPositions[index]}
+          position={seatPositions[rotatedSeatIndex(index, rotation)]}
           self={player.id === match.selfPlayerId}
           host={player.seat === 0}
           replay={{ game, eliminations: match.eliminations }}
         />
       ))}
-      <FourReversiBoard game={game} legalMoves={[]} canPlay={false} onPlaceStone={() => {}} />
+      <FourReversiBoard
+        rotation={rotation}
+        game={game}
+        legalMoves={[]}
+        canPlay={false}
+        onPlaceStone={() => {}}
+      />
     </RoomBoardLayout>
   );
   return (
     <SavedMatchReplayView
       match={match}
       board={board}
+      onRotate={rotate}
       replay={replay}
       result={<GameResultView lastRound={lastRound} />}
     />
@@ -78,9 +89,13 @@ function FourShogiMatchReplayView({
   match: FourShogiMatchDetail;
   frames: FourShogiReplayFrame[];
 }) {
+  const { rotation, rotate } = useBoardRotation();
   const [index, setIndex] = useState(frames.length - 1);
   const frame = frames[index]!;
-  const viewerSide = match.participants.find((player) => player.id === match.selfPlayerId)!.side;
+  const viewerSide = rotatedShogiViewer(
+    match.participants.find((player) => player.id === match.selfPlayerId)!.side,
+    rotation,
+  );
   const cards = Object.fromEntries(
     sides.map((side) => {
       const player = match.participants.find((entry) => entry.side === side)!;
@@ -136,6 +151,7 @@ function FourShogiMatchReplayView({
     <SavedMatchReplayView
       match={match}
       board={board}
+      onRotate={rotate}
       replay={replay}
       theme="four-shogi"
       result={<FourShogiGameResultView lastRound={lastRound} />}
@@ -149,12 +165,14 @@ function SavedMatchReplayView({
   replay,
   result,
   theme = "default",
+  onRotate,
 }: {
   match: MatchDetail;
   board: ReactNode;
   replay: { frames: readonly { label: string }[]; index: number; select: (index: number) => void };
   result: ReactNode;
   theme?: AppTheme;
+  onRotate: () => void;
 }) {
   const desktop = useRoomDesktop();
   const location = useLocation();
@@ -163,7 +181,6 @@ function SavedMatchReplayView({
   const replayCard = <ReplayCard replay={replay} theme={theme} />;
   const info = (
     <RoomInfoCard roomId={match.roomId} settings={match.settings}>
-      <p className="text-muted text-xs">棋譜を閲覧中です。</p>
       <AppButtonLink size="compact" className="w-full" to="/account" state={location.state}>
         マイページへ戻る
       </AppButtonLink>
@@ -173,7 +190,7 @@ function SavedMatchReplayView({
     <AppCard
       density="compact"
       aria-label="対局状況"
-      className="min-h-[88px] flex items-center justify-center shrink-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-2 [@media(max-width:1279px)]:col-start-1 [@media(max-width:1279px)]:row-start-2 [@media(max-width:767px)]:mx-[2px] [@media(max-width:767px)]:h-[92px]"
+      className="min-h-[88px] flex flex-col gap-2 items-center justify-center shrink-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-2 [@media(max-width:1279px)]:col-start-1 [@media(max-width:1279px)]:row-start-2 [@media(max-width:767px)]:mx-[2px] [@media(max-width:767px)]:h-[92px] [@media(max-width:767px)]:py-2"
     >
       <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 [@media(max-width:767px)]:gap-1">
         <strong className="text-sm whitespace-nowrap [@media(max-width:767px)]:text-xs">
@@ -189,6 +206,7 @@ function SavedMatchReplayView({
           結果
         </AppButton>
       </div>
+      <ViewerControls label="棋譜閲覧中" onRotate={onRotate} />
     </AppCard>
   );
   return (

@@ -78,9 +78,7 @@ for (const [game, createRoom, createPlayingRoom] of [
     await mockLobby(page);
     const url = `/rooms/${room.id}?invite=${room.instanceId}`;
     await page.goto(url);
-    await expect(
-      page.getByText("満室のため、今は観戦のみできます。", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("観戦中", { exact: true })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     room.players = room.players.slice(0, 1);
     fixture.update(room);
@@ -143,9 +141,7 @@ for (const [game, createRoom, createPlayingRoom] of [
     const room = createPlayingRoom();
     const fixture = await mockRoom(page, room, false);
     await page.goto(`/rooms/${room.id}?invite=${room.instanceId}`);
-    await expect(
-      page.getByText("対局中のため、今は観戦のみできます。", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("観戦中", { exact: true })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const waiting = createRoom();
     waiting.players = waiting.players.slice(0, 1);
