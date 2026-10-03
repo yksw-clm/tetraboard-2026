@@ -157,7 +157,7 @@ for (const width of [320, 390, 522, 767]) {
       expect(Math.abs(box.width / box.height - 458 / 500)).toBeLessThan(0.002);
       expect(Math.abs(box.x + box.width / 2 - (container.x + container.width / 2))).toBeLessThan(1);
       expect(await cardSizes()).toEqual(originalCards);
-      for (const card of originalCards) expect(card.height).toBe(60);
+      for (const card of originalCards) expect(card.height).toBe(48);
       const hand = (await hands.first().boundingBox())!;
       expect(hand.height).toBeLessThan(previousHand.height);
       expect(Math.abs(hand.width - originalCards[0]!.width)).toBeLessThan(1);

@@ -164,7 +164,7 @@ test("低いスマホ画面でも保存棋譜の盤・持ち駒・4席をスク�
     expect(box.width).toBeLessThan(514);
     expect(Math.abs(box.width / box.height - 458 / 500)).toBeLessThan(0.002);
     for (const card of await page.getByTestId("player-card").all()) {
-      expect((await card.boundingBox())!.height).toBe(60);
+      expect((await card.boundingBox())!.height).toBe(48);
       await expect(card).toBeInViewport({ ratio: 1 });
     }
     await expect(page.getByRole("button", { name: "棋譜を1つ戻る", exact: true })).toBeInViewport({
