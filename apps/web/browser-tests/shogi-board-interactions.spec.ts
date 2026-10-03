@@ -163,8 +163,9 @@ test("中央の成り選択は移動先を境に並び、選択中のリサイ�
     await page.setViewportSize({ width, height: 900 });
     await expect
       .poll(async () => {
-        const target = (await square(page, 3, 2).boundingBox())!;
-        const choice = (await menu(page).boundingBox())!;
+        const target = await square(page, 3, 2).boundingBox();
+        const choice = await menu(page).boundingBox();
+        if (!target || !choice) return Infinity;
         return Math.abs(target.x + target.width / 2 - choice.x - choice.width / 2);
       })
       .toBeLessThan(1);
@@ -350,7 +351,7 @@ test("盤上・持ち駒のドラッグ元を隠し、取消と局面更新で�
   expect(moves(fixture.received)).toHaveLength(0);
 });
 
-test("操作可能な盤上・持ち駒だけをホバーで浮かせる", async ({ page }) => {
+test("盤上・持ち駒はホバーで浮き、選択中はホバーを外しても浮いたままになる", async ({ page }) => {
   await mockRoom(page, playingShogiRoom(tacticalShogiState()));
   await page.goto("/rooms/12345");
   const source = square(page, 4, 6);
@@ -369,6 +370,25 @@ test("操作可能な盤上・持ち駒だけをホバーで浮かせる", async
         return Math.round(before.y - after.y);
       })
       .toBe(button === source || button === hand ? 2 : 0);
+    if (button === source || button === hand) {
+      await button.click();
+      await page.mouse.move(0, 0);
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await expect
+        .poll(async () => {
+          const after = (await button.getByTestId("shogi-piece").boundingBox())!;
+          return Math.round(before.y - after.y);
+        })
+        .toBe(2);
+      await page.keyboard.press("Escape");
+      await expect(button).toHaveAttribute("aria-pressed", "false");
+      await expect
+        .poll(async () => {
+          const after = (await button.getByTestId("shogi-piece").boundingBox())!;
+          return Math.round(before.y - after.y);
+        })
+        .toBe(0);
+    }
   }
 });
 
@@ -392,23 +412,47 @@ test("移動元は背景・移動先は枠で描き分け、装飾を全マス�
     await expect(from).toHaveCSS("box-shadow", "none");
     await expect(to).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(to).not.toHaveCSS("box-shadow", "none");
-    const fits = await page
-      .getByTestId("shogi-board")
-      .locator("[data-square]")
-      .evaluateAll((cells) =>
-        cells.every((cell) => {
-          const a = cell.getBoundingClientRect();
-          const b = cell
-            .querySelector('[data-testid="shogi-square-highlight"]')!
-            .getBoundingClientRect();
-          return (
-            b.left >= a.left + 0.9 &&
-            b.top >= a.top + 0.9 &&
-            b.right <= a.right - 0.9 &&
-            b.bottom <= a.bottom - 0.9
+    const fits = await page.getByTestId("shogi-board").evaluate(async (board) => {
+      const image = board.querySelector("img")!;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d")!;
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      // 実画像から罫線の範囲を読み、全81マスで線との重なりと余分な隙間を検証する。
+      const lines = (axis: "x" | "y", span: number) =>
+        Array.from({ length: 10 }, (_, i) => {
+          const center = Math.round(6 + (span * i) / 9);
+          const red = (p: number) =>
+            pixels[(axis === "x" ? 30 * canvas.width + p : p * canvas.width + 30) * 4];
+          const wood = (red(center - 4) + red(center + 4)) / 2;
+          const line = Array.from({ length: 7 }, (_, offset) => center - 3 + offset).filter(
+            (p) => red(p) < wood * 0.94,
           );
-        }),
-      );
+          return { start: Math.min(...line), end: Math.max(...line) + 1 };
+        });
+      const xs = lines("x", 446);
+      const ys = lines("y", 488);
+      const bounds = image.getBoundingClientRect();
+      const scale = bounds.width / canvas.width;
+      return Array.from(board.querySelectorAll("[data-square]")).every((cell, index) => {
+        const b = cell
+          .querySelector('[data-testid="shogi-square-highlight"]')!
+          .getBoundingClientRect();
+        const x = index % 9;
+        const y = Math.floor(index / 9);
+        const gaps = [
+          b.left - (bounds.left + xs[x].end * scale),
+          b.top - (bounds.top + ys[y].end * scale),
+          bounds.left + xs[x + 1].start * scale - b.right,
+          bounds.top + ys[y + 1].start * scale - b.bottom,
+        ];
+        // レイアウトのサブピクセル丸め（1/64px）だけ許容する。
+        return gaps.every((gap) => gap >= -0.04 && gap <= 0.04);
+      });
+    });
     expect(fits).toBe(true);
     if (width === 390)
       await info.attach("last-move.png", {

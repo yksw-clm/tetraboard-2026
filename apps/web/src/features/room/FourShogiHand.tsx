@@ -1,7 +1,11 @@
 import type { Hand, HandPieceKind } from "@tetraboard/four-shogi";
 import type { MouseEvent, PointerEvent } from "react";
-import { ShogiPiece, shogiPieceLiftClasses } from "./ShogiPiece";
-import { shogiPieceNames, type ShogiPieceDirection } from "./shogiBoardPresentation";
+import { ShogiPiece } from "./ShogiPiece";
+import {
+  shogiPieceNames,
+  shogiPieceLiftClasses,
+  type ShogiPieceDirection,
+} from "./shogiBoardPresentation";
 
 export function FourShogiHand({
   hand,
@@ -68,7 +72,11 @@ export function FourShogiHand({
           >
             <span
               className={
-                draggingKind === kind ? "invisible" : available ? shogiPieceLiftClasses : ""
+                draggingKind === kind
+                  ? "invisible"
+                  : available || selected
+                    ? shogiPieceLiftClasses(selected)
+                    : ""
               }
             >
               <ShogiPiece kind={kind} direction={direction} />

@@ -10,7 +10,7 @@ import {
 } from "react";
 import boardImage from "../../assets/shogi/board.png";
 import { FourShogiHand } from "./FourShogiHand";
-import { ShogiPiece, shogiPieceLiftClasses } from "./ShogiPiece";
+import { ShogiPiece } from "./ShogiPiece";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
 import { useShogiPromotion, type ShogiPromotionContext } from "./useShogiPromotion";
 import {
@@ -20,6 +20,7 @@ import {
   shogiDragThresholdReached,
   shogiPieceDirection,
   shogiPieceNames,
+  shogiPieceLiftClasses,
   shogiSamePosition,
   shogiSameSelection,
   shogiSideNames,
@@ -47,6 +48,48 @@ type PointerTrace = DragSource & {
   revision: Revision;
 };
 type Drag = DragSource & { point: Position; width: number };
+
+// board.png の罫線（アンチエイリアス部分を含む）の原寸での左右／上下端。
+// 等分した操作マスとの差を補正し、装飾を罫線の内縁まで広げる。
+const boardLines = {
+  x: [
+    [6, 8],
+    [55, 57],
+    [105, 107],
+    [154, 156],
+    [203, 206],
+    [253, 255],
+    [302, 305],
+    [352, 354],
+    [401, 404],
+    [451, 453],
+  ],
+  y: [
+    [5, 7],
+    [59, 62],
+    [114, 116],
+    [168, 170],
+    [222, 224],
+    [276, 278],
+    [330, 332],
+    [384, 387],
+    [438, 441],
+    [493, 495],
+  ],
+} as const;
+
+function squareHighlightStyle(index: number): CSSProperties {
+  const x = index % 9;
+  const y = Math.floor(index / 9);
+  const width = 446 / 9;
+  const height = 488 / 9;
+  return {
+    left: `${((boardLines.x[x][1] - (6 + x * width)) / width) * 100}%`,
+    right: `${((6 + (x + 1) * width - boardLines.x[x + 1][0]) / width) * 100}%`,
+    top: `${((boardLines.y[y][1] - (6 + y * height)) / height) * 100}%`,
+    bottom: `${((6 + (y + 1) * height - boardLines.y[y + 1][0]) / height) * 100}%`,
+  };
+}
 
 const groupClasses = {
   top: "[grid-area:top] w-fit justify-self-center flex-row-reverse items-center [@media(max-width:767px)]:w-full [@media(max-width:767px)]:flex-col",
@@ -297,7 +340,7 @@ export function FourShogiBoardLayout({
   return (
     <div
       data-testid="shogi-board-layout"
-      className="[--shogi-highlight-inset:max(1px,calc(var(--shogi-board-width)_*_2_/_458))] [--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
+      className="[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
     >
       {shogiSides.map((side) => {
         const placement = shogiSidePlacement(side, viewerSide);
@@ -398,11 +441,12 @@ export function FourShogiBoardLayout({
                 <span
                   aria-hidden="true"
                   data-testid="shogi-square-highlight"
-                  className={`absolute inset-[var(--shogi-highlight-inset)] pointer-events-none ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#ffe79e80]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-2 ring-inset ring-[#9c6f14]" : ""}`}
+                  style={squareHighlightStyle(index)}
+                  className={`absolute pointer-events-none ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#54361870]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-2 ring-inset ring-[#9c6f14]" : ""}`}
                 />
                 {piece && (
                   <span
-                    className={`relative ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect ? shogiPieceLiftClasses : ""}`}
+                    className={`relative ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect || selectedSquare ? shogiPieceLiftClasses(!!selectedSquare) : ""}`}
                   >
                     <ShogiPiece
                       kind={piece.kind}

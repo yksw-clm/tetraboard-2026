@@ -19,9 +19,6 @@ import downPawn from "../../assets/shogi/down/down_pawn.png";
 import downPromotedPawn from "../../assets/shogi/down/down_prom_pawn.png";
 import type { ShogiPieceDirection } from "./shogiBoardPresentation";
 
-export const shogiPieceLiftClasses =
-  "transition-[transform,filter] duration-150 group-hover/shogi-piece:-translate-y-[2px] group-hover/shogi-piece:drop-shadow-[0_4px_3px_#54361870] motion-reduce:transition-none";
-
 const sprites = {
   up: {
     king: upKing,
