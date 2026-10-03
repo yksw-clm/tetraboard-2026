@@ -16,6 +16,7 @@ export function RoomStatus({
   onDrawProposal,
   onJoin,
   joinButtonRef,
+  resultButtonRef,
   joinUnavailable,
   replay,
   onRotate,
@@ -26,6 +27,7 @@ export function RoomStatus({
   onDrawProposal?: () => void;
   onJoin: () => void;
   joinButtonRef: Ref<HTMLButtonElement>;
+  resultButtonRef?: Ref<HTMLButtonElement>;
   joinUnavailable: string | null;
   replay?: ReactNode;
   onRotate: () => void;
@@ -82,6 +84,7 @@ export function RoomStatus({
           {waiting ? (
             room.lastRound ? (
               <AppButton
+                ref={resultButtonRef}
                 appearance="quiet"
                 size="compact"
                 className="text-brand bg-surface-muted rounded-lg h-7 min-h-7 text-xs py-[3px] px-[15px] [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:min-w-9"

@@ -1,6 +1,6 @@
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
-import { useState, useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -12,8 +12,14 @@ import { cn } from "@heroui/react";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
-import { accountRequest } from "./accountApi";
 import { ProfileForm } from "./ProfileForm";
+import { useGoogleSignIn } from "./useGoogleSignIn";
+import {
+  clearRegistrationReturn,
+  readRegistrationReturn,
+  saveRegistrationReturn,
+} from "./registrationReturn";
+import { useNavigate } from "react-router";
 export function AccountPageShell({
   children,
   layout = "form",
@@ -63,34 +69,21 @@ function AccountStatus() {
 export function LoginPage() {
   const { user, loading, error } = useAccount();
   const [params] = useSearchParams();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const google = useGoogleSignIn();
+  const [destination] = useState(readRegistrationReturn);
   const adminDestination = params.get("destination") === "admin";
   useEffect(() => {
-    if (!loading && !error && user && adminDestination) window.location.replace("/admin");
-  }, [loading, error, user, adminDestination]);
-  if (!loading && !error && user && adminDestination) {
-    return <p role="status">管理画面へ移動しています…</p>;
-  }
-  if (!loading && !error && user)
+    if (params.has("error") && destination && !adminDestination)
+      saveRegistrationReturn(destination, false);
+  }, [params, destination, adminDestination]);
+  useEffect(() => {
+    if (!loading && !error && user && adminDestination && !params.has("error"))
+      window.location.replace("/admin");
+  }, [loading, error, user, adminDestination, params]);
+  if (!loading && !error && user && !params.has("error")) {
+    if (adminDestination) return <p role="status">管理画面へ移動しています…</p>;
     return <Navigate to={user.profileCompleted ? "/account" : "/account/setup"} replace />;
-  async function login() {
-    if (busy) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const result = (await accountRequest("/api/auth/sign-in/social", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params.get("destination") === "admin" ? { destination: "admin" } : {}),
-      })) as { url?: string };
-      if (!result.url || new URL(result.url).origin !== "https://accounts.google.com")
-        throw new Error("Googleログインを開始できませんでした。");
-      window.location.assign(result.url);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Googleログインを開始できませんでした。");
-      setBusy(false);
-    }
   }
   return (
     <AccountPageShell>
@@ -99,22 +92,43 @@ export function LoginPage() {
       ) : (
         <AppCard>
           <AppCard.Header>
-            <h1 className="text-2xl font-bold">ログイン</h1>
+            <h1 className="text-2xl font-bold">登録・ログイン</h1>
             <p className="text-sm text-muted">GoogleアカウントでTetraBoardを利用できます。</p>
           </AppCard.Header>
           <AppCard.Content className="flex flex-col gap-5">
             <p className="text-sm">
               アカウントがない場合は、新しいユーザーが作成されます。続いて名前・ID・任意のアイコンを設定します。
             </p>
-            {(message || params.has("error")) && (
+            {(google.message || params.has("error")) && (
               <p role="alert" className="text-sm text-danger">
-                {message ??
+                {google.message ??
                   "ログインを完了できませんでした。キャンセルした場合も、もう一度お試しいただけます。"}
               </p>
             )}
-            <AppButton appearance="secondary" onPress={() => void login()} isDisabled={busy}>
-              {busy ? "Googleへ移動しています…" : "Googleで続ける"}
+            <AppButton
+              appearance="secondary"
+              onPress={() =>
+                void google.start(adminDestination ? "admin" : (destination ?? undefined))
+              }
+              isDisabled={google.busy}
+            >
+              {google.busy ? "Googleへ移動しています…" : "Googleで続ける"}
             </AppButton>
+            {destination && !adminDestination && (
+              <AppButton
+                appearance="quiet"
+                isDisabled={google.busy}
+                onPress={() => {
+                  clearRegistrationReturn();
+                  void navigate(destination.path, {
+                    state: { registrationReturn: destination },
+                    replace: true,
+                  });
+                }}
+              >
+                元の画面へ戻る
+              </AppButton>
+            )}
           </AppCard.Content>
         </AppCard>
       )}

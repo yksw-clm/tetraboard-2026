@@ -8,6 +8,10 @@ import type {
   Side,
 } from "@tetraboard/four-shogi";
 
+export function shogiPieceLiftClasses(selected: boolean): string {
+  return `transition-[transform,filter] duration-150 motion-reduce:transition-none ${selected ? "-translate-y-[2px] drop-shadow-[0_4px_3px_#54361870]" : "group-hover/shogi-piece:-translate-y-[2px] group-hover/shogi-piece:drop-shadow-[0_4px_3px_#54361870]"}`;
+}
+
 export const shogiSides = ["south", "west", "north", "east"] as const;
 export const shogiSideNames: Record<Side, string> = {
   south: "南",

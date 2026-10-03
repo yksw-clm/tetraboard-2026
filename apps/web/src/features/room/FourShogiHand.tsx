@@ -1,7 +1,11 @@
 import type { Hand, HandPieceKind } from "@tetraboard/four-shogi";
 import type { MouseEvent, PointerEvent } from "react";
 import { ShogiPiece } from "./ShogiPiece";
-import { shogiPieceNames, type ShogiPieceDirection } from "./shogiBoardPresentation";
+import {
+  shogiPieceNames,
+  shogiPieceLiftClasses,
+  type ShogiPieceDirection,
+} from "./shogiBoardPresentation";
 
 export function FourShogiHand({
   hand,
@@ -10,6 +14,7 @@ export function FourShogiHand({
   vertical = false,
   selectedKind,
   availableKinds,
+  draggingKind,
   onSelect,
   onPointerDown,
   onPointerMove,
@@ -23,6 +28,7 @@ export function FourShogiHand({
   vertical?: boolean;
   selectedKind: HandPieceKind | null;
   availableKinds: readonly HandPieceKind[];
+  draggingKind: HandPieceKind | null;
   onSelect: (kind: HandPieceKind, event: MouseEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>, kind: HandPieceKind) => void;
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
@@ -55,7 +61,8 @@ export function FourShogiHand({
             aria-label={`${label}、${shogiPieceNames[kind]}${count}枚${available ? "、選択できます" : ""}`}
             aria-pressed={selected}
             data-hand-kind={kind}
-            className={`relative grid shrink-0 place-items-center w-[calc(var(--shogi-piece-width)_+_6px)] h-[calc(var(--shogi-piece-width)_*_148_/_140_+_6px)] [@media(max-width:767px)]:h-[calc(var(--shogi-piece-width)_*_148_/_140_+_2px)] p-0 rounded-[4px] border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-2px] ${available ? "touch-none cursor-pointer enabled:hover:bg-[#fff6d16b]" : "touch-auto cursor-default"}${selected ? " ring-2 ring-inset ring-[#bd7d10] bg-[#ffe3919c]" : ""}`}
+            data-dragging={draggingKind === kind || undefined}
+            className={`group/shogi-piece relative grid shrink-0 place-items-center w-[calc(var(--shogi-piece-width)_+_6px)] h-[calc(var(--shogi-piece-width)_*_148_/_140_+_6px)] [@media(max-width:767px)]:h-[calc(var(--shogi-piece-width)_*_148_/_140_+_2px)] p-0 rounded-[4px] border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-2px] ${available ? "touch-none cursor-pointer enabled:hover:bg-[#fff6d16b]" : "touch-auto cursor-default"}${selected ? " ring-2 ring-inset ring-[#bd7d10] bg-[#ffe3919c]" : ""}`}
             onClick={(event) => onSelect(kind, event)}
             onPointerDown={(event) => onPointerDown(event, kind)}
             onPointerMove={onPointerMove}
@@ -63,7 +70,17 @@ export function FourShogiHand({
             onPointerCancel={onPointerCancel}
             onLostPointerCapture={onLostPointerCapture}
           >
-            <ShogiPiece kind={kind} direction={direction} />
+            <span
+              className={
+                draggingKind === kind
+                  ? "invisible"
+                  : available || selected
+                    ? shogiPieceLiftClasses(selected)
+                    : ""
+              }
+            >
+              <ShogiPiece kind={kind} direction={direction} />
+            </span>
             {count >= 2 && (
               <span
                 aria-hidden="true"

@@ -184,7 +184,7 @@ test("将棋を独立した4人で開始し、観戦・チャット・再接続�
     ).json();
     expect(replay.events).toHaveLength(4);
     await expect(host.getByRole("button", { name: "棋譜を1つ戻る" })).toBeEnabled();
-    await host.getByRole("button", { name: "結果", exact: true }).click();
+    await expect(host.getByRole("dialog", { name: "対局結果" })).toBeVisible();
     await expect(host.getByRole("dialog", { name: "対局結果" })).toContainText("1位");
     await host.keyboard.press("Escape");
     await host.getByRole("button", { name: "棋譜を1つ戻る" }).click();
@@ -192,6 +192,10 @@ test("将棋を独立した4人で開始し、観戦・チャット・再接続�
       body: await host.screenshot({ fullPage: true }),
       contentType: "image/png",
     });
+    for (const page of pages.slice(1, 4)) {
+      await expect(page.getByRole("dialog", { name: "対局結果" })).toBeVisible();
+      await page.getByRole("button", { name: "今はしない", exact: true }).click();
+    }
     for (const page of pages.slice(0, 4))
       await page.getByRole("button", { name: "準備完了", exact: true }).click();
     await host.getByRole("button", { name: "対局開始", exact: true }).click();

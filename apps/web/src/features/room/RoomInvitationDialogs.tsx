@@ -5,17 +5,24 @@ import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
+import { useGoogleSignIn } from "../account/useGoogleSignIn";
 
 export function RoomInvitationDialogs({
   invitation,
   roomId,
   theme = "default",
+  registrationPath,
+  humanOnly,
 }: {
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
   theme?: AppTheme;
+  registrationPath: string;
+  humanOnly: boolean;
 }) {
   const account = useAccount();
+  const google = useGoogleSignIn();
+  const busy = invitation.busy || google.busy;
   if (invitation.dialog === "copy")
     return (
       <AppDialog size="compact" title="招待リンク" onClose={invitation.close} theme={theme}>
@@ -36,7 +43,7 @@ export function RoomInvitationDialogs({
     <AppDialog
       size="compact"
       title={`ルーム ${roomId} に参加`}
-      busy={invitation.busy}
+      busy={busy}
       onClose={invitation.close}
       theme={theme}
     >
@@ -45,14 +52,25 @@ export function RoomInvitationDialogs({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
+          if (busy) return;
           void invitation.submit();
         }}
       >
         <RoomIdentityFields
           name={invitation.name}
           onChange={invitation.setName}
-          busy={invitation.busy}
+          busy={busy}
+          registration={{
+            humanOnly,
+            onRegister: () =>
+              void google.start({ path: registrationPath, joinName: invitation.name }),
+          }}
         />
+        {google.message && (
+          <p role="alert" className="text-sm text-danger">
+            {google.message}
+          </p>
+        )}
         {(invitation.message || invitation.unavailableReason) && (
           <p className="text-danger text-xs" role="alert">
             {invitation.message ?? invitation.unavailableReason}
@@ -62,7 +80,7 @@ export function RoomInvitationDialogs({
           <AppButton
             appearance="secondary"
             size="compact"
-            isDisabled={invitation.busy}
+            isDisabled={busy}
             onPress={invitation.close}
           >
             観戦する
@@ -71,7 +89,7 @@ export function RoomInvitationDialogs({
             type="submit"
             size="compact"
             isDisabled={
-              invitation.busy ||
+              busy ||
               invitation.unavailableReason !== null ||
               account.loading ||
               Boolean(account.error)

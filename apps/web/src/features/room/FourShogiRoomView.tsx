@@ -51,6 +51,11 @@ export function FourShogiRoomView({
       ];
     }),
   ) as Record<Side, ReactNode>;
+  const selfIsEliminated =
+    room.status === "playing" &&
+    room.game.eliminations.some((entry) => entry.side === session.self?.side);
+  const promotionUnavailable =
+    session.unavailable !== null || (!session.authenticated && session.socketError !== null);
   const board = (
     <>
       <FourShogiBoardLayout
@@ -58,6 +63,22 @@ export function FourShogiRoomView({
         viewerSide={viewerSide}
         revision={`${room.roundId ?? room.lastRound?.roundId ?? "waiting"}:${room.positionRevision}:${replay.index}`}
         canPlay={session.canPlay && replay.frame === null}
+        promotionContext={
+          room.status === "playing" &&
+          session.self?.side &&
+          !selfIsEliminated &&
+          !promotionUnavailable &&
+          replay.frame === null
+            ? {
+                instanceId: room.instanceId,
+                playerId: session.self.id,
+                roundId: room.roundId,
+                positionRevision: room.positionRevision,
+                side: session.self.side,
+                confirmed: session.authenticated && session.connection === "接続済み",
+              }
+            : undefined
+        }
         legalActions={room.legalActions}
         onAction={session.handleShogiAction}
         playerCards={playerCards}

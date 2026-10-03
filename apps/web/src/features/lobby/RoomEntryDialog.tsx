@@ -11,6 +11,7 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import { type AppTheme } from "../../shared/ui/appTheme";
 import { ThreePlayerAttackSetting } from "./ThreePlayerAttackSetting";
+import { useGoogleSignIn } from "../account/useGoogleSignIn";
 
 export function RoomEntryDialog({
   intent,
@@ -19,7 +20,7 @@ export function RoomEntryDialog({
   roomCode,
   mode,
   threePlayerAttackProhibited,
-  busy,
+  busy: entryBusy,
   message,
   theme = "default",
   unavailable = false,
@@ -29,6 +30,8 @@ export function RoomEntryDialog({
   onThreePlayerAttackChange,
   onSubmit,
   onClose,
+  registrationPath,
+  humanOnly,
 }: {
   intent: RoomEntryIntent;
   selectedRoomId?: string;
@@ -46,8 +49,12 @@ export function RoomEntryDialog({
   onThreePlayerAttackChange?: (prohibited: boolean) => void;
   onSubmit: () => void;
   onClose: () => void;
+  registrationPath: string;
+  humanOnly?: boolean;
 }) {
   const account = useAccount();
+  const google = useGoogleSignIn();
+  const busy = entryBusy || google.busy;
   const blocked = unavailable || busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
@@ -84,7 +91,33 @@ export function RoomEntryDialog({
           if (!blocked) onSubmit();
         }}
       >
-        <RoomIdentityFields name={name} onChange={onNameChange} busy={busy} id="nickname" />
+        <RoomIdentityFields
+          name={name}
+          onChange={onNameChange}
+          busy={busy}
+          id="nickname"
+          registration={{
+            humanOnly: intent !== "quick" && (humanOnly ?? true),
+            onRegister: () =>
+              void google.start({
+                path: registrationPath,
+                entry: {
+                  intent,
+                  name,
+                  roomCode,
+                  mode,
+                  selectedRoomId,
+                  humanOnly,
+                  threePlayerAttackProhibited,
+                },
+              }),
+          }}
+        />
+        {google.message && (
+          <p role="alert" className="text-sm text-danger">
+            {google.message}
+          </p>
+        )}
         {intent === "join" ? (
           selectedRoomId ? (
             <p className="py-[13px] px-4 rounded-control text-muted bg-entry-room-surface text-[13px] [&_strong]:ml-3 [&_strong]:text-ink [&_strong]:text-[17px] [&_strong]:tabular-nums [&_strong]:tracking-[0.08em]">
@@ -156,7 +189,7 @@ export function RoomEntryDialog({
         <AppButton type="submit" className="w-full min-h-12" isDisabled={blocked}>
           {unavailable
             ? "準備中"
-            : busy
+            : entryBusy
               ? intent === "join"
                 ? "参加中…"
                 : "ルームを作成中…"
@@ -167,7 +200,7 @@ export function RoomEntryDialog({
                   : "ルームを作る"}
           {!busy && !unavailable && <AppIcon name="arrow" />}
         </AppButton>
-        {busy && (
+        {entryBusy && (
           <p className="text-xs text-muted" role="status">
             ルームを開いています。そのままお待ちください。
           </p>
