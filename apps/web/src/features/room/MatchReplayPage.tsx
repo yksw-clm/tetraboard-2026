@@ -193,7 +193,7 @@ function SavedMatchReplayView({
   );
   return (
     <main
-      className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal`}
+      className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden [@media(min-width:1280px)]:overflow-y-auto text-ink text-sm leading-normal`}
     >
       <RoomLayout
         desktop={desktop}

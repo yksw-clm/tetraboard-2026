@@ -43,15 +43,15 @@ export function RoomLayout({
 }) {
   return (
     <>
+      {/* PCは行の最小高さまで伸ばし、外枠で全体をスクロールします。
+          左列は60pxのカード2段・盤の最小寸法・余白を収めます。 */}
       {desktop ? (
-        <div className="flex-1 min-w-0 min-h-0 p-3 gap-3 grid grid-cols-[minmax(0,1fr)_360px] grid-rows-[auto_auto_minmax(140px,1fr)]">
+        <div className="flex-1 shrink-0 min-w-0 min-h-min p-3 gap-3 grid grid-cols-[minmax(0,1fr)_360px] grid-rows-[auto_auto_minmax(140px,1fr)]">
           <section
-            className="min-w-0 min-h-0 [container-type:size] overflow-auto col-start-1 row-span-3 relative flex flex-col gap-2"
+            className="min-w-0 min-h-[352px] [container-type:size] col-start-1 row-span-3 relative flex flex-col gap-2"
             aria-label="盤面とプレイヤー"
           >
-            <div className="flex-1 min-w-0 min-h-0 [container-type:size] overflow-auto">
-              {board}
-            </div>
+            <div className="flex-1 min-w-0 min-h-0 [container-type:size]">{board}</div>
             {replay}
           </section>
           <section
@@ -62,7 +62,7 @@ export function RoomLayout({
           </section>
           {status}
           <section
-            className="min-w-0 min-h-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-3 [@media(max-width:767px)]:p-[2px]"
+            className="min-w-0 min-h-0 [contain:size] [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-3 [@media(max-width:767px)]:p-[2px]"
             aria-label="チャット"
           >
             {chat}
