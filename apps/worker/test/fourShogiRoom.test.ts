@@ -1138,7 +1138,7 @@ test("導入前の進行局は開始メタデータを推測して恒久保存�
   ).toBe(0);
 });
 
-test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたいで棋譜を保持し、5秒再送で復旧する", async () => {
+test("将棋の保存失敗中も再戦・未決着の打ち切り・番号再利用をまたいで棋譜を保持し、5秒再送で復旧する", async () => {
   const prepared = await start();
   const stub = env.GAME_ROOM.getByName(prepared.id);
   const ids: string[] = [];
@@ -1174,7 +1174,7 @@ test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたい�
       ).toBe(true);
     });
     const waiting = await get(prepared.id);
-    for (const member of prepared.memberships)
+    for (const member of prepared.memberships.slice(1))
       expect(
         (
           await request(`/rooms/${prepared.id}/leave`, {
@@ -1183,6 +1183,30 @@ test("将棋の保存失敗中も再戦・閉鎖・番号再利用をまたい�
           })
         ).status,
       ).toBe(204);
+    for (let count = 2; count <= 4; count++) {
+      prepared.clients[0].send({ type: "room.cpu.add", level: 1 });
+      await prepared.clients[0].room((room) => room.players.length === count);
+    }
+    prepared.clients[0].send({ type: "room.ready.set", ready: true });
+    await prepared.clients[0].room((room) => room.players.every((player) => player.ready));
+    prepared.clients[0].send({ type: "room.game.start" });
+    const interrupted = await prepared.clients[0].room((room) => room.status === "playing");
+    if (interrupted.status !== "playing") throw new Error("Not playing");
+    expect(
+      (
+        await request(`/rooms/${prepared.id}/leave`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${prepared.memberships[0].token}` },
+        })
+      ).status,
+    ).toBe(204);
+    expect((await request(`/rooms/${prepared.id}`)).status).toBe(404);
+    expect(
+      await runInDurableObject(
+        stub,
+        (_, state) => new Map(state.storage.kv.list({ prefix: pendingShogiMatchPrefix })).size,
+      ),
+    ).toBe(2);
     expect(
       await runInDurableObject(stub, (_instance, state) => ({
         archives: state.storage.sql
@@ -1492,11 +1516,11 @@ test("CPUは手番で人間全員の提案・取消に合わせ、時計を維�
   });
 });
 
-for (const humanPresent of [true, false]) {
+for (const humanSurviving of [true, false]) {
   test(
-    humanPresent
+    humanSurviving
       ? "最後のCPUの同意で引き分けて待機に戻る"
-      : "人間0人ではCPUが新たな引分提案を行わない",
+      : "脱落した人間が在室していてもCPUは新たな引分提案を行わない",
     async () => {
       const created = await create(true);
       const client = await connect(created.room.id, created.membership.token);
@@ -1509,37 +1533,26 @@ for (const humanPresent of [true, false]) {
           if (room.status !== "playing") throw new Error("Not playing");
           const cpu = room.players.find((player) => player.kind === "cpu")!;
           const store = new ShogiStore(state.storage.sql);
-          const core = store.loadState(room.roundId, room.game);
+          let core = store.loadState(room.roundId, room.game);
+          if (core.status !== "playing") throw new Error("Not playing");
+          const human = room.players.find((player) => player.kind === "human")!;
+          if (!humanSurviving) {
+            const result = eliminateSide({ ...core, turn: human.side }, human.side, "resigned");
+            if (!result.ok) throw new Error("Could not eliminate human");
+            core = result.state;
+          }
           const game: FourShogiState = {
             ...core,
             status: "playing",
             result: null,
             turn: cpu.side,
-            drawProposals: humanPresent ? sides.filter((side) => side !== cpu.side) : [],
+            drawProposals: humanSurviving ? sides.filter((side) => side !== cpu.side) : [],
           };
-          if (!humanPresent) {
-            const human = room.players.find((player) => player.kind === "human")!;
-            const tokenHash = state.storage.kv.get<string>(`player-token:${human.id}`)!;
-            state.storage.kv.delete(`membership:${tokenHash}`);
-            state.storage.kv.delete(`player-token:${human.id}`);
-          }
-          const players = humanPresent
-            ? room.players
-            : room.players.map((player) => ({
-                id: player.id,
-                name: "CPU Lv1",
-                side: player.side,
-                reconnectDeadline: null,
-                kind: "cpu",
-                level: 1,
-                ready: true,
-              }));
           const at = Date.now();
           state.storage.kv.put(
             "room",
             fourShogiRoomSchema.parse({
               ...room,
-              players,
               game: store.saveState(room.roundId, game),
               legalActions: getLegalActions(game),
               clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
@@ -1548,7 +1561,7 @@ for (const humanPresent of [true, false]) {
           state.storage.kv.delete("shogi-cpu-job");
           await instance.alarm();
           const next = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
-          if (humanPresent) {
+          if (humanSurviving) {
             expect(next.status).toBe("waiting");
             expect(next.lastRound?.game.result.reason).toBe("agreement");
             expect(state.storage.kv.get("shogi-cpu-job")).toBeUndefined();

@@ -58,7 +58,7 @@ test("接続情報は観戦者にも配信し、脱落後の切断と復帰も�
   expect(snapshot.room.players).toHaveLength(4);
   expect(
     snapshot.room.players.find((player) => player.id === playerId)?.reconnectDeadline,
-  ).toBeNull();
+  ).toBeGreaterThan(Date.now());
   await authenticatedRoom(setup.id, setup.participants[index].token);
   do {
     snapshot = await observer.nextType("room.snapshot");
@@ -1212,61 +1212,6 @@ test("すぐ遊ぶは1人とCPU3体を作成し、CPU手番をDOが保存・配�
     expect(replay.steps.at(-1)?.action).toMatchObject({ type: "place", color: cpuTurn });
     if (moved.status === "playing") expect(replay.steps.at(-1)?.game).toEqual(moved.game);
   });
-});
-
-test("対局中に最後の人間が退室してもCPUは着手を続ける", async () => {
-  const created = await createRoom(true);
-  const id = created.room.id;
-  const host = await authenticatedRoom(id, created.membership.token);
-  const observer = await openRoom(id);
-  host.send({ type: "room.game.start" });
-  await observer.nextSnapshotWhere((room) => room.status === "playing");
-
-  expect((await leaveRoom(id, created.membership.token)).status).toBe(204);
-  const remaining = await observer.nextSnapshotWhere(
-    (room) => room.status === "playing" && room.game.eliminatedColors.length === 1,
-  );
-  if (remaining.status !== "playing") throw new Error("Game did not continue");
-  const cpuTurn = remaining.game.turn;
-  expect(remaining.players.find((player) => player.color === cpuTurn)?.kind).toBe("cpu");
-  const before = remaining.game.moveNumber;
-  await setRoomDeadlines(id, (room) => ({
-    ...room,
-    clock: {
-      ...room.clock,
-      turnStartedAt: Date.now() - 501,
-      turnExpiresAt: Date.now() + 329_499,
-    },
-  }));
-  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
-  const moved = await observer.nextSnapshotWhere(
-    (room) => room.status !== "waiting" && room.game.moveNumber > before,
-  );
-  expect(await getRoom(id)).toEqual(moved);
-
-  let completed = moved;
-  let closed = false;
-  for (let turn = 0; turn < 64 && completed.status === "playing"; turn++) {
-    await setRoomDeadlines(id, (room) => ({
-      ...room,
-      clock: {
-        ...room.clock,
-        turnStartedAt: Date.now() - 501,
-        turnExpiresAt: Date.now() + 300_000,
-      },
-    }));
-    expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
-    const response = await exports.default.fetch(
-      new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
-    );
-    if (response.status === 404) {
-      closed = true;
-      break;
-    }
-    completed = roomSchema.parse(getRoomContract.response.parse(await response.json()).room);
-  }
-  expect(closed).toBe(true);
-  await waitForIndexedRoom(id, (row) => row.closed === 1);
 });
 
 test("ルーム作成のモードは必須で、すぐ遊ぶにも選択したモードを保存する", async () => {

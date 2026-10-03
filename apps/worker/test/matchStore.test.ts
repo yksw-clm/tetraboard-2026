@@ -155,7 +155,7 @@ test("D1本体と全アカウント索引を一括保存し、再送では内容
   ).toEqual({ n: 2 });
 });
 
-test("保存失敗中の再戦・退室・閉鎖・部屋番号再利用後も複数局をAlarmで復旧する", async () => {
+test("保存失敗中の再戦・未決着の打ち切り・部屋番号再利用後も複数局をAlarmで復旧する", async () => {
   const setup = await matchSetup();
   await env.APP_DB.exec("ALTER TABLE matches RENAME TO matches_unavailable");
   const ids: string[] = [];
@@ -186,7 +186,30 @@ test("保存失敗中の再戦・退室・閉鎖・部屋番号再利用後も�
       expect(jobs.some((job) => job.retryAtMs > Date.now())).toBe(true);
     });
     const waiting = await matchRoom(setup.id);
-    for (const m of setup.memberships) await matchLeave(setup.id, m);
+    for (const m of setup.memberships.slice(1)) await matchLeave(setup.id, m);
+    for (let count = 2; count <= 4; count++) {
+      setup.clients[0].send({ type: "room.cpu.add", level: 1 });
+      await setup.clients[0].snapshot((room) => room.players.length === count);
+    }
+    const interrupted = await matchStart({ ...setup, clients: [setup.clients[0]] });
+    const interruptedId = await runInDurableObject(
+      stub,
+      (_, state) => state.storage.kv.get<MatchStart>(matchStartKey)!.id,
+    );
+    expect(interrupted.status).toBe("playing");
+    await matchLeave(setup.id, setup.memberships[0]);
+    expect(await stub.getRoom()).toBeNull();
+    expect(
+      await runInDurableObject(
+        stub,
+        (_, state) => new Map(state.storage.kv.list({ prefix: pendingMatchPrefix })).size,
+      ),
+    ).toBe(2);
+    expect(
+      await env.APP_DB.prepare("SELECT id FROM matches_unavailable WHERE id = ?")
+        .bind(interruptedId)
+        .first(),
+    ).toBeNull();
     const replacement = roomSchema.parse({
       ...waiting,
       instanceId: crypto.randomUUID(),
@@ -305,7 +328,7 @@ test("ゲストのみの対局も保存し、アカウントへ紐付けない",
   ).toEqual({ n: 0 });
 });
 
-test("最後の人間が退室した後もCPUが終局し、閉鎖した部屋の記録を保存する", async () => {
+test("最後の人間が退室した未決着のCPU戦は閉鎖して保存しない", async () => {
   const setup = await matchSetup("singles", true);
   await matchStart(setup);
   const stub = env.GAME_ROOM.getByName(setup.id);
@@ -313,25 +336,18 @@ test("最後の人間が退室した後もCPUが終局し、閉鎖した部屋�
     state.storage.kv.get<MatchStart>(matchStartKey)!,
   );
   await matchLeave(setup.id, setup.memberships[0]);
-  for (let move = 0; move < 65; move++) {
-    const room = await stub.getRoom();
-    if (!room) break;
-    if (room.status !== "playing") throw new Error("CPU should finish before closure");
-    await runInDurableObject(stub, async (_, state) => {
-      const current = roomSchema.parse(state.storage.kv.get("room"));
-      if (current.status !== "playing") return;
-      state.storage.kv.put("room", {
-        ...current,
-        clock: { ...current.clock, turnStartedAt: Date.now() - 501 },
-      });
-      await state.storage.setAlarm(Date.now() + 60000);
-    });
-    await runDurableObjectAlarm(stub);
-  }
   expect(await stub.getRoom()).toBeNull();
-  await vi.waitFor(async () => expect(await storedMatch(start.id)).not.toBeNull());
-  const record = JSON.parse((await storedMatch(start.id))!.record_json) as MatchRecord;
-  expect(record.participants.filter((p) => p.kind === "cpu")).toHaveLength(3);
-  expect(record.game.status).toBe("finished");
-  expect(record.replay.steps.at(-1)?.game).toEqual(record.game);
+  expect(await storedMatch(start.id)).toBeNull();
+  expect(
+    await runInDurableObject(stub, (_, state) => ({
+      start: state.storage.kv.get(matchStartKey),
+      replay: state.storage.kv.get("round-replay"),
+      pending: [...state.storage.kv.list({ prefix: pendingMatchPrefix })].length,
+    })),
+  ).toEqual({ start: undefined, replay: undefined, pending: 0 });
+  expect(
+    await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM account_match_history WHERE match_id = ?")
+      .bind(start.id)
+      .first(),
+  ).toEqual({ n: 0 });
 });

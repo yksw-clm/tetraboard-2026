@@ -427,6 +427,21 @@ export class GameRoom extends DurableObject<Env> {
     return this.ctx.storage.kv.get<string>(playerTokenKey(playerId)) ?? null;
   }
 
+  // 期限イベントを順に処理してから使い、復帰待ちと脱落後の在室を含めます。
+  private isHumanParticipant(player: Room["players"][number]): boolean {
+    if (player.kind !== "human" || this.ctx.storage.kv.get(departedKey(player.id))) return false;
+    if (this.storedAccount(player.id)?.occupying === false) return false;
+    const hash = this.playerTokenHash(player.id);
+    return hash !== null && this.readMembership(hash)?.playerId === player.id;
+  }
+
+  private closeIfNoHumanParticipants<T extends Room>(room: T | null): T | null {
+    if (room === null || room.players.some((player) => this.isHumanParticipant(player)))
+      return room;
+    this.closeRoom();
+    return null;
+  }
+
   private readChat(): ChatEntry[] {
     return (this.ctx.storage.kv.get<unknown[]>(chatKey) ?? []).map((entry) =>
       chatEntrySchema.parse(entry),
@@ -581,7 +596,7 @@ export class GameRoom extends DurableObject<Env> {
   ): Room | null {
     const players = room.players.filter((player) => {
       if (player.kind === "cpu") return true;
-      if (this.storedAccount(player.id)?.occupying === false) return false;
+      if (!this.isHumanParticipant(player)) return false;
       const hash = this.playerTokenHash(player.id);
       if (hash === null || this.readMembership(hash) === null) return false;
       if (this.hasOpenConnection(hash)) return true;
@@ -782,8 +797,7 @@ export class GameRoom extends DurableObject<Env> {
   ): FourShogiRoom | null {
     const player = room.players.find((entry) => entry.id === playerId);
     if (!player) throw new Error("Unknown Shogi player");
-    const clearDeadline =
-      reason === "left" || reason === "disconnected" || !this.storedAccount(playerId)?.occupying;
+    const clearDeadline = reason === "left" || reason === "disconnected";
     const players = room.players.map((entry) => ({
       ...entry,
       reconnectDeadline: entry.id === playerId && clearDeadline ? null : entry.reconnectDeadline,
@@ -959,11 +973,13 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         return null;
       }
+      if (this.closeIfNoHumanParticipants(room) === null) {
+        changed = true;
+        return null;
+      }
       const players = room.players.map((player) => {
         const hash = this.playerTokenHash(player.id);
-        const active =
-          this.storedAccount(player.id)?.occupying === true ||
-          !this.isPlayerEliminated(saved, player.id);
+        const active = this.isHumanParticipant(player);
         if (
           player.kind !== "human" ||
           !active ||
@@ -972,9 +988,10 @@ export class GameRoom extends DurableObject<Env> {
           this.hasOpenConnection(hash)
         )
           return player;
-        this.ctx.storage.kv.put(disconnectedAtKey(player.id), now);
+        const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id)) ?? now;
+        this.ctx.storage.kv.put(disconnectedAtKey(player.id), disconnectedAt);
         changed = true;
-        return { ...player, reconnectDeadline: now + reconnectGraceMs };
+        return { ...player, reconnectDeadline: disconnectedAt + reconnectGraceMs };
       });
       if (changed) {
         room = roomSchema.parse({ ...room, players }) as FourShogiRoom;
@@ -1021,9 +1038,13 @@ export class GameRoom extends DurableObject<Env> {
             );
           }
         }
+        room = this.closeIfNoHumanParticipants(room);
         changed = true;
         if (room) this.ctx.storage.kv.put(roomStorageKey, room);
       }
+      const retained = this.closeIfNoHumanParticipants(room);
+      if (retained !== room) changed = true;
+      room = retained;
       if (
         applyCpu &&
         room?.status === "playing" &&
@@ -1526,13 +1547,14 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         return null;
       }
-      const activeRoom = current;
+      if (this.closeIfNoHumanParticipants(current) === null) {
+        changed = true;
+        closed = true;
+        return null;
+      }
       const disconnected = current.players.map((player) => {
         const tokenHash = this.playerTokenHash(player.id);
-        const active =
-          this.storedAccount(player.id)?.occupying === true ||
-          activeRoom.status === "waiting" ||
-          (player.color !== null && !activeRoom.game.eliminatedColors.includes(player.color));
+        const active = this.isHumanParticipant(player);
         if (
           !active ||
           player.reconnectDeadline !== null ||
@@ -1541,8 +1563,9 @@ export class GameRoom extends DurableObject<Env> {
         )
           return player;
         changed = true;
-        if (player.kind === "human") this.ctx.storage.kv.put(disconnectedAtKey(player.id), now);
-        return { ...player, reconnectDeadline: now + reconnectGraceMs };
+        const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id)) ?? now;
+        this.ctx.storage.kv.put(disconnectedAtKey(player.id), disconnectedAt);
+        return { ...player, reconnectDeadline: disconnectedAt + reconnectGraceMs };
       });
       if (changed) {
         current = this.parseReversiRoom({ ...current, players: disconnected });
@@ -1590,13 +1613,6 @@ export class GameRoom extends DurableObject<Env> {
                     clockDeadline,
                     true,
                   ),
-                  players: current.players.map((entry) => ({
-                    ...entry,
-                    reconnectDeadline:
-                      entry.color === timedOutColor && !this.storedAccount(entry.id)?.occupying
-                        ? null
-                        : entry.reconnectDeadline,
-                  })),
                   lastActivityAtMs: clockDeadline,
                 });
         } else if (nextDisconnect !== undefined) {
@@ -1619,7 +1635,8 @@ export class GameRoom extends DurableObject<Env> {
                   entry.id === player.id ? { ...entry, reconnectDeadline: null } : entry,
                 ),
               });
-              this.ctx.storage.kv.put(roomStorageKey, current);
+              current = this.closeIfNoHumanParticipants(current);
+              if (current) this.ctx.storage.kv.put(roomStorageKey, current);
               changed = true;
               continue;
             }
@@ -1652,9 +1669,13 @@ export class GameRoom extends DurableObject<Env> {
                   });
           }
         }
+        current = this.closeIfNoHumanParticipants(current);
         changed = true;
         if (current !== null) this.ctx.storage.kv.put(roomStorageKey, current);
       }
+      const retained = this.closeIfNoHumanParticipants(current);
+      if (retained !== current) changed = true;
+      current = retained;
       if (
         current?.status === "playing" &&
         current.clock.turnStartedAt + cpuMoveDelayMs <= now &&
@@ -1791,6 +1812,7 @@ export class GameRoom extends DurableObject<Env> {
               });
         if (updated !== null) this.ctx.storage.kv.put(roomStorageKey, updated);
       }
+      updated = this.closeIfNoHumanParticipants(updated);
       return { status: "left" as const, room: updated };
     });
     if (result.status === "time_expired") {
@@ -2250,13 +2272,6 @@ export class GameRoom extends DurableObject<Env> {
               ...room,
               game: result.state,
               clock: advanceClock(room.clock, room.game.turn, result.state.turn, at, true),
-              players: room.players.map((entry) => ({
-                ...entry,
-                reconnectDeadline:
-                  entry.id === player.id && !this.storedAccount(entry.id)?.occupying
-                    ? null
-                    : entry.reconnectDeadline,
-              })),
               lastActivityAtMs: at,
             });
       if (updated !== null) this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -2540,9 +2555,7 @@ export class GameRoom extends DurableObject<Env> {
     }
     if (
       player === undefined ||
-      (room.status === "playing" &&
-        this.storedAccount(player.id)?.occupying !== true &&
-        this.isPlayerEliminated(room, player.id)) ||
+      !this.isHumanParticipant(player) ||
       player.reconnectDeadline !== null
     ) {
       this.broadcastRoom(room);

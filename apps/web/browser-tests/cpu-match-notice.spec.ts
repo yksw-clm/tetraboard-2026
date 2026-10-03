@@ -5,7 +5,7 @@ import { mockRoom, playerIds, playingRoom, waitingRoom } from "./fixtures";
 import { playingShogiRoom, waitingShogiRoom } from "./fourShogiFixtures";
 
 const notice = "CPUを含んだ対局は、戦績に反映されません。";
-const supplement = "ランキングにも反映されません。対局履歴・棋譜は保存されます。";
+const supplement = "ランキングにも反映されません。終局した対局の履歴・棋譜は保存されます。";
 const sizes = [320, 390, 768, 1440];
 function singleHost(game: "four-reversi" | "four-shogi") {
   const room = game === "four-shogi" ? waitingShogiRoom() : waitingRoom();
