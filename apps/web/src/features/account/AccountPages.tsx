@@ -116,7 +116,7 @@ export function LoginPage() {
 }
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error } = useAccount();
-  if (loading || error)
+  if (!user && (loading || error))
     return (
       <AccountPageShell layout={setup ? "form" : "profile"}>
         <AccountStatus />
@@ -128,11 +128,13 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   if (!setup)
     return (
       <AccountPageShell layout="profile">
+        {error && <AccountStatus />}
         <AccountProfileView user={user} />
       </AccountPageShell>
     );
   return (
     <AccountPageShell>
+      {error && <AccountStatus />}
       <AppCard>
         <AppCard.Header>
           <h1 className="text-2xl font-bold">プロフィールを作成</h1>

@@ -17,7 +17,8 @@ export function AccountLayout() {
   }, []);
   const refresh = useCallback(async () => {
     const current = ++version.current;
-    setState((previous) => ({ ...previous, loading: true, error: null }));
+    // ファイル選択や別タブから戻った際も、取得済みの画面と編集中の下書きを維持します。
+    setState((previous) => ({ ...previous, loading: !previous.user, error: null }));
     try {
       const user = await readAccount();
       if (current === version.current) setState({ user, loading: false, error: null });
