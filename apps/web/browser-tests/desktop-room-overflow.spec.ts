@@ -76,6 +76,11 @@ async function verify(page: Page, shogi: boolean, screenshot: string) {
     expect(bounds).toBe(true);
     const chat = await page.getByRole("region", { name: "チャット", exact: true }).boundingBox();
     expect(chat!.y + chat!.height).toBeLessThanOrEqual(size.height + 1);
+    const input = page.getByRole("textbox", { name: "メッセージ", exact: true });
+    if (await input.count()) {
+      const inputBox = (await input.boundingBox())!;
+      expect(inputBox.y + inputBox.height).toBeLessThanOrEqual(size.height + 1);
+    }
     if (size.width === 1280 && size.height === 400) await capture("bottom");
     await page.mouse.move(20, 20);
     await page.mouse.wheel(0, -2000);

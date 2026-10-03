@@ -366,7 +366,8 @@ test("接続復帰は期限を解除し、通信期限切れと時計期限は�
     (room) => room.status === "playing" && room.players[index].reconnectDeadline !== null,
   );
   expect(disconnected.players[index].reconnectDeadline).not.toBeNull();
-  await connect(prepared.id, prepared.memberships[index].token);
+  // eastがホストでも、以降の投了確認は復帰した接続で受信します。
+  prepared.clients[index] = await connect(prepared.id, prepared.memberships[index].token);
   const restored = await prepared.clients[(index + 1) % 4].room(
     (room) => room.status === "playing" && room.players[index].reconnectDeadline === null,
   );
