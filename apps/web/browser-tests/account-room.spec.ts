@@ -55,7 +55,11 @@ for (const width of [320, 900, 1440]) {
     await expect(dialog.getByRole("textbox", { name: "ニックネーム" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "ルームを作る", exact: true }).click();
     await expect(page).toHaveURL(/\/rooms\/12345$/);
-    expect(sent).toEqual({ quickPlay: false, mode: "singles" });
+    expect(sent).toEqual({
+      quickPlay: false,
+      mode: "singles",
+      timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+    });
     await expect(page.getByTestId("player-avatar").locator("img")).toHaveAttribute("src", icon);
     const cpu = page.getByTestId("player-card").filter({ hasText: "CPU Lv1" });
     await expect(cpu.getByTestId("player-avatar")).toHaveCSS("color", "rgb(55, 101, 151)");
