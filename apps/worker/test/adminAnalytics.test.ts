@@ -578,3 +578,96 @@ test("将棋の実対局でも人間とブラウザの開始時情報を保存�
     for (const socket of sockets) socket.close();
   }
 });
+
+test("指定した2つの本人アカウントだけを許可し、不正な配列では旧設定へフォールバックしない", async () => {
+  const owners = [await accountFixture(), await accountFixture()];
+  const other = await accountFixture();
+  const bindings = {
+    ...env,
+    ADMIN_ACCOUNT_ID: other.id,
+    ADMIN_ACCOUNT_IDS: JSON.stringify([owners[0].id, owners[1].id, owners[0].id]),
+    ASSETS: {
+      fetch: async (request: Request) => new Response(new URL(request.url).pathname),
+    } as Fetcher,
+  };
+  for (const owner of owners)
+    for (const path of ["/api/admin/session", "/admin/users"])
+      expect((await fetchWith(bindings, path, { headers: { Cookie: owner.cookie } })).status).toBe(
+        200,
+      );
+  for (const path of ["/api/admin/session", "/admin/users"])
+    expect((await fetchWith(bindings, path, { headers: { Cookie: other.cookie } })).status).toBe(
+      403,
+    );
+  for (const value of ["", "[]", "[1]", '[""]', "{", JSON.stringify([owners[0].id, " "])])
+    expect(
+      (
+        await fetchWith({ ...bindings, ADMIN_ACCOUNT_IDS: value }, "/api/admin/session", {
+          headers: { Cookie: other.cookie },
+        })
+      ).status,
+    ).toBe(503);
+});
+
+test("複数の本人アカウントを閲覧・滞在・対局・登録から除外し、一般利用者との混在対局は残す", async () => {
+  const people = [await accountFixture(), await accountFixture(), await accountFixture()];
+  const at = Date.parse("2002-01-01T12:00:00+09:00");
+  const participants = people.map((person) => ({
+    playerId: visitor(),
+    accountId: person.id,
+    visitorId: visitor(),
+    isTest: false,
+  }));
+  for (const [index, person] of people.entries()) {
+    const viewId = visitor();
+    await env.APP_DB.batch([
+      env.APP_DB.prepare("UPDATE user SET createdAt = ? WHERE id = ?").bind(at, person.id),
+      env.APP_DB.prepare(
+        "INSERT INTO analytics_pageviews (id, visitor_id, account_id, page, game, started_at_ms) VALUES (?, ?, ?, 'lobby', 'four-reversi', ?)",
+      ).bind(viewId, participants[index].visitorId, person.id, at),
+      env.APP_DB.prepare(
+        "INSERT INTO analytics_dwell (view_id, day, milliseconds) VALUES (?, '2002-01-01', 1000)",
+      ).bind(viewId),
+    ]);
+  }
+  for (const person of participants.slice(0, 2))
+    await writeAnalyticsMatch(env.APP_DB, record(at, { participants: [person] }));
+  await writeAnalyticsMatch(env.APP_DB, record(at, { participants, cpuCount: 1 }));
+  const period = { ...query, from: "2002-01-01", to: "2002-01-01" };
+  const baseline = await readAnalytics(env, period);
+  const bindings = {
+    ...env,
+    ADMIN_ACCOUNT_IDS: JSON.stringify(people.slice(0, 2).map((p) => p.id)),
+  };
+  const excluded = await readAnalytics(bindings, period);
+  expect(excluded.summary).toMatchObject({
+    visitors: 1,
+    pageViews: 1,
+    dwellMs: 1000,
+    newUsers: 1,
+    started: 1,
+    completed: 1,
+    registeredActive: 1,
+    registeredParticipations: 1,
+    participationMs: 60000,
+    conversionEligible: 1,
+    converted: 1,
+    registeredRetentionEligible: 1,
+  });
+  expect(excluded.totalUsers).toBe(baseline.totalUsers - 2);
+  const included = await readAnalytics(bindings, { ...period, includeInternal: "true" });
+  expect(included.summary).toMatchObject({
+    visitors: 3,
+    pageViews: 3,
+    dwellMs: 3000,
+    newUsers: 3,
+    started: 3,
+    completed: 3,
+    registeredActive: 3,
+    registeredParticipations: 5,
+    participationMs: 300000,
+    conversionEligible: 3,
+    converted: 3,
+    registeredRetentionEligible: 3,
+  });
+});

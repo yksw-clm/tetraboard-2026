@@ -6,4 +6,4 @@ GOOGLE_CLIENT_ID=replace-with-google-client-id
 GOOGLE_CLIENT_SECRET=replace-with-google-client-secret
 
 # 管理画面の利用を許可する本人の内部 user.id（公開 @ID とは異なります）
-ADMIN_ACCOUNT_ID=replace-with-owner-internal-account-id
+ADMIN_ACCOUNT_IDS='["replace-with-owner-internal-account-id","replace-with-second-internal-account-id"]'

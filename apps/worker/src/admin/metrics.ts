@@ -4,7 +4,7 @@ import {
   type AnalyticsMetrics,
   type AdminAnalytics,
 } from "@tetraboard/protocol";
-import type { AdminEnv } from "./auth";
+import { adminAccountIds, type AdminEnv } from "./auth";
 export const japanDay = (at: number) => new Date(at + 9 * 3600000).toISOString().slice(0, 10);
 const metricKeys = Object.keys(analyticsMetricsSchema.shape) as (keyof AnalyticsMetrics)[];
 export function emptyMetrics(): AnalyticsMetrics {
@@ -33,12 +33,14 @@ export async function readAnalytics(
   const to = Date.parse(`${query.to}T00:00:00+09:00`) + 86400000;
   const include = query.includeInternal === "true";
   const game = query.game;
-  const owner = env.ADMIN_ACCOUNT_ID ?? "";
+  const owners = adminAccountIds(env) ?? [];
+  const excludeOwners = (column: string) =>
+    owners.length
+      ? `(${column} IS NULL OR ${column} NOT IN (${owners.map(() => "?").join(", ")}))`
+      : "1";
   const actorFilter = (alias: string) =>
-    include
-      ? "1"
-      : `(${alias}.is_test = 0 AND (${alias}.account_id IS NULL OR ${alias}.account_id <> ?))`;
-  const actorArgs = () => (include ? [] : [owner]);
+    include ? "1" : `(${alias}.is_test = 0 AND ${excludeOwners(`${alias}.account_id`)})`;
+  const actorArgs = () => (include ? [] : owners);
   const gameFilter = (alias: string) => (game === "all" ? "1" : `${alias}.game = ?`);
   const gameArgs = () => (game === "all" ? [] : [game]);
   const dateBucket = (column: string) =>
@@ -77,8 +79,8 @@ export async function readAnalytics(
     jobs.push({
       sql: `SELECT ${bucket("u.createdAt")} AS period, COUNT(*) AS newUsers FROM user u
       WHERE COALESCE(u.isAnonymous, 0) = 0 AND u.createdAt >= MAX(?, COALESCE((SELECT value FROM analytics_metadata WHERE key = 'collected_from'), ?)) AND u.createdAt < ?
-      ${include ? "" : "AND COALESCE(u.isTestUser, 0) = 0 AND u.id <> ?"}${grouped}`,
-      args: [from, now, to, ...(include ? [] : [owner])],
+      ${include ? "" : `AND COALESCE(u.isTestUser, 0) = 0 AND ${excludeOwners("u.id")}`}${grouped}`,
+      args: [from, now, to, ...actorArgs()],
     });
     jobs.push({
       sql: `${cte} SELECT ${bucket("m.started_at_ms")} AS period, COUNT(*) AS started,
@@ -150,9 +152,9 @@ export async function readAnalytics(
       value: number;
     }>(),
     env.APP_DB.prepare(
-      `SELECT COUNT(*) AS count FROM user WHERE COALESCE(isAnonymous, 0) = 0 ${include ? "" : "AND COALESCE(isTestUser, 0) = 0 AND id <> ?"}`,
+      `SELECT COUNT(*) AS count FROM user WHERE COALESCE(isAnonymous, 0) = 0 ${include ? "" : `AND COALESCE(isTestUser, 0) = 0 AND ${excludeOwners("id")}`}`,
     )
-      .bind(...(include ? [] : [owner]))
+      .bind(...actorArgs())
       .first<{ count: number }>(),
   ]);
   return {
