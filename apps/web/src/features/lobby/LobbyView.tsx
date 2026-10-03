@@ -29,6 +29,7 @@ type Props = {
   message: string | null;
   renderRooms: (onJoin: (roomId: string) => void) => ReactNode;
   rankings?: ReactNode;
+  boardPreview?: ReactNode;
   onNameChange: (value: string) => void;
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
@@ -173,6 +174,10 @@ export function LobbyView(props: Props) {
         <main className="flex flex-col gap-[22px] max-w-[1148px] mx-auto px-6 pt-6 [@media(max-width:650px)]:gap-[18px] [@media(max-width:650px)]:px-5 [@media(max-width:650px)]:pt-5">
           <div className="flex items-center justify-between gap-5 [@media(max-width:767px)]:flex-col [@media(max-width:767px)]:items-stretch [@media(max-width:767px)]:gap-2">
             <div className="flex min-w-0 items-center gap-5 [@media(max-width:767px)]:gap-3">
+              {/* WebKitで縮尺変更後の画像が乱れないよう、表示幅の境界で作り直します。 */}
+              <Fragment key={mobile ? "mobile-board-preview" : "desktop-board-preview"}>
+                {props.boardPreview}
+              </Fragment>
               {props.game === "four-reversi" && (
                 <div
                   aria-hidden="true"

@@ -41,13 +41,15 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   await page.goto(shogiPath);
   await expect(page.getByRole("heading", { name: "四人将棋", exact: true })).toBeVisible();
   await expectSelectedGame(page, "四人将棋");
-  await expect(page.getByTestId("lobby-board-preview")).toHaveCount(0);
+  await expect(page.getByTestId("lobby-board-preview")).toBeVisible();
+  await expect(page.getByTestId("lobby-board-preview").getByTestId("shogi-piece")).toHaveCount(36);
   await expect(page.getByRole("region", { name: "公開ルーム" })).not.toContainText("準備中");
   await expect(page.getByRole("region", { name: "ランキング" })).toBeVisible();
   await expect(page.getByRole("region", { name: "ランキング" })).not.toContainText("準備中");
   await expect(page.getByRole("button", { name: /^ルーム \d{5} / })).toHaveCount(0);
   await page.reload();
   await expectSelectedGame(page, "四人将棋");
+  await expect(page.getByTestId("lobby-board-preview").getByTestId("shogi-piece")).toHaveCount(36);
   expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
 
   const navigation = page.getByRole("navigation", { name: "ゲームを選択" });
@@ -58,6 +60,7 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   await expect(page).toHaveURL(new RegExp(`${reversiPath}$`));
   await expectSelectedGame(page, "四人リバーシ");
   await expect(page.getByTestId("lobby-board-preview")).toBeVisible();
+  await expect(page.getByTestId("lobby-board-preview").getByTestId("shogi-piece")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "ランキング" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^すぐ遊ぶ/ })).toHaveCSS(
     "background-color",
@@ -82,8 +85,70 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   await page.goForward();
   await expect(page).toHaveURL(new RegExp(`${shogiPath}$`));
   await expectSelectedGame(page, "四人将棋");
+  await expect(page.getByTestId("lobby-board-preview").getByTestId("shogi-piece")).toHaveCount(36);
   await page.goto("/");
   await expect(page).toHaveURL(new RegExp(`${reversiPath}$`));
+});
+
+test("将棋の初期盤面図はタイトル左に表示し、幅を変えても画像と四方向の駒を保つ", async ({
+  page,
+}, info) => {
+  await mockLobby(page);
+  await page.goto(shogiPath);
+  const preview = page.getByTestId("lobby-board-preview");
+  const title = page.getByRole("heading", { name: "四人将棋", exact: true });
+  await expect(preview).toHaveAttribute("aria-hidden", "true");
+  await expect(preview.getByTestId("shogi-piece")).toHaveCount(36);
+  for (const direction of ["up", "right", "down", "left"]) {
+    await expect(preview.locator(`[data-piece-direction="${direction}"]`)).toHaveCount(9);
+  }
+  expect(
+    await preview.evaluate(
+      (element) =>
+        element.querySelectorAll("button, a, input, select, textarea, [tabindex]").length,
+    ),
+  ).toBe(0);
+  for (const width of [320, 390, 767, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(preview).toBeVisible();
+    const boardWidth = width <= 767 ? 56 : 88;
+    await expect(preview).toHaveCSS("width", `${boardWidth}px`);
+    await expect(preview).toHaveCSS("rotate", "-7deg");
+    await expect(preview.getByTestId("shogi-piece")).toHaveCount(36);
+    // 幅変更時の再描画後も、盤と駒の画像がデコードできることを確認します。
+    await preview
+      .locator("img")
+      .evaluateAll((images) =>
+        Promise.all(images.map((image) => (image as HTMLImageElement).decode())),
+      );
+    const dimensions = await preview.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        width: Number.parseFloat(style.width),
+        height: Number.parseFloat(style.height),
+      };
+    });
+    expect(Math.abs(dimensions.height - (boardWidth * 500) / 458)).toBeLessThan(0.1);
+    const boardBox = (await preview.boundingBox())!;
+    const titleBox = (await title.boundingBox())!;
+    expect(boardBox.x).toBeGreaterThanOrEqual(0);
+    expect(boardBox.x + boardBox.width).toBeLessThanOrEqual(titleBox.x);
+    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(width);
+    const helpBox = (await page
+      .getByRole("button", { name: "遊び方", exact: true })
+      .boundingBox())!;
+    if (width <= 767) {
+      expect(helpBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+      expect(helpBox.y).toBeGreaterThanOrEqual(boardBox.y + boardBox.height);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+    await info.attach(`shogi-board-preview-${width}`, {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+  }
 });
 
 test("将棋ランキングはモードと集計項目を切り替えられ、画面幅を変えても選択を保つ", async ({
