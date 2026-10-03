@@ -20,10 +20,15 @@ export async function expectReplaySelectFits(page: Page) {
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
   const options = page.getByRole("option");
   expect(await options.count()).toBeGreaterThan(0);
-  for (const option of await options.all()) {
-    const text = option.locator("span.truncate");
-    await expect(text).toHaveCSS("white-space", "nowrap");
-    const label = (await text.textContent())!;
-    await expect(option).toHaveAccessibleName(label);
+  const rows = await options.evaluateAll((elements) =>
+    elements.map((element) => {
+      const text = element.querySelector("span.truncate")!;
+      return { label: text.textContent!, whiteSpace: getComputedStyle(text).whiteSpace };
+    }),
+  );
+  const accessible = await page.getByRole("listbox").ariaSnapshot();
+  for (const row of rows) {
+    expect(row.whiteSpace).toBe("nowrap");
+    expect(accessible).toContain(`option ${JSON.stringify(row.label)}`);
   }
 }

@@ -92,6 +92,10 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         }),
       );
       const withReplay = width === 320 || width === 768;
+      let releaseReplay = () => {};
+      const replayResponse = new Promise<void>((resolve) => {
+        releaseReplay = resolve;
+      });
       let room: Room = game === "four-shogi" ? playingShogiRoom() : playingRoom();
       if (withReplay && game === "four-reversi") {
         const match = replayMatch();
@@ -114,7 +118,8 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
             players: match.detail.participants.map(({ id, name, side }) => ({ id, name, side })),
           },
         });
-        await page.route("**/api/rooms/12345/rounds/*/replay?*", (route) => {
+        await page.route("**/api/rooms/12345/rounds/*/replay?*", async (route) => {
+          await replayResponse;
           const { matchId, ...chunk } = match.page(
             Number(new URL(route.request().url()).searchParams.get("cursor") ?? 0),
           );
@@ -125,6 +130,19 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       }
       const control = await mockRoom(page, room);
       await page.goto("/rooms/12345");
+      if (withReplay && game === "four-shogi") {
+        await expect(page.getByRole("button", { name: /棋譜の局面$/ })).toHaveCount(0);
+        releaseReplay();
+      }
+      if (withReplay)
+        await expect(page.getByRole("button", { name: "棋譜を1つ戻る" })).toBeEnabled();
+      // 棋譜取得後の描画とResizeObserverの反映を待ってから通知だけを比較します。
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+      );
       const panel = page.getByRole("group", {
         name: game === "four-shogi" ? "四人将棋の盤面" : "四人リバーシの盤面",
         exact: true,
