@@ -7,7 +7,7 @@ import { PlayerCard } from "./PlayerCard";
 import { ReplayCard } from "./ReplayCard";
 import { RoomViewShell } from "./RoomViewShell";
 import { useRoomReplay } from "./useRoomReplay";
-import { colorNames, orderedSeats, seatPositions } from "./roomPresentation";
+import { colorNames, fourReversiRoomSeats, seatPositions } from "./roomPresentation";
 import { type useRoomChat } from "./useRoomChat";
 import { type useRoomSession } from "./useRoomSession";
 
@@ -28,9 +28,9 @@ export function RoomView({
   const hasPassNotice = room.status === "playing" && room.game.consecutivePasses.length > 0;
   const board = (
     <RoomBoardLayout hasNotice={hasPassNotice}>
-      {orderedSeats(room, membership?.playerId).map((player, index) => (
+      {fourReversiRoomSeats(room, membership?.playerId).map((player, index) => (
         <PlayerCard
-          key={seatPositions[index]}
+          key={player?.id ?? seatPositions[index]}
           position={seatPositions[rotatedSeatIndex(index, viewerRotation)]}
           player={player}
           room={room}

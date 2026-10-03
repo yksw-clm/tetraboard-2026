@@ -5,7 +5,12 @@ import {
   type MatchHistoryParticipant,
 } from "@tetraboard/protocol";
 import { clockPresentation } from "./roomClockPresentation";
-import { createInitialState, type Color, type FourReversiState } from "@tetraboard/four-reversi";
+import {
+  colors,
+  createInitialState,
+  type Color,
+  type FourReversiState,
+} from "@tetraboard/four-reversi";
 
 export const displayGameForRoom = (room: FourReversiRoom) =>
   room.status === "playing"
@@ -51,6 +56,24 @@ export function orderedSeats<T extends Room>(room: T, selfId: string | undefined
   return Array.from({ length: 4 }, (_, index) => seats[(anchor + index) % 4]);
 }
 
+function colorOrderedSeats<T extends { id: string; color: Color }>(
+  players: readonly T[],
+  selfId: string | undefined,
+): T[] {
+  const seats = [...players].sort((a, b) => colors.indexOf(a.color) - colors.indexOf(b.color));
+  const anchor = Math.max(
+    0,
+    seats.findIndex((player) => player.id === selfId),
+  );
+  return seats.map((_, index) => seats[(anchor + index) % seats.length]);
+}
+
+export function fourReversiRoomSeats(room: FourReversiRoom, selfId: string | undefined) {
+  return room.status === "playing"
+    ? colorOrderedSeats(room.players, selfId)
+    : orderedSeats(room, selfId);
+}
+
 export const eliminationLabels = {
   resigned: "投了",
   left: "退室",
@@ -68,9 +91,7 @@ export function playerRank(room: FourReversiRoom, color: Color | null) {
 }
 
 export function matchSeats(match: FourReversiMatchDetail) {
-  const players = [...match.participants].sort((a, b) => a.seat - b.seat);
-  const anchor = players.findIndex((player) => player.id === match.selfPlayerId);
-  return players.map((_, index) => players[(anchor + index) % 4]);
+  return colorOrderedSeats(match.participants, match.selfPlayerId);
 }
 
 export function replayPlayerDetails(

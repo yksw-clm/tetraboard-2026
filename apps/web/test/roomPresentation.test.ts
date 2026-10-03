@@ -14,6 +14,7 @@ import {
 import {
   displayGameForRoom,
   orderedSeats,
+  fourReversiRoomSeats,
   playerClock,
   playerRank,
 } from "../src/features/room/roomPresentation";
@@ -99,7 +100,7 @@ describe("ルームの表示", () => {
     expect(rematch.lastRound?.game.status).toBe("finished");
   });
 
-  test("対局中は入室順を保って自分を手前にし、担当色で並べ替えない", () => {
+  test("共通の席取得は入室順を保ち、リバーシの対局表示だけを色順へ並べ替える", () => {
     const room = playingRoom();
     expect(orderedSeats(room, room.players[1].id).map((player) => player?.name)).toEqual([
       "参加者2",
@@ -112,6 +113,18 @@ describe("ルームの表示", () => {
       "参加者2",
       "参加者3",
       "参加者4",
+    ]);
+    expect(fourReversiRoomSeats(room, undefined).map((player) => player?.name)).toEqual([
+      "参加者4",
+      "参加者3",
+      "参加者1",
+      "参加者2",
+    ]);
+    expect(fourReversiRoomSeats(room, room.players[1].id).map((player) => player?.name)).toEqual([
+      "参加者2",
+      "参加者4",
+      "参加者3",
+      "参加者1",
     ]);
     expect(displayGameForRoom(room)).toEqual(room.game);
   });
