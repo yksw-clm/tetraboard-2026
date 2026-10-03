@@ -61,7 +61,13 @@ for (const width of [320, 390, 768, 1279, 1280, 1440]) {
     await expect(page.getByText("対局終了", { exact: true })).toBeVisible();
     const board = page.getByRole("group", { name: "四人将棋の盤面", exact: true });
     await expect(board.getByRole("button")).toHaveCount(81);
-    for (const cell of await board.getByRole("button").all()) await expect(cell).toBeDisabled();
+    await expect
+      .poll(() =>
+        board
+          .getByRole("button")
+          .evaluateAll((cells) => cells.every((cell) => cell.matches(":disabled"))),
+      )
+      .toBe(true);
     await expect(board.locator("[data-legal-destination]")).toHaveCount(0);
     await expect(board.getByRole("button", { name: /裏王/ })).toHaveCount(3);
     const self = page
