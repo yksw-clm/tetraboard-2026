@@ -35,6 +35,39 @@ const fixture = (): AccountSnapshot => {
   };
 };
 const empty: AccountSnapshot = { users: [], accounts: [] };
+test("内部IDとGoogle識別子で指定した本人だけを除外し、ほかの登録アカウントを移す", () => {
+  const owner = fixture();
+  owner.users[0].avatarKey = `avatars/${crypto.randomUUID()}.webp`;
+  const other = fixture();
+  const source = {
+    users: [...owner.users, ...other.users],
+    accounts: [...owner.accounts, ...other.accounts],
+  };
+  const target = structuredClone(owner);
+  target.users[0].id = "current-owner";
+  target.accounts[0].userId = "current-owner";
+  const exclusion = {
+    userId: owner.users[0].id,
+    googleAccountId: owner.accounts[0].accountId,
+  };
+  expect(() => prepareLegacyAccounts(source, target)).toThrow(/conflict/);
+  const plan = prepareLegacyAccounts(source, target, [exclusion]);
+  expect(plan.users).toBe(1);
+  expect(plan.avatars).toEqual([]);
+  expect(plan.sql).toContain(other.users[0].id);
+  expect(plan.sql).toContain(other.accounts[0].accountId);
+  expect(plan.sql).not.toContain(owner.users[0].id);
+  expect(plan.sql).not.toContain(owner.accounts[0].accountId);
+  expect(plan.sql).toContain('"image"');
+  expect(plan.sql).not.toContain("https://example.test/old-photo");
+  expect(() =>
+    prepareLegacyAccounts(source, target, [{ ...exclusion, googleAccountId: "wrong" }]),
+  ).toThrow(/exclusion/);
+  expect(() =>
+    prepareLegacyAccounts(source, target, [{ ...exclusion, userId: "unknown" }]),
+  ).toThrow(/exclusion/);
+  expect(() => prepareLegacyAccounts(source, target, [exclusion, exclusion])).toThrow(/exclusion/);
+});
 test("旧版の名前・ID・Google識別子・画像を新D1へ保存し、秘密トークンを移さない", async () => {
   const source = fixture();
   const key = `avatars/${crypto.randomUUID()}.webp`;

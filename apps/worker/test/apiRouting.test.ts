@@ -1,6 +1,64 @@
 import { exports } from "cloudflare:workers";
 import { createRoomContract, getRoomContract, roomSocketContract } from "@tetraboard/protocol";
 import { expect, test } from "vitest";
+import worker from "../src/worker";
+import { env } from "cloudflare:workers";
+
+test("旧公開URLをパス・クエリ付きで本番ドメインへ転送し、APIを実行しない", async () => {
+  const response = await worker.fetch(
+    new Request("https://tetraboard-2026.chaossi-lab.workers.dev/rooms/12345?invite=example"),
+    { ...env, APP_ORIGIN: "https://tetraboard.net" },
+    {} as ExecutionContext,
+  );
+  expect(response.status).toBe(308);
+  expect(response.headers.get("Location")).toBe(
+    "https://tetraboard.net/rooms/12345?invite=example",
+  );
+});
+
+test("本番の画面・画像をアセットへ渡し、APIと旧プロフィール・棋譜の導線を分ける", async () => {
+  const assets = {
+    fetch: async (request: Request) => new Response(`asset:${new URL(request.url).pathname}`),
+  } as Fetcher;
+  const production = { ...env, APP_ORIGIN: "https://tetraboard.net" as const, ASSETS: assets };
+  for (const path of [
+    "/rooms/12345",
+    "/account/matches/example",
+    "/games/four-shogi",
+    "/assets/logo.svg",
+  ]) {
+    const response = await worker.fetch(
+      new Request(`https://tetraboard.net${path}`),
+      production,
+      {} as ExecutionContext,
+    );
+    expect(await response.text()).toBe(`asset:${path}`);
+  }
+  const health = await worker.fetch(
+    new Request("https://tetraboard.net/api/healthz"),
+    production,
+    {} as ExecutionContext,
+  );
+  expect(await health.json()).toEqual({ status: "ok" });
+  const missing = await worker.fetch(
+    new Request("https://tetraboard.net/api/missing"),
+    production,
+    {} as ExecutionContext,
+  );
+  expect(missing.status).toBe(404);
+  for (const [path, target] of [
+    ["/profile", "/account"],
+    ["/games/game-old", "/games/four-reversi"],
+    ["/guest/name", "/games/four-reversi"],
+  ]) {
+    const response = await worker.fetch(
+      new Request(`https://tetraboard.net${path}`),
+      production,
+      {} as ExecutionContext,
+    );
+    expect(response.headers.get("Location")).toBe(`https://tetraboard.net${target}`);
+  }
+});
 
 test("/api はJSON・認証・WebSocketを既存のルーム処理へ渡す", async () => {
   const base = "https://example.com/api";

@@ -78,7 +78,7 @@ jobs:
       group: production-deploy
       cancel-in-progress: false
     env:
-      PRODUCTION_URL: https://tetraboard-2026.chaossi-lab.workers.dev
+      PRODUCTION_URL: https://tetraboard.net
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4

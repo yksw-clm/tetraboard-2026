@@ -31,7 +31,8 @@
   "env": {
     "production": {
       "name": "tetraboard-2026",
-      "vars": { "APP_ORIGIN": "https://tetraboard-2026.chaossi-lab.workers.dev" },
+      "vars": { "APP_ORIGIN": "https://tetraboard.net" },
+      "routes": [{ "pattern": "tetraboard.net", "custom_domain": true }],
       "r2_buckets": [
         {
           "binding": "OBJECT_STORAGE",
@@ -43,8 +44,9 @@
       "preview_urls": false,
       "assets": {
         "directory": "../web/dist",
+        "binding": "ASSETS",
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api", "/api/*"]
+        "run_worker_first": true
       },
       "durable_objects": {
         "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
