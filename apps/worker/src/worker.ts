@@ -29,7 +29,24 @@ const app = new Hono<{ Bindings: Env }>().route("/api", api).route("/", api);
 
 app.notFound((context) => context.text("Not Found", 404));
 
-export default Object.assign(app, {
+export default {
+  async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (
+      url.hostname === "tetraboard-2026.chaossi-lab.workers.dev" &&
+      env.APP_ORIGIN === "https://tetraboard.net"
+    )
+      return Response.redirect(`${env.APP_ORIGIN}${url.pathname}${url.search}`, 308);
+    // 画面・画像はアセットへ渡し、APIだけをHonoで処理します。
+    if (env.ASSETS && url.pathname !== "/api" && !url.pathname.startsWith("/api/")) {
+      if (url.pathname === "/profile")
+        return Response.redirect(new URL("/account", request.url).toString(), 302);
+      if (/^\/games\/game-[^/]+$/.test(url.pathname) || url.pathname === "/guest/name")
+        return Response.redirect(new URL("/games/four-reversi", request.url).toString(), 302);
+      return env.ASSETS.fetch(request);
+    }
+    return app.fetch(request, env, context);
+  },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     await deleteExpiredReports(env.APP_DB);
     await recoverAccountReservations(env);
@@ -40,4 +57,4 @@ export default Object.assign(app, {
       env.APP_DB.prepare("DELETE FROM rateLimit WHERE lastRequest < ?").bind(Date.now() - 86400000),
     ]);
   },
-});
+};

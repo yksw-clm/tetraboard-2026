@@ -23,6 +23,7 @@ type LegacyAccount = {
   updatedAt: number;
 };
 export type AccountSnapshot = { users: LegacyUser[]; accounts: LegacyAccount[] };
+export type LegacyAccountExclusion = { userId: string; googleAccountId: string };
 const avatarPattern =
   /^avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 const literal = (value: string | number | null) => {
@@ -38,14 +39,37 @@ const insert = (table: string, values: Record<string, string | number | null>) =
   `INSERT INTO "${table}" (${Object.keys(values)
     .map((key) => `"${key}"`)
     .join(", ")}) VALUES (${Object.values(values).map(literal).join(", ")});`;
-export function prepareLegacyAccounts(source: AccountSnapshot, target: AccountSnapshot) {
+export function prepareLegacyAccounts(
+  source: AccountSnapshot,
+  target: AccountSnapshot,
+  exclusions: LegacyAccountExclusion[] = [],
+) {
+  const excludedIds = new Set<string>();
+  for (const exclusion of exclusions) {
+    const user = source.users.find((candidate) => candidate.id === exclusion.userId);
+    const accounts = source.accounts.filter(
+      (account) => account.userId === exclusion.userId && account.providerId === "google",
+    );
+    if (
+      !user ||
+      user.isAnonymous ||
+      user.isTestUser ||
+      accounts.length !== 1 ||
+      accounts[0].accountId !== exclusion.googleAccountId ||
+      excludedIds.has(exclusion.userId)
+    )
+      throw new Error("Account exclusion does not match one registered Google identity");
+    excludedIds.add(exclusion.userId);
+  }
   const sql: string[] = [];
   const avatars = new Set<string>();
   const seenIds = new Set<string>(),
     seenEmails = new Set<string>(),
     seenNames = new Set<string>(),
     seenAccounts = new Set<string>();
-  const users = source.users.filter((user) => !user.isAnonymous && !user.isTestUser);
+  const users = source.users.filter(
+    (user) => !user.isAnonymous && !user.isTestUser && !excludedIds.has(user.id),
+  );
   for (const user of users) {
     if (!user.id || !user.email || (!user.name && user.profileCompleted))
       throw new Error("Invalid account identity");
