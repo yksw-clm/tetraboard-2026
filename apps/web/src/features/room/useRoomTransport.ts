@@ -7,6 +7,7 @@ import {
   type Room,
   type RoomMembership,
   type RoomMode,
+  type RoomTimeControl,
   type RoomPresence,
 } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
@@ -536,6 +537,8 @@ export function useRoomTransport<T extends Room>({
     handleStartClick,
     handleReadyClick,
     changeMode,
+    changeTimeControl: (timeControl: RoomTimeControl) =>
+      sendSettingsMessage({ type: "room.time-control.set", timeControl }),
     changeThreePlayerAttack: (prohibited: boolean) =>
       sendSettingsMessage({ type: "room.three-player-attack.set", prohibited }),
     addCpu,

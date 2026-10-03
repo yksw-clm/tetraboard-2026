@@ -1,3 +1,4 @@
+import { roomTimeControl } from "@tetraboard/protocol";
 import { expect, test } from "@playwright/test";
 import { membership, mockLobby, mockRoom, playingRoom, token, waitingRoom } from "./fixtures";
 
@@ -13,6 +14,7 @@ test("作成ダイアログの入力を引き継ぎ、作成成功後に待機�
       name: "てとら",
       quickPlay: false,
       mode: "doubles",
+      timeControl: roomTimeControl,
     });
     await route.fulfill({ status: 201, json: { room, membership: { ...membership, token } } });
   });

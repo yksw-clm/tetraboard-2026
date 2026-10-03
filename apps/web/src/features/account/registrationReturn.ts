@@ -1,4 +1,9 @@
-import { roomSocketContract, type RoomMode } from "@tetraboard/protocol";
+import {
+  roomSocketContract,
+  roomTimeControlSchema,
+  type RoomTimeControl,
+  type RoomMode,
+} from "@tetraboard/protocol";
 
 export const registrationReturnKey = "tetraboard:registration-return";
 const lifetimeMs = 60 * 60 * 1000;
@@ -8,6 +13,7 @@ export type RegistrationEntryDraft = {
   name: string;
   roomCode: string;
   mode: RoomMode;
+  timeControl?: RoomTimeControl;
   selectedRoomId?: string;
   humanOnly?: boolean;
   threePlayerAttackProhibited?: boolean;
@@ -64,6 +70,8 @@ export function parseRegistrationReturn(
       typeof entry.roomCode !== "string" ||
       entry.roomCode.length > 100 ||
       (entry.mode !== "singles" && entry.mode !== "doubles") ||
+      (entry.timeControl !== undefined &&
+        !roomTimeControlSchema.safeParse(entry.timeControl).success) ||
       (entry.selectedRoomId !== undefined &&
         (typeof entry.selectedRoomId !== "string" || !/^\d{5}$/.test(entry.selectedRoomId))) ||
       (entry.humanOnly !== undefined && typeof entry.humanOnly !== "boolean") ||
@@ -76,6 +84,9 @@ export function parseRegistrationReturn(
       name: entry.name,
       roomCode: entry.roomCode,
       mode: entry.mode,
+      ...(entry.timeControl === undefined
+        ? {}
+        : { timeControl: roomTimeControlSchema.parse(entry.timeControl) }),
       ...(entry.selectedRoomId === undefined
         ? {}
         : { selectedRoomId: String(entry.selectedRoomId) }),

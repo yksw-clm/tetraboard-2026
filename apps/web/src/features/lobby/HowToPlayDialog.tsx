@@ -1,6 +1,5 @@
 import { AppButton } from "../../shared/ui/AppButton";
 
-import { roomTimeControl } from "@tetraboard/protocol";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { FourShogiRules } from "./FourShogiRules";
 
@@ -65,9 +64,10 @@ function FourReversiRules() {
       <section>
         <h3>対局の終わりと持ち時間</h3>
         <p>
-          盤が埋まるか、対局を続けている全員が連続で自動パスすると終局します。持ち時間は1人
-          {roomTimeControl.mainTimeMs / 60_000}分。その後は1手
-          {roomTimeControl.byoyomiMs / 1000}秒の秒読みです。 自動パスでは時間を消費しません。
+          盤が埋まるか、対局を続けている全員が連続で自動パスすると終局します。持ち時間は、なし・1分・3分・5分・10分から、秒読みは、なし・10秒・30秒からルームごとに選べます。
+          初期設定は1人5分＋1手30秒です。持ち時間なしでは最初から秒読みになり、秒読みなしでは持ち時間を使い切ると時間切れです。
+          秒読みは毎手リセットされ、持ち越しません。両方なしにはできません。
+          自動パスでは時間を消費しません。
         </p>
         <p>
           投了は自分の手番でできます。投了・退室・時間切れ・30秒以内に復帰しない通信切れで脱落すると、シングルスはその時点の最下位になり、残り1人で終局します。ダブルスは1人の脱落でそのチームの敗北になります。

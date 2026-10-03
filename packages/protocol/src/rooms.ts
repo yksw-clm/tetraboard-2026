@@ -24,14 +24,22 @@ export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
 export const fourReversiColorSchema = z.enum(["black", "white", "red", "blue"]);
 export const roomTimeControl = { mainTimeMs: 300_000, byoyomiMs: 30_000 } as const;
+export const roomMainTimePresets = [0, 60_000, 180_000, 300_000, 600_000] as const;
+export const roomByoyomiPresets = [0, 10_000, 30_000] as const;
+export const roomTimeControlSchema = z
+  .strictObject({
+    mainTimeMs: z.union(roomMainTimePresets.map((value) => z.literal(value))),
+    byoyomiMs: z.union(roomByoyomiPresets.map((value) => z.literal(value))),
+  })
+  .refine((value) => value.mainTimeMs > 0 || value.byoyomiMs > 0, {
+    message: "Main time and byoyomi cannot both be disabled",
+  });
+export type RoomTimeControl = z.infer<typeof roomTimeControlSchema>;
 export const roomModeSchema = z.enum(["singles", "doubles"]);
 export const fourReversiRoomSettingsSchema = z.strictObject({
   game: z.literal("four-reversi"),
   mode: roomModeSchema,
-  timeControl: z.strictObject({
-    mainTimeMs: z.literal(roomTimeControl.mainTimeMs),
-    byoyomiMs: z.literal(roomTimeControl.byoyomiMs),
-  }),
+  timeControl: roomTimeControlSchema,
 });
 const serverNowMsSchema = z.int().nonnegative();
 const remainingMainMsSchema = z.strictObject({
@@ -418,6 +426,7 @@ export const createRoomContract = {
     mode: roomModeSchema,
     game: roomGameSchema.optional(),
     threePlayerAttackProhibited: z.boolean().optional(),
+    timeControl: roomTimeControlSchema.optional(),
   }),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
@@ -531,6 +540,10 @@ export const roomSocketContract = {
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
     z.strictObject({ type: z.literal("room.mode.set"), mode: roomModeSchema }),
+    z.strictObject({
+      type: z.literal("room.time-control.set"),
+      timeControl: roomTimeControlSchema,
+    }),
     z.strictObject({ type: z.literal("room.three-player-attack.set"), prohibited: z.boolean() }),
     z.strictObject({ type: z.literal("room.cpu.add"), level: cpuLevelSchema }),
     z.strictObject({ type: z.literal("room.cpu.remove"), playerId: z.uuid() }),

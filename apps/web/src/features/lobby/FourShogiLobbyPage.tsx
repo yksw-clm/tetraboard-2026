@@ -19,12 +19,14 @@ export function FourShogiLobbyPage() {
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}
+      timeControl={entry.timeControl}
       threePlayerAttackProhibited={entry.threePlayerAttackProhibited}
       isSubmitting={entry.isSubmitting}
       message={entry.message}
       onNameChange={entry.setName}
       onRoomCodeChange={entry.setRoomCode}
       onModeChange={entry.setMode}
+      onTimeControlChange={entry.setTimeControl}
       onThreePlayerAttackChange={entry.setThreePlayerAttackProhibited}
       onClearMessage={entry.clearMessage}
       onSubmitRoom={(intent, roomId) => void entry.submitRoom(intent, roomId)}

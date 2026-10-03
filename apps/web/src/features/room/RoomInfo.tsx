@@ -1,3 +1,4 @@
+import { TimeControlSetting } from "./TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
 import { type ReactNode, type RefObject } from "react";
 import { type Room, type CpuLevel } from "@tetraboard/protocol";
@@ -80,6 +81,14 @@ export function RoomInfo({
                     />
                   </div>
                 )}
+                <div className="mb-3">
+                  <TimeControlSetting
+                    timeControl={room.settings.timeControl}
+                    onChange={session.changeTimeControl}
+                    disabled={!canManageSettings}
+                    theme={room.settings.game === "four-shogi" ? "four-shogi" : "default"}
+                  />
+                </div>
                 <div>
                   <p className="text-[11px] font-bold text-muted">CPUの設定</p>
                   {room.players
@@ -246,14 +255,22 @@ export function RoomInfoCard({
           <AppIcon name="clock" />
           <div>
             <dt>持ち時間</dt>
-            <dd>{formatClock(settings.timeControl.mainTimeMs)}</dd>
+            <dd>
+              {settings.timeControl.mainTimeMs === 0
+                ? "なし"
+                : formatClock(settings.timeControl.mainTimeMs)}
+            </dd>
           </div>
         </div>
         <div>
           <AppIcon name="clock" />
           <div>
             <dt>秒読み</dt>
-            <dd>{formatClock(settings.timeControl.byoyomiMs)}</dd>
+            <dd>
+              {settings.timeControl.byoyomiMs === 0
+                ? "なし"
+                : formatClock(settings.timeControl.byoyomiMs)}
+            </dd>
           </div>
         </div>
       </dl>

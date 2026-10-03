@@ -89,6 +89,10 @@ export {
   roomSettingsSchema,
   roomSocketContract,
   roomTimeControl,
+  roomMainTimePresets,
+  roomByoyomiPresets,
+  roomTimeControlSchema,
+  type RoomTimeControl,
   viewerContract,
 } from "./rooms";
 export type {
