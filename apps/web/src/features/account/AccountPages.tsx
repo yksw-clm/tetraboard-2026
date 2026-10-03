@@ -116,6 +116,7 @@ export function LoginPage() {
 }
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error } = useAccount();
+  // ファイル選択からの復帰による再確認では、編集中のフォームを取り外しません。
   if (!user && (loading || error))
     return (
       <AccountPageShell layout={setup ? "form" : "profile"}>
