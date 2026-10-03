@@ -116,6 +116,90 @@ test("盤と持ち駒の比率・順・向き・空領域を全境界で維持�
   expect(handBefore!.height).toBeGreaterThan(0);
 });
 
+for (const width of [320, 390, 522, 767]) {
+  test(`${width}pxで高さ不足なら盤だけ縮小し、カードと持ち駒を画面内に保つ`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const fixture = await mockRoom(page, playingShogiRoom(tacticalShogiState()));
+    await page.goto("/rooms/12345");
+    const layout = page.getByTestId("shogi-board-layout");
+    const board = page.getByTestId("shogi-board");
+    const cards = layout.getByTestId("player-card");
+    const hands = layout.getByTestId("shogi-hand").filter({ visible: true });
+    await expect(square(page, 4, 6)).toBeEnabled();
+    const cardSizes = () =>
+      cards.evaluateAll((elements) =>
+        elements.map((element) => {
+          const { width, height } = element.getBoundingClientRect();
+          return { width, height };
+        }),
+      );
+    const originalCards = await cardSizes();
+    let previousBoard = (await board.boundingBox())!;
+    let previousHand = (await hands.first().boundingBox())!;
+    for (const height of [640, 480]) {
+      await page.setViewportSize({ width, height });
+      await expect
+        .poll(() =>
+          board.evaluate((element) => {
+            const panel = element.closest('[role="tabpanel"]')!;
+            return (
+              panel.scrollHeight <= panel.clientHeight + 1 &&
+              panel.scrollWidth <= panel.clientWidth + 1
+            );
+          }),
+        )
+        .toBe(true);
+      const box = (await board.boundingBox())!;
+      const container = (await layout.boundingBox())!;
+      expect(box.width).toBeLessThan(previousBoard.width);
+      expect(Math.abs(box.width / box.height - 458 / 500)).toBeLessThan(0.002);
+      expect(Math.abs(box.x + box.width / 2 - (container.x + container.width / 2))).toBeLessThan(1);
+      expect(await cardSizes()).toEqual(originalCards);
+      for (const card of originalCards) expect(card.height).toBe(60);
+      const hand = (await hands.first().boundingBox())!;
+      expect(hand.height).toBeLessThan(previousHand.height);
+      expect(Math.abs(hand.width - originalCards[0]!.width)).toBeLessThan(1);
+      const pieceWidth = await board
+        .getByTestId("shogi-piece")
+        .first()
+        .evaluate((element) => element.getBoundingClientRect().width);
+      for (const size of await hands
+        .getByTestId("shogi-piece")
+        .evaluateAll((elements) =>
+          elements.map((element) => element.getBoundingClientRect().width),
+        )) {
+        expect(Math.abs(size - pieceWidth)).toBeLessThan(1);
+      }
+      const rectangles = await cards.evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { top: rect.top, bottom: rect.bottom };
+        }),
+      );
+      for (const rect of rectangles) {
+        expect(rect.top).toBeGreaterThanOrEqual(container.y);
+        expect(rect.bottom).toBeLessThanOrEqual(container.y + container.height + 1);
+      }
+      previousBoard = box;
+      previousHand = hand;
+    }
+    await page.getByRole("tab", { name: "ルーム", exact: true }).click();
+    await page.getByRole("tab", { name: "盤面", exact: true }).click();
+    await expect(board).toBeVisible();
+    expect(await board.boundingBox()).toEqual(previousBoard);
+    fixture.update(playingShogiRoom(initialShogiState(), 1));
+    await expect(hands.getByTestId("shogi-piece")).toHaveCount(0);
+    expect(await hands.first().boundingBox()).toEqual(previousHand);
+    expect(await board.boundingBox()).toEqual(previousBoard);
+    await info.attach("低いスマホ画面", {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
+  });
+}
+
 for (const side of sides) {
   test(side + "の視点は自王が下、送信は元の座標を使う", async ({ page }) => {
     const state = { ...initialShogiState(), turn: side } as ReturnType<typeof initialShogiState>;

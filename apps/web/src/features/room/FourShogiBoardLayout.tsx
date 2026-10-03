@@ -275,10 +275,12 @@ export function FourShogiBoardLayout({
   }
 
   const lastAction = game.lastMove?.action;
+  // スマホではカード2段・持ち駒2段・4つの間隔を除いた高さに収めます。
+  // 持ち駒の高さも盤の幅に比例するため、盤と駒2段の比率を合わせて計算します。
   return (
     <div
       data-testid="shogi-board-layout"
-      className="[--player-height:60px] [--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'._top_.'_'left_board_right'_'._bottom_.'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:100cqw] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[6px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
+      className="[--player-height:60px] [--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'._top_.'_'left_board_right'_'._bottom_.'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
     >
       {shogiSides.map((side) => {
         const placement = shogiSidePlacement(side, viewerSide);
@@ -289,7 +291,7 @@ export function FourShogiBoardLayout({
             key={side}
             data-side={side}
             data-board-position={placement}
-            className={`flex min-w-0 gap-[6px] ${groupClasses[placement]}`}
+            className={`flex min-w-0 gap-[6px] [@media(max-width:767px)]:gap-[2px] ${groupClasses[placement]}`}
           >
             <div
               className={`${vertical ? "w-full" : "w-1/2"} shrink-0 min-w-0 [@media(max-width:767px)]:w-full`}
@@ -301,7 +303,7 @@ export function FourShogiBoardLayout({
             >
               {hand(side, shogiPieceDirection(side, viewerSide), vertical)}
             </div>
-            <div className="flex justify-center [@media(min-width:768px)]:hidden">
+            <div className="flex w-full justify-center [@media(min-width:768px)]:hidden">
               {hand(side, above ? "down" : "up")}
             </div>
           </div>
@@ -309,7 +311,7 @@ export function FourShogiBoardLayout({
       })}
       <div
         data-testid="shogi-board"
-        className="[grid-area:board] relative w-full aspect-[458/500] self-center shadow-[0_8px_24px_#71531c25]"
+        className="[grid-area:board] relative w-[var(--shogi-board-width)] aspect-[458/500] place-self-center shadow-[0_8px_24px_#71531c25]"
         role="group"
         aria-label="四人将棋の盤面"
       >
