@@ -12,6 +12,7 @@ import { useNavigate } from "react-router";
 import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
 
 import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
+import { useRegistrationRestore } from "../account/useRegistrationRestore";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
@@ -41,10 +42,13 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
 export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi") {
   const navigate = useNavigate();
   const account = useAccount();
-  const [name, setName] = useState("");
-  const [roomCode, setRoomCode] = useState("");
-  const [mode, setMode] = useState<RoomMode>("singles");
-  const [threePlayerAttackProhibited, setThreePlayerAttackProhibited] = useState(true);
+  const restored = useRegistrationRestore();
+  const [name, setName] = useState(restored?.entry?.name ?? "");
+  const [roomCode, setRoomCode] = useState(restored?.entry?.roomCode ?? "");
+  const [mode, setMode] = useState<RoomMode>(restored?.entry?.mode ?? "singles");
+  const [threePlayerAttackProhibited, setThreePlayerAttackProhibited] = useState(
+    restored?.entry?.threePlayerAttackProhibited ?? true,
+  );
   const [isSubmitting, setIsSubmitting] = useState<RoomEntryIntent | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const submitting = useRef(false);
@@ -137,6 +141,7 @@ export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi
   }
 
   return {
+    registrationDraft: restored?.entry,
     name,
     setName,
     roomCode,

@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
 import { AccountContext } from "./useAccount";
 import { readAccount } from "./accountApi";
+import { RegistrationCompletion } from "./RegistrationCompletion";
 export function AccountLayout() {
   const [state, setState] = useState<{
     user: AccountProfile | null;
@@ -46,6 +47,12 @@ export function AccountLayout() {
     <AccountContext.Provider value={{ ...state, refresh, update }}>
       {state.user && !state.user.profileCompleted && location.pathname !== "/account/setup" ? (
         <Navigate to="/account/setup" replace />
+      ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
+        <RegistrationCompletion
+          enabled={Boolean(state.user?.profileCompleted && !state.loading && !state.error)}
+        >
+          <Outlet />
+        </RegistrationCompletion>
       ) : (
         <Outlet />
       )}

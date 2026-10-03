@@ -2,17 +2,20 @@ import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { useAccount } from "./useAccount";
+import { RegistrationPrompt } from "./RegistrationPrompt";
 
 export function RoomIdentityFields({
   name,
   onChange,
   busy,
   id,
+  registration,
 }: {
   name: string;
   onChange: (name: string) => void;
   busy: boolean;
   id?: string;
+  registration?: { humanOnly: boolean; onRegister: () => void };
 }) {
   const account = useAccount();
   if (account.loading)
@@ -43,10 +46,21 @@ export function RoomIdentityFields({
       </div>
     );
   return (
-    <AppTextField value={name} onChange={onChange} isDisabled={busy}>
-      <AppTextField.Label>ニックネーム</AppTextField.Label>
-      <AppTextField.Input id={id} autoFocus autoComplete="nickname" placeholder="例：てとら" />
-      <AppTextField.Description>1〜10文字。ユーザー登録は必要ありません。</AppTextField.Description>
-    </AppTextField>
+    <div className="flex flex-col gap-3">
+      <AppTextField value={name} onChange={onChange} isDisabled={busy}>
+        <AppTextField.Label>ニックネーム</AppTextField.Label>
+        <AppTextField.Input id={id} autoFocus autoComplete="nickname" placeholder="例：てとら" />
+        <AppTextField.Description>
+          1〜10文字。ユーザー登録は必要ありません。
+        </AppTextField.Description>
+      </AppTextField>
+      {registration && (
+        <RegistrationPrompt
+          humanOnly={registration.humanOnly}
+          busy={busy}
+          onRegister={registration.onRegister}
+        />
+      )}
+    </div>
   );
 }

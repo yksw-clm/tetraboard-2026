@@ -17,6 +17,10 @@ import { type useRoomTransport } from "./useRoomTransport";
 import { appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
+import { RegistrationPrompt } from "../account/RegistrationPrompt";
+import { useGoogleSignIn } from "../account/useGoogleSignIn";
+import { useRegistrationResult } from "./useRegistrationResult";
+import { roomInvitationPath } from "../../shared/roomAccess";
 
 export function RoomViewShell({
   session,
@@ -43,6 +47,7 @@ export function RoomViewShell({
 }) {
   const desktop = useRoomDesktop();
   const account = useAccount();
+  const google = useGoogleSignIn();
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<"result" | "leave" | "resign" | null>(null);
   const [cpuConfirmation, setCpuConfirmation] = useState<CpuLevel | null>(null);
@@ -50,6 +55,7 @@ export function RoomViewShell({
   const theme = room.settings.game === "four-shogi" ? "four-shogi" : "default";
   const lobbyPath = theme === "four-shogi" ? fourShogiLobbyPath : fourReversiLobbyPath;
   const joinButtonRef = useRef<HTMLButtonElement>(null);
+  const resultButtonRef = useRef<HTMLButtonElement>(null);
   const fallbackFocusRef = useRef<HTMLElement>(null);
   const cpuAddButtonRef = useRef<HTMLButtonElement>(null);
   const previousCpuConfirmation = useRef(false);
@@ -77,6 +83,23 @@ export function RoomViewShell({
   const invitation = useRoomInvitation(room, membership, invited, () => {
     (joinButtonRef.current ?? fallbackFocusRef.current)?.focus();
   });
+  const guest = !account.loading && !account.error && !account.user;
+  const autoResult = useRegistrationResult(
+    room,
+    membership?.playerId,
+    guest && session.authenticated && !session.leaving,
+    dialog !== null || invitation.dialog !== null || cpuConfirmation !== null,
+    Boolean(session.unavailable),
+  );
+  const closeResult = () => {
+    autoResult.dismiss();
+    setDialog(null);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        (resultButtonRef.current ?? fallbackFocusRef.current)?.focus();
+      }),
+    );
+  };
   const busy = session.leaving || session.pendingGameAction?.type === "resign";
   if (
     (room.status !== "playing" && dialog === "resign") ||
@@ -133,8 +156,12 @@ export function RoomViewShell({
       replay={desktop ? undefined : replayCard}
       onJoin={invitation.openJoin}
       joinButtonRef={joinButtonRef}
+      resultButtonRef={resultButtonRef}
       joinUnavailable={invitation.unavailableReason}
-      onResults={() => setDialog("result")}
+      onResults={() => {
+        autoResult.dismiss();
+        setDialog("result");
+      }}
       onResign={() => setDialog("resign")}
       onDrawProposal={session.handleDrawProposalClick}
     />
@@ -188,7 +215,13 @@ export function RoomViewShell({
           </Toast>
         )}
       </Toast.Provider>
-      <RoomInvitationDialogs invitation={invitation} roomId={room.id} theme={theme} />
+      <RoomInvitationDialogs
+        invitation={invitation}
+        roomId={room.id}
+        theme={theme}
+        registrationPath={roomInvitationPath(room)}
+        humanOnly={!room.players.some((p) => p.kind === "cpu")}
+      />
       {cpuConfirmation !== null && (
         <AppDialog
           size="compact"
@@ -220,9 +253,34 @@ export function RoomViewShell({
           </div>
         </AppDialog>
       )}
-      {dialog === "result" && room.lastRound && (
-        <AppDialog size="compact" title="対局結果" onClose={() => setDialog(null)} theme={theme}>
+      {(dialog === "result" || autoResult.visible) && room.lastRound && (
+        <AppDialog
+          size="compact"
+          title="対局結果"
+          onClose={closeResult}
+          theme={theme}
+          busy={google.busy}
+        >
           {result}
+          {guest && (
+            <div className="mt-5">
+              <RegistrationPrompt
+                result
+                seated={membership !== null}
+                humanOnly={room.lastRound.players.every((p) =>
+                  room.players.some((current) => current.id === p.id && current.kind === "human"),
+                )}
+                busy={google.busy}
+                onRegister={() => void google.start({ path: roomInvitationPath(room) })}
+                onDismiss={closeResult}
+              />
+              {google.message && (
+                <p role="alert" className="mt-3 text-sm text-danger">
+                  {google.message}
+                </p>
+              )}
+            </div>
+          )}
         </AppDialog>
       )}
       {(dialog === "leave" || dialog === "resign") && (

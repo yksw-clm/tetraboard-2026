@@ -14,7 +14,7 @@ type Props = {
   moreLoading: boolean;
   onRefresh: () => void;
   onLoadMore: () => void;
-  onJoin: (roomId: string) => void;
+  onJoin: (roomId: string, humanOnly?: boolean) => void;
   onWatch: (roomId: string) => void;
 };
 
@@ -140,7 +140,7 @@ export function LobbyList({
                             size="compact"
                             type="button"
                             aria-label={`ルーム ${room.id} に参加`}
-                            onPress={() => onJoin(room.id)}
+                            onPress={() => onJoin(room.id, room.cpuCount === 0)}
                           >
                             参加
                           </AppButton>

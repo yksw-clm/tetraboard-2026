@@ -14,6 +14,7 @@ export function FourShogiLobbyPage() {
   return (
     <LobbyView
       game="four-shogi"
+      registrationDraft={entry.registrationDraft}
       boardPreview={<FourShogiLobbyBoardPreview />}
       name={entry.name}
       roomCode={entry.roomCode}

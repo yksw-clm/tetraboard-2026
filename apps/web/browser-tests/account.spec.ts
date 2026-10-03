@@ -88,7 +88,7 @@ for (const width of [320, 390, 768, 1440]) {
     await page.getByRole("button", { name: /のアカウントメニュー/ }).click();
     await page.getByRole("menuitem", { name: "ログアウト" }).click();
     await expect(page).toHaveURL(/games\/four-reversi$/);
-    await page.getByRole("link", { name: "ログイン", exact: true }).click();
+    await page.getByRole("link", { name: "登録・ログイン", exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("button", { name: "Googleで続ける" })).toBeVisible();
     await expect(page.getByText(/新しいユーザーが作成されます/)).toBeVisible();
