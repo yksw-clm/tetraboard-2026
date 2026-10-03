@@ -2,6 +2,7 @@ import {
   applyAction,
   createInitialState,
   eliminateSide,
+  setDrawProposal,
   getLegalActions,
   sides,
   type FourShogiState,
@@ -75,7 +76,9 @@ export function shogiReplayMatch(mode: RoomMode = "singles", index = 1) {
     const result =
       event.type === "action"
         ? applyAction(state, event.side, event.action)
-        : eliminateSide(state, event.side, event.reason);
+        : event.type === "eliminate"
+          ? eliminateSide(state, event.side, event.reason)
+          : setDrawProposal(state, event.side, event.proposed);
     if (!result.ok) throw new Error(`Invalid fixed shogi replay: ${result.reason}`);
     events.push({ index: events.length, event });
     state = result.state;

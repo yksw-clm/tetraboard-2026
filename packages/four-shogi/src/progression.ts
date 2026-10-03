@@ -18,6 +18,7 @@ export function eliminateBatch(
   return {
     ...state,
     hands,
+    drawProposals: state.drawProposals.filter((side) => !eliminated.includes(side)),
     eliminations: [
       ...state.eliminations,
       ...eliminated.map((side) => ({ side, rank, group, reason })),
@@ -41,16 +42,16 @@ function finish(state: FourShogiState, reason: GameResult["reason"]): FourShogiS
       .sort((left, right) => left.rank - right.rank);
     result = {
       mode: "singles",
-      reason: reason as "last_player" | "no_survivors" | "repetition",
+      reason: reason as "last_player" | "no_survivors" | "repetition" | "agreement",
       standings,
     };
   } else {
     const lostTeams = new Set(state.eliminations.map((entry) => teamForSide(entry.side)));
     result = {
       mode: "doubles",
-      reason: reason as "team_eliminated" | "simultaneous_mate" | "repetition",
+      reason: reason as "team_eliminated" | "simultaneous_mate" | "repetition" | "agreement",
       winner:
-        reason === "repetition" || lostTeams.size !== 1
+        reason === "repetition" || reason === "agreement" || lostTeams.size !== 1
           ? null
           : lostTeams.has("south-north")
             ? "west-east"
@@ -58,6 +59,13 @@ function finish(state: FourShogiState, reason: GameResult["reason"]): FourShogiS
     };
   }
   return { ...state, status: "finished", turn: null, result };
+}
+
+export function finishIfDrawAgreed(state: FourShogiState): FourShogiState {
+  if (state.status === "finished") return state;
+  return getActiveSides(state).every((side) => state.drawProposals.includes(side))
+    ? finish(state, "agreement")
+    : state;
 }
 
 function finishIfEliminated(state: FourShogiState): FourShogiState {
@@ -111,6 +119,8 @@ export function settlePosition(
     if (state.status === "finished") return state;
     selected = nextSide(state, selected);
   }
+  state = finishIfDrawAgreed(state);
+  if (state.status === "finished") return state;
   const recorded = recordPosition(state, repetitionLookup);
   return isRepetition(recorded) ? finish(recorded, "repetition") : recorded;
 }

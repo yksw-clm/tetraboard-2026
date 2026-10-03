@@ -44,12 +44,12 @@ export type MoveRecord = Readonly<{
 export type GameResult =
   | Readonly<{
       mode: "singles";
-      reason: "last_player" | "no_survivors" | "repetition";
+      reason: "last_player" | "no_survivors" | "repetition" | "agreement";
       standings: readonly Readonly<{ side: Side; rank: number }>[];
     }>
   | Readonly<{
       mode: "doubles";
-      reason: "team_eliminated" | "simultaneous_mate" | "repetition";
+      reason: "team_eliminated" | "simultaneous_mate" | "repetition" | "agreement";
       winner: Team | null;
     }>;
 export type StateBase = Readonly<{
@@ -60,6 +60,7 @@ export type StateBase = Readonly<{
   board: Board;
   hands: Hands;
   eliminations: readonly Elimination[];
+  drawProposals: readonly Side[];
   attackRelations: readonly AttackRelation[];
   recaptureSquares: Readonly<Record<Side, readonly Position[]>>;
   repetitions: Readonly<Record<string, number>>;
@@ -108,6 +109,13 @@ export type EliminateSideResult =
   | Readonly<{
       ok: false;
       reason: "game_finished" | "already_eliminated" | "not_your_turn" | "invalid_reason";
+    }>;
+
+export type SetDrawProposalResult =
+  | Readonly<{ ok: true; state: FourShogiState }>
+  | Readonly<{
+      ok: false;
+      reason: "game_finished" | "already_eliminated" | "not_your_turn" | "invalid_proposal";
     }>;
 
 export function getActiveSides(state: FourShogiState): Side[] {

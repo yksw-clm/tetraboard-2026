@@ -3,6 +3,7 @@ import {
   applyAction,
   createInitialState,
   eliminateSide,
+  setDrawProposal,
   type Piece,
   type FourShogiState,
 } from "@tetraboard/four-shogi";
@@ -44,7 +45,9 @@ function lastRound(): FourShogiLastRound {
     const result =
       event.type === "action"
         ? applyAction(state, event.side, event.action)
-        : eliminateSide(state, event.side, event.reason);
+        : event.type === "eliminate"
+          ? eliminateSide(state, event.side, event.reason)
+          : setDrawProposal(state, event.side, event.proposed);
     if (!result.ok) throw new Error("Invalid fixed replay");
     state = result.state;
   }

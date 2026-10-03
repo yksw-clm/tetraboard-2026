@@ -1,7 +1,7 @@
 import { getLegalMovesWithAttacks, updateAttackHistory } from "./attacks";
 import { createInitialBoard, emptyHands } from "./board";
 import { getOrdinaryMoves, validateOrdinaryAction } from "./moves";
-import { eliminateBatch, settlePosition } from "./progression";
+import { eliminateBatch, finishIfDrawAgreed, settlePosition } from "./progression";
 import { recordPosition, type RepetitionLookup } from "./repetition";
 import { getActiveSides, handPieceKinds, sides } from "./types";
 import type {
@@ -12,6 +12,7 @@ import type {
   FourShogiState,
   InitialStateOptions,
   Side,
+  SetDrawProposalResult,
 } from "./types";
 
 export type { RepetitionLookup } from "./repetition";
@@ -42,6 +43,7 @@ export type {
   PieceKind,
   Position,
   Side,
+  SetDrawProposalResult,
   Team,
   TransitionSuccess,
 } from "./types";
@@ -72,12 +74,29 @@ export function createInitialState(options: InitialStateOptions): FourShogiState
     hands: emptyHands(),
     nextPieceId,
     eliminations: [],
+    drawProposals: [],
     attackRelations: [],
     recaptureSquares: { south: [], west: [], north: [], east: [] },
     repetitions: {},
     moveNumber: 0,
     lastMove: null,
   });
+}
+
+export function setDrawProposal(
+  state: FourShogiState,
+  side: Side,
+  proposed: boolean,
+): SetDrawProposalResult {
+  if (state.status === "finished") return { ok: false, reason: "game_finished" };
+  if (!getActiveSides(state).includes(side)) return { ok: false, reason: "already_eliminated" };
+  if (state.turn !== side) return { ok: false, reason: "not_your_turn" };
+  if (typeof proposed !== "boolean") return { ok: false, reason: "invalid_proposal" };
+  if (state.drawProposals.includes(side) === proposed) return { ok: true, state };
+  const drawProposals = sides.filter((entry) =>
+    entry === side ? proposed : state.drawProposals.includes(entry),
+  );
+  return { ok: true, state: finishIfDrawAgreed({ ...state, drawProposals }) };
 }
 
 export function getLegalActionsForSide(state: FourShogiState, side: Side): FourShogiAction[] {

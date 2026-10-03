@@ -1,7 +1,12 @@
-import { applyAction, createInitialState, eliminateSide } from "@tetraboard/four-shogi";
-import { getMatchReplayContract, type FourShogiMatchDetail } from "@tetraboard/protocol";
+import { createInitialState } from "@tetraboard/four-shogi";
+import {
+  getMatchReplayContract,
+  fourShogiPublicStateSchema,
+  type FourShogiMatchDetail,
+} from "@tetraboard/protocol";
 import {
   createFourShogiReplayFrame,
+  applyFourShogiReplayEvent,
   replayDataEqual,
   type FourShogiReplayFrame,
 } from "./fourShogiReplay";
@@ -42,10 +47,7 @@ export async function fetchFourShogiMatchReplay(
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       if (entry.index !== cursor) throw new Error("Saved replay event index mismatch");
       const event = entry.event;
-      const result =
-        event.type === "action"
-          ? applyAction(state, event.side, event.action)
-          : eliminateSide(state, event.side, event.reason);
+      const result = applyFourShogiReplayEvent(state, event);
       if (!result.ok) throw new Error("Saved replay event is invalid");
       state = result.state;
       frames.push(createFourShogiReplayFrame(state, event));
@@ -54,7 +56,11 @@ export async function fetchFourShogiMatchReplay(
     if (page.nextCursor === null) break;
   }
   const final = frames.at(-1)?.game;
-  if (!final || final.status !== "finished" || !replayDataEqual(final, match.game))
+  if (
+    !final ||
+    final.status !== "finished" ||
+    !replayDataEqual(final, fourShogiPublicStateSchema.parse(match.game))
+  )
     throw new Error("Saved replay final position mismatch");
   return frames;
 }

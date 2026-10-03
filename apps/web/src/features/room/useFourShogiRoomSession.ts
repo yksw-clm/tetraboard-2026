@@ -43,6 +43,25 @@ export function useFourShogiRoomSession(
         },
       );
     },
+    handleDrawProposalClick(): void {
+      if (!canPlay || room.status !== "playing" || !self?.side) return;
+      const proposed = !room.game.drawProposals.includes(self.side);
+      session.sendGameMessage(
+        {
+          type: "room.game.draw.set",
+          proposed,
+          roundId: room.roundId,
+          positionRevision: room.positionRevision,
+        },
+        {
+          type: "draw",
+          participant: self.side,
+          proposed,
+          roundId: room.roundId,
+          positionRevision: room.positionRevision,
+        },
+      );
+    },
     handleResignClick(): void {
       if (!canPlay || !self?.side) return;
       session.sendGameMessage(
