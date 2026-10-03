@@ -8,7 +8,9 @@ import {
   isFourShogiRoom,
   type RoomSocketClientMessage,
 } from "@tetraboard/protocol";
-import { getLegalActions } from "@tetraboard/four-shogi";
+import { eliminateSide, getLegalActions } from "@tetraboard/four-shogi";
+import { eliminateColor } from "@tetraboard/four-reversi";
+import { ShogiStore } from "../src/rooms/shogiStore";
 import { accountFixture, origin } from "./accountFixtures";
 
 type Game = "four-reversi" | "four-shogi";
@@ -297,9 +299,40 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     const prepared = await setup(game);
     await runInDurableObject(prepared.stub, async (_, state) => {
       state.storage.kv.put("departed:" + prepared.membership.playerId, true);
-      const room = roomSchema.parse(state.storage.kv.get("room"));
+      let room = roomSchema.parse(state.storage.kv.get("room"));
+      if (room.status !== "playing") throw new Error("Not playing");
+      // A former CPU-only round with two survivors must not finish via an overdue CPU timeout.
+      if (isFourShogiRoom(room)) {
+        const store = new ShogiStore(state.storage.sql);
+        const first = eliminateSide(
+          store.loadState(room.roundId, room.game),
+          room.players[0].side,
+          "left",
+        );
+        if (!first.ok) throw new Error("Cannot eliminate host");
+        const second = eliminateSide(first.state, room.players[1].side, "timeout");
+        if (!second.ok || second.state.status !== "playing")
+          throw new Error("Cannot prepare CPU survivors");
+        room = roomSchema.parse({
+          ...room,
+          game: store.saveState(room.roundId, second.state),
+          eliminations: second.state.eliminations,
+          legalActions: getLegalActions(second.state),
+        });
+      } else {
+        const first = eliminateColor(room.game, room.players[0].color);
+        if (!first.ok) throw new Error("Cannot eliminate host");
+        const second = eliminateColor(first.state, room.players[1].color);
+        if (!second.ok || second.state.status !== "playing")
+          throw new Error("Cannot prepare CPU survivors");
+        room = roomSchema.parse({ ...room, game: second.state });
+      }
+      if (room.status !== "playing") throw new Error("Not playing");
+      room.clock.turnStartedAt = Date.now() - 1000;
+      room.clock.turnExpiresAt = Date.now() - 1;
+      state.storage.kv.put("room", roomSchema.parse(room));
       if (isFourShogiRoom(room) && room.status === "playing") {
-        const cpu = room.players.find((player) => player.kind === "cpu")!;
+        const cpu = room.players.find((player) => player.side === room.game!.turn)!;
         room.game.turn = cpu.side;
         room.legalActions = getLegalActions({ ...room.game, repetitions: {} });
         state.storage.kv.put("shogi-cpu-job", {

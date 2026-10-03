@@ -938,6 +938,10 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         return null;
       }
+      if (this.closeIfNoHumanParticipants(room) === null) {
+        changed = true;
+        return null;
+      }
       const players = room.players.map((player) => {
         const hash = this.playerTokenHash(player.id);
         const active = this.isHumanParticipant(player);
@@ -1484,6 +1488,11 @@ export class GameRoom extends DurableObject<Env> {
         this.closeRoom();
         closed = true;
         changed = true;
+        return null;
+      }
+      if (this.closeIfNoHumanParticipants(current) === null) {
+        changed = true;
+        closed = true;
         return null;
       }
       const disconnected = current.players.map((player) => {
