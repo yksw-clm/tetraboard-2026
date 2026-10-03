@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
 import { shogiReplayMatch } from "./fourShogiRecordFixtures";
+import { expectShogiLayoutFits, shogiCardViewports } from "./shogiLayoutAssertions";
 
 async function chooseGame(page: Page, label: string, name: string) {
   await page.getByRole("button", { name: new RegExp(`${label}$`) }).click();
@@ -137,6 +138,33 @@ for (const width of [320, 390, 768, 1279, 1280, 1440]) {
     expect(traffic.sockets).toEqual([]);
   });
 }
+
+test("保存棋譜の4席を768px境界と低い画面で等幅にし、盤面内の横スクロールを防ぐ", async ({
+  page,
+}, info) => {
+  const fixture = shogiReplayMatch();
+  await setup(page, fixture);
+  await page.setViewportSize({ width: 768, height: 757 });
+  await page.goto(`/account/matches/${fixture.detail.id}`);
+  await expect(page.getByText("対局終了", { exact: true })).toBeVisible();
+  for (const viewport of shogiCardViewports) {
+    await page.setViewportSize(viewport);
+    await expectShogiLayoutFits(page);
+  }
+  await page.setViewportSize({ width: 768, height: 757 });
+  await page.reload();
+  await expectShogiLayoutFits(page);
+  await info.attach("768x757の保存棋譜カード", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+  await page.getByRole("tab", { name: "ルーム", exact: true }).click();
+  await page.getByRole("tab", { name: "盤面", exact: true }).click();
+  await expectShogiLayoutFits(page);
+  await selectFrame(page, "開始局面");
+  await expect(page.getByTestId("shogi-hand").getByRole("button")).toHaveCount(0);
+  await expectShogiLayoutFits(page);
+});
 
 test("低いスマホ画面でも保存棋譜の盤・持ち駒・4席をスクロールなしで閲覧する", async ({
   page,

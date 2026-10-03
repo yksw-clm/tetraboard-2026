@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { applyAction, sides, type FourShogiAction } from "@tetraboard/four-shogi";
 import { mockRoom, membership, playerIds, widths } from "./fixtures";
+import { expectShogiLayoutFits, shogiCardViewports } from "./shogiLayoutAssertions";
 import {
   finishedShogiRound,
   initialShogiState,
@@ -47,6 +48,7 @@ test("盤と持ち駒の比率・順・向き・空領域を全境界で維持�
     const board = page.getByTestId("shogi-board"),
       layout = page.getByTestId("shogi-board-layout");
     await expect(board).toBeVisible();
+    await expectShogiLayoutFits(page);
     const box = (await board.boundingBox())!;
     expect(Math.abs(box.width / box.height - 458 / 500)).toBeLessThan(0.002);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
@@ -114,6 +116,56 @@ test("盤と持ち駒の比率・順・向き・空領域を全境界で維持�
   await expect(empty.getByTestId("shogi-piece")).toHaveCount(0);
   expect((await empty.first().boundingBox())!.height).toBeGreaterThan(0);
   expect(handBefore!.height).toBeGreaterThan(0);
+});
+
+test("待機・対局中の4席を等幅にし、768pxの盤面パネル内にも横スクロールを作らない", async ({
+  page,
+}, info) => {
+  const waiting = waitingShogiRoom();
+  waiting.players = waiting.players.map((player, index) =>
+    index === 0
+      ? { ...player, ready: true }
+      : {
+          id: player.id,
+          name: "CPU Lv1",
+          kind: "cpu",
+          level: 1,
+          side: null,
+          ready: true,
+          reconnectDeadline: null,
+        },
+  );
+  await page.setViewportSize({ width: 768, height: 757 });
+  const fixture = await mockRoom(page, waiting);
+  await page.goto("/rooms/12345");
+  await expect(page.getByTitle("CPU")).toHaveCount(3);
+  await expect(page.getByTitle("ホスト")).toHaveCount(1);
+  for (const viewport of shogiCardViewports) {
+    await page.setViewportSize(viewport);
+    await expectShogiLayoutFits(page);
+  }
+  await page.setViewportSize({ width: 768, height: 757 });
+  await page.reload();
+  await expectShogiLayoutFits(page);
+  await page.getByRole("tab", { name: "ルーム", exact: true }).click();
+  await page.getByRole("tab", { name: "盤面", exact: true }).click();
+  await expectShogiLayoutFits(page);
+  await info.attach("768x757の待機カードと空の持ち駒", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+  fixture.update(playingShogiRoom(tacticalShogiState()));
+  await expect(square(page, 4, 6)).toBeEnabled();
+  for (const viewport of shogiCardViewports) {
+    await page.setViewportSize(viewport);
+    await expectShogiLayoutFits(page);
+  }
+  await page.setViewportSize({ width: 768, height: 757 });
+  await expectShogiLayoutFits(page);
+  await info.attach("768x757の対局カードと全種類の持ち駒", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
 });
 
 for (const width of [320, 390, 522, 767]) {
@@ -229,6 +281,8 @@ for (const side of sides) {
         promote: false,
       },
     });
+    await page.setViewportSize({ width: 768, height: 757 });
+    await expectShogiLayoutFits(page);
   });
 }
 
