@@ -45,7 +45,13 @@ export function AccountLayout() {
   }, [refresh]);
   return (
     <AccountContext.Provider value={{ ...state, refresh, update }}>
-      {state.user && !state.user.profileCompleted && location.pathname !== "/account/setup" ? (
+      {state.user &&
+      !state.user.profileCompleted &&
+      location.pathname !== "/account/setup" &&
+      !(
+        location.pathname === "/login" &&
+        new URLSearchParams(location.search).get("destination") === "admin"
+      ) ? (
         <Navigate to="/account/setup" replace />
       ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
         <RegistrationCompletion

@@ -5,7 +5,7 @@
   "scripts": {
     "deploy": "wrangler deploy --env production",
     "deploy:dry-run": "wrangler deploy --env production --dry-run",
-    "preview:production": "wrangler dev --env production --local --ip 127.0.0.1 --port 8788 --persist-to .wrangler/production-preview",
+    "preview:production": "wrangler dev --env production --local --ip 127.0.0.1 --port 8788 --local-upstream 127.0.0.1:8788 --upstream-protocol http --var APP_ORIGIN:http://127.0.0.1:8788 --persist-to .wrangler/production-preview",
     "db:migrate:preview": "wrangler d1 migrations apply APP_DB --env production --local --persist-to .wrangler/production-preview",
     "db:migrate:production": "wrangler d1 migrations apply APP_DB --env production --remote",
     "dev": "bun run db:migrate:local && wrangler dev",

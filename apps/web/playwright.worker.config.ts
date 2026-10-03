@@ -20,7 +20,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "bun run --cwd ../worker db:migrate:preview && bun run --cwd ../worker preview:production",
+      "bun run --cwd ../worker db:migrate:preview && bunx wrangler d1 execute APP_DB --config ../worker/wrangler.jsonc --env production --local --persist-to ../worker/.wrangler/production-preview --file browser-tests/adminWorkerFixtures.sql && bun run --cwd ../worker preview:production --var ADMIN_ACCOUNT_ID:browser-test-admin --var BETTER_AUTH_SECRET:local-worker-browser-test-only-secret",
     url: "http://127.0.0.1:8788/api/healthz",
     reuseExistingServer: false,
     timeout: 60_000,

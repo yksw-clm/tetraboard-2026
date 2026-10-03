@@ -72,11 +72,19 @@ export function LoginPage() {
   const navigate = useNavigate();
   const google = useGoogleSignIn();
   const [destination] = useState(readRegistrationReturn);
+  const adminDestination = params.get("destination") === "admin";
   useEffect(() => {
-    if (params.has("error") && destination) saveRegistrationReturn(destination, false);
-  }, [params, destination]);
-  if (!loading && !error && user && !params.has("error"))
+    if (params.has("error") && destination && !adminDestination)
+      saveRegistrationReturn(destination, false);
+  }, [params, destination, adminDestination]);
+  useEffect(() => {
+    if (!loading && !error && user && adminDestination && !params.has("error"))
+      window.location.replace("/admin");
+  }, [loading, error, user, adminDestination, params]);
+  if (!loading && !error && user && !params.has("error")) {
+    if (adminDestination) return <p role="status">管理画面へ移動しています…</p>;
     return <Navigate to={user.profileCompleted ? "/account" : "/account/setup"} replace />;
+  }
   return (
     <AccountPageShell>
       {loading || error ? (
@@ -99,12 +107,14 @@ export function LoginPage() {
             )}
             <AppButton
               appearance="secondary"
-              onPress={() => void google.start(destination ?? undefined)}
+              onPress={() =>
+                void google.start(adminDestination ? "admin" : (destination ?? undefined))
+              }
               isDisabled={google.busy}
             >
               {google.busy ? "Googleへ移動しています…" : "Googleで続ける"}
             </AppButton>
-            {destination && (
+            {destination && !adminDestination && (
               <AppButton
                 appearance="quiet"
                 isDisabled={google.busy}

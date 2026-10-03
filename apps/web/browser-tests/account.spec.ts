@@ -427,3 +427,56 @@ test("未ログインのマイページとOAuth失敗、ログイン準備中の
   await expect(page.getByRole("alert")).toHaveText("Googleログインは準備中です。");
   await expect(page.getByRole("button", { name: "Googleで続ける" })).toBeEnabled();
 });
+
+test("管理画面へのログインは通常登録の復帰情報を消し、失敗後も管理画面を宛先に再試行する", async ({
+  page,
+}) => {
+  await mockAccount(page, null);
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "tetraboard:registration-return",
+      JSON.stringify({
+        path: "/games/four-shogi",
+        createdAt: Date.now(),
+        oauthStarted: true,
+      }),
+    );
+  });
+  const requests: unknown[] = [];
+  await page.route("**/api/auth/sign-in/social", (route) => {
+    requests.push(route.request().postDataJSON());
+    return requests.length === 1
+      ? route.fulfill({ status: 503, json: { message: "Googleログインは準備中です。" } })
+      : route.fulfill({ json: { url: "https://accounts.google.com/admin-login-test" } });
+  });
+  await page.route("https://accounts.google.com/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: "<p>Google認証テスト</p>" }),
+  );
+  await page.goto("/login?destination=admin&error=oauth");
+  await expect(page.getByRole("button", { name: "元の画面へ戻る" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Googleで続ける" }).click();
+  await expect(page.getByRole("alert")).toHaveText("Googleログインは準備中です。");
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("tetraboard:registration-return")),
+  ).toBeNull();
+  await page.getByRole("button", { name: "Googleで続ける" }).click();
+  await expect(page).toHaveURL("https://accounts.google.com/admin-login-test");
+  expect(requests).toEqual([{ destination: "admin" }, { destination: "admin" }]);
+});
+
+for (const profileCompleted of [true, false]) {
+  test(`ログイン済みの管理画面誘導はプロフィール設定${profileCompleted ? "済み" : "前"}でも管理画面へ戻る`, async ({
+    page,
+  }) => {
+    await mockAccount(page, { ...profile, profileCompleted });
+    await page.route("**/admin", (route) =>
+      route.fulfill({
+        contentType: "text/html; charset=utf-8",
+        body: '<!doctype html><meta charset="utf-8"><p>Admin destination</p>',
+      }),
+    );
+    await page.goto("/login?destination=admin");
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.getByText("Admin destination", { exact: true })).toBeVisible();
+  });
+}

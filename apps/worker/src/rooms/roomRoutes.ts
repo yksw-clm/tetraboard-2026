@@ -1,3 +1,4 @@
+import { analyticsVisitor } from "../analytics/store";
 import {
   createRoomContract,
   getRoomContract,
@@ -173,6 +174,11 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         initialRoom,
         tokenHash,
         admission,
+        {
+          visitorId: analyticsVisitor(context.req.raw),
+          accountId: profile.user?.id ?? null,
+          isTest: Boolean(profile.user?.isTestUser),
+        },
       );
       if (room === null) {
         if (admission) await cancelReservation(context.env, admission);
@@ -308,6 +314,11 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
       tokenHash,
       request.data.instanceId,
       admission,
+      {
+        visitorId: analyticsVisitor(context.req.raw),
+        accountId: profile.user?.id ?? null,
+        isTest: Boolean(profile.user?.isTestUser),
+      },
     );
     if (result.status !== "joined" && admission) await cancelReservation(context.env, admission);
     if (result.status === "account_reservation_invalid")

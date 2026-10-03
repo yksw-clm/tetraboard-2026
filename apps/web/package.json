@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "bun test ./test",
     "test:browser": "playwright test",
-    "test:browser:worker": "bun run build && playwright test --config playwright.worker.config.ts"
+    "test:browser:worker": "bun run --cwd ../.. build && playwright test --config playwright.worker.config.ts"
   },
   "dependencies": {
     "@heroui/react": "^3.2.6",

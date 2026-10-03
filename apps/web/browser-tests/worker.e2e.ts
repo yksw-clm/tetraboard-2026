@@ -2,7 +2,12 @@ import { expect, test } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
 
 test("ローカルWorkerで作成・CPU対局・チャット・退室する", async ({ page }) => {
+  const measured = page.waitForResponse((response) =>
+    response.url().endsWith("/api/analytics/pageviews"),
+  );
   await page.goto("/games/four-reversi");
+  const measurement = await measured;
+  expect(measurement.status()).toBe(204);
   await page.getByRole("button", { name: /^すぐ遊ぶ/ }).click();
   await page.getByRole("textbox", { name: "ニックネーム" }).fill("動作確認");
   await page.getByRole("button", { name: "CPUとの待機室へ" }).click();
@@ -295,3 +300,52 @@ for (const game of ["four-reversi", "four-shogi"]) {
     }
   });
 }
+
+test("本番アセットの管理画面は本人限定で配信し、直接アクセス・再読み込み・登録一覧を表示する", async ({
+  page,
+  context,
+  request,
+}, info) => {
+  const denied = await request.get("/admin/users", { maxRedirects: 0 });
+  expect(denied.status()).toBe(302);
+  expect(denied.headers()["location"]).toBe("http://127.0.0.1:8788/login?destination=admin");
+  const unauthorized = await request.get("/api/admin/session");
+  expect(unauthorized.status()).toBe(401);
+  for (const path of [
+    "/%61dmin/index.html",
+    "/admin%2Findex.html",
+    "/unused%2F..%2Fadmin/index.html",
+  ])
+    expect((await request.get(path, { maxRedirects: 0 })).status()).toBe(302);
+  const token = "local-browser-admin-test-token";
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode("local-worker-browser-test-only-secret"),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = Buffer.from(
+    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token)),
+  ).toString("base64");
+  await context.addCookies([
+    {
+      name: "tetraboard-2026.session_token",
+      value: encodeURIComponent(`${token}.${signature}`),
+      url: "http://127.0.0.1:8788",
+    },
+  ]);
+  await page.goto("/admin/games/four-shogi");
+  await expect(page.getByRole("heading", { name: "四人将棋", exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: /折れ線グラフ/ })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "四人将棋", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "登録ユーザー", exact: true }).click();
+  await expect(page.getByRole("table")).toContainText("@browser_admin");
+  await page.getByRole("link", { name: "全体概要", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "全体概要", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("admin.png"), fullPage: true });
+  const asset = await page.locator('script[src*="/admin/assets/"]').first().getAttribute("src");
+  expect(asset).toBeTruthy();
+  expect((await request.get(asset!, { maxRedirects: 0 })).status()).toBe(302);
+});

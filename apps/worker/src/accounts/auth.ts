@@ -53,7 +53,7 @@ export async function accountIdentity(request: Request, env: AuthEnv) {
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
   return env.APP_DB.prepare(
-    'SELECT id, name, username, image, profileCompleted, avatarKey FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0',
+    'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0',
   )
     .bind(session.user.id)
     .first<StoredProfile>();
@@ -65,6 +65,7 @@ export type StoredProfile = {
   image: string | null;
   profileCompleted: number;
   avatarKey: string | null;
+  isTestUser?: number | null;
 };
 export function publicProfile(user: StoredProfile): AccountProfile {
   return {

@@ -11,9 +11,10 @@
     "lint": "oxlint .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "bun run --cwd packages/four-reversi test && bun run --cwd packages/four-shogi test && bun run --cwd apps/worker test && bun run --cwd apps/web test",
+    "test": "bun run --cwd packages/four-reversi test && bun run --cwd packages/four-shogi test && bun run --cwd apps/worker test && bun run --cwd apps/web test && bun run --cwd apps/admin test",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build": "bun run --cwd apps/web build && bun run --cwd apps/admin build && bun scripts/buildAssets.ts"
   },
   "devDependencies": {
     "husky": "^9.1.7",

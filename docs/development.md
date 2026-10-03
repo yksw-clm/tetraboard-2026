@@ -31,9 +31,9 @@ Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します�
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、四人リバーシ・四人将棋、Worker、Webの表示ロジックのテストを実行します。`bun run test` では両エンジン・Worker・Webのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、四人リバーシ・四人将棋、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では両エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
-GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型チェック・テストに加え、Webビルドと本番デプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
+GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型チェック・テストに加え、Web・Adminのビルドと本番デプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
 
 ロビーUIの変更では `bun run --cwd apps/web build` も実行し、ブラウザで作成・参加・観戦、空一覧と取得失敗、更新と追加読み込みを確認します。PCとスマートフォンの幅で横スクロールや文字の折り返しを確認し、ダイアログのキーボード操作、閉じた後のフォーカス復帰、送信中の連打・閉鎖防止、同じタブの参加資格の再利用も確認します。「遊び方」の内容はルール正本と照合します。
 
@@ -182,9 +182,9 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-PRとmainのpushでは `bun install --frozen-lockfile` → `bun run check` → Webビルド → `deploy:dry-run` を実行します。並行するbrowserジョブでChromium・WebKitのUI回帰テストを実行します。PRジョブはCloudflareの認証情報を使いません。
+PRとmainのpushでは `bun install --frozen-lockfile` → `bun run check` → Web・Adminのビルド → `deploy:dry-run` を実行します。並行するbrowserジョブでChromium・WebKitのUI回帰テストを実行します。PRジョブはCloudflareの認証情報を使いません。
 
-mainでは同じ実行で生成したWeb成果物をデプロイジョブへ渡し、mainの先頭コミットであることを確認します。本番D1マイグレーション適用後にもう一度mainを確認し、古い実行ならWorkerの公開をスキップします。現行mainなら `wrangler deploy --env production` で画面とWorkerを一緒に公開します。同時デプロイを禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後にmainが更新された場合は、進行中の公開完了後に次の実行で更新します。
+mainでは同じ実行で生成したWeb・Adminの成果物をデプロイジョブへ渡し、mainの先頭コミットであることを確認します。本番D1マイグレーション適用後にもう一度mainを確認し、古い実行ならWorkerの公開をスキップします。現行mainなら `wrangler deploy --env production` で画面とWorkerを一緒に公開します。同時デプロイを禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後にmainが更新された場合は、進行中の公開完了後に次の実行で更新します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
 
@@ -196,7 +196,7 @@ mainでは同じ実行で生成したWeb成果物をデプロイジョブへ渡�
 
 ```sh
 bun run check
-bun run --cwd apps/web build
+bun run build
 bun run --cwd apps/worker deploy:dry-run
 bun run --cwd apps/worker db:migrate:preview
 bun run --cwd apps/worker preview:production
@@ -395,10 +395,36 @@ Workerテストで匿名アクセス・全色・同率優勝・両チーム勝�
 
 状態は手数変更・タブ切替・再接続・同じルームの次局開始で保持し、ページ再読み込みと画面の識別子・参加資格の切替で初期化します。両ブラウザの320・390・768・1440pxで、4方向のマス・カード・将棋の駒と持ち駒、最終手、参加と棋譜操作、参加者にはボタンがないこと、横スクロールと状況カードの収まりを確認します。
 
+## 計測用管理画面の開発と公開
+
+`apps/admin` はWebと同じReact・HeroUI・Tailwindを使い、SVGでグラフを描きます。`bun run dev` はWorker・Web・Adminを起動します。AdminのViteは5174で起動し、Webの `/admin` をプロキシするため、ブラウザでは `http://localhost:5173/admin` を開きます。Google認証は既存の同一オリジン設定を使い、専用のOAuthクライアントや別の本番Workerは不要です。開発用Vite自体のHTMLは認証前も取得できますが、管理データは常にWorkerの本人確認を通します。本番はHTMLとアセットも本人限定です。
+
+### 管理者設定
+
+ローカルの追跡対象外 `.dev.vars` に `ADMIN_ACCOUNT_IDS` をJSON配列（例：`["owner-id-1","owner-id-2"]`）で設定します。値は本人の内部 `user.id` で、公開IDの `username`・Googleの識別子・メールとは異なります。本人のプロフィールを公開IDまたはメールで検索したD1の行から確認してください。IDをソースやフロントエンドの環境変数へ埋め込みません。設定なし・空配列・不正な配列は503で閉じ、開発者用の認証回避は設けません。従来の `ADMIN_ACCOUNT_ID` は配列が未設定の場合だけ利用し、不正な配列からはフォールバックしません。
+
+本番は開発者の指示に基づき、`apps/worker` で `bunx wrangler secret put ADMIN_ACCOUNT_IDS --env production` から本人のIDのJSON配列を設定します。secretに保存したIDは認証と本人利用の除外で共通に使います。公開・マージは差分と確認結果をレビューした開発者の承認後に行います。既存の `MODERATOR_TOKEN` は通報API用で、管理画面には使いません。ログイン画面の `destination=admin` はサーバー固定の `/admin` へだけ戻し、任意の外部URLをOAuthの遷移先にしません。
+
+### データとAPI
+
+`0007_analytics.sql` は閲覧・日別累積時間・対局・人間の開始時情報と計測開始日時を追加します。過去の棋譜を集計へ移しません。ブラウザのCookieがないゲストは対局数には含めますが、ユニーク利用者・開始率・継続率には含めません。既存アカウントはCookieがなくても登録利用者の集計対象です。テスト区分は閲覧・参加時のサーバー情報を記録します。
+
+- `POST /api/analytics/pageviews` はUUID・画面種別・ゲーム、`POST /api/analytics/dwell` はビューUUIDと日本時間の日別累積ミリ秒を受け取ります。Origin、容量、形式、所有ブラウザ、実経過時間による上限を検査し、閲覧の重複送信・古い時間更新で増加させません。
+- `GET /api/admin/session` は本人確認、`GET /api/admin/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD&game=all|four-reversi|four-shogi&bucket=day|month&includeInternal=false|true` は期間全体と各期間の集計を返します。開始・終局はブラウザから受け付けません。ゲストのブラウザIDや内部アカウントIDは集計レスポンスに含めません。
+- `GET /api/admin/users?search=名前またはID&cursor=...` は50件と次カーソルを返します。現在のR2アイコンを参照し、未設定・取得失敗時は仮アバターにします。同時刻は内部IDを使った安定した順でページングします。
+
+### ビルドと確認
+
+`bun run build` はWeb・Adminを個別にビルドし、`scripts/buildAssets.ts` で `apps/worker/dist/assets` にWeb、その `admin/` 配下にAdminをまとめます。Wranglerはこの成果物を配信します。Adminの深いURLは認証後に専用indexを返し、HTMLの自動転送を無効にしてリダイレクトループを防ぎます。通常WebのSPA・API・WebSocketを維持します。CI/CDも同じビルド成果物を使います。Worker単独のdry-runや本番構成プレビューの前に、必ず `bun run build` を実行してください。
+
+本番構成のローカルプレビューは `preview:production` がupstreamも `http://127.0.0.1:8788` にそろえます。本番のcustom domainをupstreamとして使うとWranglerがOriginを書き換え、ローカル用 `APP_ORIGIN` と一致しなくなるためです。ブラウザ統合テストではローカルD1だけに検証専用の管理者とセッションを用意し、認証・配信・閲覧計測を実際のWorkerで確認します。
+
+`bun run check` はAdminの型・表示計算テストと計測のWorkerテストも含みます。管理画面のChromium／WebKitテストは `bun run --cwd apps/admin test:browser`、Webの閲覧計測は `bun run --cwd apps/web test:browser browser-tests/analytics.spec.ts` です。関連の認証・両ゲームの対局・棋譜保存も回帰します。本番では承認後に `/admin` の本人アクセス・別アカウントの拒否・通常ログインを確認します。実Google認証・本番データでの確認はローカルのモック検証と区別して報告します。
+
 ## 任意登録の案内と画面復帰
 
 登録案内は両ゲームで共通の `RegistrationPrompt` を使い、参加フォーム・通常ルームの結果に配置します。結果の自動表示は、認証を確認できた未ログイン参加者がplayingからwaitingへ進んだ場合だけを対象とします。他のダイアログを優先し、既存結果の閲覧では自動表示しません。`tetraboard:registration-result-shown` を表示後に保存し、両ゲームを通じて同じタブで1回に制限します。保存不能時はモジュール内のメモリで抑止します。
 
-Google認証開始を `useGoogleSignIn` に集約し、既存の認証APIと固定コールバックを維持します。`tetraboard:registration-return` に元画面・参加入力・開始時刻を1時間保存します。許可する戻り先は両ロビーと部屋世代付きの部屋URLだけです。`RegistrationCompletion` が本人確認とプロフィール設定の完了後に復帰情報を消費し、復帰先も履歴から復元情報を除きます。入力の復元だけで作成・参加を送信せず、既存ゲスト席や対局履歴の紐付けも変更しません。失敗・取消時の入力保持、保存不能・破損・期限切れのマイページへのフォールバックを検証します。
+Google認証開始を `useGoogleSignIn` に集約し、既存の認証APIと固定コールバックを維持します。管理画面へのログインもこの処理を使い、`destination=admin` を送信して固定の `/admin` へ戻します。その際は通常登録の画面復帰情報を消去し、プロフィール設定画面への誘導より管理画面への復帰を優先します。`tetraboard:registration-return` に元画面・参加入力・開始時刻を1時間保存します。許可する戻り先は両ロビーと部屋世代付きの部屋URLだけです。`RegistrationCompletion` が本人確認とプロフィール設定の完了後に復帰情報を消費し、復帰先も履歴から復元情報を除きます。入力の復元だけで作成・参加を送信せず、既存ゲスト席や対局履歴の紐付けも変更しません。失敗・取消時の入力保持、保存不能・破損・期限切れのマイページへのフォールバックを検証します。
 
 Chromium／WebKitで両ゲームのゲスト・アカウント・観戦、CPU戦・対人戦、初回終局・再戦・再読み込み・手動表示・ダイアログ競合、Google認証境界の成功・失敗・取消、初回設定、参加フォームの復元、部屋番号再利用、320pxとキーボード・フォーカス復帰を確認します。認証API境界を固定した検証と、実Workerの対局・再接続の検証を分けます。実Google認証とiOS実機の確認は別途必要です。分析イベントの追加はこの機能に含めません。
