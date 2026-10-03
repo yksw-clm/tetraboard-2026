@@ -2,7 +2,7 @@ import { getLegalMovesWithAttacks, updateAttackHistory } from "./attacks";
 import { createInitialBoard, emptyHands } from "./board";
 import { getOrdinaryMoves, validateOrdinaryAction } from "./moves";
 import { eliminateBatch, settlePosition } from "./progression";
-import { recordPosition } from "./repetition";
+import { recordPosition, type RepetitionLookup } from "./repetition";
 import { getActiveSides, handPieceKinds, sides } from "./types";
 import type {
   ApplyActionResult,
@@ -14,6 +14,7 @@ import type {
   Side,
 } from "./types";
 
+export type { RepetitionLookup } from "./repetition";
 export { getActiveSides, sides, handPieceKinds } from "./types";
 export { getCheckState } from "./board";
 export { chooseCpuAction, type CpuLevel } from "./cpu";
@@ -94,6 +95,7 @@ export function applyAction(
   state: FourShogiState,
   side: Side,
   action: FourShogiAction,
+  repetitionLookup?: RepetitionLookup,
 ): ApplyActionResult {
   if (state.status === "finished") return { ok: false, reason: "game_finished" };
   if (!getActiveSides(state).includes(side)) return { ok: false, reason: "already_eliminated" };
@@ -117,7 +119,7 @@ export function applyAction(
       captured: move.captured === null ? null : { ...move.captured },
     },
   };
-  const settled = settlePosition(moved, side);
+  const settled = settlePosition(moved, side, false, repetitionLookup);
   return {
     ok: true,
     state: settled,
@@ -151,6 +153,7 @@ export function eliminateSide(
   state: FourShogiState,
   side: Side,
   reason: ExternalEliminationReason,
+  repetitionLookup?: RepetitionLookup,
 ): EliminateSideResult {
   if (state.status === "finished") return { ok: false, reason: "game_finished" };
   if (!getActiveSides(state).includes(side)) return { ok: false, reason: "already_eliminated" };
@@ -158,7 +161,7 @@ export function eliminateSide(
     return { ok: false, reason: "invalid_reason" };
   if (reason === "resigned" && state.turn !== side) return { ok: false, reason: "not_your_turn" };
   const eliminated = eliminateBatch(state, [side], reason);
-  const settled = settlePosition(eliminated, side, state.turn !== side);
+  const settled = settlePosition(eliminated, side, state.turn !== side, repetitionLookup);
   return {
     ok: true,
     state: settled,
