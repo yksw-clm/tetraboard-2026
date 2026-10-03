@@ -151,6 +151,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
             roundId: null,
             positionRevision: 0,
             legalActions: [],
+            threePlayerAttackForbiddenActions: [],
             checkState: { south: false, west: false, north: false, east: false },
           }
         : {}),

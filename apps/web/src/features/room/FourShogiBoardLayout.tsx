@@ -107,6 +107,7 @@ export type FourShogiBoardLayoutProps = {
   canPlay: boolean;
   promotionContext?: ShogiPromotionContext;
   legalActions: readonly FourShogiAction[];
+  threePlayerAttackForbiddenActions?: readonly FourShogiAction[];
   checkState?: Readonly<Record<Side, boolean>>;
   onAction: (action: FourShogiAction) => void;
   playerCards: Readonly<Record<Side, ReactNode>>;
@@ -119,6 +120,7 @@ export function FourShogiBoardLayout({
   canPlay,
   promotionContext,
   legalActions,
+  threePlayerAttackForbiddenActions = [],
   checkState,
   onAction,
   playerCards,
@@ -130,6 +132,7 @@ export function FourShogiBoardLayout({
   const [drag, setDrag] = useState<Drag | null>(null);
   const eliminated = game.eliminations.map((entry) => entry.side);
   const enabled = canPlay && game.status === "playing" && game.turn === viewerSide;
+  const selectableActions = [...legalActions, ...threePlayerAttackForbiddenActions];
   const promotion = useShogiPromotion(promotionContext, legalActions, enabled);
   const promotionChoices = promotion.choices;
   const sent = useRef(false);
@@ -297,7 +300,9 @@ export function FourShogiBoardLayout({
   function hand(side: Side, direction: ShogiPieceDirection, vertical = false) {
     const availableKinds =
       enabled && side === viewerSide
-        ? legalActions.flatMap((action) => (action.type === "dropPiece" ? [action.pieceKind] : []))
+        ? selectableActions.flatMap((action) =>
+            action.type === "dropPiece" ? [action.pieceKind] : [],
+          )
         : [];
     return (
       <FourShogiHand
@@ -389,11 +394,16 @@ export function FourShogiBoardLayout({
             const canSelect =
               enabled &&
               piece?.side === viewerSide &&
-              legalActions.some(
+              selectableActions.some(
                 (action) => action.type === "movePiece" && shogiSamePosition(action.from, position),
               );
             const choices = selection ? shogiActionChoices(legalActions, selection, position) : [];
             const destination = enabled && choices.length > 0;
+            const forbiddenDestination =
+              enabled &&
+              !destination &&
+              selection !== null &&
+              shogiActionChoices(threePlayerAttackForbiddenActions, selection, position).length > 0;
             const selectedSquare =
               selection?.type === "movePiece" && shogiSamePosition(selection.from, position);
             const lastFrom =
@@ -414,10 +424,11 @@ export function FourShogiBoardLayout({
                 data-square={`${"ABCDEFGHI"[position.x]}${position.y + 1}`}
                 data-selected={selectedSquare || undefined}
                 data-legal-destination={destination || undefined}
+                data-three-player-attack-forbidden={forbiddenDestination || undefined}
                 data-last-move={lastTo ? "to" : lastFrom ? "from" : undefined}
                 data-check={checked || undefined}
                 data-dragging={dragging || undefined}
-                aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}`}
+                aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}`}
                 aria-pressed={!!selectedSquare}
                 className={`group/shogi-piece relative grid place-items-center min-w-0 min-h-0 w-full h-full p-0 rounded-none border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-3px] ${canSelect ? "touch-none" : "touch-auto"}${canSelect || destination ? " cursor-pointer" : " cursor-default"}`}
                 onClick={(event) => {
@@ -456,10 +467,10 @@ export function FourShogiBoardLayout({
                     />
                   </span>
                 )}
-                {destination && (
+                {(destination || forbiddenDestination) && (
                   <span
                     aria-hidden="true"
-                    className="absolute size-[18%] rounded-full bg-[#267541b0] ring-1 ring-[#f6ffd8c7] pointer-events-none"
+                    className={`absolute size-[18%] rounded-full ring-1 pointer-events-none ${forbiddenDestination ? "bg-[#e93f35b0] ring-[#fff0edc7]" : "bg-[#267541b0] ring-[#f6ffd8c7]"}`}
                   />
                 )}
               </button>

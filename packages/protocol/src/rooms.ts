@@ -273,6 +273,7 @@ const shogiWaitingSchema = z.strictObject({
   roundId: z.null(),
   positionRevision: z.literal(0),
   legalActions: z.array(fourShogiActionSchema).length(0),
+  threePlayerAttackForbiddenActions: z.array(fourShogiActionSchema).length(0).default([]),
 });
 const shogiPlayingSchema = z
   .strictObject({
@@ -298,6 +299,7 @@ const shogiPlayingSchema = z
     roundId: z.uuid(),
     positionRevision: z.int().nonnegative(),
     legalActions: z.array(fourShogiActionSchema),
+    threePlayerAttackForbiddenActions: z.array(fourShogiActionSchema).default([]),
   })
   .refine(
     (room) =>

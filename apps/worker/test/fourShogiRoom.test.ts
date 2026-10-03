@@ -7,6 +7,7 @@ import {
   eliminateSide,
   setDrawProposal,
   getLegalActions,
+  getActionAvailability,
   sides,
   type Side,
   type FourShogiState,
@@ -718,7 +719,7 @@ test("固定局面で成り・捕獲・持ち駒・王手優先をサーバー�
         ...room,
         settings: { ...room.settings, threePlayerAttackProhibited: false },
         game: store.saveState(room.roundId, fixture),
-        legalActions: getLegalActions(fixture),
+        ...getActionAvailability(fixture),
       }),
     );
   });
@@ -886,7 +887,7 @@ async function seedPosition(
         ...room,
         settings: { ...room.settings, threePlayerAttackProhibited: prohibited },
         game: store.saveState(room.roundId, fixture),
-        legalActions: getLegalActions(fixture),
+        ...getActionAvailability(fixture),
       }),
     );
   });
@@ -938,6 +939,16 @@ test.each([true, false])(
     expect(
       before.legalActions.some((entry) => JSON.stringify(entry) === JSON.stringify(action)),
     ).toBe(!prohibited);
+    expect(before.threePlayerAttackForbiddenActions).toEqual(prohibited ? [action] : []);
+    // 旧保存局面でも、同じrevisionの禁止候補をGETと再接続へ補完します。
+    await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, state) => {
+      const saved = state.storage.kv.get<Record<string, unknown>>("room")!;
+      delete saved.threePlayerAttackForbiddenActions;
+      state.storage.kv.put("room", saved);
+    });
+    expect(await get(prepared.id)).toEqual(before);
+    const observer = await connect(prepared.id);
+    expect(await observer.room((room) => room.status === "playing")).toEqual(before);
     const actor = prepared.clients[sideIndex(prepared, "south")];
     actor.send({
       type: "room.game.action",

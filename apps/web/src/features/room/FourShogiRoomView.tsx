@@ -80,6 +80,7 @@ export function FourShogiRoomView({
             : undefined
         }
         legalActions={room.legalActions}
+        threePlayerAttackForbiddenActions={room.threePlayerAttackForbiddenActions}
         onAction={session.handleShogiAction}
         playerCards={playerCards}
         checkState={replay.frame?.checkState ?? room.checkState}
