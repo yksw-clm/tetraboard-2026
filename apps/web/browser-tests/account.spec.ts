@@ -238,6 +238,77 @@ test("編集の入力不備と保存失敗を保持し、保存中の閉鎖・�
   await expect(page.getByRole("heading", { name: "変更した名前", exact: true })).toBeVisible();
   expect(account.saves).toHaveLength(2);
 });
+for (const setup of [false, true]) {
+  test(`ファイル選択後のログイン再確認でも${setup ? "初回設定" : "編集ダイアログ"}の下書きを保つ`, async ({
+    page,
+  }) => {
+    const user = { ...profile, profileCompleted: !setup };
+    await mockAccount(page, user);
+    await page.goto(setup ? "/account/setup" : "/account");
+    if (!setup) await page.getByRole("button", { name: "プロフィールを編集", exact: true }).click();
+    const form = setup ? page.locator("form") : page.getByRole("dialog");
+    await form.getByRole("textbox", { name: "名前", exact: true }).fill("未保存の名前");
+    await form.getByRole("textbox", { name: "ID（@ID）" }).fill("unsaved_id");
+    const png = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 32;
+      canvas.getContext("2d")!.fillRect(0, 0, 32, 32);
+      return canvas.toDataURL("image/png").split(",")[1]!;
+    });
+    const chooser = page.waitForEvent("filechooser");
+    await form.getByRole("button", { name: "アイコン画像を選択", exact: true }).click();
+    await (
+      await chooser
+    ).setFiles({
+      name: "icon.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+    const preview = form.getByRole("img", { name: "アイコンのプレビュー" });
+    await expect(preview).toBeVisible();
+    const previewUrl = await preview.getAttribute("src");
+    for (const failed of [false, true]) {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route("**/api/account/session", async (route) => {
+        await gate;
+        await route.fulfill(failed ? { status: 503, json: {} } : { json: { user } });
+      });
+      const request = page.waitForRequest("**/api/account/session");
+      // OSのファイル選択から戻ると発生するwindow focusを再現します。
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await request;
+      const assertDraft = async () => {
+        await expect(form).toBeVisible();
+        await expect(form.getByRole("textbox", { name: "名前", exact: true })).toHaveValue(
+          "未保存の名前",
+        );
+        await expect(form.getByRole("textbox", { name: "ID（@ID）" })).toHaveValue("unsaved_id");
+        await expect(preview).toHaveAttribute("src", previewUrl!);
+      };
+      const response = page.waitForResponse("**/api/account/session");
+      try {
+        await assertDraft();
+      } finally {
+        release();
+      }
+      await response;
+      await assertDraft();
+      if (failed) {
+        if (!setup) await form.getByRole("button", { name: "閉じる", exact: true }).click();
+        await expect(page.getByRole("alert")).toHaveText(
+          "ログイン状態を確認できません。再試行してください。",
+        );
+      }
+    }
+    // セッション失効が確定した場合は、保持した下書きよりログインへの誘導を優先します。
+    await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(page).toHaveURL(/\/login$/);
+  });
+}
 test("画像を変換して保存・削除し、形式エラー時は入力内容を保つ", async ({ page }) => {
   const account = await mockAccount(page, profile);
   await page.goto("/account");
