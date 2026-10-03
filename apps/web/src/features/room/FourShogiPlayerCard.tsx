@@ -1,3 +1,4 @@
+import { Chip } from "@heroui/react";
 import { type Side } from "@tetraboard/four-shogi";
 import { type FourShogiPublicState, type FourShogiRoom } from "@tetraboard/protocol";
 import { PlayerCardView, PlayerReadyBadge } from "./PlayerCard";
@@ -49,16 +50,30 @@ export function FourShogiPlayerCard({
       rank={rank}
       score={
         playing ? (
-          <span
-            className="text-brand text-xs font-bold"
-            aria-label={`担当方向 ${shogiSideNames[side]}`}
-          >
-            {shogiSideNames[side]}
-          </span>
+          <ShogiSideBadge side={side} proposed={room.game.drawProposals.includes(side)} />
         ) : player?.ready ? (
           <PlayerReadyBadge />
         ) : null
       }
     />
+  );
+}
+
+export function ShogiSideBadge({ side, proposed }: { side: Side; proposed: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-brand text-xs font-bold"
+      aria-label={`担当方向 ${shogiSideNames[side]}${proposed ? "、引分提案中" : ""}`}
+    >
+      {shogiSideNames[side]}
+      {proposed && (
+        <Chip
+          size="sm"
+          className="h-4 px-1 py-0 text-[9px] font-bold text-[#896315] bg-[#fff0ba] rounded-[4px] whitespace-nowrap"
+        >
+          引分
+        </Chip>
+      )}
+    </span>
   );
 }

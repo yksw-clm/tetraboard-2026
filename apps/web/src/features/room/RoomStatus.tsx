@@ -13,6 +13,7 @@ export function RoomStatus({
   session,
   onResults,
   onResign,
+  onDrawProposal,
   onJoin,
   joinButtonRef,
   joinUnavailable,
@@ -22,6 +23,7 @@ export function RoomStatus({
   session: ReturnType<typeof useRoomTransport> & { canPlay: boolean };
   onResults: () => void;
   onResign: () => void;
+  onDrawProposal?: () => void;
   onJoin: () => void;
   joinButtonRef: Ref<HTMLButtonElement>;
   joinUnavailable: string | null;
@@ -128,6 +130,16 @@ export function RoomStatus({
             appearance="danger"
           >
             投了
+          </AppButton>
+        )}
+        {myTurn && isFourShogiRoom(room) && room.status === "playing" && onDrawProposal && (
+          <AppButton
+            size="compact"
+            appearance="secondary"
+            isDisabled={!session.canPlay}
+            onPress={onDrawProposal}
+          >
+            {room.game.drawProposals.includes(room.game.turn) ? "引分取消" : "引分提案"}
           </AppButton>
         )}
       </div>

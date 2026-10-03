@@ -541,6 +541,12 @@ export const roomSocketContract = {
     }),
     z.strictObject({ type: z.literal("room.game.start") }),
     z.strictObject({ type: z.literal("room.game.resign") }),
+    z.strictObject({
+      type: z.literal("room.game.draw.set"),
+      proposed: z.boolean(),
+      roundId: z.uuid(),
+      positionRevision: z.int().nonnegative(),
+    }),
     z.strictObject({ type: z.literal("room.chat.send"), text: z.string() }),
     z
       .strictObject({

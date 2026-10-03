@@ -6,6 +6,7 @@ const endReasonNames = {
   last_player: "最後の1人になったため",
   no_survivors: "全員が脱落したため",
   repetition: "千日手のため",
+  agreement: "全員の合意による引き分け",
   team_eliminated: "チームのプレイヤーが脱落したため",
   simultaneous_mate: "両チームが同時に詰んだため",
 } as const;

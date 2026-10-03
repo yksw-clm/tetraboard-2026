@@ -31,6 +31,7 @@ export function RoomViewShell({
   session: ReturnType<typeof useRoomTransport> & {
     canPlay: boolean;
     handleResignClick: () => void;
+    handleDrawProposalClick?: () => void;
   };
   chat: ReturnType<typeof useRoomChat>;
   invited: boolean;
@@ -135,6 +136,7 @@ export function RoomViewShell({
       joinUnavailable={invitation.unavailableReason}
       onResults={() => setDialog("result")}
       onResign={() => setDialog("resign")}
+      onDrawProposal={session.handleDrawProposalClick}
     />
   );
   const chatPanel = (

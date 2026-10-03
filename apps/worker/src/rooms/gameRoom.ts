@@ -45,6 +45,7 @@ import {
   chooseCpuAction,
   createInitialState as createShogiState,
   eliminateSide,
+  setDrawProposal,
   getLegalActions,
   getCheckState,
   sides,
@@ -882,6 +883,40 @@ export class GameRoom extends DurableObject<Env> {
     return { status: "resigned", room: updated };
   }
 
+  private setShogiDrawProposal(
+    tokenHash: string,
+    command: Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>,
+  ): { status: "updated" | "unchanged"; room: FourShogiRoom | null } | { status: RoomSocketError } {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" };
+      if (!isFourShogiRoom(room)) return { status: "invalid_request" };
+      if (room.status !== "playing")
+        return { status: room.lastRound ? "game_finished" : "game_not_started" };
+      const membership = this.readMembership(tokenHash);
+      const player = room.players.find((entry) => entry.id === membership?.playerId);
+      if (!player) return { status: "unauthorized" };
+      if (command.roundId !== room.roundId || command.positionRevision !== room.positionRevision)
+        return { status: "stale_position" };
+      const at = Date.now();
+      if (isClockExpired(room.clock, at)) return { status: "time_expired" };
+      const { state } = this.shogi().loadTransition(room.roundId, room.game);
+      const result = setDrawProposal(state, player.side, command.proposed);
+      if (!result.ok)
+        return { status: result.reason === "invalid_proposal" ? "invalid_request" : result.reason };
+      if (result.state === state) return { status: "unchanged", room };
+      const updated = this.acceptShogiState(
+        room,
+        result.state,
+        { type: "drawProposal", side: player.side, proposed: command.proposed },
+        at,
+        false,
+      );
+      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "updated", room: updated };
+    });
+  }
+
   private setThreePlayerAttack(
     tokenHash: string,
     prohibited: boolean,
@@ -1017,7 +1052,29 @@ export class GameRoom extends DurableObject<Env> {
         !isClockExpired(room.clock, now)
       ) {
         const cpu = currentCpu(room);
-        if (cpu) {
+        if (cpu && "side" in cpu && cpu.side !== null) {
+          const current = room;
+          const humans = current.players.filter(
+            (player) => player.kind === "human" && !this.isPlayerEliminated(current, player.id),
+          );
+          const proposed =
+            humans.length > 0 &&
+            humans.every((player) => current.game.drawProposals.includes(player.side));
+          if (room.game.drawProposals.includes(cpu.side) !== proposed) {
+            const { state } = this.shogi().loadTransition(room.roundId, room.game);
+            const result = setDrawProposal(state, cpu.side, proposed);
+            if (!result.ok) throw new Error("Could not update CPU draw proposal");
+            room = this.acceptShogiState(
+              room,
+              result.state,
+              { type: "drawProposal", side: cpu.side, proposed },
+              now,
+              false,
+            );
+            if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+            changed = true;
+          }
+          if (!room || room.status !== "playing") return room;
           const job = this.ctx.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey);
           if (job) {
             if (
@@ -2418,6 +2475,21 @@ export class GameRoom extends DurableObject<Env> {
         if (result.status === "started") {
           await this.syncAlarm(result.room);
           this.broadcastRoom(result.room);
+        } else this.rejectAction(socket, result.status);
+        return;
+      }
+
+      if (parsed.data.type === "room.game.draw.set") {
+        const result = this.setShogiDrawProposal(tokenHash.data, parsed.data);
+        if (result.status === "updated") {
+          await this.syncAlarm(result.room);
+          if (result.room === null) this.closeSockets();
+          else this.broadcastRoom(result.room);
+        } else if (result.status === "unchanged") {
+          if (result.room) socket.send(JSON.stringify(this.roomSnapshot(result.room)));
+        } else if (result.status === "time_expired") {
+          await this.reconcileDeadlines();
+          this.rejectAction(socket, result.status);
         } else this.rejectAction(socket, result.status);
         return;
       }
