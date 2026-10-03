@@ -1,6 +1,11 @@
 import { getActiveSides, handPieceKinds, sides, usesAttackRestriction } from "./types";
 import type { FourShogiState } from "./types";
 
+/** Read-only base history, stable for one transition/search; missing keys return zero.
+ * With a lookup, state.repetitions holds branch-local overrides, not the complete history.
+ */
+export type RepetitionLookup = (positionKey: string) => number;
+
 export function positionKey(state: FourShogiState): string {
   const active = getActiveSides(state);
   const board = state.board.map((row) =>
@@ -46,12 +51,15 @@ export function positionKey(state: FourShogiState): string {
   return JSON.stringify([board, hands, active, state.turn, attacks, recaptures]);
 }
 
-export function recordPosition(state: FourShogiState): FourShogiState {
+export function recordPosition(state: FourShogiState, lookup?: RepetitionLookup): FourShogiState {
   if (state.status === "finished") return state;
   const key = positionKey(state);
   return {
     ...state,
-    repetitions: { ...state.repetitions, [key]: (state.repetitions[key] ?? 0) + 1 },
+    repetitions: {
+      ...state.repetitions,
+      [key]: (state.repetitions[key] ?? lookup?.(key) ?? 0) + 1,
+    },
   };
 }
 

@@ -1,7 +1,7 @@
 import { getLegalMovesWithAttacks } from "./attacks";
 import { getCheckState } from "./board";
 import { evaluatePosition } from "./cpuEvaluation";
-import { applyAction, getLegalActions } from "./index";
+import { applyAction, getLegalActions, type RepetitionLookup } from "./index";
 import { getOrdinaryMoves } from "./moves";
 import {
   areEnemies,
@@ -31,7 +31,11 @@ function isImmediateWin(state: FourShogiState, side: Side): boolean {
     : state.result.winner === teamForSide(side);
 }
 
-function scoreAfterReply(state: FourShogiState, side: Side): number {
+function scoreAfterReply(
+  state: FourShogiState,
+  side: Side,
+  repetitionLookup?: RepetitionLookup,
+): number {
   const initialScore = evaluatePosition(state)[side];
   if (state.status === "finished") return initialScore;
   const responder = state.turn;
@@ -59,7 +63,7 @@ function scoreAfterReply(state: FourShogiState, side: Side): number {
   let responseIndex = Infinity;
   let score = initialScore;
   for (const reply of replies) {
-    const result = applyAction(state, responder, reply.action);
+    const result = applyAction(state, responder, reply.action, repetitionLookup);
     if (!result.ok) continue;
     const values = evaluatePosition(result.state);
     if (
@@ -78,6 +82,7 @@ export function chooseCpuAction(
   state: FourShogiState,
   level: CpuLevel,
   random: () => number = Math.random,
+  repetitionLookup?: RepetitionLookup,
 ): FourShogiAction | null {
   if (state.status === "finished") return null;
   const actions = getLegalActions(state);
@@ -91,7 +96,7 @@ export function chooseCpuAction(
   const side = state.turn;
   const candidates: Candidate[] = [];
   for (const [index, action] of actions.entries()) {
-    const result = applyAction(state, side, action);
+    const result = applyAction(state, side, action, repetitionLookup);
     if (!result.ok) continue;
     candidates.push({
       action,
@@ -110,7 +115,7 @@ export function chooseCpuAction(
   let best: Candidate | undefined;
   let bestScore = -Infinity;
   for (const candidate of selected) {
-    const score = scoreAfterReply(candidate.state, side);
+    const score = scoreAfterReply(candidate.state, side, repetitionLookup);
     if (!best || score > bestScore || (score === bestScore && candidate.index < best.index)) {
       best = candidate;
       bestScore = score;

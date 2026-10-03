@@ -1,7 +1,7 @@
 import { getLegalMovesWithAttacks } from "./attacks";
 import { getCheckState } from "./board";
 import { getOrdinaryMoves, hasOrdinaryMove } from "./moves";
-import { isRepetition, recordPosition } from "./repetition";
+import { isRepetition, recordPosition, type RepetitionLookup } from "./repetition";
 import { getActiveSides, sides, teamForSide } from "./types";
 import type { EliminationReason, FourShogiState, GameResult, Side } from "./types";
 
@@ -87,6 +87,7 @@ export function settlePosition(
   input: FourShogiState,
   after: Side,
   preserveTurn = false,
+  repetitionLookup?: RepetitionLookup,
 ): FourShogiState {
   let state = finishIfEliminated(input);
   if (state.status === "finished") return state;
@@ -110,6 +111,6 @@ export function settlePosition(
     if (state.status === "finished") return state;
     selected = nextSide(state, selected);
   }
-  const recorded = recordPosition(state);
+  const recorded = recordPosition(state, repetitionLookup);
   return isRepetition(recorded) ? finish(recorded, "repetition") : recorded;
 }

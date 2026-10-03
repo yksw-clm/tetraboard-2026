@@ -789,8 +789,8 @@ export class GameRoom extends DurableObject<Env> {
     }));
     if (this.isPlayerEliminated(room, playerId))
       return roomSchema.parse({ ...room, players }) as FourShogiRoom;
-    const state = this.shogi().loadState(room.roundId, room.game);
-    const result = eliminateSide(state, player.side, reason);
+    const { state, repetitionLookup } = this.shogi().loadTransition(room.roundId, room.game);
+    const result = eliminateSide(state, player.side, reason, repetitionLookup);
     if (!result.ok) throw new Error(`Could not eliminate Shogi player: ${result.reason}`);
     const input = roomSchema.parse({ ...room, players }) as Extract<
       FourShogiRoom,
@@ -826,11 +826,8 @@ export class GameRoom extends DurableObject<Env> {
       if (isClockExpired(room.clock, Date.now())) return { status: "time_expired" };
       if (this.isPlayerEliminated(room, player.id)) return { status: "already_eliminated" };
       if (player.side !== room.game.turn) return { status: "not_your_turn" };
-      const result = applyShogiAction(
-        this.shogi().loadState(room.roundId, room.game),
-        player.side,
-        action,
-      );
+      const { state, repetitionLookup } = this.shogi().loadTransition(room.roundId, room.game);
+      const result = applyShogiAction(state, player.side, action, repetitionLookup);
       if (!result.ok) return { status: "invalid_move" };
       const updated = this.acceptShogiState(
         room,
@@ -1009,8 +1006,11 @@ export class GameRoom extends DurableObject<Env> {
             )
               this.ctx.storage.kv.delete(shogiCpuJobKey);
             else if (job.applyAt <= now) {
-              const state = this.shogi().loadState(room.roundId, room.game);
-              const result = applyShogiAction(state, job.side, job.action);
+              const { state, repetitionLookup } = this.shogi().loadTransition(
+                room.roundId,
+                room.game,
+              );
+              const result = applyShogiAction(state, job.side, job.action, repetitionLookup);
               if (!result.ok) throw new Error("Saved CPU action is no longer legal");
               room = this.acceptShogiState(
                 room,
@@ -1023,10 +1023,11 @@ export class GameRoom extends DurableObject<Env> {
               changed = true;
             }
           } else {
-            const action = chooseCpuAction(
-              this.shogi().loadState(room.roundId, room.game),
-              cpu.level,
+            const { state, repetitionLookup } = this.shogi().loadTransition(
+              room.roundId,
+              room.game,
             );
+            const action = chooseCpuAction(state, cpu.level, Math.random, repetitionLookup);
             if (!action) throw new Error("Shogi CPU has no legal action");
             // A separate alarm supplies a fresh wall clock after synchronous CPU work.
             this.ctx.storage.kv.put(shogiCpuJobKey, {
