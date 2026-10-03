@@ -1,6 +1,7 @@
 import type { FourShogiAction, Piece, Position, Side } from "@tetraboard/four-shogi";
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type CSSProperties,
@@ -8,10 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import boardImage from "../../assets/shogi/board.png";
-import { AppButton } from "../../shared/ui/AppButton";
-import { AppDialog } from "../../shared/ui/AppDialog";
 import { FourShogiHand } from "./FourShogiHand";
-import { ShogiPiece } from "./ShogiPiece";
+import { ShogiPiece, shogiPieceLiftClasses } from "./ShogiPiece";
+import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
+import { useShogiPromotion, type ShogiPromotionContext } from "./useShogiPromotion";
 import {
   shogiActionChoices,
   shogiBoardPosition,
@@ -31,7 +32,6 @@ import {
 
 type Revision = string | number;
 type Selected = { selection: ShogiSelection; revision: Revision };
-type Promotion = { choices: FourShogiAction[]; revision: Revision };
 type DragSource = {
   selection: ShogiSelection;
   kind: Piece["kind"];
@@ -62,6 +62,7 @@ export type FourShogiBoardLayoutProps = {
   viewerSide: Side;
   revision: Revision;
   canPlay: boolean;
+  promotionContext?: ShogiPromotionContext;
   legalActions: readonly FourShogiAction[];
   checkState?: Readonly<Record<Side, boolean>>;
   onAction: (action: FourShogiAction) => void;
@@ -73,6 +74,7 @@ export function FourShogiBoardLayout({
   viewerSide,
   revision,
   canPlay,
+  promotionContext,
   legalActions,
   checkState,
   onAction,
@@ -82,10 +84,12 @@ export function FourShogiBoardLayout({
   const trace = useRef<PointerTrace | null>(null);
   const suppressClick = useRef(false);
   const [selected, setSelected] = useState<Selected | null>(null);
-  const [promotion, setPromotion] = useState<Promotion | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const eliminated = game.eliminations.map((entry) => entry.side);
   const enabled = canPlay && game.status === "playing" && game.turn === viewerSide;
+  const promotion = useShogiPromotion(promotionContext, legalActions, enabled);
+  const promotionChoices = promotion.choices;
+  const sent = useRef(false);
   const [interactionScope, setInteractionScope] = useState({ revision, viewerSide, enabled });
 
   // 局面や操作権限の変更と同じ描画で解除し、以前の選択が再表示されることを防ぎます。
@@ -96,11 +100,14 @@ export function FourShogiBoardLayout({
   ) {
     setInteractionScope({ revision, viewerSide, enabled });
     setSelected(null);
-    setPromotion(null);
     setDrag(null);
   }
-  const selection = enabled && selected?.revision === revision ? selected.selection : null;
-  const promotionChoices = enabled && promotion?.revision === revision ? promotion.choices : null;
+  const selection =
+    enabled && selected?.revision === revision
+      ? selected.selection
+      : promotionChoices
+        ? { type: "movePiece" as const, from: promotionChoices[0].from }
+        : null;
 
   function resetPointer(): void {
     const active = trace.current;
@@ -111,13 +118,20 @@ export function FourShogiBoardLayout({
     setDrag(null);
   }
 
-  function cancelSelection(): void {
+  function cancelSelection(restoreFocus = false): void {
+    if (restoreFocus && promotionChoices) {
+      const from = promotionChoices[0].from;
+      grid.current
+        ?.querySelector<HTMLButtonElement>(`[data-square="${"ABCDEFGHI"[from.x]}${from.y + 1}"]`)
+        ?.focus({ preventScroll: true });
+    }
+    promotion.clear();
     resetPointer();
     setSelected(null);
-    setPromotion(null);
   }
 
   useEffect(() => {
+    sent.current = false;
     const active = trace.current;
     trace.current = null;
     if (active?.element.hasPointerCapture(active.pointerId)) {
@@ -127,18 +141,16 @@ export function FourShogiBoardLayout({
     suppressClick.current = active !== null;
   }, [revision, viewerSide, enabled]);
 
+  const onEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    const active = trace.current !== null;
+    if (promotionChoices) event.preventDefault();
+    cancelSelection(true);
+    suppressClick.current = active;
+  });
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      const active = trace.current;
-      trace.current = null;
-      if (active?.element.hasPointerCapture(active.pointerId)) {
-        active.element.releasePointerCapture(active.pointerId);
-      }
-      setDrag(null);
-      setSelected(null);
-      setPromotion(null);
-      suppressClick.current = active !== null;
+      onEscape(event);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -159,14 +171,14 @@ export function FourShogiBoardLayout({
 
   function select(next: ShogiSelection): void {
     if (!enabled || consumeClick()) return;
-    setPromotion(null);
     setSelected(
       selection && shogiSameSelection(selection, next) ? null : { selection: next, revision },
     );
   }
 
   function send(action: FourShogiAction): void {
-    if (!enabled) return;
+    if (!enabled || sent.current) return;
+    sent.current = true;
     cancelSelection();
     onAction(action);
   }
@@ -175,7 +187,7 @@ export function FourShogiBoardLayout({
     if (!enabled) return;
     const choices = shogiActionChoices(legalActions, source, to);
     if (choices.length === 1) send(choices[0]);
-    else if (choices.length > 1) setPromotion({ choices, revision });
+    else if (choices.length > 1) promotion.open(choices);
   }
 
   function onSquareClick(position: Position, canSelect: boolean): void {
@@ -211,7 +223,6 @@ export function FourShogiBoardLayout({
     if (!active.moved && !shogiDragThresholdReached(active.start, point)) return;
     active.moved = true;
     event.preventDefault();
-    setPromotion(null);
     setSelected({ selection: active.selection, revision });
     setDrag({ ...active, point });
   }
@@ -255,6 +266,11 @@ export function FourShogiBoardLayout({
           side === viewerSide && selection?.type === "dropPiece" ? selection.pieceKind : null
         }
         availableKinds={availableKinds}
+        draggingKind={
+          side === viewerSide && drag?.selection.type === "dropPiece"
+            ? drag.selection.pieceKind
+            : null
+        }
         onSelect={(kind, event) => {
           if (event.detail === 0) suppressClick.current = false;
           select({ type: "dropPiece", pieceKind: kind });
@@ -281,7 +297,7 @@ export function FourShogiBoardLayout({
   return (
     <div
       data-testid="shogi-board-layout"
-      className="[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
+      className="[--shogi-highlight-inset:max(1px,calc(var(--shogi-board-width)_*_2_/_458))] [--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
     >
       {shogiSides.map((side) => {
         const placement = shogiSidePlacement(side, viewerSide);
@@ -340,6 +356,9 @@ export function FourShogiBoardLayout({
             const lastFrom =
               lastAction?.type === "movePiece" && shogiSamePosition(lastAction.from, position);
             const lastTo = lastAction && shogiSamePosition(lastAction.to, position);
+            const dragging =
+              drag?.selection.type === "movePiece" &&
+              shogiSamePosition(drag.selection.from, position);
             const checked = piece?.kind === "king" && !dead && checkState?.[piece.side];
             const pieceLabel = piece
               ? `${shogiSideNames[piece.side]}の${piece.kind === "king" && dead ? "裏王" : piece.promoted ? (piece.kind === "rook" ? "龍" : piece.kind === "silver" ? "成銀" : "と金") : shogiPieceNames[piece.kind]}`
@@ -354,9 +373,10 @@ export function FourShogiBoardLayout({
                 data-legal-destination={destination || undefined}
                 data-last-move={lastTo ? "to" : lastFrom ? "from" : undefined}
                 data-check={checked || undefined}
+                data-dragging={dragging || undefined}
                 aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}`}
                 aria-pressed={!!selectedSquare}
-                className={`relative grid place-items-center min-w-0 min-h-0 w-full h-full p-0 rounded-none border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-3px] ${canSelect ? "touch-none" : "touch-auto"}${canSelect || destination ? " cursor-pointer enabled:hover:bg-[#fff0b735]" : " cursor-default"}${selectedSquare ? " bg-[#ffeb8980] ring-2 ring-inset ring-[#9c6f14]" : ""}${lastTo || lastFrom ? " shadow-[inset_0_0_0_2px_#9c6f1480] bg-[#ffe79e30]" : ""}${checked ? " bg-[#e93f3540] ring-2 ring-inset ring-[#b84625]" : ""}`}
+                className={`group/shogi-piece relative grid place-items-center min-w-0 min-h-0 w-full h-full p-0 rounded-none border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-3px] ${canSelect ? "touch-none" : "touch-auto"}${canSelect || destination ? " cursor-pointer" : " cursor-default"}`}
                 onClick={(event) => {
                   if (event.detail === 0) suppressClick.current = false;
                   onSquareClick(position, !!canSelect);
@@ -375,8 +395,15 @@ export function FourShogiBoardLayout({
                 onPointerCancel={cancelPointer}
                 onLostPointerCapture={lostPointer}
               >
+                <span
+                  aria-hidden="true"
+                  data-testid="shogi-square-highlight"
+                  className={`absolute inset-[var(--shogi-highlight-inset)] pointer-events-none ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#ffe79e80]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-2 ring-inset ring-[#9c6f14]" : ""}`}
+                />
                 {piece && (
-                  <span className={dead && piece.kind !== "king" ? "opacity-55" : ""}>
+                  <span
+                    className={`relative ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect ? shogiPieceLiftClasses : ""}`}
+                  >
                     <ShogiPiece
                       kind={piece.kind}
                       promoted={piece.promoted}
@@ -413,23 +440,13 @@ export function FourShogiBoardLayout({
         </div>
       )}
       {promotionChoices && (
-        <AppDialog title="成りますか？" theme="four-shogi" size="compact" onClose={cancelSelection}>
-          <p className="mb-4 text-sm text-muted">この手で駒を成るか選んでください。</p>
-          <div className="flex flex-wrap gap-3">
-            {promotionChoices.map(
-              (action) =>
-                action.type === "movePiece" && (
-                  <AppButton
-                    key={String(action.promote)}
-                    appearance={action.promote ? "primary" : "secondary"}
-                    onPress={() => send(action)}
-                  >
-                    {action.promote ? "成る" : "成らない"}
-                  </AppButton>
-                ),
-            )}
-          </div>
-        </AppDialog>
+        <ShogiPromotionChoice
+          choices={promotionChoices}
+          kind={game.board[promotionChoices[0].from.y][promotionChoices[0].from.x]!.kind}
+          viewerSide={viewerSide}
+          grid={grid}
+          onChoose={send}
+        />
       )}
     </div>
   );

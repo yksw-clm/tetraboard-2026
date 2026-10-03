@@ -387,27 +387,27 @@ test("任意成り・強制成り・成り選択中の更新を扱う", async ({
   await page.goto("/rooms/12345");
   await square(page, 3, 3).click();
   await square(page, 3, 2).click();
-  const dialog = page.getByRole("dialog", { name: "成りますか？" });
-  await expect(dialog).toBeVisible();
+  const promotion = page.getByRole("group", { name: "成りの選択" });
+  await expect(promotion).toBeVisible();
   expect(actions(fixture.received)).toHaveLength(0);
   await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
+  await expect(promotion).toHaveCount(0);
   await expect(square(page, 3, 3)).toHaveAttribute("aria-pressed", "false");
   expect(actions(fixture.received)).toHaveLength(0);
   await square(page, 3, 3).click();
   await square(page, 3, 2).click();
-  await expect(dialog).toBeVisible();
+  await expect(promotion).toBeVisible();
   fixture.update(playingShogiRoom(state, 1));
-  await expect(dialog).toHaveCount(0);
+  await expect(promotion).toHaveCount(0);
   await square(page, 3, 3).click();
   await square(page, 3, 2).click();
-  await dialog.getByRole("button", { name: "成らない", exact: true }).click();
+  await promotion.getByRole("button", { name: "成らない", exact: true }).click();
   await expect.poll(() => actions(fixture.received)).toHaveLength(1);
   expect(actions(fixture.received)[0]).toMatchObject({ action: { promote: false } });
   fixture.send({ type: "room.error", error: "invalid_move" });
   await square(page, 3, 3).click();
   await square(page, 3, 2).click();
-  await dialog.getByRole("button", { name: "成る", exact: true }).click();
+  await promotion.getByRole("button", { name: "成る", exact: true }).click();
   await expect.poll(() => actions(fixture.received)).toHaveLength(2);
   expect(actions(fixture.received)[1]).toMatchObject({ action: { promote: true } });
   const board = state.board.map((row) => row.slice());
@@ -416,7 +416,7 @@ test("任意成り・強制成り・成り選択中の更新を扱う", async ({
   await square(page, 6, 1).click();
   await square(page, 6, 0).click();
   await expect.poll(() => actions(fixture.received)).toHaveLength(3);
-  await expect(dialog).toHaveCount(0);
+  await expect(promotion).toHaveCount(0);
   expect(actions(fixture.received)[2]).toMatchObject({
     action: { promote: true, to: { x: 6, y: 0 } },
   });
