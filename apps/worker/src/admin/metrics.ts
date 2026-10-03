@@ -5,6 +5,7 @@ import {
   type AdminAnalytics,
 } from "@tetraboard/protocol";
 import { adminAccountIds, type AdminEnv } from "./auth";
+import { accountCreatedAtMsSql } from "../accounts/timestamps";
 export const japanDay = (at: number) => new Date(at + 9 * 3600000).toISOString().slice(0, 10);
 const metricKeys = Object.keys(analyticsMetricsSchema.shape) as (keyof AnalyticsMetrics)[];
 export function emptyMetrics(): AnalyticsMetrics {
@@ -33,6 +34,7 @@ export async function readAnalytics(
   const to = Date.parse(`${query.to}T00:00:00+09:00`) + 86400000;
   const include = query.includeInternal === "true";
   const game = query.game;
+  const registeredAt = accountCreatedAtMsSql("u.createdAt");
   const owners = adminAccountIds(env) ?? [];
   const excludeOwners = (column: string) =>
     owners.length
@@ -77,8 +79,8 @@ export async function readAnalytics(
       args: [query.from, query.to, ...actorArgs(), ...gameArgs()],
     });
     jobs.push({
-      sql: `SELECT ${bucket("u.createdAt")} AS period, COUNT(*) AS newUsers FROM user u
-      WHERE COALESCE(u.isAnonymous, 0) = 0 AND u.createdAt >= MAX(?, COALESCE((SELECT value FROM analytics_metadata WHERE key = 'collected_from'), ?)) AND u.createdAt < ?
+      sql: `SELECT ${bucket(registeredAt)} AS period, COUNT(*) AS newUsers FROM user u
+      WHERE COALESCE(u.isAnonymous, 0) = 0 AND (${registeredAt}) >= MAX(?, COALESCE((SELECT value FROM analytics_metadata WHERE key = 'collected_from'), ?)) AND (${registeredAt}) < ?
       ${include ? "" : `AND COALESCE(u.isTestUser, 0) = 0 AND ${excludeOwners("u.id")}`}${grouped}`,
       args: [from, now, to, ...actorArgs()],
     });

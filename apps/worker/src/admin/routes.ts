@@ -6,6 +6,7 @@ import {
   adminUsersSchema,
 } from "@tetraboard/protocol";
 import { profileAvatarUrl, type StoredProfile } from "../accounts/auth";
+import { accountCreatedAtMsSql } from "../accounts/timestamps";
 import { adminIdentity, type AdminEnv } from "./auth";
 import { readAnalytics } from "./metrics";
 export const adminRoutes = new Hono<{ Bindings: AdminEnv; Variables: { admin: StoredProfile } }>();
@@ -52,20 +53,21 @@ adminRoutes.get("/admin/users", async (c) => {
     }
   }
   const search = `%${query.data.search.replace(/^@/, "").replace(/[\\%_]/g, "\\$&")}%`;
-  const rows =
-    await c.env.APP_DB.prepare(`SELECT id, name, username, avatarKey, createdAt, profileCompleted FROM user
-    WHERE COALESCE(isAnonymous, 0) = 0 AND (name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')
-    ${cursor ? "AND (createdAt < ? OR (createdAt = ? AND id < ?))" : ""}
-    ORDER BY createdAt DESC, id DESC LIMIT 51`)
-      .bind(search, search, ...(cursor ? [cursor.at, cursor.at, cursor.id] : []))
-      .all<{
-        id: string;
-        name: string;
-        username: string | null;
-        avatarKey: string | null;
-        createdAt: number;
-        profileCompleted: number;
-      }>();
+  const rows = await c.env.APP_DB.prepare(`WITH registered_users AS (
+      SELECT id, name, username, avatarKey, ${accountCreatedAtMsSql("createdAt")} AS createdAtMs, profileCompleted
+      FROM user WHERE COALESCE(isAnonymous, 0) = 0)
+    SELECT * FROM registered_users WHERE (name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')
+    ${cursor ? "AND (createdAtMs < ? OR (createdAtMs = ? AND id < ?))" : ""}
+    ORDER BY createdAtMs DESC, id DESC LIMIT 51`)
+    .bind(search, search, ...(cursor ? [cursor.at, cursor.at, cursor.id] : []))
+    .all<{
+      id: string;
+      name: string;
+      username: string | null;
+      avatarKey: string | null;
+      createdAtMs: number;
+      profileCompleted: number;
+    }>();
   const page = rows.results.slice(0, 50);
   const last = page.at(-1);
   return c.json(
@@ -74,12 +76,12 @@ adminRoutes.get("/admin/users", async (c) => {
         name: user.name,
         username: user.username,
         avatarUrl: profileAvatarUrl(user.avatarKey),
-        createdAtMs: user.createdAt,
+        createdAtMs: user.createdAtMs,
         profileCompleted: Boolean(user.profileCompleted),
       })),
       nextCursor:
         rows.results.length > 50 && last
-          ? btoa(JSON.stringify({ at: last.createdAt, id: last.id }))
+          ? btoa(JSON.stringify({ at: last.createdAtMs, id: last.id }))
           : null,
     }),
   );

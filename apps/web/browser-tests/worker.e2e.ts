@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
+import { adminUsersSchema } from "@tetraboard/protocol";
 
 test("ローカルWorkerで作成・CPU対局・チャット・退室する", async ({ page }) => {
   const measured = page.waitForResponse((response) =>
@@ -340,8 +341,20 @@ test("本番アセットの管理画面は本人限定で配信し、直接ア�
   await expect(page.getByRole("img", { name: /折れ線グラフ/ })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "四人将棋", exact: true })).toBeVisible();
+  const usersResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/admin/users",
+  );
   await page.getByRole("link", { name: "登録ユーザー", exact: true }).click();
+  const response = await usersResponse;
+  expect(response.status()).toBe(200);
+  const users = adminUsersSchema.parse(await response.json());
+  expect(users.users.find((user) => user.username === "browser_admin")?.createdAtMs).toBe(
+    1790953200000,
+  );
   await expect(page.getByRole("table")).toContainText("@browser_admin");
+  await expect(page.getByRole("row").filter({ hasText: "@browser_admin" })).toContainText(
+    /2026\/10\/0?3/,
+  );
   await page.getByRole("link", { name: "全体概要", exact: true }).click();
   await expect(page.getByRole("heading", { name: "全体概要", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("admin.png"), fullPage: true });
