@@ -1,7 +1,9 @@
-import { type Side } from "@tetraboard/four-shogi";
+import { roomSnapshotFor } from "./roomSnapshot";
+import type { Side } from "@tetraboard/four-shogi";
 import {
   roomSocketContract,
   isFourShogiRoom,
+  type GameCommandFor,
   type ChatEntry,
   type CpuLevel,
   type Room,
@@ -73,8 +75,10 @@ export function useRoomTransport<T extends Room>({
   initialMembership,
   initialServerNowMs,
   initialPresence,
+  isRoom,
 }: {
   initialRoom: T;
+  isRoom: (room: Room) => room is T;
   initialMembership: RoomMembership | null;
   initialServerNowMs: number;
   initialPresence: RoomPresence;
@@ -168,9 +172,8 @@ export function useRoomTransport<T extends Room>({
           throw new Error("Membership does not match room");
         }
         currentMembership = latestMembership;
-        if (latestRoom.settings.game !== initialRoom.settings.game)
-          throw new Error("Room game changed");
-        setRoom(latestRoom as T);
+        if (!isRoom(latestRoom)) throw new Error("Room game changed");
+        setRoom(latestRoom);
         setPresence(latest.presence);
         setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
         setMembership(latestMembership);
@@ -234,11 +237,12 @@ export function useRoomTransport<T extends Room>({
             stopUnavailable(roomChangedMessage);
             return;
           }
-          if (message.data.room.settings.game !== initialRoom.settings.game) {
+          const snapshot = roomSnapshotFor(message.data.room, isRoom);
+          if (snapshot === null) {
             stopUnavailable(roomChangedMessage);
             return;
           }
-          setRoom(message.data.room as T);
+          setRoom(snapshot);
           setPresence(message.data.presence);
           clearPendingSettings();
           setClockSync({ serverNowMs: message.data.serverNowMs, receivedAt: performance.now() });
@@ -365,7 +369,13 @@ export function useRoomTransport<T extends Room>({
       socketRef.current = null;
       socket?.close();
     };
-  }, [initialRoom.id, initialRoom.instanceId, initialRoom.settings.game, initialMembership]);
+  }, [
+    initialRoom.id,
+    initialRoom.instanceId,
+    initialRoom.settings.game,
+    initialMembership,
+    isRoom,
+  ]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
   const canManageSettings =
@@ -374,7 +384,10 @@ export function useRoomTransport<T extends Room>({
     authenticated &&
     connection === "接続済み" &&
     !pendingSettings;
-  function sendGameMessage(message: unknown, pending: PendingGameAction): void {
+  function sendGameMessage(
+    message: GameCommandFor<T["settings"]["game"]>,
+    pending: PendingGameAction,
+  ): void {
     const currentSocket = socketRef.current;
     if (
       !authenticated ||

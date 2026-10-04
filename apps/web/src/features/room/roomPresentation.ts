@@ -1,10 +1,4 @@
-import {
-  type Room,
-  type FourReversiRoom,
-  type FourReversiMatchDetail,
-  type MatchHistoryParticipant,
-} from "@tetraboard/protocol";
-import { clockPresentation } from "./roomClockPresentation";
+import type { FourReversiRoom, FourReversiMatchDetail } from "@tetraboard/protocol";
 import {
   colors,
   createInitialState,
@@ -23,38 +17,9 @@ export const colorNames: Record<Color, string> = {
   red: "赤",
   blue: "青",
 };
-export const playerName = (player: Room["players"][number] | MatchHistoryParticipant): string =>
-  player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
-
-export { formatClock } from "./roomClockPresentation";
-
-export function playerClock(room: FourReversiRoom, color: Color | null, serverNowMs: number) {
-  if (room.status === "playing" && color !== null) {
-    if (room.game.eliminatedColors.includes(color)) return null;
-    return clockPresentation({
-      timeControl: room.settings.timeControl,
-      remainingMainMs: room.clock.remainingMainMs[color],
-      turnStartedAt: room.clock.turnStartedAt,
-      turnExpiresAt: room.clock.turnExpiresAt,
-      isTurn: room.game.turn === color,
-      serverNowMs,
-    });
-  }
-  return clockPresentation({ timeControl: room.settings.timeControl, serverNowMs });
-}
-
-export function orderedSeats<T extends Room>(room: T, selfId: string | undefined) {
-  const seats: (T["players"][number] | null)[] = [...room.players];
-  while (seats.length < 4) seats.push(null);
-  const anchor =
-    selfId === undefined
-      ? 0
-      : Math.max(
-          0,
-          seats.findIndex((player) => player?.id === selfId),
-        );
-  return Array.from({ length: 4 }, (_, index) => seats[(anchor + index) % 4]);
-}
+export { playerName, formatClock, seatPositions, orderedSeats } from "./roomCommonPresentation";
+import { orderedSeats } from "./roomCommonPresentation";
+export { playerClock } from "./playerClocks";
 
 function colorOrderedSeats<T extends { id: string; color: Color }>(
   players: readonly T[],
@@ -124,5 +89,3 @@ export function replayPlayerDetails(
     rank,
   };
 }
-
-export const seatPositions = ["bottom", "left", "top", "right"] as const;

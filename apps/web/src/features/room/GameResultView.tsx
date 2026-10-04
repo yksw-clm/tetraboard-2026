@@ -1,5 +1,5 @@
-import { type LastRound } from "@tetraboard/protocol";
-import { type Color } from "@tetraboard/four-reversi";
+import type { LastRound } from "@tetraboard/protocol";
+import type { Color } from "@tetraboard/four-reversi";
 import { colorNames } from "./roomPresentation";
 
 const endReasonNames = {

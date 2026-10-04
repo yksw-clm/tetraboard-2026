@@ -1,3 +1,4 @@
+import { waitingRoomFactories } from "./waitingRoomFactories";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { analyticsVisitor } from "../analytics/store";
 import {
@@ -13,9 +14,7 @@ import {
   reportContract,
   roomCodeSchema,
   roomSocketContract,
-  roomTimeControl,
   viewerContract,
-  type Room,
   type RoomError,
 } from "@tetraboard/protocol";
 import { profileAvatarUrl } from "../accounts/auth";
@@ -107,56 +106,11 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
   for (let attempt = 0; attempt < maxRoomCodeAttempts; attempt++) {
     const code = generateRoomCode();
     const game = request.data.game ?? defaultGameId;
-    const initialRoom = {
-      eliminations: [],
-      id: code,
-      instanceId: crypto.randomUUID(),
-      status: "waiting",
-      settings: {
-        game,
-        mode: request.data.mode,
-        timeControl: request.data.timeControl ?? roomTimeControl,
-        ...(game === "four-shogi"
-          ? { threePlayerAttackProhibited: request.data.threePlayerAttackProhibited ?? true }
-          : {}),
-      },
-      publicUpdatedAtMs: Date.now(),
-      lastActivityAtMs: Date.now(),
-      players: [
-        {
-          id: crypto.randomUUID(),
-          name: profile.name,
-          kind: "human",
-          avatarUrl: null,
-          ready: request.data.quickPlay,
-          ...(game === "four-shogi" ? { side: null } : { color: null }),
-          reconnectDeadline: null,
-        },
-        ...(request.data.quickPlay
-          ? [1, 2, 3].map((index) => ({
-              id: crypto.randomUUID(),
-              name: `CPU ${index}`,
-              kind: "cpu" as const,
-              level: 1 as const,
-              ready: true as const,
-              ...(game === "four-shogi" ? { side: null } : { color: null }),
-              reconnectDeadline: null,
-            }))
-          : []),
-      ],
-      game: null,
-      clock: null,
-      lastRound: null,
-      ...(game === "four-shogi"
-        ? {
-            roundId: null,
-            positionRevision: 0,
-            legalActions: [],
-            threePlayerAttackForbiddenActions: [],
-            checkState: { south: false, west: false, north: false, east: false },
-          }
-        : {}),
-    } as Room;
+    const initialRoom = waitingRoomFactories[game]({
+      code,
+      name: profile.name,
+      request: request.data,
+    });
 
     let admission: AccountAdmission | undefined;
     try {

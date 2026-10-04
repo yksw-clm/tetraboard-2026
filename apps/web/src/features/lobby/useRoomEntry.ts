@@ -1,3 +1,4 @@
+import { createRoomRequests } from "./createRoomRequests";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
@@ -94,13 +95,15 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         return;
       }
 
-      const request = contract.request.safeParse({
-        name: entryName,
-        quickPlay: intent === "quick",
-        mode,
-        timeControl,
-        ...(game === "four-shogi" ? { game, threePlayerAttackProhibited } : {}),
-      });
+      const request = contract.request.safeParse(
+        createRoomRequests[game]({
+          name: entryName,
+          quickPlay: intent === "quick",
+          mode,
+          timeControl,
+          threePlayerAttackProhibited,
+        }),
+      );
       if (!request.success) {
         setMessage("ニックネームを1〜10文字で入力してください。");
         return;

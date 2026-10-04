@@ -32,3 +32,15 @@ export const getFourShogiRankingsContract = {
   response: fourShogiRankingsSchema,
 } as const;
 export type FourShogiRankings = z.infer<typeof fourShogiRankingsSchema>;
+
+export type GameRankingContracts = {
+  [G in import("./games").GameId]: {
+    method: "GET";
+    path: (typeof gameCatalog)[G]["rankingsPath"];
+    response: z.ZodType<import("./gameTypes").RankingsFor<G>>;
+  };
+};
+export const gameRankingContracts = {
+  "four-reversi": getFourReversiRankingsContract,
+  "four-shogi": getFourShogiRankingsContract,
+} satisfies GameRankingContracts;

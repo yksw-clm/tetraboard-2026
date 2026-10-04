@@ -1,12 +1,12 @@
-import { type FourShogiAction } from "@tetraboard/four-shogi";
-import { type FourShogiRoom } from "@tetraboard/protocol";
+import type { FourShogiAction } from "@tetraboard/four-shogi";
+import { isFourShogiRoom, type FourShogiRoom } from "@tetraboard/protocol";
 import { displayShogiGameForRoom } from "./fourShogiRoomPresentation";
 import { useRoomTransport } from "./useRoomTransport";
 
 export function useFourShogiRoomSession(
-  options: Parameters<typeof useRoomTransport<FourShogiRoom>>[0],
+  options: Omit<Parameters<typeof useRoomTransport<FourShogiRoom>>[0], "isRoom">,
 ) {
-  const session = useRoomTransport(options);
+  const session = useRoomTransport({ ...options, isRoom: isFourShogiRoom });
   const { room } = session;
   const self = room.players.find((player) => player.id === session.membership?.playerId);
   const canPlay =

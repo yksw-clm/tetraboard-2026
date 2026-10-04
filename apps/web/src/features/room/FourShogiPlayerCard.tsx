@@ -1,7 +1,7 @@
 import { Chip } from "@heroui/react";
-import { type Side } from "@tetraboard/four-shogi";
-import { type FourShogiPublicState, type FourShogiRoom } from "@tetraboard/protocol";
-import { PlayerCardView, PlayerReadyBadge } from "./PlayerCard";
+import type { Side } from "@tetraboard/four-shogi";
+import type { FourShogiPublicState, FourShogiRoom } from "@tetraboard/protocol";
+import { PlayerCardView, PlayerReadyBadge } from "./PlayerCardView";
 import {
   shogiPlayerClock,
   shogiPlayerRank,

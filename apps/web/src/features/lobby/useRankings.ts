@@ -1,14 +1,9 @@
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  getFourReversiRankingsContract,
-  getFourShogiRankingsContract,
-  type FourReversiRankings,
-  type MatchGame,
-} from "@tetraboard/protocol";
+import { gameRankingContracts, type RankingsFor, type MatchGame } from "@tetraboard/protocol";
 
 export function useRankings(game: MatchGame = defaultGameId) {
-  const [rankings, setRankings] = useState<FourReversiRankings | null>(null);
+  const [rankings, setRankings] = useState<RankingsFor<MatchGame> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -19,8 +14,7 @@ export function useRankings(game: MatchGame = defaultGameId) {
     setLoading(true);
     setError(null);
     try {
-      const contract =
-        game === "four-shogi" ? getFourShogiRankingsContract : getFourReversiRankingsContract;
+      const contract = gameRankingContracts[game];
       const response = await fetch(`/api${contract.path}`, {
         cache: "no-store",
         signal: controller.signal,

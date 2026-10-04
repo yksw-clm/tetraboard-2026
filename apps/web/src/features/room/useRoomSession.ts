@@ -1,10 +1,12 @@
 import { getLegalMoves, type Position } from "@tetraboard/four-reversi";
-import { type FourReversiRoom } from "@tetraboard/protocol";
+import { isFourReversiRoom, type FourReversiRoom } from "@tetraboard/protocol";
 import { displayGameForRoom } from "./roomPresentation";
 import { useRoomTransport } from "./useRoomTransport";
 
-export function useRoomSession(options: Parameters<typeof useRoomTransport<FourReversiRoom>>[0]) {
-  const session = useRoomTransport(options);
+export function useRoomSession(
+  options: Omit<Parameters<typeof useRoomTransport<FourReversiRoom>>[0], "isRoom">,
+) {
+  const session = useRoomTransport({ ...options, isRoom: isFourReversiRoom });
   const { room } = session;
   const self = room.players.find((player) => player.id === session.membership?.playerId);
   const game = room.status === "playing" ? room.game : null;

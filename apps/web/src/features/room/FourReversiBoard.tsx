@@ -1,7 +1,7 @@
 import { boardPositionForDisplay, type QuarterTurn } from "./boardRotation";
 import { Stone } from "./Stone";
 import { Button } from "@heroui/react";
-import { type FourReversiState, type Position } from "@tetraboard/four-reversi";
+import type { FourReversiState, Position } from "@tetraboard/four-reversi";
 import { colorNames } from "./roomPresentation";
 
 export function FourReversiBoard({

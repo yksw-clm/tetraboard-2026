@@ -2,7 +2,7 @@ import { useRoomDesktop } from "./useRoomDesktop";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Toast } from "@heroui/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { type CpuLevel } from "@tetraboard/protocol";
+import type { CpuLevel } from "@tetraboard/protocol";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
 import { useRoomInvitation } from "./useRoomInvitation";
@@ -12,8 +12,8 @@ import { RoomInfo } from "./RoomInfo";
 import { RoomStatus } from "./RoomStatus";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { RoomLayout } from "./RoomLayout";
-import { type useRoomChat } from "./useRoomChat";
-import { type useRoomTransport } from "./useRoomTransport";
+import type { useRoomChat } from "./useRoomChat";
+import type { useRoomTransport } from "./useRoomTransport";
 import { appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
@@ -34,7 +34,7 @@ export function RoomViewShell({
   selfEliminated,
   onRotate,
 }: {
-  session: ReturnType<typeof useRoomTransport> & {
+  session: Omit<ReturnType<typeof useRoomTransport>, "sendGameMessage"> & {
     canPlay: boolean;
     handleResignClick: () => void;
     handleDrawProposalClick?: () => void;

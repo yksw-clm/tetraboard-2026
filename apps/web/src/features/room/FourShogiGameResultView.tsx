@@ -1,5 +1,5 @@
 import { sides, type Side } from "@tetraboard/four-shogi";
-import { type FourShogiLastRound } from "@tetraboard/protocol";
+import type { FourShogiLastRound } from "@tetraboard/protocol";
 import { shogiEliminationLabels, shogiSideNames } from "./fourShogiRoomPresentation";
 
 const endReasonNames = {
