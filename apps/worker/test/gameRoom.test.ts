@@ -1,5 +1,10 @@
 import { env, exports } from "cloudflare:workers";
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import {
+  applyD1Migrations,
+  reset,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test";
 import {
   createRoomContract,
   getRoomContract,
@@ -1493,6 +1498,9 @@ test("CPU席・モード・開始・終了は索引を更新し、通常の着�
 });
 
 test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、不正カーソルを拒否する", async () => {
+  // 固定IDが前のケースの索引や非同期更新と衝突しない実ストレージで検証する。
+  await reset();
+  await applyD1Migrations(env.APP_DB, env.TEST_MIGRATIONS);
   const updatedAtMs = Date.now() + 1_000_000;
   const base: RoomPublicMetadata = {
     id: "99900",
