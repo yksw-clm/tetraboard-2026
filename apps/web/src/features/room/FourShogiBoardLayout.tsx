@@ -11,6 +11,7 @@ import {
 import boardImage from "../../assets/shogi/board.png";
 import { FourShogiHand } from "./FourShogiHand";
 import { ShogiPiece } from "./ShogiPiece";
+import { prepareShogiPieceImages } from "./shogiPieceImages";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
 import { useShogiPromotion, type ShogiPromotionContext } from "./useShogiPromotion";
 import {
@@ -125,7 +126,23 @@ export function FourShogiBoardLayout({
   onAction,
   playerCards,
 }: FourShogiBoardLayoutProps) {
+  const layout = useRef<HTMLDivElement>(null);
+  const board = useRef<HTMLImageElement>(null);
   const grid = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let active = true;
+    const images = [
+      ...(layout.current?.querySelectorAll<HTMLImageElement>("img[data-piece-direction]") ?? []),
+    ];
+    if (board.current) images.push(board.current);
+    // 初期表示の通信を優先し、成り駒・裏王の準備は画面を待たせません。
+    void Promise.allSettled(images.map((image) => image.decode())).then(() => {
+      if (active) void prepareShogiPieceImages();
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const trace = useRef<PointerTrace | null>(null);
   const suppressClick = useRef(false);
   const [selected, setSelected] = useState<Selected | null>(null);
@@ -344,6 +361,7 @@ export function FourShogiBoardLayout({
   // 持ち駒の高さも盤の幅に比例するため、盤と駒2段の比率を合わせて計算します。
   return (
     <div
+      ref={layout}
       data-testid="shogi-board-layout"
       className="[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
     >
@@ -375,6 +393,7 @@ export function FourShogiBoardLayout({
         aria-label="四人将棋の盤面"
       >
         <img
+          ref={board}
           src={boardImage}
           alt=""
           draggable={false}
