@@ -6,7 +6,7 @@
 
 - 開発環境はBunに統一し、Bun Workspaceでフロントエンド、サーバー、共有コードを管理する。実際のパッケージ配置は実装開始時に決める。
 - フロントエンドはVite、React、TypeScriptで作る。
-- 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
+- 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。公開ロビーとルールの4ページは、共用の表示部品とルール正本からビルド時に生成した本文・メタ情報付きHTMLを返す。既知のSPA画面にはindexを返し、未知URLは404とする。Static Assetsの無条件SPAフォールバックは使わない。`/api` と `/api/*` はHonoへ渡し、Honoは接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。
 - WebとWorkerの境界を通るデータのスキーマ、型、エンドポイント定義は `packages/protocol` に置く。四人リバーシの純粋な判定ロジックは `packages/four-reversi` に置き、通信契約と混在させない。
 - 四人将棋の純粋な判定ロジックは独立した `packages/four-shogi` に置く。盤面・持ち駒・手番・脱落・三人攻撃履歴・反復回数をJSONで保存できる状態として管理する。時刻、通信、参加者の担当抽選は呼び出し側で扱う。Web・Worker・protocolへ接続し、合法手と受理した局面をサーバーから配信する。
