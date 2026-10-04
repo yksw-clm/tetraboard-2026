@@ -1,3 +1,4 @@
+import { applyD1Migrations, reset } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "vitest";
 import {
@@ -54,7 +55,11 @@ async function roomList(game?: string) {
 
 describe("ゲーム境界: 作成・一覧", () => {
   let fixtures: RoomBoundaryFixtures;
-  beforeEach(() => {
+  beforeEach(async () => {
+    // WebSocket用の共有storageでは他ケースのAlarm・索引更新も動く。
+    // 完全一致の比較を保ち、各ケースが所有する実データだけで検証する。
+    await reset();
+    await applyD1Migrations(env.APP_DB, env.TEST_MIGRATIONS);
     fixtures = new RoomBoundaryFixtures();
   });
   afterEach(async () => {
@@ -150,7 +155,8 @@ describe("ゲーム境界: 作成・一覧", () => {
 
   for (const game of [...invalidGames, null]) {
     test(`作成: 不正game ${JSON.stringify(game)}を拒否してルームを増やさない`, async () => {
-      await fixtures.create({ name: "既存", mode: "singles", quickPlay: false });
+      const existing = await fixtures.create({ name: "既存", mode: "singles", quickPlay: false });
+      await fixtures.connect(existing);
       const before = (await Promise.all([roomList("four-reversi"), roomList("four-shogi")]))
         .flat()
         .map((room) => room.id)
