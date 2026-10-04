@@ -1,12 +1,10 @@
 import {
-  fourShogiMatchDetailSchema,
   fourShogiReplayEventSchema,
-  getMatchContract,
   type FourShogiMatchDetail,
   type FourShogiReplayEvent,
   type MatchReplayPage,
 } from "@tetraboard/protocol";
-import { sides, type Side } from "@tetraboard/four-shogi";
+import { type Side } from "@tetraboard/four-shogi";
 
 export type ShogiMatchParticipant = {
   id: string;
@@ -44,35 +42,9 @@ export function emptyKnockouts(): Record<Side, number> {
   return { south: 0, west: 0, north: 0, east: 0 };
 }
 
-export function readShogiMatchRecord(json: string): ShogiMatchRecord {
-  const record = JSON.parse(json) as ShogiMatchRecord;
-  getMatchContract.params.parse({ matchId: record.instanceId });
-  for (const participant of record.participants) {
-    if (
-      participant.kind === "human" &&
-      participant.accountId !== null &&
-      (typeof participant.accountId !== "string" || participant.accountId.length === 0)
-    )
-      throw new Error("Invalid Shogi participant account ID");
-  }
-  const { instanceId: _instance, participants, ...publicRecord } = record;
-  fourShogiMatchDetailSchema.parse({
-    ...publicRecord,
-    selfPlayerId: participants[0]?.id,
-    participants: participants.map(({ id, name, side, seat, ...identity }) => ({
-      id,
-      name,
-      side,
-      seat,
-      ...(identity.kind === "cpu"
-        ? { kind: "cpu", level: identity.level }
-        : { kind: "human", avatarUrl: null }),
-    })),
-  });
-  if (record.settings.mode === "doubles" && sides.some((side) => record.knockouts[side] !== 0))
-    throw new Error("Doubles match cannot contain knockouts");
-  return record;
-}
+// 読取り用の正規化結果は保存manifestの照合文字列に使用しません。
+export { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
+import { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 
 type ChunkRow = {
   chunk_index: number;
@@ -112,7 +84,8 @@ export async function advanceShogiMatchSave(
     await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
     return null;
   }
-  const canonical = JSON.stringify(readShogiMatchRecord(JSON.stringify(record)));
+  const canonical = JSON.stringify(record);
+  readShogiMatchRecord(canonical);
   const chunkCount = Math.ceil(record.replay.eventCount / chunkSize);
   await db
     .prepare(`INSERT INTO shogi_match_uploads VALUES (?, ?, ?, ?)
