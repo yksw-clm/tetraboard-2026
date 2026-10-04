@@ -1,21 +1,22 @@
+import { initializeClock, advanceTurnClock } from "./clockCore";
 import {
   roomTimeControl,
   type RoomTimeControl,
   type PlayingShogiClock,
 } from "@tetraboard/protocol";
-import { sides, type Side } from "@tetraboard/four-shogi";
+import { type Side } from "@tetraboard/four-shogi";
 
 export function createShogiClock(
   at: number,
   timeControl: RoomTimeControl = roomTimeControl,
 ): PlayingShogiClock {
-  return {
-    remainingMainMs: Object.fromEntries(
-      sides.map((side) => [side, timeControl.mainTimeMs]),
-    ) as Record<Side, number>,
-    turnStartedAt: at,
-    turnExpiresAt: at + timeControl.mainTimeMs + timeControl.byoyomiMs,
+  const remainingMainMs: Record<Side, number> = {
+    south: timeControl.mainTimeMs,
+    west: timeControl.mainTimeMs,
+    north: timeControl.mainTimeMs,
+    east: timeControl.mainTimeMs,
   };
+  return initializeClock(remainingMainMs, at, timeControl);
 }
 export function advanceShogiClock(
   clock: PlayingShogiClock,
@@ -25,17 +26,5 @@ export function advanceShogiClock(
   turnEnded: boolean,
   timeControl: RoomTimeControl = roomTimeControl,
 ): PlayingShogiClock {
-  if (!turnEnded && previous === next) return clock;
-  const remainingMainMs = {
-    ...clock.remainingMainMs,
-    [previous]: Math.max(
-      0,
-      clock.remainingMainMs[previous] - Math.max(0, at - clock.turnStartedAt),
-    ),
-  };
-  return {
-    remainingMainMs,
-    turnStartedAt: at,
-    turnExpiresAt: at + remainingMainMs[next] + timeControl.byoyomiMs,
-  };
+  return advanceTurnClock(clock, previous, next, at, turnEnded, timeControl);
 }

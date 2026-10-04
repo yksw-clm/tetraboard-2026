@@ -1,23 +1,23 @@
+import { initializeClock, advanceTurnClock } from "./clockCore";
 import {
   roomTimeControl,
   type RoomTimeControl,
   type FinishedRoomClock,
   type PlayingRoomClock,
 } from "@tetraboard/protocol";
-import { colors, type Color } from "@tetraboard/four-reversi";
+import { type Color } from "@tetraboard/four-reversi";
 
 export function createClock(
   at: number,
   timeControl: RoomTimeControl = roomTimeControl,
 ): PlayingRoomClock {
-  const remainingMainMs = Object.fromEntries(
-    colors.map((color) => [color, timeControl.mainTimeMs]),
-  ) as Record<Color, number>;
-  return {
-    remainingMainMs,
-    turnStartedAt: at,
-    turnExpiresAt: at + timeControl.mainTimeMs + timeControl.byoyomiMs,
+  const remainingMainMs: Record<Color, number> = {
+    black: timeControl.mainTimeMs,
+    white: timeControl.mainTimeMs,
+    red: timeControl.mainTimeMs,
+    blue: timeControl.mainTimeMs,
   };
+  return initializeClock(remainingMainMs, at, timeControl);
 }
 
 export function isClockExpired(
@@ -59,19 +59,5 @@ export function advanceClock(
   turnEnded: boolean,
   timeControl: RoomTimeControl = roomTimeControl,
 ): PlayingRoomClock | FinishedRoomClock {
-  if (!turnEnded && nextTurn === previousTurn) return clock;
-
-  const elapsed = Math.max(0, at - clock.turnStartedAt);
-  const remainingMainMs = {
-    ...clock.remainingMainMs,
-    [previousTurn]: Math.max(0, clock.remainingMainMs[previousTurn] - elapsed),
-  };
-  if (nextTurn === null) {
-    return { remainingMainMs, turnStartedAt: null, turnExpiresAt: null };
-  }
-  return {
-    remainingMainMs,
-    turnStartedAt: at,
-    turnExpiresAt: at + remainingMainMs[nextTurn] + timeControl.byoyomiMs,
-  };
+  return advanceTurnClock(clock, previousTurn, nextTurn, at, turnEnded, timeControl);
 }
