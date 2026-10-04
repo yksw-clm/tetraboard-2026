@@ -83,6 +83,16 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 
 ライブのsession／viewと保存棋譜の前処理／viewはゲーム別に遅延読み込みします。共通カード・名前・席順・時計表示はエンジン実装に依存しません。Webビルドは生成チャンクの静的依存を検査し、別ゲームのエンジン参照、入口へのライブ・棋譜処理の混入、CPU実装の出力を拒否します。Rolldownが残す空モジュールのregionとReact Compilerの共通runtime初期化は実装として数えません。検査結果は追跡対象外の `apps/web/node_modules/.tmp/game-chunks.json` に保存します。`game-dispatch.spec.ts` はビルド済み画面の通信から選択ゲームのチャンク取得を確認します。PR前の全コマンドは上記の順番で実行し、ブラウザ検証中に別プロセスで配信ディレクトリを再ビルドしません。
 
+## 共有transportとゲーム別session
+
+`useRoomTransport` は通信契約の解析、Roomの型ガード、認証・準備・チャット・再接続と送信待ちの管理を担当します。開始待ちとゲーム操作待ちは内部の判別unionで区別します。`gameSessionTypes.ts` はゲームIDに待機データと固有設定コマンドを対応付ける型だけの表です。将棋の着手・提案待ちは局IDとrevisionを必須にし、リバーシの固有設定コマンドは `never` にします。
+
+各sessionは、具体的なRoomと待機データを受け取る `fourReversiSessionBehavior.ts`／`fourShogiSessionBehavior.ts` の純粋な完了判定と固有エラー文言をtransportへ渡します。判定関数はモジュールで定義し、再描画でWebSocketを張り直さない参照にします。開始待ちは対局開始、リバーシの着手待ちは手数の増加、将棋の着手待ちはrevision増加・局変更で解除します。投了は本人の脱落を確認します。将棋の提案・取消は状態反映も確認し、待機への移行・エラー・送信失敗・切断での既存解除条件を維持します。
+
+引分操作と三人攻撃禁止の送信は将棋session、表示は将棋viewが担当します。`RoomViewShell` から共有の状況カード・設定フォームへ任意の `turnActions`／`gameSettings` を渡し、リバーシは渡しません。共有UIは固有操作を送信しません。時計計算・表示と手番への対応、WorkerのGameRoom・CPU・Alarm・ライフサイクルの分離は #57、保存形式・棋譜互換・戦績SQL・保存再試行は #58 の範囲です。
+
+`game-session-boundary.spec.ts` はHTTP／WebSocket境界を制御して、開始・着手・投了・提案の待ち保持と解除、本人と他人の脱落、同revisionでの提案・取消反映、新局・終局、固有設定の権限・配信・準備解除とキーボード操作を確認します。関連する画面回帰は `CI=true bun run --cwd apps/web test:browser game-session-boundary.spec.ts four-shogi-draw.spec.ts room-ui.spec.ts game-dispatch.spec.ts`、型の取り違えと局面情報欠落の否定ケースは `bun run --cwd apps/web typecheck` で実行します。
+
 ## 共通ロビーと四人将棋UI
 
 `/games/four-reversi` と `/games/four-shogi` は `features/lobby/LobbyView` を共通利用します。タイトル・説明・遊び方・盤面プレビューはゲームごとに切り替え、一覧とランキングは各ページから渡します。両ゲームともPCは操作カードとランキングを上段、その下に公開ルームを置き、スマートフォンでは操作・公開ルーム・ランキングの順にします。画面幅による並べ替えでもランキングの状態を維持します。

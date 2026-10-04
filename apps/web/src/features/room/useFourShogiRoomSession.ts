@@ -1,12 +1,21 @@
 import type { FourShogiAction } from "@tetraboard/four-shogi";
 import { isFourShogiRoom, type FourShogiRoom } from "@tetraboard/protocol";
 import { displayShogiGameForRoom } from "./fourShogiRoomPresentation";
-import { useRoomTransport } from "./useRoomTransport";
+import { useRoomTransport, type RoomTransportOptions } from "./useRoomTransport";
+import { shogiActionComplete, shogiOperationError } from "./fourShogiSessionBehavior";
 
 export function useFourShogiRoomSession(
-  options: Omit<Parameters<typeof useRoomTransport<FourShogiRoom>>[0], "isRoom">,
+  options: Omit<
+    RoomTransportOptions<FourShogiRoom>,
+    "isRoom" | "actionComplete" | "gameOperationError"
+  >,
 ) {
-  const session = useRoomTransport({ ...options, isRoom: isFourShogiRoom });
+  const session = useRoomTransport({
+    ...options,
+    isRoom: isFourShogiRoom,
+    actionComplete: shogiActionComplete,
+    gameOperationError: shogiOperationError,
+  });
   const { room } = session;
   const self = room.players.find((player) => player.id === session.membership?.playerId);
   const canPlay =
@@ -21,6 +30,9 @@ export function useFourShogiRoomSession(
     self,
     canPlay,
     displayGame: displayShogiGameForRoom(room),
+    changeThreePlayerAttack(prohibited: boolean): void {
+      session.sendGameSettingsMessage({ type: "room.three-player-attack.set", prohibited });
+    },
     handleShogiAction(action: FourShogiAction): void {
       if (
         !canPlay ||
@@ -37,7 +49,6 @@ export function useFourShogiRoomSession(
         },
         {
           type: "move",
-          moveNumber: room.game.moveNumber,
           roundId: room.roundId,
           positionRevision: room.positionRevision,
         },

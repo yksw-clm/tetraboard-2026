@@ -1,8 +1,7 @@
 import { roomSnapshotFor } from "./roomSnapshot";
-import type { Side } from "@tetraboard/four-shogi";
+import type { GameSettingsCommandFor, PendingActionFor } from "./gameSessionTypes";
 import {
   roomSocketContract,
-  isFourShogiRoom,
   type GameCommandFor,
   type ChatEntry,
   type CpuLevel,
@@ -11,6 +10,7 @@ import {
   type RoomMode,
   type RoomTimeControl,
   type RoomPresence,
+  type RoomSocketClientMessage,
 } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -25,19 +25,38 @@ import { fetchRoom, leaveRoom } from "./roomApi";
 
 const roomClosedMessage = "ルームは閉鎖されています。ロビーへ戻ってください。";
 
-export type PendingGameAction =
-  | { type: "start" }
-  | { type: "move"; moveNumber: number; roundId?: string; positionRevision?: number }
-  | { type: "resign"; participant: string }
-  | {
-      type: "draw";
-      participant: Side;
-      proposed: boolean;
-      roundId: string;
-      positionRevision: number;
-    };
+type PendingOperation<P> = { type: "start" } | { type: "game"; action: P };
+type CommonSettingsCommand = Extract<
+  RoomSocketClientMessage,
+  {
+    type:
+      | "room.mode.set"
+      | "room.time-control.set"
+      | "room.cpu.add"
+      | "room.cpu.level.set"
+      | "room.cpu.remove";
+  }
+>;
 
-function operationErrorMessage(error: string, game: Room["settings"]["game"]): string {
+export interface RoomTransportOptions<T extends Room> {
+  initialRoom: T;
+  isRoom: (room: Room) => room is T;
+  actionComplete: (room: T, pending: PendingActionFor<T["settings"]["game"]>) => boolean;
+  gameOperationError: (error: string) => string | undefined;
+  initialMembership: RoomMembership | null;
+  initialServerNowMs: number;
+  initialPresence: RoomPresence;
+}
+
+export type SharedRoomSession = Omit<
+  ReturnType<typeof useRoomTransport>,
+  "sendGameMessage" | "sendGameSettingsMessage"
+>;
+
+function operationErrorMessage(
+  error: string,
+  gameError: (error: string) => string | undefined,
+): string {
   switch (error) {
     case "not_ready":
       return "4人全員の準備完了が必要です。";
@@ -51,12 +70,6 @@ function operationErrorMessage(error: string, game: Room["settings"]["game"]): s
       return "対局は終了しています。";
     case "not_your_turn":
       return "現在はあなたの手番ではありません。";
-    case "invalid_move":
-      return game === "four-shogi"
-        ? "その手は指せません。最新の局面で選び直してください。"
-        : "その場所には石を置けません。";
-    case "stale_position":
-      return "局面が更新されました。最新の局面で選び直してください。";
     case "already_eliminated":
       return "すでに脱落しています。";
     case "time_expired":
@@ -66,7 +79,7 @@ function operationErrorMessage(error: string, game: Room["settings"]["game"]): s
     case "cpu_not_found":
       return "指定したCPUが見つかりません。";
     default:
-      return "ルーム操作に失敗しました。再読み込みしてください。";
+      return gameError(error) ?? "ルーム操作に失敗しました。再読み込みしてください。";
   }
 }
 
@@ -76,13 +89,9 @@ export function useRoomTransport<T extends Room>({
   initialServerNowMs,
   initialPresence,
   isRoom,
-}: {
-  initialRoom: T;
-  isRoom: (room: Room) => room is T;
-  initialMembership: RoomMembership | null;
-  initialServerNowMs: number;
-  initialPresence: RoomPresence;
-}) {
+  actionComplete,
+  gameOperationError,
+}: RoomTransportOptions<T>) {
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
   const [presence, setPresence] = useState(initialPresence);
@@ -93,7 +102,9 @@ export function useRoomTransport<T extends Room>({
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
   const [pendingSettings, setPendingSettings] = useState(false);
   const [newCpuLevel, setNewCpuLevel] = useState<CpuLevel>(1);
-  const [pendingGameAction, setPendingGameAction] = useState<PendingGameAction | null>(null);
+  const [pendingGameAction, setPendingGameAction] = useState<PendingOperation<
+    PendingActionFor<T["settings"]["game"]>
+  > | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
@@ -107,7 +118,9 @@ export function useRoomTransport<T extends Room>({
   const socketRef = useRef<WebSocket | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
   const pendingSettingsRef = useRef(false);
-  const pendingGameActionRef = useRef<PendingGameAction | null>(null);
+  const pendingGameActionRef = useRef<PendingOperation<
+    PendingActionFor<T["settings"]["game"]>
+  > | null>(null);
 
   useEffect(() => {
     if (room.status !== "playing") return;
@@ -257,31 +270,8 @@ export function useRoomTransport<T extends Room>({
           }
           const pending = pendingGameActionRef.current;
           if (
-            (pending?.type === "start" && message.data.room.status === "playing") ||
-            (pending?.type === "move" &&
-              (message.data.room.status === "playing"
-                ? isFourShogiRoom(message.data.room)
-                  ? message.data.room.roundId !== pending.roundId ||
-                    message.data.room.positionRevision > (pending.positionRevision ?? -1)
-                  : message.data.room.game.moveNumber > pending.moveNumber
-                : message.data.room.lastRound !== null)) ||
-            (pending?.type === "draw" &&
-              isFourShogiRoom(message.data.room) &&
-              (message.data.room.status === "waiting" ||
-                message.data.room.roundId !== pending.roundId ||
-                message.data.room.positionRevision > pending.positionRevision ||
-                message.data.room.game.drawProposals.includes(pending.participant) ===
-                  pending.proposed)) ||
-            (pending?.type === "resign" &&
-              (message.data.room.status === "playing"
-                ? isFourShogiRoom(message.data.room)
-                  ? message.data.room.game.eliminations.some(
-                      (entry) => entry.side === pending.participant,
-                    )
-                  : message.data.room.game.eliminatedColors.some(
-                      (color) => color === pending.participant,
-                    )
-                : message.data.room.lastRound !== null))
+            (pending?.type === "start" && snapshot.status === "playing") ||
+            (pending?.type === "game" && actionComplete(snapshot, pending.action))
           ) {
             clearPendingGameAction();
           }
@@ -346,7 +336,7 @@ export function useRoomTransport<T extends Room>({
               if (active) setSocketError("本人確認に失敗しました。再読み込みしてください。");
             });
         } else {
-          setSocketError(operationErrorMessage(message.data.error, initialRoom.settings.game));
+          setSocketError(operationErrorMessage(message.data.error, gameOperationError));
         }
       };
       currentSocket.onerror = () => currentSocket.close();
@@ -375,6 +365,8 @@ export function useRoomTransport<T extends Room>({
     initialRoom.settings.game,
     initialMembership,
     isRoom,
+    actionComplete,
+    gameOperationError,
   ]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
@@ -384,9 +376,9 @@ export function useRoomTransport<T extends Room>({
     authenticated &&
     connection === "接続済み" &&
     !pendingSettings;
-  function sendGameMessage(
+  function sendGameOperation(
     message: GameCommandFor<T["settings"]["game"]>,
-    pending: PendingGameAction,
+    pending: PendingOperation<PendingActionFor<T["settings"]["game"]>>,
   ): void {
     const currentSocket = socketRef.current;
     if (
@@ -409,6 +401,13 @@ export function useRoomTransport<T extends Room>({
     }
   }
 
+  function sendGameMessage(
+    message: Exclude<GameCommandFor<T["settings"]["game"]>, { type: "room.game.start" }>,
+    pending: PendingActionFor<T["settings"]["game"]>,
+  ): void {
+    sendGameOperation(message, { type: "game", action: pending });
+  }
+
   function handleStartClick(): void {
     if (
       room.status !== "waiting" ||
@@ -420,7 +419,7 @@ export function useRoomTransport<T extends Room>({
     ) {
       return;
     }
-    sendGameMessage({ type: "room.game.start" }, { type: "start" });
+    sendGameOperation({ type: "room.game.start" }, { type: "start" });
   }
 
   function handleReadyClick(): void {
@@ -450,7 +449,9 @@ export function useRoomTransport<T extends Room>({
     }
   }
 
-  function sendSettingsMessage(message: unknown): void {
+  function sendSettingsMessage(
+    message: CommonSettingsCommand | GameSettingsCommandFor<T["settings"]["game"]>,
+  ): void {
     const currentSocket = socketRef.current;
     if (
       !canManageSettings ||
@@ -533,7 +534,8 @@ export function useRoomTransport<T extends Room>({
     pendingReady,
     newCpuLevel,
     setNewCpuLevel,
-    pendingGameAction,
+    pendingGameAction:
+      pendingGameAction?.type === "game" ? pendingGameAction.action : pendingGameAction,
     socketError,
     leaving,
     chatMessages,
@@ -550,8 +552,8 @@ export function useRoomTransport<T extends Room>({
     changeMode,
     changeTimeControl: (timeControl: RoomTimeControl) =>
       sendSettingsMessage({ type: "room.time-control.set", timeControl }),
-    changeThreePlayerAttack: (prohibited: boolean) =>
-      sendSettingsMessage({ type: "room.three-player-attack.set", prohibited }),
+    sendGameSettingsMessage: (message: GameSettingsCommandFor<T["settings"]["game"]>) =>
+      sendSettingsMessage(message),
     addCpu,
     changeCpuLevel,
     removeCpu,

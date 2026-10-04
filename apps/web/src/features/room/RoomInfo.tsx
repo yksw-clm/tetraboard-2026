@@ -9,8 +9,7 @@ import { Accordion, Chip, Label, RadioGroup } from "@heroui/react";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { formatClock, playerName } from "./roomCommonPresentation";
-import type { useRoomTransport } from "./useRoomTransport";
-import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
+import type { SharedRoomSession } from "./useRoomTransport";
 import { useAccount } from "../account/useAccount";
 
 export function RoomInfo({
@@ -22,8 +21,10 @@ export function RoomInfo({
   canAddCpu,
   onFeedback,
   feedbackButtonRef,
+  gameSettings,
 }: {
-  session: Omit<ReturnType<typeof useRoomTransport>, "sendGameMessage">;
+  session: SharedRoomSession;
+  gameSettings?: ReactNode;
   onLeave: () => void;
   onCopyInvite: () => void;
   onAddCpu: (level: CpuLevel) => void;
@@ -79,15 +80,7 @@ export function RoomInfo({
                     ))}
                   </div>
                 </RadioGroup>
-                {room.settings.game === "four-shogi" && (
-                  <div className="mb-3">
-                    <ThreePlayerAttackSetting
-                      prohibited={room.settings.threePlayerAttackProhibited}
-                      disabled={!canManageSettings}
-                      onChange={session.changeThreePlayerAttack}
-                    />
-                  </div>
-                )}
+                {gameSettings}
                 <div className="mb-3">
                   <TimeControlSetting
                     timeControl={room.settings.timeControl}

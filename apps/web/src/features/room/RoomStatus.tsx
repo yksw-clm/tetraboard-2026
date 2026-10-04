@@ -6,14 +6,14 @@ import { AppButton } from "../../shared/ui/AppButton";
 import type { ReactNode, Ref } from "react";
 import { playerName } from "./roomCommonPresentation";
 import { playerClock, shogiPlayerClock } from "./playerClocks";
-import type { useRoomTransport } from "./useRoomTransport";
+import type { SharedRoomSession } from "./useRoomTransport";
 import { isFourShogiRoom, isFourReversiRoom } from "@tetraboard/protocol";
 
 export function RoomStatus({
   session,
   onResults,
   onResign,
-  onDrawProposal,
+  turnActions,
   onJoin,
   joinButtonRef,
   resultButtonRef,
@@ -21,10 +21,10 @@ export function RoomStatus({
   replay,
   onRotate,
 }: {
-  session: Omit<ReturnType<typeof useRoomTransport>, "sendGameMessage"> & { canPlay: boolean };
+  session: SharedRoomSession & { canPlay: boolean };
   onResults: () => void;
   onResign: () => void;
-  onDrawProposal?: () => void;
+  turnActions?: ReactNode;
   onJoin: () => void;
   joinButtonRef: Ref<HTMLButtonElement>;
   resultButtonRef?: Ref<HTMLButtonElement>;
@@ -135,16 +135,7 @@ export function RoomStatus({
             投了
           </AppButton>
         )}
-        {myTurn && isFourShogiRoom(room) && room.status === "playing" && onDrawProposal && (
-          <AppButton
-            size="compact"
-            appearance="secondary"
-            isDisabled={!session.canPlay}
-            onPress={onDrawProposal}
-          >
-            {room.game.drawProposals.includes(room.game.turn) ? "引分取消" : "引分提案"}
-          </AppButton>
-        )}
+        {turnActions}
       </div>
     </AppCard>
   );

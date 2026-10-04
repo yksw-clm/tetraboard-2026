@@ -13,7 +13,7 @@ import { RoomStatus } from "./RoomStatus";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { RoomLayout } from "./RoomLayout";
 import type { useRoomChat } from "./useRoomChat";
-import type { useRoomTransport } from "./useRoomTransport";
+import type { SharedRoomSession } from "./useRoomTransport";
 import { appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
@@ -33,11 +33,12 @@ export function RoomViewShell({
   result,
   selfEliminated,
   onRotate,
+  turnActions,
+  gameSettings,
 }: {
-  session: Omit<ReturnType<typeof useRoomTransport>, "sendGameMessage"> & {
+  session: SharedRoomSession & {
     canPlay: boolean;
     handleResignClick: () => void;
-    handleDrawProposalClick?: () => void;
   };
   chat: ReturnType<typeof useRoomChat>;
   invited: boolean;
@@ -46,6 +47,8 @@ export function RoomViewShell({
   result: ReactNode;
   selfEliminated: boolean;
   onRotate: () => void;
+  turnActions?: ReactNode;
+  gameSettings?: ReactNode;
 }) {
   const desktop = useRoomDesktop();
   const account = useAccount();
@@ -136,6 +139,7 @@ export function RoomViewShell({
 
   const info = (
     <RoomInfo
+      gameSettings={gameSettings}
       feedbackButtonRef={feedbackButtonRef}
       onFeedback={() => {
         autoResult.dismiss();
@@ -181,7 +185,7 @@ export function RoomViewShell({
         setDialog("result");
       }}
       onResign={() => setDialog("resign")}
-      onDrawProposal={session.handleDrawProposalClick}
+      turnActions={turnActions}
     />
   );
   const chatPanel = (
