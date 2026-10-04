@@ -1,4 +1,5 @@
 import { ShogiSideBadge } from "./FourShogiPlayerCard";
+import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { ViewerControls } from "./ViewerControls";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex, rotatedShogiViewer } from "./boardRotation";
@@ -274,6 +275,7 @@ export function MatchReplayErrorPage() {
       <AppButtonLink size="compact" to="/account" state={location.state}>
         マイページへ戻る
       </AppButtonLink>
+      <FeedbackEntry context={{ page: "error", game: "all" }} />
     </main>
   );
 }

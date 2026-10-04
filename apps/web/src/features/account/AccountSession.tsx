@@ -48,6 +48,8 @@ export function AccountLayout() {
       {state.user &&
       !state.user.profileCompleted &&
       location.pathname !== "/account/setup" &&
+      location.pathname !== "/feedback" &&
+      location.pathname !== "/updates" &&
       !(
         location.pathname === "/login" &&
         new URLSearchParams(location.search).get("destination") === "admin"

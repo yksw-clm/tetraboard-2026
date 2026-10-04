@@ -21,6 +21,8 @@ import { RegistrationPrompt } from "../account/RegistrationPrompt";
 import { useGoogleSignIn } from "../account/useGoogleSignIn";
 import { useRegistrationResult } from "./useRegistrationResult";
 import { roomInvitationPath } from "../../shared/roomAccess";
+import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
+import { FeedbackForm } from "../feedback/FeedbackForm";
 
 export function RoomViewShell({
   session,
@@ -49,9 +51,20 @@ export function RoomViewShell({
   const account = useAccount();
   const google = useGoogleSignIn();
   const [tab, setTab] = useState("board");
-  const [dialog, setDialog] = useState<"result" | "leave" | "resign" | null>(null);
+  const [dialog, setDialog] = useState<"result" | "leave" | "resign" | "feedback" | null>(null);
   const [cpuConfirmation, setCpuConfirmation] = useState<CpuLevel | null>(null);
   const { room, membership } = session;
+  const feedbackContext: FeedbackContext = {
+    page: "room",
+    game: room.settings.game,
+    room: {
+      id: room.id,
+      instanceId: room.instanceId,
+      roundId: "roundId" in room ? room.roundId : null,
+    },
+  };
+  const feedback = useFeedback(feedbackContext, Boolean(account.user));
+  const feedbackButtonRef = useRef<HTMLButtonElement>(null);
   const theme = room.settings.game === "four-shogi" ? "four-shogi" : "default";
   const lobbyPath = theme === "four-shogi" ? fourShogiLobbyPath : fourReversiLobbyPath;
   const joinButtonRef = useRef<HTMLButtonElement>(null);
@@ -123,6 +136,11 @@ export function RoomViewShell({
 
   const info = (
     <RoomInfo
+      feedbackButtonRef={feedbackButtonRef}
+      onFeedback={() => {
+        autoResult.dismiss();
+        setDialog("feedback");
+      }}
       session={session}
       cpuAddButtonRef={cpuAddButtonRef}
       canAddCpu={canAddCpu}
@@ -322,6 +340,24 @@ export function RoomViewShell({
               {busy ? "送信中…" : dialog === "leave" ? "退室する" : "投了する"}
             </AppButton>
           </div>
+        </AppDialog>
+      )}
+      {dialog === "feedback" && (
+        <AppDialog
+          title="不具合・ご意見"
+          theme={theme}
+          busy={feedback.busy}
+          onClose={() => {
+            if (feedback.busy) return;
+            setDialog(null);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() =>
+                (feedbackButtonRef.current ?? fallbackFocusRef.current)?.focus(),
+              ),
+            );
+          }}
+        >
+          <FeedbackForm feedback={feedback} context={feedbackContext} />
         </AppDialog>
       )}
     </main>

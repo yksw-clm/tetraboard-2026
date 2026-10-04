@@ -6,11 +6,15 @@ import { createBrowserRouter, Link, Navigate } from "react-router";
 import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
 import { fourReversiLobbyPath, fourShogiLobbyPath } from "./paths";
+import { FeedbackPage } from "../features/feedback/FeedbackPage";
+import { UpdatesPage } from "../features/updates/UpdatesPage";
 
 export const router = createBrowserRouter([
   {
     Component: AccountLayout,
     children: [
+      { path: "/feedback", Component: FeedbackPage },
+      { path: "/updates", Component: UpdatesPage },
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },

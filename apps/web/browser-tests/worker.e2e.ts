@@ -2,6 +2,71 @@ import { expect, test } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
 import { adminUsersSchema } from "@tetraboard/protocol";
 
+test("ローカルWorkerで画像付き受付・管理者確認・分類・削除を行う", async ({ page, context }) => {
+  await page.goto("/feedback");
+  await page.getByLabel("種別（必須）").selectOption("bug");
+  await page.getByLabel("内容（必須）").fill("統合確認：スマホで盤面を見やすくしてほしい");
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    canvas.getContext("2d")!.fillRect(0, 0, 1, 1);
+    return canvas.toDataURL("image/png").split(",")[1]!;
+  });
+  await page.getByLabel("スクリーンショット（任意・1枚）").setInputFiles({
+    name: "capture.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(png, "base64"),
+  });
+  await expect(page.getByRole("img", { name: /プレビュー/ })).toBeVisible();
+  const received = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/feedback" && r.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "送信する", exact: true }).click();
+  const reply = await received;
+  expect(reply.status()).toBe(201);
+  const id = (await reply.json()).id as string;
+  await expect(page.getByRole("status")).toContainText("受け付けました");
+  expect((await page.request.get(`/api/admin/feedback/${id}`)).status()).toBe(401);
+  expect((await page.request.get(`/api/admin/feedback/${id}/attachment`)).status()).toBe(401);
+  expect((await page.request.get(`/api/feedback/${id}`)).status()).toBe(404);
+  const token = "local-browser-admin-test-token";
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode("local-worker-browser-test-only-secret"),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = Buffer.from(
+    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token)),
+  ).toString("base64");
+  await context.addCookies([
+    {
+      name: "tetraboard-2026.session_token",
+      value: encodeURIComponent(`${token}.${signature}`),
+      url: "http://127.0.0.1:8788",
+    },
+  ]);
+  await page.goto(`/admin/feedback/${id}`);
+  await expect(page.getByRole("heading", { name: "投稿の確認", exact: true })).toBeVisible();
+  const image = page.getByRole("img", { name: "投稿に添付されたスクリーンショット" });
+  await expect(image).toHaveJSProperty("naturalWidth", 1);
+  await page.getByRole("combobox", { name: "対応状況", exact: true }).selectOption("reviewing");
+  await page
+    .getByRole("textbox", { name: "運営メモ", exact: true })
+    .fill("実Workerの確認を行いました");
+  await page.getByRole("button", { name: "対応を保存", exact: true }).click();
+  await expect(page.getByText("未確認 → 確認中", { exact: false })).toBeVisible();
+  await page.getByRole("link", { name: "一覧へ戻る", exact: true }).click();
+  await expect(page.getByRole("link", { name: /統合確認：スマホで盤面を見やすく/ })).toBeVisible();
+  await page.getByRole("link", { name: /統合確認：スマホで盤面を見やすく/ }).click();
+  await page.getByLabel("投稿と画像を削除することを確認しました").check();
+  await page.getByRole("button", { name: "投稿を削除", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("投稿を削除しました");
+  expect((await page.request.get(`/api/admin/feedback/${id}`)).status()).toBe(404);
+  expect((await page.request.get(`/api/admin/feedback/${id}/attachment`)).status()).toBe(404);
+});
+
 test("ローカルWorkerで作成・CPU対局・チャット・退室する", async ({ page }) => {
   const measured = page.waitForResponse((response) =>
     response.url().endsWith("/api/analytics/pageviews"),

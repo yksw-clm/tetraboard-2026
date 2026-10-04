@@ -142,3 +142,4 @@ export {
   fourShogiEliminationSchema,
 } from "./fourShogi";
 export * from "./admin";
+export * from "./feedback";

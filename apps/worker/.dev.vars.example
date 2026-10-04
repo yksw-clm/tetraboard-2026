@@ -1,4 +1,5 @@
 MODERATOR_TOKEN="replace-with-a-long-random-secret"
+FEEDBACK_HASH_SECRET=replace-with-at-least-32-random-characters
 
 # Google認証（秘密値は追跡対象外の .dev.vars に設定します）
 BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters

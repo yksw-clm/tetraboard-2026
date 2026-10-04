@@ -7,6 +7,7 @@ import { adminSessionSchema } from "@tetraboard/protocol";
 import { useAdminData } from "./useAdminData";
 import { Dashboard } from "./Dashboard";
 import { Users } from "./Users";
+import { Feedback, FeedbackDetailPage } from "./Feedback";
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 function App() {
   const session = useAdminData("/api/admin/session", parseSession);
@@ -44,6 +45,7 @@ function App() {
             ["/games/four-reversi", "四人リバーシ"],
             ["/games/four-shogi", "四人将棋"],
             ["/users", "登録ユーザー"],
+            ["/feedback", "フィードバック"],
           ].map(([to, label]) => (
             <NavLink
               key={to}
@@ -73,6 +75,8 @@ function App() {
           />
           <Route path="/games/four-shogi" element={<Dashboard key="shogi" game="four-shogi" />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/feedback" element={<Feedback />} />
+          <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
