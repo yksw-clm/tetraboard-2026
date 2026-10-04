@@ -93,6 +93,16 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 
 `game-session-boundary.spec.ts` はHTTP／WebSocket境界を制御して、開始・着手・投了・提案の待ち保持と解除、本人と他人の脱落、同revisionでの提案・取消反映、新局・終局、固有設定の権限・配信・準備解除とキーボード操作を確認します。関連する画面回帰は `CI=true bun run --cwd apps/web test:browser game-session-boundary.spec.ts four-shogi-draw.spec.ts room-ui.spec.ts game-dispatch.spec.ts`、型の取り違えと局面情報欠落の否定ケースは `bun run --cwd apps/web typecheck` で実行します。
 
+## Workerの時計計算と期限選択
+
+`apps/worker/src/rooms/clockCore.ts` は席IDを型パラメータとする内部時計型と純粋な初期化・手番更新・停止計算を持ちます。`clock.ts`／`shogiClock.ts` はColor／Sideの具体的な4キーの残時間recordを作り、既存の引数・既定値・戻り値・overloadを保つwrapperです。基本時間は前手番の経過だけ減算し、手番が変わらない脱落では同じ時計を保持します。リバーシの自動パスで同じ色へ戻る場合は完了した1手として秒読みをリセットします。共通計算へゲームエンジンを読み込みません。
+
+`roomDeadlines.ts` は現在の時計期限・プレイヤー配列の復帰期限・呼び出し側の現在時刻から、到達済みの次イベントと確定時刻を返します。早い期限を先に、同時刻なら時間切れを先に、切断同士の同時刻なら現在の配列順に選びます。GameRoomは処理のたびに更新後の状態から選び直します。Alarm候補の最小時刻も純粋関数で選び、空はnull、過去の候補は補正しません。
+
+GameRoomには現在時刻の取得、活動停止・人間不在の判定、脱落、CPU、終局、保存待ちの確定、transaction、配信・索引更新、Alarm候補収集と設定・削除を残します。リバーシCPUの同期確定と将棋CPUの選択保存→次のAlarmで局ID・revision・手番・期限を再検証する順序を維持します。Webの時計取得・表示・時刻同期は従来どおりです。ゲーム進行・共有ライフサイクルの分離は #57 のPR2、保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続問題は #4 で扱います。
+
+関連回帰は `bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlines.test.ts test/roomDeadlineBoundary.test.ts test/gameRoom.test.ts test/fourShogiRoom.test.ts test/humanlessRooms.test.ts test/shogiStore.test.ts` で実行します。全14設定・秒読み・期限前後・同時刻と遅延処理・期限後のエラー・Alarm候補に加え、実DOの `evictDurableObject` によるhibernation／接続を閉じた復元、保存済みCPU選択の再検証、終局再実行時の棋譜・対局保存・本人索引・計測の非重複を確認します。HTTP／WebSocketの公開応答を通信契約で解析し、時刻とCPU選択は保存境界で制御します。内部メソッドのモックや固定sleepを使いません。Color／Side・残時間recordの取り違えはWorkerのtypecheckに含まれる型検査専用fixtureで検証します。
+
 ## 共通ロビーと四人将棋UI
 
 `/games/four-reversi` と `/games/four-shogi` は `features/lobby/LobbyView` を共通利用します。タイトル・説明・遊び方・盤面プレビューはゲームごとに切り替え、一覧とランキングは各ページから渡します。両ゲームともPCは操作カードとランキングを上段、その下に公開ルームを置き、スマートフォンでは操作・公開ルーム・ランキングの順にします。画面幅による並べ替えでもランキングの状態を維持します。

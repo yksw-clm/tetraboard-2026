@@ -1,3 +1,4 @@
+import { nextDueRoomDeadline, earliestAlarmAt } from "./roomDeadlines";
 import {
   analyticsActiveKey,
   analyticsPendingPrefix,
@@ -1106,28 +1107,18 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(roomStorageKey, room);
       }
       while (room) {
-        const disconnect = room.players
-          .map((player, index) => ({ player, index }))
-          .filter(
-            ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
-          )
-          .sort(
-            (a, b) =>
-              a.player.reconnectDeadline! - b.player.reconnectDeadline! || a.index - b.index,
-          )[0]?.player;
-        const timeout =
-          room.status === "playing" && isClockExpired(room.clock, now)
-            ? room.clock.turnExpiresAt
-            : null;
-        if (timeout === null && !disconnect) break;
-        if (
-          room.status === "playing" &&
-          timeout !== null &&
-          (!disconnect || timeout <= disconnect.reconnectDeadline!)
-        ) {
+        const deadline = nextDueRoomDeadline(
+          room.status === "playing" ? room.clock.turnExpiresAt : null,
+          room.players,
+          now,
+        );
+        if (deadline === null) break;
+        if (room.status === "playing" && deadline.type === "timeout") {
           const timedOut = room.players.find((player) => player.side === room!.game!.turn)!;
-          room = this.eliminateShogiPlayer(room, timedOut.id, "timeout", timeout);
-        } else if (disconnect) {
+          room = this.eliminateShogiPlayer(room, timedOut.id, "timeout", deadline.at);
+        } else if (deadline.type === "disconnect") {
+          const disconnect = room.players.find((player) => player.id === deadline.playerId);
+          if (!disconnect) throw new Error("Deadline player is missing");
           if (room.status === "waiting") {
             const host = room.players[0].id === disconnect.id;
             room = this.removeWaitingPlayer(room, disconnect.id) as FourShogiRoom | null;
@@ -1138,12 +1129,7 @@ export class GameRoom extends DurableObject<Env> {
           } else {
             this.recordDeparture(disconnect);
             this.releaseAccount(disconnect.id, false);
-            room = this.eliminateShogiPlayer(
-              room,
-              disconnect.id,
-              "disconnected",
-              disconnect.reconnectDeadline!,
-            );
+            room = this.eliminateShogiPlayer(room, disconnect.id, "disconnected", deadline.at);
           }
         }
         room = this.closeIfNoHumanParticipants(room);
@@ -1368,7 +1354,7 @@ export class GameRoom extends DurableObject<Env> {
     for (const job of this.pendingAnalytics().values()) deadlines.push(job.retryAtMs);
     for (const job of this.pendingMatches().values()) deadlines.push(job.retryAtMs);
     for (const job of this.pendingShogiMatches().values()) deadlines.push(job.retryAtMs);
-    const next = deadlines.length === 0 ? null : Math.min(...deadlines);
+    const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
     if (next === null) await this.ctx.storage.deleteAlarm();
@@ -1694,37 +1680,21 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(roomStorageKey, current);
       }
       while (current !== null) {
-        const nextDisconnect:
-          | { player: FourReversiRoom["players"][number]; index: number }
-          | undefined = current.players
-          .map((player, index) => ({ player, index }))
-          .filter(
-            ({ player }) => player.reconnectDeadline !== null && player.reconnectDeadline <= now,
-          )
-          .sort(
-            (left, right) =>
-              left.player.reconnectDeadline! - right.player.reconnectDeadline! ||
-              left.index - right.index,
-          )[0];
-        const clockDeadline: number | null =
-          current.status === "playing" && isClockExpired(current.clock, now)
-            ? current.clock.turnExpiresAt
-            : null;
-        if (clockDeadline === null && nextDisconnect === undefined) break;
+        const deadline = nextDueRoomDeadline(
+          current.status === "playing" ? current.clock.turnExpiresAt : null,
+          current.players,
+          now,
+        );
+        if (deadline === null) break;
 
-        if (
-          current.status === "playing" &&
-          clockDeadline !== null &&
-          (nextDisconnect === undefined ||
-            clockDeadline <= nextDisconnect.player.reconnectDeadline!)
-        ) {
+        if (current.status === "playing" && deadline.type === "timeout") {
           const result = eliminateColor(current.game, current.game.turn);
           if (!result.ok) throw new Error("Could not eliminate timed-out player");
           this.recordElimination(current, current.game.turn, "timeout", result);
           const timedOutColor: Color = current.game.turn;
           current =
             result.state.status === "finished"
-              ? (this.finishGame(current, result.state, clockDeadline) as FourReversiRoom | null)
+              ? (this.finishGame(current, result.state, deadline.at) as FourReversiRoom | null)
               : this.parseReversiRoom({
                   ...current,
                   game: result.state,
@@ -1732,14 +1702,15 @@ export class GameRoom extends DurableObject<Env> {
                     current.clock,
                     timedOutColor,
                     result.state.turn,
-                    clockDeadline,
+                    deadline.at,
                     true,
                     current.settings.timeControl,
                   ),
-                  lastActivityAtMs: clockDeadline,
+                  lastActivityAtMs: deadline.at,
                 });
-        } else if (nextDisconnect !== undefined) {
-          const player: FourReversiRoom["players"][number] = nextDisconnect.player;
+        } else if (deadline.type === "disconnect") {
+          const player = current.players.find((entry) => entry.id === deadline.playerId);
+          if (!player) throw new Error("Deadline player is missing");
           if (current.status === "waiting") {
             const hostLeaving = current.players[0].id === player.id;
             current = this.removeWaitingPlayer(current, player.id) as FourReversiRoom | null;
@@ -1769,11 +1740,7 @@ export class GameRoom extends DurableObject<Env> {
             this.recordElimination(current, player.color, "disconnected", result);
             current =
               result.state.status === "finished"
-                ? (this.finishGame(
-                    current,
-                    result.state,
-                    player.reconnectDeadline!,
-                  ) as FourReversiRoom | null)
+                ? (this.finishGame(current, result.state, deadline.at) as FourReversiRoom | null)
                 : this.parseReversiRoom({
                     ...current,
                     game: result.state,
@@ -1781,7 +1748,7 @@ export class GameRoom extends DurableObject<Env> {
                       current.clock,
                       current.game.turn,
                       result.state.turn,
-                      player.reconnectDeadline!,
+                      deadline.at,
                       result.state.turn !== current.game.turn,
                       current.settings.timeControl,
                     ),
@@ -1789,7 +1756,7 @@ export class GameRoom extends DurableObject<Env> {
                       ...entry,
                       reconnectDeadline: entry.id === player.id ? null : entry.reconnectDeadline,
                     })),
-                    lastActivityAtMs: player.reconnectDeadline!,
+                    lastActivityAtMs: deadline.at,
                   });
           }
         }
