@@ -1,3 +1,4 @@
+import { defaultGameId, isGameId } from "@tetraboard/protocol/games";
 import { type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { useLocation, useNavigate } from "react-router";
 
@@ -12,7 +13,7 @@ export function useAccountSelection(section: "stats" | "history") {
   const navigate = useNavigate();
   const state = (location.state ?? {}) as AccountNavigationState;
   const stored = state.accountSelections?.[section];
-  const game: MatchGame = stored?.game === "four-shogi" ? "four-shogi" : "four-reversi";
+  const game: MatchGame = isGameId(stored?.game) ? stored.game : defaultGameId;
   const modes: Record<MatchGame, RoomMode> = {
     "four-reversi": stored?.modes?.["four-reversi"] === "doubles" ? "doubles" : "singles",
     "four-shogi": stored?.modes?.["four-shogi"] === "doubles" ? "doubles" : "singles",

@@ -1,8 +1,9 @@
+import { gameScopeSchema } from "./gameSchemas";
 import { z } from "zod";
 import { countCharacters } from "./rooms";
 
 export const feedbackKindSchema = z.enum(["bug", "request", "opinion"]);
-export const feedbackGameSchema = z.enum(["all", "four-reversi", "four-shogi"]);
+export const feedbackGameSchema = gameScopeSchema;
 export const feedbackStatusSchema = z.enum([
   "new",
   "reviewing",

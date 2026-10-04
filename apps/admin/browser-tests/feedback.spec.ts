@@ -138,6 +138,9 @@ for (const width of [320, 390, 767, 768, 1280, 1440])
     await expect(page.getByRole("heading", { name: "フィードバック", exact: true })).toBeVisible();
     await expect(page.getByRole("region", { name: "確認速度", exact: true })).toContainText("1件");
     await expect(page.getByRole("table")).toContainText("未分類");
+    await expect(
+      page.getByRole("combobox", { name: "対象", exact: true }).getByRole("option"),
+    ).toHaveText(["すべて", "サービス全体", "四人リバーシ", "四人将棋"]);
     await page.getByRole("combobox", { name: "種別", exact: true }).selectOption("request");
     await expect(page.getByText("該当する投稿はありません。", { exact: true })).toBeVisible();
     expect(f.queries.at(-1)!.get("kind")).toBe("request");

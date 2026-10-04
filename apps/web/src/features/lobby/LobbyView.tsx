@@ -11,8 +11,8 @@ import { type RoomTimeControl, type RoomMode } from "@tetraboard/protocol";
 import { Fragment, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
-import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
-import { appThemeClasses } from "../../shared/ui/appTheme";
+import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { GameLobbyNavigation } from "./GameLobbyNavigation";
 import { HowToPlayDialog } from "./HowToPlayDialog";
 import { AppIcon, type AppIconName } from "../../shared/ui/AppIcon";
@@ -25,7 +25,7 @@ import { sortedUpdates } from "../updates/updates";
 
 type Props = {
   registrationDraft?: RegistrationEntryDraft;
-  game: "four-reversi" | "four-shogi";
+  game: GameId;
   name: string;
   roomCode: string;
   mode: RoomMode;
@@ -45,20 +45,10 @@ type Props = {
   onSubmitRoom?: (intent: RoomEntryIntent, roomId?: string) => void;
 };
 
-const games = {
-  "four-reversi": {
-    title: "四人リバーシ",
-    description: "4色で楽しむリバーシ。",
-    homeTo: fourReversiLobbyPath,
-    theme: "default",
-  },
-  "four-shogi": {
-    title: "四人将棋",
-    description: "4方向から楽しむ将棋。",
-    homeTo: fourShogiLobbyPath,
-    theme: "four-shogi",
-  },
-} as const;
+const gameDescriptions = {
+  "four-reversi": "4色で楽しむリバーシ。",
+  "four-shogi": "4方向から楽しむ将棋。",
+} satisfies Record<GameId, string>;
 
 type ActiveDialog =
   | { type: "entry"; intent: RoomEntryIntent; roomId?: string; humanOnly?: boolean }
@@ -129,7 +119,12 @@ export function LobbyView(props: Props) {
       : null,
   );
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
-  const game = games[props.game];
+  const game = {
+    title: gameCatalog[props.game].name,
+    homeTo: gameCatalog[props.game].lobbyPath,
+    description: gameDescriptions[props.game],
+    theme: gameThemes[props.game],
+  };
 
   function openEntry(intent: RoomEntryIntent, roomId?: string, humanOnly?: boolean): void {
     props.onClearMessage();

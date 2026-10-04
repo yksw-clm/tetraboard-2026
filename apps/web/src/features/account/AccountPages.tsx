@@ -1,3 +1,4 @@
+import { gameCatalog, defaultGameId } from "@tetraboard/protocol/games";
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
 import { useEffect, useState, type ReactNode } from "react";
@@ -30,7 +31,7 @@ export function AccountPageShell({
   const profileLayout = layout === "profile";
   const lobbyLink = (
     <AppButtonLink
-      to="/games/four-reversi"
+      to={gameCatalog[defaultGameId].lobbyPath}
       appearance="quiet"
       className={profileLayout ? "self-start" : undefined}
     >
@@ -39,7 +40,7 @@ export function AccountPageShell({
   );
   return (
     <div className="app-theme lobby-background min-h-dvh text-ink">
-      <AppHeader homeTo="/games/four-reversi" homeLabel="TetraBoard ロビー">
+      <AppHeader homeTo={gameCatalog[defaultGameId].lobbyPath} homeLabel="TetraBoard ロビー">
         <AccountMenu />
       </AppHeader>
       <main

@@ -1,3 +1,4 @@
+import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   listMatchesContract,
@@ -27,7 +28,7 @@ export async function listMatches(
   accountId: string,
   mode: RoomMode,
   cursor: { startedAtMs: number; id: string } | null,
-  game: MatchGame = "four-reversi",
+  game: MatchGame = defaultGameId,
 ) {
   const sql = `SELECT m.record_json FROM account_match_history h
     JOIN matches m ON m.id = h.match_id WHERE h.account_id = ? AND h.game = ? AND m.game = h.game AND h.mode = ?`;

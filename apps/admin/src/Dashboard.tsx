@@ -1,3 +1,4 @@
+import { gameCatalog, type GameScope } from "@tetraboard/protocol/games";
 import { useState } from "react";
 import { Button, Card } from "@heroui/react";
 import { adminAnalyticsSchema, type AnalyticsMetrics } from "@tetraboard/protocol";
@@ -47,7 +48,7 @@ const columns: {
   { label: "登録・再対局率", key: "registeredRetentionRate", format: percent },
   { label: "ゲスト・再対局率", key: "guestRetentionRate", format: percent },
 ];
-export function Dashboard({ game }: { game: "all" | "four-reversi" | "four-shogi" }) {
+export function Dashboard({ game }: { game: GameScope }) {
   const [bucket, setBucket] = useState<"day" | "month">("day");
   const [period, setPeriod] = useState(() => defaultPeriod("day"));
   const [includeInternal, setIncludeInternal] = useState(false);
@@ -58,7 +59,7 @@ export function Dashboard({ game }: { game: "all" | "four-reversi" | "four-shogi
     includeInternal: String(includeInternal),
   });
   const result = useAdminData(`/api/admin/analytics?${params}`, parseAnalytics);
-  const title = game === "all" ? "全体概要" : game === "four-reversi" ? "四人リバーシ" : "四人将棋";
+  const title = game === "all" ? "全体概要" : gameCatalog[game].name;
   return (
     <div className="flex flex-col gap-6">
       <div>

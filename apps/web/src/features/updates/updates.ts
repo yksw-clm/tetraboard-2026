@@ -1,8 +1,9 @@
+import { gameCatalog, type GameScope } from "@tetraboard/protocol/games";
 export type ServiceUpdate = {
   id: string;
   date: string;
   kind: "feature" | "improvement" | "fix";
-  game: "all" | "four-reversi" | "four-shogi";
+  game: GameScope;
   title: string;
   body: string;
 };
@@ -22,11 +23,9 @@ export const updateKindLabels = {
   improvement: "改善",
   fix: "不具合修正",
 } as const;
-export const updateGameLabels = {
-  all: "サービス全体",
-  "four-reversi": "四人リバーシ",
-  "four-shogi": "四人将棋",
-} as const;
+export function updateGameLabel(game: GameScope): string {
+  return game === "all" ? "サービス全体" : gameCatalog[game].name;
+}
 export function sortedUpdates() {
   return [...serviceUpdates].sort(
     (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),

@@ -1,3 +1,4 @@
+import { gameIdSchema } from "./gameSchemas";
 import { z } from "zod";
 import {
   fourShogiSideSchema,
@@ -218,7 +219,7 @@ export const fourReversiRoomSchema = z
     }
   });
 
-export const roomGameSchema = z.enum(["four-reversi", "four-shogi"]);
+export const roomGameSchema = gameIdSchema;
 export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend({
   game: z.literal("four-shogi"),
   threePlayerAttackProhibited: z.boolean(),

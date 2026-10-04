@@ -1,3 +1,4 @@
+import { defaultGameId } from "@tetraboard/protocol/games";
 import { analyticsVisitor } from "../analytics/store";
 import {
   createRoomContract,
@@ -105,7 +106,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
 
   for (let attempt = 0; attempt < maxRoomCodeAttempts; attempt++) {
     const code = generateRoomCode();
-    const game = request.data.game ?? "four-reversi";
+    const game = request.data.game ?? defaultGameId;
     const initialRoom = {
       eliminations: [],
       id: code,
@@ -225,7 +226,7 @@ roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) 
     const rooms = await listRoomIndex(
       context.env.APP_DB,
       position,
-      query.data.game ?? "four-reversi",
+      query.data.game ?? defaultGameId,
     );
     context.header("Cache-Control", "no-store");
     return context.json(listRoomsContract.response.parse(rooms));

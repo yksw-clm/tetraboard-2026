@@ -1,3 +1,4 @@
+import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   getFourReversiRankingsContract,
@@ -11,7 +12,7 @@ import { matchOutcomesCte } from "../accounts/matchOutcomes";
 
 export async function readGameRankings(
   db: D1Database,
-  game: MatchGame = "four-reversi",
+  game: MatchGame = defaultGameId,
 ): Promise<FourReversiRankings> {
   // 保存済みの結果を一度集計し、同順位の判定と人数制限を別々に扱います。
   const rows = await db

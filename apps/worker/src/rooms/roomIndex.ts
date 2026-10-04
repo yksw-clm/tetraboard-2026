@@ -1,3 +1,4 @@
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { roomPublicMetadataSchema, type RoomPublicMetadata } from "@tetraboard/protocol";
 
 export type PendingRoomIndex = {
@@ -88,7 +89,7 @@ function parseRow(row: IndexRow): RoomPublicMetadata {
 export async function listRoomIndex(
   db: D1Database,
   cursor: { updatedAtMs: number; id: string } | null,
-  game: "four-reversi" | "four-shogi" = "four-reversi",
+  game: GameId = defaultGameId,
 ): Promise<{ rooms: RoomPublicMetadata[]; nextCursor: string | null }> {
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
       host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms

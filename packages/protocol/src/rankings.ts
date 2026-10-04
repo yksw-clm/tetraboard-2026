@@ -1,3 +1,4 @@
+import { gameCatalog } from "./games";
 import { z } from "zod";
 import { usernameSchema } from "./accounts";
 import { countCharacters } from "./rooms";
@@ -19,7 +20,7 @@ export const fourReversiRankingsSchema = z.strictObject({
 });
 export const getFourReversiRankingsContract = {
   method: "GET",
-  path: "/games/four-reversi/rankings",
+  path: gameCatalog["four-reversi"].rankingsPath,
   response: fourReversiRankingsSchema,
 } as const;
 export type RankingEntry = z.infer<typeof rankingEntrySchema>;
@@ -27,7 +28,7 @@ export type FourReversiRankings = z.infer<typeof fourReversiRankingsSchema>;
 export const fourShogiRankingsSchema = fourReversiRankingsSchema;
 export const getFourShogiRankingsContract = {
   method: "GET",
-  path: "/games/four-shogi/rankings",
+  path: gameCatalog["four-shogi"].rankingsPath,
   response: fourShogiRankingsSchema,
 } as const;
 export type FourShogiRankings = z.infer<typeof fourShogiRankingsSchema>;

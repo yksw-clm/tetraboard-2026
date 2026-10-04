@@ -21,7 +21,7 @@ const selectors = [
   { label: "明示リバーシ", game: "four-reversi", expected: "four-reversi" },
   { label: "明示将棋", game: "four-shogi", expected: "four-shogi" },
 ] as const;
-const invalidGames = ["unknown-game", ""];
+const invalidGames = ["unknown-game", "", "all"];
 const modes = ["singles", "doubles"] as const;
 
 function queryFor(game: string | undefined, mode?: RoomMode) {

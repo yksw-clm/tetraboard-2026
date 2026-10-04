@@ -1,3 +1,4 @@
+import { gameCatalog, gameScopeIds } from "@tetraboard/protocol/games";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Button, Card } from "@heroui/react";
@@ -18,7 +19,9 @@ const parseDetail = (v: unknown) => feedbackDetailSchema.parse(v);
 const parseTopics = (v: unknown) => feedbackTopicsSchema.parse(v);
 const parseSummary = (v: unknown) => feedbackSummarySchema.parse(v);
 const kinds = { bug: "不具合", request: "機能の要望", opinion: "その他のご意見" };
-const games = { all: "サービス全体", "four-reversi": "四人リバーシ", "four-shogi": "四人将棋" };
+const games = Object.fromEntries(
+  gameScopeIds.map((id) => [id, id === "all" ? "サービス全体" : gameCatalog[id].name]),
+);
 const statuses = {
   new: "未確認",
   reviewing: "確認中",

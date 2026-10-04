@@ -49,6 +49,9 @@ for (const game of ["four-reversi", "four-shogi"] as const)
       await page.getByRole("button", { name: "不具合・ご意見", exact: true }).click();
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByRole("combobox", { name: "対象", exact: true })).toHaveValue(game);
+      await expect(
+        dialog.getByRole("combobox", { name: "対象", exact: true }).getByRole("option"),
+      ).toHaveText(["サービス全体", "四人リバーシ", "四人将棋"]);
       await dialog.getByRole("button", { name: "送信する", exact: true }).click();
       await expect(dialog.getByRole("alert")).toContainText("種別を選び");
       await dialog.getByLabel("種別（必須）").selectOption("bug");

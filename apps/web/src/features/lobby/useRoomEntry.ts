@@ -1,3 +1,4 @@
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
 import {
@@ -41,7 +42,7 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
   }
 }
 
-export function useRoomEntry(game: "four-reversi" | "four-shogi" = "four-reversi") {
+export function useRoomEntry(game: GameId = defaultGameId) {
   const navigate = useNavigate();
   const account = useAccount();
   const restored = useRegistrationRestore();

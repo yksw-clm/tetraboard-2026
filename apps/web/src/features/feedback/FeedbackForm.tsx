@@ -1,3 +1,4 @@
+import { gameCatalog, gameIds, isGameScope } from "@tetraboard/protocol/games";
 import { Link } from "react-router";
 import { countCharacters } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -62,11 +63,16 @@ export function FeedbackForm({
           className={`${fieldClass} mt-1`}
           value={draft.game}
           disabled={busy}
-          onChange={(e) => feedback.update("game", e.target.value as typeof draft.game)}
+          onChange={(e) => {
+            if (isGameScope(e.target.value)) feedback.update("game", e.target.value);
+          }}
         >
           <option value="all">サービス全体</option>
-          <option value="four-reversi">四人リバーシ</option>
-          <option value="four-shogi">四人将棋</option>
+          {gameIds.map((id) => (
+            <option key={id} value={id}>
+              {gameCatalog[id].name}
+            </option>
+          ))}
         </select>
       </label>
       <label className="block text-sm font-bold">

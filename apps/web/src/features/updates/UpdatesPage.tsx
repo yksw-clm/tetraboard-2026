@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "../account/AccountMenu";
-import { sortedUpdates, updateKindLabels, updateGameLabels } from "./updates";
+import { sortedUpdates, updateKindLabels, updateGameLabel } from "./updates";
 export function UpdatesPage() {
   return (
     <div className="app-theme min-h-dvh bg-page text-ink">
@@ -20,7 +20,7 @@ export function UpdatesPage() {
             >
               <p className="mb-3 text-xs text-muted">
                 <time dateTime={entry.date}>{entry.date}</time> ／ {updateKindLabels[entry.kind]} ／{" "}
-                {updateGameLabels[entry.game]}
+                {updateGameLabel(entry.game)}
               </p>
               <h2 className="mb-3 text-lg font-bold">{entry.title}</h2>
               <p className="whitespace-pre-wrap text-sm leading-relaxed">{entry.body}</p>

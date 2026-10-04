@@ -1,3 +1,4 @@
+import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { analyticsRoutes } from "./analytics/routes";
@@ -84,7 +85,10 @@ export default {
       if (url.pathname === "/profile")
         return Response.redirect(new URL("/account", request.url).toString(), 302);
       if (/^\/games\/game-[^/]+$/.test(url.pathname) || url.pathname === "/guest/name")
-        return Response.redirect(new URL("/games/four-reversi", request.url).toString(), 302);
+        return Response.redirect(
+          new URL(gameCatalog[defaultGameId].lobbyPath, request.url).toString(),
+          302,
+        );
       return env.ASSETS.fetch(request);
     }
     return app.fetch(request, env, context);

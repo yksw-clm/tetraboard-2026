@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { useLocation, useNavigation } from "react-router";
 import { Avatar } from "@heroui/react";
 import {
@@ -54,7 +55,7 @@ function MatchHistoryCard({ match }: { match: MatchSummary }) {
     navigation.state === "loading" &&
     navigation.location?.pathname === `/account/matches/${match.id}`;
   const result = match.result;
-  const gameLabel = `${match.game === "four-shogi" ? "四人将棋" : "四人リバーシ"}・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
+  const gameLabel = `${gameCatalog[match.game].name}・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
   const groups = matchResultGroups(match);
   return (
     <article

@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "./TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
 import { type ReactNode, type RefObject } from "react";
@@ -6,7 +7,6 @@ import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Accordion, Chip, Label, RadioGroup } from "@heroui/react";
 import { AppButtonLink } from "../../shared/ui/AppButton";
-import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { formatClock, playerName } from "./roomPresentation";
 import { type useRoomTransport } from "./useRoomTransport";
@@ -209,7 +209,7 @@ export function RoomInfo({
         <AppButtonLink
           size="compact"
           className="w-full"
-          to={room.settings.game === "four-shogi" ? fourShogiLobbyPath : fourReversiLobbyPath}
+          to={gameCatalog[room.settings.game].lobbyPath}
         >
           ロビーへ戻る
         </AppButtonLink>
@@ -248,7 +248,7 @@ export function RoomInfoCard({
           <AppIcon name="board" />
           <div>
             <dt>ゲーム名</dt>
-            <dd>{settings.game === "four-shogi" ? "四人将棋" : "四人リバーシ"}</dd>
+            <dd>{gameCatalog[settings.game].name}</dd>
           </div>
         </div>
         <div>

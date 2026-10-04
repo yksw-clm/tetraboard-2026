@@ -1,3 +1,4 @@
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import {
   roomSocketContract,
   roomTimeControlSchema,
@@ -31,7 +32,7 @@ export type RegistrationReturn = RegistrationDestination & {
 // OAuthの遷移先はサーバーで固定したまま、復帰先だけをアプリ内に限定する。
 export function registrationPath(path: unknown): string | null {
   if (typeof path !== "string") return null;
-  if (path === "/games/four-reversi" || path === "/games/four-shogi") return path;
+  if (gameIds.some((id) => gameCatalog[id].lobbyPath === path)) return path;
   const match = /^\/rooms\/(\d{5})\?invite=([^&?#]+)$/.exec(path);
   if (!match || !roomSocketContract.query.safeParse({ instanceId: match[2] }).success) return null;
   return path;
