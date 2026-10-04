@@ -1,3 +1,4 @@
+import { gameCatalog, defaultGameId } from "@tetraboard/protocol/games";
 import { Dropdown } from "@heroui/react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -29,7 +30,7 @@ export function AccountMenu() {
       });
       // Cookie失効後の画面と認証状態を同じページ読み込みで確定します。
       clearRegistrationReturn();
-      window.location.replace("/games/four-reversi");
+      window.location.replace(gameCatalog[defaultGameId].lobbyPath);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "ログアウトできませんでした。");
       setBusy(false);

@@ -1,3 +1,4 @@
+import { defaultGameId, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { AppButton } from "../../shared/ui/AppButton";
 
 import { AppDialog } from "../../shared/ui/AppDialog";
@@ -5,15 +6,15 @@ import { FourShogiRules } from "./FourShogiRules";
 
 export function HowToPlayDialog({
   onClose,
-  game = "four-reversi",
+  game = defaultGameId,
 }: {
   onClose: () => void;
-  game?: "four-reversi" | "four-shogi";
+  game?: GameId;
 }) {
   const shogi = game === "four-shogi";
   return (
     <AppDialog
-      title={shogi ? "四人将棋の遊び方" : "四人リバーシの遊び方"}
+      title={`${gameCatalog[game].name}の遊び方`}
       onClose={onClose}
       theme={shogi ? "four-shogi" : "default"}
     >

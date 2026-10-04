@@ -1,3 +1,4 @@
+import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   getAccountStatsContract,
@@ -11,7 +12,7 @@ import { matchOutcomesCte } from "./matchOutcomes";
 export async function readAccountStats(
   db: D1Database,
   accountId: string,
-  game: MatchGame = "four-reversi",
+  game: MatchGame = defaultGameId,
 ): Promise<AccountStats> {
   // Aggregate committed outcomes only; replay chunks are never loaded here.
   const rows = await db

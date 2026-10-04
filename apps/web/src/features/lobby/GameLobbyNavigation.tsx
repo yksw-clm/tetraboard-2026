@@ -1,12 +1,14 @@
 import { NavLink } from "react-router";
 import { cn } from "@heroui/react";
-import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 
-const games = [
-  { path: fourReversiLobbyPath, title: "四人リバーシ", theme: "" },
-  { path: fourShogiLobbyPath, title: "四人将棋", theme: "game-theme-four-shogi" },
-];
+const games = gameIds.map((id) => ({
+  path: gameCatalog[id].lobbyPath,
+  title: gameCatalog[id].name,
+  theme: appThemeClasses[gameThemes[id]],
+}));
 
 export function GameLobbyNavigation() {
   return (

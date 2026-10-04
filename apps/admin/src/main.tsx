@@ -1,3 +1,4 @@
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import "./styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -42,8 +43,7 @@ function App() {
         <nav aria-label="管理画面" className="flex flex-wrap gap-2 lg:flex-col">
           {[
             ["/", "全体概要"],
-            ["/games/four-reversi", "四人リバーシ"],
-            ["/games/four-shogi", "四人将棋"],
+            ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
             ["/users", "登録ユーザー"],
             ["/feedback", "フィードバック"],
           ].map(([to, label]) => (
@@ -69,11 +69,13 @@ function App() {
       <main className="min-w-0 p-5 sm:p-8 lg:p-10">
         <Routes>
           <Route path="/" element={<Dashboard game="all" />} />
-          <Route
-            path="/games/four-reversi"
-            element={<Dashboard key="reversi" game="four-reversi" />}
-          />
-          <Route path="/games/four-shogi" element={<Dashboard key="shogi" game="four-shogi" />} />
+          {gameIds.map((id) => (
+            <Route
+              key={id}
+              path={gameCatalog[id].lobbyPath}
+              element={<Dashboard key={id} game={id} />}
+            />
+          ))}
           <Route path="/users" element={<Users />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/feedback/:id" element={<FeedbackDetailPage />} />

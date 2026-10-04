@@ -1,3 +1,4 @@
+import { gameIds } from "@tetraboard/protocol/games";
 import type { router as appRouter } from "../app/router";
 export const analyticsCookie = "tetraboard-2026.analytics";
 export function randomAnalyticsId() {
@@ -145,11 +146,11 @@ export function startWebAnalytics(router: typeof appRouter) {
       match?: { settings: { game: string } };
     }[];
     const detail = data.find((value) => value?.room || value?.match);
-    const game = path.includes("four-reversi")
-      ? "four-reversi"
-      : path.includes("four-shogi")
-        ? "four-shogi"
-        : (detail?.room?.settings.game ?? detail?.match?.settings.game ?? null);
+    const game =
+      gameIds.find((id) => path.includes(id)) ??
+      detail?.room?.settings.game ??
+      detail?.match?.settings.game ??
+      null;
     const page = path.startsWith("/games/")
       ? "lobby"
       : path.startsWith("/rooms/")

@@ -1,3 +1,5 @@
+import { defaultGameId, type GameId } from "./games";
+import { gameIdSchema } from "./gameSchemas";
 import { z } from "zod";
 import {
   cpuLevelSchema,
@@ -19,7 +21,7 @@ import {
   fourShogiReplayEventSchema,
 } from "./fourShogi";
 
-export const matchGameSchema = z.enum(["four-reversi", "four-shogi"]);
+export const matchGameSchema = gameIdSchema;
 
 const participantBase = z.strictObject({
   id: z.uuid(),
@@ -112,7 +114,7 @@ export const listMatchesContract = {
   method: "GET",
   path: "/account/matches",
   query: z.object({
-    game: matchGameSchema.default("four-reversi"),
+    game: matchGameSchema.default(defaultGameId),
     mode: roomModeSchema,
     cursor: matchCursorSchema.optional(),
   }),
@@ -129,7 +131,7 @@ export type MatchHistoryParticipant =
   | FourShogiMatchHistoryParticipant;
 export type FourReversiMatchSummary = z.infer<typeof fourReversiMatchSummarySchema>;
 export type FourShogiMatchSummary = z.infer<typeof fourShogiMatchSummarySchema>;
-export type MatchGame = z.infer<typeof matchGameSchema>;
+export type MatchGame = GameId;
 
 const matchCountSchema = z.int().nonnegative();
 export const fourReversiAccountStatsSchema = z.strictObject({
@@ -161,7 +163,7 @@ export const accountStatsSchema = z.union([
 export const getAccountStatsContract = {
   method: "GET",
   path: "/account/stats",
-  query: z.object({ game: matchGameSchema.default("four-reversi") }),
+  query: z.object({ game: matchGameSchema.default(defaultGameId) }),
   response: accountStatsSchema,
 } as const;
 export type AccountStats = z.infer<typeof accountStatsSchema>;

@@ -1,6 +1,7 @@
+import { gameIdSchema, gameScopeSchema } from "./gameSchemas";
 import { z } from "zod";
 
-export const analyticsGameSchema = z.enum(["four-reversi", "four-shogi"]);
+export const analyticsGameSchema = gameIdSchema;
 export const analyticsPageSchema = z.enum([
   "lobby",
   "room",
@@ -43,7 +44,7 @@ export const adminAnalyticsQuerySchema = z
   .object({
     from: analyticsDateSchema,
     to: analyticsDateSchema,
-    game: z.enum(["all", "four-reversi", "four-shogi"]).default("all"),
+    game: gameScopeSchema.default("all"),
     bucket: z.enum(["day", "month"]).default("day"),
     includeInternal: z.enum(["true", "false"]).default("false"),
   })

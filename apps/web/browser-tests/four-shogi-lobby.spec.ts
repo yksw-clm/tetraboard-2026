@@ -74,6 +74,15 @@ test("ゲーム切り替えはURL・履歴と一致し、将棋からリバー�
   expect(requests).not.toContain("GET /api/games/four-reversi/rankings");
 
   const navigation = page.getByRole("navigation", { name: "ゲームを選択" });
+  await expect(navigation.getByRole("link")).toHaveText(["四人リバーシ", "四人将棋"]);
+  await expect(navigation.getByRole("link", { name: "四人リバーシ", exact: true })).toHaveAttribute(
+    "href",
+    reversiPath,
+  );
+  await expect(navigation.getByRole("link", { name: "四人将棋", exact: true })).toHaveAttribute(
+    "href",
+    shogiPath,
+  );
   const reversi = navigation.getByRole("link", { name: "四人リバーシ", exact: true });
   const shogi = navigation.getByRole("link", { name: "四人将棋", exact: true });
   await reversi.focus();

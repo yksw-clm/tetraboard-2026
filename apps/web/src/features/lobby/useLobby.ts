@@ -1,13 +1,10 @@
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { listRoomsContract, type RoomPublicMetadata } from "@tetraboard/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-async function fetchLobby(
-  game: "four-reversi" | "four-shogi",
-  cursor: string | null,
-  signal: AbortSignal,
-) {
+async function fetchLobby(game: GameId, cursor: string | null, signal: AbortSignal) {
   const query = new URLSearchParams();
-  if (game !== "four-reversi") query.set("game", game);
+  if (game !== defaultGameId) query.set("game", game);
   if (cursor !== null) query.set("cursor", cursor);
   const path = `${listRoomsContract.path}${query.size > 0 ? `?${query}` : ""}`;
   const response = await fetch(`/api${path}`, {
@@ -19,7 +16,7 @@ async function fetchLobby(
   return listRoomsContract.response.parse(await response.json());
 }
 
-export function useLobby(game: "four-reversi" | "four-shogi" = "four-reversi") {
+export function useLobby(game: GameId = defaultGameId) {
   const [rooms, setRooms] = useState<RoomPublicMetadata[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

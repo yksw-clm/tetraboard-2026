@@ -10,6 +10,7 @@ const reversiStats: AccountStats = {
 };
 async function chooseGame(page: Page, label: string, name: string) {
   await page.getByRole("button", { name: new RegExp(`${label}$`) }).click();
+  await expect(page.getByRole("option")).toHaveText(["四人リバーシ", "四人将棋"]);
   await page.getByRole("option", { name, exact: true }).click();
 }
 async function metric(section: Locator, label: string, value: string) {

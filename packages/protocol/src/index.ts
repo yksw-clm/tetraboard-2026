@@ -1,3 +1,5 @@
+export * from "./games";
+export * from "./gameSchemas";
 export { healthzContract } from "./healthz";
 export {
   getFourReversiRankingsContract,

@@ -12,7 +12,7 @@ import {
 } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
+import { gameCatalog } from "@tetraboard/protocol/games";
 import {
   clearRoomMembershipToken,
   fetchRoomMembership,
@@ -485,9 +485,7 @@ export function useRoomTransport<T extends Room>({
     try {
       await leaveRoom(room.id, token);
       clearRoomMembershipToken(room.id);
-      void navigate(
-        room.settings.game === "four-shogi" ? fourShogiLobbyPath : fourReversiLobbyPath,
-      );
+      void navigate(gameCatalog[room.settings.game].lobbyPath);
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);

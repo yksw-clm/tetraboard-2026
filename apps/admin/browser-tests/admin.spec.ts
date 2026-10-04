@@ -49,6 +49,18 @@ for (const width of [390, 768, 1440])
     });
     await page.goto("/admin/");
     await expect(page.getByRole("heading", { name: "全体概要", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "管理画面" }).getByRole("link")).toHaveText([
+      "全体概要",
+      "四人リバーシ",
+      "四人将棋",
+      "登録ユーザー",
+      "フィードバック",
+    ]);
+    const reversi = page.waitForRequest((request) => request.url().includes("game=four-reversi"));
+    await page.getByRole("link", { name: "四人リバーシ", exact: true }).click();
+    await reversi;
+    await expect(page).toHaveURL(/\/admin\/games\/four-reversi$/);
+    await expect(page.getByRole("heading", { name: "四人リバーシ", exact: true })).toBeVisible();
     await expect(page.getByRole("img", { name: /折れ線グラフ/ })).toBeVisible();
     await expect(page.getByRole("table")).toContainText("75.0%");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(

@@ -1,3 +1,4 @@
+import { defaultGameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getFourReversiRankingsContract,
@@ -6,7 +7,7 @@ import {
   type MatchGame,
 } from "@tetraboard/protocol";
 
-export function useRankings(game: MatchGame = "four-reversi") {
+export function useRankings(game: MatchGame = defaultGameId) {
   const [rankings, setRankings] = useState<FourReversiRankings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
