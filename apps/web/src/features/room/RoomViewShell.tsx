@@ -35,6 +35,7 @@ export function RoomViewShell({
   onRotate,
   turnActions,
   gameSettings,
+  operationNotice,
 }: {
   session: SharedRoomSession & {
     canPlay: boolean;
@@ -49,6 +50,7 @@ export function RoomViewShell({
   onRotate: () => void;
   turnActions?: ReactNode;
   gameSettings?: ReactNode;
+  operationNotice?: string | null;
 }) {
   const desktop = useRoomDesktop();
   const account = useAccount();
@@ -192,6 +194,7 @@ export function RoomViewShell({
     <RoomChat chat={chat} session={session} visible={desktop || tab === "chat"} theme={theme} />
   );
   const connectionNotice = session.connection !== "接続済み" ? session.connection : null;
+  const pendingNotice = !connectionNotice && !session.socketError ? operationNotice : null;
 
   return (
     <main
@@ -199,7 +202,7 @@ export function RoomViewShell({
       ref={fallbackFocusRef}
       tabIndex={-1}
     >
-      {(connectionNotice || session.socketError) && (
+      {(connectionNotice || session.socketError || pendingNotice) && (
         <div
           className="absolute top-[calc(env(safe-area-inset-top)_+_8px)] left-1/2 -translate-x-1/2 z-10 pointer-events-none w-max max-w-[min(480px,calc(100%_-_16px))] rounded-lg py-[7px] px-4 bg-[#fff4dc] text-[#755b21] text-xs text-center break-words"
           role="status"
@@ -207,6 +210,7 @@ export function RoomViewShell({
           {connectionNotice}
           {connectionNotice && session.socketError ? " — " : ""}
           {session.socketError}
+          {pendingNotice}
         </div>
       )}
       <RoomLayout

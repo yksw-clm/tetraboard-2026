@@ -1,9 +1,16 @@
-import type { Side } from "@tetraboard/four-shogi";
+import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
 import type { FourShogiRoom } from "@tetraboard/protocol";
 import { assertNever } from "@tetraboard/protocol";
 
 export type PendingShogiAction =
-  | { type: "move"; roundId: string; positionRevision: number }
+  | {
+      type: "move";
+      roundId: string;
+      positionRevision: number;
+      participant: Side;
+      action: FourShogiAction;
+      startedAtMs: number;
+    }
   | { type: "resign"; participant: Side }
   | {
       type: "draw";

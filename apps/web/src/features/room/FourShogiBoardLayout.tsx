@@ -103,6 +103,7 @@ const groupClasses = {
 
 export type FourShogiBoardLayoutProps = {
   game: ShogiBoardView;
+  pendingAction?: FourShogiAction;
   viewerSide: Side;
   revision: Revision;
   canPlay: boolean;
@@ -110,12 +111,13 @@ export type FourShogiBoardLayoutProps = {
   legalActions: readonly FourShogiAction[];
   threePlayerAttackForbiddenActions?: readonly FourShogiAction[];
   checkState?: Readonly<Record<Side, boolean>>;
-  onAction: (action: FourShogiAction) => void;
+  onAction: (action: FourShogiAction) => boolean | void;
   playerCards: Readonly<Record<Side, ReactNode>>;
 };
 
 export function FourShogiBoardLayout({
   game,
+  pendingAction,
   viewerSide,
   revision,
   canPlay,
@@ -243,7 +245,7 @@ export function FourShogiBoardLayout({
     if (!enabled || sent.current) return;
     sent.current = true;
     cancelSelection();
-    onAction(action);
+    if (onAction(action) === false) sent.current = false;
   }
 
   function chooseDestination(source: ShogiSelection, to: Position): void {
@@ -428,6 +430,7 @@ export function FourShogiBoardLayout({
             const lastFrom =
               lastAction?.type === "movePiece" && shogiSamePosition(lastAction.from, position);
             const lastTo = lastAction && shogiSamePosition(lastAction.to, position);
+            const pendingTo = pendingAction && shogiSamePosition(pendingAction.to, position);
             const dragging =
               drag?.selection.type === "movePiece" &&
               shogiSamePosition(drag.selection.from, position);
@@ -445,9 +448,10 @@ export function FourShogiBoardLayout({
                 data-legal-destination={destination || undefined}
                 data-three-player-attack-forbidden={forbiddenDestination || undefined}
                 data-last-move={lastTo ? "to" : lastFrom ? "from" : undefined}
+                data-pending-move={pendingTo || undefined}
                 data-check={checked || undefined}
                 data-dragging={dragging || undefined}
-                aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}`}
+                aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}${pendingTo ? "、未確定の移動先" : ""}`}
                 aria-pressed={!!selectedSquare}
                 className={`group/shogi-piece relative grid place-items-center min-w-0 min-h-0 w-full h-full p-0 rounded-none border-0 bg-transparent focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-[-3px] ${canSelect ? "touch-none" : "touch-auto"}${canSelect || destination ? " cursor-pointer" : " cursor-default"}`}
                 onClick={(event) => {
@@ -468,6 +472,13 @@ export function FourShogiBoardLayout({
                 onPointerCancel={cancelPointer}
                 onLostPointerCapture={lostPointer}
               >
+                {pendingTo && (
+                  <span
+                    aria-hidden="true"
+                    style={squareHighlightStyle(index)}
+                    className="absolute pointer-events-none box-border border-2 border-dashed border-[#9c6f14]"
+                  />
+                )}
                 <span
                   aria-hidden="true"
                   data-testid="shogi-square-highlight"

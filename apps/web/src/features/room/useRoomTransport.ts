@@ -379,14 +379,14 @@ export function useRoomTransport<T extends Room>({
   function sendGameOperation(
     message: GameCommandFor<T["settings"]["game"]>,
     pending: PendingOperation<PendingActionFor<T["settings"]["game"]>>,
-  ): void {
+  ): boolean {
     const currentSocket = socketRef.current;
     if (
       !authenticated ||
       pendingGameActionRef.current !== null ||
       currentSocket?.readyState !== WebSocket.OPEN
     ) {
-      return;
+      return false;
     }
 
     pendingGameActionRef.current = pending;
@@ -394,18 +394,20 @@ export function useRoomTransport<T extends Room>({
     setSocketError(null);
     try {
       currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+      return true;
     } catch {
       pendingGameActionRef.current = null;
       setPendingGameAction(null);
       setSocketError("対局操作を送信できませんでした。");
+      return false;
     }
   }
 
   function sendGameMessage(
     message: Exclude<GameCommandFor<T["settings"]["game"]>, { type: "room.game.start" }>,
     pending: PendingActionFor<T["settings"]["game"]>,
-  ): void {
-    sendGameOperation(message, { type: "game", action: pending });
+  ): boolean {
+    return sendGameOperation(message, { type: "game", action: pending });
   }
 
   function handleStartClick(): void {

@@ -286,7 +286,9 @@ for (const side of sides) {
   });
 }
 
-test("選択・捕獲・持ち駒打ちと更新はサーバー局面に従い、二重送信を防ぐ", async ({ page }) => {
+test("選択・捕獲・持ち駒打ちは即時表示し、確定はサーバー局面に従い二重送信を防ぐ", async ({
+  page,
+}) => {
   const state = tacticalShogiState();
   const fixture = await mockRoom(page, playingShogiRoom(state));
   await page.goto("/rooms/12345");
@@ -301,7 +303,8 @@ test("選択・捕獲・持ち駒打ちと更新はサーバー局面に従い�
   await source.click();
   await square(page, 4, 5).click();
   await expect.poll(() => actions(fixture.received)).toHaveLength(1);
-  await expect(square(page, 4, 6).getByTestId("shogi-piece")).toHaveCount(1);
+  await expect(square(page, 4, 6).getByTestId("shogi-piece")).toHaveCount(0);
+  await expect(square(page, 4, 5)).toHaveAttribute("data-pending-move", "true");
   await expect(source).toBeDisabled();
   const capture: FourShogiAction = {
     type: "movePiece",
