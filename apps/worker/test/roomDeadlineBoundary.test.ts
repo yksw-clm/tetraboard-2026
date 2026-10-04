@@ -1,3 +1,4 @@
+import { gameProgress } from "../src/rooms/gameProgress";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
@@ -20,6 +21,7 @@ import {
   leaveRoomContract,
   roomSocketContract,
   roomSchema,
+  roomMembershipSchema,
   isFourShogiRoom,
   fourShogiRoomSchema,
   type GameId,
@@ -587,3 +589,211 @@ test.each(["リバーシCPU待ち", "将棋CPU待ち", "将棋の保存済み選
     });
   },
 );
+
+for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
+  test(`${game}: 通常GETでのCPU進行はゲーム別の手順を維持する`, async () => {
+    const prepared = await start(game, true);
+    const before = await runInDurableObject(prepared.stub, async (_instance, state) => {
+      const room = roomSchema.parse(state.storage.kv.get("room"));
+      if (room.status !== "playing") throw new Error("Not playing");
+      const cpu = room.players.find((player) => player.kind === "cpu");
+      if (!cpu) throw new Error("Missing CPU");
+      let next;
+      if (isFourShogiRoom(room)) {
+        if (!("side" in cpu)) throw new Error("Wrong CPU");
+        const store = new ShogiStore(state.storage.sql);
+        const full = store.loadState(room.roundId, room.game);
+        if (full.status !== "playing") throw new Error("Not playing");
+        const position = { ...full, turn: cpu.side };
+        next = roomSchema.parse({
+          ...room,
+          game: store.saveState(room.roundId, position),
+          legalActions: getLegalActions(position),
+        });
+      } else {
+        if (!("color" in cpu)) throw new Error("Wrong CPU");
+        next = roomSchema.parse({ ...room, game: { ...room.game, turn: cpu.color } });
+      }
+      const saved = roomSchema.parse({
+        ...next,
+        clock: {
+          ...room.clock,
+          turnStartedAt: Date.now() - 1_000,
+          turnExpiresAt: Date.now() + 300_000,
+        },
+      });
+      state.storage.kv.put("room", saved);
+      await state.storage.setAlarm(Date.now() + 60_000);
+      return saved;
+    });
+    const response = await snapshot(prepared.room.id);
+    if (game === "four-shogi") {
+      expect(response.room.game).toEqual(before.game);
+      await runInDurableObject(prepared.stub, (_instance, state) => {
+        expect(state.storage.kv.get("shogi-cpu-job")).toBeUndefined();
+      });
+    } else {
+      expect(response.room.game).not.toEqual(before.game);
+    }
+  });
+}
+
+test("将棋: 同じ資格の複数接続は最後の切断まで復帰期限を付けない", async () => {
+  const prepared = await start("four-shogi");
+  const second = await connect(prepared.members[0]);
+  prepared.clients[0].close();
+  const connected = await snapshot(prepared.room.id);
+  expect(connected.presence.connectedPlayerIds).toContain(prepared.members[0].membership.playerId);
+  expect(
+    connected.room.players.find((p) => p.id === prepared.members[0].membership.playerId)
+      ?.reconnectDeadline,
+  ).toBeNull();
+  second.close();
+  const message = await prepared.clients[1].waitFor(
+    "room.snapshot",
+    (event) => !event.presence.connectedPlayerIds.includes(prepared.members[0].membership.playerId),
+  );
+  expect(
+    message.room.players.find((p) => p.id === prepared.members[0].membership.playerId)
+      ?.reconnectDeadline,
+  ).toBeTypeOf("number");
+});
+
+test("将棋: 活動停止は期限処理・CPUより先に閉鎖する", async () => {
+  const prepared = await start("four-shogi", true);
+  await runInDurableObject(prepared.stub, (_instance, state) => {
+    const room = roomSchema.parse(state.storage.kv.get("room"));
+    state.storage.kv.put(
+      "room",
+      roomSchema.parse({ ...room, lastActivityAtMs: Date.now() - 86_400_001 }),
+    );
+  });
+  expect((await boundaryRequest(getRoomContract.pathFor(prepared.room.id))).status).toBe(404);
+  await runInDurableObject(prepared.stub, (_instance, state) => {
+    expect(state.storage.kv.get("shogi-cpu-job")).toBeUndefined();
+    expect([...state.storage.kv.list({ prefix: pendingShogiMatchPrefix })]).toEqual([]);
+  });
+});
+
+test("将棋: 再戦待機へ移行しても切断からの元の復帰期限を保持する", async () => {
+  const prepared = await start("four-shogi");
+  const disconnectedId = prepared.members[3].membership.playerId;
+  prepared.clients[3].close();
+  const disconnected = await prepared.clients[0].waitFor(
+    "room.snapshot",
+    (message) => !message.presence.connectedPlayerIds.includes(disconnectedId),
+  );
+  const deadline = disconnected.room.players.find(
+    (player) => player.id === disconnectedId,
+  )?.reconnectDeadline;
+  expect(deadline).toBeTypeOf("number");
+  for (const member of prepared.members.slice(0, 3)) {
+    const response = await boundaryRequest(leaveRoomContract.pathFor(prepared.room.id), {
+      method: "POST",
+      headers: { Origin: origin, Authorization: `Bearer ${member.membership.token}` },
+    });
+    expect(response.status).toBe(204);
+  }
+  const waiting = await snapshot(prepared.room.id);
+  expect(waiting.room.status).toBe("waiting");
+  expect(waiting.room.players.map((player) => player.id)).toEqual([disconnectedId]);
+  expect(waiting.room.players[0].reconnectDeadline).toBe(deadline);
+  expect(waiting.room.players[0].ready).toBe(false);
+  await connect(prepared.members[3]);
+  const restored = await snapshot(prepared.room.id);
+  expect(restored.room.players[0].reconnectDeadline).toBeNull();
+});
+
+for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
+  test(`${game}: 抽出した進行・終局のKVとSQLite更新はtransaction例外で全て戻る`, async () => {
+    const prepared = await start(game);
+    await runInDurableObject(prepared.stub, (_instance, state) => {
+      const capture = () => ({
+        kv: [...state.storage.kv.list()],
+        sql:
+          game === "four-shogi"
+            ? {
+                repetitions: state.storage.sql
+                  .exec("SELECT * FROM shogi_repetitions ORDER BY round_id, position_key")
+                  .toArray(),
+                rounds: state.storage.sql
+                  .exec("SELECT * FROM shogi_rounds ORDER BY round_id")
+                  .toArray(),
+                events: state.storage.sql
+                  .exec("SELECT * FROM shogi_events ORDER BY round_id, event_index")
+                  .toArray(),
+                archives: state.storage.sql
+                  .exec("SELECT * FROM shogi_archives ORDER BY round_id")
+                  .toArray(),
+              }
+            : null,
+      });
+      const before = capture();
+      const dependencies = {
+        storage: state.storage,
+        membership: (hash: string) => {
+          const value = state.storage.kv.get(`membership:${hash}`);
+          return value === undefined ? null : roomMembershipSchema.parse(value);
+        },
+        accountId: (playerId: string) =>
+          state.storage.kv.get<AccountAdmission>(`seat-account:${playerId}`)?.accountId ?? null,
+      };
+      expect(() =>
+        state.storage.transactionSync(() => {
+          let room = roomSchema.parse(state.storage.kv.get("room"));
+          if (isFourShogiRoom(room)) {
+            const progress = gameProgress["four-shogi"].create(dependencies);
+            for (let count = 0; count < 3; count++) {
+              if (room.status !== "playing") throw new Error("Expected playing room");
+              const turn = room.game.turn;
+              const player = room.players.find((entry) => entry.side === turn);
+              if (!player) throw new Error("Missing player");
+              const result = progress.eliminate(room, player.id, "timeout", Date.now());
+              if (result.kind === "finished") {
+                const lastRound = progress.finalize(result);
+                expect(
+                  state.storage.kv.get(pendingShogiMatchPrefix + result.room.roundId),
+                ).toBeDefined();
+                expect(progress.store().eventCount(result.room.roundId)).toBe(3);
+                expect(
+                  state.storage.sql.exec("SELECT * FROM shogi_archives").toArray(),
+                ).toHaveLength(1);
+                state.storage.kv.put(
+                  "room",
+                  progress.waiting({ ...result, lastRound }, result.room.players),
+                );
+              } else if (result.kind === "playing") {
+                room = result.room;
+                state.storage.kv.put("room", room);
+              } else throw new Error("Unexpected transition");
+            }
+          } else {
+            const progress = gameProgress["four-reversi"].create(dependencies);
+            for (let count = 0; count < 3; count++) {
+              if (room.status !== "playing") throw new Error("Expected playing room");
+              const turn = room.game.turn;
+              const player = room.players.find((entry) => entry.color === turn);
+              if (!player) throw new Error("Missing player");
+              const result = progress.eliminate(room, player.id, "timeout", Date.now());
+              if (result.kind === "finished") {
+                const lastRound = progress.finalize(result);
+                expect(lastRound.replay?.steps).toHaveLength(3);
+                expect([...state.storage.kv.list({ prefix: pendingMatchPrefix })]).toHaveLength(1);
+                state.storage.kv.put(
+                  "room",
+                  progress.waiting({ ...result, lastRound }, result.room.players),
+                );
+              } else if (result.kind === "playing") {
+                room = result.room;
+                state.storage.kv.put("room", room);
+              } else throw new Error("Unexpected transition");
+            }
+          }
+          throw new Error("Rollback game transition");
+        }),
+      ).toThrow("Rollback game transition");
+      expect(capture()).toEqual(before);
+    });
+    expect((await snapshot(prepared.room.id)).room).toEqual(prepared.room);
+  });
+}

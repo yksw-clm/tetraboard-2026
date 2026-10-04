@@ -99,9 +99,21 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 
 `roomDeadlines.ts` は現在の時計期限・プレイヤー配列の復帰期限・呼び出し側の現在時刻から、到達済みの次イベントと確定時刻を返します。早い期限を先に、同時刻なら時間切れを先に、切断同士の同時刻なら現在の配列順に選びます。GameRoomは処理のたびに更新後の状態から選び直します。Alarm候補の最小時刻も純粋関数で選び、空はnull、過去の候補は補正しません。
 
-GameRoomには現在時刻の取得、活動停止・人間不在の判定、脱落、CPU、終局、保存待ちの確定、transaction、配信・索引更新、Alarm候補収集と設定・削除を残します。リバーシCPUの同期確定と将棋CPUの選択保存→次のAlarmで局ID・revision・手番・期限を再検証する順序を維持します。Webの時計取得・表示・時刻同期は従来どおりです。ゲーム進行・共有ライフサイクルの分離は #57 のPR2、保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続問題は #4 で扱います。
+GameRoomには共有ライフサイクルの現在時刻の取得、活動停止・人間不在の判定、transaction、配信・索引更新、Alarm候補収集と設定・削除を残します。ゲーム進行側の時計更新・脱落・CPU・終局については次節のモジュールへ委譲します。リバーシCPUの同期確定と将棋CPUの選択保存→次のAlarmで局ID・revision・手番・期限を再検証する順序を維持します。Webの時計取得・表示・時刻同期は従来どおりです。保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続問題は #4 で扱います。
 
 関連回帰は `bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlines.test.ts test/roomDeadlineBoundary.test.ts test/gameRoom.test.ts test/fourShogiRoom.test.ts test/humanlessRooms.test.ts test/shogiStore.test.ts` で実行します。全14設定・秒読み・期限前後・同時刻と遅延処理・期限後のエラー・Alarm候補に加え、実DOの `evictDurableObject` によるhibernation／接続を閉じた復元、保存済みCPU選択の再検証、終局再実行時の棋譜・対局保存・本人索引・計測の非重複を確認します。HTTP／WebSocketの公開応答を通信契約で解析し、時刻とCPU選択は保存境界で制御します。内部メソッドのモックや固定sleepを使いません。Color／Side・残時間recordの取り違えはWorkerのtypecheckに含まれる型検査専用fixtureで検証します。
+
+## Workerのゲーム進行と共有ライフサイクル
+
+`fourReversiProgress.ts`／`fourShogiProgress.ts` は配席・開始・着手・投了・外部脱落・時計更新・棋譜記録・終局データと保存待ちの生成・CPUを担当します。将棋の合法手・王手・千日手・撃破数・引分提案・三人攻撃禁止も将棋側に置きます。依存は実DOのstorage、参加資格読取り、開始時のアカウントID読取りだけです。通信・配信・外部保存への権限を渡しません。対局状態は呼出しごとにstorageから読み、モジュールに保持しません。将棋Storeは初めて必要になったときに生成し、千日手の参照cacheは一回の遷移内に限定します。
+
+`gameProgress.ts` はWorker内部の型対応と必須登録を持ちます。追加ゲームには `ProgressTypes` の終局・直前局と、`GameProgressRegistration` のfactoryを登録します。protocolの `RoomFor<G>`・`GameActionCommandFor<G>` に開始・進行・終局・再戦データを対応付け、mapped typeと `satisfies` で欠落を検出します。将棋着手の局ID・revisionは必須です。結果は拒否・変更なし・継続・終局のunionで、共有側が明示的に分岐し `never` で網羅性を確認します。別ゲームのRoom・着手・終局結果・再戦データの混入は型検査専用fixtureで拒否します。
+
+GameRoomは認証・参加・準備・接続／切断・チャット・transactionと共有副作用を担当します。期限ループは一つで、活動停止・人間不在の閉鎖、欠落した復帰期限の補完、期限の選び直し、待機席の解放、資格・アカウント処理を共有し、盤面の脱落だけをゲーム側へ渡します。終局はゲーム側の棋譜・局面更新 → 共有の計測確定 → ゲーム側の保存待ち・直前局確定 → 共有の席保持・元の復帰期限保持・資格解放・ホスト交代・準備解除 → ゲーム側の待機Room生成の順です。transaction後のflush・Alarm・配信・索引更新の既存順序を保ちます。
+
+リバーシCPUは通常アクセスでも同期選択し、計算後の現在時刻で期限を確認して確定します。将棋CPUはAlarm限定で提案を同期し、終局しなければ選択を保存、次Alarmで局ID・revision・手番・期限を再検証して適用します。明示退室はリバーシの盤面・棋譜処理後に資格を失効させ、将棋は資格失効後に盤面処理します。D1保存・SQL・再試行の設計は維持し、閉鎖後の保存待ちと保護棋譜も保持します。保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続問題は #4 の範囲です。
+
+前節の回帰コマンドは通常GETでのCPU進行の差、将棋の複数接続・切断通知欠落・活動停止・再戦時の元の復帰期限も確認します。抽出した進行・終局更新を実storageのtransactionで実行し、例外後にKV・SQLiteの千日手・棋譜・保護状態・保存待ちが全て戻ることを検証します。公開応答は通信契約で解析し、内部メソッドのモック・固定sleep・テスト用公開APIを追加しません。
 
 ## 共通ロビーと四人将棋UI
 
