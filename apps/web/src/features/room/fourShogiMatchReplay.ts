@@ -1,23 +1,22 @@
-import { createInitialState } from "@tetraboard/four-shogi";
 import {
   getMatchReplayContract,
   fourShogiPublicStateSchema,
   type FourShogiMatchDetail,
 } from "@tetraboard/protocol";
 import {
-  createFourShogiReplayFrame,
-  applyFourShogiReplayEvent,
+  getFourShogiReplayRules,
   replayDataEqual,
   type FourShogiReplayFrame,
-} from "./fourShogiReplay";
+} from "./fourShogiReplayV1";
 
 export async function fetchFourShogiMatchReplay(
   match: FourShogiMatchDetail,
   signal: AbortSignal,
 ): Promise<FourShogiReplayFrame[]> {
   let cursor = 0;
-  let state = createInitialState(match.replay.initial);
-  const frames = [createFourShogiReplayFrame(state)];
+  const rules = getFourShogiReplayRules(match.replay.rulesVersion);
+  let state = rules.initialize(match.replay.initial);
+  const frames = [rules.createFrame(state)];
   for (;;) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     const query = cursor === 0 ? "" : `?cursor=${cursor}`;
@@ -47,10 +46,10 @@ export async function fetchFourShogiMatchReplay(
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       if (entry.index !== cursor) throw new Error("Saved replay event index mismatch");
       const event = entry.event;
-      const result = applyFourShogiReplayEvent(state, event);
+      const result = rules.applyEvent(state, event);
       if (!result.ok) throw new Error("Saved replay event is invalid");
       state = result.state;
-      frames.push(createFourShogiReplayFrame(state, event));
+      frames.push(rules.createFrame(state, event));
       cursor++;
     }
     if (page.nextCursor === null) break;

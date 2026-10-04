@@ -27,6 +27,7 @@
     "@tetraboard/four-shogi": "workspace:*",
     "@tetraboard/protocol": "workspace:*",
     "better-auth": "1.7.5",
-    "hono": "^4.13.10"
+    "hono": "^4.13.10",
+    "zod": "^4.0.0"
   }
 }

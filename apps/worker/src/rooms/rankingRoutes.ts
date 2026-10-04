@@ -1,7 +1,6 @@
 import { defaultGameId, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
-  getFourReversiRankingsContract,
   gameRankingContracts,
   type RankingsFor,
   type MatchGame,
@@ -9,15 +8,16 @@ import {
   type RoomMode,
 } from "@tetraboard/protocol";
 import { profileAvatarUrl } from "../accounts/auth";
+import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
 
-export async function readGameRankings(
+async function queryGameRankings(
   db: D1Database,
   game: MatchGame = defaultGameId,
 ): Promise<FourReversiRankings> {
   // 保存済みの結果を一度集計し、同順位の判定と人数制限を別々に扱います。
   const rows = await db
-    .prepare(`${matchOutcomesCte(false)}, totals AS (
+    .prepare(`${matchOutcomesCte(game, false)}, totals AS (
     SELECT account_id, mode, COUNT(*) AS total,
       SUM(CASE WHEN mode = 'singles' AND rank = 1 THEN 1
         WHEN mode = 'doubles' AND winner = team THEN 1 ELSE 0 END) AS victories
@@ -66,14 +66,32 @@ export async function readGameRankings(
     else if (row.mode === "singles" && row.metric === "first") rankings.singles.first.push(entry);
     else if (row.mode === "doubles" && row.metric === "wins") rankings.doubles.wins.push(entry);
   }
-  return getFourReversiRankingsContract.response.parse(rankings);
+  return rankings;
 }
 
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
 export const rankingReaders = {
-  "four-reversi": (db: D1Database) => readGameRankings(db, "four-reversi"),
-  "four-shogi": (db: D1Database) => readGameRankings(db, "four-shogi"),
+  "four-reversi": async (db: D1Database) =>
+    matchDataContracts["four-reversi"].rankings(await queryGameRankings(db, "four-reversi")),
+  "four-shogi": async (db: D1Database) =>
+    matchDataContracts["four-shogi"].rankings(await queryGameRankings(db, "four-shogi")),
 } satisfies { [G in GameId]: (db: D1Database) => Promise<RankingsFor<G>> };
+export async function readGameRankings(
+  db: D1Database,
+  game: MatchGame = defaultGameId,
+): Promise<RankingsFor<GameId>> {
+  switch (game) {
+    case "four-reversi":
+      return rankingReaders[game](db);
+    case "four-shogi":
+      return rankingReaders[game](db);
+    default: {
+      const exhaustive: never = game;
+      throw new Error(`Unsupported ranking game: ${exhaustive}`);
+    }
+  }
+}
+
 for (const game of gameIds) {
   const contract = gameRankingContracts[game];
   rankingRoutes.get(contract.path, async (c) => {

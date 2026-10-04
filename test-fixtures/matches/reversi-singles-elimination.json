@@ -1,0 +1,398 @@
+{
+  "sourceCommit": "87a832a3b4c836da45b384651e2cf3ffd45f2b4b",
+  "storageFormat": "unversioned",
+  "name": "reversi-singles-elimination",
+  "detail": {
+    "id": "55555555-5555-4555-8555-000000000011",
+    "roomId": "12345",
+    "startedAtMs": 1700000000000,
+    "endedAtMs": 1700000001000,
+    "settings": {
+      "game": "four-reversi",
+      "mode": "singles",
+      "timeControl": {
+        "mainTimeMs": 300000,
+        "byoyomiMs": 30000
+      }
+    },
+    "participants": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "さしすせそたちつてと",
+        "color": "blue",
+        "seat": 0,
+        "kind": "human",
+        "avatarUrl": null
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "あいうえおかきくけこ",
+        "color": "black",
+        "seat": 1,
+        "kind": "human",
+        "avatarUrl": null
+      },
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "name": "CPU Lv1",
+        "color": "white",
+        "seat": 2,
+        "kind": "cpu",
+        "level": 1
+      },
+      {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "name": "CPU Lv2",
+        "color": "red",
+        "seat": 3,
+        "kind": "cpu",
+        "level": 2
+      }
+    ],
+    "selfPlayerId": "22222222-2222-4222-8222-222222222222",
+    "game": {
+      "mode": "singles",
+      "board": [
+        [null, null, null, null, null, null, null, null],
+        [null, null, null, null, null, null, null, null],
+        [null, null, null, "black", null, null, null, null],
+        [null, null, "black", "black", "black", "blue", null, null],
+        [null, null, "red", "white", "blue", null, null, null],
+        [null, null, null, null, "white", null, null, null],
+        [null, null, null, null, null, null, null, null],
+        [null, null, null, null, null, null, null, null]
+      ],
+      "moveNumber": 1,
+      "lastMove": {
+        "x": 2,
+        "y": 3
+      },
+      "eliminatedColors": ["white", "red", "black"],
+      "consecutivePasses": [],
+      "status": "finished",
+      "turn": null,
+      "result": {
+        "mode": "singles",
+        "reason": "last_player",
+        "standings": [
+          {
+            "color": "blue",
+            "rank": 1,
+            "stoneCount": 2
+          },
+          {
+            "color": "black",
+            "rank": 2
+          },
+          {
+            "color": "red",
+            "rank": 3
+          },
+          {
+            "color": "white",
+            "rank": 4
+          }
+        ]
+      }
+    },
+    "eliminations": [
+      {
+        "color": "white",
+        "reason": "timeout"
+      },
+      {
+        "color": "red",
+        "reason": "resigned"
+      },
+      {
+        "color": "black",
+        "reason": "disconnected"
+      }
+    ],
+    "replay": {
+      "id": "55555555-5555-4555-8555-000000000011",
+      "initial": {
+        "mode": "singles",
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "black", null, null, null, null],
+          [null, null, null, "red", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "moveNumber": 0,
+        "lastMove": null,
+        "eliminatedColors": [],
+        "consecutivePasses": [],
+        "status": "playing",
+        "turn": "black",
+        "result": null
+      },
+      "steps": [
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          "game": {
+            "mode": "singles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 1,
+            "lastMove": {
+              "x": 2,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "color": "white",
+            "reason": "timeout",
+            "type": "eliminate"
+          },
+          "game": {
+            "mode": "singles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 1,
+            "lastMove": {
+              "x": 2,
+              "y": 3
+            },
+            "eliminatedColors": ["white"],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "color": "red",
+            "reason": "resigned",
+            "type": "eliminate"
+          },
+          "game": {
+            "mode": "singles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 1,
+            "lastMove": {
+              "x": 2,
+              "y": 3
+            },
+            "eliminatedColors": ["white", "red"],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "color": "black",
+            "reason": "disconnected",
+            "type": "eliminate"
+          },
+          "game": {
+            "mode": "singles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 1,
+            "lastMove": {
+              "x": 2,
+              "y": 3
+            },
+            "eliminatedColors": ["white", "red", "black"],
+            "consecutivePasses": [],
+            "status": "finished",
+            "turn": null,
+            "result": {
+              "mode": "singles",
+              "reason": "last_player",
+              "standings": [
+                {
+                  "color": "blue",
+                  "rank": 1,
+                  "stoneCount": 2
+                },
+                {
+                  "color": "black",
+                  "rank": 2
+                },
+                {
+                  "color": "red",
+                  "rank": 3
+                },
+                {
+                  "color": "white",
+                  "rank": 4
+                }
+              ]
+            }
+          },
+          "passedColors": []
+        }
+      ]
+    }
+  },
+  "recordJson": "{\"id\":\"55555555-5555-4555-8555-000000000011\",\"roomId\":\"12345\",\"startedAtMs\":1700000000000,\"endedAtMs\":1700000001000,\"settings\":{\"game\":\"four-reversi\",\"mode\":\"singles\",\"timeControl\":{\"mainTimeMs\":300000,\"byoyomiMs\":30000}},\"game\":{\"mode\":\"singles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":1,\"lastMove\":{\"x\":2,\"y\":3},\"eliminatedColors\":[\"white\",\"red\",\"black\"],\"consecutivePasses\":[],\"status\":\"finished\",\"turn\":null,\"result\":{\"mode\":\"singles\",\"reason\":\"last_player\",\"standings\":[{\"color\":\"blue\",\"rank\":1,\"stoneCount\":2},{\"color\":\"black\",\"rank\":2},{\"color\":\"red\",\"rank\":3},{\"color\":\"white\",\"rank\":4}]}},\"eliminations\":[{\"color\":\"white\",\"reason\":\"timeout\"},{\"color\":\"red\",\"reason\":\"resigned\"},{\"color\":\"black\",\"reason\":\"disconnected\"}],\"replay\":{\"id\":\"55555555-5555-4555-8555-000000000011\",\"initial\":{\"mode\":\"singles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,\"red\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":0,\"lastMove\":null,\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"steps\":[{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":2,\"y\":3}},\"game\":{\"mode\":\"singles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":1,\"lastMove\":{\"x\":2,\"y\":3},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"color\":\"white\",\"reason\":\"timeout\",\"type\":\"eliminate\"},\"game\":{\"mode\":\"singles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":1,\"lastMove\":{\"x\":2,\"y\":3},\"eliminatedColors\":[\"white\"],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"color\":\"red\",\"reason\":\"resigned\",\"type\":\"eliminate\"},\"game\":{\"mode\":\"singles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":1,\"lastMove\":{\"x\":2,\"y\":3},\"eliminatedColors\":[\"white\",\"red\"],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"color\":\"black\",\"reason\":\"disconnected\",\"type\":\"eliminate\"},\"game\":{\"mode\":\"singles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":1,\"lastMove\":{\"x\":2,\"y\":3},\"eliminatedColors\":[\"white\",\"red\",\"black\"],\"consecutivePasses\":[],\"status\":\"finished\",\"turn\":null,\"result\":{\"mode\":\"singles\",\"reason\":\"last_player\",\"standings\":[{\"color\":\"blue\",\"rank\":1,\"stoneCount\":2},{\"color\":\"black\",\"rank\":2},{\"color\":\"red\",\"rank\":3},{\"color\":\"white\",\"rank\":4}]}},\"passedColors\":[]}]},\"instanceId\":\"77777777-7777-4777-8777-777777777777\",\"participants\":[{\"id\":\"11111111-1111-4111-8111-111111111111\",\"name\":\"さしすせそたちつてと\",\"color\":\"blue\",\"seat\":0,\"kind\":\"human\",\"accountId\":\"fixture-other\"},{\"id\":\"22222222-2222-4222-8222-222222222222\",\"name\":\"あいうえおかきくけこ\",\"color\":\"black\",\"seat\":1,\"kind\":\"human\",\"accountId\":\"fixture-self\"},{\"id\":\"33333333-3333-4333-8333-333333333333\",\"name\":\"CPU Lv1\",\"color\":\"white\",\"seat\":2,\"kind\":\"cpu\",\"level\":1},{\"id\":\"44444444-4444-4444-8444-444444444444\",\"name\":\"CPU Lv2\",\"color\":\"red\",\"seat\":3,\"kind\":\"cpu\",\"level\":2}]}",
+  "events": [],
+  "frameCount": 5,
+  "checkpoints": [
+    {
+      "index": 0,
+      "frame": {
+        "label": "開始局面",
+        "game": {
+          "mode": "singles",
+          "board": [
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, "black", null, null, null, null],
+            [null, null, null, "red", "black", "blue", null, null],
+            [null, null, "red", "white", "blue", null, null, null],
+            [null, null, null, null, "white", null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 0,
+          "lastMove": null,
+          "eliminatedColors": [],
+          "consecutivePasses": [],
+          "status": "playing",
+          "turn": "black",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 2,
+      "frame": {
+        "label": "白 時間切れ",
+        "game": {
+          "mode": "singles",
+          "board": [
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, "black", null, null, null, null],
+            [null, null, "black", "black", "black", "blue", null, null],
+            [null, null, "red", "white", "blue", null, null, null],
+            [null, null, null, null, "white", null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 1,
+          "lastMove": {
+            "x": 2,
+            "y": 3
+          },
+          "eliminatedColors": ["white"],
+          "consecutivePasses": [],
+          "status": "playing",
+          "turn": "red",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 4,
+      "frame": {
+        "label": "黒 通信切れ",
+        "game": {
+          "mode": "singles",
+          "board": [
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, "black", null, null, null, null],
+            [null, null, "black", "black", "black", "blue", null, null],
+            [null, null, "red", "white", "blue", null, null, null],
+            [null, null, null, null, "white", null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 1,
+          "lastMove": {
+            "x": 2,
+            "y": 3
+          },
+          "eliminatedColors": ["white", "red", "black"],
+          "consecutivePasses": [],
+          "status": "finished",
+          "turn": null,
+          "result": {
+            "mode": "singles",
+            "reason": "last_player",
+            "standings": [
+              {
+                "color": "blue",
+                "rank": 1,
+                "stoneCount": 2
+              },
+              {
+                "color": "black",
+                "rank": 2
+              },
+              {
+                "color": "red",
+                "rank": 3
+              },
+              {
+                "color": "white",
+                "rank": 4
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

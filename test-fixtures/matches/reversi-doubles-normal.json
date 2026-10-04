@@ -1,0 +1,2338 @@
+{
+  "sourceCommit": "87a832a3b4c836da45b384651e2cf3ffd45f2b4b",
+  "storageFormat": "unversioned",
+  "name": "reversi-doubles-normal",
+  "detail": {
+    "id": "55555555-5555-4555-8555-000000000014",
+    "roomId": "12345",
+    "startedAtMs": 1700000000000,
+    "endedAtMs": 1700000001000,
+    "settings": {
+      "game": "four-reversi",
+      "mode": "doubles",
+      "timeControl": {
+        "mainTimeMs": 300000,
+        "byoyomiMs": 30000
+      }
+    },
+    "participants": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "さしすせそたちつてと",
+        "color": "blue",
+        "seat": 0,
+        "kind": "human",
+        "avatarUrl": null
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "あいうえおかきくけこ",
+        "color": "black",
+        "seat": 1,
+        "kind": "human",
+        "avatarUrl": null
+      },
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "name": "CPU Lv1",
+        "color": "white",
+        "seat": 2,
+        "kind": "cpu",
+        "level": 1
+      },
+      {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "name": "CPU Lv2",
+        "color": "red",
+        "seat": 3,
+        "kind": "cpu",
+        "level": 2
+      }
+    ],
+    "selfPlayerId": "22222222-2222-4222-8222-222222222222",
+    "game": {
+      "mode": "doubles",
+      "board": [
+        ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+        ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+        ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+        ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+        ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+        ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+        ["blue", "white", "red", "black", "red", "red", "blue", "blue"],
+        ["white", "red", null, null, "red", "blue", "blue", "blue"]
+      ],
+      "moveNumber": 54,
+      "lastMove": {
+        "x": 4,
+        "y": 7
+      },
+      "eliminatedColors": [],
+      "consecutivePasses": ["blue", "black", "white", "red"],
+      "status": "finished",
+      "turn": null,
+      "result": {
+        "mode": "doubles",
+        "reason": "all_passed",
+        "winner": "white-blue",
+        "stoneCounts": [
+          {
+            "color": "black",
+            "count": 1
+          },
+          {
+            "color": "white",
+            "count": 15
+          },
+          {
+            "color": "red",
+            "count": 15
+          },
+          {
+            "color": "blue",
+            "count": 31
+          }
+        ],
+        "teamTotals": {
+          "black-red": 16,
+          "white-blue": 46
+        }
+      }
+    },
+    "eliminations": [],
+    "replay": {
+      "id": "55555555-5555-4555-8555-000000000014",
+      "initial": {
+        "mode": "doubles",
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "black", null, null, null, null],
+          [null, null, null, "red", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "moveNumber": 0,
+        "lastMove": null,
+        "eliminatedColors": [],
+        "consecutivePasses": [],
+        "status": "playing",
+        "turn": "black",
+        "result": null
+      },
+      "steps": [
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 1,
+            "lastMove": {
+              "x": 2,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 3,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "white", null, null, null, null],
+              [null, null, null, "white", null, null, null, null],
+              [null, null, "black", "white", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 2,
+            "lastMove": {
+              "x": 3,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "white", null, null, null, null],
+              [null, null, "red", "white", null, null, null, null],
+              [null, null, "red", "white", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 3,
+            "lastMove": {
+              "x": 2,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, "blue", null, "white", null, null, null, null],
+              [null, null, "blue", "white", null, null, null, null],
+              [null, null, "red", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 4,
+            "lastMove": {
+              "x": 1,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, "blue", "black", "white", null, null, null, null],
+              [null, null, "blue", "black", null, null, null, null],
+              [null, null, "red", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 5,
+            "lastMove": {
+              "x": 2,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              ["white", "white", "white", "white", null, null, null, null],
+              [null, null, "blue", "black", null, null, null, null],
+              [null, null, "red", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 6,
+            "lastMove": {
+              "x": 0,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 2,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              [null, null, "red", null, null, null, null, null],
+              ["white", "white", "red", "white", null, null, null, null],
+              [null, null, "red", "black", null, null, null, null],
+              [null, null, "red", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 7,
+            "lastMove": {
+              "x": 2,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", null, "red", null, null, null, null, null],
+              ["white", "blue", "red", "white", null, null, null, null],
+              [null, null, "blue", "black", null, null, null, null],
+              [null, null, "red", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 8,
+            "lastMove": {
+              "x": 0,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "black", "red", null, null, null, null, null],
+              ["white", "blue", "black", "white", null, null, null, null],
+              [null, null, "blue", "black", null, null, null, null],
+              [null, null, "red", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 9,
+            "lastMove": {
+              "x": 1,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "black", "red", null, null, null, null, null],
+              ["white", "blue", "black", "white", null, null, null, null],
+              [null, "white", "blue", "black", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 10,
+            "lastMove": {
+              "x": 1,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 0,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "black", "red", null, null, null, null, null],
+              ["white", "red", "black", "white", null, null, null, null],
+              ["red", "white", "blue", "black", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 11,
+            "lastMove": {
+              "x": 0,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 3,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", null, null, null, null],
+              ["white", "red", "black", "blue", null, null, null, null],
+              ["red", "white", "blue", "blue", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 12,
+            "lastMove": {
+              "x": 3,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 4,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", null, null, null, null],
+              ["white", "red", "black", "black", "black", null, null, null],
+              ["red", "white", "blue", "blue", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 13,
+            "lastMove": {
+              "x": 4,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 5,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", null, "white", null, null],
+              ["white", "red", "black", "black", "white", null, null, null],
+              ["red", "white", "blue", "white", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 14,
+            "lastMove": {
+              "x": 5,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 5,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", null, "white", null, null],
+              ["white", "red", "red", "red", "red", "red", null, null],
+              ["red", "white", "blue", "white", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 15,
+            "lastMove": {
+              "x": 5,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 4,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "white", null, null],
+              ["white", "red", "red", "blue", "red", "red", null, null],
+              ["red", "white", "blue", "white", null, null, null, null],
+              [null, null, "white", "blue", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 16,
+            "lastMove": {
+              "x": 4,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 1,
+              "y": 3
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "white", null, null],
+              ["white", "red", "red", "blue", "red", "red", null, null],
+              ["red", "white", "blue", "white", null, null, null, null],
+              [null, "black", "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 17,
+            "lastMove": {
+              "x": 1,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 6,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["red", "white", "blue", "white", null, null, null, null],
+              [null, "black", "black", "black", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 18,
+            "lastMove": {
+              "x": 6,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 4,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["red", "red", "red", "red", "red", null, null, null],
+              [null, "black", "black", "red", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 19,
+            "lastMove": {
+              "x": 4,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 6,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["red", "red", "red", "red", "red", null, null, null],
+              [null, "black", "black", "red", "black", "blue", null, null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 20,
+            "lastMove": {
+              "x": 6,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 6,
+              "y": 3
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["red", "red", "red", "red", "red", null, null, null],
+              [null, "black", "black", "red", "black", "black", "black", null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 21,
+            "lastMove": {
+              "x": 6,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 5,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["red", "red", "red", "red", "red", "white", null, null],
+              [null, "black", "black", "red", "white", "black", "black", null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 22,
+            "lastMove": {
+              "x": 5,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 6,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["red", "red", "red", "red", "red", "red", "red", null],
+              [null, "black", "black", "red", "white", "black", "black", null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 23,
+            "lastMove": {
+              "x": 6,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 7,
+              "y": 1
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", "blue"],
+              ["red", "red", "red", "red", "red", "red", "blue", null],
+              [null, "black", "black", "red", "white", "blue", "black", null],
+              [null, null, "red", "white", "blue", null, null, null],
+              [null, null, null, null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 24,
+            "lastMove": {
+              "x": 7,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", "blue"],
+              ["red", "red", "red", "red", "red", "red", "blue", null],
+              [null, "black", "black", "red", "white", "blue", "black", null],
+              [null, null, "black", "white", "blue", null, null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 25,
+            "lastMove": {
+              "x": 2,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 3
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", null],
+              ["white", "white", "white", "white", "white", "white", "white", "blue"],
+              ["white", "white", "red", "red", "red", "red", "blue", null],
+              ["white", "white", "white", "white", "white", "blue", "black", null],
+              [null, null, "black", "white", "blue", null, null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 26,
+            "lastMove": {
+              "x": 0,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 7,
+              "y": 0
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "white", "white", "white", "white", "white", "red", "blue"],
+              ["white", "white", "red", "red", "red", "red", "blue", null],
+              ["white", "white", "white", "white", "white", "blue", "black", null],
+              [null, null, "black", "white", "blue", null, null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 27,
+            "lastMove": {
+              "x": 7,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 7,
+              "y": 2
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "white", "white", "white", "white", "white", "blue", "blue"],
+              ["white", "white", "red", "red", "red", "red", "blue", "blue"],
+              ["white", "white", "white", "white", "white", "blue", "black", null],
+              [null, null, "black", "white", "blue", null, null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 28,
+            "lastMove": {
+              "x": 7,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 5,
+              "y": 4
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "white", "white", "white", "white", "white", "blue", "blue"],
+              ["white", "white", "red", "red", "red", "red", "blue", "blue"],
+              ["white", "white", "white", "white", "white", "blue", "black", null],
+              [null, null, "black", "black", "black", "black", null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 29,
+            "lastMove": {
+              "x": 5,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 7,
+              "y": 3
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "white", "white", "white", "white", "white", "blue", "blue"],
+              ["white", "white", "red", "red", "red", "red", "white", "blue"],
+              ["white", "white", "white", "white", "white", "white", "white", "white"],
+              [null, null, "black", "black", "black", "black", null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 30,
+            "lastMove": {
+              "x": 7,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 0,
+              "y": 4
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "white", "white", "white", "white", "white", "blue", "blue"],
+              ["white", "white", "red", "red", "red", "red", "white", "blue"],
+              ["white", "red", "white", "white", "white", "white", "white", "white"],
+              ["red", null, "black", "black", "black", "black", null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 31,
+            "lastMove": {
+              "x": 0,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 1,
+              "y": 4
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "red", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "white", "white", "white"],
+              ["red", "blue", "black", "black", "black", "black", null, null],
+              [null, null, "black", null, "white", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 32,
+            "lastMove": {
+              "x": 1,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 3,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "red", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "white", "white", "white"],
+              ["red", "blue", "black", "black", "black", "black", null, null],
+              [null, null, "black", null, "black", null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 33,
+            "lastMove": {
+              "x": 3,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "red", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "white", "white", "white"],
+              ["white", "blue", "black", "black", "black", "black", null, null],
+              ["white", null, "black", null, "black", null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 34,
+            "lastMove": {
+              "x": 0,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 6,
+              "y": 4
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "red", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "red", "white", "white"],
+              ["white", "blue", "black", "black", "black", "black", "red", null],
+              ["white", null, "black", null, "black", null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 35,
+            "lastMove": {
+              "x": 6,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 7,
+              "y": 4
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "blue", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "red", "blue", "blue"],
+              ["white", "blue", "blue", "blue", "blue", "blue", "blue", "blue"],
+              ["white", null, "black", null, "black", null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 36,
+            "lastMove": {
+              "x": 7,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["black"],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": ["black"]
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "blue", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "red", "blue", "blue"],
+              ["white", "blue", "white", "blue", "blue", "blue", "blue", "blue"],
+              ["white", "white", "black", null, "black", null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 37,
+            "lastMove": {
+              "x": 1,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 3,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "red", "blue", "red", "blue", "white", "blue"],
+              ["white", "blue", "blue", "white", "white", "red", "blue", "blue"],
+              ["white", "blue", "white", "blue", "red", "blue", "blue", "blue"],
+              ["white", "white", "black", "red", "black", null, null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 38,
+            "lastMove": {
+              "x": 3,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 5,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "blue", "blue", "red", "blue", "white", "blue"],
+              ["white", "blue", "blue", "blue", "white", "red", "blue", "blue"],
+              ["white", "blue", "white", "blue", "blue", "blue", "blue", "blue"],
+              ["white", "white", "black", "red", "black", "blue", null, null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 39,
+            "lastMove": {
+              "x": 5,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "black",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 6,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "blue", "blue", "red", "blue", "white", "blue"],
+              ["white", "blue", "blue", "blue", "white", "red", "blue", "blue"],
+              ["white", "blue", "white", "blue", "blue", "blue", "blue", "blue"],
+              ["white", "white", "black", "red", "black", "black", "black", null],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 40,
+            "lastMove": {
+              "x": 6,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 7,
+              "y": 5
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+              ["white", "blue", "blue", "blue", "white", "blue", "white", "blue"],
+              ["white", "blue", "blue", "blue", "white", "white", "blue", "blue"],
+              ["white", "blue", "white", "blue", "blue", "blue", "white", "blue"],
+              ["white", "white", "white", "white", "white", "white", "white", "white"],
+              [null, null, null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 41,
+            "lastMove": {
+              "x": 7,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 1,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["white", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["white", "blue", "blue", "blue", "white", "red", "white", "blue"],
+              ["white", "blue", "blue", "blue", "red", "white", "blue", "blue"],
+              ["white", "blue", "white", "red", "blue", "blue", "white", "blue"],
+              ["white", "white", "red", "white", "white", "white", "white", "white"],
+              [null, "red", null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 42,
+            "lastMove": {
+              "x": 1,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 0,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "blue", "blue", "white", "red", "white", "blue"],
+              ["blue", "blue", "blue", "blue", "red", "white", "blue", "blue"],
+              ["blue", "blue", "blue", "red", "blue", "blue", "white", "blue"],
+              ["blue", "blue", "red", "white", "white", "white", "white", "white"],
+              ["blue", "red", null, "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 43,
+            "lastMove": {
+              "x": 0,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["black"],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": ["black"]
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 2,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "red", "white", "blue", "blue"],
+              ["blue", "blue", "white", "red", "blue", "blue", "white", "blue"],
+              ["blue", "blue", "white", "white", "white", "white", "white", "white"],
+              ["blue", "red", "white", "black", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 44,
+            "lastMove": {
+              "x": 2,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 5,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "red", "red", "blue", "blue"],
+              ["blue", "blue", "white", "red", "blue", "red", "white", "blue"],
+              ["blue", "blue", "white", "white", "red", "red", "white", "white"],
+              ["blue", "red", "white", "black", null, "red", null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 45,
+            "lastMove": {
+              "x": 5,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 6,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "red", "red", "blue", "blue"],
+              ["blue", "blue", "white", "red", "blue", "red", "blue", "blue"],
+              ["blue", "blue", "white", "white", "red", "blue", "blue", "white"],
+              ["blue", "red", "white", "black", null, "red", "blue", null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 46,
+            "lastMove": {
+              "x": 6,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["black"],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": ["black"]
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 7,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "blue", "blue"],
+              ["blue", "blue", "white", "red", "blue", "white", "blue", "blue"],
+              ["blue", "blue", "white", "white", "red", "blue", "white", "white"],
+              ["blue", "red", "white", "black", null, "red", "blue", "white"],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "moveNumber": 47,
+            "lastMove": {
+              "x": 7,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 1,
+              "y": 7
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "blue", "blue"],
+              ["blue", "blue", "white", "red", "red", "white", "blue", "blue"],
+              ["blue", "blue", "white", "red", "red", "blue", "white", "white"],
+              ["blue", "red", "red", "black", null, "red", "blue", "white"],
+              [null, "red", null, null, null, null, null, null]
+            ],
+            "moveNumber": 48,
+            "lastMove": {
+              "x": 1,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 5,
+              "y": 7
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "blue", "blue"],
+              ["blue", "blue", "white", "red", "red", "white", "blue", "blue"],
+              ["blue", "blue", "white", "red", "red", "blue", "white", "white"],
+              ["blue", "red", "red", "black", null, "blue", "blue", "white"],
+              [null, "red", null, null, null, "blue", null, null]
+            ],
+            "moveNumber": 49,
+            "lastMove": {
+              "x": 5,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["black"],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": ["black"]
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 4,
+              "y": 6
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "white", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "blue", "blue"],
+              ["blue", "blue", "white", "red", "white", "white", "blue", "blue"],
+              ["blue", "blue", "white", "white", "white", "blue", "white", "white"],
+              ["blue", "red", "red", "black", "white", "white", "white", "white"],
+              [null, "red", null, null, null, "blue", null, null]
+            ],
+            "moveNumber": 50,
+            "lastMove": {
+              "x": 4,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 6,
+              "y": 7
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "red", "blue", "red", "white"],
+              ["blue", "red", "red", "black", "white", "red", "red", "white"],
+              [null, "red", null, null, null, "blue", "red", null]
+            ],
+            "moveNumber": 51,
+            "lastMove": {
+              "x": 6,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "blue",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "blue",
+            "position": {
+              "x": 7,
+              "y": 7
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+              ["blue", "red", "red", "black", "white", "red", "blue", "blue"],
+              [null, "red", null, null, null, "blue", "blue", "blue"]
+            ],
+            "moveNumber": 52,
+            "lastMove": {
+              "x": 7,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["black"],
+            "status": "playing",
+            "turn": "white",
+            "result": null
+          },
+          "passedColors": ["black"]
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 7
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+              ["blue", "white", "red", "black", "white", "red", "blue", "blue"],
+              ["white", "red", null, null, null, "blue", "blue", "blue"]
+            ],
+            "moveNumber": 53,
+            "lastMove": {
+              "x": 0,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "status": "playing",
+            "turn": "red",
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "red",
+            "position": {
+              "x": 4,
+              "y": 7
+            }
+          },
+          "game": {
+            "mode": "doubles",
+            "board": [
+              ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+              ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+              ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+              ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+              ["blue", "white", "red", "black", "red", "red", "blue", "blue"],
+              ["white", "red", null, null, "red", "blue", "blue", "blue"]
+            ],
+            "moveNumber": 54,
+            "lastMove": {
+              "x": 4,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["blue", "black", "white", "red"],
+            "status": "finished",
+            "turn": null,
+            "result": {
+              "mode": "doubles",
+              "reason": "all_passed",
+              "winner": "white-blue",
+              "stoneCounts": [
+                {
+                  "color": "black",
+                  "count": 1
+                },
+                {
+                  "color": "white",
+                  "count": 15
+                },
+                {
+                  "color": "red",
+                  "count": 15
+                },
+                {
+                  "color": "blue",
+                  "count": 31
+                }
+              ],
+              "teamTotals": {
+                "black-red": 16,
+                "white-blue": 46
+              }
+            }
+          },
+          "passedColors": ["blue", "black", "white", "red"]
+        }
+      ]
+    }
+  },
+  "recordJson": "{\"id\":\"55555555-5555-4555-8555-000000000014\",\"roomId\":\"12345\",\"startedAtMs\":1700000000000,\"endedAtMs\":1700000001000,\"settings\":{\"game\":\"four-reversi\",\"mode\":\"doubles\",\"timeControl\":{\"mainTimeMs\":300000,\"byoyomiMs\":30000}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"white\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"red\",\"blue\"],[\"blue\",\"white\",\"red\",\"black\",\"red\",\"red\",\"blue\",\"blue\"],[\"white\",\"red\",null,null,\"red\",\"blue\",\"blue\",\"blue\"]],\"moveNumber\":54,\"lastMove\":{\"x\":4,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[\"blue\",\"black\",\"white\",\"red\"],\"status\":\"finished\",\"turn\":null,\"result\":{\"mode\":\"doubles\",\"reason\":\"all_passed\",\"winner\":\"white-blue\",\"stoneCounts\":[{\"color\":\"black\",\"count\":1},{\"color\":\"white\",\"count\":15},{\"color\":\"red\",\"count\":15},{\"color\":\"blue\",\"count\":31}],\"teamTotals\":{\"black-red\":16,\"white-blue\":46}}},\"eliminations\":[],\"replay\":{\"id\":\"55555555-5555-4555-8555-000000000014\",\"initial\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,\"red\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":0,\"lastMove\":null,\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"steps\":[{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":2,\"y\":3}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":1,\"lastMove\":{\"x\":2,\"y\":3},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":3,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,\"white\",null,null,null,null],[null,null,null,\"white\",null,null,null,null],[null,null,\"black\",\"white\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":2,\"lastMove\":{\"x\":3,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":2,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[null,null,null,\"white\",null,null,null,null],[null,null,\"red\",\"white\",null,null,null,null],[null,null,\"red\",\"white\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":3,\"lastMove\":{\"x\":2,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":1,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[null,\"blue\",null,\"white\",null,null,null,null],[null,null,\"blue\",\"white\",null,null,null,null],[null,null,\"red\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":4,\"lastMove\":{\"x\":1,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":2,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[null,\"blue\",\"black\",\"white\",null,null,null,null],[null,null,\"blue\",\"black\",null,null,null,null],[null,null,\"red\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":5,\"lastMove\":{\"x\":2,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":0,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,null,null,null,null,null,null],[\"white\",\"white\",\"white\",\"white\",null,null,null,null],[null,null,\"blue\",\"black\",null,null,null,null],[null,null,\"red\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":6,\"lastMove\":{\"x\":0,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":2,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[null,null,\"red\",null,null,null,null,null],[\"white\",\"white\",\"red\",\"white\",null,null,null,null],[null,null,\"red\",\"black\",null,null,null,null],[null,null,\"red\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":7,\"lastMove\":{\"x\":2,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":0,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",null,\"red\",null,null,null,null,null],[\"white\",\"blue\",\"red\",\"white\",null,null,null,null],[null,null,\"blue\",\"black\",null,null,null,null],[null,null,\"red\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":8,\"lastMove\":{\"x\":0,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":1,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"black\",\"red\",null,null,null,null,null],[\"white\",\"blue\",\"black\",\"white\",null,null,null,null],[null,null,\"blue\",\"black\",null,null,null,null],[null,null,\"red\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":9,\"lastMove\":{\"x\":1,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":1,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"black\",\"red\",null,null,null,null,null],[\"white\",\"blue\",\"black\",\"white\",null,null,null,null],[null,\"white\",\"blue\",\"black\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":10,\"lastMove\":{\"x\":1,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":0,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"black\",\"red\",null,null,null,null,null],[\"white\",\"red\",\"black\",\"white\",null,null,null,null],[\"red\",\"white\",\"blue\",\"black\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":11,\"lastMove\":{\"x\":0,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":3,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",null,null,null,null],[\"white\",\"red\",\"black\",\"blue\",null,null,null,null],[\"red\",\"white\",\"blue\",\"blue\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":12,\"lastMove\":{\"x\":3,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":4,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",null,null,null,null],[\"white\",\"red\",\"black\",\"black\",\"black\",null,null,null],[\"red\",\"white\",\"blue\",\"blue\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":13,\"lastMove\":{\"x\":4,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":5,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",null,\"white\",null,null],[\"white\",\"red\",\"black\",\"black\",\"white\",null,null,null],[\"red\",\"white\",\"blue\",\"white\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":14,\"lastMove\":{\"x\":5,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":5,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",null,\"white\",null,null],[\"white\",\"red\",\"red\",\"red\",\"red\",\"red\",null,null],[\"red\",\"white\",\"blue\",\"white\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":15,\"lastMove\":{\"x\":5,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":4,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"white\",null,null],[\"white\",\"red\",\"red\",\"blue\",\"red\",\"red\",null,null],[\"red\",\"white\",\"blue\",\"white\",null,null,null,null],[null,null,\"white\",\"blue\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":16,\"lastMove\":{\"x\":4,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":1,\"y\":3}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"white\",null,null],[\"white\",\"red\",\"red\",\"blue\",\"red\",\"red\",null,null],[\"red\",\"white\",\"blue\",\"white\",null,null,null,null],[null,\"black\",\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":17,\"lastMove\":{\"x\":1,\"y\":3},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":6,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"white\",null,null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",null],[\"red\",\"white\",\"blue\",\"white\",null,null,null,null],[null,\"black\",\"black\",\"black\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":18,\"lastMove\":{\"x\":6,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":4,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"white\",null,null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",null],[\"red\",\"red\",\"red\",\"red\",\"red\",null,null,null],[null,\"black\",\"black\",\"red\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":19,\"lastMove\":{\"x\":4,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":6,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",null],[\"red\",\"red\",\"red\",\"red\",\"red\",null,null,null],[null,\"black\",\"black\",\"red\",\"black\",\"blue\",null,null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":20,\"lastMove\":{\"x\":6,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":6,\"y\":3}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",null],[\"red\",\"red\",\"red\",\"red\",\"red\",null,null,null],[null,\"black\",\"black\",\"red\",\"black\",\"black\",\"black\",null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":21,\"lastMove\":{\"x\":6,\"y\":3},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":5,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",null],[\"red\",\"red\",\"red\",\"red\",\"red\",\"white\",null,null],[null,\"black\",\"black\",\"red\",\"white\",\"black\",\"black\",null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":22,\"lastMove\":{\"x\":5,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":6,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",null],[\"red\",\"red\",\"red\",\"red\",\"red\",\"red\",\"red\",null],[null,\"black\",\"black\",\"red\",\"white\",\"black\",\"black\",null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":23,\"lastMove\":{\"x\":6,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":7,\"y\":1}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\"],[\"red\",\"red\",\"red\",\"red\",\"red\",\"red\",\"blue\",null],[null,\"black\",\"black\",\"red\",\"white\",\"blue\",\"black\",null],[null,null,\"red\",\"white\",\"blue\",null,null,null],[null,null,null,null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":24,\"lastMove\":{\"x\":7,\"y\":1},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":2,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\"],[\"red\",\"red\",\"red\",\"red\",\"red\",\"red\",\"blue\",null],[null,\"black\",\"black\",\"red\",\"white\",\"blue\",\"black\",null],[null,null,\"black\",\"white\",\"blue\",null,null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":25,\"lastMove\":{\"x\":2,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":0,\"y\":3}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\"],[\"white\",\"white\",\"red\",\"red\",\"red\",\"red\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"black\",null],[null,null,\"black\",\"white\",\"blue\",null,null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":26,\"lastMove\":{\"x\":0,\"y\":3},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":7,\"y\":0}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"red\",\"blue\"],[\"white\",\"white\",\"red\",\"red\",\"red\",\"red\",\"blue\",null],[\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"black\",null],[null,null,\"black\",\"white\",\"blue\",null,null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":27,\"lastMove\":{\"x\":7,\"y\":0},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":7,\"y\":2}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"blue\"],[\"white\",\"white\",\"red\",\"red\",\"red\",\"red\",\"blue\",\"blue\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"black\",null],[null,null,\"black\",\"white\",\"blue\",null,null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":28,\"lastMove\":{\"x\":7,\"y\":2},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":5,\"y\":4}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"blue\"],[\"white\",\"white\",\"red\",\"red\",\"red\",\"red\",\"blue\",\"blue\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"black\",null],[null,null,\"black\",\"black\",\"black\",\"black\",null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":29,\"lastMove\":{\"x\":5,\"y\":4},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":7,\"y\":3}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"blue\"],[\"white\",\"white\",\"red\",\"red\",\"red\",\"red\",\"white\",\"blue\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\"],[null,null,\"black\",\"black\",\"black\",\"black\",null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":30,\"lastMove\":{\"x\":7,\"y\":3},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":0,\"y\":4}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"blue\",\"blue\"],[\"white\",\"white\",\"red\",\"red\",\"red\",\"red\",\"white\",\"blue\"],[\"white\",\"red\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\"],[\"red\",null,\"black\",\"black\",\"black\",\"black\",null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":31,\"lastMove\":{\"x\":0,\"y\":4},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":1,\"y\":4}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"red\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"white\",\"white\",\"white\"],[\"red\",\"blue\",\"black\",\"black\",\"black\",\"black\",null,null],[null,null,\"black\",null,\"white\",null,null,null],[null,null,null,null,null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":32,\"lastMove\":{\"x\":1,\"y\":4},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":3,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"red\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"white\",\"white\",\"white\"],[\"red\",\"blue\",\"black\",\"black\",\"black\",\"black\",null,null],[null,null,\"black\",null,\"black\",null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":33,\"lastMove\":{\"x\":3,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":0,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"red\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"white\",\"white\",\"white\"],[\"white\",\"blue\",\"black\",\"black\",\"black\",\"black\",null,null],[\"white\",null,\"black\",null,\"black\",null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":34,\"lastMove\":{\"x\":0,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":6,\"y\":4}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"red\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"red\",\"white\",\"white\"],[\"white\",\"blue\",\"black\",\"black\",\"black\",\"black\",\"red\",null],[\"white\",null,\"black\",null,\"black\",null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":35,\"lastMove\":{\"x\":6,\"y\":4},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":7,\"y\":4}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"blue\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\"],[\"white\",null,\"black\",null,\"black\",null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":36,\"lastMove\":{\"x\":7,\"y\":4},\"eliminatedColors\":[],\"consecutivePasses\":[\"black\"],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[\"black\"]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":1,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"blue\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"blue\"],[\"white\",\"blue\",\"white\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\"],[\"white\",\"white\",\"black\",null,\"black\",null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":37,\"lastMove\":{\"x\":1,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":3,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"red\",\"blue\",\"red\",\"blue\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"blue\"],[\"white\",\"blue\",\"white\",\"blue\",\"red\",\"blue\",\"blue\",\"blue\"],[\"white\",\"white\",\"black\",\"red\",\"black\",null,null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":38,\"lastMove\":{\"x\":3,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":5,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"red\",\"blue\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"white\",\"red\",\"blue\",\"blue\"],[\"white\",\"blue\",\"white\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\"],[\"white\",\"white\",\"black\",\"red\",\"black\",\"blue\",null,null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":39,\"lastMove\":{\"x\":5,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"black\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"black\",\"position\":{\"x\":6,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"red\",\"blue\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"white\",\"red\",\"blue\",\"blue\"],[\"white\",\"blue\",\"white\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\"],[\"white\",\"white\",\"black\",\"red\",\"black\",\"black\",\"black\",null],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":40,\"lastMove\":{\"x\":6,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":7,\"y\":5}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"white\",\"blue\",\"blue\",\"blue\",\"white\",\"blue\"],[\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\"],[null,null,null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":41,\"lastMove\":{\"x\":7,\"y\":5},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":1,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"white\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"white\",\"red\",\"white\",\"blue\"],[\"white\",\"blue\",\"blue\",\"blue\",\"red\",\"white\",\"blue\",\"blue\"],[\"white\",\"blue\",\"white\",\"red\",\"blue\",\"blue\",\"white\",\"blue\"],[\"white\",\"white\",\"red\",\"white\",\"white\",\"white\",\"white\",\"white\"],[null,\"red\",null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":42,\"lastMove\":{\"x\":1,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":0,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"blue\",\"blue\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"blue\",\"blue\",\"red\",\"white\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"blue\",\"red\",\"blue\",\"blue\",\"white\",\"blue\"],[\"blue\",\"blue\",\"red\",\"white\",\"white\",\"white\",\"white\",\"white\"],[\"blue\",\"red\",null,\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":43,\"lastMove\":{\"x\":0,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[\"black\"],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[\"black\"]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":2,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"red\",\"white\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"blue\",\"blue\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"white\",\"white\",\"white\"],[\"blue\",\"red\",\"white\",\"black\",null,null,null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":44,\"lastMove\":{\"x\":2,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":5,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"red\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"blue\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"red\",\"white\",\"white\"],[\"blue\",\"red\",\"white\",\"black\",null,\"red\",null,null],[null,null,null,null,null,null,null,null]],\"moveNumber\":45,\"lastMove\":{\"x\":5,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":6,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"red\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"blue\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"blue\",\"white\"],[\"blue\",\"red\",\"white\",\"black\",null,\"red\",\"blue\",null],[null,null,null,null,null,null,null,null]],\"moveNumber\":46,\"lastMove\":{\"x\":6,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[\"black\"],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[\"black\"]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":7,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"blue\",\"white\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"white\",\"white\"],[\"blue\",\"red\",\"white\",\"black\",null,\"red\",\"blue\",\"white\"],[null,null,null,null,null,null,null,null]],\"moveNumber\":47,\"lastMove\":{\"x\":7,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":1,\"y\":7}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"red\",\"white\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"red\",\"blue\",\"white\",\"white\"],[\"blue\",\"red\",\"red\",\"black\",null,\"red\",\"blue\",\"white\"],[null,\"red\",null,null,null,null,null,null]],\"moveNumber\":48,\"lastMove\":{\"x\":1,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":5,\"y\":7}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"red\",\"white\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"red\",\"blue\",\"white\",\"white\"],[\"blue\",\"red\",\"red\",\"black\",null,\"blue\",\"blue\",\"white\"],[null,\"red\",null,null,null,\"blue\",null,null]],\"moveNumber\":49,\"lastMove\":{\"x\":5,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[\"black\"],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[\"black\"]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":4,\"y\":6}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"white\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"white\",\"white\",\"blue\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"blue\",\"white\",\"white\"],[\"blue\",\"red\",\"red\",\"black\",\"white\",\"white\",\"white\",\"white\"],[null,\"red\",null,null,null,\"blue\",null,null]],\"moveNumber\":50,\"lastMove\":{\"x\":4,\"y\":6},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":6,\"y\":7}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"white\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"red\",\"white\"],[\"blue\",\"red\",\"red\",\"black\",\"white\",\"red\",\"red\",\"white\"],[null,\"red\",null,null,null,\"blue\",\"red\",null]],\"moveNumber\":51,\"lastMove\":{\"x\":6,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"blue\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"blue\",\"position\":{\"x\":7,\"y\":7}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"white\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"red\",\"blue\"],[\"blue\",\"red\",\"red\",\"black\",\"white\",\"red\",\"blue\",\"blue\"],[null,\"red\",null,null,null,\"blue\",\"blue\",\"blue\"]],\"moveNumber\":52,\"lastMove\":{\"x\":7,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[\"black\"],\"status\":\"playing\",\"turn\":\"white\",\"result\":null},\"passedColors\":[\"black\"]},{\"action\":{\"type\":\"place\",\"color\":\"white\",\"position\":{\"x\":0,\"y\":7}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"white\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"red\",\"blue\"],[\"blue\",\"white\",\"red\",\"black\",\"white\",\"red\",\"blue\",\"blue\"],[\"white\",\"red\",null,null,null,\"blue\",\"blue\",\"blue\"]],\"moveNumber\":53,\"lastMove\":{\"x\":0,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[],\"status\":\"playing\",\"turn\":\"red\",\"result\":null},\"passedColors\":[]},{\"action\":{\"type\":\"place\",\"color\":\"red\",\"position\":{\"x\":4,\"y\":7}},\"game\":{\"mode\":\"doubles\",\"board\":[[\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"blue\",\"red\"],[\"blue\",\"blue\",\"white\",\"white\",\"blue\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"blue\",\"white\",\"red\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"red\",\"white\",\"white\",\"red\",\"blue\"],[\"blue\",\"blue\",\"white\",\"white\",\"red\",\"blue\",\"red\",\"blue\"],[\"blue\",\"white\",\"red\",\"black\",\"red\",\"red\",\"blue\",\"blue\"],[\"white\",\"red\",null,null,\"red\",\"blue\",\"blue\",\"blue\"]],\"moveNumber\":54,\"lastMove\":{\"x\":4,\"y\":7},\"eliminatedColors\":[],\"consecutivePasses\":[\"blue\",\"black\",\"white\",\"red\"],\"status\":\"finished\",\"turn\":null,\"result\":{\"mode\":\"doubles\",\"reason\":\"all_passed\",\"winner\":\"white-blue\",\"stoneCounts\":[{\"color\":\"black\",\"count\":1},{\"color\":\"white\",\"count\":15},{\"color\":\"red\",\"count\":15},{\"color\":\"blue\",\"count\":31}],\"teamTotals\":{\"black-red\":16,\"white-blue\":46}}},\"passedColors\":[\"blue\",\"black\",\"white\",\"red\"]}]},\"instanceId\":\"77777777-7777-4777-8777-777777777777\",\"participants\":[{\"id\":\"11111111-1111-4111-8111-111111111111\",\"name\":\"さしすせそたちつてと\",\"color\":\"blue\",\"seat\":0,\"kind\":\"human\",\"accountId\":\"fixture-other\"},{\"id\":\"22222222-2222-4222-8222-222222222222\",\"name\":\"あいうえおかきくけこ\",\"color\":\"black\",\"seat\":1,\"kind\":\"human\",\"accountId\":\"fixture-self\"},{\"id\":\"33333333-3333-4333-8333-333333333333\",\"name\":\"CPU Lv1\",\"color\":\"white\",\"seat\":2,\"kind\":\"cpu\",\"level\":1},{\"id\":\"44444444-4444-4444-8444-444444444444\",\"name\":\"CPU Lv2\",\"color\":\"red\",\"seat\":3,\"kind\":\"cpu\",\"level\":2}]}",
+  "events": [],
+  "frameCount": 64,
+  "checkpoints": [
+    {
+      "index": 0,
+      "frame": {
+        "label": "開始局面",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, "black", null, null, null, null],
+            [null, null, null, "red", "black", "blue", null, null],
+            [null, null, "red", "white", "blue", null, null, null],
+            [null, null, null, null, "white", null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 0,
+          "lastMove": null,
+          "eliminatedColors": [],
+          "consecutivePasses": [],
+          "status": "playing",
+          "turn": "black",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 32,
+      "frame": {
+        "label": "32: 青B5",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+            ["white", "blue", "red", "blue", "red", "red", "white", "blue"],
+            ["white", "blue", "blue", "white", "white", "white", "white", "white"],
+            ["red", "blue", "black", "black", "black", "black", null, null],
+            [null, null, "black", null, "white", null, null, null],
+            [null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 32,
+          "lastMove": {
+            "x": 1,
+            "y": 4
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": [],
+          "status": "playing",
+          "turn": "black",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 37,
+      "frame": {
+        "label": "黒 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["white", "blue", "white", "white", "blue", "white", "blue", "blue"],
+            ["white", "blue", "red", "blue", "red", "blue", "white", "blue"],
+            ["white", "blue", "blue", "white", "white", "red", "blue", "blue"],
+            ["white", "blue", "blue", "blue", "blue", "blue", "blue", "blue"],
+            ["white", null, "black", null, "black", null, null, null],
+            [null, null, null, "black", null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 36,
+          "lastMove": {
+            "x": 7,
+            "y": 4
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["black"],
+          "status": "playing",
+          "turn": "white",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 45,
+      "frame": {
+        "label": "黒 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "blue", "blue", "white", "red", "white", "blue"],
+            ["blue", "blue", "blue", "blue", "red", "white", "blue", "blue"],
+            ["blue", "blue", "blue", "red", "blue", "blue", "white", "blue"],
+            ["blue", "blue", "red", "white", "white", "white", "white", "white"],
+            ["blue", "red", null, "black", null, null, null, null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 43,
+          "lastMove": {
+            "x": 0,
+            "y": 6
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["black"],
+          "status": "playing",
+          "turn": "white",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 49,
+      "frame": {
+        "label": "黒 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "white", "blue"],
+            ["blue", "blue", "white", "blue", "red", "red", "blue", "blue"],
+            ["blue", "blue", "white", "red", "blue", "red", "blue", "blue"],
+            ["blue", "blue", "white", "white", "red", "blue", "blue", "white"],
+            ["blue", "red", "white", "black", null, "red", "blue", null],
+            [null, null, null, null, null, null, null, null]
+          ],
+          "moveNumber": 46,
+          "lastMove": {
+            "x": 6,
+            "y": 6
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["black"],
+          "status": "playing",
+          "turn": "white",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 53,
+      "frame": {
+        "label": "黒 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "white", "red", "white", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "blue", "blue"],
+            ["blue", "blue", "white", "red", "red", "white", "blue", "blue"],
+            ["blue", "blue", "white", "red", "red", "blue", "white", "white"],
+            ["blue", "red", "red", "black", null, "blue", "blue", "white"],
+            [null, "red", null, null, null, "blue", null, null]
+          ],
+          "moveNumber": 49,
+          "lastMove": {
+            "x": 5,
+            "y": 7
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["black"],
+          "status": "playing",
+          "turn": "white",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 57,
+      "frame": {
+        "label": "黒 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+            ["blue", "red", "red", "black", "white", "red", "blue", "blue"],
+            [null, "red", null, null, null, "blue", "blue", "blue"]
+          ],
+          "moveNumber": 52,
+          "lastMove": {
+            "x": 7,
+            "y": 7
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["black"],
+          "status": "playing",
+          "turn": "white",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 60,
+      "frame": {
+        "label": "青 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+            ["blue", "white", "red", "black", "red", "red", "blue", "blue"],
+            ["white", "red", null, null, "red", "blue", "blue", "blue"]
+          ],
+          "moveNumber": 54,
+          "lastMove": {
+            "x": 4,
+            "y": 7
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["blue"],
+          "status": "playing",
+          "turn": "black",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 61,
+      "frame": {
+        "label": "黒 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+            ["blue", "white", "red", "black", "red", "red", "blue", "blue"],
+            ["white", "red", null, null, "red", "blue", "blue", "blue"]
+          ],
+          "moveNumber": 54,
+          "lastMove": {
+            "x": 4,
+            "y": 7
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["blue", "black"],
+          "status": "playing",
+          "turn": "white",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 62,
+      "frame": {
+        "label": "白 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+            ["blue", "white", "red", "black", "red", "red", "blue", "blue"],
+            ["white", "red", null, null, "red", "blue", "blue", "blue"]
+          ],
+          "moveNumber": 54,
+          "lastMove": {
+            "x": 4,
+            "y": 7
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["blue", "black", "white"],
+          "status": "playing",
+          "turn": "red",
+          "result": null
+        }
+      }
+    },
+    {
+      "index": 63,
+      "frame": {
+        "label": "赤 パス",
+        "game": {
+          "mode": "doubles",
+          "board": [
+            ["blue", "blue", "blue", "blue", "blue", "blue", "blue", "red"],
+            ["blue", "blue", "white", "white", "blue", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "blue", "white", "red", "red", "blue"],
+            ["blue", "blue", "white", "red", "white", "white", "red", "blue"],
+            ["blue", "blue", "white", "white", "red", "blue", "red", "blue"],
+            ["blue", "white", "red", "black", "red", "red", "blue", "blue"],
+            ["white", "red", null, null, "red", "blue", "blue", "blue"]
+          ],
+          "moveNumber": 54,
+          "lastMove": {
+            "x": 4,
+            "y": 7
+          },
+          "eliminatedColors": [],
+          "consecutivePasses": ["blue", "black", "white", "red"],
+          "status": "finished",
+          "turn": null,
+          "result": {
+            "mode": "doubles",
+            "reason": "all_passed",
+            "winner": "white-blue",
+            "stoneCounts": [
+              {
+                "color": "black",
+                "count": 1
+              },
+              {
+                "color": "white",
+                "count": 15
+              },
+              {
+                "color": "red",
+                "count": 15
+              },
+              {
+                "color": "blue",
+                "count": 31
+              }
+            ],
+            "teamTotals": {
+              "black-red": 16,
+              "white-blue": 46
+            }
+          }
+        }
+      }
+    }
+  ]
+}

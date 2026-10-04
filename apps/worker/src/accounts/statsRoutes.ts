@@ -1,22 +1,24 @@
-import { defaultGameId } from "@tetraboard/protocol/games";
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   getAccountStatsContract,
   type AccountStats,
+  type FourReversiAccountStats,
   type RoomMode,
   type MatchGame,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "./auth";
+import { matchDataContracts, type StatsFor } from "./matchDataContracts";
 import { matchOutcomesCte } from "./matchOutcomes";
 
-export async function readAccountStats(
+async function queryAccountStats(
   db: D1Database,
   accountId: string,
   game: MatchGame = defaultGameId,
-): Promise<AccountStats> {
+) {
   // Aggregate committed outcomes only; replay chunks are never loaded here.
   const rows = await db
-    .prepare(`${matchOutcomesCte(true)}
+    .prepare(`${matchOutcomesCte(game, true)}
   SELECT mode, COUNT(*) AS total,
     SUM(CASE WHEN rank = 1 THEN 1 ELSE 0 END) AS first,
     SUM(CASE WHEN rank = 2 THEN 1 ELSE 0 END) AS second,
@@ -40,14 +42,13 @@ export async function readAccountStats(
       draws: number;
       knockouts: number;
     }>();
-  const stats: AccountStats = {
+  const stats: FourReversiAccountStats = {
     singles: {
       total: 0,
       first: 0,
       second: 0,
       third: 0,
       fourth: 0,
-      ...(game === "four-shogi" ? { knockouts: 0 } : {}),
     },
     doubles: { total: 0, wins: 0, losses: 0, draws: 0 },
   };
@@ -60,14 +61,43 @@ export async function readAccountStats(
         second,
         third,
         fourth,
-        ...(game === "four-shogi" ? { knockouts: row.knockouts } : {}),
       };
     } else if (row.mode === "doubles") {
       const { total, wins, losses, draws } = row;
       stats.doubles = { total, wins, losses, draws };
     }
   }
-  return getAccountStatsContract.response.parse(stats);
+  return { stats, knockouts: rows.results.find((row) => row.mode === "singles")?.knockouts ?? 0 };
+}
+
+export const statsReaders = {
+  "four-reversi": async (db: D1Database, accountId: string) =>
+    matchDataContracts["four-reversi"].stats(
+      (await queryAccountStats(db, accountId, "four-reversi")).stats,
+    ),
+  "four-shogi": async (db: D1Database, accountId: string) => {
+    const { stats, knockouts } = await queryAccountStats(db, accountId, "four-shogi");
+    return matchDataContracts["four-shogi"].stats({
+      ...stats,
+      singles: { ...stats.singles, knockouts },
+    });
+  },
+} satisfies { [G in GameId]: (db: D1Database, accountId: string) => Promise<StatsFor<G>> };
+export async function readAccountStats(
+  db: D1Database,
+  accountId: string,
+  game: MatchGame = defaultGameId,
+): Promise<AccountStats> {
+  switch (game) {
+    case "four-reversi":
+      return statsReaders[game](db, accountId);
+    case "four-shogi":
+      return statsReaders[game](db, accountId);
+    default: {
+      const exhaustive: never = game;
+      throw new Error(`Unsupported stats game: ${exhaustive}`);
+    }
+  }
 }
 
 export const statsRoutes = new Hono<{ Bindings: Env }>();
