@@ -1,55 +1,17 @@
 import type { HandPieceKind, PieceKind } from "@tetraboard/four-shogi";
-import upKing from "../../assets/shogi/up/up_king2.png";
-import upDeadKing from "../../assets/shogi/up/up_dead_king2.png";
-import upRook from "../../assets/shogi/up/up_rook.png";
-import upDragon from "../../assets/shogi/up/up_prom_rook.png";
-import upGold from "../../assets/shogi/up/up_gold.png";
-import upSilver from "../../assets/shogi/up/up_silver.png";
-import upPromotedSilver from "../../assets/shogi/up/up_prom_silver.png";
-import upPawn from "../../assets/shogi/up/up_pawn.png";
-import upPromotedPawn from "../../assets/shogi/up/up_prom_pawn.png";
-import downKing from "../../assets/shogi/down/down_king2.png";
-import downDeadKing from "../../assets/shogi/down/down_dead_king2.png";
-import downRook from "../../assets/shogi/down/down_rook.png";
-import downDragon from "../../assets/shogi/down/down_prom_rook.png";
-import downGold from "../../assets/shogi/down/down_gold.png";
-import downSilver from "../../assets/shogi/down/down_silver.png";
-import downPromotedSilver from "../../assets/shogi/down/down_prom_silver.png";
-import downPawn from "../../assets/shogi/down/down_pawn.png";
-import downPromotedPawn from "../../assets/shogi/down/down_prom_pawn.png";
+import { useEffect, useRef, useState } from "react";
 import type { ShogiPieceDirection } from "./shogiBoardPresentation";
-
-const sprites = {
-  up: {
-    king: upKing,
-    deadKing: upDeadKing,
-    rook: upRook,
-    dragon: upDragon,
-    gold: upGold,
-    silver: upSilver,
-    promotedSilver: upPromotedSilver,
-    pawn: upPawn,
-    promotedPawn: upPromotedPawn,
-  },
-  down: {
-    king: downKing,
-    deadKing: downDeadKing,
-    rook: downRook,
-    dragon: downDragon,
-    gold: downGold,
-    silver: downSilver,
-    promotedSilver: downPromotedSilver,
-    pawn: downPawn,
-    promotedPawn: downPromotedPawn,
-  },
-};
+import { shogiPieceImage } from "./shogiPieceImages";
 const rotationClasses: Record<ShogiPieceDirection, string> = {
   up: "",
   down: "",
   right: "rotate-90",
   left: "-rotate-90",
 };
-
+const fallbackRotationClasses: Record<ShogiPieceDirection, string> = {
+  ...rotationClasses,
+  down: "rotate-180",
+};
 export function ShogiPiece({
   kind,
   promoted = false,
@@ -61,25 +23,48 @@ export function ShogiPiece({
   deadKing?: boolean;
   direction: ShogiPieceDirection;
 }) {
-  const sprite =
-    kind === "king" && deadKing
-      ? "deadKing"
-      : promoted && kind === "rook"
-        ? "dragon"
-        : promoted && kind === "silver"
-          ? "promotedSilver"
-          : promoted && kind === "pawn"
-            ? "promotedPawn"
-            : kind;
+  const { src, name } = shogiPieceImage(kind, promoted, deadKing, direction);
+  const image = useRef<HTMLImageElement>(null);
+  const [decoded, setDecoded] = useState<{ src: string; ok: boolean } | null>(null);
+  const ready = decoded?.src === src && decoded.ok;
+  useEffect(() => {
+    const current = image.current;
+    if (!current) return;
+    let active = true;
+    function finish(ok: boolean) {
+      if (active && image.current === current) setDecoded({ src, ok });
+    }
+    void current.decode().then(
+      () => finish(current.complete && current.naturalWidth > 0),
+      () => finish(false),
+    );
+    return () => {
+      active = false;
+    };
+  }, [src]);
   return (
-    <img
-      src={sprites[direction === "down" ? "down" : "up"][sprite]}
-      alt=""
-      draggable={false}
+    <span
       aria-hidden="true"
-      data-testid="shogi-piece"
-      data-piece-direction={direction}
-      className={`block w-[var(--shogi-piece-width)] max-w-none aspect-[140/148] object-contain select-none pointer-events-none ${rotationClasses[direction]}`}
-    />
+      className="relative block w-[var(--shogi-piece-width)] aspect-[140/148] select-none pointer-events-none"
+    >
+      <img
+        key={src}
+        ref={image}
+        src={src}
+        alt=""
+        draggable={false}
+        aria-hidden="true"
+        data-testid="shogi-piece"
+        data-piece-direction={direction}
+        className={`block w-[var(--shogi-piece-width)] max-w-none aspect-[140/148] object-contain select-none pointer-events-none ${rotationClasses[direction]} ${ready ? "" : "invisible"}`}
+      />
+      {!ready && (
+        <span
+          className={`absolute inset-0 box-border grid place-items-center rounded-[2px] border border-solid border-[#9c6f14] bg-[#f8e0a1] text-[#543618] font-bold leading-none text-[length:calc(var(--shogi-piece-width)*0.36)] [writing-mode:vertical-rl] ${fallbackRotationClasses[direction]}`}
+        >
+          {name}
+        </span>
+      )}
+    </span>
   );
 }
