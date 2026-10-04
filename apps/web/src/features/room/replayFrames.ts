@@ -1,5 +1,5 @@
-import { type FourReversiState } from "@tetraboard/four-reversi";
-import { type LastRound } from "@tetraboard/protocol";
+import type { FourReversiState } from "@tetraboard/four-reversi";
+import type { LastRound } from "@tetraboard/protocol";
 import { colorNames, eliminationLabels } from "./roomPresentation";
 
 export type ReplayFrame = { label: string; game: FourReversiState };

@@ -3,11 +3,11 @@ import { RoomClock } from "./RoomClock";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 
-import { type ReactNode, type Ref } from "react";
-import { playerClock, playerName } from "./roomPresentation";
-import { type useRoomTransport } from "./useRoomTransport";
+import type { ReactNode, Ref } from "react";
+import { playerName } from "./roomCommonPresentation";
+import { playerClock, shogiPlayerClock } from "./playerClocks";
+import type { useRoomTransport } from "./useRoomTransport";
 import { isFourShogiRoom, isFourReversiRoom } from "@tetraboard/protocol";
-import { shogiPlayerClock } from "./fourShogiRoomPresentation";
 
 export function RoomStatus({
   session,
@@ -21,7 +21,7 @@ export function RoomStatus({
   replay,
   onRotate,
 }: {
-  session: ReturnType<typeof useRoomTransport> & { canPlay: boolean };
+  session: Omit<ReturnType<typeof useRoomTransport>, "sendGameMessage"> & { canPlay: boolean };
   onResults: () => void;
   onResign: () => void;
   onDrawProposal?: () => void;

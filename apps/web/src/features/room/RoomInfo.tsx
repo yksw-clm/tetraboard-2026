@@ -1,15 +1,15 @@
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "./TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
-import { type ReactNode, type RefObject } from "react";
-import { type Room, type CpuLevel } from "@tetraboard/protocol";
+import type { ReactNode, RefObject } from "react";
+import type { Room, CpuLevel } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Accordion, Chip, Label, RadioGroup } from "@heroui/react";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
-import { formatClock, playerName } from "./roomPresentation";
-import { type useRoomTransport } from "./useRoomTransport";
+import { formatClock, playerName } from "./roomCommonPresentation";
+import type { useRoomTransport } from "./useRoomTransport";
 import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
 import { useAccount } from "../account/useAccount";
 
@@ -23,7 +23,7 @@ export function RoomInfo({
   onFeedback,
   feedbackButtonRef,
 }: {
-  session: ReturnType<typeof useRoomTransport>;
+  session: Omit<ReturnType<typeof useRoomTransport>, "sendGameMessage">;
   onLeave: () => void;
   onCopyInvite: () => void;
   onAddCpu: (level: CpuLevel) => void;

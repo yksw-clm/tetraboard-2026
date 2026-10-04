@@ -1,7 +1,7 @@
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedShogiViewer } from "./boardRotation";
 import { sides, type Side } from "@tetraboard/four-shogi";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AppButton } from "../../shared/ui/AppButton";
 import { FourShogiBoardLayout } from "./FourShogiBoardLayout";
 import { FourShogiGameResultView } from "./FourShogiGameResultView";
@@ -10,8 +10,8 @@ import { ReplayCard } from "./ReplayCard";
 import { RoomViewShell } from "./RoomViewShell";
 import { shogiCardPosition, shogiRoomSeats, shogiViewerSide } from "./fourShogiRoomPresentation";
 import { useFourShogiRoomReplay } from "./useFourShogiRoomReplay";
-import { type useFourShogiRoomSession } from "./useFourShogiRoomSession";
-import { type useRoomChat } from "./useRoomChat";
+import type { useFourShogiRoomSession } from "./useFourShogiRoomSession";
+import type { useRoomChat } from "./useRoomChat";
 
 export function FourShogiRoomView({
   session,

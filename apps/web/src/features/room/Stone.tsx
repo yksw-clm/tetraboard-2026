@@ -1,5 +1,5 @@
 import { cn } from "@heroui/react";
-import { type Color } from "@tetraboard/four-reversi";
+import type { Color } from "@tetraboard/four-reversi";
 
 const colors = {
   black: "stone-black",

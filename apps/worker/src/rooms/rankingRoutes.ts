@@ -1,8 +1,9 @@
-import { defaultGameId } from "@tetraboard/protocol/games";
+import { defaultGameId, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   getFourReversiRankingsContract,
-  getFourShogiRankingsContract,
+  gameRankingContracts,
+  type RankingsFor,
   type MatchGame,
   type FourReversiRankings,
   type RoomMode,
@@ -69,14 +70,16 @@ export async function readGameRankings(
 }
 
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
-for (const [game, contract] of [
-  ["four-reversi", getFourReversiRankingsContract],
-  ["four-shogi", getFourShogiRankingsContract],
-] as const) {
+export const rankingReaders = {
+  "four-reversi": (db: D1Database) => readGameRankings(db, "four-reversi"),
+  "four-shogi": (db: D1Database) => readGameRankings(db, "four-shogi"),
+} satisfies { [G in GameId]: (db: D1Database) => Promise<RankingsFor<G>> };
+for (const game of gameIds) {
+  const contract = gameRankingContracts[game];
   rankingRoutes.get(contract.path, async (c) => {
     c.header("Cache-Control", "no-store");
     try {
-      return c.json(await readGameRankings(c.env.APP_DB, game));
+      return c.json(await rankingReaders[game](c.env.APP_DB));
     } catch {
       console.error("Game rankings request failed", game);
       return c.json({ message: "ランキングを取得できませんでした。もう一度お試しください。" }, 503);

@@ -73,6 +73,16 @@ PR本文には検証対象コミット、実行環境、各コマンドの結果
 
 招待導線ではコピー成功と手動コピー、自動ダイアログと閉鎖・手動再表示、資格の再利用、入力不正、送信中の連打・閉鎖、入力中の満室化・開始・閉鎖を確認します。両ゲームで「観戦する」・×・Escapeから閉じた後の更新、閉鎖前の更新、ロビー往復でも再び自動表示しないこと、独立したタブ・別のルーム世代では初回表示すること、保存領域が利用できなくても観戦できることをブラウザテストで検証します。番号再利用後の古い招待は、読み込み・参加・WebSocket接続・再接続で別の部屋へ進まないことをWorkerとWebのテストで検証します。PC・タブレット・スマホで操作とフォーカス移動を確認します。
 
+## ゲームの必須登録と型の対応
+
+ゲームIDの正本は `packages/protocol/src/games.ts`、具体型の対応は型専用の `gameTypes.ts` です。`RoomFor<G>`・`MatchFor<G>`・`ActionFor<G>` と着手コマンド型でゲームを対応付けます。将棋の着手には局IDとrevisionが必須、リバーシの石置きには付けません。通信スキーマによる実行時検証も継続します。
+
+ゲーム追加時にはprotocolの型対応と `gameRankingContracts`、Workerの `waitingRoomFactories`・`rankingReaders`、Webの `createRoomRequests`・`lobbyRoutes`・`liveViews`・`replayLoaders`・`replayViews` を登録します。各表は `GameId` のmapped typeと `satisfies` で検証します。異なるRoom／Matchを渡す入口はゲームで判別するunionを明示的に分岐し、残りを `assertNever` で確認します。カタログへエンジンやスキーマを追加しません。
+
+Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWorkerのtypecheckは型検査専用fixtureを含み、登録漏れ・ゲーム取り違え・局面情報や棋譜フレームの欠落を `@ts-expect-error` で確認します。境界の確認は `bun run --cwd apps/worker test -- gameBoundary.test.ts commonRoomBehavior.test.ts rankingBoundary.test.ts` と `bun run --cwd apps/web test` で実行します。
+
+ライブのsession／viewと保存棋譜の前処理／viewはゲーム別に遅延読み込みします。共通カード・名前・席順・時計表示はエンジン実装に依存しません。Webビルドは生成チャンクの静的依存を検査し、別ゲームのエンジン参照、入口へのライブ・棋譜処理の混入、CPU実装の出力を拒否します。Rolldownが残す空モジュールのregionとReact Compilerの共通runtime初期化は実装として数えません。検査結果は追跡対象外の `apps/web/node_modules/.tmp/game-chunks.json` に保存します。`game-dispatch.spec.ts` はビルド済み画面の通信から選択ゲームのチャンク取得を確認します。PR前の全コマンドは上記の順番で実行し、ブラウザ検証中に別プロセスで配信ディレクトリを再ビルドしません。
+
 ## 共通ロビーと四人将棋UI
 
 `/games/four-reversi` と `/games/four-shogi` は `features/lobby/LobbyView` を共通利用します。タイトル・説明・遊び方・盤面プレビューはゲームごとに切り替え、一覧とランキングは各ページから渡します。両ゲームともPCは操作カードとランキングを上段、その下に公開ルームを置き、スマートフォンでは操作・公開ルーム・ランキングの順にします。画面幅による並べ替えでもランキングの状態を維持します。

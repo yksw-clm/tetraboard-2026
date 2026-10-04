@@ -1,87 +1,39 @@
+import { liveViews } from "./liveViews";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { isRouteErrorResponse, useLoaderData, useRouteError } from "react-router";
 import { roomChangedMessage } from "../../shared/roomAccess";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { fourReversiLobbyPath } from "../../app/paths";
-import { type RoomLoaderData } from "./roomLoader";
-import { RoomView } from "./RoomView";
-import { useRoomChat } from "./useRoomChat";
-import { useRoomSession } from "./useRoomSession";
-import { isFourShogiRoom, type FourReversiRoom, type FourShogiRoom } from "@tetraboard/protocol";
-import { FourShogiRoomView } from "./FourShogiRoomView";
-import { useFourShogiRoomSession } from "./useFourShogiRoomSession";
-import { type useRoomTransport } from "./useRoomTransport";
-
-function RoomDetail({
-  initialRoom,
-  initialMembership,
-  initialServerNowMs,
-  initialPresence,
-  invited,
-}: {
-  initialRoom: FourReversiRoom;
-  initialMembership: RoomLoaderData["membership"];
-  invited: boolean;
-  initialServerNowMs: number;
-  initialPresence: RoomLoaderData["presence"];
-}) {
-  const session = useRoomSession({
-    initialRoom,
-    initialMembership,
-    initialServerNowMs,
-    initialPresence,
-  });
-  const chat = useSessionChat(session);
-  return <RoomView session={session} chat={chat} invited={invited} />;
+import type { RoomLoaderData } from "./roomLoader";
+import { Suspense } from "react";
+import { assertNever } from "@tetraboard/protocol";
+function LiveRoom({ data }: { data: RoomLoaderData }) {
+  const common = {
+    initialMembership: data.membership,
+    initialPresence: data.presence,
+    initialServerNowMs: data.serverNowMs,
+    invited: data.invited,
+  };
+  const key = `${data.room.instanceId}:${data.membership?.playerId ?? "spectator"}`;
+  switch (data.game) {
+    case "four-reversi": {
+      const View = liveViews["four-reversi"];
+      return <View key={key} {...common} initialRoom={data.room} />;
+    }
+    case "four-shogi": {
+      const View = liveViews["four-shogi"];
+      return <View key={key} {...common} initialRoom={data.room} />;
+    }
+    default:
+      return assertNever(data);
+  }
 }
-
-function useSessionChat(session: ReturnType<typeof useRoomTransport>) {
-  return useRoomChat({
-    room: session.room,
-    membership: session.membership,
-    remoteError: session.chatError,
-    sendChat: session.sendChat,
-    clearRemoteError: session.clearChatError,
-    notifications: session.chatNotifications,
-    messages: session.chatMessages,
-    connected: session.authenticated && session.connection === "接続済み",
-  });
-}
-
-function FourShogiRoomDetail({
-  invited,
-  ...options
-}: Parameters<typeof useFourShogiRoomSession>[0] & {
-  invited: boolean;
-  initialRoom: FourShogiRoom;
-}) {
-  const session = useFourShogiRoomSession(options);
-  const chat = useSessionChat(session);
-  return <FourShogiRoomView session={session} chat={chat} invited={invited} />;
-}
-
 export function RoomPage() {
-  const { room, membership, presence, serverNowMs, invited } = useLoaderData<RoomLoaderData>();
-  if (isFourShogiRoom(room))
-    return (
-      <FourShogiRoomDetail
-        key={`${room.instanceId}:${membership?.playerId ?? "spectator"}`}
-        invited={invited}
-        initialRoom={room}
-        initialPresence={presence}
-        initialMembership={membership}
-        initialServerNowMs={serverNowMs}
-      />
-    );
+  const data = useLoaderData<RoomLoaderData>();
   return (
-    <RoomDetail
-      key={`${room.instanceId}:${membership?.playerId ?? "spectator"}`}
-      invited={invited}
-      initialRoom={room}
-      initialPresence={presence}
-      initialMembership={membership}
-      initialServerNowMs={serverNowMs}
-    />
+    <Suspense fallback={<p role="status">ルームを読み込んでいます…</p>}>
+      <LiveRoom data={data} />
+    </Suspense>
   );
 }
 
