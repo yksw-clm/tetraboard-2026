@@ -1,3 +1,4 @@
+import { publicPages } from "../publicPages/catalog";
 import { matchReplayLoader } from "../features/room/matchReplayLoader";
 import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
 import { AccountLayout } from "../features/account/AccountSession";
@@ -30,6 +31,25 @@ export const lobbyRoutes = {
     lazy: () => Promise<{ Component: ComponentType }>;
   };
 };
+export const rulesRoutes = {
+  "four-reversi": {
+    path: publicPages["four-reversi"].rules.path,
+    lazy: async () => ({
+      Component: (await import("../publicPages/FourReversiRulesPage")).FourReversiRulesPage,
+    }),
+  },
+  "four-shogi": {
+    path: publicPages["four-shogi"].rules.path,
+    lazy: async () => ({
+      Component: (await import("../publicPages/FourShogiRulesPage")).FourShogiRulesPage,
+    }),
+  },
+} satisfies {
+  [G in GameId]: {
+    path: (typeof publicPages)[G]["rules"]["path"];
+    lazy: () => Promise<{ Component: ComponentType }>;
+  };
+};
 export const router = createBrowserRouter([
   {
     Component: AccountLayout,
@@ -47,6 +67,10 @@ export const router = createBrowserRouter([
         hydrateFallbackElement: <p role="status">棋譜を読み込んでいます…</p>,
       },
       { path: "/", element: <Navigate to={fourReversiLobbyPath} replace /> },
+      ...gameIds.map((game) => ({
+        ...rulesRoutes[game],
+        hydrateFallbackElement: <p role="status">ルールを読み込んでいます…</p>,
+      })),
       ...gameIds.map((game) => ({
         ...lobbyRoutes[game],
         hydrateFallbackElement: <p role="status">ロビーを読み込んでいます…</p>,

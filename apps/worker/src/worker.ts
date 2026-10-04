@@ -1,3 +1,4 @@
+import { servePublicAssets } from "./publicAssets";
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
@@ -56,7 +57,10 @@ export default {
           .replace(/\/{2,}/g, "/");
         assetPath = new URL(decoded, "https://assets.invalid").pathname;
       } catch {
-        return new Response("Not Found", { status: 404, headers: { "Cache-Control": "no-store" } });
+        return new Response("Not Found", {
+          status: 404,
+          headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, follow" },
+        });
       }
       if (assetPath === "/admin" || assetPath.startsWith("/admin/")) {
         const identity = await adminIdentity(request, env as AdminEnv);
@@ -66,12 +70,17 @@ export default {
             headers: {
               Location: `${env.APP_ORIGIN}/login?destination=admin`,
               "Cache-Control": "no-store",
+              "X-Robots-Tag": "noindex, follow",
             },
           });
         if (identity.status !== 200)
           return new Response(identity.message, {
             status: identity.status,
-            headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" },
+            headers: {
+              "Cache-Control": "no-store",
+              "X-Robots-Tag": "noindex, follow",
+              "Content-Type": "text/plain; charset=utf-8",
+            },
           });
         const assetUrl = new URL(request.url);
         assetUrl.pathname = assetPath.startsWith("/admin/assets/")
@@ -80,6 +89,7 @@ export default {
         const asset = await env.ASSETS.fetch(new Request(assetUrl, request));
         const headers = new Headers(asset.headers);
         headers.set("Cache-Control", "no-store");
+        headers.set("X-Robots-Tag", "noindex, follow");
         return new Response(asset.body, { status: asset.status, headers });
       }
       if (url.pathname === "/profile")
@@ -89,7 +99,7 @@ export default {
           new URL(gameCatalog[defaultGameId].lobbyPath, request.url).toString(),
           302,
         );
-      return env.ASSETS.fetch(request);
+      return servePublicAssets(request, env.ASSETS, assetPath);
     }
     return app.fetch(request, env, context);
   },

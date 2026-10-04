@@ -1,3 +1,4 @@
+import { publicPages } from "../../publicPages/catalog";
 import { defaultGameId, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { AppButton } from "../../shared/ui/AppButton";
 
@@ -20,6 +21,9 @@ export function HowToPlayDialog({
     >
       <div className="flex flex-col gap-[22px] [&_h3]:mb-[6px] [&_h3]:text-[15px] [&_section_p]:text-help-copy [&_section_p]:text-[13px] [&_section_p]:leading-[1.9] [&_section_p+p]:mt-2">
         {shogi ? <FourShogiRules /> : <FourReversiRules />}
+        <a href={publicPages[game].rules.path} className="text-brand underline">
+          詳しいルール・遊び方
+        </a>
         <AppButton slot="close" className="w-full min-h-12">
           {shogi ? "わかった" : "わかった、遊んでみよう"}
         </AppButton>

@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc -b && tsc -p tsconfig.browser.json && tsc -p tsconfig.type-tests.json",
+    "build": "tsc -b && vite build && bun build/generatePublicPages.tsx",
+    "typecheck": "tsc -b && tsc -p tsconfig.browser.json && tsc -p tsconfig.type-tests.json && tsc -p tsconfig.build.json",
     "lint": "oxlint .",
     "preview": "vite preview",
     "test": "bun test ./test",

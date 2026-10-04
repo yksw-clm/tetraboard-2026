@@ -1,3 +1,5 @@
+import { GameIntroduction } from "../../publicPages/PublicContent";
+import { gameIntroductions } from "../../publicPages/catalog";
 const previewStoneClasses = {
   black: "preview-stone-black",
   white: "preview-stone-white",
@@ -44,11 +46,6 @@ type Props = {
   onClearMessage: () => void;
   onSubmitRoom?: (intent: RoomEntryIntent, roomId?: string) => void;
 };
-
-const gameDescriptions = {
-  "four-reversi": "4色で楽しむリバーシ。",
-  "four-shogi": "4方向から楽しむ将棋。",
-} satisfies Record<GameId, string>;
 
 type ActiveDialog =
   | { type: "entry"; intent: RoomEntryIntent; roomId?: string; humanOnly?: boolean }
@@ -122,7 +119,7 @@ export function LobbyView(props: Props) {
   const game = {
     title: gameCatalog[props.game].name,
     homeTo: gameCatalog[props.game].lobbyPath,
-    description: gameDescriptions[props.game],
+    description: gameIntroductions[props.game].short,
     theme: gameThemes[props.game],
   };
 
@@ -241,6 +238,7 @@ export function LobbyView(props: Props) {
           <div className="grid grid-cols-2 gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
             {order.map((section) => sections[section])}
           </div>
+          <GameIntroduction game={props.game} />
           <footer className="mt-0 pt-[14px] pb-5 border-t border-solid border-lobby-footer-line text-muted text-xs text-center">
             <div className="flex flex-wrap justify-center items-center gap-3">
               <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />

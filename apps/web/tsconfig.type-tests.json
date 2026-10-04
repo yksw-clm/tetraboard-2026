@@ -1,5 +1,7 @@
 {
   "extends": "./tsconfig.app.json",
-  "compilerOptions": { "incremental": false },
-  "include": ["type-tests"]
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": ["type-tests", "src/publicPages/virtual.d.ts"]
 }

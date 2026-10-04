@@ -33,6 +33,10 @@ async function expectSelectedGame(page: Page, name: string) {
 }
 
 async function expectLobbySectionOrder(page: Page, width: number) {
+  const introName =
+    new URL(page.url()).pathname === shogiPath
+      ? "四人将棋をブラウザで遊ぼう"
+      : "四人リバーシをブラウザで遊ぼう";
   await expect
     .poll(() =>
       page
@@ -48,9 +52,16 @@ async function expectLobbySectionOrder(page: Page, width: number) {
     )
     .toEqual(
       width <= 767
-        ? ["対局を始める", "公開ルーム", "ランキング"]
-        : ["対局を始める", "ランキング", "公開ルーム"],
+        ? ["対局を始める", "公開ルーム", "ランキング", introName]
+        : ["対局を始める", "ランキング", "公開ルーム", introName],
     );
+  const introBox = (await page
+    .getByRole("region", { name: introName, exact: true })
+    .boundingBox())!;
+  for (const name of ["対局を始める", "公開ルーム", "ランキング"]) {
+    const box = (await page.getByRole("region", { name, exact: true }).boundingBox())!;
+    expect(introBox.y).toBeGreaterThanOrEqual(box.y + box.height);
+  }
 }
 
 test("ゲーム切り替えはURL・履歴と一致し、将棋からリバーシの部屋やランキングを取得しない", async ({

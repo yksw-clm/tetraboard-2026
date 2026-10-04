@@ -4,7 +4,7 @@ import browserConfig from "./playwright.config";
 // 本番と同じビルドをローカルWorkerにつなぎます。外部APIの差し替えは行いません。
 export default defineConfig({
   ...browserConfig,
-  testMatch: "worker.e2e.ts",
+  testMatch: ["worker.e2e.ts", "seo.worker.e2e.ts"],
   workers: 1,
   timeout: 60_000,
   outputDir: "test-results-worker",

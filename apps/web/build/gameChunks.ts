@@ -49,6 +49,20 @@ export function gameChunks(): Plugin {
       ];
       const main = chunks.find((chunk) => chunk.isEntry);
       if (!main) this.error("Missing Web entry chunk");
+      for (const page of ["FourReversiRulesPage", "FourShogiRulesPage"]) {
+        const suffix = `/publicPages/${page}.tsx`;
+        const chunk = chunks.find((entry) =>
+          Object.keys(entry.modules).some((id) => id.endsWith(suffix)),
+        );
+        if (!chunk?.isDynamicEntry || modulesFor(main.fileName).some((id) => id.endsWith(suffix)))
+          this.error(`${page} must be a lazy entry`);
+        if (
+          modulesFor(chunk.fileName).some((id) =>
+            /\/packages\/four-(reversi|shogi)\/src\//.test(id),
+          )
+        )
+          this.error(`${page} loads a game engine`);
+      }
       const initialModules = modulesFor(main.fileName);
       for (const entry of entries) {
         const suffix = `/features/room/${entry}.${entry === "fourShogiMatchReplay" ? "ts" : "tsx"}`;

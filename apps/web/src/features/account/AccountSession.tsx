@@ -1,3 +1,4 @@
+import { findPublicPage } from "../../publicPages/catalog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
@@ -50,6 +51,7 @@ export function AccountLayout() {
       location.pathname !== "/account/setup" &&
       location.pathname !== "/feedback" &&
       location.pathname !== "/updates" &&
+      findPublicPage(location.pathname)?.kind !== "rules" &&
       !(
         location.pathname === "/login" &&
         new URLSearchParams(location.search).get("destination") === "admin"

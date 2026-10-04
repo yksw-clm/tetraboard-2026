@@ -13,6 +13,18 @@
 
 IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCatalog.test.ts test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` で確認します。軽量入口の依存は `bun build packages/protocol/src/games.ts --target=browser --outfile=/tmp/tetraboard-game-catalog.js --metafile=/tmp/tetraboard-game-catalog.meta.json` の入力一覧で確認できます。
 
+## 公開ページの生成とSEO配信
+
+Webの `publicPages` は軽量ゲームカタログを参照し、各ゲームのロビーとルールについてパス・タイトル・説明を必須登録します。ゲーム追加時には本文、ルールの抽出元、遅延読み込みするルールルートも登録してください。公開本文はReactの純粋な表示部品で、事前生成とSPAで共用します。生成に認証、ルームAPI、ランキング、ゲームエンジンを使いません。CPU除外とゲーム別チャンク検査はルールページにも適用します。
+
+ルール正本とREADMEには `public-rules:start`／`public-rules:end` のコメントを各1組置きます。本文はその範囲だけから生成し、内部状態・CPU実装・検討履歴を公開範囲へ含めません。共通の時計と切断ルールはREADMEから取得します。ルールを修正するときは正本を編集し、生成HTMLを手で変更しません。範囲欠落・重複・空本文・未解決の相対リンクとアンカーは生成失敗です。公開範囲の見出しから目次とアンカーを生成します。外部参照はHTTPSの絶対URLを使います。
+
+Markdown変換は既存のBun 1.4.2のビルド専用APIを使い、生HTMLを解釈しません。Viteの仮想モジュールは開発・ビルドの両方で同じ抽出処理を実行し、正本の編集で開発画面を再読み込みします。Webビルドの最後に公開4ページとrobots・sitemap・404を生成し、既存のassets結合でWorkerへ渡します。生成物は追跡せず、ゲーム実装・パーサーをルール表示用の依存へ含めません。
+
+Workerは公開4ページの生成HTML、既知SPAルートのindex、静的アセット、未知URLの404を明示的に配信します。ASSETSの無条件SPAフォールバックは使用しません。APIとWebSocketは既存の処理へ渡し、Adminは認証と正規化を先に行います。索引対象外の画面はHTMLと `X-Robots-Tag` でnoindexとし、robots.txtでnoindexの読取りを妨げません。canonical・OG・サイトマップは本番ホストのクエリなしURLに統一し、SPAの画面遷移でもメタ情報を同期します。`/` の既存の画面転送は維持します。
+
+関連の確認は `bun run --cwd apps/web test ./test/publicRules.test.ts`、`CI=true bun run --cwd apps/web test:browser browser-tests/public-seo.spec.ts`、`bun run --cwd apps/web test:browser:worker browser-tests/seo.worker.e2e.ts` です。実Workerの生HTML・GET／HEAD・404・308・robots・XML・noindexを確認し、JavaScript無効時の本文、画面遷移、320px表示も検証します。PR前には全6コマンドとGitHub CIを確認してください。本番公開後の確認とサイトマップ送信は開発者承認後に行い、ローカル検証や順位保証と混同しません。
+
 ## Local Development
 
 リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWebとWorkerの開発サーバーが同時に起動します。
