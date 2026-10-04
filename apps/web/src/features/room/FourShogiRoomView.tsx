@@ -8,6 +8,7 @@ import { FourShogiGameResultView } from "./FourShogiGameResultView";
 import { FourShogiPlayerCard } from "./FourShogiPlayerCard";
 import { ReplayCard } from "./ReplayCard";
 import { RoomViewShell } from "./RoomViewShell";
+import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
 import { shogiCardPosition, shogiRoomSeats, shogiViewerSide } from "./fourShogiRoomPresentation";
 import { useFourShogiRoomReplay } from "./useFourShogiRoomReplay";
 import type { useFourShogiRoomSession } from "./useFourShogiRoomSession";
@@ -103,6 +104,29 @@ export function FourShogiRoomView({
   return (
     <RoomViewShell
       session={session}
+      turnActions={
+        room.status === "playing" &&
+        session.self !== undefined &&
+        room.players.find((player) => player.side === room.game.turn)?.id === session.self?.id && (
+          <AppButton
+            size="compact"
+            appearance="secondary"
+            isDisabled={!session.canPlay}
+            onPress={session.handleDrawProposalClick}
+          >
+            {room.game.drawProposals.includes(room.game.turn) ? "引分取消" : "引分提案"}
+          </AppButton>
+        )
+      }
+      gameSettings={
+        <div className="mb-3">
+          <ThreePlayerAttackSetting
+            prohibited={room.settings.threePlayerAttackProhibited}
+            disabled={!session.canManageSettings}
+            onChange={session.changeThreePlayerAttack}
+          />
+        </div>
+      }
       onRotate={rotate}
       chat={chat}
       invited={invited}

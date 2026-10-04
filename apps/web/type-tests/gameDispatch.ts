@@ -1,3 +1,8 @@
+import { reversiActionComplete } from "../src/features/room/fourReversiSessionBehavior";
+import { shogiActionComplete } from "../src/features/room/fourShogiSessionBehavior";
+import type { PendingShogiAction } from "../src/features/room/fourShogiSessionBehavior";
+import type { PendingReversiAction } from "../src/features/room/fourReversiSessionBehavior";
+import type { RoomTransportOptions } from "../src/features/room/useRoomTransport";
 import type { useRoomSession } from "../src/features/room/useRoomSession";
 import type { useFourShogiRoomSession } from "../src/features/room/useFourShogiRoomSession";
 import { lobbyRoutes } from "../src/app/router";
@@ -104,3 +109,49 @@ export const invalidShogiSend: ShogiSend = { type: "room.game.action", action: s
 export const invalidReversiSend: ReversiSend = { type: "room.game.action", action: shogiAction };
 // @ts-expect-error 新IDの作成登録漏れを検出
 export const incompleteCreation: Record<ExtendedGameId, unknown> = createRoomRequests;
+
+// sessionの待機データと判定も具体的なゲームへ結び付ける。
+declare const reversiPending: PendingReversiAction;
+declare const shogiPending: PendingShogiAction;
+// @ts-expect-error 別ゲームのRoomで完了判定できない
+reversiActionComplete(shogiRoom, reversiPending);
+// @ts-expect-error 別ゲームの待機データで完了判定できない
+shogiActionComplete(shogiRoom, reversiPending);
+// @ts-expect-error リバーシへ将棋の待機データを渡せない
+reversiActionComplete(reversiRoom, shogiPending);
+// @ts-expect-error 将棋の着手待ちには局IDが必須
+export const missingPendingRound: PendingShogiAction = { type: "move", positionRevision: 0 };
+// @ts-expect-error 将棋の着手待ちにはrevisionが必須
+export const missingPendingRevision: PendingShogiAction = { type: "move", roundId: "id" };
+// @ts-expect-error 将棋の提案待ちにも局面情報が必須
+export const missingDrawPosition: PendingShogiAction = {
+  type: "draw",
+  participant: "south",
+  proposed: true,
+};
+// @ts-expect-error transportの判定関数とRoomは同じゲームでなければならない
+export const wrongCompletion: RoomTransportOptions<FourShogiRoom>["actionComplete"] =
+  reversiActionComplete;
+type ReversiSettingsSend = Parameters<
+  ReturnType<typeof useRoomSession>["sendGameSettingsMessage"]
+>[0];
+type ShogiSettingsSend = Parameters<
+  ReturnType<typeof useFourShogiRoomSession>["sendGameSettingsMessage"]
+>[0];
+// @ts-expect-error リバーシから将棋固有設定を送信できない
+export const invalidReversiSettings: ReversiSettingsSend = {
+  type: "room.three-player-attack.set",
+  prohibited: false,
+};
+export const validShogiSettings: ShogiSettingsSend = {
+  type: "room.three-player-attack.set",
+  prohibited: false,
+};
+type ShogiPendingSend = Parameters<
+  ReturnType<typeof useFourShogiRoomSession>["sendGameMessage"]
+>[1];
+// @ts-expect-error 実際の送信境界でも将棋の局面情報を省略できない
+export const invalidPendingSend: ShogiPendingSend = { type: "move" };
+
+// @ts-expect-error 開始は共有入口が管理し、ゲーム固有の送信待ちと混ぜられない
+export const invalidStartSend: ShogiSend = { type: "room.game.start" };
