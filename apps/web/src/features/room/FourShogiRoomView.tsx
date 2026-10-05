@@ -61,6 +61,7 @@ export function FourShogiRoomView({
     <>
       <FourShogiBoardLayout
         game={replay.frame?.game ?? session.displayGame}
+        pendingAction={replay.frame === null ? session.pendingMove?.action : undefined}
         viewerSide={viewerSide}
         revision={`${room.roundId ?? room.lastRound?.roundId ?? "waiting"}:${room.positionRevision}:${replay.index}`}
         canPlay={session.canPlay && replay.frame === null}
@@ -104,6 +105,7 @@ export function FourShogiRoomView({
   return (
     <RoomViewShell
       session={session}
+      operationNotice={session.moveNotice}
       turnActions={
         room.status === "playing" &&
         session.self !== undefined &&

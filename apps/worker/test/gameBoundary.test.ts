@@ -150,7 +150,7 @@ describe("ゲーム境界: 作成・一覧", () => {
 
   for (const game of [...invalidGames, null]) {
     test(`作成: 不正game ${JSON.stringify(game)}を拒否してルームを増やさない`, async () => {
-      await fixtures.create({ name: "既存", mode: "singles", quickPlay: false });
+      const existing = await fixtures.create({ name: "既存", mode: "singles", quickPlay: false });
       const before = (await Promise.all([roomList("four-reversi"), roomList("four-shogi")]))
         .flat()
         .map((room) => room.id)
@@ -167,7 +167,9 @@ describe("ゲーム境界: 作成・一覧", () => {
         .flat()
         .map((room) => room.id)
         .sort();
-      expect(after).toEqual(before);
+      // 他のテストによる退室・期限処理で別の部屋が消えることは許容します。
+      expect(after).toContain(existing.room.id);
+      expect(after.filter((id) => !before.includes(id))).toEqual([]);
     });
   }
 

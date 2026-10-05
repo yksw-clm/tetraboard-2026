@@ -3,6 +3,8 @@ import { isFourShogiRoom, type FourShogiRoom } from "@tetraboard/protocol";
 import { displayShogiGameForRoom } from "./fourShogiRoomPresentation";
 import { useRoomTransport, type RoomTransportOptions } from "./useRoomTransport";
 import { shogiActionComplete, shogiOperationError } from "./fourShogiSessionBehavior";
+import { optimisticShogiBoard } from "./optimisticShogiBoard";
+import { useDelayedMoveNotice } from "./useDelayedMoveNotice";
 
 export function useFourShogiRoomSession(
   options: Omit<
@@ -25,22 +27,41 @@ export function useFourShogiRoomSession(
     session.authenticated &&
     session.connection === "接続済み" &&
     session.pendingGameAction === null;
+  const pendingMove =
+    room.status === "playing" &&
+    session.pendingGameAction?.type === "move" &&
+    session.pendingGameAction.roundId === room.roundId &&
+    session.pendingGameAction.positionRevision === room.positionRevision &&
+    session.pendingGameAction.participant === self?.side &&
+    !room.game.eliminations.some((entry) => entry.side === self?.side) &&
+    session.authenticated &&
+    session.connection === "接続済み" &&
+    !session.leaving
+      ? session.pendingGameAction
+      : null;
+  const moveNotice = useDelayedMoveNotice(pendingMove);
   return {
     ...session,
     self,
     canPlay,
-    displayGame: displayShogiGameForRoom(room),
+    displayGame:
+      pendingMove !== null && room.status === "playing"
+        ? optimisticShogiBoard(room.game, pendingMove.participant, pendingMove.action)
+        : displayShogiGameForRoom(room),
+    pendingMove,
+    moveNotice,
     changeThreePlayerAttack(prohibited: boolean): void {
       session.sendGameSettingsMessage({ type: "room.three-player-attack.set", prohibited });
     },
-    handleShogiAction(action: FourShogiAction): void {
+    handleShogiAction(action: FourShogiAction): boolean {
       if (
         !canPlay ||
+        !self?.side ||
         room.status !== "playing" ||
         !room.legalActions.some((legal) => JSON.stringify(legal) === JSON.stringify(action))
       )
-        return;
-      session.sendGameMessage(
+        return false;
+      return session.sendGameMessage(
         {
           type: "room.game.action",
           roundId: room.roundId,
@@ -51,6 +72,9 @@ export function useFourShogiRoomSession(
           type: "move",
           roundId: room.roundId,
           positionRevision: room.positionRevision,
+          participant: self.side,
+          action,
+          startedAtMs: performance.now(),
         },
       );
     },
