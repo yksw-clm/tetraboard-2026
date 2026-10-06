@@ -236,9 +236,11 @@ HeroUIを継続使用し、ヘッダー・ボタン／ボタン風リンク・�
 
 ## 開発と本番公開
 
-`main` を本番として扱います。最新mainから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などのブランチを作り、GitHub CIとローカルブラウザ検証の成功後に開発者が確認してPRをマージします。mainへの直接push・force pushは行いません。非公開リポジトリの現行GitHubプランではブランチ保護を強制できないため、このルールを運用で守ります。他者レビューは必須ではありません。
+`main` を本番として扱います。最新mainから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などのブランチを作り、GitHub CIと必須のローカル検証の成功後に開発者が確認してPRをマージします。mainへの直接push・force pushは行いません。非公開リポジトリの現行GitHubプランではブランチ保護を強制できないため、このルールを運用で守ります。他者レビューは必須ではありません。
 
-通常CIは整形・lint・型チェック・テスト、Web・Adminのビルド、Workerの本番デプロイdry-runを実行します。コード・設定変更ではPR提出前に、ローカルでWeb UI・Worker E2E・AdminのPlaywright全ケースをChromium・WebKitで成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。Linuxでのブラウザ検証は `Browser Regression` workflowを手動実行し、通常CIや本番デプロイの自動実行条件には含めません。具体的なコマンドと記録の条件は [開発手順](docs/development.md#pr提出前の検証) を参照してください。
+通常CIは整形・lint・型チェック・単体テスト、Web・Adminのビルド、Workerの本番デプロイdry-runを実行します。コード・設定変更ではPR提出前に、ローカルで `bun run check`、`bun run build`、Workerの `deploy:dry-run` を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
+
+Web UI・Worker E2E・Adminのブラウザテストは実行時間が長いため、通常の開発・PR提出前・マージ前には実行せず、成功を提出・マージの条件にしません。開発者が明示的に依頼した場合だけ実施します。未実施と、変更に関係する実画面の未確認事項をPRに記載します。既存のPlaywrightテストと手動の `Browser Regression` workflowは維持し、通常CIや本番デプロイの自動実行条件には含めません。具体的なコマンドと記録の条件は [開発手順](docs/development.md#pr提出前の検証) を参照してください。
 
 本番URLは `https://tetraboard.net`、Worker名は `tetraboard-2026`、D1名は `tetraboard-2026-prod-db` です。Worker 1つでWeb画面・管理画面・HTTP API・WebSocketを配信します。GitHub ActionsはmainのCI成功後にD1マイグレーションとデプロイを行います。CloudflareのGit連携による別の自動公開は設定しません。
 

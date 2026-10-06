@@ -47,20 +47,21 @@ Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の
 
 ### PR提出前の検証
 
-コード・設定変更では、PRを作成する前にルートから次の全コマンドを成功させます。UI・Adminは `CI=true` でビルド済み画面を検証し、Worker E2Eはproduction構成のローカルWorkerを使用します。すべてのブラウザ検証でChromium・WebKitの全ケースを実行します。
+コード・設定変更では、PRを作成する前にルートから次の全コマンドを成功させます。
 
 ```sh
 bun run check
 bun run build
 bun run --cwd apps/worker deploy:dry-run
-CI=true bun run --cwd apps/web test:browser
-bun run --cwd apps/web test:browser:worker
-CI=true bun run --cwd apps/admin test:browser
 ```
 
-PR本文には検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載します。PR提出後にコード・設定を変更した場合と、main取り込みでコード・設定が変わった場合も全コマンドを再実行して結果を更新します。文書だけの変更では同一コード・設定の直前の成功結果を再利用できますが、検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行います。マージはGitHub CI成功、ローカルブラウザ検証成功、差分と結果に対する開発者の承認を条件とし、ローカル成功でGitHub CIを代替しません。
+ブラウザテスト（Web UI・Worker E2E・AdminのPlaywright）は実行時間が長いため、通常の開発・PR提出前・マージ前には実行せず、成功を提出・マージの条件にしません。開発者が明示的に依頼した場合だけ、指定された対象・範囲で実行します。本書の各機能に記載したブラウザでの確認項目は、その際の検証観点・手順です。
+
+PR本文には検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載します。ブラウザテストを実行していない場合は未実施と記載し、変更に関係する実画面の挙動は未確認として報告します。PR提出後にコード・設定を変更した場合と、main取り込みでコード・設定が変わった場合も上記の必須コマンドを再実行して結果を更新します。文書だけの変更では同一コード・設定の直前の成功結果を再利用できますが、検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行います。マージはGitHub CI成功、必須のローカル検証成功、差分と結果に対する開発者の承認を条件とし、ローカル成功でGitHub CIを代替しません。
 
 ### 変更内容に応じた確認
+
+以下の実画面・ブラウザでの確認は、開発者から明示的な依頼があった場合の観点です。通常の変更時は上記の必須コマンドを実行し、ブラウザ検証は行いません。
 
 ロビーUIの変更では `bun run --cwd apps/web build` も実行し、ブラウザで作成・参加・観戦、空一覧と取得失敗、更新と追加読み込みを確認します。PCとスマートフォンの幅で横スクロールや文字の折り返しを確認し、ダイアログのキーボード操作、閉じた後のフォーカス復帰、送信中の連打・閉鎖防止、同じタブの参加資格の再利用も確認します。「遊び方」の内容はルール正本と照合します。
 
@@ -211,6 +212,8 @@ Lv1は合法手を一様ランダムに選びます。テストや再現可能�
 
 ## ブラウザ回帰テスト
 
+既存のテストと以下の実行方法は、開発者から明示的にブラウザ検証を依頼された場合に利用します。通常の開発・PR提出前・マージ前には実行しません。
+
 ### 将棋の駒画像の初回表示
 
 `ShogiPiece` は現在のURLに対応する画像の `decode()` が成功するまで、同じ寸法の駒名を表示します。取得・デコード失敗時も文字を保持し、画像が準備できれば文字を消します。URLが変わったら直ちに新しい駒名を表示し、以前の画像の完了通知では表示を更新しません。PNGと対応する駒名は `shogiPieceImages.ts` で管理します。
@@ -223,15 +226,23 @@ Lv1は合法手を一様ランダムに選びます。テストや再現可能�
 
 ### 共通の実行方法
 
-初回は `cd apps/web && bunx playwright install chromium webkit` でテスト用ブラウザを用意します。開発中の `bun run --cwd apps/web test:browser` はVite開発サーバーを `127.0.0.1:4173` で起動し、対象ファイルを指定して関連テストだけを実行できます。PR提出前は `CI=true bun run --cwd apps/web test:browser` でWebをビルドしてVite previewで配信し、全ケースを検証します。Adminも同じく `CI=true bun run --cwd apps/admin test:browser` でビルド済み画面を検証します。既存の `bun run check` はブラウザテストの型チェックも含みますが、ブラウザ起動は別コマンドです。
+依頼されたブラウザ検証をローカルで行う場合、初回は `cd apps/web && bunx playwright install chromium webkit` でテスト用ブラウザを用意します。開発中の `bun run --cwd apps/web test:browser` はVite開発サーバーを `127.0.0.1:4173` で起動し、対象ファイルを指定して関連テストだけを実行できます。ビルド済み画面では `CI=true bun run --cwd apps/web test:browser` でVite previewを使い、Adminは `CI=true bun run --cwd apps/admin test:browser` で検証します。既存の `bun run check` はブラウザテストの型チェックも含みますが、ブラウザ起動は別コマンドです。
+
+Web UI・Worker E2E・Adminの全体検証を依頼された場合のコマンドは次のとおりです。ローカルではChromium・WebKitを使用し、対象を絞る場合は依頼された範囲に合わせて対象ファイルを指定します。
+
+```sh
+CI=true bun run --cwd apps/web test:browser
+bun run --cwd apps/web test:browser:worker
+CI=true bun run --cwd apps/admin test:browser
+```
 
 `apps/web/browser-tests/` は実際のルート・画面・HeroUIを使う統合テストです。HTTP／WebSocket境界に固定ID・時刻の応答を用意し、ローカルWorkerや外部サービスに依存させません。hookや部品の内部状態はモックしません。幾何の検証に必要なカード部分だけ `data-testid` を使い、その他はラベルとroleから操作します。
 
 Chromium・WebKitで320・390・650・651・767・768・900・901・1024・1279・1280・1440pxのロビーと4席の外寸、10文字名＋王冠の収まり、準備前後の外寸を確認します。ダイアログは320・390・768・1440pxで閉じるボタンの44×44px・右上12px、フォーカスと復帰、送信中の閉鎖防止、入力値、失敗表示、表示領域縮小時の操作を検証します。作成成功後の遷移、投了確認、タブ切替でのチャット入力保持、縦横のリサイズも対象です。色が未生成のまま操作テストだけ通らないよう、共通の主要ボタンがテーマ色で表示されることも確認します。
 
-スクリーンショットはHTMLレポートへ添付し、失敗時は画面とtraceを保存します。`cd apps/web && bunx playwright show-report` で確認できます。通常CIではPlaywrightを自動実行せず、PR提出前のローカル検証を必須にします。
+スクリーンショットはHTMLレポートへ添付し、失敗時は画面とtraceを保存します。`cd apps/web && bunx playwright show-report` で確認できます。通常CIではPlaywrightを自動実行しません。
 
-Linux環境での確認には、GitHub Actionsの `Browser Regression`（`.github/workflows/browser.yml`）を開き、対象ブランチを選んで手動実行します。workflowが選択したブランチのコミットをcheckoutし、ブラウザ・OS依存を含むPlaywright公式イメージ `mcr.microsoft.com/playwright:v1.63.0-noble` を使います。イメージのバージョンは `bun.lock` 内のPlaywrightと合わせて更新します。UIテストを6分割し、Worker E2EとAdminブラウザ検証も独立して並行実行します。Chromium・WebKitの全ケースを維持し、成功時も含めて `browser-report-<コミットSHA>-ui-1`〜`ui-6`、`browser-report-<コミットSHA>-worker`、`admin-browser-<コミットSHA>` を7日間保存します。手動workflowは本番デプロイを行わず、通常CIや本番デプロイの自動実行条件には含めません。ローカルでの必須検証を省略する理由にもなりません。GitHubの手動実行UIはworkflowがmainへマージされた後に利用できます。
+Linux環境で依頼されたブラウザ検証を行う場合は、GitHub Actionsの `Browser Regression`（`.github/workflows/browser.yml`）を開き、対象ブランチを選んで手動実行できます。workflowが選択したブランチのコミットをcheckoutし、ブラウザ・OS依存を含むPlaywright公式イメージ `mcr.microsoft.com/playwright:v1.63.0-noble` を使います。イメージのバージョンは `bun.lock` 内のPlaywrightと合わせて更新します。UIテストを6分割し、Worker E2EとAdminブラウザ検証も独立して並行実行します。Chromium・WebKitの全ケースを維持し、成功時も含めて `browser-report-<コミットSHA>-ui-1`〜`ui-6`、`browser-report-<コミットSHA>-worker`、`admin-browser-<コミットSHA>` を7日間保存します。手動workflowは本番デプロイを行わず、通常CIや本番デプロイの自動実行条件には含めません。PR前の必須検証は [PR提出前の検証](#pr提出前の検証) に記載した3コマンドです。
 
 現段階では画素一致の自動判定は行わず、移行前後の添付画像と寸法・操作結果を比較します。カードのアバター・名前・下段2領域は、待機／準備完了／対局中／各脱落理由／空席・CPU／ホスト交代・切断で座標と寸法を比較します。石と石数の大きさが脱落前後で変わらないこと、長い順位理由と名前が収まることを1 CSS px以内の許容差で検証します。320・900・1440pxでは一覧の取得失敗・追加読込・参加・観戦、設定・招待・準備・開始・着手・退室、再戦の結果・棋譜、チャットの入力・スクロール保持と送信を確認します。WebKitでの幅・高さ変更はiOS Safari実機でのキーボード確認とは区別し、未確認の場合は報告します。
 
@@ -241,7 +252,7 @@ Linux環境での確認には、GitHub Actionsの `Browser Regression`（`.githu
 
 ### ブランチと公開先
 
-最新のmainから `feat/xxx`・`fix/xxx`・`docs/xxx`・`chore/xxx` を作り、ローカルでのPR提出前の検証を成功させてからmain向けPRを開きます。mainへの直接push・force pushは行いません。非公開リポジトリでは現在のGitHubプランによる保護を利用できないため、GitHub CI成功、ローカルブラウザ検証成功、開発者の確認を運用で必須にします。他者レビューは必須ではありません。初回も差分と検証結果の承認後にマージし、それ以降はPRのマージを公開の契機とします。
+最新のmainから `feat/xxx`・`fix/xxx`・`docs/xxx`・`chore/xxx` を作り、ローカルでのPR提出前の検証を成功させてからmain向けPRを開きます。mainへの直接push・force pushは行いません。非公開リポジトリでは現在のGitHubプランによる保護を利用できないため、GitHub CI成功、必須のローカル検証成功、開発者の確認を運用で必須にします。他者レビューは必須ではありません。初回も差分と検証結果の承認後にマージし、それ以降はPRのマージを公開の契機とします。
 
 | 設定 | 本番の値 |
 | --- | --- |
@@ -265,7 +276,7 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-PRとmainのpushではchecksジョブで `bun install --frozen-lockfile` → `bun run check` → Web・Adminのビルド → `deploy:dry-run` を実行します。Playwrightの全ケースはPR提出前にローカルで実行し、Linuxでの追加確認は別の手動workflowを使用します。PRジョブはCloudflareの認証情報を使いません。
+PRとmainのpushではchecksジョブで `bun install --frozen-lockfile` → `bun run check` → Web・Adminのビルド → `deploy:dry-run` を実行します。Playwrightは通常実行せず、開発者から明示的な依頼がある場合だけローカルまたは別の手動workflowで検証します。PRジョブはCloudflareの認証情報を使いません。
 
 mainでは同じ実行で生成したWeb・Adminの成果物をデプロイジョブへ渡し、mainの先頭コミットであることを確認します。本番D1マイグレーション適用後にもう一度mainを確認し、古い実行ならWorkerの公開をスキップします。現行mainなら `wrangler deploy --env production` で画面とWorkerを一緒に公開します。同時デプロイを禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後にmainが更新された場合は、進行中の公開完了後に次の実行で更新します。
 
