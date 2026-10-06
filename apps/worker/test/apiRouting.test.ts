@@ -127,3 +127,21 @@ test("未知の /api は画面のHTMLではなく404を返す", async () => {
   expect(response.status).toBe(404);
   expect(response.headers.get("content-type")).not.toContain("text/html");
 });
+
+test("公開棋譜の直接URLはSPAを配信し、検索対象外にする", async () => {
+  const assets = {
+    fetch: async (request: Request) => new Response(`asset:${new URL(request.url).pathname}`),
+  } as Fetcher;
+  for (const method of ["GET", "HEAD"]) {
+    const response = await worker.fetch(
+      new Request("https://tetraboard.net/matches/00000000-0000-4000-8000-000000000001", {
+        method,
+      }),
+      { ...env, APP_ORIGIN: "https://tetraboard.net", ASSETS: assets },
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+    expect(await response.text()).toBe("asset:/index.html");
+  }
+});

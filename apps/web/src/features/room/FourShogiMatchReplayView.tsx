@@ -1,4 +1,4 @@
-import type { FourShogiMatchDetail } from "@tetraboard/protocol";
+import type { ReplayFourShogiMatch } from "@tetraboard/protocol";
 import { useState, type ReactNode } from "react";
 import type { Side } from "@tetraboard/four-shogi";
 import { useBoardRotation } from "./useBoardRotation";
@@ -7,23 +7,24 @@ import { PlayerCardView } from "./PlayerCardView";
 import { ShogiSideBadge } from "./FourShogiPlayerCard";
 import { FourShogiBoardLayout } from "./FourShogiBoardLayout";
 import { FourShogiGameResultView } from "./FourShogiGameResultView";
-import { shogiCardPosition, shogiPlayerRank } from "./fourShogiRoomPresentation";
+import {
+  shogiCardPosition,
+  shogiPlayerRank,
+  shogiMatchViewerSide,
+} from "./fourShogiRoomPresentation";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
 export default function FourShogiMatchReplayView({
   match,
   frames,
 }: {
-  match: FourShogiMatchDetail;
+  match: ReplayFourShogiMatch;
   frames: FourShogiReplayFrame[];
 }) {
   const { rotation, rotate } = useBoardRotation();
   const [index, setIndex] = useState(frames.length - 1);
   const frame = frames[index]!;
-  const viewerSide = rotatedShogiViewer(
-    match.participants.find((player) => player.id === match.selfPlayerId)!.side,
-    rotation,
-  );
+  const viewerSide = rotatedShogiViewer(shogiMatchViewerSide(match), rotation);
   const cardFor = (side: Side): ReactNode => {
     const player = match.participants.find((entry) => entry.side === side)!;
     return (

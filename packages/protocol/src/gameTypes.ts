@@ -1,6 +1,11 @@
 import type { GameId } from "./games";
 import type { FourReversiRoom, FourShogiRoom, RoomSocketClientMessage } from "./rooms";
-import type { FourReversiMatchDetail, FourShogiMatchDetail } from "./matches";
+import type {
+  FourReversiMatchDetail,
+  FourShogiMatchDetail,
+  PublicFourReversiMatchDetail,
+  PublicFourShogiMatchDetail,
+} from "./matches";
 import type { FourShogiAction } from "./fourShogi";
 import type { FourReversiRankings, FourShogiRankings } from "./rankings";
 
@@ -13,18 +18,22 @@ export interface GameTypeMap {
   "four-reversi": {
     room: FourReversiRoom;
     match: FourReversiMatchDetail;
+    publicMatch: PublicFourReversiMatchDetail;
     action: ReversiAction;
     rankings: FourReversiRankings;
   };
   "four-shogi": {
     room: FourShogiRoom;
     match: FourShogiMatchDetail;
+    publicMatch: PublicFourShogiMatchDetail;
     action: FourShogiAction;
     rankings: FourShogiRankings;
   };
 }
 export type RoomFor<G extends GameId> = GameTypeMap[G]["room"];
 export type MatchFor<G extends GameId> = GameTypeMap[G]["match"];
+export type PublicMatchFor<G extends GameId> = GameTypeMap[G]["publicMatch"];
+export type ReplayMatchFor<G extends GameId> = PublicMatchFor<G> & { selfPlayerId?: string };
 export type ActionFor<G extends GameId> = GameTypeMap[G]["action"];
 export type RankingsFor<G extends GameId> = GameTypeMap[G]["rankings"];
 export type GameActionCommandFor<G extends GameId> = G extends "four-shogi"

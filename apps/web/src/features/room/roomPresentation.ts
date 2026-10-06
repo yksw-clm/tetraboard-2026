@@ -1,4 +1,8 @@
-import type { FourReversiRoom, FourReversiMatchDetail } from "@tetraboard/protocol";
+import type {
+  FourReversiRoom,
+  FourReversiMatchDetail,
+  ReplayFourReversiMatch,
+} from "@tetraboard/protocol";
 import {
   colors,
   createInitialState,
@@ -55,7 +59,7 @@ export function playerRank(room: FourReversiRoom, color: Color | null) {
   return { rank, label: `${rank}位${reason ? `（${eliminationLabels[reason]}）` : ""}` };
 }
 
-export function matchSeats(match: FourReversiMatchDetail) {
+export function matchSeats(match: ReplayFourReversiMatch) {
   return colorOrderedSeats(match.participants, match.selfPlayerId);
 }
 

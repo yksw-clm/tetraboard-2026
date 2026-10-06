@@ -1,7 +1,8 @@
 import {
   getMatchReplayContract,
+  getPublicMatchReplayContract,
   fourShogiPublicStateSchema,
-  type FourShogiMatchDetail,
+  type ReplayFourShogiMatch,
 } from "@tetraboard/protocol";
 import {
   getFourShogiReplayRules,
@@ -10,9 +11,10 @@ import {
 } from "./fourShogiReplayV1";
 
 export async function fetchFourShogiMatchReplay(
-  match: FourShogiMatchDetail,
+  match: ReplayFourShogiMatch,
   signal: AbortSignal,
 ): Promise<FourShogiReplayFrame[]> {
+  const contract = match.selfPlayerId ? getMatchReplayContract : getPublicMatchReplayContract;
   let cursor = 0;
   const rules = getFourShogiReplayRules(match.replay.rulesVersion);
   let state = rules.initialize(match.replay.initial);
@@ -20,7 +22,7 @@ export async function fetchFourShogiMatchReplay(
   for (;;) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     const query = cursor === 0 ? "" : `?cursor=${cursor}`;
-    const response = await fetch(`/api${getMatchReplayContract.pathFor(match.id)}${query}`, {
+    const response = await fetch(`/api${contract.pathFor(match.id)}${query}`, {
       credentials: "same-origin",
       cache: "no-store",
       signal,

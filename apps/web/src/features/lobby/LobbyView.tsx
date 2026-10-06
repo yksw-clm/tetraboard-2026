@@ -1,3 +1,4 @@
+import { RecentMatches } from "../matches/RecentMatches";
 const previewStoneClasses = {
   black: "preview-stone-black",
   white: "preview-stone-white",
@@ -169,11 +170,12 @@ export function LobbyView(props: Props) {
         {props.renderRooms((roomId, humanOnly) => openEntry("join", roomId, humanOnly))}
       </Fragment>
     ),
+    matches: <RecentMatches key={`matches:${props.game}`} game={props.game} />,
     rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
   };
   const order = mobile
-    ? (["play", "rooms", "rankings"] as const)
-    : (["play", "rankings", "rooms"] as const);
+    ? (["play", "rooms", "matches", "rankings"] as const)
+    : (["play", "rankings", "rooms", "matches"] as const);
 
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">

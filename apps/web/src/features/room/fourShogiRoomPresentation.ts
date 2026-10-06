@@ -1,5 +1,9 @@
 import { createInitialState, sides, type Side, type FourShogiState } from "@tetraboard/four-shogi";
-import type { FourShogiPublicState, FourShogiRoom } from "@tetraboard/protocol";
+import type {
+  FourShogiPublicState,
+  FourShogiRoom,
+  ReplayFourShogiMatch,
+} from "@tetraboard/protocol";
 import { orderedSeats, seatPositions } from "./roomCommonPresentation";
 
 export const shogiSideNames: Record<Side, string> = {
@@ -84,4 +88,8 @@ export function shogiReplayPlayerRank(
 ) {
   const side = room.lastRound?.players.find((entry) => entry.id === playerId)?.side;
   return side ? shogiPlayerRank(game, side) : null;
+}
+
+export function shogiMatchViewerSide(match: ReplayFourShogiMatch): Side {
+  return match.participants.find((player) => player.id === match.selfPlayerId)?.side ?? "south";
 }

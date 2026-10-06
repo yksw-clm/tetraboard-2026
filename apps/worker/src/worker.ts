@@ -5,6 +5,7 @@ import { analyticsRoutes } from "./analytics/routes";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { recoverAccountReservations } from "./accounts/roomAccounts";
+import { publicMatchRoutes } from "./rooms/publicMatchRoutes";
 import { matchRoutes } from "./accounts/matchRoutes";
 import { statsRoutes } from "./accounts/statsRoutes";
 import { rankingRoutes } from "./rooms/rankingRoutes";
@@ -29,6 +30,7 @@ api.route("/", feedbackAdminRoutes);
 api.route("/", feedbackRoutes);
 api.route("/", analyticsRoutes);
 api.route("/", matchRoutes);
+api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);
 api.route("/", rankingRoutes);
 api.route("/", accountRoutes);
@@ -89,6 +91,14 @@ export default {
           new URL(gameCatalog[defaultGameId].lobbyPath, request.url).toString(),
           302,
         );
+      if (/^\/matches\/[^/]+\/?$/.test(assetPath)) {
+        const assetUrl = new URL(request.url);
+        assetUrl.pathname = "/index.html";
+        const asset = await env.ASSETS.fetch(new Request(assetUrl, request));
+        const headers = new Headers(asset.headers);
+        headers.set("X-Robots-Tag", "noindex, follow");
+        return new Response(asset.body, { status: asset.status, headers });
+      }
       return env.ASSETS.fetch(request);
     }
     return app.fetch(request, env, context);

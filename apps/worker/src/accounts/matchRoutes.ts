@@ -1,3 +1,4 @@
+import { participantAvatars } from "./matchAvatars";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
@@ -7,14 +8,9 @@ import {
   type RoomMode,
   type MatchGame,
 } from "@tetraboard/protocol";
-import { accountIdentity, profileAvatarUrl } from "./auth";
+import { accountIdentity } from "./auth";
 import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
-import {
-  readStoredMatch,
-  matchSummary,
-  matchDetail,
-  type DecodedMatch,
-} from "./matchDataContracts";
+import { readStoredMatch, matchSummary, matchDetail } from "./matchDataContracts";
 
 export async function listMatches(
   db: D1Database,
@@ -72,30 +68,6 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
     return c.json({ message: "対局履歴を取得できませんでした。もう一度お試しください。" }, 503);
   }
 });
-
-async function participantAvatars(db: D1Database, records: DecodedMatch[]) {
-  const accountIds = [
-    ...new Set(
-      records.flatMap((record) =>
-        record.record.participants.flatMap((p) =>
-          p.kind === "human" && p.accountId ? [p.accountId] : [],
-        ),
-      ),
-    ),
-  ];
-  const avatars = new Map<string, string | null>();
-  if (accountIds.length) {
-    const profiles = await db
-      .prepare(
-        `SELECT id, avatarKey FROM user WHERE id IN (${accountIds.map(() => "?").join(",")})`,
-      )
-      .bind(...accountIds)
-      .all<{ id: string; avatarKey: string | null }>();
-    for (const profile of profiles.results)
-      avatars.set(profile.id, profileAvatarUrl(profile.avatarKey));
-  }
-  return avatars;
-}
 
 matchRoutes.get(getMatchContract.path, async (c) => {
   c.header("Cache-Control", "no-store");
