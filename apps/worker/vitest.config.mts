@@ -7,6 +7,7 @@ export default defineConfig({
     cloudflareTest(async () => ({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
+        d1Databases: { PUBLIC_MATCH_TEST_DB: "public-match-tests" },
         bindings: {
           MODERATOR_TOKEN: "test-moderator-token",
           BETTER_AUTH_SECRET: "tetraboard-local-only-secret-at-least-32-characters",

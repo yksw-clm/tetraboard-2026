@@ -1,36 +1,45 @@
 import { env } from "cloudflare:workers";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { applyD1Migrations } from "cloudflare:test";
+import worker from "../src/worker";
+import { afterEach, beforeAll, expect, test } from "vitest";
 import {
   listPublicMatchesContract,
   getPublicMatchContract,
   getPublicMatchReplayContract,
   type GameId,
 } from "@tetraboard/protocol";
-import { accountFixture } from "./accountFixtures";
-import { fixtureRecord, humanFixtureRecord, matchRequest } from "./matchFixtures";
+import { accountFixture, origin } from "./accountFixtures";
+import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/rooms/matchStore";
 import { advanceShogiMatchSave } from "../src/rooms/shogiMatchStore";
 import { shogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 
+const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MATCH_TEST_DB;
 const createdIds: string[] = [];
-// The public feed spans accounts; hide other tests' retained records while exercising its real SQL.
-beforeEach(async () => {
-  await env.APP_DB.exec(
-    "UPDATE matches SET game = 'public-test-isolation' WHERE game IN ('four-reversi', 'four-shogi')",
+// GameRoom alarms keep writing to APP_DB; route these HTTP requests to a separate real D1.
+const matchRequest = (path: string, init?: RequestInit) =>
+  worker.fetch(
+    new Request(`${origin}/api${path}`, init),
+    { ...env, APP_DB: db },
+    {} as ExecutionContext,
   );
+beforeAll(async () => {
+  const migrations = (
+    env as typeof env & {
+      TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
+    }
+  ).TEST_MIGRATIONS;
+  await applyD1Migrations(db, migrations);
 });
 afterEach(async () => {
   for (const id of createdIds.splice(0)) {
-    await env.APP_DB.batch([
-      env.APP_DB.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
-      env.APP_DB.prepare("DELETE FROM matches WHERE id = ?").bind(id),
-      env.APP_DB.prepare("DELETE FROM shogi_match_chunks WHERE match_id = ?").bind(id),
-      env.APP_DB.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(id),
+    await db.batch([
+      db.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(id),
+      db.prepare("DELETE FROM matches WHERE id = ?").bind(id),
+      db.prepare("DELETE FROM shogi_match_chunks WHERE match_id = ?").bind(id),
+      db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(id),
     ]);
   }
-  await env.APP_DB.exec(
-    "UPDATE matches SET game = json_extract(record_json, '$.settings.game') WHERE game = 'public-test-isolation'",
-  );
 });
 async function list(game: GameId) {
   const response = await matchRequest(`/matches?game=${game}`);
@@ -56,7 +65,7 @@ for (const count of [0, 20, 23]) {
         p.kind === "human" ? { ...p, accountId: null } : p,
       );
       records.push(record);
-      await writeMatch(env.APP_DB, record);
+      await writeMatch(db, record);
     }
     const expected = records
       .sort((a, b) => b.startedAtMs - a.startedAtMs || b.id.localeCompare(a.id))
@@ -74,17 +83,14 @@ for (const count of [0, 20, 23]) {
 test("ゲーム別に対人・CPU・ゲスト終局を表示し、転送途中の将棋を公開しない", async () => {
   const namespace = crypto.randomUUID();
   const human = track(humanFixtureRecord(namespace, 1));
-  await writeMatch(env.APP_DB, human);
+  await writeMatch(db, human);
   const fixture = shogiRecord(null, "east", "doubles");
   track(fixture.record);
-  await saveShogiFixture(fixture);
+  await saveShogiFixture(fixture, db);
   const pending = shogiRecord(null);
   track(pending.record);
-  await advanceShogiMatchSave(
-    env.APP_DB,
-    pending.record,
-    { phase: "upload", cursor: 0 },
-    (cursor) => pending.events.slice(cursor, cursor + 100),
+  await advanceShogiMatchSave(db, pending.record, { phase: "upload", cursor: 0 }, (cursor) =>
+    pending.events.slice(cursor, cursor + 100),
   );
   expect((await list("four-reversi")).map((m) => m.id)).toEqual([human.id]);
   expect((await list("four-shogi")).map((m) => m.id)).toEqual([fixture.record.id]);
@@ -93,11 +99,12 @@ test("ゲーム別に対人・CPU・ゲスト終局を表示し、転送途中�
 });
 
 test("公開カードと詳細は開始時の名前・現在の画像を使い、内部ID・本人IDを含まない", async () => {
-  const user = await accountFixture();
+  const user = await accountFixture(true, crypto.randomUUID(), db);
   const record = track(fixtureRecord(user.id, 1));
-  await writeMatch(env.APP_DB, record);
+  await writeMatch(db, record);
   const key = `avatars/${crypto.randomUUID()}.webp`;
-  await env.APP_DB.prepare("UPDATE user SET name = ?, avatarKey = ? WHERE id = ?")
+  await db
+    .prepare("UPDATE user SET name = ?, avatarKey = ? WHERE id = ?")
     .bind("変更後", key, user.id)
     .run();
   const summary = (await list("four-reversi"))[0];
@@ -124,7 +131,7 @@ test("公開カードと詳細は開始時の名前・現在の画像を使い�
   expect(JSON.stringify(summary)).not.toContain('"board"');
   expect(JSON.stringify(summary)).not.toContain('"replay"');
   expect((await matchRequest(`/account/matches/${record.id}`)).status).toBe(401);
-  const other = await accountFixture();
+  const other = await accountFixture(true, crypto.randomUUID(), db);
   expect(
     (await matchRequest(`/account/matches/${record.id}`, { headers: { Cookie: other.cookie } }))
       .status,
@@ -135,7 +142,7 @@ for (const mode of ["singles", "doubles"] as const) {
   test(`${mode}の将棋詳細・連番イベントを匿名取得できる`, async () => {
     const fixture = shogiRecord(null, "north", mode);
     track(fixture.record);
-    await saveShogiFixture(fixture);
+    await saveShogiFixture(fixture, db);
     const response = await matchRequest(`/matches/${fixture.record.id}`);
     expect(response.status).toBe(200);
     const match = getPublicMatchContract.response.parse(await response.json()).match;
@@ -173,14 +180,12 @@ test("不正条件・未知ID・D1障害・不整合な保存記録を区別す�
   }
   expect((await matchRequest(`/matches/${crypto.randomUUID()}`)).status).toBe(404);
   const record = track(fixtureRecord(crypto.randomUUID(), 1));
-  await writeMatch(env.APP_DB, record);
+  await writeMatch(db, record);
   expect((await matchRequest(`/matches/${record.id}/replay`)).status).toBe(404);
-  await env.APP_DB.prepare("UPDATE matches SET record_json = '{}' WHERE id = ?")
-    .bind(record.id)
-    .run();
+  await db.prepare("UPDATE matches SET record_json = '{}' WHERE id = ?").bind(record.id).run();
   expect((await matchRequest(`/matches/${record.id}`)).status).toBe(503);
   expect((await matchRequest("/matches?game=four-reversi")).status).toBe(503);
-  await env.APP_DB.exec("ALTER TABLE matches RENAME TO matches_unavailable");
+  await db.exec("ALTER TABLE matches RENAME TO matches_unavailable");
   try {
     for (const path of [
       "/matches?game=four-reversi",
@@ -192,6 +197,20 @@ test("不正条件・未知ID・D1障害・不整合な保存記録を区別す�
       expect(response.headers.get("Cache-Control")).toBe("no-store");
     }
   } finally {
-    await env.APP_DB.exec("ALTER TABLE matches_unavailable RENAME TO matches");
+    await db.exec("ALTER TABLE matches_unavailable RENAME TO matches");
+  }
+});
+
+test("他テストの遅延保存は公開APIの検証DBへ混入しない", async () => {
+  const unrelated = fixtureRecord(crypto.randomUUID(), 1);
+  try {
+    // Models a previous GameRoom alarm saving to its original APP_DB after the public-test setup.
+    await writeMatch(env.APP_DB, unrelated);
+    expect(await list("four-reversi")).toEqual([]);
+  } finally {
+    await env.APP_DB.batch([
+      env.APP_DB.prepare("DELETE FROM account_match_history WHERE match_id = ?").bind(unrelated.id),
+      env.APP_DB.prepare("DELETE FROM matches WHERE id = ?").bind(unrelated.id),
+    ]);
   }
 });
