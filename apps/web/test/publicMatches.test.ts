@@ -171,3 +171,67 @@ test("最近の対局は指定ゲームで取得し、別ゲームや不正応�
   spy.mockResolvedValue(new Response(null, { status: 503 }));
   await expect(fetchRecentMatches("four-reversi", signal)).rejects.toThrow("request failed");
 });
+
+test("対人フィルタを送信し、CPU入りの応答を採用しない", async () => {
+  const spy = fetchSpy();
+  for (const game of ["four-reversi", "four-shogi"] as const) {
+    const match = game === "four-reversi" ? publicReversi() : publicShogi();
+    const summary = {
+      id: match.id,
+      game,
+      mode: match.settings.mode,
+      startedAtMs: match.startedAtMs,
+      endedAtMs: match.endedAtMs,
+      participants: match.participants,
+      result: match.game.result,
+    };
+    const humanSummary = {
+      ...summary,
+      participants: summary.participants.map((player) => {
+        if (player.kind === "human") return player;
+        const { level: _level, ...identity } = player;
+        return { ...identity, kind: "human", avatarUrl: null };
+      }),
+    };
+    spy.mockImplementation(async () => Response.json({ matches: [humanSummary] }));
+    const signal = new AbortController().signal;
+    expect(await fetchRecentMatches(game, signal, true)).toEqual([humanSummary]);
+    expect(spy).toHaveBeenLastCalledWith(`/api/matches?game=${game}&humanOnly=true`, {
+      cache: "no-store",
+      signal,
+    });
+    spy.mockImplementation(async () => Response.json({ matches: [summary] }));
+    await expect(fetchRecentMatches(game, signal, true)).rejects.toThrow("participant mismatch");
+    expect(await fetchRecentMatches(game, signal, false)).toEqual([summary]);
+    expect(spy).toHaveBeenLastCalledWith(`/api/matches?game=${game}`, {
+      cache: "no-store",
+      signal,
+    });
+  }
+});
+
+test("最近の対局取得を中止し、遅れて届いた応答も採用しない", async () => {
+  const spy = fetchSpy();
+  const controller = new AbortController();
+  spy.mockImplementation(
+    (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      }),
+  );
+  const pending = fetchRecentMatches("four-reversi", controller.signal, true);
+  controller.abort();
+  await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  let complete!: (response: Response) => void;
+  const delayedController = new AbortController();
+  spy.mockImplementation(
+    () =>
+      new Promise<Response>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const delayed = fetchRecentMatches("four-reversi", delayedController.signal, false);
+  delayedController.abort();
+  complete(Response.json({ matches: [] }));
+  await expect(delayed).rejects.toMatchObject({ name: "AbortError" });
+});

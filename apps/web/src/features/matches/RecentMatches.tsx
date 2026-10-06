@@ -30,6 +30,14 @@ export function RecentMatches({ game }: { game: GameId }) {
           更新
         </AppButton>
       </AppSectionHeading>
+      <label className="mb-2 flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={page.humanOnly}
+          onChange={(event) => page.changeHumanOnly(event.target.checked)}
+        />
+        人間4人の対局のみ
+      </label>
       {page.loading && (
         <p role="status" className="text-sm text-muted">
           最近の対局を読み込んでいます…
@@ -48,7 +56,9 @@ export function RecentMatches({ game }: { game: GameId }) {
         ))}
       </ul>
       {page.loaded && !page.loading && !page.error && !page.matches.length && (
-        <p className="text-sm text-muted">まだ対局履歴がありません。</p>
+        <p className="text-sm text-muted">
+          {page.humanOnly ? "人間4人の対局履歴がありません。" : "まだ対局履歴がありません。"}
+        </p>
       )}
       {page.error && (
         <div className="flex flex-col items-start gap-2">
