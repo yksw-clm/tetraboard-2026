@@ -191,12 +191,15 @@ roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) 
 
 roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
   const code = context.req.param("id");
-  if (!roomCodeSchema.safeParse(code).success) {
+  const query = getRoomContract.query.safeParse(context.req.query());
+  if (!roomCodeSchema.safeParse(code).success || !query.success) {
     return context.json(roomError("invalid_request"), 400);
   }
 
   try {
-    const snapshot = await context.env.GAME_ROOM.getByName(code).getRoomSnapshot();
+    const snapshot = await context.env.GAME_ROOM.getByName(code).getRoomSnapshot(
+      query.data.formationAnalysis === "1",
+    );
     context.header("Cache-Control", "no-store");
     return snapshot === null
       ? context.json(roomError("not_found"), 404)

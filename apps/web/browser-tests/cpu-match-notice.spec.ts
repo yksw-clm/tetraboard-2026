@@ -72,9 +72,9 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         expect(box!.x).toBeGreaterThanOrEqual(0);
         expect(box!.x + box!.width).toBeLessThanOrEqual(width);
         await page.screenshot({ path: info.outputPath("cpu-confirmation.png") });
-        await dialog
-          .getByRole("button", { name: "CPUを追加", exact: true })
-          .click({ clickCount: 2 });
+        // 閉じたダイアログの座標を再クリックすると背後の別操作になるため、確認の連打はEnterで行います。
+        await dialog.getByRole("button", { name: "CPUを追加", exact: true }).press("Enter");
+        await page.keyboard.press("Enter");
         await expect.poll(additions).toEqual([{ type: "room.cpu.add", level: 2 }]);
         await expect(dialog).toHaveCount(0);
         await expect(add).toBeDisabled();

@@ -135,6 +135,19 @@ export function getCheckState(state: FourShogiState): Record<Side, boolean> {
   };
 }
 
+export function positionForSide({ x, y }: Position, side: Side): Position {
+  switch (side) {
+    case "south":
+      return { x, y };
+    case "west":
+      return { x: 8 - y, y: x };
+    case "north":
+      return { x: 8 - x, y: 8 - y };
+    case "east":
+      return { x: y, y: 8 - x };
+  }
+}
+
 export function createInitialBoard(): { board: Cell[][]; nextPieceId: number } {
   const board: Cell[][] = Array.from({ length: 9 }, () => Array<Cell>(9).fill(null));
   const south: { kind: PieceKind; x: number; y: number }[] = [
@@ -151,14 +164,7 @@ export function createInitialBoard(): { board: Cell[][]; nextPieceId: number } {
   let nextPieceId = 1;
   for (const side of sides) {
     for (const { kind, x, y } of south) {
-      const position =
-        side === "south"
-          ? { x, y }
-          : side === "west"
-            ? { x: 8 - y, y: x }
-            : side === "north"
-              ? { x: 8 - x, y: 8 - y }
-              : { x: y, y: 8 - x };
+      const position = positionForSide({ x, y }, side);
       board[position.y][position.x] = { id: nextPieceId++, side, kind, promoted: false };
     }
   }

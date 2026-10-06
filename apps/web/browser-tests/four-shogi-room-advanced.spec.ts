@@ -52,7 +52,7 @@ async function mockReconnectRoom(page: Page, initial: FourShogiRoom) {
     { value: token },
   );
   await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
-  await page.route("**/api/rooms/12345", (route) => {
+  await page.route(/\/api\/rooms\/12345(?:\?.*)?$/, (route) => {
     roomGets++;
     return route.fulfill({ json: snapshot() });
   });

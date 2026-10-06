@@ -22,7 +22,14 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
     }
     case "four-shogi": {
       const View = liveViews["four-shogi"];
-      return <View key={key} {...common} initialRoom={data.room} />;
+      return (
+        <View
+          key={key}
+          {...common}
+          initialRoom={data.room}
+          initialFormationAnalysisSupported={data.formationAnalysisSupported}
+        />
+      );
     }
     default:
       return assertNever(data);

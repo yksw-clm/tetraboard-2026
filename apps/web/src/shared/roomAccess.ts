@@ -39,7 +39,7 @@ export function roomInvitationPath(room: Pick<Room, "id" | "instanceId">): strin
 }
 
 export async function fetchRoom(id: string, signal?: AbortSignal, instanceId?: string) {
-  const response = await fetch(`/api${getRoomContract.pathFor(id)}`, {
+  const response = await fetch(`/api${getRoomContract.pathFor(id)}?formationAnalysis=1`, {
     method: getRoomContract.method,
     cache: "no-store",
     signal,

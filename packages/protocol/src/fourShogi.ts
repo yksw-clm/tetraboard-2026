@@ -5,6 +5,25 @@ const position = z.strictObject({ x: z.int().min(0).max(8), y: z.int().min(0).ma
 const handKind = z.enum(["rook", "gold", "silver", "pawn"]);
 const sideRecord = <T extends z.ZodType>(schema: T) =>
   z.strictObject({ south: schema, west: schema, north: schema, east: schema });
+export const fourShogiFormationAnalysisSchema = z.strictObject({
+  analyzerId: z.string().min(1).max(64),
+  analysisVersion: z.int().positive(),
+  rulesVersion: z.int().positive(),
+  roundId: z.uuid(),
+  positionRevision: z.int().nonnegative(),
+  matches: sideRecord(
+    z
+      .array(
+        z.strictObject({
+          id: z.string().min(1).max(64),
+          name: z.string().min(1).max(40),
+          matchedSquares: z.array(position).length(9),
+        }),
+      )
+      .max(6),
+  ),
+});
+export type FourShogiFormationAnalysis = z.infer<typeof fourShogiFormationAnalysisSchema>;
 const piece = z.strictObject({
   id: z.int().nonnegative(),
   side: fourShogiSideSchema,

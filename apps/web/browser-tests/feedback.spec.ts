@@ -230,7 +230,7 @@ for (const destination of ["room", "replay"])
   test(`${destination} 取得エラーから非公開受付を開く`, async ({ page }) => {
     await mockLobby(page);
     if (destination === "room")
-      await page.route("**/api/rooms/12345", (r) =>
+      await page.route(/\/api\/rooms\/12345(?:\?.*)?$/, (r) =>
         r.fulfill({ status: 503, json: { error: "service_unavailable" } }),
       );
     else {

@@ -66,6 +66,7 @@ export {
   type AccountProfile,
 } from "./accounts";
 export type { HealthzResponse } from "./healthz";
+export { fourShogiFormationAnalysisSchema, type FourShogiFormationAnalysis } from "./fourShogi";
 export {
   chatEntrySchema,
   chatHistoryLimit,

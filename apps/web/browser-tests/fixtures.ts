@@ -65,17 +65,20 @@ export async function mockRoom(
   initial: Room = waitingRoom(),
   asPlayer = true,
   identity: RoomMembership = membership,
+  formationAnalysisSupported = false,
 ) {
   await page.route("**/api/account/session", (route) => route.fulfill({ json: { user: null } }));
   let room = initial;
   const received: ReturnType<typeof roomSocketContract.clientMessage.parse>[] = [];
   let presence = { hostPlayerId: playerIds[0]!, connectedPlayerIds: room.players.map((p) => p.id) };
   const sockets = new Set<WebSocketRoute>();
+  const socketUrls: string[] = [];
   let paused = false;
   const snapshot = () => ({
     room,
     presence,
     serverNowMs: now,
+    ...(formationAnalysisSupported ? { formationAnalysis: null } : {}),
   });
   const send = (socket: WebSocketRoute, message: unknown) =>
     socket.send(JSON.stringify(roomSocketContract.message.parse(message)));
@@ -89,9 +92,10 @@ export async function mockRoom(
       { token },
     );
   }
-  await page.route("**/api/rooms/12345", (route) => route.fulfill({ json: snapshot() }));
+  await page.route(/\/api\/rooms\/12345(?:\?.*)?$/, (route) => route.fulfill({ json: snapshot() }));
   await page.route("**/api/rooms/12345/me", (route) => route.fulfill({ json: identity }));
   await page.routeWebSocket("**/api/rooms/12345/ws?*", (socket) => {
+    socketUrls.push(socket.url());
     sockets.add(socket);
     if (!paused) send(socket, { type: "room.snapshot", ...snapshot() });
     send(socket, { type: "room.chat.snapshot", messages: [] });
@@ -105,6 +109,10 @@ export async function mockRoom(
   });
   return {
     received,
+    socketUrls,
+    setFormationAnalysisSupported(supported: boolean) {
+      formationAnalysisSupported = supported;
+    },
     get connectedSocketCount() {
       return sockets.size;
     },
