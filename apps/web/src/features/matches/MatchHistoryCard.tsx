@@ -6,15 +6,7 @@ import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { matchResultGroups } from "../account/matchSummaryPresentation";
-
-const dateFormat = new Intl.DateTimeFormat("ja-JP", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
+import { formatMatchDate } from "./matchDatePresentation";
 function Participant({ player }: { player: MatchHistoryParticipant }) {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
@@ -44,10 +36,12 @@ export function MatchHistoryCard({
   match,
   to,
   className = "",
+  relativeToMs,
 }: {
   match: MatchSummary;
   to: string;
   className?: string;
+  relativeToMs?: number;
 }) {
   const navigation = useNavigation();
   const location = useLocation();
@@ -55,14 +49,15 @@ export function MatchHistoryCard({
   const result = match.result;
   const gameLabel = `${gameCatalog[match.game].name}・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
   const groups = matchResultGroups(match);
+  const absoluteDate = formatMatchDate(match.startedAtMs);
   return (
     <article
-      aria-label={`${dateFormat.format(match.startedAtMs)} ${gameLabel}の対局`}
+      aria-label={`${absoluteDate} ${gameLabel}の対局`}
       className={`flex min-w-0 flex-col gap-3 rounded-control border border-solid border-line bg-white p-3 ${className}`}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-        <time dateTime={new Date(match.startedAtMs).toISOString()}>
-          {dateFormat.format(match.startedAtMs)}
+        <time dateTime={new Date(match.startedAtMs).toISOString()} title={absoluteDate}>
+          {formatMatchDate(match.startedAtMs, relativeToMs)}
         </time>
         <span>{gameLabel}</span>
       </div>

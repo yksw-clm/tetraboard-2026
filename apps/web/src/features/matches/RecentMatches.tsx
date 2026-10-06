@@ -1,5 +1,5 @@
 import type { GameId } from "@tetraboard/protocol";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppButton } from "../../shared/ui/AppButton";
 import { MatchHistoryCard } from "./MatchHistoryCard";
@@ -7,6 +7,15 @@ import { useRecentMatches } from "./useRecentMatches";
 
 export function RecentMatches({ game }: { game: GameId }) {
   const page = useRecentMatches(game);
+  const [nowMs, setNowMs] = useState(Date.now);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setNowMs(Date.now()), 0);
+    const interval = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, [page.matches]);
   const list = useRef<HTMLUListElement>(null);
   useEffect(() => {
     if (list.current) list.current.scrollLeft = 0;
@@ -51,7 +60,12 @@ export function RecentMatches({ game }: { game: GameId }) {
       >
         {page.matches.map((match) => (
           <li key={match.id} className="min-w-0 shrink-0 [width:min(320px,100%)]">
-            <MatchHistoryCard match={match} to={`/matches/${match.id}`} className="h-full" />
+            <MatchHistoryCard
+              match={match}
+              to={`/matches/${match.id}`}
+              className="h-full"
+              relativeToMs={nowMs}
+            />
           </li>
         ))}
       </ul>
