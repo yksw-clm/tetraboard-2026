@@ -11,6 +11,7 @@ import { RoomViewShell } from "./RoomViewShell";
 import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
 import { shogiCardPosition, shogiRoomSeats, shogiViewerSide } from "./fourShogiRoomPresentation";
 import { useFourShogiRoomReplay } from "./useFourShogiRoomReplay";
+import { useShogiFormationNotice } from "./useShogiFormationNotice";
 import type { useFourShogiRoomSession } from "./useFourShogiRoomSession";
 import type { useRoomChat } from "./useRoomChat";
 
@@ -27,6 +28,15 @@ export function FourShogiRoomView({
   const { rotation, rotate } = useBoardRotation();
   const viewerRotation = membership === null ? rotation : 0;
   const replay = useFourShogiRoomReplay(room);
+  const formation = useShogiFormationNotice(
+    room,
+    membership?.playerId,
+    session.authenticated &&
+      session.connection === "接続済み" &&
+      !session.leaving &&
+      session.unavailable === null &&
+      replay.frame === null,
+  );
   const viewerSide = rotatedShogiViewer(
     shogiViewerSide(room, membership?.playerId),
     viewerRotation,
@@ -60,6 +70,8 @@ export function FourShogiRoomView({
   const board = (
     <>
       <FourShogiBoardLayout
+        formationNotice={formation.notice?.name}
+        onFormationNoticeDismiss={formation.dismiss}
         game={replay.frame?.game ?? session.displayGame}
         pendingAction={replay.frame === null ? session.pendingMove?.action : undefined}
         viewerSide={viewerSide}

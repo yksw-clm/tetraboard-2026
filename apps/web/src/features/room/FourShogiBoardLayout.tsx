@@ -113,6 +113,8 @@ export type FourShogiBoardLayoutProps = {
   checkState?: Readonly<Record<Side, boolean>>;
   onAction: (action: FourShogiAction) => boolean | void;
   playerCards: Readonly<Record<Side, ReactNode>>;
+  formationNotice?: string;
+  onFormationNoticeDismiss?: () => void;
 };
 
 export function FourShogiBoardLayout({
@@ -127,6 +129,8 @@ export function FourShogiBoardLayout({
   checkState,
   onAction,
   playerCards,
+  formationNotice,
+  onFormationNoticeDismiss,
 }: FourShogiBoardLayoutProps) {
   const layout = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLImageElement>(null);
@@ -236,6 +240,7 @@ export function FourShogiBoardLayout({
 
   function select(next: ShogiSelection): void {
     if (!enabled || consumeClick()) return;
+    onFormationNoticeDismiss?.();
     setSelected(
       selection && shogiSameSelection(selection, next) ? null : { selection: next, revision },
     );
@@ -250,6 +255,7 @@ export function FourShogiBoardLayout({
 
   function chooseDestination(source: ShogiSelection, to: Position): void {
     if (!enabled) return;
+    onFormationNoticeDismiss?.();
     const choices = shogiActionChoices(legalActions, source, to);
     if (choices.length === 1) send(choices[0]);
     else if (choices.length > 1) promotion.open(choices);
@@ -266,6 +272,7 @@ export function FourShogiBoardLayout({
 
   function startPointer(event: PointerEvent<HTMLButtonElement>, source: DragSource): void {
     if (!enabled || event.button !== 0 || !event.isPrimary || promotionChoices) return;
+    onFormationNoticeDismiss?.();
     suppressClick.current = false;
     const image = event.currentTarget.querySelector("img");
     trace.current = {
@@ -506,6 +513,17 @@ export function FourShogiBoardLayout({
               </button>
             );
           })}
+          {formationNotice && !selection && !drag && !promotionChoices && (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              data-testid="shogi-formation-notice"
+              className="absolute left-1/2 top-[83.333333%] -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none whitespace-nowrap rounded-lg bg-[#3d291ee6] px-[0.5em] py-[0.25em] text-white shadow-md text-[clamp(0px,calc(var(--shogi-board-width)_*_0.047),24px)]"
+            >
+              {formationNotice}
+            </div>
+          )}
         </div>
       </div>
       {drag && (

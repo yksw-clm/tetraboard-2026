@@ -1,4 +1,5 @@
 import { nextDueRoomDeadline, earliestAlarmAt } from "./roomDeadlines";
+import { roomFormationAnalysis, formationAnalysisTag } from "./fourShogiFormationAnalysis";
 import {
   analyticsActiveKey,
   analyticsPendingPrefix,
@@ -892,9 +893,16 @@ export class GameRoom extends DurableObject<Env> {
     return this.readRoom();
   }
 
-  async getRoomSnapshot() {
+  async getRoomSnapshot(formationAnalysis = false) {
     const room = await this.getRoom();
-    return room === null ? null : { room, presence: this.presence(room), serverNowMs: Date.now() };
+    return room === null
+      ? null
+      : {
+          room,
+          presence: this.presence(room),
+          serverNowMs: Date.now(),
+          ...roomFormationAnalysis(room, formationAnalysis),
+        };
   }
 
   async getPublicMetadata(): Promise<RoomPublicMetadata | null> {
@@ -1300,10 +1308,15 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private broadcastRoom(room: Room): void {
-    const message = JSON.stringify(this.roomSnapshot(room));
+    let regular: string | undefined;
+    let analyzed: string | undefined;
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       try {
+        const requested = this.ctx.getTags(socket).includes(formationAnalysisTag);
+        const message = requested
+          ? (analyzed ??= JSON.stringify(this.roomSnapshot(room, true)))
+          : (regular ??= JSON.stringify(this.roomSnapshot(room)));
         socket.send(message);
       } catch {
         // 切断中の接続への送信失敗は、保存済みのルーム状態に影響させません。
@@ -1323,13 +1336,22 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private roomSnapshot(room: Room): RoomSocketMessage {
+  private roomSnapshot(room: Room, formationAnalysis = false): RoomSocketMessage {
     return roomSocketContract.message.parse({
       type: "room.snapshot",
       room,
       presence: this.presence(room),
       serverNowMs: Date.now(),
+      ...roomFormationAnalysis(room, formationAnalysis),
     });
+  }
+
+  private sendRoomSnapshot(socket: WebSocket, room: Room): void {
+    socket.send(
+      JSON.stringify(
+        this.roomSnapshot(room, this.ctx.getTags(socket).includes(formationAnalysisTag)),
+      ),
+    );
   }
 
   private sendSocketError(socket: WebSocket, error: RoomSocketError): void {
@@ -1677,7 +1699,7 @@ export class GameRoom extends DurableObject<Env> {
     this.sendSocketError(socket, error);
     const room = this.readRoom();
     if (room !== null && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(this.roomSnapshot(room)));
+      this.sendRoomSnapshot(socket, room);
     }
   }
 
@@ -1705,8 +1727,11 @@ export class GameRoom extends DurableObject<Env> {
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-    this.ctx.acceptWebSocket(server);
-    server.send(JSON.stringify(this.roomSnapshot(room)));
+    this.ctx.acceptWebSocket(
+      server,
+      query.data.formationAnalysis === "1" ? [formationAnalysisTag] : [],
+    );
+    this.sendRoomSnapshot(server, room);
     server.send(JSON.stringify(this.chatSnapshot()));
 
     return new Response(null, { status: 101, webSocket: client });
@@ -1811,7 +1836,7 @@ export class GameRoom extends DurableObject<Env> {
         } else if (result.status === "unchanged") {
           const room = this.readRoom();
           if (room !== null) {
-            socket.send(JSON.stringify(this.roomSnapshot(room)));
+            this.sendRoomSnapshot(socket, room);
           }
         } else {
           this.rejectAction(socket, result.status);
@@ -1836,7 +1861,7 @@ export class GameRoom extends DurableObject<Env> {
         if (result.status === "updated") this.broadcastRoom(result.room);
         else if (result.status === "unchanged") {
           const room = this.readRoom();
-          if (room) socket.send(JSON.stringify(this.roomSnapshot(room)));
+          if (room) this.sendRoomSnapshot(socket, room);
         } else this.rejectAction(socket, result.status);
         return;
       }
@@ -1845,7 +1870,7 @@ export class GameRoom extends DurableObject<Env> {
         if (result.status === "updated") this.broadcastRoom(result.room);
         else if (result.status === "unchanged") {
           const room = this.readRoom();
-          if (room) socket.send(JSON.stringify(this.roomSnapshot(room)));
+          if (room) this.sendRoomSnapshot(socket, room);
         } else this.rejectAction(socket, result.status);
         return;
       }
@@ -1854,7 +1879,7 @@ export class GameRoom extends DurableObject<Env> {
         if (result.status === "updated") this.broadcastRoom(result.room);
         else if (result.status === "unchanged") {
           const room = this.readRoom();
-          if (room !== null) socket.send(JSON.stringify(this.roomSnapshot(room)));
+          if (room !== null) this.sendRoomSnapshot(socket, room);
         } else this.rejectAction(socket, result.status);
         return;
       }
@@ -1868,7 +1893,7 @@ export class GameRoom extends DurableObject<Env> {
         if (result.status === "updated") this.broadcastRoom(result.room);
         else if (result.status === "unchanged") {
           const room = this.readRoom();
-          if (room !== null) socket.send(JSON.stringify(this.roomSnapshot(room)));
+          if (room !== null) this.sendRoomSnapshot(socket, room);
         } else this.rejectAction(socket, result.status);
         return;
       }
@@ -1889,7 +1914,7 @@ export class GameRoom extends DurableObject<Env> {
           if (result.room === null) this.closeSockets();
           else this.broadcastRoom(result.room);
         } else if (result.status === "unchanged") {
-          if (result.room) socket.send(JSON.stringify(this.roomSnapshot(result.room)));
+          if (result.room) this.sendRoomSnapshot(socket, result.room);
         } else if (result.status === "time_expired") {
           await this.reconcileDeadlines();
           this.rejectAction(socket, result.status);

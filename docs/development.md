@@ -611,8 +611,22 @@ bun scripts/prepareFirebaseMatches.ts <export-directory> <links.json> <target.js
 
 出力と元JSONはGit管理外・本人だけが読めるファイルとして保持します。SQLのローカルD1での保存・再実行、公開／本人応答、局面・結果・本人索引・戦績の比較と、全必須検証・GitHub CIを確認してPRを提出します。マージ・公開と本番取り込みは、差分・対象一覧・除外理由・検証結果をレビューできる状態にして開発者が承認してから実施します。承認後も実行直前に本番の事前照合を更新します。
 
+### 四人将棋の戦型解析と通知
+
+`packages/four-shogi/src/formations.ts` の `detectFormations(position, side)` はルール版・盤面・脱落情報だけを入力にし、公開局面とサーバーのルール状態をそのまま渡せます。基本6戦型の固定定義をここに集約し、初期配置と同じ `positionForSide` の回転を再利用します。結果は安定した `id`・`name`・9枚の `matchedSquares`（実盤座標）です。公開定数は `formationAnalyzerId = "four-shogi-formations"` と `formationAnalysisVersion = 1`。条件・意味を変える場合は解析版を更新し、ルール版・保存版とは分けます。
+
+HTTPの `GET /rooms/:id?formationAnalysis=1` とWebSocketの `/rooms/:id/ws?instanceId=...&formationAnalysis=1` は、通常の応答の `room` の外側へ任意の `formationAnalysis` を付加します。将棋の待機中は `null`、対局中は `{ analyzerId, analysisVersion, rulesVersion, roundId, positionRevision, matches: { south, west, north, east } }`。要求なしとリバーシには項目を付加しません。`protocol` は通信スキーマだけを管理し、戦型IDの列挙と判定条件はエンジンに置きます。エンジンへのprotocol依存追加はありません。
+
+WorkerはWebSocketの要求を `formation-analysis-v1` 接続タグで保持し、従来の認証attachmentを維持します。配信ごとに通常応答と付加応答を各1回だけ生成して共有します。HTTP・WebSocketとも確定したルーム状態の4陣営を判定します。解析結果をルーム状態・棋譜・保存対局へ含めず、成立履歴やDB migrationを追加しません。WebはHTTPで付加項目の有無を確認し、対応Workerの場合だけWebSocketでも要求します。再接続時にHTTPで再確認するため、旧Workerへの切替も従来形式で動作します。
+
+`useShogiFormationNotice` は `room.game` を共有関数で照合し、楽観表示用の `session.displayGame` とサーバーの派生結果を通知判定に使いません。認証・接続済みの本人について、同じ局の連続revision・連続手数・本人の直前手と不成立→成立を確認します。初回・再接続・飛んだrevisionは基準とし、既に成立している戦型も既知IDへ含めます。部屋世代・本人ごとの `sessionStorage` キーに局ID・解析版を含むscopeと通知済みIDを保存し、次局で置き換えます。保存エラーはメモリ内の抑止へ退避します。別タブ同期は行いません。
+
+`FourShogiBoardLayout` の任意propsで本人側2段目中央に名称を重ね、2000ms・選択・ドラッグ・成り選択・切断・脱落・終局・次局で消します。盤内縮尺・クリック透過・`role=status` の控えめな読み上げを使い、音・追加アニメーション・フォーカス移動・寸法変更はありません。観戦と棋譜には接続しません。
+
+エンジンは実装定義と独立した完成図fixtureで6形×4方向×両モードと各必須条件を検証します。Workerは実HTTP・WebSocketの混在接続、確定revision、再接続、インスタンス再作成時のタグ・認証維持、保存分離を検証します。Webは既存通信fixtureと寸法検証を使い、Chromium／WebKitの320・390・768・1440px・本人4方向で受理前／後、1999ms／2000ms、重複抑止・保存エラー・操作・再接続時の対応確認を検証します。従来の棋譜回帰も維持します。
+
 ### 将来の派生解析
 
 囲いなどの派生解析は復元済みの読取り専用局面を入力とする純粋な処理として設計します。入力の出所はゲーム・対局ID・局面位置・保存形式・ルール版で識別し、結果は解析器ID・解析バージョン・対象局面・判定根拠を持つ別データとします。保存された盤面・棋譜・勝敗・撃破数は記録の正本であり、解析結果によって変更しません。解析からGameRoom、storage、D1の更新、戦績SQLを呼びません。解析の再実行も元データを変更せず、版ごとの結果を比較できる構成にします。
 
-今回は囲い名・判定基準・解析機能・共通実行基盤・公開指標・保存テーブルを追加しません。新しい指標とバックフィルは仕様承認、比較検証、再実行可能な移行計画を別途必要とし、Admin KPIは #43 の範囲です。
+基本6戦型の判定と通信・通知は上記の専用処理で実装しています。汎用解析基盤・公開指標・解析の保存テーブルは追加しません。戦型別ランキングなど新しい指標とバックフィルは仕様承認、比較検証、再実行可能な移行計画を別途必要とし、Admin KPIは #43 の範囲です。

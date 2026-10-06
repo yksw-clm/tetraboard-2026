@@ -7,6 +7,7 @@ export type LivePropsFor<G extends GameId> = {
   initialPresence: RoomLoaderDataFor<G>["presence"];
   initialServerNowMs: number;
   invited: boolean;
+  initialFormationAnalysisSupported?: boolean;
 };
 export const liveViews = {
   "four-reversi": lazy(() => import("./FourReversiRoomDetail")),

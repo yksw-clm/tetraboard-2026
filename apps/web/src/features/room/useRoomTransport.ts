@@ -46,6 +46,7 @@ export interface RoomTransportOptions<T extends Room> {
   initialMembership: RoomMembership | null;
   initialServerNowMs: number;
   initialPresence: RoomPresence;
+  initialFormationAnalysisSupported?: boolean;
 }
 
 export type SharedRoomSession = Omit<
@@ -91,6 +92,7 @@ export function useRoomTransport<T extends Room>({
   isRoom,
   actionComplete,
   gameOperationError,
+  initialFormationAnalysisSupported = false,
 }: RoomTransportOptions<T>) {
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
@@ -138,6 +140,7 @@ export function useRoomTransport<T extends Room>({
     let timer: ReturnType<typeof setTimeout> | null = null;
     let retryDelay = 1000;
     let currentMembership = initialMembership;
+    let formationAnalysisSupported = initialFormationAnalysisSupported;
 
     function clearPendingReady(): void {
       pendingReadyRef.current = null;
@@ -190,6 +193,8 @@ export function useRoomTransport<T extends Room>({
         setPresence(latest.presence);
         setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
         setMembership(latestMembership);
+        formationAnalysisSupported =
+          latestRoom.settings.game === "four-shogi" && latest.formationAnalysis !== undefined;
         connect();
       } catch (error) {
         if (!active) return;
@@ -205,7 +210,7 @@ export function useRoomTransport<T extends Room>({
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}`;
+      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${formationAnalysisSupported ? "&formationAnalysis=1" : ""}`;
       try {
         socket = new WebSocket(url);
       } catch {
@@ -360,6 +365,7 @@ export function useRoomTransport<T extends Room>({
       socket?.close();
     };
   }, [
+    initialFormationAnalysisSupported,
     initialRoom.id,
     initialRoom.instanceId,
     initialRoom.settings.game,

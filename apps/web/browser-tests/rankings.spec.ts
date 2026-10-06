@@ -346,7 +346,7 @@ for (const width of [320, 390, 767, 768, 1024, 1440]) {
       presence: { hostPlayerId: playerIds[0], connectedPlayerIds: [playerIds[0]] },
       serverNowMs: now,
     };
-    await page.route("**/api/rooms/20000", (route) => route.fulfill({ json: snapshot }));
+    await page.route(/\/api\/rooms\/20000(?:\?.*)?$/, (route) => route.fulfill({ json: snapshot }));
     await page.routeWebSocket("**/api/rooms/20000/ws?*", (socket) => {
       socket.send(JSON.stringify({ type: "room.snapshot", ...snapshot }));
       socket.send(JSON.stringify({ type: "room.chat.snapshot", messages: [] }));
