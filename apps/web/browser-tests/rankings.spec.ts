@@ -113,8 +113,8 @@ for (const width of [320, 390, 767, 768, 1024, 1440]) {
       );
     expect(regionNames).toEqual(
       width < 768
-        ? ["対局を始める", "公開ルーム", "ランキング"]
-        : ["対局を始める", "ランキング", "公開ルーム"],
+        ? ["対局を始める", "公開ルーム", "最近行われた対局", "ランキング"]
+        : ["対局を始める", "ランキング", "公開ルーム", "最近行われた対局"],
     );
     const bounds = await buttons.evaluateAll((elements) =>
       elements.map((element) => element.getBoundingClientRect().y),
@@ -279,8 +279,8 @@ test("スマートフォンとPCの切替でDOM順を合わせ、ランキング
       .poll(() => lobbyRegionNames(page))
       .toEqual(
         width < 768
-          ? ["対局を始める", "公開ルーム", "ランキング"]
-          : ["対局を始める", "ランキング", "公開ルーム"],
+          ? ["対局を始める", "公開ルーム", "最近行われた対局", "ランキング"]
+          : ["対局を始める", "ランキング", "公開ルーム", "最近行われた対局"],
       );
   }
   await page.keyboard.press("Escape");
@@ -295,7 +295,7 @@ test("スマートフォンとPCの切替でDOM順を合わせ、ランキング
   // matchMediaによるDOMの並べ替えを待ってから、キーボード順を確認します。
   await expect
     .poll(() => lobbyRegionNames(page))
-    .toEqual(["対局を始める", "公開ルーム", "ランキング"]);
+    .toEqual(["対局を始める", "公開ルーム", "最近行われた対局", "ランキング"]);
   const play = page.getByRole("region", { name: "対局を始める" });
   const join = play.getByRole("button", { name: /^ルーム番号で参加/ });
   await join.focus();

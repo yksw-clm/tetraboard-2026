@@ -13,6 +13,7 @@ import {
   eliminationSchema,
   roundReplaySchema,
   fourShogiRoomSettingsSchema,
+  roomTimeControlSchema,
 } from "./rooms";
 import {
   fourShogiSideSchema,
@@ -176,7 +177,9 @@ export const publicFourReversiMatchDetailSchema = z
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
-    settings: fourReversiRoomSettingsSchema,
+    settings: fourReversiRoomSettingsSchema.extend({
+      timeControl: roomTimeControlSchema.nullable(),
+    }),
     participants: z.array(matchParticipantSchema).length(4),
     game: finishedGameSchema,
     eliminations: z.array(eliminationSchema).max(4),
@@ -202,7 +205,9 @@ export const publicFourShogiMatchDetailSchema = z
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
-    settings: fourShogiRoomSettingsSchema,
+    settings: fourShogiRoomSettingsSchema.extend({
+      timeControl: roomTimeControlSchema.nullable(),
+    }),
     participants: z.array(fourShogiMatchParticipantSchema).length(4),
     game: finishedFourShogiStateSchema,
     knockouts: knockoutCountsSchema,

@@ -575,6 +575,23 @@ Workerの `matchDataContracts` は `GameId` ごとの保存記録読取り・公
 
 `test-fixtures/matches` のJSONは作成元コミット・固定ID・日時・元保存JSON・将棋イベント・期待フレームを持ち、Worker、Web、ブラウザで共用します。通常初期局面から公開エンジンで受理された棋譜を一度生成して固定し、テスト実行時に期待値を再生成しません。省略形fixtureは既知の旧形式を再現したもので、本番から収集した記録ではありません。新しい互換ケースは既存fixtureを更新せず追加し、元データと期待値の差分をレビューします。関連テストは `bun run --cwd apps/worker test test/matchCompatibility.test.ts` と `bun run --cwd apps/web test ./test/matchCompatibility.test.ts`、ブラウザは `CI=true bun run --cwd apps/web test:browser browser-tests/match-compatibility.spec.ts` です。
 
+### Firebase棋譜の手動移行
+
+Firebase `tetra-board` の旧棋譜は、元JSONをローカルに保持したまま `apps/worker/scripts/prepareFirebaseMatches.ts` でSQLと除外理由付き計画を作成します。このコマンドはDBへ接続せず、書き込みません。通常のアカウント移行で旧棋譜を除外する方針とは別の、開発者が対象を指定した手動移行です。
+
+旧実装 `yksw-clm/tetraboard_archive` の `f70c9ba966d9a19f6165e8c72106fae310b6f237` の初期・途中・終局を照合します。リバーシは全局をシングルスとして扱い、旧初期配置・元着手・自動パス・盤面・結果を保持します。将棋はモード欠落、未記録の外部脱落等を必要とする棋譜、結果不一致を除外します。現行エンジンは脱落者の持ち駒を破棄し、ダブルス終局で敗者の王を死王として表示するため、その差が発生する局も除外します。推測したイベント、手番の強制変更、旧版と異なる局面を保存しません。時間設定だけは承認された例外として `null` を保存し、保存棋譜の持ち時間・秒読みを「不明」と表示します。ルームの時間設定は従来どおり必須です。
+
+名前だけで本人を自動判定しません。旧UID・旧名と現在の内部アカウントID・公開IDを明示した `links.json` の指定だけを、現在の登録済みプロフィールと照合します。指定された「あるきびと」→ `arukibito`、「ちゃおっしー」→ `chaossi` 以外は `accountId: null` の人間ゲストです。開始時の表示名を維持し、旧画像・UID・認証情報を公開応答へ含めません。紐付いた対象局だけが本人履歴・既存の戦績／ランキング集計へ反映されます。
+
+事前に本番D1を読み取り、対象IDの `matches` 全列、`shogi_match_chunks` 全列、`account_match_history` 全列、および指定アカウントの `user` の `id, username, profileCompleted, isAnonymous` を `target.json` の `matches, chunks, history, users` に保存します。既存の記録・チャンク・本人索引と競合する場合は計画作成を停止します。同一データは再実行でき、SQL実行時にも既存行を上書きせず、変更された紐付け先や行の競合で停止します。SQLは本体の前に将棋チャンク、本体の後に本人索引を生成します。ゲストの本人索引は作りません。対象局の不足／余分な行がないことと集計差分を、実行前後で確認します。
+
+```sh
+cd apps/worker
+bun scripts/prepareFirebaseMatches.ts <export-directory> <links.json> <target.json> <output.sql>
+```
+
+出力と元JSONはGit管理外・本人だけが読めるファイルとして保持します。SQLのローカルD1での保存・再実行、公開／本人応答、局面・結果・本人索引・戦績の比較と、全必須検証・GitHub CIを確認してPRを提出します。マージ・公開と本番取り込みは、差分・対象一覧・除外理由・検証結果をレビューできる状態にして開発者が承認してから実施します。承認後も実行直前に本番の事前照合を更新します。
+
 ### 将来の派生解析
 
 囲いなどの派生解析は復元済みの読取り専用局面を入力とする純粋な処理として設計します。入力の出所はゲーム・対局ID・局面位置・保存形式・ルール版で識別し、結果は解析器ID・解析バージョン・対象局面・判定根拠を持つ別データとします。保存された盤面・棋譜・勝敗・撃破数は記録の正本であり、解析結果によって変更しません。解析からGameRoom、storage、D1の更新、戦績SQLを呼びません。解析の再実行も元データを変更せず、版ごとの結果を比較できる構成にします。

@@ -1,4 +1,8 @@
-import { type FourReversiRoom as Room, type RoundReplay } from "@tetraboard/protocol";
+import {
+  type FourReversiRoom as Room,
+  type RoundReplay,
+  type FourReversiMatchDetail,
+} from "@tetraboard/protocol";
 
 import { type FourReversiState } from "@tetraboard/four-reversi";
 
@@ -14,7 +18,7 @@ export type MatchStart = {
   roomId: string;
   instanceId: string;
   startedAtMs: number;
-  settings: Room["settings"];
+  settings: FourReversiMatchDetail["settings"];
   participants: MatchParticipant[];
 };
 export type MatchRecord = MatchStart & {

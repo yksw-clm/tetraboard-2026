@@ -1,6 +1,25 @@
 import { expect, test } from "@playwright/test";
 import { mockAccount, profile } from "./accountFixtures";
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
+import firebaseReversi from "../../../test-fixtures/matches/firebase-four-reversi.json" with { type: "json" };
+test("Firebase棋譜の時間設定は不明で、旧初期局面から最終手まで再生できる", async ({ page }) => {
+  await mockAccount(page, profile);
+  await page.route(/\/api\/account\/matches\/[^/?]+$/, (route) =>
+    route.fulfill({ json: { match: firebaseReversi.detail } }),
+  );
+  await page.goto(`/account/matches/${firebaseReversi.detail.id}`);
+  const previous = page.getByRole("button", { name: "棋譜を1つ戻る", exact: true });
+  await expect(previous).toBeEnabled();
+  await expect(page.locator("dl").getByText("不明", { exact: true })).toHaveCount(2);
+  await page.getByRole("button", { name: /棋譜の局面$/ }).click();
+  await page.getByRole("option", { name: "開始局面", exact: true }).click();
+  await expect(previous).toBeDisabled();
+  await page.getByRole("button", { name: "棋譜を1つ進む", exact: true }).click();
+  await expect(previous).toBeEnabled();
+  await page.reload();
+  await expect(previous).toBeEnabled();
+  await expect(page.getByText("不明", { exact: true })).toHaveCount(2);
+});
 for (const fixture of [
   reversiArchives[0],
   reversiArchives[1],

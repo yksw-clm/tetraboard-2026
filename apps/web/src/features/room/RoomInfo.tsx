@@ -2,7 +2,7 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "./TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
 import type { ReactNode, RefObject } from "react";
-import type { Room, CpuLevel } from "@tetraboard/protocol";
+import type { Room, CpuLevel, ReplayMatch } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Accordion, Chip, Label, RadioGroup } from "@heroui/react";
@@ -217,7 +217,7 @@ export function RoomInfoCard({
   children,
 }: {
   roomId: string;
-  settings: Room["settings"];
+  settings: Room["settings"] | ReplayMatch["settings"];
   children: ReactNode;
 }) {
   return (
@@ -256,9 +256,11 @@ export function RoomInfoCard({
           <div>
             <dt>持ち時間</dt>
             <dd>
-              {settings.timeControl.mainTimeMs === 0
-                ? "なし"
-                : formatClock(settings.timeControl.mainTimeMs)}
+              {settings.timeControl === null
+                ? "不明"
+                : settings.timeControl.mainTimeMs === 0
+                  ? "なし"
+                  : formatClock(settings.timeControl.mainTimeMs)}
             </dd>
           </div>
         </div>
@@ -267,9 +269,11 @@ export function RoomInfoCard({
           <div>
             <dt>秒読み</dt>
             <dd>
-              {settings.timeControl.byoyomiMs === 0
-                ? "なし"
-                : formatClock(settings.timeControl.byoyomiMs)}
+              {settings.timeControl === null
+                ? "不明"
+                : settings.timeControl.byoyomiMs === 0
+                  ? "なし"
+                  : formatClock(settings.timeControl.byoyomiMs)}
             </dd>
           </div>
         </div>
