@@ -73,10 +73,13 @@ export function humanShogiRecord(...args: Parameters<typeof shogiRecord>) {
   return fixture;
 }
 
-export async function saveShogiFixture(fixture: ReturnType<typeof shogiRecord>) {
+export async function saveShogiFixture(
+  fixture: ReturnType<typeof shogiRecord>,
+  db: D1Database = env.APP_DB,
+) {
   let progress: ShogiSaveProgress | null = { phase: "upload", cursor: 0 };
   while (progress) {
-    progress = await advanceShogiMatchSave(env.APP_DB, fixture.record, progress, (cursor) =>
+    progress = await advanceShogiMatchSave(db, fixture.record, progress, (cursor) =>
       fixture.events.slice(cursor, cursor + 100),
     );
   }
