@@ -134,6 +134,7 @@ export async function mockRoom(
 }
 
 export async function mockLobby(page: Page) {
+  await page.route(/\/api\/matches(?:\?.*)?$/, (route) => route.fulfill({ json: { matches: [] } }));
   await page.route("**/api/analytics/**", (route) => route.fulfill({ status: 204 }));
   await page.route(/\/api\/games\/four-(?:reversi|shogi)\/rankings$/, (route) =>
     route.fulfill({
