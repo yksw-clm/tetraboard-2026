@@ -252,7 +252,13 @@ export type ReplayMatch = ReplayFourReversiMatch | ReplayFourShogiMatch;
 export const listPublicMatchesContract = {
   method: "GET",
   path: "/matches",
-  query: z.object({ game: matchGameSchema }),
+  query: z.object({
+    game: matchGameSchema,
+    humanOnly: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+  }),
   response: z.strictObject({ matches: z.array(matchSummarySchema).max(20) }),
 } as const;
 export const getPublicMatchContract = {

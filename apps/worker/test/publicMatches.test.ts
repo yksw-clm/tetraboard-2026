@@ -7,12 +7,13 @@ import {
   getPublicMatchContract,
   getPublicMatchReplayContract,
   type GameId,
+  type RoomMode,
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/rooms/matchStore";
 import { advanceShogiMatchSave } from "../src/rooms/shogiMatchStore";
-import { shogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
+import { shogiRecord, humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
 
 const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MATCH_TEST_DB;
 const createdIds: string[] = [];
@@ -41,8 +42,9 @@ afterEach(async () => {
     ]);
   }
 });
-async function list(game: GameId) {
-  const response = await matchRequest(`/matches?game=${game}`);
+async function list(game: GameId, humanOnly?: boolean) {
+  const filter = humanOnly === undefined ? "" : `&humanOnly=${humanOnly}`;
+  const response = await matchRequest(`/matches?game=${game}${filter}`);
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   return listPublicMatchesContract.response.parse(await response.json()).matches;
@@ -50,6 +52,82 @@ async function list(game: GameId) {
 function track<T extends { id: string }>(record: T) {
   createdIds.push(record.id);
   return record;
+}
+
+async function saveFilteredFixture(
+  game: GameId,
+  namespace: string,
+  index: number,
+  mode: RoomMode,
+  cpu: boolean,
+) {
+  if (game === "four-reversi") {
+    const record = track(humanFixtureRecord(namespace, index, mode));
+    record.participants = record.participants.map((player) =>
+      player.kind === "human" ? { ...player, accountId: null } : player,
+    );
+    if (cpu) {
+      const player = record.participants[3];
+      if (player.kind !== "human") throw new Error("Expected human fixture");
+      const { accountId: _accountId, ...identity } = player;
+      record.participants[3] = { ...identity, kind: "cpu", level: 1 };
+    }
+    record.startedAtMs += cpu ? 500 : index <= 5 ? 100 : 0;
+    await writeMatch(db, record);
+    return record;
+  }
+  const fixture = humanShogiRecord(null, "south", mode);
+  const record = track(fixture.record);
+  if (cpu) {
+    const player = record.participants[3];
+    if (player.kind !== "human") throw new Error("Expected human fixture");
+    const { accountId: _accountId, ...identity } = player;
+    record.participants[3] = { ...identity, kind: "cpu", level: 1 };
+  }
+  record.startedAtMs += cpu ? 500 : index <= 5 ? 100 : 0;
+  await saveShogiFixture(fixture, db);
+  return record;
+}
+
+for (const game of ["four-reversi", "four-shogi"] as const) {
+  for (const count of [0, 23]) {
+    test(`${game}: 新しいCPU戦21件より前の人間4人の対局${count}件から最新20件を取得する`, async () => {
+      const namespace = crypto.randomUUID();
+      const records = [];
+      for (let i = 1; i <= count; i++) {
+        records.push(
+          await saveFilteredFixture(game, namespace, i, i % 2 ? "singles" : "doubles", false),
+        );
+      }
+      for (let i = count + 1; i <= count + 21; i++) {
+        await saveFilteredFixture(game, namespace, i, i % 2 ? "singles" : "doubles", true);
+      }
+      const expected = records
+        .sort((a, b) => b.startedAtMs - a.startedAtMs || b.id.localeCompare(a.id))
+        .slice(0, 20);
+      const matches = await list(game, true);
+      expect(matches.map((match) => match.id)).toEqual(expected.map((record) => record.id));
+      expect(
+        matches.every(
+          (match) => match.game === game && match.participants.every((p) => p.kind === "human"),
+        ),
+      ).toBe(true);
+      if (count) {
+        expect(matches.some((match) => match.mode === "singles")).toBe(true);
+        expect(matches.some((match) => match.mode === "doubles")).toBe(true);
+      }
+      const unfiltered = await list(game);
+      expect(unfiltered).toHaveLength(20);
+      expect(
+        unfiltered.every(
+          (match) => match.participants.filter((p) => p.kind === "cpu").length === 1,
+        ),
+      ).toBe(true);
+      expect(await list(game, false)).toEqual(unfiltered);
+      const otherGame = game === "four-reversi" ? "four-shogi" : "four-reversi";
+      expect(await list(otherGame, true)).toEqual([]);
+    });
+  }
 }
 
 for (const count of [0, 20, 23]) {
@@ -170,6 +248,9 @@ test("不正条件・未知ID・D1障害・不整合な保存記録を区別す�
     "/matches",
     "/matches?game=",
     "/matches?game=all",
+    "/matches?game=four-reversi&humanOnly=",
+    "/matches?game=four-reversi&humanOnly=1",
+    "/matches?game=four-shogi&humanOnly=TRUE",
     "/matches/bad",
     "/matches/bad/replay",
     `/matches/${crypto.randomUUID()}/replay?cursor=bad`,

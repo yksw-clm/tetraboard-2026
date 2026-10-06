@@ -11,11 +11,21 @@ import { readShogiMatchReplayPage } from "./shogiMatchStore";
 export const publicMatchRoutes = new Hono<{ Bindings: Env }>();
 publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {
   c.header("Cache-Control", "no-store");
-  const query = listPublicMatchesContract.query.safeParse({ game: c.req.query("game") });
+  const query = listPublicMatchesContract.query.safeParse({
+    game: c.req.query("game"),
+    humanOnly: c.req.query("humanOnly"),
+  });
   if (!query.success) return c.json({ message: "対局の取得条件が正しくありません。" }, 400);
   try {
+    const humanFilter = query.data.humanOnly
+      ? `AND json_array_length(record_json, '$.participants') = 4
+         AND NOT EXISTS (
+           SELECT 1 FROM json_each(record_json, '$.participants') participant
+           WHERE json_extract(participant.value, '$.kind') IS NOT 'human'
+         )`
+      : "";
     const rows = await c.env.APP_DB.prepare(`SELECT game, record_json FROM matches
-      WHERE game = ? ORDER BY started_at_ms DESC, id DESC LIMIT 20`)
+      WHERE game = ? ${humanFilter} ORDER BY started_at_ms DESC, id DESC LIMIT 20`)
       .bind(query.data.game)
       .all<{ game: string; record_json: string }>();
     const records = rows.results.map((row) => readStoredMatch(row.record_json, row.game));
