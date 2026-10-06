@@ -3,7 +3,18 @@ import { fourReversiMatchDetailSchema, fourShogiMatchDetailSchema } from "@tetra
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
 import { replayFrames } from "../src/features/room/replayFrames";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
+import firebaseReversi from "../../../test-fixtures/matches/firebase-four-reversi.json";
 const fetchSpies: ReturnType<typeof spyOn>[] = [];
+test("Firebase版の初期配置と各手を保存局面から復元する", () => {
+  const match = fourReversiMatchDetailSchema.parse(firebaseReversi.detail);
+  const frames = replayFrames({ game: match.game, players: [], replay: match.replay });
+  expect(match.settings.timeControl).toBeNull();
+  expect(frames).toHaveLength(59);
+  for (const point of firebaseReversi.checkpoints)
+    expect(frames.findLast((frame) => frame.game.moveNumber === point.index)?.game.board).toEqual(
+      point.board,
+    );
+});
 afterEach(() => {
   for (const spy of fetchSpies.splice(0)) spy.mockRestore();
 });

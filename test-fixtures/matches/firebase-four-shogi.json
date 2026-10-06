@@ -1,0 +1,6445 @@
+{
+  "sourceCommit": "f70c9ba966d9a19f6165e8c72106fae310b6f237",
+  "source": {
+    "match": {
+      "id": "77777777-7777-4777-8777-000000000002",
+      "gameType": "four-shogi",
+      "roomId": "12345",
+      "startedAt": 1700000000000,
+      "endedAt": 1700000001000,
+      "moveCount": 259,
+      "movesChunkCount": 2,
+      "gamePlayers": [
+        {
+          "seat": 2,
+          "color": "south"
+        },
+        {
+          "seat": 1,
+          "color": "west"
+        },
+        {
+          "seat": 3,
+          "color": "north"
+        },
+        {
+          "seat": 0,
+          "color": "east"
+        }
+      ],
+      "playerSnapshots": [
+        {
+          "uid": "fixture-seat-3",
+          "name": "旧参加者3",
+          "seat": 3
+        },
+        {
+          "uid": "fixture-seat-0",
+          "name": "旧参加者0",
+          "seat": 0
+        },
+        {
+          "uid": "fixture-seat-1",
+          "name": "旧参加者1",
+          "seat": 1
+        },
+        {
+          "uid": "fixture-seat-2",
+          "name": "旧参加者2",
+          "seat": 2
+        }
+      ],
+      "players": [
+        {
+          "uid": "fixture-seat-3",
+          "seat": 3,
+          "rank": 4,
+          "result": "lose",
+          "isWinner": false
+        },
+        {
+          "uid": "fixture-seat-0",
+          "seat": 0,
+          "rank": 3,
+          "result": "lose",
+          "isWinner": false
+        },
+        {
+          "uid": "fixture-seat-1",
+          "seat": 1,
+          "rank": 2,
+          "result": "lose",
+          "isWinner": false
+        },
+        {
+          "uid": "fixture-seat-2",
+          "seat": 2,
+          "rank": 1,
+          "result": "win",
+          "isWinner": true
+        }
+      ],
+      "version": 1,
+      "meta": {
+        "forbidThreePlayerAttack": false,
+        "fourShogiMode": "singles"
+      }
+    },
+    "moveChunks": [
+      {
+        "index": 0,
+        "moves": [
+          {
+            "to": {
+              "y": 5,
+              "x": 4
+            },
+            "color": "south",
+            "type": "move",
+            "from": {
+              "x": 4,
+              "y": 6
+            },
+            "promote": false
+          },
+          {
+            "promote": false,
+            "color": "west",
+            "from": {
+              "y": 4,
+              "x": 2
+            },
+            "type": "move",
+            "to": {
+              "y": 4,
+              "x": 3
+            }
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 3
+            },
+            "type": "move",
+            "color": "north",
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "promote": false
+          },
+          {
+            "promote": false,
+            "type": "move",
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "from": {
+              "x": 6,
+              "y": 4
+            },
+            "color": "east"
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 7,
+              "x": 4
+            },
+            "color": "south",
+            "to": {
+              "y": 6,
+              "x": 4
+            },
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 0,
+              "y": 3
+            },
+            "color": "west",
+            "to": {
+              "y": 2,
+              "x": 1
+            },
+            "promote": false
+          },
+          {
+            "color": "north",
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 0
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 1,
+              "x": 7
+            },
+            "color": "east",
+            "type": "move",
+            "from": {
+              "y": 2,
+              "x": 8
+            }
+          },
+          {
+            "color": "south",
+            "to": {
+              "x": 4,
+              "y": 7
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 6,
+              "x": 4
+            }
+          },
+          {
+            "to": {
+              "x": 1,
+              "y": 6
+            },
+            "color": "west",
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 6,
+              "x": 0
+            }
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 5
+            },
+            "type": "move",
+            "color": "north",
+            "promote": false,
+            "to": {
+              "x": 5,
+              "y": 2
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 6
+            },
+            "type": "move",
+            "color": "east",
+            "from": {
+              "y": 4,
+              "x": 7
+            }
+          },
+          {
+            "color": "south",
+            "to": {
+              "y": 7,
+              "x": 1
+            },
+            "type": "move",
+            "promote": false,
+            "from": {
+              "y": 8,
+              "x": 2
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 6,
+              "x": 1
+            },
+            "to": {
+              "x": 0,
+              "y": 7
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "type": "move",
+            "promote": false,
+            "color": "north",
+            "to": {
+              "x": 7,
+              "y": 1
+            }
+          },
+          {
+            "type": "drop",
+            "color": "east",
+            "kind": "silver",
+            "to": {
+              "y": 2,
+              "x": 8
+            }
+          },
+          {
+            "from": {
+              "x": 3,
+              "y": 7
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 3,
+              "y": 6
+            },
+            "color": "south"
+          },
+          {
+            "from": {
+              "y": 7,
+              "x": 0
+            },
+            "color": "west",
+            "type": "move",
+            "to": {
+              "y": 7,
+              "x": 1
+            },
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 1,
+              "x": 7
+            },
+            "color": "north",
+            "to": {
+              "y": 1,
+              "x": 4
+            },
+            "promote": false
+          },
+          {
+            "color": "east",
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "from": {
+              "y": 4,
+              "x": 6
+            },
+            "type": "move",
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 4,
+              "y": 7
+            },
+            "color": "south",
+            "to": {
+              "x": 1,
+              "y": 7
+            },
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 0,
+              "y": 5
+            },
+            "color": "west",
+            "to": {
+              "y": 6,
+              "x": 0
+            },
+            "promote": false
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 5
+            },
+            "color": "north",
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 5,
+              "y": 0
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 2
+            },
+            "to": {
+              "y": 2,
+              "x": 7
+            },
+            "promote": false,
+            "color": "east"
+          },
+          {
+            "promote": false,
+            "color": "south",
+            "from": {
+              "x": 1,
+              "y": 7
+            },
+            "type": "move",
+            "to": {
+              "x": 4,
+              "y": 7
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 5,
+              "x": 2
+            },
+            "color": "west",
+            "type": "move",
+            "from": {
+              "y": 5,
+              "x": 1
+            }
+          },
+          {
+            "color": "north",
+            "from": {
+              "y": 1,
+              "x": 5
+            },
+            "promote": false,
+            "type": "move",
+            "to": {
+              "x": 6,
+              "y": 1
+            }
+          },
+          {
+            "to": {
+              "x": 7,
+              "y": 0
+            },
+            "promote": false,
+            "type": "move",
+            "color": "east",
+            "from": {
+              "x": 7,
+              "y": 2
+            }
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 6
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 6,
+              "y": 0
+            },
+            "color": "north"
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 7
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 0,
+              "x": 6
+            },
+            "color": "east"
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 0,
+              "x": 4
+            },
+            "type": "move",
+            "to": {
+              "y": 1,
+              "x": 5
+            },
+            "color": "north"
+          },
+          {
+            "promote": false,
+            "color": "east",
+            "from": {
+              "x": 6,
+              "y": 0
+            },
+            "to": {
+              "x": 8,
+              "y": 0
+            },
+            "type": "move"
+          },
+          {
+            "color": "south",
+            "promote": false,
+            "to": {
+              "x": 5,
+              "y": 6
+            },
+            "type": "move",
+            "from": {
+              "y": 7,
+              "x": 5
+            }
+          },
+          {
+            "from": {
+              "y": 4,
+              "x": 1
+            },
+            "promote": false,
+            "type": "move",
+            "color": "west",
+            "to": {
+              "y": 8,
+              "x": 1
+            }
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 3
+            },
+            "color": "north",
+            "type": "move",
+            "from": {
+              "x": 3,
+              "y": 0
+            },
+            "promote": false
+          },
+          {
+            "color": "east",
+            "to": {
+              "y": 1,
+              "x": 8
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 0,
+              "x": 8
+            }
+          },
+          {
+            "to": {
+              "x": 4,
+              "y": 0
+            },
+            "color": "north",
+            "type": "move",
+            "from": {
+              "x": 5,
+              "y": 1
+            },
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 1
+            },
+            "color": "east",
+            "to": {
+              "y": 0,
+              "x": 8
+            },
+            "promote": false
+          },
+          {
+            "color": "north",
+            "promote": false,
+            "from": {
+              "x": 4,
+              "y": 0
+            },
+            "type": "move",
+            "to": {
+              "y": 1,
+              "x": 5
+            }
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 8
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 1,
+              "x": 8
+            },
+            "color": "east"
+          },
+          {
+            "type": "move",
+            "to": {
+              "x": 4,
+              "y": 0
+            },
+            "from": {
+              "x": 5,
+              "y": 1
+            },
+            "promote": false,
+            "color": "north"
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 1
+            },
+            "promote": false,
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "color": "east"
+          },
+          {
+            "from": {
+              "y": 7,
+              "x": 4
+            },
+            "type": "move",
+            "to": {
+              "x": 6,
+              "y": 7
+            },
+            "promote": false,
+            "color": "south"
+          },
+          {
+            "color": "west",
+            "promote": false,
+            "from": {
+              "y": 6,
+              "x": 0
+            },
+            "to": {
+              "y": 6,
+              "x": 1
+            },
+            "type": "move"
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 5
+            },
+            "kind": "silver",
+            "type": "drop",
+            "color": "north"
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 7,
+              "y": 1
+            },
+            "to": {
+              "x": 7,
+              "y": 0
+            },
+            "color": "east",
+            "promote": false
+          },
+          {
+            "from": {
+              "x": 5,
+              "y": 1
+            },
+            "type": "move",
+            "color": "north",
+            "promote": false,
+            "to": {
+              "y": 0,
+              "x": 6
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 0,
+              "x": 7
+            },
+            "promote": false,
+            "to": {
+              "x": 6,
+              "y": 0
+            },
+            "color": "east"
+          },
+          {
+            "color": "north",
+            "promote": false,
+            "to": {
+              "y": 1,
+              "x": 5
+            },
+            "type": "move",
+            "from": {
+              "x": 4,
+              "y": 0
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "x": 6,
+              "y": 0
+            },
+            "type": "move",
+            "to": {
+              "y": 0,
+              "x": 8
+            },
+            "color": "east"
+          },
+          {
+            "kind": "silver",
+            "to": {
+              "x": 5,
+              "y": 5
+            },
+            "type": "drop",
+            "color": "south"
+          },
+          {
+            "from": {
+              "x": 1,
+              "y": 2
+            },
+            "color": "west",
+            "promote": false,
+            "type": "move",
+            "to": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          {
+            "color": "north",
+            "to": {
+              "y": 0,
+              "x": 4
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 1,
+              "x": 4
+            }
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 8
+            },
+            "type": "move",
+            "promote": false,
+            "color": "east",
+            "to": {
+              "x": 8,
+              "y": 1
+            }
+          },
+          {
+            "color": "north",
+            "to": {
+              "y": 0,
+              "x": 5
+            },
+            "from": {
+              "y": 1,
+              "x": 5
+            },
+            "type": "move",
+            "promote": false
+          },
+          {
+            "to": {
+              "x": 6,
+              "y": 1
+            },
+            "kind": "gold",
+            "color": "east",
+            "type": "drop"
+          },
+          {
+            "from": {
+              "x": 5,
+              "y": 0
+            },
+            "type": "move",
+            "to": {
+              "y": 1,
+              "x": 4
+            },
+            "color": "north",
+            "promote": false
+          },
+          {
+            "to": {
+              "x": 5,
+              "y": 1
+            },
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 1
+            },
+            "color": "east",
+            "promote": false
+          },
+          {
+            "to": {
+              "x": 3,
+              "y": 0
+            },
+            "color": "north",
+            "type": "move",
+            "from": {
+              "y": 1,
+              "x": 4
+            },
+            "promote": false
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 5
+            },
+            "type": "move",
+            "color": "east",
+            "promote": false,
+            "to": {
+              "x": 4,
+              "y": 0
+            }
+          },
+          {
+            "type": "move",
+            "promote": false,
+            "from": {
+              "y": 0,
+              "x": 3
+            },
+            "color": "north",
+            "to": {
+              "y": 0,
+              "x": 4
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 0,
+              "x": 8
+            },
+            "color": "east",
+            "from": {
+              "y": 1,
+              "x": 8
+            },
+            "type": "move"
+          },
+          {
+            "to": {
+              "x": 5,
+              "y": 0
+            },
+            "kind": "gold",
+            "color": "north",
+            "type": "drop"
+          },
+          {
+            "type": "drop",
+            "color": "east",
+            "to": {
+              "x": 8,
+              "y": 1
+            },
+            "kind": "rook"
+          },
+          {
+            "from": {
+              "y": 5,
+              "x": 5
+            },
+            "type": "move",
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "promote": false,
+            "color": "south"
+          },
+          {
+            "promote": false,
+            "to": {
+              "x": 2,
+              "y": 4
+            },
+            "color": "west",
+            "type": "move",
+            "from": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          {
+            "color": "north",
+            "from": {
+              "x": 3,
+              "y": 1
+            },
+            "promote": false,
+            "type": "move",
+            "to": {
+              "y": 1,
+              "x": 4
+            }
+          },
+          {
+            "kind": "silver",
+            "color": "east",
+            "type": "drop",
+            "to": {
+              "x": 7,
+              "y": 6
+            }
+          },
+          {
+            "from": {
+              "y": 7,
+              "x": 6
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 7,
+              "x": 5
+            },
+            "color": "south"
+          },
+          {
+            "to": {
+              "y": 4,
+              "x": 1
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 4,
+              "x": 2
+            },
+            "color": "west"
+          },
+          {
+            "to": {
+              "y": 3,
+              "x": 3
+            },
+            "type": "move",
+            "from": {
+              "y": 2,
+              "x": 3
+            },
+            "color": "north",
+            "promote": false
+          },
+          {
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "type": "move",
+            "from": {
+              "y": 1,
+              "x": 8
+            },
+            "color": "east",
+            "promote": false
+          },
+          {
+            "type": "drop",
+            "color": "south",
+            "to": {
+              "y": 7,
+              "x": 8
+            },
+            "kind": "pawn"
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 6,
+              "x": 1
+            },
+            "color": "west",
+            "type": "move",
+            "to": {
+              "x": 1,
+              "y": 7
+            }
+          },
+          {
+            "color": "north",
+            "to": {
+              "y": 4,
+              "x": 3
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 3,
+              "y": 3
+            }
+          },
+          {
+            "to": {
+              "y": 0,
+              "x": 7
+            },
+            "type": "move",
+            "promote": false,
+            "color": "east",
+            "from": {
+              "x": 7,
+              "y": 1
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 6,
+              "x": 8
+            },
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 7
+            },
+            "color": "south"
+          },
+          {
+            "color": "west",
+            "promote": false,
+            "from": {
+              "x": 1,
+              "y": 7
+            },
+            "type": "move",
+            "to": {
+              "x": 2,
+              "y": 8
+            }
+          },
+          {
+            "type": "move",
+            "to": {
+              "x": 3,
+              "y": 1
+            },
+            "from": {
+              "y": 0,
+              "x": 4
+            },
+            "color": "north",
+            "promote": false
+          },
+          {
+            "promote": false,
+            "color": "east",
+            "from": {
+              "y": 5,
+              "x": 8
+            },
+            "to": {
+              "x": 8,
+              "y": 6
+            },
+            "type": "move"
+          },
+          {
+            "to": {
+              "x": 0,
+              "y": 7
+            },
+            "type": "move",
+            "from": {
+              "y": 7,
+              "x": 5
+            },
+            "promote": false,
+            "color": "south"
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 4,
+              "x": 0
+            },
+            "color": "west",
+            "type": "move",
+            "to": {
+              "y": 5,
+              "x": 1
+            }
+          },
+          {
+            "to": {
+              "x": 5,
+              "y": 3
+            },
+            "promote": false,
+            "color": "north",
+            "type": "move",
+            "from": {
+              "y": 2,
+              "x": 5
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 3,
+              "x": 6
+            },
+            "color": "east",
+            "from": {
+              "x": 7,
+              "y": 3
+            },
+            "type": "move"
+          },
+          {
+            "type": "drop",
+            "to": {
+              "y": 6,
+              "x": 2
+            },
+            "color": "south",
+            "kind": "silver"
+          },
+          {
+            "to": {
+              "y": 6,
+              "x": 2
+            },
+            "color": "west",
+            "type": "move",
+            "promote": false,
+            "from": {
+              "x": 1,
+              "y": 5
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "color": "north",
+            "type": "move",
+            "from": {
+              "x": 5,
+              "y": 3
+            }
+          },
+          {
+            "to": {
+              "y": 3,
+              "x": 7
+            },
+            "type": "move",
+            "promote": false,
+            "color": "east",
+            "from": {
+              "x": 8,
+              "y": 3
+            }
+          },
+          {
+            "to": {
+              "x": 0,
+              "y": 2
+            },
+            "promote": true,
+            "type": "move",
+            "color": "south",
+            "from": {
+              "y": 7,
+              "x": 0
+            }
+          },
+          {
+            "color": "west",
+            "from": {
+              "y": 8,
+              "x": 2
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 3,
+              "y": 8
+            }
+          },
+          {
+            "from": {
+              "x": 4,
+              "y": 8
+            },
+            "type": "move",
+            "to": {
+              "x": 5,
+              "y": 7
+            },
+            "color": "south",
+            "promote": false
+          },
+          {
+            "color": "west",
+            "from": {
+              "x": 3,
+              "y": 8
+            },
+            "promote": false,
+            "type": "move",
+            "to": {
+              "y": 8,
+              "x": 2
+            }
+          },
+          {
+            "color": "north",
+            "to": {
+              "y": 0,
+              "x": 3
+            },
+            "type": "move",
+            "promote": false,
+            "from": {
+              "y": 1,
+              "x": 3
+            }
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 7
+            },
+            "type": "move",
+            "color": "east",
+            "promote": false,
+            "to": {
+              "x": 7,
+              "y": 2
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 2,
+              "x": 0
+            },
+            "to": {
+              "y": 7,
+              "x": 0
+            },
+            "color": "south",
+            "type": "move"
+          },
+          {
+            "promote": false,
+            "color": "west",
+            "from": {
+              "y": 8,
+              "x": 1
+            },
+            "type": "move",
+            "to": {
+              "x": 1,
+              "y": 5
+            }
+          },
+          {
+            "type": "drop",
+            "color": "north",
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "kind": "pawn"
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 7
+            },
+            "color": "east",
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 2
+            },
+            "promote": false
+          },
+          {
+            "color": "south",
+            "promote": false,
+            "from": {
+              "y": 5,
+              "x": 4
+            },
+            "to": {
+              "y": 4,
+              "x": 4
+            },
+            "type": "move"
+          },
+          {
+            "from": {
+              "y": 8,
+              "x": 2
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 1,
+              "y": 8
+            },
+            "color": "west"
+          },
+          {
+            "from": {
+              "x": 2,
+              "y": 0
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 2,
+              "y": 1
+            },
+            "color": "north"
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 0,
+              "x": 8
+            },
+            "to": {
+              "x": 5,
+              "y": 0
+            },
+            "color": "east",
+            "promote": false
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 4
+            },
+            "color": "north",
+            "promote": false,
+            "type": "move",
+            "to": {
+              "x": 4,
+              "y": 0
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "x": 5,
+              "y": 0
+            },
+            "type": "move",
+            "color": "east",
+            "to": {
+              "y": 4,
+              "x": 5
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 4,
+              "x": 4
+            },
+            "to": {
+              "y": 3,
+              "x": 4
+            },
+            "color": "south",
+            "promote": false
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 6,
+              "x": 3
+            },
+            "type": "move",
+            "color": "west",
+            "from": {
+              "y": 6,
+              "x": 2
+            }
+          },
+          {
+            "from": {
+              "y": 4,
+              "x": 3
+            },
+            "type": "move",
+            "color": "north",
+            "promote": false,
+            "to": {
+              "y": 5,
+              "x": 3
+            }
+          },
+          {
+            "to": {
+              "y": 5,
+              "x": 3
+            },
+            "color": "west",
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 3,
+              "y": 6
+            }
+          },
+          {
+            "color": "north",
+            "promote": false,
+            "from": {
+              "y": 2,
+              "x": 4
+            },
+            "type": "move",
+            "to": {
+              "y": 3,
+              "x": 4
+            }
+          },
+          {
+            "to": {
+              "x": 5,
+              "y": 2
+            },
+            "promote": false,
+            "color": "east",
+            "type": "move",
+            "from": {
+              "x": 5,
+              "y": 4
+            }
+          },
+          {
+            "type": "drop",
+            "to": {
+              "x": 1,
+              "y": 6
+            },
+            "color": "south",
+            "kind": "silver"
+          },
+          {
+            "to": {
+              "y": 6,
+              "x": 0
+            },
+            "color": "west",
+            "kind": "pawn",
+            "type": "drop"
+          },
+          {
+            "color": "north",
+            "from": {
+              "x": 4,
+              "y": 0
+            },
+            "to": {
+              "y": 1,
+              "x": 4
+            },
+            "promote": false,
+            "type": "move"
+          },
+          {
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "from": {
+              "y": 2,
+              "x": 5
+            },
+            "color": "east"
+          },
+          {
+            "type": "move",
+            "to": {
+              "x": 1,
+              "y": 5
+            },
+            "from": {
+              "x": 1,
+              "y": 6
+            },
+            "promote": false,
+            "color": "south"
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 1,
+              "y": 4
+            },
+            "to": {
+              "y": 5,
+              "x": 1
+            },
+            "promote": false,
+            "color": "west"
+          },
+          {
+            "color": "north",
+            "promote": false,
+            "to": {
+              "x": 5,
+              "y": 1
+            },
+            "type": "move",
+            "from": {
+              "y": 1,
+              "x": 4
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "x": 6,
+              "y": 2
+            },
+            "type": "move",
+            "to": {
+              "x": 6,
+              "y": 0
+            },
+            "color": "east"
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 3
+            },
+            "type": "move",
+            "promote": false,
+            "color": "north",
+            "to": {
+              "y": 1,
+              "x": 3
+            }
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 6
+            },
+            "type": "move",
+            "color": "east",
+            "promote": true,
+            "to": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "to": {
+              "y": 8,
+              "x": 1
+            },
+            "color": "south",
+            "from": {
+              "y": 7,
+              "x": 0
+            },
+            "promote": false,
+            "type": "move"
+          },
+          {
+            "to": {
+              "y": 7,
+              "x": 1
+            },
+            "type": "drop",
+            "kind": "pawn",
+            "color": "west"
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 1,
+              "x": 2
+            },
+            "type": "move",
+            "color": "north",
+            "to": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          {
+            "promote": true,
+            "from": {
+              "y": 2,
+              "x": 7
+            },
+            "type": "move",
+            "to": {
+              "y": 2,
+              "x": 1
+            },
+            "color": "east"
+          },
+          {
+            "to": {
+              "y": 7,
+              "x": 1
+            },
+            "color": "south",
+            "type": "move",
+            "from": {
+              "x": 1,
+              "y": 8
+            },
+            "promote": false
+          },
+          {
+            "color": "west",
+            "promote": false,
+            "to": {
+              "y": 5,
+              "x": 4
+            },
+            "from": {
+              "y": 5,
+              "x": 3
+            },
+            "type": "move"
+          },
+          {
+            "kind": "silver",
+            "type": "drop",
+            "to": {
+              "y": 1,
+              "x": 2
+            },
+            "color": "north"
+          },
+          {
+            "to": {
+              "x": 8,
+              "y": 2
+            },
+            "color": "east",
+            "type": "move",
+            "promote": false,
+            "from": {
+              "y": 2,
+              "x": 1
+            }
+          },
+          {
+            "color": "south",
+            "to": {
+              "x": 1,
+              "y": 5
+            },
+            "from": {
+              "x": 1,
+              "y": 7
+            },
+            "type": "move",
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 4,
+              "y": 5
+            },
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "color": "west"
+          },
+          {
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "color": "north",
+            "from": {
+              "y": 1,
+              "x": 3
+            }
+          },
+          {
+            "to": {
+              "x": 6,
+              "y": 1
+            },
+            "kind": "pawn",
+            "color": "east",
+            "type": "drop"
+          },
+          {
+            "to": {
+              "x": 2,
+              "y": 5
+            },
+            "promote": false,
+            "color": "south",
+            "from": {
+              "y": 5,
+              "x": 1
+            },
+            "type": "move"
+          },
+          {
+            "from": {
+              "y": 4,
+              "x": 5
+            },
+            "type": "move",
+            "color": "west",
+            "promote": false,
+            "to": {
+              "x": 4,
+              "y": 3
+            }
+          },
+          {
+            "color": "north",
+            "from": {
+              "y": 1,
+              "x": 5
+            },
+            "promote": false,
+            "type": "move",
+            "to": {
+              "y": 1,
+              "x": 6
+            }
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 6
+            },
+            "promote": false,
+            "type": "move",
+            "color": "east",
+            "from": {
+              "y": 1,
+              "x": 7
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 1,
+              "x": 2
+            },
+            "color": "south",
+            "from": {
+              "x": 2,
+              "y": 5
+            },
+            "type": "move"
+          },
+          {
+            "type": "drop",
+            "kind": "pawn",
+            "color": "north",
+            "to": {
+              "x": 3,
+              "y": 1
+            }
+          },
+          {
+            "color": "east",
+            "to": {
+              "x": 0,
+              "y": 6
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 0,
+              "x": 0
+            }
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 2
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 7,
+              "x": 2
+            },
+            "color": "south"
+          },
+          {
+            "type": "drop",
+            "color": "west",
+            "to": {
+              "y": 7,
+              "x": 7
+            },
+            "kind": "gold"
+          },
+          {
+            "type": "move",
+            "to": {
+              "y": 0,
+              "x": 3
+            },
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "color": "north",
+            "promote": false
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 0,
+              "y": 6
+            },
+            "to": {
+              "x": 0,
+              "y": 0
+            },
+            "color": "east",
+            "promote": false
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 4
+            },
+            "promote": false,
+            "color": "north",
+            "type": "move",
+            "from": {
+              "y": 0,
+              "x": 3
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 0,
+              "y": 0
+            },
+            "promote": false,
+            "to": {
+              "y": 0,
+              "x": 8
+            },
+            "color": "east"
+          },
+          {
+            "to": {
+              "x": 3,
+              "y": 8
+            },
+            "kind": "gold",
+            "type": "drop",
+            "color": "south"
+          },
+          {
+            "color": "west",
+            "promote": false,
+            "to": {
+              "y": 6,
+              "x": 8
+            },
+            "type": "move",
+            "from": {
+              "x": 7,
+              "y": 7
+            }
+          },
+          {
+            "type": "drop",
+            "to": {
+              "y": 3,
+              "x": 8
+            },
+            "color": "north",
+            "kind": "pawn"
+          },
+          {
+            "type": "move",
+            "color": "east",
+            "from": {
+              "y": 4,
+              "x": 8
+            },
+            "promote": false,
+            "to": {
+              "x": 8,
+              "y": 3
+            }
+          },
+          {
+            "from": {
+              "x": 6,
+              "y": 8
+            },
+            "type": "move",
+            "color": "south",
+            "to": {
+              "x": 7,
+              "y": 7
+            },
+            "promote": false
+          },
+          {
+            "color": "west",
+            "from": {
+              "x": 8,
+              "y": 6
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "x": 3,
+              "y": 1
+            },
+            "type": "move",
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "color": "north"
+          },
+          {
+            "color": "east",
+            "type": "drop",
+            "to": {
+              "y": 1,
+              "x": 5
+            },
+            "kind": "pawn"
+          },
+          {
+            "from": {
+              "y": 1,
+              "x": 4
+            },
+            "type": "move",
+            "to": {
+              "y": 1,
+              "x": 3
+            },
+            "promote": false,
+            "color": "north"
+          },
+          {
+            "from": {
+              "x": 5,
+              "y": 1
+            },
+            "type": "move",
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false,
+            "color": "east"
+          },
+          {
+            "type": "move",
+            "color": "north",
+            "from": {
+              "x": 3,
+              "y": 1
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false
+          },
+          {
+            "type": "drop",
+            "color": "east",
+            "kind": "pawn",
+            "to": {
+              "x": 5,
+              "y": 1
+            }
+          },
+          {
+            "color": "north",
+            "promote": false,
+            "from": {
+              "y": 1,
+              "x": 4
+            },
+            "type": "move",
+            "to": {
+              "x": 3,
+              "y": 1
+            }
+          },
+          {
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "color": "east",
+            "kind": "silver",
+            "type": "drop"
+          },
+          {
+            "to": {
+              "x": 7,
+              "y": 6
+            },
+            "promote": false,
+            "color": "south",
+            "type": "move",
+            "from": {
+              "y": 7,
+              "x": 7
+            }
+          },
+          {
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "type": "move",
+            "from": {
+              "x": 4,
+              "y": 3
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 3
+            },
+            "to": {
+              "x": 7,
+              "y": 2
+            },
+            "color": "east"
+          },
+          {
+            "promote": false,
+            "to": {
+              "x": 8,
+              "y": 5
+            },
+            "color": "south",
+            "type": "move",
+            "from": {
+              "y": 6,
+              "x": 7
+            }
+          },
+          {
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 5,
+              "x": 4
+            },
+            "from": {
+              "x": 5,
+              "y": 4
+            },
+            "color": "west"
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 2,
+              "x": 8
+            },
+            "color": "east",
+            "type": "move",
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          },
+          {
+            "color": "south",
+            "promote": false,
+            "from": {
+              "y": 7,
+              "x": 5
+            },
+            "type": "move",
+            "to": {
+              "y": 8,
+              "x": 4
+            }
+          },
+          {
+            "to": {
+              "y": 3,
+              "x": 2
+            },
+            "type": "move",
+            "from": {
+              "y": 3,
+              "x": 1
+            },
+            "promote": false,
+            "color": "west"
+          },
+          {
+            "promote": false,
+            "to": {
+              "x": 8,
+              "y": 4
+            },
+            "color": "east",
+            "type": "move",
+            "from": {
+              "y": 5,
+              "x": 8
+            }
+          },
+          {
+            "kind": "rook",
+            "color": "south",
+            "type": "drop",
+            "to": {
+              "y": 7,
+              "x": 8
+            }
+          },
+          {
+            "to": {
+              "y": 6,
+              "x": 0
+            },
+            "kind": "gold",
+            "type": "drop",
+            "color": "west"
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 4
+            },
+            "color": "east",
+            "to": {
+              "y": 7,
+              "x": 8
+            },
+            "promote": false
+          },
+          {
+            "to": {
+              "y": 8,
+              "x": 6
+            },
+            "type": "drop",
+            "color": "south",
+            "kind": "silver"
+          },
+          {
+            "to": {
+              "y": 5,
+              "x": 1
+            },
+            "type": "move",
+            "color": "west",
+            "from": {
+              "y": 6,
+              "x": 0
+            },
+            "promote": false
+          },
+          {
+            "type": "move",
+            "to": {
+              "y": 0,
+              "x": 1
+            },
+            "from": {
+              "y": 0,
+              "x": 8
+            },
+            "promote": false,
+            "color": "east"
+          },
+          {
+            "from": {
+              "y": 7,
+              "x": 2
+            },
+            "color": "south",
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 7,
+              "x": 8
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 5,
+              "x": 1
+            },
+            "to": {
+              "y": 6,
+              "x": 2
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "kind": "rook",
+            "color": "east",
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "type": "drop"
+          },
+          {
+            "color": "south",
+            "kind": "silver",
+            "to": {
+              "y": 8,
+              "x": 2
+            },
+            "type": "drop"
+          },
+          {
+            "kind": "silver",
+            "to": {
+              "y": 8,
+              "x": 7
+            },
+            "color": "west",
+            "type": "drop"
+          },
+          {
+            "color": "east",
+            "promote": false,
+            "to": {
+              "x": 7,
+              "y": 0
+            },
+            "from": {
+              "y": 1,
+              "x": 7
+            },
+            "type": "move"
+          },
+          {
+            "to": {
+              "x": 7,
+              "y": 8
+            },
+            "color": "south",
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 7,
+              "x": 8
+            }
+          },
+          {
+            "kind": "silver",
+            "color": "west",
+            "to": {
+              "x": 6,
+              "y": 6
+            },
+            "type": "drop"
+          },
+          {
+            "color": "east",
+            "to": {
+              "y": 0,
+              "x": 2
+            },
+            "from": {
+              "y": 0,
+              "x": 7
+            },
+            "type": "move",
+            "promote": true
+          },
+          {
+            "color": "south",
+            "type": "drop",
+            "kind": "silver",
+            "to": {
+              "x": 6,
+              "y": 7
+            }
+          },
+          {
+            "promote": false,
+            "color": "west",
+            "to": {
+              "x": 3,
+              "y": 6
+            },
+            "from": {
+              "x": 4,
+              "y": 5
+            },
+            "type": "move"
+          },
+          {
+            "color": "east",
+            "promote": false,
+            "to": {
+              "y": 3,
+              "x": 2
+            },
+            "type": "move",
+            "from": {
+              "x": 2,
+              "y": 0
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 7,
+              "x": 6
+            },
+            "color": "south",
+            "type": "move",
+            "to": {
+              "y": 6,
+              "x": 6
+            }
+          },
+          {
+            "type": "move",
+            "color": "west",
+            "to": {
+              "y": 6,
+              "x": 4
+            },
+            "from": {
+              "x": 3,
+              "y": 6
+            },
+            "promote": false
+          },
+          {
+            "color": "east",
+            "to": {
+              "x": 2,
+              "y": 6
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          {
+            "to": {
+              "x": 4,
+              "y": 5
+            },
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 6,
+              "x": 4
+            },
+            "color": "west"
+          },
+          {
+            "to": {
+              "y": 5,
+              "x": 1
+            },
+            "promote": false,
+            "color": "east",
+            "type": "move",
+            "from": {
+              "x": 2,
+              "y": 6
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 4,
+              "y": 5
+            },
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "promote": false,
+            "color": "west"
+          },
+          {
+            "to": {
+              "x": 6,
+              "y": 4
+            },
+            "type": "drop",
+            "kind": "pawn",
+            "color": "east"
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 5,
+              "y": 4
+            },
+            "to": {
+              "y": 3,
+              "x": 4
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "to": {
+              "y": 3,
+              "x": 1
+            },
+            "promote": false,
+            "color": "east",
+            "type": "move",
+            "from": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          {
+            "from": {
+              "x": 4,
+              "y": 3
+            },
+            "type": "move",
+            "promote": false,
+            "color": "west",
+            "to": {
+              "x": 3,
+              "y": 4
+            }
+          },
+          {
+            "color": "east",
+            "promote": false,
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 4
+            }
+          },
+          {
+            "color": "south",
+            "to": {
+              "x": 7,
+              "y": 5
+            },
+            "promote": false,
+            "from": {
+              "x": 6,
+              "y": 6
+            },
+            "type": "move"
+          },
+          {
+            "kind": "pawn",
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "color": "west",
+            "type": "drop"
+          },
+          {
+            "color": "east",
+            "from": {
+              "x": 5,
+              "y": 4
+            },
+            "type": "move",
+            "to": {
+              "y": 4,
+              "x": 4
+            },
+            "promote": false
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "moves": [
+          {
+            "color": "west",
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 4
+            },
+            "from": {
+              "x": 3,
+              "y": 4
+            },
+            "type": "move"
+          },
+          {
+            "type": "drop",
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "color": "east",
+            "kind": "pawn"
+          },
+          {
+            "color": "west",
+            "promote": false,
+            "from": {
+              "y": 4,
+              "x": 4
+            },
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "type": "move"
+          },
+          {
+            "kind": "pawn",
+            "to": {
+              "x": 6,
+              "y": 4
+            },
+            "color": "east",
+            "type": "drop"
+          },
+          {
+            "color": "west",
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 4
+            },
+            "type": "move",
+            "from": {
+              "y": 4,
+              "x": 5
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 4
+            },
+            "color": "east",
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "promote": false
+          },
+          {
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "color": "west",
+            "promote": false,
+            "type": "move",
+            "from": {
+              "y": 4,
+              "x": 4
+            }
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 1
+            },
+            "color": "east",
+            "type": "move",
+            "from": {
+              "y": 3,
+              "x": 1
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 5,
+              "y": 4
+            },
+            "to": {
+              "x": 4,
+              "y": 3
+            },
+            "promote": false,
+            "color": "west"
+          },
+          {
+            "color": "east",
+            "type": "drop",
+            "to": {
+              "x": 5,
+              "y": 3
+            },
+            "kind": "silver"
+          },
+          {
+            "from": {
+              "x": 4,
+              "y": 3
+            },
+            "promote": false,
+            "type": "move",
+            "color": "west",
+            "to": {
+              "x": 3,
+              "y": 3
+            }
+          },
+          {
+            "kind": "gold",
+            "color": "east",
+            "type": "drop",
+            "to": {
+              "x": 4,
+              "y": 3
+            }
+          },
+          {
+            "from": {
+              "x": 3,
+              "y": 3
+            },
+            "type": "move",
+            "color": "west",
+            "to": {
+              "y": 2,
+              "x": 2
+            },
+            "promote": false
+          },
+          {
+            "type": "move",
+            "to": {
+              "x": 1,
+              "y": 0
+            },
+            "from": {
+              "x": 1,
+              "y": 4
+            },
+            "promote": false,
+            "color": "east"
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 8
+            },
+            "type": "move",
+            "color": "south",
+            "from": {
+              "y": 5,
+              "x": 7
+            }
+          },
+          {
+            "color": "west",
+            "from": {
+              "y": 2,
+              "x": 2
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          {
+            "type": "drop",
+            "to": {
+              "x": 8,
+              "y": 3
+            },
+            "color": "east",
+            "kind": "gold"
+          },
+          {
+            "promote": false,
+            "color": "south",
+            "to": {
+              "y": 3,
+              "x": 7
+            },
+            "from": {
+              "x": 8,
+              "y": 4
+            },
+            "type": "move"
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 3,
+              "x": 8
+            },
+            "color": "east",
+            "type": "move",
+            "to": {
+              "x": 7,
+              "y": 3
+            }
+          },
+          {
+            "color": "south",
+            "type": "drop",
+            "kind": "silver",
+            "to": {
+              "x": 8,
+              "y": 4
+            }
+          },
+          {
+            "kind": "pawn",
+            "to": {
+              "y": 3,
+              "x": 3
+            },
+            "color": "west",
+            "type": "drop"
+          },
+          {
+            "from": {
+              "y": 0,
+              "x": 1
+            },
+            "promote": false,
+            "color": "east",
+            "to": {
+              "x": 8,
+              "y": 0
+            },
+            "type": "move"
+          },
+          {
+            "to": {
+              "x": 7,
+              "y": 3
+            },
+            "type": "move",
+            "from": {
+              "x": 8,
+              "y": 4
+            },
+            "color": "south",
+            "promote": false
+          },
+          {
+            "color": "east",
+            "from": {
+              "x": 7,
+              "y": 2
+            },
+            "to": {
+              "x": 8,
+              "y": 1
+            },
+            "type": "move",
+            "promote": false
+          },
+          {
+            "kind": "rook",
+            "to": {
+              "x": 8,
+              "y": 8
+            },
+            "type": "drop",
+            "color": "south"
+          },
+          {
+            "color": "east",
+            "from": {
+              "x": 8,
+              "y": 1
+            },
+            "to": {
+              "x": 7,
+              "y": 0
+            },
+            "type": "move",
+            "promote": false
+          },
+          {
+            "promote": true,
+            "to": {
+              "x": 8,
+              "y": 0
+            },
+            "color": "south",
+            "from": {
+              "x": 8,
+              "y": 8
+            },
+            "type": "move"
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 7,
+              "y": 0
+            },
+            "color": "east",
+            "to": {
+              "x": 8,
+              "y": 0
+            },
+            "promote": false
+          },
+          {
+            "promote": true,
+            "from": {
+              "y": 3,
+              "x": 7
+            },
+            "type": "move",
+            "to": {
+              "y": 2,
+              "x": 8
+            },
+            "color": "south"
+          },
+          {
+            "type": "move",
+            "to": {
+              "x": 4,
+              "y": 3
+            },
+            "from": {
+              "y": 3,
+              "x": 3
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "type": "drop",
+            "to": {
+              "x": 8,
+              "y": 1
+            },
+            "color": "east",
+            "kind": "silver"
+          },
+          {
+            "kind": "pawn",
+            "to": {
+              "y": 2,
+              "x": 6
+            },
+            "type": "drop",
+            "color": "south"
+          },
+          {
+            "from": {
+              "x": 4,
+              "y": 3
+            },
+            "promote": false,
+            "type": "move",
+            "to": {
+              "y": 3,
+              "x": 5
+            },
+            "color": "west"
+          },
+          {
+            "to": {
+              "x": 5,
+              "y": 2
+            },
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 1
+            },
+            "promote": false,
+            "color": "east"
+          },
+          {
+            "color": "south",
+            "type": "drop",
+            "to": {
+              "y": 0,
+              "x": 5
+            },
+            "kind": "rook"
+          },
+          {
+            "kind": "pawn",
+            "type": "drop",
+            "color": "east",
+            "to": {
+              "y": 0,
+              "x": 7
+            }
+          },
+          {
+            "type": "drop",
+            "to": {
+              "y": 1,
+              "x": 7
+            },
+            "color": "south",
+            "kind": "gold"
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 7
+            },
+            "color": "east",
+            "type": "move",
+            "promote": false,
+            "from": {
+              "y": 1,
+              "x": 8
+            }
+          },
+          {
+            "to": {
+              "y": 1,
+              "x": 7
+            },
+            "type": "move",
+            "promote": false,
+            "from": {
+              "y": 8,
+              "x": 7
+            },
+            "color": "south"
+          },
+          {
+            "to": {
+              "y": 2,
+              "x": 3
+            },
+            "color": "west",
+            "promote": false,
+            "type": "move",
+            "from": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          {
+            "promote": true,
+            "color": "south",
+            "to": {
+              "x": 1,
+              "y": 0
+            },
+            "from": {
+              "x": 5,
+              "y": 0
+            },
+            "type": "move"
+          },
+          {
+            "promote": false,
+            "color": "west",
+            "to": {
+              "y": 1,
+              "x": 4
+            },
+            "type": "move",
+            "from": {
+              "x": 3,
+              "y": 2
+            }
+          },
+          {
+            "to": {
+              "y": 5,
+              "x": 1
+            },
+            "type": "move",
+            "from": {
+              "y": 0,
+              "x": 1
+            },
+            "promote": false,
+            "color": "south"
+          },
+          {
+            "color": "west",
+            "to": {
+              "x": 5,
+              "y": 2
+            },
+            "type": "move",
+            "promote": false,
+            "from": {
+              "x": 4,
+              "y": 1
+            }
+          },
+          {
+            "promote": false,
+            "from": {
+              "y": 5,
+              "x": 1
+            },
+            "color": "south",
+            "type": "move",
+            "to": {
+              "x": 1,
+              "y": 6
+            }
+          },
+          {
+            "color": "west",
+            "from": {
+              "y": 2,
+              "x": 5
+            },
+            "type": "move",
+            "to": {
+              "y": 3,
+              "x": 6
+            },
+            "promote": false
+          },
+          {
+            "kind": "gold",
+            "color": "south",
+            "to": {
+              "x": 7,
+              "y": 4
+            },
+            "type": "drop"
+          },
+          {
+            "promote": false,
+            "color": "west",
+            "from": {
+              "x": 6,
+              "y": 3
+            },
+            "type": "move",
+            "to": {
+              "y": 2,
+              "x": 5
+            }
+          },
+          {
+            "type": "move",
+            "from": {
+              "x": 6,
+              "y": 2
+            },
+            "color": "south",
+            "to": {
+              "y": 1,
+              "x": 6
+            },
+            "promote": true
+          },
+          {
+            "to": {
+              "y": 3,
+              "x": 4
+            },
+            "promote": false,
+            "color": "west",
+            "from": {
+              "x": 5,
+              "y": 2
+            },
+            "type": "move"
+          },
+          {
+            "promote": false,
+            "to": {
+              "y": 1,
+              "x": 5
+            },
+            "color": "south",
+            "from": {
+              "y": 1,
+              "x": 6
+            },
+            "type": "move"
+          },
+          {
+            "from": {
+              "y": 3,
+              "x": 4
+            },
+            "type": "move",
+            "promote": false,
+            "to": {
+              "y": 4,
+              "x": 3
+            },
+            "color": "west"
+          },
+          {
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "type": "drop",
+            "color": "south",
+            "kind": "rook"
+          },
+          {
+            "type": "move",
+            "from": {
+              "y": 4,
+              "x": 3
+            },
+            "to": {
+              "y": 3,
+              "x": 4
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "color": "south",
+            "to": {
+              "y": 2,
+              "x": 1
+            },
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "type": "move",
+            "promote": true
+          },
+          {
+            "color": "west",
+            "from": {
+              "y": 3,
+              "x": 4
+            },
+            "type": "move",
+            "to": {
+              "y": 4,
+              "x": 5
+            },
+            "promote": false
+          },
+          {
+            "to": {
+              "x": 5,
+              "y": 5
+            },
+            "kind": "gold",
+            "type": "drop",
+            "color": "south"
+          },
+          {
+            "from": {
+              "x": 5,
+              "y": 4
+            },
+            "type": "move",
+            "to": {
+              "x": 4,
+              "y": 3
+            },
+            "color": "west",
+            "promote": false
+          },
+          {
+            "color": "south",
+            "to": {
+              "y": 4,
+              "x": 4
+            },
+            "type": "drop",
+            "kind": "gold"
+          }
+        ]
+      }
+    ],
+    "moves": [
+      {
+        "to": {
+          "y": 5,
+          "x": 4
+        },
+        "color": "south",
+        "type": "move",
+        "from": {
+          "x": 4,
+          "y": 6
+        },
+        "promote": false
+      },
+      {
+        "promote": false,
+        "color": "west",
+        "from": {
+          "y": 4,
+          "x": 2
+        },
+        "type": "move",
+        "to": {
+          "y": 4,
+          "x": 3
+        }
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 3
+        },
+        "type": "move",
+        "color": "north",
+        "to": {
+          "x": 3,
+          "y": 2
+        },
+        "promote": false
+      },
+      {
+        "promote": false,
+        "type": "move",
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "from": {
+          "x": 6,
+          "y": 4
+        },
+        "color": "east"
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 7,
+          "x": 4
+        },
+        "color": "south",
+        "to": {
+          "y": 6,
+          "x": 4
+        },
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 0,
+          "y": 3
+        },
+        "color": "west",
+        "to": {
+          "y": 2,
+          "x": 1
+        },
+        "promote": false
+      },
+      {
+        "color": "north",
+        "to": {
+          "x": 7,
+          "y": 1
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 0
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 1,
+          "x": 7
+        },
+        "color": "east",
+        "type": "move",
+        "from": {
+          "y": 2,
+          "x": 8
+        }
+      },
+      {
+        "color": "south",
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 6,
+          "x": 4
+        }
+      },
+      {
+        "to": {
+          "x": 1,
+          "y": 6
+        },
+        "color": "west",
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 6,
+          "x": 0
+        }
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 5
+        },
+        "type": "move",
+        "color": "north",
+        "promote": false,
+        "to": {
+          "x": 5,
+          "y": 2
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 6
+        },
+        "type": "move",
+        "color": "east",
+        "from": {
+          "y": 4,
+          "x": 7
+        }
+      },
+      {
+        "color": "south",
+        "to": {
+          "y": 7,
+          "x": 1
+        },
+        "type": "move",
+        "promote": false,
+        "from": {
+          "y": 8,
+          "x": 2
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 6,
+          "x": 1
+        },
+        "to": {
+          "x": 0,
+          "y": 7
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "from": {
+          "x": 4,
+          "y": 1
+        },
+        "type": "move",
+        "promote": false,
+        "color": "north",
+        "to": {
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "type": "drop",
+        "color": "east",
+        "kind": "silver",
+        "to": {
+          "y": 2,
+          "x": 8
+        }
+      },
+      {
+        "from": {
+          "x": 3,
+          "y": 7
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "color": "south"
+      },
+      {
+        "from": {
+          "y": 7,
+          "x": 0
+        },
+        "color": "west",
+        "type": "move",
+        "to": {
+          "y": 7,
+          "x": 1
+        },
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 1,
+          "x": 7
+        },
+        "color": "north",
+        "to": {
+          "y": 1,
+          "x": 4
+        },
+        "promote": false
+      },
+      {
+        "color": "east",
+        "to": {
+          "x": 6,
+          "y": 2
+        },
+        "from": {
+          "y": 4,
+          "x": 6
+        },
+        "type": "move",
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 4,
+          "y": 7
+        },
+        "color": "south",
+        "to": {
+          "x": 1,
+          "y": 7
+        },
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 0,
+          "y": 5
+        },
+        "color": "west",
+        "to": {
+          "y": 6,
+          "x": 0
+        },
+        "promote": false
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 5
+        },
+        "color": "north",
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 5,
+          "y": 0
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "to": {
+          "y": 2,
+          "x": 7
+        },
+        "promote": false,
+        "color": "east"
+      },
+      {
+        "promote": false,
+        "color": "south",
+        "from": {
+          "x": 1,
+          "y": 7
+        },
+        "type": "move",
+        "to": {
+          "x": 4,
+          "y": 7
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 5,
+          "x": 2
+        },
+        "color": "west",
+        "type": "move",
+        "from": {
+          "y": 5,
+          "x": 1
+        }
+      },
+      {
+        "color": "north",
+        "from": {
+          "y": 1,
+          "x": 5
+        },
+        "promote": false,
+        "type": "move",
+        "to": {
+          "x": 6,
+          "y": 1
+        }
+      },
+      {
+        "to": {
+          "x": 7,
+          "y": 0
+        },
+        "promote": false,
+        "type": "move",
+        "color": "east",
+        "from": {
+          "x": 7,
+          "y": 2
+        }
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 6
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 6,
+          "y": 0
+        },
+        "color": "north"
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 7
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 0,
+          "x": 6
+        },
+        "color": "east"
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 0,
+          "x": 4
+        },
+        "type": "move",
+        "to": {
+          "y": 1,
+          "x": 5
+        },
+        "color": "north"
+      },
+      {
+        "promote": false,
+        "color": "east",
+        "from": {
+          "x": 6,
+          "y": 0
+        },
+        "to": {
+          "x": 8,
+          "y": 0
+        },
+        "type": "move"
+      },
+      {
+        "color": "south",
+        "promote": false,
+        "to": {
+          "x": 5,
+          "y": 6
+        },
+        "type": "move",
+        "from": {
+          "y": 7,
+          "x": 5
+        }
+      },
+      {
+        "from": {
+          "y": 4,
+          "x": 1
+        },
+        "promote": false,
+        "type": "move",
+        "color": "west",
+        "to": {
+          "y": 8,
+          "x": 1
+        }
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 3
+        },
+        "color": "north",
+        "type": "move",
+        "from": {
+          "x": 3,
+          "y": 0
+        },
+        "promote": false
+      },
+      {
+        "color": "east",
+        "to": {
+          "y": 1,
+          "x": 8
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 0,
+          "x": 8
+        }
+      },
+      {
+        "to": {
+          "x": 4,
+          "y": 0
+        },
+        "color": "north",
+        "type": "move",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 1
+        },
+        "color": "east",
+        "to": {
+          "y": 0,
+          "x": 8
+        },
+        "promote": false
+      },
+      {
+        "color": "north",
+        "promote": false,
+        "from": {
+          "x": 4,
+          "y": 0
+        },
+        "type": "move",
+        "to": {
+          "y": 1,
+          "x": 5
+        }
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 8
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 1,
+          "x": 8
+        },
+        "color": "east"
+      },
+      {
+        "type": "move",
+        "to": {
+          "x": 4,
+          "y": 0
+        },
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false,
+        "color": "north"
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 1
+        },
+        "promote": false,
+        "to": {
+          "x": 7,
+          "y": 1
+        },
+        "color": "east"
+      },
+      {
+        "from": {
+          "y": 7,
+          "x": 4
+        },
+        "type": "move",
+        "to": {
+          "x": 6,
+          "y": 7
+        },
+        "promote": false,
+        "color": "south"
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "from": {
+          "y": 6,
+          "x": 0
+        },
+        "to": {
+          "y": 6,
+          "x": 1
+        },
+        "type": "move"
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 5
+        },
+        "kind": "silver",
+        "type": "drop",
+        "color": "north"
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 7,
+          "y": 1
+        },
+        "to": {
+          "x": 7,
+          "y": 0
+        },
+        "color": "east",
+        "promote": false
+      },
+      {
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "type": "move",
+        "color": "north",
+        "promote": false,
+        "to": {
+          "y": 0,
+          "x": 6
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 0,
+          "x": 7
+        },
+        "promote": false,
+        "to": {
+          "x": 6,
+          "y": 0
+        },
+        "color": "east"
+      },
+      {
+        "color": "north",
+        "promote": false,
+        "to": {
+          "y": 1,
+          "x": 5
+        },
+        "type": "move",
+        "from": {
+          "x": 4,
+          "y": 0
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "x": 6,
+          "y": 0
+        },
+        "type": "move",
+        "to": {
+          "y": 0,
+          "x": 8
+        },
+        "color": "east"
+      },
+      {
+        "kind": "silver",
+        "to": {
+          "x": 5,
+          "y": 5
+        },
+        "type": "drop",
+        "color": "south"
+      },
+      {
+        "from": {
+          "x": 1,
+          "y": 2
+        },
+        "color": "west",
+        "promote": false,
+        "type": "move",
+        "to": {
+          "x": 2,
+          "y": 3
+        }
+      },
+      {
+        "color": "north",
+        "to": {
+          "y": 0,
+          "x": 4
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 1,
+          "x": 4
+        }
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 8
+        },
+        "type": "move",
+        "promote": false,
+        "color": "east",
+        "to": {
+          "x": 8,
+          "y": 1
+        }
+      },
+      {
+        "color": "north",
+        "to": {
+          "y": 0,
+          "x": 5
+        },
+        "from": {
+          "y": 1,
+          "x": 5
+        },
+        "type": "move",
+        "promote": false
+      },
+      {
+        "to": {
+          "x": 6,
+          "y": 1
+        },
+        "kind": "gold",
+        "color": "east",
+        "type": "drop"
+      },
+      {
+        "from": {
+          "x": 5,
+          "y": 0
+        },
+        "type": "move",
+        "to": {
+          "y": 1,
+          "x": 4
+        },
+        "color": "north",
+        "promote": false
+      },
+      {
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 1
+        },
+        "color": "east",
+        "promote": false
+      },
+      {
+        "to": {
+          "x": 3,
+          "y": 0
+        },
+        "color": "north",
+        "type": "move",
+        "from": {
+          "y": 1,
+          "x": 4
+        },
+        "promote": false
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 5
+        },
+        "type": "move",
+        "color": "east",
+        "promote": false,
+        "to": {
+          "x": 4,
+          "y": 0
+        }
+      },
+      {
+        "type": "move",
+        "promote": false,
+        "from": {
+          "y": 0,
+          "x": 3
+        },
+        "color": "north",
+        "to": {
+          "y": 0,
+          "x": 4
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 0,
+          "x": 8
+        },
+        "color": "east",
+        "from": {
+          "y": 1,
+          "x": 8
+        },
+        "type": "move"
+      },
+      {
+        "to": {
+          "x": 5,
+          "y": 0
+        },
+        "kind": "gold",
+        "color": "north",
+        "type": "drop"
+      },
+      {
+        "type": "drop",
+        "color": "east",
+        "to": {
+          "x": 8,
+          "y": 1
+        },
+        "kind": "rook"
+      },
+      {
+        "from": {
+          "y": 5,
+          "x": 5
+        },
+        "type": "move",
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "promote": false,
+        "color": "south"
+      },
+      {
+        "promote": false,
+        "to": {
+          "x": 2,
+          "y": 4
+        },
+        "color": "west",
+        "type": "move",
+        "from": {
+          "x": 2,
+          "y": 3
+        }
+      },
+      {
+        "color": "north",
+        "from": {
+          "x": 3,
+          "y": 1
+        },
+        "promote": false,
+        "type": "move",
+        "to": {
+          "y": 1,
+          "x": 4
+        }
+      },
+      {
+        "kind": "silver",
+        "color": "east",
+        "type": "drop",
+        "to": {
+          "x": 7,
+          "y": 6
+        }
+      },
+      {
+        "from": {
+          "y": 7,
+          "x": 6
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 7,
+          "x": 5
+        },
+        "color": "south"
+      },
+      {
+        "to": {
+          "y": 4,
+          "x": 1
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 4,
+          "x": 2
+        },
+        "color": "west"
+      },
+      {
+        "to": {
+          "y": 3,
+          "x": 3
+        },
+        "type": "move",
+        "from": {
+          "y": 2,
+          "x": 3
+        },
+        "color": "north",
+        "promote": false
+      },
+      {
+        "to": {
+          "x": 7,
+          "y": 1
+        },
+        "type": "move",
+        "from": {
+          "y": 1,
+          "x": 8
+        },
+        "color": "east",
+        "promote": false
+      },
+      {
+        "type": "drop",
+        "color": "south",
+        "to": {
+          "y": 7,
+          "x": 8
+        },
+        "kind": "pawn"
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 6,
+          "x": 1
+        },
+        "color": "west",
+        "type": "move",
+        "to": {
+          "x": 1,
+          "y": 7
+        }
+      },
+      {
+        "color": "north",
+        "to": {
+          "y": 4,
+          "x": 3
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 3,
+          "y": 3
+        }
+      },
+      {
+        "to": {
+          "y": 0,
+          "x": 7
+        },
+        "type": "move",
+        "promote": false,
+        "color": "east",
+        "from": {
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 6,
+          "x": 8
+        },
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 7
+        },
+        "color": "south"
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "from": {
+          "x": 1,
+          "y": 7
+        },
+        "type": "move",
+        "to": {
+          "x": 2,
+          "y": 8
+        }
+      },
+      {
+        "type": "move",
+        "to": {
+          "x": 3,
+          "y": 1
+        },
+        "from": {
+          "y": 0,
+          "x": 4
+        },
+        "color": "north",
+        "promote": false
+      },
+      {
+        "promote": false,
+        "color": "east",
+        "from": {
+          "y": 5,
+          "x": 8
+        },
+        "to": {
+          "x": 8,
+          "y": 6
+        },
+        "type": "move"
+      },
+      {
+        "to": {
+          "x": 0,
+          "y": 7
+        },
+        "type": "move",
+        "from": {
+          "y": 7,
+          "x": 5
+        },
+        "promote": false,
+        "color": "south"
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 4,
+          "x": 0
+        },
+        "color": "west",
+        "type": "move",
+        "to": {
+          "y": 5,
+          "x": 1
+        }
+      },
+      {
+        "to": {
+          "x": 5,
+          "y": 3
+        },
+        "promote": false,
+        "color": "north",
+        "type": "move",
+        "from": {
+          "y": 2,
+          "x": 5
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 3,
+          "x": 6
+        },
+        "color": "east",
+        "from": {
+          "x": 7,
+          "y": 3
+        },
+        "type": "move"
+      },
+      {
+        "type": "drop",
+        "to": {
+          "y": 6,
+          "x": 2
+        },
+        "color": "south",
+        "kind": "silver"
+      },
+      {
+        "to": {
+          "y": 6,
+          "x": 2
+        },
+        "color": "west",
+        "type": "move",
+        "promote": false,
+        "from": {
+          "x": 1,
+          "y": 5
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "color": "north",
+        "type": "move",
+        "from": {
+          "x": 5,
+          "y": 3
+        }
+      },
+      {
+        "to": {
+          "y": 3,
+          "x": 7
+        },
+        "type": "move",
+        "promote": false,
+        "color": "east",
+        "from": {
+          "x": 8,
+          "y": 3
+        }
+      },
+      {
+        "to": {
+          "x": 0,
+          "y": 2
+        },
+        "promote": true,
+        "type": "move",
+        "color": "south",
+        "from": {
+          "y": 7,
+          "x": 0
+        }
+      },
+      {
+        "color": "west",
+        "from": {
+          "y": 8,
+          "x": 2
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 3,
+          "y": 8
+        }
+      },
+      {
+        "from": {
+          "x": 4,
+          "y": 8
+        },
+        "type": "move",
+        "to": {
+          "x": 5,
+          "y": 7
+        },
+        "color": "south",
+        "promote": false
+      },
+      {
+        "color": "west",
+        "from": {
+          "x": 3,
+          "y": 8
+        },
+        "promote": false,
+        "type": "move",
+        "to": {
+          "y": 8,
+          "x": 2
+        }
+      },
+      {
+        "color": "north",
+        "to": {
+          "y": 0,
+          "x": 3
+        },
+        "type": "move",
+        "promote": false,
+        "from": {
+          "y": 1,
+          "x": 3
+        }
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 7
+        },
+        "type": "move",
+        "color": "east",
+        "promote": false,
+        "to": {
+          "x": 7,
+          "y": 2
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 2,
+          "x": 0
+        },
+        "to": {
+          "y": 7,
+          "x": 0
+        },
+        "color": "south",
+        "type": "move"
+      },
+      {
+        "promote": false,
+        "color": "west",
+        "from": {
+          "y": 8,
+          "x": 1
+        },
+        "type": "move",
+        "to": {
+          "x": 1,
+          "y": 5
+        }
+      },
+      {
+        "type": "drop",
+        "color": "north",
+        "to": {
+          "x": 7,
+          "y": 1
+        },
+        "kind": "pawn"
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 7
+        },
+        "color": "east",
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 2
+        },
+        "promote": false
+      },
+      {
+        "color": "south",
+        "promote": false,
+        "from": {
+          "y": 5,
+          "x": 4
+        },
+        "to": {
+          "y": 4,
+          "x": 4
+        },
+        "type": "move"
+      },
+      {
+        "from": {
+          "y": 8,
+          "x": 2
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 1,
+          "y": 8
+        },
+        "color": "west"
+      },
+      {
+        "from": {
+          "x": 2,
+          "y": 0
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 2,
+          "y": 1
+        },
+        "color": "north"
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 0,
+          "x": 8
+        },
+        "to": {
+          "x": 5,
+          "y": 0
+        },
+        "color": "east",
+        "promote": false
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 4
+        },
+        "color": "north",
+        "promote": false,
+        "type": "move",
+        "to": {
+          "x": 4,
+          "y": 0
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "x": 5,
+          "y": 0
+        },
+        "type": "move",
+        "color": "east",
+        "to": {
+          "y": 4,
+          "x": 5
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 4,
+          "x": 4
+        },
+        "to": {
+          "y": 3,
+          "x": 4
+        },
+        "color": "south",
+        "promote": false
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 6,
+          "x": 3
+        },
+        "type": "move",
+        "color": "west",
+        "from": {
+          "y": 6,
+          "x": 2
+        }
+      },
+      {
+        "from": {
+          "y": 4,
+          "x": 3
+        },
+        "type": "move",
+        "color": "north",
+        "promote": false,
+        "to": {
+          "y": 5,
+          "x": 3
+        }
+      },
+      {
+        "to": {
+          "y": 5,
+          "x": 3
+        },
+        "color": "west",
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 3,
+          "y": 6
+        }
+      },
+      {
+        "color": "north",
+        "promote": false,
+        "from": {
+          "y": 2,
+          "x": 4
+        },
+        "type": "move",
+        "to": {
+          "y": 3,
+          "x": 4
+        }
+      },
+      {
+        "to": {
+          "x": 5,
+          "y": 2
+        },
+        "promote": false,
+        "color": "east",
+        "type": "move",
+        "from": {
+          "x": 5,
+          "y": 4
+        }
+      },
+      {
+        "type": "drop",
+        "to": {
+          "x": 1,
+          "y": 6
+        },
+        "color": "south",
+        "kind": "silver"
+      },
+      {
+        "to": {
+          "y": 6,
+          "x": 0
+        },
+        "color": "west",
+        "kind": "pawn",
+        "type": "drop"
+      },
+      {
+        "color": "north",
+        "from": {
+          "x": 4,
+          "y": 0
+        },
+        "to": {
+          "y": 1,
+          "x": 4
+        },
+        "promote": false,
+        "type": "move"
+      },
+      {
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 6,
+          "y": 2
+        },
+        "from": {
+          "y": 2,
+          "x": 5
+        },
+        "color": "east"
+      },
+      {
+        "type": "move",
+        "to": {
+          "x": 1,
+          "y": 5
+        },
+        "from": {
+          "x": 1,
+          "y": 6
+        },
+        "promote": false,
+        "color": "south"
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 1,
+          "y": 4
+        },
+        "to": {
+          "y": 5,
+          "x": 1
+        },
+        "promote": false,
+        "color": "west"
+      },
+      {
+        "color": "north",
+        "promote": false,
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "type": "move",
+        "from": {
+          "y": 1,
+          "x": 4
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "type": "move",
+        "to": {
+          "x": 6,
+          "y": 0
+        },
+        "color": "east"
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 3
+        },
+        "type": "move",
+        "promote": false,
+        "color": "north",
+        "to": {
+          "y": 1,
+          "x": 3
+        }
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 6
+        },
+        "type": "move",
+        "color": "east",
+        "promote": true,
+        "to": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "to": {
+          "y": 8,
+          "x": 1
+        },
+        "color": "south",
+        "from": {
+          "y": 7,
+          "x": 0
+        },
+        "promote": false,
+        "type": "move"
+      },
+      {
+        "to": {
+          "y": 7,
+          "x": 1
+        },
+        "type": "drop",
+        "kind": "pawn",
+        "color": "west"
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 1,
+          "x": 2
+        },
+        "type": "move",
+        "color": "north",
+        "to": {
+          "x": 1,
+          "y": 2
+        }
+      },
+      {
+        "promote": true,
+        "from": {
+          "y": 2,
+          "x": 7
+        },
+        "type": "move",
+        "to": {
+          "y": 2,
+          "x": 1
+        },
+        "color": "east"
+      },
+      {
+        "to": {
+          "y": 7,
+          "x": 1
+        },
+        "color": "south",
+        "type": "move",
+        "from": {
+          "x": 1,
+          "y": 8
+        },
+        "promote": false
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "to": {
+          "y": 5,
+          "x": 4
+        },
+        "from": {
+          "y": 5,
+          "x": 3
+        },
+        "type": "move"
+      },
+      {
+        "kind": "silver",
+        "type": "drop",
+        "to": {
+          "y": 1,
+          "x": 2
+        },
+        "color": "north"
+      },
+      {
+        "to": {
+          "x": 8,
+          "y": 2
+        },
+        "color": "east",
+        "type": "move",
+        "promote": false,
+        "from": {
+          "y": 2,
+          "x": 1
+        }
+      },
+      {
+        "color": "south",
+        "to": {
+          "x": 1,
+          "y": 5
+        },
+        "from": {
+          "x": 1,
+          "y": 7
+        },
+        "type": "move",
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 4,
+          "y": 5
+        },
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "color": "west"
+      },
+      {
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 4,
+          "y": 1
+        },
+        "color": "north",
+        "from": {
+          "y": 1,
+          "x": 3
+        }
+      },
+      {
+        "to": {
+          "x": 6,
+          "y": 1
+        },
+        "kind": "pawn",
+        "color": "east",
+        "type": "drop"
+      },
+      {
+        "to": {
+          "x": 2,
+          "y": 5
+        },
+        "promote": false,
+        "color": "south",
+        "from": {
+          "y": 5,
+          "x": 1
+        },
+        "type": "move"
+      },
+      {
+        "from": {
+          "y": 4,
+          "x": 5
+        },
+        "type": "move",
+        "color": "west",
+        "promote": false,
+        "to": {
+          "x": 4,
+          "y": 3
+        }
+      },
+      {
+        "color": "north",
+        "from": {
+          "y": 1,
+          "x": 5
+        },
+        "promote": false,
+        "type": "move",
+        "to": {
+          "y": 1,
+          "x": 6
+        }
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 6
+        },
+        "promote": false,
+        "type": "move",
+        "color": "east",
+        "from": {
+          "y": 1,
+          "x": 7
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 1,
+          "x": 2
+        },
+        "color": "south",
+        "from": {
+          "x": 2,
+          "y": 5
+        },
+        "type": "move"
+      },
+      {
+        "type": "drop",
+        "kind": "pawn",
+        "color": "north",
+        "to": {
+          "x": 3,
+          "y": 1
+        }
+      },
+      {
+        "color": "east",
+        "to": {
+          "x": 0,
+          "y": 6
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 0,
+          "x": 0
+        }
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 2
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 7,
+          "x": 2
+        },
+        "color": "south"
+      },
+      {
+        "type": "drop",
+        "color": "west",
+        "to": {
+          "y": 7,
+          "x": 7
+        },
+        "kind": "gold"
+      },
+      {
+        "type": "move",
+        "to": {
+          "y": 0,
+          "x": 3
+        },
+        "from": {
+          "x": 4,
+          "y": 1
+        },
+        "color": "north",
+        "promote": false
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 0,
+          "y": 6
+        },
+        "to": {
+          "x": 0,
+          "y": 0
+        },
+        "color": "east",
+        "promote": false
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 4
+        },
+        "promote": false,
+        "color": "north",
+        "type": "move",
+        "from": {
+          "y": 0,
+          "x": 3
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 0,
+          "y": 0
+        },
+        "promote": false,
+        "to": {
+          "y": 0,
+          "x": 8
+        },
+        "color": "east"
+      },
+      {
+        "to": {
+          "x": 3,
+          "y": 8
+        },
+        "kind": "gold",
+        "type": "drop",
+        "color": "south"
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "to": {
+          "y": 6,
+          "x": 8
+        },
+        "type": "move",
+        "from": {
+          "x": 7,
+          "y": 7
+        }
+      },
+      {
+        "type": "drop",
+        "to": {
+          "y": 3,
+          "x": 8
+        },
+        "color": "north",
+        "kind": "pawn"
+      },
+      {
+        "type": "move",
+        "color": "east",
+        "from": {
+          "y": 4,
+          "x": 8
+        },
+        "promote": false,
+        "to": {
+          "x": 8,
+          "y": 3
+        }
+      },
+      {
+        "from": {
+          "x": 6,
+          "y": 8
+        },
+        "type": "move",
+        "color": "south",
+        "to": {
+          "x": 7,
+          "y": 7
+        },
+        "promote": false
+      },
+      {
+        "color": "west",
+        "from": {
+          "x": 8,
+          "y": 6
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 8,
+          "y": 5
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "x": 3,
+          "y": 1
+        },
+        "type": "move",
+        "to": {
+          "x": 3,
+          "y": 2
+        },
+        "color": "north"
+      },
+      {
+        "color": "east",
+        "type": "drop",
+        "to": {
+          "y": 1,
+          "x": 5
+        },
+        "kind": "pawn"
+      },
+      {
+        "from": {
+          "y": 1,
+          "x": 4
+        },
+        "type": "move",
+        "to": {
+          "y": 1,
+          "x": 3
+        },
+        "promote": false,
+        "color": "north"
+      },
+      {
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "type": "move",
+        "to": {
+          "x": 4,
+          "y": 1
+        },
+        "promote": false,
+        "color": "east"
+      },
+      {
+        "type": "move",
+        "color": "north",
+        "from": {
+          "x": 3,
+          "y": 1
+        },
+        "to": {
+          "x": 4,
+          "y": 1
+        },
+        "promote": false
+      },
+      {
+        "type": "drop",
+        "color": "east",
+        "kind": "pawn",
+        "to": {
+          "x": 5,
+          "y": 1
+        }
+      },
+      {
+        "color": "north",
+        "promote": false,
+        "from": {
+          "y": 1,
+          "x": 4
+        },
+        "type": "move",
+        "to": {
+          "x": 3,
+          "y": 1
+        }
+      },
+      {
+        "to": {
+          "x": 4,
+          "y": 1
+        },
+        "color": "east",
+        "kind": "silver",
+        "type": "drop"
+      },
+      {
+        "to": {
+          "x": 7,
+          "y": 6
+        },
+        "promote": false,
+        "color": "south",
+        "type": "move",
+        "from": {
+          "y": 7,
+          "x": 7
+        }
+      },
+      {
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "type": "move",
+        "from": {
+          "x": 4,
+          "y": 3
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 3
+        },
+        "to": {
+          "x": 7,
+          "y": 2
+        },
+        "color": "east"
+      },
+      {
+        "promote": false,
+        "to": {
+          "x": 8,
+          "y": 5
+        },
+        "color": "south",
+        "type": "move",
+        "from": {
+          "y": 6,
+          "x": 7
+        }
+      },
+      {
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 5,
+          "x": 4
+        },
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "color": "west"
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 2,
+          "x": 8
+        },
+        "color": "east",
+        "type": "move",
+        "to": {
+          "x": 8,
+          "y": 5
+        }
+      },
+      {
+        "color": "south",
+        "promote": false,
+        "from": {
+          "y": 7,
+          "x": 5
+        },
+        "type": "move",
+        "to": {
+          "y": 8,
+          "x": 4
+        }
+      },
+      {
+        "to": {
+          "y": 3,
+          "x": 2
+        },
+        "type": "move",
+        "from": {
+          "y": 3,
+          "x": 1
+        },
+        "promote": false,
+        "color": "west"
+      },
+      {
+        "promote": false,
+        "to": {
+          "x": 8,
+          "y": 4
+        },
+        "color": "east",
+        "type": "move",
+        "from": {
+          "y": 5,
+          "x": 8
+        }
+      },
+      {
+        "kind": "rook",
+        "color": "south",
+        "type": "drop",
+        "to": {
+          "y": 7,
+          "x": 8
+        }
+      },
+      {
+        "to": {
+          "y": 6,
+          "x": 0
+        },
+        "kind": "gold",
+        "type": "drop",
+        "color": "west"
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 4
+        },
+        "color": "east",
+        "to": {
+          "y": 7,
+          "x": 8
+        },
+        "promote": false
+      },
+      {
+        "to": {
+          "y": 8,
+          "x": 6
+        },
+        "type": "drop",
+        "color": "south",
+        "kind": "silver"
+      },
+      {
+        "to": {
+          "y": 5,
+          "x": 1
+        },
+        "type": "move",
+        "color": "west",
+        "from": {
+          "y": 6,
+          "x": 0
+        },
+        "promote": false
+      },
+      {
+        "type": "move",
+        "to": {
+          "y": 0,
+          "x": 1
+        },
+        "from": {
+          "y": 0,
+          "x": 8
+        },
+        "promote": false,
+        "color": "east"
+      },
+      {
+        "from": {
+          "y": 7,
+          "x": 2
+        },
+        "color": "south",
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 7,
+          "x": 8
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 5,
+          "x": 1
+        },
+        "to": {
+          "y": 6,
+          "x": 2
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "kind": "rook",
+        "color": "east",
+        "to": {
+          "x": 7,
+          "y": 1
+        },
+        "type": "drop"
+      },
+      {
+        "color": "south",
+        "kind": "silver",
+        "to": {
+          "y": 8,
+          "x": 2
+        },
+        "type": "drop"
+      },
+      {
+        "kind": "silver",
+        "to": {
+          "y": 8,
+          "x": 7
+        },
+        "color": "west",
+        "type": "drop"
+      },
+      {
+        "color": "east",
+        "promote": false,
+        "to": {
+          "x": 7,
+          "y": 0
+        },
+        "from": {
+          "y": 1,
+          "x": 7
+        },
+        "type": "move"
+      },
+      {
+        "to": {
+          "x": 7,
+          "y": 8
+        },
+        "color": "south",
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 7,
+          "x": 8
+        }
+      },
+      {
+        "kind": "silver",
+        "color": "west",
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "type": "drop"
+      },
+      {
+        "color": "east",
+        "to": {
+          "y": 0,
+          "x": 2
+        },
+        "from": {
+          "y": 0,
+          "x": 7
+        },
+        "type": "move",
+        "promote": true
+      },
+      {
+        "color": "south",
+        "type": "drop",
+        "kind": "silver",
+        "to": {
+          "x": 6,
+          "y": 7
+        }
+      },
+      {
+        "promote": false,
+        "color": "west",
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "from": {
+          "x": 4,
+          "y": 5
+        },
+        "type": "move"
+      },
+      {
+        "color": "east",
+        "promote": false,
+        "to": {
+          "y": 3,
+          "x": 2
+        },
+        "type": "move",
+        "from": {
+          "x": 2,
+          "y": 0
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 7,
+          "x": 6
+        },
+        "color": "south",
+        "type": "move",
+        "to": {
+          "y": 6,
+          "x": 6
+        }
+      },
+      {
+        "type": "move",
+        "color": "west",
+        "to": {
+          "y": 6,
+          "x": 4
+        },
+        "from": {
+          "x": 3,
+          "y": 6
+        },
+        "promote": false
+      },
+      {
+        "color": "east",
+        "to": {
+          "x": 2,
+          "y": 6
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 2,
+          "y": 3
+        }
+      },
+      {
+        "to": {
+          "x": 4,
+          "y": 5
+        },
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 6,
+          "x": 4
+        },
+        "color": "west"
+      },
+      {
+        "to": {
+          "y": 5,
+          "x": 1
+        },
+        "promote": false,
+        "color": "east",
+        "type": "move",
+        "from": {
+          "x": 2,
+          "y": 6
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 4,
+          "y": 5
+        },
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "promote": false,
+        "color": "west"
+      },
+      {
+        "to": {
+          "x": 6,
+          "y": 4
+        },
+        "type": "drop",
+        "kind": "pawn",
+        "color": "east"
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "to": {
+          "y": 3,
+          "x": 4
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "to": {
+          "y": 3,
+          "x": 1
+        },
+        "promote": false,
+        "color": "east",
+        "type": "move",
+        "from": {
+          "x": 1,
+          "y": 0
+        }
+      },
+      {
+        "from": {
+          "x": 4,
+          "y": 3
+        },
+        "type": "move",
+        "promote": false,
+        "color": "west",
+        "to": {
+          "x": 3,
+          "y": 4
+        }
+      },
+      {
+        "color": "east",
+        "promote": false,
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 4
+        }
+      },
+      {
+        "color": "south",
+        "to": {
+          "x": 7,
+          "y": 5
+        },
+        "promote": false,
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "type": "move"
+      },
+      {
+        "kind": "pawn",
+        "to": {
+          "x": 4,
+          "y": 4
+        },
+        "color": "west",
+        "type": "drop"
+      },
+      {
+        "color": "east",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "type": "move",
+        "to": {
+          "y": 4,
+          "x": 4
+        },
+        "promote": false
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 4
+        },
+        "from": {
+          "x": 3,
+          "y": 4
+        },
+        "type": "move"
+      },
+      {
+        "type": "drop",
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "color": "east",
+        "kind": "pawn"
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "from": {
+          "y": 4,
+          "x": 4
+        },
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "type": "move"
+      },
+      {
+        "kind": "pawn",
+        "to": {
+          "x": 6,
+          "y": 4
+        },
+        "color": "east",
+        "type": "drop"
+      },
+      {
+        "color": "west",
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 4
+        },
+        "type": "move",
+        "from": {
+          "y": 4,
+          "x": 5
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 4
+        },
+        "color": "east",
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "promote": false
+      },
+      {
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "color": "west",
+        "promote": false,
+        "type": "move",
+        "from": {
+          "y": 4,
+          "x": 4
+        }
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 1
+        },
+        "color": "east",
+        "type": "move",
+        "from": {
+          "y": 3,
+          "x": 1
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "to": {
+          "x": 4,
+          "y": 3
+        },
+        "promote": false,
+        "color": "west"
+      },
+      {
+        "color": "east",
+        "type": "drop",
+        "to": {
+          "x": 5,
+          "y": 3
+        },
+        "kind": "silver"
+      },
+      {
+        "from": {
+          "x": 4,
+          "y": 3
+        },
+        "promote": false,
+        "type": "move",
+        "color": "west",
+        "to": {
+          "x": 3,
+          "y": 3
+        }
+      },
+      {
+        "kind": "gold",
+        "color": "east",
+        "type": "drop",
+        "to": {
+          "x": 4,
+          "y": 3
+        }
+      },
+      {
+        "from": {
+          "x": 3,
+          "y": 3
+        },
+        "type": "move",
+        "color": "west",
+        "to": {
+          "y": 2,
+          "x": 2
+        },
+        "promote": false
+      },
+      {
+        "type": "move",
+        "to": {
+          "x": 1,
+          "y": 0
+        },
+        "from": {
+          "x": 1,
+          "y": 4
+        },
+        "promote": false,
+        "color": "east"
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 8
+        },
+        "type": "move",
+        "color": "south",
+        "from": {
+          "y": 5,
+          "x": 7
+        }
+      },
+      {
+        "color": "west",
+        "from": {
+          "y": 2,
+          "x": 2
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "x": 2,
+          "y": 3
+        }
+      },
+      {
+        "type": "drop",
+        "to": {
+          "x": 8,
+          "y": 3
+        },
+        "color": "east",
+        "kind": "gold"
+      },
+      {
+        "promote": false,
+        "color": "south",
+        "to": {
+          "y": 3,
+          "x": 7
+        },
+        "from": {
+          "x": 8,
+          "y": 4
+        },
+        "type": "move"
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 3,
+          "x": 8
+        },
+        "color": "east",
+        "type": "move",
+        "to": {
+          "x": 7,
+          "y": 3
+        }
+      },
+      {
+        "color": "south",
+        "type": "drop",
+        "kind": "silver",
+        "to": {
+          "x": 8,
+          "y": 4
+        }
+      },
+      {
+        "kind": "pawn",
+        "to": {
+          "y": 3,
+          "x": 3
+        },
+        "color": "west",
+        "type": "drop"
+      },
+      {
+        "from": {
+          "y": 0,
+          "x": 1
+        },
+        "promote": false,
+        "color": "east",
+        "to": {
+          "x": 8,
+          "y": 0
+        },
+        "type": "move"
+      },
+      {
+        "to": {
+          "x": 7,
+          "y": 3
+        },
+        "type": "move",
+        "from": {
+          "x": 8,
+          "y": 4
+        },
+        "color": "south",
+        "promote": false
+      },
+      {
+        "color": "east",
+        "from": {
+          "x": 7,
+          "y": 2
+        },
+        "to": {
+          "x": 8,
+          "y": 1
+        },
+        "type": "move",
+        "promote": false
+      },
+      {
+        "kind": "rook",
+        "to": {
+          "x": 8,
+          "y": 8
+        },
+        "type": "drop",
+        "color": "south"
+      },
+      {
+        "color": "east",
+        "from": {
+          "x": 8,
+          "y": 1
+        },
+        "to": {
+          "x": 7,
+          "y": 0
+        },
+        "type": "move",
+        "promote": false
+      },
+      {
+        "promote": true,
+        "to": {
+          "x": 8,
+          "y": 0
+        },
+        "color": "south",
+        "from": {
+          "x": 8,
+          "y": 8
+        },
+        "type": "move"
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 7,
+          "y": 0
+        },
+        "color": "east",
+        "to": {
+          "x": 8,
+          "y": 0
+        },
+        "promote": false
+      },
+      {
+        "promote": true,
+        "from": {
+          "y": 3,
+          "x": 7
+        },
+        "type": "move",
+        "to": {
+          "y": 2,
+          "x": 8
+        },
+        "color": "south"
+      },
+      {
+        "type": "move",
+        "to": {
+          "x": 4,
+          "y": 3
+        },
+        "from": {
+          "y": 3,
+          "x": 3
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "type": "drop",
+        "to": {
+          "x": 8,
+          "y": 1
+        },
+        "color": "east",
+        "kind": "silver"
+      },
+      {
+        "kind": "pawn",
+        "to": {
+          "y": 2,
+          "x": 6
+        },
+        "type": "drop",
+        "color": "south"
+      },
+      {
+        "from": {
+          "x": 4,
+          "y": 3
+        },
+        "promote": false,
+        "type": "move",
+        "to": {
+          "y": 3,
+          "x": 5
+        },
+        "color": "west"
+      },
+      {
+        "to": {
+          "x": 5,
+          "y": 2
+        },
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 1
+        },
+        "promote": false,
+        "color": "east"
+      },
+      {
+        "color": "south",
+        "type": "drop",
+        "to": {
+          "y": 0,
+          "x": 5
+        },
+        "kind": "rook"
+      },
+      {
+        "kind": "pawn",
+        "type": "drop",
+        "color": "east",
+        "to": {
+          "y": 0,
+          "x": 7
+        }
+      },
+      {
+        "type": "drop",
+        "to": {
+          "y": 1,
+          "x": 7
+        },
+        "color": "south",
+        "kind": "gold"
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 7
+        },
+        "color": "east",
+        "type": "move",
+        "promote": false,
+        "from": {
+          "y": 1,
+          "x": 8
+        }
+      },
+      {
+        "to": {
+          "y": 1,
+          "x": 7
+        },
+        "type": "move",
+        "promote": false,
+        "from": {
+          "y": 8,
+          "x": 7
+        },
+        "color": "south"
+      },
+      {
+        "to": {
+          "y": 2,
+          "x": 3
+        },
+        "color": "west",
+        "promote": false,
+        "type": "move",
+        "from": {
+          "x": 2,
+          "y": 3
+        }
+      },
+      {
+        "promote": true,
+        "color": "south",
+        "to": {
+          "x": 1,
+          "y": 0
+        },
+        "from": {
+          "x": 5,
+          "y": 0
+        },
+        "type": "move"
+      },
+      {
+        "promote": false,
+        "color": "west",
+        "to": {
+          "y": 1,
+          "x": 4
+        },
+        "type": "move",
+        "from": {
+          "x": 3,
+          "y": 2
+        }
+      },
+      {
+        "to": {
+          "y": 5,
+          "x": 1
+        },
+        "type": "move",
+        "from": {
+          "y": 0,
+          "x": 1
+        },
+        "promote": false,
+        "color": "south"
+      },
+      {
+        "color": "west",
+        "to": {
+          "x": 5,
+          "y": 2
+        },
+        "type": "move",
+        "promote": false,
+        "from": {
+          "x": 4,
+          "y": 1
+        }
+      },
+      {
+        "promote": false,
+        "from": {
+          "y": 5,
+          "x": 1
+        },
+        "color": "south",
+        "type": "move",
+        "to": {
+          "x": 1,
+          "y": 6
+        }
+      },
+      {
+        "color": "west",
+        "from": {
+          "y": 2,
+          "x": 5
+        },
+        "type": "move",
+        "to": {
+          "y": 3,
+          "x": 6
+        },
+        "promote": false
+      },
+      {
+        "kind": "gold",
+        "color": "south",
+        "to": {
+          "x": 7,
+          "y": 4
+        },
+        "type": "drop"
+      },
+      {
+        "promote": false,
+        "color": "west",
+        "from": {
+          "x": 6,
+          "y": 3
+        },
+        "type": "move",
+        "to": {
+          "y": 2,
+          "x": 5
+        }
+      },
+      {
+        "type": "move",
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "color": "south",
+        "to": {
+          "y": 1,
+          "x": 6
+        },
+        "promote": true
+      },
+      {
+        "to": {
+          "y": 3,
+          "x": 4
+        },
+        "promote": false,
+        "color": "west",
+        "from": {
+          "x": 5,
+          "y": 2
+        },
+        "type": "move"
+      },
+      {
+        "promote": false,
+        "to": {
+          "y": 1,
+          "x": 5
+        },
+        "color": "south",
+        "from": {
+          "y": 1,
+          "x": 6
+        },
+        "type": "move"
+      },
+      {
+        "from": {
+          "y": 3,
+          "x": 4
+        },
+        "type": "move",
+        "promote": false,
+        "to": {
+          "y": 4,
+          "x": 3
+        },
+        "color": "west"
+      },
+      {
+        "to": {
+          "x": 3,
+          "y": 2
+        },
+        "type": "drop",
+        "color": "south",
+        "kind": "rook"
+      },
+      {
+        "type": "move",
+        "from": {
+          "y": 4,
+          "x": 3
+        },
+        "to": {
+          "y": 3,
+          "x": 4
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "color": "south",
+        "to": {
+          "y": 2,
+          "x": 1
+        },
+        "from": {
+          "x": 3,
+          "y": 2
+        },
+        "type": "move",
+        "promote": true
+      },
+      {
+        "color": "west",
+        "from": {
+          "y": 3,
+          "x": 4
+        },
+        "type": "move",
+        "to": {
+          "y": 4,
+          "x": 5
+        },
+        "promote": false
+      },
+      {
+        "to": {
+          "x": 5,
+          "y": 5
+        },
+        "kind": "gold",
+        "type": "drop",
+        "color": "south"
+      },
+      {
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "type": "move",
+        "to": {
+          "x": 4,
+          "y": 3
+        },
+        "color": "west",
+        "promote": false
+      },
+      {
+        "color": "south",
+        "to": {
+          "y": 4,
+          "x": 4
+        },
+        "type": "drop",
+        "kind": "gold"
+      }
+    ]
+  }
+}
