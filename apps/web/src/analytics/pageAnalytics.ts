@@ -155,7 +155,7 @@ export function startWebAnalytics(router: typeof appRouter) {
       ? "lobby"
       : path.startsWith("/rooms/")
         ? "room"
-        : path.startsWith("/account/matches/")
+        : path.startsWith("/account/matches/") || path.startsWith("/matches/")
           ? "replay"
           : path === "/account/setup"
             ? "setup"

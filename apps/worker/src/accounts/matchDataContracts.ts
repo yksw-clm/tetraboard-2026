@@ -228,3 +228,12 @@ export function matchDetail(
     }
   }
 }
+
+export function publicMatchDetail(match: DecodedMatch, avatars: Map<string, string | null>) {
+  const { selfPlayerId: _self, ...detail } = matchDetail(
+    match,
+    match.record.participants[0].id,
+    avatars,
+  );
+  return detail;
+}

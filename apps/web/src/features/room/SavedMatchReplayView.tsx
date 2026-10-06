@@ -1,4 +1,5 @@
-import type { MatchDetail } from "@tetraboard/protocol";
+import { gameCatalog } from "@tetraboard/protocol/games";
+import type { ReplayMatch } from "@tetraboard/protocol";
 import { useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import { useRoomDesktop } from "./useRoomDesktop";
@@ -18,7 +19,7 @@ export function SavedMatchReplayView({
   theme = "default",
   onRotate,
 }: {
-  match: MatchDetail;
+  match: ReplayMatch;
   board: ReactNode;
   replay: { frames: readonly { label: string }[]; index: number; select: (index: number) => void };
   result: ReactNode;
@@ -32,8 +33,13 @@ export function SavedMatchReplayView({
   const replayCard = <ReplayCard replay={replay} theme={theme} />;
   const info = (
     <RoomInfoCard roomId={match.roomId} settings={match.settings}>
-      <AppButtonLink size="compact" className="w-full" to="/account" state={location.state}>
-        マイページへ戻る
+      <AppButtonLink
+        size="compact"
+        className="w-full"
+        to={match.selfPlayerId ? "/account" : gameCatalog[match.settings.game].lobbyPath}
+        state={location.state}
+      >
+        {match.selfPlayerId ? "マイページへ戻る" : "ロビーへ戻る"}
       </AppButtonLink>
     </RoomInfoCard>
   );

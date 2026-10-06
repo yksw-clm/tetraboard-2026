@@ -1,4 +1,4 @@
-import { matchReplayLoader } from "../features/room/matchReplayLoader";
+import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/matchReplayLoader";
 import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
@@ -43,6 +43,13 @@ export const router = createBrowserRouter([
         path: "/account/matches/:matchId",
         Component: MatchReplayPage,
         loader: matchReplayLoader,
+        ErrorBoundary: MatchReplayErrorPage,
+        hydrateFallbackElement: <p role="status">棋譜を読み込んでいます…</p>,
+      },
+      {
+        path: "/matches/:matchId",
+        Component: MatchReplayPage,
+        loader: publicMatchReplayLoader,
         ErrorBoundary: MatchReplayErrorPage,
         hydrateFallbackElement: <p role="status">棋譜を読み込んでいます…</p>,
       },

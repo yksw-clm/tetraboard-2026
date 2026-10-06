@@ -50,6 +50,7 @@ export function AccountLayout() {
       location.pathname !== "/account/setup" &&
       location.pathname !== "/feedback" &&
       location.pathname !== "/updates" &&
+      !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
       !(
         location.pathname === "/login" &&
         new URLSearchParams(location.search).get("destination") === "admin"

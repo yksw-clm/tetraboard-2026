@@ -1,41 +1,47 @@
 import {
   getMatchContract,
+  getPublicMatchContract,
   isFourShogiMatch,
   isFourReversiMatch,
   assertNever,
   type GameId,
-  type MatchFor,
+  type ReplayMatch,
+  type ReplayMatchFor,
 } from "@tetraboard/protocol";
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
 
 export type MatchReplayDataFor<G extends GameId> = {
   game: G;
-  match: MatchFor<G>;
+  match: ReplayMatchFor<G>;
 } & (G extends "four-shogi" ? { frames: FourShogiReplayFrame[] } : { frames?: never });
 export type MatchReplayData = { [G in GameId]: MatchReplayDataFor<G> }[GameId];
 export const replayLoaders = {
   "four-reversi": async (
-    match: MatchFor<"four-reversi">,
+    match: ReplayMatchFor<"four-reversi">,
     _signal: AbortSignal,
   ): Promise<MatchReplayDataFor<"four-reversi">> => ({ game: "four-reversi", match }),
   "four-shogi": async (
-    match: MatchFor<"four-shogi">,
+    match: ReplayMatchFor<"four-shogi">,
     signal: AbortSignal,
   ): Promise<MatchReplayDataFor<"four-shogi">> => {
     const { fetchFourShogiMatchReplay } = await import("./fourShogiMatchReplay");
     return { game: "four-shogi", match, frames: await fetchFourShogiMatchReplay(match, signal) };
   },
 } satisfies {
-  [G in GameId]: (match: MatchFor<G>, signal: AbortSignal) => Promise<MatchReplayDataFor<G>>;
+  [G in GameId]: (match: ReplayMatchFor<G>, signal: AbortSignal) => Promise<MatchReplayDataFor<G>>;
 };
 
-export async function matchReplayLoader({ params, request }: LoaderFunctionArgs) {
-  const parsed = getMatchContract.params.safeParse(params);
+export const matchReplayLoader = (args: LoaderFunctionArgs) => loadMatchReplay(args, false);
+export const publicMatchReplayLoader = (args: LoaderFunctionArgs) => loadMatchReplay(args, true);
+
+async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicView: boolean) {
+  const contract = publicView ? getPublicMatchContract : getMatchContract;
+  const parsed = contract.params.safeParse(params);
   if (!parsed.success) throw new Response(null, { status: 400 });
   let response: Response;
   try {
-    response = await fetch(`/api${getMatchContract.pathFor(parsed.data.matchId)}`, {
+    response = await fetch(`/api${contract.pathFor(parsed.data.matchId)}`, {
       credentials: "include",
       signal: request.signal,
     });
@@ -43,10 +49,10 @@ export async function matchReplayLoader({ params, request }: LoaderFunctionArgs)
     if (request.signal.aborted) throw error;
     throw new Response(null, { status: 503 });
   }
-  if (response.status === 401) throw redirect("/login");
+  if (!publicView && response.status === 401) throw redirect("/login");
   if (!response.ok) throw new Response(null, { status: response.status });
   try {
-    const match = getMatchContract.response.parse(await response.json()).match;
+    const match = parseMatch(await response.json(), publicView);
     if (isFourReversiMatch(match))
       return await replayLoaders["four-reversi"](match, request.signal);
     if (isFourShogiMatch(match)) return await replayLoaders["four-shogi"](match, request.signal);
@@ -54,9 +60,13 @@ export async function matchReplayLoader({ params, request }: LoaderFunctionArgs)
   } catch (error) {
     if (request.signal.aborted) throw error;
     if (error instanceof Response) {
-      if (error.status === 401) throw redirect("/login");
+      if (!publicView && error.status === 401) throw redirect("/login");
       throw error;
     }
     throw new Response(null, { status: 503 });
   }
+}
+
+function parseMatch(value: unknown, publicView: boolean): ReplayMatch {
+  return (publicView ? getPublicMatchContract : getMatchContract).response.parse(value).match;
 }

@@ -170,7 +170,7 @@ export type AccountStats = z.infer<typeof accountStatsSchema>;
 export type FourReversiAccountStats = z.infer<typeof fourReversiAccountStatsSchema>;
 export type FourShogiAccountStats = z.infer<typeof fourShogiAccountStatsSchema>;
 
-export const fourReversiMatchDetailSchema = z
+export const publicFourReversiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
     roomId: roomCodeSchema,
@@ -178,7 +178,6 @@ export const fourReversiMatchDetailSchema = z
     endedAtMs: z.int().nonnegative(),
     settings: fourReversiRoomSettingsSchema,
     participants: z.array(matchParticipantSchema).length(4),
-    selfPlayerId: z.uuid(),
     game: finishedGameSchema,
     eliminations: z.array(eliminationSchema).max(4),
     replay: roundReplaySchema,
@@ -187,7 +186,6 @@ export const fourReversiMatchDetailSchema = z
     (match) =>
       match.game.mode === match.settings.mode &&
       match.replay.id === match.id &&
-      match.participants.some((player) => player.id === match.selfPlayerId) &&
       new Set(match.participants.map((player) => player.id)).size === 4 &&
       new Set(match.participants.map((player) => player.color)).size === 4 &&
       new Set(match.participants.map((player) => player.seat)).size === 4,
@@ -198,7 +196,7 @@ const knockoutCountsSchema = z.strictObject({
   north: z.int().min(0).max(3),
   east: z.int().min(0).max(3),
 });
-export const fourShogiMatchDetailSchema = z
+export const publicFourShogiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
     roomId: roomCodeSchema,
@@ -206,7 +204,6 @@ export const fourShogiMatchDetailSchema = z
     endedAtMs: z.int().nonnegative(),
     settings: fourShogiRoomSettingsSchema,
     participants: z.array(fourShogiMatchParticipantSchema).length(4),
-    selfPlayerId: z.uuid(),
     game: finishedFourShogiStateSchema,
     knockouts: knockoutCountsSchema,
     replay: z.strictObject({
@@ -224,7 +221,6 @@ export const fourShogiMatchDetailSchema = z
       match.replay.initial.threePlayerAttackProhibited ===
         match.settings.threePlayerAttackProhibited &&
       match.game.threePlayerAttackProhibited === match.settings.threePlayerAttackProhibited &&
-      match.participants.some((player) => player.id === match.selfPlayerId) &&
       completeShogiParticipants(match.participants) &&
       match.participants.every(
         (player) =>
@@ -232,6 +228,35 @@ export const fourShogiMatchDetailSchema = z
           match.replay.initial.players[player.side] === player.id,
       ),
   );
+export const fourReversiMatchDetailSchema = publicFourReversiMatchDetailSchema
+  .safeExtend({ selfPlayerId: z.uuid() })
+  .refine((match) => match.participants.some((player) => player.id === match.selfPlayerId));
+export const fourShogiMatchDetailSchema = publicFourShogiMatchDetailSchema
+  .safeExtend({ selfPlayerId: z.uuid() })
+  .refine((match) => match.participants.some((player) => player.id === match.selfPlayerId));
+export const publicMatchDetailSchema = z.union([
+  publicFourReversiMatchDetailSchema,
+  publicFourShogiMatchDetailSchema,
+]);
+export type PublicMatchDetail = z.infer<typeof publicMatchDetailSchema>;
+export type PublicFourReversiMatchDetail = z.infer<typeof publicFourReversiMatchDetailSchema>;
+export type PublicFourShogiMatchDetail = z.infer<typeof publicFourShogiMatchDetailSchema>;
+export type ReplayFourReversiMatch = PublicFourReversiMatchDetail & { selfPlayerId?: string };
+export type ReplayFourShogiMatch = PublicFourShogiMatchDetail & { selfPlayerId?: string };
+export type ReplayMatch = ReplayFourReversiMatch | ReplayFourShogiMatch;
+export const listPublicMatchesContract = {
+  method: "GET",
+  path: "/matches",
+  query: z.object({ game: matchGameSchema }),
+  response: z.strictObject({ matches: z.array(matchSummarySchema).max(20) }),
+} as const;
+export const getPublicMatchContract = {
+  method: "GET",
+  path: "/matches/:matchId",
+  pathFor: (id: string) => `/matches/${id}`,
+  params: z.strictObject({ matchId: z.uuid() }),
+  response: z.strictObject({ match: publicMatchDetailSchema }),
+} as const;
 export const matchDetailSchema = z.union([
   fourReversiMatchDetailSchema,
   fourShogiMatchDetailSchema,
@@ -246,10 +271,14 @@ export const getMatchContract = {
 export type MatchDetail = z.infer<typeof matchDetailSchema>;
 export type FourReversiMatchDetail = z.infer<typeof fourReversiMatchDetailSchema>;
 export type FourShogiMatchDetail = z.infer<typeof fourShogiMatchDetailSchema>;
-export function isFourShogiMatch(match: MatchDetail): match is FourShogiMatchDetail {
+export function isFourShogiMatch(match: MatchDetail): match is FourShogiMatchDetail;
+export function isFourShogiMatch(match: ReplayMatch): match is ReplayFourShogiMatch;
+export function isFourShogiMatch(match: ReplayMatch): match is ReplayFourShogiMatch {
   return match.settings.game === "four-shogi";
 }
-export function isFourReversiMatch(match: MatchDetail): match is FourReversiMatchDetail {
+export function isFourReversiMatch(match: MatchDetail): match is FourReversiMatchDetail;
+export function isFourReversiMatch(match: ReplayMatch): match is ReplayFourReversiMatch;
+export function isFourReversiMatch(match: ReplayMatch): match is ReplayFourReversiMatch {
   return match.settings.game === "four-reversi";
 }
 
@@ -273,3 +302,9 @@ export const getMatchReplayContract = {
   }),
 } as const;
 export type MatchReplayPage = z.infer<typeof getMatchReplayContract.response>;
+
+export const getPublicMatchReplayContract = {
+  ...getMatchReplayContract,
+  path: "/matches/:matchId/replay",
+  pathFor: (id: string) => `/matches/${id}/replay`,
+} as const;

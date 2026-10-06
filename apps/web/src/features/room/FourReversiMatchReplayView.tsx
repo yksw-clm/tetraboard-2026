@@ -1,4 +1,4 @@
-import type { FourReversiMatchDetail } from "@tetraboard/protocol";
+import type { ReplayFourReversiMatch } from "@tetraboard/protocol";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex } from "./boardRotation";
 import { RoomBoardLayout } from "./RoomLayout";
@@ -9,7 +9,7 @@ import { matchSeats } from "./roomPresentation";
 import { seatPositions } from "./roomCommonPresentation";
 import { useRoundReplay } from "./useRoomReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
-export default function FourReversiMatchReplayView({ match }: { match: FourReversiMatchDetail }) {
+export default function FourReversiMatchReplayView({ match }: { match: ReplayFourReversiMatch }) {
   const { rotation, rotate } = useBoardRotation();
   const lastRound = { game: match.game, players: match.participants, replay: match.replay };
   const replay = useRoundReplay(lastRound);
