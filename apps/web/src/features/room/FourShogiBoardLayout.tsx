@@ -515,11 +515,12 @@ export function FourShogiBoardLayout({
           })}
           {formationNotice && !selection && !drag && !promotionChoices && (
             <div
+              key={formationNotice}
               role="status"
               aria-live="polite"
               aria-atomic="true"
               data-testid="shogi-formation-notice"
-              className="absolute left-1/2 top-[83.333333%] -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none whitespace-nowrap rounded-lg bg-[#3d291ee6] px-[0.5em] py-[0.25em] text-white shadow-md text-[clamp(0px,calc(var(--shogi-board-width)_*_0.047),24px)]"
+              className="absolute left-1/2 top-[83.333333%] -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none whitespace-nowrap rounded-lg bg-[#3d291ee6] px-[0.5em] py-[0.25em] text-white shadow-md text-[clamp(0px,calc(var(--shogi-board-width)_*_0.047),24px)] motion-safe:animate-[shogi-formation-fade_2s_ease-in-out_both]"
             >
               {formationNotice}
             </div>

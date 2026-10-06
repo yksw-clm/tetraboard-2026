@@ -64,3 +64,14 @@
     opacity: 0.5;
   }
 }
+
+@keyframes shogi-formation-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  9%,
+  88% {
+    opacity: 1;
+  }
+}

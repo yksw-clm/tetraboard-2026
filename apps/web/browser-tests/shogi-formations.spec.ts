@@ -83,6 +83,8 @@ for (const width of [320, 390, 768, 1440])
       await expect(notice(page)).toHaveAttribute("role", "status");
       await expect(notice(page)).toHaveAttribute("aria-live", "polite");
       await expect(notice(page)).toHaveCSS("pointer-events", "none");
+      await expect(notice(page)).toHaveCSS("animation-name", "none");
+      await expect(notice(page)).toHaveCSS("opacity", "1");
       expect(
         await notice(page).evaluate((el) => {
           const b = el.parentElement!.getBoundingClientRect(),
@@ -112,6 +114,60 @@ for (const width of [320, 390, 768, 1440])
       expect(await dimensions(page)).toEqual(bounds);
     });
   }
+
+for (const width of [390, 1440]) {
+  test(`${width}px: ふわっと現れて消え、位置を動かさず操作時は即時解除する`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.clock.install({ time: now });
+    const state = before();
+    const fixture = await mockRoom(page, playingShogiRoom(state));
+    await page.goto("/rooms/12345");
+    await expect(square(page, "F8")).toBeEnabled();
+    await page.clock.pauseAt(now + 60000);
+    const bounds = await dimensions(page);
+    const formed = playingShogiRoom({ ...complete(state), turn: "south" }, 1);
+    fixture.update(formed);
+    await expect(notice(page)).toHaveText("リッグトスファー");
+    await expect(notice(page)).toHaveCSS("animation-name", "shogi-formation-fade");
+    await expect(notice(page)).toHaveCSS("animation-duration", "2s");
+    const sample = (time: number) =>
+      notice(page).evaluate((el, time) => {
+        const animation = el.getAnimations()[0]!;
+        animation.pause();
+        animation.currentTime = time;
+        const r = el.getBoundingClientRect();
+        return {
+          opacity: Number(getComputedStyle(el).opacity),
+          box: [r.x, r.y, r.width, r.height],
+        };
+      }, time);
+    const first = await sample(0);
+    expect(first.opacity).toBe(0);
+    for (const time of [90, 1880]) {
+      const frame = await sample(time);
+      expect(frame.opacity).toBeGreaterThan(0);
+      expect(frame.opacity).toBeLessThan(1);
+      expect(frame.box).toEqual(first.box);
+    }
+    expect((await sample(180)).opacity).toBe(1);
+    expect((await sample(1760)).opacity).toBe(1);
+    expect((await sample(2000)).opacity).toBe(0);
+    expect(await dimensions(page)).toEqual(bounds);
+    await page.clock.runFor(1999);
+    await expect(notice(page)).toHaveCount(1);
+    await page.clock.runFor(1);
+    await expect(notice(page)).toHaveCount(0);
+    const roundId = "00000000-0000-4000-8000-000000000021";
+    fixture.update({ ...playingShogiRoom(state), roundId });
+    await expect(square(page, "F8")).toBeEnabled();
+    fixture.update({ ...formed, roundId });
+    await expect(notice(page)).toHaveText("リッグトスファー");
+    await square(page, "E8").click();
+    await expect(notice(page)).toHaveCount(0);
+    expect(await dimensions(page)).toEqual(bounds);
+  });
+}
 
 test("選択・クリック透過・ドラッグ・成り選択で通知を消し、再演しない", async ({ page }) => {
   await page.clock.install({ time: now });
