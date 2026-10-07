@@ -11,6 +11,12 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { formatClock, playerName } from "./roomCommonPresentation";
 import type { SharedRoomSession } from "./useRoomTransport";
 import { useAccount } from "../account/useAccount";
+import { CpuLevelSelector } from "./CpuLevelSelector";
+import {
+  isRoomSettingsUpdating,
+  updatingSettingsClasses,
+  updatingSettingsButtonClasses,
+} from "./roomSettingsPresentation";
 
 export function RoomInfo({
   session,
@@ -37,6 +43,17 @@ export function RoomInfo({
 }) {
   const { room, membership, canManageSettings } = session;
   const account = useAccount();
+  const updating = isRoomSettingsUpdating(session);
+  const pending = updating ? session.pendingSettingsCommand : null;
+  const mode = pending?.type === "room.mode.set" ? pending.mode : room.settings.mode;
+  const timeControl =
+    pending?.type === "room.time-control.set" ? pending.timeControl : room.settings.timeControl;
+  const canAddWhileUpdating =
+    updating &&
+    room.players.length < 4 &&
+    session.presence.hostPlayerId === membership?.playerId &&
+    !account.loading &&
+    !account.error;
   return (
     <RoomInfoCard roomId={room.id} settings={room.settings}>
       <AppButton
@@ -61,19 +78,25 @@ export function RoomInfo({
       </AppButton>
       {membership === null && <p className="text-muted text-xs">観戦中です</p>}
       {room.status === "waiting" && membership?.role === "host" && (
-        <Accordion className="text-xs">
+        <Accordion className="text-xs w-full min-w-0">
           <Accordion.Item>
             <Accordion.Heading>
-              <Accordion.Trigger className="py-2 px-0 font-[650] gap-2 min-h-9 border-0 bg-transparent cursor-pointer">
+              <Accordion.Trigger className="w-full min-h-[38px] px-[10px] py-2 flex items-center gap-2 rounded-control border border-solid border-line bg-surface-muted text-ink-secondary font-[650] cursor-pointer hover:border-line-hover hover:bg-surface-hover focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-2">
                 <AppIcon name="settings" />
-                ルーム設定
-                <Accordion.Indicator />
+                <span className="flex-1 text-left">ルーム設定</span>
+                <Accordion.Indicator className="shrink-0" />
               </Accordion.Trigger>
             </Accordion.Heading>
             <Accordion.Panel>
-              <Accordion.Body className="pt-[2px] px-0 pb-1 [&>div]:p-0">
+              <Accordion.Body
+                className={`pt-2 px-0 pb-1 [&>div]:p-0 ${updating ? updatingSettingsClasses : ""}`}
+                aria-busy={updating}
+              >
+                <p className="min-h-5 text-xs text-muted" role="status">
+                  {updating ? "設定を更新中…" : ""}
+                </p>
                 <RadioGroup
-                  value={room.settings.mode}
+                  value={mode}
                   isDisabled={!canManageSettings}
                   onChange={(value) => {
                     if (value === "singles" || value === "doubles") session.changeMode(value);
@@ -98,7 +121,7 @@ export function RoomInfo({
                 {gameSettings}
                 <div className="mb-3">
                   <TimeControlSetting
-                    timeControl={room.settings.timeControl}
+                    timeControl={timeControl}
                     onChange={session.changeTimeControl}
                     disabled={!canManageSettings}
                     theme={room.settings.game === "four-shogi" ? "four-shogi" : "default"}
@@ -117,33 +140,26 @@ export function RoomInfo({
                           <AppIcon name="robot" />
                           CPU {index + 1}
                         </span>
-                        <div
-                          className="flex rounded-lg bg-surface-muted p-[2px]"
-                          role="group"
-                          aria-label={`CPU ${index + 1}のレベル`}
-                        >
-                          {([1, 2] as const).map((level) => (
-                            <AppButton
-                              key={level}
-                              size="compact"
-                              className="text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand"
-                              aria-pressed={cpu.level === level}
-                              isDisabled={!canManageSettings}
-                              isPending={
-                                session.pendingSettingsCommand?.type === "room.cpu.level.set" &&
-                                session.pendingSettingsCommand.playerId === cpu.id &&
-                                session.pendingSettingsCommand.level === level
-                              }
-                              onPress={() => session.changeCpuLevel(cpu.id, level)}
-                            >
-                              Lv{level}
-                            </AppButton>
-                          ))}
-                        </div>
+                        <CpuLevelSelector
+                          label={`CPU ${index + 1}のレベル`}
+                          level={
+                            pending?.type === "room.cpu.level.set" && pending.playerId === cpu.id
+                              ? pending.level
+                              : cpu.level
+                          }
+                          disabled={!canManageSettings}
+                          updating={updating}
+                          pendingLevel={
+                            pending?.type === "room.cpu.level.set" && pending.playerId === cpu.id
+                              ? pending.level
+                              : undefined
+                          }
+                          onChange={(level) => session.changeCpuLevel(cpu.id, level)}
+                        />
                         <AppButton
                           size="compact"
                           appearance="quiet"
-                          className="text-danger text-[11px] h-7 min-h-7"
+                          className={`text-danger text-[11px] h-7 min-h-7 ${updating ? updatingSettingsButtonClasses : ""}`}
                           aria-label={`${playerName(cpu)}を削除`}
                           isDisabled={!canManageSettings}
                           isPending={
@@ -156,34 +172,24 @@ export function RoomInfo({
                         </AppButton>
                       </div>
                     ))}
-                  <div className="flex justify-between gap-2 items-center mt-1">
-                    <div
-                      className="flex rounded-lg bg-surface-muted p-[2px]"
-                      role="group"
-                      aria-label="追加するCPUのレベル"
-                    >
-                      {([1, 2] as const).map((level) => (
-                        <AppButton
-                          key={level}
-                          size="compact"
-                          className="text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand"
-                          aria-pressed={session.newCpuLevel === level}
-                          isDisabled={!canManageSettings}
-                          onPress={() => session.setNewCpuLevel(level)}
-                        >
-                          Lv{level}
-                        </AppButton>
-                      ))}
-                    </div>
+                  <div className="flex justify-end gap-2 items-center mt-2">
+                    <CpuLevelSelector
+                      label="追加するCPUのレベル"
+                      level={session.newCpuLevel}
+                      disabled={!canManageSettings}
+                      updating={updating}
+                      onChange={session.setNewCpuLevel}
+                    />
                     <AppButton
                       ref={cpuAddButtonRef}
                       size="compact"
                       appearance="secondary"
+                      className={`h-8 min-h-8 py-1 px-[10px] text-xs gap-1 ${canAddWhileUpdating ? updatingSettingsButtonClasses : ""}`}
                       isDisabled={!canAddCpu}
                       isPending={session.pendingSettingsCommand?.type === "room.cpu.add"}
                       onPress={() => onAddCpu(session.newCpuLevel)}
                     >
-                      <AppIcon name="plus" />
+                      <AppIcon name="plus" className="size-4" />
                       CPUを追加
                     </AppButton>
                   </div>

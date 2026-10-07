@@ -351,6 +351,8 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 
 `AppButton`／`AppButtonLink` の `isPending` は元の内容を配置・読み上げのために残し、見た目だけを中央のHeroUI Spinnerに置き換えます。非同期操作の完了・失敗・中止は既存の通信状態で管理します。初回・自動取得と手動の更新／再試行は `pendingSource` で区別し、共有リクエストの複数の入口では操作元を指定します。CPU操作はtransportの `pendingSettingsCommand` を参照し、設定全体のロックで他のボタンまでスピナーにしません。Context／Providerの配置と通信契約は維持します。
 
+ルーム設定の選択値は `pendingSettingsCommand` から表示上だけ先行反映し、transportのルーム状態と処理完了判定は変更しません。`roomSettingsPresentation` で送信待ちを判定し、接続済みの待機中ホストの一時的なロックだけ無効時の透明度を保ちます。CPUレベルの操作は `CpuLevelSelector` を共用します。PCの `RoomLayout` は左右列を独立させ、右列の展開内容が盤面の高さ計算へ影響しないようにします。
+
 ロビー・ルームともページ別CSSと移行用ラッパーは撤去済みです。各部品のTailwindクラスを編集し、状態別クラスは静的な対応表にします。共通の見た目は `shared/ui/` に集約し、ゲーム固有の `PlayerCard`・`Stone`・`RoomClock`・`ReplayCard` はfeature側に置きます。`AppCard` の `density="compact"` はルームの狭い領域向けの余白です。`AppActionCard` と `AppSectionHeading` は操作カードと見出しの共通表現です。
 
 CSSを追加できる範囲は `shared/theme.css` の共通テーマ／最小リセットと、`shared/effects.css` の背景・石の陰影・アニメーションです。`shared/heroui.css` は読み込み専用です。特定ページのレイアウト、通常の色や操作状態をCSSへ戻さず、同じTailwindクラス群を複製しないで共通部品を使います。Preflightを導入せず、box-sizing・margin・border幅など必要な最小リセットを共通テーマにまとめます。
