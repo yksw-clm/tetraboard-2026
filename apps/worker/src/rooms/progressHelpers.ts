@@ -1,4 +1,4 @@
-import type { Room } from "@tetraboard/protocol";
+import type { Room, PlayerAppearance } from "@tetraboard/protocol";
 export const roomStorageKey = "room";
 export const replayKey = "round-replay";
 export const shogiCpuJobKey = "shogi-cpu-job";
@@ -8,6 +8,11 @@ export function nextPublicUpdateAt(room: Room): number {
 }
 export function playerLabel(player: Room["players"][number]): string {
   return player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
+}
+export function playerAppearance(player: Room["players"][number]): PlayerAppearance {
+  return player.kind === "cpu"
+    ? { kind: "cpu", level: player.level }
+    : { kind: "human", avatarUrl: player.avatarUrl };
 }
 function randomIndex(length: number): number {
   const range = 2 ** 32;

@@ -13,6 +13,7 @@ import {
 } from "@tetraboard/protocol";
 import { shogiEliminationLabels, shogiSideNames } from "./fourShogiRoomPresentation";
 export type FourShogiReplayFrame = {
+  event?: FourShogiReplayEvent;
   label: string;
   game: FourShogiPublicState;
   checkState: ReturnType<typeof getCheckState>;
@@ -35,7 +36,12 @@ export function createFourShogiReplayFrame(
 ): FourShogiReplayFrame {
   const { repetitions: _repetitions, ...game } = state;
   const label = event ? replayLabel(event, state) : "開始局面";
-  return { label, game: fourShogiPublicStateSchema.parse(game), checkState: getCheckState(state) };
+  return {
+    label,
+    game: fourShogiPublicStateSchema.parse(game),
+    checkState: getCheckState(state),
+    ...(event ? { event } : {}),
+  };
 }
 
 function stableJson(value: unknown): string {

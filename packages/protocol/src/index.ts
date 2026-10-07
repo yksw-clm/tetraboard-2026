@@ -114,6 +114,7 @@ export type {
   CreateRoomRequest,
   ChatMessage,
   CpuLevel,
+  PlayerAppearance,
   JoinRoomRequest,
   LastRound,
   RoundReplay,

@@ -483,3 +483,111 @@ test("DOのメモリを再生成しても席の帰属・プロフィール・ト
   });
   await expectSeated(await create(user));
 });
+
+async function resultRoom(
+  user: Awaited<ReturnType<typeof accountFixture>>,
+  game: "four-reversi" | "four-shogi",
+) {
+  const host = await created(user, { game });
+  const guests = [];
+  for (let i = 0; i < 3; i++)
+    guests.push(joinRoomContract.response.parse(await (await join(host.room.id)).json()));
+  const entries = [host, ...guests];
+  const clients = [];
+  for (const entry of entries) clients.push(await connect(host.room.id, entry.membership.token));
+  const observer = clients[3]!;
+  const ready = nextMessage(
+    observer,
+    (m) => m.type === "room.snapshot" && m.room.players.every((p: { ready: boolean }) => p.ready),
+  );
+  clients.forEach((client) => client.send(JSON.stringify({ type: "room.ready.set", ready: true })));
+  await ready;
+  const started = nextMessage(
+    observer,
+    (m) => m.type === "room.snapshot" && m.room.status === "playing",
+  );
+  clients[0]!.send(JSON.stringify({ type: "room.game.start" }));
+  await started;
+  return { host, guests, clients, observer };
+}
+
+for (const game of ["four-reversi", "four-shogi"] as const) {
+  for (const releaseAt of ["nextRound", "close"] as const) {
+    test(`${game}: 前局の退室者の画像を保持し、${releaseAt}で解放する`, async () => {
+      const user = await accountFixture();
+      const key = await attachAvatar(user);
+      const prepared = await resultRoom(user, game);
+      const id = prepared.host.room.id;
+      const url = `/api/avatars/${key.slice(8, -5)}`;
+      const form = new FormData();
+      form.set("name", "変更後の名前");
+      form.set("username", user.username);
+      form.set("avatarAction", "remove");
+      expect(
+        (
+          await request("/account/profile", {
+            method: "PATCH",
+            headers: { Cookie: user.cookie, Origin: origin },
+            body: form,
+          })
+        ).status,
+      ).toBe(200);
+      await leave(id, prepared.host.membership.token);
+      await leave(id, prepared.guests[0]!.membership.token);
+      const finished = nextMessage(
+        prepared.observer,
+        (m) => m.type === "room.snapshot" && m.room.lastRound !== null,
+      );
+      await leave(id, prepared.guests[1]!.membership.token);
+      const broadcast = await finished;
+      const read = getRoomContract.response.parse(
+        await (await request(`/rooms/${id}`)).json(),
+      ).room;
+      expect(read.lastRound).toEqual(broadcast.room.lastRound);
+      expect(
+        read.lastRound!.players.find((p) => p.id === prepared.host.membership.playerId),
+      ).toMatchObject({ name: "登録名", appearance: { kind: "human", avatarUrl: url } });
+      expect(read.players).toHaveLength(1);
+      await deleteUnusedAvatars(env);
+      expect(await env.OBJECT_STORAGE.get(key)).not.toBeNull();
+      // 前局画像の保持中も席の予約は解放され、新しい部屋に参加できます。
+      expect((await create(user)).status).toBe(201);
+      await recoverAccountReservations(env);
+      await deleteUnusedAvatars(env);
+      expect(await env.OBJECT_STORAGE.get(key)).not.toBeNull();
+      if (releaseAt === "close") {
+        await leave(id, prepared.guests[2]!.membership.token);
+      } else {
+        const newcomers = [];
+        for (let i = 0; i < 3; i++)
+          newcomers.push(joinRoomContract.response.parse(await (await join(id)).json()));
+        const nextClients = [prepared.observer];
+        for (const newcomer of newcomers)
+          nextClients.push(await connect(id, newcomer.membership.token));
+        const ready = nextMessage(
+          prepared.observer,
+          (m) =>
+            m.type === "room.snapshot" && m.room.players.every((p: { ready: boolean }) => p.ready),
+        );
+        nextClients.forEach((client) =>
+          client.send(JSON.stringify({ type: "room.ready.set", ready: true })),
+        );
+        await ready;
+        const started = nextMessage(
+          prepared.observer,
+          (m) => m.type === "room.snapshot" && m.room.status === "playing",
+        );
+        prepared.observer.send(JSON.stringify({ type: "room.game.start" }));
+        expect((await started).room.lastRound).toBeNull();
+      }
+      await env.GAME_ROOM.getByName(id).getRoom();
+      await deleteUnusedAvatars(env);
+      expect(await env.OBJECT_STORAGE.get(key)).toBeNull();
+      expect(
+        await env.APP_DB.prepare("SELECT operation_id FROM room_avatar_refs WHERE avatar_key = ?")
+          .bind(key)
+          .first(),
+      ).toBeNull();
+    });
+  }
+}

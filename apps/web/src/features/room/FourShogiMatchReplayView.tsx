@@ -1,3 +1,4 @@
+import { playerAppearance } from "./roomCommonPresentation";
 import type { ReplayFourShogiMatch } from "@tetraboard/protocol";
 import { useState, type ReactNode } from "react";
 import type { Side } from "@tetraboard/four-shogi";
@@ -77,7 +78,10 @@ export default function FourShogiMatchReplayView({
   const lastRound = {
     roundId: match.id,
     game: match.game,
-    players: match.participants,
+    players: match.participants.map((player) => ({
+      ...player,
+      appearance: playerAppearance(player),
+    })),
     eventCount: match.replay.eventCount,
   };
   return (
@@ -87,7 +91,12 @@ export default function FourShogiMatchReplayView({
       onRotate={rotate}
       replay={replay}
       theme="four-shogi"
-      result={<FourShogiGameResultView lastRound={lastRound} />}
+      result={
+        <FourShogiGameResultView
+          lastRound={lastRound}
+          replay={{ frames, loading: false, error: null }}
+        />
+      }
     />
   );
 }

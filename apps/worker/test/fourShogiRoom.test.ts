@@ -1254,6 +1254,11 @@ test.each([
   }
   while (room.status === "playing") room = await resignCurrent(prepared, room);
   const matchId = room.lastRound!.roundId;
+  if (cpu)
+    expect(room.lastRound!.players.find((player) => player.side === "east")?.appearance).toEqual({
+      kind: "cpu",
+      level: 1,
+    });
   await vi.waitFor(async () => {
     const row = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
       .bind(matchId)

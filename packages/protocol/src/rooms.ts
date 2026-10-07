@@ -21,6 +21,15 @@ const nicknameSchema = z
 
 const playerNameRequestSchema = z.strictObject({ name: nicknameSchema.optional() });
 export const cpuLevelSchema = z.union([z.literal(1), z.literal(2)]);
+const avatarUrlSchema = z
+  .string()
+  .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
+  .nullable();
+const playerAppearanceSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("human"), avatarUrl: avatarUrlSchema }),
+  z.strictObject({ kind: z.literal("cpu"), level: cpuLevelSchema }),
+]);
+export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
 
 export const roomCodeSchema = z.string().regex(/^\d{5}$/);
 
@@ -139,7 +148,14 @@ export type RoundReplay = z.infer<typeof roundReplaySchema>;
 const lastRoundSchema = z.strictObject({
   game: finishedGameSchema,
   players: z
-    .array(z.strictObject({ id: z.uuid(), name: nicknameSchema, color: fourReversiColorSchema }))
+    .array(
+      z.strictObject({
+        id: z.uuid(),
+        name: nicknameSchema,
+        color: fourReversiColorSchema,
+        appearance: playerAppearanceSchema.optional(),
+      }),
+    )
     .length(4),
   replay: roundReplaySchema.nullable().default(null),
 });
@@ -150,11 +166,7 @@ const playerBaseSchema = z.strictObject({
 });
 const humanPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("human"),
-  avatarUrl: z
-    .string()
-    .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
-    .nullable()
-    .default(null),
+  avatarUrl: avatarUrlSchema.default(null),
   ready: z.boolean(),
   reconnectDeadline: z.int().nonnegative().nullable(),
 });
@@ -244,7 +256,14 @@ const fourShogiLastRoundSchema = z.strictObject({
   roundId: z.uuid(),
   game: finishedFourShogiStateSchema,
   players: z
-    .array(z.strictObject({ id: z.uuid(), name: nicknameSchema, side: fourShogiSideSchema }))
+    .array(
+      z.strictObject({
+        id: z.uuid(),
+        name: nicknameSchema,
+        side: fourShogiSideSchema,
+        appearance: playerAppearanceSchema.optional(),
+      }),
+    )
     .length(4),
   eventCount: z.int().nonnegative(),
 });

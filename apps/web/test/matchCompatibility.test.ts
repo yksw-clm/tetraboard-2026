@@ -47,7 +47,11 @@ for (const fixture of shogiArchives) {
     );
     const frames = await fetchFourShogiMatchReplay(match, new AbortController().signal);
     expect(frames.length).toBe(fixture.frameCount);
-    for (const point of fixture.checkpoints) expect(frames[point.index]).toEqual(point.frame);
+    for (const point of fixture.checkpoints) {
+      const { event, ...frame } = frames[point.index]!;
+      expect(frame).toEqual(point.frame);
+      expect(event).toEqual(fixture.events[point.index - 1]?.event);
+    }
     expect(JSON.stringify(fixture)).toBe(before);
   });
 }

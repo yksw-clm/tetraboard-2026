@@ -1,4 +1,4 @@
-import type { Room, MatchHistoryParticipant } from "@tetraboard/protocol";
+import type { Room, MatchHistoryParticipant, PlayerAppearance } from "@tetraboard/protocol";
 export const playerName = (player: Room["players"][number] | MatchHistoryParticipant): string =>
   player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
 
@@ -18,3 +18,11 @@ export function orderedSeats<T extends Room>(room: T, selfId: string | undefined
 }
 
 export const seatPositions = ["bottom", "left", "top", "right"] as const;
+
+export function playerAppearance(
+  player: Room["players"][number] | MatchHistoryParticipant,
+): PlayerAppearance {
+  return player.kind === "cpu"
+    ? { kind: "cpu", level: player.level }
+    : { kind: "human", avatarUrl: player.avatarUrl };
+}

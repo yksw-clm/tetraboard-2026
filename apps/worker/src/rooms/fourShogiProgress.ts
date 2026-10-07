@@ -35,6 +35,7 @@ import {
   roomStorageKey,
   shogiCpuJobKey,
   playerLabel,
+  playerAppearance,
   nextPublicUpdateAt,
   shuffledAssignments,
 } from "./progressHelpers";
@@ -302,6 +303,7 @@ export class FourShogiProgress {
         id: player.id,
         name: playerLabel(player),
         side: player.side,
+        appearance: playerAppearance(player),
       })),
       eventCount: this.store().eventCount(room.roundId),
     };

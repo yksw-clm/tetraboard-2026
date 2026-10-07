@@ -1,6 +1,12 @@
-import { sides, type Side } from "@tetraboard/four-shogi";
-import type { FourShogiLastRound } from "@tetraboard/protocol";
-import { shogiEliminationLabels, shogiSideNames } from "./fourShogiRoomPresentation";
+import { resultPlayer } from "./gameResultPresentation";
+import { type Side } from "@tetraboard/four-shogi";
+import type { FourShogiLastRound, Room } from "@tetraboard/protocol";
+import { shogiSideNames } from "./fourShogiRoomPresentation";
+import { ShogiSideBadge } from "./FourShogiPlayerCard";
+import { GameResultList, GameResultRow, GameResultTeam, ResultParticipant } from "./GameResultRow";
+import { shogiKnockoutTargets } from "./shogiKnockoutTargets";
+import type { FourShogiReplayFrame } from "./fourShogiReplay";
+import { AppButton } from "../../shared/ui/AppButton";
 
 const endReasonNames = {
   last_player: "最後の1人になったため",
@@ -12,45 +18,83 @@ const endReasonNames = {
 } as const;
 const teamNames = { "south-north": "南・北チーム", "west-east": "西・東チーム" } as const;
 
-export function FourShogiGameResultView({ lastRound }: { lastRound: FourShogiLastRound }) {
+const teamSides = { "south-north": ["south", "north"], "west-east": ["west", "east"] } as const;
+
+export function FourShogiGameResultView({
+  lastRound,
+  currentPlayers,
+  replay,
+}: {
+  lastRound: FourShogiLastRound;
+  currentPlayers?: Room["players"];
+  replay: {
+    frames: FourShogiReplayFrame[];
+    loading: boolean;
+    error: string | null;
+    retry?: () => void;
+  };
+}) {
   const { result } = lastRound.game;
-  const name = (side: Side) =>
-    lastRound.players.find((player) => player.side === side)?.name ?? shogiSideNames[side];
-  const elimination = (side: Side) =>
-    lastRound.game.eliminations.find((entry) => entry.side === side);
+  const targets = shogiKnockoutTargets(replay.frames);
+  const player = (side: Side) =>
+    resultPlayer(
+      lastRound.players.find((entry) => entry.side === side) ?? {
+        id: side,
+        name: shogiSideNames[side],
+      },
+      currentPlayers,
+    );
+  const row = (side: Side, rank?: number) => (
+    <GameResultRow
+      key={side}
+      player={player(side)}
+      rank={rank}
+      details={<ShogiSideBadge side={side} proposed={false} />}
+      right={
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted">撃破：</span>
+          {replay.error ? (
+            <>
+              <span role="alert">撃破情報を取得できませんでした。</span>
+              {replay.retry && (
+                <AppButton size="compact" appearance="secondary" onPress={replay.retry}>
+                  再試行
+                </AppButton>
+              )}
+            </>
+          ) : replay.loading ? (
+            <span role="status">読み込み中…</span>
+          ) : targets[side].length === 0 ? (
+            "なし"
+          ) : (
+            targets[side].map((target) => (
+              <ResultParticipant key={target} player={player(target)} />
+            ))
+          )}
+        </div>
+      }
+    />
+  );
   return (
-    <section
-      className="[&_ul]:list-none [&_ul]:p-0 [&_ul]:mt-[14px] [&_li]:py-[10px] [&_li]:border-b [&_li]:border-solid [&_li]:border-line [&_p]:text-muted [&_p]:text-[13px]"
-      aria-label="対局結果の詳細"
-    >
-      <p>終局理由：{endReasonNames[result.reason]}</p>
+    <section aria-label="対局結果の詳細">
+      <p className="text-[13px] text-muted">終局理由：{endReasonNames[result.reason]}</p>
       {result.mode === "singles" ? (
-        <ul>
-          {result.standings.map((standing) => {
-            const eliminated = elimination(standing.side);
-            return (
-              <li key={standing.side}>
-                {standing.rank}位：{name(standing.side)}（{shogiSideNames[standing.side]}）
-                {eliminated ? ` ${shogiEliminationLabels[eliminated.reason]}` : ""}
-              </li>
-            );
-          })}
-        </ul>
+        <GameResultList>
+          {result.standings.map((standing) => row(standing.side, standing.rank))}
+        </GameResultList>
       ) : (
-        <>
-          <p>勝敗：{result.winner === null ? "引き分け" : `${teamNames[result.winner]}の勝ち`}</p>
-          <ul>
-            {sides.map((side) => {
-              const eliminated = elimination(side);
-              return (
-                <li key={side}>
-                  {name(side)}（{shogiSideNames[side]}）
-                  {eliminated ? ` ${shogiEliminationLabels[eliminated.reason]}` : ""}
-                </li>
-              );
-            })}
-          </ul>
-        </>
+        (result.winner === "west-east"
+          ? (["west-east", "south-north"] as const)
+          : (["south-north", "west-east"] as const)
+        ).map((team) => (
+          <GameResultTeam
+            key={team}
+            name={teamNames[team]}
+            outcome={result.winner === null ? "引き分け" : result.winner === team ? "勝利" : "敗北"}
+          >
+            {teamSides[team].map((side) => row(side))}
+          </GameResultTeam>
+        ))
       )}
     </section>
   );
