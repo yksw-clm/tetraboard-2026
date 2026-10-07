@@ -28,6 +28,7 @@ export function FourReversiLobbyPage() {
           nextCursor={lobby.nextCursor}
           error={lobby.error}
           loading={lobby.loading}
+          isInitialLoading={lobby.isInitialLoading}
           moreLoading={lobby.moreLoading}
           pendingSource={lobby.pendingSource}
           pendingWatchRoomId={

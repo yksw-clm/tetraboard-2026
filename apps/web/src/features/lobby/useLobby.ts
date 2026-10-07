@@ -33,6 +33,7 @@ export function useLobby(game: GameId = defaultGameId) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadCompletedGame, setInitialLoadCompletedGame] = useState<GameId | null>(null);
   const [pendingSource, setPendingSource] = useState<string | null>(null);
   const [moreLoading, setMoreLoading] = useState(false);
   const [moreLoaded, setMoreLoaded] = useState(false);
@@ -57,6 +58,8 @@ export function useLobby(game: GameId = defaultGameId) {
         if (!controller.signal.aborted) setError("ロビーの一覧を取得できませんでした。");
       } finally {
         if (request.current === controller) {
+          request.current = null;
+          if (!controller.signal.aborted) setInitialLoadCompletedGame(game);
           setLoading(false);
           setPendingSource(null);
         }
@@ -75,7 +78,13 @@ export function useLobby(game: GameId = defaultGameId) {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !moreLoaded && !moreLoading) void refresh();
+      if (
+        document.visibilityState === "visible" &&
+        !moreLoaded &&
+        !moreLoading &&
+        request.current === null
+      )
+        void refresh();
     }, 10_000);
     return () => window.clearInterval(interval);
   }, [refresh, moreLoaded, moreLoading]);
@@ -102,9 +111,22 @@ export function useLobby(game: GameId = defaultGameId) {
     } catch {
       if (!controller.signal.aborted) setError("続きのルームを取得できませんでした。");
     } finally {
-      if (request.current === controller) setMoreLoading(false);
+      if (request.current === controller) {
+        request.current = null;
+        setMoreLoading(false);
+      }
     }
   }
 
-  return { rooms, nextCursor, error, loading, moreLoading, pendingSource, refresh, loadMore };
+  return {
+    rooms,
+    nextCursor,
+    error,
+    loading,
+    isInitialLoading: initialLoadCompletedGame !== game,
+    moreLoading,
+    pendingSource,
+    refresh,
+    loadMore,
+  };
 }

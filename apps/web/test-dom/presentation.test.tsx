@@ -139,6 +139,7 @@ test("ロビーは人数と4席を表示し、満室の参加を無効にし末�
     nextCursor: null,
     error: null,
     loading: false,
+    isInitialLoading: false,
     moreLoading: false,
     onRefresh() {},
     onLoadMore() {},
