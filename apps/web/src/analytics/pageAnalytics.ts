@@ -1,13 +1,8 @@
 import { gameIds } from "@tetraboard/protocol/games";
 import type { router as appRouter } from "../app/router";
+import { createUuid } from "../shared/createUuid";
+export { createUuid as randomAnalyticsId } from "../shared/createUuid";
 export const analyticsCookie = "tetraboard-2026.analytics";
-export function randomAnalyticsId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 15) | 64;
-  bytes[8] = (bytes[8] & 63) | 128;
-  const value = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
-}
 export function ensureAnalyticsCookie() {
   try {
     const existing = document.cookie
@@ -15,7 +10,7 @@ export function ensureAnalyticsCookie() {
       .map((value) => value.trim())
       .find((value) => value.startsWith(`${analyticsCookie}=`));
     if (!existing)
-      document.cookie = `${analyticsCookie}=${randomAnalyticsId()}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
+      document.cookie = `${analyticsCookie}=${createUuid()}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
     return document.cookie.includes(`${analyticsCookie}=`);
   } catch {
     return false;
@@ -30,7 +25,7 @@ export function splitVisibleTime(days: Map<string, number>, from: number, to: nu
   }
 }
 function trackPage(page: string, game: string | null) {
-  const id = randomAnalyticsId();
+  const id = createUuid();
   const days = new Map<string, number>();
   let alive = true;
   let since: number | null = null;
