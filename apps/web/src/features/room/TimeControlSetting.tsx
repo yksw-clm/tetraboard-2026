@@ -6,6 +6,7 @@ import {
   type RoomTimeControl,
 } from "@tetraboard/protocol";
 import { appThemeClasses, type AppTheme } from "../../shared/ui/appTheme";
+import { AppSelectTrigger } from "../../shared/ui/AppSelectTrigger";
 
 export function TimeControlSetting({
   timeControl,
@@ -56,10 +57,10 @@ export function TimeControlSetting({
             }}
           >
             <Label className="text-xs font-bold text-muted">{label}</Label>
-            <Select.Trigger className="w-full min-w-0 min-h-11 bg-surface-muted text-sm">
+            <AppSelectTrigger>
               <Select.Value />
               <Select.Indicator />
-            </Select.Trigger>
+            </AppSelectTrigger>
             <Select.Popover
               className={`app-theme ${appThemeClasses[theme]} bg-white text-ink text-sm`}
             >

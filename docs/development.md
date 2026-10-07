@@ -345,6 +345,8 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 
 共通部品は `shared/ui/` の `AppAvatar`、`AppHeader`、`AppButton`／`AppButtonLink`、`AppTextField`、`AppCard`、`AppDialog`、`AppTabs`、`AppIcon` です。HeroUIのprops・ref・キーボード操作を引き継ぎ、繰り返す見た目は部品内のTailwindクラスへ集約します。`AppButton` は `appearance`（primary／secondary／quiet／danger）と `size`（default／compact）、`AppDialog` は `size`（default／compact）で用途を指定します。`AppTextField` はLabel・Input・Description・Errorを組み合わせ、入力プロパティとrefはInputに渡します。フィールド単位のErrorはTextFieldの `isInvalid` とともに使い、フォーム全体の通信エラーは独立したalertに表示します。
 
+`AppSelectTrigger` は時間設定と戦績・棋譜のゲーム切り替えで共有し、全幅・最小高さ44px・縦中央揃えを指定します。HeroUIの `Select.Trigger` のprops・ref・状態に応じたclassNameを引き継ぎます。棋譜の局面Selectは専用の寸法を使います。
+
 `AppPageState` は既存のロビー背景とゲーム別テーマを使った画面中央の共通配置、`AppPageLoading` はスピナーとstatus文の表示です。ルートの初回fallbackとゲーム別viewのSuspense、ルーム・棋譜のエラーに使います。データ取得前は共通テーマ、取得後はloaderのゲームを使います。
 
 `AppButton`／`AppButtonLink` の `isPending` は元の内容を配置・読み上げのために残し、見た目だけを中央のHeroUI Spinnerに置き換えます。非同期操作の完了・失敗・中止は既存の通信状態で管理します。初回・自動取得と手動の更新／再試行は `pendingSource` で区別し、共有リクエストの複数の入口では操作元を指定します。CPU操作はtransportの `pendingSettingsCommand` を参照し、設定全体のロックで他のボタンまでスピナーにしません。Context／Providerの配置と通信契約は維持します。

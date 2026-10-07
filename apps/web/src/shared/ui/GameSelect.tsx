@@ -1,5 +1,6 @@
 import { ListBox, Select } from "@heroui/react";
 import { gameCatalog, gameIds, isGameId, type GameId } from "@tetraboard/protocol/games";
+import { AppSelectTrigger } from "./AppSelectTrigger";
 
 export function GameSelect({
   label,
@@ -19,10 +20,10 @@ export function GameSelect({
         if (isGameId(key)) onChange(key);
       }}
     >
-      <Select.Trigger className="w-full min-w-0 min-h-11 bg-surface-muted text-sm">
+      <AppSelectTrigger>
         <Select.Value />
         <Select.Indicator />
-      </Select.Trigger>
+      </AppSelectTrigger>
       <Select.Popover className="app-theme bg-white text-ink text-sm">
         <ListBox>
           {gameIds.map((id) => (
