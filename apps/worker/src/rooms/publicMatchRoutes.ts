@@ -4,7 +4,7 @@ import {
   getPublicMatchContract,
   getPublicMatchReplayContract,
 } from "@tetraboard/protocol";
-import { participantAvatars } from "../accounts/matchAvatars";
+import { participantProfiles } from "../accounts/matchProfiles";
 import { readStoredMatch, matchSummary, publicMatchDetail } from "../accounts/matchDataContracts";
 import { readShogiMatchReplayPage } from "./shogiMatchStore";
 
@@ -29,10 +29,10 @@ publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {
       .bind(query.data.game)
       .all<{ game: string; record_json: string }>();
     const records = rows.results.map((row) => readStoredMatch(row.record_json, row.game));
-    const avatars = await participantAvatars(c.env.APP_DB, records);
+    const profiles = await participantProfiles(c.env.APP_DB, records);
     return c.json(
       listPublicMatchesContract.response.parse({
-        matches: records.map((record) => matchSummary(record, avatars)),
+        matches: records.map((record) => matchSummary(record, profiles)),
       }),
     );
   } catch {
@@ -51,9 +51,9 @@ publicMatchRoutes.get(getPublicMatchContract.path, async (c) => {
       .first<{ game: string; record_json: string }>();
     if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
     const record = readStoredMatch(row.record_json, row.game);
-    const avatars = await participantAvatars(c.env.APP_DB, [record]);
+    const profiles = await participantProfiles(c.env.APP_DB, [record]);
     return c.json(
-      getPublicMatchContract.response.parse({ match: publicMatchDetail(record, avatars) }),
+      getPublicMatchContract.response.parse({ match: publicMatchDetail(record, profiles) }),
     );
   } catch {
     console.error("Public match detail request failed");

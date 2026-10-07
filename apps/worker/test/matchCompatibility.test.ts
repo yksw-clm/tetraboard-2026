@@ -81,7 +81,9 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     });
     expect(response.status).toBe(200);
     const body = getMatchContract.response.parse(await response.json());
-    expect(body.match).toEqual(getMatchContract.response.parse({ match }).match);
+    const expected = getMatchContract.response.parse({ match }).match;
+    expected.participants.find((player) => player.id === match.selfPlayerId)!.name = "登録名";
+    expect(body.match).toEqual(expected);
     expect(JSON.stringify(body)).not.toContain(user.id);
     const history = await matchRequest(
       `/account/matches?game=${match.settings.game}&mode=${match.settings.mode}`,

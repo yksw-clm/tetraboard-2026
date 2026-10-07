@@ -72,7 +72,7 @@ test("本人の対局とモードだけを返し、内部ID・盤面・棋譜・
     expect(body).not.toContain(privateValue);
 });
 
-test("開始時の名前と現在のアイコンを返し、削除したアイコンは仮アイコンになる", async () => {
+test("現在の名前とアイコンを返し、削除したアイコンは仮アイコンになる", async () => {
   const user = await accountFixture();
   await writeMatch(env.APP_DB, fixtureRecord(user.id, 1));
   const key = `avatars/${crypto.randomUUID()}.webp`;
@@ -80,7 +80,7 @@ test("開始時の名前と現在のアイコンを返し、削除したアイ�
     .bind("変更後の名前", key, user.id)
     .run();
   expect((await history(user)).matches[0].participants[0]).toMatchObject({
-    name: "開始時の名前",
+    name: "変更後の名前",
     avatarUrl: `/api/avatars/${key.slice(8, -5)}`,
   });
   await env.APP_DB.prepare("UPDATE user SET avatarKey = NULL WHERE id = ?").bind(user.id).run();

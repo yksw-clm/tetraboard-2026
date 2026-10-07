@@ -6,6 +6,9 @@ import {
   listPublicMatchesContract,
   getPublicMatchContract,
   getPublicMatchReplayContract,
+  listMatchesContract,
+  getMatchContract,
+  getAccountStatsContract,
   type GameId,
   type RoomMode,
 } from "@tetraboard/protocol";
@@ -176,45 +179,175 @@ test("ゲーム別に対人・CPU・ゲスト終局を表示し、転送途中�
   expect((await matchRequest(`/matches/${pending.record.id}/replay`)).status).toBe(404);
 });
 
-test("公開カードと詳細は開始時の名前・現在の画像を使い、内部ID・本人IDを含まない", async () => {
-  const user = await accountFixture(true, crypto.randomUUID(), db);
-  const record = track(fixtureRecord(user.id, 1));
-  await writeMatch(db, record);
-  const key = `avatars/${crypto.randomUUID()}.webp`;
-  await db
-    .prepare("UPDATE user SET name = ?, avatarKey = ? WHERE id = ?")
-    .bind("変更後", key, user.id)
-    .run();
-  const summary = (await list("four-reversi"))[0];
-  expect(summary.participants[0]).toMatchObject({
-    name: "開始時の名前",
-    avatarUrl: `/api/avatars/${key.slice(8, -5)}`,
-  });
-  const response = await matchRequest(`/matches/${record.id}`);
-  expect(response.status).toBe(200);
-  expect(response.headers.get("Cache-Control")).toBe("no-store");
-  const detail = getPublicMatchContract.response.parse(await response.json()).match;
-  expect(detail.participants).toEqual(summary.participants);
-  for (const value of [
-    user.id,
-    record.instanceId,
-    '"accountId"',
-    '"selfPlayerId"',
-    '"token"',
-    '"chat"',
-  ]) {
-    expect(JSON.stringify(summary)).not.toContain(value);
-    expect(JSON.stringify(detail)).not.toContain(value);
+async function saveProfileFixture(
+  game: GameId,
+  userId: string,
+  mode: RoomMode,
+  humans = false,
+  configure?: (
+    player: { name: string } & ({ kind: "human"; accountId: string | null } | { kind: "cpu" }),
+    index: number,
+  ) => void,
+) {
+  if (game === "four-reversi") {
+    const record = track((humans ? humanFixtureRecord : fixtureRecord)(userId, 1, mode));
+    if (configure) record.participants.forEach(configure);
+    await writeMatch(db, record);
+    return record;
   }
-  expect(JSON.stringify(summary)).not.toContain('"board"');
-  expect(JSON.stringify(summary)).not.toContain('"replay"');
-  expect((await matchRequest(`/account/matches/${record.id}`)).status).toBe(401);
-  const other = await accountFixture(true, crypto.randomUUID(), db);
-  expect(
-    (await matchRequest(`/account/matches/${record.id}`, { headers: { Cookie: other.cookie } }))
-      .status,
-  ).toBe(404);
-});
+  const fixture = (humans ? humanShogiRecord : shogiRecord)(userId, "south", mode);
+  track(fixture.record);
+  if (configure) fixture.record.participants.forEach(configure);
+  await saveShogiFixture(fixture, db);
+  return fixture.record;
+}
+async function profileParticipants(
+  game: GameId,
+  mode: RoomMode,
+  user: Awaited<ReturnType<typeof accountFixture>>,
+  id: string,
+) {
+  const responses = await Promise.all([
+    matchRequest(`/matches?game=${game}`),
+    matchRequest(`/matches/${id}`),
+    matchRequest(`/account/matches?game=${game}&mode=${mode}`, {
+      headers: { Cookie: user.cookie },
+    }),
+    matchRequest(`/account/matches/${id}`, { headers: { Cookie: user.cookie } }),
+  ]);
+  for (const response of responses) {
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  }
+  const bodies = await Promise.all(responses.map((response) => response.json()));
+  const summaries = [
+    listPublicMatchesContract.response.parse(bodies[0]).matches.find((match) => match.id === id)!,
+    listMatchesContract.response.parse(bodies[2]).matches.find((match) => match.id === id)!,
+  ];
+  const details = [
+    getPublicMatchContract.response.parse(bodies[1]).match,
+    getMatchContract.response.parse(bodies[3]).match,
+  ];
+  expect(getMatchContract.response.parse(bodies[3]).match.selfPlayerId).toBe(
+    details[1]!.participants[0]!.id,
+  );
+  for (const body of bodies) {
+    for (const privateValue of [user.id, '"accountId"', '"instanceId"', '"token"', '"chat"'])
+      expect(JSON.stringify(body)).not.toContain(privateValue);
+  }
+  for (const body of bodies.slice(0, 2))
+    expect(JSON.stringify(body)).not.toContain('"selfPlayerId"');
+  return [...summaries, ...details].map((match) => match.participants);
+}
+async function storedProfileFixture(id: string) {
+  const rows = await db.batch([
+    db.prepare("SELECT * FROM matches WHERE id = ?").bind(id),
+    db
+      .prepare("SELECT * FROM account_match_history WHERE match_id = ? ORDER BY account_id")
+      .bind(id),
+    db.prepare("SELECT * FROM shogi_match_chunks WHERE match_id = ? ORDER BY chunk_index").bind(id),
+  ]);
+  return rows.map((row) => row.results);
+}
+for (const game of ["four-reversi", "four-shogi"] as const) {
+  for (const mode of ["singles", "doubles"] as const) {
+    test(`${game}/${mode}: 本人用・公開用の一覧と詳細に現在の名前・画像を反映し、保存記録を維持する`, async () => {
+      const user = await accountFixture(true, crypto.randomUUID(), db);
+      const record = await saveProfileFixture(game, user.id, mode);
+      const stored = await storedProfileFixture(record.id);
+      const expected = record.participants.map((player) => {
+        if (player.kind === "cpu") return player;
+        const { accountId: _accountId, ...identity } = player;
+        return {
+          ...identity,
+          name: player.accountId === user.id ? "変更後" : player.name,
+          avatarUrl: null as string | null,
+        };
+      });
+      const key = `avatars/${crypto.randomUUID()}.webp`;
+      await db
+        .prepare("UPDATE user SET name = ?, avatarKey = ? WHERE id = ?")
+        .bind("変更後", key, user.id)
+        .run();
+      for (const player of expected)
+        if (player.kind === "human" && player.id === record.participants[0]!.id)
+          player.avatarUrl = `/api/avatars/${key.slice(8, -5)}`;
+      for (const participants of await profileParticipants(game, mode, user, record.id))
+        expect(participants).toEqual(expected);
+      await db
+        .prepare("UPDATE user SET name = ?, avatarKey = NULL WHERE id = ?")
+        .bind("再変更後", user.id)
+        .run();
+      for (const player of expected) {
+        if (player.kind === "human" && player.id === record.participants[0]!.id) {
+          player.name = "再変更後";
+          player.avatarUrl = null;
+        }
+      }
+      for (const participants of await profileParticipants(game, mode, user, record.id))
+        expect(participants).toEqual(expected);
+      expect(await storedProfileFixture(record.id)).toEqual(stored);
+      expect((await matchRequest(`/account/matches/${record.id}`)).status).toBe(401);
+      const other = await accountFixture(true, crypto.randomUUID(), db);
+      expect(
+        (await matchRequest(`/account/matches/${record.id}`, { headers: { Cookie: other.cookie } }))
+          .status,
+      ).toBe(404);
+    });
+  }
+  test(`${game}: 同名参加者はアカウントで識別し、ゲスト・参照先なしは保存名を使い戦績を維持する`, async () => {
+    const user = await accountFixture(true, crypto.randomUUID(), db);
+    const other = await accountFixture(true, crypto.randomUUID(), db);
+    const record = await saveProfileFixture(game, user.id, "singles", true, (player, index) => {
+      if (player.kind !== "human") throw new Error("Expected human fixture");
+      player.name = index < 2 ? "同じ名前" : index === 2 ? "ゲストの名前" : "不在の名前";
+      player.accountId = [user.id, other.id, null, crypto.randomUUID()][index]!;
+    });
+    const before = await storedProfileFixture(record.id);
+    const readStats = async () => {
+      const response = await matchRequest(`/account/stats?game=${game}`, {
+        headers: { Cookie: user.cookie },
+      });
+      expect(response.status).toBe(200);
+      return getAccountStatsContract.response.parse(await response.json());
+    };
+    const stats = await readStats();
+    expect(stats.singles.total).toBe(1);
+    const key = `avatars/${crypto.randomUUID()}.webp`;
+    await db
+      .prepare("UPDATE user SET name = ?, username = ?, avatarKey = ? WHERE id = ?")
+      .bind("現在の本人", `new_${user.id.replaceAll("-", "").slice(0, 12)}`, key, user.id)
+      .run();
+    await db.prepare("UPDATE user SET name = ? WHERE id = ?").bind("現在の相手", other.id).run();
+    for (const participants of await profileParticipants(game, "singles", user, record.id)) {
+      expect(participants.map((player) => player.name)).toEqual([
+        "現在の本人",
+        "現在の相手",
+        "ゲストの名前",
+        "不在の名前",
+      ]);
+      expect(
+        participants.map((player) => (player.kind === "human" ? player.avatarUrl : undefined)),
+      ).toEqual([`/api/avatars/${key.slice(8, -5)}`, null, null, null]);
+    }
+    expect(await storedProfileFixture(record.id)).toEqual(before);
+    expect(await readStats()).toEqual(stats);
+  });
+  test(`${game}: プロフィール取得のDB障害を保存名へのフォールバックで隠さない`, async () => {
+    const user = await accountFixture(true, crypto.randomUUID(), db);
+    const record = await saveProfileFixture(game, user.id, "singles");
+    await db.exec("ALTER TABLE user RENAME COLUMN avatarKey TO avatarKey_unavailable");
+    try {
+      for (const path of [`/matches?game=${game}`, `/matches/${record.id}`]) {
+        const response = await matchRequest(path);
+        expect(response.status).toBe(503);
+        expect(response.headers.get("Cache-Control")).toBe("no-store");
+      }
+    } finally {
+      await db.exec("ALTER TABLE user RENAME COLUMN avatarKey_unavailable TO avatarKey");
+    }
+  });
+}
 
 for (const mode of ["singles", "doubles"] as const) {
   test(`${mode}の将棋詳細・連番イベントを匿名取得できる`, async () => {

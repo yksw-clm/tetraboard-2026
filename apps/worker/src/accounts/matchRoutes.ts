@@ -1,4 +1,4 @@
-import { participantAvatars } from "./matchAvatars";
+import { participantProfiles } from "./matchProfiles";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
@@ -33,8 +33,8 @@ export async function listMatches(
   const records = rows.results
     .slice(0, 20)
     .map((row) => readStoredMatch(row.record_json, row.game));
-  const avatars = await participantAvatars(db, records);
-  const matches = records.map((record) => matchSummary(record, avatars));
+  const profiles = await participantProfiles(db, records);
+  const matches = records.map((record) => matchSummary(record, profiles));
   const last = matches.at(-1);
   return listMatchesContract.response.parse({
     matches,
@@ -87,10 +87,10 @@ matchRoutes.get(getMatchContract.path, async (c) => {
       (p) => p.kind === "human" && p.accountId === user.id,
     );
     if (!self) throw new Error("Match participant missing");
-    const avatars = await participantAvatars(c.env.APP_DB, [record]);
+    const profiles = await participantProfiles(c.env.APP_DB, [record]);
     return c.json(
       getMatchContract.response.parse({
-        match: matchDetail(record, self.id, avatars),
+        match: matchDetail(record, self.id, profiles),
       }),
     );
   } catch {
