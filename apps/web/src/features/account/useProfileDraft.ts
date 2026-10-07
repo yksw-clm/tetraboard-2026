@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { countCharacters, usernameSchema, type AccountProfile } from "@tetraboard/protocol";
+import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { useAccount } from "./useAccount";
 import { convertAvatar, saveProfile } from "./accountApi";
 
@@ -16,6 +17,7 @@ export function useProfileDraft({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const { update } = useAccount();
+  const profiles = usePlayerProfiles();
   const navigate = useNavigate();
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username ?? "");
@@ -70,6 +72,7 @@ export function useProfileDraft({
     if (avatarAction === "replace" && avatar) data.set("avatar", avatar, "avatar.webp");
     try {
       const saved = await saveProfile(setup, data);
+      profiles?.store.invalidate(saved.profileId ? { profileId: saved.profileId } : {});
       update(saved);
       setName(saved.name);
       setUsername(saved.username ?? "");

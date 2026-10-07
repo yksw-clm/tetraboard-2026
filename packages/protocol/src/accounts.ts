@@ -14,6 +14,7 @@ export const profileInputSchema = z.object({
   username: usernameSchema,
 });
 export const accountProfileSchema = z.object({
+  profileId: z.uuid().nullable().optional(),
   name: z.string(),
   username: z.string().nullable(),
   avatarUrl: z.string().nullable(),

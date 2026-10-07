@@ -1,23 +1,35 @@
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
-import { listRoomsContract, type RoomPublicMetadata } from "@tetraboard/protocol";
+import {
+  listRoomsContract,
+  previewRoomListSchema,
+  type PreviewRoomMetadata,
+} from "@tetraboard/protocol";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 async function fetchLobby(game: GameId, cursor: string | null, signal: AbortSignal) {
   const query = new URLSearchParams();
   if (game !== defaultGameId) query.set("game", game);
   if (cursor !== null) query.set("cursor", cursor);
+  query.set("profilePreview", "1");
   const path = `${listRoomsContract.path}${query.size > 0 ? `?${query}` : ""}`;
-  const response = await fetch(`/api${path}`, {
+  let response = await fetch(`/api${path}`, {
     method: listRoomsContract.method,
     cache: "no-store",
     signal,
   });
+  if (response.status === 400) {
+    query.delete("profilePreview");
+    response = await fetch(`/api${listRoomsContract.path}${query.size ? `?${query}` : ""}`, {
+      cache: "no-store",
+      signal,
+    });
+  }
   if (!response.ok) throw new Error("Lobby request failed");
-  return listRoomsContract.response.parse(await response.json());
+  return previewRoomListSchema.parse(await response.json());
 }
 
 export function useLobby(game: GameId = defaultGameId) {
-  const [rooms, setRooms] = useState<RoomPublicMetadata[]>([]);
+  const [rooms, setRooms] = useState<PreviewRoomMetadata[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

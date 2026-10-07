@@ -1,5 +1,6 @@
+import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { useState, type ReactNode } from "react";
-import { type RankingEntry, type RoomMode, type MatchGame } from "@tetraboard/protocol";
+import { type PreviewRankings, type RoomMode, type MatchGame } from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -38,14 +39,44 @@ function ModeTabs({
   );
 }
 
-function RankingList({ entries, label }: { entries: RankingEntry[]; label: string }) {
+function RankingList({
+  entries,
+  label,
+  game,
+  mode,
+}: {
+  entries: PreviewRankings["singles"]["first"];
+  label: string;
+  game: MatchGame;
+  mode: RoomMode;
+}) {
   return entries.length ? (
     <ol aria-label={`${label}ランキング`} className="m-0 flex flex-col gap-3 p-0 list-none">
       {entries.map((entry) => (
         <li key={entry.username} className="flex min-w-0 items-center gap-2 text-sm">
           <span className="w-8 shrink-0 text-muted text-xs tabular-nums">{entry.rank}位</span>
-          <AppAvatar src={entry.avatarUrl} label={`${entry.name}のアイコン`} className="size-8" />
-          <span className="min-w-0 flex-1 break-words font-semibold">{entry.name}</span>
+          <PlayerProfileTrigger
+            target={entry.profileId ? { source: "profile", profileId: entry.profileId } : undefined}
+            game={game}
+            mode={mode}
+            theme={game === "four-shogi" ? "four-shogi" : "default"}
+            label={entry.name}
+          >
+            <AppAvatar src={entry.avatarUrl} label={`${entry.name}のアイコン`} className="size-8" />
+          </PlayerProfileTrigger>
+          <span className="min-w-0 flex-1 break-words font-semibold">
+            <PlayerProfileTrigger
+              target={
+                entry.profileId ? { source: "profile", profileId: entry.profileId } : undefined
+              }
+              game={game}
+              mode={mode}
+              theme={game === "four-shogi" ? "four-shogi" : "default"}
+              label={entry.name}
+            >
+              {entry.name}
+            </PlayerProfileTrigger>
+          </span>
           <span className="shrink-0 font-semibold tabular-nums">
             {entry.value}
             <span className="ml-1 text-xs font-normal text-muted">
@@ -89,7 +120,14 @@ function RankingContent({
           ランキングを読み込んでいます…
         </p>
       )}
-      {entries && <RankingList entries={entries.slice(0, limit)} label={label} />}
+      {entries && (
+        <RankingList
+          entries={entries.slice(0, limit)}
+          label={label}
+          game={state.game}
+          mode={mode}
+        />
+      )}
       {state.error && (
         <div className="flex flex-col items-start gap-2">
           <p role="alert" className="text-sm text-danger">

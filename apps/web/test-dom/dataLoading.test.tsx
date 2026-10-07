@@ -14,6 +14,24 @@ const stats = {
   doubles: { total: 6, wins: 3, losses: 2, draws: 1 },
 };
 const rankings = { singles: { first: [], total: [] }, doubles: { wins: [], total: [] } };
+test("旧Workerがpreview指定を拒否したら通常一覧へ戻り、参照情報なしを保持する", async () => {
+  const lobby = renderHook(useLobby, "four-reversi" as const);
+  clock.advance(0);
+  requests.at(-1)!.respond({}, 400);
+  await flush();
+  expect(requests.at(-1)!.url).toBe("/api/rooms");
+  requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+  await flush();
+  expect(lobby.current.error).toBeNull();
+  const ranking = renderHook(useRankings, "four-shogi" as const);
+  clock.advance(0);
+  requests.at(-1)!.respond({}, 400);
+  await flush();
+  expect(requests.at(-1)!.url).toBe("/api/games/four-shogi/rankings");
+  requests.at(-1)!.respond(rankings);
+  await flush();
+  expect(ranking.current.error).toBeNull();
+});
 test("取得の操作元は初回・自動更新と区別し、古い応答で新しい処理中表示を解除しない", async () => {
   const lobby = renderHook(useLobby, "four-reversi" as const);
   clock.advance(0);
@@ -188,7 +206,7 @@ test("履歴は別ゲーム・モードのschema応答を拒否し、切替後�
 test("ランキングはゲーム別API、失敗時保持、更新によるabortと再試行", async () => {
   const h = renderHook(useRankings, "four-reversi" as "four-reversi" | "four-shogi");
   clock.advance(0);
-  expect(requests[0]!.url).toBe("/api/games/four-reversi/rankings");
+  expect(requests[0]!.url).toBe("/api/games/four-reversi/rankings?profilePreview=1");
   requests[0]!.respond(rankings);
   await flush();
   act(() => {
@@ -203,7 +221,7 @@ test("ランキングはゲーム別API、失敗時保持、更新によるabort
   h.rerender("four-shogi");
   expect(requests[2]!.init.signal?.aborted).toBe(true);
   clock.advance(0);
-  expect(requests[3]!.url).toBe("/api/games/four-shogi/rankings");
+  expect(requests[3]!.url).toBe("/api/games/four-shogi/rankings?profilePreview=1");
   requests[2]!.respond(rankings);
   requests[3]!.respond(rankings);
   await flush();

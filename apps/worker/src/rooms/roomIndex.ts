@@ -4,12 +4,14 @@ import { roomPublicMetadataSchema, type RoomPublicMetadata } from "@tetraboard/p
 export type PendingRoomIndex = {
   revision: number;
   closed: boolean;
-  metadata: RoomPublicMetadata;
+  metadata: RoomPublicMetadata & { instanceId?: string; hostPlayerId?: string | null };
   retryAtMs: number;
 };
 
 type IndexRow = {
   room_id: string;
+  instance_id: string | null;
+  host_player_id: string | null;
   game: string;
   mode: string;
   main_time_ms: number;
@@ -30,8 +32,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .prepare(
       `INSERT INTO room_index (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -46,7 +48,9 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         open_seats = excluded.open_seats,
         updated_at_ms = excluded.updated_at_ms,
         revision = excluded.revision,
-        closed = excluded.closed
+        closed = excluded.closed,
+        instance_id = excluded.instance_id,
+        host_player_id = excluded.host_player_id
       WHERE excluded.revision > room_index.revision`,
     )
     .bind(
@@ -65,34 +69,51 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
       room.updatedAtMs,
       pending.revision,
       pending.closed ? 1 : 0,
+      room.instanceId ?? null,
+      room.hostPlayerId ?? null,
     )
     .run();
 }
 
-function parseRow(row: IndexRow): RoomPublicMetadata {
-  return roomPublicMetadataSchema.parse({
-    id: row.room_id,
-    game: row.game,
-    mode: row.mode,
-    timeControl: { mainTimeMs: row.main_time_ms, byoyomiMs: row.byoyomi_ms },
-    status: row.status,
-    hostName: row.host_name,
-    hostAvatarUrl: row.host_avatar_url,
-    humanCount: row.human_count,
-    cpuCount: row.cpu_count,
-    capacity: row.capacity,
-    openSeats: row.open_seats,
-    updatedAtMs: row.updated_at_ms,
-  });
+function parseRow(row: IndexRow, preview: boolean) {
+  return {
+    ...(preview && row.instance_id
+      ? {
+          profileTarget: row.host_player_id
+            ? {
+                source: "room" as const,
+                roomId: row.room_id,
+                instanceId: row.instance_id,
+                playerId: row.host_player_id,
+              }
+            : null,
+        }
+      : {}),
+    ...roomPublicMetadataSchema.parse({
+      id: row.room_id,
+      game: row.game,
+      mode: row.mode,
+      timeControl: { mainTimeMs: row.main_time_ms, byoyomiMs: row.byoyomi_ms },
+      status: row.status,
+      hostName: row.host_name,
+      hostAvatarUrl: row.host_avatar_url,
+      humanCount: row.human_count,
+      cpuCount: row.cpu_count,
+      capacity: row.capacity,
+      openSeats: row.open_seats,
+      updatedAtMs: row.updated_at_ms,
+    }),
+  };
 }
 
 export async function listRoomIndex(
   db: D1Database,
   cursor: { updatedAtMs: number; id: string } | null,
   game: GameId = defaultGameId,
-): Promise<{ rooms: RoomPublicMetadata[]; nextCursor: string | null }> {
+  preview = false,
+) {
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
-      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms
+      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms, instance_id, host_player_id
     FROM room_index
     WHERE closed = 0 AND status IN ('waiting', 'playing') AND game = ?`;
   const statement = cursor
@@ -104,7 +125,7 @@ export async function listRoomIndex(
         .bind(game, cursor.updatedAtMs, cursor.updatedAtMs, cursor.id)
     : db.prepare(`${query} ORDER BY updated_at_ms DESC, room_id DESC LIMIT 21`).bind(game);
   const result = await statement.all<IndexRow>();
-  const rooms = result.results.slice(0, 20).map(parseRow);
+  const rooms = result.results.slice(0, 20).map((row) => parseRow(row, preview));
   const last = rooms.at(-1);
   return {
     rooms,

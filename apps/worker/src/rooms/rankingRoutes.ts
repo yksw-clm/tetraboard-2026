@@ -4,9 +4,11 @@ import {
   gameRankingContracts,
   type RankingsFor,
   type MatchGame,
-  type FourReversiRankings,
   type RoomMode,
+  type PreviewRankings,
+  previewRankingsSchema,
 } from "@tetraboard/protocol";
+import { ensurePublicProfileId } from "../accounts/currentProfiles";
 import { profileAvatarUrl } from "../accounts/auth";
 import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
@@ -14,7 +16,8 @@ import { matchOutcomesCte } from "../accounts/matchOutcomes";
 async function queryGameRankings(
   db: D1Database,
   game: MatchGame = defaultGameId,
-): Promise<FourReversiRankings> {
+  preview = false,
+): Promise<PreviewRankings> {
   // 保存済みの結果を一度集計し、同順位の判定と人数制限を別々に扱います。
   const rows = await db
     .prepare(`${matchOutcomesCte(game, false)}, totals AS (
@@ -29,7 +32,7 @@ async function queryGameRankings(
       CASE WHEN mode = 'singles' THEN 'first' ELSE 'wins' END AS metric,
       victories AS value FROM totals
   ), ranked AS (
-    SELECT m.mode, m.metric, m.value, u.username, u.name, u.avatarKey,
+    SELECT u.id AS accountId, u.publicProfileId, m.mode, m.metric, m.value, u.username, u.name, u.avatarKey,
       RANK() OVER (PARTITION BY m.mode, m.metric ORDER BY m.value DESC) AS rank,
       ROW_NUMBER() OVER (
         PARTITION BY m.mode, m.metric ORDER BY m.value DESC, u.username ASC
@@ -38,10 +41,12 @@ async function queryGameRankings(
     WHERE m.value > 0 AND u.profileCompleted = 1 AND u.username IS NOT NULL
       AND COALESCE(u.isAnonymous, 0) = 0
   )
-  SELECT mode, metric, value, username, name, avatarKey, rank
+  SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, rank
   FROM ranked WHERE position <= 10 ORDER BY mode, metric, position`)
     .bind(game)
     .all<{
+      accountId: string;
+      publicProfileId: string | null;
       mode: RoomMode;
       metric: "first" | "wins" | "total";
       value: number;
@@ -50,12 +55,21 @@ async function queryGameRankings(
       avatarKey: string | null;
       rank: number;
     }>();
-  const rankings: FourReversiRankings = {
+  const rankings: PreviewRankings = {
     singles: { first: [], total: [] },
     doubles: { wins: [], total: [] },
   };
+  const ids = new Map<string, string>();
+  if (preview) {
+    for (const row of rows.results) {
+      if (ids.has(row.accountId)) continue;
+      const id = row.publicProfileId ?? (await ensurePublicProfileId(db, row.accountId));
+      if (id) ids.set(row.accountId, id);
+    }
+  }
   for (const row of rows.results) {
     const entry = {
+      ...(preview ? { profileId: ids.get(row.accountId) } : {}),
       rank: row.rank,
       username: row.username,
       name: row.name,
@@ -97,6 +111,13 @@ for (const game of gameIds) {
   rankingRoutes.get(contract.path, async (c) => {
     c.header("Cache-Control", "no-store");
     try {
+      const preview = c.req.query("profilePreview");
+      if (preview !== undefined && preview !== "1")
+        return c.json({ message: "取得条件が正しくありません。" }, 400);
+      if (preview)
+        return c.json(
+          previewRankingsSchema.parse(await queryGameRankings(c.env.APP_DB, game, true)),
+        );
       return c.json(await rankingReaders[game](c.env.APP_DB));
     } catch {
       console.error("Game rankings request failed", game);

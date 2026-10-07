@@ -464,6 +464,7 @@ export const listRoomsContract = {
   path: "/rooms",
   query: z.strictObject({
     cursor: roomListCursorSchema.optional(),
+    profilePreview: z.literal("1").optional(),
     game: roomGameSchema.optional(),
   }),
   response: z.strictObject({

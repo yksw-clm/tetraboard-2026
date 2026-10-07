@@ -1,5 +1,11 @@
+import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { Badge, Chip, cn } from "@heroui/react";
-import type { Room, MatchHistoryParticipant } from "@tetraboard/protocol";
+import type {
+  Room,
+  MatchHistoryParticipant,
+  PlayerProfileTarget,
+  RoomMode,
+} from "@tetraboard/protocol";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { playerName, playerAppearance } from "./roomCommonPresentation";
 import { AppIcon } from "../../shared/ui/AppIcon";
@@ -35,6 +41,8 @@ export function PlayerCardView({
   rank,
   clock,
   shogi = false,
+  profileTarget,
+  profileMode = "singles",
 }: {
   player: Room["players"][number] | MatchHistoryParticipant | null;
   self: boolean;
@@ -46,7 +54,17 @@ export function PlayerCardView({
   rank: { rank: number; label: string } | null;
   clock: RoomClockPresentation | null;
   shogi?: boolean;
+  profileTarget?: PlayerProfileTarget;
+  profileMode?: RoomMode;
 }) {
+  const preview = {
+    target: profileTarget,
+    localProfile:
+      player?.kind === "cpu" ? { kind: "cpu" as const, level: player.level } : undefined,
+    game: shogi ? ("four-shogi" as const) : ("four-reversi" as const),
+    mode: profileMode,
+    theme: shogi ? ("four-shogi" as const) : ("default" as const),
+  };
   const name = player ? playerName(player) : "空席";
   const nameBox = useRef<HTMLDivElement>(null);
   const nameContent = useRef<HTMLSpanElement>(null);
@@ -112,7 +130,13 @@ export function PlayerCardView({
         data-testid="player-avatar-slot"
         className="col-start-1 row-span-2 self-center size-8 min-w-8 min-h-8 [@media(max-width:767px)]:size-[26px] [@media(max-width:767px)]:min-w-[26px] [@media(max-width:767px)]:min-h-[26px]"
       >
-        <PlayerAvatar appearance={player ? playerAppearance(player) : null} className="size-full" />
+        {player ? (
+          <PlayerProfileTrigger {...preview} label={name} className="block size-full">
+            <PlayerAvatar appearance={playerAppearance(player)} className="size-full" />
+          </PlayerProfileTrigger>
+        ) : (
+          <PlayerAvatar appearance={null} className="size-full" />
+        )}
         {player && connected !== undefined && (
           <Badge
             className={cn(
@@ -134,7 +158,13 @@ export function PlayerCardView({
           className="inline-flex w-max items-center font-bold text-sm leading-[1.3] align-middle"
           ref={nameContent}
         >
-          {name}
+          {player ? (
+            <PlayerProfileTrigger {...preview} label={name}>
+              {name}
+            </PlayerProfileTrigger>
+          ) : (
+            name
+          )}
           {host && (
             <span className="inline-flex ml-[0.28em] text-[#b58a28]" title="ホスト">
               <AppIcon name="crown" className="size-[1em]" />

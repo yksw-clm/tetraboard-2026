@@ -40,6 +40,12 @@ export function FourShogiPlayerCard({
   return (
     <PlayerCardView
       shogi
+      profileTarget={
+        player
+          ? { source: "room", roomId: room.id, instanceId: room.instanceId, playerId: player.id }
+          : undefined
+      }
+      profileMode={room.settings.mode}
       player={player}
       self={self}
       host={host}

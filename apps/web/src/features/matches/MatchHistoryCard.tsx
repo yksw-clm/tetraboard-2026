@@ -1,3 +1,4 @@
+import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { type MatchSummary, type MatchHistoryParticipant } from "@tetraboard/protocol";
 import { useLocation, useNavigation } from "react-router";
@@ -7,9 +8,17 @@ import { AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { matchResultGroups } from "../account/matchSummaryPresentation";
 import { formatMatchDate } from "./matchDatePresentation";
-function Participant({ player }: { player: MatchHistoryParticipant }) {
+function Participant({ player, match }: { player: MatchHistoryParticipant; match: MatchSummary }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
+    <PlayerProfileTrigger
+      target={{ source: "match", matchId: match.id, playerId: player.id }}
+      localProfile={player.kind === "cpu" ? { kind: "cpu", level: player.level } : undefined}
+      game={match.game}
+      mode={match.mode}
+      theme={match.game === "four-shogi" ? "four-shogi" : "default"}
+      label={player.name}
+      className="flex min-w-0 items-center gap-1.5"
+    >
       {player.kind === "cpu" ? (
         <Avatar
           className="size-6 shrink-0 rounded-full bg-[#e0edff] text-[#376597]"
@@ -29,7 +38,7 @@ function Participant({ player }: { player: MatchHistoryParticipant }) {
       <span className="min-w-0 text-xs font-semibold leading-4 [overflow-wrap:anywhere]">
         {player.name}
       </span>
-    </div>
+    </PlayerProfileTrigger>
   );
 }
 export function MatchHistoryCard({
@@ -72,7 +81,7 @@ export function MatchHistoryCard({
                 >
                   {group.label}
                 </span>
-                <Participant player={player} />
+                <Participant player={player} match={match} />
               </li>
             );
           })}
@@ -90,7 +99,7 @@ export function MatchHistoryCard({
                 {group.label}
               </span>
               {group.players.map((player) => (
-                <Participant key={player.id} player={player} />
+                <Participant key={player.id} player={player} match={match} />
               ))}
             </div>
           ))}

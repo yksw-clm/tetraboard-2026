@@ -1,3 +1,4 @@
+import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { roomSnapshotFor } from "./roomSnapshot";
 import type { GameSettingsCommandFor, PendingActionFor } from "./gameSessionTypes";
 import {
@@ -101,6 +102,13 @@ export function useRoomTransport<T extends Room>({
   useSoundEffects();
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
+  const profileStore = usePlayerProfiles()?.store;
+  const previousStatus = useRef(initialRoom.status);
+  useEffect(() => {
+    if (previousStatus.current === "playing" && room.status === "waiting")
+      profileStore?.invalidate({ game: room.settings.game });
+    previousStatus.current = room.status;
+  }, [room.status, room.settings.game, profileStore]);
   const [presence, setPresence] = useState(initialPresence);
   const [membership, setMembership] = useState(initialMembership);
   const [connection, setConnection] = useState("接続中");
