@@ -51,7 +51,8 @@ export function useRoomInvitation(
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
-  const copying = useRef(false);
+  const copyingRef = useRef(false);
+  const [copying, setCopying] = useState(false);
   const invitationUrl = new URL(roomInvitationPath(room), window.location.origin).href;
   const unavailableReason = membership === null ? joinUnavailableReason(room) : null;
 
@@ -64,15 +65,17 @@ export function useRoomInvitation(
   }
 
   async function copy(onCopied: () => void): Promise<void> {
-    if (copying.current) return;
-    copying.current = true;
+    if (copyingRef.current) return;
+    copyingRef.current = true;
+    setCopying(true);
     try {
       await navigator.clipboard.writeText(invitationUrl);
       onCopied();
     } catch {
       setDialog("copy");
     } finally {
-      copying.current = false;
+      copyingRef.current = false;
+      setCopying(false);
     }
   }
 
@@ -109,6 +112,7 @@ export function useRoomInvitation(
     busy,
     close,
     copy,
+    copying,
     submit,
     invitationUrl,
     unavailableReason,

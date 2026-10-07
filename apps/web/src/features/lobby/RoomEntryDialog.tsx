@@ -102,6 +102,7 @@ export function RoomEntryDialog({
           busy={busy}
           id="nickname"
           registration={{
+            isPending: google.busy,
             humanOnly: intent !== "quick" && (humanOnly ?? true),
             onRegister: () =>
               void google.start({
@@ -194,25 +195,21 @@ export function RoomEntryDialog({
             {message}
           </p>
         )}
-        <AppButton type="submit" className="w-full min-h-12" isDisabled={blocked}>
+        <AppButton
+          type="submit"
+          className="w-full min-h-12"
+          isDisabled={blocked}
+          isPending={entryBusy}
+        >
           {unavailable
             ? "準備中"
-            : entryBusy
-              ? intent === "join"
-                ? "参加中…"
-                : "ルームを作成中…"
-              : intent === "join"
-                ? "参加する"
-                : intent === "quick"
-                  ? "CPUとの待機室へ"
-                  : "ルームを作る"}
-          {!busy && !unavailable && <AppIcon name="arrow" />}
+            : intent === "join"
+              ? "参加する"
+              : intent === "quick"
+                ? "CPUとの待機室へ"
+                : "ルームを作る"}
+          {!unavailable && <AppIcon name="arrow" />}
         </AppButton>
-        {entryBusy && (
-          <p className="text-xs text-muted" role="status">
-            ルームを開いています。そのままお待ちください。
-          </p>
-        )}
       </form>
     </AppDialog>
   );

@@ -14,6 +14,44 @@ const stats = {
   doubles: { total: 6, wins: 3, losses: 2, draws: 1 },
 };
 const rankings = { singles: { first: [], total: [] }, doubles: { wins: [], total: [] } };
+test("取得の操作元は初回・自動更新と区別し、古い応答で新しい処理中表示を解除しない", async () => {
+  const lobby = renderHook(useLobby, "four-reversi" as const);
+  clock.advance(0);
+  expect(lobby.current.pendingSource).toBeNull();
+  requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+  await flush();
+  act(() => {
+    void lobby.current.refresh("refresh");
+  });
+  const old = requests.at(-1)!;
+  expect(lobby.current.pendingSource).toBe("refresh");
+  act(() => {
+    void lobby.current.refresh("refresh");
+  });
+  old.respond({ rooms: [], nextCursor: null });
+  await flush();
+  expect(lobby.current.pendingSource).toBe("refresh");
+  requests.at(-1)!.respond({}, 503);
+  await flush();
+  expect(lobby.current.pendingSource).toBeNull();
+  clock.advance(10_000);
+  expect(lobby.current.loading).toBe(true);
+  expect(lobby.current.pendingSource).toBeNull();
+
+  const ranking = renderHook(useRankings, "four-reversi" as const);
+  clock.advance(0);
+  requests.at(-1)!.respond({}, 503);
+  await flush();
+  act(() => {
+    void ranking.current.refresh("dialog-retry");
+  });
+  expect(ranking.current.pendingSource).toBe("dialog-retry");
+  expect(ranking.current.error).not.toBeNull();
+  requests.at(-1)!.respond(rankings);
+  await flush();
+  expect(ranking.current.pendingSource).toBeNull();
+  expect(ranking.current.error).toBeNull();
+});
 test("戦績はloading・schema失敗・再試行を区別し、更新失敗時は値を保持", async () => {
   const h = renderHook(useAccountStats, "four-reversi" as const);
   expect(h.current.loading).toBe(true);

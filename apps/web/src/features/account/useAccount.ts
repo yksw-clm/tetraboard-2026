@@ -4,7 +4,8 @@ export const AccountContext = createContext<{
   user: AccountProfile | null;
   loading: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  pendingSource?: string | null;
+  refresh: (source?: string) => Promise<void>;
   update: (user: AccountProfile | null) => void;
 } | null>(null);
 export function useAccount() {

@@ -65,11 +65,13 @@ function RankingContent({
   mode,
   total = false,
   limit,
+  source = "retry",
 }: {
   state: ReturnType<typeof useRankings>;
   mode: RoomMode;
   total?: boolean;
   limit: number;
+  source?: string;
 }) {
   const label = total ? "対局数" : mode === "singles" ? "優勝数" : "勝利数";
   const entries =
@@ -82,7 +84,7 @@ function RankingContent({
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm font-semibold text-muted">{label}</h3>
-      {state.loading && (
+      {state.loading && !state.pendingSource && (
         <p role="status" className="text-sm text-muted">
           ランキングを読み込んでいます…
         </p>
@@ -93,7 +95,13 @@ function RankingContent({
           <p role="alert" className="text-sm text-danger">
             {state.error}
           </p>
-          <AppButton appearance="secondary" size="compact" onPress={() => void state.refresh()}>
+          <AppButton
+            appearance="secondary"
+            size="compact"
+            isDisabled={state.loading}
+            isPending={state.pendingSource === source}
+            onPress={() => void state.refresh(source)}
+          >
             再試行
           </AppButton>
         </div>
@@ -134,7 +142,13 @@ function RankingsDialog({
             {(["victories", "total"] as const).map((tab) => (
               <AppTabs.Panel key={tab} id={tab} className="pt-4">
                 {tab === metric && (
-                  <RankingContent state={state} mode={mode} total={tab === "total"} limit={10} />
+                  <RankingContent
+                    state={state}
+                    mode={mode}
+                    total={tab === "total"}
+                    limit={10}
+                    source="dialog-retry"
+                  />
                 )}
               </AppTabs.Panel>
             ))}
@@ -144,7 +158,8 @@ function RankingsDialog({
           appearance="quiet"
           size="compact"
           isDisabled={state.loading}
-          onPress={() => void state.refresh()}
+          isPending={state.pendingSource === "dialog-refresh"}
+          onPress={() => void state.refresh("dialog-refresh")}
         >
           更新
         </AppButton>
@@ -174,7 +189,8 @@ function LobbyRankingsView({
             size="compact"
             aria-label="ランキングを更新"
             isDisabled={state.loading}
-            onPress={() => void state.refresh()}
+            isPending={state.pendingSource === "refresh"}
+            onPress={() => void state.refresh("refresh")}
           >
             更新
           </AppButton>

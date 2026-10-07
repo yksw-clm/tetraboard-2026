@@ -16,6 +16,7 @@ export function RoomInfo({
   session,
   onLeave,
   onCopyInvite,
+  copying = false,
   onAddCpu,
   cpuAddButtonRef,
   canAddCpu,
@@ -27,6 +28,7 @@ export function RoomInfo({
   gameSettings?: ReactNode;
   onLeave: () => void;
   onCopyInvite: () => void;
+  copying?: boolean;
   onAddCpu: (level: CpuLevel) => void;
   cpuAddButtonRef: RefObject<HTMLButtonElement | null>;
   canAddCpu: boolean;
@@ -40,7 +42,14 @@ export function RoomInfo({
       <AppButton appearance="quiet" size="compact" onPress={onFeedback} ref={feedbackButtonRef}>
         不具合・ご意見
       </AppButton>
-      <AppButton size="compact" className="w-full" onPress={onCopyInvite} appearance="secondary">
+      <AppButton
+        size="compact"
+        className="w-full"
+        onPress={onCopyInvite}
+        isDisabled={copying}
+        isPending={copying}
+        appearance="secondary"
+      >
         <AppIcon name="copy" />
         招待リンクをコピー
       </AppButton>
@@ -114,6 +123,11 @@ export function RoomInfo({
                               className="text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand"
                               aria-pressed={cpu.level === level}
                               isDisabled={!canManageSettings}
+                              isPending={
+                                session.pendingSettingsCommand?.type === "room.cpu.level.set" &&
+                                session.pendingSettingsCommand.playerId === cpu.id &&
+                                session.pendingSettingsCommand.level === level
+                              }
                               onPress={() => session.changeCpuLevel(cpu.id, level)}
                             >
                               Lv{level}
@@ -126,6 +140,10 @@ export function RoomInfo({
                           className="text-danger text-[11px] h-7 min-h-7"
                           aria-label={`${playerName(cpu)}を削除`}
                           isDisabled={!canManageSettings}
+                          isPending={
+                            session.pendingSettingsCommand?.type === "room.cpu.remove" &&
+                            session.pendingSettingsCommand.playerId === cpu.id
+                          }
                           onPress={() => session.removeCpu(cpu.id)}
                         >
                           削除
@@ -156,13 +174,14 @@ export function RoomInfo({
                       size="compact"
                       appearance="secondary"
                       isDisabled={!canAddCpu}
+                      isPending={session.pendingSettingsCommand?.type === "room.cpu.add"}
                       onPress={() => onAddCpu(session.newCpuLevel)}
                     >
                       <AppIcon name="plus" />
                       CPUを追加
                     </AppButton>
                   </div>
-                  {account.loading && (
+                  {account.loading && !account.pendingSource && (
                     <p className="mt-2 text-xs text-muted" role="status">
                       ログイン状態を確認しています…
                     </p>
@@ -175,7 +194,9 @@ export function RoomInfo({
                       <AppButton
                         size="compact"
                         appearance="secondary"
-                        onPress={() => void account.refresh()}
+                        isDisabled={account.loading}
+                        isPending={account.pendingSource === "room-retry"}
+                        onPress={() => void account.refresh("room-retry")}
                       >
                         ログイン状態を再確認
                       </AppButton>
@@ -192,11 +213,12 @@ export function RoomInfo({
           size="compact"
           className="w-full"
           isDisabled={session.leaving}
+          isPending={session.leaving}
           onPress={onLeave}
           appearance="danger"
         >
           <AppIcon name="leave" />
-          {session.leaving ? "退室中…" : "退室"}
+          退室
         </AppButton>
       ) : (
         <AppButtonLink

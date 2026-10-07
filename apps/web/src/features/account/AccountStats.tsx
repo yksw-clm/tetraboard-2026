@@ -28,7 +28,7 @@ function Metric({
 
 export function AccountStats() {
   const { game, mode, setGame, setMode } = useAccountSelection("stats");
-  const { stats, loading, error, refresh } = useAccountStats(game);
+  const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
   return (
     <section
       aria-labelledby="account-stats-title"
@@ -42,7 +42,8 @@ export function AccountStats() {
           appearance="quiet"
           size="compact"
           isDisabled={loading}
-          onPress={() => void refresh()}
+          isPending={pendingSource === "refresh"}
+          onPress={() => void refresh("refresh")}
         >
           更新
         </AppButton>
@@ -64,7 +65,7 @@ export function AccountStats() {
           <AppTabs.Panel key={tab} id={tab} className="pt-4">
             {tab === mode && (
               <div className="flex flex-col gap-3">
-                {loading && (
+                {loading && !pendingSource && (
                   <p role="status" className="text-sm text-muted">
                     戦績を読み込んでいます…
                   </p>
@@ -108,7 +109,13 @@ export function AccountStats() {
                     <p role="alert" className="text-sm text-danger">
                       {error}
                     </p>
-                    <AppButton appearance="secondary" size="compact" onPress={() => void refresh()}>
+                    <AppButton
+                      appearance="secondary"
+                      size="compact"
+                      isDisabled={loading}
+                      isPending={pendingSource === "retry"}
+                      onPress={() => void refresh("retry")}
+                    >
                       再試行
                     </AppButton>
                   </div>

@@ -5,6 +5,8 @@ import { roomChangedMessage } from "../../shared/roomAccess";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { fourReversiLobbyPath } from "../../app/paths";
 import type { RoomLoaderData } from "./roomLoader";
+import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
+import { gameThemes } from "../../shared/ui/appTheme";
 import { Suspense } from "react";
 import { assertNever } from "@tetraboard/protocol";
 function LiveRoom({ data }: { data: RoomLoaderData }) {
@@ -38,7 +40,11 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
 export function RoomPage() {
   const data = useLoaderData<RoomLoaderData>();
   return (
-    <Suspense fallback={<p role="status">ルームを読み込んでいます…</p>}>
+    <Suspense
+      fallback={
+        <AppPageLoading message="ルームを読み込んでいます…" theme={gameThemes[data.game]} />
+      }
+    >
       <LiveRoom data={data} />
     </Suspense>
   );
@@ -59,14 +65,12 @@ export function RoomErrorPage() {
     : "ルーム情報を取得できませんでした。";
 
   return (
-    <>
-      <p>{message}</p>
+    <AppPageState>
+      <p role="alert">{message}</p>
+      <AppButtonLink size="compact" to={fourReversiLobbyPath}>
+        ロビーへ
+      </AppButtonLink>
       <FeedbackEntry context={{ page: "error", game: "all" }} />
-      <p>
-        <AppButtonLink size="compact" to={fourReversiLobbyPath}>
-          ロビーへ
-        </AppButtonLink>
-      </p>
-    </>
+    </AppPageState>
   );
 }

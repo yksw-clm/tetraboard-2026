@@ -97,12 +97,13 @@ export function MatchHistoryCard({
         </div>
       )}
       <div className="mt-auto flex flex-wrap items-center justify-end gap-2">
-        {loading && (
-          <span className="text-xs text-muted" role="status">
-            棋譜を読み込んでいます…
-          </span>
-        )}
-        <AppButtonLink size="compact" appearance="secondary" to={to} state={location.state}>
+        <AppButtonLink
+          size="compact"
+          appearance="secondary"
+          to={to}
+          state={location.state}
+          isPending={loading}
+        >
           棋譜を見る
         </AppButtonLink>
       </div>

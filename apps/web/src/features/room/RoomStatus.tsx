@@ -115,13 +115,19 @@ export function RoomStatus({
             size="compact"
             appearance={self.ready ? "secondary" : "primary"}
             isDisabled={!ready}
+            isPending={session.pendingReady !== null}
             onPress={session.handleReadyClick}
           >
             {self.ready ? "準備取消" : "準備完了"}
           </AppButton>
         )}
         {waiting && membership?.role === "host" && (
-          <AppButton size="compact" isDisabled={!canStart} onPress={session.handleStartClick}>
+          <AppButton
+            size="compact"
+            isDisabled={!canStart}
+            isPending={session.pendingGameAction?.type === "start"}
+            onPress={session.handleStartClick}
+          >
             対局開始
           </AppButton>
         )}

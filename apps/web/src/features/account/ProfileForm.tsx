@@ -117,8 +117,13 @@ export function ProfileForm({
           {error}
         </p>
       )}
-      <AppButton type="submit" isDisabled={busy} className={setup ? undefined : "self-end"}>
-        {saving ? "保存しています…" : setup ? "プロフィールを作成" : "保存"}
+      <AppButton
+        type="submit"
+        isDisabled={busy}
+        isPending={saving}
+        className={setup ? undefined : "self-end"}
+      >
+        {setup ? "プロフィールを作成" : "保存"}
       </AppButton>
     </form>
   );

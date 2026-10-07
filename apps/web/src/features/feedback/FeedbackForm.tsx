@@ -209,8 +209,8 @@ export function FeedbackForm({
           {feedback.message}
         </p>
       )}
-      <AppButton className="w-full" type="submit" isDisabled={busy}>
-        {busy ? "処理中…" : "送信する"}
+      <AppButton className="w-full" type="submit" isDisabled={busy} isPending={feedback.submitting}>
+        送信する
       </AppButton>
     </form>
   );

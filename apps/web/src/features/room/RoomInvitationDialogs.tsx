@@ -61,6 +61,7 @@ export function RoomInvitationDialogs({
           onChange={invitation.setName}
           busy={busy}
           registration={{
+            isPending: google.busy,
             humanOnly,
             onRegister: () =>
               void google.start({ path: registrationPath, joinName: invitation.name }),
@@ -88,6 +89,7 @@ export function RoomInvitationDialogs({
           <AppButton
             type="submit"
             size="compact"
+            isPending={invitation.busy}
             isDisabled={
               busy ||
               invitation.unavailableReason !== null ||
@@ -95,7 +97,7 @@ export function RoomInvitationDialogs({
               Boolean(account.error)
             }
           >
-            {invitation.busy ? "参加中…" : "参加する"}
+            参加する
           </AppButton>
         </div>
       </form>

@@ -17,6 +17,7 @@ export function MatchHistory() {
           appearance="quiet"
           size="compact"
           isDisabled={page.loading || page.moreLoading || !page.loaded}
+          isPending={page.pendingSource === "refresh"}
           onPress={() => void history.refresh()}
         >
           更新
@@ -38,7 +39,7 @@ export function MatchHistory() {
           <AppTabs.Panel key={tab} id={tab} className="pt-4">
             {tab === mode && (
               <div className="flex flex-col gap-3">
-                {(!page.loaded || page.loading) && (
+                {(!page.loaded || page.loading) && !page.pendingSource && (
                   <p role="status" className="text-sm text-muted">
                     対局履歴を読み込んでいます…
                   </p>
@@ -61,6 +62,8 @@ export function MatchHistory() {
                     <AppButton
                       size="compact"
                       appearance="secondary"
+                      isDisabled={page.loading || page.moreLoading}
+                      isPending={page.pendingSource === "retry"}
                       onPress={() => void history.retry()}
                     >
                       再試行
@@ -72,9 +75,10 @@ export function MatchHistory() {
                     size="compact"
                     appearance="secondary"
                     isDisabled={page.loading || page.moreLoading}
+                    isPending={page.pendingSource === "more"}
                     onPress={() => void history.loadMore()}
                   >
-                    {page.moreLoading ? "読み込んでいます…" : "もっと見る"}
+                    もっと見る
                   </AppButton>
                 )}
               </div>

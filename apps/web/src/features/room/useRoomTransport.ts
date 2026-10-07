@@ -103,6 +103,9 @@ export function useRoomTransport<T extends Room>({
   const [authenticated, setAuthenticated] = useState(false);
   const [pendingReady, setPendingReady] = useState<boolean | null>(null);
   const [pendingSettings, setPendingSettings] = useState(false);
+  const [pendingSettingsCommand, setPendingSettingsCommand] = useState<
+    CommonSettingsCommand | GameSettingsCommandFor<T["settings"]["game"]> | null
+  >(null);
   const [newCpuLevel, setNewCpuLevel] = useState<CpuLevel>(1);
   const [pendingGameAction, setPendingGameAction] = useState<PendingOperation<
     PendingActionFor<T["settings"]["game"]>
@@ -150,6 +153,7 @@ export function useRoomTransport<T extends Room>({
     function clearPendingSettings(): void {
       pendingSettingsRef.current = false;
       setPendingSettings(false);
+      setPendingSettingsCommand(null);
     }
 
     function clearPendingGameAction(): void {
@@ -469,12 +473,14 @@ export function useRoomTransport<T extends Room>({
       return;
     pendingSettingsRef.current = true;
     setPendingSettings(true);
+    setPendingSettingsCommand(message);
     setSocketError(null);
     try {
       currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
     } catch {
       pendingSettingsRef.current = false;
       setPendingSettings(false);
+      setPendingSettingsCommand(null);
       setSocketError("ルーム設定を変更できませんでした。");
     }
   }
@@ -540,6 +546,7 @@ export function useRoomTransport<T extends Room>({
     connection,
     authenticated,
     pendingReady,
+    pendingSettingsCommand,
     newCpuLevel,
     setNewCpuLevel,
     pendingGameAction:

@@ -18,6 +18,7 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
   const [attachment, setAttachment] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
   const submissionId = useRef(crypto.randomUUID() as string);
@@ -106,6 +107,7 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
     frozenInput.current = input.data;
     locked.current = true;
     setBusy(true);
+    setSubmitting(true);
     setMessage(null);
     try {
       const id = await sendFeedback(input.data, attachment);
@@ -129,7 +131,10 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
         );
     } finally {
       locked.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) {
+        setBusy(false);
+        setSubmitting(false);
+      }
     }
   }
   function reset() {
@@ -143,6 +148,7 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
     attachment,
     preview,
     busy,
+    submitting,
     message,
     receipt,
     selectImage,
