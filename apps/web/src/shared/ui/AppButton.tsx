@@ -1,6 +1,7 @@
 import { Button, cn } from "@heroui/react";
 import { type ComponentPropsWithRef } from "react";
 import { Link } from "react-router";
+import { AppPendingIndicator, pendingButtonClasses } from "./AppPendingIndicator";
 
 type Appearance = "primary" | "secondary" | "quiet" | "danger";
 type Size = "default" | "compact";
@@ -37,31 +38,84 @@ export function AppButton({
   appearance = "primary",
   size = "default",
   className,
+  isPending = false,
+  children,
   ...props
 }: AppButtonProps) {
   return (
     <Button
       {...props}
+      isPending={isPending}
       className={(state) =>
         cn(
           buttonClasses(appearance, size),
+          pendingButtonClasses,
           typeof className === "function" ? className(state) : className,
         ) ?? ""
       }
-    />
+    >
+      {(state) => (
+        <>
+          {typeof children === "function" ? children(state) : children}
+          {isPending && (
+            <AppPendingIndicator
+              className={
+                appearance === "primary"
+                  ? "text-primary-foreground"
+                  : appearance === "danger"
+                    ? "text-white"
+                    : "text-ink-secondary"
+              }
+            />
+          )}
+        </>
+      )}
+    </Button>
   );
 }
 
 type AppButtonLinkProps = ComponentPropsWithRef<typeof Link> & {
   appearance?: Appearance;
   size?: Size;
+  isPending?: boolean;
 };
 
 export function AppButtonLink({
   appearance = "secondary",
   size = "default",
   className,
+  isPending = false,
+  children,
+  onClick,
   ...props
 }: AppButtonLinkProps) {
-  return <Link {...props} className={cn(buttonClasses(appearance, size), className)} />;
+  return (
+    <Link
+      {...props}
+      data-pending={isPending || undefined}
+      aria-busy={isPending || undefined}
+      aria-disabled={isPending || undefined}
+      onClick={(event) => {
+        if (isPending) {
+          event.preventDefault();
+          return;
+        }
+        onClick?.(event);
+      }}
+      className={cn(buttonClasses(appearance, size), pendingButtonClasses, className)}
+    >
+      {children}
+      {isPending && (
+        <AppPendingIndicator
+          className={
+            appearance === "primary"
+              ? "text-primary-foreground"
+              : appearance === "danger"
+                ? "text-white"
+                : "text-ink-secondary"
+          }
+        />
+      )}
+    </Link>
+  );
 }

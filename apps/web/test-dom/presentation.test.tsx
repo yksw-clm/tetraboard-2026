@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { getLegalMoves } from "@tetraboard/four-reversi";
 import { roomPublicMetadataSchema } from "@tetraboard/protocol";
@@ -12,6 +12,10 @@ import { playingRoom, waitingRoom, now } from "../test/fixtures/rooms";
 import { playingShogiRoom } from "../test/fixtures/fourShogiFixtures";
 import { match } from "../test/fixtures/matchSummary";
 import { act, clock, flush, press, render, rerender, requests } from "./harness";
+import { AccountContext } from "../src/features/account/useAccount";
+import { AppButton, AppButtonLink } from "../src/shared/ui/AppButton";
+import { AppPageLoading } from "../src/shared/ui/AppPageState";
+import { RoomErrorPage } from "../src/features/room/RoomPage";
 
 test("戦績の表示値・率・モード別項目・0件を取得結果から表示", async () => {
   const view = render(
@@ -172,4 +176,125 @@ test("リバーシの回転表示は元の合法座標を送信し、観戦で�
   expect(placed).toEqual([pos]);
   rerender(view, <FourReversiBoard {...props} canPlay={false} rotation={2} />);
   expect([...view.querySelectorAll("button")].every((b) => b.disabled)).toBe(true);
+});
+
+test("処理中ボタンは内容・ref・読み上げ名を保ち、解除するまで再操作しない", () => {
+  const clicked = mock(() => {});
+  const ref = { current: null as HTMLButtonElement | null };
+  const button = (pending: boolean) => (
+    <AppButton ref={ref} isPending={pending} onPress={clicked} aria-label="対局を保存">
+      保存
+    </AppButton>
+  );
+  const view = render(button(false));
+  press(view, "保存");
+  expect(clicked).toHaveBeenCalledTimes(1);
+  rerender(view, button(true));
+  expect(ref.current).toBe(view.querySelector("button"));
+  expect(ref.current!.getAttribute("aria-label")).toBe("対局を保存");
+  expect(ref.current!.textContent).toContain("保存");
+  expect(ref.current!.getAttribute("aria-disabled")).toBe("true");
+  expect(ref.current!.querySelector('[data-slot="pending-spinner"]')).not.toBeNull();
+  press(view, "保存");
+  expect(clicked).toHaveBeenCalledTimes(1);
+  rerender(view, button(false));
+  press(view, "保存");
+  expect(clicked).toHaveBeenCalledTimes(2);
+  expect(ref.current!.querySelector('[data-slot="pending-spinner"]')).toBeNull();
+});
+
+test("棋譜遷移は対象リンクだけ処理中にし、履歴stateを渡して遷移する", async () => {
+  const first = match(1),
+    second = match(2);
+  let complete!: (value: null) => void;
+  const loader = mock(
+    () =>
+      new Promise<null>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/account",
+        element: (
+          <>
+            <MatchHistoryCard match={first} to={`/account/matches/${first.id}`} />
+            <MatchHistoryCard match={second} to={`/account/matches/${second.id}`} />
+          </>
+        ),
+      },
+      { path: "/account/matches/:matchId", loader, element: <p>棋譜取得成功</p> },
+    ],
+    { initialEntries: [{ pathname: "/account", state: { historyGame: "four-shogi" } }] },
+  );
+  const view = render(<RouterProvider router={router} />);
+  const links = [...view.querySelectorAll<HTMLAnchorElement>("a")];
+  act(() => links[0]!.click());
+  await flush();
+  expect(links[0]!.getAttribute("aria-busy")).toBe("true");
+  expect(links[1]!.querySelector('[data-slot="pending-spinner"]')).toBeNull();
+  expect(view.textContent).not.toContain("棋譜を読み込んでいます");
+  act(() => links[0]!.click());
+  expect(loader).toHaveBeenCalledTimes(1);
+  act(() => complete(null));
+  await flush();
+  expect(router.state.location.pathname).toBe(`/account/matches/${first.id}`);
+  expect(router.state.location.state).toEqual({ historyGame: "four-shogi" });
+  router.dispose();
+});
+
+test("中央の読み込み表示はゲーム別テーマを持ち、ルーム404からロビーへ戻れる", async () => {
+  const view = render(<AppPageLoading message="ロビーを読み込んでいます…" theme="four-shogi" />);
+  expect(view.querySelector("main")!.className).toContain("lobby-background");
+  expect(view.querySelector("main")!.className).toContain("game-theme-four-shogi");
+  expect(view.querySelector('[role="status"]')!.textContent).toContain("ロビーを読み込んでいます");
+  expect(view.querySelector('[data-slot="spinner"]')).not.toBeNull();
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/rooms/:id",
+        loader: () => {
+          throw new Response(null, { status: 404 });
+        },
+        element: null,
+        errorElement: <RoomErrorPage />,
+        hydrateFallbackElement: <AppPageLoading message="ルームを読み込んでいます…" />,
+      },
+      { path: "/games/four-reversi", element: <p>ロビー</p> },
+    ],
+    { initialEntries: ["/rooms/12345"] },
+  );
+  rerender(
+    view,
+    <AccountContext.Provider
+      value={{ user: null, loading: false, error: null, refresh: async () => {}, update: () => {} }}
+    >
+      <RouterProvider router={router} />
+    </AccountContext.Provider>,
+  );
+  await flush();
+  expect(view.querySelector('[role="alert"]')!.textContent).toBe("ルームが見つかりません。");
+  expect(view.querySelector("main")!.className).toContain("lobby-background");
+  act(() => view.querySelector<HTMLAnchorElement>('a[href="/games/four-reversi"]')!.click());
+  await flush();
+  expect(router.state.location.pathname).toBe("/games/four-reversi");
+  router.dispose();
+});
+
+test("処理中リンクはhrefと内容を維持し、クリックとハンドラを抑止する", () => {
+  const clicked = mock(() => {});
+  const view = render(
+    <MemoryRouter>
+      <AppButtonLink to="/matches/example" isPending onClick={clicked}>
+        棋譜を見る
+      </AppButtonLink>
+    </MemoryRouter>,
+  );
+  const link = view.querySelector<HTMLAnchorElement>("a")!;
+  expect(link.getAttribute("href")).toBe("/matches/example");
+  expect(link.textContent).toContain("棋譜を見る");
+  expect(link.getAttribute("aria-disabled")).toBe("true");
+  act(() => link.click());
+  expect(clicked).not.toHaveBeenCalled();
 });

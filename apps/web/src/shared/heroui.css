@@ -8,6 +8,7 @@
 @import "@heroui/styles/utilities";
 @import "@heroui/styles/variants";
 @import "@heroui/styles/components/button.css" layer(components);
+@import "@heroui/styles/components/spinner.css" layer(components);
 @import "@heroui/styles/components/card.css" layer(components);
 @import "@heroui/styles/components/modal.css" layer(components);
 @import "@heroui/styles/components/close-button.css" layer(components);

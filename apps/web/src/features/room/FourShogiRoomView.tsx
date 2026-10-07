@@ -106,7 +106,13 @@ export function FourShogiRoomView({
         >
           <span>{replay.error ?? "棋譜を読み込んでいます…"}</span>
           {replay.error && (
-            <AppButton size="compact" appearance="secondary" onPress={replay.retry}>
+            <AppButton
+              size="compact"
+              appearance="secondary"
+              isDisabled={replay.loading}
+              isPending={replay.retrying}
+              onPress={replay.retry}
+            >
               再試行
             </AppButton>
           )}
@@ -126,6 +132,7 @@ export function FourShogiRoomView({
             size="compact"
             appearance="secondary"
             isDisabled={!session.canPlay}
+            isPending={session.pendingGameAction?.type === "draw"}
             onPress={session.handleDrawProposalClick}
           >
             {room.game.drawProposals.includes(room.game.turn) ? "引分取消" : "引分提案"}

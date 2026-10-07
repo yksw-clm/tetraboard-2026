@@ -1,4 +1,5 @@
 import { useRoomDesktop } from "./useRoomDesktop";
+import { AppPageState } from "../../shared/ui/AppPageState";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Toast } from "@heroui/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -131,14 +132,12 @@ export function RoomViewShell({
 
   if (session.unavailable)
     return (
-      <main
-        className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal items-center justify-center gap-4 p-6`}
-      >
+      <AppPageState theme={theme}>
         <p role="alert">{session.unavailable}</p>
         <AppButtonLink size="compact" to={lobbyPath}>
           ロビーへ戻る
         </AppButtonLink>
-      </main>
+      </AppPageState>
     );
 
   const info = (
@@ -153,6 +152,7 @@ export function RoomViewShell({
       cpuAddButtonRef={cpuAddButtonRef}
       canAddCpu={canAddCpu}
       onAddCpu={cpuAddition.request}
+      copying={invitation.copying}
       onCopyInvite={() =>
         void invitation.copy(() =>
           chat.toastQueue.add(
@@ -282,6 +282,7 @@ export function RoomViewShell({
                   room.players.some((current) => current.id === p.id && current.kind === "human"),
                 )}
                 busy={google.busy}
+                isPending={google.busy}
                 onRegister={() => void google.start({ path: roomInvitationPath(room) })}
                 onDismiss={closeResult}
               />
@@ -324,13 +325,14 @@ export function RoomViewShell({
             <AppButton
               size="compact"
               isDisabled={busy || (dialog === "resign" && !session.canPlay)}
+              isPending={busy}
               appearance="danger"
               onPress={() => {
                 if (dialog === "leave") void session.handleLeaveClick();
                 else session.handleResignClick();
               }}
             >
-              {busy ? "送信中…" : dialog === "leave" ? "退室する" : "投了する"}
+              {dialog === "leave" ? "退室する" : "投了する"}
             </AppButton>
           </div>
         </AppDialog>

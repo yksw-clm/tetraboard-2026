@@ -5,9 +5,16 @@ type StatsState = {
   stats: AccountStats | null;
   loaded: boolean;
   loading: boolean;
+  pendingSource: string | null;
   error: string | null;
 };
-const empty = (): StatsState => ({ stats: null, loaded: false, loading: false, error: null });
+const empty = (): StatsState => ({
+  stats: null,
+  loaded: false,
+  loading: false,
+  pendingSource: null,
+  error: null,
+});
 
 export function useAccountStats(game: MatchGame) {
   const [states, setStates] = useState<Record<MatchGame, StatsState>>({
@@ -15,13 +22,18 @@ export function useAccountStats(game: MatchGame) {
     "four-shogi": empty(),
   });
   const requests = useRef<Partial<Record<MatchGame, AbortController>>>({});
-  const load = useCallback(async (target: MatchGame) => {
+  const load = useCallback(async (target: MatchGame, source: string | null = null) => {
     requests.current[target]?.abort();
     const controller = new AbortController();
     requests.current[target] = controller;
     setStates((current) => ({
       ...current,
-      [target]: { ...current[target], loading: true, error: null },
+      [target]: {
+        ...current[target],
+        loading: true,
+        pendingSource: source,
+        error: source === "retry" ? current[target].error : null,
+      },
     }));
     try {
       const query = target === "four-shogi" ? "?game=four-shogi" : "";
@@ -37,7 +49,13 @@ export function useAccountStats(game: MatchGame) {
       if (!controller.signal.aborted)
         setStates((current) => ({
           ...current,
-          [target]: { stats: result, loaded: true, loading: false, error: null },
+          [target]: {
+            stats: result,
+            loaded: true,
+            loading: false,
+            pendingSource: null,
+            error: null,
+          },
         }));
     } catch {
       if (!controller.signal.aborted)
@@ -47,6 +65,7 @@ export function useAccountStats(game: MatchGame) {
             ...current[target],
             loaded: true,
             loading: false,
+            pendingSource: null,
             error: "戦績を取得できませんでした。",
           },
         }));
@@ -66,5 +85,9 @@ export function useAccountStats(game: MatchGame) {
     },
     [],
   );
-  return { ...state, loading: !state.loaded || state.loading, refresh: () => load(game) };
+  return {
+    ...state,
+    loading: !state.loaded || state.loading,
+    refresh: (source: string | null = null) => load(game, source),
+  };
 }

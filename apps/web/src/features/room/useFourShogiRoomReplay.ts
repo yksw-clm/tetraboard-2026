@@ -13,6 +13,7 @@ export function useFourShogiRoomReplay(room: FourShogiRoom) {
     id: string | null;
     frames: FourShogiReplayFrame[];
     error: string | null;
+    retrying?: boolean;
   }>({ id: null, frames: [], error: null });
   const [selection, setSelection] = useState({ id, index: -1 });
   if (id === null && loaded.id !== null) setLoaded({ id: null, frames: [], error: null });
@@ -48,10 +49,12 @@ export function useFourShogiRoomReplay(room: FourShogiRoom) {
     frames,
     index,
     frame: frames[index] ?? null,
-    loading: id !== null && loaded.id !== id,
+    loading: id !== null && (loaded.id !== id || Boolean(loaded.retrying)),
+    retrying: id !== null && loaded.id === id && Boolean(loaded.retrying),
     error: id !== null && loaded.id === id ? loaded.error : null,
     retry: () => {
-      setLoaded({ id: null, frames: [], error: null });
+      if (loaded.retrying) return;
+      setLoaded((previous) => ({ ...previous, retrying: true }));
       setRetry((previous) => previous + 1);
     },
     select(next: number): void {

@@ -5,6 +5,7 @@ export function RegistrationPrompt({
   seated = false,
   result = false,
   busy,
+  isPending = false,
   onRegister,
   onDismiss,
 }: {
@@ -12,6 +13,7 @@ export function RegistrationPrompt({
   seated?: boolean;
   result?: boolean;
   busy: boolean;
+  isPending?: boolean;
   onRegister: () => void;
   onDismiss?: () => void;
 }) {
@@ -33,8 +35,8 @@ export function RegistrationPrompt({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <AppButton size="compact" isDisabled={busy} onPress={onRegister}>
-          {busy ? "Googleへ移動しています…" : "Googleで登録・ログイン"}
+        <AppButton size="compact" isDisabled={busy} isPending={isPending} onPress={onRegister}>
+          Googleで登録・ログイン
         </AppButton>
         {onDismiss && (
           <AppButton appearance="secondary" size="compact" isDisabled={busy} onPress={onDismiss}>

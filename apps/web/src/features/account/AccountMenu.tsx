@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
+import { AppPendingIndicator, pendingButtonClasses } from "../../shared/ui/AppPendingIndicator";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "./useAccount";
 import { accountRequest } from "./accountApi";
@@ -13,10 +14,11 @@ import {
   saveRegistrationReturn,
 } from "./registrationReturn";
 export function AccountMenu() {
-  const { user, loading, error, refresh } = useAccount();
+  const { user, loading, error, pendingSource, refresh } = useAccount();
   const navigate = useNavigate();
   const location = useLocation();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   async function logout() {
     if (busy) return;
@@ -36,7 +38,7 @@ export function AccountMenu() {
       setBusy(false);
     }
   }
-  if (loading)
+  if (loading && !error)
     return (
       <span className="text-xs text-muted" role="status">
         確認中…
@@ -44,7 +46,13 @@ export function AccountMenu() {
     );
   if (error)
     return (
-      <AppButton appearance="quiet" size="compact" onPress={() => void refresh()}>
+      <AppButton
+        appearance="quiet"
+        size="compact"
+        isDisabled={loading}
+        isPending={pendingSource === "menu-retry"}
+        onPress={() => void refresh("menu-retry")}
+      >
         再試行
       </AppButton>
     );
@@ -64,7 +72,12 @@ export function AccountMenu() {
     );
   return (
     <div className="relative min-w-0">
-      <Dropdown>
+      <Dropdown
+        isOpen={open}
+        onOpenChange={(value) => {
+          if (!busy) setOpen(value);
+        }}
+      >
         <Dropdown.Trigger
           aria-label={`${user.name || "プロフィール未設定"}のアカウントメニュー`}
           isDisabled={busy}
@@ -88,6 +101,7 @@ export function AccountMenu() {
           <Dropdown.Menu
             aria-label="アカウントメニュー"
             onAction={(key) => {
+              if (busy) return;
               if (key === "account")
                 navigate(user.profileCompleted ? "/account" : "/account/setup");
               if (key === "logout") void logout();
@@ -95,6 +109,7 @@ export function AccountMenu() {
           >
             <Dropdown.Item
               id="account"
+              isDisabled={busy}
               textValue="マイページ"
               className="flex min-h-11 items-center gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover"
             >
@@ -104,10 +119,16 @@ export function AccountMenu() {
             <Dropdown.Item
               id="logout"
               textValue="ログアウト"
-              className="flex min-h-11 items-center gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover"
+              aria-label="ログアウト"
+              shouldCloseOnSelect={false}
+              isDisabled={busy}
+              data-pending={busy || undefined}
+              aria-busy={busy || undefined}
+              className={`${pendingButtonClasses} flex min-h-11 items-center gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover`}
             >
               <AppIcon name="leave" />
               ログアウト
+              {busy && <AppPendingIndicator className="text-ink-secondary" />}
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>

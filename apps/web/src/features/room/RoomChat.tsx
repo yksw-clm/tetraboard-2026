@@ -168,6 +168,7 @@ export function RoomChat({
                       size="compact"
                       appearance="quiet"
                       isDisabled={chat.reporting !== null}
+                      isPending={chat.reporting === message.id}
                       onPress={() => void chat.handleReport(message.id)}
                     >
                       通報
@@ -232,9 +233,10 @@ export function RoomChat({
             type="submit"
             className="px-[10px] [&_svg]:w-[17px]"
             isDisabled={!canSend}
+            isPending={chat.pending}
           >
             <AppIcon name="send" />
-            <span>{chat.pending ? "送信中" : "送信"}</span>
+            <span>送信</span>
           </AppButton>
         </form>
       ) : (

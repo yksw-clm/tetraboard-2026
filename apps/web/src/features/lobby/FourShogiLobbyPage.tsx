@@ -1,5 +1,5 @@
 import { getRoomContract } from "@tetraboard/protocol";
-import { useNavigate } from "react-router";
+import { useNavigate, useNavigation } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
 import { LobbyRankings } from "./LobbyRankings";
@@ -9,6 +9,7 @@ import { useRoomEntry } from "./useRoomEntry";
 
 export function FourShogiLobbyPage() {
   const navigate = useNavigate();
+  const navigation = useNavigation();
   const lobby = useLobby("four-shogi");
   const entry = useRoomEntry("four-shogi");
   return (
@@ -37,7 +38,13 @@ export function FourShogiLobbyPage() {
           error={lobby.error}
           loading={lobby.loading}
           moreLoading={lobby.moreLoading}
-          onRefresh={() => void lobby.refresh()}
+          pendingSource={lobby.pendingSource}
+          pendingWatchRoomId={
+            navigation.state === "loading"
+              ? navigation.location?.pathname.match(/^\/rooms\/(\d{5})$/)?.[1]
+              : undefined
+          }
+          onRefresh={() => void lobby.refresh("refresh")}
           onLoadMore={() => void lobby.loadMore()}
           onJoin={onJoin}
           onWatch={(roomId) => void navigate(getRoomContract.pathFor(roomId))}

@@ -89,10 +89,13 @@ test("直前将棋棋譜は取得失敗の再試行・最終局面・局面選�
   expect(h.current.frames).toHaveLength(0);
   expect(h.current.error).not.toBeNull();
   act(() => h.current.retry());
+  expect(h.current.retrying).toBe(true);
+  expect(h.current.error).not.toBeNull();
   expect(requests[1]!.url).toBe(requests[0]!.url);
   requests[1]!.respond(replayPage());
   await flush();
   expect(h.current.index).toBe(4);
+  expect(h.current.retrying).toBe(false);
   expect(h.current.frame?.game.status).toBe("finished");
   act(() => h.current.select(0));
   expect(h.current.frame?.label).toBe("開始局面");

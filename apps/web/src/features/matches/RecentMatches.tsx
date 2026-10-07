@@ -34,7 +34,8 @@ export function RecentMatches({ game }: { game: GameId }) {
           size="compact"
           appearance="quiet"
           isDisabled={page.loading}
-          onPress={() => void page.refresh()}
+          isPending={page.pendingSource === "refresh"}
+          onPress={() => void page.refresh("refresh")}
         >
           更新
         </AppButton>
@@ -47,7 +48,7 @@ export function RecentMatches({ game }: { game: GameId }) {
         />
         人間4人の対局のみ
       </label>
-      {page.loading && (
+      {page.loading && !page.pendingSource && (
         <p role="status" className="text-sm text-muted">
           最近の対局を読み込んでいます…
         </p>
@@ -79,7 +80,13 @@ export function RecentMatches({ game }: { game: GameId }) {
           <p role="alert" className="text-sm text-danger">
             {page.error}
           </p>
-          <AppButton size="compact" appearance="secondary" onPress={() => void page.refresh()}>
+          <AppButton
+            size="compact"
+            appearance="secondary"
+            isDisabled={page.loading}
+            isPending={page.pendingSource === "retry"}
+            onPress={() => void page.refresh("retry")}
+          >
             再試行
           </AppButton>
         </div>

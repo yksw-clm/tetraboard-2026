@@ -11,12 +11,14 @@ export function useRecentMatches(game: GameId) {
     error: null as string | null,
     revision: 0,
   });
+  const [pendingSource, setPendingSource] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
   const changeHumanOnly = useCallback(
     (value: boolean) => {
       if (value === humanOnly) return;
       request.current?.abort();
       setHumanOnly(value);
+      setPendingSource(null);
       setPage((current) => ({
         matches: [],
         loading: true,
@@ -27,31 +29,44 @@ export function useRecentMatches(game: GameId) {
     },
     [humanOnly],
   );
-  const refresh = useCallback(async () => {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setPage((current) => ({ ...current, loading: true, error: null }));
-    try {
-      const matches = await fetchRecentMatches(game, controller.signal, humanOnly);
-      if (controller.signal.aborted) return;
+  const refresh = useCallback(
+    async (source: string | null = null) => {
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      setPendingSource(source);
       setPage((current) => ({
-        matches,
-        loading: false,
-        loaded: true,
-        error: null,
-        revision: current.revision + 1,
+        ...current,
+        loading: true,
+        error: source === "retry" ? current.error : null,
       }));
-    } catch {
-      if (!controller.signal.aborted)
+      try {
+        const matches = await fetchRecentMatches(game, controller.signal, humanOnly);
+        if (controller.signal.aborted) return;
         setPage((current) => ({
-          ...current,
+          matches,
           loading: false,
           loaded: true,
-          error: "最近の対局を取得できませんでした。",
+          error: null,
+          revision: current.revision + 1,
         }));
-    }
-  }, [game, humanOnly]);
+      } catch {
+        if (!controller.signal.aborted)
+          setPage((current) => ({
+            ...current,
+            loading: false,
+            loaded: true,
+            error: "最近の対局を取得できませんでした。",
+          }));
+      } finally {
+        if (request.current === controller) {
+          request.current = null;
+          setPendingSource(null);
+        }
+      }
+    },
+    [game, humanOnly],
+  );
   useEffect(() => {
     const timeout = window.setTimeout(() => void refresh(), 0);
     return () => {
@@ -59,5 +74,5 @@ export function useRecentMatches(game: GameId) {
       request.current?.abort();
     };
   }, [refresh]);
-  return { ...page, humanOnly, changeHumanOnly, refresh };
+  return { ...page, pendingSource, humanOnly, changeHumanOnly, refresh };
 }

@@ -9,6 +9,8 @@ import { fourReversiLobbyPath } from "./paths";
 import { FeedbackPage } from "../features/feedback/FeedbackPage";
 import { UpdatesPage } from "../features/updates/UpdatesPage";
 
+import { AppPageLoading } from "../shared/ui/AppPageState";
+import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
@@ -44,26 +46,28 @@ export const router = createBrowserRouter([
         Component: MatchReplayPage,
         loader: matchReplayLoader,
         ErrorBoundary: MatchReplayErrorPage,
-        hydrateFallbackElement: <p role="status">棋譜を読み込んでいます…</p>,
+        hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
       {
         path: "/matches/:matchId",
         Component: MatchReplayPage,
         loader: publicMatchReplayLoader,
         ErrorBoundary: MatchReplayErrorPage,
-        hydrateFallbackElement: <p role="status">棋譜を読み込んでいます…</p>,
+        hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
       { path: "/", element: <Navigate to={fourReversiLobbyPath} replace /> },
       ...gameIds.map((game) => ({
         ...lobbyRoutes[game],
-        hydrateFallbackElement: <p role="status">ロビーを読み込んでいます…</p>,
+        hydrateFallbackElement: (
+          <AppPageLoading message="ロビーを読み込んでいます…" theme={gameThemes[game]} />
+        ),
       })),
       {
         path: "/rooms/:id",
         Component: RoomPage,
         loader: roomLoader,
         ErrorBoundary: RoomErrorPage,
-        hydrateFallbackElement: <p role="status">ルームを読み込んでいます…</p>,
+        hydrateFallbackElement: <AppPageLoading message="ルームを読み込んでいます…" />,
       },
       {
         path: "*",

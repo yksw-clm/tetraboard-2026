@@ -1,5 +1,7 @@
 import { gameCatalog, defaultGameId } from "@tetraboard/protocol/games";
 import { replayViews } from "./replayViews";
+import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
+import { gameThemes } from "../../shared/ui/appTheme";
 import { Suspense, useEffect } from "react";
 import { assertNever } from "@tetraboard/protocol";
 import {
@@ -48,7 +50,9 @@ export function MatchReplayPage() {
   usePublicReplayMetadata();
   const data = useLoaderData<MatchReplayData>();
   return (
-    <Suspense fallback={<p role="status">棋譜を読み込んでいます…</p>}>
+    <Suspense
+      fallback={<AppPageLoading message="棋譜を読み込んでいます…" theme={gameThemes[data.game]} />}
+    >
       <Replay data={data} />
     </Suspense>
   );
@@ -64,7 +68,7 @@ export function MatchReplayErrorPage() {
   const status = isRouteErrorResponse(error) ? error.status : 503;
   const retryable = status !== 400 && status !== 404;
   return (
-    <main className="app-theme room-background flex flex-col h-dvh items-center justify-center gap-4 p-6 text-sm">
+    <AppPageState>
       <p role="alert">
         {status === 400
           ? "棋譜のURLが正しくありません。"
@@ -76,6 +80,7 @@ export function MatchReplayErrorPage() {
         <AppButton
           size="compact"
           isDisabled={navigation.state === "loading"}
+          isPending={navigation.state === "loading"}
           onPress={() => {
             // 同じURLでも遷移を行い、成功時にルーターのエラー境界を解除します。
             void navigate(`${location.pathname}${location.search}${location.hash}`, {
@@ -95,6 +100,6 @@ export function MatchReplayErrorPage() {
         {publicView ? "ロビーへ戻る" : "マイページへ戻る"}
       </AppButtonLink>
       <FeedbackEntry context={{ page: "error", game: "all" }} />
-    </main>
+    </AppPageState>
   );
 }

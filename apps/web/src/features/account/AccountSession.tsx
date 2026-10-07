@@ -9,24 +9,32 @@ export function AccountLayout() {
     user: AccountProfile | null;
     loading: boolean;
     error: string | null;
-  }>({ user: null, loading: true, error: null });
+    pendingSource: string | null;
+  }>({ user: null, loading: true, error: null, pendingSource: null });
   const version = useRef(0);
   const location = useLocation();
   const update = useCallback((user: AccountProfile | null) => {
     version.current++;
-    setState({ user, loading: false, error: null });
+    setState({ user, loading: false, error: null, pendingSource: null });
   }, []);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (source?: string) => {
     const current = ++version.current;
-    setState((previous) => ({ ...previous, loading: true, error: null }));
+    setState((previous) => ({
+      ...previous,
+      loading: true,
+      pendingSource: source ?? null,
+      error: source ? previous.error : null,
+    }));
     try {
       const user = await readAccount();
-      if (current === version.current) setState({ user, loading: false, error: null });
+      if (current === version.current)
+        setState({ user, loading: false, error: null, pendingSource: null });
     } catch {
       if (current === version.current)
         setState((previous) => ({
           ...previous,
           loading: false,
+          pendingSource: null,
           error: "ログイン状態を確認できません。再試行してください。",
         }));
     }

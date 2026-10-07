@@ -80,17 +80,24 @@ test("アカウントメニューはプロフィール・マイページとロ�
   choose("ログアウト");
   await flush();
   expect(requests.at(-1)!.url).toBe("/api/auth/sign-out");
+  const pendingLogout = document.querySelector<HTMLElement>(
+    '[role="menuitem"][aria-label="ログアウト"]',
+  )!;
+  expect(pendingLogout.querySelector('[data-slot="pending-spinner"]')).not.toBeNull();
+  expect(view.querySelector('[data-slot="pending-spinner"]')).toBeNull();
+  const requestCount = requests.length;
+  choose("ログアウト");
+  expect(requests.length).toBe(requestCount);
   expect(
     view.querySelector<HTMLButtonElement>('[aria-label$="のアカウントメニュー"]')!.disabled,
   ).toBe(true);
   requests.at(-1)!.respond({}, 503);
   await flush();
   expect(view.querySelector('[role="alert"]')).not.toBeNull();
+  expect(pendingLogout.querySelector('[data-slot="pending-spinner"]')).toBeNull();
   const replace = spyOn(window.location, "replace").mockImplementation(() => {});
   try {
     saveRegistrationReturn({ path: "/games/four-shogi" }, false);
-    open();
-    await flush();
     choose("ログアウト");
     requests.at(-1)!.respond({}, 200);
     await flush();

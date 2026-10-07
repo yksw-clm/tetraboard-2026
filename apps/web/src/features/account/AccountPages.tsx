@@ -57,11 +57,17 @@ export function AccountPageShell({
   );
 }
 function AccountStatus() {
-  const { error, refresh } = useAccount();
+  const { error, loading, pendingSource, refresh } = useAccount();
   return error ? (
     <AppCard>
       <p role="alert">{error}</p>
-      <AppButton onPress={() => void refresh()}>再試行</AppButton>
+      <AppButton
+        isDisabled={loading}
+        isPending={pendingSource === "page-retry"}
+        onPress={() => void refresh("page-retry")}
+      >
+        再試行
+      </AppButton>
     </AppCard>
   ) : (
     <p role="status">ログイン状態を確認しています…</p>
@@ -112,8 +118,9 @@ export function LoginPage() {
                 void google.start(adminDestination ? "admin" : (destination ?? undefined))
               }
               isDisabled={google.busy}
+              isPending={google.busy}
             >
-              {google.busy ? "Googleへ移動しています…" : "Googleで続ける"}
+              Googleで続ける
             </AppButton>
             {destination && !adminDestination && (
               <AppButton

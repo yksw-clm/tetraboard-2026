@@ -21,29 +21,37 @@ export function useLobby(game: GameId = defaultGameId) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingSource, setPendingSource] = useState<string | null>(null);
   const [moreLoading, setMoreLoading] = useState(false);
   const [moreLoaded, setMoreLoaded] = useState(false);
   const request = useRef<AbortController | null>(null);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setMoreLoading(false);
-    setLoading(true);
-    try {
-      const page = await fetchLobby(game, null, controller.signal);
-      if (controller.signal.aborted) return;
-      setRooms(page.rooms.filter((room) => room.game === game));
-      setNextCursor(page.nextCursor);
-      setMoreLoaded(false);
-      setError(null);
-    } catch {
-      if (!controller.signal.aborted) setError("ロビーの一覧を取得できませんでした。");
-    } finally {
-      if (request.current === controller) setLoading(false);
-    }
-  }, [game]);
+  const refresh = useCallback(
+    async (source: string | null = null): Promise<void> => {
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      setMoreLoading(false);
+      setPendingSource(source);
+      setLoading(true);
+      try {
+        const page = await fetchLobby(game, null, controller.signal);
+        if (controller.signal.aborted) return;
+        setRooms(page.rooms.filter((room) => room.game === game));
+        setNextCursor(page.nextCursor);
+        setMoreLoaded(false);
+        setError(null);
+      } catch {
+        if (!controller.signal.aborted) setError("ロビーの一覧を取得できませんでした。");
+      } finally {
+        if (request.current === controller) {
+          setLoading(false);
+          setPendingSource(null);
+        }
+      }
+    },
+    [game],
+  );
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void refresh(), 0);
@@ -86,5 +94,5 @@ export function useLobby(game: GameId = defaultGameId) {
     }
   }
 
-  return { rooms, nextCursor, error, loading, moreLoading, refresh, loadMore };
+  return { rooms, nextCursor, error, loading, moreLoading, pendingSource, refresh, loadMore };
 }

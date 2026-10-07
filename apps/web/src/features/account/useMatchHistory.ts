@@ -13,6 +13,7 @@ type HistoryPage = {
   loaded: boolean;
   loading: boolean;
   moreLoading: boolean;
+  pendingSource: string | null;
   error: string | null;
   failedMore: boolean;
 };
@@ -22,6 +23,7 @@ const emptyPage = (): HistoryPage => ({
   loaded: false,
   loading: false,
   moreLoading: false,
+  pendingSource: null,
   error: null,
   failedMore: false,
 });
@@ -36,7 +38,7 @@ export function useMatchHistory() {
   const page = pages[game][mode];
 
   const load = useCallback(
-    async (targetGame: MatchGame, target: RoomMode, more = false) => {
+    async (targetGame: MatchGame, target: RoomMode, more = false, source: string | null = null) => {
       const key = `${targetGame}:${target}` as const;
       if (more && (requests.current[key] || !pages[targetGame][target].nextCursor)) return;
       requests.current[key]?.abort();
@@ -51,7 +53,8 @@ export function useMatchHistory() {
             ...current[targetGame][target],
             loading: !more,
             moreLoading: more,
-            error: null,
+            pendingSource: source,
+            error: source === "retry" ? current[targetGame][target].error : null,
             failedMore: false,
           },
         },
@@ -90,6 +93,7 @@ export function useMatchHistory() {
               loaded: true,
               loading: false,
               moreLoading: false,
+              pendingSource: null,
               error: null,
               failedMore: false,
             },
@@ -106,6 +110,7 @@ export function useMatchHistory() {
                 loaded: true,
                 loading: false,
                 moreLoading: false,
+                pendingSource: null,
                 failedMore: more,
                 error: more
                   ? "続きの対局履歴を取得できませんでした。"
@@ -134,8 +139,8 @@ export function useMatchHistory() {
   return {
     ...selection,
     page,
-    refresh: () => load(game, mode),
-    loadMore: () => load(game, mode, true),
-    retry: () => load(game, mode, page.failedMore),
+    refresh: () => load(game, mode, false, "refresh"),
+    loadMore: () => load(game, mode, true, "more"),
+    retry: () => load(game, mode, page.failedMore, "retry"),
   };
 }

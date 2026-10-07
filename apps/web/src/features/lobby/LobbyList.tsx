@@ -12,6 +12,8 @@ type Props = {
   error: string | null;
   loading: boolean;
   moreLoading: boolean;
+  pendingSource?: string | null;
+  pendingWatchRoomId?: string;
   onRefresh: () => void;
   onLoadMore: () => void;
   onJoin: (roomId: string, humanOnly?: boolean) => void;
@@ -24,6 +26,8 @@ export function LobbyList({
   error,
   loading,
   moreLoading,
+  pendingSource,
+  pendingWatchRoomId,
   onRefresh,
   onLoadMore,
   onJoin,
@@ -46,6 +50,7 @@ export function LobbyList({
           type="button"
           onPress={onRefresh}
           isDisabled={loading || moreLoading}
+          isPending={pendingSource === "refresh"}
         >
           <AppIcon name="refresh" />
           更新
@@ -59,7 +64,7 @@ export function LobbyList({
           {error}「更新」からもう一度お試しください。
         </p>
       )}
-      {rooms.length === 0 && loading && (
+      {rooms.length === 0 && loading && !pendingSource && (
         <AppCard
           className="flex flex-col items-center justify-center gap-2 min-h-[140px] py-[22px] px-5 border-dashed border-[#d7e1da] rounded-[18px] bg-[#ffffffdf] text-center shadow-none [&_h3]:text-[15px] [&_p]:text-muted [&_p]:text-[13px] [@media(max-width:650px)]:py-5 [@media(max-width:650px)]:px-[18px]"
           role="status"
@@ -150,6 +155,7 @@ export function LobbyList({
                           appearance="secondary"
                           type="button"
                           aria-label={`ルーム ${room.id} を観戦`}
+                          isPending={pendingWatchRoomId === room.id}
                           onPress={() => onWatch(room.id)}
                         >
                           観戦
@@ -174,8 +180,9 @@ export function LobbyList({
             type="button"
             onPress={onLoadMore}
             isDisabled={loading || moreLoading}
+            isPending={moreLoading}
           >
-            {moreLoading ? "読み込み中…" : "もっと見る"}
+            もっと見る
           </AppButton>
         </div>
       )}

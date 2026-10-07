@@ -15,10 +15,10 @@ export function RoomIdentityFields({
   onChange: (name: string) => void;
   busy: boolean;
   id?: string;
-  registration?: { humanOnly: boolean; onRegister: () => void };
+  registration?: { humanOnly: boolean; onRegister: () => void; isPending?: boolean };
 }) {
   const account = useAccount();
-  if (account.loading)
+  if (account.loading && !account.error)
     return (
       <p role="status" className="text-muted text-sm">
         ログイン状態を確認しています…
@@ -30,7 +30,13 @@ export function RoomIdentityFields({
         <p role="alert" className="text-danger text-sm">
           {account.error}
         </p>
-        <AppButton appearance="secondary" size="compact" onPress={() => void account.refresh()}>
+        <AppButton
+          appearance="secondary"
+          size="compact"
+          isDisabled={account.loading}
+          isPending={account.pendingSource === "identity-retry"}
+          onPress={() => void account.refresh("identity-retry")}
+        >
           再試行
         </AppButton>
       </div>
@@ -59,6 +65,7 @@ export function RoomIdentityFields({
           humanOnly={registration.humanOnly}
           busy={busy}
           onRegister={registration.onRegister}
+          isPending={registration.isPending}
         />
       )}
     </div>
