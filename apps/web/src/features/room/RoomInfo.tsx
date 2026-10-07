@@ -39,7 +39,13 @@ export function RoomInfo({
   const account = useAccount();
   return (
     <RoomInfoCard roomId={room.id} settings={room.settings}>
-      <AppButton appearance="quiet" size="compact" onPress={onFeedback} ref={feedbackButtonRef}>
+      <AppButton
+        appearance="secondary"
+        size="compact"
+        className="w-full"
+        onPress={onFeedback}
+        ref={feedbackButtonRef}
+      >
         不具合・ご意見
       </AppButton>
       <AppButton
