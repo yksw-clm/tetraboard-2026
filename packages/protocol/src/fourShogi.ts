@@ -20,7 +20,7 @@ export const fourShogiFormationAnalysisSchema = z.strictObject({
           matchedSquares: z.array(position).length(9),
         }),
       )
-      .max(6),
+      .max(17),
   ),
 });
 export type FourShogiFormationAnalysis = z.infer<typeof fourShogiFormationAnalysisSchema>;

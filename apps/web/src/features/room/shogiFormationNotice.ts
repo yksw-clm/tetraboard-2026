@@ -1,4 +1,9 @@
-import type { FormationMatch } from "@tetraboard/four-shogi";
+import type { FormationId, FormationMatch } from "@tetraboard/four-shogi";
+
+export type FormationNotice = Readonly<{
+  ids: readonly FormationId[];
+  name: string;
+}>;
 
 export type FormationObservation = Readonly<{
   scope: string | null;
@@ -11,7 +16,7 @@ export type FormationObservation = Readonly<{
 export type FormationNoticeTracker = Readonly<{
   observation: FormationObservation;
   seen: readonly string[];
-  notice: FormationMatch | null;
+  notice: FormationNotice | null;
 }>;
 
 export function initialFormationTracker(
@@ -39,19 +44,25 @@ export function advanceFormationTracker(
   ) {
     return initialFormationTracker(observation, previous.seen);
   }
-  const match =
+  const matches =
     observation.revision === before.revision + 1 &&
     observation.moveNumber === before.moveNumber + 1 &&
     observation.ownMove
-      ? observation.matches.find(
+      ? observation.matches.filter(
           (entry) =>
             !previous.seen.includes(entry.id) &&
             !before.matches.some((prior) => prior.id === entry.id),
         )
-      : undefined;
+      : [];
   return {
     observation,
     seen: [...new Set([...previous.seen, ...observation.matches.map((entry) => entry.id)])],
-    notice: match ?? previous.notice,
+    notice:
+      matches.length > 0
+        ? {
+            ids: matches.map((match) => match.id),
+            name: matches.map((match) => match.name).join("・"),
+          }
+        : previous.notice,
   };
 }

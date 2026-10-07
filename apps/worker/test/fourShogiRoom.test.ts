@@ -138,118 +138,133 @@ test("戦型解析は要求したHTTP・WebSocketだけへ付加し、待機中�
   expect((await request(`/rooms/${created.room.id}?formationAnalysis=2`)).status).toBe(400);
 });
 
-test("確定局面の解析revision・混在配信・再接続・休止後の接続タグと保存分離", async () => {
-  const prepared = await start();
-  const stub = env.GAME_ROOM.getByName(prepared.id);
-  await runInDurableObject(stub, (_instance, state) => {
-    const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
-    if (room.status !== "playing") throw new Error("Not playing");
-    const store = new ShogiStore(state.storage.sql);
-    const game = formationState(
-      createInitialState({ mode: room.settings.mode, players: room.game.players }),
-      "tenshukaku",
-      "south",
-      false,
+test.each([
+  { id: "tenshukaku" as const, matches: [{ id: "tenshukaku", name: "天守閣玉" }] },
+  { id: "five" as const, matches: [{ id: "five", name: "ファイブ" }] },
+  {
+    id: "lower-gold" as const,
+    matches: [
+      { id: "subway-rook", name: "地下鉄飛車" },
+      { id: "lower-gold", name: "下段金寄せ" },
+    ],
+  },
+])(
+  "$id: 確定局面の解析revision・混在配信・再接続・休止後の接続タグと保存分離",
+  async ({ id, matches }) => {
+    const prepared = await start();
+    const stub = env.GAME_ROOM.getByName(prepared.id);
+    await runInDurableObject(stub, (_instance, state) => {
+      const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
+      if (room.status !== "playing") throw new Error("Not playing");
+      const store = new ShogiStore(state.storage.sql);
+      const game = formationState(
+        createInitialState({ mode: room.settings.mode, players: room.game.players }),
+        id,
+        "south",
+        false,
+      );
+      state.storage.kv.put(
+        "room",
+        fourShogiRoomSchema.parse({
+          ...room,
+          game: store.saveState(room.roundId, game),
+          ...getActionAvailability(game),
+          clock: { ...room.clock, turnStartedAt: Date.now(), turnExpiresAt: Date.now() + 300000 },
+        }),
+      );
+    });
+    const actor = prepared.clients[sideIndex(prepared, "south")];
+    const analyzed = await connect(
+      prepared.id,
+      prepared.memberships[sideIndex(prepared, "west")].token,
+      true,
     );
-    state.storage.kv.put(
-      "room",
-      fourShogiRoomSchema.parse({
-        ...room,
-        game: store.saveState(room.roundId, game),
-        ...getActionAvailability(game),
-        clock: { ...room.clock, turnStartedAt: Date.now(), turnExpiresAt: Date.now() + 300000 },
-      }),
+    actor.send({
+      type: "room.game.action",
+      roundId: prepared.room.roundId,
+      positionRevision: 0,
+      action: formationAction(id),
+    });
+    const accepted = await actor.room(
+      (room) => room.status === "playing" && room.positionRevision === 1,
     );
-  });
-  const actor = prepared.clients[sideIndex(prepared, "south")];
-  const analyzed = await connect(
-    prepared.id,
-    prepared.memberships[sideIndex(prepared, "west")].token,
-    true,
-  );
-  actor.send({
-    type: "room.game.action",
-    roundId: prepared.room.roundId,
-    positionRevision: 0,
-    action: formationAction("tenshukaku"),
-  });
-  const accepted = await actor.room(
-    (room) => room.status === "playing" && room.positionRevision === 1,
-  );
-  const snapshot = await analyzed.until(
-    (message) =>
-      message.type === "room.snapshot" &&
-      isFourShogiRoom(message.room) &&
-      message.room.positionRevision === 1,
-  );
-  if (snapshot.type !== "room.snapshot") throw new Error("No snapshot");
-  expect(snapshot.formationAnalysis).toMatchObject({
-    analyzerId: "four-shogi-formations",
-    analysisVersion: 1,
-    rulesVersion: 1,
-    roundId: prepared.room.roundId,
-    positionRevision: 1,
-    matches: { south: [{ id: "tenshukaku", name: "天守閣玉" }], west: [], north: [], east: [] },
-  });
-  expect(snapshot.formationAnalysis?.matches.south[0].matchedSquares).toHaveLength(9);
-  const oldSnapshot = await prepared.clients[sideIndex(prepared, "north")].until(
-    (message) =>
-      message.type === "room.snapshot" &&
-      isFourShogiRoom(message.room) &&
-      message.room.positionRevision === 1,
-  );
-  expect(oldSnapshot).not.toHaveProperty("formationAnalysis");
-  const http = getRoomContract.response.parse(
-    await (await request(`/rooms/${prepared.id}?formationAnalysis=1`)).json(),
-  );
-  expect(http.formationAnalysis).toEqual(snapshot.formationAnalysis);
-  expect(http.room).toEqual(accepted);
+    const snapshot = await analyzed.until(
+      (message) =>
+        message.type === "room.snapshot" &&
+        isFourShogiRoom(message.room) &&
+        message.room.positionRevision === 1,
+    );
+    if (snapshot.type !== "room.snapshot") throw new Error("No snapshot");
+    expect(snapshot.formationAnalysis).toMatchObject({
+      analyzerId: "four-shogi-formations",
+      analysisVersion: 2,
+      rulesVersion: 1,
+      roundId: prepared.room.roundId,
+      positionRevision: 1,
+      matches: { south: matches, west: [], north: [], east: [] },
+    });
+    expect(snapshot.formationAnalysis?.matches.south).toHaveLength(matches.length);
+    for (const match of snapshot.formationAnalysis!.matches.south)
+      expect(match.matchedSquares).toHaveLength(9);
+    const oldSnapshot = await prepared.clients[sideIndex(prepared, "north")].until(
+      (message) =>
+        message.type === "room.snapshot" &&
+        isFourShogiRoom(message.room) &&
+        message.room.positionRevision === 1,
+    );
+    expect(oldSnapshot).not.toHaveProperty("formationAnalysis");
+    const http = getRoomContract.response.parse(
+      await (await request(`/rooms/${prepared.id}?formationAnalysis=1`)).json(),
+    );
+    expect(http.formationAnalysis).toEqual(snapshot.formationAnalysis);
+    expect(http.room).toEqual(accepted);
 
-  // Durable Objectのインスタンスを作り直し、認証attachmentと休止対応タグだけで配信する。
-  await runInDurableObject(stub, async (_instance, state) => {
-    const socket = state.getWebSockets("formation-analysis-v1")[0];
-    expect(state.getTags(socket)).toEqual(["formation-analysis-v1"]);
-    expect(socket.deserializeAttachment()).not.toHaveProperty("formationAnalysis");
-    await new GameRoom(state, env).webSocketMessage(
-      socket,
-      JSON.stringify({
-        type: "room.game.draw.set",
-        proposed: true,
-        roundId: prepared.room.roundId,
-        positionRevision: 1,
-      }),
+    // Durable Objectのインスタンスを作り直し、認証attachmentと休止対応タグだけで配信する。
+    await runInDurableObject(stub, async (_instance, state) => {
+      const socket = state.getWebSockets("formation-analysis-v1")[0];
+      expect(state.getTags(socket)).toEqual(["formation-analysis-v1"]);
+      expect(socket.deserializeAttachment()).not.toHaveProperty("formationAnalysis");
+      await new GameRoom(state, env).webSocketMessage(
+        socket,
+        JSON.stringify({
+          type: "room.game.draw.set",
+          proposed: true,
+          roundId: prepared.room.roundId,
+          positionRevision: 1,
+        }),
+      );
+      const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
+      expect(JSON.stringify(room)).not.toContain("formationAnalysis");
+      expect(
+        JSON.stringify(
+          new ShogiStore(state.storage.sql).loadState(prepared.room.roundId, room.game!),
+        ),
+      ).not.toContain(id);
+    });
+    const afterWake = await analyzed.until(
+      (message) =>
+        message.type === "room.snapshot" &&
+        isFourShogiRoom(message.room) &&
+        message.room.positionRevision === 2,
     );
-    const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
-    expect(JSON.stringify(room)).not.toContain("formationAnalysis");
-    expect(
-      JSON.stringify(
-        new ShogiStore(state.storage.sql).loadState(prepared.room.roundId, room.game!),
-      ),
-    ).not.toContain("tenshukaku");
-  });
-  const afterWake = await analyzed.until(
-    (message) =>
-      message.type === "room.snapshot" &&
-      isFourShogiRoom(message.room) &&
-      message.room.positionRevision === 2,
-  );
-  expect(afterWake).toHaveProperty("formationAnalysis.positionRevision", 2);
-  analyzed.close();
-  const reconnected = await connect(prepared.id, undefined, true);
-  const restored = await reconnected.until((message) => message.type === "room.snapshot");
-  expect(restored).toHaveProperty("formationAnalysis.matches.south.0.id", "tenshukaku");
-  let current = await get(prepared.id);
-  while (current.status === "playing") current = await resignCurrent(prepared, current);
-  expect(JSON.stringify(current)).not.toContain("formationAnalysis");
-  await vi.waitFor(async () => {
-    const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
-      .bind(prepared.room.roundId)
-      .first<{ record_json: string }>();
-    expect(stored).not.toBeNull();
-    expect(stored?.record_json).not.toContain("formationAnalysis");
-    expect(stored?.record_json).not.toContain("tenshukaku");
-  });
-});
+    expect(afterWake).toHaveProperty("formationAnalysis.positionRevision", 2);
+    analyzed.close();
+    const reconnected = await connect(prepared.id, undefined, true);
+    const restored = await reconnected.until((message) => message.type === "room.snapshot");
+    expect(restored).toHaveProperty("formationAnalysis.matches.south.0.id", matches[0].id);
+    let current = await get(prepared.id);
+    while (current.status === "playing") current = await resignCurrent(prepared, current);
+    expect(JSON.stringify(current)).not.toContain("formationAnalysis");
+    await vi.waitFor(async () => {
+      const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id = ?")
+        .bind(prepared.room.roundId)
+        .first<{ record_json: string }>();
+      expect(stored).not.toBeNull();
+      expect(stored?.record_json).not.toContain("formationAnalysis");
+      expect(stored?.record_json).not.toContain(id);
+    });
+  },
+);
 async function create(
   quickPlay = false,
   mode: "singles" | "doubles" = "singles",

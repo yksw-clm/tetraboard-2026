@@ -654,17 +654,17 @@ bun scripts/prepareFirebaseMatches.ts <export-directory> <links.json> <target.js
 
 ### 四人将棋の戦型解析と通知
 
-`packages/four-shogi/src/formations.ts` の `detectFormations(position, side)` はルール版・盤面・脱落情報だけを入力にし、公開局面とサーバーのルール状態をそのまま渡せます。基本6戦型の固定定義をここに集約し、初期配置と同じ `positionForSide` の回転を再利用します。結果は安定した `id`・`name`・9枚の `matchedSquares`（実盤座標）です。公開定数は `formationAnalyzerId = "four-shogi-formations"` と `formationAnalysisVersion = 1`。条件・意味を変える場合は解析版を更新し、ルール版・保存版とは分けます。
+`packages/four-shogi/src/formations.ts` の `detectFormations(position, side)` はルール版・盤面・脱落情報だけを入力にし、公開局面とサーバーのルール状態をそのまま渡せます。17戦型の固定定義をここに集約し、初期配置と同じ `positionForSide` の回転を再利用します。結果は安定した `id`・`name`・9枚の `matchedSquares`（実盤座標）です。公開定数は `formationAnalyzerId = "four-shogi-formations"` と `formationAnalysisVersion = 2`。`formationIds` は定義順の全17IDを公開します。条件・意味を変える場合は解析版を更新し、ルール版・保存版とは分けます。
 
-HTTPの `GET /rooms/:id?formationAnalysis=1` とWebSocketの `/rooms/:id/ws?instanceId=...&formationAnalysis=1` は、通常の応答の `room` の外側へ任意の `formationAnalysis` を付加します。将棋の待機中は `null`、対局中は `{ analyzerId, analysisVersion, rulesVersion, roundId, positionRevision, matches: { south, west, north, east } }`。要求なしとリバーシには項目を付加しません。`protocol` は通信スキーマだけを管理し、戦型IDの列挙と判定条件はエンジンに置きます。エンジンへのprotocol依存追加はありません。
+HTTPの `GET /rooms/:id?formationAnalysis=1` とWebSocketの `/rooms/:id/ws?instanceId=...&formationAnalysis=1` は、通常の応答の `room` の外側へ任意の `formationAnalysis` を付加します。将棋の待機中は `null`、対局中は `{ analyzerId, analysisVersion, rulesVersion, roundId, positionRevision, matches: { south, west, north, east } }`。要求なしとリバーシには項目を付加しません。`protocol` は通信スキーマだけを管理し、戦型IDの列挙と判定条件はエンジンに置きます。エンジンへのprotocol依存追加はありません。成立一覧の上限は17件、根拠座標は各9件で、同時成立も別項目として返します。要求クエリと接続タグは解析版とは独立し、版2でも従来の形式を使います。
 
 WorkerはWebSocketの要求を `formation-analysis-v1` 接続タグで保持し、従来の認証attachmentを維持します。配信ごとに通常応答と付加応答を各1回だけ生成して共有します。HTTP・WebSocketとも確定したルーム状態の4陣営を判定します。解析結果をルーム状態・棋譜・保存対局へ含めず、成立履歴やDB migrationを追加しません。WebはHTTPで付加項目の有無を確認し、対応Workerの場合だけWebSocketでも要求します。再接続時にHTTPで再確認するため、旧Workerへの切替も従来形式で動作します。
 
-`useShogiFormationNotice` は `room.game` を共有関数で照合し、楽観表示用の `session.displayGame` とサーバーの派生結果を通知判定に使いません。認証・接続済みの本人について、同じ局の連続revision・連続手数・本人の直前手と不成立→成立を確認します。初回・再接続・飛んだrevisionは基準とし、既に成立している戦型も既知IDへ含めます。部屋世代・本人ごとの `sessionStorage` キーに局ID・解析版を含むscopeと通知済みIDを保存し、次局で置き換えます。保存エラーはメモリ内の抑止へ退避します。別タブ同期は行いません。
+`useShogiFormationNotice` は `room.game` を共有関数で照合し、楽観表示用の `session.displayGame` とサーバーの派生結果を通知判定に使いません。認証・接続済みの本人について、同じ局の連続revision・連続手数・本人の直前手と不成立→成立を確認します。未通知の新規成立をすべて取り出し、通知データ `{ ids, name }` の名称を定義順に「・」で連結します。初回・再接続・飛んだrevisionは基準とし、既に成立している戦型も既知IDへ含めます。部屋世代・本人ごとの `sessionStorage` キーに局ID・解析版を含むscopeと通知済みIDを保存し、次局で置き換えます。保存値は全17種類の既知IDだけを受け付け、解析版1のscopeは引き継がず初回局面を基準にします。まとめ通知の全IDを通知済みにします。保存エラーはメモリ内の抑止へ退避します。別タブ同期は行いません。
 
 `FourShogiBoardLayout` の任意propsで本人側2段目中央に名称を重ね、2000ms・選択・ドラッグ・成り選択・切断・脱落・終局・次局で消します。既存のCSS効果ファイルに置いた `shogi-formation-fade` は2秒のうち0〜180msをフェードイン、1760〜2000msをフェードアウトにし、opacityだけをease-in-outで変えます。名称をkeyにして別戦型への置換時はフェードを再開します。`motion-safe` で動きを減らす設定の場合は省略し、操作や切断などによる解除は即時のままです。表示・解除用の状態やタイマーは増やしません。盤内縮尺・クリック透過・`role=status` の控えめな読み上げを使い、音・フォーカス移動・寸法変更はありません。観戦と棋譜には接続しません。
 
-エンジンは実装定義と独立した完成図fixtureで6形×4方向×両モードと各必須条件を検証します。Workerは実HTTP・WebSocketの混在接続、確定revision、再接続、インスタンス再作成時のタグ・認証維持、保存分離を検証します。WebはBun＋happy-domと偽時計で、受理前／後、1999ms／2000ms、重複抑止・保存エラー・操作・再接続時の対応確認を検証します。従来の固定棋譜の回帰も維持します。
+エンジンは実装定義と独立した完成図fixtureで17形×4方向×両モードと各必須条件を検証します。Workerは実HTTP・WebSocketの混在接続、確定revision、再接続、インスタンス再作成時のタグ・認証維持、保存分離を検証します。WebはBun＋happy-domと偽時計で、受理前／後、1999ms／2000ms、重複抑止・保存エラー・操作・再接続時の対応確認を検証します。従来の固定棋譜の回帰も維持します。
 
 ### 将来の派生解析
 

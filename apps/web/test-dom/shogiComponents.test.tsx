@@ -108,6 +108,18 @@ function boardProps(onAction: (action: FourShogiAction) => boolean): FourShogiBo
 }
 const square = (view: HTMLElement, x: number, y: number) =>
   view.querySelector<HTMLButtonElement>(`[data-square="${"ABCDEFGHI"[x]}${y + 1}"]`)!;
+
+test("まとめた戦型名を控えめに読み上げ、選択操作で表示を解除する", () => {
+  const props = boardProps(() => true);
+  const view = render(<FourShogiBoardLayout {...props} formationNotice="地下鉄飛車・下段金寄せ" />);
+  const notice = view.querySelector('[data-testid="shogi-formation-notice"]')!;
+  expect(notice.textContent).toBe("地下鉄飛車・下段金寄せ");
+  expect(notice.getAttribute("role")).toBe("status");
+  expect(notice.getAttribute("aria-live")).toBe("polite");
+  act(() => square(view, 4, 6).click());
+  expect(view.querySelector('[data-testid="shogi-formation-notice"]')).toBeNull();
+});
+
 test("将棋盤の選択・捕獲候補・revision解除・不正操作抑止・一度だけの送信", () => {
   const sent: FourShogiAction[] = [];
   const props = boardProps((action) => {

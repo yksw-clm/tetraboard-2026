@@ -69,7 +69,40 @@ test("別の戦型は最新へ置き換え、既知の戦型で表示を開始�
     moveNumber: 8,
     matches: other,
   });
-  expect(latest.notice?.id).toBe("subway-rook");
+  expect(latest.notice).toEqual({
+    ids: ["subway-rook", "lower-gold"],
+    name: "地下鉄飛車・下段金寄せ",
+  });
   const repeated = advanceFormationTracker(latest, { ...formed, revision: 13, moveNumber: 9 });
   expect(repeated.notice).toBe(latest.notice);
+});
+
+test("同時成立した全名称をまとめて通知し、両方を抑止する", () => {
+  const together = {
+    ...formed,
+    matches: detectFormations(formationState(initial, "lower-gold"), "south"),
+  };
+  const notified = advanceFormationTracker(initialFormationTracker(start), together);
+  expect(notified.notice?.name).toBe("地下鉄飛車・下段金寄せ");
+  expect(notified.seen).toEqual(["subway-rook", "lower-gold"]);
+  const absent = advanceFormationTracker(
+    { ...notified, notice: null },
+    {
+      ...start,
+      revision: 12,
+      moveNumber: 8,
+    },
+  );
+  expect(
+    advanceFormationTracker(absent, {
+      ...together,
+      revision: 13,
+      moveNumber: 9,
+    }).notice,
+  ).toBeNull();
+  const oneKnown = advanceFormationTracker(
+    initialFormationTracker(start, ["subway-rook"]),
+    together,
+  );
+  expect(oneKnown.notice).toEqual({ ids: ["lower-gold"], name: "下段金寄せ" });
 });
