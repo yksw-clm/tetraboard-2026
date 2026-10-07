@@ -87,7 +87,7 @@ export function RoomLayout({
           </AppTabs.List>
           <AppTabs.Panel
             id="board"
-            className="min-w-0 min-h-0 [container-type:size] overflow-auto [@media(min-width:1280px)]:col-start-1 [@media(min-width:1280px)]:row-span-3 [@media(min-width:1280px)]:relative [@media(min-width:1280px)]:flex [@media(min-width:1280px)]:flex-col [@media(min-width:1280px)]:gap-2 col-start-1 row-start-1 p-0 min-w-0 min-h-0 [&[inert]]:hidden [&[hidden]]:hidden"
+            className="min-w-0 min-h-0 [container-type:size] overflow-auto [@media(min-width:1280px)]:col-start-1 [@media(min-width:1280px)]:row-span-3 relative [@media(min-width:1280px)]:flex [@media(min-width:1280px)]:flex-col [@media(min-width:1280px)]:gap-2 col-start-1 row-start-1 p-0 min-w-0 min-h-0 [&[inert]]:hidden [&[hidden]]:hidden"
             shouldForceMount
           >
             {board}
