@@ -169,22 +169,28 @@ export function PlayerProfileTrigger({
         aria-controls={active ? `${id}-card` : undefined}
         onPointerEnter={(event) => {
           if (event.pointerType === "touch") return;
+          if (!flags.current.hovered && !flags.current.focused) flags.current.suppressed = false;
           flags.current.hovered = true;
           clearTimeout(timers.current.close);
           if (!flags.current.suppressed) timers.current.open = setTimeout(() => open(false), 300);
         }}
         onPointerLeave={() => {
           flags.current.hovered = false;
-          if (!flags.current.focused) flags.current.suppressed = false;
           leave();
         }}
         onFocus={() => {
           flags.current.focused = true;
           open(false);
         }}
-        onBlur={() => {
+        onBlur={(event) => {
           flags.current.focused = false;
-          if (!flags.current.hovered) flags.current.suppressed = false;
+          if (
+            !flags.current.hovered &&
+            event.relatedTarget instanceof HTMLElement &&
+            event.relatedTarget !== document.body &&
+            !card.current?.contains(event.relatedTarget)
+          )
+            flags.current.suppressed = false;
           leave();
         }}
         onClick={() => open(true)}

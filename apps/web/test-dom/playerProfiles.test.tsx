@@ -91,6 +91,8 @@ test("outside dismissal stays closed when Popover restores trigger focus, then a
   await flush();
   // FocusScope may restore focus asynchronously when an outside heading is not focusable.
   act(() => button.focus());
+  act(() => button.blur());
+  act(() => button.focus());
   clock.advance(500);
   await flush();
   expect(Boolean(region())).toBe(false);
