@@ -14,6 +14,7 @@ import { useFourShogiRoomReplay } from "./useFourShogiRoomReplay";
 import { useShogiFormationNotice } from "./useShogiFormationNotice";
 import type { useFourShogiRoomSession } from "./useFourShogiRoomSession";
 import type { useRoomChat } from "./useRoomChat";
+import { isRoomSettingsUpdating } from "./roomSettingsPresentation";
 
 export function FourShogiRoomView({
   session,
@@ -142,7 +143,12 @@ export function FourShogiRoomView({
       gameSettings={
         <div className="mb-3">
           <ThreePlayerAttackSetting
-            prohibited={room.settings.threePlayerAttackProhibited}
+            prohibited={
+              isRoomSettingsUpdating(session) &&
+              session.pendingSettingsCommand?.type === "room.three-player-attack.set"
+                ? session.pendingSettingsCommand.prohibited
+                : room.settings.threePlayerAttackProhibited
+            }
             disabled={!session.canManageSettings}
             onChange={session.changeThreePlayerAttack}
           />

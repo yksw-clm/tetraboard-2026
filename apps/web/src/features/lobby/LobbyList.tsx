@@ -12,6 +12,7 @@ type Props = {
   nextCursor: string | null;
   error: string | null;
   loading: boolean;
+  isInitialLoading: boolean;
   moreLoading: boolean;
   pendingSource?: string | null;
   pendingWatchRoomId?: string;
@@ -26,6 +27,7 @@ export function LobbyList({
   nextCursor,
   error,
   loading,
+  isInitialLoading,
   moreLoading,
   pendingSource,
   pendingWatchRoomId,
@@ -65,7 +67,12 @@ export function LobbyList({
           {error}「更新」からもう一度お試しください。
         </p>
       )}
-      {rooms.length === 0 && loading && !pendingSource && (
+      {loading && pendingSource === "refresh" && (
+        <p className="mb-3 text-muted text-[13px]" role="status">
+          公開ルームを読み込んでいます…
+        </p>
+      )}
+      {rooms.length === 0 && isInitialLoading && !pendingSource && (
         <AppCard
           className="flex flex-col items-center justify-center gap-2 min-h-[140px] py-[22px] px-5 border-dashed border-[#d7e1da] rounded-[18px] bg-[#ffffffdf] text-center shadow-none [&_h3]:text-[15px] [&_p]:text-muted [&_p]:text-[13px] [@media(max-width:650px)]:py-5 [@media(max-width:650px)]:px-[18px]"
           role="status"
@@ -73,7 +80,7 @@ export function LobbyList({
           <p>公開ルームを読み込んでいます…</p>
         </AppCard>
       )}
-      {rooms.length === 0 && !loading && !error && (
+      {rooms.length === 0 && !isInitialLoading && !error && (
         <AppCard className="flex flex-col items-center justify-center gap-2 min-h-[140px] py-[22px] px-5 border-dashed border-[#d7e1da] rounded-[18px] bg-[#ffffffdf] text-center shadow-none [&_h3]:text-[15px] [&_p]:text-muted [&_p]:text-[13px] [@media(max-width:650px)]:py-5 [@media(max-width:650px)]:px-[18px]">
           <span className="grid place-items-center shrink-0 size-11 rounded-[13px] text-brand-hover bg-surface-muted">
             <AppIcon name="users" />

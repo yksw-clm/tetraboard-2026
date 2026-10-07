@@ -44,9 +44,9 @@ export function RoomLayout({
   return (
     <>
       {desktop ? (
-        <div className="flex-1 min-w-0 min-h-0 p-3 gap-3 grid grid-cols-[minmax(0,1fr)_360px] grid-rows-[auto_auto_minmax(140px,1fr)]">
+        <div className="flex-1 min-w-0 min-h-0 p-3 gap-3 grid grid-cols-[minmax(0,1fr)_360px] grid-rows-[minmax(0,1fr)]">
           <section
-            className="min-w-0 min-h-0 [container-type:size] overflow-auto col-start-1 row-span-3 relative flex flex-col gap-2"
+            className="min-w-0 min-h-0 [container-type:size] overflow-auto relative flex flex-col gap-2"
             aria-label="盤面とプレイヤー"
           >
             <div className="flex-1 min-w-0 min-h-0 [container-type:size] overflow-auto">
@@ -54,19 +54,15 @@ export function RoomLayout({
             </div>
             {replay}
           </section>
-          <section
-            className="min-w-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-1 [@media(max-width:1279px)]:overflow-y-auto [@media(max-width:767px)]:p-[2px]"
-            aria-label="ルーム"
-          >
-            {info}
-          </section>
-          {status}
-          <section
-            className="min-w-0 min-h-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-3 [@media(max-width:767px)]:p-[2px]"
-            aria-label="チャット"
-          >
-            {chat}
-          </section>
+          <div className="min-w-0 min-h-0 flex flex-col gap-3 overflow-y-auto overscroll-contain">
+            <section className="min-w-0 shrink-0" aria-label="ルーム">
+              {info}
+            </section>
+            {status}
+            <section className="min-w-0 min-h-[140px] flex-1 shrink-0" aria-label="チャット">
+              {chat}
+            </section>
+          </div>
         </div>
       ) : (
         <AppTabs
