@@ -22,8 +22,8 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
-  const submissionId = useRef<string | null>(null);
-  if (submissionId.current === null) submissionId.current = createUuid();
+  const [initialSubmissionId] = useState(createUuid);
+  const submissionId = useRef(initialSubmissionId);
   const locked = useRef(false);
   const frozenInput = useRef<FeedbackInput | null>(null);
   const alive = useRef(true);

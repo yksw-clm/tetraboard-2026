@@ -24,19 +24,18 @@ import {
   finishedShogiRound,
 } from "../test/fixtures/fourShogiFixtures";
 import { act, clock, flush, renderHook, requests, wrap } from "./harness";
-import { Socket } from "./socket";
+import { installSocket, Socket } from "./socket";
 
-const originalWebSocket = globalThis.WebSocket;
+let restoreSocket: () => void;
 let play: ReturnType<typeof spyOn<typeof roomSounds, "play">>;
 let join: ReturnType<typeof spyOn<typeof roomSounds, "playJoin">>;
 beforeEach(() => {
-  Socket.instances = [];
-  globalThis.WebSocket = Socket as unknown as typeof WebSocket;
+  restoreSocket = installSocket();
   play = spyOn(roomSounds, "play").mockImplementation(() => {});
   join = spyOn(roomSounds, "playJoin").mockImplementation(() => {});
 });
 afterEach(() => {
-  globalThis.WebSocket = originalWebSocket;
+  restoreSocket();
   play.mockRestore();
   join.mockRestore();
 });

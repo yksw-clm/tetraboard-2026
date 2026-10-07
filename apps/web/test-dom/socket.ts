@@ -1,4 +1,3 @@
-import { beforeEach, afterEach } from "bun:test";
 import { act } from "./harness";
 import { now, playerIds } from "../test/fixtures/rooms";
 import type { Room } from "@tetraboard/protocol";
@@ -45,11 +44,11 @@ export class Socket {
     this.onclose?.();
   }
 }
-const original = globalThis.WebSocket;
-beforeEach(() => {
+export function installSocket() {
+  const original = globalThis.WebSocket;
   Socket.instances = [];
   globalThis.WebSocket = Socket as unknown as typeof WebSocket;
-});
-afterEach(() => {
-  globalThis.WebSocket = original;
-});
+  return () => {
+    globalThis.WebSocket = original;
+  };
+}
