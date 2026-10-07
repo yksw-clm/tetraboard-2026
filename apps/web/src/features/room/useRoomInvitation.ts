@@ -11,6 +11,7 @@ import {
 } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { roomSounds } from "../../shared/soundEffects";
+import { readGuestName } from "../../shared/guestName";
 
 export function joinUnavailableReason(room: Room): string | null {
   if (room.status === "playing") return "対局中のため、今は観戦のみできます。";
@@ -48,7 +49,7 @@ export function useRoomInvitation(
       // 保存領域が利用できない場合も、ダイアログを閉じて観戦できます。
     }
   }, [autoJoin, storageKey]);
-  const [name, setName] = useState(restored?.joinName ?? "");
+  const [name, setName] = useState(() => restored?.joinName ?? readGuestName());
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
