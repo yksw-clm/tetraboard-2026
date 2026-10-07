@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { fourReversiMatchDetailSchema } from "@tetraboard/protocol";
-import { replayMatch } from "../browser-tests/matchReplayFixtures";
+import { replayMatch } from "./fixtures/matchReplayFixtures";
 import { matchSeats, replayPlayerDetails } from "../src/features/room/roomPresentation";
 import { replayFrames } from "../src/features/room/replayFrames";
 

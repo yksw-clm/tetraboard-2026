@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "incremental": false,
+    "types": ["bun", "vite/client"]
+  },
+  "include": [
+    "test-dom",
+    "test/sessionBehavior.test.ts",
+    "test/matchReplayLoader.test.ts",
+    "../../test-support/dom.ts"
+  ]
+}

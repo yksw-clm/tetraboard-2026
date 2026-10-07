@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { isFourReversiRoom, isFourShogiRoom, roomSocketContract } from "@tetraboard/protocol";
 import { roomSnapshotFor } from "../src/features/room/roomSnapshot";
-import { waitingRoom, now, playerIds } from "../browser-tests/fixtures";
-import { waitingShogiRoom } from "../browser-tests/fourShogiFixtures";
+import { waitingRoom, now, playerIds } from "./fixtures/rooms";
+import { waitingShogiRoom } from "./fixtures/fourShogiFixtures";
 
 for (const [game, room, other, guard] of [
   ["four-reversi", waitingRoom(), waitingShogiRoom(), isFourReversiRoom],

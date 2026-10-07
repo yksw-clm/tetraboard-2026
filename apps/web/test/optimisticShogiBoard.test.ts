@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { applyAction, getLegalActions, sides } from "@tetraboard/four-shogi";
-import { publicShogiState, tacticalShogiState } from "../browser-tests/fourShogiFixtures";
+import { publicShogiState, tacticalShogiState } from "./fixtures/fourShogiFixtures";
 import { optimisticShogiBoard } from "../src/features/room/optimisticShogiBoard";
 
 test("各陣営の合法手の盤・持ち駒はエンジンと一致し、確定情報と入力は変更しない", () => {

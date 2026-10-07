@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.app.json",
-  "compilerOptions": {
-    "types": ["node"],
-    "lib": ["ES2023", "DOM"]
-  },
-  "include": ["playwright*.config.ts", "browser-tests"]
-}

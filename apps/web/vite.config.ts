@@ -1,4 +1,5 @@
 import { gameChunks } from "./build/gameChunks.ts";
+import { webpAssets } from "./build/webpAssets.ts";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
@@ -12,7 +13,13 @@ const revision =
 // https://vite.dev/config/
 export default defineConfig({
   define: { "import.meta.env.VITE_APP_REVISION": JSON.stringify(revision) },
-  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss(), gameChunks()],
+  plugins: [
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+    tailwindcss(),
+    gameChunks(),
+    webpAssets(),
+  ],
   optimizeDeps: { exclude: ["@jsquash/webp"] },
   server: {
     host: "0.0.0.0",
