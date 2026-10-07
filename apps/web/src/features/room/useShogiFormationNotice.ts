@@ -1,4 +1,4 @@
-import { detectFormations, formationAnalysisVersion } from "@tetraboard/four-shogi";
+import { detectFormations, formationAnalysisVersion, formationIds } from "@tetraboard/four-shogi";
 import type { FourShogiRoom } from "@tetraboard/protocol";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { advanceFormationTracker, initialFormationTracker } from "./shogiFormationNotice";
@@ -13,8 +13,8 @@ function readSeen(key: string, scope: string | null): string[] {
       data.scope === scope &&
       "seen" in data &&
       Array.isArray(data.seen) &&
-      data.seen.length <= 6 &&
-      data.seen.every((id) => typeof id === "string")
+      data.seen.length <= formationIds.length &&
+      data.seen.every((id) => typeof id === "string" && formationIds.some((known) => known === id))
     )
       return data.seen;
   } catch {

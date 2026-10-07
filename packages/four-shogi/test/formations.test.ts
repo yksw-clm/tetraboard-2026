@@ -5,6 +5,7 @@ import {
   formationCases,
   formationSquare,
   formationState,
+  type FixtureFormationId,
 } from "../../../test-fixtures/shogiFormations";
 
 for (const fixture of formationCases)
@@ -26,14 +27,18 @@ for (const fixture of formationCases)
         if (!result.ok) throw new Error(result.reason);
         const frozen = JSON.stringify(result.state);
         const matches = detectFormations(result.state, side);
-        expect(matches).toHaveLength(1);
-        expect(matches[0]).toMatchObject({ id: fixture.id, name: fixture.name });
-        expect(matches[0].matchedSquares).toEqual(
+        const expectedIds: FixtureFormationId[] = ["subway-rook", "lower-gold"].includes(fixture.id)
+          ? ["subway-rook", "lower-gold"]
+          : [fixture.id];
+        expect(matches.map((match) => match.id)).toEqual(expectedIds);
+        const match = matches.find((entry) => entry.id === fixture.id)!;
+        expect(match).toMatchObject({ id: fixture.id, name: fixture.name });
+        expect(match.matchedSquares).toEqual(
           Object.values(fixture.pieces)
             .flat()
             .map((square) => formationSquare(square, side)),
         );
-        for (const square of matches[0].matchedSquares)
+        for (const square of match.matchedSquares)
           expect(result.state.board[square.y][square.x]?.side).toBe(side);
         expect(JSON.stringify(result.state)).toBe(frozen);
       });
@@ -77,7 +82,7 @@ for (const fixture of formationCases) {
       board,
       hands: { ...state.hands, south: { pawn: 5, silver: 2, gold: 2, rook: 1 } },
     };
-    expect(detectFormations(extra, "south")[0]?.id).toBe(fixture.id);
+    expect(detectFormations(extra, "south").map((match) => match.id)).toContain(fixture.id);
     expect(
       detectFormations(
         { ...state, eliminations: [{ side: "south", reason: "timeout", rank: 4, group: 1 }] },
@@ -89,7 +94,7 @@ for (const fixture of formationCases) {
     expect(detectFormations({ ...state, board: shifted }, "south")).toEqual([]);
     const reflected = state.board.map((row) => [...row].reverse());
     // 左右対称な形は盤面そのものが同一です。非対称な形だけを反転の否定例にします。
-    if (["subway-rook", "right-king", "riggtosfar", "floating-rook"].includes(fixture.id))
+    if (!["tenshukaku", "e-shape", "five"].includes(fixture.id))
       expect(detectFormations({ ...state, board: reflected }, "south")).toEqual([]);
   });
 }

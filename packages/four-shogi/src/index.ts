@@ -16,7 +16,12 @@ import type {
 } from "./types";
 
 export type { RepetitionLookup } from "./repetition";
-export { detectFormations, formationAnalyzerId, formationAnalysisVersion } from "./formations";
+export {
+  detectFormations,
+  formationAnalyzerId,
+  formationAnalysisVersion,
+  formationIds,
+} from "./formations";
 export type { FormationPosition, FormationId, FormationMatch } from "./formations";
 export { getActiveSides, sides, handPieceKinds } from "./types";
 export { getCheckState } from "./board";
