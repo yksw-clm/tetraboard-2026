@@ -23,6 +23,7 @@ import type { RegistrationEntryDraft } from "../account/registrationReturn";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { Link } from "react-router";
 import { sortedUpdates } from "../updates/updates";
+import { GameIntroduction } from "../../seo/GameIntroduction";
 
 type Props = {
   registrationDraft?: RegistrationEntryDraft;
@@ -243,6 +244,7 @@ export function LobbyView(props: Props) {
           <div className="grid grid-cols-2 gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
             {order.map((section) => sections[section])}
           </div>
+          <GameIntroduction game={props.game} />
           <footer className="mt-0 pt-[14px] pb-5 border-t border-solid border-lobby-footer-line text-muted text-xs text-center">
             <div className="flex flex-wrap justify-center items-center gap-3">
               <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />

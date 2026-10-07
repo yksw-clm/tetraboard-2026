@@ -14,6 +14,7 @@ import { roomRoutes } from "./rooms/roomRoutes";
 import { deleteExpiredReports } from "./rooms/reportStore";
 import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
 import { cleanupFeedback } from "./feedback/store";
+import { servePublicAssets } from "./publicAssets";
 
 export { GameRoom } from "./rooms/gameRoom";
 
@@ -82,6 +83,7 @@ export default {
         const asset = await env.ASSETS.fetch(new Request(assetUrl, request));
         const headers = new Headers(asset.headers);
         headers.set("Cache-Control", "no-store");
+        headers.set("X-Robots-Tag", "noindex, nofollow");
         return new Response(asset.body, { status: asset.status, headers });
       }
       if (url.pathname === "/profile")
@@ -91,15 +93,7 @@ export default {
           new URL(gameCatalog[defaultGameId].lobbyPath, request.url).toString(),
           302,
         );
-      if (/^\/matches\/[^/]+\/?$/.test(assetPath)) {
-        const assetUrl = new URL(request.url);
-        assetUrl.pathname = "/index.html";
-        const asset = await env.ASSETS.fetch(new Request(assetUrl, request));
-        const headers = new Headers(asset.headers);
-        headers.set("X-Robots-Tag", "noindex, follow");
-        return new Response(asset.body, { status: asset.status, headers });
-      }
-      return env.ASSETS.fetch(request);
+      return servePublicAssets(request, env.ASSETS, assetPath);
     }
     return app.fetch(request, env, context);
   },

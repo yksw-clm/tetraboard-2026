@@ -21,20 +21,20 @@ test("本番の画面・画像をアセットへ渡し、APIと旧プロフィ�
     fetch: async (request: Request) => new Response(`asset:${new URL(request.url).pathname}`),
   } as Fetcher;
   const production = { ...env, APP_ORIGIN: "https://tetraboard.net" as const, ASSETS: assets };
-  for (const path of [
-    "/rooms/12345",
-    "/account/matches/example",
-    "/games/four-shogi",
-    "/assets/logo.svg",
-    "/assets/webp_enc-example.wasm",
-    "/assets/webp_enc_simd-example.wasm",
+  for (const [path, target] of [
+    ["/rooms/12345", "/index.html"],
+    ["/account/matches/example", "/index.html"],
+    ["/games/four-shogi", "/games/four-shogi/index.html"],
+    ["/assets/logo.svg", "/assets/logo.svg"],
+    ["/assets/webp_enc-example.wasm", "/assets/webp_enc-example.wasm"],
+    ["/assets/webp_enc_simd-example.wasm", "/assets/webp_enc_simd-example.wasm"],
   ]) {
     const response = await worker.fetch(
       new Request(`https://tetraboard.net${path}`),
       production,
       {} as ExecutionContext,
     );
-    expect(await response.text()).toBe(`asset:${path}`);
+    expect(await response.text()).toBe(`asset:${target}`);
   }
   const health = await worker.fetch(
     new Request("https://tetraboard.net/api/healthz"),

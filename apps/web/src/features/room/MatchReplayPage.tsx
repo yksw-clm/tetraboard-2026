@@ -2,7 +2,7 @@ import { gameCatalog, defaultGameId } from "@tetraboard/protocol/games";
 import { replayViews } from "./replayViews";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { gameThemes } from "../../shared/ui/appTheme";
-import { Suspense, useEffect } from "react";
+import { Suspense } from "react";
 import { assertNever } from "@tetraboard/protocol";
 import {
   isRouteErrorResponse,
@@ -29,25 +29,7 @@ function Replay({ data }: { data: MatchReplayData }) {
       return assertNever(data);
   }
 }
-function usePublicReplayMetadata() {
-  const location = useLocation();
-  useEffect(() => {
-    if (!location.pathname.startsWith("/matches/")) return;
-    const existing = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    const meta = existing ?? document.createElement("meta");
-    const previous = meta.content;
-    meta.name = "robots";
-    meta.content = "noindex,follow";
-    if (!existing) document.head.append(meta);
-    return () => {
-      if (existing) meta.content = previous;
-      else meta.remove();
-    };
-  }, [location.pathname]);
-}
-
 export function MatchReplayPage() {
-  usePublicReplayMetadata();
   const data = useLoaderData<MatchReplayData>();
   return (
     <Suspense
@@ -59,7 +41,6 @@ export function MatchReplayPage() {
 }
 
 export function MatchReplayErrorPage() {
-  usePublicReplayMetadata();
   const error = useRouteError();
   const navigate = useNavigate();
   const location = useLocation();
