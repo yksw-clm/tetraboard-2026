@@ -36,17 +36,24 @@ export function AccountPageShell({
   layout = "form",
   game = defaultGameId,
   navigation,
+  modeTabs,
 }: {
   children: ReactNode;
   layout?: "form" | "profile";
   game?: GameId;
   navigation?: ReactNode;
+  modeTabs?: ReactNode;
 }) {
   const profileLayout = layout === "profile";
   const lobbyLink = (
     <AppButtonLink
       to={gameCatalog[profileLayout ? game : defaultGameId].lobbyPath}
       appearance={profileLayout ? "secondary" : "quiet"}
+      className={
+        profileLayout
+          ? "col-start-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-start-3"
+          : undefined
+      }
     >
       ロビーへ
     </AppButtonLink>
@@ -73,8 +80,13 @@ export function AccountPageShell({
           )}
         >
           {profileLayout && (
-            <div className="flex items-center justify-between gap-3">
-              {navigation}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-5 [@media(min-width:651px)]:grid-cols-[auto_minmax(0,1fr)_auto]">
+              <div className="col-start-1 row-start-1">{navigation}</div>
+              {modeTabs && (
+                <div className="col-span-2 col-start-1 row-start-2 min-w-0 [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-2 [@media(min-width:651px)]:row-start-1 [@media(min-width:651px)]:max-w-[360px]">
+                  {modeTabs}
+                </div>
+              )}
               {lobbyLink}
             </div>
           )}
@@ -233,41 +245,46 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   if (!setup && !user.profileCompleted) return <Navigate to="/account/setup" replace />;
   if (!setup)
     return (
-      <AccountPageShell
-        layout="profile"
-        game={game}
-        navigation={<AccountGameMenu game={game} onChange={setGame} />}
+      <AppTabs
+        selectedKey={mode}
+        onSelectionChange={(key) => setMode(key as RoomMode)}
+        className="contents"
       >
-        {error && <AccountStatus />}
-        <AppTabs
-          selectedKey={mode}
-          onSelectionChange={(key) => setMode(key as RoomMode)}
-          className="flex flex-col gap-5"
+        <AccountPageShell
+          layout="profile"
+          game={game}
+          navigation={<AccountGameMenu game={game} onChange={setGame} />}
+          modeTabs={
+            <AppTabs.List aria-label="プロフィールの対局モード">
+              {(["singles", "doubles"] as const).map((tab) => (
+                <AppTabs.Tab
+                  key={tab}
+                  id={tab}
+                  render={(props) =>
+                    "href" in props ? (
+                      <a {...props} aria-controls={props["aria-selected"] ? panelId : undefined} />
+                    ) : (
+                      <div
+                        {...props}
+                        aria-controls={props["aria-selected"] ? panelId : undefined}
+                      />
+                    )
+                  }
+                >
+                  {tab === "singles" ? "シングルス" : "ダブルス"}
+                  <AppTabs.Indicator />
+                </AppTabs.Tab>
+              ))}
+            </AppTabs.List>
+          }
         >
-          <AppTabs.List aria-label="プロフィールの対局モード">
-            {(["singles", "doubles"] as const).map((tab) => (
-              <AppTabs.Tab
-                key={tab}
-                id={tab}
-                render={(props) =>
-                  "href" in props ? (
-                    <a {...props} aria-controls={props["aria-selected"] ? panelId : undefined} />
-                  ) : (
-                    <div {...props} aria-controls={props["aria-selected"] ? panelId : undefined} />
-                  )
-                }
-              >
-                {tab === "singles" ? "シングルス" : "ダブルス"}
-                <AppTabs.Indicator />
-              </AppTabs.Tab>
-            ))}
-          </AppTabs.List>
+          {error && <AccountStatus />}
           {/* 選択パネルを取り外さず、タブの参照先を同じDOMにそろえます。 */}
           <AppTabs.Panel id={mode} render={(props) => <div {...props} id={panelId} />}>
             <AccountProfileView user={user} game={game} mode={mode} />
           </AppTabs.Panel>
-        </AppTabs>
-      </AccountPageShell>
+        </AccountPageShell>
+      </AppTabs>
     );
   return (
     <AccountPageShell>
