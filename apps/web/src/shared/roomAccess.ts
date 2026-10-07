@@ -10,6 +10,7 @@ import {
   fetchRoomMembership,
   saveRoomMembershipToken,
 } from "./roomMembership";
+import { saveGuestName } from "./guestName";
 
 export const roomChangedMessage =
   "このルームは閉鎖されています。新しい招待リンクを確認するか、ロビーへ戻ってください。";
@@ -122,5 +123,6 @@ export async function joinRoom(
   if (!saveRoomMembershipToken(id, result.membership.token)) {
     throw new RoomEntryError("参加情報を保存できませんでした。ブラウザの設定を確認してください。");
   }
+  saveGuestName(request.data.name);
   return { joined: true, room: result.room, membership: result.membership };
 }

@@ -18,6 +18,7 @@ import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/ro
 import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
+import { readGuestName, saveGuestName } from "../../shared/guestName";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
@@ -49,7 +50,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
   const navigate = useNavigate();
   const account = useAccount();
   const restored = useRegistrationRestore();
-  const [name, setName] = useState(restored?.entry?.name ?? "");
+  const [name, setName] = useState(() => restored?.entry?.name ?? readGuestName());
   const [roomCode, setRoomCode] = useState(restored?.entry?.roomCode ?? "");
   const [timeControl, setTimeControl] = useState<RoomTimeControl>(
     restored?.entry?.timeControl ?? roomTimeControl,
@@ -132,6 +133,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         if (!saveRoomMembershipToken(result.room.id, result.membership.token)) {
           throw new Error("Failed to store membership");
         }
+        saveGuestName(request.data.name);
         roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         await navigate(getRoomContract.pathFor(result.room.id));
       } else {
