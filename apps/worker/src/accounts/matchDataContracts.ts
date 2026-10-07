@@ -18,6 +18,7 @@ import {
   type FourReversiMatchSummary,
   type FourShogiMatchSummary,
 } from "@tetraboard/protocol";
+import type { ParticipantProfiles } from "./matchProfiles";
 import type { MatchRecord } from "../rooms/matchStore";
 import type { ShogiMatchRecord } from "../rooms/shogiMatchStore";
 
@@ -42,12 +43,9 @@ export type MatchDataContract<G extends GameId> = {
   detail: (
     record: RecordFor<G>,
     selfPlayerId: string,
-    avatars: Map<string, string | null>,
+    profiles: ParticipantProfiles,
   ) => MatchFor<G>;
-  summary: (
-    record: RecordFor<G>,
-    avatars: Map<string, string | null>,
-  ) => MatchDataMap[G]["summary"];
+  summary: (record: RecordFor<G>, profiles: ParticipantProfiles) => MatchDataMap[G]["summary"];
   stats: (value: unknown) => StatsFor<G>;
   rankings: (value: unknown) => RankingsFor<G>;
 };
@@ -83,56 +81,56 @@ const shogiRecordSchema = z
   })
   .omit({ selfPlayerId: true });
 function publicIdentity(
-  player: { kind: "human"; accountId: string | null } | { kind: "cpu"; level: 1 | 2 },
-  avatars: Map<string, string | null>,
-): { kind: "human"; avatarUrl: string | null } | { kind: "cpu"; level: 1 | 2 } {
-  return player.kind === "human"
-    ? {
-        kind: "human",
-        avatarUrl: player.accountId ? (avatars.get(player.accountId) ?? null) : null,
-      }
-    : { kind: "cpu", level: player.level };
+  player: { name: string } & (
+    | { kind: "human"; accountId: string | null }
+    | { kind: "cpu"; level: 1 | 2 }
+  ),
+  profiles: ParticipantProfiles,
+):
+  | { name: string; kind: "human"; avatarUrl: string | null }
+  | { name: string; kind: "cpu"; level: 1 | 2 } {
+  if (player.kind === "cpu") return { name: player.name, kind: "cpu", level: player.level };
+  const profile = player.accountId ? profiles.get(player.accountId) : undefined;
+  return {
+    name: profile?.name ?? player.name,
+    kind: "human",
+    avatarUrl: profile?.avatarUrl ?? null,
+  };
 }
-function reversiPublic(record: MatchRecord, avatars: Map<string, string | null>) {
+function reversiPublic(record: MatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => ({
     id: p.id,
-    name: p.name,
     color: p.color,
     seat: p.seat,
-    ...publicIdentity(p, avatars),
+    ...publicIdentity(p, profiles),
   }));
 }
-function shogiPublic(record: ShogiMatchRecord, avatars: Map<string, string | null>) {
+function shogiPublic(record: ShogiMatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => ({
     id: p.id,
-    name: p.name,
     side: p.side,
     seat: p.seat,
-    ...publicIdentity(p, avatars),
+    ...publicIdentity(p, profiles),
   }));
 }
-function reversiDetail(
-  record: MatchRecord,
-  selfPlayerId: string,
-  avatars: Map<string, string | null>,
-) {
+function reversiDetail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
   const { instanceId: _instance, ...data } = record;
   return fourReversiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,
-    participants: reversiPublic(record, avatars),
+    participants: reversiPublic(record, profiles),
   });
 }
 function shogiDetail(
   record: ShogiMatchRecord,
   selfPlayerId: string,
-  avatars: Map<string, string | null>,
+  profiles: ParticipantProfiles,
 ) {
   const { instanceId: _instance, ...data } = record;
   return fourShogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,
-    participants: shogiPublic(record, avatars),
+    participants: shogiPublic(record, profiles),
   });
 }
 export function readFourReversiMatchRecord(json: string): MatchRecord {
@@ -153,14 +151,14 @@ export const matchDataContracts = {
   "four-reversi": {
     read: readFourReversiMatchRecord,
     detail: reversiDetail,
-    summary: (record: MatchRecord, avatars: Map<string, string | null>) =>
+    summary: (record: MatchRecord, profiles: ParticipantProfiles) =>
       fourReversiMatchSummarySchema.parse({
         id: record.id,
         game: record.settings.game,
         mode: record.settings.mode,
         startedAtMs: record.startedAtMs,
         endedAtMs: record.endedAtMs,
-        participants: reversiPublic(record, avatars),
+        participants: reversiPublic(record, profiles),
         result: record.game.result,
       }),
     stats: (value: unknown) => fourReversiAccountStatsSchema.parse(value),
@@ -169,14 +167,14 @@ export const matchDataContracts = {
   "four-shogi": {
     read: readFourShogiMatchRecord,
     detail: shogiDetail,
-    summary: (record: ShogiMatchRecord, avatars: Map<string, string | null>) =>
+    summary: (record: ShogiMatchRecord, profiles: ParticipantProfiles) =>
       fourShogiMatchSummarySchema.parse({
         id: record.id,
         game: record.settings.game,
         mode: record.settings.mode,
         startedAtMs: record.startedAtMs,
         endedAtMs: record.endedAtMs,
-        participants: shogiPublic(record, avatars),
+        participants: shogiPublic(record, profiles),
         result: record.game.result,
       }),
     stats: (value: unknown) => fourShogiAccountStatsSchema.parse(value),
@@ -200,12 +198,12 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
     }
   }
 }
-export function matchSummary(match: DecodedMatch, avatars: Map<string, string | null>) {
+export function matchSummary(match: DecodedMatch, profiles: ParticipantProfiles) {
   switch (match.game) {
     case "four-reversi":
-      return matchDataContracts[match.game].summary(match.record, avatars);
+      return matchDataContracts[match.game].summary(match.record, profiles);
     case "four-shogi":
-      return matchDataContracts[match.game].summary(match.record, avatars);
+      return matchDataContracts[match.game].summary(match.record, profiles);
     default: {
       const exhaustive: never = match;
       throw new Error(`Unsupported match: ${exhaustive}`);
@@ -215,13 +213,13 @@ export function matchSummary(match: DecodedMatch, avatars: Map<string, string | 
 export function matchDetail(
   match: DecodedMatch,
   selfPlayerId: string,
-  avatars: Map<string, string | null>,
+  profiles: ParticipantProfiles,
 ) {
   switch (match.game) {
     case "four-reversi":
-      return matchDataContracts[match.game].detail(match.record, selfPlayerId, avatars);
+      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "four-shogi":
-      return matchDataContracts[match.game].detail(match.record, selfPlayerId, avatars);
+      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     default: {
       const exhaustive: never = match;
       throw new Error(`Unsupported match: ${exhaustive}`);
@@ -229,11 +227,11 @@ export function matchDetail(
   }
 }
 
-export function publicMatchDetail(match: DecodedMatch, avatars: Map<string, string | null>) {
+export function publicMatchDetail(match: DecodedMatch, profiles: ParticipantProfiles) {
   const { selfPlayerId: _self, ...detail } = matchDetail(
     match,
     match.record.participants[0].id,
-    avatars,
+    profiles,
   );
   return detail;
 }

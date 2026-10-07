@@ -56,7 +56,7 @@ for (const mode of ["singles", "doubles"] as const) {
   });
 }
 
-test("名前は開始時、アイコンは現在のプロフィールを使う", async () => {
+test("名前とアイコンは現在のプロフィールを使う", async () => {
   const user = await accountFixture();
   const record = fixtureRecord(user.id, 2);
   await writeMatch(env.APP_DB, record);
@@ -66,7 +66,7 @@ test("名前は開始時、アイコンは現在のプロフィールを使う",
     .run();
   const read = async () => reversiDetail(await (await detail(record.id, user.cookie)).json()).match;
   expect((await read()).participants[0]).toMatchObject({
-    name: "開始時の名前",
+    name: "変更後",
     avatarUrl: `/api/avatars/${key.slice(8, -5)}`,
   });
   await env.APP_DB.prepare("UPDATE user SET avatarKey = NULL WHERE id = ?").bind(user.id).run();

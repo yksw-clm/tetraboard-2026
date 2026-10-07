@@ -126,7 +126,7 @@ test("将棋一覧は本人・ゲーム・モードを絞り、同時刻のUUID�
   }
 });
 
-test("保存棋譜は開始時の本人だけが取得でき、名前と現在のアイコンを返し非公開情報を出さない", async () => {
+test("保存棋譜は開始時の本人だけが取得でき、現在の名前とアイコンを返し非公開情報を出さない", async () => {
   const user = await accountFixture(),
     other = await accountFixture();
   const fixture = shogiRecord(user.id, "east");
@@ -146,7 +146,7 @@ test("保存棋譜は開始時の本人だけが取得でき、名前と現在�
   expect(match.selfPlayerId).toBe(fixture.record.replay.initial.players.east);
   expect(match.game).toEqual(fixture.record.game);
   expect(match.participants.find((player) => player.id === match.selfPlayerId)).toMatchObject({
-    name: "開始時の名前",
+    name: "変更した名前",
     side: "east",
     avatarUrl: `/api/avatars/${avatar}`,
   });

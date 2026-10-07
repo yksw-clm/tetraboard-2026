@@ -136,7 +136,12 @@ test("指定UIDの本人だけを紐付け、D1保存・再実行・履歴・戦
   expect(response.status).toBe(200);
   const detail = getMatchContract.response.parse(await response.json()).match;
   expect(detail.settings.timeControl).toBeNull();
-  expect(detail.participants.find((p) => p.seat === 1)?.name).toBe("O'Brien");
+  expect(detail.participants.find((p) => p.seat === 1)?.name).toBe("登録名");
+  expect(
+    JSON.parse(target.matches[0]!.record_json).participants.find(
+      (p: { seat: number }) => p.seat === 1,
+    ).name,
+  ).toBe("O'Brien");
   expect(JSON.stringify(detail)).not.toContain(user.id);
   expect(JSON.stringify(detail)).not.toContain("fixture-seat-");
   const statsResponse = await matchRequest("/account/stats?game=four-reversi", {
