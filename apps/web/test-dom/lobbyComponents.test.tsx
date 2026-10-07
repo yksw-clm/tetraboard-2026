@@ -34,7 +34,7 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
   for (const game of ["four-reversi", "four-shogi"] as const) {
     const view = render(<LobbyRankings game={game} />);
     clock.advance(0);
-    expect(requests.at(-1)!.url).toBe(`/api/games/${game}/rankings`);
+    expect(requests.at(-1)!.url).toBe(`/api/games/${game}/rankings?profilePreview=1`);
     expect(view.textContent).toContain("読み込んで");
     requests.at(-1)!.respond(rankings);
     await flush();
@@ -98,7 +98,7 @@ test("ロビーの幅通知はセクションのDOM順だけを変え、ラン�
     };
     const view = render(wrap()(<LobbyView {...props} />));
     clock.advance(0);
-    const request = requests.find((r) => r.url.endsWith("/rankings"))!;
+    const request = requests.find((r) => r.url.endsWith("/rankings?profilePreview=1"))!;
     request.respond(rankings);
     await flush();
     const ranking = view.querySelector('section[aria-labelledby="lobby-rankings-title"]')!;

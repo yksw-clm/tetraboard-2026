@@ -696,27 +696,33 @@ export class GameRoom extends DurableObject<Env> {
     return page ? { status: "found", page } : { status: "not_found" };
   }
 
-  private publicMetadata(room: Room): RoomPublicMetadata {
+  private publicMetadata(
+    room: Room,
+  ): RoomPublicMetadata & { instanceId: string; hostPlayerId: string | null } {
     const host = room.players.find((player) => {
       if (player.kind !== "human") return false;
       const tokenHash = this.playerTokenHash(player.id);
       return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
     });
     const humanCount = room.players.filter((player) => player.kind === "human").length;
-    return roomPublicMetadataSchema.parse({
-      id: room.id,
-      game: room.settings.game,
-      mode: room.settings.mode,
-      timeControl: room.settings.timeControl,
-      status: room.status,
-      hostName: host?.name ?? null,
-      hostAvatarUrl: host?.kind === "human" ? host.avatarUrl : null,
-      humanCount,
-      cpuCount: room.players.length - humanCount,
-      capacity: 4,
-      openSeats: room.status === "waiting" ? 4 - room.players.length : 0,
-      updatedAtMs: room.publicUpdatedAtMs,
-    });
+    return {
+      instanceId: room.instanceId,
+      hostPlayerId: host?.id ?? null,
+      ...roomPublicMetadataSchema.parse({
+        id: room.id,
+        game: room.settings.game,
+        mode: room.settings.mode,
+        timeControl: room.settings.timeControl,
+        status: room.status,
+        hostName: host?.name ?? null,
+        hostAvatarUrl: host?.kind === "human" ? host.avatarUrl : null,
+        humanCount,
+        cpuCount: room.players.length - humanCount,
+        capacity: 4,
+        openSeats: room.status === "waiting" ? 4 - room.players.length : 0,
+        updatedAtMs: room.publicUpdatedAtMs,
+      }),
+    };
   }
 
   private withIndexTransaction<T>(action: () => T): T {
@@ -919,11 +925,26 @@ export class GameRoom extends DurableObject<Env> {
         };
   }
 
-  async getPublicMetadata(): Promise<RoomPublicMetadata | null> {
+  async resolvePlayerProfile(instanceId: string, playerId: string) {
+    const room = await this.getRoom();
+    if (!room) return { status: "not_found" as const };
+    if (room.instanceId !== instanceId) return { status: "room_changed" as const };
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) return { status: "not_found" as const };
+    return {
+      status: "found" as const,
+      game: room.settings.game,
+      player,
+      accountId: this.storedAccount(playerId)?.accountId ?? null,
+    };
+  }
+
+  async getPublicMetadata(profilePreview = false) {
     await this.reconcileDeadlines();
     const room = this.readRoom();
     if (room === null) return null;
-    return this.publicMetadata(room);
+    const { instanceId, hostPlayerId, ...metadata } = this.publicMetadata(room);
+    return { ...metadata, ...(profilePreview ? { instanceId, hostPlayerId } : {}) };
   }
 
   async getRoomMembership(

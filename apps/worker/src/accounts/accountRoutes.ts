@@ -178,17 +178,19 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     avatarKey = null;
     image = null;
   }
+  let publicProfileId = user.publicProfileId ?? crypto.randomUUID();
   let changed = false;
   try {
     // 同時編集で参照中の画像を消さず、旧画像の削除待ちをプロフィールと同時に保存します。
-    const results = await c.env.APP_DB.batch([
-      c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, updatedAt = ?
-        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? RETURNING id`).bind(
+    const results = await c.env.APP_DB.batch<{ id: string; publicProfileId: string }>([
+      c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
+        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? RETURNING id, publicProfileId`).bind(
         input.data.name,
         input.data.username,
         image,
         avatarKey,
         Date.now(),
+        publicProfileId,
         user.id,
         expectedCompleted,
         user.avatarKey,
@@ -198,6 +200,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
       ).bind(user.avatarKey, user.avatarKey, user.avatarKey, avatarKey),
     ]);
     changed = results[0].results.length === 1;
+    if (changed) publicProfileId = String(results[0].results[0]!.publicProfileId);
   } catch (err) {
     if (uploadedKey) await c.env.OBJECT_STORAGE.delete(uploadedKey);
     if (err instanceof Error && /unique/i.test(err.message))
@@ -209,7 +212,16 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     return c.json(error("設定が更新されています。ページを開き直してください。"), 409);
   }
   c.executionCtx.waitUntil(deleteUnusedAvatars(c.env));
-  return c.json(publicProfile({ ...user, ...input.data, profileCompleted: 1, image, avatarKey }));
+  return c.json(
+    publicProfile({
+      ...user,
+      ...input.data,
+      profileCompleted: 1,
+      image,
+      avatarKey,
+      publicProfileId,
+    }),
+  );
 });
 export async function deleteUnusedAvatars(env: Env) {
   const rows = await env.APP_DB.prepare("SELECT key FROM avatar_deletions LIMIT 100").all<{

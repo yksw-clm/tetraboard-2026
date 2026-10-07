@@ -1,5 +1,6 @@
 import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/matchReplayLoader";
 import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
+import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
 import { createBrowserRouter, Link, Navigate } from "react-router";
@@ -34,7 +35,11 @@ export const lobbyRoutes = {
 };
 export const router = createBrowserRouter([
   {
-    Component: AccountLayout,
+    Component: () => (
+      <PlayerProfileProvider>
+        <AccountLayout />
+      </PlayerProfileProvider>
+    ),
     children: [
       { path: "/feedback", Component: FeedbackPage },
       { path: "/updates", Component: UpdatesPage },

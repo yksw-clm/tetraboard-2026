@@ -1,13 +1,14 @@
+import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Chip } from "@heroui/react";
-import { type RoomPublicMetadata } from "@tetraboard/protocol";
+import { type PreviewRoomMetadata } from "@tetraboard/protocol";
 import { AppIcon } from "../../shared/ui/AppIcon";
 
 type Props = {
-  rooms: RoomPublicMetadata[];
+  rooms: PreviewRoomMetadata[];
   nextCursor: string | null;
   error: string | null;
   loading: boolean;
@@ -101,10 +102,29 @@ export function LobbyList({
                   <li key={room.id}>
                     <AppCard className="grid grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px] items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white">
                       <div className="flex items-center min-w-0 gap-3">
-                        <AppAvatar src={room.hostAvatarUrl} label={room.hostName ?? "ホストなし"} />
+                        <PlayerProfileTrigger
+                          target={room.hostName === null ? null : room.profileTarget}
+                          game={room.game}
+                          mode={room.mode}
+                          theme={room.game === "four-shogi" ? "four-shogi" : "default"}
+                          label={room.hostName ?? "ホストなし"}
+                        >
+                          <AppAvatar
+                            src={room.hostAvatarUrl}
+                            label={room.hostName ?? "ホストなし"}
+                          />
+                        </PlayerProfileTrigger>
                         <div className="min-w-0">
                           <strong className="block text-sm wrap-anywhere">
-                            {room.hostName ?? "ホストなし"}
+                            <PlayerProfileTrigger
+                              target={room.hostName === null ? null : room.profileTarget}
+                              game={room.game}
+                              mode={room.mode}
+                              theme={room.game === "four-shogi" ? "four-shogi" : "default"}
+                              label={room.hostName ?? "ホストなし"}
+                            >
+                              {room.hostName ?? "ホストなし"}
+                            </PlayerProfileTrigger>
                           </strong>
                           <span className="block text-xs text-muted tabular-nums">{room.id}</span>
                         </div>

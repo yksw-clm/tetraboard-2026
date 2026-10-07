@@ -32,6 +32,8 @@ export default function FourShogiMatchReplayView({
       <PlayerCardView
         key={player.id}
         shogi
+        profileTarget={{ source: "match", matchId: match.id, playerId: player.id }}
+        profileMode={match.settings.mode}
         player={player}
         self={player.id === match.selfPlayerId}
         host={player.seat === 0}

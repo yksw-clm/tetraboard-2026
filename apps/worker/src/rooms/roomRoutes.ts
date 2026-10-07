@@ -9,6 +9,7 @@ import {
   joinRoomContract,
   leaveRoomContract,
   listRoomsContract,
+  previewRoomListSchema,
   listReportsContract,
   moderateReportContract,
   reportContract,
@@ -181,7 +182,28 @@ roomRoutes.on(listRoomsContract.method, listRoomsContract.path, async (context) 
       context.env.APP_DB,
       position,
       query.data.game ?? defaultGameId,
+      query.data.profilePreview === "1",
     );
+    if (query.data.profilePreview === "1") {
+      const completed = await Promise.all(
+        rooms.rooms.map(async (room) => {
+          if (room.profileTarget !== undefined) return room;
+          const current = await context.env.GAME_ROOM.getByName(room.id).getPublicMetadata(true);
+          if (!current || current.game !== room.game || !current.instanceId) return null;
+          const { instanceId, hostPlayerId, ...metadata } = current;
+          return {
+            ...metadata,
+            profileTarget: hostPlayerId
+              ? { source: "room" as const, roomId: room.id, instanceId, playerId: hostPlayerId }
+              : null,
+          };
+        }),
+      );
+      context.header("Cache-Control", "no-store");
+      return context.json(
+        previewRoomListSchema.parse({ ...rooms, rooms: completed.filter((room) => room !== null) }),
+      );
+    }
     context.header("Cache-Control", "no-store");
     return context.json(listRoomsContract.response.parse(rooms));
   } catch {

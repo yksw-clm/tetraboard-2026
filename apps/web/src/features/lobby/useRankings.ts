@@ -1,9 +1,14 @@
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { gameRankingContracts, type RankingsFor, type MatchGame } from "@tetraboard/protocol";
+import {
+  gameRankingContracts,
+  previewRankingsSchema,
+  type PreviewRankings,
+  type MatchGame,
+} from "@tetraboard/protocol";
 
 export function useRankings(game: MatchGame = defaultGameId) {
-  const [rankings, setRankings] = useState<RankingsFor<MatchGame> | null>(null);
+  const [rankings, setRankings] = useState<PreviewRankings | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingSource, setPendingSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +23,17 @@ export function useRankings(game: MatchGame = defaultGameId) {
       if (!source?.endsWith("retry")) setError(null);
       try {
         const contract = gameRankingContracts[game];
-        const response = await fetch(`/api${contract.path}`, {
+        let response = await fetch(`/api${contract.path}?profilePreview=1`, {
           cache: "no-store",
           signal: controller.signal,
         });
+        if (response.status === 400)
+          response = await fetch(`/api${contract.path}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
         if (!response.ok) throw new Error("Rankings request failed");
-        const result = contract.response.parse(await response.json());
+        const result = previewRankingsSchema.parse(await response.json());
         if (!controller.signal.aborted) {
           setRankings(result);
           setError(null);
@@ -47,5 +57,5 @@ export function useRankings(game: MatchGame = defaultGameId) {
       request.current?.abort();
     };
   }, [refresh]);
-  return { rankings, loading, error, pendingSource, refresh };
+  return { game, rankings, loading, error, pendingSource, refresh };
 }

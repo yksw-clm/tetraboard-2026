@@ -27,6 +27,7 @@ export default function FourReversiMatchReplayView({ match }: { match: ReplayFou
       {matchSeats(match).map((player, index) => (
         <PlayerCard
           key={player.id}
+          profileTarget={{ source: "match", matchId: match.id, playerId: player.id }}
           player={player}
           position={seatPositions[rotatedSeatIndex(index, rotation)]}
           self={player.id === match.selfPlayerId}

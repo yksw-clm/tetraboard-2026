@@ -162,3 +162,5 @@ export * from "./feedback";
 export * from "./gameTypes";
 export { gameRankingContracts, type GameRankingContracts } from "./rankings";
 export { assertNever } from "./exhaustive";
+
+export * from "./playerProfiles";
