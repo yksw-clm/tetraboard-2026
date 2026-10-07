@@ -238,6 +238,24 @@ test("one preview is open and CPU needs no request", async () => {
   await flush();
   expect(region()?.textContent).toContain("CPU Lv2");
   expect(requests).toHaveLength(0);
+  const cpu = view.querySelector<HTMLButtonElement>('[aria-label="CPUのプレイヤー情報"]')!;
+  const account = view.querySelector<HTMLButtonElement>('[aria-label="登録者のプレイヤー情報"]')!;
+  for (const button of [cpu, account]) {
+    act(() =>
+      button.dispatchEvent(
+        new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }),
+      ),
+    );
+    clock.advance(300);
+    await flush();
+    act(() =>
+      button.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" })),
+    );
+    clock.advance(150);
+    await flush();
+    expect(region()?.textContent).toContain("CPU Lv2");
+    expect(requests).toHaveLength(0);
+  }
   act(() =>
     view.querySelector<HTMLButtonElement>('[aria-label="登録者のプレイヤー情報"]')!.click(),
   );

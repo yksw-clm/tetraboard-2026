@@ -8,7 +8,12 @@ export function PlayerProfileProvider({ children }: { children: ReactNode }) {
   const [dismissVersion, setDismissVersion] = useState(0);
   const location = useLocation();
   const activate = useCallback(
-    (id: string, pinned: boolean) => setActive({ id, pinned, routeKey: location.key }),
+    (id: string, pinned: boolean) =>
+      setActive((current) =>
+        current?.pinned && current.routeKey === location.key && !pinned
+          ? current
+          : { id, pinned, routeKey: location.key },
+      ),
     [location.key],
   );
   const close = useCallback((id: string, suppress = false) => {

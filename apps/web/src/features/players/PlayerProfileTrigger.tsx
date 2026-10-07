@@ -64,6 +64,7 @@ export function PlayerProfileTrigger({
   );
   const active = context?.active?.id === id;
   const pinned = active && context?.active?.pinned;
+  const anyPinned = context?.active?.pinned;
   const clearTimers = useCallback(() => {
     clearTimeout(timers.current.open);
     clearTimeout(timers.current.close);
@@ -81,11 +82,14 @@ export function PlayerProfileTrigger({
   );
   const open = (pin: boolean) => {
     clearTimers();
-    if (!pin && flags.current.suppressed) return;
+    if (!pin && (flags.current.suppressed || anyPinned)) return;
     setPortalContainer(anchor.current?.closest<HTMLElement>('[role="dialog"]') ?? undefined);
     context?.activate(id, pin);
     if (target && !localProfile) void context?.store.load(target, game);
   };
+  useEffect(() => {
+    if (anyPinned) clearTimers();
+  }, [anyPinned, clearTimers]);
   useEffect(() => {
     if (!dismissVersion) return;
     clearTimers();
