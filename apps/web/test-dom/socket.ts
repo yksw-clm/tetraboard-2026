@@ -1,4 +1,3 @@
-import { beforeEach, afterEach } from "bun:test";
 import { act } from "./harness";
 import { now, playerIds } from "../test/fixtures/rooms";
 import type { Room } from "@tetraboard/protocol";
@@ -31,12 +30,12 @@ export class Socket {
   receive(body: unknown) {
     act(() => this.onmessage?.({ data: JSON.stringify(body) }));
   }
-  snapshot(room: Room) {
+  snapshot(room: Room, serverNowMs = now) {
     this.receive({
       type: "room.snapshot",
       room,
       presence: { hostPlayerId: playerIds[0], connectedPlayerIds: room.players.map((p) => p.id) },
-      serverNowMs: now,
+      serverNowMs,
     });
   }
   close() {
@@ -45,11 +44,11 @@ export class Socket {
     this.onclose?.();
   }
 }
-const original = globalThis.WebSocket;
-beforeEach(() => {
+export function installSocket() {
+  const original = globalThis.WebSocket;
   Socket.instances = [];
   globalThis.WebSocket = Socket as unknown as typeof WebSocket;
-});
-afterEach(() => {
-  globalThis.WebSocket = original;
-});
+  return () => {
+    globalThis.WebSocket = original;
+  };
+}

@@ -234,3 +234,46 @@ test("要望はtechnical=null・手順空、入力変更で再送IDを更新し�
   const fresh = renderHook(useFeedbackProbe, context);
   expect(fresh.current.draft.body).toBe("");
 });
+
+test("LANのHTTP同様にrandomUUIDがなくても初期表示・入力・再送・編集後の新規送信ができる", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
+  Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
+  try {
+    const h = renderHook(useFeedbackProbe, context);
+    expect(h.current.draft.body).toBe("");
+    act(() => {
+      h.current.update("kind", "request");
+      h.current.update("body", "LANからの要望");
+    });
+    act(() => {
+      void h.current.submit();
+    });
+    const first = feedbackInput(0);
+    expect(first.submissionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    requests[0]!.respond({}, 503);
+    await flush();
+    h.rerender(context);
+    act(() => {
+      void h.current.submit();
+    });
+    expect(feedbackInput(1).submissionId).toBe(first.submissionId);
+    requests[1]!.respond({}, 503);
+    await flush();
+    act(() => h.current.update("body", "変更した要望"));
+    act(() => {
+      void h.current.submit();
+    });
+    expect(feedbackInput(2).submissionId).not.toBe(first.submissionId);
+    requests[2]!.respond({ id: "00000000-0000-4000-8000-000000000099" }, 201);
+    await flush();
+    expect(h.current.receipt).not.toBeNull();
+    act(() => h.current.reset());
+    expect(h.current.receipt).toBeNull();
+    h.unmount();
+  } finally {
+    if (descriptor) Object.defineProperty(crypto, "randomUUID", descriptor);
+    else Reflect.deleteProperty(crypto, "randomUUID");
+  }
+});

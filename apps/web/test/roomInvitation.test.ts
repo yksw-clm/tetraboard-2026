@@ -105,7 +105,8 @@ test("招待の参加は世代を送信し、検証した資格を保存する",
   const fetcher = stubFetch((_url, init) =>
     init?.method === "POST" ? Response.json({ room, membership }) : Response.json(snapshot),
   );
-  await joinRoom(room.id, "  招待された人  ", room.instanceId);
+  const joined = await joinRoom(room.id, "  招待された人  ", room.instanceId);
+  expect(joined).toMatchObject({ joined: true, room, membership });
   expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body))).toEqual({
     name: "招待された人",
     instanceId: room.instanceId,
@@ -119,7 +120,7 @@ test("同じタブのホスト・参加者資格は再利用し、POSTしない"
     const fetcher = stubFetch((url) =>
       Response.json(url.endsWith("/me") ? { playerId, role } : snapshot),
     );
-    await joinRoom(room.id, "", room.instanceId);
+    expect(await joinRoom(room.id, "", room.instanceId)).toEqual({ joined: false });
     expect(fetcher.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
     expect(readRoomMembershipToken(room.id)).toBe(token);
   }

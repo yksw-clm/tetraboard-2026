@@ -10,6 +10,7 @@ import {
   roomInvitationPath,
 } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
+import { roomSounds } from "../../shared/soundEffects";
 
 export function joinUnavailableReason(room: Room): string | null {
   if (room.status === "playing") return "対局中のため、今は観戦のみできます。";
@@ -93,7 +94,8 @@ export function useRoomInvitation(
           "ログインの有効期限が切れました。ログインするか、ニックネームを入力して参加してください。",
         );
       if (user && !user.profileCompleted) return;
-      await joinRoom(room.id, user ? undefined : name, room.instanceId);
+      const result = await joinRoom(room.id, user ? undefined : name, room.instanceId);
+      if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
       // 同じURLでもloaderを再実行し、観戦用の接続を本人の接続へ切り替えます。
       await navigate(roomInvitationPath(room), { replace: true });
     } catch (error) {

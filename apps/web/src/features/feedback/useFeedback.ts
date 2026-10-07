@@ -5,6 +5,7 @@ import {
   type FeedbackInput,
 } from "@tetraboard/protocol";
 import { sendFeedback, convertFeedbackImage } from "./feedbackApi";
+import { createUuid } from "../../shared/createUuid";
 export type FeedbackContext = Pick<FeedbackTechnical, "page" | "game" | "room">;
 export function useFeedback(context: FeedbackContext, accountRequired: boolean) {
   const [draft, setDraft] = useState({
@@ -21,7 +22,8 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
-  const submissionId = useRef(crypto.randomUUID() as string);
+  const [initialSubmissionId] = useState(createUuid);
+  const submissionId = useRef(initialSubmissionId);
   const locked = useRef(false);
   const frozenInput = useRef<FeedbackInput | null>(null);
   const alive = useRef(true);
@@ -49,7 +51,7 @@ export function useFeedback(context: FeedbackContext, accountRequired: boolean) 
     [preview],
   );
   function changed() {
-    submissionId.current = crypto.randomUUID();
+    submissionId.current = createUuid();
     frozenInput.current = null;
     setMessage(null);
   }

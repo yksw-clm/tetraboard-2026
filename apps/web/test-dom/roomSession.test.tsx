@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { applyAction, eliminateSide } from "@tetraboard/four-shogi";
 import { useRoomSession } from "../src/features/room/useRoomSession";
 import { useFourShogiRoomSession } from "../src/features/room/useFourShogiRoomSession";
@@ -17,8 +17,14 @@ import {
 } from "../test/fixtures/fourShogiFixtures";
 import { saveRoomMembershipToken } from "../src/shared/roomMembership";
 import { act, clock, flush, renderHook, requests, wrap } from "./harness";
-import { Socket } from "./socket";
+import { installSocket, Socket } from "./socket";
 import type { Room } from "@tetraboard/protocol";
+
+let restoreSocket: () => void;
+beforeEach(() => {
+  restoreSocket = installSocket();
+});
+afterEach(() => restoreSocket());
 
 function options<T extends Room>(room: T) {
   saveRoomMembershipToken(room.id, token);

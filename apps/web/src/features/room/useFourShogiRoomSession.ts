@@ -2,14 +2,19 @@ import type { FourShogiAction } from "@tetraboard/four-shogi";
 import { isFourShogiRoom, type FourShogiRoom } from "@tetraboard/protocol";
 import { displayShogiGameForRoom } from "./fourShogiRoomPresentation";
 import { useRoomTransport, type RoomTransportOptions } from "./useRoomTransport";
-import { shogiActionComplete, shogiOperationError } from "./fourShogiSessionBehavior";
+import {
+  shogiActionComplete,
+  shogiOperationError,
+  shogiSoundGame,
+  shogiSoundMove,
+} from "./fourShogiSessionBehavior";
 import { optimisticShogiBoard } from "./optimisticShogiBoard";
 import { useDelayedMoveNotice } from "./useDelayedMoveNotice";
 
 export function useFourShogiRoomSession(
   options: Omit<
     RoomTransportOptions<FourShogiRoom>,
-    "isRoom" | "actionComplete" | "gameOperationError"
+    "isRoom" | "actionComplete" | "gameOperationError" | "readSoundGame"
   >,
 ) {
   const session = useRoomTransport({
@@ -17,6 +22,7 @@ export function useFourShogiRoomSession(
     isRoom: isFourShogiRoom,
     actionComplete: shogiActionComplete,
     gameOperationError: shogiOperationError,
+    readSoundGame: shogiSoundGame,
   });
   const { room } = session;
   const self = room.players.find((player) => player.id === session.membership?.playerId);
@@ -61,7 +67,7 @@ export function useFourShogiRoomSession(
         !room.legalActions.some((legal) => JSON.stringify(legal) === JSON.stringify(action))
       )
         return false;
-      return session.sendGameMessage(
+      const sent = session.sendGameMessage(
         {
           type: "room.game.action",
           roundId: room.roundId,
@@ -77,6 +83,8 @@ export function useFourShogiRoomSession(
           startedAtMs: performance.now(),
         },
       );
+      if (sent) session.playOwnMove(shogiSoundMove(action, self.side));
+      return sent;
     },
     handleDrawProposalClick(): void {
       if (!canPlay || room.status !== "playing" || !self?.side) return;
