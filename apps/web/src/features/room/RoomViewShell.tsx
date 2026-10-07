@@ -2,7 +2,7 @@ import { useRoomDesktop } from "./useRoomDesktop";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Toast } from "@heroui/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { CpuLevel } from "@tetraboard/protocol";
+import { useCpuAddition } from "./useCpuAddition";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
 import { useRoomInvitation } from "./useRoomInvitation";
@@ -57,7 +57,6 @@ export function RoomViewShell({
   const google = useGoogleSignIn();
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<"result" | "leave" | "resign" | "feedback" | null>(null);
-  const [cpuConfirmation, setCpuConfirmation] = useState<CpuLevel | null>(null);
   const { room, membership } = session;
   const feedbackContext: FeedbackContext = {
     page: "room",
@@ -77,12 +76,16 @@ export function RoomViewShell({
   const fallbackFocusRef = useRef<HTMLElement>(null);
   const cpuAddButtonRef = useRef<HTMLButtonElement>(null);
   const previousCpuConfirmation = useRef(false);
-  const canAddCpu =
-    session.canManageSettings &&
-    session.presence.hostPlayerId === membership?.playerId &&
-    room.players.length < 4 &&
-    !account.loading &&
-    !account.error;
+  const cpuAddition = useCpuAddition({
+    room,
+    membership,
+    hostPlayerId: session.presence.hostPlayerId,
+    canManageSettings: session.canManageSettings,
+    account,
+    addCpu: session.addCpu,
+  });
+  const canAddCpu = cpuAddition.canAdd;
+  const cpuConfirmation = cpuAddition.confirmation;
   useEffect(() => {
     const closed = previousCpuConfirmation.current && cpuConfirmation === null;
     previousCpuConfirmation.current = cpuConfirmation !== null;
@@ -97,7 +100,6 @@ export function RoomViewShell({
     });
     return () => cancelAnimationFrame(frame);
   }, [cpuConfirmation]);
-  if (cpuConfirmation !== null && (!canAddCpu || !account.user)) setCpuConfirmation(null);
   const invitation = useRoomInvitation(room, membership, invited, () => {
     (joinButtonRef.current ?? fallbackFocusRef.current)?.focus();
   });
@@ -150,12 +152,7 @@ export function RoomViewShell({
       session={session}
       cpuAddButtonRef={cpuAddButtonRef}
       canAddCpu={canAddCpu}
-      onAddCpu={(level) => {
-        if (!canAddCpu) return;
-        if (account.user && !room.players.some((player) => player.kind === "cpu")) {
-          setCpuConfirmation(level);
-        } else session.addCpu(level);
-      }}
+      onAddCpu={cpuAddition.request}
       onCopyInvite={() =>
         void invitation.copy(() =>
           chat.toastQueue.add(
@@ -252,28 +249,16 @@ export function RoomViewShell({
         <AppDialog
           size="compact"
           title="CPUを追加しますか？"
-          onClose={() => setCpuConfirmation(null)}
+          onClose={cpuAddition.cancel}
           theme={theme}
         >
           <p className="mb-3 text-sm">追加するCPU：Lv{cpuConfirmation}</p>
           <CpuMatchNotice />
           <div className="mt-[22px] flex justify-end gap-[10px]">
-            <AppButton
-              size="compact"
-              appearance="secondary"
-              onPress={() => setCpuConfirmation(null)}
-            >
+            <AppButton size="compact" appearance="secondary" onPress={cpuAddition.cancel}>
               キャンセル
             </AppButton>
-            <AppButton
-              size="compact"
-              isDisabled={!canAddCpu}
-              onPress={() => {
-                if (!canAddCpu) return;
-                session.addCpu(cpuConfirmation);
-                setCpuConfirmation(null);
-              }}
-            >
+            <AppButton size="compact" isDisabled={!canAddCpu} onPress={cpuAddition.confirm}>
               CPUを追加
             </AppButton>
           </div>

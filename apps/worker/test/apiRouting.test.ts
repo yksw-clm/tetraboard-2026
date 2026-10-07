@@ -26,6 +26,8 @@ test("本番の画面・画像をアセットへ渡し、APIと旧プロフィ�
     "/account/matches/example",
     "/games/four-shogi",
     "/assets/logo.svg",
+    "/assets/webp_enc-example.wasm",
+    "/assets/webp_enc_simd-example.wasm",
   ]) {
     const response = await worker.fetch(
       new Request(`https://tetraboard.net${path}`),

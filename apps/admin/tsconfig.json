@@ -9,9 +9,9 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": ["vite/client", "node"],
+    "types": ["bun", "vite/client"],
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "browser-tests", "*.config.ts"]
+  "include": ["src", "test", "test-dom", "*.config.ts"]
 }

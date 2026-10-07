@@ -21,7 +21,18 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bun run check
+      - name: Check (180-second target)
+        run: |
+          started=$(date +%s)
+          status=0
+          bun run check || status=$?
+          elapsed=$(( $(date +%s) - started ))
+          echo "bun run check: ${elapsed}s / 180s target" >> "$GITHUB_STEP_SUMMARY"
+          echo "CHECK_DURATION_SECONDS=${elapsed}"
+          if [ "$elapsed" -gt 180 ]; then
+            echo "::warning::bun run check exceeded the 180-second target (${elapsed}s). Review duplicate tests and type checks."
+          fi
+          exit "$status"
       - run: bun run build
       - run: bun run --cwd apps/worker deploy:dry-run
       - uses: actions/upload-artifact@v4

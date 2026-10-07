@@ -5,12 +5,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b && tsc -p tsconfig.browser.json && tsc -p tsconfig.type-tests.json",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json && tsc -p tsconfig.type-tests.json",
     "lint": "oxlint .",
     "preview": "vite preview",
-    "test": "bun test ./test",
-    "test:browser": "playwright test",
-    "test:browser:worker": "bun run --cwd ../.. build && playwright test --config playwright.worker.config.ts"
+    "test": "bun run test:unit && bun run test:dom",
+    "test:unit": "bun test ./test",
+    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom"
   },
   "dependencies": {
     "@heroui/react": "^3.2.6",

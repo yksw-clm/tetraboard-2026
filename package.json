@@ -17,6 +17,8 @@
     "build": "bun run --cwd apps/web build && bun run --cwd apps/admin build && bun scripts/buildAssets.ts"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "happy-dom": "^20.14.5",
     "husky": "^9.1.7",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0"

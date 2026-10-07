@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { type Color } from "@tetraboard/four-reversi";
 import { fourReversiRoomSchema } from "@tetraboard/protocol";
-import { playingRoom, waitingRoom } from "../browser-tests/fixtures";
-import { replayMatch } from "../browser-tests/matchReplayFixtures";
+import { playingRoom, waitingRoom } from "./fixtures/rooms";
+import { replayMatch } from "./fixtures/matchReplayFixtures";
 import { rotatedSeatIndex } from "../src/features/room/boardRotation";
 import {
   fourReversiRoomSeats,
