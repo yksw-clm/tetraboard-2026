@@ -9,6 +9,11 @@ import { match } from "../test/fixtures/matchSummary";
 import { shogiStats } from "../test/fixtures/fourShogiRecordFixtures";
 import { act, clock, flush, requests, renderHook, wrap } from "./harness";
 
+function useSelectedHistory() {
+  const selection = useAccountSelection();
+  return { ...selection, ...useMatchHistory(selection.game, selection.mode) };
+}
+
 const stats = {
   singles: { total: 12, first: 4, second: 2, third: 6, fourth: 0 },
   doubles: { total: 6, wins: 3, losses: 2, draws: 1 },
@@ -134,25 +139,19 @@ test("各ゲームの戦績を独立して取得し、遅い旧更新とunmount�
   requests[4]!.respond(stats);
   await flush();
 });
-test("戦績・履歴はゲームとモードを独立して保存し、履歴stateから復元", () => {
-  const h = renderHook(
-    () => ({ stats: useAccountSelection("stats"), history: useAccountSelection("history") }),
-    undefined,
-    wrap(),
-  );
-  act(() => h.current.stats.setGame("four-shogi"));
-  act(() => h.current.stats.setMode("doubles"));
-  expect(h.current.history.game).toBe("four-reversi");
-  expect(h.current.history.mode).toBe("singles");
-  act(() => h.current.history.setMode("doubles"));
-  act(() => h.current.stats.setGame("four-reversi"));
-  expect(h.current.stats.mode).toBe("singles");
-  act(() => h.current.stats.setGame("four-shogi"));
-  expect(h.current.stats.mode).toBe("doubles");
-  expect(h.current.history.mode).toBe("doubles");
+test("共通のゲーム・モードを保持し、ゲームごとのモードを復元", () => {
+  const h = renderHook(useAccountSelection, undefined, wrap());
+  expect(h.current.game).toBe("four-reversi");
+  expect(h.current.mode).toBe("singles");
+  act(() => h.current.setGame("four-shogi"));
+  act(() => h.current.setMode("doubles"));
+  act(() => h.current.setGame("four-reversi"));
+  expect(h.current.mode).toBe("singles");
+  act(() => h.current.setGame("four-shogi"));
+  expect(h.current.mode).toBe("doubles");
 });
 test("履歴の追加は二重取得せず重複を除き、追加失敗は同じcursorで再試行", async () => {
-  const h = renderHook(useMatchHistory, undefined, wrap());
+  const h = renderHook(useSelectedHistory, undefined, wrap());
   clock.advance(0);
   requests[0]!.respond({ matches: [match(1)], nextCursor: "next" });
   await flush();
@@ -189,7 +188,7 @@ test("履歴の追加は二重取得せず重複を除き、追加失敗は同�
   expect(h.current.page.matches).toHaveLength(2);
 });
 test("履歴は別ゲーム・モードのschema応答を拒否し、切替後の応答を混ぜない", async () => {
-  const h = renderHook(useMatchHistory, undefined, wrap());
+  const h = renderHook(useSelectedHistory, undefined, wrap());
   clock.advance(0);
   act(() => h.current.setGame("four-shogi"));
   clock.advance(0);

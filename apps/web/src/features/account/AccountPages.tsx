@@ -1,15 +1,25 @@
-import { gameCatalog, defaultGameId } from "@tetraboard/protocol/games";
+import {
+  gameCatalog,
+  gameIds,
+  defaultGameId,
+  isGameId,
+  type GameId,
+} from "@tetraboard/protocol/games";
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppDialog } from "../../shared/ui/AppDialog";
-import type { AccountProfile } from "@tetraboard/protocol";
-import { cn } from "@heroui/react";
+import type { AccountProfile, RoomMode } from "@tetraboard/protocol";
+import { cn, Dropdown } from "@heroui/react";
+import { AppIcon } from "../../shared/ui/AppIcon";
+import { AppTabs } from "../../shared/ui/AppTabs";
+import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
+import { useAccountSelection } from "./useAccountSelection";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
@@ -24,36 +34,96 @@ import { useNavigate } from "react-router";
 export function AccountPageShell({
   children,
   layout = "form",
+  game = defaultGameId,
+  navigation,
 }: {
   children: ReactNode;
   layout?: "form" | "profile";
+  game?: GameId;
+  navigation?: ReactNode;
 }) {
   const profileLayout = layout === "profile";
   const lobbyLink = (
     <AppButtonLink
-      to={gameCatalog[defaultGameId].lobbyPath}
-      appearance="quiet"
-      className={profileLayout ? "self-start" : undefined}
+      to={gameCatalog[profileLayout ? game : defaultGameId].lobbyPath}
+      appearance={profileLayout ? "secondary" : "quiet"}
     >
       ロビーへ
     </AppButtonLink>
   );
   return (
-    <div className="app-theme lobby-background min-h-dvh text-ink">
+    <div className={cn("app-theme min-h-dvh text-ink", !profileLayout && "lobby-background")}>
       <AppHeader homeTo={gameCatalog[defaultGameId].lobbyPath} homeLabel="TetraBoard ロビー">
         <AccountMenu />
       </AppHeader>
-      <main
+      <div
+        className={
+          profileLayout
+            ? cn(
+                "lobby-background text-ink min-h-[calc(100dvh-69px)] [@media(max-width:650px)]:min-h-[calc(100dvh-61px)]",
+                appThemeClasses[gameThemes[game]],
+              )
+            : "contents"
+        }
+      >
+        <main
+          className={cn(
+            "flex flex-col gap-5 py-8",
+            profileLayout ? appPageWidthClasses : "mx-auto max-w-[600px] px-5",
+          )}
+        >
+          {profileLayout && (
+            <div className="flex items-center justify-between gap-3">
+              {navigation}
+              {lobbyLink}
+            </div>
+          )}
+          {children}
+          {!profileLayout && lobbyLink}
+        </main>
+      </div>
+    </div>
+  );
+}
+function AccountGameMenu({ game, onChange }: { game: GameId; onChange: (game: GameId) => void }) {
+  return (
+    <Dropdown>
+      <AppButton appearance="secondary" aria-label={`ゲームを選択：${gameCatalog[game].name}`}>
+        {gameCatalog[game].name}
+        <AppIcon name="chevronDown" className="size-4" />
+      </AppButton>
+      <Dropdown.Popover
+        placement="bottom start"
         className={cn(
-          "flex flex-col gap-5 py-8",
-          profileLayout ? appPageWidthClasses : "mx-auto max-w-[600px] px-5",
+          "app-theme min-w-48 rounded-panel border border-solid border-line bg-white p-1.5 text-ink shadow-dialog",
+          appThemeClasses[gameThemes[game]],
         )}
       >
-        {profileLayout && lobbyLink}
-        {children}
-        {!profileLayout && lobbyLink}
-      </main>
-    </div>
+        <Dropdown.Menu
+          aria-label="プロフィールのゲーム"
+          selectionMode="single"
+          disallowEmptySelection
+          selectedKeys={[game]}
+          onSelectionChange={(keys) => {
+            if (keys === "all") return;
+            const next = [...keys][0];
+            if (isGameId(next)) onChange(next);
+          }}
+        >
+          {gameIds.map((id) => (
+            <Dropdown.Item
+              key={id}
+              id={id}
+              textValue={gameCatalog[id].name}
+              className="flex min-h-11 items-center justify-between gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover"
+            >
+              {gameCatalog[id].name}
+              <Dropdown.ItemIndicator />
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }
 function AccountStatus() {
@@ -145,10 +215,16 @@ export function LoginPage() {
 }
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
   const { user, loading, error } = useAccount();
+  const { game, mode, setGame, setMode } = useAccountSelection();
+  const panelId = useId();
   // ファイル選択からの復帰による再確認では、編集中のフォームを取り外しません。
   if (!user && (loading || error))
     return (
-      <AccountPageShell layout={setup ? "form" : "profile"}>
+      <AccountPageShell
+        layout={setup ? "form" : "profile"}
+        game={game}
+        navigation={!setup && <AccountGameMenu game={game} onChange={setGame} />}
+      >
         <AccountStatus />
       </AccountPageShell>
     );
@@ -157,9 +233,40 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
   if (!setup && !user.profileCompleted) return <Navigate to="/account/setup" replace />;
   if (!setup)
     return (
-      <AccountPageShell layout="profile">
+      <AccountPageShell
+        layout="profile"
+        game={game}
+        navigation={<AccountGameMenu game={game} onChange={setGame} />}
+      >
         {error && <AccountStatus />}
-        <AccountProfileView user={user} />
+        <AppTabs
+          selectedKey={mode}
+          onSelectionChange={(key) => setMode(key as RoomMode)}
+          className="flex flex-col gap-5"
+        >
+          <AppTabs.List aria-label="プロフィールの対局モード">
+            {(["singles", "doubles"] as const).map((tab) => (
+              <AppTabs.Tab
+                key={tab}
+                id={tab}
+                render={(props) =>
+                  "href" in props ? (
+                    <a {...props} aria-controls={props["aria-selected"] ? panelId : undefined} />
+                  ) : (
+                    <div {...props} aria-controls={props["aria-selected"] ? panelId : undefined} />
+                  )
+                }
+              >
+                {tab === "singles" ? "シングルス" : "ダブルス"}
+                <AppTabs.Indicator />
+              </AppTabs.Tab>
+            ))}
+          </AppTabs.List>
+          {/* 選択パネルを取り外さず、タブの参照先を同じDOMにそろえます。 */}
+          <AppTabs.Panel id={mode} render={(props) => <div {...props} id={panelId} />}>
+            <AccountProfileView user={user} game={game} mode={mode} />
+          </AppTabs.Panel>
+        </AppTabs>
       </AccountPageShell>
     );
   return (
@@ -177,7 +284,15 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
     </AccountPageShell>
   );
 }
-function AccountProfileView({ user }: { user: AccountProfile }) {
+function AccountProfileView({
+  user,
+  game,
+  mode,
+}: {
+  user: AccountProfile;
+  game: GameId;
+  mode: RoomMode;
+}) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -211,12 +326,17 @@ function AccountProfileView({ user }: { user: AccountProfile }) {
               {notice}
             </p>
           )}
-          <AccountStats />
+          <AccountStats game={game} mode={mode} />
         </AppCard>
-        <MatchHistory />
+        <MatchHistory game={game} mode={mode} />
       </div>
       {editing && (
-        <AppDialog title="プロフィールを編集" busy={busy} onClose={() => setEditing(false)}>
+        <AppDialog
+          title="プロフィールを編集"
+          theme={gameThemes[game]}
+          busy={busy}
+          onClose={() => setEditing(false)}
+        >
           <ProfileForm
             user={user}
             setup={false}
