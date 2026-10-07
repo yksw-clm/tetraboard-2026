@@ -388,12 +388,18 @@ export class GameRoom extends DurableObject<Env> {
       const room = this.readRoom();
       const avatarReferenced =
         room?.instanceId === admission.instanceId &&
-        room.players.some(
+        (room.players.some(
           (player) =>
             player.id === admission.playerId &&
             player.kind === "human" &&
             player.avatarUrl === profileAvatarUrl(admission.avatarKey),
-        );
+        ) ||
+          room.lastRound?.players.some(
+            (player) =>
+              player.id === admission.playerId &&
+              player.appearance?.kind === "human" &&
+              player.appearance.avatarUrl === profileAvatarUrl(admission.avatarKey),
+          ));
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.kv.put(cancelledAdmissionKey(admission.operationId), true);
         this.queueAccountCleanup(admission, !avatarReferenced);
@@ -505,8 +511,15 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
+  private releaseResultAvatars(room: Room, retainedIds: Set<string>): void {
+    for (const player of room.lastRound?.players ?? []) {
+      if (!retainedIds.has(player.id)) this.releaseAccount(player.id, true);
+    }
+  }
+
   private closeRoom(): void {
     const room = this.readRoom();
+    if (room) this.releaseResultAvatars(room, new Set());
     this.endAnalyticsMatch("abandoned", Date.now());
     for (const player of room?.players ?? []) {
       this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
@@ -584,7 +597,8 @@ export class GameRoom extends DurableObject<Env> {
     for (const player of seats) {
       if (player.kind !== "human" || players.includes(player)) continue;
       this.recordDeparture(player);
-      this.releaseAccount(player.id, true);
+      // 前局の結果が表示される間は、退室者の画像参照だけを保持します。
+      this.releaseAccount(player.id, false);
       this.ctx.storage.kv.delete(departedKey(player.id));
       const hash = this.playerTokenHash(player.id);
       if (hash !== null) this.ctx.storage.kv.delete(membershipStorageKey(hash));
@@ -1023,7 +1037,10 @@ export class GameRoom extends DurableObject<Env> {
   ): Room | null {
     const departing = room.players.find((player) => player.id === playerId);
     if (departing) this.recordDeparture(departing);
-    this.releaseAccount(playerId, true);
+    this.releaseAccount(
+      playerId,
+      !room.lastRound?.players.some((player) => player.id === playerId),
+    );
     const tokenHash = this.playerTokenHash(playerId);
     if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
     this.ctx.storage.kv.delete(playerTokenKey(playerId));
@@ -1656,6 +1673,7 @@ export class GameRoom extends DurableObject<Env> {
       const started = isFourShogiRoom(room)
         ? this.shogiProgress.start(room)
         : this.reversiProgress.start(room);
+      this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
       this.startAnalyticsMatch(started.roundId, started.room, started.at);
       return { status: "started", room: started.room };
     });

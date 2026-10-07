@@ -65,7 +65,11 @@ export function RoomView({
       invited={invited}
       board={board}
       replayCard={replayCard}
-      result={room.lastRound && <GameResultView lastRound={room.lastRound} />}
+      result={
+        room.lastRound && (
+          <GameResultView lastRound={room.lastRound} currentPlayers={room.players} />
+        )
+      }
       selfEliminated={
         room.status === "playing" &&
         !!session.self?.color &&

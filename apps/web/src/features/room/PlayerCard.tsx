@@ -4,8 +4,8 @@ import type {
   FourReversiMatchHistoryParticipant,
 } from "@tetraboard/protocol";
 import type { FourReversiState } from "@tetraboard/four-reversi";
-import { colorNames, playerClock, playerRank, replayPlayerDetails } from "./roomPresentation";
-import { Stone } from "./Stone";
+import { playerClock, playerRank, replayPlayerDetails } from "./roomPresentation";
+import { PlayerStoneCount } from "./PlayerStoneCount";
 import { PlayerCardView, PlayerReadyBadge } from "./PlayerCardView";
 export { PlayerCardView, PlayerReadyBadge } from "./PlayerCardView";
 export function PlayerCard({
@@ -55,19 +55,7 @@ export function PlayerCard({
       score={
         room?.status === "waiting"
           ? player && "ready" in player && player.ready && <PlayerReadyBadge />
-          : color && (
-              <span
-                data-testid="player-stone-count"
-                className="inline-flex shrink-0 items-center gap-[6px] text-[13px] font-bold tabular-nums [@container(max-width:160px)]:text-[11px] [@container(max-width:160px)]:gap-[3px]"
-                aria-label={`${colorNames[color]}${count === null ? "" : `、${count}石`}`}
-              >
-                <Stone
-                  color={color}
-                  className="size-[19px] shadow-[inset_0_-1px_2px_#0002] [@container(max-width:160px)]:size-4"
-                />
-                {count}
-              </span>
-            )
+          : color && <PlayerStoneCount color={color} count={count} />
       }
     />
   );

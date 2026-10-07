@@ -1,3 +1,4 @@
+import { playerAppearance } from "./roomCommonPresentation";
 import type { ReplayFourReversiMatch } from "@tetraboard/protocol";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex } from "./boardRotation";
@@ -11,7 +12,14 @@ import { useRoundReplay } from "./useRoomReplay";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
 export default function FourReversiMatchReplayView({ match }: { match: ReplayFourReversiMatch }) {
   const { rotation, rotate } = useBoardRotation();
-  const lastRound = { game: match.game, players: match.participants, replay: match.replay };
+  const lastRound = {
+    game: match.game,
+    players: match.participants.map((player) => ({
+      ...player,
+      appearance: playerAppearance(player),
+    })),
+    replay: match.replay,
+  };
   const replay = useRoundReplay(lastRound);
   const game = replay.frame?.game ?? match.game;
   const board = (

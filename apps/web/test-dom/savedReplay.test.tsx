@@ -9,7 +9,7 @@ import { matchReplayLoader } from "../src/features/room/matchReplayLoader";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
 import { token } from "../test/fixtures/rooms";
 import { AccountContext } from "../src/features/account/useAccount";
-import { act, flush, press, render, requests, wrap } from "./harness";
+import { act, clock, flush, press, render, requests, wrap } from "./harness";
 
 test("固定棋譜5種を表示し、局面・回転操作は通信せず参加資格を維持する", async () => {
   sessionStorage.setItem("tetraboard:room:12345:membership", token);
@@ -61,6 +61,23 @@ test("固定棋譜5種を表示し、局面・回転操作は通信せず参加�
       [...view.querySelectorAll<HTMLButtonElement>("[data-square]")].every((b) => b.disabled),
     ).toBe(true);
     expect(requests).toHaveLength(count);
+    press(view, "結果");
+    await flush();
+    const result = document.querySelector('[aria-label="対局結果の詳細"]')!;
+    expect(result.querySelectorAll("li")).toHaveLength(4);
+    expect(result.querySelectorAll('[aria-label="撃破したプレイヤー"]')).toHaveLength(4);
+    expect(requests).toHaveLength(count);
+    const names = [...result.querySelectorAll("li")].map(
+      (row) => row.querySelector("[data-player-id]")!.textContent,
+    );
+    expect([...names].sort()).toEqual(match.participants.map((p) => p.name).sort());
+    act(() =>
+      document
+        .querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="閉じる"]')!
+        .click(),
+    );
+    clock.advance(1000);
+    await flush();
   }
   expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBe(token);
 });

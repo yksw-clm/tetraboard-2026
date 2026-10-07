@@ -27,6 +27,7 @@ import {
   roomStorageKey,
   replayKey,
   playerLabel,
+  playerAppearance,
   nextPublicUpdateAt,
   shuffledAssignments,
   cpuMoveDelayMs,
@@ -360,6 +361,7 @@ export class FourReversiProgress {
         id: player.id,
         name: playerLabel(player),
         color: player.color,
+        appearance: playerAppearance(player),
       })),
     };
     this.storage.kv.delete(replayKey);

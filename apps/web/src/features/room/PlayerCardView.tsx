@@ -1,23 +1,18 @@
-import { Avatar, Badge, Chip, cn } from "@heroui/react";
+import { Badge, Chip, cn } from "@heroui/react";
 import type { Room, MatchHistoryParticipant } from "@tetraboard/protocol";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { playerName } from "./roomCommonPresentation";
+import { playerName, playerAppearance } from "./roomCommonPresentation";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppCard } from "../../shared/ui/AppCard";
 import { RoomClock, type RoomClockPresentation } from "./RoomClock";
+import { PlayerAvatar } from "./PlayerAvatar";
+import { PlayerRankBadge } from "./PlayerRankBadge";
 const seatClasses = {
   top: "[grid-area:top]",
   bottom: "[grid-area:bottom]",
   left: "[grid-area:left]",
   right: "[grid-area:right]",
 } as const;
-const rankClasses = {
-  1: "bg-[#fff0ba] text-[#896315]",
-  2: "bg-[#e0edff] text-[#376597]",
-  3: "bg-[#f5e5d9] text-[#99633d]",
-  4: "bg-[#e9ecef] text-[#62717b]",
-} as const;
-
 export function PlayerReadyBadge() {
   return (
     <Chip
@@ -117,22 +112,7 @@ export function PlayerCardView({
         data-testid="player-avatar-slot"
         className="col-start-1 row-span-2 self-center size-8 min-w-8 min-h-8 [@media(max-width:767px)]:size-[26px] [@media(max-width:767px)]:min-w-[26px] [@media(max-width:767px)]:min-h-[26px]"
       >
-        <Avatar
-          data-testid="player-avatar"
-          title={player?.kind === "cpu" ? "CPU" : undefined}
-          className={cn(
-            "size-full min-w-0 min-h-0 aspect-square rounded-full",
-            player?.kind === "cpu" ? "bg-[#e0edff] text-[#376597]" : "bg-[#e1e6e3] text-[#7a8880]",
-          )}
-          aria-hidden="true"
-        >
-          {player?.kind === "human" && player.avatarUrl && (
-            <Avatar.Image src={player.avatarUrl} alt="" className="size-full object-cover" />
-          )}
-          <Avatar.Fallback className="bg-transparent text-inherit">
-            <AppIcon name={player?.kind === "cpu" ? "robot" : "user"} className="block size-5" />
-          </Avatar.Fallback>
-        </Avatar>
+        <PlayerAvatar appearance={player ? playerAppearance(player) : null} className="size-full" />
         {player && connected !== undefined && (
           <Badge
             className={cn(
@@ -171,16 +151,14 @@ export function PlayerCardView({
           className="flex justify-end items-center min-w-0 h-[22px]"
         >
           {rank ? (
-            <Chip
+            <PlayerRankBadge
+              rank={rank.rank}
+              label={rank.label}
               className={cn(
-                "h-[22px] py-[2px] px-1 rounded-[6px] font-bold whitespace-nowrap shrink-0 [@container(max-width:160px)]:px-[3px]",
+                "[@container(max-width:160px)]:px-[3px]",
                 shogi ? "text-[clamp(7px,4cqw,11px)]" : "text-[clamp(8px,5cqw,12px)]",
-                rankClasses[rank.rank as keyof typeof rankClasses],
               )}
-              size="sm"
-            >
-              {rank.label}
-            </Chip>
+            />
           ) : (
             clock && <RoomClock clock={clock} />
           )}
