@@ -16,7 +16,7 @@ test("両ロビーの初期HTMLは固有本文・正規URL・描画資産と通�
     ["four-shogi", "四人将棋", "三人攻撃禁止は初期値ON"],
   ] as const) {
     const html = renderPublicLobby(template, game);
-    expect(html).toContain(`<title>${name}をブラウザでオンライン対戦 | TetraBoard</title>`);
+    expect(html).toContain(`<title>TetraBoard | ${name}をブラウザでオンライン対戦</title>`);
     expect(html).toContain(`href="https://tetraboard.net/games/${game}"`);
     expect(html).toContain('name="description"');
     expect(html).toContain('content="index,follow"');

@@ -4,7 +4,7 @@ export const publicOrigin = "https://tetraboard.net";
 
 export const lobbyMetadata = {
   "four-reversi": {
-    title: "四人リバーシをブラウザでオンライン対戦 | TetraBoard",
+    title: "TetraBoard | 四人リバーシをブラウザでオンライン対戦",
     description:
       "四人リバーシを登録・インストール不要のブラウザでオンライン対戦。CPUとの一人プレイや友人との対局、シングルス・ダブルスを楽しめます。",
     overview:
@@ -16,7 +16,7 @@ export const lobbyMetadata = {
     ],
   },
   "four-shogi": {
-    title: "四人将棋をブラウザでオンライン対戦 | TetraBoard",
+    title: "TetraBoard | 四人将棋をブラウザでオンライン対戦",
     description:
       "四人将棋を登録・インストール不要のブラウザでオンライン対戦。CPUとの一人プレイや友人との対局、シングルス・ダブルスを楽しめます。",
     overview:
