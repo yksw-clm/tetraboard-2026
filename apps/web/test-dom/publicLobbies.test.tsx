@@ -1,0 +1,132 @@
+import { expect, test } from "bun:test";
+import { createMemoryRouter } from "react-router";
+import { GameIntroduction } from "../src/seo/GameIntroduction";
+import { updatePageMetadata } from "../src/seo/pageMetadata";
+import { startPublicLobby } from "../src/seo/startPublicLobby";
+import { render, flush } from "./support";
+
+test("紹介はダイアログを開かず読め、両ゲームのモードと固有ルールを表示する", () => {
+  for (const game of ["four-shogi", "four-reversi"] as const) {
+    const view = render(<GameIntroduction game={game} />);
+    expect(view.querySelectorAll("h2")).toHaveLength(3);
+    expect(view.textContent).toContain("シングルス");
+    expect(view.textContent).toContain("ダブルス");
+    expect(view.textContent).toContain("ユーザー登録は不要");
+    expect(view.querySelector('[role="dialog"]')).toBeNull();
+  }
+});
+
+test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いcanonicalとnoindexを残さない", async () => {
+  const router = createMemoryRouter([{ path: "*", element: <div /> }], {
+    initialEntries: ["/games/four-shogi"],
+  });
+  const previousTitle = document.title;
+  updatePageMetadata(router.state.location.pathname);
+  const unsubscribe = router.subscribe((state) => updatePageMetadata(state.location.pathname));
+  try {
+    expect(document.title).toContain("四人将棋を");
+    expect(document.head.querySelector('link[rel="canonical"]')!.getAttribute("href")).toBe(
+      "https://tetraboard.net/games/four-shogi",
+    );
+    await router.navigate("/matches/example");
+    expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+      "noindex,follow",
+    );
+    expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.head.querySelector('meta[name="description"]')).toBeNull();
+    await router.navigate("/games/four-reversi?test=1");
+    expect(document.title).toContain("四人リバーシを");
+    expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+      "index,follow",
+    );
+    await router.navigate(-1);
+    expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
+    await router.navigate(-1);
+    expect(document.title).toContain("四人将棋を");
+    expect(document.head.querySelectorAll('meta[name="robots"]')).toHaveLength(1);
+    for (const path of [
+      "/login",
+      "/account",
+      "/feedback",
+      "/updates",
+      "/rooms/12345",
+      "/unknown",
+    ]) {
+      await router.navigate(path);
+      expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+        "noindex,follow",
+      );
+    }
+  } finally {
+    unsubscribe();
+    router.dispose();
+    document.head
+      .querySelectorAll('meta[name="robots"],meta[name="description"],link[rel="canonical"]')
+      .forEach((node) => node.remove());
+    document.title = previousTitle;
+  }
+});
+
+test("初期紹介を遅延読み込み中に保ち、成功時だけ一度置き換える", async () => {
+  let resolve!: (value: { Component: () => null }) => void;
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/games/four-shogi",
+        lazy: () =>
+          new Promise((r) => {
+            resolve = r;
+          }),
+      },
+    ],
+    { initialEntries: ["/games/four-shogi"] },
+  );
+  const root = document.createElement("div");
+  root.dataset.publicLobby = "four-shogi";
+  root.innerHTML = '<h1>四人将棋</h1><p data-startup-status role="status">読み込み中</p>';
+  let mounts = 0;
+  startPublicLobby(root, router, () => {
+    mounts++;
+    root.replaceChildren(document.createTextNode("対局画面"));
+  });
+  expect(mounts).toBe(0);
+  expect(root.textContent).toContain("四人将棋");
+  resolve({ Component: () => null });
+  await flush();
+  expect(mounts).toBe(1);
+  expect(root.textContent).toBe("対局画面");
+  await router.revalidate();
+  expect(mounts).toBe(1);
+  router.dispose();
+});
+
+test("遅延読み込み失敗は紹介とリンクを保持して再読み込みを案内する", async () => {
+  let reject!: (reason: Error) => void;
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/games/four-reversi",
+        lazy: () =>
+          new Promise((_, r) => {
+            reject = r;
+          }),
+      },
+    ],
+    { initialEntries: ["/games/four-reversi"] },
+  );
+  const root = document.createElement("div");
+  root.dataset.publicLobby = "four-reversi";
+  root.innerHTML =
+    '<h1>四人リバーシ</h1><p data-startup-status></p><a href="/games/four-reversi">再読み込み</a>';
+  let mounted = false;
+  startPublicLobby(root, router, () => {
+    mounted = true;
+  });
+  reject(new Error("chunk unavailable"));
+  await flush();
+  expect(mounted).toBe(false);
+  expect(root.querySelector("h1")!.textContent).toBe("四人リバーシ");
+  expect(root.querySelector('[role="alert"]')!.textContent).toContain("再読み込み");
+  expect(root.querySelector("a")!.getAttribute("href")).toBe("/games/four-reversi");
+  router.dispose();
+});
