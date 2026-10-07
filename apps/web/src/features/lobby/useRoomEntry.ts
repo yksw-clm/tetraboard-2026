@@ -17,6 +17,7 @@ import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/ro
 
 import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/roomAccess";
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
+import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
@@ -44,6 +45,7 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
 }
 
 export function useRoomEntry(game: GameId = defaultGameId) {
+  useSoundEffects();
   const navigate = useNavigate();
   const account = useAccount();
   const restored = useRegistrationRestore();
@@ -90,7 +92,8 @@ export function useRoomEntry(game: GameId = defaultGameId) {
       if (user && !user.profileCompleted) return;
       const entryName = user ? undefined : name;
       if (intent === "join") {
-        await joinRoom(selectedRoomCode, entryName);
+        const result = await joinRoom(selectedRoomCode, entryName);
+        if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         await navigate(getRoomContract.pathFor(selectedRoomCode));
         return;
       }
@@ -129,6 +132,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         if (!saveRoomMembershipToken(result.room.id, result.membership.token)) {
           throw new Error("Failed to store membership");
         }
+        roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         await navigate(getRoomContract.pathFor(result.room.id));
       } else {
         const error = contract.error.parse(body);

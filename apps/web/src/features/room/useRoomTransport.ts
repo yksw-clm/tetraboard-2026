@@ -22,6 +22,8 @@ import {
 } from "../../shared/roomMembership";
 import { assertRoomIdentity, roomChangedMessage } from "../../shared/roomAccess";
 import { fetchRoom, leaveRoom } from "./roomApi";
+import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
+import { RoomSoundTracker, type SoundGameState } from "./roomSoundEvents";
 
 const roomClosedMessage = "ルームは閉鎖されています。ロビーへ戻ってください。";
 
@@ -43,6 +45,7 @@ export interface RoomTransportOptions<T extends Room> {
   isRoom: (room: Room) => room is T;
   actionComplete: (room: T, pending: PendingActionFor<T["settings"]["game"]>) => boolean;
   gameOperationError: (error: string) => string | undefined;
+  readSoundGame: (room: T) => SoundGameState;
   initialMembership: RoomMembership | null;
   initialServerNowMs: number;
   initialPresence: RoomPresence;
@@ -51,7 +54,7 @@ export interface RoomTransportOptions<T extends Room> {
 
 export type SharedRoomSession = Omit<
   ReturnType<typeof useRoomTransport>,
-  "sendGameMessage" | "sendGameSettingsMessage"
+  "sendGameMessage" | "sendGameSettingsMessage" | "playOwnMove"
 >;
 
 function operationErrorMessage(
@@ -92,8 +95,10 @@ export function useRoomTransport<T extends Room>({
   isRoom,
   actionComplete,
   gameOperationError,
+  readSoundGame,
   initialFormationAnalysisSupported = false,
 }: RoomTransportOptions<T>) {
+  useSoundEffects();
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
   const [presence, setPresence] = useState(initialPresence);
@@ -121,6 +126,7 @@ export function useRoomTransport<T extends Room>({
   }));
   const [serverNowMs, setServerNowMs] = useState(initialServerNowMs);
   const socketRef = useRef<WebSocket | null>(null);
+  const soundTrackerRef = useRef<RoomSoundTracker<T> | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
   const pendingSettingsRef = useRef(false);
   const pendingGameActionRef = useRef<PendingOperation<
@@ -138,6 +144,39 @@ export function useRoomTransport<T extends Room>({
 
   useEffect(() => {
     let active = true;
+    const soundTracker = new RoomSoundTracker(readSoundGame);
+    soundTrackerRef.current = soundTracker;
+    const releaseSounds = roomSounds.retainRoom(initialRoom.instanceId);
+    let soundController: AbortController | null = null;
+    let soundGeneration = 0;
+    let soundReady = true;
+    let soundBaselineAtMs: number | null = null;
+    let latestSoundSnapshot: { room: T; serverNowMs: number } | null = null;
+    const visibilityChanged = () => {
+      soundTracker.reset();
+      soundController?.abort();
+      const generation = ++soundGeneration;
+      soundReady = false;
+      if (document.visibilityState !== "visible") return;
+      const resumeController = new AbortController();
+      soundController = resumeController;
+      // 非表示中にブラウザへ溜まった通知も、復帰後にまとめて鳴らしません。
+      void fetchRoom(initialRoom.id, resumeController.signal, initialRoom.instanceId)
+        .then((latest) => {
+          if (!active || generation !== soundGeneration || !isRoom(latest.room)) return;
+          const baseline =
+            latestSoundSnapshot !== null && latestSoundSnapshot.serverNowMs > latest.serverNowMs
+              ? latestSoundSnapshot
+              : { room: latest.room, serverNowMs: latest.serverNowMs };
+          soundTracker.baseline(baseline.room);
+          soundBaselineAtMs = baseline.serverNowMs;
+          soundReady = true;
+        })
+        .catch(() => {
+          // 再取得失敗時もゲーム通信は継続し、次の復帰・再接続で基準を作ります。
+        });
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
     let socket: WebSocket | null = null;
     let controller: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -157,12 +196,16 @@ export function useRoomTransport<T extends Room>({
     }
 
     function clearPendingGameAction(): void {
+      soundTracker.clearOwnMove();
       pendingGameActionRef.current = null;
       setPendingGameAction(null);
     }
 
     function stopUnavailable(message: string): void {
       active = false;
+      soundTracker.reset();
+      soundController?.abort();
+      roomSounds.stop();
       if (timer !== null) clearTimeout(timer);
       controller?.abort();
       socketRef.current = null;
@@ -211,6 +254,12 @@ export function useRoomTransport<T extends Room>({
     }
 
     function connect(): void {
+      soundTracker.reset();
+      soundController?.abort();
+      soundGeneration++;
+      soundReady = true;
+      soundBaselineAtMs = null;
+      latestSoundSnapshot = null;
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -250,7 +299,7 @@ export function useRoomTransport<T extends Room>({
           currentSocket.close(1003, "Invalid room message");
           return;
         }
-        if (!active) return;
+        if (!active || currentSocket !== socketRef.current) return;
 
         if (message.data.type === "room.snapshot") {
           try {
@@ -263,6 +312,23 @@ export function useRoomTransport<T extends Room>({
           if (snapshot === null) {
             stopUnavailable(roomChangedMessage);
             return;
+          }
+          if (
+            latestSoundSnapshot === null ||
+            message.data.serverNowMs >= latestSoundSnapshot.serverNowMs
+          )
+            latestSoundSnapshot = { room: snapshot, serverNowMs: message.data.serverNowMs };
+          const sounds =
+            !soundReady ||
+            (soundBaselineAtMs !== null && message.data.serverNowMs <= soundBaselineAtMs)
+              ? []
+              : soundTracker.observe(
+                  snapshot,
+                  soundReady && document.visibilityState === "visible",
+                );
+          for (const sound of sounds) {
+            if (sound.type === "join") roomSounds.playJoin(sound.instanceId, sound.playerId);
+            else roomSounds.play(sound.sounds);
           }
           setRoom(snapshot);
           setPresence(message.data.presence);
@@ -352,6 +418,11 @@ export function useRoomTransport<T extends Room>({
       currentSocket.onclose = () => {
         if (socketRef.current === currentSocket) socketRef.current = null;
         if (!active) return;
+        soundTracker.reset();
+        soundController?.abort();
+        soundGeneration++;
+        soundReady = false;
+        roomSounds.stop();
         setAuthenticated(false);
         clearPendingReady();
         clearPendingSettings();
@@ -363,6 +434,10 @@ export function useRoomTransport<T extends Room>({
     connect();
     return () => {
       active = false;
+      document.removeEventListener("visibilitychange", visibilityChanged);
+      soundTrackerRef.current = null;
+      releaseSounds();
+      soundController?.abort();
       if (timer !== null) clearTimeout(timer);
       controller?.abort();
       socketRef.current = null;
@@ -377,6 +452,7 @@ export function useRoomTransport<T extends Room>({
     isRoom,
     actionComplete,
     gameOperationError,
+    readSoundGame,
   ]);
 
   const self = room.players.find((player) => player.id === membership?.playerId);
@@ -418,6 +494,11 @@ export function useRoomTransport<T extends Room>({
     pending: PendingActionFor<T["settings"]["game"]>,
   ): boolean {
     return sendGameOperation(message, { type: "game", action: pending });
+  }
+
+  function playOwnMove(lastMove: string): void {
+    soundTrackerRef.current?.recordOwnMove(room, lastMove);
+    roomSounds.play(["put"]);
   }
 
   function handleStartClick(): void {
@@ -562,6 +643,7 @@ export function useRoomTransport<T extends Room>({
     self,
     canManageSettings,
     sendGameMessage,
+    playOwnMove,
     handleStartClick,
     handleReadyClick,
     changeMode,

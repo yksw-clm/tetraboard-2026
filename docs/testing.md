@@ -18,7 +18,7 @@ bun run build
 bun run --cwd apps/worker deploy:dry-run
 ```
 
-部分実行では `bun test --cwd apps/web ./test/matchReplayLoader.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSession.test.tsx`、`bun run --cwd apps/admin test:dom` を使います。`test` は単体とDOMの両プロセスを実行します。共有DOMは `test-support/dom.ts`、React操作と偽時計・保留可能なfetchは `apps/web/test-dom/support.tsx` に置きます。タイマーは直接進め、実時間のsleepと外部通信を使いません。WebSocketも状態と送受信内容だけを確認します。画像は入出力・処理中・失敗・古い完了の破棄を確認し、実デコードや画素の描画を行いません。
+部分実行では `bun test --cwd apps/web ./test/matchReplayLoader.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSession.test.tsx`、`bun run --cwd apps/admin test:dom` を使います。`test` は単体とDOMの両プロセスを実行します。共有DOMは `test-support/dom.ts`、React操作と偽時計・保留可能なfetchは `apps/web/test-dom/support.tsx` に置きます。タイマーは直接進め、実時間のsleepと外部通信を使いません。WebSocketも状態と送受信内容だけを確認します。画像は入出力・処理中・失敗・古い完了の破棄を確認し、実デコードや画素の描画を行いません。効果音も音声API・取得・時刻の境界を制御し、実音声デコード・ネイティブ入力・他アプリとの同時再生は実機で確認します。
 
 純粋なfixtureは `apps/web/test/fixtures/` に置き、通信モックから分離します。`test-fixtures/matches/` の固定棋譜・固定期待値は維持し、実行時に期待値を再生成しません。
 

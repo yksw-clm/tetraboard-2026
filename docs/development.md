@@ -94,6 +94,16 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 
 `roomSession.test.tsx` と `sessionBehavior.test.ts` は通信境界と状態モデルを使い、開始・着手・投了・提案の待ち保持と解除、本人と他人の脱落、同revisionでの提案反映、新局・終局、設定権限を確認します。サーバーでの配信・準備解除はWorker統合テスト、型の取り違えと局面情報欠落の否定ケースは `bun run --cwd apps/web typecheck` で確認します。
 
+## ルームの共通効果音
+
+添付された5種類のMP3を `apps/web/src/assets/sounds/` に保持し、Viteのasset URLで同一originから配信します。`shared/soundEffects.ts` のページ共通プレイヤーはロビー・ルームで音源を先読みし、ユーザー操作のcaptureでambientの設定、単一AudioContextの作成・resumeを非同期操作より先に実行します。Web Audio未対応時には代替のHTML音声再生を使いません。デコード済み音源を再利用し、非表示・切断・ルーム離脱では再生中・予約中の音を停止します。音声の失敗はゲームのエラーへ伝播しません。
+
+`RoomSoundTracker` は共有transportの各スナップショットを受信順で比較します。各sessionからゲーム別の純粋な音声状態の読取りを渡し、着手は手数、開始・終了は状態遷移、参加・CPU追加は新しい席IDで判定します。将棋のrevisionだけの変化と棋譜表示は着手にしません。終局の最終着手はlastRoundから検出します。リバーシの公開中の局IDはないため、同一接続内の開始・終局で局を区切り、接続・可視状態の切替で比較基準を破棄します。非表示からの復帰時は音声のための公開GETで最新状態を基準にし、その応答時刻以前に送信されたWebSocket通知は音声の比較へ戻しません。再取得失敗時は音声の通知だけを停止し、次の復帰・再接続で再開します。
+
+本人の合法手の送信成功時に着手音を再生し、局・期待手数・担当色／方向・着手内容が一致した通知だけを抑止します。拒否・切断・終局・次局開始で抑止を解除します。HTTP参加成功とWebSocketの新規席通知は部屋世代・プレイヤーIDでjoinを重複抑止し、新規参加と既存資格の再利用を参加処理の返値で区別します。参加者へ切り替わる再マウントでは再演しません。公開通信契約・Worker・エンジン・保存形式は変更しません。
+
+部分検証は `bun test --cwd apps/web ./test/roomSoundEvents.test.ts ./test/roomInvitation.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSounds.test.tsx ./test-dom/soundPlayer.test.ts` を使います。音声API・時刻・取得を制御し、実デコード・ネイティブ操作・他アプリとの同時再生は自動テストに含めません。マージ前にiPhone Safari／Android ChromeでYouTubeとの同時再生、初回有効化、消音モード、スピーカー・イヤホン、アプリ切替からの復帰を実機確認し、端末・OS・ブラウザの版と結果を記載します。
+
 ## Workerの時計計算と期限選択
 
 `apps/worker/src/rooms/clockCore.ts` は席IDを型パラメータとする内部時計型と純粋な初期化・手番更新・停止計算を持ちます。`clock.ts`／`shogiClock.ts` はColor／Sideの具体的な4キーの残時間recordを作り、既存の引数・既定値・戻り値・overloadを保つwrapperです。基本時間は前手番の経過だけ減算し、手番が変わらない脱落では同じ時計を保持します。リバーシの自動パスで同じ色へ戻る場合は完了した1手として秒読みをリセットします。共通計算へゲームエンジンを読み込みません。

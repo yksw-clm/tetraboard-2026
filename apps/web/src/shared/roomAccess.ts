@@ -3,6 +3,7 @@ import {
   joinRoomContract,
   roomSocketContract,
   type Room,
+  type RoomMembership,
 } from "@tetraboard/protocol";
 import {
   canStoreRoomMembership,
@@ -74,7 +75,7 @@ export async function joinRoom(
   id: string,
   name: string | undefined,
   instanceId?: string,
-): Promise<void> {
+): Promise<{ joined: false } | { joined: true; room: Room; membership: RoomMembership }> {
   if (!canStoreRoomMembership()) {
     throw new RoomEntryError(
       "このタブでは参加情報を保存できません。ブラウザの設定を確認してください。",
@@ -83,7 +84,7 @@ export async function joinRoom(
   // 資格の再利用より先に、招待先の部屋が同じ世代か確認します。
   if (instanceId !== undefined) await fetchRoom(id, undefined, instanceId);
   const membership = await fetchRoomMembership(id);
-  if (membership !== null) return;
+  if (membership !== null) return { joined: false };
   const request = joinRoomContract.request.safeParse({ name, instanceId });
   if (!request.success) throw new RoomEntryError("ニックネームを1〜10文字で入力してください。");
   const response = await fetch(`/api${joinRoomContract.pathFor(id)}`, {
@@ -121,4 +122,5 @@ export async function joinRoom(
   if (!saveRoomMembershipToken(id, result.membership.token)) {
     throw new RoomEntryError("参加情報を保存できませんでした。ブラウザの設定を確認してください。");
   }
+  return { joined: true, room: result.room, membership: result.membership };
 }

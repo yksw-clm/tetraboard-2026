@@ -1,4 +1,5 @@
-import type { Color } from "@tetraboard/four-reversi";
+import type { Color, Position } from "@tetraboard/four-reversi";
+import type { SoundGameState } from "./roomSoundEvents";
 import type { FourReversiRoom } from "@tetraboard/protocol";
 import { assertNever } from "@tetraboard/protocol";
 
@@ -25,4 +26,19 @@ export function reversiOperationError(error: string): string | undefined {
   if (error === "invalid_move") return "その場所には石を置けません。";
   if (error === "stale_position") return "局面が更新されました。最新の局面で選び直してください。";
   return undefined;
+}
+
+export function reversiSoundMove(position: Position, color: Color): string {
+  return `${color}:${position.x},${position.y}`;
+}
+
+export function reversiSoundGame(room: FourReversiRoom): SoundGameState {
+  const game = room.status === "playing" ? room.game : room.lastRound?.game;
+  const color = game?.lastMove ? game.board[game.lastMove.y]?.[game.lastMove.x] : null;
+  return {
+    phase: room.status === "playing" ? "playing" : game ? "finished" : "waiting",
+    roundId: null,
+    moveNumber: game?.moveNumber ?? 0,
+    lastMove: game?.lastMove && color ? reversiSoundMove(game.lastMove, color) : null,
+  };
 }
