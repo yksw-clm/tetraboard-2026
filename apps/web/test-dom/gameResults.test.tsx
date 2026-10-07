@@ -54,6 +54,11 @@ test("将棋は各人の右欄に撃破対象のアイコン・名前をIDで対
   expect(rows[1]!.textContent).toContain("撃破：なし");
   expect(view.textContent).not.toContain("（");
   expect(view.textContent).toContain("南");
+  expect([...rows[0]!.children[0]!.children].map((entry) => entry.textContent)).toEqual([
+    "1位",
+    "南",
+    "優勝者",
+  ]);
   expect(rows[1]!.querySelector('[title="CPU"]')).not.toBeNull();
   expect(rows[0]!.children[1]).toBe(targets);
 });
@@ -96,6 +101,9 @@ test("将棋ダブルスはチーム別の勝敗と撃破対象を表示し、�
     "西・東チーム：敗北",
   ]);
   expect(view.querySelectorAll("li")).toHaveLength(4);
+  expect(
+    [...view.querySelector("li")!.children[0]!.children].map((entry) => entry.textContent),
+  ).toEqual(["南", "優勝者"]);
   expect(view.querySelectorAll('[aria-label="撃破したプレイヤー"] [data-player-id]')).toHaveLength(
     2,
   );
@@ -120,6 +128,13 @@ test("リバーシは石色・石数と脱落者を保持し、ダブルスは4�
         li.querySelector(`[data-player-id="${player.id}"]`),
       )!;
       const count = row.querySelector('[data-testid="player-stone-count"]')!;
+      const participant = row.querySelector("[data-player-id]")!;
+      expect(
+        count.compareDocumentPosition(participant) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).not.toBe(0);
+      const rank = row.querySelector('[data-slot="chip"]');
+      if (rank)
+        expect(rank.compareDocumentPosition(count) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
       if (match.game.eliminatedColors.includes(player.color)) {
         expect(count.textContent).toBe("");
         expect(row.textContent).toContain("脱落");

@@ -30,8 +30,8 @@ export function GameResultRow({
     >
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         {rank !== undefined && <PlayerRankBadge rank={rank} className="text-xs" />}
-        <ResultParticipant player={player} />
         {details}
+        <ResultParticipant player={player} />
       </div>
       {right && (
         <div className="min-w-0 flex-1 text-xs" aria-label="撃破したプレイヤー">
