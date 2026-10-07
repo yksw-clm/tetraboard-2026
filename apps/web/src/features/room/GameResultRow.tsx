@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@heroui/react";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { PlayerRankBadge } from "./PlayerRankBadge";
 import type { ResultPlayer } from "./gameResultPresentation";
@@ -28,7 +29,14 @@ export function GameResultRow({
       className="flex items-center gap-3 border-b border-solid border-line py-3"
       aria-label={`${player.name}の結果`}
     >
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          "grid min-w-0 flex-1 items-center gap-2",
+          rank !== undefined
+            ? "grid-cols-[30px_auto_minmax(0,1fr)]"
+            : "grid-cols-[auto_minmax(0,1fr)]",
+        )}
+      >
         {rank !== undefined && <PlayerRankBadge rank={rank} className="text-xs" />}
         {details}
         <ResultParticipant player={player} />

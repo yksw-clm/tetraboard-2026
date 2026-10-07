@@ -37,7 +37,7 @@ export function GameResultView({
         player={player}
         rank={rank}
         details={
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex w-14 items-center gap-2">
             <PlayerStoneCount color={color} count={count} />
             {count === null && <span className="text-xs text-muted">脱落</span>}
           </span>
