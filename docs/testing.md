@@ -22,6 +22,8 @@ bun run --cwd apps/worker deploy:dry-run
 
 純粋なfixtureは `apps/web/test/fixtures/` に置き、通信モックから分離します。`test-fixtures/matches/` の固定棋譜・固定期待値は維持し、実行時に期待値を再生成しません。
 
+Workerの公開ルーム索引のページングfixtureは、テスト専用の実D1 `ROOM_INDEX_TEST_DB` に保存し、一覧HTTPリクエストの `APP_DB` だけをそのDBに差し替えます。通常の `APP_DB` には以前のルームのrevisionとGameRoomの非同期更新が残るため、固定の部屋番号と衝突するとfixtureの古いrevisionが無視されます。部屋のライフサイクル・索引反映の検証は通常の `APP_DB` を使い続けます。
+
 ## 廃止した自動検証
 
 Web・AdminのブラウザテストとWorker E2E、全Playwright設定、専用SQL、ブラウザ型チェック、専用workflow・コマンドは廃止します。既存のPlaywright依存は維持します。HTML・スクリーンショット・traceのレポートを生成・保存せず、デプロイ用の `web-<SHA>` artifactだけを維持します。
