@@ -1,0 +1,171 @@
+import { getCheckState } from "./board";
+import { evaluatePosition } from "./cpuEvaluation";
+import type { OrdinaryMove } from "./moves";
+import type { RepetitionLookup } from "./repetition";
+import { applyLegalMove, getLegalMoves } from "./transition";
+import {
+  areEnemies,
+  getActiveSides,
+  teamForSide,
+  type FourShogiAction,
+  type FourShogiState,
+  type Side,
+} from "./types";
+
+export type SearchOptions = {
+  maxWork?: number;
+  maxDepth?: number;
+  width?: number;
+  rootWidth?: number;
+};
+export type SearchStats = {
+  nodes: number;
+  work: number;
+  generatedMoves: number;
+  completedDepth: number;
+  cutoff: boolean;
+  algorithm: "maxn" | "alpha-beta";
+};
+type Values = Record<Side, number>;
+type Candidate = { action: FourShogiAction; state: FourShogiState; values: Values; index: number };
+const values = { king: 0, rook: 800, gold: 500, silver: 400, pawn: 100 };
+class SearchStopped extends Error {}
+
+function priority(move: OrdinaryMove, side: Side): number {
+  const checks = getCheckState(move.state);
+  const checking = getActiveSides(move.state).some(
+    (target) => areEnemies(move.state.mode, side, target) && checks[target],
+  );
+  const promotion =
+    move.action.type === "movePiece" && move.action.promote
+      ? move.piece.kind === "pawn"
+        ? 400
+        : 200
+      : 0;
+  return (move.captured ? values[move.captured.kind] * 2 : 0) + promotion + (checking ? 300 : 0);
+}
+
+function immediateWin(state: FourShogiState, side: Side): boolean {
+  return (
+    state.status === "finished" &&
+    (state.result.mode === "singles"
+      ? state.result.standings.some((standing) => standing.side === side && standing.rank === 1)
+      : state.result.winner === teamForSide(side))
+  );
+}
+
+export function searchCpuAction(
+  input: FourShogiState,
+  options: SearchOptions = {},
+  repetitionLookup?: RepetitionLookup,
+): { action: FourShogiAction | null; stats: SearchStats } {
+  const maxWork = options.maxWork ?? 2048;
+  const maxDepth = options.maxDepth ?? 6;
+  const width = options.width ?? 6;
+  const rootWidth = options.rootWidth ?? 24;
+  if (
+    [maxWork, maxDepth, width, rootWidth].some((value) => !Number.isSafeInteger(value) || value < 1)
+  )
+    throw new TypeError("探索予算は正の整数で指定してください");
+  const stats: SearchStats = {
+    nodes: 0,
+    work: 0,
+    generatedMoves: 0,
+    completedDepth: 0,
+    cutoff: false,
+    algorithm:
+      input.mode === "doubles" || getActiveSides(input).length === 2 ? "alpha-beta" : "maxn",
+  };
+  if (input.status === "finished") return { action: null, stats };
+  const root = input.turn;
+  const history = new Map<string, number>();
+  const lookup: RepetitionLookup = (key) => {
+    if (!history.has(key)) history.set(key, input.repetitions[key] ?? repetitionLookup?.(key) ?? 0);
+    return history.get(key)!;
+  };
+  // 基底履歴を参照へ分け、探索枝では訪れた局面の回数だけを複製します。
+  const start: FourShogiState = { ...input, repetitions: {} };
+  const legal = getLegalMoves(start);
+  stats.generatedMoves += legal.length;
+  if (legal.length === 0) return { action: null, stats };
+  let action = legal[0].action;
+  const candidates: Candidate[] = [];
+  function spend(cost = 1): void {
+    if (stats.work + cost > maxWork) throw new SearchStopped();
+    stats.work += cost;
+  }
+  function advance(state: FourShogiState, move: OrdinaryMove): FourShogiState {
+    spend();
+    stats.nodes++;
+    return applyLegalMove(state, state.turn!, move, lookup).state;
+  }
+  function explore(state: FourShogiState, depth: number, alpha: number, beta: number): Values {
+    if (state.status === "finished" || depth <= 0) return evaluatePosition(state);
+    spend();
+    const side = state.turn;
+    const moves = getLegalMoves(state);
+    stats.generatedMoves += moves.length;
+    spend(Math.ceil(moves.length / 16));
+    const ordered = moves
+      .map((move, index) => ({ move, index, score: priority(move, side) }))
+      .sort((a, b) => b.score - a.score || a.index - b.index)
+      .slice(0, width);
+    let best: Values | undefined;
+    const maximizing = !areEnemies(state.mode, root, side);
+    for (const { move } of ordered) {
+      const child = explore(advance(state, move), depth - 1, alpha, beta);
+      if (stats.algorithm === "maxn") {
+        if (
+          !best ||
+          child[side] > best[side] ||
+          (child[side] === best[side] && child[root] < best[root])
+        )
+          best = child;
+      } else {
+        if (!best || (maximizing ? child[root] > best[root] : child[root] < best[root]))
+          best = child;
+        if (maximizing) alpha = Math.max(alpha, child[root]);
+        else beta = Math.min(beta, child[root]);
+        if (alpha >= beta) break;
+      }
+    }
+    return best ?? evaluatePosition(state);
+  }
+  try {
+    for (const [index, move] of legal.entries()) {
+      const state = advance(start, move);
+      candidates.push({ action: move.action, state, values: evaluatePosition(state), index });
+      if (immediateWin(state, root)) return { action: move.action, stats };
+    }
+    candidates.sort((a, b) => b.values[root] - a.values[root] || a.index - b.index);
+    action = candidates[0].action;
+    stats.completedDepth = 1;
+    const selected = candidates.slice(0, rootWidth);
+    for (let depth = 2; depth <= maxDepth; depth++) {
+      let best = selected[0];
+      let score = -Infinity;
+      for (const candidate of selected) {
+        const candidateScore = explore(candidate.state, depth - 1, -Infinity, Infinity)[root];
+        if (
+          candidateScore > score ||
+          (candidateScore === score &&
+            (candidate.values[root] > best.values[root] ||
+              (candidate.values[root] === best.values[root] && candidate.index < best.index)))
+        ) {
+          best = candidate;
+          score = candidateScore;
+        }
+      }
+      action = best.action;
+      stats.completedDepth = depth;
+    }
+  } catch (error) {
+    if (!(error instanceof SearchStopped)) throw error;
+    stats.cutoff = true;
+    if (stats.completedDepth === 0 && candidates.length > 0) {
+      candidates.sort((a, b) => b.values[root] - a.values[root] || a.index - b.index);
+      action = candidates[0].action;
+    }
+  }
+  return { action, stats };
+}
