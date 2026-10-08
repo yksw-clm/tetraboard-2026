@@ -1,5 +1,6 @@
 import {
   attacksSquare,
+  attackedPositions,
   forwardForSide,
   inBounds,
   inPromotionZone,
@@ -169,14 +170,12 @@ function* ordinaryMoves(state: FourShogiState, side: Side): Generator<OrdinaryMo
   if (state.status === "finished" || !getActiveSides(state).includes(side)) return;
   for (const { piece, position: from } of pieces(state.board)) {
     if (piece.side !== side) continue;
-    for (let y = 0; y < 9; y++) {
-      for (let x = 0; x < 9; x++) {
-        const to = { x, y };
-        if (!attacksSquare(state.board, piece, from, to)) continue;
-        for (const action of moveActions(piece, from, to)) {
-          const result = validate(state, side, action, true);
-          if (result.ok) yield result.move;
-        }
+    for (const to of attackedPositions(state.board, piece, from).sort(
+      (a, b) => a.y - b.y || a.x - b.x,
+    )) {
+      for (const action of moveActions(piece, from, to)) {
+        const result = validate(state, side, action, true);
+        if (result.ok) yield result.move;
       }
     }
   }

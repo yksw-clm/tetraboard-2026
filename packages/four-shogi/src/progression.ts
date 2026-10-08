@@ -1,4 +1,4 @@
-import { getLegalMovesWithAttacks } from "./attacks";
+import { getLegalMovesWithAttacks, requiresAttackFiltering } from "./attacks";
 import { getCheckState } from "./board";
 import { getOrdinaryMoves, hasOrdinaryMove } from "./moves";
 import { isRepetition, recordPosition, type RepetitionLookup } from "./repetition";
@@ -113,8 +113,10 @@ export function settlePosition(
       : nextSide(state, after);
   for (;;) {
     state = { ...state, turn: selected };
-    const ordinary = getOrdinaryMoves(state, selected);
-    if (getLegalMovesWithAttacks(state, selected, ordinary).length > 0) break;
+    const available = requiresAttackFiltering(state, selected)
+      ? getLegalMovesWithAttacks(state, selected, getOrdinaryMoves(state, selected)).length > 0
+      : hasOrdinaryMove(state, selected);
+    if (available) break;
     state = finishIfEliminated(eliminateBatch(state, [selected], "no_legal_actions"));
     if (state.status === "finished") return state;
     selected = nextSide(state, selected);

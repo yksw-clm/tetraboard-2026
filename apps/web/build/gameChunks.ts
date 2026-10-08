@@ -33,7 +33,7 @@ export function gameChunks(): Plugin {
       for (const chunk of chunks) {
         for (const [id, info] of Object.entries(chunk.modules)) {
           if (
-            /\/packages\/four-(reversi|shogi)\/src\/cpu(?:Evaluation)?\.ts$/.test(id) &&
+            /\/packages\/four-(reversi|shogi)\/src\/cpu[^/]*\.ts$/.test(id) &&
             hasImplementation(info.code)
           ) {
             this.error(`CPU implementation emitted in ${chunk.fileName}: ${id}`);

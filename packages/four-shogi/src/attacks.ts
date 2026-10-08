@@ -163,14 +163,9 @@ export function classifyAttacks(
   return relations;
 }
 
-export function getLegalMovesWithAttacks(
-  state: FourShogiState,
-  side: Side,
-  ordinaryMoves: readonly OrdinaryMove[],
-): OrdinaryMove[] {
-  if (!usesAttackRestriction(state) || isInCheck(state, side)) return [...ordinaryMoves];
-
-  const restrictedTargets = sides.filter((target) => {
+function restrictedTargets(state: FourShogiState, side: Side): Side[] {
+  if (!usesAttackRestriction(state) || isInCheck(state, side)) return [];
+  return sides.filter((target) => {
     if (target === side) return false;
     const otherAttackers = new Set(
       state.attackRelations
@@ -179,13 +174,25 @@ export function getLegalMovesWithAttacks(
     );
     return otherAttackers.size >= 2;
   });
-  if (restrictedTargets.length === 0) return [...ordinaryMoves];
+}
+
+export function requiresAttackFiltering(state: FourShogiState, side: Side): boolean {
+  return restrictedTargets(state, side).length > 0;
+}
+
+export function getLegalMovesWithAttacks(
+  state: FourShogiState,
+  side: Side,
+  ordinaryMoves: readonly OrdinaryMove[],
+): OrdinaryMove[] {
+  const restricted = restrictedTargets(state, side);
+  if (restricted.length === 0) return [...ordinaryMoves];
 
   const classified = ordinaryMoves.map((move) => ({
     move,
     targets: new Set(classifyAttacks(state, side, move).map((relation) => relation.target)),
   }));
-  const avoidableTargets = restrictedTargets.filter((target) =>
+  const avoidableTargets = restricted.filter((target) =>
     classified.some((candidate) => !candidate.targets.has(target)),
   );
 

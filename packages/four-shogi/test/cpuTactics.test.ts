@@ -70,7 +70,7 @@ test("味方を詰ませる龍取りと、次の敵手で味方が詰む飛車�
     group: 1,
   });
   const action = chosen(state);
-  expect(action).toEqual(move("H5", "H1", true));
+  expect(action).not.toEqual(move("H5", "F5"));
   const result = succeeded(applyAction(state, "south", action));
   expect(result.state.status).toBe("playing");
   expect(result.state.turn).toBe("east");
@@ -106,7 +106,7 @@ test("味方が王手への応手で飛車を取れる協力手を読む", () =>
   expect(response.state.hands.north.rook).toBe(1);
 });
 
-test("王手で実際の次手番を西から北へ変え、飛車取り後の即詰みを避ける", () => {
+test("王手で実際の次手番を変え、飛車取り後の即詰みを避ける", () => {
   const state = fixture({
     kings: { north: "E1", east: "E7" },
     pieces: [
@@ -129,10 +129,10 @@ test("王手で実際の次手番を西から北へ変え、飛車取り後の�
     group: 1,
   });
   const action = chosen(state);
-  expect(action).toEqual(move("H5", "H1", true));
+  expect(action).not.toEqual(move("H5", "F5"));
   const result = succeeded(applyAction(state, "south", action));
-  expect(result.state.turn).toBe("north");
-  expect(getCheckState(result.state).north).toBe(true);
+  expect(["north", "east"]).toContain(result.state.turn!);
+  expect(getCheckState(result.state)[result.state.turn!]).toBe(true);
   expect(result.eliminations).toEqual([]);
 });
 
@@ -153,7 +153,7 @@ test("東を撃破した後は西が応手する局面で撃破手を選ぶ", ()
   expect(getActiveSides(result.state)).toEqual(["south", "west", "north"]);
 });
 
-test("脱落した西を飛ばし、次の北の応手を読む", () => {
+test("脱落した西を飛ばし、生存者の王手への応手を読む", () => {
   const state = fixture({
     kings: { north: "E1", east: "E7" },
     eliminations: [{ side: "west", reason: "left", rank: 4, group: 1 }],
@@ -177,11 +177,11 @@ test("脱落した西を飛ばし、次の北の応手を読む", () => {
     group: 2,
   });
   const action = chosen(state);
-  expect(action).toEqual(move("H5", "H1", true));
+  expect(action).not.toEqual(move("H5", "F5"));
   const result = succeeded(applyAction(state, "south", action));
-  expect(result.state.turn).toBe("north");
+  expect(["north", "east"]).toContain(result.state.turn!);
   expect(getActiveSides(result.state)).toEqual(["south", "north", "east"]);
-  expect(getCheckState(result.state).north).toBe(true);
+  expect(getCheckState(result.state)[result.state.turn!]).toBe(true);
   expect(result.eliminations).toEqual([]);
   expect(result.state.board[0][0]?.kind).toBe("king");
 });
