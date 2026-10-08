@@ -126,6 +126,41 @@ export function isInCheck(state: FourShogiState, side: Side): boolean {
   );
 }
 
+export function attackedPositions(board: Board, piece: Piece, from: Position): Position[] {
+  const found: Position[] = [];
+  if (piece.kind === "rook") {
+    for (const [dx, dy] of [
+      [0, -1],
+      [-1, 0],
+      [1, 0],
+      [0, 1],
+    ]) {
+      for (
+        let x = from.x + dx, y = from.y + dy;
+        x >= 0 && x < 9 && y >= 0 && y < 9;
+        x += dx, y += dy
+      ) {
+        found.push({ x, y });
+        if (board[y][x] !== null) break;
+      }
+    }
+    if (piece.promoted) {
+      for (const dx of [-1, 1])
+        for (const dy of [-1, 1]) {
+          const to = { x: from.x + dx, y: from.y + dy };
+          if (inBounds(to)) found.push(to);
+        }
+    }
+  } else {
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const to = { x: from.x + dx, y: from.y + dy };
+        if (attacksSquare(board, piece, from, to)) found.push(to);
+      }
+  }
+  return found;
+}
+
 export function getCheckState(state: FourShogiState): Record<Side, boolean> {
   return {
     south: isInCheck(state, "south"),

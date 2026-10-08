@@ -42,7 +42,7 @@ function priority(move: OrdinaryMove, side: Side): number {
         ? 400
         : 200
       : 0;
-  return (move.captured ? values[move.captured.kind] * 2 : 0) + promotion + (checking ? 300 : 0);
+  return (move.captured ? values[move.captured.kind] * 2 : 0) + promotion + (checking ? 10_000 : 0);
 }
 
 function immediateWin(state: FourShogiState, side: Side): boolean {
@@ -113,7 +113,19 @@ export function searchCpuAction(
     let best: Values | undefined;
     const maximizing = !areEnemies(state.mode, root, side);
     for (const { move } of ordered) {
-      const child = explore(advance(state, move), depth - 1, alpha, beta);
+      const next = advance(state, move);
+      // 相手の評価上は別の撃破が得でも、一手で自分を脱落させる応手を見逃しません。
+      if (
+        !maximizing &&
+        (!getActiveSides(next).includes(root) ||
+          (next.status === "finished" &&
+            next.result.mode === "doubles" &&
+            next.result.winner !== null &&
+            next.result.winner !== teamForSide(root)))
+      ) {
+        return evaluatePosition(next);
+      }
+      const child = explore(next, depth - 1, alpha, beta);
       if (stats.algorithm === "maxn") {
         if (
           !best ||
