@@ -1,3 +1,4 @@
+import type { SocialProvider } from "./useSocialSignIn";
 import type { GameId } from "@tetraboard/protocol/games";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -16,7 +17,12 @@ export function RoomIdentityFields({
   onChange: (name: string) => void;
   busy: boolean;
   id?: string;
-  registration?: { game?: GameId; humanOnly: boolean; onRegister: () => void; isPending?: boolean };
+  registration?: {
+    game?: GameId;
+    humanOnly: boolean;
+    onRegister: (provider: SocialProvider) => void;
+    pendingProvider?: SocialProvider | null;
+  };
 }) {
   const account = useAccount();
   if (account.loading && !account.error)
@@ -67,7 +73,7 @@ export function RoomIdentityFields({
           humanOnly={registration.humanOnly}
           busy={busy}
           onRegister={registration.onRegister}
-          isPending={registration.isPending}
+          pendingProvider={registration.pendingProvider}
         />
       )}
     </div>

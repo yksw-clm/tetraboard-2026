@@ -411,6 +411,10 @@ PCでは棋譜表示の有無で盤面と全プレイヤーカードの座標・
 
 ## Google認証とアカウント移行
 
+Discordは既存Better Authのproviderを使用します。権限は `identify email`、コールバックはローカル `http://localhost:5173/api/auth/callback/discord`、本番 `https://tetraboard.net/api/auth/callback/discord` です。Discord Developer Portalにそれぞれ登録し、`DISCORD_CLIENT_ID`・`DISCORD_CLIENT_SECRET` をGoogleと同じ方法で設定します。秘密値を会話・ログ・Gitへ出しません。選択したproviderの設定不足だけを503にし、もう一方は利用できます。
+
+認証開始APIのproviderは `google`・`discord` のみを許可し、省略はGoogle、未知値は400です。戻り先は従来のサーバー固定値を維持し、管理画面はGoogle限定です。Discordのメール欠落はBetter Authの `email_not_found` でユーザー作成前に拒否し、日本語でGoogleの選択肢を示します。アカウント連携は無効を維持し、`account_not_linked` は初回の登録方法を使う案内にします。DB migrationと認証依存更新は不要です。Google・Discordの識別子で再ログインし、プロバイダーの名前・画像を公開プロフィールに自動設定しません。
+
 ### ローカル確認と本番設定
 
 `bun run dev` は既存ローカルD1に認証テーブルも適用し、R2はローカルエミュレーターを使います。`APP_ORIGIN` の初期値は `http://localhost:5173` です。Google認証の確認はそのURLでWebを開きます。別のポートやLANのURLを使うときは、Workerの追跡対象外 `.dev.vars` で `APP_ORIGIN` を同じURLへ上書きします。Googleのコールバック設定にも同じオリジンが必要です。通常のロビー・対局はGoogle設定がなくても利用できます。
@@ -629,11 +633,11 @@ Worker統合テストで保存・公開・掲載先・並び順・カーソル�
 
 登録案内は両ゲームで共通の `RegistrationPrompt` を使い、参加フォーム・通常ルームの結果に配置します。結果の自動表示は、認証を確認できた未ログイン参加者がplayingからwaitingへ進んだ場合だけを対象とします。他のダイアログを優先し、既存結果の閲覧では自動表示しません。`tetraboard:registration-result-shown` を表示後に保存し、両ゲームを通じて同じタブで1回に制限します。保存不能時はモジュール内のメモリで抑止します。
 
-認証ボタンは `SocialSignInButtons` で共通化します。Google画像は公式の認証用アセットから取得したPNGを `public/assets/auth/` で配信し、元画像の20pxのロゴ部分をCSSで表示します。白背景・標準色・公式の余白を維持し、画像は装飾扱い・ドラッグ不可とします。
+認証ボタンは `SocialSignInButtons` で共通化します。Google画像は公式の認証用アセットから取得したPNGを `public/assets/auth/` で配信し、元画像の20pxのロゴ部分をCSSで表示します。白背景・標準色・公式の余白を維持し、画像は装飾扱い・ドラッグ不可とします。Google SansはボタンのGoogle表記に必要な文字だけを公式Google Fontsから取得して同じディレクトリで配信し、認証ボタンの表示で外部フォント通信を行いません。
 
-Google認証開始を `useGoogleSignIn` に集約し、既存の認証APIと固定コールバックを維持します。管理画面へのログインもこの処理を使い、`destination=admin` を送信して固定の `/admin` へ戻します。その際は通常登録の画面復帰情報を消去し、プロフィール設定画面への誘導より管理画面への復帰を優先します。`tetraboard:registration-return` に元画面・参加入力・開始時刻を1時間保存します。許可する戻り先は両ロビーと部屋世代付きの部屋URLだけです。`RegistrationCompletion` が本人確認とプロフィール設定の完了後に復帰情報を消費し、復帰先も履歴から復元情報を除きます。入力の復元だけで作成・参加を送信せず、既存ゲスト席や対局履歴の紐付けも変更しません。失敗・取消時の入力保持、保存不能・破損・期限切れのマイページへのフォールバックを検証します。
+Google・Discord認証開始を `useSocialSignIn` に集約し、既存の認証APIと固定コールバックを維持します。管理画面へのログインもこの処理を使い、`destination=admin` を送信して固定の `/admin` へ戻します。その際は通常登録の画面復帰情報を消去し、プロフィール設定画面への誘導より管理画面への復帰を優先します。`tetraboard:registration-return` に元画面・参加入力・開始時刻を1時間保存します。許可する戻り先は両ロビーと部屋世代付きの部屋URLだけです。`RegistrationCompletion` が本人確認とプロフィール設定の完了後に復帰情報を消費し、復帰先も履歴から復元情報を除きます。入力の復元だけで作成・参加を送信せず、既存ゲスト席や対局履歴の紐付けも変更しません。失敗・取消時の入力保持、保存不能・破損・期限切れのマイページへのフォールバックを検証します。
 
-登録案内とOAuth復帰は純粋関数・DOMテストで、ゲスト・アカウント・観戦・認証待ち、CPU戦・対人戦、初回終局・再戦・再読み込み、ダイアログ競合、認証境界の失敗、入力復元・消費、保存領域の失敗、部屋世代とゲスト席保持を確認します。実OAuthはWorkerでGoogle通信を置き換えて検証します。分析イベントの追加はこの機能に含めません。
+登録案内とOAuth復帰は純粋関数・DOMテストで、ゲスト・アカウント・観戦・認証待ち、CPU戦・対人戦、初回終局・再戦・再読み込み、ダイアログ競合、認証境界の失敗、入力復元・消費、保存領域の失敗、部屋世代とゲスト席保持を確認します。実OAuthはWorkerでGoogle・Discord通信を置き換えて検証します。分析イベントの追加はこの機能に含めません。
 
 ## ルームの持ち時間・秒読み
 

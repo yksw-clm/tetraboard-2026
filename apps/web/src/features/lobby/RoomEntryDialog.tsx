@@ -13,7 +13,7 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import { type AppTheme } from "../../shared/ui/appTheme";
 import { ThreePlayerAttackSetting } from "./ThreePlayerAttackSetting";
-import { useGoogleSignIn } from "../account/useGoogleSignIn";
+import { useSocialSignIn } from "../account/useSocialSignIn";
 
 export function RoomEntryDialog({
   game = defaultGameId,
@@ -61,8 +61,8 @@ export function RoomEntryDialog({
   humanOnly?: boolean;
 }) {
   const account = useAccount();
-  const google = useGoogleSignIn();
-  const busy = entryBusy || google.busy;
+  const signIn = useSocialSignIn();
+  const busy = entryBusy || signIn.busy;
   const blocked = unavailable || busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
@@ -106,10 +106,10 @@ export function RoomEntryDialog({
           id="nickname"
           registration={{
             game,
-            isPending: google.busy,
+            pendingProvider: signIn.pendingProvider,
             humanOnly: intent !== "quick" && (humanOnly ?? true),
-            onRegister: () =>
-              void google.start({
+            onRegister: (provider) =>
+              void signIn.start(provider, {
                 path: registrationPath,
                 entry: {
                   intent,
@@ -124,9 +124,9 @@ export function RoomEntryDialog({
               }),
           }}
         />
-        {google.message && (
+        {signIn.message && (
           <p role="alert" className="text-sm text-danger">
-            {google.message}
+            {signIn.message}
           </p>
         )}
         {intent === "join" ? (

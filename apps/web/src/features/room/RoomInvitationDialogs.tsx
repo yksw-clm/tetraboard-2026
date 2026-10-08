@@ -6,7 +6,7 @@ import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
-import { useGoogleSignIn } from "../account/useGoogleSignIn";
+import { useSocialSignIn } from "../account/useSocialSignIn";
 
 export function RoomInvitationDialogs({
   game = defaultGameId,
@@ -24,8 +24,8 @@ export function RoomInvitationDialogs({
   humanOnly: boolean;
 }) {
   const account = useAccount();
-  const google = useGoogleSignIn();
-  const busy = invitation.busy || google.busy;
+  const signIn = useSocialSignIn();
+  const busy = invitation.busy || signIn.busy;
   if (invitation.dialog === "copy")
     return (
       <AppDialog size="compact" title="招待リンク" onClose={invitation.close} theme={theme}>
@@ -65,15 +65,15 @@ export function RoomInvitationDialogs({
           busy={busy}
           registration={{
             game,
-            isPending: google.busy,
+            pendingProvider: signIn.pendingProvider,
             humanOnly,
-            onRegister: () =>
-              void google.start({ path: registrationPath, joinName: invitation.name }),
+            onRegister: (provider) =>
+              void signIn.start(provider, { path: registrationPath, joinName: invitation.name }),
           }}
         />
-        {google.message && (
+        {signIn.message && (
           <p role="alert" className="text-sm text-danger">
-            {google.message}
+            {signIn.message}
           </p>
         )}
         {(invitation.message || invitation.unavailableReason) && (

@@ -16,6 +16,8 @@ export default defineConfig({
           BETTER_AUTH_SECRET: "tetraboard-local-only-secret-at-least-32-characters",
           GOOGLE_CLIENT_ID: "test-google",
           GOOGLE_CLIENT_SECRET: "test-google-secret",
+          DISCORD_CLIENT_ID: "test-discord",
+          DISCORD_CLIENT_SECRET: "test-discord-secret",
           TEST_MIGRATIONS: await readD1Migrations(
             fileURLToPath(new URL("./migrations", import.meta.url)),
           ),

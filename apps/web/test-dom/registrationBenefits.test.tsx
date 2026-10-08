@@ -33,11 +33,26 @@ test("両ゲームの登録案内はバッジの例・対象条件・ゲスト�
 });
 
 test("Googleの共通認証ボタンは公式画像・統一文言・処理中ロックを持つ", () => {
-  const view = render(<RegistrationPrompt humanOnly busy isPending onRegister={() => {}} />);
+  const view = render(
+    <RegistrationPrompt humanOnly busy pendingProvider="google" onRegister={() => {}} />,
+  );
   const button = view.querySelector("button")!;
   expect(button.textContent).toContain("Googleで続ける");
   expect(button.disabled).toBe(true);
   expect(button.querySelector('[data-slot="pending-spinner"]')).not.toBeNull();
   expect(button.querySelector("img")!.getAttribute("src")).toBe("/assets/auth/google.png");
   expect(button.querySelector("img")!.getAttribute("alt")).toBe("");
+});
+
+test("Discord送信中は両認証ボタンをロックし、選んだボタンだけが処理中になる", () => {
+  const view = render(
+    <RegistrationPrompt humanOnly busy pendingProvider="discord" onRegister={() => {}} />,
+  );
+  const buttons = view.querySelectorAll("button");
+  expect(buttons).toHaveLength(2);
+  expect(buttons[0]!.textContent).toContain("Googleで続ける");
+  expect(buttons[1]!.textContent).toContain("Discordで続ける");
+  expect([...buttons].every((button) => button.disabled)).toBe(true);
+  expect(buttons[0]!.querySelector('[data-slot="pending-spinner"]')).toBeNull();
+  expect(buttons[1]!.querySelector('[data-slot="pending-spinner"]')).not.toBeNull();
 });

@@ -1,3 +1,4 @@
+import type { SocialProvider } from "./useSocialSignIn";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
@@ -9,7 +10,7 @@ export function RegistrationPrompt({
   seated = false,
   result = false,
   busy,
-  isPending = false,
+  pendingProvider = null,
   onRegister,
   onDismiss,
 }: {
@@ -18,8 +19,8 @@ export function RegistrationPrompt({
   seated?: boolean;
   result?: boolean;
   busy: boolean;
-  isPending?: boolean;
-  onRegister: () => void;
+  pendingProvider?: SocialProvider | null;
+  onRegister: (provider: SocialProvider) => void;
   onDismiss?: () => void;
 }) {
   return (
@@ -48,7 +49,7 @@ export function RegistrationPrompt({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <SocialSignInButtons busy={busy} isPending={isPending} onSignIn={onRegister} />
+        <SocialSignInButtons busy={busy} pendingProvider={pendingProvider} onSignIn={onRegister} />
         {onDismiss && (
           <AppButton appearance="secondary" size="compact" isDisabled={busy} onPress={onDismiss}>
             今はしない

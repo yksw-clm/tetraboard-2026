@@ -1,10 +1,12 @@
 MODERATOR_TOKEN="replace-with-a-long-random-secret"
 FEEDBACK_HASH_SECRET=replace-with-at-least-32-random-characters
 
-# Google認証（秘密値は追跡対象外の .dev.vars に設定します）
+# Google・Discord認証（秘密値は追跡対象外の .dev.vars に設定します）
 BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters
 GOOGLE_CLIENT_ID=replace-with-google-client-id
 GOOGLE_CLIENT_SECRET=replace-with-google-client-secret
+DISCORD_CLIENT_ID=replace-with-discord-client-id
+DISCORD_CLIENT_SECRET=replace-with-discord-client-secret
 
 # 管理画面の利用を許可する本人の内部 user.id（公開 @ID とは異なります）
 ADMIN_ACCOUNT_IDS='["replace-with-owner-internal-account-id","replace-with-second-internal-account-id"]'

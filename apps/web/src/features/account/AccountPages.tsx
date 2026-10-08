@@ -25,7 +25,7 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { ProfileForm } from "./ProfileForm";
-import { useGoogleSignIn } from "./useGoogleSignIn";
+import { useSocialSignIn } from "./useSocialSignIn";
 import {
   clearRegistrationReturn,
   readRegistrationReturn,
@@ -160,7 +160,7 @@ export function LoginPage() {
   const { user, loading, error } = useAccount();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const google = useGoogleSignIn();
+  const signIn = useSocialSignIn();
   const [destination] = useState(readRegistrationReturn);
   const adminDestination = params.get("destination") === "admin";
   useEffect(() => {
@@ -183,29 +183,34 @@ export function LoginPage() {
         <AppCard>
           <AppCard.Header>
             <h1 className="text-2xl font-bold">登録・ログイン</h1>
-            <p className="text-sm text-muted">GoogleアカウントでTetraBoardを利用できます。</p>
+            <p className="text-sm text-muted">GoogleまたはDiscordでTetraBoardを利用できます。</p>
           </AppCard.Header>
           <AppCard.Content className="flex flex-col gap-5">
             <p className="text-sm">
               アカウントがない場合は、新しいユーザーが作成されます。続いて名前・ID・任意のアイコンを設定します。
             </p>
-            {(google.message || params.has("error")) && (
+            {(signIn.message || params.has("error")) && (
               <p role="alert" className="text-sm text-danger">
-                {google.message ??
-                  "ログインを完了できませんでした。キャンセルした場合も、もう一度お試しいただけます。"}
+                {signIn.message ??
+                  (params.get("error") === "email_not_found"
+                    ? "Discordからメールアドレスを取得できませんでした。メールを設定したDiscordアカウントか、Googleで続けてください。"
+                    : params.get("error") === "account_not_linked"
+                      ? "このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。アカウントの自動連携は行いません。"
+                      : "ログインを完了できませんでした。キャンセルした場合も、もう一度お試しいただけます。")}
               </p>
             )}
             <SocialSignInButtons
-              onSignIn={() =>
-                void google.start(adminDestination ? "admin" : (destination ?? undefined))
+              onSignIn={(provider) =>
+                void signIn.start(provider, adminDestination ? "admin" : (destination ?? undefined))
               }
-              busy={google.busy}
-              isPending={google.busy}
+              adminOnly={adminDestination}
+              busy={signIn.busy}
+              pendingProvider={signIn.pendingProvider}
             />
             {destination && !adminDestination && (
               <AppButton
                 appearance="quiet"
-                isDisabled={google.busy}
+                isDisabled={signIn.busy}
                 onPress={() => {
                   clearRegistrationReturn();
                   void navigate(destination.path, {
