@@ -100,7 +100,7 @@ test("account shares requests, switches mode/game, and retains badges when refre
   expect(badgeSection(view)?.querySelectorAll("img")).toHaveLength(2);
 });
 
-test("profile shows earned badges in catalog order only in singles, with accessible conditions", () => {
+test("profile shows only earned badge images in catalog order, with accessible names and live values", () => {
   const card = (current: PlayerProfile, mode: "singles" | "doubles" = "singles") => (
     <PlayerProfileCard
       game="four-shogi"
@@ -114,10 +114,27 @@ test("profile shows earned badges in catalog order only in singles, with accessi
   const section = view.querySelector('[aria-label="獲得済みバッジ"]')!;
   expect(section.querySelectorAll("img")).toHaveLength(2);
   expect(section.querySelector("img")?.getAttribute("src")).toContain("games-star-3");
-  expect(section.querySelector('[aria-label*="撃破数・星3・60人"]')).not.toBeNull();
-  act(() => (section.querySelector("summary") as HTMLElement).click());
-  expect(section.querySelector("details")?.open).toBe(true);
-  expect(section.textContent).toContain("相手を詰ませて撃破する");
+  expect(section.querySelector('[role="img"][aria-label="撃破数・星3・60人"]')).not.toBeNull();
+  expect(section.querySelector('[role="img"][aria-label="対局数・星3・100局"]')).not.toBeNull();
+  expect(section.querySelector("p, h2, h3, details, summary, [title]")).toBeNull();
+  expect(section.textContent).toBe("10060");
+  const allBadges: PlayerProfile = {
+    ...profile,
+    badges: [
+      { id: "games", tier: 1, value: 5 },
+      { id: "wins", tier: 2, value: 15 },
+      { id: "knockouts", tier: 3, value: 60 },
+      { id: "perfect-wins", tier: 3, value: 3 },
+    ],
+  };
+  rerender(view, card(allBadges));
+  expect(view.querySelectorAll('[aria-label="獲得済みバッジ"] img')).toHaveLength(4);
+  expect(
+    Array.from(view.querySelectorAll('[aria-label="獲得済みバッジ"] [role="img"]'), (image) =>
+      image.getAttribute("aria-label"),
+    ),
+  ).toEqual(["対局数・星1・5局", "優勝数・星2・15回", "撃破数・星3・60人", "完全優勝・星3・3回"]);
+  expect(view.querySelector('[aria-label="獲得済みバッジ"]')?.textContent).toBe("603");
   rerender(view, card(profile, "doubles"));
   expect(view.querySelector('[aria-label="獲得済みバッジ"]')).toBeNull();
   if (profile.kind !== "account") throw new Error("Account expected");
@@ -126,6 +143,8 @@ test("profile shows earned badges in catalog order only in singles, with accessi
     expect(view.querySelector('[aria-label="獲得済みバッジ"]')).toBeNull();
   }
   rerender(view, card({ kind: "guest", name: "ゲスト", avatarUrl: null }));
+  expect(view.querySelector('[aria-label="獲得済みバッジ"]')).toBeNull();
+  rerender(view, card({ kind: "cpu", level: 2 }));
   expect(view.querySelector('[aria-label="獲得済みバッジ"]')).toBeNull();
 });
 
@@ -154,7 +173,7 @@ test("profile opt-in falls back once on old Worker and does not fabricate badges
   expect(store.get(profileKey(target, "four-shogi")).error).not.toBeNull();
 });
 
-test("expanded conditions and card scrolling keep the preview open; Escape restores its trigger", () => {
+test("image-only badges preserve card scrolling and Escape focus restoration", () => {
   const view = render(
     <MemoryRouter>
       <PlayerProfileProvider>
@@ -176,9 +195,8 @@ test("expanded conditions and card scrolling keep the preview open; Escape resto
   const region = document.querySelector<HTMLElement>(
     'section[aria-label="登録者のプレイヤー情報"]',
   )!;
-  const summary = region.querySelector("summary")!;
-  act(() => summary.click());
-  expect(region.querySelector("details")?.open).toBe(true);
+  expect(region.querySelector('[aria-label="獲得済みバッジ"] img')).not.toBeNull();
+  expect(region.querySelector("details")).toBeNull();
   act(() => region.dispatchEvent(new Event("scroll")));
   expect(document.querySelector('section[aria-label="登録者のプレイヤー情報"]')).not.toBeNull();
   act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
