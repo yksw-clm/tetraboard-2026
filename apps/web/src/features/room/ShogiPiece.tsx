@@ -1,7 +1,7 @@
 import type { HandPieceKind, PieceKind } from "@tetraboard/four-shogi";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ShogiPieceDirection } from "./shogiBoardPresentation";
-import { shogiPieceImage } from "./shogiPieceImages";
+import { shogiImageStore, shogiPieceImage } from "./shogiPieceImages";
 const rotationClasses: Record<ShogiPieceDirection, string> = {
   up: "",
   down: "",
@@ -24,23 +24,31 @@ export function ShogiPiece({
   direction: ShogiPieceDirection;
 }) {
   const { src, name } = shogiPieceImage(kind, promoted, deadKing, direction);
-  const image = useRef<HTMLImageElement>(null);
-  const [decoded, setDecoded] = useState<{ src: string; ok: boolean } | null>(null);
-  const ready = decoded?.src === src && decoded.ok;
+  return <PreparedShogiPiece key={src} src={src} name={name} direction={direction} />;
+}
+
+function PreparedShogiPiece({
+  src,
+  name,
+  direction,
+}: {
+  src: string;
+  name: string;
+  direction: ShogiPieceDirection;
+}) {
+  const subscribe = useCallback(
+    (listener: () => void) => shogiImageStore.subscribe(src, listener),
+    [src],
+  );
+  const status = useSyncExternalStore(
+    subscribe,
+    () => shogiImageStore.getStatus(src),
+    () => "idle",
+  );
+  const [failed, setFailed] = useState(false);
+  const ready = status === "ready" && !failed;
   useEffect(() => {
-    const current = image.current;
-    if (!current) return;
-    let active = true;
-    function finish(ok: boolean) {
-      if (active && image.current === current) setDecoded({ src, ok });
-    }
-    void current.decode().then(
-      () => finish(current.complete && current.naturalWidth > 0),
-      () => finish(false),
-    );
-    return () => {
-      active = false;
-    };
+    void shogiImageStore.prepare(src);
   }, [src]);
   return (
     <span
@@ -49,9 +57,9 @@ export function ShogiPiece({
     >
       <img
         key={src}
-        ref={image}
         src={src}
         alt=""
+        onError={() => setFailed(true)}
         draggable={false}
         aria-hidden="true"
         data-testid="shogi-piece"
