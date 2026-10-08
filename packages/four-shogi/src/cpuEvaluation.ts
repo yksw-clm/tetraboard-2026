@@ -10,7 +10,7 @@ import {
   type Side,
 } from "./types";
 
-export const defaultEvaluationWeights = {
+export const defaultEvaluationWeights = Object.freeze({
   undefended: 0.7,
   exchange: 0.45,
   kingRing: 35,
@@ -19,8 +19,8 @@ export const defaultEvaluationWeights = {
   advancement: 6,
   shelter: 12,
   survival: 5000,
-};
-export type EvaluationWeights = typeof defaultEvaluationWeights;
+});
+export type EvaluationWeights = { readonly [Key in keyof typeof defaultEvaluationWeights]: number };
 const pieceValues = { king: 0, rook: 800, gold: 500, silver: 400, pawn: 100 };
 const victoryScore = 1_000_000;
 

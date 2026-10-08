@@ -9,7 +9,15 @@ import {
 } from "../src/types";
 import { fixture, type FixtureOptions } from "./positionFixture";
 
-type Criterion = "rook" | "promotion" | "block" | "win" | "safe" | "cooperate" | "magic";
+type Criterion =
+  | "rook"
+  | "promotion"
+  | "pawn-capture-promotion"
+  | "block"
+  | "win"
+  | "safe"
+  | "cooperate"
+  | "magic";
 type Family = {
   id: string;
   criterion: Criterion;
@@ -32,7 +40,7 @@ const families: Family[] = [
   },
   {
     id: "poisoned-gold",
-    criterion: "promotion",
+    criterion: "pawn-capture-promotion",
     setup: {
       kings: { north: "I2" },
       pieces: [
@@ -148,7 +156,7 @@ const families: Family[] = [
       ],
       eliminations: [{ side: "west", reason: "left", rank: 4, group: 1 }],
     },
-    proof: "脱落した西の飛車には利きがなく、F4銀取りで持ち駒にできる。",
+    proof: "脱落した西の飛車には利きがなく、銀でF4飛車を取って持ち駒にできる。",
   },
   {
     id: "east-rook",
@@ -263,6 +271,8 @@ export function acceptsTactic(tactic: TacticCase, action: FourShogiAction | null
       return result.captured?.kind === "rook";
     case "promotion":
       return action.type === "movePiece" && action.promote;
+    case "pawn-capture-promotion":
+      return action.type === "movePiece" && action.promote && result.captured?.kind === "pawn";
     case "block":
       return action.type === "dropPiece" && !getCheckState(after)[root];
     case "win":

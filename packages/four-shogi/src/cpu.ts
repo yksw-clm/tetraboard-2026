@@ -1,10 +1,21 @@
-import { searchCpuAction } from "./cpuSearch";
+import { searchCpuAction, type SearchOptions } from "./cpuSearch";
+import { getOpeningAction } from "./cpuOpenings";
 import type { RepetitionLookup } from "./repetition";
 import { getLegalMoves } from "./transition";
 import type { FourShogiAction, FourShogiState } from "./types";
 
 export type CpuLevel = 1 | 2;
-export const chooseCpuActionWithDiagnostics = searchCpuAction;
+export function chooseCpuActionWithDiagnostics(
+  state: FourShogiState,
+  options: SearchOptions = {},
+  repetitionLookup?: RepetitionLookup,
+) {
+  return searchCpuAction(
+    state,
+    { ...options, preferredAction: getOpeningAction(state) },
+    repetitionLookup,
+  );
+}
 
 export function chooseCpuAction(
   state: FourShogiState,
@@ -13,7 +24,7 @@ export function chooseCpuAction(
   repetitionLookup?: RepetitionLookup,
 ): FourShogiAction | null {
   if (state.status === "finished") return null;
-  if (level === 2) return searchCpuAction(state, {}, repetitionLookup).action;
+  if (level === 2) return chooseCpuActionWithDiagnostics(state, {}, repetitionLookup).action;
   const moves = getLegalMoves(state);
   if (moves.length === 0) return null;
   const sample = random();

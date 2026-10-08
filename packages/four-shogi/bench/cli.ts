@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chooseCpuActionWithDiagnostics } from "../src/cpu";
-import type { SearchStats } from "../src/cpuSearch";
+import type { SearchOptions, SearchStats } from "../src/cpuSearch";
+import { defaultEvaluationWeights } from "../src/cpuEvaluation";
 import { tacticalCases, acceptsTactic } from "./tactics";
 import { sides, type GameMode, type FourShogiState } from "../src/types";
 import {
@@ -69,13 +70,29 @@ function performancePositions(): { name: string; state: FourShogiState }[] {
 }
 
 try {
+  const searchOptions: SearchOptions = {};
+  if (args.has("max-work")) searchOptions.maxWork = integer("max-work", 2048);
+  if (args.has("weights")) {
+    const weights: unknown = JSON.parse(args.get("weights")!);
+    if (weights === null || typeof weights !== "object" || Array.isArray(weights))
+      throw new Error("weightsは評価名と非負の有限数のJSONオブジェクトを指定してください");
+    for (const [key, value] of Object.entries(weights))
+      if (
+        !(key in defaultEvaluationWeights) ||
+        typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        value < 0
+      )
+        throw new Error(`不正な評価の重み: ${key}`);
+    searchOptions.evaluationWeights = weights;
+  }
   const old = await baseline();
   const traces: SearchStats[] = [];
   const candidate: Selector =
     args.get("candidate") === "baseline"
       ? old
       : (state) => {
-          const result = chooseCpuActionWithDiagnostics(state);
+          const result = chooseCpuActionWithDiagnostics(state, searchOptions);
           traces.push(result.stats);
           return result.action;
         };
@@ -94,6 +111,7 @@ try {
     platform: process.platform,
     arch: process.arch,
     args: Object.fromEntries(args),
+    searchOptions,
   };
   const kind = args.get("kind") ?? "performance";
   let report: unknown;
@@ -120,7 +138,9 @@ try {
       summary: summarizeTimes(measurements.flatMap((entry) => entry.times)),
     };
   } else if (kind === "tactics") {
-    const corpus = tacticalCases();
+    const split = args.get("split") ?? "all";
+    if (!["all", "regression", "validation"].includes(split)) throw new Error("splitが不正です");
+    const corpus = tacticalCases().filter((tactic) => split === "all" || tactic.split === split);
     const corpusHash = new Bun.CryptoHasher("sha256").update(JSON.stringify(corpus)).digest("hex");
     const samples = corpus.map((tactic) => {
       const action = candidate(tactic.state);
@@ -188,7 +208,15 @@ try {
           ),
         );
     }
-    report = { metadata, mode, restricted, maxPlies, samples, summary: summarizeMatches(samples) };
+    report = {
+      metadata,
+      mode,
+      restricted,
+      maxPlies,
+      complete: true,
+      samples,
+      summary: summarizeMatches(samples),
+    };
   } else throw new Error("kindはperformance、tactics、matchesを指定してください");
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (args.has("output")) await Bun.write(args.get("output")!, json);

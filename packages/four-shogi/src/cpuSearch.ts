@@ -1,5 +1,9 @@
 import { getCheckState } from "./board";
-import { evaluatePosition } from "./cpuEvaluation";
+import {
+  evaluatePosition,
+  defaultEvaluationWeights,
+  type EvaluationWeights,
+} from "./cpuEvaluation";
 import type { OrdinaryMove } from "./moves";
 import { positionKey, type RepetitionLookup } from "./repetition";
 import { applyLegalMove, getLegalMoves } from "./transition";
@@ -18,6 +22,8 @@ export type SearchOptions = {
   width?: number;
   rootWidth?: number;
   extensions?: number;
+  evaluationWeights?: Partial<EvaluationWeights>;
+  preferredAction?: FourShogiAction;
 };
 export type SearchStats = {
   nodes: number;
@@ -67,6 +73,16 @@ export function searchCpuAction(
   const width = options.width ?? 6;
   const rootWidth = options.rootWidth ?? 24;
   const extensions = options.extensions ?? 2;
+  const weights = { ...defaultEvaluationWeights, ...options.evaluationWeights };
+  if (Object.values(weights).some((value) => !Number.isFinite(value) || value < 0))
+    throw new TypeError("評価の重みは非負の有限数で指定してください");
+  const evaluate = (state: FourShogiState) => evaluatePosition(state, weights);
+  const preferred = JSON.stringify(options.preferredAction);
+  const preference = (action: FourShogiAction) => Number(JSON.stringify(action) === preferred);
+  const compareCandidates = (a: Candidate, b: Candidate) =>
+    b.values[input.turn!] - a.values[input.turn!] ||
+    preference(b.action) - preference(a.action) ||
+    a.index - b.index;
   if (
     [maxWork, maxDepth, width, rootWidth].some((value) => !Number.isSafeInteger(value) || value < 1)
   )
@@ -115,7 +131,7 @@ export function searchCpuAction(
     beta: number,
     extra: number,
   ): Values {
-    if (state.status === "finished") return evaluatePosition(state);
+    if (state.status === "finished") return evaluate(state);
     const checked = getCheckState(state)[state.turn];
     if (depth <= 0 && extra > 0 && (checked || state.lastMove?.captured || state.turn === root)) {
       depth = 1;
@@ -137,7 +153,7 @@ export function searchCpuAction(
       return cached;
     }
     if (depth <= 0) {
-      const result = evaluatePosition(state);
+      const result = evaluate(state);
       if (cache.size < 2048) cache.set(key, result);
       return result;
     }
@@ -166,7 +182,7 @@ export function searchCpuAction(
             next.result.winner !== null &&
             next.result.winner !== teamForSide(root)))
       ) {
-        return evaluatePosition(next);
+        return evaluate(next);
       }
       const child = explore(next, depth - 1, alpha, beta, extra);
       if (stats.algorithm === "maxn") {
@@ -184,17 +200,17 @@ export function searchCpuAction(
         if (alpha >= beta) return best;
       }
     }
-    const result = best ?? evaluatePosition(state);
+    const result = best ?? evaluate(state);
     if (canCache && cache.size < 2048) cache.set(key, result);
     return result;
   }
   try {
     for (const [index, move] of legal.entries()) {
       const state = advance(start, move);
-      candidates.push({ action: move.action, state, values: evaluatePosition(state), index });
+      candidates.push({ action: move.action, state, values: evaluate(state), index });
       if (immediateWin(state, root)) return { action: move.action, stats };
     }
-    candidates.sort((a, b) => b.values[root] - a.values[root] || a.index - b.index);
+    candidates.sort(compareCandidates);
     action = candidates[0].action;
     stats.completedDepth = 1;
     const selected = candidates.filter(
@@ -215,7 +231,10 @@ export function searchCpuAction(
           candidateScore > score ||
           (candidateScore === score &&
             (candidate.values[root] > best.values[root] ||
-              (candidate.values[root] === best.values[root] && candidate.index < best.index)))
+              (candidate.values[root] === best.values[root] &&
+                (preference(candidate.action) > preference(best.action) ||
+                  (preference(candidate.action) === preference(best.action) &&
+                    candidate.index < best.index)))))
         ) {
           best = candidate;
           score = candidateScore;
@@ -228,7 +247,7 @@ export function searchCpuAction(
     if (!(error instanceof SearchStopped)) throw error;
     stats.cutoff = true;
     if (stats.completedDepth === 0 && candidates.length > 0) {
-      candidates.sort((a, b) => b.values[root] - a.values[root] || a.index - b.index);
+      candidates.sort(compareCandidates);
       action = candidates[0].action;
     }
   }
