@@ -10,7 +10,7 @@ import {
   type Side,
 } from "./types";
 
-export const defaultEvaluationWeights = Object.freeze({
+export const defaultEvaluationWeights = /* @__PURE__ */ Object.freeze({
   undefended: 0.7,
   exchange: 0.45,
   kingRing: 35,
