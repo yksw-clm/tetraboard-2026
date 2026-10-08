@@ -176,9 +176,12 @@ test("確定した本人着手の戦型だけを4方向で通知し1999/2000ms�
   }
 });
 
-test("同時成立のまとめ通知と新規戦型への置換は2秒表示し、再読込後も全17種類を抑止", () => {
-  const before = formationState(initialShogiState(), "lower-gold", "south", false);
-  const completed = applyAction(before, "south", formationAction("lower-gold"));
+test.each([
+  { id: "lower-gold" as const, name: "地下鉄飛車・下段金寄せ" },
+  { id: "yuzuu-muge" as const, name: "地下鉄飛車・融通無碍" },
+])("$name: 1戦型として通知し、置換・2秒消去・全16種類の記録復元に対応", ({ id, name }) => {
+  const before = formationState(initialShogiState(), id, "south", false);
+  const completed = applyAction(before, "south", formationAction(id));
   if (!completed.ok) throw new Error("fixture");
   const first = playingShogiRoom(before),
     next = playingShogiRoom(completed.state, 1);
@@ -187,10 +190,11 @@ test("同時成立のまとめ通知と新規戦型への置換は2秒表示し�
     first,
   );
   h.rerender(next);
-  expect(h.current.notice?.name).toBe("地下鉄飛車・下段金寄せ");
+  expect(h.current.notice).toEqual({ ids: [id], name });
+  clock.advance(1999);
+  expect(h.current.notice?.name).toBe(name);
   const key = `tetraboard:room:${first.instanceId}:${playerIds[0]}:formations`;
-  expect(JSON.parse(sessionStorage.getItem(key)!).seen).toEqual(["subway-rook", "lower-gold"]);
-  clock.advance(1000);
+  expect(JSON.parse(sessionStorage.getItem(key)!).seen).toEqual([id]);
   const fiveBefore = formationState(initialShogiState(), "five", "south", false);
   const five = applyAction(fiveBefore, "south", formationAction("five"));
   if (!five.ok) throw new Error("fixture");
@@ -202,7 +206,7 @@ test("同時成立のまとめ通知と新規戦型への置換は2秒表示し�
   expect(h.current.notice).toBeNull();
   h.unmount();
 
-  // 解析器から期待IDを作らず、独立fixtureの全17種類を記録する。
+  // 解析器から期待IDを作らず、独立fixtureの全16種類を記録する。
   sessionStorage.setItem(
     key,
     JSON.stringify({
@@ -210,7 +214,7 @@ test("同時成立のまとめ通知と新規戦型への置換は2秒表示し�
       seen: formationCases.map((fixture) => fixture.id),
     }),
   );
-  for (const id of ["lower-gold", "five", "tenshukaku-ship"] as const) {
+  for (const id of ["lower-gold", "yuzuu-muge", "five", "tenshukaku-ship"] as const) {
     const state = formationState(initialShogiState(), id, "south", false);
     const result = applyAction(state, "south", formationAction(id));
     if (!result.ok) throw new Error("fixture");
@@ -218,36 +222,57 @@ test("同時成立のまとめ通知と新規戦型への置換は2秒表示し�
       (room: FourShogiRoom) => useShogiFormationNotice(room, playerIds[0], true),
       playingShogiRoom(state),
     );
-    expect(JSON.parse(sessionStorage.getItem(key)!).seen).toHaveLength(17);
+    expect(JSON.parse(sessionStorage.getItem(key)!).seen).toHaveLength(16);
     restored.rerender(playingShogiRoom(result.state, 1));
     expect(restored.current.notice).toBeNull();
     restored.unmount();
   }
 });
 
-test("解析版1の通知記録は基準局面へ置き換え、版2で新たに成立した戦型を通知", () => {
-  const state = formationState(initialShogiState(), "five", "south", false);
-  const result = applyAction(state, "south", formationAction("five"));
-  if (!result.ok) throw new Error("fixture");
-  const first = playingShogiRoom(state);
-  const key = `tetraboard:room:${first.instanceId}:${playerIds[0]}:formations`;
-  sessionStorage.setItem(
-    key,
-    JSON.stringify({
-      scope: `${first.instanceId}:${playerIds[0]}:${first.roundId}:1`,
+test.each([1, 2])(
+  "解析版%dの通知記録は基準局面へ置き換え、版3で新たに成立した戦型を通知",
+  (version) => {
+    const state = formationState(initialShogiState(), "five", "south", false);
+    const result = applyAction(state, "south", formationAction("five"));
+    if (!result.ok) throw new Error("fixture");
+    const first = playingShogiRoom(state);
+    const key = `tetraboard:room:${first.instanceId}:${playerIds[0]}:formations`;
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        scope: `${first.instanceId}:${playerIds[0]}:${first.roundId}:${version}`,
+        seen: ["five", "subway-rook"],
+      }),
+    );
+    const h = renderHook(
+      (room: FourShogiRoom) => useShogiFormationNotice(room, playerIds[0], true),
+      first,
+    );
+    expect(h.current.notice).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem(key)!).scope).toEndWith(":3");
+    h.rerender(playingShogiRoom(result.state, 1));
+    expect(h.current.notice?.name).toBe("ファイブ");
+    h.unmount();
+
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        scope: `${first.instanceId}:${playerIds[0]}:${first.roundId}:${version}`,
+        seen: ["subway-rook"],
+      }),
+    );
+    const established = renderHook(
+      (room: FourShogiRoom) => useShogiFormationNotice(room, playerIds[0], true),
+      playingShogiRoom(result.state, 1),
+    );
+    expect(established.current.notice).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem(key)!)).toEqual({
+      scope: `${first.instanceId}:${playerIds[0]}:${first.roundId}:3`,
       seen: ["five"],
-    }),
-  );
-  const h = renderHook(
-    (room: FourShogiRoom) => useShogiFormationNotice(room, playerIds[0], true),
-    first,
-  );
-  expect(h.current.notice).toBeNull();
-  expect(JSON.parse(sessionStorage.getItem(key)!).scope).toEndWith(":2");
-  h.rerender(playingShogiRoom(result.state, 1));
-  expect(h.current.notice?.name).toBe("ファイブ");
-  h.unmount();
-});
+    });
+    established.unmount();
+  },
+);
 test("戦型の操作取消・切断・次局・保存不可を処理し、初回成立や他人は通知しない", () => {
   const before = formationState(initialShogiState(), "tenshukaku", "south", false),
     result = applyAction(before, "south", formationAction("tenshukaku", "south"));

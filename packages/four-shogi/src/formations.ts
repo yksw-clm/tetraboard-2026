@@ -2,7 +2,7 @@ import { positionForSide } from "./board";
 import type { FourShogiState, PieceKind, Position, Side } from "./types";
 
 export const formationAnalyzerId = "four-shogi-formations";
-export const formationAnalysisVersion = 2;
+export const formationAnalysisVersion = 3;
 export type FormationPosition = Pick<FourShogiState, "rulesVersion" | "board" | "eliminations">;
 
 const definitions = [
@@ -14,15 +14,6 @@ const definitions = [
     gold: ["D9", "F9"],
     silver: ["C9", "G9"],
     pawn: ["D7", "E6", "F7"],
-  },
-  {
-    id: "subway-rook",
-    name: "地下鉄飛車",
-    king: "F8",
-    rook: "E9",
-    gold: ["F9", "G8"],
-    silver: ["C9", "G9"],
-    pawn: ["D8", "E7", "F7"],
   },
   {
     id: "right-king",
@@ -88,9 +79,8 @@ const definitions = [
     pawn: ["D7", "E6", "F7"],
   },
   {
-    // 連盟記事では地下鉄飛車と同じ完成図を参照しています。
     id: "lower-gold",
-    name: "下段金寄せ",
+    name: "地下鉄飛車・下段金寄せ",
     king: "F8",
     rook: "E9",
     gold: ["F9", "G8"],
@@ -99,7 +89,7 @@ const definitions = [
   },
   {
     id: "yuzuu-muge",
-    name: "融通無碍",
+    name: "地下鉄飛車・融通無碍",
     king: "F9",
     rook: "E9",
     gold: ["C8", "H8"],

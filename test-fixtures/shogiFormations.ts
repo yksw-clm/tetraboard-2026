@@ -15,18 +15,6 @@ export const formationCases = [
     },
   },
   {
-    id: "subway-rook",
-    name: "地下鉄飛車",
-    before: "E8",
-    pieces: {
-      king: ["F8"],
-      rook: ["E9"],
-      gold: ["F9", "G8"],
-      silver: ["C9", "G9"],
-      pawn: ["D8", "E7", "F7"],
-    },
-  },
-  {
     id: "right-king",
     name: "右玉",
     before: "H8",
@@ -112,7 +100,7 @@ export const formationCases = [
   },
   {
     id: "lower-gold",
-    name: "下段金寄せ",
+    name: "地下鉄飛車・下段金寄せ",
     before: "E8",
     pieces: {
       king: ["F8"],
@@ -124,7 +112,7 @@ export const formationCases = [
   },
   {
     id: "yuzuu-muge",
-    name: "融通無碍",
+    name: "地下鉄飛車・融通無碍",
     before: "F8",
     pieces: {
       king: ["F9"],
