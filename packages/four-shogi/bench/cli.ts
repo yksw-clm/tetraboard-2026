@@ -78,7 +78,7 @@ try {
       throw new Error("weightsは評価名と非負の有限数のJSONオブジェクトを指定してください");
     for (const [key, value] of Object.entries(weights))
       if (
-        !(key in defaultEvaluationWeights) ||
+        !Object.hasOwn(defaultEvaluationWeights, key) ||
         typeof value !== "number" ||
         !Number.isFinite(value) ||
         value < 0
