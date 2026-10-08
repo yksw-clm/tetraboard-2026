@@ -29,6 +29,7 @@ import {
 import { ShogiStore } from "../src/rooms/shogiStore";
 import { GameRoom } from "../src/rooms/gameRoom";
 import { formationAction, formationState } from "../../../test-fixtures/shogiFormations";
+import { tacticalCases } from "../../../packages/four-shogi/bench/tactics";
 import {
   pendingShogiMatchPrefix,
   readShogiMatchRecord,
@@ -636,7 +637,7 @@ test("接続復帰は期限を解除し、通信期限切れと時計期限は�
   });
 });
 
-test("CPUは選択を保存した次のAlarmで期限を照合し、期限切れの選択を着手しない", async () => {
+test("CPU Lv2は選択を保存した次のAlarmで期限を照合し、期限切れの選択を着手しない", async () => {
   const created = await create(true);
   const client = await connect(created.room.id, created.membership.token);
   client.send({ type: "room.game.start" });
@@ -656,6 +657,9 @@ test("CPUは選択を保存した次のAlarmで期限を照合し、期限切れ
       "room",
       fourShogiRoomSchema.parse({
         ...room,
+        players: room.players.map((player) =>
+          player.kind === "cpu" ? { ...player, level: 2 } : player,
+        ),
         game: store.saveState(room.roundId, cpuState),
         legalActions: getLegalActions(cpuState),
         clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
@@ -689,6 +693,74 @@ test("CPUは選択を保存した次のAlarmで期限を照合し、期限切れ
   expect(room.game.eliminations[0]).toMatchObject({ reason: "timeout" });
   expect(room.positionRevision).toBe(1);
 });
+
+test.each([
+  { mode: "singles" as const, restricted: false },
+  { mode: "singles" as const, restricted: true },
+  { mode: "doubles" as const, restricted: false },
+  { mode: "doubles" as const, restricted: true },
+])(
+  "CPU Lv2の探索は履歴を保存せず、安全な飛車取りだけを次のAlarmで確定する $mode/$restricted",
+  async ({ mode, restricted }) => {
+    const created = await create(true, mode);
+    const client = await connect(created.room.id, created.membership.token);
+    client.send({ type: "room.game.start" });
+    await client.room((room) => room.status === "playing");
+    await runInDurableObject(env.GAME_ROOM.getByName(created.room.id), async (instance, ctx) => {
+      const room = fourShogiRoomSchema.parse(ctx.storage.kv.get("room"));
+      if (room.status !== "playing") throw new Error("Not playing");
+      const cpu = room.players.find((player) => player.kind === "cpu")!;
+      const fixture = tacticalCases().find(
+        (entry) => entry.id === `free-rook-${restricted}-${cpu.side}`,
+      )!.state;
+      const game = { ...fixture, mode, players: room.game.players };
+      const store = new ShogiStore(ctx.storage.sql);
+      const at = Date.now();
+      const prepared = fourShogiRoomSchema.parse({
+        ...room,
+        players: room.players.map((player) =>
+          player.kind === "cpu" ? { ...player, level: 2 } : player,
+        ),
+        settings: { ...room.settings, threePlayerAttackProhibited: restricted },
+        game: store.saveState(room.roundId, game),
+        ...getActionAvailability(game),
+        clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
+      });
+      ctx.storage.kv.put("room", prepared);
+      ctx.storage.kv.delete("shogi-cpu-job");
+      const historyBefore = ctx.storage.sql
+        .exec("SELECT * FROM shogi_repetitions ORDER BY round_id, position_key")
+        .toArray();
+      const eventsBefore = store.eventCount(room.roundId);
+      await instance.alarm();
+      const selected = fourShogiRoomSchema.parse(ctx.storage.kv.get("room"));
+      const job = ctx.storage.kv.get<{
+        action: import("@tetraboard/four-shogi").FourShogiAction;
+        applyAt: number;
+      }>("shogi-cpu-job")!;
+      expect(selected.game).toEqual(prepared.game);
+      expect(selected.positionRevision).toBe(prepared.positionRevision);
+      expect(store.eventCount(room.roundId)).toBe(eventsBefore);
+      expect(
+        ctx.storage.sql
+          .exec("SELECT * FROM shogi_repetitions ORDER BY round_id, position_key")
+          .toArray(),
+      ).toEqual(historyBefore);
+      const preview = applyAction(game, cpu.side, job.action);
+      expect(preview.ok && preview.captured?.kind).toBe("rook");
+      ctx.storage.kv.put("shogi-cpu-job", { ...job, applyAt: Date.now() - 1 });
+      await instance.alarm();
+      const moved = fourShogiRoomSchema.parse(ctx.storage.kv.get("room"));
+      expect(moved.game?.hands[cpu.side].rook).toBe(1);
+      expect(moved.game?.moveNumber).toBe(1);
+      expect(moved.positionRevision).toBe(prepared.positionRevision + 1);
+      expect(moved.game).not.toHaveProperty("repetitions");
+      expect(moved.game).not.toHaveProperty("search");
+      expect(store.eventCount(room.roundId)).toBe(eventsBefore + 1);
+      await ctx.storage.setAlarm(Date.now() + 60000);
+    });
+  },
+);
 
 test("100件ずつの棋譜取得は局IDと部屋世代を検証し、次局開始で旧棋譜を破棄する", async () => {
   const prepared = await start();
@@ -826,7 +898,7 @@ test("将棋着手には局IDとrevisionを必須とし、リバーシ着手形�
   ).toBe(true);
 });
 
-test("CPUの保存した合法手を次のAlarmで一度だけ適用し、revisionが違う選択を破棄する", async () => {
+test("CPUの保存した合法手を次のAlarmで一度だけ適用し、局ID・revision・手番が違う選択を破棄する", async () => {
   const created = await create(true);
   const client = await connect(created.room.id, created.membership.token);
   client.send({ type: "room.game.start" });
@@ -892,16 +964,23 @@ test("CPUの保存した合法手を次のAlarmで一度だけ適用し、revisi
         },
       }),
     );
-    state.storage.kv.put("shogi-cpu-job", {
-      ...cpu.job,
-      roundId: room.roundId,
-      positionRevision: 0,
-      side: cpuPlayer.side,
-      applyAt: Date.now() - 1,
-    });
-    await instance.alarm();
-    expect(fourShogiRoomSchema.parse(state.storage.kv.get("room")).game?.moveNumber).toBe(1);
-    expect(state.storage.kv.get("shogi-cpu-job")).toBeUndefined();
+    for (const outdated of [
+      { positionRevision: 0 },
+      { roundId: crypto.randomUUID() },
+      { side: sides.find((side) => side !== cpuPlayer.side)! },
+    ]) {
+      state.storage.kv.put("shogi-cpu-job", {
+        ...cpu.job,
+        roundId: room.roundId,
+        positionRevision: room.positionRevision,
+        side: cpuPlayer.side,
+        applyAt: Date.now() - 1,
+        ...outdated,
+      });
+      await instance.alarm();
+      expect(fourShogiRoomSchema.parse(state.storage.kv.get("room")).game?.moveNumber).toBe(1);
+      expect(state.storage.kv.get("shogi-cpu-job")).toBeUndefined();
+    }
     await state.storage.setAlarm(Date.now() + 60000);
   });
 });
