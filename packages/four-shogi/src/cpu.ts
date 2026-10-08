@@ -4,6 +4,7 @@ import { getLegalMoves } from "./transition";
 import type { FourShogiAction, FourShogiState } from "./types";
 
 export type CpuLevel = 1 | 2;
+export const chooseCpuActionWithDiagnostics = searchCpuAction;
 
 export function chooseCpuAction(
   state: FourShogiState,

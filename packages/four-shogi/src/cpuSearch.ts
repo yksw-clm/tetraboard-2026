@@ -1,7 +1,7 @@
 import { getCheckState } from "./board";
 import { evaluatePosition } from "./cpuEvaluation";
 import type { OrdinaryMove } from "./moves";
-import type { RepetitionLookup } from "./repetition";
+import { positionKey, type RepetitionLookup } from "./repetition";
 import { applyLegalMove, getLegalMoves } from "./transition";
 import {
   areEnemies,
@@ -17,6 +17,7 @@ export type SearchOptions = {
   maxDepth?: number;
   width?: number;
   rootWidth?: number;
+  extensions?: number;
 };
 export type SearchStats = {
   nodes: number;
@@ -25,6 +26,8 @@ export type SearchStats = {
   completedDepth: number;
   cutoff: boolean;
   algorithm: "maxn" | "alpha-beta";
+  extendedNodes: number;
+  cacheHits: number;
 };
 type Values = Record<Side, number>;
 type Candidate = { action: FourShogiAction; state: FourShogiState; values: Values; index: number };
@@ -63,16 +66,21 @@ export function searchCpuAction(
   const maxDepth = options.maxDepth ?? 6;
   const width = options.width ?? 6;
   const rootWidth = options.rootWidth ?? 24;
+  const extensions = options.extensions ?? 2;
   if (
     [maxWork, maxDepth, width, rootWidth].some((value) => !Number.isSafeInteger(value) || value < 1)
   )
     throw new TypeError("探索予算は正の整数で指定してください");
+  if (!Number.isSafeInteger(extensions) || extensions < 0 || extensions > 4)
+    throw new TypeError("戦術延長は0から4手で指定してください");
   const stats: SearchStats = {
     nodes: 0,
     work: 0,
     generatedMoves: 0,
     completedDepth: 0,
     cutoff: false,
+    extendedNodes: 0,
+    cacheHits: 0,
     algorithm:
       input.mode === "doubles" || getActiveSides(input).length === 2 ? "alpha-beta" : "maxn",
   };
@@ -90,6 +98,7 @@ export function searchCpuAction(
   if (legal.length === 0) return { action: null, stats };
   let action = legal[0].action;
   const candidates: Candidate[] = [];
+  const cache = new Map<string, Values>();
   function spend(cost = 1): void {
     if (stats.work + cost > maxWork) throw new SearchStopped();
     stats.work += cost;
@@ -99,8 +108,39 @@ export function searchCpuAction(
     stats.nodes++;
     return applyLegalMove(state, state.turn!, move, lookup).state;
   }
-  function explore(state: FourShogiState, depth: number, alpha: number, beta: number): Values {
-    if (state.status === "finished" || depth <= 0) return evaluatePosition(state);
+  function explore(
+    state: FourShogiState,
+    depth: number,
+    alpha: number,
+    beta: number,
+    extra: number,
+  ): Values {
+    if (state.status === "finished") return evaluatePosition(state);
+    const checked = getCheckState(state)[state.turn];
+    if (depth <= 0 && extra > 0 && (checked || state.lastMove?.captured || state.turn === root)) {
+      depth = 1;
+      extra--;
+      stats.extendedNodes++;
+    }
+    const canCache = stats.algorithm === "maxn" || (alpha === -Infinity && beta === Infinity);
+    const key = JSON.stringify([
+      positionKey(state),
+      state.eliminations,
+      state.drawProposals,
+      Object.entries(state.repetitions).sort(([a], [b]) => a.localeCompare(b)),
+      depth,
+      extra,
+    ]);
+    const cached = canCache ? cache.get(key) : undefined;
+    if (cached) {
+      stats.cacheHits++;
+      return cached;
+    }
+    if (depth <= 0) {
+      const result = evaluatePosition(state);
+      if (cache.size < 2048) cache.set(key, result);
+      return result;
+    }
     spend();
     const side = state.turn;
     const moves = getLegalMoves(state);
@@ -109,7 +149,10 @@ export function searchCpuAction(
     const ordered = moves
       .map((move, index) => ({ move, index, score: priority(move, side) }))
       .sort((a, b) => b.score - a.score || a.index - b.index)
-      .slice(0, width);
+      .filter(
+        (entry, index) =>
+          index < width || checked || entry.score >= 10_000 || entry.move.captured !== null,
+      );
     let best: Values | undefined;
     const maximizing = !areEnemies(state.mode, root, side);
     for (const { move } of ordered) {
@@ -125,7 +168,7 @@ export function searchCpuAction(
       ) {
         return evaluatePosition(next);
       }
-      const child = explore(next, depth - 1, alpha, beta);
+      const child = explore(next, depth - 1, alpha, beta, extra);
       if (stats.algorithm === "maxn") {
         if (
           !best ||
@@ -138,10 +181,12 @@ export function searchCpuAction(
           best = child;
         if (maximizing) alpha = Math.max(alpha, child[root]);
         else beta = Math.min(beta, child[root]);
-        if (alpha >= beta) break;
+        if (alpha >= beta) return best;
       }
     }
-    return best ?? evaluatePosition(state);
+    const result = best ?? evaluatePosition(state);
+    if (canCache && cache.size < 2048) cache.set(key, result);
+    return result;
   }
   try {
     for (const [index, move] of legal.entries()) {
@@ -152,12 +197,20 @@ export function searchCpuAction(
     candidates.sort((a, b) => b.values[root] - a.values[root] || a.index - b.index);
     action = candidates[0].action;
     stats.completedDepth = 1;
-    const selected = candidates.slice(0, rootWidth);
+    const selected = candidates.filter(
+      (candidate, index) =>
+        index < rootWidth ||
+        candidate.state.lastMove?.captured ||
+        (candidate.state.status === "playing" &&
+          getCheckState(candidate.state)[candidate.state.turn]),
+    );
     for (let depth = 2; depth <= maxDepth; depth++) {
       let best = selected[0];
       let score = -Infinity;
       for (const candidate of selected) {
-        const candidateScore = explore(candidate.state, depth - 1, -Infinity, Infinity)[root];
+        const candidateScore = explore(candidate.state, depth - 1, -Infinity, Infinity, extensions)[
+          root
+        ];
         if (
           candidateScore > score ||
           (candidateScore === score &&

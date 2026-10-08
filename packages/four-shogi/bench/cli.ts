@@ -2,7 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chooseCpuAction } from "../src/cpu";
+import { chooseCpuActionWithDiagnostics } from "../src/cpu";
+import type { SearchStats } from "../src/cpuSearch";
+import { tacticalCases, acceptsTactic } from "./tactics";
 import { sides, type GameMode, type FourShogiState } from "../src/types";
 import {
   initialPosition,
@@ -68,8 +70,15 @@ function performancePositions(): { name: string; state: FourShogiState }[] {
 
 try {
   const old = await baseline();
+  const traces: SearchStats[] = [];
   const candidate: Selector =
-    args.get("candidate") === "baseline" ? old : (state) => chooseCpuAction(state, 2);
+    args.get("candidate") === "baseline"
+      ? old
+      : (state) => {
+          const result = chooseCpuActionWithDiagnostics(state);
+          traces.push(result.stats);
+          return result.action;
+        };
   const head = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: repoRoot })
     .stdout.toString()
     .trim();
@@ -96,18 +105,54 @@ try {
       .digest("hex");
     const measurements = positions.map(({ name, state }) => {
       candidate(state);
+      const traceStart = traces.length;
       const times = Array.from({ length: repeats }, () => {
         const start = performance.now();
         candidate(state);
         return performance.now() - start;
       });
-      return { name, ...summarizeTimes(times), times };
+      return { name, ...summarizeTimes(times), times, search: traces.slice(traceStart) };
     });
     report = {
       metadata,
       corpusHash,
       measurements,
       summary: summarizeTimes(measurements.flatMap((entry) => entry.times)),
+    };
+  } else if (kind === "tactics") {
+    const corpus = tacticalCases();
+    const corpusHash = new Bun.CryptoHasher("sha256").update(JSON.stringify(corpus)).digest("hex");
+    const samples = corpus.map((tactic) => {
+      const action = candidate(tactic.state);
+      return {
+        id: tactic.id,
+        family: tactic.family,
+        split: tactic.split,
+        critical: tactic.critical,
+        proof: tactic.proof,
+        action,
+        passed: acceptsTactic(tactic, action),
+      };
+    });
+    report = {
+      metadata,
+      corpusHash,
+      samples,
+      cases: samples.length,
+      families: new Set(samples.map((sample) => sample.family)).size,
+      correct: samples.filter((sample) => sample.passed).length,
+      criticalFailures: samples
+        .filter((sample) => sample.critical && !sample.passed)
+        .map((sample) => sample.id),
+      bySplit: Object.fromEntries(
+        ["regression", "validation"].map((split) => {
+          const group = samples.filter((sample) => sample.split === split);
+          return [
+            split,
+            { cases: group.length, correct: group.filter((sample) => sample.passed).length },
+          ];
+        }),
+      ),
     };
   } else if (kind === "matches") {
     const mode = (args.get("mode") ?? "singles") as GameMode;
@@ -119,15 +164,32 @@ try {
     const maxPlies = integer("max-plies", 400);
     const samples: MatchSample[] = [];
     for (let game = 0; game < games; game++) {
-      const seed = 1000 + Math.floor(game / seats.length);
+      const seed = integer("seed", 1000) + Math.floor(game / seats.length);
       const seat = seats[game % seats.length];
       samples.push(
         playMatch(openingPosition(mode, restricted, seed), candidate, old, seat, seed, maxPlies),
       );
       process.stderr.write(`${game + 1}/${games} ${JSON.stringify(samples.at(-1))}\n`);
+      if (args.has("output"))
+        await Bun.write(
+          args.get("output")!,
+          JSON.stringify(
+            {
+              metadata,
+              mode,
+              restricted,
+              maxPlies,
+              complete: game + 1 === games,
+              samples,
+              summary: summarizeMatches(samples),
+            },
+            null,
+            2,
+          ),
+        );
     }
     report = { metadata, mode, restricted, maxPlies, samples, summary: summarizeMatches(samples) };
-  } else throw new Error("kindはperformanceまたはmatchesを指定してください");
+  } else throw new Error("kindはperformance、tactics、matchesを指定してください");
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (args.has("output")) await Bun.write(args.get("output")!, json);
   else process.stdout.write(json);
