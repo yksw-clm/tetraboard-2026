@@ -582,7 +582,7 @@ Workerテストで匿名アクセス・全色・同率優勝・両チーム勝�
 
 ## フィードバックの受付・運営
 
-共通仕様はREADMEの「フィードバック受付と改善のお知らせ」を参照します。`packages/protocol/src/feedback.ts` のスキーマをWeb・Worker・Adminで共有し、`0008_feedback.sql` は投稿・テーマ・編集履歴・送信上限・アップロード予約を追加します。既存ゲーム・通報のデータ形式は変更せず、過去データの移行は不要です。プロフィール未完了でも `/feedback` と `/updates` を開けるよう、通常の設定画面への転送から除外します。
+共通仕様はREADMEの「フィードバック受付とお知らせ」を参照します。`packages/protocol/src/feedback.ts` のスキーマをWeb・Worker・Adminで共有し、`0008_feedback.sql` は投稿・テーマ・編集履歴・送信上限・アップロード予約を追加します。既存ゲーム・通報のデータ形式は変更せず、過去データの移行は不要です。プロフィール未完了でも `/feedback` と `/updates` を開けるよう、通常の設定画面への転送から除外します。
 
 ### 受付と非公開画像
 
@@ -602,9 +602,24 @@ Webは元画像5MiBまで、長辺1,600px・1MiB以内のWebPへ変換します�
 
 ハッシュ用に `FEEDBACK_HASH_SECRET`（32文字以上のランダム値）を使います。HTTPのローカル環境だけに専用の既定値があり、本番で未設定・短すぎる場合は受付を503で閉じます。本番公開の承認後、`apps/worker` で `bunx wrangler secret put FEEDBACK_HASH_SECRET --env production` から設定します。認証secretを流用せず、ソースやフロントエンドへ埋め込みません。ローカルは追跡対象外の `.dev.vars` に設定できます。稼働中に変更すると既存の報告者の集計と送信上限の識別が分かれるため、定期的な変更は行いません。
 
-お知らせは `apps/web/src/features/updates/updates.ts` の構造化データで管理し、ID・日付・対象・見出し・説明をレビューします。公開時の日付を確認し、機能と同じ成果物で配信します。UIを失敗させる外部取得はありません。ViteはGitのコミットをビルド識別子へ埋め込み、アーカイブからのビルドでは `VITE_APP_REVISION` を明示します。
+フィードバック画面からのお知らせ導線は `/updates` へ向けます。ViteはGitのコミットをビルド識別子へ埋め込み、アーカイブからのビルドでは `VITE_APP_REVISION` を明示します。
 
 Worker統合テストはHTTP・実D1・R2で権限、並行再送、保存失敗、上限境界、競合、集計、期限と削除再試行を確認します。WebのDOMテストはフィードバックの入力・画像処理・下書き・再送ID・technicalの秘匿・送信ロックを、Adminは分類・競合・公開前確認・履歴・削除・権限喪失を確認します。実画像デコード・実描画は対象から外します。
+
+## お知らせの保存・管理・公開
+
+共通仕様はREADMEの「お知らせの管理とロビー掲載」を参照します。`packages/protocol/src/announcements.ts` のスキーマ・型・種別表示名・説明文の最初の行をWeb・Admin・Workerで共有します。日付は実在する `YYYY-MM-DD` を検証し、文字数はUnicodeコードポイントで数えます。新規記事のIDはWorkerがUUIDで発行します。旧記事のID `feedback` は維持します。
+
+`0012_announcements.sql` は記事とゲーム別掲載先、並び順の索引を追加します。既存記事は日付・タイトル・説明文を維持して公開状態・掲載先なしで登録し、同じIDが存在する場合は上書きしません。SQLは新規DBと既存DBの双方で確認します。コード内の記事配列は使用しません。
+
+- 公開APIは `GET /api/announcements?cursor=...`（20件）、`GET /api/announcements/lobby?game=four-reversi|four-shogi`（対象の最新1件、該当なしはnull）、`GET /api/announcements/:id`（全文）です。公開応答から管理情報を除外し、非公開・存在しない記事の詳細は404を返します。
+- 管理APIは `GET /api/admin/announcements?cursor=...`（50件）、`GET /api/admin/announcements/:id`、`POST /api/admin/announcements`、`PATCH /api/admin/announcements/:id` です。既存の管理者認証と書き込み時のOrigin検査で保護します。PATCHにはversionが必須で、競合は409、入力不備は400、保存・取得障害は503です。本文は読み取り中に32KiBで制限します。
+- 記事と掲載先はD1 batchで一括保存します。更新では各掲載先変更を旧versionでガードし、最後に記事とversionを更新します。競合とbatch失敗は記事・掲載先をどちらも変更しません。登録日時は更新しません。
+- 一覧は日付・登録日時・IDの降順で、同じ3項目をカーソルへ含めます。公開・管理応答はno-storeです。Webもno-storeで取得し、画面切り替えでは旧リクエストを中止して古い応答を破棄します。
+
+管理画面は `/admin/announcements`、`/admin/announcements/new`、`/admin/announcements/:id` を使います。保存中の重複操作を防ぎ、競合では入力を保持して明示的な読み直しを案内します。新規保存後は編集URLへ移動します。公開画面は `/updates` と `/updates/:id` を使い、WorkerのSPA配信・プロフィール未設定時の閲覧許可へ詳細URLを含めます。HTMLとHTTPのnoindexを維持します。ロビーの告知取得は対局操作から独立させ、失敗時は告知だけを表示しません。
+
+Worker統合テストで保存・公開・掲載先・並び順・カーソル・権限・競合・batchロールバック・移行を確認します。Bun＋happy-domでフォーム・入力保持・プレビュー・権限喪失・ヘッダー・一覧・詳細・ロビー切り替えを確認します。幅・折り返し・キーボード操作は手動確認とし、ブラウザを起動する自動テストは追加しません。通常の必須3コマンドとCIの成功を確認し、開発者のマージ承認後に既存CI/CDでマイグレーションと配信を行います。公開後は既存記事の閲覧と、検証用非公開記事の管理保存・再取得を確認します。
 
 ## 任意登録の案内と画面復帰
 

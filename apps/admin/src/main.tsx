@@ -8,6 +8,7 @@ import { adminSessionSchema } from "@tetraboard/protocol";
 import { useAdminData } from "./useAdminData";
 import { Dashboard } from "./Dashboard";
 import { Users } from "./Users";
+import { Announcements, AnnouncementCreatePage, AnnouncementEditPage } from "./Announcements";
 import { Feedback, FeedbackDetailPage } from "./Feedback";
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 function App() {
@@ -46,6 +47,7 @@ function App() {
             ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
             ["/users", "登録ユーザー"],
             ["/feedback", "フィードバック"],
+            ["/announcements", "お知らせ"],
           ].map(([to, label]) => (
             <NavLink
               key={to}
@@ -77,6 +79,9 @@ function App() {
             />
           ))}
           <Route path="/users" element={<Users />} />
+          <Route path="/announcements" element={<Announcements />} />
+          <Route path="/announcements/new" element={<AnnouncementCreatePage />} />
+          <Route path="/announcements/:id" element={<AnnouncementEditPage />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

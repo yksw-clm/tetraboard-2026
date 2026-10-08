@@ -57,7 +57,7 @@ export function AccountLayout() {
       !state.user.profileCompleted &&
       location.pathname !== "/account/setup" &&
       location.pathname !== "/feedback" &&
-      location.pathname !== "/updates" &&
+      !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
       !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
       !(
         location.pathname === "/login" &&
