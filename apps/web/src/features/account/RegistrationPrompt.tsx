@@ -1,5 +1,6 @@
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
+import { SocialSignInButtons } from "./SocialSignInButtons";
 import { AppButton } from "../../shared/ui/AppButton";
 
 export function RegistrationPrompt({
@@ -47,9 +48,7 @@ export function RegistrationPrompt({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <AppButton size="compact" isDisabled={busy} isPending={isPending} onPress={onRegister}>
-          Googleで登録・ログイン
-        </AppButton>
+        <SocialSignInButtons busy={busy} isPending={isPending} onSignIn={onRegister} />
         {onDismiss && (
           <AppButton appearance="secondary" size="compact" isDisabled={busy} onPress={onDismiss}>
             今はしない

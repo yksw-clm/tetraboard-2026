@@ -1,3 +1,4 @@
+import { SocialSignInButtons } from "./SocialSignInButtons";
 import {
   gameCatalog,
   gameIds,
@@ -194,16 +195,13 @@ export function LoginPage() {
                   "ログインを完了できませんでした。キャンセルした場合も、もう一度お試しいただけます。"}
               </p>
             )}
-            <AppButton
-              appearance="secondary"
-              onPress={() =>
+            <SocialSignInButtons
+              onSignIn={() =>
                 void google.start(adminDestination ? "admin" : (destination ?? undefined))
               }
-              isDisabled={google.busy}
+              busy={google.busy}
               isPending={google.busy}
-            >
-              Googleで続ける
-            </AppButton>
+            />
             {destination && !adminDestination && (
               <AppButton
                 appearance="quiet"
