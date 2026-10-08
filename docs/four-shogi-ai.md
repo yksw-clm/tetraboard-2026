@@ -59,7 +59,7 @@
 
 | 順序 | コミット文 | 状態 |
 | --- | --- | --- |
-| 1 | `test: 四人将棋AIの棋力比較と性能測定の基盤を追加` | 未着手 |
+| 1 | `test: 四人将棋AIの棋力比較と性能測定の基盤を追加` | 実装・関連検証済み |
 | 2 | `refactor: 四人将棋の着手処理を共有して重複計算を削減` | 未着手 |
 | 3 | `feat: 計算量を制限した四人将棋の多人数探索を追加` | 未着手 |
 | 4 | `feat: 駒の安全と玉の守りを四人将棋AIの評価に反映` | 未着手 |
@@ -69,6 +69,10 @@
 | 8 | `docs: 四人将棋AIの検証結果と実行手順を記載` | 未着手 |
 
 ## 検証と未確認事項
+
+測定は `bun run --cwd packages/four-shogi bench` から実行する。例は `--kind=performance --candidate=baseline --repeats=5 --output=/tmp/shogi-performance.json`、`--kind=matches --mode=singles --restricted=true --games=200 --max-plies=400 --output=/tmp/shogi-matches.json`。旧Lv2は固定コミットのソースを一時ディレクトリへ展開して実行し、測定終了後に削除する。結果にはコミット・未コミット変更の有無・Bun版・OS・アーキテクチャ・引数を記録する。性能局面集合にはSHA-256を付け、対戦の95%区間は開始系列を単位にしたbootstrapで求める。長時間測定を `check` へ組み込まない。
+
+基盤の検証では、未終局・引分・勝利の集計、p95・最大時間、同じseedの合法な開始系列の再現を確認した。短い対戦は動作確認であり、受入基準の棋力測定ではない。
 
 提出前に `bun run check`、`bun run build`、`bun run --cwd apps/worker deploy:dry-run` をすべて成功させ、GitHub CI成功を別途確認する。PR提出後もコード・設定が変われば再実行する。
 

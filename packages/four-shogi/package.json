@@ -8,6 +8,7 @@
     "./formation-catalog": "./src/formationCatalog.ts"
   },
   "scripts": {
+    "bench": "bun bench/cli.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",
