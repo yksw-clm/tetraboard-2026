@@ -5,6 +5,7 @@ import { PlayerAvatar } from "../room/PlayerAvatar";
 import { formatStatsRate } from "../account/statsPresentation";
 import { AppButton } from "../../shared/ui/AppButton";
 import type { ProfileState } from "./playerProfileStore";
+import { PlayerBadges } from "../badges/PlayerBadges";
 export function PlayerProfileCard({
   state,
   localProfile,
@@ -21,7 +22,7 @@ export function PlayerProfileCard({
   const profile = localProfile ?? state.profile;
   if (!profile || state.loading)
     return (
-      <div className="flex flex-col items-start gap-2 pr-6" role="status">
+      <div className="flex flex-col items-start gap-2 pr-8" role="status">
         <p className="m-0 text-sm">
           {state.loading
             ? "プレイヤー情報を読み込んでいます…"
@@ -49,7 +50,7 @@ export function PlayerProfileCard({
       : 0;
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex min-w-0 items-center gap-3 pr-6">
+      <div className="flex min-w-0 items-center gap-3 pr-8">
         <PlayerAvatar
           appearance={
             profile.kind === "cpu" ? profile : { kind: "human", avatarUrl: profile.avatarUrl }
@@ -79,6 +80,7 @@ export function PlayerProfileCard({
             <dt>{mode === "singles" ? "優勝率" : "勝率"}</dt>
             <dd className="m-0 tabular-nums">{formatStatsRate(wins, stats.total)}</dd>
           </dl>
+          {mode === "singles" && <PlayerBadges game={game} badges={profile.badges} />}
         </>
       ) : (
         <p className="m-0 text-sm text-muted">
