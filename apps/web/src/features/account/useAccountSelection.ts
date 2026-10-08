@@ -4,26 +4,37 @@ import { useLocation, useNavigate } from "react-router";
 
 type Selection = { game: MatchGame; modes: Record<MatchGame, RoomMode> };
 type AccountNavigationState = {
+  accountSelection?: Selection;
   accountSelections?: Partial<Record<"stats" | "history", Selection>>;
 };
 
 // ブラウザの履歴に選択を置き、棋譜閲覧や再読み込みから戻っても各カードを復元します。
-export function useAccountSelection(section: "stats" | "history") {
+export function useAccountSelection() {
   const location = useLocation();
   const navigate = useNavigate();
   const state = (location.state ?? {}) as AccountNavigationState;
-  const stored = state.accountSelections?.[section];
-  const game: MatchGame = isGameId(stored?.game) ? stored.game : defaultGameId;
+  const candidates = [
+    state.accountSelection,
+    state.accountSelections?.history,
+    state.accountSelections?.stats,
+  ];
+  // 旧画面で選択が異なる場合は、閲覧していた棋譜側を優先して復元します。
+  const game: MatchGame =
+    candidates.find((stored) => isGameId(stored?.game))?.game ?? defaultGameId;
+  const storedMode = (target: MatchGame): RoomMode =>
+    candidates
+      .map((stored) => stored?.modes?.[target])
+      .find((mode) => mode === "singles" || mode === "doubles") ?? "singles";
   const modes: Record<MatchGame, RoomMode> = {
-    "four-reversi": stored?.modes?.["four-reversi"] === "doubles" ? "doubles" : "singles",
-    "four-shogi": stored?.modes?.["four-shogi"] === "doubles" ? "doubles" : "singles",
+    "four-reversi": storedMode("four-reversi"),
+    "four-shogi": storedMode("four-shogi"),
   };
   const update = (next: Selection) => {
     void navigate(`${location.pathname}${location.search}${location.hash}`, {
       replace: true,
       state: {
         ...state,
-        accountSelections: { ...state.accountSelections, [section]: next },
+        accountSelection: next,
       },
     });
   };

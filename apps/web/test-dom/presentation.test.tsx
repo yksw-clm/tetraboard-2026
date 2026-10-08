@@ -20,7 +20,7 @@ import { RoomErrorPage } from "../src/features/room/RoomPage";
 test("戦績の表示値・率・モード別項目・0件を取得結果から表示", async () => {
   const view = render(
     <MemoryRouter>
-      <AccountStats />
+      <AccountStats game="four-reversi" mode="singles" />
     </MemoryRouter>,
   );
   clock.advance(0);
@@ -37,7 +37,12 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
   expect(metric("3位率")).toBe(".500");
   expect(metric("4位率")).toBe(".000");
   expect(view.textContent).toContain("対人戦のみ集計");
-  act(() => view.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')?.click());
+  rerender(
+    view,
+    <MemoryRouter>
+      <AccountStats game="four-reversi" mode="doubles" />
+    </MemoryRouter>,
+  );
   expect(metric("勝率")).toBe(".500");
   expect(metric("敗率")).toBe(".333");
   expect(view.textContent).not.toContain("優勝数");

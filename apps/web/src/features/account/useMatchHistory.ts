@@ -5,7 +5,6 @@ import {
   type MatchGame,
   type RoomMode,
 } from "@tetraboard/protocol";
-import { useAccountSelection } from "./useAccountSelection";
 
 type HistoryPage = {
   matches: MatchSummary[];
@@ -27,9 +26,7 @@ const emptyPage = (): HistoryPage => ({
   error: null,
   failedMore: false,
 });
-export function useMatchHistory() {
-  const selection = useAccountSelection("history");
-  const { game, mode } = selection;
+export function useMatchHistory(game: MatchGame, mode: RoomMode) {
   const [pages, setPages] = useState<Record<MatchGame, Record<RoomMode, HistoryPage>>>({
     "four-reversi": { singles: emptyPage(), doubles: emptyPage() },
     "four-shogi": { singles: emptyPage(), doubles: emptyPage() },
@@ -137,7 +134,6 @@ export function useMatchHistory() {
   );
 
   return {
-    ...selection,
     page,
     refresh: () => load(game, mode, false, "refresh"),
     loadMore: () => load(game, mode, true, "more"),
