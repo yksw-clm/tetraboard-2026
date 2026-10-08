@@ -526,6 +526,8 @@ Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テ
 
 ## ゲーム別のランキング
 
+ロビーと詳細の集計説明は「対人戦・登録済ユーザーのみ集計」とし、詳細では対戦相手がゲストでも対象であることを補足します。SQLの集計条件は変更しません。
+
 `GET /api/games/four-reversi/rankings` と `GET /api/games/four-shogi/rankings` は認証不要で、`{ singles: { first, total }, doubles: { wins, total } }` の各上位10人を返します。各行は `rank`・`username`・`name`・`avatarUrl`・`value` です。既存の `account_match_history`・`matches` を対象ゲームに限定してD1内で全件集計し、現在の設定済みアカウントのプロフィールを結合します。本人戦績と同じ順位・チーム勝敗の判定を使います。将棋にも優勝数／対局数・勝利数／対局数を用い、撃破数のランキングは設けません。
 
 SQLの `RANK()` で同順位と順位の飛びを求め、値の降順・公開IDの昇順の `ROW_NUMBER()` で10人に制限します。集計値が1以上の人だけを掲載します。名前・画像は履歴の開始時情報ではなく現在のプロフィールを参照します。内部アカウントID・棋譜は返しません。全応答は `Cache-Control: no-store`、D1取得失敗は503です。

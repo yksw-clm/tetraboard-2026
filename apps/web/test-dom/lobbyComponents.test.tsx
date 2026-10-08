@@ -39,10 +39,12 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
     requests.at(-1)!.respond(rankings);
     await flush();
     expect(view.querySelectorAll("li")).toHaveLength(3);
+    expect(view.textContent).toContain("対人戦・登録済ユーザーのみ集計");
     press(view, "もっと見る");
     await flush();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.querySelectorAll("li")).toHaveLength(10);
+    expect(dialog.textContent).toContain("対戦相手にゲストがいても対象です。");
     act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
     await flush();
     expect(dialog.textContent).toContain("勝利数");
