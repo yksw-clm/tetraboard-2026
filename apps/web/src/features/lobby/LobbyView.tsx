@@ -22,7 +22,7 @@ import { type RoomEntryIntent } from "./useRoomEntry";
 import type { RegistrationEntryDraft } from "../account/registrationReturn";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { Link } from "react-router";
-import { sortedUpdates } from "../updates/updates";
+import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
 
 type Props = {
@@ -241,6 +241,7 @@ export function LobbyView(props: Props) {
             </div>
           </div>
 
+          <LobbyAnnouncement game={props.game} />
           <div className="grid grid-cols-2 gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
             {order.map((section) => sections[section])}
           </div>
@@ -252,16 +253,9 @@ export function LobbyView(props: Props) {
                 to="/updates"
                 className="inline-flex min-h-11 items-center text-brand underline"
               >
-                改善のお知らせ
+                お知らせ
               </Link>
             </div>
-            {sortedUpdates()[0] && (
-              <p className="mt-2">
-                <Link to="/updates" className="text-brand underline">
-                  最新：{sortedUpdates()[0]!.title}
-                </Link>
-              </p>
-            )}
             <p className="mt-3">TetraBoard</p>
           </footer>
         </main>

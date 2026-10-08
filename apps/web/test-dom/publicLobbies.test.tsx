@@ -49,6 +49,7 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
       "/account",
       "/feedback",
       "/updates",
+      "/updates/feedback",
       "/rooms/12345",
       "/unknown",
     ]) {

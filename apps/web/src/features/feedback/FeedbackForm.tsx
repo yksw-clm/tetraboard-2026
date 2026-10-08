@@ -25,7 +25,7 @@ export function FeedbackForm({
           個別の返信はありません。公開した改善はお知らせでお伝えします。
         </p>
         <Link to="/updates" className="text-brand underline">
-          改善のお知らせを見る
+          お知らせを見る
         </Link>
         <div>
           <AppButton appearance="secondary" onPress={feedback.reset}>

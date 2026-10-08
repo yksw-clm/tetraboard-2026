@@ -8,7 +8,7 @@ import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
 import { fourReversiLobbyPath } from "./paths";
 import { FeedbackPage } from "../features/feedback/FeedbackPage";
-import { UpdatesPage } from "../features/updates/UpdatesPage";
+import { UpdatesPage, UpdateDetailPage } from "../features/updates/UpdatesPage";
 
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { gameThemes } from "../shared/ui/appTheme";
@@ -43,6 +43,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/feedback", Component: FeedbackPage },
       { path: "/updates", Component: UpdatesPage },
+      { path: "/updates/:id", Component: UpdateDetailPage },
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },

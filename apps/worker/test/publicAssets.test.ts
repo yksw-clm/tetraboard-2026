@@ -110,6 +110,8 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     "/feedback",
     "/updates",
     "/updates/",
+    "/updates/feedback",
+    "/updates/feedback/",
   ]) {
     const response = await assets.fetch(path);
     expect(response.status).toBe(200);
@@ -121,6 +123,7 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
   }
   for (const path of [
     "/unknown",
+    "/updates/feedback/unknown",
     "/games/unknown",
     "/games/four-shogi/rules",
     "/assets/missing.js",

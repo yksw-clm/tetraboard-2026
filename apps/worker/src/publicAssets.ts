@@ -44,7 +44,7 @@ export async function servePublicAssets(
     ["/index.html", "/login", "/account", "/account/setup", "/feedback", "/updates"].includes(
       path.replace(/\/$/, ""),
     ) ||
-    /^\/(?:rooms|matches)\/[^/]+\/?$/.test(path) ||
+    /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
     url.pathname = "/index.html";

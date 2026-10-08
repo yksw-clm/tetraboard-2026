@@ -1,4 +1,5 @@
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
+import { announcementRoutes, announcementAdminRoutes } from "./announcements/routes";
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { analyticsRoutes } from "./analytics/routes";
@@ -29,6 +30,8 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 });
 
 api.route("/", adminRoutes);
+api.route("/", announcementRoutes);
+api.route("/", announcementAdminRoutes);
 api.route("/", feedbackAdminRoutes);
 api.route("/", feedbackRoutes);
 api.route("/", analyticsRoutes);

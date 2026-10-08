@@ -17,7 +17,7 @@ export function AppHeader({
       <div
         className={cn(
           appPageWidthClasses,
-          "flex min-h-[68px] items-center justify-between gap-5 [@media(max-width:650px)]:gap-2 [@media(max-width:650px)]:min-h-[60px]",
+          "flex flex-wrap min-h-[68px] items-center justify-between gap-5 [@media(max-width:650px)]:gap-2 [@media(max-width:650px)]:min-h-[60px]",
         )}
       >
         <Link
@@ -38,11 +38,19 @@ export function AppHeader({
             Tetra<span className="text-brand">Board</span>
           </span>
         </Link>
-        {children ?? (
-          <span className="text-xs tracking-[0.06em] text-muted [@media(max-width:650px)]:hidden">
-            4人の遊びを、もっと気軽に。
-          </span>
-        )}
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
+          <Link
+            to="/updates"
+            className="inline-flex min-h-11 items-center text-xs sm:text-sm text-brand underline"
+          >
+            お知らせ
+          </Link>
+          {children ?? (
+            <span className="text-xs tracking-[0.06em] text-muted [@media(max-width:650px)]:hidden">
+              4人の遊びを、もっと気軽に。
+            </span>
+          )}
+        </div>
       </div>
     </header>
   );
