@@ -1,5 +1,5 @@
 import { env, exports } from "cloudflare:workers";
-import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import { applyD1Migrations, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import {
   createRoomContract,
   getRoomContract,
@@ -1493,7 +1493,22 @@ test("CPU席・モード・開始・終了は索引を更新し、通常の着�
 });
 
 test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、不正カーソルを拒否する", async () => {
-  const updatedAtMs = Date.now() + 1_000_000;
+  // APP_DB retains earlier room revisions and receives asynchronous GameRoom writes.
+  const db = (env as typeof env & { ROOM_INDEX_TEST_DB: D1Database }).ROOM_INDEX_TEST_DB;
+  await applyD1Migrations(
+    db,
+    (env as typeof env & { TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1] })
+      .TEST_MIGRATIONS,
+  );
+  const request = (cursor?: string) =>
+    worker.fetch(
+      new Request(
+        `${baseUrl}${listRoomsContract.path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+      ),
+      { ...env, APP_DB: db },
+      {} as ExecutionContext,
+    );
+  const updatedAtMs = 1_700_000_000_000;
   const base: RoomPublicMetadata = {
     id: "99900",
     game: "four-reversi",
@@ -1509,24 +1524,27 @@ test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、
     updatedAtMs,
   };
   for (let index = 0; index < 22; index++) {
-    await writeRoomIndex(env.APP_DB, {
+    await writeRoomIndex(db, {
       metadata: { ...base, id: String(99900 + index) },
       revision: 1,
       closed: false,
       retryAtMs: 0,
     });
   }
-  const first = await listRooms();
+  const firstResponse = await request();
+  expect(firstResponse.status).toBe(200);
+  const first = listRoomsContract.response.parse(await firstResponse.json());
   expect(first.rooms).toHaveLength(20);
   expect(first.rooms.map((room) => room.id)).toEqual(
     Array.from({ length: 20 }, (_, index) => String(99921 - index)),
   );
   expect(first.nextCursor).toBe(`${updatedAtMs}:99902`);
-  const second = await listRooms(first.nextCursor!);
-  expect(second.rooms.slice(0, 2).map((room) => room.id)).toEqual(["99901", "99900"]);
-  const invalid = await exports.default.fetch(
-    new Request(`${baseUrl}${listRoomsContract.path}?cursor=invalid`),
-  );
+  const secondResponse = await request(first.nextCursor!);
+  expect(secondResponse.status).toBe(200);
+  const second = listRoomsContract.response.parse(await secondResponse.json());
+  expect(second.rooms.map((room) => room.id)).toEqual(["99901", "99900"]);
+  expect(second.nextCursor).toBeNull();
+  const invalid = await request("invalid");
   expect(invalid.status).toBe(400);
 });
 
