@@ -1,90 +1,230 @@
-import { expect, spyOn, test } from "bun:test";
-import { type FourShogiAction } from "@tetraboard/four-shogi";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { applyAction, type FourShogiAction } from "@tetraboard/four-shogi";
 import { ShogiPiece } from "../src/features/room/ShogiPiece";
-import { prepareShogiPieceImages, shogiPieceImage } from "../src/features/room/shogiPieceImages";
+import boardImage from "../src/assets/shogi/board.png";
+import { createShogiImageStore } from "../src/features/room/shogiImageStore";
+import {
+  prepareShogiAssets,
+  shogiImageStore,
+  shogiPieceImage,
+} from "../src/features/room/shogiPieceImages";
 import {
   FourShogiBoardLayout,
   type FourShogiBoardLayoutProps,
 } from "../src/features/room/FourShogiBoardLayout";
 import { FourShogiLobbyBoardPreview } from "../src/features/lobby/FourShogiLobbyBoardPreview";
-import { playingShogiRoom, tacticalShogiState } from "../test/fixtures/fourShogiFixtures";
+import {
+  playingShogiRoom,
+  publicShogiState,
+  tacticalShogiState,
+} from "../test/fixtures/fourShogiFixtures";
 import { act, flush, render, rerender } from "./harness";
 
-test("希少画像は6URL・2並列・低優先で先読みし、失敗もcacheして二度取得しない", async () => {
-  const pending: { image: HTMLImageElement; finish: () => void; reject: () => void }[] = [];
-  const decode = spyOn(window.HTMLImageElement.prototype, "decode").mockImplementation(function (
-    this: HTMLImageElement,
-  ) {
-    return new Promise<void>((resolve, reject) =>
-      pending.push({ image: this, finish: resolve, reject: () => reject(new Error("failure")) }),
-    );
-  });
-  try {
-    const first = prepareShogiPieceImages();
-    expect(prepareShogiPieceImages()).toBe(first);
-    expect(pending).toHaveLength(2);
-    expect(pending.every((p) => p.image.fetchPriority === "low")).toBe(true);
-    pending[0]!.finish();
-    await flush();
-    expect(pending).toHaveLength(3);
-    pending[1]!.finish();
-    await flush();
-    expect(pending).toHaveLength(4);
-    pending[2]!.finish();
-    pending[3]!.finish();
-    await flush();
-    expect(pending).toHaveLength(6);
-    pending[4]!.reject();
-    pending[5]!.finish();
-    await first;
-    expect(new Set(pending.map((p) => p.image.src)).size).toBe(6);
-    await prepareShogiPieceImages();
-    expect(pending).toHaveLength(6);
-  } finally {
-    decode.mockRestore();
-  }
+type PendingImage = {
+  image: HTMLImageElement;
+  finish: (complete?: boolean, width?: number) => void;
+  reject: () => void;
+};
+let pendingImages: PendingImage[];
+let imageMocks: { mockRestore: () => void }[];
+beforeEach(() => {
+  pendingImages = [];
+  const store = createShogiImageStore();
+  imageMocks = [
+    spyOn(shogiImageStore, "getStatus").mockImplementation(store.getStatus),
+    spyOn(shogiImageStore, "subscribe").mockImplementation(store.subscribe),
+    spyOn(shogiImageStore, "prepare").mockImplementation(store.prepare),
+    spyOn(window.HTMLImageElement.prototype, "decode").mockImplementation(function (
+      this: HTMLImageElement,
+    ) {
+      return new Promise<void>((resolve, reject) =>
+        pendingImages.push({
+          image: this,
+          finish: (complete = true, width = 140) => {
+            Object.defineProperty(this, "complete", { configurable: true, value: complete });
+            Object.defineProperty(this, "naturalWidth", { configurable: true, value: width });
+            resolve();
+          },
+          reject: () => reject(new Error("decode failure")),
+        }),
+      );
+    }),
+  ];
 });
-test("駒名・方向・srcとdecode待ちのfallback、古い非同期完了の破棄を検証", async () => {
-  const pending: { image: HTMLImageElement; finish: () => void; reject: () => void }[] = [];
-  const decode = spyOn(window.HTMLImageElement.prototype, "decode").mockImplementation(function (
-    this: HTMLImageElement,
-  ) {
-    return new Promise<void>((resolve, reject) =>
-      pending.push({
-        image: this,
-        finish: resolve,
-        reject: () => reject(new Error("decode failure")),
-      }),
-    );
-  });
-  try {
-    const view = render(<ShogiPiece kind="silver" promoted direction="right" />);
-    expect(view.textContent).toBe("成銀");
-    expect(view.querySelector("img")!.getAttribute("data-piece-direction")).toBe("right");
-    expect(view.querySelector("img")!.getAttribute("src")).toBe(
-      shogiPieceImage("silver", true, false, "right").src,
-    );
-    rerender(view, <ShogiPiece kind="king" deadKing direction="down" />);
-    expect(view.textContent).toBe("裏王");
-    Object.defineProperty(pending[0]!.image, "complete", { value: true });
-    Object.defineProperty(pending[0]!.image, "naturalWidth", { value: 140 });
-    pending[0]!.finish();
-    await flush();
-    expect(view.textContent).toBe("裏王");
-    pending[1]!.reject();
-    await flush();
-    expect(view.textContent).toBe("裏王");
-    rerender(view, <ShogiPiece kind="rook" promoted direction="left" />);
-    expect(view.textContent).toBe("龍");
-    Object.defineProperty(pending[2]!.image, "complete", { value: true });
-    Object.defineProperty(pending[2]!.image, "naturalWidth", { value: 140 });
-    pending[2]!.finish();
-    await flush();
+afterEach(() => {
+  for (const mock of imageMocks) mock.mockRestore();
+});
+const pendingFor = (src: string) => pendingImages.find((p) => p.image.getAttribute("src") === src)!;
+const pieceVisible = (view: HTMLElement) => {
+  const images = [...view.querySelectorAll<HTMLImageElement>('[data-testid="shogi-piece"]')];
+  return images.length > 0 && images.every((image) => !image.className.includes("invisible"));
+};
+
+test("盤と全18駒を初回に準備し、処理中・成功・失敗の同じURLを再取得しない", async () => {
+  const first = prepareShogiAssets();
+  const pawn = shogiPieceImage("pawn", false, false, "up").src;
+  const preparation = shogiImageStore.prepare(pawn);
+  expect(shogiImageStore.prepare(pawn)).toBe(preparation);
+  expect(shogiImageStore.getStatus(pawn)).toBe("loading");
+  await flush();
+  expect(pendingImages).toHaveLength(19);
+  expect(new Set(pendingImages.map((p) => p.image.src)).size).toBe(19);
+  expect(pendingFor(boardImage)).toBeDefined();
+  for (const direction of ["up", "down"] as const) {
+    for (const kind of ["king", "rook", "gold", "silver", "pawn"] as const)
+      expect(pendingFor(shogiPieceImage(kind, false, false, direction).src)).toBeDefined();
+    for (const kind of ["rook", "silver", "pawn"] as const)
+      expect(pendingFor(shogiPieceImage(kind, true, false, direction).src)).toBeDefined();
+    expect(pendingFor(shogiPieceImage("king", false, true, direction).src)).toBeDefined();
+  }
+  const again = prepareShogiAssets();
+  await flush();
+  expect(pendingImages).toHaveLength(19);
+  const failed = shogiPieceImage("king", false, true, "down").src;
+  for (const pending of pendingImages)
+    if (pending === pendingFor(failed)) pending.reject();
+    else pending.finish();
+  await Promise.all([first, again]);
+  expect(shogiImageStore.getStatus(pawn)).toBe("ready");
+  expect(shogiImageStore.getStatus(failed)).toBe("error");
+  await prepareShogiAssets();
+  expect(pendingImages).toHaveLength(19);
+});
+
+test("読み込み済みの歩は移動先への再マウント直後から画像を表示する", async () => {
+  const board = (position: number) => (
+    <div>
+      {[0, 1].map((index) => (
+        <div key={index}>{position === index && <ShogiPiece kind="pawn" direction="up" />}</div>
+      ))}
+    </div>
+  );
+  const view = render(board(0));
+  expect(view.textContent).toBe("歩");
+  await flush();
+  pendingImages[0]!.finish();
+  await flush();
+  const originalImage = view.querySelector("img")!;
+  expect(view.textContent).toBe("");
+  rerender(view, board(1));
+  expect(view.querySelector("img")).not.toBe(originalImage);
+  expect(view.querySelector("img")!.src).toBe(originalImage.src);
+  // 非同期処理を進める前の表示を確認します。
+  expect(view.textContent).toBe("");
+  expect(pieceVisible(view)).toBe(true);
+  await flush();
+  expect(pendingImages).toHaveLength(1);
+});
+
+test("先読みした成駒・裏王は初回描画と向き変更で文字へ戻らない", async () => {
+  const preparation = prepareShogiAssets();
+  await flush();
+  for (const pending of pendingImages) pending.finish();
+  await preparation;
+  const view = render(<ShogiPiece kind="rook" promoted direction="up" />);
+  expect(view.textContent).toBe("");
+  expect(pieceVisible(view)).toBe(true);
+  for (const direction of ["right", "down", "left", "up"] as const) {
+    for (const kind of ["rook", "silver", "pawn"] as const) {
+      rerender(view, <ShogiPiece kind={kind} promoted direction={direction} />);
+      expect(view.textContent).toBe("");
+      expect(pieceVisible(view)).toBe(true);
+    }
+    rerender(view, <ShogiPiece kind="king" deadKing direction={direction} />);
     expect(view.textContent).toBe("");
-  } finally {
-    decode.mockRestore();
+    expect(pieceVisible(view)).toBe(true);
   }
+  await flush();
+  expect(pendingImages).toHaveLength(19);
 });
+
+test("駒名・方向・srcとdecode待ちの代替表示、古いURLの完了を検証", async () => {
+  const view = render(<ShogiPiece kind="silver" promoted direction="right" />);
+  expect(view.textContent).toBe("成銀");
+  expect(view.querySelector("img")!.getAttribute("data-piece-direction")).toBe("right");
+  expect(view.querySelector("img")!.getAttribute("src")).toBe(
+    shogiPieceImage("silver", true, false, "right").src,
+  );
+  await flush();
+  const previous = pendingImages[0]!;
+  rerender(view, <ShogiPiece kind="king" deadKing direction="down" />);
+  await flush();
+  previous.finish();
+  await flush();
+  expect(view.textContent).toBe("裏王");
+  pendingImages[1]!.reject();
+  await flush();
+  expect(view.textContent).toBe("裏王");
+  rerender(view, <ShogiPiece kind="rook" promoted direction="left" />);
+  expect(view.textContent).toBe("龍");
+  await flush();
+  pendingImages[2]!.finish();
+  await flush();
+  expect(view.textContent).toBe("");
+  expect(pieceVisible(view)).toBe(true);
+});
+
+test("decode成功でも未完了・寸法0の画像は失敗として文字表示を維持する", async () => {
+  const view = render(
+    <>
+      <ShogiPiece kind="gold" direction="up" />
+      <ShogiPiece kind="gold" direction="down" />
+    </>,
+  );
+  await flush();
+  pendingImages[0]!.finish(false);
+  pendingImages[1]!.finish(true, 0);
+  await flush();
+  expect(view.textContent).toBe("金金");
+  expect(pieceVisible(view)).toBe(false);
+  expect(pendingImages).toHaveLength(2);
+});
+
+test("表示用画像の失敗はその要素だけ文字に戻し、URL変更後や別要素へ持ち越さない", async () => {
+  const preparation = prepareShogiAssets();
+  await flush();
+  for (const pending of pendingImages) pending.finish();
+  await preparation;
+  const view = render(<ShogiPiece kind="rook" direction="up" />);
+  const sibling = render(<ShogiPiece kind="rook" direction="up" />);
+  act(() => view.querySelector("img")!.dispatchEvent(new Event("error")));
+  expect(view.textContent).toBe("飛");
+  expect(sibling.textContent).toBe("");
+  rerender(view, <ShogiPiece kind="rook" promoted direction="up" />);
+  expect(view.textContent).toBe("");
+  rerender(view, <ShogiPiece kind="rook" direction="up" />);
+  expect(view.textContent).toBe("");
+});
+
+test("購読解除後は通知せず、表示を閉じても準備結果は次の表示へ引き継ぐ", async () => {
+  const src = shogiPieceImage("silver", false, false, "down").src;
+  let notifications = 0;
+  const unsubscribe = shogiImageStore.subscribe(src, () => notifications++);
+  const view = render(<ShogiPiece kind="silver" direction="down" />);
+  await flush();
+  expect(notifications).toBe(1);
+  unsubscribe();
+  rerender(view, <></>);
+  pendingImages[0]!.finish();
+  await flush();
+  expect(notifications).toBe(1);
+  expect(view.textContent).toBe("");
+  rerender(view, <ShogiPiece kind="silver" direction="down" />);
+  expect(view.textContent).toBe("");
+  expect(pieceVisible(view)).toBe(true);
+});
+
+test("ロビーは表示する10URLだけを準備し、ルームは盤を含む19URLへ広げる", async () => {
+  const lobby = render(<FourShogiLobbyBoardPreview />);
+  await flush();
+  expect(lobby.querySelectorAll('[data-testid="shogi-piece"]')).toHaveLength(36);
+  expect(pendingImages).toHaveLength(10);
+  render(<FourShogiBoardLayout {...boardProps(() => true)} />);
+  await flush();
+  expect(pendingImages).toHaveLength(19);
+  expect(pendingFor(boardImage)).toBeDefined();
+});
+
 function boardProps(onAction: (action: FourShogiAction) => boolean): FourShogiBoardLayoutProps {
   const room = playingShogiRoom(tacticalShogiState());
   return {
@@ -108,6 +248,65 @@ function boardProps(onAction: (action: FourShogiAction) => boolean): FourShogiBo
 }
 const square = (view: HTMLElement, x: number, y: number) =>
   view.querySelector<HTMLButtonElement>(`[data-square="${"ABCDEFGHI"[x]}${y + 1}"]`)!;
+
+test("捕獲・打ち駒・成り後の盤面と持ち駒、観戦回転・再表示でも画像準備を再利用する", async () => {
+  const initial = tacticalShogiState();
+  const state = {
+    ...initial,
+    hands: { ...initial.hands, south: { ...initial.hands.south, silver: 0 } },
+  };
+  const room = playingShogiRoom(state);
+  const props = { ...boardProps(() => true), game: room.game, legalActions: room.legalActions };
+  const view = render(<FourShogiBoardLayout {...props} />);
+  await flush();
+  for (const pending of pendingImages) pending.finish();
+  await flush();
+  expect(pieceVisible(view)).toBe(true);
+  const actions = [
+    { type: "movePiece", from: { x: 4, y: 6 }, to: { x: 4, y: 5 }, promote: false },
+    props.legalActions.find((action) => action.type === "dropPiece"),
+    props.legalActions.find((action) => action.type === "movePiece" && action.promote),
+  ] as const;
+  for (const [index, action] of actions.entries()) {
+    if (!action) throw new Error("missing fixture action");
+    const result = applyAction(state, "south", action);
+    if (!result.ok) throw new Error("invalid fixture action");
+    const game = publicShogiState(result.state);
+    rerender(
+      view,
+      <FourShogiBoardLayout {...props} game={game} revision={`move:${index}`} canPlay={false} />,
+    );
+    const moved = square(view, action.to.x, action.to.y);
+    expect(moved.querySelector('[data-testid="shogi-piece"]')).not.toBeNull();
+    expect(pieceVisible(moved)).toBe(true);
+    if (index === 0) {
+      const captured = view.querySelector<HTMLElement>(
+        'button[aria-label^="南の持ち駒"][data-hand-kind="silver"]',
+      )!;
+      expect(captured).not.toBeNull();
+      expect(pieceVisible(captured)).toBe(true);
+    }
+    expect(pieceVisible(view)).toBe(true);
+    for (const viewerSide of ["west", "north", "east", "south"] as const) {
+      rerender(
+        view,
+        <FourShogiBoardLayout
+          {...props}
+          game={game}
+          viewerSide={viewerSide}
+          revision={`replay:${index}`}
+          canPlay={false}
+        />,
+      );
+      expect(pieceVisible(view)).toBe(true);
+    }
+  }
+  rerender(view, null);
+  rerender(view, <FourShogiBoardLayout {...props} revision="next-round" />);
+  expect(pieceVisible(view)).toBe(true);
+  await flush();
+  expect(pendingImages).toHaveLength(19);
+});
 
 test("まとめた戦型名を控えめに読み上げ、選択操作で表示を解除する", () => {
   const props = boardProps(() => true);
@@ -151,7 +350,11 @@ test("将棋盤の選択・捕獲候補・revision解除・不正操作抑止・
   expect(sent).toHaveLength(1);
   expect(view.querySelectorAll("[data-side]")).toHaveLength(4);
 });
-test("成りメニューは選択まで送信せず、取消・不成・選択外の成りを一度だけ確定", () => {
+test("成りメニューは先読み済み画像を表示し、選択まで送信せず一度だけ確定", async () => {
+  const preparation = prepareShogiAssets();
+  await flush();
+  for (const pending of pendingImages) pending.finish();
+  await preparation;
   for (const choice of ["Escape", "成らない", "成りを確定"]) {
     const sent: FourShogiAction[] = [];
     const props = boardProps((action) => {
@@ -176,6 +379,9 @@ test("成りメニューは選択まで送信せず、取消・不成・選択�
     act(() => square(view, candidate.to.x, candidate.to.y).click());
     expect(sent).toHaveLength(0);
     expect(document.querySelector('[aria-label="成りの選択"]')).not.toBeNull();
+    expect(pieceVisible(document.querySelector<HTMLElement>('[aria-label="成りの選択"]')!)).toBe(
+      true,
+    );
     if (choice === "Escape") {
       act(() =>
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
@@ -222,7 +428,11 @@ test("禁止候補だけの駒は選択・解除できるが送信せず、ロ�
     expect(view.querySelectorAll(`[data-piece-direction="${direction}"]`)).toHaveLength(9);
 });
 
-test("偽pointerイベントで盤上と持ち駒のdrag状態・取消・revision変更を検証", () => {
+test("盤上と持ち駒のdragは先読み済み画像を表示し、取消・revision変更で解除する", async () => {
+  const preparation = prepareShogiAssets();
+  await flush();
+  for (const pending of pendingImages) pending.finish();
+  await preparation;
   const props = boardProps(() => {
     throw new Error("cancelled drag must not send");
   });
@@ -260,6 +470,9 @@ test("偽pointerイベントで盤上と持ち駒のdrag状態・取消・revisi
       event(source, "pointermove", 10);
       expect(source.getAttribute("data-dragging")).toBe("true");
       expect(view.querySelector('[data-testid="shogi-drag-ghost"]')).not.toBeNull();
+      expect(
+        pieceVisible(view.querySelector<HTMLElement>('[data-testid="shogi-drag-ghost"]')!),
+      ).toBe(true);
       event(source, "pointercancel");
       expect(source.hasAttribute("data-dragging")).toBe(false);
       expect(view.querySelector('[data-testid="shogi-drag-ghost"]')).toBeNull();

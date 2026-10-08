@@ -1,3 +1,5 @@
+import boardImage from "../../assets/shogi/board.png";
+import { createShogiImageStore } from "./shogiImageStore";
 import type { HandPieceKind, PieceKind } from "@tetraboard/four-shogi";
 import upKing from "../../assets/shogi/up/up_king2.png";
 import upDeadKing from "../../assets/shogi/up/up_dead_king2.png";
@@ -72,37 +74,9 @@ export function shogiPieceImage(
             : kind;
   return { src: sprites[direction === "down" ? "down" : "up"][sprite], name: names[sprite] };
 }
-// Promiseに成功したImageを保持し、同じページの再戦・棋譜・回転でも再利用します。
-const prepared = new Map<string, Promise<HTMLImageElement | null>>();
-let preparation: Promise<void> | undefined;
-function prepare(src: string): Promise<HTMLImageElement | null> {
-  const existing = prepared.get(src);
-  if (existing) return existing;
-  const image = new Image();
-  image.fetchPriority = "low";
-  image.src = src;
-  const result = image.decode().then(
-    () => image,
-    () => null,
-  );
-  prepared.set(src, result);
-  return result;
-}
-export function prepareShogiPieceImages(): Promise<void> {
-  if (preparation) return preparation;
-  const urls = [
-    upPromotedSilver,
-    upDragon,
-    upDeadKing,
-    downPromotedSilver,
-    downDragon,
-    downDeadKing,
-  ];
-  let next = 0;
-  async function worker() {
-    while (next < urls.length) await prepare(urls[next++]!);
-  }
-  // 失敗も完了として扱い、表示を妨げず自動再試行を繰り返しません。
-  preparation = Promise.all([worker(), worker()]).then(() => {});
-  return preparation;
+export const shogiImageStore = createShogiImageStore();
+const assetUrls = [boardImage, ...Object.values(sprites.up), ...Object.values(sprites.down)];
+export function prepareShogiAssets(): Promise<void> {
+  // 初回表示を待たず全画像を準備し、失敗しても画面や対局の進行を妨げません。
+  return Promise.all(assetUrls.map((src) => shogiImageStore.prepare(src))).then(() => {});
 }

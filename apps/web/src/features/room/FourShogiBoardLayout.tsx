@@ -11,7 +11,7 @@ import {
 import boardImage from "../../assets/shogi/board.png";
 import { FourShogiHand } from "./FourShogiHand";
 import { ShogiPiece } from "./ShogiPiece";
-import { prepareShogiPieceImages } from "./shogiPieceImages";
+import { prepareShogiAssets } from "./shogiPieceImages";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
 import { useShogiPromotion, type ShogiPromotionContext } from "./useShogiPromotion";
 import {
@@ -133,21 +133,9 @@ export function FourShogiBoardLayout({
   onFormationNoticeDismiss,
 }: FourShogiBoardLayoutProps) {
   const layout = useRef<HTMLDivElement>(null);
-  const board = useRef<HTMLImageElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    let active = true;
-    const images = [
-      ...(layout.current?.querySelectorAll<HTMLImageElement>("img[data-piece-direction]") ?? []),
-    ];
-    if (board.current) images.push(board.current);
-    // 初期表示の通信を優先し、成り駒・裏王の準備は画面を待たせません。
-    void Promise.allSettled(images.map((image) => image.decode())).then(() => {
-      if (active) void prepareShogiPieceImages();
-    });
-    return () => {
-      active = false;
-    };
+    void prepareShogiAssets();
   }, []);
   const trace = useRef<PointerTrace | null>(null);
   const suppressClick = useRef(false);
@@ -402,7 +390,6 @@ export function FourShogiBoardLayout({
         aria-label="四人将棋の盤面"
       >
         <img
-          ref={board}
           src={boardImage}
           alt=""
           draggable={false}
