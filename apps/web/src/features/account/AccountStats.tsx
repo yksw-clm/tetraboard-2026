@@ -1,34 +1,20 @@
-import { Fragment } from "react";
+import { Fragment, lazy, Suspense } from "react";
 import { type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { formatStatsRate } from "./statsPresentation";
+import { StatsMetric as Metric } from "./StatsMetric";
+import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
-
-function Metric({
-  label,
-  value,
-  className = "",
-}: {
-  label: string;
-  value: number | string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1 ${className}`}
-    >
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="m-0 font-semibold tabular-nums">{value}</dd>
-    </div>
-  );
-}
+const FormationStats = lazy(() => import("./FormationStats"));
 
 export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }) {
   const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
+  const showFormations = game === "four-shogi" && mode === "singles";
+  const formations = useFormationStats(showFormations);
   return (
     <section
       aria-labelledby="account-stats-title"
-      className="mt-2 flex flex-col gap-3 border-0 border-t border-solid border-line pt-5"
+      className="mt-2 min-w-0 flex flex-col gap-3 border-0 border-t border-solid border-line pt-5"
     >
       <div className="flex items-center justify-between gap-2">
         <h2 id="account-stats-title" className="text-lg font-bold">
@@ -37,9 +23,15 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
         <AppButton
           appearance="quiet"
           size="compact"
-          isDisabled={loading}
-          isPending={pendingSource === "refresh"}
-          onPress={() => void refresh("refresh")}
+          isDisabled={loading || formations.loading}
+          isPending={
+            pendingSource === "refresh" ||
+            (showFormations && formations.pendingSource === "refresh")
+          }
+          onPress={() => {
+            void refresh("refresh");
+            void formations.refresh("refresh");
+          }}
         >
           更新
         </AppButton>
@@ -55,7 +47,18 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
           <dl className="m-0 grid grid-cols-2 gap-x-5 gap-y-3">
             <Metric className="col-span-2" label="対局数" value={stats[mode].total} />
             {mode === "singles" && game === "four-shogi" && "knockouts" in stats.singles && (
-              <Metric className="col-span-2" label="撃破数" value={stats.singles.knockouts} />
+              <>
+                <Metric
+                  className="col-span-2"
+                  label="完全優勝数"
+                  value={stats.singles.perfectWins}
+                />
+                <Metric label="撃破数" value={stats.singles.knockouts} />
+                <Metric
+                  label="撃破率"
+                  value={formatStatsRate(stats.singles.knockouts, stats.singles.total)}
+                />
+              </>
             )}
             {(mode === "singles"
               ? [
@@ -76,6 +79,9 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
             ))}
           </dl>
         )}
+        {stats && showFormations && (
+          <p className="m-0 text-xs text-muted">撃破率は1局あたりの平均撃破人数です。</p>
+        )}
         {error && (
           <div className="flex flex-col items-start gap-2">
             <p role="alert" className="text-sm text-danger">
@@ -93,6 +99,17 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
           </div>
         )}
       </div>
+      {showFormations && (
+        <Suspense
+          fallback={
+            <p role="status" className="text-sm text-muted">
+              戦法別戦績を読み込んでいます…
+            </p>
+          }
+        >
+          <FormationStats data={formations} />
+        </Suspense>
+      )}
     </section>
   );
 }

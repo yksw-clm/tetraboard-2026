@@ -13,6 +13,9 @@ export {
 } from "./rankings";
 export {
   getAccountStatsContract,
+  getFourShogiFormationStatsContract,
+  fourShogiFormationStatsSchema,
+  type FourShogiFormationStats,
   accountStatsSchema,
   type AccountStats,
   listPublicMatchesContract,

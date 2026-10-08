@@ -107,7 +107,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         second: 0,
         third: 0,
         fourth: 0,
-        ...(game === "four-shogi" ? { knockouts: 0 } : {}),
+        ...(game === "four-shogi" ? { knockouts: 0, perfectWins: 0 } : {}),
       },
       doubles: { total: 0, wins: 0, losses: 0, draws: 0 },
     });
@@ -172,7 +172,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
           second: 0,
           third: 0,
           fourth: 0,
-          ...(game === "four-shogi" ? { knockouts: expectedKnockouts } : {}),
+          ...(game === "four-shogi" ? { knockouts: expectedKnockouts, perfectWins: 0 } : {}),
         });
         expect(stats.doubles).toEqual(empty.doubles);
       } else {

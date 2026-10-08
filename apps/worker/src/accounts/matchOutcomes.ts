@@ -28,7 +28,7 @@ export function matchOutcomesCte(game: GameId, personal: boolean): string {
   if (!isGameId(game)) throw new Error("Unsupported match game");
   const sql = gameOutcomeSql[game];
   return `WITH own_matches AS (
-    SELECT h.account_id, m.mode, m.game, m.record_json,
+    SELECT h.account_id, m.id AS match_id, m.mode, m.game, m.record_json,
       json_extract(m.record_json, '$.game.result') AS result,
       (SELECT ${sql.direction}
        FROM json_each(m.record_json, '$.participants') p
@@ -42,7 +42,7 @@ export function matchOutcomesCte(game: GameId, personal: boolean): string {
         WHERE json_extract(participant.value, '$.kind') IS NOT 'human'
       )
   ), outcomes AS (
-    SELECT account_id, mode,
+    SELECT account_id, match_id, mode, direction, result,
       (SELECT json_extract(s.value, '$.rank')
        FROM json_each(result, '$.standings') s
        WHERE ${sql.rankDirection} = own_matches.direction) AS rank,

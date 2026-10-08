@@ -32,6 +32,11 @@ import {
 import { createShogiClock, advanceShogiClock } from "./shogiClock";
 import { isClockExpired } from "./clock";
 import {
+  emptyFormationUsage,
+  isFormationMatchEligible,
+  recordFormationUsage,
+} from "./shogiFormationUsage";
+import {
   roomStorageKey,
   shogiCpuJobKey,
   playerLabel,
@@ -221,6 +226,9 @@ export class FourShogiProgress {
         })),
       },
       knockouts: emptyKnockouts(),
+      ...(isFormationMatchEligible({ settings: room.settings, participants: started.players })
+        ? { formationUsage: emptyFormationUsage() }
+        : {}),
     } satisfies ActiveShogiMatch);
     return { room: started, roundId, at };
   }
@@ -246,6 +254,13 @@ export class FourShogiProgress {
           entry.reason === "checkmate" && entry.side !== event.side && !prior.has(entry.side),
       ).length;
       active.knockouts[event.side] += count;
+      if (active.formationUsage)
+        active.formationUsage = recordFormationUsage(
+          active.formationUsage,
+          room.game,
+          state,
+          event.side,
+        );
       this.storage.kv.put(shogiMatchStartKey, active);
     }
     this.storage.kv.delete(shogiCpuJobKey);
@@ -292,6 +307,7 @@ export class FourShogiProgress {
           },
         },
         progress: { phase: "upload", cursor: 0 },
+        ...(active.formationUsage ? { formationUsage: active.formationUsage } : {}),
         retryAtMs: Date.now(),
       } satisfies PendingShogiMatch);
     }

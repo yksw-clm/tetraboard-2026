@@ -155,8 +155,27 @@ export const fourReversiAccountStatsSchema = z.strictObject({
     .refine((stats) => stats.total === stats.wins + stats.losses + stats.draws),
 });
 export const fourShogiAccountStatsSchema = fourReversiAccountStatsSchema.extend({
-  singles: fourReversiAccountStatsSchema.shape.singles.safeExtend({ knockouts: matchCountSchema }),
+  singles: fourReversiAccountStatsSchema.shape.singles
+    .safeExtend({
+      knockouts: matchCountSchema,
+      perfectWins: matchCountSchema,
+    })
+    .refine((stats) => stats.perfectWins <= stats.first),
 });
+export const fourShogiFormationStatsSchema = z
+  .array(
+    fourReversiAccountStatsSchema.shape.singles
+      .safeExtend({ id: z.string().min(1).max(64) })
+      .refine((stats) => stats.total > 0),
+  )
+  .max(16)
+  .refine((entries) => new Set(entries.map((entry) => entry.id)).size === entries.length);
+export const getFourShogiFormationStatsContract = {
+  method: "GET",
+  path: "/account/four-shogi/formation-stats",
+  response: fourShogiFormationStatsSchema,
+} as const;
+export type FourShogiFormationStats = z.infer<typeof fourShogiFormationStatsSchema>;
 export const accountStatsSchema = z.union([
   fourReversiAccountStatsSchema,
   fourShogiAccountStatsSchema,
