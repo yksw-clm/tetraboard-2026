@@ -1,7 +1,8 @@
 import { getLegalMovesWithAttacks } from "./attacks";
 import { getCheckState } from "./board";
 import { evaluatePosition } from "./cpuEvaluation";
-import { applyAction, getLegalActions, type RepetitionLookup } from "./index";
+import { getLegalActions, type RepetitionLookup } from "./index";
+import { applyLegalMove, getLegalMoves } from "./transition";
 import { getOrdinaryMoves } from "./moves";
 import {
   areEnemies,
@@ -44,6 +45,7 @@ function scoreAfterReply(
       const checks = getCheckState(move.state);
       return {
         action: move.action,
+        move,
         index,
         score: evaluatePosition(move.state)[responder],
         givesCheck: getActiveSides(move.state).some(
@@ -63,7 +65,7 @@ function scoreAfterReply(
   let responseIndex = Infinity;
   let score = initialScore;
   for (const reply of replies) {
-    const result = applyAction(state, responder, reply.action, repetitionLookup);
+    const result = applyLegalMove(state, responder, reply.move, repetitionLookup);
     if (!result.ok) continue;
     const values = evaluatePosition(result.state);
     if (
@@ -95,8 +97,9 @@ export function chooseCpuAction(
 
   const side = state.turn;
   const candidates: Candidate[] = [];
-  for (const [index, action] of actions.entries()) {
-    const result = applyAction(state, side, action, repetitionLookup);
+  for (const [index, move] of getLegalMoves(state).entries()) {
+    const action = move.action;
+    const result = applyLegalMove(state, side, move, repetitionLookup);
     if (!result.ok) continue;
     candidates.push({
       action,

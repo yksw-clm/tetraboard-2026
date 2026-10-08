@@ -1,8 +1,9 @@
-import { getLegalMovesWithAttacks, updateAttackHistory } from "./attacks";
+import { getLegalMovesWithAttacks, requiresAttackFiltering } from "./attacks";
 import { createInitialBoard, emptyHands } from "./board";
 import { getOrdinaryMoves, validateOrdinaryAction } from "./moves";
 import { eliminateBatch, finishIfDrawAgreed, settlePosition } from "./progression";
 import { recordPosition, type RepetitionLookup } from "./repetition";
+import { applyLegalMove } from "./transition";
 import { getActiveSides, handPieceKinds, sides } from "./types";
 import type {
   ApplyActionResult,
@@ -147,29 +148,12 @@ export function applyAction(
   if (!validActionShape(action)) return { ok: false, reason: "invalid_action" };
   const validated = validateOrdinaryAction(state, side, action);
   if (!validated.ok) return validated;
-  const ordinary = getOrdinaryMoves(state, side);
-  const allowed = getLegalMovesWithAttacks(state, side, ordinary);
-  if (!allowed.some((move) => sameAction(move.action, action)))
-    return { ok: false, reason: "three_player_attack" };
-  const move = validated.move;
-  const moved: FourShogiState = {
-    ...move.state,
-    ...updateAttackHistory(state, side, move),
-    moveNumber: state.moveNumber + 1,
-    lastMove: {
-      side,
-      action: cloneAction(action),
-      piece: { ...move.piece },
-      captured: move.captured === null ? null : { ...move.captured },
-    },
-  };
-  const settled = settlePosition(moved, side, false, repetitionLookup);
-  return {
-    ok: true,
-    state: settled,
-    captured: move.captured === null ? null : { ...move.captured },
-    eliminations: settled.eliminations.slice(state.eliminations.length),
-  };
+  if (requiresAttackFiltering(state, side)) {
+    const allowed = getLegalMovesWithAttacks(state, side, getOrdinaryMoves(state, side));
+    if (!allowed.some((move) => sameAction(move.action, action)))
+      return { ok: false, reason: "three_player_attack" };
+  }
+  return applyLegalMove(state, side, validated.move, repetitionLookup);
 }
 
 function sameAction(left: FourShogiAction, right: FourShogiAction): boolean {
@@ -185,12 +169,6 @@ function validActionShape(action: FourShogiAction): boolean {
   return action.type === "movePiece"
     ? typeof action.promote === "boolean"
     : action.type === "dropPiece" && handPieceKinds.includes(action.pieceKind);
-}
-
-function cloneAction(action: FourShogiAction): FourShogiAction {
-  return action.type === "movePiece"
-    ? { ...action, from: { ...action.from }, to: { ...action.to } }
-    : { ...action, to: { ...action.to } };
 }
 
 export function eliminateSide(
