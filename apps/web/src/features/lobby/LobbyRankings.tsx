@@ -164,7 +164,10 @@ function RankingsDialog({
   return (
     <AppDialog title="ランキング" onClose={onClose} theme={theme}>
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-muted">対人戦のみ集計</p>
+        <p className="text-xs text-muted">対人戦・登録済ユーザーのみ集計</p>
+        <p className="text-xs text-muted">
+          CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。対戦相手にゲストがいても対象です。
+        </p>
         <ModeTabs mode={mode} onChange={setMode}>
           <AppTabs selectedKey={metric} onSelectionChange={(key) => setMetric(String(key))}>
             <AppTabs.List aria-label="ランキングの集計項目">
@@ -233,7 +236,7 @@ function LobbyRankingsView({
             更新
           </AppButton>
         </div>
-        <p className="text-xs text-muted">対人戦のみ集計</p>
+        <p className="text-xs text-muted">対人戦・登録済ユーザーのみ集計</p>
         <ModeTabs mode={mode} onChange={setMode}>
           <RankingContent state={state} mode={mode} limit={3} />
         </ModeTabs>

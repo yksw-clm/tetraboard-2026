@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { useLocation } from "react-router";
 import { useRoomEntry } from "../src/features/lobby/useRoomEntry";
 import { useRoomInvitation } from "../src/features/room/useRoomInvitation";
-import { useGoogleSignIn } from "../src/features/account/useGoogleSignIn";
+import { useSocialSignIn } from "../src/features/account/useSocialSignIn";
 import { useRegistrationRestore } from "../src/features/account/useRegistrationRestore";
 import { useRegistrationResult } from "../src/features/room/useRegistrationResult";
 import {
@@ -184,7 +184,7 @@ test("招待参加は同世代GET確認後に名前を省略したPOSTを送り�
   expect(h.current.busy).toBe(false);
 });
 test("OAuth復帰は入力を保存して失敗後再試行、adminでは通常復帰を捨て同じ宛先を送る", async () => {
-  const h = renderHook(useGoogleSignIn, undefined);
+  const h = renderHook(useSocialSignIn, undefined);
   const destination = {
     path: "/games/four-shogi",
     entry: {
@@ -196,8 +196,8 @@ test("OAuth復帰は入力を保存して失敗後再試行、adminでは通常�
     },
   };
   act(() => {
-    void h.current.start(destination);
-    void h.current.start(destination);
+    void h.current.start("google", destination);
+    void h.current.start("google", destination);
   });
   expect(requests).toHaveLength(1);
   expect(readRegistrationReturn()?.oauthStarted).toBe(true);
@@ -207,14 +207,17 @@ test("OAuth復帰は入力を保存して失敗後再試行、adminでは通常�
   expect(readRegistrationReturn()?.entry).toEqual(destination.entry);
   expect(readRegistrationReturn()?.oauthStarted).toBe(false);
   act(() => {
-    void h.current.start("admin");
+    void h.current.start("google", "admin");
   });
   expect(readRegistrationReturn()).toBeNull();
-  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({ destination: "admin" });
+  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({
+    provider: "google",
+    destination: "admin",
+  });
   requests[1]!.respond({}, 503);
   await flush();
   act(() => {
-    void h.current.start("admin");
+    void h.current.start("google", "admin");
   });
   expect(requests[2]!.init.body).toBe(requests[1]!.init.body);
   requests[2]!.respond({ url: "https://evil.test/" });
@@ -244,9 +247,9 @@ test("復帰入力は履歴stateから一度だけ読み、保存不能でもOAu
   expect(requests).toHaveLength(0);
   const failure = denyStorage();
   try {
-    const signIn = renderHook(useGoogleSignIn, undefined);
+    const signIn = renderHook(useSocialSignIn, undefined);
     act(() => {
-      void signIn.current.start({ path: "/games/four-reversi" });
+      void signIn.current.start("google", { path: "/games/four-reversi" });
     });
     expect(requests).toHaveLength(1);
     requests[0]!.respond({}, 503);
@@ -303,4 +306,31 @@ test("結果登録案内は本人の終局だけ保留し、次局で破棄、st
   } finally {
     failure.mockRestore();
   }
+});
+
+test("Discord開始も下書きを保持し、プロバイダーを送り、失敗後Googleへ切り替えられる", async () => {
+  const h = renderHook(useSocialSignIn, undefined);
+  const destination = {
+    path: `/rooms/12345?invite=${waitingRoom().instanceId}`,
+    joinName: "下書き",
+  };
+  act(() => {
+    void h.current.start("discord", destination);
+    void h.current.start("google", destination);
+  });
+  expect(requests).toHaveLength(1);
+  expect(h.current.pendingProvider).toBe("discord");
+  expect(JSON.parse(String(requests[0]!.init.body))).toEqual({ provider: "discord" });
+  requests[0]!.respond({ message: "Discordログインは準備中です。" }, 503);
+  await flush();
+  expect(h.current.pendingProvider).toBeNull();
+  expect(readRegistrationReturn()?.joinName).toBe("下書き");
+  act(() => {
+    void h.current.start("google", destination);
+  });
+  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({ provider: "google" });
+  requests[1]!.respond({ url: "https://discord.com/api/oauth2/authorize" });
+  await flush();
+  expect(h.current.busy).toBe(false);
+  expect(h.current.message).toContain("開始できません");
 });

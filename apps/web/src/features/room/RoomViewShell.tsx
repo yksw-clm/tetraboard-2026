@@ -19,7 +19,7 @@ import { appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
-import { useGoogleSignIn } from "../account/useGoogleSignIn";
+import { useSocialSignIn } from "../account/useSocialSignIn";
 import { useRegistrationResult } from "./useRegistrationResult";
 import { roomInvitationPath } from "../../shared/roomAccess";
 import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
@@ -55,7 +55,7 @@ export function RoomViewShell({
 }) {
   const desktop = useRoomDesktop();
   const account = useAccount();
-  const google = useGoogleSignIn();
+  const signIn = useSocialSignIn();
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<"result" | "leave" | "resign" | "feedback" | null>(null);
   const { room, membership } = session;
@@ -239,6 +239,7 @@ export function RoomViewShell({
         )}
       </Toast.Provider>
       <RoomInvitationDialogs
+        game={room.settings.game}
         invitation={invitation}
         roomId={room.id}
         theme={theme}
@@ -270,25 +271,28 @@ export function RoomViewShell({
           title="対局結果"
           onClose={closeResult}
           theme={theme}
-          busy={google.busy}
+          busy={signIn.busy}
         >
           {result}
           {guest && (
             <div className="mt-5">
               <RegistrationPrompt
+                game={room.settings.game}
                 result
                 seated={membership !== null}
                 humanOnly={room.lastRound.players.every((p) =>
                   room.players.some((current) => current.id === p.id && current.kind === "human"),
                 )}
-                busy={google.busy}
-                isPending={google.busy}
-                onRegister={() => void google.start({ path: roomInvitationPath(room) })}
+                busy={signIn.busy}
+                pendingProvider={signIn.pendingProvider}
+                onRegister={(provider) =>
+                  void signIn.start(provider, { path: roomInvitationPath(room) })
+                }
                 onDismiss={closeResult}
               />
-              {google.message && (
+              {signIn.message && (
                 <p role="alert" className="mt-3 text-sm text-danger">
-                  {google.message}
+                  {signIn.message}
                 </p>
               )}
             </div>

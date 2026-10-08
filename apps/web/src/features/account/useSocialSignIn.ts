@@ -6,14 +6,18 @@ import {
   type RegistrationDestination,
 } from "./registrationReturn";
 
-export function useGoogleSignIn() {
+export type SocialProvider = "google" | "discord";
+
+export function useSocialSignIn() {
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  async function start(destination?: RegistrationDestination | "admin") {
+  async function start(provider: SocialProvider, destination?: RegistrationDestination | "admin") {
     if (submitting.current) return;
     submitting.current = true;
     setBusy(true);
+    setPendingProvider(provider);
     setMessage(null);
     const registrationDestination = typeof destination === "object" ? destination : undefined;
     if (registrationDestination) saveRegistrationReturn(registrationDestination, true);
@@ -22,18 +26,32 @@ export function useGoogleSignIn() {
       const result = (await accountRequest("/api/auth/sign-in/social", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(destination === "admin" ? { destination: "admin" } : {}),
+        body: JSON.stringify({
+          provider,
+          ...(destination === "admin" ? { destination: "admin" } : {}),
+        }),
       })) as { url?: string } | null;
-      if (!result?.url || new URL(result.url).origin !== "https://accounts.google.com")
-        throw new Error("Googleログインを開始できませんでした。");
+      if (
+        !result?.url ||
+        new URL(result.url).origin !==
+          (provider === "google" ? "https://accounts.google.com" : "https://discord.com")
+      )
+        throw new Error(
+          `${provider === "google" ? "Google" : "Discord"}ログインを開始できませんでした。`,
+        );
       window.location.assign(result.url);
     } catch (err) {
       if (registrationDestination) saveRegistrationReturn(registrationDestination, false);
       else clearRegistrationReturn();
-      setMessage(err instanceof Error ? err.message : "Googleログインを開始できませんでした。");
+      setMessage(
+        err instanceof Error
+          ? err.message
+          : `${provider === "google" ? "Google" : "Discord"}ログインを開始できませんでした。`,
+      );
       submitting.current = false;
       setBusy(false);
+      setPendingProvider(null);
     }
   }
-  return { busy, message, start };
+  return { busy, pendingProvider, message, start };
 }

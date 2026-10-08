@@ -1,3 +1,5 @@
+import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
+import { SocialSignInButtons } from "./SocialSignInButtons";
 import {
   gameCatalog,
   gameIds,
@@ -24,7 +26,7 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { ProfileForm } from "./ProfileForm";
-import { useGoogleSignIn } from "./useGoogleSignIn";
+import { useSocialSignIn } from "./useSocialSignIn";
 import {
   clearRegistrationReturn,
   readRegistrationReturn,
@@ -39,12 +41,13 @@ export function AccountPageShell({
   modeTabs,
 }: {
   children: ReactNode;
-  layout?: "form" | "profile";
+  layout?: "form" | "profile" | "login";
   game?: GameId;
   navigation?: ReactNode;
   modeTabs?: ReactNode;
 }) {
   const profileLayout = layout === "profile";
+  const loginLayout = layout === "login";
   const lobbyLink = (
     <AppButtonLink
       to={gameCatalog[profileLayout ? game : defaultGameId].lobbyPath}
@@ -59,7 +62,13 @@ export function AccountPageShell({
     </AppButtonLink>
   );
   return (
-    <div className={cn("app-theme min-h-dvh text-ink", !profileLayout && "lobby-background")}>
+    <div
+      className={cn(
+        "app-theme min-h-dvh text-ink",
+        !profileLayout && "lobby-background",
+        loginLayout && "flex flex-col",
+      )}
+    >
       <AppHeader homeTo={gameCatalog[defaultGameId].lobbyPath} homeLabel="TetraBoard ロビー">
         <AccountMenu />
       </AppHeader>
@@ -76,7 +85,11 @@ export function AccountPageShell({
         <main
           className={cn(
             "flex flex-col gap-5 py-8",
-            profileLayout ? appPageWidthClasses : "mx-auto max-w-[600px] px-5",
+            profileLayout
+              ? appPageWidthClasses
+              : loginLayout
+                ? "mx-auto w-full max-w-[600px] flex-1 justify-center px-5"
+                : "mx-auto max-w-[600px] px-5",
           )}
         >
           {profileLayout && (
@@ -91,7 +104,9 @@ export function AccountPageShell({
             </div>
           )}
           {children}
-          {!profileLayout && lobbyLink}
+          {!profileLayout && (
+            <div className={loginLayout ? "text-center" : undefined}>{lobbyLink}</div>
+          )}
         </main>
       </div>
     </div>
@@ -159,7 +174,7 @@ export function LoginPage() {
   const { user, loading, error } = useAccount();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const google = useGoogleSignIn();
+  const signIn = useSocialSignIn();
   const [destination] = useState(readRegistrationReturn);
   const adminDestination = params.get("destination") === "admin";
   useEffect(() => {
@@ -175,39 +190,64 @@ export function LoginPage() {
     return <Navigate to={user.profileCompleted ? "/account" : "/account/setup"} replace />;
   }
   return (
-    <AccountPageShell>
+    <AccountPageShell layout="login">
       {loading || error ? (
         <AccountStatus />
       ) : (
-        <AppCard>
-          <AppCard.Header>
-            <h1 className="text-2xl font-bold">登録・ログイン</h1>
-            <p className="text-sm text-muted">GoogleアカウントでTetraBoardを利用できます。</p>
+        <AppCard className="gap-6 p-6">
+          <AppCard.Header className="items-center text-center">
+            <h1 className="text-2xl font-bold">
+              {adminDestination ? "管理画面へログイン" : "登録・ログイン"}
+            </h1>
+            <p className="text-sm text-muted">
+              {adminDestination
+                ? "Googleアカウントでログインしてください。"
+                : "対局の楽しさを、自分のアカウントに。"}
+            </p>
           </AppCard.Header>
           <AppCard.Content className="flex flex-col gap-5">
-            <p className="text-sm">
-              アカウントがない場合は、新しいユーザーが作成されます。続いて名前・ID・任意のアイコンを設定します。
-            </p>
-            {(google.message || params.has("error")) && (
+            {!adminDestination && (
+              <>
+                <RegistrationBenefits />
+                <div className="@container rounded-panel bg-surface-muted p-3">
+                  <div className="grid grid-cols-1 gap-3 @min-[300px]:grid-cols-2">
+                    {(["four-reversi", "four-shogi"] as const).map((exampleGame) => (
+                      <div key={exampleGame} className="flex min-w-0 flex-col items-center gap-1">
+                        <span className="text-xs font-bold">{gameCatalog[exampleGame].name}</span>
+                        <RegistrationBadgeExamples game={exampleGame} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            {(signIn.message || params.has("error")) && (
               <p role="alert" className="text-sm text-danger">
-                {google.message ??
-                  "ログインを完了できませんでした。キャンセルした場合も、もう一度お試しいただけます。"}
+                {signIn.message ??
+                  (params.get("error") === "email_not_found"
+                    ? "Discordからメールアドレスを取得できませんでした。メールを設定したDiscordアカウントか、Googleで続けてください。"
+                    : params.get("error") === "account_not_linked"
+                      ? "このメールアドレスは別の方法で登録されています。最初に登録した方法でログインしてください。アカウントの自動連携は行いません。"
+                      : "ログインを完了できませんでした。キャンセルした場合も、もう一度お試しいただけます。")}
               </p>
             )}
-            <AppButton
-              appearance="secondary"
-              onPress={() =>
-                void google.start(adminDestination ? "admin" : (destination ?? undefined))
+            <SocialSignInButtons
+              onSignIn={(provider) =>
+                void signIn.start(provider, adminDestination ? "admin" : (destination ?? undefined))
               }
-              isDisabled={google.busy}
-              isPending={google.busy}
-            >
-              Googleで続ける
-            </AppButton>
+              adminOnly={adminDestination}
+              busy={signIn.busy}
+              pendingProvider={signIn.pendingProvider}
+            />
+            {!adminDestination && (
+              <p className="m-0 text-xs leading-relaxed text-muted">
+                初めて利用する場合はアカウントを作成し、名前・ID・任意のアイコンを設定します。登録せずに遊ぶこともできます。
+              </p>
+            )}
             {destination && !adminDestination && (
               <AppButton
                 appearance="quiet"
-                isDisabled={google.busy}
+                isDisabled={signIn.busy}
                 onPress={() => {
                   clearRegistrationReturn();
                   void navigate(destination.path, {

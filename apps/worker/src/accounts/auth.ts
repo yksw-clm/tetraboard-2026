@@ -5,6 +5,8 @@ export type AuthEnv = Env & {
   BETTER_AUTH_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  DISCORD_CLIENT_ID?: string;
+  DISCORD_CLIENT_SECRET?: string;
 };
 export function createAuth(env: AuthEnv) {
   const local = new URL(env.APP_ORIGIN).protocol === "http:";
@@ -22,6 +24,12 @@ export function createAuth(env: AuthEnv) {
     advanced: { useSecureCookies: !local, cookiePrefix: "tetraboard-2026" },
     rateLimit: { enabled: !local, storage: "database" },
     socialProviders: {
+      discord: {
+        clientId: env.DISCORD_CLIENT_ID ?? "",
+        clientSecret: env.DISCORD_CLIENT_SECRET ?? "",
+        disableDefaultScope: true,
+        scope: ["identify", "email"],
+      },
       google: {
         clientId: env.GOOGLE_CLIENT_ID ?? "",
         clientSecret: env.GOOGLE_CLIENT_SECRET ?? "",

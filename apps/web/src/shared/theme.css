@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Google Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/assets/auth/google-sans.ttf") format("truetype");
+}
+
 @theme {
   --color-brand: #278455;
   --color-brand-hover: #20764d;

@@ -1,20 +1,26 @@
+import type { SocialProvider } from "./useSocialSignIn";
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
+import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
+import { SocialSignInButtons } from "./SocialSignInButtons";
 import { AppButton } from "../../shared/ui/AppButton";
 
 export function RegistrationPrompt({
+  game = defaultGameId,
   humanOnly,
   seated = false,
   result = false,
   busy,
-  isPending = false,
+  pendingProvider = null,
   onRegister,
   onDismiss,
 }: {
+  game?: GameId;
   humanOnly: boolean;
   seated?: boolean;
   result?: boolean;
   busy: boolean;
-  isPending?: boolean;
-  onRegister: () => void;
+  pendingProvider?: SocialProvider | null;
+  onRegister: (provider: SocialProvider) => void;
   onDismiss?: () => void;
 }) {
   return (
@@ -22,11 +28,19 @@ export function RegistrationPrompt({
       aria-label="ユーザー登録のご案内"
       className="flex flex-col gap-3 rounded-control border border-solid border-line bg-surface-muted p-3 text-sm"
     >
-      {result && <h2 className="text-base font-bold">棋譜をマイページに残そう</h2>}
-      <p>アカウントで参加した対局は、あとから棋譜を振り返れます。</p>
-      {humanOnly && (
-        <p className="text-xs text-muted">
-          戦績・ランキングにも参加できます。集計はCPUを含まない対人戦のみです。
+      <h2 className="m-0 text-base font-bold">
+        {result ? "これからの対局で、バッジを集めよう" : "登録して、対局の成果を残そう"}
+      </h2>
+      <RegistrationBenefits />
+      <RegistrationBadgeExamples game={game} />
+      {!humanOnly && (
+        <p className="m-0 text-xs text-muted">
+          CPUを含む対局は、戦績・ランキング・バッジの対象外です。
+        </p>
+      )}
+      {result && (
+        <p className="m-0 text-xs leading-relaxed text-muted">
+          今回のゲスト対局は、登録後の戦績・バッジ・本人の対局履歴には引き継がれません。
         </p>
       )}
       {seated && (
@@ -35,9 +49,7 @@ export function RegistrationPrompt({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <AppButton size="compact" isDisabled={busy} isPending={isPending} onPress={onRegister}>
-          Googleで登録・ログイン
-        </AppButton>
+        <SocialSignInButtons busy={busy} pendingProvider={pendingProvider} onSignIn={onRegister} />
         {onDismiss && (
           <AppButton appearance="secondary" size="compact" isDisabled={busy} onPress={onDismiss}>
             今はしない

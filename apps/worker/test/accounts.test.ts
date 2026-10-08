@@ -208,7 +208,7 @@ test("Google OAuth往復・キャンセル・state検証・既存プロフィー
     const response = await request("/auth/sign-in/social", {
       method: "POST",
       headers: { Origin: origin, "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "discord", callbackURL: "https://evil.test" }),
+      body: JSON.stringify({ provider: "google", callbackURL: "https://evil.test" }),
     });
     expect(response.status).toBe(200);
     const { url } = (await response.json()) as { url: string };

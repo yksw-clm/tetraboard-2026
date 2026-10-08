@@ -22,28 +22,44 @@ accountRoutes.onError((err, c) => {
 });
 accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
   const path = new URL(c.req.url).pathname.replace(/^\/api/, "");
-  if (c.req.method === "GET" && path === "/auth/callback/google")
+  if (c.req.method === "GET" && ["/auth/callback/google", "/auth/callback/discord"].includes(path))
     return createAuth(c.env).handler(
-      new Request(
-        `${c.env.APP_ORIGIN}/api/auth/callback/google${new URL(c.req.url).search}`,
-        c.req.raw,
-      ),
+      new Request(`${c.env.APP_ORIGIN}/api${path}${new URL(c.req.url).search}`, c.req.raw),
     );
   if (c.req.method !== "POST" || !["/auth/sign-in/social", "/auth/sign-out"].includes(path))
     return c.json(error("見つかりません。"), 404);
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)
     return c.json(error("操作元を確認できません。ページを開き直してください。"), 403);
-  if (path === "/auth/sign-in/social" && (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET))
-    return c.json(error("Googleログインは準備中です。"), 503);
+  let provider: "google" | "discord" = "google";
   let adminLogin = false;
   if (path === "/auth/sign-in/social") {
+    let input: unknown;
     try {
-      adminLogin = (await c.req.json()).destination === "admin";
+      const body = await c.req.text();
+      input = body ? JSON.parse(body) : {};
     } catch {
-      /* 既存の空入力も受け付けます。 */
+      return c.json(error("認証方法の指定が正しくありません。"), 400);
     }
+    if (!input || typeof input !== "object" || Array.isArray(input))
+      return c.json(error("認証方法の指定が正しくありません。"), 400);
+    const data = input as Record<string, unknown>;
+    if (data.provider !== undefined && data.provider !== "google" && data.provider !== "discord")
+      return c.json(error("認証方法の指定が正しくありません。"), 400);
+    provider = data.provider === "discord" ? "discord" : "google";
+    adminLogin = data.destination === "admin";
+    if (adminLogin && provider !== "google")
+      return c.json(error("管理画面にはGoogleでログインしてください。"), 400);
+    const configured =
+      provider === "google"
+        ? c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET
+        : c.env.DISCORD_CLIENT_ID && c.env.DISCORD_CLIENT_SECRET;
+    if (!configured)
+      return c.json(
+        error(`${provider === "google" ? "Google" : "Discord"}ログインは準備中です。`),
+        503,
+      );
   }
-  // 遷移先とプロバイダーはサーバーで固定し、汎用プロフィール更新APIを公開しません。
+  // 許可したプロバイダーだけを使い、遷移先はサーバーで固定します。
   return createAuth(c.env).handler(
     new Request(`${c.env.APP_ORIGIN}/api${path}`, {
       method: "POST",
@@ -52,7 +68,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
         path === "/auth/sign-out"
           ? {}
           : {
-              provider: "google",
+              provider,
               callbackURL: adminLogin ? "/admin" : "/account",
               newUserCallbackURL: adminLogin ? "/admin" : "/account/setup",
               errorCallbackURL: adminLogin

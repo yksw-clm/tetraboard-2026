@@ -1,3 +1,4 @@
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -5,15 +6,17 @@ import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
-import { useGoogleSignIn } from "../account/useGoogleSignIn";
+import { useSocialSignIn } from "../account/useSocialSignIn";
 
 export function RoomInvitationDialogs({
+  game = defaultGameId,
   invitation,
   roomId,
   theme = "default",
   registrationPath,
   humanOnly,
 }: {
+  game?: GameId;
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
   theme?: AppTheme;
@@ -21,8 +24,8 @@ export function RoomInvitationDialogs({
   humanOnly: boolean;
 }) {
   const account = useAccount();
-  const google = useGoogleSignIn();
-  const busy = invitation.busy || google.busy;
+  const signIn = useSocialSignIn();
+  const busy = invitation.busy || signIn.busy;
   if (invitation.dialog === "copy")
     return (
       <AppDialog size="compact" title="招待リンク" onClose={invitation.close} theme={theme}>
@@ -61,15 +64,16 @@ export function RoomInvitationDialogs({
           onChange={invitation.setName}
           busy={busy}
           registration={{
-            isPending: google.busy,
+            game,
+            pendingProvider: signIn.pendingProvider,
             humanOnly,
-            onRegister: () =>
-              void google.start({ path: registrationPath, joinName: invitation.name }),
+            onRegister: (provider) =>
+              void signIn.start(provider, { path: registrationPath, joinName: invitation.name }),
           }}
         />
-        {google.message && (
+        {signIn.message && (
           <p role="alert" className="text-sm text-danger">
-            {google.message}
+            {signIn.message}
           </p>
         )}
         {(invitation.message || invitation.unavailableReason) && (
