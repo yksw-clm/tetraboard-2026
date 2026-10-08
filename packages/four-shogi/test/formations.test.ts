@@ -1,11 +1,18 @@
 import { expect, test } from "bun:test";
-import { applyAction, createInitialState, detectFormations, sides, type Piece } from "../src";
+import {
+  applyAction,
+  createInitialState,
+  detectFormations,
+  formationIds,
+  formationAnalysisVersion,
+  sides,
+  type Piece,
+} from "../src";
 import {
   formationAction,
   formationCases,
   formationSquare,
   formationState,
-  type FixtureFormationId,
 } from "../../../test-fixtures/shogiFormations";
 
 for (const fixture of formationCases)
@@ -27,10 +34,7 @@ for (const fixture of formationCases)
         if (!result.ok) throw new Error(result.reason);
         const frozen = JSON.stringify(result.state);
         const matches = detectFormations(result.state, side);
-        const expectedIds: FixtureFormationId[] = ["subway-rook", "lower-gold"].includes(fixture.id)
-          ? ["subway-rook", "lower-gold"]
-          : [fixture.id];
-        expect(matches.map((match) => match.id)).toEqual(expectedIds);
+        expect(matches.map((match) => match.id)).toEqual([fixture.id]);
         const match = matches.find((entry) => entry.id === fixture.id)!;
         expect(match).toMatchObject({ id: fixture.id, name: fixture.name });
         expect(match.matchedSquares).toEqual(
@@ -107,4 +111,10 @@ test("開始局面に戦型を認定せず、未対応のルール版を黙っ�
   expect(() =>
     detectFormations({ ...state, rulesVersion: 2 } as unknown as typeof state, "south"),
   ).toThrow("Unsupported formation rules version");
+});
+
+test("解析版3では地下鉄飛車の単独IDを廃止し、16戦型を公開する", () => {
+  expect(formationAnalysisVersion).toBe(3);
+  expect(formationIds).toHaveLength(16);
+  expect(formationIds).not.toContain("subway-rook");
 });

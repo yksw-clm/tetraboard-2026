@@ -143,10 +143,11 @@ test.each([
   { id: "five" as const, matches: [{ id: "five", name: "ファイブ" }] },
   {
     id: "lower-gold" as const,
-    matches: [
-      { id: "subway-rook", name: "地下鉄飛車" },
-      { id: "lower-gold", name: "下段金寄せ" },
-    ],
+    matches: [{ id: "lower-gold", name: "地下鉄飛車・下段金寄せ" }],
+  },
+  {
+    id: "yuzuu-muge" as const,
+    matches: [{ id: "yuzuu-muge", name: "地下鉄飛車・融通無碍" }],
   },
 ])(
   "$id: 確定局面の解析revision・混在配信・再接続・休止後の接続タグと保存分離",
@@ -197,7 +198,7 @@ test.each([
     if (snapshot.type !== "room.snapshot") throw new Error("No snapshot");
     expect(snapshot.formationAnalysis).toMatchObject({
       analyzerId: "four-shogi-formations",
-      analysisVersion: 2,
+      analysisVersion: 3,
       rulesVersion: 1,
       roundId: prepared.room.roundId,
       positionRevision: 1,
