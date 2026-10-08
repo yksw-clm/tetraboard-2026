@@ -3,6 +3,7 @@ import { gameIdSchema } from "./gameSchemas";
 import { usernameSchema } from "./accounts";
 import { roomCodeSchema, roomPublicMetadataSchema } from "./rooms";
 import { rankingEntrySchema } from "./rankings";
+import { badgeIds } from "./badges";
 
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
   z.strictObject({
@@ -16,9 +17,18 @@ export const playerProfileTargetSchema = z.discriminatedUnion("source", [
 ]);
 export type PlayerProfileTarget = z.infer<typeof playerProfileTargetSchema>;
 export const playerProfileQuerySchema = z.discriminatedUnion("source", [
-  playerProfileTargetSchema.options[0].extend({ game: gameIdSchema }),
-  playerProfileTargetSchema.options[1].extend({ game: gameIdSchema }),
-  playerProfileTargetSchema.options[2].extend({ game: gameIdSchema }),
+  playerProfileTargetSchema.options[0].extend({
+    game: gameIdSchema,
+    includeBadges: z.literal("1").optional(),
+  }),
+  playerProfileTargetSchema.options[1].extend({
+    game: gameIdSchema,
+    includeBadges: z.literal("1").optional(),
+  }),
+  playerProfileTargetSchema.options[2].extend({
+    game: gameIdSchema,
+    includeBadges: z.literal("1").optional(),
+  }),
 ]);
 const count = z.int().nonnegative();
 export const playerProfileSchema = z.discriminatedUnion("kind", [
@@ -32,6 +42,16 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
       .nullable(),
     game: gameIdSchema,
+    badges: z
+      .array(
+        z.strictObject({
+          id: z.enum(badgeIds),
+          tier: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+          value: count,
+        }),
+      )
+      .max(4)
+      .optional(),
     stats: z.strictObject({
       singles: z.strictObject({ total: count, first: count }),
       doubles: z.strictObject({ total: count, wins: count }),

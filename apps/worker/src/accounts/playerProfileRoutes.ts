@@ -1,5 +1,9 @@
 import { Hono } from "hono";
-import { getPlayerProfileContract, profileInputSchema } from "@tetraboard/protocol";
+import {
+  getEarnedBadges,
+  getPlayerProfileContract,
+  profileInputSchema,
+} from "@tetraboard/protocol";
 import { readStoredMatch } from "./matchDataContracts";
 import { readCurrentProfiles, ensurePublicProfileId } from "./currentProfiles";
 import { readAccountStats } from "./statsRoutes";
@@ -80,6 +84,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         username: profile.username,
         avatarUrl: profile.avatarUrl,
         game: target.game,
+        ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats: {
           singles: { total: stats.singles.total, first: stats.singles.first },
           doubles: { total: stats.doubles.total, wins: stats.doubles.wins },

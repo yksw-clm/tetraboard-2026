@@ -215,7 +215,7 @@ export function PlayerProfileTrigger({
         containerPadding={16}
         UNSTABLE_portalContainer={portalContainer}
         className={cn(
-          "app-theme z-50 box-border w-[280px] max-w-[calc(100vw-32px)] rounded-panel border border-line bg-white p-4 text-ink shadow-dialog outline-none",
+          "app-theme z-50 box-border flex flex-col w-[280px] max-w-[calc(100vw-32px)] rounded-panel border border-line bg-white p-4 text-ink shadow-dialog outline-none",
           appThemeClasses[theme],
         )}
       >
@@ -225,7 +225,7 @@ export function PlayerProfileTrigger({
           role="region"
           aria-label={`${label}のプレイヤー情報`}
           tabIndex={-1}
-          className="relative outline-none"
+          className="relative min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain outline-none"
           onPointerEnter={() => {
             flags.current.cardHovered = true;
             clearTimeout(timers.current.close);
@@ -245,7 +245,7 @@ export function PlayerProfileTrigger({
             leave();
           }}
         >
-          <div className="absolute -right-2 -top-2">
+          <div className="absolute right-0 top-0">
             <AppButton
               appearance="quiet"
               size="compact"
