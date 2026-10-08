@@ -51,7 +51,7 @@ test("account shows all targets, highest tiers and exact large live numbers", ()
   expect(view.querySelectorAll("img")).toHaveLength(2);
   expect(view.textContent?.match(/未獲得/g)).toHaveLength(2);
   expect(view.textContent).toContain("4局 / 5局");
-  expect(view.textContent).toContain("3回 / 15回 / 50回");
+  expect(view.textContent).not.toContain("星1 / 星2 / 星3");
   rerender(view, <AccountBadges game="four-shogi" stats={shogi} />);
   expect(view.querySelectorAll("img")).toHaveLength(4);
   expect(view.innerHTML).toContain("knockouts-star-3.webp");

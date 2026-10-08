@@ -38,9 +38,10 @@ export function BadgeImage({
       <img
         src={`/assets/badges/${game}/${id}-star-${tier || 1}.webp`}
         alt=""
+        draggable={false}
         width={size}
         height={size}
-        className={`block h-auto w-full object-contain ${tier === 0 ? "grayscale opacity-35" : ""}`}
+        className={`block h-auto w-full select-none object-contain ${tier === 0 ? "grayscale opacity-35" : ""}`}
       />
       {tier === 3 && plaque && (
         <span
