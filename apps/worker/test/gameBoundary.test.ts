@@ -270,7 +270,15 @@ describe("ゲーム境界: 本人の履歴・戦績", () => {
               doubles: { total: 2, wins: 0, losses: 2, draws: 0 },
             }
           : {
-              singles: { total: 3, first: 3, second: 0, third: 0, fourth: 0, knockouts: 0 },
+              singles: {
+                total: 3,
+                first: 3,
+                second: 0,
+                third: 0,
+                fourth: 0,
+                knockouts: 0,
+                perfectWins: 0,
+              },
               doubles: { total: 4, wins: 4, losses: 0, draws: 0 },
             },
       );

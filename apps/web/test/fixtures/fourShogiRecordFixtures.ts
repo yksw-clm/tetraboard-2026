@@ -20,7 +20,7 @@ import {
 import { publicShogiState } from "./fourShogiFixtures";
 
 export const shogiStats: FourShogiAccountStats = {
-  singles: { total: 8, first: 2, second: 3, third: 1, fourth: 2, knockouts: 11 },
+  singles: { total: 8, first: 2, second: 3, third: 1, fourth: 2, knockouts: 11, perfectWins: 1 },
   doubles: { total: 5, wins: 1, losses: 3, draws: 1 },
 };
 

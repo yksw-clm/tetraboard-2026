@@ -5,6 +5,11 @@ import {
   type MatchReplayPage,
 } from "@tetraboard/protocol";
 import { type Side } from "@tetraboard/four-shogi";
+import {
+  shogiFormationUsageSchema,
+  isFormationMatchEligible,
+  type ShogiFormationUsage,
+} from "./shogiFormationUsage";
 
 export type ShogiMatchParticipant = {
   id: string;
@@ -29,10 +34,15 @@ export type ShogiMatchRecord = ShogiMatchStart & {
 export type ShogiSaveProgress = { phase: "upload" | "verify"; cursor: number };
 export type PendingShogiMatch = {
   record: ShogiMatchRecord;
+  formationUsage?: ShogiFormationUsage;
   progress: ShogiSaveProgress;
   retryAtMs: number;
 };
-export type ActiveShogiMatch = { start: ShogiMatchStart; knockouts: Record<Side, number> };
+export type ActiveShogiMatch = {
+  start: ShogiMatchStart;
+  knockouts: Record<Side, number>;
+  formationUsage?: ShogiFormationUsage;
+};
 export const shogiMatchStartKey = "shogi-match-start";
 export const pendingShogiMatchPrefix = "shogi-match-pending:";
 const chunkSize = 100;
@@ -74,7 +84,12 @@ export async function advanceShogiMatchSave(
   record: ShogiMatchRecord,
   progress: ShogiSaveProgress,
   readEvents: (cursor: number) => FourShogiReplayEvent[],
+  formationUsage?: ShogiFormationUsage,
 ): Promise<ShogiSaveProgress | null> {
+  if (formationUsage) {
+    shogiFormationUsageSchema.parse(formationUsage);
+    if (!isFormationMatchEligible(record)) throw new Error("Ineligible Shogi formation match");
+  }
   const existing = await db
     .prepare("SELECT game FROM matches WHERE id = ?")
     .bind(record.id)
@@ -154,6 +169,22 @@ export async function advanceShogiMatchSave(
         AND json_extract(p.value, '$.accountId') IS NOT NULL
       ON CONFLICT(account_id, match_id) DO NOTHING`)
       .bind(record.id),
+    ...(formationUsage
+      ? [
+          db
+            .prepare(`INSERT INTO shogi_match_formations
+      (match_id, analyzer_id, analysis_version, rules_version, used_by_side_json)
+      SELECT id, ?, ?, ?, ? FROM matches WHERE id = ? AND game = 'four-shogi'
+      ON CONFLICT(match_id) DO NOTHING`)
+            .bind(
+              formationUsage.analyzerId,
+              formationUsage.analysisVersion,
+              formationUsage.rulesVersion,
+              JSON.stringify(formationUsage.bySide),
+              record.id,
+            ),
+        ]
+      : []),
   ]);
   if (!(await db.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first()))
     throw new Error("Shogi match publication was incomplete");

@@ -1,3 +1,4 @@
+import { formationCatalog, type FormationId } from "./formationCatalog";
 import { positionForSide } from "./board";
 import type { FourShogiState, PieceKind, Position, Side } from "./types";
 
@@ -8,7 +9,6 @@ export type FormationPosition = Pick<FourShogiState, "rulesVersion" | "board" | 
 const definitions = [
   {
     id: "tenshukaku",
-    name: "天守閣玉",
     king: "E7",
     rook: "E8",
     gold: ["D9", "F9"],
@@ -17,7 +17,6 @@ const definitions = [
   },
   {
     id: "right-king",
-    name: "右玉",
     king: "I9",
     rook: "E8",
     gold: ["D9", "H9"],
@@ -26,7 +25,6 @@ const definitions = [
   },
   {
     id: "e-shape",
-    name: "エの字",
     king: "E9",
     rook: "E8",
     gold: ["D9", "F9"],
@@ -35,7 +33,6 @@ const definitions = [
   },
   {
     id: "riggtosfar",
-    name: "リッグトスファー",
     king: "E8",
     rook: "F9",
     gold: ["D9", "G8"],
@@ -44,7 +41,6 @@ const definitions = [
   },
   {
     id: "floating-rook",
-    name: "浮き飛車",
     king: "F8",
     rook: "E7",
     gold: ["C8", "F9"],
@@ -53,7 +49,6 @@ const definitions = [
   },
   {
     id: "tenshukaku-subway",
-    name: "天守閣地下鉄",
     king: "E7",
     rook: "E9",
     gold: ["D9", "G8"],
@@ -62,7 +57,6 @@ const definitions = [
   },
   {
     id: "tenshukaku-ship",
-    name: "天守閣シップ",
     king: "E7",
     rook: "E8",
     gold: ["E9", "F9"],
@@ -71,7 +65,6 @@ const definitions = [
   },
   {
     id: "batto-silver",
-    name: "抜刀銀",
     king: "E7",
     rook: "E8",
     gold: ["D9", "F9"],
@@ -80,7 +73,6 @@ const definitions = [
   },
   {
     id: "lower-gold",
-    name: "地下鉄飛車・下段金寄せ",
     king: "F8",
     rook: "E9",
     gold: ["F9", "G8"],
@@ -89,7 +81,6 @@ const definitions = [
   },
   {
     id: "yuzuu-muge",
-    name: "地下鉄飛車・融通無碍",
     king: "F9",
     rook: "E9",
     gold: ["C8", "H8"],
@@ -98,7 +89,6 @@ const definitions = [
   },
   {
     id: "one-watch-rook",
-    name: "１見飛車",
     king: "E9",
     rook: "A8",
     gold: ["D9", "F9"],
@@ -107,7 +97,6 @@ const definitions = [
   },
   {
     id: "king-58",
-    name: "５八玉型",
     king: "E8",
     rook: "E9",
     gold: ["D9", "F9"],
@@ -116,7 +105,6 @@ const definitions = [
   },
   {
     id: "teni-muho",
-    name: "天衣無縫",
     king: "E9",
     rook: "E8",
     gold: ["D9", "G9"],
@@ -125,7 +113,6 @@ const definitions = [
   },
   {
     id: "tempo-riggtosfar",
-    name: "１手得リッグトスファー",
     king: "E8",
     rook: "F8",
     gold: ["D9", "G8"],
@@ -134,7 +121,6 @@ const definitions = [
   },
   {
     id: "silver-28-quick-attack",
-    name: "２八銀早仕掛け",
     king: "F9",
     rook: "E8",
     gold: ["D9", "G8"],
@@ -143,7 +129,6 @@ const definitions = [
   },
   {
     id: "five",
-    name: "ファイブ",
     king: "E9",
     rook: [],
     gold: ["D9", "F9"],
@@ -152,7 +137,7 @@ const definitions = [
   },
 ] as const;
 
-export type FormationId = (typeof definitions)[number]["id"];
+export type { FormationId } from "./formationCatalog";
 export const formationIds: readonly FormationId[] = definitions.map((definition) => definition.id);
 export type FormationMatch = Readonly<{
   id: FormationId;
@@ -162,7 +147,7 @@ export type FormationMatch = Readonly<{
 
 const patterns = definitions.map((definition) => ({
   id: definition.id,
-  name: definition.name,
+  name: formationCatalog.find((entry) => entry.id === definition.id)!.name,
   pieces: (["king", "rook", "gold", "silver", "pawn"] as const).flatMap((kind) => {
     const squares = definition[kind];
     return (typeof squares === "string" ? [squares] : squares).map((square) => ({

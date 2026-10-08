@@ -237,6 +237,9 @@ test.each([
       const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
       expect(JSON.stringify(room)).not.toContain("formationAnalysis");
       expect(
+        state.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)?.formationUsage?.bySide.south,
+      ).toEqual(matches.map((match) => match.id));
+      expect(
         JSON.stringify(
           new ShogiStore(state.storage.sql).loadState(prepared.room.roundId, room.game!),
         ),
@@ -263,6 +266,12 @@ test.each([
       expect(stored).not.toBeNull();
       expect(stored?.record_json).not.toContain("formationAnalysis");
       expect(stored?.record_json).not.toContain(id);
+      const usage = await env.APP_DB.prepare(
+        "SELECT used_by_side_json FROM shogi_match_formations WHERE match_id = ?",
+      )
+        .bind(prepared.room.roundId)
+        .first<{ used_by_side_json: string }>();
+      expect(JSON.parse(usage!.used_by_side_json).south).toEqual(matches.map((match) => match.id));
     });
   },
 );
@@ -324,6 +333,62 @@ async function resignCurrent(setup: Awaited<ReturnType<typeof start>>, room: Fou
     (next) => next.status === "waiting" || next.positionRevision > room.positionRevision,
   );
 }
+
+test("戦法履歴導入前の進行局は確定着手後も印を追加せず、通常の終局記録だけを保存する", async () => {
+  const prepared = await start();
+  const stub = env.GAME_ROOM.getByName(prepared.id);
+  await runInDurableObject(stub, (_instance, state) => {
+    const active = state.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)!;
+    delete active.formationUsage;
+    state.storage.kv.put(shogiMatchStartKey, active);
+    const room = fourShogiRoomSchema.parse(state.storage.kv.get("room"));
+    if (room.status !== "playing") throw new Error("Not playing");
+    const store = new ShogiStore(state.storage.sql);
+    const game = formationState(
+      createInitialState({ mode: "singles", players: room.game.players }),
+      "tenshukaku",
+      "south",
+      false,
+    );
+    state.storage.kv.put(
+      "room",
+      fourShogiRoomSchema.parse({
+        ...room,
+        game: store.saveState(room.roundId, game),
+        ...getActionAvailability(game),
+        clock: { ...room.clock, turnStartedAt: Date.now(), turnExpiresAt: Date.now() + 300000 },
+      }),
+    );
+  });
+  const actor = prepared.clients[sideIndex(prepared, "south")];
+  actor.send({
+    type: "room.game.action",
+    roundId: prepared.room.roundId,
+    positionRevision: 0,
+    action: formationAction("tenshukaku"),
+  });
+  let room = await actor.room((next) => next.status === "playing" && next.positionRevision === 1);
+  expect(
+    await runInDurableObject(
+      stub,
+      (_instance, state) =>
+        state.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)?.formationUsage,
+    ),
+  ).toBeUndefined();
+  while (room.status === "playing") room = await resignCurrent(prepared, room);
+  await vi.waitFor(async () =>
+    expect(
+      await env.APP_DB.prepare("SELECT id FROM matches WHERE id = ?")
+        .bind(prepared.room.roundId)
+        .first(),
+    ).not.toBeNull(),
+  );
+  expect(
+    await env.APP_DB.prepare("SELECT match_id FROM shogi_match_formations WHERE match_id = ?")
+      .bind(prepared.room.roundId)
+      .first(),
+  ).toBeNull();
+});
 
 test("ゲーム指定省略は旧リバーシ形式、将棋の作成・参加・一覧は独立する", async () => {
   const reversiResponse = await request(
@@ -1231,6 +1296,7 @@ test.each([
         }),
       );
       const active = state.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)!;
+      delete active.formationUsage;
       active.start.participants = active.start.participants.map((player) =>
         player.side === "east"
           ? {

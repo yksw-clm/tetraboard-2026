@@ -27,7 +27,12 @@ async function queryAccountStats(
     SUM(CASE WHEN winner = team THEN 1 ELSE 0 END) AS wins,
     SUM(CASE WHEN winner IS NOT NULL AND winner != team THEN 1 ELSE 0 END) AS losses,
     SUM(CASE WHEN winner IS NULL THEN 1 ELSE 0 END) AS draws,
-    SUM(knockouts) AS knockouts
+    SUM(knockouts) AS knockouts,
+    SUM(CASE WHEN mode = 'singles' AND rank = 1 AND knockouts = 3
+      AND json_extract(result, '$.reason') = 'last_player'
+      AND (SELECT COUNT(*) FROM json_each(result, '$.standings') s
+        WHERE json_extract(s.value, '$.rank') = 1) = 1
+      THEN 1 ELSE 0 END) AS perfectWins
   FROM outcomes GROUP BY mode`)
     .bind(game, accountId)
     .all<{
@@ -41,6 +46,7 @@ async function queryAccountStats(
       losses: number;
       draws: number;
       knockouts: number;
+      perfectWins: number;
     }>();
   const stats: FourReversiAccountStats = {
     singles: {
@@ -67,7 +73,8 @@ async function queryAccountStats(
       stats.doubles = { total, wins, losses, draws };
     }
   }
-  return { stats, knockouts: rows.results.find((row) => row.mode === "singles")?.knockouts ?? 0 };
+  const singles = rows.results.find((row) => row.mode === "singles");
+  return { stats, knockouts: singles?.knockouts ?? 0, perfectWins: singles?.perfectWins ?? 0 };
 }
 
 export const statsReaders = {
@@ -76,10 +83,10 @@ export const statsReaders = {
       (await queryAccountStats(db, accountId, "four-reversi")).stats,
     ),
   "four-shogi": async (db: D1Database, accountId: string) => {
-    const { stats, knockouts } = await queryAccountStats(db, accountId, "four-shogi");
+    const { stats, knockouts, perfectWins } = await queryAccountStats(db, accountId, "four-shogi");
     return matchDataContracts["four-shogi"].stats({
       ...stats,
-      singles: { ...stats.singles, knockouts },
+      singles: { ...stats.singles, knockouts, perfectWins },
     });
   },
 } satisfies { [G in GameId]: (db: D1Database, accountId: string) => Promise<StatsFor<G>> };

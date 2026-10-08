@@ -216,6 +216,7 @@ export class GameRoom extends DurableObject<Env> {
             job.record,
             job.progress,
             (cursor) => this.shogiProgress.store().replayEvents(job.record.id, cursor),
+            job.formationUsage,
           );
           this.ctx.storage.transactionSync(() => {
             if (progress)

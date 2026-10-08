@@ -68,7 +68,7 @@ test("戦績はゲーム別に全方向・順位・撃破を集計し、ゲス�
   const reversi = humanFixtureRecord(user.id, 1);
   await writeMatch(env.APP_DB, reversi);
   expect(fourShogiAccountStatsSchema.parse(await stats(user.cookie))).toEqual({
-    singles: { total: 4, first: 1, second: 1, third: 1, fourth: 1, knockouts: 3 },
+    singles: { total: 4, first: 1, second: 1, third: 1, fourth: 1, knockouts: 3, perfectWins: 0 },
     doubles: { total: 0, wins: 0, losses: 0, draws: 0 },
   });
   expect((await stats(user.cookie, "four-reversi")).singles).toEqual({
