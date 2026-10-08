@@ -1,3 +1,4 @@
+import type { GameId } from "@tetraboard/protocol/games";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
@@ -15,7 +16,7 @@ export function RoomIdentityFields({
   onChange: (name: string) => void;
   busy: boolean;
   id?: string;
-  registration?: { humanOnly: boolean; onRegister: () => void; isPending?: boolean };
+  registration?: { game?: GameId; humanOnly: boolean; onRegister: () => void; isPending?: boolean };
 }) {
   const account = useAccount();
   if (account.loading && !account.error)
@@ -62,6 +63,7 @@ export function RoomIdentityFields({
       </AppTextField>
       {registration && (
         <RegistrationPrompt
+          game={registration.game}
           humanOnly={registration.humanOnly}
           busy={busy}
           onRegister={registration.onRegister}

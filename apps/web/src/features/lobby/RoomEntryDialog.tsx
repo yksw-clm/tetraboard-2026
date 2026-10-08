@@ -1,3 +1,4 @@
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "../room/TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
@@ -15,6 +16,7 @@ import { ThreePlayerAttackSetting } from "./ThreePlayerAttackSetting";
 import { useGoogleSignIn } from "../account/useGoogleSignIn";
 
 export function RoomEntryDialog({
+  game = defaultGameId,
   intent,
   selectedRoomId,
   name,
@@ -36,6 +38,7 @@ export function RoomEntryDialog({
   registrationPath,
   humanOnly,
 }: {
+  game?: GameId;
   intent: RoomEntryIntent;
   selectedRoomId?: string;
   name: string;
@@ -102,6 +105,7 @@ export function RoomEntryDialog({
           busy={busy}
           id="nickname"
           registration={{
+            game,
             isPending: google.busy,
             humanOnly: intent !== "quick" && (humanOnly ?? true),
             onRegister: () =>

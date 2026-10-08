@@ -239,6 +239,7 @@ export function RoomViewShell({
         )}
       </Toast.Provider>
       <RoomInvitationDialogs
+        game={room.settings.game}
         invitation={invitation}
         roomId={room.id}
         theme={theme}
@@ -276,6 +277,7 @@ export function RoomViewShell({
           {guest && (
             <div className="mt-5">
               <RegistrationPrompt
+                game={room.settings.game}
                 result
                 seated={membership !== null}
                 humanOnly={room.lastRound.players.every((p) =>

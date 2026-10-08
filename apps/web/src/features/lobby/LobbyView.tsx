@@ -262,6 +262,7 @@ export function LobbyView(props: Props) {
       </div>
       {dialog?.type === "entry" && (
         <RoomEntryDialog
+          game={props.game}
           intent={dialog.intent}
           theme={game.theme}
           threePlayerAttackProhibited={props.threePlayerAttackProhibited}

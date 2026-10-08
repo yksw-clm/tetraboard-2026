@@ -1,3 +1,4 @@
+import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -8,12 +9,14 @@ import { type AppTheme } from "../../shared/ui/appTheme";
 import { useGoogleSignIn } from "../account/useGoogleSignIn";
 
 export function RoomInvitationDialogs({
+  game = defaultGameId,
   invitation,
   roomId,
   theme = "default",
   registrationPath,
   humanOnly,
 }: {
+  game?: GameId;
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
   theme?: AppTheme;
@@ -61,6 +64,7 @@ export function RoomInvitationDialogs({
           onChange={invitation.setName}
           busy={busy}
           registration={{
+            game,
             isPending: google.busy,
             humanOnly,
             onRegister: () =>
