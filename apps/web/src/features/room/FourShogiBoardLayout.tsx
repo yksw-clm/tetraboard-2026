@@ -40,6 +40,7 @@ type DragSource = {
   kind: Piece["kind"];
   promoted: boolean;
   direction: ShogiPieceDirection;
+  royalKing?: boolean;
 };
 type PointerTrace = DragSource & {
   pointerId: number;
@@ -391,13 +392,11 @@ export function FourShogiBoardLayout({
             >
               {hand(side, shogiPieceDirection(side, viewerSide), vertical)}
             </div>
-            <div
-              className={
-                standard ? "hidden" : "flex w-full justify-center [@media(min-width:768px)]:hidden"
-              }
-            >
-              {hand(side, above ? "down" : "up")}
-            </div>
+            {!standard && (
+              <div className="flex w-full justify-center [@media(min-width:768px)]:hidden">
+                {hand(side, above ? "down" : "up")}
+              </div>
+            )}
           </div>
         );
       })}
@@ -477,6 +476,7 @@ export function FourShogiBoardLayout({
                       kind: piece.kind,
                       promoted: piece.promoted,
                       direction: shogiPieceDirection(piece.side, viewerSide),
+                      royalKing: standard && piece.side === "south",
                     });
                 }}
                 onPointerMove={movePointer}
@@ -546,7 +546,12 @@ export function FourShogiBoardLayout({
             } as CSSProperties
           }
         >
-          <ShogiPiece kind={drag.kind} promoted={drag.promoted} direction={drag.direction} />
+          <ShogiPiece
+            kind={drag.kind}
+            promoted={drag.promoted}
+            direction={drag.direction}
+            royalKing={drag.royalKing}
+          />
         </div>
       )}
       {promotionChoices && (

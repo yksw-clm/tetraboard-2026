@@ -26,7 +26,10 @@ export function ShogiRoomView({
 }) {
   const { room, membership, presence } = session;
   const { rotation, rotate } = useBoardRotation();
-  const [declaration, setDeclaration] = useState(false);
+  const [declaration, setDeclaration] = useState<{
+    roundId: string;
+    positionRevision: number;
+  } | null>(null);
   const replay = useShogiRoomReplay(room);
   const baseSide = shogiViewerSide(room, membership?.playerId);
   const viewerSide = membership === null && rotation % 2 ? otherSide(baseSide) : baseSide;
@@ -135,42 +138,48 @@ export function ShogiRoomView({
                 size="compact"
                 appearance="secondary"
                 isDisabled={!session.canPlay}
-                onPress={() => setDeclaration(true)}
+                onPress={() =>
+                  setDeclaration({ roundId: room.roundId, positionRevision: room.positionRevision })
+                }
               >
                 入玉宣言
               </AppButton>
             )}
-          {declaration && room.status === "playing" && (
-            <AppDialog
-              size="compact"
-              title="入玉を宣言しますか？"
-              theme="shogi"
-              onClose={() => setDeclaration(false)}
-            >
-              <p>
-                敵陣に玉と玉以外の駒10枚以上があり、王手がかかっていないことが条件です。敵陣の駒と持ち駒の合計が31点以上なら勝利、24〜30点なら引き分けです。条件を満たさない宣言は敗北になります。
-              </p>
-              <div className="mt-4 flex justify-end gap-2">
-                <AppButton
-                  size="compact"
-                  appearance="secondary"
-                  onPress={() => setDeclaration(false)}
-                >
-                  キャンセル
-                </AppButton>
-                <AppButton
-                  size="compact"
-                  isDisabled={!session.canPlay}
-                  onPress={() => {
-                    session.handleDeclaration();
-                    setDeclaration(false);
-                  }}
-                >
-                  宣言する
-                </AppButton>
-              </div>
-            </AppDialog>
-          )}
+          {declaration &&
+            room.status === "playing" &&
+            declaration.roundId === room.roundId &&
+            declaration.positionRevision === room.positionRevision &&
+            session.self?.side === room.game.turn && (
+              <AppDialog
+                size="compact"
+                title="入玉を宣言しますか？"
+                theme="shogi"
+                onClose={() => setDeclaration(null)}
+              >
+                <p>
+                  敵陣に玉と玉以外の駒10枚以上があり、王手がかかっていないことが条件です。敵陣の駒と持ち駒の合計が31点以上なら勝利、24〜30点なら引き分けです。条件を満たさない宣言は敗北になります。
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <AppButton
+                    size="compact"
+                    appearance="secondary"
+                    onPress={() => setDeclaration(null)}
+                  >
+                    キャンセル
+                  </AppButton>
+                  <AppButton
+                    size="compact"
+                    isDisabled={!session.canPlay}
+                    onPress={() => {
+                      session.handleDeclaration();
+                      setDeclaration(null);
+                    }}
+                  >
+                    宣言する
+                  </AppButton>
+                </div>
+              </AppDialog>
+            )}
         </>
       }
       onRotate={rotate}

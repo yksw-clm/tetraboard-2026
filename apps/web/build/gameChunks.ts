@@ -33,7 +33,7 @@ export function gameChunks(): Plugin {
       for (const chunk of chunks) {
         for (const [id, info] of Object.entries(chunk.modules)) {
           if (
-            /\/packages\/(four-reversi|four-shogi|reversi)\/src\/cpu[^/]*\.ts$/.test(id) &&
+            /\/packages\/(four-reversi|four-shogi|reversi|shogi)\/src\/cpu[^/]*\.ts$/.test(id) &&
             hasImplementation(info.code)
           ) {
             this.error(`CPU implementation emitted in ${chunk.fileName}: ${id}`);
@@ -48,12 +48,15 @@ export function gameChunks(): Plugin {
         "FourReversiMatchReplayView",
         "FourShogiMatchReplayView",
         "fourShogiMatchReplay",
+        "ShogiRoomDetail",
+        "ShogiMatchReplayView",
+        "standardShogiMatchReplay",
       ];
       const main = chunks.find((chunk) => chunk.isEntry);
       if (!main) this.error("Missing Web entry chunk");
       const initialModules = modulesFor(main.fileName);
       for (const entry of entries) {
-        const suffix = `/features/room/${entry}.${entry === "fourShogiMatchReplay" ? "ts" : "tsx"}`;
+        const suffix = `/features/room/${entry}.${entry.endsWith("MatchReplay") ? "ts" : "tsx"}`;
         const chunk = chunks.find((output) =>
           Object.keys(output.modules).some((id) => id.endsWith(suffix)),
         );
@@ -63,8 +66,10 @@ export function gameChunks(): Plugin {
           ? "reversi"
           : entry.includes("Reversi")
             ? "four-reversi"
-            : "four-shogi";
-        for (const other of ["reversi", "four-reversi", "four-shogi"]) {
+            : entry.startsWith("Four") || entry.startsWith("four")
+              ? "four-shogi"
+              : "shogi";
+        for (const other of ["reversi", "four-reversi", "four-shogi", "shogi"]) {
           if (
             other !== own &&
             modulesFor(chunk.fileName).some((id) => id.includes(`/packages/${other}/src/`))

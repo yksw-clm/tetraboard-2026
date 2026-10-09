@@ -44,3 +44,19 @@ test("Lv2はただで取れる飛車を捕獲する", () => {
   if (!action) throw new Error("missing");
   expect(applyAction(state, "south", action).ok).toBe(true);
 });
+test("Lv2は飛車の捕獲より1手詰めを優先する", () => {
+  const state = position([
+    [3, 0, { id: 4, side: "north", kind: "lance", promoted: false }],
+    [5, 0, { id: 5, side: "north", kind: "lance", promoted: false }],
+    [3, 1, { id: 6, side: "north", kind: "pawn", promoted: false }],
+    [5, 1, { id: 7, side: "north", kind: "pawn", promoted: false }],
+    [4, 3, { id: 3, side: "south", kind: "rook", promoted: false }],
+    [4, 2, { id: 8, side: "south", kind: "pawn", promoted: false }],
+    [0, 5, { id: 9, side: "south", kind: "rook", promoted: false }],
+    [0, 4, { id: 10, side: "north", kind: "rook", promoted: false }],
+  ]);
+  const action = chooseCpuAction(state, 2);
+  if (!action) throw Error("Missing mating action");
+  const result = applyAction(state, "south", action);
+  expect(result.ok && result.state.result).toEqual({ winner: "south", reason: "checkmate" });
+});

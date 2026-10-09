@@ -24,7 +24,11 @@ export function shogiRoomSeats(room: ShogiRoom, id?: string) {
       south: room.players.find((p) => p.side === "south") ?? null,
       north: room.players.find((p) => p.side === "north") ?? null,
     };
-  const first = room.players.find((p) => p.id === id) ?? room.players[0] ?? null;
+  const first =
+    room.players.find((p) => p.id === id) ??
+    room.players.find((p) => p.id === room.lastRound?.game.players.south) ??
+    room.players[0] ??
+    null;
   const other = room.players.find((p) => p.id !== first?.id) ?? null;
   return shogiViewerSide(room, id) === "south"
     ? { south: first, north: other }
