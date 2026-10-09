@@ -8,6 +8,8 @@ import type { RoomLoaderData } from "./roomLoader";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { Suspense } from "react";
+import { preloadRecovery } from "../../shared/preloadRecovery";
+import { AppErrorPage } from "../../shared/ui/AppErrorPage";
 import { assertNever } from "@tetraboard/protocol";
 function LiveRoom({ data }: { data: RoomLoaderData }) {
   const common = {
@@ -52,6 +54,7 @@ export function RoomPage() {
 
 export function RoomErrorPage() {
   const error = useRouteError();
+  if (preloadRecovery.isPreloadError(error)) return <AppErrorPage error={error} />;
   const message = isRouteErrorResponse(error)
     ? error.status === 404
       ? "ルームが見つかりません。"

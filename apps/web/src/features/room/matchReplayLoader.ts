@@ -10,6 +10,7 @@ import {
 } from "@tetraboard/protocol";
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
+import { preloadRecovery } from "../../shared/preloadRecovery";
 
 export type MatchReplayDataFor<G extends GameId> = {
   game: G;
@@ -59,6 +60,7 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
     return assertNever(match);
   } catch (error) {
     if (request.signal.aborted) throw error;
+    if (preloadRecovery.isPreloadError(error)) throw error;
     if (error instanceof Response) {
       if (!publicView && error.status === 401) throw redirect("/login");
       throw error;

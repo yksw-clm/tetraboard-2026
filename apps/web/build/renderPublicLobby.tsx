@@ -37,7 +37,7 @@ export function renderPublicLobby(template: string, game: GameId): string {
         <p role="status" data-startup-status>
           対局画面を読み込んでいます…
         </p>
-        <a className="text-brand underline" href={gameCatalog[game].lobbyPath}>
+        <a data-startup-reload className="text-brand underline" href={gameCatalog[game].lobbyPath}>
           再読み込み
         </a>
         <noscript>対局するにはJavaScriptを有効にしてください。</noscript>

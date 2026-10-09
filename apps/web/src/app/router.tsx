@@ -11,6 +11,7 @@ import { FeedbackPage } from "../features/feedback/FeedbackPage";
 import { UpdatesPage, UpdateDetailPage } from "../features/updates/UpdatesPage";
 
 import { AppPageLoading } from "../shared/ui/AppPageState";
+import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
@@ -35,6 +36,7 @@ export const lobbyRoutes = {
 };
 export const router = createBrowserRouter([
   {
+    ErrorBoundary: AppRouteErrorPage,
     Component: () => (
       <PlayerProfileProvider>
         <AccountLayout />

@@ -1,3 +1,4 @@
+import "./app/installPreloadRecovery";
 import { startWebAnalytics } from "./analytics/pageAnalytics";
 import "./shared/heroui.css";
 import { StrictMode } from "react";

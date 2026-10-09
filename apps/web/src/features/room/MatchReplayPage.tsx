@@ -3,6 +3,8 @@ import { replayViews } from "./replayViews";
 import { AppPageLoading, AppPageState } from "../../shared/ui/AppPageState";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { Suspense } from "react";
+import { preloadRecovery } from "../../shared/preloadRecovery";
+import { AppErrorPage } from "../../shared/ui/AppErrorPage";
 import { assertNever } from "@tetraboard/protocol";
 import {
   isRouteErrorResponse,
@@ -45,6 +47,7 @@ export function MatchReplayErrorPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const navigation = useNavigation();
+  if (preloadRecovery.isPreloadError(error)) return <AppErrorPage error={error} />;
   const publicView = location.pathname.startsWith("/matches/");
   const status = isRouteErrorResponse(error) ? error.status : 503;
   const retryable = status !== 400 && status !== 404;
