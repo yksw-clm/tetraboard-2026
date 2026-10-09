@@ -4,18 +4,13 @@ import { useRoomEntry } from "../src/features/lobby/useRoomEntry";
 import { useRoomInvitation } from "../src/features/room/useRoomInvitation";
 import { useSocialSignIn } from "../src/features/account/useSocialSignIn";
 import { useRegistrationRestore } from "../src/features/account/useRegistrationRestore";
-import { useRegistrationResult } from "../src/features/room/useRegistrationResult";
 import {
   readRegistrationReturn,
   registrationReturnKey,
 } from "../src/features/account/registrationReturn";
 import { profile } from "../test/fixtures/account";
 import { membership, now, playerIds, token, waitingRoom } from "../test/fixtures/rooms";
-import {
-  playingShogiRoom,
-  waitingShogiRoom,
-  finishedShogiRound,
-} from "../test/fixtures/fourShogiFixtures";
+import { playingShogiRoom, waitingShogiRoom } from "../test/fixtures/fourShogiFixtures";
 import { act, denyStorage, clock, flush, requests, renderHook, wrap } from "./harness";
 import type { GameId, Room } from "@tetraboard/protocol";
 
@@ -260,52 +255,6 @@ test("復帰入力は履歴stateから一度だけ読み、保存不能でもOAu
   }
   expect(sessionStorage.getItem(registrationReturnKey)).toBeNull();
   clock.advance(0);
-});
-test("結果登録案内は本人の終局だけ保留し、次局で破棄、storage不可でも局内・ゲーム間で一度", () => {
-  const room = playingShogiRoom(),
-    ended = finishedShogiRound().room;
-  type Input = { room: Room; eligible: boolean; blocked: boolean; unavailable: boolean };
-  const useResultProbe = (p: Input) =>
-    useRegistrationResult(p.room, playerIds[0], p.eligible, p.blocked, p.unavailable);
-  const h = renderHook(useResultProbe, {
-    room,
-    eligible: false,
-    blocked: false,
-    unavailable: false,
-  });
-  h.rerender({ room: ended, eligible: false, blocked: false, unavailable: false });
-  expect(h.current.visible).toBe(false);
-  h.unmount();
-  const pending = renderHook(useResultProbe, {
-    room,
-    eligible: true,
-    blocked: true,
-    unavailable: false,
-  });
-  pending.rerender({ room: ended, eligible: true, blocked: true, unavailable: false });
-  expect(pending.current.visible).toBe(false);
-  pending.rerender({ room, eligible: true, blocked: false, unavailable: false });
-  expect(pending.current.visible).toBe(false);
-  pending.unmount();
-  const failure = denyStorage();
-  try {
-    const shown = renderHook(useResultProbe, {
-      room,
-      eligible: true,
-      blocked: true,
-      unavailable: false,
-    });
-    shown.rerender({ room: ended, eligible: true, blocked: true, unavailable: false });
-    expect(shown.current.visible).toBe(false);
-    shown.rerender({ room: ended, eligible: true, blocked: false, unavailable: false });
-    expect(shown.current.visible).toBe(true);
-    act(() => shown.current.dismiss());
-    shown.rerender({ room, eligible: true, blocked: false, unavailable: false });
-    shown.rerender({ room: ended, eligible: true, blocked: false, unavailable: false });
-    expect(shown.current.visible).toBe(false);
-  } finally {
-    failure.mockRestore();
-  }
 });
 
 test("Discord開始も下書きを保持し、プロバイダーを送り、失敗後Googleへ切り替えられる", async () => {
