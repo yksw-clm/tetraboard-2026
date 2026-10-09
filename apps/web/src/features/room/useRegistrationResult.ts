@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isFourShogiRoom, type Room } from "@tetraboard/protocol";
+import { isFourShogiRoom, isShogiRoom, type Room } from "@tetraboard/protocol";
 
 const shownKey = "tetraboard:registration-result-shown";
 let shownInMemory = false;
@@ -13,7 +13,10 @@ function alreadyShown() {
 }
 function resultKey(room: Room): string | null {
   if (room.status !== "waiting" || !room.lastRound) return null;
-  const round = isFourShogiRoom(room) ? room.lastRound?.roundId : room.lastRound.replay?.id;
+  const round =
+    isFourShogiRoom(room) || isShogiRoom(room)
+      ? room.lastRound?.roundId
+      : room.lastRound.replay?.id;
   return `${room.instanceId}:${round ?? JSON.stringify(room.lastRound.game)}`;
 }
 

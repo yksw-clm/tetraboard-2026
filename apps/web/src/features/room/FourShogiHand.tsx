@@ -1,4 +1,4 @@
-import type { Hand, HandPieceKind } from "@tetraboard/four-shogi";
+import type { Hand, HandPieceKind } from "./shogiUiTypes";
 import type { MouseEvent, PointerEvent } from "react";
 import { ShogiPiece } from "./ShogiPiece";
 import {
@@ -12,6 +12,7 @@ export function FourShogiHand({
   label,
   direction,
   vertical = false,
+  standard = false,
   selectedKind,
   availableKinds,
   draggingKind,
@@ -26,6 +27,7 @@ export function FourShogiHand({
   label: string;
   direction: ShogiPieceDirection;
   vertical?: boolean;
+  standard?: boolean;
   selectedKind: HandPieceKind | null;
   availableKinds: readonly HandPieceKind[];
   draggingKind: HandPieceKind | null;
@@ -36,8 +38,20 @@ export function FourShogiHand({
   onPointerCancel: () => void;
   onLostPointerCapture: () => void;
 }) {
-  const order: readonly HandPieceKind[] =
-    direction === "up" || direction === "right"
+  const standardOrder: HandPieceKind[] = [
+    "pawn",
+    "lance",
+    "knight",
+    "silver",
+    "gold",
+    "bishop",
+    "rook",
+  ];
+  const order: readonly HandPieceKind[] = standard
+    ? direction === "up"
+      ? standardOrder
+      : standardOrder.toReversed()
+    : direction === "up" || direction === "right"
       ? ["pawn", "silver", "gold", "rook"]
       : ["rook", "gold", "silver", "pawn"];
   return (
@@ -50,7 +64,7 @@ export function FourShogiHand({
     >
       {order.map((kind) => {
         const count = hand[kind];
-        if (count === 0) return null;
+        if (!count) return null;
         const available = availableKinds.includes(kind);
         const selected = selectedKind === kind;
         return (

@@ -46,6 +46,20 @@ function players({ name, request }: CreationContext) {
   return [host, ...cpus];
 }
 export const waitingRoomFactories = {
+  shogi: (context: CreationContext): Extract<RoomFor<"shogi">, { status: "waiting" }> => ({
+    ...base(context),
+    status: "waiting",
+    settings: { game: "shogi", timeControl: context.request.timeControl ?? roomTimeControl },
+    players: players(context).map((p) => ({ ...p, side: null })),
+    eliminations: [],
+    game: null,
+    clock: null,
+    lastRound: null,
+    roundId: null,
+    positionRevision: 0,
+    legalActions: [],
+    checkState: { south: false, north: false },
+  }),
   reversi: (
     context: CreationContext,
   ): WaitingRoomFactories["reversi"] extends (...args: never[]) => infer R ? R : never => ({

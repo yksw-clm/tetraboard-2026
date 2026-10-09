@@ -1,8 +1,10 @@
+import type { ShogiReplayFrame } from "./standardShogiReplayV1";
 import {
   getMatchContract,
   getPublicMatchContract,
   isFourShogiMatch,
   isReversiMatch,
+  isShogiMatch,
   isFourReversiMatch,
   assertNever,
   type GameId,
@@ -16,9 +18,20 @@ import { preloadRecovery } from "../../shared/preloadRecovery";
 export type MatchReplayDataFor<G extends GameId> = {
   game: G;
   match: ReplayMatchFor<G>;
-} & (G extends "four-shogi" ? { frames: FourShogiReplayFrame[] } : { frames?: never });
+} & (G extends "four-shogi"
+  ? { frames: FourShogiReplayFrame[] }
+  : G extends "shogi"
+    ? { frames: ShogiReplayFrame[] }
+    : { frames?: never });
 export type MatchReplayData = { [G in GameId]: MatchReplayDataFor<G> }[GameId];
 export const replayLoaders = {
+  shogi: async (
+    match: ReplayMatchFor<"shogi">,
+    signal: AbortSignal,
+  ): Promise<MatchReplayDataFor<"shogi">> => {
+    const { fetchShogiMatchReplay } = await import("./standardShogiMatchReplay");
+    return { game: "shogi", match, frames: await fetchShogiMatchReplay(match, signal) };
+  },
   reversi: async (
     match: ReplayMatchFor<"reversi">,
     _signal: AbortSignal,
@@ -59,6 +72,7 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
   if (!response.ok) throw new Response(null, { status: response.status });
   try {
     const match = parseMatch(await response.json(), publicView);
+    if (isShogiMatch(match)) return await replayLoaders.shogi(match, request.signal);
     if (isReversiMatch(match)) return await replayLoaders.reversi(match, request.signal);
     if (isFourReversiMatch(match))
       return await replayLoaders["four-reversi"](match, request.signal);

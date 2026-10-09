@@ -1,5 +1,5 @@
 import { previewReversiRankingsSchema, type PreviewReversiRankings } from "@tetraboard/protocol";
-import { defaultGameId, gameIds, type GameId } from "@tetraboard/protocol/games";
+import { defaultGameId, gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   gameRankingContracts,
@@ -84,12 +84,13 @@ async function queryGameRankings(
   return rankings;
 }
 
-async function queryReversiRankings(
+async function queryTwoPlayerRankings(
   db: D1Database,
   preview = false,
+  game: "reversi" | "shogi" = "reversi",
 ): Promise<PreviewReversiRankings> {
   const rows = await db
-    .prepare(`${matchOutcomesCte("reversi", false)}, totals AS (
+    .prepare(`${matchOutcomesCte(game, false)}, totals AS (
  SELECT account_id,COUNT(*) AS total,COALESCE(SUM(winner=direction),0) AS wins FROM outcomes GROUP BY account_id
  ),metrics AS (SELECT account_id,'total' AS metric,total AS value FROM totals UNION ALL SELECT account_id,'wins' AS metric,wins AS value FROM totals),ranked AS (
  SELECT u.id AS accountId,u.publicProfileId,u.username,u.name,u.avatarKey,m.metric,m.value,
@@ -97,7 +98,7 @@ async function queryReversiRankings(
  ROW_NUMBER() OVER(PARTITION BY m.metric ORDER BY m.value DESC,u.username ASC) AS position
  FROM metrics m JOIN user u ON u.id=m.account_id WHERE m.value>0 AND u.profileCompleted=1 AND u.username IS NOT NULL AND COALESCE(u.isAnonymous,0)=0
  ) SELECT * FROM ranked WHERE position<=10 ORDER BY metric,position`)
-    .bind("reversi")
+    .bind(game)
     .all<{
       accountId: string;
       publicProfileId: string | null;
@@ -126,8 +127,10 @@ async function queryReversiRankings(
 }
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
 export const rankingReaders = {
+  shogi: async (db: D1Database) =>
+    matchDataContracts.shogi.rankings(await queryTwoPlayerRankings(db, false, "shogi")),
   reversi: async (db: D1Database) =>
-    matchDataContracts.reversi.rankings(await queryReversiRankings(db)),
+    matchDataContracts.reversi.rankings(await queryTwoPlayerRankings(db)),
   "four-reversi": async (db: D1Database) =>
     matchDataContracts["four-reversi"].rankings(await queryGameRankings(db, "four-reversi")),
   "four-shogi": async (db: D1Database) =>
@@ -142,6 +145,8 @@ export async function readGameRankings(
   game: MatchGame = defaultGameId,
 ): Promise<RankingsFor<GameId>> {
   switch (game) {
+    case "shogi":
+      return rankingReaders[game](db);
     case "reversi":
       return rankingReaders[game](db);
     case "four-reversi":
@@ -163,9 +168,11 @@ for (const game of gameIds) {
       const preview = c.req.query("profilePreview");
       if (preview !== undefined && preview !== "1")
         return c.json({ message: "取得条件が正しくありません。" }, 400);
-      if (preview && game === "reversi")
+      if (preview && !gameCatalog[game].hasModes)
         return c.json(
-          previewReversiRankingsSchema.parse(await queryReversiRankings(c.env.APP_DB, true)),
+          previewReversiRankingsSchema.parse(
+            await queryTwoPlayerRankings(c.env.APP_DB, true, game as "reversi" | "shogi"),
+          ),
         );
       if (preview)
         return c.json(

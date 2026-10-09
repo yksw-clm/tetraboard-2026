@@ -1,4 +1,5 @@
-import type { FourShogiAction, Piece, Position, Side } from "@tetraboard/four-shogi";
+import type { FourShogiAction as LegacyAction } from "@tetraboard/four-shogi";
+import type { FourShogiAction, Piece, Position, Side } from "./shogiUiTypes";
 import {
   useEffect,
   useEffectEvent,
@@ -101,24 +102,26 @@ const groupClasses = {
     "[grid-area:right] flex-col-reverse items-start justify-start h-full [@media(max-width:767px)]:h-auto [@media(max-width:767px)]:items-center",
 } as const;
 
-export type FourShogiBoardLayoutProps = {
+export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> = {
   game: ShogiBoardView;
-  pendingAction?: FourShogiAction;
+  pendingAction?: A;
   viewerSide: Side;
   revision: Revision;
   canPlay: boolean;
   promotionContext?: ShogiPromotionContext;
-  legalActions: readonly FourShogiAction[];
-  threePlayerAttackForbiddenActions?: readonly FourShogiAction[];
-  checkState?: Readonly<Record<Side, boolean>>;
-  onAction: (action: FourShogiAction) => boolean | void;
-  playerCards: Readonly<Record<Side, ReactNode>>;
+  legalActions: readonly A[];
+  threePlayerAttackForbiddenActions?: readonly A[];
+  checkState?: Readonly<Partial<Record<Side, boolean>>>;
+  onAction(action: A): boolean | void;
+  playerCards: Readonly<Partial<Record<Side, ReactNode>>>;
+  standard?: boolean;
   formationNotice?: string;
   onFormationNoticeDismiss?: () => void;
 };
 
 export function FourShogiBoardLayout({
   game,
+  standard = false,
   pendingAction,
   viewerSide,
   revision,
@@ -131,12 +134,12 @@ export function FourShogiBoardLayout({
   playerCards,
   formationNotice,
   onFormationNoticeDismiss,
-}: FourShogiBoardLayoutProps) {
+}: FourShogiBoardLayoutProps<FourShogiAction>) {
   const layout = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    void prepareShogiAssets();
-  }, []);
+    void prepareShogiAssets(standard);
+  }, [standard]);
   const trace = useRef<PointerTrace | null>(null);
   const suppressClick = useRef(false);
   const [selected, setSelected] = useState<Selected | null>(null);
@@ -320,8 +323,9 @@ export function FourShogiBoardLayout({
         : [];
     return (
       <FourShogiHand
-        hand={game.hands[side]}
-        label={`${shogiSideNames[side]}の持ち駒`}
+        hand={game.hands[side] ?? {}}
+        standard={standard}
+        label={`${standard ? (side === "south" ? "先手" : "後手") : shogiSideNames[side]}の持ち駒`}
         direction={direction}
         vertical={vertical}
         selectedKind={
@@ -360,9 +364,13 @@ export function FourShogiBoardLayout({
     <div
       ref={layout}
       data-testid="shogi-board-layout"
-      className="[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
+      className={
+        standard
+          ? "[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-board-width)] [--shogi-board-width:max(160px,min(458px,100cqw,calc((100cqh_-_2_*_var(--player-height)_-_32px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-board-width)] grid-rows-[auto_auto_auto] [grid-template-areas:'top'_'board'_'bottom'] gap-2 content-center justify-center py-2"
+          : "[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(180px,min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_24px)_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
+      }
     >
-      {shogiSides.map((side) => {
+      {(standard ? (["south", "north"] as const) : shogiSides).map((side) => {
         const placement = shogiSidePlacement(side, viewerSide);
         const vertical = placement === "left" || placement === "right";
         const above = placement === "left" || placement === "top";
@@ -371,13 +379,23 @@ export function FourShogiBoardLayout({
             key={side}
             data-side={side}
             data-board-position={placement}
-            className={`flex min-w-0 gap-[6px] [@media(max-width:767px)]:gap-[2px] ${groupClasses[placement]}`}
+            className={`flex min-w-0 gap-[6px] [@media(max-width:767px)]:gap-[2px] ${standard ? (placement === "top" ? "flex-col w-full items-center [grid-area:top]" : "flex-col-reverse w-full items-center [grid-area:bottom]") : groupClasses[placement]}`}
           >
             <div className="w-[var(--seat-width)] shrink-0 min-w-0">{playerCards[side]}</div>
-            <div className="hidden shrink-0 min-w-0 [@media(min-width:768px)]:flex justify-center">
+            <div
+              className={
+                standard
+                  ? "flex w-full justify-center"
+                  : "hidden shrink-0 min-w-0 [@media(min-width:768px)]:flex justify-center"
+              }
+            >
               {hand(side, shogiPieceDirection(side, viewerSide), vertical)}
             </div>
-            <div className="flex w-full justify-center [@media(min-width:768px)]:hidden">
+            <div
+              className={
+                standard ? "hidden" : "flex w-full justify-center [@media(min-width:768px)]:hidden"
+              }
+            >
               {hand(side, above ? "down" : "up")}
             </div>
           </div>
@@ -387,7 +405,7 @@ export function FourShogiBoardLayout({
         data-testid="shogi-board"
         className="[grid-area:board] relative w-[var(--shogi-board-width)] aspect-[458/500] place-self-center shadow-[0_8px_24px_#71531c25]"
         role="group"
-        aria-label="四人将棋の盤面"
+        aria-label={standard ? "将棋の盤面" : "四人将棋の盤面"}
       >
         <img
           src={boardImage}
@@ -405,7 +423,7 @@ export function FourShogiBoardLayout({
               viewerSide,
             );
             const piece = game.board[position.y][position.x];
-            const dead = piece !== null && eliminated.includes(piece.side);
+            const dead = !standard && piece !== null && eliminated.includes(piece.side);
             const canSelect =
               enabled &&
               piece?.side === viewerSide &&
@@ -430,7 +448,7 @@ export function FourShogiBoardLayout({
               shogiSamePosition(drag.selection.from, position);
             const checked = piece?.kind === "king" && !dead && checkState?.[piece.side];
             const pieceLabel = piece
-              ? `${shogiSideNames[piece.side]}の${piece.kind === "king" && dead ? "裏王" : piece.promoted ? (piece.kind === "rook" ? "龍" : piece.kind === "silver" ? "成銀" : "と金") : shogiPieceNames[piece.kind]}`
+              ? `${shogiSideNames[piece.side]}の${piece.kind === "king" && dead ? "裏王" : piece.promoted ? (piece.kind === "rook" ? "龍" : piece.kind === "bishop" ? "馬" : piece.kind === "silver" ? "成銀" : piece.kind === "knight" ? "成桂" : piece.kind === "lance" ? "成香" : "と金") : shogiPieceNames[piece.kind]}`
               : "空き";
             return (
               <button
@@ -484,6 +502,7 @@ export function FourShogiBoardLayout({
                     className={`relative ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect || selectedSquare ? shogiPieceLiftClasses(!!selectedSquare) : ""}`}
                   >
                     <ShogiPiece
+                      royalKing={standard && piece.side === "south"}
                       kind={piece.kind}
                       promoted={piece.promoted}
                       deadKing={piece.kind === "king" && dead}

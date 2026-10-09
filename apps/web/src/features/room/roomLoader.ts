@@ -2,6 +2,7 @@ import {
   roomCodeSchema,
   isFourReversiRoom,
   isReversiRoom,
+  isShogiRoom,
   isFourShogiRoom,
   assertNever,
   type GameId,
@@ -41,6 +42,7 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     throw new Response("本人確認の結果がルーム情報と一致しません。", { status: 503 });
   }
   const common = { membership, presence, serverNowMs, invited: instanceId !== undefined };
+  if (isShogiRoom(room)) return { ...common, game: "shogi", room };
   if (isReversiRoom(room)) return { ...common, game: "reversi", room };
   if (isFourReversiRoom(room)) return { ...common, game: "four-reversi", room };
   if (isFourShogiRoom(room))

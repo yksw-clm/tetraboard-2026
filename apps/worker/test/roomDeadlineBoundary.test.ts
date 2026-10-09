@@ -1,4 +1,5 @@
-import { isReversiRoom } from "@tetraboard/protocol";
+import { z } from "zod";
+import { isReversiRoom, isShogiRoom, fourReversiRoomSchema } from "@tetraboard/protocol";
 import { gameProgress } from "../src/rooms/gameProgress";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
@@ -21,7 +22,7 @@ import {
   getRoomContract,
   leaveRoomContract,
   roomSocketContract,
-  roomSchema,
+  roomSchema as allRoomSchema,
   roomMembershipSchema,
   isFourShogiRoom,
   fourShogiRoomSchema,
@@ -32,6 +33,11 @@ import { ShogiStore } from "../src/rooms/shogiStore";
 import { BoundarySocket, boundaryRequest, boundaryJson } from "./roomBoundaryFixtures";
 import { accountFixture, origin } from "./accountFixtures";
 
+const roomSchema = z.union([
+  fourReversiRoomSchema,
+  allRoomSchema.options[1],
+  allRoomSchema.options[2],
+]);
 const entries: ReturnType<typeof createRoomContract.response.parse>[] = [];
 const sockets: BoundarySocket[] = [];
 afterEach(async () => {
@@ -70,7 +76,9 @@ async function connect(entry: (typeof entries)[number]) {
 async function snapshot(id: string) {
   const response = await boundaryRequest(getRoomContract.pathFor(id));
   expect(response.status).toBe(200);
-  return getRoomContract.response.parse(await response.json());
+  const snapshot = getRoomContract.response.parse(await response.json());
+  if (isShogiRoom(snapshot.room)) throw Error("Unexpected shogi fixture");
+  return { ...snapshot, room: snapshot.room };
 }
 async function start(game: GameId, quickPlay = false) {
   const members: (typeof entries)[number][] = [];
@@ -106,7 +114,8 @@ async function start(game: GameId, quickPlay = false) {
     "room.snapshot",
     (message) => message.room.status === "playing",
   );
-  if (room.status !== "playing") throw new Error("Not playing");
+  if (room.status !== "playing" || isShogiRoom(room))
+    throw new Error("Not playing expected fixture");
   return { members, clients, room, stub: env.GAME_ROOM.getByName(room.id) };
 }
 
@@ -134,6 +143,7 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
         "room.snapshot",
         (message) =>
           message.room.status === "playing" &&
+          !isShogiRoom(message.room) &&
           (isFourShogiRoom(message.room)
             ? message.room.positionRevision === 1
             : message.room.game.eliminatedColors.length === 1),
@@ -542,7 +552,7 @@ test.each(["リバーシCPU待ち", "将棋CPU待ち", "将棋の保存済み選
     await runInDurableObject(prepared.stub, async (instance, state) => {
       const room = roomSchema.parse(state.storage.kv.get("room"));
       if (room.status !== "playing") throw new Error("Not playing");
-      if (isReversiRoom(room)) throw Error("Expected existing game fixture");
+      if (isReversiRoom(room) || isShogiRoom(room)) throw Error("Expected existing game fixture");
       if (isFourShogiRoom(room)) {
         const cpu = room.players.find((player) => player.kind === "cpu");
         if (!cpu) throw new Error("No CPU");
@@ -601,7 +611,7 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
       const cpu = room.players.find((player) => player.kind === "cpu");
       if (!cpu) throw new Error("Missing CPU");
       let next;
-      if (isReversiRoom(room)) throw Error("Expected existing game fixture");
+      if (isReversiRoom(room) || isShogiRoom(room)) throw Error("Expected existing game fixture");
       if (isFourShogiRoom(room)) {
         if (!("side" in cpu)) throw new Error("Wrong CPU");
         const store = new ShogiStore(state.storage.sql);
@@ -750,7 +760,8 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
       expect(() =>
         state.storage.transactionSync(() => {
           let room = roomSchema.parse(state.storage.kv.get("room"));
-          if (isReversiRoom(room)) throw Error("Expected existing game fixture");
+          if (isReversiRoom(room) || isShogiRoom(room))
+            throw Error("Expected existing game fixture");
           if (isFourShogiRoom(room)) {
             const progress = gameProgress["four-shogi"].create(dependencies);
             for (let count = 0; count < 3; count++) {

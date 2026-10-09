@@ -66,7 +66,7 @@ export function SavedMatchReplayView({
       <ViewerControls
         label="棋譜閲覧中"
         onRotate={onRotate}
-        rotationDegrees={match.settings.game === "reversi" ? 180 : 90}
+        rotationDegrees={!gameCatalog[match.settings.game].hasModes ? 180 : 90}
       />
     </AppCard>
   );

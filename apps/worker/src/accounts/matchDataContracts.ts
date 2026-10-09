@@ -1,3 +1,6 @@
+import { shogiMatchData } from "./shogiMatchData";
+import type { StandardShogiMatchRecord } from "../rooms/shogiMatchStore";
+import type { ShogiMatchSummary, ShogiAccountStats } from "@tetraboard/protocol";
 import { reversiMatchData } from "./reversiMatchData";
 import type { MatchRecord as ReversiMatchRecord } from "../rooms/reversiMatchStore";
 import type { ReversiAccountStats, ReversiMatchSummary } from "@tetraboard/protocol";
@@ -26,6 +29,7 @@ import type { MatchRecord } from "../rooms/matchStore";
 import type { ShogiMatchRecord } from "../rooms/shogiMatchStore";
 
 export interface MatchDataMap {
+  shogi: { record: StandardShogiMatchRecord; summary: ShogiMatchSummary; stats: ShogiAccountStats };
   reversi: { record: ReversiMatchRecord; summary: ReversiMatchSummary; stats: ReversiAccountStats };
   "four-reversi": {
     record: MatchRecord;
@@ -152,6 +156,7 @@ export function readFourShogiMatchRecord(json: string): ShogiMatchRecord {
   return record;
 }
 export const matchDataContracts = {
+  shogi: shogiMatchData,
   reversi: reversiMatchData,
   "four-reversi": {
     read: readFourReversiMatchRecord,
@@ -193,6 +198,8 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
   const game = storedGameSchema.parse(value).settings.game;
   if (game !== expectedGame) throw new Error("Stored match game mismatch");
   switch (game) {
+    case "shogi":
+      return { game, record: matchDataContracts[game].read(json) };
     case "reversi":
       return { game, record: matchDataContracts[game].read(json) };
     case "four-reversi":
@@ -207,6 +214,8 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
 }
 export function matchSummary(match: DecodedMatch, profiles: ParticipantProfiles) {
   switch (match.game) {
+    case "shogi":
+      return matchDataContracts[match.game].summary(match.record, profiles);
     case "reversi":
       return matchDataContracts[match.game].summary(match.record, profiles);
     case "four-reversi":
@@ -225,6 +234,8 @@ export function matchDetail(
   profiles: ParticipantProfiles,
 ) {
   switch (match.game) {
+    case "shogi":
+      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "reversi":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "four-reversi":

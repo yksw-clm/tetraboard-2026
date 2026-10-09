@@ -1,3 +1,5 @@
+import { ShogiProgress } from "./standardShogiProgress";
+import type { ShogiLastRound } from "@tetraboard/protocol";
 import type { ReversiLastRound } from "@tetraboard/protocol";
 import { ReversiProgress } from "./reversiProgress";
 import type {
@@ -14,6 +16,7 @@ export type ProgressError = Extract<RoomSocketMessage, { type: "room.error" }>["
 export type PlayingFor<G extends GameId> = Extract<RoomFor<G>, { status: "playing" }>;
 export type WaitingFor<G extends GameId> = Extract<RoomFor<G>, { status: "waiting" }>;
 interface ProgressTypes {
+  shogi: { finished: ShogiLastRound["game"]; lastRound: ShogiLastRound };
   reversi: { finished: ReversiLastRound["game"]; lastRound: ReversiLastRound };
   "four-reversi": { finished: LastRound["game"]; lastRound: LastRound };
   "four-shogi": { finished: FourShogiLastRound["game"]; lastRound: FourShogiLastRound };
@@ -60,6 +63,7 @@ type Registration<G extends GameId> = {
 export type GameProgressRegistration = { [G in GameId]: Registration<G> };
 
 export const gameProgress = {
+  shogi: { create: (dependencies: ProgressDependencies) => new ShogiProgress(dependencies) },
   reversi: { create: (dependencies: ProgressDependencies) => new ReversiProgress(dependencies) },
   "four-reversi": {
     create: (dependencies: ProgressDependencies) => new FourReversiProgress(dependencies),

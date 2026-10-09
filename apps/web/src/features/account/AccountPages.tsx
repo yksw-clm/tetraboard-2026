@@ -97,10 +97,10 @@ export function AccountPageShell({
               <div className="col-start-1 row-start-1">{navigation}</div>
               {modeTabs && (
                 <div
-                  hidden={game === "reversi"}
+                  hidden={!gameCatalog[game].hasModes}
                   className={cn(
                     "col-span-2 col-start-1 row-start-2 min-w-0 [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-2 [@media(min-width:651px)]:row-start-1 [@media(min-width:651px)]:max-w-[360px]",
-                    game === "reversi" && "hidden!",
+                    !gameCatalog[game].hasModes && "hidden!",
                   )}
                 >
                   {modeTabs}
@@ -303,8 +303,8 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           modeTabs={
             <AppTabs.List
               aria-label="プロフィールの対局モード"
-              hidden={game === "reversi"}
-              aria-hidden={game === "reversi" || undefined}
+              hidden={!gameCatalog[game].hasModes}
+              aria-hidden={!gameCatalog[game].hasModes || undefined}
             >
               {(["singles", "doubles"] as const).map((tab) => (
                 <AppTabs.Tab
@@ -321,7 +321,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
                     )
                   }
                 >
-                  {game === "reversi" ? "" : tab === "singles" ? "シングルス" : "ダブルス"}
+                  {!gameCatalog[game].hasModes ? "" : tab === "singles" ? "シングルス" : "ダブルス"}
                   <AppTabs.Indicator />
                 </AppTabs.Tab>
               ))}
@@ -336,8 +336,8 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               <div
                 {...props}
                 id={panelId}
-                role={game === "reversi" ? undefined : props.role}
-                aria-labelledby={game === "reversi" ? undefined : props["aria-labelledby"]}
+                role={!gameCatalog[game].hasModes ? undefined : props.role}
+                aria-labelledby={!gameCatalog[game].hasModes ? undefined : props["aria-labelledby"]}
               />
             )}
           >

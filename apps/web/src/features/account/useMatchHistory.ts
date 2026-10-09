@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listMatchesContract,
@@ -29,6 +30,7 @@ const emptyPage = (): HistoryPage => ({
 export function useMatchHistory(game: MatchGame, mode: RoomMode) {
   const [pages, setPages] = useState<Record<MatchGame, Record<RoomMode, HistoryPage>>>({
     reversi: { singles: emptyPage(), doubles: emptyPage() },
+    shogi: { singles: emptyPage(), doubles: emptyPage() },
     "four-reversi": { singles: emptyPage(), doubles: emptyPage() },
     "four-shogi": { singles: emptyPage(), doubles: emptyPage() },
   });
@@ -58,7 +60,9 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
         },
       }));
       try {
-        const query = new URLSearchParams(targetGame === "reversi" ? {} : { mode: target });
+        const query = new URLSearchParams(
+          !gameCatalog[targetGame].hasModes ? {} : { mode: target },
+        );
         if (targetGame !== "four-reversi") query.set("game", targetGame);
         if (cursor) query.set("cursor", cursor);
         const response = await fetch(`/api${listMatchesContract.path}?${query}`, {
@@ -71,7 +75,8 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
         if (
           result.matches.some(
             (match) =>
-              match.game !== targetGame || (targetGame !== "reversi" && match.mode !== target),
+              match.game !== targetGame ||
+              (gameCatalog[targetGame].hasModes && match.mode !== target),
           )
         )
           throw new Error("History game or mode mismatch");

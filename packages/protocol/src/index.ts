@@ -200,3 +200,31 @@ export {
   type ReversiAccountStats,
 } from "./matches";
 export { reversiRankingsSchema, type ReversiRankings } from "./rankings";
+
+export * from "./shogi";
+export {
+  shogiRoomSchema,
+  shogiSettingsSchema,
+  standardShogiClockSchema,
+  isShogiRoom,
+  getShogiReplayContract,
+  type ShogiRoom,
+  type ShogiLastRound,
+  type ShogiClock,
+} from "./rooms";
+export {
+  shogiMatchParticipantSchema,
+  shogiMatchSummarySchema,
+  shogiMatchDetailSchema,
+  publicShogiMatchDetailSchema,
+  shogiAccountStatsSchema,
+  shogiMatchReplayPageSchema,
+  isShogiMatch,
+  type ShogiMatchDetail,
+  type PublicShogiMatchDetail,
+  type ReplayShogiMatch,
+  type ShogiMatchSummary,
+  type ShogiAccountStats,
+  type ShogiMatchReplayPage,
+  type FourShogiMatchReplayPage,
+} from "./matches";

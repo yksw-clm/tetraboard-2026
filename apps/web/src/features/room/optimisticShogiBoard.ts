@@ -1,10 +1,9 @@
-import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
-import type { FourShogiPublicState } from "@tetraboard/protocol";
+import type { FourShogiAction, Side } from "./shogiUiTypes";
 import type { ShogiBoardView } from "./shogiBoardPresentation";
 
 // サーバーが提示した合法手の表示だけを先に進めます。手番・勝敗は確定局面のままです。
 export function optimisticShogiBoard(
-  game: FourShogiPublicState,
+  game: ShogiBoardView & { nextPieceId: number },
   side: Side,
   action: FourShogiAction,
 ): ShogiBoardView {
@@ -14,11 +13,12 @@ export function optimisticShogiBoard(
     const piece = board[action.from.y][action.from.x];
     if (piece === null) return game;
     const captured = board[action.to.y][action.to.x];
-    if (captured !== null && captured.kind !== "king") hand[captured.kind]++;
+    if (captured !== null && captured.kind !== "king")
+      hand[captured.kind] = (hand[captured.kind] ?? 0) + 1;
     board[action.from.y][action.from.x] = null;
     board[action.to.y][action.to.x] = { ...piece, promoted: piece.promoted || action.promote };
   } else {
-    hand[action.pieceKind]--;
+    hand[action.pieceKind] = (hand[action.pieceKind] ?? 0) - 1;
     board[action.to.y][action.to.x] = {
       id: game.nextPieceId,
       side,

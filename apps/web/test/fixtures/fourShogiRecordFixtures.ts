@@ -114,7 +114,7 @@ export function shogiReplayMatch(mode: RoomMode = "singles", index = 1) {
     replay: { rulesVersion: 1, initial, eventCount: events.length },
   });
   const page = (cursor = 0): MatchReplayPage =>
-    getMatchReplayContract.response.parse({
+    getMatchReplayContract.response.options[0].parse({
       matchId: detail.id,
       rulesVersion: 1,
       initial,

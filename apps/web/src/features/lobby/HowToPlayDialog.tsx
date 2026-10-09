@@ -12,7 +12,7 @@ export function HowToPlayDialog({
   onClose: () => void;
   game?: GameId;
 }) {
-  const shogi = game === "four-shogi";
+  const shogi = game === "four-shogi" || game === "shogi";
   return (
     <AppDialog
       title={`${gameCatalog[game].name}の遊び方`}
@@ -20,7 +20,15 @@ export function HowToPlayDialog({
       theme={gameThemes[game]}
     >
       <div className="flex flex-col gap-[22px] [&_h3]:mb-[6px] [&_h3]:text-[15px] [&_section_p]:text-help-copy [&_section_p]:text-[13px] [&_section_p]:leading-[1.9] [&_section_p+p]:mt-2">
-        {shogi ? <FourShogiRules /> : game === "reversi" ? <ReversiRules /> : <FourReversiRules />}
+        {game === "shogi" ? (
+          <ShogiRules />
+        ) : shogi ? (
+          <FourShogiRules />
+        ) : game === "reversi" ? (
+          <ReversiRules />
+        ) : (
+          <FourReversiRules />
+        )}
         <AppButton slot="close" className="w-full min-h-12">
           {shogi ? "わかった" : "わかった、遊んでみよう"}
         </AppButton>
@@ -108,6 +116,41 @@ function ReversiRules() {
         <h3>CPUと戦績</h3>
         <p>
           CPUはよわい・ふつうの2段階です。CPU戦も履歴・棋譜を保存しますが、戦績とランキングは対人戦だけを集計します。
+        </p>
+      </section>
+    </>
+  );
+}
+
+function ShogiRules() {
+  return (
+    <>
+      <p>9×9の盤で先手と後手が対戦する将棋です。</p>
+      <section>
+        <h3>対局と駒の操作</h3>
+        <p>
+          先後は対局ごとにランダムに決まり、先手から交互に指します。「すぐ遊ぶ」はCPU1人との待機室へ進みます。人間全員が準備完了になったらホストが開始します。駒をクリックして移動先を選ぶか、ドラッグして指せます。取った駒は持ち駒として打てます。敵陣3段に入る・出る・敵陣内で動くと成れる駒は、成りを選べます。
+        </p>
+      </section>
+      <section>
+        <h3>禁じられた手と終局</h3>
+        <p>
+          二歩、打ち歩詰め、行き場のない駒の移動・打ち、自分の玉への王手を残す手は指せません。詰みや合法手なしは敗北。同じ盤面・持ち駒・手番が4回出現すると千日手で引き分けですが、連続王手の側は敗北です。500手で王手がかかっていなければ引き分けとなります。
+        </p>
+      </section>
+      <section>
+        <h3>持将棋と入玉宣言</h3>
+        <p>
+          いずれかの玉が敵陣に入り、双方に王手がないと「持将棋提案」を表示します。双方の同意後、盤上と持ち駒を飛角5点・その他1点・玉0点で数えます。双方24点以上なら引き分け、24点未満の側は敗北です。提案は手番外でも可能ですが、指し手が進むと取り消され、時計は止まりません。
+        </p>
+        <p>
+          自分の手番で入玉宣言もできます。玉が敵陣に入り、王手がなく、敵陣に玉以外の自分の駒10枚以上が必要です。敵陣の駒と持ち駒が31点以上なら勝ち、24〜30点なら引き分け。条件を満たさない宣言は敗北です。
+        </p>
+      </section>
+      <section>
+        <h3>時計と戦績</h3>
+        <p>
+          初期設定は5分＋30秒。投了は自分の手番で行えます。投了・退室・時間切れ・30秒以内に復帰しない通信切れは敗北です。CPUはよわい・ふつうの2段階。戦績とランキングは対人戦のみを集計し、CPU戦も履歴と棋譜に保存します。
         </p>
       </section>
     </>

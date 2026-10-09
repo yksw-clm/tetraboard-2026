@@ -309,10 +309,10 @@ export function RoomViewShell({
         >
           <p>
             {dialog === "leave"
-              ? room.settings.game === "reversi"
+              ? !gameCatalog[room.settings.game].hasModes
                 ? "対局中に退室すると敗北になります。"
                 : "対局中に退室すると脱落になります。"
-              : room.settings.game === "reversi"
+              : !gameCatalog[room.settings.game].hasModes
                 ? "投了すると敗北になります。"
                 : "投了すると脱落になります。"}
           </p>

@@ -7,6 +7,13 @@ export type OutcomeSql = {
 };
 export type OutcomeSqlFor<G extends GameId> = OutcomeSql & { game: G };
 export const gameOutcomeSql = {
+  shogi: {
+    game: "shogi",
+    direction: "json_extract(p.value, '$.side')",
+    rankDirection: "json_extract(s.value, '$.side')",
+    team: "direction",
+    knockouts: "0",
+  },
   reversi: {
     game: "reversi",
     direction: "json_extract(p.value, '$.color')",

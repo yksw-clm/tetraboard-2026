@@ -12,7 +12,11 @@ import {
 export function piecePoints(kind: PieceKind): number {
   return kind === "king" ? 0 : kind === "rook" || kind === "bishop" ? 5 : 1;
 }
-export function impassePoints(state: ShogiState, side: Side, enemyOnly = false): number {
+export function impassePoints(
+  state: Pick<ShogiState, "board" | "hands">,
+  side: Side,
+  enemyOnly = false,
+): number {
   const hand = handPieceKinds.reduce(
     (n, kind) => n + state.hands[side][kind] * piecePoints(kind),
     0,

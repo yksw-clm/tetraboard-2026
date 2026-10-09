@@ -3,6 +3,16 @@ import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 export const publicOrigin = "https://tetraboard.net";
 
 export const lobbyMetadata = {
+  shogi: {
+    title: "将棋をオンラインで対戦 | TetraBoard",
+    description: "通常将棋を友達やCPUと対戦。登録なしで遊べる無料オンライン将棋。",
+    overview: "9×9の盤で先手と後手が対戦する将棋です。友達やCPUと対局し、棋譜も閲覧できます。",
+    rules: [
+      "先手から交互に指し、相手の玉を詰ませます。",
+      "取った駒は持ち駒として使えます。二歩・打ち歩詰めなどの反則手は指せません。",
+      "千日手、持将棋、入玉宣言に対応します。",
+    ],
+  },
   reversi: {
     title: "TetraBoard | リバーシをブラウザでオンライン対戦",
     description:

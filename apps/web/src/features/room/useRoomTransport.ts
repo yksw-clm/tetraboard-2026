@@ -73,7 +73,7 @@ function operationErrorMessage(
 ): string {
   switch (error) {
     case "not_ready":
-      return "4人全員の準備完了が必要です。";
+      return "参加者全員の準備完了が必要です。";
     case "forbidden":
       return "この操作はホストだけが行えます。";
     case "already_started":

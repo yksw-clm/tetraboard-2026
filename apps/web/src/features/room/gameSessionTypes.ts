@@ -5,6 +5,7 @@ import type { PendingShogiAction } from "./fourShogiSessionBehavior";
 
 /** 型だけの登録。ゲーム固有の判定・設定は各sessionからtransportへ渡す。 */
 interface GameSessionTypeMap {
+  shogi: { pending: PendingShogiAction; settings: never };
   reversi: { pending: PendingStandardAction; settings: never };
   "four-reversi": { pending: PendingReversiAction; settings: never };
   "four-shogi": {

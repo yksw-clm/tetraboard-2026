@@ -6,6 +6,10 @@ export type CreateRoomRequests = {
   ) => Omit<CreateRoomRequest, "game"> & (G extends "four-reversi" ? { game?: G } : { game: G });
 };
 export const createRoomRequests = {
+  shogi: ({ mode: _mode, threePlayerAttackProhibited: _setting, ...input }: Input) => ({
+    ...input,
+    game: "shogi" as const,
+  }),
   reversi: ({ mode: _mode, threePlayerAttackProhibited: _setting, ...input }: Input) => ({
     ...input,
     game: "reversi",

@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
@@ -37,7 +38,7 @@ export function LobbyList({
   onJoin,
   onWatch,
 }: Props) {
-  const hasModes = rooms.some((room) => room.game !== "reversi");
+  const hasModes = rooms.some((room) => gameCatalog[room.game].hasModes);
   const columns = hasModes
     ? "grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px]"
     : "grid-cols-[minmax(150px,1.5fr)_minmax(130px,1fr)_100px_156px]";
@@ -143,7 +144,7 @@ export function LobbyList({
                           <span className="block text-xs text-muted tabular-nums">{room.id}</span>
                         </div>
                       </div>
-                      {room.game !== "reversi" && (
+                      {gameCatalog[room.game].hasModes && (
                         <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
                           {room.mode === "singles" ? "シングルス" : "ダブルス"}
                         </span>

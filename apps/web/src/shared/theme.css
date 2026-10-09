@@ -159,3 +159,19 @@ body:has(.app-modal) #root {
   --lobby-quick-middle: #fafffb;
   --lobby-quick-end: #edf8f0;
 }
+
+.game-theme-shogi {
+  --color-primary: #f6ce73;
+  --color-primary-hover: #efbf56;
+  --color-brand: #856216;
+  --color-brand-hover: #70510e;
+  --color-line: #efe5d0;
+  --color-input: #e6d8b9;
+  --color-surface-muted: #fdf8ed;
+  --color-surface-hover: #faf1df;
+  --lobby-background: #fffcf3;
+  --lobby-glow: #fdf0ce80;
+  --lobby-grid: #eee4ca38;
+  --lobby-quick-middle: #fffefa;
+  --lobby-quick-end: #fff5db;
+}

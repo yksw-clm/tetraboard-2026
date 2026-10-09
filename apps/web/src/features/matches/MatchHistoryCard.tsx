@@ -59,7 +59,9 @@ export function MatchHistoryCard({
   const result = match.result;
   const gameLabel =
     gameCatalog[match.game].name +
-    (match.game === "reversi" ? "" : `・${match.mode === "singles" ? "シングルス" : "ダブルス"}`);
+    (!gameCatalog[match.game].hasModes
+      ? ""
+      : `・${match.mode === "singles" ? "シングルス" : "ダブルス"}`);
   const groups = matchResultGroups(match);
   const absoluteDate = formatMatchDate(match.startedAtMs);
   return (

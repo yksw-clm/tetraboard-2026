@@ -1,4 +1,4 @@
-import type { FourShogiAction, PieceKind, Side } from "@tetraboard/four-shogi";
+import type { FourShogiAction, PieceKind, Side } from "./shogiUiTypes";
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ShogiPiece } from "./ShogiPiece";
@@ -15,7 +15,7 @@ export function ShogiPromotionChoice({
   kind: PieceKind;
   viewerSide: Side;
   grid: RefObject<HTMLDivElement | null>;
-  onChoose: (action: FourShogiAction) => void;
+  onChoose: (action: Extract<FourShogiAction, { type: "movePiece" }>) => void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<CSSProperties>();

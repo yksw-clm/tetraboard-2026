@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { shogiReplayPageSchema } from "@tetraboard/protocol";
 import { waitingRoomFactories } from "./waitingRoomFactories";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { analyticsVisitor } from "../analytics/store";
@@ -247,7 +249,9 @@ roomRoutes.on(
       context.header("Cache-Control", "no-store");
       if (result.status === "room_changed") return context.json(roomError("room_changed"), 410);
       if (result.status !== "found") return context.json(roomError("not_found"), 404);
-      return context.json(getFourShogiReplayContract.response.parse(result.page));
+      return context.json(
+        z.union([getFourShogiReplayContract.response, shogiReplayPageSchema]).parse(result.page),
+      );
     } catch {
       return context.json(roomError("internal_error"), 500);
     }

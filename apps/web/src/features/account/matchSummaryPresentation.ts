@@ -17,6 +17,16 @@ export function matchResultGroups(match: MatchSummary): HistoryResultGroup[] {
         players: [p],
       }));
   }
+  if (match.game === "shogi") {
+    const winner = match.result.winner;
+    return [...match.participants]
+      .sort((a, b) => Number(b.side === winner) - Number(a.side === winner))
+      .map((p) => ({
+        label: winner === null ? "引き分け" : winner === p.side ? "勝利" : "敗北",
+        emphasized: p.side === winner,
+        players: [p],
+      }));
+  }
   if (match.game === "four-shogi") {
     const result = match.result;
     if (result.mode === "singles") {

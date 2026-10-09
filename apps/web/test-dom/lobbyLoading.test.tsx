@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { roomPublicMetadataSchema } from "@tetraboard/protocol";
-import { gameIds, gameCapacity } from "@tetraboard/protocol/games";
+import { gameIds, gameCapacity, gameCatalog } from "@tetraboard/protocol/games";
 import { LobbyList } from "../src/features/lobby/LobbyList";
 import { useLobby } from "../src/features/lobby/useLobby";
 import { clock, flush, press, render, requests } from "./harness";
@@ -28,7 +28,7 @@ for (const game of gameIds) {
             roomPublicMetadataSchema.parse({
               id: "12345",
               game,
-              mode: game === "reversi" ? undefined : "singles",
+              mode: gameCatalog[game].hasModes ? "singles" : undefined,
               timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
               status: "waiting",
               hostName: "ホスト",

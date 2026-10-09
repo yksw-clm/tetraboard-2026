@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { ViewerControls } from "./ViewerControls";
 import { RoomClock } from "./RoomClock";
@@ -8,7 +9,12 @@ import type { ReactNode, Ref } from "react";
 import { playerName } from "./roomCommonPresentation";
 import { playerClock, shogiPlayerClock, reversiPlayerClock } from "./playerClocks";
 import type { SharedRoomSession } from "./useRoomTransport";
-import { isFourShogiRoom, isFourReversiRoom, isReversiRoom } from "@tetraboard/protocol";
+import {
+  isFourShogiRoom,
+  isShogiRoom,
+  isFourReversiRoom,
+  isReversiRoom,
+} from "@tetraboard/protocol";
 
 export function RoomStatus({
   session,
@@ -37,13 +43,13 @@ export function RoomStatus({
   const waiting = room.status === "waiting";
   const turn =
     room.status === "playing"
-      ? isFourShogiRoom(room)
+      ? isFourShogiRoom(room) || isShogiRoom(room)
         ? room.players.find((player) => player.side === room.game.turn)
         : room.players.find((player) => player.color === room.game.turn)
       : null;
   const myTurn = !!turn && turn.id === self?.id;
   const clock = turn
-    ? isFourShogiRoom(room) && "side" in turn
+    ? (isFourShogiRoom(room) || isShogiRoom(room)) && "side" in turn
       ? shogiPlayerClock(room, turn.side, session.serverNowMs)
       : isFourReversiRoom(room) && "color" in turn
         ? playerClock(room, turn.color, session.serverNowMs)
@@ -110,7 +116,7 @@ export function RoomStatus({
           <ViewerControls
             label="観戦中"
             onRotate={onRotate}
-            rotationDegrees={room.settings.game === "reversi" ? 180 : 90}
+            rotationDegrees={!gameCatalog[room.settings.game].hasModes ? 180 : 90}
           >
             {!joinUnavailable && (
               <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
