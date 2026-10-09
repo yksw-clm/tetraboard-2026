@@ -13,7 +13,7 @@ export function GameIntroduction({ game }: { game: GameId }) {
       <p className="mt-3">{content.overview}</p>
       <h2 className="mt-5 text-xl font-bold">遊び始め方</h2>
       <p className="mt-3">
-        {game === "reversi"
+        {!gameCatalog[game].hasModes
           ? "アプリのインストールやユーザー登録は不要です。「すぐ遊ぶ」でニックネーム・時間設定を選ぶと、CPU1人との待機室へ進みます。ホストが「対局開始」を押してから対局を始めます。"
           : "アプリのインストールやユーザー登録は不要です。「すぐ遊ぶ」でニックネーム・モード・時間設定を選ぶと、CPU3人との待機室へ進みます。ホストが「対局開始」を押してから対局を始めます。"}
       </p>

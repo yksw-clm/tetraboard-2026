@@ -122,10 +122,16 @@ matchRoutes.get(getMatchReplayContract.path, async (c) => {
         .first<{ game: string; record_json: string }>();
     if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
     const record = readStoredMatch(row.record_json, row.game);
-    if (record.game !== "four-shogi") return c.json({ message: "この棋譜は閲覧できません。" }, 404);
+    if (record.game !== "four-shogi" && record.game !== "shogi")
+      return c.json({ message: "この棋譜は閲覧できません。" }, 404);
     if (query.data.cursor > record.record.replay.eventCount)
       return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
-    const page = await readShogiMatchReplayPage(c.env.APP_DB, record.record.id, query.data.cursor);
+    const page = await readShogiMatchReplayPage(
+      c.env.APP_DB,
+      record.record.id,
+      query.data.cursor,
+      record.game,
+    );
     if (!page) throw new Error("Archived replay missing");
     return c.json(getMatchReplayContract.response.parse({ matchId: record.record.id, ...page }));
   } catch {

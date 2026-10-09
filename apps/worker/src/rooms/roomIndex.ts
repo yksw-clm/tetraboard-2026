@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { roomPublicMetadataSchema, type RoomPublicMetadata } from "@tetraboard/protocol";
 
@@ -92,7 +93,9 @@ function parseRow(row: IndexRow, preview: boolean) {
     ...roomPublicMetadataSchema.parse({
       id: row.room_id,
       game: row.game,
-      mode: row.game === "reversi" ? undefined : row.mode,
+      mode: gameCatalog[roomPublicMetadataSchema.shape.game.parse(row.game)].hasModes
+        ? row.mode
+        : undefined,
       timeControl: { mainTimeMs: row.main_time_ms, byoyomiMs: row.byoyomi_ms },
       status: row.status,
       hostName: row.host_name,

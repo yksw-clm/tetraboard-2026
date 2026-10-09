@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { useState, type ReactNode } from "react";
@@ -110,7 +111,7 @@ function RankingContent({
 }) {
   const label = total
     ? "対局数"
-    : state.game === "reversi"
+    : !gameCatalog[state.game].hasModes
       ? "勝数"
       : mode === "singles"
         ? "優勝数"
@@ -182,11 +183,15 @@ function RankingsDialog({
         <p className="text-xs text-muted">
           CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。対戦相手にゲストがいても対象です。
         </p>
-        <ModeTabs withoutModes={state.game === "reversi"} mode={mode} onChange={setMode}>
+        <ModeTabs withoutModes={!gameCatalog[state.game].hasModes} mode={mode} onChange={setMode}>
           <AppTabs selectedKey={metric} onSelectionChange={(key) => setMetric(String(key))}>
             <AppTabs.List aria-label="ランキングの集計項目">
               <AppTabs.Tab id="victories">
-                {state.game === "reversi" ? "勝数" : mode === "singles" ? "優勝数" : "勝利数"}
+                {!gameCatalog[state.game].hasModes
+                  ? "勝数"
+                  : mode === "singles"
+                    ? "優勝数"
+                    : "勝利数"}
                 <AppTabs.Indicator />
               </AppTabs.Tab>
               <AppTabs.Tab id="total">
@@ -251,7 +256,7 @@ function LobbyRankingsView({
           </AppButton>
         </div>
         <p className="text-xs text-muted">対人戦・登録済ユーザーのみ集計</p>
-        <ModeTabs withoutModes={state.game === "reversi"} mode={mode} onChange={setMode}>
+        <ModeTabs withoutModes={!gameCatalog[state.game].hasModes} mode={mode} onChange={setMode}>
           <RankingContent state={state} mode={mode} limit={3} />
         </ModeTabs>
         <AppButton

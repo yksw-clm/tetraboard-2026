@@ -97,7 +97,7 @@ export function RoomInfo({
                 <p className="min-h-5 text-xs text-muted" role="status">
                   {updating ? "設定を更新中…" : ""}
                 </p>
-                {room.settings.game !== "reversi" && (
+                {gameCatalog[room.settings.game].hasModes && (
                   <RadioGroup
                     value={mode}
                     isDisabled={!canManageSettings}
@@ -282,7 +282,7 @@ export function RoomInfoCard({
             <dd>{gameCatalog[settings.game].name}</dd>
           </div>
         </div>
-        {settings.game !== "reversi" && (
+        {gameCatalog[settings.game].hasModes && (
           <div>
             <AppIcon name="user" />
             <div>

@@ -16,6 +16,12 @@ import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
+  shogi: {
+    path: gameCatalog.shogi.lobbyPath,
+    lazy: async () => ({
+      Component: (await import("../features/lobby/ShogiLobbyPage")).ShogiLobbyPage,
+    }),
+  },
   reversi: {
     path: gameCatalog.reversi.lobbyPath,
     lazy: async () => ({

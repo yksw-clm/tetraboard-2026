@@ -23,7 +23,7 @@ export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
           text: "アカウントで参加した対局を、マイページから見返せます。CPU戦も保存されます。",
         },
       ]
-        .filter((item) => game !== "reversi" || item.icon !== "crown")
+        .filter((item) => game === undefined || gameCatalog[game].hasModes || item.icon !== "crown")
         .map(({ icon, title, text }) => (
           <li key={title} className="flex items-start gap-2.5">
             <AppIcon name={icon as "crown" | "users" | "board"} className="mt-0.5 text-primary" />
@@ -38,7 +38,7 @@ export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
 }
 
 export function RegistrationBadgeExamples({ game }: { game: GameId }) {
-  if (game === "reversi") return null;
+  if (!gameCatalog[game].hasModes) return null;
   return (
     <figure className="m-0 flex flex-col items-center gap-1">
       <div className="flex gap-2">

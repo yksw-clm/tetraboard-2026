@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -36,7 +37,7 @@ export function useRankings(game: MatchGame = defaultGameId) {
           });
         if (!response.ok) throw new Error("Rankings request failed");
         const result = (
-          game === "reversi" ? previewReversiRankingsSchema : previewRankingsSchema
+          !gameCatalog[game].hasModes ? previewReversiRankingsSchema : previewRankingsSchema
         ).parse(await response.json());
         if (!controller.signal.aborted) {
           setRankings(result);

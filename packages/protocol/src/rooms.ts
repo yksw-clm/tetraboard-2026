@@ -1,3 +1,12 @@
+import { gameCatalog } from "./games";
+import {
+  shogiSideSchema,
+  shogiActionSchema,
+  shogiEliminationSchema,
+  playingShogiStateSchema,
+  finishedShogiStateSchema,
+  shogiReplayPageSchema,
+} from "./shogi";
 import { gameIdSchema } from "./gameSchemas";
 import { z } from "zod";
 import {
@@ -341,10 +350,12 @@ export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend(
   game: z.literal("four-shogi"),
   threePlayerAttackProhibited: z.boolean(),
 });
+export const shogiSettingsSchema = reversiSettingsSchema.extend({ game: z.literal("shogi") });
 export const roomSettingsSchema = z.discriminatedUnion("game", [
   fourReversiRoomSettingsSchema,
   fourShogiRoomSettingsSchema,
   reversiSettingsSchema,
+  shogiSettingsSchema,
 ]);
 const shogiRemaining = z.strictObject({
   south: z.int().nonnegative(),
@@ -438,7 +449,90 @@ export const fourShogiRoomSchema = z.discriminatedUnion("status", [
   shogiWaitingSchema,
   shogiPlayingSchema,
 ]);
-export const roomSchema = z.union([fourReversiRoomSchema, fourShogiRoomSchema, reversiRoomSchema]);
+export const standardShogiClockSchema = playingShogiClockSchema.extend({
+  remainingMainMs: z.strictObject({ south: z.int().nonnegative(), north: z.int().nonnegative() }),
+});
+const standardShogiLastRoundSchema = z.strictObject({
+  roundId: z.uuid(),
+  game: finishedShogiStateSchema,
+  players: z
+    .array(
+      z.strictObject({
+        id: z.uuid(),
+        name: nicknameSchema,
+        side: shogiSideSchema,
+        appearance: playerAppearanceSchema.optional(),
+      }),
+    )
+    .length(2),
+  eventCount: z.int().nonnegative(),
+});
+const standardShogiCheckStateSchema = z.strictObject({
+  south: z.boolean(),
+  north: z.boolean(),
+});
+const standardShogiWaitingSchema = z.strictObject({
+  id: roomCodeSchema,
+  instanceId: z.uuid(),
+  status: z.literal("waiting"),
+  settings: shogiSettingsSchema,
+  publicUpdatedAtMs: serverNowMsSchema,
+  lastActivityAtMs: serverNowMsSchema,
+  players: z.array(
+    z.union([
+      cpuPlayerSchema.extend({ side: z.null() }),
+      humanPlayerSchema.extend({ side: z.null() }),
+    ]),
+  ),
+  eliminations: z.array(shogiEliminationSchema).length(0),
+  game: z.null(),
+  clock: z.null(),
+  lastRound: standardShogiLastRoundSchema.nullable(),
+  checkState: standardShogiCheckStateSchema,
+  roundId: z.null(),
+  positionRevision: z.literal(0),
+  legalActions: z.array(shogiActionSchema).length(0),
+});
+const standardShogiPlayingSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    instanceId: z.uuid(),
+    status: z.literal("playing"),
+    settings: shogiSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
+    players: z
+      .array(
+        z.union([
+          cpuPlayerSchema.extend({ side: shogiSideSchema }),
+          humanPlayerSchema.extend({ side: shogiSideSchema }),
+        ]),
+      )
+      .length(2),
+    eliminations: z.array(shogiEliminationSchema).max(1),
+    game: playingShogiStateSchema,
+    clock: standardShogiClockSchema,
+    lastRound: z.null(),
+    checkState: standardShogiCheckStateSchema,
+    roundId: z.uuid(),
+    positionRevision: z.int().nonnegative(),
+    legalActions: z.array(shogiActionSchema),
+  })
+  .refine(
+    (room) =>
+      new Set(room.players.map((p) => p.side)).size === 2 &&
+      room.players.every((p) => room.game.players[p.side] === p.id),
+  );
+export const shogiRoomSchema = z.discriminatedUnion("status", [
+  standardShogiWaitingSchema,
+  standardShogiPlayingSchema,
+]);
+export const roomSchema = z.union([
+  fourReversiRoomSchema,
+  fourShogiRoomSchema,
+  reversiRoomSchema,
+  shogiRoomSchema,
+]);
 export type FourReversiRoom = z.infer<typeof fourReversiRoomSchema>;
 export type FourShogiRoom = z.infer<typeof fourShogiRoomSchema>;
 export type FourShogiLastRound = z.infer<typeof fourShogiLastRoundSchema>;
@@ -471,8 +565,10 @@ export const roomPublicMetadataSchema = z
   })
   .refine(
     (metadata) =>
-      metadata.capacity === (metadata.game === "reversi" ? 2 : 4) &&
-      (metadata.game === "reversi" ? metadata.mode === undefined : metadata.mode !== undefined) &&
+      metadata.capacity === gameCatalog[metadata.game].capacity &&
+      (gameCatalog[metadata.game].hasModes
+        ? metadata.mode !== undefined
+        : metadata.mode === undefined) &&
       metadata.humanCount + metadata.cpuCount <= metadata.capacity &&
       metadata.openSeats ===
         (metadata.status === "waiting"
@@ -560,7 +656,9 @@ export const createRoomContract = {
       timeControl: roomTimeControlSchema.optional(),
     })
     .refine((value) =>
-      value.game === "reversi" ? value.mode === undefined : value.mode !== undefined,
+      value.game && !gameCatalog[value.game].hasModes
+        ? value.mode === undefined
+        : value.mode !== undefined,
     ),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
@@ -700,6 +798,11 @@ export const roomSocketContract = {
       roundId: z.uuid(),
       positionRevision: z.int().nonnegative(),
     }),
+    z.strictObject({
+      type: z.literal("room.game.declare"),
+      roundId: z.uuid(),
+      positionRevision: z.int().nonnegative(),
+    }),
     z.strictObject({ type: z.literal("room.chat.send"), text: z.string() }),
     z
       .strictObject({
@@ -707,7 +810,7 @@ export const roomSocketContract = {
         roundId: z.uuid().optional(),
         positionRevision: z.int().nonnegative().optional(),
         action: z.union([
-          fourShogiActionSchema,
+          shogiActionSchema,
           z.strictObject({
             type: z.literal("placeStone"),
             position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
@@ -810,4 +913,15 @@ export const getFourShogiReplayContract = {
   }),
   response: fourShogiReplayPageSchema,
   error: roomErrorSchema,
+} as const;
+
+export type ShogiRoom = z.infer<typeof shogiRoomSchema>;
+export type ShogiLastRound = z.infer<typeof standardShogiLastRoundSchema>;
+export type ShogiClock = z.infer<typeof standardShogiClockSchema>;
+export function isShogiRoom(room: Room): room is ShogiRoom {
+  return room.settings.game === "shogi";
+}
+export const getShogiReplayContract = {
+  ...getFourShogiReplayContract,
+  response: shogiReplayPageSchema,
 } as const;

@@ -42,7 +42,7 @@ describe("ゲームIDとサービス全体の対象", () => {
     ).toBe(false);
   });
 
-  test.each(["four-reversi", "four-shogi", "reversi"] as const)(
+  test.each(["four-reversi", "four-shogi", "reversi", "shogi"] as const)(
     "%s は各ゲーム入口と対象入口で受理する",
     (game) => {
       expect(isGameId(game)).toBe(true);
@@ -99,6 +99,14 @@ describe("ゲームIDとサービス全体の対象", () => {
         name: "リバーシ",
         lobbyPath: "/games/reversi",
         rankingsPath: "/games/reversi/rankings",
+        capacity: 2,
+        hasModes: false,
+      },
+      {
+        id: "shogi",
+        name: "将棋",
+        lobbyPath: "/games/shogi",
+        rankingsPath: "/games/shogi/rankings",
         capacity: 2,
         hasModes: false,
       },

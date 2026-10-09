@@ -1,4 +1,4 @@
-import type { FourShogiAction, Position, Side } from "@tetraboard/four-shogi";
+import type { FourShogiAction, Position, Side } from "./shogiUiTypes";
 import { fourShogiActionSchema } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { shogiActionChoices } from "./shogiBoardPresentation";

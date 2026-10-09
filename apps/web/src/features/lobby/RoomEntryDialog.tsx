@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "../room/TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
@@ -79,7 +80,7 @@ export function RoomEntryDialog({
         {unavailable
           ? "四人将棋のオンライン対局は準備中です。入力項目は確認できますが、まだルームの作成・参加はできません。"
           : intent === "quick"
-            ? game === "reversi"
+            ? !gameCatalog[game].hasModes
               ? "CPUと対戦。待機室で「対局開始」を押すと始まります。"
               : "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
             : intent === "create"
@@ -151,7 +152,7 @@ export function RoomEntryDialog({
           )
         ) : (
           <>
-            {game !== "reversi" && (
+            {gameCatalog[game].hasModes && (
               <RadioGroup
                 className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"
                 name="mode"

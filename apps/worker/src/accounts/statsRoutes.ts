@@ -78,6 +78,15 @@ async function queryAccountStats(
 }
 
 export const statsReaders = {
+  shogi: async (db: D1Database, accountId: string) => {
+    const row = await db
+      .prepare(
+        `${matchOutcomesCte("shogi", true)} SELECT COUNT(*) AS total,COALESCE(SUM(winner=direction),0) AS wins,COALESCE(SUM(winner IS NOT NULL AND winner!=direction),0) AS losses,COALESCE(SUM(winner IS NULL),0) AS draws FROM outcomes`,
+      )
+      .bind("shogi", accountId)
+      .first();
+    return matchDataContracts.shogi.stats(row);
+  },
   reversi: async (db: D1Database, accountId: string) => {
     const row = await db
       .prepare(
@@ -110,6 +119,8 @@ export async function readAccountStats(
   game: MatchGame = defaultGameId,
 ): Promise<AccountStats> {
   switch (game) {
+    case "shogi":
+      return statsReaders[game](db, accountId);
     case "reversi":
       return statsReaders[game](db, accountId);
     case "four-reversi":

@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { Fragment, lazy, Suspense } from "react";
 import { type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -14,7 +15,7 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
   const formations = useFormationStats(showFormations);
   return (
     <>
-      {game !== "reversi" && mode === "singles" && stats && (
+      {gameCatalog[game].hasModes && mode === "singles" && stats && (
         <div className="mt-2 border-0 border-t border-solid border-line pt-5">
           <AccountBadges game={game} stats={stats} />
         </div>

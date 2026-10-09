@@ -29,6 +29,7 @@
     "better-auth": "1.7.5",
     "hono": "^4.13.10",
     "zod": "^4.0.0",
-    "@tetraboard/reversi": "workspace:*"
+    "@tetraboard/reversi": "workspace:*",
+    "@tetraboard/shogi": "workspace:*"
   }
 }

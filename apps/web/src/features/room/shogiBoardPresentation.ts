@@ -1,12 +1,4 @@
-import type {
-  Board,
-  FourShogiAction,
-  FourShogiState,
-  HandPieceKind,
-  Hands,
-  Position,
-  Side,
-} from "@tetraboard/four-shogi";
+import type { Board, FourShogiAction, HandPieceKind, Hands, Position, Side } from "./shogiUiTypes";
 
 export function shogiPieceLiftClasses(selected: boolean): string {
   return `transition-[transform,filter] duration-150 motion-reduce:transition-none ${selected ? "-translate-y-[2px] drop-shadow-[0_4px_3px_#54361870]" : "group-hover/shogi-piece:-translate-y-[2px] group-hover/shogi-piece:drop-shadow-[0_4px_3px_#54361870]"}`;
@@ -22,13 +14,20 @@ export const shogiSideNames: Record<Side, string> = {
 export const shogiPieceNames = {
   king: "王",
   rook: "飛車",
+  bishop: "角",
+  knight: "桂",
+  lance: "香",
   gold: "金",
   silver: "銀",
   pawn: "歩",
 } as const;
 export type ShogiPlacement = "bottom" | "left" | "top" | "right";
 export type ShogiPieceDirection = "up" | "right" | "down" | "left";
-export type ShogiBoardView = Pick<FourShogiState, "mode" | "status" | "turn"> & {
+export type ShogiBoardView = {
+  mode?: "singles" | "doubles";
+  status: "playing" | "finished";
+  turn: Side | null;
+} & {
   board: Board;
   hands: Hands;
   eliminations: readonly Readonly<{ side: Side }>[];

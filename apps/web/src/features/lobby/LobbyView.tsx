@@ -49,6 +49,7 @@ type Props = {
 
 const gameDescriptions = {
   reversi: "黒と白で楽しむリバーシ。",
+  shogi: "先手と後手で楽しむ将棋。",
   "four-reversi": "4色で楽しむリバーシ。",
   "four-shogi": "4方向から楽しむ将棋。",
 } satisfies Record<GameId, string>;
@@ -121,13 +122,12 @@ export function LobbyView(props: Props) {
         }
       : null,
   );
-  const stones =
-    props.game === "reversi"
-      ? ({ 27: "white", 28: "black", 35: "black", 36: "white" } as Record<
-          number,
-          keyof typeof previewStoneClasses
-        >)
-      : previewStones;
+  const stones = !gameCatalog[props.game].hasModes
+    ? ({ 27: "white", 28: "black", 35: "black", 36: "white" } as Record<
+        number,
+        keyof typeof previewStoneClasses
+      >)
+    : previewStones;
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = {
     title: gameCatalog[props.game].name,
@@ -153,7 +153,7 @@ export function LobbyView(props: Props) {
           <h2 className="text-lg font-bold">一人で遊ぶ</h2>
           <LobbyEntryButton
             title="すぐ遊ぶ"
-            description={props.game === "reversi" ? "CPUと対戦" : "CPU3人と対戦"}
+            description={!gameCatalog[props.game].hasModes ? "CPUと対戦" : "CPU3人と対戦"}
             icon="arrow"
             primary
             onPress={() => openEntry("quick")}
@@ -202,7 +202,7 @@ export function LobbyView(props: Props) {
               <Fragment key={mobile ? "mobile-board-preview" : "desktop-board-preview"}>
                 {props.boardPreview}
               </Fragment>
-              {props.game !== "four-shogi" && (
+              {props.boardPreview == null && (
                 <div
                   aria-hidden="true"
                   data-testid="lobby-board-preview"

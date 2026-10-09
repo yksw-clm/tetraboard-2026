@@ -1,3 +1,6 @@
+import type { ShogiRoom } from "./rooms";
+import type { ShogiMatchDetail, PublicShogiMatchDetail } from "./matches";
+import type { ShogiAction } from "./shogi";
 import type { ReversiRoom } from "./rooms";
 import type { ReversiMatchDetail, PublicReversiMatchDetail } from "./matches";
 import type { ReversiRankings } from "./rankings";
@@ -18,6 +21,13 @@ type ReversiAction = Extract<
 >;
 /** 型だけの対応表。GameId の追加には各ゲームの具体型の登録が必要です。 */
 export interface GameTypeMap {
+  shogi: {
+    room: ShogiRoom;
+    match: ShogiMatchDetail;
+    publicMatch: PublicShogiMatchDetail;
+    action: ShogiAction;
+    rankings: ReversiRankings;
+  };
   reversi: {
     room: ReversiRoom;
     match: ReversiMatchDetail;
@@ -46,12 +56,13 @@ export type PublicMatchFor<G extends GameId> = GameTypeMap[G]["publicMatch"];
 export type ReplayMatchFor<G extends GameId> = PublicMatchFor<G> & { selfPlayerId?: string };
 export type ActionFor<G extends GameId> = GameTypeMap[G]["action"];
 export type RankingsFor<G extends GameId> = GameTypeMap[G]["rankings"];
-export type GameActionCommandFor<G extends GameId> = G extends "four-shogi"
+export type GameActionCommandFor<G extends GameId> = G extends "four-shogi" | "shogi"
   ? { type: "room.game.action"; action: ActionFor<G>; roundId: string; positionRevision: number }
   : { type: "room.game.action"; action: ActionFor<G>; roundId?: never; positionRevision?: never };
 export type GameCommandFor<G extends GameId> =
   | GameActionCommandFor<G>
   | Extract<RoomSocketClientMessage, { type: "room.game.start" | "room.game.resign" }>
-  | (G extends "four-shogi"
+  | (G extends "four-shogi" | "shogi"
       ? Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>
-      : never);
+      : never)
+  | (G extends "shogi" ? Extract<RoomSocketClientMessage, { type: "room.game.declare" }> : never);

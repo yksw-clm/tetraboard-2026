@@ -48,6 +48,7 @@ export type ReversiRankings = z.infer<typeof reversiRankingsSchema>;
 export const gameRankingContracts = {
   "four-reversi": getFourReversiRankingsContract,
   "four-shogi": getFourShogiRankingsContract,
+  shogi: { method: "GET", path: gameCatalog.shogi.rankingsPath, response: reversiRankingsSchema },
   reversi: {
     method: "GET",
     path: gameCatalog.reversi.rankingsPath,

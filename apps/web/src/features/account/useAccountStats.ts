@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAccountStatsContract, type AccountStats, type MatchGame } from "@tetraboard/protocol";
 
@@ -19,6 +20,7 @@ const empty = (): StatsState => ({
 export function useAccountStats(game: MatchGame) {
   const [states, setStates] = useState<Record<MatchGame, StatsState>>({
     reversi: empty(),
+    shogi: empty(),
     "four-reversi": empty(),
     "four-shogi": empty(),
   });
@@ -46,7 +48,7 @@ export function useAccountStats(game: MatchGame) {
       if (!response.ok) throw new Error("Stats request failed");
       const result = getAccountStatsContract.response.parse(await response.json());
       if (
-        target === "reversi"
+        !gameCatalog[target].hasModes
           ? !("wins" in result)
           : !("singles" in result) || (target === "four-shogi") !== "knockouts" in result.singles
       )

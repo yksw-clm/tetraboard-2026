@@ -1,4 +1,4 @@
-import type { HandPieceKind, PieceKind } from "@tetraboard/four-shogi";
+import type { HandPieceKind, PieceKind } from "./shogiUiTypes";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { ShogiPieceDirection } from "./shogiBoardPresentation";
 import { shogiImageStore, shogiPieceImage } from "./shogiPieceImages";
@@ -17,13 +17,15 @@ export function ShogiPiece({
   promoted = false,
   deadKing = false,
   direction,
+  royalKing = false,
 }: {
   kind: PieceKind | HandPieceKind;
   promoted?: boolean;
   deadKing?: boolean;
   direction: ShogiPieceDirection;
+  royalKing?: boolean;
 }) {
-  const { src, name } = shogiPieceImage(kind, promoted, deadKing, direction);
+  const { src, name } = shogiPieceImage(kind, promoted, deadKing, direction, royalKing);
   return <PreparedShogiPiece key={src} src={src} name={name} direction={direction} />;
 }
 

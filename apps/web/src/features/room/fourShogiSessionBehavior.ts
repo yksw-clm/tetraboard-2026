@@ -1,6 +1,6 @@
-import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
+import type { FourShogiAction, Side } from "./shogiUiTypes";
 import { commonSettingsComplete } from "./roomSettingsCompletion";
-import type { FourShogiRoom, RoomSocketClientMessage } from "@tetraboard/protocol";
+import type { FourShogiRoom, ShogiRoom, RoomSocketClientMessage } from "@tetraboard/protocol";
 import { assertNever } from "@tetraboard/protocol";
 import type { SoundGameState } from "./roomSoundEvents";
 
@@ -13,6 +13,7 @@ export type PendingShogiAction =
       action: FourShogiAction;
       startedAtMs: number;
     }
+  | { type: "declare"; participant: Side; roundId: string; positionRevision: number }
   | { type: "resign"; participant: Side }
   | {
       type: "draw";
@@ -22,9 +23,13 @@ export type PendingShogiAction =
       positionRevision: number;
     };
 
-export function shogiActionComplete(room: FourShogiRoom, pending: PendingShogiAction): boolean {
+export function shogiActionComplete(
+  room: FourShogiRoom | ShogiRoom,
+  pending: PendingShogiAction,
+): boolean {
   if (room.status === "waiting") return pending.type === "draw" || room.lastRound !== null;
   switch (pending.type) {
+    case "declare":
     case "move":
       return room.roundId !== pending.roundId || room.positionRevision > pending.positionRevision;
     case "resign":
@@ -33,7 +38,7 @@ export function shogiActionComplete(room: FourShogiRoom, pending: PendingShogiAc
       return (
         room.roundId !== pending.roundId ||
         room.positionRevision > pending.positionRevision ||
-        room.game.drawProposals.includes(pending.participant) === pending.proposed
+        room.game.drawProposals.some((side) => side === pending.participant) === pending.proposed
       );
     default:
       return assertNever(pending);
@@ -57,7 +62,7 @@ export function shogiSoundMove(action: FourShogiAction, side: Side): string {
   }
 }
 
-export function shogiSoundGame(room: FourShogiRoom): SoundGameState {
+export function shogiSoundGame(room: FourShogiRoom | ShogiRoom): SoundGameState {
   const game = room.status === "playing" ? room.game : room.lastRound?.game;
   return {
     phase: room.status === "playing" ? "playing" : game ? "finished" : "waiting",
@@ -68,13 +73,16 @@ export function shogiSoundGame(room: FourShogiRoom): SoundGameState {
 }
 
 export function shogiSettingsComplete(
-  room: FourShogiRoom,
+  room: FourShogiRoom | ShogiRoom,
   command: RoomSocketClientMessage,
   playerIds: ReadonlySet<string>,
 ): boolean {
   if (room.status !== "waiting") return true;
   if (command.type === "room.three-player-attack.set") {
-    return room.settings.threePlayerAttackProhibited === command.prohibited;
+    return (
+      room.settings.game === "four-shogi" &&
+      room.settings.threePlayerAttackProhibited === command.prohibited
+    );
   }
   return commonSettingsComplete(room, command, playerIds);
 }
