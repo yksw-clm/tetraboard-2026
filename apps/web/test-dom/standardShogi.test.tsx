@@ -60,6 +60,8 @@ test("通常将棋の作成はCPU1人・モードなしで、ロビー初期図�
         onNameChange={() => {}}
         onRoomCodeChange={() => {}}
         onModeChange={() => {}}
+        cpuLevel={1}
+        onCpuLevelChange={() => {}}
         onSubmit={() => {}}
         onClose={() => {}}
       />,
@@ -69,7 +71,7 @@ test("通常将棋の作成はCPU1人・モードなしで、ロビー初期図�
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("CPUと対戦");
   expect(dialog.textContent).not.toContain("シングルス");
-  expect(dialog.querySelectorAll('input[type="radio"]')).toHaveLength(0);
+  expect(dialog.querySelectorAll('input[type="radio"][name="mode"]')).toHaveLength(0);
   const preview = render(<ShogiLobbyBoardPreview />);
   expect(preview.querySelectorAll('[data-testid="shogi-piece"]')).toHaveLength(40);
 });

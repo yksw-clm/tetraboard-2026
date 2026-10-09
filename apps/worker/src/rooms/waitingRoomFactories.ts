@@ -37,7 +37,7 @@ function players({ name, request }: CreationContext) {
           id: crypto.randomUUID(),
           name: `CPU ${index}`,
           kind: "cpu" as const,
-          level: 1 as const,
+          level: request.cpuLevel ?? 1,
           ready: true as const,
           reconnectDeadline: null,
         }),

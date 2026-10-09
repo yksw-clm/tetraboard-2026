@@ -8,7 +8,7 @@ import { useAccount } from "../account/useAccount";
 import { Label, RadioGroup } from "@heroui/react";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
-import { type RoomTimeControl, type RoomMode } from "@tetraboard/protocol";
+import { type RoomTimeControl, type RoomMode, type CpuLevel } from "@tetraboard/protocol";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
@@ -23,6 +23,8 @@ export function RoomEntryDialog({
   name,
   roomCode,
   mode,
+  cpuLevel,
+  onCpuLevelChange,
   timeControl,
   onTimeControlChange,
   threePlayerAttackProhibited,
@@ -45,6 +47,8 @@ export function RoomEntryDialog({
   name: string;
   roomCode: string;
   mode: RoomMode;
+  cpuLevel: CpuLevel;
+  onCpuLevelChange: (level: CpuLevel) => void;
   timeControl: RoomTimeControl;
   onTimeControlChange: (value: RoomTimeControl) => void;
   threePlayerAttackProhibited?: boolean;
@@ -119,6 +123,7 @@ export function RoomEntryDialog({
                   name,
                   roomCode,
                   mode,
+                  cpuLevel,
                   timeControl,
                   selectedRoomId,
                   humanOnly,
@@ -152,6 +157,34 @@ export function RoomEntryDialog({
           )
         ) : (
           <>
+            {intent === "quick" && (
+              <RadioGroup
+                className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"
+                name="cpu-level"
+                value={String(cpuLevel)}
+                onChange={(value) => {
+                  if (value === "1" || value === "2") onCpuLevelChange(value === "1" ? 1 : 2);
+                }}
+                isDisabled={busy}
+                orientation="horizontal"
+              >
+                <Label>CPUレベル</Label>
+                <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
+                  {([1, 2] as const).map((level) => (
+                    <AppRadio key={level} value={String(level)}>
+                      <AppRadio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface">
+                        <AppRadio.Control>
+                          <AppRadio.Indicator />
+                        </AppRadio.Control>
+                        <span className="text-[13px] font-[650]">
+                          Lv{level}（{level === 1 ? "よわい" : "ふつう"}）
+                        </span>
+                      </AppRadio.Content>
+                    </AppRadio>
+                  ))}
+                </div>
+              </RadioGroup>
+            )}
             {gameCatalog[game].hasModes && (
               <RadioGroup
                 className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"

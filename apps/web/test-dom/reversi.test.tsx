@@ -74,6 +74,8 @@ test("通常リバーシの作成・遊び方はCPU1人、モード選択なし"
     onNameChange() {},
     onRoomCodeChange() {},
     onModeChange() {},
+    cpuLevel: 1 as const,
+    onCpuLevelChange() {},
     onSubmit() {},
     onClose() {},
   };
@@ -83,7 +85,7 @@ test("通常リバーシの作成・遊び方はCPU1人、モード選択なし"
   expect(dialog.textContent).toContain("CPUと対戦");
   expect(dialog.textContent).not.toContain("シングルス");
   expect(dialog.textContent).not.toContain("ダブルス");
-  expect(dialog.querySelectorAll('input[type="radio"]')).toHaveLength(0);
+  expect(dialog.querySelectorAll('input[type="radio"][name="mode"]')).toHaveLength(0);
   const request = createRoomRequests.reversi({
     name: "ゲスト",
     quickPlay: true,

@@ -662,7 +662,7 @@ test("CPU Lv2は選択を保存した次のAlarmで期限を照合し、期限�
         ),
         game: store.saveState(room.roundId, cpuState),
         legalActions: getLegalActions(cpuState),
-        clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
+        clock: { ...room.clock, turnStartedAt: at - 3000, turnExpiresAt: at + 60000 },
       }),
     );
     await instance.alarm();
@@ -724,7 +724,7 @@ test.each([
         settings: { ...room.settings, threePlayerAttackProhibited: restricted },
         game: store.saveState(room.roundId, game),
         ...getActionAvailability(game),
-        clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
+        clock: { ...room.clock, turnStartedAt: at - 3000, turnExpiresAt: at + 60000 },
       });
       ctx.storage.kv.put("room", prepared);
       ctx.storage.kv.delete("shogi-cpu-job");
@@ -919,7 +919,7 @@ test("CPUの保存した合法手を次のAlarmで一度だけ適用し、局ID�
           ...room,
           game: store.saveState(room.roundId, game),
           legalActions: getLegalActions(game),
-          clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
+          clock: { ...room.clock, turnStartedAt: at - 3000, turnExpiresAt: at + 60000 },
         }),
       );
       await instance.alarm();
@@ -959,7 +959,7 @@ test("CPUの保存した合法手を次のAlarmで一度だけ適用し、局ID�
         legalActions: getLegalActions(game),
         clock: {
           ...room.clock,
-          turnStartedAt: Date.now() - 1000,
+          turnStartedAt: Date.now() - 3000,
           turnExpiresAt: Date.now() + 60000,
         },
       }),
@@ -1788,7 +1788,7 @@ test("CPUは手番で人間全員の提案・取消に合わせ、時計を維�
       drawProposals: [human.side],
     };
     const at = Date.now();
-    const clock = { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 };
+    const clock = { ...room.clock, turnStartedAt: at - 3000, turnExpiresAt: at + 60000 };
     state.storage.kv.put(
       "room",
       fourShogiRoomSchema.parse({
@@ -1873,7 +1873,7 @@ for (const humanSurviving of [true, false]) {
               ...room,
               game: store.saveState(room.roundId, game),
               legalActions: getLegalActions(game),
-              clock: { ...room.clock, turnStartedAt: at - 1000, turnExpiresAt: at + 60000 },
+              clock: { ...room.clock, turnStartedAt: at - 3000, turnExpiresAt: at + 60000 },
             }),
           );
           state.storage.kv.delete("shogi-cpu-job");
@@ -1906,7 +1906,7 @@ test("旧保存状態の提案欠落を復元し、秒読み中も提案・取�
       game: legacyGame,
       clock: {
         remainingMainMs: { south: 0, west: 0, north: 0, east: 0 },
-        turnStartedAt: at - 1000,
+        turnStartedAt: at - 3000,
         turnExpiresAt: at + 29000,
       },
     });

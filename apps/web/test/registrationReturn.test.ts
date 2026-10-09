@@ -15,6 +15,7 @@ const value = {
     roomCode: "12",
     mode: "doubles",
     threePlayerAttackProhibited: false,
+    cpuLevel: 2,
   },
 };
 describe("登録後の復帰情報", () => {
@@ -52,6 +53,7 @@ describe("登録後の復帰情報", () => {
       { ...value, oauthStarted: "true" },
       { ...value, entry: { ...value.entry, mode: "other" } },
       { ...value, entry: { ...value.entry, selectedRoomId: 12345 } },
+      ...[0, 3, "2", null].map((cpuLevel) => ({ ...value, entry: { ...value.entry, cpuLevel } })),
     ])
       expect(parseRegistrationReturn(record, now)).toBeNull();
   });

@@ -338,7 +338,7 @@ test.each(["一致", "期限切れ", "別局", "revision違い", "手番違い"]
           legalActions: getLegalActions(next),
           clock: {
             ...room.clock,
-            turnStartedAt: Date.now() - 1_000,
+            turnStartedAt: Date.now() - 3_000,
             turnExpiresAt: Date.now() + 300_000,
           },
         }),
@@ -595,9 +595,7 @@ test.each(["リバーシCPU待ち", "将棋CPU待ち", "将棋の保存済み選
         );
       }
       await instance.getRoom();
-      expect(await state.storage.getAlarm()).toBe(
-        at + (source === "将棋の保存済み選択" ? 1_000 : 500),
-      );
+      expect(await state.storage.getAlarm()).toBe(at + 2_000);
     });
   },
 );
@@ -631,7 +629,7 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
         ...next,
         clock: {
           ...room.clock,
-          turnStartedAt: Date.now() - 1_000,
+          turnStartedAt: Date.now() - 3_000,
           turnExpiresAt: Date.now() + 300_000,
         },
       });

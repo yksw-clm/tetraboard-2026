@@ -10,6 +10,7 @@ import {
   roomCodeSchema,
   type RoomError,
   type RoomMode,
+  type CpuLevel,
 } from "@tetraboard/protocol";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -56,6 +57,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     restored?.entry?.timeControl ?? roomTimeControl,
   );
   const [mode, setMode] = useState<RoomMode>(restored?.entry?.mode ?? "singles");
+  const [cpuLevel, setCpuLevel] = useState<CpuLevel>(restored?.entry?.cpuLevel ?? 1);
   const [threePlayerAttackProhibited, setThreePlayerAttackProhibited] = useState(
     restored?.entry?.threePlayerAttackProhibited ?? true,
   );
@@ -103,6 +105,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         createRoomRequests[game]({
           name: entryName,
           quickPlay: intent === "quick",
+          ...(intent === "quick" ? { cpuLevel } : {}),
           mode,
           timeControl,
           threePlayerAttackProhibited,
@@ -164,6 +167,8 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     setRoomCode,
     mode,
     setMode,
+    cpuLevel,
+    setCpuLevel,
     timeControl,
     setTimeControl,
     threePlayerAttackProhibited,
