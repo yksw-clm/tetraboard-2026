@@ -6,20 +6,31 @@ import {
   sides,
   type ApplyActionResult,
   type ExternalEliminationReason,
-  type GameResult,
   type InitialStateOptions,
   type ShogiAction,
   type ShogiState,
   type Side,
 } from "./types";
+import { defeat } from "./results";
+import { recordPosition } from "./repetition";
+import { settleMoveLimit } from "./adjudication";
+import type { RepetitionLookup } from "./types";
 export * from "./types";
+export {
+  setDrawProposal,
+  canProposeImpasse,
+  declarationStatus,
+  declareEnteringKing,
+  impassePoints,
+} from "./adjudication";
+export { positionKey } from "./repetition";
 export { getCheckState } from "./board";
 
 export function createInitialState(options: InitialStateOptions): ShogiState {
   const ids = sides.map((side) => options.players[side]);
   if (ids.some((id) => typeof id !== "string" || !id) || new Set(ids).size !== 2)
     throw new TypeError("Two distinct player IDs are required");
-  return {
+  return recordPosition({
     rulesVersion: 1,
     players: { ...options.players },
     ...createInitialBoard(),
@@ -33,26 +44,7 @@ export function createInitialState(options: InitialStateOptions): ShogiState {
     lastMove: null,
     repetitions: {},
     nonChecks: { south: 0, north: 0 },
-  };
-}
-export function finish(state: ShogiState, result: GameResult): ShogiState {
-  return { ...state, status: "finished", turn: null, result };
-}
-export function defeat(
-  state: ShogiState,
-  side: Side,
-  reason:
-    | ExternalEliminationReason
-    | "checkmate"
-    | "no_legal_actions"
-    | "perpetual_check"
-    | "impasse"
-    | "invalid_declaration",
-): ShogiState {
-  return finish(
-    { ...state, eliminations: [{ side, reason, rank: 2, group: 0 }] },
-    { winner: otherSide(side), reason },
-  );
+  });
 }
 export function getLegalActionsForSide(state: ShogiState, side: Side): ShogiAction[] {
   return getOrdinaryMoves(state, side).map((m) => m.action);
@@ -63,7 +55,12 @@ export function getLegalActions(state: ShogiState): ShogiAction[] {
 export function getActionAvailability(state: ShogiState) {
   return { legalActions: getLegalActions(state) };
 }
-export function applyAction(state: ShogiState, side: Side, action: ShogiAction): ApplyActionResult {
+export function applyAction(
+  state: ShogiState,
+  side: Side,
+  action: ShogiAction,
+  repetitionLookup?: RepetitionLookup,
+): ApplyActionResult {
   if (state.status === "finished") return { ok: false, reason: "game_finished" };
   if (state.turn !== side) return { ok: false, reason: "not_your_turn" };
   if (
@@ -83,6 +80,10 @@ export function applyAction(state: ShogiState, side: Side, action: ShogiAction):
     moveNumber: state.moveNumber + 1,
     lastMove: { side, action, piece: move.move.piece, captured: move.move.captured },
     drawProposals: [],
+    nonChecks: {
+      ...state.nonChecks,
+      [side]: state.nonChecks[side] + (isInCheck(move.move.state, otherSide(side)) ? 0 : 1),
+    },
   };
   const settled = hasOrdinaryMove(next, otherSide(side))
     ? next
@@ -91,11 +92,12 @@ export function applyAction(state: ShogiState, side: Side, action: ShogiAction):
         otherSide(side),
         isInCheck(next, otherSide(side)) ? "checkmate" : "no_legal_actions",
       );
+  const final = settleMoveLimit(recordPosition(settled, repetitionLookup));
   return {
     ok: true,
-    state: settled,
+    state: final,
     captured: move.move.captured,
-    eliminations: settled.eliminations,
+    eliminations: final.eliminations,
   };
 }
 export function eliminateSide(

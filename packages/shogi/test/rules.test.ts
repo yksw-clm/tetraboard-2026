@@ -1,21 +1,8 @@
 import { expect, test } from "bun:test";
-import {
-  applyAction,
-  createInitialState,
-  getLegalActions,
-  type Cell,
-  type ShogiState,
-} from "../src";
+import { applyAction, createInitialState, getLegalActions, type Cell } from "../src";
 import { attacksSquare } from "../src/board";
 const initial = () => createInitialState({ players: { south: "a", north: "b" } });
-export function position(entries: readonly [number, number, NonNullable<Cell>][] = []): ShogiState {
-  const state = initial(),
-    board: Cell[][] = Array.from({ length: 9 }, () => Array<Cell>(9).fill(null));
-  board[8][4] = { id: 1, side: "south", kind: "king", promoted: false };
-  board[0][4] = { id: 2, side: "north", kind: "king", promoted: false };
-  for (const [x, y, p] of entries) board[y][x] = p;
-  return { ...state, board, nextPieceId: 100 };
-}
+import { position } from "./fixtures";
 test("初期配置は40枚、先手の角B8と飛H8、後手は180度回転、合法手30手", () => {
   const s = initial();
   expect(s.board.flat().filter(Boolean)).toHaveLength(40);
