@@ -495,7 +495,7 @@ export function FourShogiBoardLayout({
                   aria-hidden="true"
                   data-testid="shogi-square-highlight"
                   style={squareHighlightStyle(index)}
-                  className={`absolute pointer-events-none ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#54361870]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-2 ring-inset ring-[#9c6f14]" : ""}`}
+                  className={`absolute pointer-events-none ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#54361870]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-[3px] ring-inset ring-[#ffad32]" : ""}`}
                 />
                 {piece && (
                   <span
