@@ -202,7 +202,7 @@ export function LobbyView(props: Props) {
               <Fragment key={mobile ? "mobile-board-preview" : "desktop-board-preview"}>
                 {props.boardPreview}
               </Fragment>
-              {props.game !== "four-shogi" && (
+              {props.boardPreview == null && (
                 <div
                   aria-hidden="true"
                   data-testid="lobby-board-preview"
