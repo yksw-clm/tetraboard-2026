@@ -118,6 +118,8 @@ export function PlayerCardView({
       data-testid="player-card"
       className={cn(
         "[container-type:inline-size] grid grid-cols-[32px_minmax(0,1fr)] grid-rows-[20px_22px] content-center gap-x-2 gap-y-[2px] py-[6px] px-2 w-[var(--seat-width)] h-[var(--player-height)] justify-self-center rounded-[17px] overflow-visible shadow-[0_2px_5px_#203b2210] [@media(max-width:767px)]:py-px [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:gap-x-1 [@media(max-width:767px)]:grid-cols-[26px_minmax(0,1fr)]",
+        game === "shogi" &&
+          "grid-cols-[40px_minmax(0,1fr)] grid-rows-[22px_24px] [@media(max-width:767px)]:grid-cols-[32px_minmax(0,1fr)]",
         seatClasses[position],
         !player && "bg-[#e9ede9] text-muted shadow-none",
         self &&
@@ -132,7 +134,11 @@ export function PlayerCardView({
     >
       <Badge.Anchor
         data-testid="player-avatar-slot"
-        className="col-start-1 row-span-2 self-center size-8 min-w-8 min-h-8 [@media(max-width:767px)]:size-[26px] [@media(max-width:767px)]:min-w-[26px] [@media(max-width:767px)]:min-h-[26px]"
+        className={cn(
+          "col-start-1 row-span-2 self-center size-8 min-w-8 min-h-8 [@media(max-width:767px)]:size-[26px] [@media(max-width:767px)]:min-w-[26px] [@media(max-width:767px)]:min-h-[26px]",
+          game === "shogi" &&
+            "size-10 min-w-10 min-h-10 [@media(max-width:767px)]:size-8 [@media(max-width:767px)]:min-w-8 [@media(max-width:767px)]:min-h-8",
+        )}
       >
         {player ? (
           <PlayerProfileTrigger {...preview} label={name} className="block size-full">
@@ -159,7 +165,10 @@ export function PlayerCardView({
         ref={nameBox}
       >
         <span
-          className="inline-flex w-max items-center font-bold text-sm leading-[1.3] align-middle"
+          className={cn(
+            "inline-flex w-max items-center font-bold text-sm leading-[1.3] align-middle",
+            game === "shogi" && "text-base [@media(max-width:767px)]:text-sm",
+          )}
           ref={nameContent}
         >
           {player ? (
