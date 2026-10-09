@@ -83,7 +83,9 @@ export async function fetchRoomMembership(
     if (!body.success || body.data.error !== "unauthorized") {
       throw new Response("本人確認の応答が不正です。", { status: 503 });
     }
-    clearRoomMembershipToken(roomId);
+    // 中止した旧取得や、その後保存された別の資格を失効させません。
+    signal?.throwIfAborted();
+    if (readRoomMembershipToken(roomId) === token) clearRoomMembershipToken(roomId);
     return null;
   }
 

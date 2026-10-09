@@ -638,26 +638,32 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
   });
 }
 
-test("将棋: 同じ資格の複数接続は最後の切断まで復帰期限を付けない", async () => {
-  const prepared = await start("four-shogi");
-  const second = await connect(prepared.members[0]);
-  prepared.clients[0].close();
-  const connected = await snapshot(prepared.room.id);
-  expect(connected.presence.connectedPlayerIds).toContain(prepared.members[0].membership.playerId);
-  expect(
-    connected.room.players.find((p) => p.id === prepared.members[0].membership.playerId)
-      ?.reconnectDeadline,
-  ).toBeNull();
-  second.close();
-  const message = await prepared.clients[1].waitFor(
-    "room.snapshot",
-    (event) => !event.presence.connectedPlayerIds.includes(prepared.members[0].membership.playerId),
-  );
-  expect(
-    message.room.players.find((p) => p.id === prepared.members[0].membership.playerId)
-      ?.reconnectDeadline,
-  ).toBeTypeOf("number");
-});
+test.each(["four-reversi", "four-shogi"] as const)(
+  "%s: 同じ資格の複数接続は最後の切断まで復帰期限を付けない",
+  async (game) => {
+    const prepared = await start(game);
+    const second = await connect(prepared.members[0]);
+    prepared.clients[0].close();
+    const connected = await snapshot(prepared.room.id);
+    expect(connected.presence.connectedPlayerIds).toContain(
+      prepared.members[0].membership.playerId,
+    );
+    expect(
+      connected.room.players.find((p) => p.id === prepared.members[0].membership.playerId)
+        ?.reconnectDeadline,
+    ).toBeNull();
+    second.close();
+    const message = await prepared.clients[1].waitFor(
+      "room.snapshot",
+      (event) =>
+        !event.presence.connectedPlayerIds.includes(prepared.members[0].membership.playerId),
+    );
+    expect(
+      message.room.players.find((p) => p.id === prepared.members[0].membership.playerId)
+        ?.reconnectDeadline,
+    ).toBeTypeOf("number");
+  },
+);
 
 test("将棋: 活動停止は期限処理・CPUより先に閉鎖する", async () => {
   const prepared = await start("four-shogi", true);

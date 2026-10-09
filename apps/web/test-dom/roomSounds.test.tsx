@@ -287,7 +287,7 @@ test("観戦からの参加成功もjoinを要求し、招待の自動表示だ�
   expect(join).toHaveBeenCalledWith(room.instanceId, membership.playerId);
 });
 
-test("復帰GETより先に送った本人の手を二重に鳴らさず、遅いGETで新しい通知を巻き戻さない", async () => {
+test("復帰の同期・再認証後の本人着手を二重に鳴らさず、遅いGETで巻き戻さない", async () => {
   const room = playingRoom();
   if (room.status !== "playing") throw new Error("fixture");
   const descriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
@@ -301,12 +301,19 @@ test("復帰GETより先に送った本人の手を二重に鳴らさず、遅�
     visibility("hidden");
     visibility("visible");
     const position = getLegalMoves(room.game)[0]!;
+    const sentBefore = socket.sent.length;
     act(() => h.current.handlePlaceStone(position));
-    expect(play.mock.calls.map(([s]) => s)).toEqual([["put"]]);
+    expect(socket.sent).toHaveLength(sentBefore);
+    expect(play).not.toHaveBeenCalled();
     requests
       .at(-1)!
       .respond({ room, presence: options(room, true).initialPresence, serverNowMs: now + 100 });
     await flush();
+    requests.at(-1)!.respond(membership);
+    await flush();
+    socket.receive({ type: "room.authenticated", membership });
+    act(() => h.current.handlePlaceStone(position));
+    expect(play.mock.calls.map(([s]) => s)).toEqual([["put"]]);
     const result = placeStone(room.game, { type: "placeStone", position });
     if (!result.ok || result.state.status !== "playing") throw new Error("fixture");
     const moved = fourReversiRoomSchema.parse({ ...room, game: result.state });
@@ -327,6 +334,9 @@ test("復帰GETより先に送った本人の手を二重に鳴らさず、遅�
       serverNowMs: now + 200,
     });
     await flush();
+    requests.at(-1)!.respond(membership);
+    await flush();
+    socket.receive({ type: "room.authenticated", membership });
     socket.snapshot(newer, now + 201);
     expect(play).toHaveBeenCalledTimes(1);
     const next = placeStone(other.state, {

@@ -1,5 +1,6 @@
 import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
-import type { FourShogiRoom } from "@tetraboard/protocol";
+import { commonSettingsComplete } from "./roomSettingsCompletion";
+import type { FourShogiRoom, RoomSocketClientMessage } from "@tetraboard/protocol";
 import { assertNever } from "@tetraboard/protocol";
 import type { SoundGameState } from "./roomSoundEvents";
 
@@ -64,4 +65,16 @@ export function shogiSoundGame(room: FourShogiRoom): SoundGameState {
     moveNumber: game?.moveNumber ?? 0,
     lastMove: game?.lastMove ? shogiSoundMove(game.lastMove.action, game.lastMove.side) : null,
   };
+}
+
+export function shogiSettingsComplete(
+  room: FourShogiRoom,
+  command: RoomSocketClientMessage,
+  playerIds: ReadonlySet<string>,
+): boolean {
+  if (room.status !== "waiting") return true;
+  if (command.type === "room.three-player-attack.set") {
+    return room.settings.threePlayerAttackProhibited === command.prohibited;
+  }
+  return commonSettingsComplete(room, command, playerIds);
 }

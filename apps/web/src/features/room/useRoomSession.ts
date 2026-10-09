@@ -1,5 +1,6 @@
 import { getLegalMoves, type Position } from "@tetraboard/four-reversi";
 import { isFourReversiRoom, type FourReversiRoom } from "@tetraboard/protocol";
+import { commonSettingsComplete } from "./roomSettingsCompletion";
 import { displayGameForRoom } from "./roomPresentation";
 import { useRoomTransport, type RoomTransportOptions } from "./useRoomTransport";
 import {
@@ -12,13 +13,14 @@ import {
 export function useRoomSession(
   options: Omit<
     RoomTransportOptions<FourReversiRoom>,
-    "isRoom" | "actionComplete" | "gameOperationError" | "readSoundGame"
+    "isRoom" | "actionComplete" | "settingsComplete" | "gameOperationError" | "readSoundGame"
   >,
 ) {
   const session = useRoomTransport({
     ...options,
     isRoom: isFourReversiRoom,
     actionComplete: reversiActionComplete,
+    settingsComplete: commonSettingsComplete,
     gameOperationError: reversiOperationError,
     readSoundGame: reversiSoundGame,
   });
