@@ -1,7 +1,8 @@
 import type { Board, FourShogiAction, HandPieceKind, Hands, Position, Side } from "./shogiUiTypes";
 
 export function shogiPieceLiftClasses(selected: boolean): string {
-  return `transition-[transform,filter] duration-150 motion-reduce:transition-none ${selected ? "-translate-y-[2px] drop-shadow-[0_4px_3px_#54361870]" : "group-hover/shogi-piece:-translate-y-[2px] group-hover/shogi-piece:drop-shadow-[0_4px_3px_#54361870]"}`;
+  // 着手時に画像のfilter・transformを切り替えず、浮き上がりは位置だけで表現します。
+  return `relative ${selected ? "-top-[2px]" : "group-hover/shogi-piece:-top-[2px]"}`;
 }
 
 export const shogiSides = ["south", "west", "north", "east"] as const;
