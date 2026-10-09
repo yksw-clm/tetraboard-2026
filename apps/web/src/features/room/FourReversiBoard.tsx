@@ -2,7 +2,7 @@ import { boardPositionForDisplay, type QuarterTurn } from "./boardRotation";
 import { Stone } from "./Stone";
 import { Button } from "@heroui/react";
 import type { FourReversiState, Position } from "@tetraboard/four-reversi";
-import { colorNames } from "./roomPresentation";
+import { colorNames } from "./stonePresentation";
 
 export function FourReversiBoard({
   game,
@@ -10,9 +10,11 @@ export function FourReversiBoard({
   canPlay,
   onPlaceStone,
   rotation = 0,
+  label = "四人リバーシの盤面",
 }: {
   rotation?: QuarterTurn;
-  game: FourReversiState;
+  game: Pick<FourReversiState, "board" | "lastMove">;
+  label?: string;
   legalMoves: Position[];
   canPlay: boolean;
   onPlaceStone: (position: Position) => void;
@@ -21,7 +23,7 @@ export function FourReversiBoard({
     <div
       className="[grid-area:board] w-[var(--board-size)] aspect-square place-self-center grid grid-cols-8 grid-rows-8 bg-[#238657] border-2 border-solid border-[#175c3d] rounded-[3px] shadow-[0_10px_25px_#19402a20] overflow-hidden"
       role="group"
-      aria-label="四人リバーシの盤面"
+      aria-label={label}
     >
       {Array.from({ length: 8 }, (_, displayY) =>
         Array.from({ length: 8 }, (_, displayX) => {

@@ -232,6 +232,110 @@ export const fourReversiRoomSchema = z
     }
   });
 
+export const reversiColorSchema = z.enum(["black", "white"]);
+export const reversiSettingsSchema = z.strictObject({
+  game: z.literal("reversi"),
+  mode: z.never().optional(),
+  timeControl: roomTimeControlSchema,
+});
+export const reversiResultSchema = z.strictObject({
+  reason: z.enum(["board_full", "all_passed", "last_player"]),
+  winner: reversiColorSchema.nullable(),
+  stoneCounts: z.strictObject({ black: z.int().min(0).max(64), white: z.int().min(0).max(64) }),
+});
+const reversiStateBase = gameStateBaseSchema.omit({ mode: true }).extend({
+  board: z.array(z.array(reversiColorSchema.nullable()).length(8)).length(8),
+  eliminatedColors: z.array(reversiColorSchema).max(1),
+  consecutivePasses: z.array(reversiColorSchema).max(2),
+});
+const reversiPlayingStateSchema = reversiStateBase.extend({
+  status: z.literal("playing"),
+  turn: reversiColorSchema,
+  result: z.null(),
+});
+export const reversiFinishedStateSchema = reversiStateBase.extend({
+  status: z.literal("finished"),
+  turn: z.null(),
+  result: reversiResultSchema,
+});
+export const reversiStateSchema = z.discriminatedUnion("status", [
+  reversiPlayingStateSchema,
+  reversiFinishedStateSchema,
+]);
+export const reversiEliminationSchema = eliminationSchema.extend({ color: reversiColorSchema });
+export const reversiReplaySchema = z.strictObject({
+  id: z.uuid(),
+  initial: reversiPlayingStateSchema,
+  steps: z.array(
+    z.strictObject({
+      action: z.discriminatedUnion("type", [
+        replayActionSchema.options[0].extend({ color: reversiColorSchema }),
+        reversiEliminationSchema.extend({ type: z.literal("eliminate") }),
+      ]),
+      game: reversiStateSchema,
+      passedColors: z.array(reversiColorSchema).max(2),
+    }),
+  ),
+});
+const reversiLastRoundSchema = z.strictObject({
+  game: reversiFinishedStateSchema,
+  players: z
+    .array(lastRoundSchema.shape.players.element.extend({ color: reversiColorSchema }))
+    .length(2),
+  replay: reversiReplaySchema,
+});
+const reversiRemaining = z.strictObject({
+  black: z.int().nonnegative(),
+  white: z.int().nonnegative(),
+});
+export const reversiClockSchema = playingClockSchema.extend({ remainingMainMs: reversiRemaining });
+const reversiWaitingSchema = waitingRoomSchema.extend({
+  settings: reversiSettingsSchema,
+  players: z
+    .array(
+      z.union([
+        cpuPlayerSchema.extend({ color: z.null() }),
+        humanPlayerSchema.extend({ color: z.null() }),
+      ]),
+    )
+    .max(2),
+  eliminations: z.array(reversiEliminationSchema).length(0),
+  lastRound: reversiLastRoundSchema.nullable(),
+});
+const reversiPlayingRoomSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    instanceId: z.uuid(),
+    status: z.literal("playing"),
+    settings: reversiSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
+    players: z
+      .array(
+        z.union([
+          cpuPlayerSchema.extend({ color: reversiColorSchema }),
+          humanPlayerSchema.extend({ color: reversiColorSchema }),
+        ]),
+      )
+      .length(2),
+    eliminations: z.array(reversiEliminationSchema).max(1),
+    game: reversiPlayingStateSchema,
+    clock: reversiClockSchema,
+    lastRound: z.null(),
+  })
+  .refine((room) => new Set(room.players.map((p) => p.color)).size === 2);
+export const reversiRoomSchema = z.discriminatedUnion("status", [
+  reversiWaitingSchema,
+  reversiPlayingRoomSchema,
+]);
+export type ReversiRoom = z.infer<typeof reversiRoomSchema>;
+export type ReversiLastRound = z.infer<typeof reversiLastRoundSchema>;
+export type ReversiReplay = z.infer<typeof reversiReplaySchema>;
+export type ReversiClock = z.infer<typeof reversiClockSchema>;
+export function isReversiRoom(room: Room): room is ReversiRoom {
+  return room.settings.game === "reversi";
+}
+
 export const roomGameSchema = gameIdSchema;
 export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend({
   game: z.literal("four-shogi"),
@@ -240,6 +344,7 @@ export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend(
 export const roomSettingsSchema = z.discriminatedUnion("game", [
   fourReversiRoomSettingsSchema,
   fourShogiRoomSettingsSchema,
+  reversiSettingsSchema,
 ]);
 const shogiRemaining = z.strictObject({
   south: z.int().nonnegative(),
@@ -333,7 +438,7 @@ export const fourShogiRoomSchema = z.discriminatedUnion("status", [
   shogiWaitingSchema,
   shogiPlayingSchema,
 ]);
-export const roomSchema = z.union([fourReversiRoomSchema, fourShogiRoomSchema]);
+export const roomSchema = z.union([fourReversiRoomSchema, fourShogiRoomSchema, reversiRoomSchema]);
 export type FourReversiRoom = z.infer<typeof fourReversiRoomSchema>;
 export type FourShogiRoom = z.infer<typeof fourShogiRoomSchema>;
 export type FourShogiLastRound = z.infer<typeof fourShogiLastRoundSchema>;
@@ -349,7 +454,7 @@ export const roomPublicMetadataSchema = z
   .strictObject({
     id: roomCodeSchema,
     game: roomGameSchema,
-    mode: roomModeSchema,
+    mode: roomModeSchema.optional(),
     timeControl: fourReversiRoomSettingsSchema.shape.timeControl,
     status: z.enum(["waiting", "playing"]),
     hostName: nicknameSchema.nullable(),
@@ -360,12 +465,14 @@ export const roomPublicMetadataSchema = z
       .default(null),
     humanCount: z.int().min(0).max(4),
     cpuCount: z.int().min(0).max(4),
-    capacity: z.literal(4),
+    capacity: z.union([z.literal(2), z.literal(4)]),
     openSeats: z.int().min(0).max(4),
     updatedAtMs: serverNowMsSchema,
   })
   .refine(
     (metadata) =>
+      metadata.capacity === (metadata.game === "reversi" ? 2 : 4) &&
+      (metadata.game === "reversi" ? metadata.mode === undefined : metadata.mode !== undefined) &&
       metadata.humanCount + metadata.cpuCount <= metadata.capacity &&
       metadata.openSeats ===
         (metadata.status === "waiting"
@@ -444,13 +551,17 @@ const roomErrorSchema = z.strictObject({
 export const createRoomContract = {
   method: "POST",
   path: "/rooms",
-  request: playerNameRequestSchema.extend({
-    quickPlay: z.boolean(),
-    mode: roomModeSchema,
-    game: roomGameSchema.optional(),
-    threePlayerAttackProhibited: z.boolean().optional(),
-    timeControl: roomTimeControlSchema.optional(),
-  }),
+  request: playerNameRequestSchema
+    .extend({
+      quickPlay: z.boolean(),
+      mode: roomModeSchema.optional(),
+      game: roomGameSchema.optional(),
+      threePlayerAttackProhibited: z.boolean().optional(),
+      timeControl: roomTimeControlSchema.optional(),
+    })
+    .refine((value) =>
+      value.game === "reversi" ? value.mode === undefined : value.mode !== undefined,
+    ),
   response: roomEntryResponseSchema,
   error: roomErrorSchema,
 } as const;

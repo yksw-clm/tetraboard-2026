@@ -1,3 +1,4 @@
+import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { type MatchSummary, type MatchHistoryParticipant } from "@tetraboard/protocol";
@@ -14,8 +15,8 @@ function Participant({ player, match }: { player: MatchHistoryParticipant; match
       target={{ source: "match", matchId: match.id, playerId: player.id }}
       localProfile={player.kind === "cpu" ? { kind: "cpu", level: player.level } : undefined}
       game={match.game}
-      mode={match.mode}
-      theme={match.game === "four-shogi" ? "four-shogi" : "default"}
+      mode={match.mode ?? "singles"}
+      theme={gameThemes[match.game]}
       label={player.name}
       className="flex min-w-0 items-center gap-1.5"
     >
@@ -56,7 +57,9 @@ export function MatchHistoryCard({
   const location = useLocation();
   const loading = navigation.state === "loading" && navigation.location?.pathname === to;
   const result = match.result;
-  const gameLabel = `${gameCatalog[match.game].name}・${match.mode === "singles" ? "シングルス" : "ダブルス"}`;
+  const gameLabel =
+    gameCatalog[match.game].name +
+    (match.game === "reversi" ? "" : `・${match.mode === "singles" ? "シングルス" : "ダブルス"}`);
   const groups = matchResultGroups(match);
   const absoluteDate = formatMatchDate(match.startedAtMs);
   return (
@@ -70,7 +73,7 @@ export function MatchHistoryCard({
         </time>
         <span>{gameLabel}</span>
       </div>
-      {result.mode === "singles" ? (
+      {!("mode" in result) || result.mode === "singles" ? (
         <ol className="m-0 grid list-none grid-cols-2 gap-x-3 gap-y-2 p-0">
           {groups.map((group) => {
             const player = group.players[0]!;

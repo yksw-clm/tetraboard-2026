@@ -2,6 +2,7 @@ import {
   getMatchContract,
   getPublicMatchContract,
   isFourShogiMatch,
+  isReversiMatch,
   isFourReversiMatch,
   assertNever,
   type GameId,
@@ -18,6 +19,10 @@ export type MatchReplayDataFor<G extends GameId> = {
 } & (G extends "four-shogi" ? { frames: FourShogiReplayFrame[] } : { frames?: never });
 export type MatchReplayData = { [G in GameId]: MatchReplayDataFor<G> }[GameId];
 export const replayLoaders = {
+  reversi: async (
+    match: ReplayMatchFor<"reversi">,
+    _signal: AbortSignal,
+  ): Promise<MatchReplayDataFor<"reversi">> => ({ game: "reversi", match }),
   "four-reversi": async (
     match: ReplayMatchFor<"four-reversi">,
     _signal: AbortSignal,
@@ -54,6 +59,7 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
   if (!response.ok) throw new Response(null, { status: response.status });
   try {
     const match = parseMatch(await response.json(), publicView);
+    if (isReversiMatch(match)) return await replayLoaders.reversi(match, request.signal);
     if (isFourReversiMatch(match))
       return await replayLoaders["four-reversi"](match, request.signal);
     if (isFourShogiMatch(match)) return await replayLoaders["four-shogi"](match, request.signal);

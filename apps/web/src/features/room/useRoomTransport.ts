@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { roomSnapshotFor } from "./roomSnapshot";
 import type { GameSettingsCommandFor, PendingActionFor } from "./gameSessionTypes";
@@ -683,7 +684,7 @@ export function useRoomTransport<T extends Room>({
     if (
       room.status !== "waiting" ||
       membership?.role !== "host" ||
-      room.players.length !== 4 ||
+      room.players.length !== gameCapacity(room.settings.game) ||
       room.players.some(
         (player) => !player.ready || !presence.connectedPlayerIds.includes(player.id),
       )

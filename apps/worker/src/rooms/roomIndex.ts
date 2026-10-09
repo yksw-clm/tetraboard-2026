@@ -56,7 +56,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .bind(
       room.id,
       room.game,
-      room.mode,
+      room.mode ?? "standard",
       room.timeControl.mainTimeMs,
       room.timeControl.byoyomiMs,
       room.status,
@@ -92,7 +92,7 @@ function parseRow(row: IndexRow, preview: boolean) {
     ...roomPublicMetadataSchema.parse({
       id: row.room_id,
       game: row.game,
-      mode: row.mode,
+      mode: row.game === "reversi" ? undefined : row.mode,
       timeControl: { mainTimeMs: row.main_time_ms, byoyomiMs: row.byoyomi_ms },
       status: row.status,
       hostName: row.host_name,

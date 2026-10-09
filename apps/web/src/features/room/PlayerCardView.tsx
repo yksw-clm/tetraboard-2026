@@ -1,3 +1,5 @@
+import { gameThemes } from "../../shared/ui/appTheme";
+import type { GameId } from "@tetraboard/protocol/games";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { Badge, Chip, cn } from "@heroui/react";
 import type {
@@ -43,6 +45,7 @@ export function PlayerCardView({
   shogi = false,
   profileTarget,
   profileMode = "singles",
+  game = shogi ? "four-shogi" : "four-reversi",
 }: {
   player: Room["players"][number] | MatchHistoryParticipant | null;
   self: boolean;
@@ -56,14 +59,15 @@ export function PlayerCardView({
   shogi?: boolean;
   profileTarget?: PlayerProfileTarget;
   profileMode?: RoomMode;
+  game?: GameId;
 }) {
   const preview = {
     target: profileTarget,
     localProfile:
       player?.kind === "cpu" ? { kind: "cpu" as const, level: player.level } : undefined,
-    game: shogi ? ("four-shogi" as const) : ("four-reversi" as const),
+    game,
     mode: profileMode,
-    theme: shogi ? ("four-shogi" as const) : ("default" as const),
+    theme: gameThemes[game],
   };
   const name = player ? playerName(player) : "空席";
   const nameBox = useRef<HTMLDivElement>(null);

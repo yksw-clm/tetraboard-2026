@@ -3,6 +3,18 @@ import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 export const publicOrigin = "https://tetraboard.net";
 
 export const lobbyMetadata = {
+  reversi: {
+    title: "TetraBoard | リバーシをブラウザでオンライン対戦",
+    description:
+      "リバーシを登録・インストール不要のブラウザでオンライン対戦。CPUとの一人プレイや友人との2人対局、棋譜の閲覧を楽しめます。",
+    overview:
+      "リバーシは8×8の盤で黒と白の2人が競うボードゲームです。TetraBoardではCPUと一人で遊ぶことも、友人とオンラインで対局することもできます。",
+    rules: [
+      "黒から交互に石を置き、縦・横・斜めに相手の石を挟んで返します。色は対局ごとにランダムで決まります。",
+      "合法手がなければ自動でパスします。相手の石を0枚にする手も置けます。",
+      "盤が埋まるか双方が置けなくなると終局し、石数が多い側の勝ち、同数は引き分けです。投了・退室・時間切れ・通信切れの復帰期限切れは敗北です。",
+    ],
+  },
   "four-reversi": {
     title: "TetraBoard | 四人リバーシをブラウザでオンライン対戦",
     description:

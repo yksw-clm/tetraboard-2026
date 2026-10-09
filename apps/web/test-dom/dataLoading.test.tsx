@@ -104,7 +104,9 @@ test("戦績はloading・schema失敗・再試行を区別し、更新失敗時�
   });
   requests[3]!.respond({ ...stats, singles: { ...stats.singles, total: 13, first: 5 } });
   await flush();
-  expect(h.current.stats?.singles.total).toBe(13);
+  expect(
+    (h.current.stats && "singles" in h.current.stats ? h.current.stats.singles : null)?.total,
+  ).toBe(13);
 });
 test("各ゲームの戦績を独立して取得し、遅い旧更新とunmount後の応答を破棄", async () => {
   const h = renderHook(useAccountStats, "four-reversi" as "four-reversi" | "four-shogi");
@@ -130,7 +132,9 @@ test("各ゲームの戦績を独立して取得し、遅い旧更新とunmount�
   requests[3]!.respond(stats);
   requests[2]!.respond({ ...stats, singles: { ...stats.singles, total: 999 } });
   await flush();
-  expect(h.current.stats?.singles.total).toBe(12);
+  expect(
+    (h.current.stats && "singles" in h.current.stats ? h.current.stats.singles : null)?.total,
+  ).toBe(12);
   act(() => {
     void h.current.refresh();
   });

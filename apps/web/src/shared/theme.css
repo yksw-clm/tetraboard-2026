@@ -147,3 +147,15 @@ body:has(.app-modal) #root {
     transition: none !important;
   }
 }
+
+.game-theme-reversi {
+  --color-primary: #369766;
+  --color-primary-hover: #2b8558;
+  --color-brand: #2b8558;
+  --color-brand-hover: #237249;
+  --lobby-background: #f6faf7;
+  --lobby-glow: #e7f5ec80;
+  --lobby-grid: #e2ece638;
+  --lobby-quick-middle: #fafffb;
+  --lobby-quick-end: #edf8f0;
+}

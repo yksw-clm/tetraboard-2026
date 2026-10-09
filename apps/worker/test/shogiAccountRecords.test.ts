@@ -31,7 +31,7 @@ async function stats(cookie: string, game = "four-shogi") {
   const response = await matchRequest(`/account/stats?game=${game}`, authenticated(cookie));
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
-  return getAccountStatsContract.response.parse(await response.json());
+  return parseLegacyStats(await response.json());
 }
 async function history(cookie: string, game = "four-shogi", mode = "singles", cursor?: string) {
   const query = new URLSearchParams({ game, mode });
@@ -312,3 +312,9 @@ test("将棋公開契約は結果モード・順位・参加者の欠落や重�
     ).status,
   ).toBe(503);
 });
+
+function parseLegacyStats(value: unknown) {
+  const stats = getAccountStatsContract.response.parse(value);
+  if (!("singles" in stats)) throw Error("Expected four-player stats");
+  return stats;
+}

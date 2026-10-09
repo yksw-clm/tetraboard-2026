@@ -14,7 +14,7 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
   const formations = useFormationStats(showFormations);
   return (
     <>
-      {mode === "singles" && stats && (
+      {game !== "reversi" && mode === "singles" && stats && (
         <div className="mt-2 border-0 border-t border-solid border-line pt-5">
           <AccountBadges game={game} stats={stats} />
         </div>
@@ -50,41 +50,54 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
               戦績を読み込んでいます…
             </p>
           )}
-          {stats && (
+          {stats && "wins" in stats ? (
             <dl className="m-0 grid grid-cols-2 gap-x-5 gap-y-3">
-              <Metric className="col-span-2" label="対局数" value={stats[mode].total} />
-              {mode === "singles" && game === "four-shogi" && "knockouts" in stats.singles && (
-                <>
-                  <Metric
-                    className="col-span-2"
-                    label="完全優勝数"
-                    value={stats.singles.perfectWins}
-                  />
-                  <Metric label="撃破数" value={stats.singles.knockouts} />
-                  <Metric
-                    label="撃破率"
-                    value={formatStatsRate(stats.singles.knockouts, stats.singles.total)}
-                  />
-                </>
-              )}
-              {(mode === "singles"
-                ? [
-                    { label: "優勝", count: stats.singles.first },
-                    { label: "2位", count: stats.singles.second },
-                    { label: "3位", count: stats.singles.third },
-                    { label: "4位", count: stats.singles.fourth },
-                  ]
-                : [
-                    { label: "勝", count: stats.doubles.wins },
-                    { label: "敗", count: stats.doubles.losses },
-                  ]
-              ).map(({ label, count }) => (
-                <Fragment key={label}>
-                  <Metric label={`${label}数`} value={count} />
-                  <Metric label={`${label}率`} value={formatStatsRate(count, stats[mode].total)} />
-                </Fragment>
-              ))}
+              <Metric className="col-span-2" label="対局数" value={stats.total} />
+              <Metric label="勝数" value={stats.wins} />
+              <Metric label="勝率" value={formatStatsRate(stats.wins, stats.total)} />
+              <Metric label="敗数" value={stats.losses} />
+              <Metric label="敗率" value={formatStatsRate(stats.losses, stats.total)} />
             </dl>
+          ) : (
+            stats && (
+              <dl className="m-0 grid grid-cols-2 gap-x-5 gap-y-3">
+                <Metric className="col-span-2" label="対局数" value={stats[mode].total} />
+                {mode === "singles" && game === "four-shogi" && "knockouts" in stats.singles && (
+                  <>
+                    <Metric
+                      className="col-span-2"
+                      label="完全優勝数"
+                      value={stats.singles.perfectWins}
+                    />
+                    <Metric label="撃破数" value={stats.singles.knockouts} />
+                    <Metric
+                      label="撃破率"
+                      value={formatStatsRate(stats.singles.knockouts, stats.singles.total)}
+                    />
+                  </>
+                )}
+                {(mode === "singles"
+                  ? [
+                      { label: "優勝", count: stats.singles.first },
+                      { label: "2位", count: stats.singles.second },
+                      { label: "3位", count: stats.singles.third },
+                      { label: "4位", count: stats.singles.fourth },
+                    ]
+                  : [
+                      { label: "勝", count: stats.doubles.wins },
+                      { label: "敗", count: stats.doubles.losses },
+                    ]
+                ).map(({ label, count }) => (
+                  <Fragment key={label}>
+                    <Metric label={`${label}数`} value={count} />
+                    <Metric
+                      label={`${label}率`}
+                      value={formatStatsRate(count, stats[mode].total)}
+                    />
+                  </Fragment>
+                ))}
+              </dl>
+            )
           )}
           {stats && showFormations && (
             <p className="m-0 text-xs text-muted">撃破率は1局あたりの平均撃破人数です。</p>

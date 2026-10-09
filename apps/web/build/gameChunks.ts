@@ -33,7 +33,7 @@ export function gameChunks(): Plugin {
       for (const chunk of chunks) {
         for (const [id, info] of Object.entries(chunk.modules)) {
           if (
-            /\/packages\/four-(reversi|shogi)\/src\/cpu[^/]*\.ts$/.test(id) &&
+            /\/packages\/(four-reversi|four-shogi|reversi)\/src\/cpu[^/]*\.ts$/.test(id) &&
             hasImplementation(info.code)
           ) {
             this.error(`CPU implementation emitted in ${chunk.fileName}: ${id}`);
@@ -41,6 +41,8 @@ export function gameChunks(): Plugin {
         }
       }
       const entries = [
+        "ReversiRoomDetail",
+        "ReversiMatchReplayView",
         "FourReversiRoomDetail",
         "FourShogiRoomDetail",
         "FourReversiMatchReplayView",
@@ -57,13 +59,18 @@ export function gameChunks(): Plugin {
         );
         if (!chunk?.isDynamicEntry || initialModules.some((id) => id.endsWith(suffix)))
           this.error(`${entry} must be a lazy entry`);
-        const other = entry.includes("Reversi") ? "four-shogi" : "four-reversi";
-        if (modulesFor(chunk.fileName).some((id) => id.includes(`/packages/${other}/src/`)))
-          this.error(
-            `${entry} statically loads ${other}: ${modulesFor(chunk.fileName)
-              .filter((id) => id.includes(`/packages/${other}/src/`))
-              .join(", ")}`,
-          );
+        const own = entry.startsWith("Reversi")
+          ? "reversi"
+          : entry.includes("Reversi")
+            ? "four-reversi"
+            : "four-shogi";
+        for (const other of ["reversi", "four-reversi", "four-shogi"]) {
+          if (
+            other !== own &&
+            modulesFor(chunk.fileName).some((id) => id.includes(`/packages/${other}/src/`))
+          )
+            this.error(`${entry} statically loads ${other}`);
+        }
       }
       const report = chunks.map((chunk) => ({
         file: chunk.fileName,

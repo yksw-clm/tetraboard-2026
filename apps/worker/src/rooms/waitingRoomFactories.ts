@@ -1,3 +1,4 @@
+import { gameCapacity, defaultGameId } from "@tetraboard/protocol/games";
 import {
   roomTimeControl,
   type CreateRoomRequest,
@@ -15,7 +16,10 @@ function base({ code, request }: CreationContext) {
     instanceId: crypto.randomUUID(),
     publicUpdatedAtMs: Date.now(),
     lastActivityAtMs: Date.now(),
-    settings: { mode: request.mode, timeControl: request.timeControl ?? roomTimeControl },
+    settings: {
+      mode: request.mode ?? "singles",
+      timeControl: request.timeControl ?? roomTimeControl,
+    },
   };
 }
 function players({ name, request }: CreationContext) {
@@ -28,18 +32,32 @@ function players({ name, request }: CreationContext) {
     reconnectDeadline: null,
   };
   const cpus = request.quickPlay
-    ? [1, 2, 3].map((index) => ({
-        id: crypto.randomUUID(),
-        name: `CPU ${index}`,
-        kind: "cpu" as const,
-        level: 1 as const,
-        ready: true as const,
-        reconnectDeadline: null,
-      }))
+    ? Array.from({ length: gameCapacity(request.game ?? defaultGameId) - 1 }, (_, i) => i + 1).map(
+        (index) => ({
+          id: crypto.randomUUID(),
+          name: `CPU ${index}`,
+          kind: "cpu" as const,
+          level: 1 as const,
+          ready: true as const,
+          reconnectDeadline: null,
+        }),
+      )
     : [];
   return [host, ...cpus];
 }
 export const waitingRoomFactories = {
+  reversi: (
+    context: CreationContext,
+  ): WaitingRoomFactories["reversi"] extends (...args: never[]) => infer R ? R : never => ({
+    ...base(context),
+    status: "waiting",
+    settings: { game: "reversi", timeControl: context.request.timeControl ?? roomTimeControl },
+    players: players(context).map((p) => ({ ...p, color: null })),
+    eliminations: [],
+    game: null,
+    clock: null,
+    lastRound: null,
+  }),
   "four-reversi": (
     context: CreationContext,
   ): Extract<RoomFor<"four-reversi">, { status: "waiting" }> => {

@@ -1,3 +1,4 @@
+import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { useState, type ReactNode } from "react";
 import { type PreviewRankings, type RoomMode, type MatchGame } from "@tetraboard/protocol";
@@ -13,11 +14,14 @@ function ModeTabs({
   mode,
   onChange,
   children,
+  withoutModes = false,
 }: {
+  withoutModes?: boolean;
   mode: RoomMode;
   onChange: (mode: RoomMode) => void;
   children: ReactNode;
 }) {
+  if (withoutModes) return <>{children}</>;
   return (
     <AppTabs selectedKey={mode} onSelectionChange={(key) => onChange(key as RoomMode)}>
       <AppTabs.List aria-label="ランキングの対局モード">
@@ -59,7 +63,7 @@ function RankingList({
             target={entry.profileId ? { source: "profile", profileId: entry.profileId } : undefined}
             game={game}
             mode={mode}
-            theme={game === "four-shogi" ? "four-shogi" : "default"}
+            theme={gameThemes[game]}
             label={entry.name}
           >
             <AppAvatar src={entry.avatarUrl} label={`${entry.name}のアイコン`} className="size-8" />
@@ -71,7 +75,7 @@ function RankingList({
               }
               game={game}
               mode={mode}
-              theme={game === "four-shogi" ? "four-shogi" : "default"}
+              theme={gameThemes[game]}
               label={entry.name}
             >
               {entry.name}
@@ -104,14 +108,24 @@ function RankingContent({
   limit: number;
   source?: string;
 }) {
-  const label = total ? "対局数" : mode === "singles" ? "優勝数" : "勝利数";
+  const label = total
+    ? "対局数"
+    : state.game === "reversi"
+      ? "勝数"
+      : mode === "singles"
+        ? "優勝数"
+        : "勝利数";
   const entries =
     state.rankings &&
-    (total
-      ? state.rankings[mode].total
-      : mode === "singles"
-        ? state.rankings.singles.first
-        : state.rankings.doubles.wins);
+    ("wins" in state.rankings
+      ? total
+        ? state.rankings.total
+        : state.rankings.wins
+      : total
+        ? state.rankings[mode].total
+        : mode === "singles"
+          ? state.rankings.singles.first
+          : state.rankings.doubles.wins);
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm font-semibold text-muted">{label}</h3>
@@ -168,11 +182,11 @@ function RankingsDialog({
         <p className="text-xs text-muted">
           CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。対戦相手にゲストがいても対象です。
         </p>
-        <ModeTabs mode={mode} onChange={setMode}>
+        <ModeTabs withoutModes={state.game === "reversi"} mode={mode} onChange={setMode}>
           <AppTabs selectedKey={metric} onSelectionChange={(key) => setMetric(String(key))}>
             <AppTabs.List aria-label="ランキングの集計項目">
               <AppTabs.Tab id="victories">
-                {mode === "singles" ? "優勝数" : "勝利数"}
+                {state.game === "reversi" ? "勝数" : mode === "singles" ? "優勝数" : "勝利数"}
                 <AppTabs.Indicator />
               </AppTabs.Tab>
               <AppTabs.Tab id="total">
@@ -237,7 +251,7 @@ function LobbyRankingsView({
           </AppButton>
         </div>
         <p className="text-xs text-muted">対人戦・登録済ユーザーのみ集計</p>
-        <ModeTabs mode={mode} onChange={setMode}>
+        <ModeTabs withoutModes={state.game === "reversi"} mode={mode} onChange={setMode}>
           <RankingContent state={state} mode={mode} limit={3} />
         </ModeTabs>
         <AppButton

@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { useState } from "react";
 import type { AccountProfile, CpuLevel, Room, RoomMembership } from "@tetraboard/protocol";
 
@@ -20,7 +21,7 @@ export function useCpuAddition({
   const canAdd =
     canManageSettings &&
     hostPlayerId === membership?.playerId &&
-    room.players.length < 4 &&
+    room.players.length < gameCapacity(room.settings.game) &&
     !account.loading &&
     !account.error;
   if (confirmation !== null && (!canAdd || !account.user)) setConfirmation(null);

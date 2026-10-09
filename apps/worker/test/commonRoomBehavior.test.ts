@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { type RoomSocketClientMessage } from "@tetraboard/protocol";
 import { RoomBoundaryFixtures, type BoundarySocket } from "./roomBoundaryFixtures";
 
-for (const game of ["four-reversi", "four-shogi"] as const) {
+for (const game of ["four-reversi", "four-shogi", "reversi"] as const) {
   describe(`${game}: 共通ルーム操作`, () => {
     let fixtures: RoomBoundaryFixtures;
     beforeEach(() => {
@@ -16,7 +16,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       const entry = await fixtures.create({
         name: "ホスト",
         game,
-        mode: "singles",
+        ...(game === "reversi" ? {} : { mode: "singles" as const }),
         quickPlay: false,
       });
       const host = await fixtures.connect(entry);

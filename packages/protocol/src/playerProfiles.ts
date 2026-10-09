@@ -3,6 +3,7 @@ import { gameIdSchema } from "./gameSchemas";
 import { usernameSchema } from "./accounts";
 import { roomCodeSchema, roomPublicMetadataSchema } from "./rooms";
 import { rankingEntrySchema } from "./rankings";
+import { reversiAccountStatsSchema } from "./matches";
 import { badgeIds } from "./badges";
 
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
@@ -52,10 +53,13 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
       )
       .max(4)
       .optional(),
-    stats: z.strictObject({
-      singles: z.strictObject({ total: count, first: count }),
-      doubles: z.strictObject({ total: count, wins: count }),
-    }),
+    stats: z.union([
+      reversiAccountStatsSchema,
+      z.strictObject({
+        singles: z.strictObject({ total: count, first: count }),
+        doubles: z.strictObject({ total: count, wins: count }),
+      }),
+    ]),
   }),
   z.strictObject({ kind: z.literal("guest"), name: z.string(), avatarUrl: z.null() }),
   z.strictObject({ kind: z.literal("cpu"), level: z.union([z.literal(1), z.literal(2)]) }),
@@ -81,3 +85,6 @@ export const previewRankingsSchema = z.strictObject({
   doubles: z.strictObject({ wins: entries, total: entries }),
 });
 export type PreviewRankings = z.infer<typeof previewRankingsSchema>;
+
+export const previewReversiRankingsSchema = z.strictObject({ wins: entries, total: entries });
+export type PreviewReversiRankings = z.infer<typeof previewReversiRankingsSchema>;

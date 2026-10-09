@@ -140,9 +140,10 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const profile = getPlayerProfileContract.response.parse(await response.json());
-    if (profile.kind !== "account") throw new Error("Account preview expected");
+    if (profile.kind !== "account" || !("singles" in profile.stats))
+      throw new Error("Account preview expected");
     expect(profile.profileId).not.toBe(user.id);
-    const stats = getAccountStatsContract.response.parse(
+    const stats = parseLegacyStats(
       await (
         await request(`/account/stats?game=${game}`, { headers: { Cookie: user.cookie } })
       ).json(),
@@ -421,3 +422,9 @@ test("badge opt-in derives independent games from historical human singles inclu
     ).status,
   ).toBe(400);
 });
+
+function parseLegacyStats(value: unknown) {
+  const stats = getAccountStatsContract.response.parse(value);
+  if (!("singles" in stats)) throw Error("Expected four-player stats");
+  return stats;
+}

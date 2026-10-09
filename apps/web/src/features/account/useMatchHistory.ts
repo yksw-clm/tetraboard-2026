@@ -28,6 +28,7 @@ const emptyPage = (): HistoryPage => ({
 });
 export function useMatchHistory(game: MatchGame, mode: RoomMode) {
   const [pages, setPages] = useState<Record<MatchGame, Record<RoomMode, HistoryPage>>>({
+    reversi: { singles: emptyPage(), doubles: emptyPage() },
     "four-reversi": { singles: emptyPage(), doubles: emptyPage() },
     "four-shogi": { singles: emptyPage(), doubles: emptyPage() },
   });
@@ -57,8 +58,8 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
         },
       }));
       try {
-        const query = new URLSearchParams({ mode: target });
-        if (targetGame === "four-shogi") query.set("game", targetGame);
+        const query = new URLSearchParams(targetGame === "reversi" ? {} : { mode: target });
+        if (targetGame !== "four-reversi") query.set("game", targetGame);
         if (cursor) query.set("cursor", cursor);
         const response = await fetch(`/api${listMatchesContract.path}?${query}`, {
           credentials: "same-origin",
@@ -67,7 +68,12 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
         });
         if (!response.ok) throw new Error("History request failed");
         const result = listMatchesContract.response.parse(await response.json());
-        if (result.matches.some((match) => match.game !== targetGame || match.mode !== target))
+        if (
+          result.matches.some(
+            (match) =>
+              match.game !== targetGame || (targetGame !== "reversi" && match.mode !== target),
+          )
+        )
           throw new Error("History game or mode mismatch");
         if (controller.signal.aborted) return;
         setPages((current) => ({

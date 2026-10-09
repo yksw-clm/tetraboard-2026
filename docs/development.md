@@ -13,6 +13,16 @@
 
 IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCatalog.test.ts test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` で確認します。軽量入口の依存は `bun build packages/protocol/src/games.ts --target=browser --outfile=/tmp/tetraboard-game-catalog.js --metafile=/tmp/tetraboard-game-catalog.meta.json` の入力一覧で確認できます。
 
+## 通常リバーシの実装
+
+`packages/reversi` は黒白2人の独立したルールエンジンとCPUを持ちます。ゲームカタログの `capacity` と `hasModes` に定員2・モードなしを登録し、共有の席管理・開始条件・公開情報・集計条件はゲーム別定員を参照します。
+
+`ReversiRoom`・対局記録・戦績・ランキングは専用の公開契約を持ち、通常リバーシの作成と履歴取得はモード指定を受け付けません。公開JSONにもモードを含めません。既存のD1のNOT NULLモード列には内部識別値 `standard` を保存します。既存2ゲームのモード値・JSONと既定ゲームを維持し、過去データの移行は行いません。保存は四人リバーシと同じ局面列方式で、保存待ち・5秒後の再送・本人索引・閉鎖後の保持を共用します。本人索引のゲーム列は保存済み対局から明示的に設定します。
+
+Workerは `reversiProgress`・`reversiClock`・`reversiMatchStore` を登録し、共有GameRoomから呼びます。戦績は専用の勝敗SQL、ランキングは勝数と対局数、公開プレイヤー情報はモードなしの戦績を返します。通常リバーシのバッジは判定・表示しません。
+
+Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に登録し、独立したエンジンだけを読み込みます。盤面描画と石・プレイヤーカードの基本描画は共有します。通常リバーシの対局・棋譜は上下2カード、観戦・保存棋譜は180度回転、ゲーム本文・マイページ・棋譜・Portalは薄い緑テーマです。静的生成・配信・サイトマップは3ロビーに対応します。
+
 ## Local Development
 
 リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWebとWorkerの開発サーバーが同時に起動します。
@@ -39,11 +49,11 @@ Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します�
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、四人リバーシ・四人将棋、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では両エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、3ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では3エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
 GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型チェック・テストに加え、Web・Adminのビルドと本番デプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
 
-Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の履歴・戦績で、game省略のリバーシ互換、明示した両ゲームの分離、未知ID・空文字の拒否を検証します。`commonRoomBehavior.test.ts` は同じシナリオを両ゲームへ適用し、待機中の参加・観戦・準備・資格認証・接続復帰・チャットを実HTTP／WebSocketで確認します。関連テストだけを実行する場合は `bun run --cwd apps/worker test test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` を使います。共通fixtureは公開応答と対象IDに一致する通知を待ち、テスト終了時に席・資格・ソケットを解放します。
+Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の履歴・戦績で、game省略のリバーシ互換、明示した両ゲームの分離、未知ID・空文字の拒否を検証します。`commonRoomBehavior.test.ts` は同じシナリオを3ゲームへ適用し、待機中の参加・観戦・準備・資格認証・接続復帰・チャットを実HTTP／WebSocketで確認します。関連テストだけを実行する場合は `bun run --cwd apps/worker test test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` を使います。共通fixtureは公開応答と対象IDに一致する通知を待ち、テスト終了時に席・資格・ソケットを解放します。
 
 ### PR提出前の検証
 
@@ -144,7 +154,7 @@ GameRoomは認証・参加・準備・接続／切断・チャット・transacti
 
 両ゲームで `useLobby` と `useRoomEntry` を使い、ゲーム指定を付けて取得・作成・参加します。省略時はリバーシです。将棋では作成時に三人攻撃禁止を設定できます。ランキングもゲーム別に集計し、リバーシの値を将棋へ流用しません。ダイアログを閉じても入力を保持し、ゲームを切り替えたときは破棄します。
 
-`GameLobbyNavigation` は両ロビーのヘッダー直下に `NavLink` を並べ、現在のURLを選択表示と `aria-current="page"` に反映します。PCでは幅360px以内、650px以下では本文幅を2等分し、両リンクの高さを44px以上にします。アカウント・ルーム画面には追加せず、`/` のリバーシへの転送も維持します。
+`GameLobbyNavigation` は全ロビーのヘッダー直下に `NavLink` を並べ、現在のURLを選択表示と `aria-current="page"` に反映します。PCでは幅360px以内、650px以下では本文幅を3等分し、全リンクの高さを44px以上にします。アカウント・ルーム画面には追加せず、`/` のリバーシへの転送も維持します。
 
 既定の共通テーマは緑です。将棋の本文には `game-theme-four-shogi` を付け、Portalの入力・遊び方・ランキングのダイアログには `AppDialog` の `theme="four-shogi"` を渡します。`primary`／`primary-hover` は主要ボタンの塗り、`primary-foreground` は文字、`brand` は文字アクセントとして分けます。HeroUIの `--accent` と `--accent-foreground` も同じ範囲で設定します。共通ヘッダー・アカウントメニューをゲームのテーマ範囲に含めず、グローバルなテーマ切り替えは行いません。意味を持つdanger・focusの色は上書きしません。
 
@@ -154,23 +164,23 @@ GameRoomは認証・参加・準備・接続／切断・チャット・transacti
 
 `src/seo/lobbyMetadata.ts` はWeb側のゲーム別title・description・紹介の正本です。ゲーム名・ロビーパスは軽量ゲームカタログを参照します。紹介は `GameIntroduction` で通常ロビーと初期HTMLが共用し、ルール正本に合わせて同じ変更で更新します。エンジン・認証・API・動的一覧を静的生成へ持ち込みません。
 
-WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した2ロビーのHTML、robots.txt、2件だけのsitemap.xml、404.html、検索対象外のindex.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
+WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した3ロビーのHTML、robots.txt、3件だけのsitemap.xml、404.html、検索対象外のindex.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
 
 `startPublicLobby` は紹介HTMLを持つ初回ロビーだけでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には紹介・通常リンクを残して再読み込みを案内します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。
 
-本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`/` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ転送、両ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。
+本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`/` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ転送、全ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。
 
 関連検証は `bun test --cwd apps/web ./test/publicLobbies.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/publicLobbies.test.tsx`、`bun run --cwd apps/worker test test/publicAssets.test.ts test/apiRouting.test.ts` です。Bun・happy-dom・Worker統合テストで生成、遷移、200／308／404、GET／HEAD／304、Content-Type、通常UA／Googlebot、認証とAPIの境界を確認します。画面寸法・実ブラウザ入力・JavaScript無効時の見え方は手動確認とし、ブラウザ自動テストは追加しません。
 
 公開前に既存Search Consoleのドメインプロパティ `tetraboard.net` で「検索タイプ: ウェブ」「国: 日本」を指定し、直近28日間の対象ページ別・対象検索語別のクリック数・表示回数・CTR・平均掲載順位を記録します。対象語は「四人将棋」「四人リバーシ」、ページは各正規URLの完全一致です。期間・フィルター・端末区分も併記し、データのない項目を0と断定せず「データなし」とします。集計・期間はSearch Consoleの表示に従い、既存Adminの日本時間の指標と混ぜません。新たな個人別流入計測を追加しません。
 
-必須ローカル検証とGitHub CI、差分・結果に対する開発者の承認後にマージ・公開します。本番確認後、Search ConsoleのライブURL検査で両ロビーの本文・検索許可を確認し、既存のサイトマップURLを再送信して両ページのインデックス登録をリクエストします。実Googlebotによる登録と正規URL選択はライブ検査・UAのローカル比較と区別します。SEO整備の完了は本番確認・送信・基準値記録までとし、公開前は未完了です。
+必須ローカル検証とGitHub CI、差分・結果に対する開発者の承認後にマージ・公開します。本番確認後、Search ConsoleのライブURL検査で全ロビーの本文・検索許可を確認し、既存のサイトマップURLを再送信して3ページのインデックス登録をリクエストします。実Googlebotによる登録と正規URL選択はライブ検査・UAのローカル比較と区別します。SEO整備の完了は本番確認・送信・基準値記録までとし、公開前は未完了です。
 
 公開後4〜8週間で最初の成果を評価します。両URLが登録されGoogleの正規URLと一致し、日本・日本語・ログアウト状態のPC／スマートフォンで週1回×4週間、両検索語の通常の自然検索1位を確認し、各ページの評価対象28日間クリック数が公開前28日間より増加した場合を成果達成とします。日時・地域・端末を記録し、平均順位だけで常に1位と判定しません。データ不足は観測期間を延長し、未達なら継続課題とします。順位・反映時期の保証と自動監視は設けません。
 
 ## 四人将棋のオンラインルーム
 
-公開型は `FourReversiRoom | FourShogiRoom` で、`settings.game` をガード関数で判別します。既存リバーシの保存形式・着手通信は維持します。将棋は担当方向、方向別の時計、局ID、局面revision、三人攻撃禁止、同じrevisionの合法手・三人攻撃禁止候補（`threePlayerAttackForbiddenActions`）と王手情報を配信します。禁止候補はエンジンの `getActionAvailability` で通常合法手から三人攻撃で除外された手だけを導出し、別の不正手を含めません。旧保存局面の未保存フィールドは公開局面から読込時に補完します。通常スナップショットに千日手の出現数は含めません。Webは受理された局面を表示し、履歴を補って独自に進行させません。
+公開型は `FourReversiRoom | FourShogiRoom | ReversiRoom` で、`settings.game` をガード関数で判別します。既存リバーシの保存形式・着手通信は維持します。将棋は担当方向、方向別の時計、局ID、局面revision、三人攻撃禁止、同じrevisionの合法手・三人攻撃禁止候補（`threePlayerAttackForbiddenActions`）と王手情報を配信します。禁止候補はエンジンの `getActionAvailability` で通常合法手から三人攻撃で除外された手だけを導出し、別の不正手を含めません。旧保存局面の未保存フィールドは公開局面から読込時に補完します。通常スナップショットに千日手の出現数は含めません。Webは受理された局面を表示し、履歴を補って独自に進行させません。
 
 `room.game.action` の将棋着手は `roundId`・`positionRevision` と `movePiece`／`dropPiece` を送ります。サーバーが認証・局ID・revision・手番・合法性を検査し、着手と脱落でrevisionを進めます。`room.three-player-attack.set` は待機中のホストだけが変更でき、モードと同様に人間の準備を解除します。
 
@@ -502,7 +512,7 @@ Workerテストは通常終局の棋譜再現、投了・退室・時間切れ�
 
 公開一覧の任意条件 `humanOnly=true|false` は省略時にfalse、不正値は400です。trueでは保存済みJSONの開始時の参加者が4人かつ全員humanの条件をSQLで適用してから並べ替え・20件制限を行います。ゲストも含み、CPUが1人でもいる対局は除外します。既存の保存データと索引を使い、migration・記録の書き換えは不要です。
 
-Webは両ロビーの公開ルーム直下に共通棋譜カードを一列・内部横スクロールで表示します。表示時と手動更新のみ取得し、成功時は左端へ戻します。失敗時は既存一覧と位置を保持し、再試行を案内します。ゲーム切替・離脱では取得を中止し、前ゲームの遅延応答を採用しません。公開 `/matches/:matchId` と本人用の画面は棋譜の復元・盤面・結果・回転を共有し、公開閲覧では本人IDを作らず、リバーシは黒・将棋は南を手前にします。プロフィール設定への転送を行わず、戻り先は対象ゲームのロビーです。Workerは直接URLにもSPAのindexを配信し、HTTPの `X-Robots-Tag` と画面のrobotsメタで検索対象外にします。計測は `replay` と対局のゲームで分類します。
+Webは全ロビーの公開ルーム直下に共通棋譜カードを一列・内部横スクロールで表示します。表示時と手動更新のみ取得し、成功時は左端へ戻します。失敗時は既存一覧と位置を保持し、再試行を案内します。ゲーム切替・離脱では取得を中止し、前ゲームの遅延応答を採用しません。公開 `/matches/:matchId` と本人用の画面は棋譜の復元・盤面・結果・回転を共有し、公開閲覧では本人IDを作らず、リバーシは黒・将棋は南を手前にします。プロフィール設定への転送を行わず、戻り先は対象ゲームのロビーです。Workerは直接URLにもSPAのindexを配信し、HTTPの `X-Robots-Tag` と画面のrobotsメタで検索対象外にします。計測は `replay` と対局のゲームで分類します。
 
 「人間4人の対局のみ」は見出し下・一覧上に配置し、初期状態はチェックなしです。ロビー表示中だけ保持し、ゲーム別にkeyを変えて再読み込み・ゲーム切替では初期状態へ戻します。条件切替では即座に前の取得を中止し、旧条件のカードを消して再取得します。読み込み中も切替可能で、古い応答は採用しません。切替失敗では選択条件を保って再試行を案内し、同条件の更新失敗では既存一覧と位置を保持します。対人条件が0件なら「人間4人の対局履歴がありません。」を表示します。Webは対人条件にCPUを含む応答も拒否します。
 
@@ -651,7 +661,7 @@ Worker統合テストで保存・公開・掲載先・並び順・カーソル�
 
 認証ボタンは `SocialSignInButtons` で共通化します。Google画像は公式の認証用アセットから取得したPNGを `public/assets/auth/` で配信し、元画像の20pxのロゴ部分をCSSで表示します。白背景・標準色・公式の余白を維持し、画像は装飾扱い・ドラッグ不可とします。Google SansはボタンのGoogle表記に必要な文字だけを公式Google Fontsから取得して同じディレクトリで配信し、認証ボタンの表示で外部フォント通信を行いません。
 
-Google・Discord認証開始を `useSocialSignIn` に集約し、既存の認証APIと固定コールバックを維持します。管理画面へのログインもこの処理を使い、`destination=admin` を送信して固定の `/admin` へ戻します。その際は通常登録の画面復帰情報を消去し、プロフィール設定画面への誘導より管理画面への復帰を優先します。`tetraboard:registration-return` に元画面・参加入力・開始時刻を1時間保存します。許可する戻り先は両ロビーと部屋世代付きの部屋URLだけです。`RegistrationCompletion` が本人確認とプロフィール設定の完了後に復帰情報を消費し、復帰先も履歴から復元情報を除きます。入力の復元だけで作成・参加を送信せず、既存ゲスト席や対局履歴の紐付けも変更しません。失敗・取消時の入力保持、保存不能・破損・期限切れのマイページへのフォールバックを検証します。
+Google・Discord認証開始を `useSocialSignIn` に集約し、既存の認証APIと固定コールバックを維持します。管理画面へのログインもこの処理を使い、`destination=admin` を送信して固定の `/admin` へ戻します。その際は通常登録の画面復帰情報を消去し、プロフィール設定画面への誘導より管理画面への復帰を優先します。`tetraboard:registration-return` に元画面・参加入力・開始時刻を1時間保存します。許可する戻り先は全ロビーと部屋世代付きの部屋URLだけです。`RegistrationCompletion` が本人確認とプロフィール設定の完了後に復帰情報を消費し、復帰先も履歴から復元情報を除きます。入力の復元だけで作成・参加を送信せず、既存ゲスト席や対局履歴の紐付けも変更しません。失敗・取消時の入力保持、保存不能・破損・期限切れのマイページへのフォールバックを検証します。
 
 登録案内とOAuth復帰は純粋関数・DOMテストで、ゲスト・アカウント・観戦・認証待ち、CPU戦・対人戦、初回終局・再戦・再読み込み、ダイアログ競合、認証境界の失敗、入力復元・消費、保存領域の失敗、部屋世代とゲスト席保持を確認します。実OAuthはWorkerでGoogle・Discord通信を置き換えて検証します。分析イベントの追加はこの機能に含めません。
 

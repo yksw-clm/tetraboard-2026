@@ -43,6 +43,7 @@
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
         "@tetraboard/protocol": "workspace:*",
+        "@tetraboard/reversi": "workspace:*",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
         "react-router": "^8.4.0",
@@ -71,6 +72,7 @@
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
         "@tetraboard/protocol": "workspace:*",
+        "@tetraboard/reversi": "workspace:*",
         "better-auth": "1.7.5",
         "hono": "^4.13.10",
         "zod": "^4.0.0",
@@ -106,6 +108,14 @@
         "zod": "^4.0.0",
       },
       "devDependencies": {
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/reversi": {
+      "name": "@tetraboard/reversi",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
       },
     },
@@ -531,6 +541,8 @@
 
     "@tetraboard/protocol": ["@tetraboard/protocol@workspace:packages/protocol"],
 
+    "@tetraboard/reversi": ["@tetraboard/reversi@workspace:packages/reversi"],
+
     "@tetraboard/web": ["@tetraboard/web@workspace:apps/web"],
 
     "@tetraboard/worker": ["@tetraboard/worker@workspace:apps/worker"],
@@ -852,6 +864,8 @@
     "@tetraboard/four-shogi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/protocol/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@tetraboard/reversi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/worker/@types/node": ["@types/node@22.20.4", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA=="],
 

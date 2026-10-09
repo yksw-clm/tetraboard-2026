@@ -1,0 +1,2086 @@
+{
+  "sourceCommit": "3b6c1aa",
+  "storageFormat": "unversioned",
+  "name": "reversi-standard-draw",
+  "detail": {
+    "id": "55555555-5555-4555-8555-000000000200",
+    "roomId": "12345",
+    "startedAtMs": 1700000000000,
+    "endedAtMs": 1700000001000,
+    "settings": {
+      "game": "reversi",
+      "timeControl": {
+        "mainTimeMs": 300000,
+        "byoyomiMs": 30000
+      }
+    },
+    "participants": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "黒プレイヤー",
+        "color": "black",
+        "seat": 0,
+        "kind": "human",
+        "avatarUrl": null
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "白プレイヤー",
+        "color": "white",
+        "seat": 1,
+        "kind": "human",
+        "avatarUrl": null
+      }
+    ],
+    "game": {
+      "status": "finished",
+      "board": [
+        ["black", "black", "black", "black", "black", "black", "black", "black"],
+        ["white", "black", "white", "white", "white", "black", "black", "black"],
+        ["white", "white", "black", "white", "black", "black", "black", "black"],
+        ["white", "white", "white", "black", "white", "white", "black", "black"],
+        ["white", "white", "white", "white", "black", "white", "white", "black"],
+        ["white", "white", "white", "white", "white", "black", "black", "white"],
+        ["white", "white", "white", "white", "black", "white", "black", "black"],
+        ["white", "white", "white", "black", "black", "black", "black", "black"]
+      ],
+      "turn": null,
+      "moveNumber": 60,
+      "lastMove": {
+        "x": 0,
+        "y": 0
+      },
+      "eliminatedColors": [],
+      "consecutivePasses": [],
+      "result": {
+        "reason": "board_full",
+        "winner": null,
+        "stoneCounts": {
+          "black": 32,
+          "white": 32
+        }
+      }
+    },
+    "eliminations": [],
+    "replay": {
+      "id": "55555555-5555-4555-8555-000000000200",
+      "initial": {
+        "status": "playing",
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "white", "black", null, null, null],
+          [null, null, null, "black", "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "eliminatedColors": [],
+        "consecutivePasses": [],
+        "result": null
+      },
+      "steps": [
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 4,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, "black", "black", null, null, null],
+              [null, null, null, null, "black", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 1,
+            "lastMove": {
+              "x": 4,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 3,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 2,
+            "lastMove": {
+              "x": 3,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 3,
+            "lastMove": {
+              "x": 2,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 5,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, "white", null, null],
+              [null, null, null, "white", "white", null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, null, "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 4,
+            "lastMove": {
+              "x": 5,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 3,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, "white", null, null],
+              [null, null, null, "black", "white", null, null, null],
+              [null, null, null, "black", "black", null, null, null],
+              [null, null, null, "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 5,
+            "lastMove": {
+              "x": 3,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 2,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, "white", null, null],
+              [null, null, null, "black", "white", null, null, null],
+              [null, null, null, "white", "black", null, null, null],
+              [null, null, "white", "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 6,
+            "lastMove": {
+              "x": 2,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 4
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, null, null, null, null, null],
+              [null, null, null, "black", null, "white", null, null],
+              [null, null, null, "black", "white", null, null, null],
+              [null, null, "black", "black", "black", null, null, null],
+              [null, null, "black", "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 7,
+            "lastMove": {
+              "x": 2,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 2,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "black", "white", null, null, null],
+              [null, null, "black", "black", "black", null, null, null],
+              [null, null, "black", "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 8,
+            "lastMove": {
+              "x": 2,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 5,
+              "y": 3
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "black", "black", "black", null, null],
+              [null, null, "black", "black", "black", null, null, null],
+              [null, null, "black", "black", "black", null, null, null],
+              [null, null, "black", null, null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 9,
+            "lastMove": {
+              "x": 5,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 3,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "black", "black", null, null],
+              [null, null, "black", "white", "black", null, null, null],
+              [null, null, "black", "white", "black", null, null, null],
+              [null, null, "black", "white", null, null, null, null],
+              [null, null, null, null, null, null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 10,
+            "lastMove": {
+              "x": 3,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 4,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "black", "black", null, null],
+              [null, null, "black", "white", "black", null, null, null],
+              [null, null, "black", "white", "black", null, null, null],
+              [null, null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 11,
+            "lastMove": {
+              "x": 4,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "black", "black", null, null],
+              [null, null, "white", "white", "black", null, null, null],
+              [null, "white", "white", "white", "black", null, null, null],
+              [null, null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 12,
+            "lastMove": {
+              "x": 1,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 1,
+              "y": 4
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "black", "black", null, null],
+              [null, "black", "black", "black", "black", null, null, null],
+              [null, "white", "black", "white", "black", null, null, null],
+              [null, null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 13,
+            "lastMove": {
+              "x": 1,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 6,
+              "y": 3
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "white", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              [null, "white", "black", "white", "black", null, null, null],
+              [null, null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 14,
+            "lastMove": {
+              "x": 6,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 0,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "white", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              [null, "black", "black", "white", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 15,
+            "lastMove": {
+              "x": 0,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", null, "white", null, null],
+              [null, null, null, "white", "white", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 16,
+            "lastMove": {
+              "x": 0,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 4,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", "black", "white", null, null],
+              [null, null, null, "black", "black", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, null, null, null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 17,
+            "lastMove": {
+              "x": 4,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 2,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", "black", "white", null, null],
+              [null, null, null, "black", "black", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["black", null, "white", "black", null, null, null, null],
+              [null, null, "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 18,
+            "lastMove": {
+              "x": 2,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 1,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", null, null, null, null, null],
+              [null, null, null, "white", "black", "white", null, null],
+              [null, null, null, "black", "black", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "black", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 19,
+            "lastMove": {
+              "x": 1,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 3,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", "white", null, null, null, null],
+              [null, null, null, "white", "white", "white", null, null],
+              [null, null, null, "black", "black", "white", "white", null],
+              [null, "black", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "black", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 20,
+            "lastMove": {
+              "x": 3,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 0,
+              "y": 4
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", "white", null, null, null, null],
+              [null, null, null, "white", "white", "white", null, null],
+              [null, null, null, "black", "black", "white", "white", null],
+              ["black", "black", "black", "black", "black", null, null, null],
+              ["black", "black", "white", "black", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 21,
+            "lastMove": {
+              "x": 0,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 3
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, null, null, null, null, null],
+              [null, null, "white", "white", null, null, null, null],
+              [null, null, null, "white", "white", "white", null, null],
+              ["white", null, null, "black", "black", "white", "white", null],
+              ["black", "white", "black", "black", "black", null, null, null],
+              ["black", "black", "white", "black", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 22,
+            "lastMove": {
+              "x": 0,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 3,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "white", "black", null, null, null, null],
+              [null, null, null, "black", "white", "white", null, null],
+              ["white", null, null, "black", "black", "white", "white", null],
+              ["black", "white", "black", "black", "black", null, null, null],
+              ["black", "black", "white", "black", "black", null, null, null],
+              ["black", null, "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 23,
+            "lastMove": {
+              "x": 3,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, null, "white", "black", null, null, null, null],
+              [null, null, null, "black", "white", "white", null, null],
+              ["white", null, null, "black", "black", "white", "white", null],
+              ["black", "white", "black", "black", "black", null, null, null],
+              ["black", "white", "white", "black", "black", null, null, null],
+              ["black", "white", "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 24,
+            "lastMove": {
+              "x": 1,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, null],
+              [null, null, null, "black", "white", "white", null, null],
+              ["white", null, null, "black", "black", "white", "white", null],
+              ["black", "white", "black", "black", "black", null, null, null],
+              ["black", "white", "white", "black", "black", null, null, null],
+              ["black", "white", "black", "black", null, null, null, null],
+              [null, "black", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 25,
+            "lastMove": {
+              "x": 1,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, null],
+              [null, null, null, "black", "white", "white", null, null],
+              ["white", null, null, "black", "black", "white", "white", null],
+              ["white", "white", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "black", "black", null, null, null],
+              ["white", "white", "black", "black", null, null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 26,
+            "lastMove": {
+              "x": 0,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 6,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, null],
+              [null, null, null, "black", "black", "black", "black", null],
+              ["white", null, null, "black", "black", "black", "white", null],
+              ["white", "white", "black", "black", "black", null, null, null],
+              ["white", "white", "white", "black", "black", null, null, null],
+              ["white", "white", "black", "black", null, null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 27,
+            "lastMove": {
+              "x": 6,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 7,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, "white"],
+              [null, null, null, "black", "black", "black", "white", null],
+              ["white", null, null, "black", "black", "white", "white", null],
+              ["white", "white", "black", "black", "white", null, null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["white", "white", "white", "black", null, null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 28,
+            "lastMove": {
+              "x": 7,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 5,
+              "y": 4
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, "white"],
+              [null, null, null, "black", "black", "black", "white", null],
+              ["white", null, null, "black", "black", "black", "white", null],
+              ["white", "white", "black", "black", "black", "black", null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["white", "white", "white", "black", null, null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 29,
+            "lastMove": {
+              "x": 5,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 4,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, "white"],
+              [null, null, null, "black", "black", "black", "white", null],
+              ["white", null, null, "black", "black", "black", "white", null],
+              ["white", "white", "black", "black", "black", "black", null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 30,
+            "lastMove": {
+              "x": 4,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 7,
+              "y": 3
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", null, null, null, "white"],
+              [null, null, null, "black", "black", "black", "white", null],
+              ["white", null, null, "black", "black", "black", "black", "black"],
+              ["white", "white", "black", "black", "black", "black", null, null],
+              ["white", "white", "white", "white", "black", null, null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 31,
+            "lastMove": {
+              "x": 7,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 4,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", "white", null, null, "white"],
+              [null, null, null, "black", "white", "black", "white", null],
+              ["white", null, null, "black", "white", "black", "black", "black"],
+              ["white", "white", "black", "black", "white", "black", null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 32,
+            "lastMove": {
+              "x": 4,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 7,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, null, null, "black", null, null, null, null],
+              [null, "black", "black", "black", "white", null, null, "white"],
+              [null, null, null, "black", "white", "black", "black", "black"],
+              ["white", null, null, "black", "white", "black", "black", "black"],
+              ["white", "white", "black", "black", "white", "black", null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 33,
+            "lastMove": {
+              "x": 7,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, null],
+              [null, "black", "white", "black", "white", null, null, "white"],
+              [null, null, null, "white", "white", "black", "black", "black"],
+              ["white", null, null, "black", "white", "black", "black", "black"],
+              ["white", "white", "black", "black", "white", "black", null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 34,
+            "lastMove": {
+              "x": 1,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 5,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, null],
+              [null, "black", "white", "black", "white", null, null, "white"],
+              [null, null, null, "white", "white", "black", "black", "black"],
+              ["white", null, null, "black", "white", "black", "black", "black"],
+              ["white", "white", "black", "black", "black", "black", null, null],
+              ["white", "white", "white", "white", "white", "black", null, null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 35,
+            "lastMove": {
+              "x": 5,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 6,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, null],
+              [null, "black", "white", "black", "white", null, null, "white"],
+              [null, null, null, "white", "white", "black", "black", "black"],
+              ["white", null, null, "black", "white", "black", "black", "black"],
+              ["white", "white", "black", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 36,
+            "lastMove": {
+              "x": 6,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 7,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, "black"],
+              [null, "black", "white", "black", "white", null, null, "black"],
+              [null, null, null, "white", "white", "black", "black", "black"],
+              ["white", null, null, "black", "white", "black", "black", "black"],
+              ["white", "white", "black", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 37,
+            "lastMove": {
+              "x": 7,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 3
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, "black"],
+              [null, "black", "white", "black", "white", null, null, "black"],
+              [null, null, null, "white", "white", "black", "black", "black"],
+              ["white", "white", null, "black", "white", "black", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 38,
+            "lastMove": {
+              "x": 1,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 5,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, "black"],
+              [null, "black", "white", "black", "black", "black", null, "black"],
+              [null, null, null, "white", "black", "black", "black", "black"],
+              ["white", "white", null, "black", "white", "black", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 39,
+            "lastMove": {
+              "x": 5,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 6,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, "black"],
+              [null, "black", "white", "white", "white", "white", "white", "black"],
+              [null, null, null, "white", "black", "white", "black", "black"],
+              ["white", "white", null, "black", "white", "black", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 40,
+            "lastMove": {
+              "x": 6,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, "black"],
+              [null, "black", "white", "white", "white", "white", "white", "black"],
+              [null, null, "black", "black", "black", "white", "black", "black"],
+              ["white", "white", null, "black", "white", "black", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 41,
+            "lastMove": {
+              "x": 2,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", null, null, null, "black"],
+              [null, "white", "white", "white", "white", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", null, "black", "white", "black", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 42,
+            "lastMove": {
+              "x": 1,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 4,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", null, null, "black"],
+              [null, "white", "white", "white", "black", "black", "white", "black"],
+              [null, "white", "white", "white", "black", "white", "black", "black"],
+              ["white", "white", null, "black", "black", "black", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", null, null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 43,
+            "lastMove": {
+              "x": 4,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 6,
+              "y": 4
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", null, null, "black"],
+              [null, "white", "white", "white", "black", "black", "white", "black"],
+              [null, "white", "white", "white", "white", "white", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", null],
+              ["white", "white", "white", "white", "white", "white", "white", null],
+              ["white", "white", "white", "white", "white", null, null, null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 44,
+            "lastMove": {
+              "x": 6,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 6,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", null, null, "black"],
+              [null, "white", "white", "white", "black", "black", "white", "black"],
+              [null, "white", "white", "white", "white", "white", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", null],
+              ["white", "white", "white", "white", "white", "black", "white", null],
+              ["white", "white", "white", "white", "white", null, "black", null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 45,
+            "lastMove": {
+              "x": 6,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 5,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", "white", null, "black"],
+              [null, "white", "white", "white", "white", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "white", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", null],
+              ["white", "white", "white", "white", "white", "black", "white", null],
+              ["white", "white", "white", "white", "white", null, "black", null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "black",
+            "moveNumber": 46,
+            "lastMove": {
+              "x": 5,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 7,
+              "y": 4
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "black", "black"],
+              ["white", "white", "white", "white", "white", "black", "white", null],
+              ["white", "white", "white", "white", "white", null, "black", null],
+              ["white", "white", "white", null, "black", null, null, null]
+            ],
+            "turn": "white",
+            "moveNumber": 47,
+            "lastMove": {
+              "x": 7,
+              "y": 4
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 6,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "black", "black"],
+              ["white", "white", "white", "white", "white", "black", "white", null],
+              ["white", "white", "white", "white", "white", null, "white", null],
+              ["white", "white", "white", null, "black", null, "white", null]
+            ],
+            "turn": "black",
+            "moveNumber": 48,
+            "lastMove": {
+              "x": 6,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 7,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "black", "black"],
+              ["white", "white", "white", "white", "white", "black", "black", null],
+              ["white", "white", "white", "white", "white", null, "white", "black"],
+              ["white", "white", "white", null, "black", null, "white", null]
+            ],
+            "turn": "white",
+            "moveNumber": 49,
+            "lastMove": {
+              "x": 7,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 7,
+              "y": 5
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "white", "black"],
+              ["white", "white", "white", "white", "white", "white", "white", "white"],
+              ["white", "white", "white", "white", "white", null, "white", "black"],
+              ["white", "white", "white", null, "black", null, "white", null]
+            ],
+            "turn": "black",
+            "moveNumber": 50,
+            "lastMove": {
+              "x": 7,
+              "y": 5
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 5,
+              "y": 6
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", null, "black", "black", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "white", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "black", "black", "black"],
+              ["white", "white", "white", null, "black", null, "white", null]
+            ],
+            "turn": "white",
+            "moveNumber": 51,
+            "lastMove": {
+              "x": 5,
+              "y": 6
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 2,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              [null, "white", "white", "white", "white", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "white", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "black", "black", "black"],
+              ["white", "white", "white", null, "black", null, "white", null]
+            ],
+            "turn": "black",
+            "moveNumber": 52,
+            "lastMove": {
+              "x": 2,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 0,
+              "y": 2
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              ["black", "black", "black", "black", "black", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "white", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "black", "black", "black"],
+              ["white", "white", "white", null, "black", null, "white", null]
+            ],
+            "turn": "white",
+            "moveNumber": 53,
+            "lastMove": {
+              "x": 0,
+              "y": 2
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 5,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              ["black", "black", "black", "black", "black", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "black", "white", "black", "white"],
+              ["white", "white", "white", "white", "white", "white", "white", "black"],
+              ["white", "white", "white", null, "black", "white", "white", null]
+            ],
+            "turn": "black",
+            "moveNumber": 54,
+            "lastMove": {
+              "x": 5,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 7,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", null, "black"],
+              [null, "white", "white", "white", "black", "white", "white", "black"],
+              ["black", "black", "black", "black", "black", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", null, "black", "black", "black", "black"]
+            ],
+            "turn": "white",
+            "moveNumber": 55,
+            "lastMove": {
+              "x": 7,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 0,
+              "y": 1
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", null, "black"],
+              ["white", "white", "white", "white", "black", "white", "white", "black"],
+              ["white", "black", "black", "black", "black", "black", "white", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", null, "black", "black", "black", "black"]
+            ],
+            "turn": "black",
+            "moveNumber": 56,
+            "lastMove": {
+              "x": 0,
+              "y": 1
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 6,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "black"],
+              ["white", "black", "black", "black", "black", "black", "black", "black"],
+              ["white", "white", null, "black", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", null, "black", "black", "black", "black"]
+            ],
+            "turn": "white",
+            "moveNumber": 57,
+            "lastMove": {
+              "x": 6,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "white",
+            "position": {
+              "x": 2,
+              "y": 3
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", "white", "white", "black", "black", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "black"],
+              ["white", "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", "white", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "white", "black", "black", "white"],
+              ["white", "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", null, "black", "black", "black", "black"]
+            ],
+            "turn": "black",
+            "moveNumber": 58,
+            "lastMove": {
+              "x": 2,
+              "y": 3
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": null
+          },
+          "passedColors": []
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 3,
+              "y": 7
+            }
+          },
+          "game": {
+            "status": "playing",
+            "board": [
+              [null, "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", "white", "white", "black", "black", "black"],
+              ["white", "white", "white", "white", "black", "black", "black", "black"],
+              ["white", "white", "white", "white", "white", "white", "black", "black"],
+              ["white", "white", "white", "white", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "white", "black", "black", "white"],
+              ["white", "white", "white", "white", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "black", "black"]
+            ],
+            "turn": "black",
+            "moveNumber": 59,
+            "lastMove": {
+              "x": 3,
+              "y": 7
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": ["white"],
+            "result": null
+          },
+          "passedColors": ["white"]
+        },
+        {
+          "action": {
+            "type": "place",
+            "color": "black",
+            "position": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "game": {
+            "status": "finished",
+            "board": [
+              ["black", "black", "black", "black", "black", "black", "black", "black"],
+              ["white", "black", "white", "white", "white", "black", "black", "black"],
+              ["white", "white", "black", "white", "black", "black", "black", "black"],
+              ["white", "white", "white", "black", "white", "white", "black", "black"],
+              ["white", "white", "white", "white", "black", "white", "white", "black"],
+              ["white", "white", "white", "white", "white", "black", "black", "white"],
+              ["white", "white", "white", "white", "black", "white", "black", "black"],
+              ["white", "white", "white", "black", "black", "black", "black", "black"]
+            ],
+            "turn": null,
+            "moveNumber": 60,
+            "lastMove": {
+              "x": 0,
+              "y": 0
+            },
+            "eliminatedColors": [],
+            "consecutivePasses": [],
+            "result": {
+              "reason": "board_full",
+              "winner": null,
+              "stoneCounts": {
+                "black": 32,
+                "white": 32
+              }
+            }
+          },
+          "passedColors": []
+        }
+      ]
+    }
+  },
+  "expected": {
+    "winner": null,
+    "stoneCounts": {
+      "black": 32,
+      "white": 32
+    },
+    "moveNumber": 60,
+    "passCount": 1
+  }
+}

@@ -1,4 +1,4 @@
-import { isGameId, type GameId } from "@tetraboard/protocol/games";
+import { isGameId, gameCapacity, type GameId } from "@tetraboard/protocol/games";
 export type OutcomeSql = {
   direction: string;
   rankDirection: string;
@@ -7,6 +7,13 @@ export type OutcomeSql = {
 };
 export type OutcomeSqlFor<G extends GameId> = OutcomeSql & { game: G };
 export const gameOutcomeSql = {
+  reversi: {
+    game: "reversi",
+    direction: "json_extract(p.value, '$.color')",
+    rankDirection: "json_extract(s.value, '$.color')",
+    team: "direction",
+    knockouts: "0",
+  },
   "four-reversi": {
     game: "four-reversi",
     direction: "json_extract(p.value, '$.color')",
@@ -36,7 +43,7 @@ export function matchOutcomesCte(game: GameId, personal: boolean): string {
          AND json_extract(p.value, '$.accountId') = h.account_id) AS direction
     FROM account_match_history h JOIN matches m ON m.id = h.match_id
     WHERE h.game = ? AND m.game = h.game ${personal ? "AND h.account_id = ?" : ""}
-      AND json_array_length(m.record_json, '$.participants') = 4
+      AND json_array_length(m.record_json, '$.participants') = ${gameCapacity(game)}
       AND NOT EXISTS (
         SELECT 1 FROM json_each(m.record_json, '$.participants') participant
         WHERE json_extract(participant.value, '$.kind') IS NOT 'human'

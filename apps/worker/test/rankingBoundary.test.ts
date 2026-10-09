@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { gameRankingContracts } from "@tetraboard/protocol";
-import { gameIds } from "@tetraboard/protocol/games";
 import { boundaryRequest } from "./roomBoundaryFixtures";
 import { accountFixture } from "./accountFixtures";
 import { humanFixtureRecord } from "./matchFixtures";
@@ -44,7 +43,7 @@ test("公開ランキング両経路は両モードをゲーム別に集計す�
       await saveShogiFixture(fixture);
     }
   }
-  for (const game of gameIds) {
+  for (const game of ["four-reversi", "four-shogi"] as const) {
     const contract = gameRankingContracts[game];
     const response = await boundaryRequest(contract.path);
     expect(response.status).toBe(200);

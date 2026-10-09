@@ -10,6 +10,7 @@ export type LivePropsFor<G extends GameId> = {
   initialFormationAnalysisSupported?: boolean;
 };
 export const liveViews = {
+  reversi: lazy(() => import("./ReversiRoomDetail")),
   "four-reversi": lazy(() => import("./FourReversiRoomDetail")),
   "four-shogi": lazy(() => import("./FourShogiRoomDetail")),
 } satisfies { [G in GameId]: ComponentType<LivePropsFor<G>> };

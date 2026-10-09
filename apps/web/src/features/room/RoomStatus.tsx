@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { ViewerControls } from "./ViewerControls";
 import { RoomClock } from "./RoomClock";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -5,9 +6,9 @@ import { AppButton } from "../../shared/ui/AppButton";
 
 import type { ReactNode, Ref } from "react";
 import { playerName } from "./roomCommonPresentation";
-import { playerClock, shogiPlayerClock } from "./playerClocks";
+import { playerClock, shogiPlayerClock, reversiPlayerClock } from "./playerClocks";
 import type { SharedRoomSession } from "./useRoomTransport";
-import { isFourShogiRoom, isFourReversiRoom } from "@tetraboard/protocol";
+import { isFourShogiRoom, isFourReversiRoom, isReversiRoom } from "@tetraboard/protocol";
 
 export function RoomStatus({
   session,
@@ -46,7 +47,11 @@ export function RoomStatus({
       ? shogiPlayerClock(room, turn.side, session.serverNowMs)
       : isFourReversiRoom(room) && "color" in turn
         ? playerClock(room, turn.color, session.serverNowMs)
-        : null
+        : isReversiRoom(room) &&
+            "color" in turn &&
+            (turn.color === "black" || turn.color === "white")
+          ? reversiPlayerClock(room, turn.color, session.serverNowMs)
+          : null
     : null;
   const available =
     authenticated &&
@@ -56,7 +61,7 @@ export function RoomStatus({
   const ready = available && session.pendingReady === null;
   const canStart =
     ready &&
-    room.players.length === 4 &&
+    room.players.length === gameCapacity(room.settings.game) &&
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
   return (
     <AppCard
@@ -93,7 +98,7 @@ export function RoomStatus({
                 結果
               </AppButton>
             ) : (
-              `参加者 ${room.players.length}/4`
+              `参加者 ${room.players.length}/${gameCapacity(room.settings.game)}`
             )
           ) : (
             clock && <RoomClock clock={clock} describe className="text-xs" />
@@ -102,7 +107,11 @@ export function RoomStatus({
       </div>
       <div className="flex gap-2 min-h-[38px] [&>button]:flex-1 [@media(min-width:768px)_and_(max-width:1279px)]:col-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:min-w-[140px] [@media(max-width:767px)]:h-[38px] [@media(max-width:767px)]:min-h-[38px] [@media(max-width:767px)]:shrink-0">
         {membership === null && (
-          <ViewerControls label="観戦中" onRotate={onRotate}>
+          <ViewerControls
+            label="観戦中"
+            onRotate={onRotate}
+            rotationDegrees={room.settings.game === "reversi" ? 180 : 90}
+          >
             {!joinUnavailable && (
               <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
                 参加する

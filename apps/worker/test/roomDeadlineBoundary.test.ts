@@ -1,3 +1,4 @@
+import { isReversiRoom } from "@tetraboard/protocol";
 import { gameProgress } from "../src/rooms/gameProgress";
 import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
@@ -541,6 +542,7 @@ test.each(["リバーシCPU待ち", "将棋CPU待ち", "将棋の保存済み選
     await runInDurableObject(prepared.stub, async (instance, state) => {
       const room = roomSchema.parse(state.storage.kv.get("room"));
       if (room.status !== "playing") throw new Error("Not playing");
+      if (isReversiRoom(room)) throw Error("Expected existing game fixture");
       if (isFourShogiRoom(room)) {
         const cpu = room.players.find((player) => player.kind === "cpu");
         if (!cpu) throw new Error("No CPU");
@@ -599,6 +601,7 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
       const cpu = room.players.find((player) => player.kind === "cpu");
       if (!cpu) throw new Error("Missing CPU");
       let next;
+      if (isReversiRoom(room)) throw Error("Expected existing game fixture");
       if (isFourShogiRoom(room)) {
         if (!("side" in cpu)) throw new Error("Wrong CPU");
         const store = new ShogiStore(state.storage.sql);
@@ -747,6 +750,7 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
       expect(() =>
         state.storage.transactionSync(() => {
           let room = roomSchema.parse(state.storage.kv.get("room"));
+          if (isReversiRoom(room)) throw Error("Expected existing game fixture");
           if (isFourShogiRoom(room)) {
             const progress = gameProgress["four-shogi"].create(dependencies);
             for (let count = 0; count < 3; count++) {

@@ -20,6 +20,10 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
   };
   const key = `${data.room.instanceId}:${data.membership?.playerId ?? "spectator"}`;
   switch (data.game) {
+    case "reversi": {
+      const View = liveViews.reversi;
+      return <View key={data.room.id} {...common} initialRoom={data.room} />;
+    }
     case "four-reversi": {
       const View = liveViews["four-reversi"];
       return <View key={key} {...common} initialRoom={data.room} />;

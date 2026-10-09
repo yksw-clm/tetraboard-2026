@@ -48,6 +48,7 @@ type Props = {
 };
 
 const gameDescriptions = {
+  reversi: "黒と白で楽しむリバーシ。",
   "four-reversi": "4色で楽しむリバーシ。",
   "four-shogi": "4方向から楽しむ将棋。",
 } satisfies Record<GameId, string>;
@@ -120,6 +121,13 @@ export function LobbyView(props: Props) {
         }
       : null,
   );
+  const stones =
+    props.game === "reversi"
+      ? ({ 27: "white", 28: "black", 35: "black", 36: "white" } as Record<
+          number,
+          keyof typeof previewStoneClasses
+        >)
+      : previewStones;
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = {
     title: gameCatalog[props.game].name,
@@ -145,7 +153,7 @@ export function LobbyView(props: Props) {
           <h2 className="text-lg font-bold">一人で遊ぶ</h2>
           <LobbyEntryButton
             title="すぐ遊ぶ"
-            description="CPU3人と対戦"
+            description={props.game === "reversi" ? "CPUと対戦" : "CPU3人と対戦"}
             icon="arrow"
             primary
             onPress={() => openEntry("quick")}
@@ -194,7 +202,7 @@ export function LobbyView(props: Props) {
               <Fragment key={mobile ? "mobile-board-preview" : "desktop-board-preview"}>
                 {props.boardPreview}
               </Fragment>
-              {props.game === "four-reversi" && (
+              {props.game !== "four-shogi" && (
                 <div
                   aria-hidden="true"
                   data-testid="lobby-board-preview"
@@ -205,9 +213,9 @@ export function LobbyView(props: Props) {
                       className="relative min-w-0 min-h-0 bg-[#4d976c] even:bg-[#529c71]"
                       key={index}
                     >
-                      {previewStones[index] && (
+                      {stones[index] && (
                         <span
-                          className={`absolute inset-[8%] rounded-full border border-solid border-[#00000018] shadow-[1px_2px_3px_#122d3150] ${previewStoneClasses[previewStones[index]!]}`}
+                          className={`absolute inset-[8%] rounded-full border border-solid border-[#00000018] shadow-[1px_2px_3px_#122d3150] ${previewStoneClasses[stones[index]!]}`}
                         />
                       )}
                     </span>

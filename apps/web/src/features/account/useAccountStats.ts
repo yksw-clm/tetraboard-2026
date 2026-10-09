@@ -18,6 +18,7 @@ const empty = (): StatsState => ({
 
 export function useAccountStats(game: MatchGame) {
   const [states, setStates] = useState<Record<MatchGame, StatsState>>({
+    reversi: empty(),
     "four-reversi": empty(),
     "four-shogi": empty(),
   });
@@ -36,7 +37,7 @@ export function useAccountStats(game: MatchGame) {
       },
     }));
     try {
-      const query = target === "four-shogi" ? "?game=four-shogi" : "";
+      const query = target === "four-reversi" ? "" : `?game=${target}`;
       const response = await fetch(`/api${getAccountStatsContract.path}${query}`, {
         credentials: "same-origin",
         cache: "no-store",
@@ -44,7 +45,11 @@ export function useAccountStats(game: MatchGame) {
       });
       if (!response.ok) throw new Error("Stats request failed");
       const result = getAccountStatsContract.response.parse(await response.json());
-      if ((target === "four-shogi") !== "knockouts" in result.singles)
+      if (
+        target === "reversi"
+          ? !("wins" in result)
+          : !("singles" in result) || (target === "four-shogi") !== "knockouts" in result.singles
+      )
         throw new Error("Stats game mismatch");
       if (!controller.signal.aborted)
         setStates((current) => ({

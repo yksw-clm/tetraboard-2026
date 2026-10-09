@@ -5,6 +5,7 @@ const counterPlaques: Record<
   GameId,
   Partial<Record<BadgeId, { x: number; y: number; width: number }>>
 > = {
+  reversi: {},
   "four-reversi": { games: { x: 50, y: 70, width: 51 }, wins: { x: 50, y: 70, width: 51 } },
   "four-shogi": {
     games: { x: 50, y: 70, width: 52 },

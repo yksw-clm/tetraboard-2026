@@ -1,5 +1,5 @@
 import type { Color } from "@tetraboard/four-reversi";
-import { colorNames } from "./roomPresentation";
+import { colorNames } from "./stonePresentation";
 import { Stone } from "./Stone";
 
 export function PlayerStoneCount({ color, count }: { color: Color; count: number | null }) {

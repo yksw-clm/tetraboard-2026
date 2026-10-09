@@ -169,3 +169,34 @@ export { assertNever } from "./exhaustive";
 export * from "./playerProfiles";
 export * from "./badges";
 export * from "./announcements";
+
+export {
+  reversiColorSchema,
+  reversiSettingsSchema,
+  reversiResultSchema,
+  reversiStateSchema,
+  reversiFinishedStateSchema,
+  reversiEliminationSchema,
+  reversiReplaySchema,
+  reversiClockSchema,
+  reversiRoomSchema,
+  isReversiRoom,
+  type ReversiRoom,
+  type ReversiLastRound,
+  type ReversiReplay,
+  type ReversiClock,
+} from "./rooms";
+export {
+  reversiMatchParticipantSchema,
+  reversiMatchSummarySchema,
+  reversiAccountStatsSchema,
+  publicReversiMatchDetailSchema,
+  reversiMatchDetailSchema,
+  isReversiMatch,
+  type ReversiMatchDetail,
+  type PublicReversiMatchDetail,
+  type ReplayReversiMatch,
+  type ReversiMatchSummary,
+  type ReversiAccountStats,
+} from "./matches";
+export { reversiRankingsSchema, type ReversiRankings } from "./rankings";

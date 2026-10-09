@@ -1,3 +1,5 @@
+import { gameThemes } from "../../shared/ui/appTheme";
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "./TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
@@ -50,7 +52,7 @@ export function RoomInfo({
     pending?.type === "room.time-control.set" ? pending.timeControl : room.settings.timeControl;
   const canAddWhileUpdating =
     updating &&
-    room.players.length < 4 &&
+    room.players.length < gameCapacity(room.settings.game) &&
     session.presence.hostPlayerId === membership?.playerId &&
     !account.loading &&
     !account.error;
@@ -95,36 +97,38 @@ export function RoomInfo({
                 <p className="min-h-5 text-xs text-muted" role="status">
                   {updating ? "設定を更新中…" : ""}
                 </p>
-                <RadioGroup
-                  value={mode}
-                  isDisabled={!canManageSettings}
-                  onChange={(value) => {
-                    if (value === "singles" || value === "doubles") session.changeMode(value);
-                  }}
-                  orientation="horizontal"
-                  className="[&_.label]:text-[11px] [&_.label]:font-bold [&_.label]:text-muted"
-                >
-                  <Label>対局形式</Label>
-                  <div className="flex gap-4 mt-1 mb-2 [&_.radio]:text-xs [&_.radio]:flex [&_.radio]:flex-row [&_.radio]:items-center [&_.radio]:gap-[6px]">
-                    {(["singles", "doubles"] as const).map((mode) => (
-                      <AppRadio key={mode} value={mode}>
-                        <AppRadio.Content className="flex items-center gap-[6px]">
-                          <AppRadio.Control>
-                            <AppRadio.Indicator />
-                          </AppRadio.Control>
-                          {mode === "singles" ? "シングルス" : "ダブルス"}
-                        </AppRadio.Content>
-                      </AppRadio>
-                    ))}
-                  </div>
-                </RadioGroup>
+                {room.settings.game !== "reversi" && (
+                  <RadioGroup
+                    value={mode}
+                    isDisabled={!canManageSettings}
+                    onChange={(value) => {
+                      if (value === "singles" || value === "doubles") session.changeMode(value);
+                    }}
+                    orientation="horizontal"
+                    className="[&_.label]:text-[11px] [&_.label]:font-bold [&_.label]:text-muted"
+                  >
+                    <Label>対局形式</Label>
+                    <div className="flex gap-4 mt-1 mb-2 [&_.radio]:text-xs [&_.radio]:flex [&_.radio]:flex-row [&_.radio]:items-center [&_.radio]:gap-[6px]">
+                      {(["singles", "doubles"] as const).map((mode) => (
+                        <AppRadio key={mode} value={mode}>
+                          <AppRadio.Content className="flex items-center gap-[6px]">
+                            <AppRadio.Control>
+                              <AppRadio.Indicator />
+                            </AppRadio.Control>
+                            {mode === "singles" ? "シングルス" : "ダブルス"}
+                          </AppRadio.Content>
+                        </AppRadio>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                )}
                 {gameSettings}
                 <div className="mb-3">
                   <TimeControlSetting
                     timeControl={timeControl}
                     onChange={session.changeTimeControl}
                     disabled={!canManageSettings}
-                    theme={room.settings.game === "four-shogi" ? "four-shogi" : "default"}
+                    theme={gameThemes[room.settings.game]}
                   />
                 </div>
                 <div>
@@ -278,13 +282,15 @@ export function RoomInfoCard({
             <dd>{gameCatalog[settings.game].name}</dd>
           </div>
         </div>
-        <div>
-          <AppIcon name="user" />
+        {settings.game !== "reversi" && (
           <div>
-            <dt>対局形式</dt>
-            <dd>{settings.mode === "singles" ? "シングルス" : "ダブルス"}</dd>
+            <AppIcon name="user" />
+            <div>
+              <dt>対局形式</dt>
+              <dd>{settings.mode === "singles" ? "シングルス" : "ダブルス"}</dd>
+            </div>
           </div>
-        </div>
+        )}
         <div>
           <AppIcon name="clock" />
           <div>

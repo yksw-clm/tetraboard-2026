@@ -5,7 +5,6 @@ import { Toast } from "@heroui/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCpuAddition } from "./useCpuAddition";
 import { AppButtonLink } from "../../shared/ui/AppButton";
-import { fourReversiLobbyPath, fourShogiLobbyPath } from "../../app/paths";
 import { useRoomInvitation } from "./useRoomInvitation";
 import { RoomInvitationDialogs } from "./RoomInvitationDialogs";
 import { RoomChat } from "./RoomChat";
@@ -15,7 +14,8 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { RoomLayout } from "./RoomLayout";
 import type { useRoomChat } from "./useRoomChat";
 import type { SharedRoomSession } from "./useRoomTransport";
-import { appThemeClasses } from "../../shared/ui/appTheme";
+import { gameCatalog } from "@tetraboard/protocol/games";
+import { gameThemes, appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
@@ -70,8 +70,8 @@ export function RoomViewShell({
   };
   const feedback = useFeedback(feedbackContext, Boolean(account.user));
   const feedbackButtonRef = useRef<HTMLButtonElement>(null);
-  const theme = room.settings.game === "four-shogi" ? "four-shogi" : "default";
-  const lobbyPath = theme === "four-shogi" ? fourShogiLobbyPath : fourReversiLobbyPath;
+  const theme = gameThemes[room.settings.game];
+  const lobbyPath = gameCatalog[room.settings.game].lobbyPath;
   const joinButtonRef = useRef<HTMLButtonElement>(null);
   const resultButtonRef = useRef<HTMLButtonElement>(null);
   const fallbackFocusRef = useRef<HTMLElement>(null);
@@ -309,8 +309,12 @@ export function RoomViewShell({
         >
           <p>
             {dialog === "leave"
-              ? "対局中に退室すると脱落になります。"
-              : "投了すると脱落になります。"}
+              ? room.settings.game === "reversi"
+                ? "対局中に退室すると敗北になります。"
+                : "対局中に退室すると脱落になります。"
+              : room.settings.game === "reversi"
+                ? "投了すると敗北になります。"
+                : "投了すると脱落になります。"}
           </p>
           {session.socketError && (
             <p className="text-danger text-xs" role="alert">

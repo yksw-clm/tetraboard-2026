@@ -3,7 +3,7 @@ import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { BadgeImage } from "../badges/BadgeImage";
 import { AppIcon } from "../../shared/ui/AppIcon";
 
-export function RegistrationBenefits() {
+export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
   return (
     <ul className="m-0 flex list-none flex-col gap-3 p-0 text-left">
       {[
@@ -22,20 +22,23 @@ export function RegistrationBenefits() {
           title: "棋譜を振り返ろう",
           text: "アカウントで参加した対局を、マイページから見返せます。CPU戦も保存されます。",
         },
-      ].map(({ icon, title, text }) => (
-        <li key={title} className="flex items-start gap-2.5">
-          <AppIcon name={icon as "crown" | "users" | "board"} className="mt-0.5 text-primary" />
-          <div className="min-w-0">
-            <strong className="block text-sm">{title}</strong>
-            <p className="m-0 text-xs leading-relaxed text-muted">{text}</p>
-          </div>
-        </li>
-      ))}
+      ]
+        .filter((item) => game !== "reversi" || item.icon !== "crown")
+        .map(({ icon, title, text }) => (
+          <li key={title} className="flex items-start gap-2.5">
+            <AppIcon name={icon as "crown" | "users" | "board"} className="mt-0.5 text-primary" />
+            <div className="min-w-0">
+              <strong className="block text-sm">{title}</strong>
+              <p className="m-0 text-xs leading-relaxed text-muted">{text}</p>
+            </div>
+          </li>
+        ))}
     </ul>
   );
 }
 
 export function RegistrationBadgeExamples({ game }: { game: GameId }) {
+  if (game === "reversi") return null;
   return (
     <figure className="m-0 flex flex-col items-center gap-1">
       <div className="flex gap-2">

@@ -85,10 +85,13 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         avatarUrl: profile.avatarUrl,
         game: target.game,
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
-        stats: {
-          singles: { total: stats.singles.total, first: stats.singles.first },
-          doubles: { total: stats.doubles.total, wins: stats.doubles.wins },
-        },
+        stats:
+          "wins" in stats
+            ? stats
+            : {
+                singles: { total: stats.singles.total, first: stats.singles.first },
+                doubles: { total: stats.doubles.total, wins: stats.doubles.wins },
+              },
       }),
     );
   } catch {

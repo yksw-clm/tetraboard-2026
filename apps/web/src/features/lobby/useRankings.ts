@@ -3,12 +3,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   gameRankingContracts,
   previewRankingsSchema,
+  previewReversiRankingsSchema,
+  type PreviewReversiRankings,
   type PreviewRankings,
   type MatchGame,
 } from "@tetraboard/protocol";
 
 export function useRankings(game: MatchGame = defaultGameId) {
-  const [rankings, setRankings] = useState<PreviewRankings | null>(null);
+  const [rankings, setRankings] = useState<PreviewRankings | PreviewReversiRankings | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingSource, setPendingSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,9 @@ export function useRankings(game: MatchGame = defaultGameId) {
             signal: controller.signal,
           });
         if (!response.ok) throw new Error("Rankings request failed");
-        const result = previewRankingsSchema.parse(await response.json());
+        const result = (
+          game === "reversi" ? previewReversiRankingsSchema : previewRankingsSchema
+        ).parse(await response.json());
         if (!controller.signal.aborted) {
           setRankings(result);
           setError(null);
