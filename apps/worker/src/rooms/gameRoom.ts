@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { nextDueRoomDeadline, earliestAlarmAt } from "./roomDeadlines";
 import { roomFormationAnalysis, formationAnalysisTag } from "./fourShogiFormationAnalysis";
 import {
@@ -719,8 +720,9 @@ export class GameRoom extends DurableObject<Env> {
         hostAvatarUrl: host?.kind === "human" ? host.avatarUrl : null,
         humanCount,
         cpuCount: room.players.length - humanCount,
-        capacity: 4,
-        openSeats: room.status === "waiting" ? 4 - room.players.length : 0,
+        capacity: gameCapacity(room.settings.game),
+        openSeats:
+          room.status === "waiting" ? gameCapacity(room.settings.game) - room.players.length : 0,
         updatedAtMs: room.publicUpdatedAtMs,
       }),
     };
@@ -1001,7 +1003,7 @@ export class GameRoom extends DurableObject<Env> {
         if (room.status !== "waiting") {
           return { status: "room_started" } as const;
         }
-        if (room.players.length >= 4) {
+        if (room.players.length >= gameCapacity(room.settings.game)) {
           return { status: "room_full" } as const;
         }
         if (this.ctx.storage.kv.get(membershipStorageKey(tokenHash)) !== undefined) {
@@ -1613,7 +1615,7 @@ export class GameRoom extends DurableObject<Env> {
       if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
 
       if (command.type === "room.cpu.add") {
-        if (room.players.length >= 4) return { status: "room_full" };
+        if (room.players.length >= gameCapacity(room.settings.game)) return { status: "room_full" };
         const used = new Set(
           room.players.filter((player) => player.kind === "cpu").map((player) => player.name),
         );
@@ -1682,7 +1684,7 @@ export class GameRoom extends DurableObject<Env> {
       if (membership === null) return { status: "unauthorized" };
       if (membership.role !== "host") return { status: "forbidden" };
       if (
-        room.players.length !== 4 ||
+        room.players.length !== gameCapacity(room.settings.game) ||
         room.players.some((player) => {
           if (player.kind === "cpu") return false;
           const hash = this.playerTokenHash(player.id);

@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { ViewerControls } from "./ViewerControls";
 import { RoomClock } from "./RoomClock";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -56,7 +57,7 @@ export function RoomStatus({
   const ready = available && session.pendingReady === null;
   const canStart =
     ready &&
-    room.players.length === 4 &&
+    room.players.length === gameCapacity(room.settings.game) &&
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
   return (
     <AppCard
@@ -93,7 +94,7 @@ export function RoomStatus({
                 結果
               </AppButton>
             ) : (
-              `参加者 ${room.players.length}/4`
+              `参加者 ${room.players.length}/${gameCapacity(room.settings.game)}`
             )
           ) : (
             clock && <RoomClock clock={clock} describe className="text-xs" />

@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +16,8 @@ import { readGuestName } from "../../shared/guestName";
 
 export function joinUnavailableReason(room: Room): string | null {
   if (room.status === "playing") return "対局中のため、今は観戦のみできます。";
-  if (room.players.length >= 4) return "満室のため、今は観戦のみできます。";
+  if (room.players.length >= gameCapacity(room.settings.game))
+    return "満室のため、今は観戦のみできます。";
   return null;
 }
 

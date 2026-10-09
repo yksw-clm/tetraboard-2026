@@ -79,12 +79,16 @@ describe("ゲームIDとサービス全体の対象", () => {
   test("選択順・表示名・公開パスを維持し、サービス全体をゲームに表示しない", () => {
     expect(gameIds.map((id) => ({ id, ...gameCatalog[id] }))).toEqual([
       {
+        capacity: 4,
+        hasModes: true,
         id: "four-reversi",
         name: "四人リバーシ",
         lobbyPath: "/games/four-reversi",
         rankingsPath: "/games/four-reversi/rankings",
       },
       {
+        capacity: 4,
+        hasModes: true,
         id: "four-shogi",
         name: "四人将棋",
         lobbyPath: "/games/four-shogi",

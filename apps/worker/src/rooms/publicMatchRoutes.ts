@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
   listPublicMatchesContract,
@@ -18,7 +19,7 @@ publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {
   if (!query.success) return c.json({ message: "対局の取得条件が正しくありません。" }, 400);
   try {
     const humanFilter = query.data.humanOnly
-      ? `AND json_array_length(record_json, '$.participants') = 4
+      ? `AND json_array_length(record_json, '$.participants') = ${gameCapacity(query.data.game)}
          AND NOT EXISTS (
            SELECT 1 FROM json_each(record_json, '$.participants') participant
            WHERE json_extract(participant.value, '$.kind') IS NOT 'human'

@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "./TimeControlSetting";
 import { AppRadio } from "../../shared/ui/AppRadio";
@@ -50,7 +51,7 @@ export function RoomInfo({
     pending?.type === "room.time-control.set" ? pending.timeControl : room.settings.timeControl;
   const canAddWhileUpdating =
     updating &&
-    room.players.length < 4 &&
+    room.players.length < gameCapacity(room.settings.game) &&
     session.presence.hostPlayerId === membership?.playerId &&
     !account.loading &&
     !account.error;

@@ -10,15 +10,21 @@ type GameMetadata = {
   name: string;
   lobbyPath: string;
   rankingsPath: string;
+  capacity: 2 | 4;
+  hasModes: boolean;
 };
 
 export const gameCatalog = {
   "four-reversi": {
+    capacity: 4,
+    hasModes: true,
     name: "四人リバーシ",
     lobbyPath: "/games/four-reversi",
     rankingsPath: "/games/four-reversi/rankings",
   },
   "four-shogi": {
+    capacity: 4,
+    hasModes: true,
     name: "四人将棋",
     lobbyPath: "/games/four-shogi",
     rankingsPath: "/games/four-shogi/rankings",
@@ -31,4 +37,8 @@ export function isGameId(value: unknown): value is GameId {
 
 export function isGameScope(value: unknown): value is GameScope {
   return value === "all" || isGameId(value);
+}
+
+export function gameCapacity(game: GameId): 2 | 4 {
+  return gameCatalog[game].capacity;
 }
