@@ -4,6 +4,7 @@ import {
   roomTimeControlSchema,
   type RoomTimeControl,
   type RoomMode,
+  type CpuLevel,
 } from "@tetraboard/protocol";
 
 export const registrationReturnKey = "tetraboard:registration-return";
@@ -14,6 +15,7 @@ export type RegistrationEntryDraft = {
   name: string;
   roomCode: string;
   mode: RoomMode;
+  cpuLevel?: CpuLevel;
   timeControl?: RoomTimeControl;
   selectedRoomId?: string;
   humanOnly?: boolean;
@@ -71,6 +73,7 @@ export function parseRegistrationReturn(
       typeof entry.roomCode !== "string" ||
       entry.roomCode.length > 100 ||
       (entry.mode !== "singles" && entry.mode !== "doubles") ||
+      (entry.cpuLevel !== undefined && entry.cpuLevel !== 1 && entry.cpuLevel !== 2) ||
       (entry.timeControl !== undefined &&
         !roomTimeControlSchema.safeParse(entry.timeControl).success) ||
       (entry.selectedRoomId !== undefined &&
@@ -85,6 +88,7 @@ export function parseRegistrationReturn(
       name: entry.name,
       roomCode: entry.roomCode,
       mode: entry.mode,
+      ...(entry.cpuLevel === undefined ? {} : { cpuLevel: entry.cpuLevel as CpuLevel }),
       ...(entry.timeControl === undefined
         ? {}
         : { timeControl: roomTimeControlSchema.parse(entry.timeControl) }),

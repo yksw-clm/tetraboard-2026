@@ -95,6 +95,8 @@ test("ロビーの幅通知はセクションのDOM順だけを変え、ラン�
       onNameChange() {},
       onRoomCodeChange() {},
       onModeChange() {},
+      cpuLevel: 1 as const,
+      onCpuLevelChange() {},
       onTimeControlChange() {},
       onClearMessage() {},
     };
@@ -142,6 +144,8 @@ test("参加ダイアログはアカウントCPU確認条件と入力・送信�
     onNameChange() {},
     onRoomCodeChange() {},
     onModeChange() {},
+    cpuLevel: 1 as const,
+    onCpuLevelChange() {},
     onSubmit: () => sent++,
     onClose: () => closed++,
     registrationPath: "/games/four-reversi",

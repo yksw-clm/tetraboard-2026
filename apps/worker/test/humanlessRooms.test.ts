@@ -256,7 +256,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         room.game.turn = room.players.find((player) => player.kind === "cpu")!.side;
         room.legalActions = getLegalActions({ ...room.game, repetitions: {} });
       } else room.game.turn = room.players.find((player) => player.kind === "cpu")!.color;
-      room.clock.turnStartedAt = Date.now() - 1000;
+      room.clock.turnStartedAt = Date.now() - 3000;
       state.storage.kv.put("room", roomSchema.parse(room));
       await state.storage.setAlarm(Date.now() + 60_000);
       return room.game.moveNumber;
@@ -338,7 +338,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         room = roomSchema.parse({ ...room, game: second.state });
       }
       if (room.status !== "playing") throw new Error("Not playing");
-      room.clock.turnStartedAt = Date.now() - 1000;
+      room.clock.turnStartedAt = Date.now() - 3000;
       room.clock.turnExpiresAt = Date.now() - 1;
       state.storage.kv.put("room", roomSchema.parse(room));
       if (isFourShogiRoom(room) && room.status === "playing") {
@@ -352,7 +352,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
           action: room.legalActions[0],
           applyAt: Date.now() - 1,
         });
-        room.clock.turnStartedAt = Date.now() - 1000;
+        room.clock.turnStartedAt = Date.now() - 3000;
         state.storage.kv.put("room", roomSchema.parse(room));
       }
       await state.storage.setAlarm(Date.now() + 60_000);

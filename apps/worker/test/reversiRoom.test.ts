@@ -182,7 +182,7 @@ test.each([1, 2] as const)("CPUレベル%dは期限を保存境界で進める�
   await runInDurableObject(stub, (_instance, state) => {
     const saved = standard(state.storage.kv.get("room") as typeof room);
     if (saved.status !== "playing") throw Error("not playing");
-    saved.clock.turnStartedAt = Date.now() - 501;
+    saved.clock.turnStartedAt = Date.now() - 2001;
     state.storage.kv.put("room", saved);
   });
   await fixtures.snapshot(entry.room.id);

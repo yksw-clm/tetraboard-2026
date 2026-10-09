@@ -1210,8 +1210,8 @@ test.each([
     ...current,
     clock: {
       ...current.clock,
-      turnStartedAt: Date.now() - 501,
-      turnExpiresAt: Date.now() + control.mainTimeMs + control.byoyomiMs - 501,
+      turnStartedAt: Date.now() - 2001,
+      turnExpiresAt: Date.now() + control.mainTimeMs + control.byoyomiMs - 2001,
     },
   }));
   expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);

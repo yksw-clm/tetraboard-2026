@@ -904,7 +904,8 @@ export class GameRoom extends DurableObject<Env> {
           : isShogiRoom(room)
             ? this.ctx.storage.kv.get<{ applyAt: number }>("standard-shogi-cpu-job")
             : undefined;
-        deadlines.push(job ? job.applyAt : room.clock.turnStartedAt + cpuMoveDelayMs);
+        const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
+        deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
       }
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);

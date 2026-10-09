@@ -20,6 +20,8 @@ export function FourShogiLobbyPage() {
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}
+      cpuLevel={entry.cpuLevel}
+      onCpuLevelChange={entry.setCpuLevel}
       timeControl={entry.timeControl}
       threePlayerAttackProhibited={entry.threePlayerAttackProhibited}
       isSubmitting={entry.isSubmitting}

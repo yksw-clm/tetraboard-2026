@@ -19,6 +19,8 @@ export function ReversiLobbyPage() {
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}
+      cpuLevel={entry.cpuLevel}
+      onCpuLevelChange={entry.setCpuLevel}
       timeControl={entry.timeControl}
       isSubmitting={entry.isSubmitting}
       message={entry.message}

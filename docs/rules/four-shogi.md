@@ -257,6 +257,8 @@ SDIN の初期盤面と将棋ったーの初期配置を基準とする。南か
 
 ### CPU
 
+作成時のCPUレベル選択と最低2秒の待ち時間（CPUの宣言・同意による終局を含む）はREADMEの共通仕様に従う。
+
 以下はCPUの採用仕様であり、2026-10-08の強化指示を反映する。対局の合法手・手番・順位のルールは変更しない。CPUはシングルス・通常ダブルスと三人攻撃禁止ON／OFFに対応する。
 
 - 公開APIは `chooseCpuAction(state, level, random = Math.random): FourShogiAction | null`、レベルの型は `CpuLevel = 1 | 2` とする。終局済み、または合法手がない場合はnullを返す。入力状態を変更せず、CPU用の状態項目を追加しない。

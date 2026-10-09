@@ -57,6 +57,8 @@ test("両ゲームの作成・すぐ遊ぶ・番号／公開一覧のダイア�
             onNameChange={h.setName}
             onRoomCodeChange={h.setRoomCode}
             onModeChange={h.setMode}
+            cpuLevel={h.cpuLevel}
+            onCpuLevelChange={h.setCpuLevel}
             onSubmit={() => {}}
             onClose={() => {}}
             registrationPath={`/games/${game}`}

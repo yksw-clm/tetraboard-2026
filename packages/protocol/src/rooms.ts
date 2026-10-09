@@ -650,6 +650,7 @@ export const createRoomContract = {
   request: playerNameRequestSchema
     .extend({
       quickPlay: z.boolean(),
+      cpuLevel: cpuLevelSchema.optional(),
       mode: roomModeSchema.optional(),
       game: roomGameSchema.optional(),
       threePlayerAttackProhibited: z.boolean().optional(),
