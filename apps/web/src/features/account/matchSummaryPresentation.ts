@@ -7,6 +7,16 @@ export type HistoryResultGroup = {
 };
 
 export function matchResultGroups(match: MatchSummary): HistoryResultGroup[] {
+  if (match.game === "reversi") {
+    const winner = match.result.winner;
+    return [...match.participants]
+      .sort((a, b) => Number(b.color === winner) - Number(a.color === winner))
+      .map((p) => ({
+        label: winner === null ? "引き分け" : winner === p.color ? "勝利" : "敗北",
+        emphasized: p.color === winner,
+        players: [p],
+      }));
+  }
   if (match.game === "four-shogi") {
     const result = match.result;
     if (result.mode === "singles") {

@@ -1,3 +1,5 @@
+import type { ReversiRoom } from "@tetraboard/protocol";
+import type { Color as ReversiColor } from "@tetraboard/reversi";
 import type { FourReversiRoom, FourShogiRoom } from "@tetraboard/protocol";
 import type { Color } from "@tetraboard/four-reversi";
 import type { Side } from "@tetraboard/four-shogi";
@@ -29,5 +31,22 @@ export function shogiPlayerClock(room: FourShogiRoom, side: Side | null, serverN
       serverNowMs,
     });
   }
+  return clockPresentation({ timeControl: room.settings.timeControl, serverNowMs });
+}
+
+export function reversiPlayerClock(
+  room: ReversiRoom,
+  color: ReversiColor | null,
+  serverNowMs: number,
+) {
+  if (room.status === "playing" && color !== null)
+    return clockPresentation({
+      timeControl: room.settings.timeControl,
+      remainingMainMs: room.clock.remainingMainMs[color],
+      turnStartedAt: room.clock.turnStartedAt,
+      turnExpiresAt: room.clock.turnExpiresAt,
+      isTurn: room.game.turn === color,
+      serverNowMs,
+    });
   return clockPresentation({ timeControl: room.settings.timeControl, serverNowMs });
 }

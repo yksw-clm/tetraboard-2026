@@ -79,7 +79,9 @@ export function RoomEntryDialog({
         {unavailable
           ? "四人将棋のオンライン対局は準備中です。入力項目は確認できますが、まだルームの作成・参加はできません。"
           : intent === "quick"
-            ? "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
+            ? game === "reversi"
+              ? "CPUと対戦。待機室で「対局開始」を押すと始まります。"
+              : "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
             : intent === "create"
               ? "ルームを作って、URLやルーム番号で友達を招待しましょう。"
               : account.user
@@ -149,33 +151,35 @@ export function RoomEntryDialog({
           )
         ) : (
           <>
-            <RadioGroup
-              className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"
-              name="mode"
-              value={mode}
-              onChange={(value) => {
-                if (value === "singles" || value === "doubles") onModeChange(value);
-              }}
-              isDisabled={busy}
-              orientation="horizontal"
-            >
-              <Label>対局モード</Label>
-              <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
-                {(["singles", "doubles"] as const).map((option) => (
-                  <AppRadio key={option} value={option}>
-                    <AppRadio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
-                      <AppRadio.Control>
-                        <AppRadio.Indicator />
-                      </AppRadio.Control>
-                      <span>
-                        <strong>{option === "singles" ? "シングルス" : "ダブルス"}</strong>
-                        <small>{option === "singles" ? "4人で個人戦" : "2対2のチーム戦"}</small>
-                      </span>
-                    </AppRadio.Content>
-                  </AppRadio>
-                ))}
-              </div>
-            </RadioGroup>
+            {game !== "reversi" && (
+              <RadioGroup
+                className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"
+                name="mode"
+                value={mode}
+                onChange={(value) => {
+                  if (value === "singles" || value === "doubles") onModeChange(value);
+                }}
+                isDisabled={busy}
+                orientation="horizontal"
+              >
+                <Label>対局モード</Label>
+                <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
+                  {(["singles", "doubles"] as const).map((option) => (
+                    <AppRadio key={option} value={option}>
+                      <AppRadio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
+                        <AppRadio.Control>
+                          <AppRadio.Indicator />
+                        </AppRadio.Control>
+                        <span>
+                          <strong>{option === "singles" ? "シングルス" : "ダブルス"}</strong>
+                          <small>{option === "singles" ? "4人で個人戦" : "2対2のチーム戦"}</small>
+                        </span>
+                      </AppRadio.Content>
+                    </AppRadio>
+                  ))}
+                </div>
+              </RadioGroup>
+            )}
             {threePlayerAttackProhibited !== undefined && onThreePlayerAttackChange && (
               <ThreePlayerAttackSetting
                 prohibited={threePlayerAttackProhibited}

@@ -309,7 +309,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
         headers: { Cookie: user.cookie },
       });
       expect(response.status).toBe(200);
-      return getAccountStatsContract.response.parse(await response.json());
+      return parseLegacyStats(await response.json());
     };
     const stats = await readStats();
     expect(stats.singles.total).toBe(1);
@@ -428,3 +428,9 @@ test("他テストの遅延保存は公開APIの検証DBへ混入しない", asy
     ]);
   }
 });
+
+function parseLegacyStats(value: unknown) {
+  const stats = getAccountStatsContract.response.parse(value);
+  if (!("singles" in stats)) throw Error("Expected four-player stats");
+  return stats;
+}

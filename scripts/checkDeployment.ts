@@ -59,6 +59,7 @@ for (const game of gameIds) {
       lobbyMetadata[game].overview,
       'href="/games/four-reversi"',
       'href="/games/four-shogi"',
+      'href="/games/reversi"',
     ])
       if (!html.includes(expected)) throw new Error(`Missing lobby content: ${expected}`);
   });

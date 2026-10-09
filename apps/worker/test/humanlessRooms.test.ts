@@ -1,3 +1,4 @@
+import { isReversiRoom } from "@tetraboard/protocol";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
@@ -65,6 +66,7 @@ async function setup(game: Game, mode: "singles" | "doubles" = "singles", accoun
     const room = roomSchema.parse(state.storage.kv.get("room"));
     if (room.status !== "playing") throw new Error("Not playing");
     // Hold the turn on the host so unrelated CPU alarms cannot advance these boundary tests.
+    if (isReversiRoom(room)) throw Error("Expected existing game fixture");
     if (isFourShogiRoom(room)) {
       room.game.turn = room.players[0].side;
       room.legalActions = getLegalActions({ ...room.game, repetitions: {} });
@@ -243,6 +245,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     const before = await runInDurableObject(prepared.stub, async (_, state) => {
       const room = roomSchema.parse(state.storage.kv.get("room"));
       if (room.status !== "playing") throw new Error("Not playing");
+      if (isReversiRoom(room)) throw Error("Expected existing game fixture");
       if (isFourShogiRoom(room)) {
         room.game.turn = room.players.find((player) => player.kind === "cpu")!.side;
         room.legalActions = getLegalActions({ ...room.game, repetitions: {} });
@@ -302,6 +305,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       let room = roomSchema.parse(state.storage.kv.get("room"));
       if (room.status !== "playing") throw new Error("Not playing");
       // A former CPU-only round with two survivors must not finish via an overdue CPU timeout.
+      if (isReversiRoom(room)) throw Error("Expected existing game fixture");
       if (isFourShogiRoom(room)) {
         const store = new ShogiStore(state.storage.sql);
         const first = eliminateSide(

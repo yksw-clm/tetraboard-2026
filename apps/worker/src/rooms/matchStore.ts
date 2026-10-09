@@ -1,3 +1,4 @@
+import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
 import {
   type FourReversiRoom as Room,
   type RoundReplay,
@@ -31,7 +32,10 @@ export type PendingMatch = { record: MatchRecord; retryAtMs: number };
 export const matchStartKey = "match-start";
 export const pendingMatchPrefix = "match-pending:";
 
-export async function writeMatch(db: D1Database, record: MatchRecord): Promise<void> {
+export async function writeMatch(
+  db: D1Database,
+  record: MatchRecord | ReversiMatchRecord,
+): Promise<void> {
   const statements = [
     db
       .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
@@ -39,7 +43,7 @@ export async function writeMatch(db: D1Database, record: MatchRecord): Promise<v
       .bind(
         record.id,
         record.settings.game,
-        record.settings.mode,
+        record.settings.mode ?? "standard",
         record.startedAtMs,
         record.endedAtMs,
         JSON.stringify(record),
@@ -49,8 +53,8 @@ export async function writeMatch(db: D1Database, record: MatchRecord): Promise<v
   statements.push(
     db
       .prepare(`INSERT INTO account_match_history
-    (account_id, match_id, mode, started_at_ms)
-    SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms
+    (account_id, match_id, mode, started_at_ms, game)
+    SELECT json_extract(p.value, '$.accountId'), m.id, m.mode, m.started_at_ms, m.game
     FROM matches m, json_each(m.record_json, '$.participants') p
     WHERE m.id = ? AND json_extract(p.value, '$.kind') = 'human'
       AND json_extract(p.value, '$.accountId') IS NOT NULL

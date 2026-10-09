@@ -1,3 +1,5 @@
+import type { ReversiLastRound } from "@tetraboard/protocol";
+import { ReversiProgress } from "./reversiProgress";
 import type {
   GameId,
   RoomFor,
@@ -12,6 +14,7 @@ export type ProgressError = Extract<RoomSocketMessage, { type: "room.error" }>["
 export type PlayingFor<G extends GameId> = Extract<RoomFor<G>, { status: "playing" }>;
 export type WaitingFor<G extends GameId> = Extract<RoomFor<G>, { status: "waiting" }>;
 interface ProgressTypes {
+  reversi: { finished: ReversiLastRound["game"]; lastRound: ReversiLastRound };
   "four-reversi": { finished: LastRound["game"]; lastRound: LastRound };
   "four-shogi": { finished: FourShogiLastRound["game"]; lastRound: FourShogiLastRound };
 }
@@ -57,6 +60,7 @@ type Registration<G extends GameId> = {
 export type GameProgressRegistration = { [G in GameId]: Registration<G> };
 
 export const gameProgress = {
+  reversi: { create: (dependencies: ProgressDependencies) => new ReversiProgress(dependencies) },
   "four-reversi": {
     create: (dependencies: ProgressDependencies) => new FourReversiProgress(dependencies),
   },

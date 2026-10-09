@@ -20,7 +20,7 @@ async function stats(user: Awaited<ReturnType<typeof accountFixture>>) {
   const response = await matchRequest("/account/stats", { headers: { Cookie: user.cookie } });
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
-  return getAccountStatsContract.response.parse(await response.json());
+  return parseLegacyStats(await response.json());
 }
 afterEach(() => {
   for (const client of matchClients.splice(0)) client.close();
@@ -158,3 +158,9 @@ test("未認証・無効Cookieは401、D1と認証取得の失敗は503にする
     }
   }
 });
+
+function parseLegacyStats(value: unknown) {
+  const stats = getAccountStatsContract.response.parse(value);
+  if (!("singles" in stats)) throw Error("Expected four-player stats");
+  return stats;
+}

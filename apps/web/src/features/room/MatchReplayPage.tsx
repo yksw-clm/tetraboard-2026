@@ -19,6 +19,10 @@ import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import type { MatchReplayData } from "./matchReplayLoader";
 function Replay({ data }: { data: MatchReplayData }) {
   switch (data.game) {
+    case "reversi": {
+      const View = replayViews.reversi;
+      return <View key={data.match.id} match={data.match} />;
+    }
     case "four-reversi": {
       const View = replayViews["four-reversi"];
       return <View key={data.match.id} match={data.match} />;

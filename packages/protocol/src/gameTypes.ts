@@ -1,3 +1,6 @@
+import type { ReversiRoom } from "./rooms";
+import type { ReversiMatchDetail, PublicReversiMatchDetail } from "./matches";
+import type { ReversiRankings } from "./rankings";
 import type { GameId } from "./games";
 import type { FourReversiRoom, FourShogiRoom, RoomSocketClientMessage } from "./rooms";
 import type {
@@ -15,6 +18,13 @@ type ReversiAction = Extract<
 >;
 /** 型だけの対応表。GameId の追加には各ゲームの具体型の登録が必要です。 */
 export interface GameTypeMap {
+  reversi: {
+    room: ReversiRoom;
+    match: ReversiMatchDetail;
+    publicMatch: PublicReversiMatchDetail;
+    action: ReversiAction;
+    rankings: ReversiRankings;
+  };
   "four-reversi": {
     room: FourReversiRoom;
     match: FourReversiMatchDetail;

@@ -31,10 +31,10 @@ test("両ロビーの初期HTMLは固有本文・正規URL・描画資産と通�
   }
 });
 
-test("サイトマップは2ロビーだけ、robotsはクロールを許可し404は検索除外する", () => {
+test("サイトマップは3ロビーだけ、robotsはクロールを許可し404は検索除外する", () => {
   const xml = renderSitemap();
   expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
-  expect(xml.match(/<loc>/g)).toHaveLength(2);
+  expect(xml.match(/<loc>/g)).toHaveLength(3);
   expect(xml).toContain("https://tetraboard.net/games/four-shogi</loc>");
   expect(xml).toContain("https://tetraboard.net/games/four-reversi</loc>");
   expect(robotsText).toContain("Allow: /\nSitemap: https://tetraboard.net/sitemap.xml");

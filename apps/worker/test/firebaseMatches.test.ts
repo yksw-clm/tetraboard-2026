@@ -147,7 +147,7 @@ test("指定UIDの本人だけを紐付け、D1保存・再実行・履歴・戦
   const statsResponse = await matchRequest("/account/stats?game=four-reversi", {
     headers: { Cookie: user.cookie },
   });
-  const stats = getAccountStatsContract.response.parse(await statsResponse.json());
+  const stats = parseLegacyStats(await statsResponse.json());
   expect(stats.singles).toEqual({ total: 1, first: 1, second: 0, third: 0, fourth: 0 });
   expect(() => prepareFirebaseMatches([source], [{ ...link, sourceName: "別人" }], target)).toThrow(
     /mapping/,
@@ -203,3 +203,9 @@ test("計画後に紐付け先が変わったら、対局と本人索引を保�
       .first(),
   ).toBeNull();
 });
+
+function parseLegacyStats(value: unknown) {
+  const stats = getAccountStatsContract.response.parse(value);
+  if (!("singles" in stats)) throw Error("Expected four-player stats");
+  return stats;
+}

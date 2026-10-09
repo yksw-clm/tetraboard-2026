@@ -41,12 +41,19 @@ export function PlayerProfileCard({
       </div>
     );
   const name = profile.kind === "cpu" ? `CPU Lv${profile.level}` : profile.name;
-  const stats = profile.kind === "account" ? profile.stats[mode] : null;
+  const stats =
+    profile.kind === "account"
+      ? "wins" in profile.stats
+        ? profile.stats
+        : profile.stats[mode]
+      : null;
   const wins =
     profile.kind === "account"
-      ? mode === "singles"
-        ? profile.stats.singles.first
-        : profile.stats.doubles.wins
+      ? "wins" in profile.stats
+        ? profile.stats.wins
+        : mode === "singles"
+          ? profile.stats.singles.first
+          : profile.stats.doubles.wins
       : 0;
   return (
     <div className="flex flex-col gap-3">
@@ -68,19 +75,32 @@ export function PlayerProfileCard({
         <>
           <div>
             <p className="m-0 text-xs font-semibold">
-              {gameCatalog[game].name}・{mode === "singles" ? "シングルス" : "ダブルス"}
+              {gameCatalog[game].name}
+              {game !== "reversi" && `・${mode === "singles" ? "シングルス" : "ダブルス"}`}
             </p>
             <p className="m-0 text-xs text-muted">対人戦のみ集計</p>
           </div>
           <dl className="m-0 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
             <dt>対局数</dt>
             <dd className="m-0 tabular-nums">{stats.total}局</dd>
-            <dt>{mode === "singles" ? "優勝数" : "勝数"}</dt>
+            <dt>{game !== "reversi" && mode === "singles" ? "優勝数" : "勝数"}</dt>
             <dd className="m-0 tabular-nums">{wins}回</dd>
-            <dt>{mode === "singles" ? "優勝率" : "勝率"}</dt>
+            <dt>{game !== "reversi" && mode === "singles" ? "優勝率" : "勝率"}</dt>
             <dd className="m-0 tabular-nums">{formatStatsRate(wins, stats.total)}</dd>
+            {profile.kind === "account" && "wins" in profile.stats && (
+              <>
+                <dt>敗数</dt>
+                <dd className="m-0 tabular-nums">{profile.stats.losses}回</dd>
+                <dt>敗率</dt>
+                <dd className="m-0 tabular-nums">
+                  {formatStatsRate(profile.stats.losses, profile.stats.total)}
+                </dd>
+              </>
+            )}
           </dl>
-          {mode === "singles" && <PlayerBadges game={game} badges={profile.badges} />}
+          {game !== "reversi" && mode === "singles" && (
+            <PlayerBadges game={game} badges={profile.badges} />
+          )}
         </>
       ) : (
         <p className="m-0 text-sm text-muted">

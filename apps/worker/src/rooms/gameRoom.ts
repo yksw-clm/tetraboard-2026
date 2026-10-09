@@ -1,3 +1,5 @@
+import { isReversiRoom, type ReversiRoom } from "@tetraboard/protocol";
+import type { PendingMatch as PendingReversiMatch } from "./reversiMatchStore";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { nextDueRoomDeadline, earliestAlarmAt } from "./roomDeadlines";
 import { roomFormationAnalysis, formationAnalysisTag } from "./fourShogiFormationAnalysis";
@@ -119,6 +121,7 @@ export class GameRoom extends DurableObject<Env> {
     accountId: (playerId: string) => this.storedAccount(playerId)?.accountId ?? null,
   };
   private readonly reversiProgress = gameProgress["four-reversi"].create(this.progressDependencies);
+  private readonly standardProgress = gameProgress.reversi.create(this.progressDependencies);
   private readonly shogiProgress = gameProgress["four-shogi"].create(this.progressDependencies);
   private analyticsFlush: Promise<void> | null = null;
 
@@ -130,7 +133,7 @@ export class GameRoom extends DurableObject<Env> {
     const record: AnalyticsMatch = {
       id,
       game: room.settings.game,
-      mode: room.settings.mode,
+      mode: room.settings.mode ?? "standard",
       startedAtMs: at,
       endedAtMs: null,
       status: "playing",
@@ -198,7 +201,9 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private pendingMatches() {
-    return new Map(this.ctx.storage.kv.list<PendingMatch>({ prefix: pendingMatchPrefix }));
+    return new Map(
+      this.ctx.storage.kv.list<PendingMatch | PendingReversiMatch>({ prefix: pendingMatchPrefix }),
+    );
   }
   private pendingShogiMatches() {
     return new Map(
@@ -416,6 +421,7 @@ export class GameRoom extends DurableObject<Env> {
     if (saved === undefined) return null;
     const room = roomSchema.parse(saved);
     if (isFourShogiRoom(room)) this.shogiProgress.normalize(room, saved);
+    else if (isReversiRoom(room)) this.standardProgress.normalize(room, saved);
     else this.reversiProgress.normalize(room, saved);
     return room;
   }
@@ -545,6 +551,7 @@ export class GameRoom extends DurableObject<Env> {
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
   }
 
+  private applyProgress(result: ProgressFor<"reversi">): ReversiRoom | null;
   private applyProgress(result: ProgressFor<"four-reversi">): FourReversiRoom | null;
   private applyProgress(result: ProgressFor<"four-shogi">): FourShogiRoom | null;
   private applyProgress(result: AnyProgress): Room | null;
@@ -558,6 +565,13 @@ export class GameRoom extends DurableObject<Env> {
       case "finished": {
         this.endAnalyticsMatch("completed", result.at);
         switch (result.gameId) {
+          case "reversi": {
+            const lastRound = this.standardProgress.finalize(result);
+            const players = this.rematchPlayers(result.room.players, result.at);
+            return players === null
+              ? null
+              : this.standardProgress.waiting({ ...result, lastRound }, players);
+          }
           case "four-reversi": {
             const lastRound = this.reversiProgress.finalize(result);
             const players = this.rematchPlayers(result.room.players, result.at);
@@ -1192,6 +1206,15 @@ export class GameRoom extends DurableObject<Env> {
             room = this.applyProgress(
               this.shogiProgress.eliminate(room, player.id, "timeout", deadline.at),
             );
+          } else if (isReversiRoom(room)) {
+            const turn: "black" | "white" = room.game.turn;
+            const player: ReversiRoom["players"][number] | undefined = room.players.find(
+              (p) => p.color === turn,
+            );
+            if (!player) throw Error("Missing timed-out player");
+            room = this.applyProgress(
+              this.standardProgress.eliminate(room, player.id, "timeout", deadline.at),
+            );
           } else {
             const turn: Extract<FourReversiRoom, { status: "playing" }>["game"]["turn"] =
               room.game.turn;
@@ -1222,9 +1245,13 @@ export class GameRoom extends DurableObject<Env> {
               ? this.applyProgress(
                   this.shogiProgress.eliminate(room, player.id, "disconnected", deadline.at),
                 )
-              : this.applyProgress(
-                  this.reversiProgress.eliminate(room, player.id, "disconnected", deadline.at),
-                );
+              : isReversiRoom(room)
+                ? this.applyProgress(
+                    this.standardProgress.eliminate(room, player.id, "disconnected", deadline.at),
+                  )
+                : this.applyProgress(
+                    this.reversiProgress.eliminate(room, player.id, "disconnected", deadline.at),
+                  );
           }
         }
         room = this.closeIfNoHumanParticipants(room);
@@ -1257,7 +1284,9 @@ export class GameRoom extends DurableObject<Env> {
             }
           }
         } else {
-          const result = this.reversiProgress.cpu(room, now);
+          const result = isReversiRoom(room)
+            ? this.standardProgress.cpu(room, now)
+            : this.reversiProgress.cpu(room, now);
           if (result.kind !== "unchanged") {
             room = this.applyProgress(result);
             if (room) this.ctx.storage.kv.put(roomStorageKey, room);
@@ -1270,7 +1299,7 @@ export class GameRoom extends DurableObject<Env> {
     await this.syncAlarm(updated);
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
-    if (!initial || isFourReversiRoom(initial)) this.ctx.waitUntil(this.flushMatches());
+    if (!initial || !isFourShogiRoom(initial)) this.ctx.waitUntil(this.flushMatches());
     if (changed) {
       if (updated) this.broadcastRoom(updated);
       else this.closeSockets();
@@ -1319,6 +1348,22 @@ export class GameRoom extends DurableObject<Env> {
           });
           this.ctx.storage.kv.put(roomStorageKey, updated);
         }
+      } else if (isReversiRoom(room)) {
+        this.recordDeparture(player);
+        this.releaseAccount(player.id, false);
+        const prepared = this.standardProgress.prepareLeave(room, player.id);
+        this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
+        this.ctx.storage.kv.delete(playerTokenKey(player.id));
+        updated = this.applyProgress(
+          this.standardProgress.leave(
+            room,
+            player.id,
+            prepared,
+            Date.now(),
+            membership.role === "host",
+          ),
+        );
+        if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
       } else {
         const player = room.players.find((entry) => entry.id === membership.playerId)!;
         this.recordDeparture(player);
@@ -1580,6 +1625,7 @@ export class GameRoom extends DurableObject<Env> {
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
       if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" };
+      if (isReversiRoom(room)) return { status: "forbidden" };
       if (room.settings.mode === mode) return { status: "unchanged" };
 
       this.appendSystem(
@@ -1696,7 +1742,9 @@ export class GameRoom extends DurableObject<Env> {
 
       const started = isFourShogiRoom(room)
         ? this.shogiProgress.start(room)
-        : this.reversiProgress.start(room);
+        : isReversiRoom(room)
+          ? this.standardProgress.start(room)
+          : this.reversiProgress.start(room);
       this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
       this.startAnalyticsMatch(started.roundId, started.room, started.at);
       return { status: "started", room: started.room };
@@ -1710,11 +1758,10 @@ export class GameRoom extends DurableObject<Env> {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (!room) return { status: "not_found" };
-      if (!isFourReversiRoom(room)) return { status: "invalid_move" };
-      const result = this.reversiProgress.play(room, tokenHash, {
-        type: "room.game.action",
-        action,
-      });
+      if (isFourShogiRoom(room)) return { status: "invalid_move" };
+      const result = isReversiRoom(room)
+        ? this.standardProgress.play(room, tokenHash, { type: "room.game.action", action })
+        : this.reversiProgress.play(room, tokenHash, { type: "room.game.action", action });
       if (result.kind === "rejected") return { status: result.error };
       const updated = this.applyProgress(result);
       if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -1729,7 +1776,9 @@ export class GameRoom extends DurableObject<Env> {
       if (!room) return { status: "not_found" };
       const result = isFourShogiRoom(room)
         ? this.shogiProgress.resign(room, tokenHash)
-        : this.reversiProgress.resign(room, tokenHash);
+        : isReversiRoom(room)
+          ? this.standardProgress.resign(room, tokenHash)
+          : this.reversiProgress.resign(room, tokenHash);
       if (result.kind === "rejected") return { status: result.error };
       const updated = this.applyProgress(result);
       if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);

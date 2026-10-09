@@ -15,7 +15,7 @@ import { readStoredMatch, matchSummary, matchDetail } from "./matchDataContracts
 export async function listMatches(
   db: D1Database,
   accountId: string,
-  mode: RoomMode,
+  mode: RoomMode | undefined,
   cursor: { startedAtMs: number; id: string } | null,
   game: MatchGame = defaultGameId,
 ) {
@@ -25,10 +25,17 @@ export async function listMatches(
     ? db
         .prepare(`${sql} AND (h.started_at_ms < ? OR (h.started_at_ms = ? AND h.match_id < ?))
       ORDER BY h.started_at_ms DESC, h.match_id DESC LIMIT 21`)
-        .bind(accountId, game, mode, cursor.startedAtMs, cursor.startedAtMs, cursor.id)
+        .bind(
+          accountId,
+          game,
+          mode ?? "standard",
+          cursor.startedAtMs,
+          cursor.startedAtMs,
+          cursor.id,
+        )
     : db
         .prepare(`${sql} ORDER BY h.started_at_ms DESC, h.match_id DESC LIMIT 21`)
-        .bind(accountId, game, mode);
+        .bind(accountId, game, mode ?? "standard");
   const rows = await statement.all<{ game: string; record_json: string }>();
   const records = rows.results
     .slice(0, 20)

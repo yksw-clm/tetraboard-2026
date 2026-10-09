@@ -38,10 +38,12 @@ export const badgeDefinitions = {
 >;
 
 export function getBadgeIds(game: GameId): readonly BadgeId[] {
+  if (game === "reversi") return [];
   return game === "four-shogi" ? badgeIds : ["games", "wins"];
 }
 
 export function getBadgeProgress(game: GameId, stats: AccountStats): BadgeProgress[] {
+  if (!("singles" in stats)) return [];
   const singles = stats.singles;
   return getBadgeIds(game).map((id) => {
     const value =

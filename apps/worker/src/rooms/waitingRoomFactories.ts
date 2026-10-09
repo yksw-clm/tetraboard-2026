@@ -16,7 +16,10 @@ function base({ code, request }: CreationContext) {
     instanceId: crypto.randomUUID(),
     publicUpdatedAtMs: Date.now(),
     lastActivityAtMs: Date.now(),
-    settings: { mode: request.mode, timeControl: request.timeControl ?? roomTimeControl },
+    settings: {
+      mode: request.mode ?? "singles",
+      timeControl: request.timeControl ?? roomTimeControl,
+    },
   };
 }
 function players({ name, request }: CreationContext) {
@@ -43,6 +46,18 @@ function players({ name, request }: CreationContext) {
   return [host, ...cpus];
 }
 export const waitingRoomFactories = {
+  reversi: (
+    context: CreationContext,
+  ): WaitingRoomFactories["reversi"] extends (...args: never[]) => infer R ? R : never => ({
+    ...base(context),
+    status: "waiting",
+    settings: { game: "reversi", timeControl: context.request.timeControl ?? roomTimeControl },
+    players: players(context).map((p) => ({ ...p, color: null })),
+    eliminations: [],
+    game: null,
+    clock: null,
+    lastRound: null,
+  }),
   "four-reversi": (
     context: CreationContext,
   ): Extract<RoomFor<"four-reversi">, { status: "waiting" }> => {

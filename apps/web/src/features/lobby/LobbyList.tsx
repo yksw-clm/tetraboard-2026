@@ -1,3 +1,4 @@
+import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
@@ -36,6 +37,10 @@ export function LobbyList({
   onJoin,
   onWatch,
 }: Props) {
+  const hasModes = rooms.some((room) => room.game !== "reversi");
+  const columns = hasModes
+    ? "grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px]"
+    : "grid-cols-[minmax(150px,1.5fr)_minmax(130px,1fr)_100px_156px]";
   return (
     <section
       aria-labelledby="public-rooms-title"
@@ -92,11 +97,11 @@ export function LobbyList({
       {rooms.length > 0 && (
         <>
           <div
-            className="grid grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px] items-center gap-4 px-6 pb-[10px] text-muted text-[11px] [@media(max-width:900px)]:hidden"
+            className={`grid ${columns} items-center gap-4 px-6 pb-[10px] text-muted text-[11px] [@media(max-width:900px)]:hidden`}
             aria-hidden="true"
           >
             <span>ルーム</span>
-            <span>モード</span>
+            {hasModes && <span>モード</span>}
             <span>参加人数</span>
             <span>状態</span>
             <span />
@@ -107,13 +112,15 @@ export function LobbyList({
                 const canJoin = room.status === "waiting" && room.openSeats > 0;
                 return (
                   <li key={room.id}>
-                    <AppCard className="grid grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px] items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white">
+                    <AppCard
+                      className={`grid ${columns} items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white`}
+                    >
                       <div className="flex items-center min-w-0 gap-3">
                         <PlayerProfileTrigger
                           target={room.hostName === null ? null : room.profileTarget}
                           game={room.game}
-                          mode={room.mode}
-                          theme={room.game === "four-shogi" ? "four-shogi" : "default"}
+                          mode={room.mode ?? "singles"}
+                          theme={gameThemes[room.game]}
                           label={room.hostName ?? "ホストなし"}
                         >
                           <AppAvatar
@@ -126,8 +133,8 @@ export function LobbyList({
                             <PlayerProfileTrigger
                               target={room.hostName === null ? null : room.profileTarget}
                               game={room.game}
-                              mode={room.mode}
-                              theme={room.game === "four-shogi" ? "four-shogi" : "default"}
+                              mode={room.mode ?? "singles"}
+                              theme={gameThemes[room.game]}
                               label={room.hostName ?? "ホストなし"}
                             >
                               {room.hostName ?? "ホストなし"}
@@ -136,9 +143,11 @@ export function LobbyList({
                           <span className="block text-xs text-muted tabular-nums">{room.id}</span>
                         </div>
                       </div>
-                      <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
-                        {room.mode === "singles" ? "シングルス" : "ダブルス"}
-                      </span>
+                      {room.game !== "reversi" && (
+                        <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
+                          {room.mode === "singles" ? "シングルス" : "ダブルス"}
+                        </span>
+                      )}
                       <div className="flex items-center min-w-0 gap-3 [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-3">
                         <strong className="text-base tabular-nums whitespace-nowrap">
                           {room.humanCount + room.cpuCount}/{room.capacity}

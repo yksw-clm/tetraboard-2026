@@ -1,3 +1,4 @@
+import { previewReversiRankingsSchema, type PreviewReversiRankings } from "@tetraboard/protocol";
 import { defaultGameId, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
 import {
@@ -83,18 +84,66 @@ async function queryGameRankings(
   return rankings;
 }
 
+async function queryReversiRankings(
+  db: D1Database,
+  preview = false,
+): Promise<PreviewReversiRankings> {
+  const rows = await db
+    .prepare(`${matchOutcomesCte("reversi", false)}, totals AS (
+ SELECT account_id,COUNT(*) AS total,COALESCE(SUM(winner=direction),0) AS wins FROM outcomes GROUP BY account_id
+ ),metrics AS (SELECT account_id,'total' AS metric,total AS value FROM totals UNION ALL SELECT account_id,'wins' AS metric,wins AS value FROM totals),ranked AS (
+ SELECT u.id AS accountId,u.publicProfileId,u.username,u.name,u.avatarKey,m.metric,m.value,
+ RANK() OVER(PARTITION BY m.metric ORDER BY m.value DESC) AS rank,
+ ROW_NUMBER() OVER(PARTITION BY m.metric ORDER BY m.value DESC,u.username ASC) AS position
+ FROM metrics m JOIN user u ON u.id=m.account_id WHERE m.value>0 AND u.profileCompleted=1 AND u.username IS NOT NULL AND COALESCE(u.isAnonymous,0)=0
+ ) SELECT * FROM ranked WHERE position<=10 ORDER BY metric,position`)
+    .bind("reversi")
+    .all<{
+      accountId: string;
+      publicProfileId: string | null;
+      username: string;
+      name: string;
+      avatarKey: string | null;
+      metric: "wins" | "total";
+      value: number;
+      rank: number;
+    }>();
+  const result: PreviewReversiRankings = { wins: [], total: [] };
+  for (const row of rows.results) {
+    const profileId = preview
+      ? (row.publicProfileId ?? (await ensurePublicProfileId(db, row.accountId)))
+      : undefined;
+    result[row.metric].push({
+      rank: row.rank,
+      username: row.username,
+      name: row.name,
+      avatarUrl: profileAvatarUrl(row.avatarKey),
+      value: row.value,
+      ...(profileId ? { profileId } : {}),
+    });
+  }
+  return result;
+}
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
 export const rankingReaders = {
+  reversi: async (db: D1Database) =>
+    matchDataContracts.reversi.rankings(await queryReversiRankings(db)),
   "four-reversi": async (db: D1Database) =>
     matchDataContracts["four-reversi"].rankings(await queryGameRankings(db, "four-reversi")),
   "four-shogi": async (db: D1Database) =>
     matchDataContracts["four-shogi"].rankings(await queryGameRankings(db, "four-shogi")),
 } satisfies { [G in GameId]: (db: D1Database) => Promise<RankingsFor<G>> };
+export function readGameRankings<G extends GameId = "four-reversi">(
+  db: D1Database,
+  game?: G,
+): Promise<RankingsFor<G>>;
 export async function readGameRankings(
   db: D1Database,
   game: MatchGame = defaultGameId,
 ): Promise<RankingsFor<GameId>> {
   switch (game) {
+    case "reversi":
+      return rankingReaders[game](db);
     case "four-reversi":
       return rankingReaders[game](db);
     case "four-shogi":
@@ -114,6 +163,10 @@ for (const game of gameIds) {
       const preview = c.req.query("profilePreview");
       if (preview !== undefined && preview !== "1")
         return c.json({ message: "取得条件が正しくありません。" }, 400);
+      if (preview && game === "reversi")
+        return c.json(
+          previewReversiRankingsSchema.parse(await queryReversiRankings(c.env.APP_DB, true)),
+        );
       if (preview)
         return c.json(
           previewRankingsSchema.parse(await queryGameRankings(c.env.APP_DB, game, true)),

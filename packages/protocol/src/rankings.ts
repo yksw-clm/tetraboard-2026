@@ -40,7 +40,17 @@ export type GameRankingContracts = {
     response: z.ZodType<import("./gameTypes").RankingsFor<G>>;
   };
 };
+export const reversiRankingsSchema = z.strictObject({
+  wins: rankingListSchema,
+  total: rankingListSchema,
+});
+export type ReversiRankings = z.infer<typeof reversiRankingsSchema>;
 export const gameRankingContracts = {
   "four-reversi": getFourReversiRankingsContract,
   "four-shogi": getFourShogiRankingsContract,
+  reversi: {
+    method: "GET",
+    path: gameCatalog.reversi.rankingsPath,
+    response: reversiRankingsSchema,
+  },
 } satisfies GameRankingContracts;

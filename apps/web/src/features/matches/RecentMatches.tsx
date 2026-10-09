@@ -1,3 +1,4 @@
+import { gameCapacity } from "@tetraboard/protocol/games";
 import type { GameId } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
@@ -46,7 +47,7 @@ export function RecentMatches({ game }: { game: GameId }) {
           checked={page.humanOnly}
           onChange={(event) => page.changeHumanOnly(event.target.checked)}
         />
-        人間4人の対局のみ
+        人間{gameCapacity(game)}人の対局のみ
       </label>
       {page.loading && !page.pendingSource && (
         <p role="status" className="text-sm text-muted">
@@ -72,7 +73,9 @@ export function RecentMatches({ game }: { game: GameId }) {
       </ul>
       {page.loaded && !page.loading && !page.error && !page.matches.length && (
         <p className="text-sm text-muted">
-          {page.humanOnly ? "人間4人の対局履歴がありません。" : "まだ対局履歴がありません。"}
+          {page.humanOnly
+            ? `人間${gameCapacity(game)}人の対局履歴がありません。`
+            : "まだ対局履歴がありません。"}
         </p>
       )}
       {page.error && (

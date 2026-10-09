@@ -21,7 +21,8 @@
     "@tetraboard/protocol": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router": "^8.4.0"
+    "react-router": "^8.4.0",
+    "@tetraboard/reversi": "workspace:*"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

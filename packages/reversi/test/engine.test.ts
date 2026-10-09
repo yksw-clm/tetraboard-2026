@@ -76,6 +76,7 @@ test("盤面充填の引き分けと脱落による石数に依存しない勝�
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.state.result?.reason).toBe("board_full");
+  expect(result.state.result?.winner).toBeNull();
   const lost = eliminateColor(createInitialState(), "black");
   expect(lost.ok).toBe(true);
   if (!lost.ok) return;

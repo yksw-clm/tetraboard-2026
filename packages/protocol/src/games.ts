@@ -1,5 +1,5 @@
 // 順序はゲーム選択の表示順です。all はゲームIDに含めません。
-export const gameIds = ["four-reversi", "four-shogi"] as const;
+export const gameIds = ["four-reversi", "four-shogi", "reversi"] as const;
 export type GameId = (typeof gameIds)[number];
 export const defaultGameId = "four-reversi" satisfies GameId;
 
@@ -28,6 +28,13 @@ export const gameCatalog = {
     name: "四人将棋",
     lobbyPath: "/games/four-shogi",
     rankingsPath: "/games/four-shogi/rankings",
+  },
+  reversi: {
+    name: "リバーシ",
+    lobbyPath: "/games/reversi",
+    rankingsPath: "/games/reversi/rankings",
+    capacity: 2,
+    hasModes: false,
   },
 } as const satisfies Record<GameId, GameMetadata>;
 

@@ -16,6 +16,12 @@ import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
+  reversi: {
+    path: gameCatalog.reversi.lobbyPath,
+    lazy: async () => ({
+      Component: (await import("../features/lobby/ReversiLobbyPage")).ReversiLobbyPage,
+    }),
+  },
   "four-reversi": {
     path: gameCatalog["four-reversi"].lobbyPath,
     lazy: async () => ({

@@ -29,18 +29,24 @@ export function RegistrationPrompt({
       className="flex flex-col gap-3 rounded-control border border-solid border-line bg-surface-muted p-3 text-sm"
     >
       <h2 className="m-0 text-base font-bold">
-        {result ? "これからの対局で、バッジを集めよう" : "登録して、対局の成果を残そう"}
+        {result && game !== "reversi"
+          ? "これからの対局で、バッジを集めよう"
+          : "登録して、対局の成果を残そう"}
       </h2>
-      <RegistrationBenefits />
+      <RegistrationBenefits game={game} />
       <RegistrationBadgeExamples game={game} />
       {!humanOnly && (
         <p className="m-0 text-xs text-muted">
-          CPUを含む対局は、戦績・ランキング・バッジの対象外です。
+          {game === "reversi"
+            ? "CPUを含む対局は、戦績・ランキングの対象外です。"
+            : "CPUを含む対局は、戦績・ランキング・バッジの対象外です。"}
         </p>
       )}
       {result && (
         <p className="m-0 text-xs leading-relaxed text-muted">
-          今回のゲスト対局は、登録後の戦績・バッジ・本人の対局履歴には引き継がれません。
+          {game === "reversi"
+            ? "今回のゲスト対局は、登録後の戦績・本人の対局履歴には引き継がれません。"
+            : "今回のゲスト対局は、登録後の戦績・バッジ・本人の対局履歴には引き継がれません。"}
         </p>
       )}
       {seated && (

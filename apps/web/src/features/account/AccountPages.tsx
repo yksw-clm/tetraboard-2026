@@ -295,27 +295,32 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
           game={game}
           navigation={<AccountGameMenu game={game} onChange={setGame} />}
           modeTabs={
-            <AppTabs.List aria-label="プロフィールの対局モード">
-              {(["singles", "doubles"] as const).map((tab) => (
-                <AppTabs.Tab
-                  key={tab}
-                  id={tab}
-                  render={(props) =>
-                    "href" in props ? (
-                      <a {...props} aria-controls={props["aria-selected"] ? panelId : undefined} />
-                    ) : (
-                      <div
-                        {...props}
-                        aria-controls={props["aria-selected"] ? panelId : undefined}
-                      />
-                    )
-                  }
-                >
-                  {tab === "singles" ? "シングルス" : "ダブルス"}
-                  <AppTabs.Indicator />
-                </AppTabs.Tab>
-              ))}
-            </AppTabs.List>
+            game !== "reversi" && (
+              <AppTabs.List aria-label="プロフィールの対局モード">
+                {(["singles", "doubles"] as const).map((tab) => (
+                  <AppTabs.Tab
+                    key={tab}
+                    id={tab}
+                    render={(props) =>
+                      "href" in props ? (
+                        <a
+                          {...props}
+                          aria-controls={props["aria-selected"] ? panelId : undefined}
+                        />
+                      ) : (
+                        <div
+                          {...props}
+                          aria-controls={props["aria-selected"] ? panelId : undefined}
+                        />
+                      )
+                    }
+                  >
+                    {tab === "singles" ? "シングルス" : "ダブルス"}
+                    <AppTabs.Indicator />
+                  </AppTabs.Tab>
+                ))}
+              </AppTabs.List>
+            )
           }
         >
           {error && <AccountStatus />}

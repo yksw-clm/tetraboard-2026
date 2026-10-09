@@ -17,7 +17,7 @@ export function GameLobbyNavigation() {
       className="app-theme border-b border-solid border-[#dfe7e2] bg-[#f9fbfa]"
     >
       <div className={cn(appPageWidthClasses, "py-3")}>
-        <div className="grid w-full max-w-[360px] grid-cols-2 gap-2 [@media(max-width:650px)]:max-w-none">
+        <div className="grid w-full max-w-[540px] grid-cols-3 gap-2 [@media(max-width:650px)]:max-w-none">
           {games.map((game) => (
             <NavLink
               key={game.path}

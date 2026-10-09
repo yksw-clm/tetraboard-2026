@@ -100,7 +100,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       headers: { Cookie: user.cookie },
     });
     expect(response.status).toBe(200);
-    expect(getAccountStatsContract.response.parse(await response.json())).toEqual({
+    expect(parseLegacyStats(await response.json())).toEqual({
       singles: {
         total: 0,
         first: 0,
@@ -123,7 +123,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       const readStats = async () => {
         const response = await matchRequest(`/account/stats?game=${game}`, { headers });
         expect(response.status).toBe(200);
-        return getAccountStatsContract.response.parse(await response.json());
+        return parseLegacyStats(await response.json());
       };
       const empty = await readStats();
       const cpuIds: string[] = [];
@@ -211,4 +211,10 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       }
     });
   }
+}
+
+function parseLegacyStats(value: unknown) {
+  const stats = getAccountStatsContract.response.parse(value);
+  if (!("singles" in stats)) throw Error("Expected four-player stats");
+  return stats;
 }

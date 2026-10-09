@@ -1,3 +1,6 @@
+import { reversiMatchData } from "./reversiMatchData";
+import type { MatchRecord as ReversiMatchRecord } from "../rooms/reversiMatchStore";
+import type { ReversiAccountStats, ReversiMatchSummary } from "@tetraboard/protocol";
 import { z } from "zod";
 import { type GameId } from "@tetraboard/protocol/games";
 import {
@@ -23,6 +26,7 @@ import type { MatchRecord } from "../rooms/matchStore";
 import type { ShogiMatchRecord } from "../rooms/shogiMatchStore";
 
 export interface MatchDataMap {
+  reversi: { record: ReversiMatchRecord; summary: ReversiMatchSummary; stats: ReversiAccountStats };
   "four-reversi": {
     record: MatchRecord;
     summary: FourReversiMatchSummary;
@@ -148,6 +152,7 @@ export function readFourShogiMatchRecord(json: string): ShogiMatchRecord {
   return record;
 }
 export const matchDataContracts = {
+  reversi: reversiMatchData,
   "four-reversi": {
     read: readFourReversiMatchRecord,
     detail: reversiDetail,
@@ -188,6 +193,8 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
   const game = storedGameSchema.parse(value).settings.game;
   if (game !== expectedGame) throw new Error("Stored match game mismatch");
   switch (game) {
+    case "reversi":
+      return { game, record: matchDataContracts[game].read(json) };
     case "four-reversi":
       return { game, record: matchDataContracts[game].read(json) };
     case "four-shogi":
@@ -200,6 +207,8 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
 }
 export function matchSummary(match: DecodedMatch, profiles: ParticipantProfiles) {
   switch (match.game) {
+    case "reversi":
+      return matchDataContracts[match.game].summary(match.record, profiles);
     case "four-reversi":
       return matchDataContracts[match.game].summary(match.record, profiles);
     case "four-shogi":
@@ -216,6 +225,8 @@ export function matchDetail(
   profiles: ParticipantProfiles,
 ) {
   switch (match.game) {
+    case "reversi":
+      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "four-reversi":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "four-shogi":

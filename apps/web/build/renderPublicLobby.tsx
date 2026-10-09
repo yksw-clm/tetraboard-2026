@@ -1,3 +1,4 @@
+import { appThemeClasses, gameThemes } from "../src/shared/ui/appTheme";
 import { renderToStaticMarkup } from "react-dom/server";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
@@ -17,7 +18,7 @@ export function renderPublicLobby(template: string, game: GameId): string {
   const page = lobbyMetadata[game];
   const body = renderToStaticMarkup(
     <div
-      className={`app-theme lobby-background min-h-dvh text-ink ${game === "four-shogi" ? "game-theme-four-shogi" : ""}`}
+      className={`app-theme lobby-background min-h-dvh text-ink ${appThemeClasses[gameThemes[game]]}`}
     >
       <main className="max-w-[1148px] mx-auto px-5 py-6 flex flex-col gap-5">
         <nav aria-label="ゲームを選択" className="flex gap-5">

@@ -34,7 +34,7 @@ const route = (entry: string) => (
 test("新規の既定値・文字数検証・プレビュー・保存ロックと作成後の編集", async () => {
   expect(announcementToday(Date.parse("2026-10-07T15:00:00Z"))).toBe("2026-10-08");
   const view = render(route("/announcements/new"));
-  expect(view.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').length).toBe(3);
+  expect(view.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').length).toBe(4);
   expect(
     [...view.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].every((e) => !e.checked),
   ).toBe(true);

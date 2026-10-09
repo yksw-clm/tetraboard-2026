@@ -63,7 +63,11 @@ export function SavedMatchReplayView({
           結果
         </AppButton>
       </div>
-      <ViewerControls label="棋譜閲覧中" onRotate={onRotate} />
+      <ViewerControls
+        label="棋譜閲覧中"
+        onRotate={onRotate}
+        rotationDegrees={match.settings.game === "reversi" ? 180 : 90}
+      />
     </AppCard>
   );
   return (
