@@ -20,7 +20,7 @@ import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
 import { useSocialSignIn } from "../account/useSocialSignIn";
-import { useRegistrationResult } from "./useRegistrationResult";
+import { useAutoGameResult } from "./useAutoGameResult";
 import { roomInvitationPath } from "../../shared/roomAccess";
 import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
 import { FeedbackForm } from "../feedback/FeedbackForm";
@@ -105,12 +105,10 @@ export function RoomViewShell({
     (joinButtonRef.current ?? fallbackFocusRef.current)?.focus();
   });
   const guest = !account.loading && !account.error && !account.user;
-  const autoResult = useRegistrationResult(
+  const autoResult = useAutoGameResult(
     room,
-    membership?.playerId,
-    guest && session.authenticated && !session.leaving,
     dialog !== null || invitation.dialog !== null || cpuConfirmation !== null,
-    Boolean(session.unavailable),
+    Boolean(session.unavailable) || session.leaving,
   );
   const closeResult = () => {
     autoResult.dismiss();
@@ -145,7 +143,7 @@ export function RoomViewShell({
       gameSettings={gameSettings}
       feedbackButtonRef={feedbackButtonRef}
       onFeedback={() => {
-        autoResult.dismiss();
+        if (autoResult.visible) autoResult.dismiss();
         setDialog("feedback");
       }}
       session={session}
