@@ -9,3 +9,5 @@ Workerの保存・公開応答、Webの局面復元、Chromium／WebKitの直接
 `firebase-four-reversi.json` は Firebase `tetra-board` の旧着手列を匿名化した移行fixtureです。旧実装 `yksw-clm/tetraboard_archive` の `f70c9ba966d9a19f6165e8c72106fae310b6f237` と現行実装で全57局面の盤面を照合し、開始・途中・終局の盤面を固定しました。名前・UID・対局ID・部屋番号・日時は固定値へ置換し、アイコン情報・エクスポート元パスは除去しています。旧初期配置を保った保存JSON・公開詳細と、未記録の時間設定 `null` を検証します。
 
 `firebase-four-shogi.json` は同じ旧実装と現行実装で脱落者の持ち駒が異なる、匿名化済みの除外用fixtureです。結果が一致しても盤面以外の局面情報が変わる棋譜を移行しないことを検証します。
+
+`reversi-standard-draw.json` は `3b6c1aa` の通常リバーシエンジンで初期局面から生成した黒白2人の引き分け棋譜です。60着手・自動パス1回・最終32対32を固定し、Workerの保存・公開契約とWebの全局面再現で共有します。既存の四人用fixtureを変更せず、新ゲームの棋譜を追加しています。

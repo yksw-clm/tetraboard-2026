@@ -25,7 +25,6 @@ import {
   roomSchema,
   roomSocketContract,
   isFourShogiRoom,
-  isFourReversiRoom,
   type FourShogiRoom,
   type FourReversiRoom,
   type Room,

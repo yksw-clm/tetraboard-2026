@@ -309,8 +309,12 @@ export function RoomViewShell({
         >
           <p>
             {dialog === "leave"
-              ? "対局中に退室すると脱落になります。"
-              : "投了すると脱落になります。"}
+              ? room.settings.game === "reversi"
+                ? "対局中に退室すると敗北になります。"
+                : "対局中に退室すると脱落になります。"
+              : room.settings.game === "reversi"
+                ? "投了すると敗北になります。"
+                : "投了すると脱落になります。"}
           </p>
           {session.socketError && (
             <p className="text-danger text-xs" role="alert">

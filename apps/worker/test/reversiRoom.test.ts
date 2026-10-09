@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   isReversiRoom,
   publicReversiMatchDetailSchema,
@@ -220,4 +220,59 @@ test("時計の期限ちょうどで敗北し、棋譜へ時間切れを1回だ�
   expect(ranking.status).toBe(200);
   reversiRankingsSchema.parse(await ranking.json());
   expect(reversiAccountStatsSchema.parse({ total: 1, wins: 0, losses: 0, draws: 1 }).total).toBe(1);
+});
+
+test("保存失敗後に部屋を閉鎖しても保存待ちを保持し、復旧後の再送で1局だけ保存する", async () => {
+  const { entry, host, guest, room } = await setup();
+  if (room.status !== "playing") throw Error("not playing");
+  const turn = room.game.turn;
+  const player = room.players.find((p) => p.color === turn)!;
+  const current = player.id === entry.membership.playerId ? host : guest!;
+  const stub = env.GAME_ROOM.getByName(entry.room.id);
+  let id = "";
+  await env.APP_DB.exec("ALTER TABLE matches RENAME TO reversi_save_unavailable");
+  try {
+    current.send({ type: "room.game.resign" });
+    const ended = standard(
+      (await host.waitFor("room.snapshot", (m) => m.room.status === "waiting")).room,
+    );
+    id = ended.lastRound!.replay.id;
+    await fixtures.snapshot(entry.room.id);
+    const pending = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.kv.get<{ record: { id: string }; retryAtMs: number }>(`match-pending:${id}`),
+    );
+    expect(pending?.record.id).toBe(id);
+    expect(pending?.retryAtMs).toBeGreaterThan(Date.now());
+    await fixtures.dispose();
+    fixtures = new RoomBoundaryFixtures();
+    expect(
+      await runInDurableObject(stub, (_instance, state) => state.storage.kv.get("room")),
+    ).toBeUndefined();
+    expect(
+      await runInDurableObject(stub, (_instance, state) =>
+        state.storage.kv.get(`match-pending:${id}`),
+      ),
+    ).toBeDefined();
+  } finally {
+    await env.APP_DB.exec("ALTER TABLE reversi_save_unavailable RENAME TO matches");
+  }
+  await runInDurableObject(stub, async (_instance, state) => {
+    const key = `match-pending:${id}`;
+    const job = state.storage.kv.get<{ record: unknown; retryAtMs: number }>(key);
+    if (!job) throw Error("Missing pending save");
+    state.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
+    await state.storage.setAlarm(Date.now());
+  });
+  await runDurableObjectAlarm(stub);
+  await vi.waitFor(async () => {
+    expect(
+      await env.APP_DB.prepare("SELECT COUNT(*) AS count FROM matches WHERE id=?").bind(id).first(),
+    ).toEqual({ count: 1 });
+    expect(
+      await runInDurableObject(stub, (_instance, state) =>
+        state.storage.kv.get(`match-pending:${id}`),
+      ),
+    ).toBeUndefined();
+  });
+  expect((await boundaryRequest(`/matches/${id}`)).status).toBe(200);
 });
