@@ -2,8 +2,7 @@
 
 ## Development Strategy
 
-土台 → Vertical Slice → ロビー → ルーム → 四人リバーシ → E2E
-の順で開発します。
+既存の共通ロビー・ルーム・記録機能を土台に、ゲーム固有のエンジンと画面を追加します。検証は純粋関数、部品・hook、Worker統合テストへ集約します。
 
 ## ゲームIDと軽量カタログ
 
@@ -17,21 +16,38 @@ IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCa
 
 `packages/reversi` は黒白2人の独立したルールエンジンとCPUを持ちます。ゲームカタログの `capacity` と `hasModes` に定員2・モードなしを登録し、共有の席管理・開始条件・公開情報・集計条件はゲーム別定員を参照します。
 
-`ReversiRoom`・対局記録・戦績・ランキングは専用の公開契約を持ち、通常リバーシの作成と履歴取得はモード指定を受け付けません。公開JSONにもモードを含めません。既存のD1のNOT NULLモード列には内部識別値 `standard` を保存します。既存2ゲームのモード値・JSONと既定ゲームを維持し、過去データの移行は行いません。保存は四人リバーシと同じ局面列方式で、保存待ち・5秒後の再送・本人索引・閉鎖後の保持を共用します。本人索引のゲーム列は保存済み対局から明示的に設定します。
+`ReversiRoom`・対局記録・戦績・ランキングは専用の公開契約を持ち、通常リバーシの作成と履歴取得はモード指定を受け付けません。公開JSONにもモードを含めません。既存のD1のNOT NULLモード列には内部識別値 `standard` を保存します。既存の四人ゲームのモード値・JSONと既定ゲームを維持し、過去データの移行は行いません。保存は四人リバーシと同じ局面列方式で、保存待ち・5秒後の再送・本人索引・閉鎖後の保持を共用します。本人索引のゲーム列は保存済み対局から明示的に設定します。
 
 Workerは `reversiProgress`・`reversiClock`・`reversiMatchStore` を登録し、共有GameRoomから呼びます。戦績は専用の勝敗SQL、ランキングは勝数と対局数、公開プレイヤー情報はモードなしの戦績を返します。通常リバーシのバッジは判定・表示しません。
 
-Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に登録し、独立したエンジンだけを読み込みます。盤面描画と石・プレイヤーカードの基本描画は共有します。通常リバーシの対局・棋譜は上下2カード、観戦・保存棋譜は180度回転、ゲーム本文・マイページ・棋譜・Portalは薄い緑テーマです。静的生成・配信・サイトマップは3ロビーに対応します。
+Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に登録し、独立したエンジンだけを読み込みます。盤面描画と石・プレイヤーカードの基本描画は共有します。通常リバーシの対局・棋譜は上下2カード、観戦・保存棋譜は180度回転、ゲーム本文・マイページ・棋譜・Portalは薄い緑テーマです。静的生成・配信・サイトマップは4ロビーに対応します。
 
-## 通常将棋の実装方針
+## 通常将棋の実装
 
-通常将棋は独立した `@tetraboard/shogi` パッケージに純粋なルールエンジンとCPUを置きます。承認仕様はREADMEと `docs/rules/shogi.md` に記載します。2人・モードなしの作成、席管理、戦績・ランキングは通常リバーシを参考にし、将棋の盤面操作・画像準備・提案の送信待ち・局IDとrevision・イベント棋譜は四人将棋の再利用できる処理を共用します。ゲーム固有の合法手と特殊裁定は既存エンジンへ混ぜません。
+通常将棋のルール正本は `docs/rules/shogi.md` です。独立した `packages/shogi` に純粋なルールエンジンとCPUを置き、初期化・合法手・王手・着手・外部敗北・千日手・持将棋・入玉宣言・500手を扱います。先手と後手、持ち駒7種類、8種類の盤上駒を専用のprotocol契約で検証します。`rulesVersion: 1` の棋譜は初期の配席と受理したイベントを再実行して復元し、最終状態の一致を検査します。互換を壊すルール変更では再生版を追加します。
+
+CPU Lv1は合法手から一様に選びます。Lv2は駒の価値・成り・前進・無防備な駒・持ち駒・王手を評価し、最大3手・512回の着手評価で探索します。完了した深さの結果を採用し、予算が少なくても合法手を返します。探索時の入力と永続履歴を変更しません。Workerは勝てる入玉宣言を優先し、成立可能な人間の持将棋提案へ手番外でも同意します。CPUの選択をKVへ保存してから次のAlarmで期限・局・revision・手番を再検証して適用し、探索時間も時計に含めます。
+
+`standardShogiProgress.ts` は通常将棋の開始・着手・特殊操作・終局を担当し、認証・席管理・時計計算・準備・チャット・接続期限・保存再試行はGameRoomの既存処理を使います。`EventGameStore` は四人将棋と通常将棋のイベント・局・保護棋譜・ページングを共用します。通常将棋のSQLite表は `standard_shogi_`、四人将棋は既存の `shogi_` を使い、既存データを移行しません。通常将棋の反復辞書は配信せず、必要な局面の回数と初回時の連続王手判定用カウンターをSQLiteから取得し、変更分だけ保存します。公開状態には各側の王手をしなかった着手の累積カウンターだけを含めます。
+
+D1の分割棋譜転送・全ページ検証・本人索引・再送は `shogiMatchStore.ts` を共用し、ゲームごとにイベントと記録の契約を切り替えます。モードなしの内部DB値は通常リバーシと同じ `standard` です。勝敗集計・ランキング・公開プロフィール・モードの表示条件には通常リバーシの2人用処理とカタログの `capacity`・`hasModes` を再利用します。CPU戦も履歴と公開棋譜を保存し、対人戦績とランキングから除きます。新しい外部サービス・本番DBマイグレーションはありません。
+
+Webは四人将棋の盤面操作・持ち駒・成り選択・画像キャッシュ・楽観表示・送信待ち判定を共用します。通常将棋では上下2カードと横並びの7種類の持ち駒を描画し、後手の本人も下に置きます。四人将棋の引分提案と同じ送信待ちを使い、通常将棋のルールで提案ボタンの表示可否を決めます。入玉宣言は確認した局とrevisionに限って送信し、局面が変わったら確認を閉じます。棋譜の分割取得・検証・取消・ルーム内の取得hookは `fetchEventReplay.ts` と `useEventRoomReplay.ts` を共用し、再生ルールと表示名はゲーム別にします。ライブ・保存棋譜の入口は遅延読み込みし、ビルドで4ゲームすべての静的依存とCPUの混入を検査します。
+
+部分確認は次のコマンドを使います。
+
+```sh
+bun run --cwd packages/shogi test
+bun run --cwd apps/worker test test/standardShogiRoom.test.ts test/standardShogiRecords.test.ts test/standardShogiStore.test.ts test/commonRoomBehavior.test.ts
+bun test --cwd apps/web test/standardShogiReplay.test.ts
+bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/standardShogi.test.tsx
+```
 
 Goalは対人／CPU対局から終局・再戦・棋譜・集計までを統合し、必須ローカル検証とGitHub CIが成功したPRを提出することです。ContextProviderの優先順位は承認指示、AGENTS、READMEと通常将棋ルール正本、開発・テスト文書、既存実装・固定棋譜・履歴、外部規則です。既存3ゲームの通信・保存互換、ゲーム別の遅延読み込み、Bun／happy-dom／Workerテスト、180秒以内を目標とするcheckを制約とします。
 
 Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500手の境界検証、CPUの合法性・入力不変・決定性・探索上限、オンラインの時計・接続・再戦・保存再試行、7種類の持ち駒・回転・モードとバッジの非表示、対人限定集計・既存ゲーム回帰、4ロビーの配信、必須ローカル検証とGitHub CIの成功です。画面寸法・ネイティブ入力・実画像デコードは手動確認と未確認事項を記録します。
 
-作業ブランチは `feat/shogi`、コミットは次の7つを予定します。各実装に関連テストを含め、ゲームの必須登録と各層の統合は同じコミットにします。
+作業ブランチは `feat/shogi`、コミットは次の7つに分けます。各実装に関連テストを含め、ゲームの必須登録と各層の統合は同じコミットにします。
 
 1. `docs: 通常将棋の仕様と採用する裁定を確定する`
 2. `feat: 通常将棋のルールエンジンを追加する`
@@ -67,11 +83,11 @@ Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します�
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、3ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では3エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、4ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では4エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
 GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型チェック・テストに加え、Web・Adminのビルドと本番デプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
 
-Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の履歴・戦績で、game省略のリバーシ互換、明示した両ゲームの分離、未知ID・空文字の拒否を検証します。`commonRoomBehavior.test.ts` は同じシナリオを3ゲームへ適用し、待機中の参加・観戦・準備・資格認証・接続復帰・チャットを実HTTP／WebSocketで確認します。関連テストだけを実行する場合は `bun run --cwd apps/worker test test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` を使います。共通fixtureは公開応答と対象IDに一致する通知を待ち、テスト終了時に席・資格・ソケットを解放します。
+Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の履歴・戦績で、game省略のリバーシ互換、明示した両ゲームの分離、未知ID・空文字の拒否を検証します。`commonRoomBehavior.test.ts` は同じシナリオを4ゲームへ適用し、待機中の参加・観戦・準備・資格認証・接続復帰・チャットを実HTTP／WebSocketで確認します。関連テストだけを実行する場合は `bun run --cwd apps/worker test test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` を使います。共通fixtureは公開応答と対象IDに一致する通知を待ち、テスト終了時に席・資格・ソケットを解放します。
 
 ### PR提出前の検証
 
@@ -118,7 +134,7 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 
 各sessionは、具体的なRoomと待機データを受け取る `fourReversiSessionBehavior.ts`／`fourShogiSessionBehavior.ts` の純粋な完了判定と固有エラー文言をtransportへ渡します。判定関数はモジュールで定義し、再描画でWebSocketを張り直さない参照にします。開始待ちは対局開始、リバーシの着手待ちは手数の増加、将棋の着手待ちはrevision増加・局変更で解除します。投了は本人の脱落を確認します。将棋の提案・取消は状態反映も確認し、待機への移行・エラー・送信失敗・切断での既存解除条件を維持します。
 
-引分操作と三人攻撃禁止の送信は将棋session、表示は将棋viewが担当します。`RoomViewShell` から共有の状況カード・設定フォームへ任意の `turnActions`／`gameSettings` を渡し、リバーシは渡しません。共有UIは固有操作を送信しません。時計計算・表示と手番への対応、WorkerのGameRoom・CPU・Alarm・ライフサイクルの分離は #57、保存形式・棋譜互換・戦績SQL・保存再試行は #58 の範囲です。
+提案の送信は各将棋session、三人攻撃禁止は四人将棋session、入玉宣言は通常将棋session、表示は各ゲームviewが担当します。`RoomViewShell` から共有の状況カード・設定フォームへ任意の `turnActions`／`gameSettings` を渡し、リバーシは渡しません。共有UIは固有操作を送信しません。時計計算・表示と手番への対応、WorkerのGameRoom・CPU・Alarm・ライフサイクルの分離は #57、保存形式・棋譜互換・戦績SQL・保存再試行は #58 の範囲です。
 
 `roomSession.test.tsx` と `sessionBehavior.test.ts` は通信境界と状態モデルを使い、開始・着手・投了・提案の待ち保持と解除、本人と他人の脱落、同revisionでの提案反映、新局・終局、設定権限を確認します。サーバーでの配信・準備解除はWorker統合テスト、型の取り違えと局面情報欠落の否定ケースは `bun run --cwd apps/web typecheck` で確認します。
 
@@ -152,7 +168,7 @@ GameRoomには共有ライフサイクルの現在時刻の取得、活動停止
 
 ## Workerのゲーム進行と共有ライフサイクル
 
-`fourReversiProgress.ts`／`fourShogiProgress.ts` は配席・開始・着手・投了・外部脱落・時計更新・棋譜記録・終局データと保存待ちの生成・CPUを担当します。将棋の合法手・王手・千日手・撃破数・引分提案・三人攻撃禁止も将棋側に置きます。依存は実DOのstorage、参加資格読取り、開始時のアカウントID読取りだけです。通信・配信・外部保存への権限を渡しません。対局状態は呼出しごとにstorageから読み、モジュールに保持しません。将棋Storeは初めて必要になったときに生成し、千日手の参照cacheは一回の遷移内に限定します。
+`fourReversiProgress.ts`／`fourShogiProgress.ts`／`reversiProgress.ts`／`standardShogiProgress.ts` は配席・開始・着手・投了・外部脱落・時計更新・棋譜記録・終局データと保存待ちの生成・CPUを担当します。将棋の合法手・王手・千日手・提案もゲーム側に置きます。撃破数と三人攻撃禁止は四人将棋のみ、入玉宣言は通常将棋のみです。依存は実DOのstorage、参加資格読取り、開始時のアカウントID読取りだけです。通信・配信・外部保存への権限を渡しません。対局状態は呼出しごとにstorageから読み、モジュールに保持しません。将棋Storeは初めて必要になったときに生成し、千日手の参照cacheは一回の遷移内に限定します。
 
 `gameProgress.ts` はWorker内部の型対応と必須登録を持ちます。追加ゲームには `ProgressTypes` の終局・直前局と、`GameProgressRegistration` のfactoryを登録します。protocolの `RoomFor<G>`・`GameActionCommandFor<G>` に開始・進行・終局・再戦データを対応付け、mapped typeと `satisfies` で欠落を検出します。将棋着手の局ID・revisionは必須です。結果は拒否・変更なし・継続・終局のunionで、共有側が明示的に分岐し `never` で網羅性を確認します。別ゲームのRoom・着手・終局結果・再戦データの混入は型検査専用fixtureで拒否します。
 
@@ -182,7 +198,7 @@ GameRoomは認証・参加・準備・接続／切断・チャット・transacti
 
 `src/seo/lobbyMetadata.ts` はWeb側のゲーム別title・description・紹介の正本です。ゲーム名・ロビーパスは軽量ゲームカタログを参照します。紹介は `GameIntroduction` で通常ロビーと初期HTMLが共用し、ルール正本に合わせて同じ変更で更新します。エンジン・認証・API・動的一覧を静的生成へ持ち込みません。
 
-WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した3ロビーのHTML、robots.txt、3件だけのsitemap.xml、404.html、検索対象外のindex.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
+WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した4ロビーのHTML、robots.txt、4件だけのsitemap.xml、404.html、検索対象外のindex.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
 
 `startPublicLobby` は紹介HTMLを持つ初回ロビーだけでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には紹介・通常リンクを残して再読み込みを案内します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。
 
