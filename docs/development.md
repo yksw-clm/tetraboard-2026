@@ -359,6 +359,12 @@ C#/.NET標準ライブラリのような、一貫性があり読みやすいコ�
 
 `AppPageState` は既存のロビー背景とゲーム別テーマを使った画面中央の共通配置、`AppPageLoading` はスピナーとstatus文の表示です。ルートの初回fallbackとゲーム別viewのSuspense、ルーム・棋譜のエラーに使います。データ取得前は共通テーマ、取得後はloaderのゲームを使います。
 
+`AppRouteErrorPage` は親ルートの共通エラー境界、`AppErrorPage` はProviderに依存しない復旧表示です。`main.tsx` の先頭で `installPreloadRecovery` を読み込み、ルーター初期化前に `vite:preloadError` を登録します。`preloadRecovery` は通知された `event.payload` を記録して識別し、`preventDefault()` は呼ばず既存のエラー境界へ伝播させます。ルーム・棋譜の境界も通知済みエラーを共通表示へ渡し、将棋棋譜loaderは通常の503へ変換しません。通常のAPIエラー・404・410は既存の案内を維持します。
+
+自動更新はエラー画面の描画後、初回ロビーでは起動失敗が確定してから実行します。イベント受信直後には実行しないため、遷移先のURLを更新できます。専用の `sessionStorage` キー `tetraboard:preload-recovery:auto-reloaded` を保存できた場合だけ自動更新し、タブを閉じるまで一度に制限します。成功や手動更新でも記録を解除せず、読取・書込不可なら手動案内にします。初回ロビーでは紹介HTMLを残し、再読み込みリンクにも現在URLを設定します。
+
+`preloadRecovery.test.tsx` のBun＋happy-domテストは両ロビーへのURL確定後の更新、文書をまたぐ上限、重複通知・StrictMode・保存領域失敗、ルーム・棋譜のReact.lazyと棋譜loader、CSS preload失敗、通常例外、紹介HTML保持と手動更新を確認します。実際の旧タブを開いたまま新版を配信する経路は手動確認し、未実施ならPRに明記します。公開HTMLの200・304と再検証キャッシュはWorkerの `publicAssets.test.ts` で確認します。旧チャンク保持方式や管理画面の復旧処理は変更しません。
+
 `AppButton`／`AppButtonLink` の `isPending` は元の内容を配置・読み上げのために残し、見た目だけを中央のHeroUI Spinnerに置き換えます。非同期操作の完了・失敗・中止は既存の通信状態で管理します。初回・自動取得と手動の更新／再試行は `pendingSource` で区別し、共有リクエストの複数の入口では操作元を指定します。CPU操作はtransportの `pendingSettingsCommand` を参照し、設定全体のロックで他のボタンまでスピナーにしません。Context／Providerの配置と通信契約は維持します。
 
 ルーム設定の選択値は `pendingSettingsCommand` から表示上だけ先行反映し、transportのルーム状態と処理完了判定は変更しません。`roomSettingsPresentation` で送信待ちを判定し、接続済みの待機中ホストの一時的なロックだけ無効時の透明度を保ちます。CPUレベルの操作は `CpuLevelSelector` を共用します。PCの `RoomLayout` は左右列を独立させ、右列の展開内容が盤面の高さ計算へ影響しないようにします。
