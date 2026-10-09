@@ -162,7 +162,7 @@ test("CPUの追加レベルを送信し、既存CPUの送信中レベルを表�
   press(group("CPU 1のレベル"), "Lv1");
   expect(group("CPU 1のレベル").querySelector("[aria-pressed=true]")!.textContent).toContain("Lv1");
   expect(session!.room.players.find((p) => p.id === cpu.id)).toMatchObject({ level: 2 });
-  socket.snapshot({ ...room, players: [room.players[0]!, cpu] });
+  socket.receive({ type: "room.error", error: "forbidden" });
   expect(group("CPU 1のレベル").querySelector("[aria-pressed=true]")!.textContent).toBe("Lv2");
   socket.snapshot({
     ...room,

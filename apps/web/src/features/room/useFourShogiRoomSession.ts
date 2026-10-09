@@ -4,6 +4,7 @@ import { displayShogiGameForRoom } from "./fourShogiRoomPresentation";
 import { useRoomTransport, type RoomTransportOptions } from "./useRoomTransport";
 import {
   shogiActionComplete,
+  shogiSettingsComplete,
   shogiOperationError,
   shogiSoundGame,
   shogiSoundMove,
@@ -14,13 +15,14 @@ import { useDelayedMoveNotice } from "./useDelayedMoveNotice";
 export function useFourShogiRoomSession(
   options: Omit<
     RoomTransportOptions<FourShogiRoom>,
-    "isRoom" | "actionComplete" | "gameOperationError" | "readSoundGame"
+    "isRoom" | "actionComplete" | "settingsComplete" | "gameOperationError" | "readSoundGame"
   >,
 ) {
   const session = useRoomTransport({
     ...options,
     isRoom: isFourShogiRoom,
     actionComplete: shogiActionComplete,
+    settingsComplete: shogiSettingsComplete,
     gameOperationError: shogiOperationError,
     readSoundGame: shogiSoundGame,
   });

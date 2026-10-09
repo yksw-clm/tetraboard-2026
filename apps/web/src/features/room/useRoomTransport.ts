@@ -26,6 +26,9 @@ import { fetchRoom, leaveRoom } from "./roomApi";
 import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import { RoomSoundTracker, type SoundGameState } from "./roomSoundEvents";
 
+const responseTimeoutMs = 10_000;
+type ResponseWait = "fetch" | "connection" | "ready" | "settings" | "game" | "chat";
+
 const roomClosedMessage = "ルームは閉鎖されています。ロビーへ戻ってください。";
 
 type PendingOperation<P> = { type: "start" } | { type: "game"; action: P };
@@ -45,6 +48,11 @@ export interface RoomTransportOptions<T extends Room> {
   initialRoom: T;
   isRoom: (room: Room) => room is T;
   actionComplete: (room: T, pending: PendingActionFor<T["settings"]["game"]>) => boolean;
+  settingsComplete: (
+    room: T,
+    command: CommonSettingsCommand | GameSettingsCommandFor<T["settings"]["game"]>,
+    playerIds: ReadonlySet<string>,
+  ) => boolean;
   gameOperationError: (error: string) => string | undefined;
   readSoundGame: (room: T) => SoundGameState;
   initialMembership: RoomMembership | null;
@@ -95,6 +103,7 @@ export function useRoomTransport<T extends Room>({
   initialPresence,
   isRoom,
   actionComplete,
+  settingsComplete,
   gameOperationError,
   readSoundGame,
   initialFormationAnalysisSupported = false,
@@ -134,9 +143,18 @@ export function useRoomTransport<T extends Room>({
   }));
   const [serverNowMs, setServerNowMs] = useState(initialServerNowMs);
   const socketRef = useRef<WebSocket | null>(null);
+  const responseWaitRef = useRef<{
+    start: (key: ResponseWait) => void;
+    clear: (key: ResponseWait) => void;
+  } | null>(null);
+  const trackChatRef = useRef<((text: string) => void) | null>(null);
   const soundTrackerRef = useRef<RoomSoundTracker<T> | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
   const pendingSettingsRef = useRef(false);
+  const settingsConfirmationRef = useRef<{
+    command: CommonSettingsCommand | GameSettingsCommandFor<T["settings"]["game"]>;
+    playerIds: Set<string>;
+  } | null>(null);
   const pendingGameActionRef = useRef<PendingOperation<
     PendingActionFor<T["settings"]["game"]>
   > | null>(null);
@@ -152,122 +170,239 @@ export function useRoomTransport<T extends Room>({
 
   useEffect(() => {
     let active = true;
+    let suspended = false;
+    let generation = 0;
+    let synchronizing = false;
+    let receivedSnapshot = false;
+    let authenticationConfirmed = initialMembership === null;
     const soundTracker = new RoomSoundTracker(readSoundGame);
     soundTrackerRef.current = soundTracker;
     const releaseSounds = roomSounds.retainRoom(initialRoom.instanceId);
-    let soundController: AbortController | null = null;
-    let soundGeneration = 0;
     let soundReady = true;
     let soundBaselineAtMs: number | null = null;
-    let latestSoundSnapshot: { room: T; serverNowMs: number } | null = null;
-    const visibilityChanged = () => {
-      soundTracker.reset();
-      soundController?.abort();
-      const generation = ++soundGeneration;
-      soundReady = false;
-      if (document.visibilityState !== "visible") return;
-      const resumeController = new AbortController();
-      soundController = resumeController;
-      // 非表示中にブラウザへ溜まった通知も、復帰後にまとめて鳴らしません。
-      void fetchRoom(initialRoom.id, resumeController.signal, initialRoom.instanceId)
-        .then((latest) => {
-          if (!active || generation !== soundGeneration || !isRoom(latest.room)) return;
-          const baseline =
-            latestSoundSnapshot !== null && latestSoundSnapshot.serverNowMs > latest.serverNowMs
-              ? latestSoundSnapshot
-              : { room: latest.room, serverNowMs: latest.serverNowMs };
-          soundTracker.baseline(baseline.room);
-          soundBaselineAtMs = baseline.serverNowMs;
-          soundReady = true;
-        })
-        .catch(() => {
-          // 再取得失敗時もゲーム通信は継続し、次の復帰・再接続で基準を作ります。
-        });
-    };
-    document.addEventListener("visibilitychange", visibilityChanged);
+    let latestSnapshot: {
+      room: T;
+      presence: RoomPresence;
+      serverNowMs: number;
+    } | null = null;
     let socket: WebSocket | null = null;
     let controller: AbortController | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const waits = new Map<
+      ResponseWait,
+      { timer: ReturnType<typeof setTimeout>; expiresAt: number }
+    >();
+    let pendingChat: { text: string; ids: Set<string> } | null = null;
     let retryDelay = 1000;
     let currentMembership = initialMembership;
     let formationAnalysisSupported = initialFormationAnalysisSupported;
 
+    function clearWait(key: ResponseWait): void {
+      const wait = waits.get(key);
+      if (wait) clearTimeout(wait.timer);
+      waits.delete(key);
+    }
+
+    function startWait(key: ResponseWait): void {
+      clearWait(key);
+      waits.set(key, {
+        expiresAt: Date.now() + responseTimeoutMs,
+        timer: setTimeout(() => recover(), responseTimeoutMs),
+      });
+    }
+    responseWaitRef.current = { start: startWait, clear: clearWait };
+
     function clearPendingReady(): void {
+      clearWait("ready");
       pendingReadyRef.current = null;
       setPendingReady(null);
     }
 
     function clearPendingSettings(): void {
+      clearWait("settings");
       pendingSettingsRef.current = false;
+      settingsConfirmationRef.current = null;
       setPendingSettings(false);
       setPendingSettingsCommand(null);
     }
 
     function clearPendingGameAction(): void {
+      clearWait("game");
       soundTracker.clearOwnMove();
       pendingGameActionRef.current = null;
       setPendingGameAction(null);
     }
 
+    function stopTransport(): void {
+      generation++;
+      synchronizing = false;
+      controller?.abort();
+      controller = null;
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+      for (const key of waits.keys()) clearWait(key);
+      pendingChat = null;
+      soundTracker.reset();
+      soundReady = false;
+      roomSounds.stop();
+      setAuthenticated(false);
+      clearPendingReady();
+      clearPendingSettings();
+      clearPendingGameAction();
+      // close通知を待たずに無効化し、古い接続からの再試行を防ぎます。
+      const previous = socket;
+      socket = null;
+      socketRef.current = null;
+      previous?.close();
+    }
+
     function stopUnavailable(message: string): void {
       active = false;
-      soundTracker.reset();
-      soundController?.abort();
-      roomSounds.stop();
-      if (timer !== null) clearTimeout(timer);
-      controller?.abort();
-      socketRef.current = null;
-      socket?.close();
-      setAuthenticated(false);
+      stopTransport();
       setUnavailable(message);
     }
 
     function scheduleReconnect(): void {
-      if (!active) return;
+      if (!active || suspended || timer !== null) return;
       setConnection("再接続中");
-      timer = setTimeout(() => void reconnect(), retryDelay);
+      timer = setTimeout(() => {
+        timer = null;
+        void refresh(false);
+      }, retryDelay);
       retryDelay = Math.min(retryDelay * 2, 30_000);
     }
 
-    async function reconnect(): Promise<void> {
+    function recover(): void {
+      if (!active || suspended) return;
+      stopTransport();
+      scheduleReconnect();
+    }
+
+    function applySnapshot(
+      latest: { room: T; presence: RoomPresence; serverNowMs: number },
+      fromFetch = false,
+    ): void {
+      if (
+        latestSnapshot !== null &&
+        (latest.serverNowMs < latestSnapshot.serverNowMs ||
+          (fromFetch && latest.serverNowMs === latestSnapshot.serverNowMs))
+      )
+        return;
+      latestSnapshot = latest;
+      setRoom(latest.room);
+      setPresence(latest.presence);
+      setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
+    }
+
+    async function refresh(keepSocket: boolean): Promise<void> {
+      if (!active || suspended || synchronizing) return;
+      if (!keepSocket && socket !== null) stopTransport();
+      synchronizing = true;
+      clearWait("connection");
+      authenticationConfirmed = false;
+      setAuthenticated(false);
+      setConnection("再接続中");
+      soundReady = false;
       controller = new AbortController();
+      const currentController = controller;
+      const currentGeneration = ++generation;
+      const isCurrent = () => active && !suspended && currentGeneration === generation;
       try {
-        const latest = await fetchRoom(initialRoom.id, controller.signal, initialRoom.instanceId);
-        const latestRoom = latest.room;
-        const latestMembership = await fetchRoomMembership(initialRoom.id, controller.signal);
-        if (!active) return;
+        startWait("fetch");
+        const latest = await fetchRoom(
+          initialRoom.id,
+          currentController.signal,
+          initialRoom.instanceId,
+        );
+        if (!isCurrent()) return;
+        startWait("fetch");
+        const latestMembership = await fetchRoomMembership(
+          initialRoom.id,
+          currentController.signal,
+        );
+        if (!isCurrent()) return;
+        clearWait("fetch");
+        controller = null;
+        if (!isRoom(latest.room)) {
+          stopUnavailable(roomChangedMessage);
+          return;
+        }
         if (
           latestMembership !== null &&
-          !latestRoom.players.some((player) => player.id === latestMembership.playerId)
-        ) {
+          !latest.room.players.some((player) => player.id === latestMembership.playerId)
+        )
           throw new Error("Membership does not match room");
-        }
         currentMembership = latestMembership;
-        if (!isRoom(latestRoom)) throw new Error("Room game changed");
-        setRoom(latestRoom);
-        setPresence(latest.presence);
-        setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
         setMembership(latestMembership);
+        applySnapshot({ ...latest, room: latest.room }, true);
         formationAnalysisSupported =
-          latestRoom.settings.game === "four-shogi" && latest.formationAnalysis !== undefined;
-        connect();
+          latest.room.settings.game === "four-shogi" && latest.formationAnalysis !== undefined;
+        if (keepSocket && socket?.readyState === WebSocket.OPEN) {
+          // 復帰中に受信した新しい局面を基準にし、溜まった通知を再演しません。
+          soundTracker.baseline(latestSnapshot!.room);
+          soundBaselineAtMs = latestSnapshot!.serverNowMs;
+          soundReady = true;
+          synchronizing = false;
+          if (currentMembership === null) {
+            authenticationConfirmed = true;
+            clearWait("connection");
+            setConnection("接続済み");
+          } else {
+            authenticationConfirmed = false;
+            startWait("connection");
+            socket.send(
+              JSON.stringify(
+                roomSocketContract.clientMessage.parse({
+                  type: "room.auth",
+                  token: readRoomMembershipToken(initialRoom.id),
+                }),
+              ),
+            );
+          }
+        } else {
+          synchronizing = false;
+          connect();
+        }
       } catch (error) {
-        if (!active) return;
+        if (!isCurrent()) return;
         if (error instanceof Response && (error.status === 404 || error.status === 410)) {
           stopUnavailable(error.status === 410 ? roomChangedMessage : roomClosedMessage);
           return;
         }
-        scheduleReconnect();
+        recover();
       }
     }
 
+    const pageHidden = () => {
+      if (!active || suspended) return;
+      suspended = true;
+      stopTransport();
+      setConnection("再接続中");
+    };
+    const pageShown = () => {
+      if (!active || !suspended) return;
+      suspended = false;
+      void refresh(false);
+    };
+    const visibilityChanged = () => {
+      if (!active || suspended) return;
+      soundTracker.reset();
+      soundReady = false;
+      if (document.visibilityState !== "visible") return;
+      if ([...waits.values()].some((wait) => wait.expiresAt <= Date.now())) {
+        recover();
+      } else if (timer === null) {
+        void refresh(socketRef.current?.readyState === WebSocket.OPEN);
+      }
+    };
+    window.addEventListener("pagehide", pageHidden);
+    window.addEventListener("pageshow", pageShown);
+    document.addEventListener("visibilitychange", visibilityChanged);
+
     function connect(): void {
       soundTracker.reset();
-      soundController?.abort();
-      soundGeneration++;
       soundReady = true;
       soundBaselineAtMs = null;
-      latestSoundSnapshot = null;
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -279,35 +414,56 @@ export function useRoomTransport<T extends Room>({
         return;
       }
 
+      startWait("connection");
       const currentSocket = socket;
+      receivedSnapshot = false;
+      authenticationConfirmed = currentMembership === null;
+      function finishConnection(): void {
+        if (!receivedSnapshot || !authenticationConfirmed || synchronizing) return;
+        clearWait("connection");
+        setConnection("接続済み");
+        setAuthenticated(currentMembership !== null);
+        retryDelay = 1000;
+      }
       let chatIds: Set<string> | null = null;
       socketRef.current = currentSocket;
       currentSocket.onopen = () => {
-        if (!active || currentMembership === null) return;
+        if (!active || suspended || currentSocket !== socketRef.current) return;
+        startWait("connection");
+        if (currentMembership === null) {
+          finishConnection();
+          return;
+        }
         const token = readRoomMembershipToken(initialRoom.id);
         if (token === null) {
           currentMembership = null;
           setMembership(null);
+          authenticationConfirmed = true;
+          finishConnection();
           return;
         }
-        currentSocket.send(
-          JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.auth", token })),
-        );
+        try {
+          currentSocket.send(
+            JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.auth", token })),
+          );
+        } catch {
+          recover();
+        }
       };
       currentSocket.onmessage = (event: MessageEvent) => {
+        if (!active || suspended || currentSocket !== socketRef.current) return;
         let body: unknown;
         try {
           body = JSON.parse(event.data as string);
         } catch {
-          currentSocket.close(1003, "Invalid room message");
+          recover();
           return;
         }
         const message = roomSocketContract.message.safeParse(body);
         if (!message.success) {
-          currentSocket.close(1003, "Invalid room message");
+          recover();
           return;
         }
-        if (!active || currentSocket !== socketRef.current) return;
 
         if (message.data.type === "room.snapshot") {
           try {
@@ -321,11 +477,8 @@ export function useRoomTransport<T extends Room>({
             stopUnavailable(roomChangedMessage);
             return;
           }
-          if (
-            latestSoundSnapshot === null ||
-            message.data.serverNowMs >= latestSoundSnapshot.serverNowMs
-          )
-            latestSoundSnapshot = { room: snapshot, serverNowMs: message.data.serverNowMs };
+          if (latestSnapshot !== null && message.data.serverNowMs < latestSnapshot.serverNowMs)
+            return;
           const sounds =
             !soundReady ||
             (soundBaselineAtMs !== null && message.data.serverNowMs <= soundBaselineAtMs)
@@ -338,12 +491,19 @@ export function useRoomTransport<T extends Room>({
             if (sound.type === "join") roomSounds.playJoin(sound.instanceId, sound.playerId);
             else roomSounds.play(sound.sounds);
           }
-          setRoom(snapshot);
-          setPresence(message.data.presence);
-          clearPendingSettings();
-          setClockSync({ serverNowMs: message.data.serverNowMs, receivedAt: performance.now() });
-          setConnection("接続済み");
-          retryDelay = 1000;
+          applySnapshot({
+            room: snapshot,
+            presence: message.data.presence,
+            serverNowMs: message.data.serverNowMs,
+          });
+          const confirmation = settingsConfirmationRef.current;
+          if (
+            confirmation !== null &&
+            settingsComplete(snapshot, confirmation.command, confirmation.playerIds)
+          )
+            clearPendingSettings();
+          receivedSnapshot = true;
+          finishConnection();
           if (
             pendingReadyRef.current !== null &&
             message.data.room.players.find((player) => player.id === currentMembership?.playerId)
@@ -363,7 +523,20 @@ export function useRoomTransport<T extends Room>({
 
         if (message.data.type === "room.chat.snapshot") {
           const incoming = message.data.messages;
-          if (chatIds !== null) {
+          if (
+            pendingChat !== null &&
+            incoming.some(
+              (entry) =>
+                entry.kind === "player" &&
+                entry.senderId === currentMembership?.playerId &&
+                entry.text === pendingChat!.text &&
+                !pendingChat!.ids.has(entry.id),
+            )
+          ) {
+            pendingChat = null;
+            clearWait("chat");
+          }
+          if (chatIds !== null && !synchronizing && document.visibilityState === "visible") {
             const added = incoming.filter((entry) => !chatIds!.has(entry.id));
             if (added.length > 0)
               setChatNotifications((previous) => [...previous, ...added].slice(-100));
@@ -373,6 +546,8 @@ export function useRoomTransport<T extends Room>({
           return;
         }
         if (message.data.type === "room.chat.error") {
+          pendingChat = null;
+          clearWait("chat");
           setChatError(
             message.data.error === "rate_limited"
               ? "3秒おいてから送信してください。"
@@ -390,11 +565,14 @@ export function useRoomTransport<T extends Room>({
           ) {
             setAuthenticated(false);
             setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
+            authenticationConfirmed = false;
+            startWait("connection");
             return;
           }
           currentMembership = message.data.membership;
           setMembership(message.data.membership);
-          setAuthenticated(true);
+          authenticationConfirmed = true;
+          finishConnection();
           setSocketError(null);
           return;
         }
@@ -409,47 +587,36 @@ export function useRoomTransport<T extends Room>({
         if (message.data.error === "unauthorized") {
           setAuthenticated(false);
           setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
-          void fetchRoomMembership(initialRoom.id)
-            .then((latestMembership) => {
-              if (!active) return;
-              currentMembership = latestMembership;
-              setMembership(latestMembership);
-            })
-            .catch(() => {
-              if (active) setSocketError("本人確認に失敗しました。再読み込みしてください。");
-            });
+          authenticationConfirmed = false;
+          clearWait("connection");
+          void refresh(true);
         } else {
           setSocketError(operationErrorMessage(message.data.error, gameOperationError));
         }
       };
-      currentSocket.onerror = () => currentSocket.close();
+      currentSocket.onerror = () => {
+        if (active && !suspended && currentSocket === socketRef.current) recover();
+      };
       currentSocket.onclose = () => {
-        if (socketRef.current === currentSocket) socketRef.current = null;
-        if (!active) return;
-        soundTracker.reset();
-        soundController?.abort();
-        soundGeneration++;
-        soundReady = false;
-        roomSounds.stop();
-        setAuthenticated(false);
-        clearPendingReady();
-        clearPendingSettings();
-        clearPendingGameAction();
-        scheduleReconnect();
+        if (active && !suspended && currentSocket === socketRef.current) recover();
+      };
+      trackChatRef.current = (text) => {
+        pendingChat = { text, ids: new Set(chatIds ?? []) };
+        startWait("chat");
       };
     }
 
     connect();
     return () => {
       active = false;
+      window.removeEventListener("pagehide", pageHidden);
+      window.removeEventListener("pageshow", pageShown);
       document.removeEventListener("visibilitychange", visibilityChanged);
+      responseWaitRef.current = null;
+      trackChatRef.current = null;
       soundTrackerRef.current = null;
+      stopTransport();
       releaseSounds();
-      soundController?.abort();
-      if (timer !== null) clearTimeout(timer);
-      controller?.abort();
-      socketRef.current = null;
-      socket?.close();
     };
   }, [
     initialFormationAnalysisSupported,
@@ -459,6 +626,7 @@ export function useRoomTransport<T extends Room>({
     initialMembership,
     isRoom,
     actionComplete,
+    settingsComplete,
     gameOperationError,
     readSoundGame,
   ]);
@@ -488,10 +656,12 @@ export function useRoomTransport<T extends Room>({
     setSocketError(null);
     try {
       currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+      responseWaitRef.current?.start("game");
       return true;
     } catch {
       pendingGameActionRef.current = null;
       setPendingGameAction(null);
+      responseWaitRef.current?.clear("game");
       setSocketError("対局操作を送信できませんでした。");
       return false;
     }
@@ -543,9 +713,11 @@ export function useRoomTransport<T extends Room>({
       currentSocket.send(
         JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.ready.set", ready })),
       );
+      responseWaitRef.current?.start("ready");
     } catch {
       pendingReadyRef.current = null;
       setPendingReady(null);
+      responseWaitRef.current?.clear("ready");
       setSocketError("準備状態を送信できませんでした。");
     }
   }
@@ -561,15 +733,22 @@ export function useRoomTransport<T extends Room>({
     )
       return;
     pendingSettingsRef.current = true;
+    settingsConfirmationRef.current = {
+      command: message,
+      playerIds: new Set(room.players.map((p) => p.id)),
+    };
     setPendingSettings(true);
     setPendingSettingsCommand(message);
     setSocketError(null);
     try {
       currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+      responseWaitRef.current?.start("settings");
     } catch {
       pendingSettingsRef.current = false;
+      settingsConfirmationRef.current = null;
       setPendingSettings(false);
       setPendingSettingsCommand(null);
+      responseWaitRef.current?.clear("settings");
       setSocketError("ルーム設定を変更できませんでした。");
     }
   }
@@ -615,6 +794,7 @@ export function useRoomTransport<T extends Room>({
       socketRef.current.send(
         JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.chat.send", text })),
       );
+      trackChatRef.current?.(text);
       setChatError(null);
       return true;
     } catch {

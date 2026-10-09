@@ -8,6 +8,7 @@ export class Socket {
   readyState = 0;
   sent: Record<string, unknown>[] = [];
   failSend = false;
+  deferClose = false;
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
@@ -40,6 +41,10 @@ export class Socket {
   }
   close() {
     if (this.readyState === 3) return;
+    this.readyState = 2;
+    if (!this.deferClose) this.finishClose();
+  }
+  finishClose() {
     this.readyState = 3;
     this.onclose?.();
   }

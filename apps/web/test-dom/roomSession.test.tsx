@@ -69,7 +69,7 @@ test("開始・準備・設定は認証とhost権限が必要で、同期的な�
   ]);
   expect(h.current.canManageSettings).toBe(false);
   expect(h.current.pendingSettingsCommand).toEqual({ type: "room.mode.set", mode: "doubles" });
-  socket.snapshot(room);
+  socket.snapshot({ ...room, settings: { ...room.settings, mode: "doubles" } });
   expect(h.current.canManageSettings).toBe(true);
   expect(h.current.pendingSettingsCommand).toBeNull();
   act(() => {
