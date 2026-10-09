@@ -84,9 +84,45 @@ export function attacksSquare(board: Board, piece: Piece, from: Position, to: Po
 }
 export function attackedPositions(board: Board, piece: Piece, from: Position): Position[] {
   const found: Position[] = [];
-  for (let y = 0; y < 9; y++)
-    for (let x = 0; x < 9; x++)
-      if (attacksSquare(board, piece, from, { x, y })) found.push({ x, y });
+  const rayDirections =
+    piece.kind === "rook"
+      ? [
+          [0, -1],
+          [-1, 0],
+          [1, 0],
+          [0, 1],
+        ]
+      : piece.kind === "bishop"
+        ? [
+            [-1, -1],
+            [1, -1],
+            [-1, 1],
+            [1, 1],
+          ]
+        : piece.kind === "lance" && !piece.promoted
+          ? [[0, piece.side === "south" ? -1 : 1]]
+          : [];
+  for (const [dx, dy] of rayDirections)
+    for (
+      let x = from.x + dx, y = from.y + dy;
+      x >= 0 && x < 9 && y >= 0 && y < 9;
+      x += dx, y += dy
+    ) {
+      found.push({ x, y });
+      if (board[y][x]) break;
+    }
+  if (rayDirections.length === 0 || piece.promoted) {
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const to = { x: from.x + dx, y: from.y + dy };
+        if (
+          inBounds(to) &&
+          attacksSquare(board, piece, from, to) &&
+          !found.some((p) => p.x === to.x && p.y === to.y)
+        )
+          found.push(to);
+      }
+  }
   return found;
 }
 export function isInCheck(state: Pick<ShogiState, "board">, side: Side): boolean {

@@ -16,6 +16,7 @@ import { recordPosition } from "./repetition";
 import { settleMoveLimit } from "./adjudication";
 import type { RepetitionLookup } from "./types";
 export * from "./types";
+export { chooseCpuAction, type CpuLevel } from "./cpu";
 export {
   setDrawProposal,
   canProposeImpasse,
