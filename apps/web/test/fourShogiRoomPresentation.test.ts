@@ -145,7 +145,7 @@ test("初回待機は36枚の初期盤面、再戦待機は前局の最終盤面
   ).toBeNull();
 });
 
-test("共通時計は将棋の方向ごとに減算し、秒読み10秒/9秒を区別し、脱落した席では非表示", () => {
+test("共通時計は将棋の方向ごとに減算し、秒読み6秒/5秒を区別し、脱落した席では非表示", () => {
   expect(shogiPlayerClock(waiting(), null, 100000)).toEqual({
     text: "05:00",
     byoyomi: false,
@@ -162,24 +162,24 @@ test("共通時計は将棋の方向ごとに減算し、秒読み10秒/9秒を�
     byoyomi: true,
     urgent: false,
   });
-  expect(shogiPlayerClock(room, "south", 35000)).toEqual({
-    text: "00:10",
+  expect(shogiPlayerClock(room, "south", 39000)).toEqual({
+    text: "00:06",
     byoyomi: true,
     urgent: false,
   });
-  expect(shogiPlayerClock(room, "south", 36000)).toEqual({
-    text: "00:09",
+  expect(shogiPlayerClock(room, "south", 40000)).toEqual({
+    text: "00:05",
     byoyomi: true,
     urgent: true,
   });
-  expect(shogiPlayerClock(room, "west", 36000)).toEqual({
+  expect(shogiPlayerClock(room, "west", 40000)).toEqual({
     text: "00:30",
     byoyomi: true,
     urgent: false,
   });
   if (room.status !== "playing") throw new Error("Expected playing");
   room.game.eliminations = [{ side: "north", reason: "checkmate", rank: 4, group: 1 }];
-  expect(shogiPlayerClock(room, "north", 36000)).toBeNull();
+  expect(shogiPlayerClock(room, "north", 40000)).toBeNull();
   expect(shogiPlayerRank(room.game, "north")).toEqual({ rank: 4, label: "4位（詰み）" });
   expect(shogiPlayerRank(room.game, "south")).toBeNull();
   room.game.mode = "doubles";

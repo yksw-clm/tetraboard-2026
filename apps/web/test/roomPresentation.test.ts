@@ -140,7 +140,7 @@ describe("ルームの表示", () => {
     ]);
   });
 
-  test("待機時間は初期値に戻り、秒読みは10秒と9秒で強調を切り替える", () => {
+  test("待機時間は初期値に戻り、秒読みは6秒と5秒で強調を切り替える", () => {
     expect(playerClock(waitingRoom(), null, 100000)).toEqual({
       text: "05:00",
       byoyomi: false,
@@ -157,24 +157,24 @@ describe("ルームの表示", () => {
       byoyomi: true,
       urgent: false,
     });
-    expect(playerClock(room, "black", 35000)).toEqual({
-      text: "00:10",
+    expect(playerClock(room, "black", 39000)).toEqual({
+      text: "00:06",
       byoyomi: true,
       urgent: false,
     });
-    expect(playerClock(room, "black", 36000)).toEqual({
-      text: "00:09",
+    expect(playerClock(room, "black", 40000)).toEqual({
+      text: "00:05",
       byoyomi: true,
       urgent: true,
     });
-    expect(playerClock(room, "white", 36000)).toEqual({
+    expect(playerClock(room, "white", 40000)).toEqual({
       text: "00:30",
       byoyomi: true,
       urgent: false,
     });
     if (room.status !== "playing") throw new Error("Expected playing room");
     room.game.eliminatedColors.push("red");
-    expect(playerClock(room, "red", 36000)).toBeNull();
+    expect(playerClock(room, "red", 40000)).toBeNull();
   });
 });
 

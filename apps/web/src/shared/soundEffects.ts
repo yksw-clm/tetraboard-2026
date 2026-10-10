@@ -8,6 +8,7 @@ export const roomSounds = new SoundPlayer({
     put: new URL("../assets/sounds/put.mp3", import.meta.url).href,
     start: new URL("../assets/sounds/start.mp3", import.meta.url).href,
     end: new URL("../assets/sounds/end.mp3", import.meta.url).href,
+    clock: new URL("../assets/sounds/clock.mp3", import.meta.url).href,
   },
   available: () => typeof window.AudioContext === "function",
   visible: () => document.visibilityState === "visible",
