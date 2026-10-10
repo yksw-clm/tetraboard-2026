@@ -51,7 +51,11 @@ test("将棋は各人の右欄に撃破対象のアイコン・名前をIDで対
   ).toEqual(props.lastRound.players.slice(1, 3).map((p) => p.id));
   expect(targets.querySelectorAll('[data-testid="player-avatar"]')).toHaveLength(2);
   expect(targets.textContent).toContain("同じ名前");
-  expect(rows[1]!.textContent).toContain("撃破：なし");
+  expect(rows[1]!.textContent).toContain("なし");
+  expect(view.textContent).not.toContain("撃破：");
+  expect(
+    [...view.querySelectorAll("span")].filter((span) => span.textContent === "撃破"),
+  ).toHaveLength(1);
   expect(view.textContent).not.toContain("（");
   expect(view.textContent).toContain("南");
   expect([...rows[0]!.children[0]!.children].map((entry) => entry.textContent)).toEqual([
@@ -69,7 +73,7 @@ test("将棋の読込中・失敗は撃破なしと区別し、順位を残し�
   );
   expect(view.textContent).toContain("1位");
   expect(view.textContent).toContain("読み込み中");
-  expect(view.textContent).not.toContain("撃破：なし");
+  expect(view.textContent).not.toContain("なし");
   let retries = 0;
   rerender(
     view,
@@ -108,7 +112,59 @@ test("将棋ダブルスはチーム別の勝敗と撃破対象を表示し、�
     2,
   );
   expect(view.textContent).not.toContain("位");
+  expect(view.textContent).not.toContain("撃破：");
+  for (const team of view.querySelectorAll(
+    'section[aria-label$="勝利"], section[aria-label$="敗北"]',
+  )) {
+    expect(
+      [...team.querySelectorAll("span")].filter((span) => span.textContent === "撃破"),
+    ).toHaveLength(1);
+  }
 });
+for (const count of [0, 1, 2, 3]) {
+  test(`撃破${count}人は相手全員のIDと省略しない名前を表示する`, () => {
+    const props = shogiResult();
+    const names = ["長いプレイヤー名を省略せず表示", "同じ名前", "同じ名前", "CPU Lv2"];
+    props.lastRound.players.forEach((player, index) => {
+      player.name = names[index]!;
+    });
+    // 表示用の確定局面を渡し、詰みと対象外の脱落を切り替えます。
+    const final = props.replay.frames.at(-1)!;
+    const eliminated = final.game.eliminations.map((entry, index) => ({
+      ...entry,
+      reason: index < count ? ("checkmate" as const) : ("no_legal_actions" as const),
+    }));
+    props.replay.frames = [
+      props.replay.frames[0]!,
+      {
+        ...final,
+        event: props.replay.frames[1]!.event,
+        game: { ...final.game, eliminations: eliminated },
+      },
+    ];
+    const view = render(<FourShogiGameResultView {...props} />);
+    const winner = view.querySelector("li")!;
+    expect(winner.querySelector("[data-player-id]")!.textContent).toBe(names[0]);
+    const targets = winner.querySelector('[aria-label="撃破したプレイヤー"]')!;
+    expect(
+      [...targets.querySelectorAll("[data-player-id]")].map((entry) =>
+        entry.getAttribute("data-player-id"),
+      ),
+    ).toEqual(
+      eliminated
+        .slice(0, count)
+        .map((entry) => props.lastRound.players.find((player) => player.side === entry.side)!.id),
+    );
+    expect(
+      [...targets.querySelectorAll("[data-player-id]")].map((entry) => entry.textContent),
+    ).toEqual(
+      eliminated
+        .slice(0, count)
+        .map((entry) => props.lastRound.players.find((player) => player.side === entry.side)!.name),
+    );
+    expect(targets.textContent).toContain(count === 0 ? "なし" : names[1]!);
+  });
+}
 test("リバーシは石色・石数と脱落者を保持し、ダブルスは4人とチーム勝敗を表示", () => {
   for (const fixture of reversiArchives) {
     const match = fourReversiMatchDetailSchema.parse(fixture.detail);
