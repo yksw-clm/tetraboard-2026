@@ -8,6 +8,18 @@ type AccountNavigationState = {
   accountSelections?: Partial<Record<"stats" | "history", Selection>>;
 };
 
+export function createAccountSelection(game: MatchGame): Selection {
+  return {
+    game,
+    modes: {
+      "four-reversi": "singles",
+      "four-shogi": "singles",
+      reversi: "singles",
+      shogi: "singles",
+    },
+  };
+}
+
 // ブラウザの履歴に選択を置き、棋譜閲覧や再読み込みから戻っても各カードを復元します。
 export function useAccountSelection() {
   const location = useLocation();

@@ -48,7 +48,12 @@ test("focusで認証を再確認し、失敗時にアカウントをゲストへ
 
 test("アカウントメニューはプロフィール・マイページとログアウトを扱い、失敗後再試行できる", async () => {
   function Path() {
-    return <p data-testid="current-path">{useLocation().pathname}</p>;
+    const location = useLocation();
+    return (
+      <p data-testid="current-path" data-state={JSON.stringify(location.state)}>
+        {location.pathname}
+      </p>
+    );
   }
   const view = render(
     wrap(profile)(
@@ -75,6 +80,9 @@ test("アカウントメニューはプロフィール・マイページとロ�
   choose("マイページ");
   await flush();
   expect(view.querySelector('[data-testid="current-path"]')!.textContent).toBe("/account");
+  expect(view.querySelector('[data-testid="current-path"]')!.getAttribute("data-state")).toBe(
+    "null",
+  );
   open();
   await flush();
   choose("ログアウト");
@@ -110,6 +118,40 @@ test("アカウントメニューはプロフィール・マイページとロ�
   const guest = render(wrap(null, "/games/four-shogi")(<AccountMenu />));
   act(() => guest.querySelector<HTMLAnchorElement>('a[href="/login"]')!.click());
   expect(readRegistrationReturn()?.path).toBe("/games/four-shogi");
+});
+
+test("ロビーのアカウントメニューでも初回設定への遷移にはゲーム選択を追加しない", async () => {
+  function Path() {
+    const location = useLocation();
+    return (
+      <p data-testid="current-path" data-state={JSON.stringify(location.state)}>
+        {location.pathname}
+      </p>
+    );
+  }
+  const view = render(
+    wrap(
+      { ...profile, profileCompleted: false },
+      "/games/four-shogi",
+    )(
+      <>
+        <AccountMenu lobbyGame="four-shogi" />
+        <Path />
+      </>,
+    ),
+  );
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label$="のアカウントメニュー"]')!.click());
+  await flush();
+  act(() =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent?.includes("マイページ"))!
+      .click(),
+  );
+  await flush();
+  expect(view.querySelector('[data-testid="current-path"]')!.textContent).toBe("/account/setup");
+  expect(view.querySelector('[data-testid="current-path"]')!.getAttribute("data-state")).toBe(
+    "null",
+  );
 });
 
 test("未完了プロフィールは初回設定へ誘導し、受付・公開棋譜は妨げない", async () => {

@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
+import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
+import { LobbyView } from "../src/features/lobby/LobbyView";
 import { AccountPageShell, ProfilePage } from "../src/features/account/AccountPages";
 import { AccountContext } from "../src/features/account/useAccount";
 import { useAccountSelection } from "../src/features/account/useAccountSelection";
@@ -7,7 +9,7 @@ import { SavedMatchReplayView } from "../src/features/room/SavedMatchReplayView"
 import { profile } from "../test/fixtures/account";
 import { match } from "../test/fixtures/matchSummary";
 import { shogiReplayMatch, shogiStats } from "../test/fixtures/fourShogiRecordFixtures";
-import { act, clock, flush, press, render, renderHook, requests, wrap } from "./harness";
+import { act, clock, flush, press, render, renderHook, rerender, requests, wrap } from "./harness";
 
 const stats = {
   singles: { total: 12, first: 4, second: 2, third: 6, fourth: 0 },
@@ -15,9 +17,35 @@ const stats = {
 };
 const shogi = shogiReplayMatch("doubles");
 
-function profilePage(state?: unknown) {
+function profilePage(state?: unknown, lobbyGame?: GameId) {
   const router = createMemoryRouter(
     [
+      ...(lobbyGame
+        ? [
+            {
+              path: gameCatalog[lobbyGame].lobbyPath,
+              element: (
+                <LobbyView
+                  game={lobbyGame}
+                  name=""
+                  roomCode=""
+                  mode="doubles"
+                  cpuLevel={1}
+                  timeControl={{ mainTimeMs: 300000, byoyomiMs: 30000 }}
+                  isSubmitting={null}
+                  message={null}
+                  renderRooms={() => null}
+                  onNameChange={() => {}}
+                  onRoomCodeChange={() => {}}
+                  onModeChange={() => {}}
+                  onCpuLevelChange={() => {}}
+                  onTimeControlChange={() => {}}
+                  onClearMessage={() => {}}
+                />
+              ),
+            },
+          ]
+        : []),
       { path: "/account", element: <ProfilePage /> },
       {
         path: "/account/matches/:matchId",
@@ -33,7 +61,11 @@ function profilePage(state?: unknown) {
         ),
       },
     ],
-    { initialEntries: [{ pathname: "/account", state }] },
+    {
+      initialEntries: [
+        { pathname: lobbyGame ? gameCatalog[lobbyGame].lobbyPath : "/account", state },
+      ],
+    },
   );
   const view = render(
     <AccountContext.Provider
@@ -43,6 +75,17 @@ function profilePage(state?: unknown) {
     </AccountContext.Provider>,
   );
   return { view, router };
+}
+
+async function openMyPage(view: HTMLElement) {
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label$="のアカウントメニュー"]')!.click());
+  await flush();
+  act(() =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((item) => item.textContent?.includes("マイページ"))!
+      .click(),
+  );
+  await flush();
 }
 
 async function chooseGame(view: HTMLElement, name: string) {
@@ -70,6 +113,96 @@ function chooseMode(view: HTMLElement, name: string) {
   expect(selected.getAttribute("aria-controls")).toBe(panel.id);
   expect(panel.getAttribute("aria-labelledby")).toBe(selected.id);
 }
+
+test("全4ロビーのマイページは移動元の戦績・棋譜を最初に取得し、0件でも選択と復元を維持", async () => {
+  for (const game of gameIds) {
+    const { view, router } = profilePage(
+      {
+        accountSelection: {
+          game: "four-reversi",
+          modes: { "four-reversi": "doubles", "four-shogi": "doubles" },
+        },
+      },
+      game,
+    );
+    const requestStart = requests.length;
+    await openMyPage(view);
+    expect(router.state.location.pathname).toBe("/account");
+    expect(router.state.location.search).toBe("");
+    expect(
+      view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
+    ).not.toBeNull();
+    expect(view.querySelector(`main a[href="${gameCatalog[game].lobbyPath}"]`)).not.toBeNull();
+    const background = view.querySelector("main")!.closest(".lobby-background")!;
+    if (game !== "four-reversi")
+      expect(background.classList.contains(`game-theme-${game}`)).toBe(true);
+    if (gameCatalog[game].hasModes) {
+      expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
+        "シングルス",
+      );
+    } else {
+      expect(view.querySelector('[role="tablist"]')!.hasAttribute("hidden")).toBe(true);
+    }
+    expect(view.textContent).toContain("戦績を読み込んでいます");
+    expect(view.textContent).not.toContain("まだ対局履歴がありません。");
+    clock.advance(0);
+    const accountRequests = requests.slice(requestStart);
+    const statsRequest = accountRequests.find((r) => r.url.startsWith("/api/account/stats"))!;
+    const historyRequest = accountRequests.find((r) => r.url.startsWith("/api/account/matches"))!;
+    for (const request of [statsRequest, historyRequest]) {
+      expect(new URL(request.url, "https://example.test").searchParams.get("game")).toBe(
+        game === "four-reversi" ? null : game,
+      );
+    }
+    expect(new URL(historyRequest.url, "https://example.test").searchParams.get("mode")).toBe(
+      gameCatalog[game].hasModes ? "singles" : null,
+    );
+    expect(accountRequests.filter((r) => r.url.startsWith("/api/account/stats"))).toHaveLength(1);
+    expect(accountRequests.filter((r) => r.url.startsWith("/api/account/matches"))).toHaveLength(1);
+    const singles = { total: 0, first: 0, second: 0, third: 0, fourth: 0 };
+    statsRequest.respond(
+      gameCatalog[game].hasModes
+        ? {
+            singles: game === "four-shogi" ? { ...singles, knockouts: 0, perfectWins: 0 } : singles,
+            doubles: { total: 0, wins: 0, losses: 0, draws: 0 },
+          }
+        : { total: 0, wins: 0, losses: 0, draws: 0 },
+    );
+    historyRequest.respond({ matches: [], nextCursor: null });
+    accountRequests.find((r) => r.url.endsWith("/formation-stats"))?.respond([]);
+    await flush();
+    expect(view.textContent).toContain("まだ対局履歴がありません。");
+    expect(view.querySelector('[aria-labelledby="account-stats-title"] dd')!.textContent).toBe("0");
+    expect(
+      view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
+    ).not.toBeNull();
+    const nextGame = game === "four-shogi" ? "four-reversi" : "four-shogi";
+    await chooseGame(view, gameCatalog[nextGame].name);
+    chooseMode(view, "ダブルス");
+    const selection = router.state.location.state.accountSelection;
+    const restored = renderHook(
+      useAccountSelection,
+      undefined,
+      wrap(null, { pathname: "/account", state: router.state.location.state }),
+    );
+    expect(restored.current.game).toBe(nextGame);
+    expect(restored.current.mode).toBe("doubles");
+    restored.unmount();
+    await act(() => router.navigate(-1));
+    await flush();
+    expect(router.state.location.pathname).toBe(gameCatalog[game].lobbyPath);
+    await act(() => router.navigate(1));
+    await flush();
+    expect(router.state.location.state.accountSelection).toEqual(selection);
+    expect(
+      view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[nextGame].name}"]`),
+    ).not.toBeNull();
+    expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
+      "ダブルス",
+    );
+    rerender(view, null);
+  }
+});
 
 test("共通操作で戦績・棋譜を同期し、カード・キャッシュ・遅延応答とゲーム別モードを保持", async () => {
   const { view } = profilePage();
