@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { clockPresentation } from "../src/features/room/roomClockPresentation";
 import { parseRegistrationReturn } from "../src/features/account/registrationReturn";
 
-test("持ち時間なしは待機中から秒読みを表示し、10秒と9秒を区別する", () => {
+test("持ち時間なしは待機中から秒読みを表示し、6秒と5秒を区別する", () => {
   const timeControl = { mainTimeMs: 0, byoyomiMs: 10_000 };
   expect(clockPresentation({ timeControl, serverNowMs: 0 })).toEqual({
     text: "00:10",
@@ -10,8 +10,8 @@ test("持ち時間なしは待機中から秒読みを表示し、10秒と9秒�
     urgent: false,
   });
   expect(
-    clockPresentation({ timeControl, turnExpiresAt: 10_000, isTurn: true, serverNowMs: 1000 }),
-  ).toEqual({ text: "00:09", byoyomi: true, urgent: true });
+    clockPresentation({ timeControl, turnExpiresAt: 10_000, isTurn: true, serverNowMs: 5000 }),
+  ).toEqual({ text: "00:05", byoyomi: true, urgent: true });
   expect(
     clockPresentation({ timeControl, turnExpiresAt: 10_000, isTurn: true, serverNowMs: 10_000 }),
   ).toEqual({ text: "00:00", byoyomi: true, urgent: true });
@@ -23,17 +23,17 @@ test("秒読みなしは期限前後も持ち時間として表示する", () =>
   expect(clockPresentation({ ...args, serverNowMs: 59_000 })).toEqual({
     text: "00:01",
     byoyomi: false,
-    urgent: false,
+    urgent: true,
   });
   expect(clockPresentation({ ...args, serverNowMs: 60_000 })).toEqual({
     text: "00:00",
     byoyomi: false,
-    urgent: false,
+    urgent: true,
   });
-  expect(clockPresentation({ ...args, serverNowMs: 61_000 })).toEqual({
+  expect(clockPresentation({ ...args, serverNowMs: 65_000 })).toEqual({
     text: "00:00",
     byoyomi: false,
-    urgent: false,
+    urgent: true,
   });
 });
 
@@ -53,8 +53,8 @@ test("1分＋10秒は持ち時間から秒読みへ移行する", () => {
     byoyomi: true,
     urgent: false,
   });
-  expect(clockPresentation({ ...args, serverNowMs: 61_000 })).toEqual({
-    text: "00:09",
+  expect(clockPresentation({ ...args, serverNowMs: 65_000 })).toEqual({
+    text: "00:05",
     byoyomi: true,
     urgent: true,
   });

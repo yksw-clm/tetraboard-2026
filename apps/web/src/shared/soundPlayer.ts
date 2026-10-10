@@ -1,4 +1,4 @@
-export type SoundEffect = "join" | "bot" | "put" | "start" | "end";
+export type SoundEffect = "join" | "bot" | "put" | "start" | "end" | "clock";
 
 interface SoundPlayerOptions {
   sources: Record<SoundEffect, string>;
@@ -17,6 +17,10 @@ export class SoundPlayer {
   private readonly decoding = new Map<SoundEffect, Promise<void>>();
   private readonly buffers = new Map<SoundEffect, AudioBuffer>();
   private readonly playing = new Set<AudioBufferSourceNode>();
+  private clockSource: AudioBufferSourceNode | null = null;
+  private clockEndsAt = 0;
+  private enabled = true;
+  private readonly availabilityListeners = new Set<() => void>();
   private putEndsAt = 0;
   private joinScope: string | null = null;
   private roomUsers = 0;
@@ -24,6 +28,19 @@ export class SoundPlayer {
 
   constructor(options: SoundPlayerOptions) {
     this.options = options;
+  }
+
+  /** #121の共通設定から呼び出す境界。設定の保存・入口はここでは扱いません。 */
+  setEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (!enabled) this.stop();
+    for (const listener of this.availabilityListeners) listener();
+  }
+
+  subscribeAvailability(listener: () => void): () => void {
+    this.availabilityListeners.add(listener);
+    return () => this.availabilityListeners.delete(listener);
   }
 
   private selectRoom(instanceId: string): void {
@@ -79,7 +96,13 @@ export class SoundPlayer {
     try {
       // 排他的なセッションで一度再生してから変更することを避けます。
       this.options.configureSession();
-      this.context ??= this.options.createContext();
+      if (this.context === null) {
+        this.context = this.options.createContext();
+        this.context.onstatechange = () => {
+          if (this.context?.state !== "running") this.stopClock();
+          for (const listener of this.availabilityListeners) listener();
+        };
+      }
       if (this.context.state !== "running") void this.context.resume().catch(() => {});
       this.prepare();
     } catch {
@@ -89,7 +112,8 @@ export class SoundPlayer {
 
   play(sounds: readonly SoundEffect[]): void {
     const context = this.context;
-    if (context === null || context.state !== "running" || !this.options.visible()) return;
+    if (!this.enabled || context === null || context.state !== "running" || !this.options.visible())
+      return;
     let at = context.currentTime;
     for (const sound of sounds) {
       const buffer = this.buffers.get(sound);
@@ -118,6 +142,69 @@ export class SoundPlayer {
     }
   }
 
+  playClock(remainingMs: number): void {
+    this.stopClock();
+    const context = this.context;
+    const buffer = this.buffers.get("clock");
+    if (
+      !this.enabled ||
+      context?.state !== "running" ||
+      !this.options.visible() ||
+      buffer === undefined ||
+      remainingMs <= 0
+    )
+      return;
+    let source: AudioBufferSourceNode | null = null;
+    try {
+      source = context.createBufferSource();
+      this.clockSource = source;
+      source.buffer = buffer;
+      source.connect(context.destination);
+      this.clockEndsAt = context.currentTime + Math.min(remainingMs / 1000, 5, buffer.duration);
+      const playing = source;
+      source.onended = () => {
+        if (this.clockSource === playing) this.clockSource = null;
+        playing.disconnect();
+      };
+      source.start(context.currentTime);
+      source.stop(this.clockEndsAt);
+    } catch {
+      this.stopClock();
+    }
+  }
+
+  updateClockDeadline(remainingMs: number): void {
+    if (this.clockSource === null || this.context === null) return;
+    if (remainingMs <= 0 || this.context.state !== "running") {
+      this.stopClock();
+      return;
+    }
+    try {
+      this.clockSource.stop(
+        Math.min(this.clockEndsAt, this.context.currentTime + remainingMs / 1000),
+      );
+    } catch {
+      this.stopClock();
+    }
+  }
+
+  stopClock(): void {
+    const source = this.clockSource;
+    this.clockSource = null;
+    if (source === null) return;
+    source.onended = null;
+    try {
+      source.stop();
+    } catch {
+      // 終了・中断済みの時計音も再演せず破棄します。
+    }
+    try {
+      source.disconnect();
+    } catch {
+      // 解放済みでもゲームへ音声の失敗を伝播させません。
+    }
+  }
+
   playJoin(instanceId: string, playerId: string): void {
     this.selectRoom(instanceId);
     if (this.joined.has(playerId)) return;
@@ -128,6 +215,7 @@ export class SoundPlayer {
   }
 
   stop(): void {
+    this.stopClock();
     for (const source of this.playing) {
       source.onended = null;
       try {

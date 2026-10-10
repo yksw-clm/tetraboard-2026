@@ -30,6 +30,7 @@ import { assertRoomIdentity, roomChangedMessage } from "../../shared/roomAccess"
 import { fetchRoom, leaveRoom } from "./roomApi";
 import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import { RoomSoundTracker, type SoundGameState } from "./roomSoundEvents";
+import { ClockWarningTracker, roomClockCount } from "./clockWarning";
 
 const responseTimeoutMs = 10_000;
 type ResponseWait = "fetch" | "connection" | "ready" | "settings" | "game" | "chat" | "stamp";
@@ -191,6 +192,11 @@ export function useRoomTransport<T extends Room>({
   } | null>(null);
   const trackChatRef = useRef<((text: string) => void) | null>(null);
   const soundTrackerRef = useRef<RoomSoundTracker<T> | null>(null);
+  const clockSoundRef = useRef<{
+    tick: () => void;
+    consume: () => void;
+    leave: (leaving: boolean) => void;
+  } | null>(null);
   const pendingReadyRef = useRef<boolean | null>(null);
   const pendingSettingsRef = useRef(false);
   const settingsConfirmationRef = useRef<{
@@ -203,8 +209,10 @@ export function useRoomTransport<T extends Room>({
 
   useEffect(() => {
     if (room.status !== "playing") return;
-    const update = () =>
+    const update = () => {
       setServerNowMs(clockSync.serverNowMs + performance.now() - clockSync.receivedAt);
+      clockSoundRef.current?.tick();
+    };
     update();
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
@@ -221,6 +229,11 @@ export function useRoomTransport<T extends Room>({
     const soundTracker = new RoomSoundTracker(readSoundGame);
     soundTrackerRef.current = soundTracker;
     const releaseSounds = roomSounds.retainRoom(initialRoom.instanceId);
+    const clockWarnings = new ClockWarningTracker();
+    let clockReady = false;
+    let clockLeaving = false;
+    let clockReceivedAt = performance.now();
+    let soundingCount: string | null = null;
     let soundReady = true;
     let soundBaselineAtMs: number | null = null;
     let latestSnapshot: {
@@ -246,6 +259,68 @@ export function useRoomTransport<T extends Room>({
     const resetStamps = () => {
       for (const listener of stampListeners.current) listener(null);
     };
+
+    function clockNow(): number {
+      return (
+        (latestSnapshot?.serverNowMs ?? initialServerNowMs) + performance.now() - clockReceivedAt
+      );
+    }
+
+    function pauseClock(): void {
+      clockReady = false;
+      soundingCount = null;
+      roomSounds.stopClock();
+    }
+
+    function checkClock(): void {
+      const count = latestSnapshot === null ? null : roomClockCount(latestSnapshot.room);
+      const at = clockNow();
+      if (
+        !clockReady ||
+        !active ||
+        suspended ||
+        synchronizing ||
+        clockLeaving ||
+        !authenticationConfirmed ||
+        document.visibilityState !== "visible" ||
+        socket?.readyState !== WebSocket.OPEN
+      ) {
+        clockWarnings.baseline(count, at);
+        roomSounds.stopClock();
+        soundingCount = null;
+        return;
+      }
+      if (count?.id !== soundingCount || count?.playerId !== currentMembership?.playerId) {
+        roomSounds.stopClock();
+        soundingCount = null;
+      }
+      const remaining = clockWarnings.observe(count, at, currentMembership?.playerId ?? null);
+      if (remaining !== null) {
+        soundingCount = count!.id;
+        roomSounds.playClock(remaining);
+      }
+      if (count !== null && soundingCount === count.id)
+        roomSounds.updateClockDeadline(count.expiresAt - at);
+    }
+
+    clockSoundRef.current = {
+      tick: checkClock,
+      consume: () => {
+        clockWarnings.consume(latestSnapshot === null ? null : roomClockCount(latestSnapshot.room));
+        soundingCount = null;
+        roomSounds.stopClock();
+      },
+      leave: (leaving) => {
+        clockLeaving = leaving;
+        checkClock();
+      },
+    };
+    const releaseClockAvailability = roomSounds.subscribeAvailability(() => {
+      clockWarnings.baseline(
+        latestSnapshot === null ? null : roomClockCount(latestSnapshot.room),
+        clockNow(),
+      );
+    });
     const clearPendingStamp = () => {
       pendingStampRef.current = null;
       setPendingStamp(false);
@@ -305,6 +380,7 @@ export function useRoomTransport<T extends Room>({
       stampIds.clear();
       soundTracker.reset();
       soundReady = false;
+      pauseClock();
       roomSounds.stop();
       setAuthenticated(false);
       clearPendingReady();
@@ -355,15 +431,18 @@ export function useRoomTransport<T extends Room>({
       }
       serverOffsetRef.current = latest.serverNowMs - Date.now();
       latestSnapshot = latest;
+      clockReceivedAt = performance.now();
       setRoom(latest.room);
       setPresence(latest.presence);
       setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
+      checkClock();
     }
 
     async function refresh(keepSocket: boolean): Promise<void> {
       if (!active || suspended || synchronizing) return;
       if (!keepSocket && socket !== null) stopTransport();
       synchronizing = true;
+      pauseClock();
       clearWait("connection");
       authenticationConfirmed = false;
       setAuthenticated(false);
@@ -464,6 +543,7 @@ export function useRoomTransport<T extends Room>({
       soundTracker.reset();
       soundReady = false;
       resetStamps();
+      pauseClock();
       if (document.visibilityState !== "visible") return;
       if ([...waits.values()].some((wait) => wait.expiresAt <= Date.now())) {
         recover();
@@ -476,6 +556,7 @@ export function useRoomTransport<T extends Room>({
     document.addEventListener("visibilitychange", visibilityChanged);
 
     function connect(): void {
+      pauseClock();
       soundTracker.reset();
       soundReady = true;
       soundBaselineAtMs = null;
@@ -501,6 +582,14 @@ export function useRoomTransport<T extends Room>({
         clearWait("connection");
         setConnection("接続済み");
         setAuthenticated(currentMembership !== null);
+        if (!clockReady) {
+          clockWarnings.baseline(
+            latestSnapshot === null ? null : roomClockCount(latestSnapshot.room),
+            clockNow(),
+          );
+          clockReady = true;
+        }
+        checkClock();
         retryDelay = 1000;
       }
       let chatIds: Set<string> | null = null;
@@ -689,6 +778,7 @@ export function useRoomTransport<T extends Room>({
             setAuthenticated(false);
             setSocketError("参加資格を確認できませんでした。再読み込みしてください。");
             authenticationConfirmed = false;
+            pauseClock();
             startWait("connection");
             return;
           }
@@ -740,6 +830,8 @@ export function useRoomTransport<T extends Room>({
       responseWaitRef.current = null;
       trackChatRef.current = null;
       soundTrackerRef.current = null;
+      clockSoundRef.current = null;
+      releaseClockAvailability();
       stopTransport();
       releaseSounds();
     };
@@ -784,6 +876,8 @@ export function useRoomTransport<T extends Room>({
     setSocketError(null);
     try {
       currentSocket.send(JSON.stringify(roomSocketContract.clientMessage.parse(message)));
+      if (message.type === "room.game.resign" || message.type === "room.game.action")
+        clockSoundRef.current?.consume();
       responseWaitRef.current?.start("game");
       return true;
     } catch {
@@ -905,6 +999,7 @@ export function useRoomTransport<T extends Room>({
       return;
     }
     setLeaving(true);
+    clockSoundRef.current?.leave(true);
     setSocketError(null);
     try {
       await leaveRoom(room.id, token);
@@ -913,6 +1008,7 @@ export function useRoomTransport<T extends Room>({
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);
+      clockSoundRef.current?.leave(false);
     }
   }
 

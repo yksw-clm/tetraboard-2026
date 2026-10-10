@@ -1,3 +1,5 @@
+import { clockWarningMs } from "./clockWarning";
+
 export function formatClock(milliseconds: number): string {
   const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -31,6 +33,6 @@ export function clockPresentation({
   return {
     text: formatClock(remaining),
     byoyomi,
-    urgent: byoyomi && Math.ceil(remaining / 1000) < 10,
+    urgent: isTurn && turnExpiresAt - serverNowMs <= clockWarningMs,
   };
 }

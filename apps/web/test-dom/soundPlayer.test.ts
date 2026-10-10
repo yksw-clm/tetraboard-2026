@@ -4,7 +4,7 @@ import { roomSounds, useSoundEffects } from "../src/shared/soundEffects";
 import { flush, renderHook } from "./harness";
 
 function audio() {
-  const effects: SoundEffect[] = ["join", "bot", "put", "start", "end"];
+  const effects: SoundEffect[] = ["join", "bot", "put", "start", "end", "clock"];
   const sources = Object.fromEntries(effects.map((sound) => [sound, sound])) as Record<
     SoundEffect,
     string
@@ -18,7 +18,8 @@ function audio() {
     connect: () => void;
     disconnect: () => void;
     start: (at: number) => void;
-    stop: () => void;
+    stop: (at?: number) => void;
+    stops: (number | undefined)[];
   }[] = [];
   const state = {
     available: true,
@@ -49,6 +50,7 @@ function audio() {
         buffer: null as AudioBuffer | null,
         at: null as number | null,
         stopped: false,
+        stops: [] as (number | undefined)[],
         onended: null as (() => void) | null,
         connect: () => {},
         disconnect: () => {},
@@ -56,8 +58,9 @@ function audio() {
           if (state.failStart) throw new Error("start failed");
           node.at = at;
         },
-        stop: () => {
-          node.stopped = true;
+        stop: (at?: number) => {
+          node.stops.push(at);
+          if (at === undefined) node.stopped = true;
         },
       };
       nodes.push(node);
@@ -90,18 +93,18 @@ test("音源を先読みし、操作内でambientを先に指定してcontextを
   a.player.prepare();
   a.player.prepare();
   await flush();
-  expect(a.calls.filter((c) => c.startsWith("fetch:"))).toHaveLength(5);
+  expect(a.calls.filter((c) => c.startsWith("fetch:"))).toHaveLength(6);
   expect(a.calls).not.toContain("create");
   a.player.play(["start"]);
   expect(a.nodes).toHaveLength(0);
   a.player.activate();
-  expect(a.calls.slice(5, 8)).toEqual(["ambient", "create", "resume"]);
+  expect(a.calls.slice(6, 9)).toEqual(["ambient", "create", "resume"]);
   await flush();
   a.player.activate();
   a.player.prepare();
   await flush();
   expect(a.calls.filter((c) => c === "create")).toHaveLength(1);
-  expect(a.calls.filter((c) => c === "decode")).toHaveLength(5);
+  expect(a.calls.filter((c) => c === "decode")).toHaveLength(6);
   a.player.play(["start"]);
   expect(a.nodes).toHaveLength(1);
 });
@@ -231,4 +234,77 @@ test("参加成功から同じ部屋への画面・資格切替では入室音�
   next();
   await flush();
   expect(a.nodes[3]!.stopped).toBe(true);
+});
+
+test("時計音は通常速度で最大5秒・残り時間まで再生し、個別停止はput/endを切らない", async () => {
+  const a = audio();
+  a.player.activate();
+  await flush();
+  a.player.play(["put", "end"]);
+  // 実ファイル同様、5秒より長いデコード結果でも期限を越えません。
+  // このfixtureのclockは0.6秒なので、上限と短い音源の両方を確認します。
+  a.player.playClock(5000);
+  expect(a.nodes[2]!.at).toBe(10);
+  expect(a.nodes[2]!.stops).toEqual([10.6]);
+  a.player.stopClock();
+  expect(a.nodes[2]!.stopped).toBe(true);
+  expect(a.nodes[0]!.stopped).toBe(false);
+  expect(a.nodes[1]!.stopped).toBe(false);
+  const long = audio();
+  long.context.decodeAudioData = async () => ({ duration: 5.64 }) as AudioBuffer;
+  long.player.activate();
+  await flush();
+  long.player.playClock(7000);
+  expect(long.nodes[0]!.stops).toEqual([15]);
+  long.player.updateClockDeadline(2000);
+  expect(long.nodes[0]!.stops.at(-1)).toBe(12);
+  long.player.stopClock();
+  long.player.playClock(1500);
+  expect(long.nodes[1]!.stops).toEqual([11.5]);
+  long.player.updateClockDeadline(0);
+  expect(long.nodes[1]!.stopped).toBe(true);
+});
+
+test("効果音OFFとAudioContext中断で時計音を破棄し、ON・resumeで再演しない", async () => {
+  const a = audio();
+  const changed = spyOn({ notify: () => {} }, "notify");
+  const release = a.player.subscribeAvailability(changed);
+  a.player.activate();
+  await flush();
+  a.player.playClock(5000);
+  a.player.setEnabled(false);
+  expect(a.nodes[0]!.stopped).toBe(true);
+  a.player.playClock(5000);
+  a.player.play(["put"]);
+  expect(a.nodes).toHaveLength(1);
+  a.player.setEnabled(true);
+  expect(a.nodes).toHaveLength(1);
+  a.player.playClock(4000);
+  a.context.state = "suspended";
+  (a.context as unknown as AudioContext).onstatechange?.(new Event("statechange"));
+  expect(a.nodes[1]!.stopped).toBe(true);
+  a.player.activate();
+  expect(a.nodes).toHaveLength(2);
+  expect(changed).toHaveBeenCalledTimes(3);
+  release();
+});
+
+test("時計音の準備前・非表示・中断・取得/デコード/再生失敗は操作へ伝播しない", async () => {
+  for (const failure of ["failFetch", "failDecode", "failStart", "failResume"] as const) {
+    const a = audio();
+    a.state[failure] = true;
+    a.player.activate();
+    expect(() => a.player.playClock(5000)).not.toThrow();
+    await flush();
+    expect(() => a.player.playClock(5000)).not.toThrow();
+    expect(() => a.player.stopClock()).not.toThrow();
+  }
+  const a = audio();
+  a.player.activate();
+  await flush();
+  a.state.visible = false;
+  a.player.playClock(5000);
+  a.state.visible = true;
+  a.player.playClock(0);
+  expect(a.nodes).toHaveLength(0);
 });
