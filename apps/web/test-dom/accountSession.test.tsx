@@ -13,6 +13,7 @@ import { AccountMenu } from "../src/features/account/AccountMenu";
 import { act, flush, render, requests, wrap, rerender } from "./harness";
 
 test("focusで認証を再確認し、失敗時にアカウントをゲストへ降格せず、遅い旧応答を破棄", async () => {
+  const sessions = () => requests.filter((request) => request.url === "/api/account/session");
   let account!: ReturnType<typeof useAccount>;
   function Probe() {
     account = useAccount();
@@ -28,19 +29,19 @@ test("focusで認証を再確認し、失敗時にアカウントをゲストへ
     </MemoryRouter>,
   );
   expect(account.loading).toBe(true);
-  requests[0]!.respond({ user: profile });
+  sessions()[0]!.respond({ user: profile });
   await flush();
   expect(account.user).toEqual(profile);
   act(() => window.dispatchEvent(new Event("focus")));
-  requests[1]!.respond({}, 503);
+  sessions()[1]!.respond({}, 503);
   await flush();
   expect(account.user).toEqual(profile);
   expect(account.error).not.toBeNull();
   act(() => window.dispatchEvent(new Event("focus")));
   act(() => window.dispatchEvent(new Event("focus")));
-  requests[3]!.respond({ user: null });
+  sessions()[3]!.respond({ user: null });
   await flush();
-  requests[2]!.respond({ user: profile });
+  sessions()[2]!.respond({ user: profile });
   await flush();
   expect(account.user).toBeNull();
   expect(account.error).toBeNull();

@@ -1,4 +1,5 @@
 import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
+import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
   type FourReversiRoom as Room,
   type RoundReplay,
@@ -61,5 +62,6 @@ export async function writeMatch(
     ON CONFLICT(account_id, match_id) DO NOTHING`)
       .bind(record.id),
   );
+  statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   await db.batch(statements);
 }

@@ -168,6 +168,7 @@ export { assertNever } from "./exhaustive";
 
 export * from "./playerProfiles";
 export * from "./badges";
+export * from "./badgeNotifications";
 export * from "./announcements";
 
 export {
