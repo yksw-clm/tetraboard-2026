@@ -162,7 +162,15 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## 表示・サウンド設定
 
-2026年10月10日、開発者の指示により仕様と実装目標を確定しました。仕様の正本は[READMEの表示・サウンド設定](../README.md#表示サウンド設定)です。この変更は仕様文書だけで、設定UI・保存の実装は後続作業です。
+2026年10月10日、開発者の指示により仕様と実装目標を確定しました。仕様の正本は[READMEの表示・サウンド設定](../README.md#表示サウンド設定)です。設定UI・ブラウザ保存はWeb側で実装し、Worker・ゲームエンジン・通信契約は変更しません。
+
+`shared/browserSettings.ts` のページ共通ストアがlocalStorageの初期読取・項目単位の検証・最新値との合成書込・storage／pageshow／visibilitychangeの同期を扱います。保存できない変更は別に保持し、古い保存値による取消を防ぎます。React側は `useBrowserSettings` の `useSyncExternalStore` で同じsnapshotを購読します。
+
+`shared/ui/BrowserSettings.tsx` の設定ボタン・スイッチ・保存補足をヘッダー、ルーム情報、保存棋譜、スタンプパネルで共用します。ルームは `RoomViewShell` の既存ダイアログ状態に設定を追加し、結果自動表示・スタンプパネルとの競合を抑止します。`RoomInfoCard` の見出し行に24pxのボタンを収め、行・カードの高さを維持します。パネルの幅は244pxを基本とし、6種類の選択を3列2行で中央に残し、その下へ表示設定を置きます。送信制限とパネルを開く操作を分離し、送信待ち・制限中でも設定を変更できます。
+
+音声はストアの初期値・購読を既存 `SoundPlayer.setEnabled` へつなぎ、OFF中はAudioContextの有効化も行いません。スタンプは表示を即時に空へ切り替え、共有ストアの購読でタイマーと演出を破棄します。受信時には最新の設定を参照し、transportの通知ID消費・重複抑止を継続します。
+
+部分検証は `bun test --cwd apps/web ./test/browserSettings.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/browserSettings.test.tsx ./test-dom/roomStamps.test.tsx ./test-dom/soundPlayer.test.ts ./test-dom/clockWarning.test.tsx` を使います。寸法比較・スクリーンショット用の一時的な表示確認はリポジトリの自動テストへ追加しません。
 
 **Goal**
 

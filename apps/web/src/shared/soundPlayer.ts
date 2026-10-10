@@ -92,7 +92,7 @@ export class SoundPlayer {
   }
 
   activate(): void {
-    if (!this.options.available() || !this.options.visible()) return;
+    if (!this.enabled || !this.options.available() || !this.options.visible()) return;
     try {
       // 排他的なセッションで一度再生してから変更することを避けます。
       this.options.configureSession();
