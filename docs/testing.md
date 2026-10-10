@@ -2,6 +2,51 @@
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
+## 変更対象別の確認
+
+まず[開発文書の案内](development.md)から対象の仕様と実装を確認し、下表で代表的な検証先を選びます。複数の対象にまたがる変更では関連する行も確認してください。表は探索の入口です。個別ケースと手動確認の範囲は後続の各節、旧ブラウザテストからの移管根拠は[移管対応表](#移管対応表)にあります。
+
+| 変更対象 | 代表的な検証先・詳細 |
+| --- | --- |
+| 認証・プロフィール | Workerの[accounts.test.ts](../apps/worker/test/accounts.test.ts)・[discordAuth.test.ts](../apps/worker/test/discordAuth.test.ts)、Web部品の[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx)、[セッション更新Cookieの確認](#セッション更新cookieissue-142) |
+| 時計・接続・ルーム操作 | Workerの[clock.test.ts](../apps/worker/test/clock.test.ts)・[roomDeadlineBoundary.test.ts](../apps/worker/test/roomDeadlineBoundary.test.ts)・[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)、Web部品の[roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx)・[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx) |
+| 終局保存・棋譜・互換性 | Workerの[matchStore.test.ts](../apps/worker/test/matchStore.test.ts)・[shogiMatchStore.test.ts](../apps/worker/test/shogiMatchStore.test.ts)・[matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、Web純粋関数の[matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts)、Web部品の[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx) |
+| ロビー・画面・共通部品 | Web部品の[lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)・[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)・[shogiComponents.test.tsx](../apps/web/test-dom/shogiComponents.test.tsx)、[実行環境と手動確認の境界](#実行環境) |
+| ゲームのルール・CPU | 四人リバーシの[engine.test.ts](../packages/four-reversi/test/engine.test.ts)・[cpu.test.ts](../packages/four-reversi/test/cpu.test.ts)、四人将棋の[movement.test.ts](../packages/four-shogi/test/movement.test.ts)・[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、通常リバーシの[engine.test.ts](../packages/reversi/test/engine.test.ts)、通常将棋の[rules.test.ts](../packages/shogi/test/rules.test.ts)・[cpu.test.ts](../packages/shogi/test/cpu.test.ts)、[通常将棋の統合確認](#通常将棋の確認) |
+| 表示設定・サウンド | Web純粋関数の[browserSettings.test.ts](../apps/web/test/browserSettings.test.ts)・[clockWarning.test.ts](../apps/web/test/clockWarning.test.ts)、Web部品の[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)・[soundPlayer.test.ts](../apps/web/test-dom/soundPlayer.test.ts)、[詳細と手動確認](#表示サウンド設定の確認) |
+| チャット・スタンプ | Workerの[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)・[roomStamps.test.ts](../apps/worker/test/roomStamps.test.ts)、Web部品の[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)・[roomStamps.test.tsx](../apps/web/test-dom/roomStamps.test.tsx)、[スタンプの詳細と手動確認](#ルームのスタンプの確認) |
+| 戦績・ランキング・バッジ | Workerの[accountStats.test.ts](../apps/worker/test/accountStats.test.ts)・[rankings.test.ts](../apps/worker/test/rankings.test.ts)・[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、Web部品の[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)・[badgeNotifications.test.tsx](../apps/web/test-dom/badgeNotifications.test.tsx)、[バッジ獲得通知の詳細](#バッジ獲得通知issue-122) |
+| 管理・フィードバック・お知らせ | Workerの[adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)・[feedback.test.ts](../apps/worker/test/feedback.test.ts)・[announcements.test.ts](../apps/worker/test/announcements.test.ts)、Admin部品の[adminViews.test.tsx](../apps/admin/test-dom/adminViews.test.tsx)・[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)・[announcements.test.tsx](../apps/admin/test-dom/announcements.test.tsx) |
+| 公開・検索向け配信・設定 | Workerの[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)・[testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、Web部品の[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx)、[個人設定からの分離](#個人設定からの分離)、ビルドとWorker dry-run |
+
+### 部分実行コマンドの選び方
+
+次の例はリポジトリルートから実行します。上表のリンク先に合わせて、同じ実行環境のファイル名を置き換えます。同じ環境の関連ファイルは空白区切りで追加できます。WebとAdminの部品・hookにはDOM用preloadを指定し、純粋関数とは別プロセスで確認します。
+
+```sh
+# Worker統合テスト
+bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlineBoundary.test.ts
+# Webの純粋関数
+bun test --cwd apps/web ./test/matchCompatibility.test.ts
+# Webの部品・hook
+bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSession.test.tsx
+# Adminの純粋関数
+bun test --cwd apps/admin ./test/presentation.test.ts
+# Adminの部品・hook
+bun test --cwd apps/admin --preload ../../test-support/dom.ts ./test-dom/adminViews.test.tsx
+```
+
+エンジンとCPUは、変更したゲームのパッケージを選びます。特定ファイルに絞る場合は、例えば `bun run --cwd packages/four-shogi test test/cpuSearch.test.ts` を使います。
+
+```sh
+bun run --cwd packages/four-reversi test
+bun run --cwd packages/four-shogi test
+bun run --cwd packages/reversi test
+bun run --cwd packages/shogi test
+```
+
+部分実行の後、PR提出前の必須検証は[開発文書の共通手順](development.md#pr提出前の検証)に従います。実行環境の制約は[実行環境](#実行環境)、画面寸法・ネイティブ入力・実画像デコードなどの自動検証対象から外す範囲は[廃止した自動検証](#廃止した自動検証)を参照してください。
+
 ## 実行環境
 
 | 対象 | 実行環境 | 境界の扱い |

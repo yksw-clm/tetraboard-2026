@@ -1,8 +1,16 @@
-# 四人将棋AIの実装計画と検証
+# 四人将棋AI強化の計画・測定・採用記録
 
-既存のCPU Lv2を、マジックとその対処、駒の安全、詰み回避を読めるAIへ改良する。ゲームルールと保存棋譜の互換性を維持し、手元のCPUと既存Cloudflare構成で動かす。2026-10-08の開発者の指示に基づき、以下の計画を順に実装する。
+この文書は、2026-10-08に実施した四人将棋CPU Lv2強化の計画、比較条件、対象コミット、結果、限界と採用経緯を残す。強化CPUは [PR #99](https://github.com/yksw-clm/tetraboard-2026/pull/99) で2026-10-08にmainへ取り込まれた。現在のCPUの採用仕様は [ルール正本のCPU節](rules/four-shogi.md#cpu)、実装の入口・確認方法は [開発文書の四人将棋CPU節](development.md#四人将棋cpu) を参照する。
 
-作業ブランチは `feat/four-shogi-strong-ai`、旧Lv2の比較対象は `3b84f2cdaf9e280b6f84ee34eaa95de8a1441d03` に固定する。
+| 記録の対象 | コミット |
+| --- | --- |
+| 旧Lv2の比較対象 | `3b84f2cdaf9e280b6f84ee34eaa95de8a1441d03` |
+| 最終測定のAI・測定コード | `f8e29bb45f2dbf463416a0ad5a0dd287695d90f3` |
+| 導入時の必須ローカル検証対象 | `533f7a0d2745492f212dfd7799f3a7e164b3f984` |
+
+以下の計画・受入基準・進捗・実行手順は導入時点の記録であり、測定結果は上表の対象コミットと本文の条件に対応する。今後CPU仕様が変わっても、比較を再現するための予算・設定・結果・未確認事項は当時の条件として保持する。
+
+導入時は、既存のCPU Lv2をマジックとその対処、駒の安全、詰み回避を読めるAIへ改良し、ゲームルールと保存棋譜の互換性、手元のCPUと既存Cloudflare構成を維持する計画とした。2026-10-08の開発者の指示に基づく作業ブランチは `feat/four-shogi-strong-ai` だった。
 
 ## Goal
 
@@ -109,6 +117,6 @@ AI・測定の対象は `f8e29bb45f2dbf463416a0ad5a0dd287695d90f3`、環境はma
 
 `--kind=matches --mode=singles --restricted=true --games=200 --seed=100000 --max-plies=400` でONの測定を再現できる。OFFは `--restricted=false`、ダブルスは `--mode=doubles --restricted=true` に変更する。引数に `--output=/tmp/shogi-matches.json` を付けると、1局ごとに途中結果を保存し、全局が終わった結果だけ `complete: true` となる。
 
-ローカル検証の対象コードは `533f7a0d2745492f212dfd7799f3a7e164b3f984`。`bun run check` は成功・66.27秒、`bun run build` と `bun run --cwd apps/worker deploy:dry-run` も順に成功した。測定対象からのAI・Worker本体の差分はなく、以後はこの結果文書と説明の補足だけを変更する。文書の表・リンク・JSON構文を確認し、最終差分で `git diff --check` を実行する。
+ローカル検証の対象コードは `533f7a0d2745492f212dfd7799f3a7e164b3f984`。`bun run check` は成功・66.27秒、`bun run build` と `bun run --cwd apps/worker deploy:dry-run` も順に成功した。測定対象からのAI・Worker本体の差分はなく、導入PRでは以後、この結果文書と説明の補足だけを変更した。文書の表・リンク・JSON構文の確認と最終差分の `git diff --check` は、導入PRの提出時に行う確認項目だった。
 
-提出先は [PR #99](https://github.com/yksw-clm/tetraboard-2026/pull/99)。測定対象コミットのGitHub CIは成功した。最終headのCIはPRのchecksを照合し、成功後に提出を完了とする。マージ・本番公開は開発者の承認後に行う。外部棋譜の一括取得仕様・利用条件、本番Lv2の具体的悪手、上級者相当の棋力、本番Cloudflareでの速度は未確認。
+導入先は [PR #99](https://github.com/yksw-clm/tetraboard-2026/pull/99) で、2026-10-08にマージされた。測定対象コミットのGitHub CIは成功した。導入時は最終headのCI成功と開発者の承認をマージ・本番公開の条件とした。測定時点では、外部棋譜の一括取得仕様・利用条件、本番Lv2の具体的悪手、上級者相当の棋力、本番Cloudflareでの速度は未確認だった。
