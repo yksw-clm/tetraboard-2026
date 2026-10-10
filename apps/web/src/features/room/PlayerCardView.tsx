@@ -1,3 +1,5 @@
+import { usePlayerStamp } from "./roomStampContext";
+import { roomStamps } from "@tetraboard/protocol";
 import { gameThemes } from "../../shared/ui/appTheme";
 import type { GameId } from "@tetraboard/protocol/games";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
@@ -61,6 +63,7 @@ export function PlayerCardView({
   profileMode?: RoomMode;
   game?: GameId;
 }) {
+  const stamp = usePlayerStamp(player?.id);
   const preview = {
     target: profileTarget,
     localProfile:
@@ -141,8 +144,21 @@ export function PlayerCardView({
         )}
       >
         {player ? (
-          <PlayerProfileTrigger {...preview} label={name} className="block size-full">
+          <PlayerProfileTrigger {...preview} label={name} className="relative block size-full">
             <PlayerAvatar appearance={playerAppearance(player)} className="size-full" />
+            {stamp && (
+              <span
+                key={stamp.id}
+                data-testid="player-stamp"
+                className="absolute inset-0 pointer-events-none overflow-hidden rounded-full"
+                aria-hidden="true"
+              >
+                <span className="absolute inset-0 bg-black/50 motion-safe:animate-[room-stamp-fade_3s_linear_forwards]" />
+                <span className="absolute inset-0 flex items-center justify-center text-[24px] leading-none motion-safe:animate-[room-stamp-emoji_3s_linear_forwards] [@media(max-width:767px)]:text-xl">
+                  {roomStamps[stamp.stampId].emoji}
+                </span>
+              </span>
+            )}
           </PlayerProfileTrigger>
         ) : (
           <PlayerAvatar appearance={null} className="size-full" />

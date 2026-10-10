@@ -8,6 +8,7 @@ export default function RoomDetail({
   initialMembership,
   initialServerNowMs,
   initialPresence,
+  initialStampsSupported,
   invited,
 }: {
   initialRoom: FourReversiRoom;
@@ -15,12 +16,14 @@ export default function RoomDetail({
   invited: boolean;
   initialServerNowMs: number;
   initialPresence: RoomLoaderData["presence"];
+  initialStampsSupported?: boolean;
 }) {
   const session = useRoomSession({
     initialRoom,
     initialMembership,
     initialServerNowMs,
     initialPresence,
+    initialStampsSupported,
   });
   const chat = useSessionChat(session);
   return <RoomView session={session} chat={chat} invited={invited} />;

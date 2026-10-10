@@ -75,3 +75,25 @@
     opacity: 1;
   }
 }
+
+@keyframes room-stamp-fade {
+  0% {
+    opacity: 0;
+  }
+  5%,
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes room-stamp-emoji {
+  0%,
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

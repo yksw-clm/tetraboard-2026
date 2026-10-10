@@ -17,7 +17,12 @@ export function RoomChat({
   chat: ReturnType<typeof useRoomChat>;
   session: Pick<
     ReturnType<typeof useRoomTransport>,
-    "chatMessages" | "membership" | "authenticated" | "connection"
+    | "chatMessages"
+    | "membership"
+    | "authenticated"
+    | "connection"
+    | "interactionReady"
+    | "pendingStamp"
   >;
   visible: boolean;
   theme?: AppTheme;
@@ -33,6 +38,8 @@ export function RoomChat({
     authenticated &&
     connection === "接続済み" &&
     !chat.pending &&
+    session.interactionReady !== false &&
+    !session.pendingStamp &&
     count > 0 &&
     count <= chatCharacterLimit;
   const composing = useRef(false);

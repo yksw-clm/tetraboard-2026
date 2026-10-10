@@ -22,6 +22,7 @@ export type RoomLoaderDataFor<G extends GameId> = {
   serverNowMs: number;
   presence: RoomPresence;
   formationAnalysisSupported?: boolean;
+  stampsSupported?: boolean;
 };
 
 export type RoomLoaderData = { [G in GameId]: RoomLoaderDataFor<G> }[GameId];
@@ -32,7 +33,7 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     throw new Response("ルームIDが不正です。", { status: 400 });
   }
   const instanceId = invitationInstance(new URL(request.url));
-  const { room, presence, serverNowMs, formationAnalysis } = await fetchRoom(
+  const { room, presence, serverNowMs, formationAnalysis, stampsSupported } = await fetchRoom(
     id!,
     request.signal,
     instanceId,
@@ -41,7 +42,13 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
   if (membership !== null && !room.players.some((player) => player.id === membership.playerId)) {
     throw new Response("本人確認の結果がルーム情報と一致しません。", { status: 503 });
   }
-  const common = { membership, presence, serverNowMs, invited: instanceId !== undefined };
+  const common = {
+    membership,
+    presence,
+    serverNowMs,
+    invited: instanceId !== undefined,
+    stampsSupported: stampsSupported === true,
+  };
   if (isShogiRoom(room)) return { ...common, game: "shogi", room };
   if (isReversiRoom(room)) return { ...common, game: "reversi", room };
   if (isFourReversiRoom(room)) return { ...common, game: "four-reversi", room };

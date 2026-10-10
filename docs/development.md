@@ -62,7 +62,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWebとWorkerの開発サーバーが同時に起動します。
 どちらもLANから接続できます。
 
-スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。ポートは `/5173` ではなく `:5173` とし、例は `http://192.168.68.52:5173/` です。LANのHTTPでは `crypto.randomUUID()` が利用できないため、WebのUUID生成は `shared/createUuid.ts` の `crypto.getRandomValues()` によるUUID v4を使います。フィードバック送信IDとアクセス解析IDで共用します。HTTPS限定APIを使う機能は、個別に対応可否を判定します。
+スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。ポートは `/5173` ではなく `:5173` とし、例は `http://192.168.68.52:5173/` です。LANのHTTPでは `crypto.randomUUID()` が利用できないため、WebのUUID生成は `shared/createUuid.ts` の `crypto.getRandomValues()` によるUUID v4を使います。フィードバック送信ID、アクセス解析ID、スタンプのrequestIdで共用します。HTTPS限定APIを使う機能は、個別に対応可否を判定します。
 通信の確認にはWorkerの `/healthz` を使います。ロビー画面にはAPIステータスや生のAPI応答を表示しません。
 開発機からは `http://127.0.0.1:8787/healthz` でWorkerを直接、Viteの `Network` URLに `/api/healthz` を付けてWeb経由の通信を確認できます。
 
@@ -145,6 +145,20 @@ Webはstrict型検査を使います。`bun run --cwd apps/web typecheck` とWor
 ルームGET・本人確認・接続開始・認証・準備・設定・開始・対局操作・チャットに各10000msの期限を設けます。操作の完了条件を満たさない通知では期限を延長・解除せず、設定は送信した値やCPU席の反映を確認します。期限超過はclose通知を待たずに接続を無効化し、全待ちを解除して、既存の1秒から最大30秒のバックオフで再取得・再接続します。結果不明の操作は再送しません。チャットは本人の同内容の新規投稿で完了し、切断では入力を保持します。表示復帰では経過した期限も確認します。サーバーの切断検知後30秒の復帰期限・複数本人接続の扱いは維持します。
 
 `roomTransportLifecycle.test.tsx` は両ゲームの離脱・履歴復帰・10秒境界、終了通知の遅延、無関係な通知、未応答GET・本人確認、旧取得結果の破棄、未確定着手・設定・チャットを確認します。WebSocketの状態と通知タイミング、fetchと時計は既存の境界で制御します。Workerの `roomDeadlineBoundary.test.ts` は両ゲームの最後の本人接続の終了を確認し、既存の復帰・脱落・席解放テストも実行します。ブラウザ履歴キャッシュの実際の使用・ネイティブURL移動・モバイルの強制終了はDOMテストでは確認せず、手動確認の結果または未確認としてPRに記載します。`pagehide` が発火しない終了とclose通知がサーバーへ届かない場合の一定時間内検出は保証しません。
+
+## ルームのスタンプ
+
+固定6種類のID・絵文字・名称と通信スキーマは `packages/protocol/src/stamps.ts` に置き、ゲームエンジンには依存させません。GET `/rooms/:id?stamps=1` の `stampsSupported: true` を確認したWebだけがWebSocketにも `stamps=1` を付けます。再接続のGETで対応を確認し直し、旧Workerでは入口を表示しません。GameRoomは既存の戦型解析タグ・認証attachmentを保持し、`room-stamps-v1` の接続だけに新しい通知を配信します。
+
+`room.stamp.send` はルーム世代、送信ごとのUUID `requestId`、スタンプIDを送ります。`room.stamp.received` はサーバー発行の通知ID、同じ世代とrequestId、送信者ID、スタンプID、受理時刻を返します。拒否は `room.stamp.error` でrequestIdと理由を返し、連打制限には `interactionAvailableAtMs` を添えます。対応接続の認証応答にも本人の送信再開時刻を含めます。
+
+Workerは既存の期限処理後に世代・人間の在室資格・種類・送信停止を検証し、既存の `last-chat-at:<playerId>` をチャットと共用して3秒に1件へ制限します。検証、送信時刻、部屋の最終活動時刻を同じDOトランザクションで確定するため、複数タブとDO再作成にも制限が残ります。スタンプ本体は保存せず、時計・CPU予定を変更しません。受理後は既存の期限選択でAlarmを更新し、本人を含む対応接続へ通知します。
+
+共通transportはスタンプの10秒の応答待ちを他の操作と分離し、requestIdが一致する通知・エラーで解除します。期限超過は既存の復旧経路へ移り、自動再送しません。本人のチャット・スタンプ受理と認証応答から共通の送信再開時刻を更新します。非表示・同期中・旧接続の通知は演出へ渡さず、同じ通知IDを再演しません。
+
+`RoomViewShell` の `useRoomStamps` とContextで送信者ごとの最新1件と3秒のタイマーを共有し、`PlayerCardView` がプレイヤーIDで参照します。画像は再マウントせず、アバター内に黒50%のレイヤーと絵文字を重ねます。席削除・次局・切断・退室・閉鎖・非表示・離脱で破棄し、Contextのない保存棋譜には表示しません。状況カードの38pxボタンは、絵文字だけを3列・2行に並べる非モーダルPopoverを開き、選択・外側操作・Esc・フォーカス離脱と手番・ダイアログ・接続の切替で閉じます。開閉ボタンはPopoverのblurによる閉鎖対象から除外し、フォーカス移動で閉じた直後のpressで再び開くことを防ぎます。表示設定とブラウザ保存は #121 の範囲です。
+
+部分検証は `bun run --cwd apps/worker test test/roomStamps.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomStamps.test.tsx` を使います。
 
 ## ルームの共通効果音
 
