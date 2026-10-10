@@ -5,7 +5,8 @@ import {
   type RoomMembership,
   type ChatEntry,
 } from "@tetraboard/protocol";
-import { ToastQueue } from "@heroui/react";
+import { useAppToastQueue } from "../../shared/ui/appToastContext";
+import { gameThemes } from "../../shared/ui/appTheme";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { readRoomMembershipToken } from "../../shared/roomMembership";
 import { issueViewerToken, reportMessage } from "./roomApi";
@@ -34,7 +35,7 @@ export function useRoomChat({
   const [input, setInput] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [reporting, setReporting] = useState<string | null>(null);
-  const [toastQueue] = useState(() => new ToastQueue());
+  const { queue: toastQueue, shared: toastManagedGlobally } = useAppToastQueue();
   const seenNotifications = useRef(new Set<string>());
   const submission = useRef<{ text: string; ids: Set<string> } | null>(null);
   const [pending, setPending] = useState(false);
@@ -61,14 +62,20 @@ export function useRoomChat({
         {
           title: entry.kind === "system" ? "ルームのお知らせ" : entry.senderName,
           description: entry.text,
+          theme: gameThemes[room.settings.game],
         },
         { timeout: 3000 },
       );
     }
     seenNotifications.current = new Set(notifications.map((entry) => entry.id));
-  }, [notifications, membership?.playerId, hiddenSenders, toastQueue]);
+  }, [notifications, membership?.playerId, hiddenSenders, toastQueue, room.settings.game]);
 
-  useEffect(() => () => toastQueue.clear(), [toastQueue]);
+  useEffect(
+    () => () => {
+      if (!toastManagedGlobally) toastQueue.clear();
+    },
+    [toastQueue, toastManagedGlobally],
+  );
 
   useEffect(() => {
     const sent = submission.current;
@@ -150,6 +157,7 @@ export function useRoomChat({
   return {
     pending,
     toastQueue,
+    toastManagedGlobally,
     input,
     setInput,
     error: remoteError ?? localError,

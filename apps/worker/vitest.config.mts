@@ -9,6 +9,7 @@ export default defineConfig({
       miniflare: {
         d1Databases: {
           PUBLIC_MATCH_TEST_DB: "public-match-tests",
+          BADGE_MIGRATION_TEST_DB: "badge-migration-tests",
           ROOM_INDEX_TEST_DB: "room-index-tests",
         },
         bindings: {

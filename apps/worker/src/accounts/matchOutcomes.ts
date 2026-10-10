@@ -38,7 +38,7 @@ export const gameOutcomeSql = {
   },
 } satisfies { [G in GameId]: OutcomeSqlFor<G> };
 /** 集計条件は共有し、保存された方向・チームの契約はゲーム別に登録します。 */
-export function matchOutcomesCte(game: GameId, personal: boolean): string {
+export function matchOutcomesCte(game: GameId, personal: boolean, affectedMatch = false): string {
   if (!isGameId(game)) throw new Error("Unsupported match game");
   const sql = gameOutcomeSql[game];
   return `WITH own_matches AS (
@@ -50,6 +50,7 @@ export function matchOutcomesCte(game: GameId, personal: boolean): string {
          AND json_extract(p.value, '$.accountId') = h.account_id) AS direction
     FROM account_match_history h JOIN matches m ON m.id = h.match_id
     WHERE h.game = ? AND m.game = h.game ${personal ? "AND h.account_id = ?" : ""}
+      ${affectedMatch ? "AND h.account_id IN (SELECT account_id FROM account_match_history WHERE match_id = ?)" : ""}
       AND json_array_length(m.record_json, '$.participants') = ${gameCapacity(game)}
       AND NOT EXISTS (
         SELECT 1 FROM json_each(m.record_json, '$.participants') participant

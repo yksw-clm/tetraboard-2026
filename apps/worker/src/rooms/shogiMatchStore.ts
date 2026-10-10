@@ -1,4 +1,5 @@
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
+import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
   fourShogiReplayEventSchema,
   type FourShogiMatchDetail,
@@ -225,6 +226,7 @@ export async function advanceShogiMatchSave(
             ),
         ]
       : []),
+    ...badgeAwardStatements(db, game, record.id),
   ]);
   if (!(await db.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first()))
     throw new Error("Shogi match publication was incomplete");

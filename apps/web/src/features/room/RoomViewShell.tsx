@@ -4,7 +4,7 @@ import { RoomStampPicker } from "./RoomStampPicker";
 import { useRoomDesktop } from "./useRoomDesktop";
 import { AppPageState } from "../../shared/ui/AppPageState";
 import { AppButton } from "../../shared/ui/AppButton";
-import { Toast } from "@heroui/react";
+import { AppToastRegion } from "../../shared/ui/AppToastRegion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCpuAddition } from "./useCpuAddition";
 import { AppButtonLink } from "../../shared/ui/AppButton";
@@ -161,6 +161,7 @@ export function RoomViewShell({
             {
               title: "招待リンクをコピーしました",
               description: "友達にリンクを送って招待できます。",
+              theme,
             },
             { timeout: 3000 },
           ),
@@ -249,24 +250,7 @@ export function RoomViewShell({
           replay={replayCard}
         />
       </RoomStampContext.Provider>
-      <Toast.Provider
-        queue={chat.toastQueue}
-        placement="top"
-        width="min(380px, calc(100vw - 24px))"
-        className={`app-theme ${appThemeClasses[theme]} z-[110000] [&_.toast]:border [&_.toast]:border-solid [&_.toast]:border-line [&_.toast]:bg-white [&_.toast]:rounded-[14px] [&_.toast]:shadow-[0_5px_28px_#193d2926]`}
-      >
-        {({ toast }) => (
-          <Toast toast={toast}>
-            <Toast.Content>
-              <Toast.Title>{toast.content.title}</Toast.Title>
-              <Toast.Description className="wrap-anywhere whitespace-pre-wrap">
-                {toast.content.description}
-              </Toast.Description>
-            </Toast.Content>
-            <Toast.CloseButton aria-label="通知を閉じる" />
-          </Toast>
-        )}
-      </Toast.Provider>
+      {!chat.toastManagedGlobally && <AppToastRegion queue={chat.toastQueue} theme={theme} />}
       <RoomInvitationDialogs
         game={room.settings.game}
         invitation={invitation}
