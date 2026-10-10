@@ -28,9 +28,11 @@ test("固定棋譜5種を表示し、局面・回転操作は通信せず参加�
     expect(next.disabled).toBe(true);
     act(() => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ戻る"]')!.click());
     expect(next.disabled).toBe(false);
+    const selectedLabel = view.querySelector('button[aria-haspopup="listbox"]')!.textContent;
     act(() =>
       view.querySelector<HTMLButtonElement>('[aria-label="盤面を時計回りに90度回転"]')!.click(),
     );
+    expect(view.querySelector('button[aria-haspopup="listbox"]')!.textContent).toBe(selectedLabel);
     const squares = view.querySelectorAll<HTMLButtonElement>(
       '[aria-label="四人リバーシの盤面"] button',
     );
@@ -60,9 +62,11 @@ test("固定棋譜5種を表示し、局面・回転操作は通信せず参加�
     expect(view.querySelectorAll("[data-side]")).toHaveLength(4);
     expect(view.querySelector('[aria-label="棋譜を1つ進む"]')!.hasAttribute("disabled")).toBe(true);
     act(() => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ戻る"]')!.click());
+    const selectedLabel = view.querySelector('button[aria-haspopup="listbox"]')!.textContent;
     act(() =>
       view.querySelector<HTMLButtonElement>('[aria-label="盤面を時計回りに90度回転"]')!.click(),
     );
+    expect(view.querySelector('button[aria-haspopup="listbox"]')!.textContent).toBe(selectedLabel);
     expect(
       [...view.querySelectorAll<HTMLButtonElement>("[data-square]")].every((b) => b.disabled),
     ).toBe(true);

@@ -69,10 +69,11 @@ for (const fixture of shogiArchives) {
     const frames = [rules.createFrame(state)];
     for (const entry of fixture.events) {
       const event = fourShogiReplayEventSchema.parse(entry.event);
-      const next = rules.applyEvent(state, event);
+      const before = state;
+      const next = rules.applyEvent(before, event);
       if (!next.ok) throw new Error("Invalid archive");
       state = next.state;
-      frames.push(rules.createFrame(state, event));
+      frames.push(rules.createFrame(state, { before, event }));
     }
     const targets = shogiKnockoutTargets(frames);
     for (const side of sides) {

@@ -21,7 +21,11 @@ export function SavedMatchReplayView({
 }: {
   match: ReplayMatch;
   board: ReactNode;
-  replay: { frames: readonly { label: string }[]; index: number; select: (index: number) => void };
+  replay: {
+    frames: readonly { label: string; accessibleLabel?: string }[];
+    index: number;
+    select: (index: number) => void;
+  };
   result: ReactNode;
   theme?: AppTheme;
   onRotate: () => void;

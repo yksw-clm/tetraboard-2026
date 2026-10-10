@@ -105,7 +105,7 @@ describe("四人将棋の直前局棋譜", () => {
     ).toBe("2");
     expect(frames.map((frame) => frame.label)).toEqual([
       "開始局面",
-      "1: 南E6歩",
+      "1: 南5六歩",
       "西 時間切れ",
       "北 通信切れ",
       "東 退室",
@@ -227,8 +227,8 @@ test("同時詰みの局面を保持し、ラベルは着手と次の外部脱�
   };
   const result = applyAction(state, event.side, event.action);
   if (!result.ok) throw new Error("Fixed simultaneous mate must be legal");
-  const frame = createFourShogiReplayFrame(result.state, event);
-  expect(frame.label).toBe("1: 南E1飛");
+  const frame = createFourShogiReplayFrame(result.state, { before: state, event });
+  expect(frame.label).toBe("1: 南5一飛不成");
   expect(frame.game.eliminations).toMatchObject([
     { side: "west", group: 1 },
     { side: "north", group: 1 },
@@ -236,7 +236,9 @@ test("同時詰みの局面を保持し、ラベルは着手と次の外部脱�
   const leave = { type: "eliminate" as const, side: "east" as const, reason: "left" as const };
   const final = eliminateSide(result.state, leave.side, leave.reason);
   if (!final.ok) throw new Error("Fixed departure must be legal");
-  expect(createFourShogiReplayFrame(final.state, leave).label).toBe("東 退室");
+  expect(
+    createFourShogiReplayFrame(final.state, { before: result.state, event: leave }).label,
+  ).toBe("東 退室");
 });
 
 test("合法手0件による脱落を局面に保持し、ラベルには着手だけを表示する", () => {
@@ -257,8 +259,8 @@ test("合法手0件による脱落を局面に保持し、ラベルには着手�
   };
   const result = applyAction(state, event.side, event.action);
   if (!result.ok) throw new Error("Fixed immobilization must be legal");
-  const frame = createFourShogiReplayFrame(result.state, event);
-  expect(frame.label).toBe("1: 南F5歩");
+  const frame = createFourShogiReplayFrame(result.state, { before: state, event });
+  expect(frame.label).toBe("1: 南4五歩");
   expect(frame.game.eliminations).toContainEqual(
     expect.objectContaining({ side: "west", reason: "no_legal_actions", rank: 4 }),
   );

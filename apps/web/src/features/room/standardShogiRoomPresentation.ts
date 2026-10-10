@@ -5,7 +5,7 @@ export const shogiEliminationLabels = {
   resigned: "投了",
   left: "退室",
   timeout: "時間切れ",
-  disconnected: "切断",
+  disconnected: "通信切れ",
 };
 export function displayShogiGameForRoom(room: ShogiRoom) {
   return (

@@ -5,6 +5,41 @@ import { replayFrames } from "../src/features/room/replayFrames";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
 import firebaseReversi from "../../../test-fixtures/matches/firebase-four-reversi.json";
 const fetchSpies: ReturnType<typeof spyOn>[] = [];
+const singlesLabels = [
+  "開始局面",
+  "30: 西7七歩打",
+  "35: 南2三金打",
+  "38: 東7三飛打",
+  "47: 南6二銀打",
+  "52: 西5五金",
+  "57: 北2一金打",
+  "62: 東同飛成",
+  "65: 北4九銀打",
+  "66: 東1六金打",
+  "79: 南8二歩打",
+  "80: 西8一歩打",
+  "86: 南7八銀打",
+  "96: 南4二銀成",
+  "98: 東3五歩打",
+  "99: 南5四歩打",
+  "100: 西2九歩打",
+  "南 退室",
+];
+const drawLabels = [
+  "開始局面",
+  "南 引分提案",
+  "西 引分提案",
+  "2: 西8二銀",
+  "北 引分提案",
+  "東 引分提案",
+];
+const notationLabels: Record<string, readonly string[]> = {
+  "shogi-singles": singlesLabels,
+  "shogi-legacy": singlesLabels,
+  "shogi-doubles": ["開始局面", "1: 南5六歩", "西 退室"],
+  "shogi-singles-draw": drawLabels,
+  "shogi-doubles-draw": drawLabels,
+};
 test("Firebase版の初期配置と各手を保存局面から復元する", () => {
   const match = fourReversiMatchDetailSchema.parse(firebaseReversi.detail);
   const frames = replayFrames({ game: match.game, players: [], replay: match.replay });
@@ -47,9 +82,13 @@ for (const fixture of shogiArchives) {
     );
     const frames = await fetchFourShogiMatchReplay(match, new AbortController().signal);
     expect(frames.length).toBe(fixture.frameCount);
+    expect(fixture.checkpoints.map((point) => frames[point.index]!.label)).toEqual(
+      notationLabels[fixture.name],
+    );
     for (const point of fixture.checkpoints) {
-      const { event, ...frame } = frames[point.index]!;
-      expect(frame).toEqual(point.frame);
+      const { event, label: _label, accessibleLabel: _accessible, ...frame } = frames[point.index]!;
+      const { label: _oldLabel, ...expected } = point.frame;
+      expect(frame).toEqual(expected);
       expect(event).toEqual(fixture.events[point.index - 1]?.event);
     }
     expect(JSON.stringify(fixture)).toBe(before);
