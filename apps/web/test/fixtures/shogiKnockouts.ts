@@ -57,13 +57,13 @@ export function simultaneousMateFrames(
   if (!result.ok) throw new Error("Invalid mate fixture");
   const frames = [
     createFourShogiReplayFrame(initial),
-    createFourShogiReplayFrame(result.state, event),
+    createFourShogiReplayFrame(result.state, { before: initial, event }),
   ];
   if (result.state.status === "playing") {
     const left = { type: "eliminate", side: "east", reason: "left" } as const;
     const final = eliminateSide(result.state, left.side, left.reason);
     if (!final.ok) throw new Error("Invalid final departure");
-    frames.push(createFourShogiReplayFrame(final.state, left));
+    frames.push(createFourShogiReplayFrame(final.state, { before: result.state, event: left }));
   }
   return frames;
 }

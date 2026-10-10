@@ -10,7 +10,11 @@ export function ReplayCard({
   replay,
   theme = "default",
 }: {
-  replay: { frames: readonly { label: string }[]; index: number; select: (index: number) => void };
+  replay: {
+    frames: readonly { label: string; accessibleLabel?: string }[];
+    index: number;
+    select: (index: number) => void;
+  };
   theme?: AppTheme;
 }) {
   return (
@@ -39,7 +43,14 @@ export function ReplayCard({
         value={String(replay.index)}
         onChange={(key) => replay.select(Number(key))}
       >
-        <Select.Trigger className="w-full min-w-0 h-[34px] min-h-[34px] px-2 py-0 items-center text-[13px] bg-surface-muted [@media(max-width:767px)]:h-6 [@media(max-width:767px)]:min-h-6 [@media(max-width:767px)]:pl-1 [@media(max-width:767px)]:pr-[14px] [@media(max-width:767px)]:text-[11px] [@media(max-width:767px)]:rounded-[6px]">
+        <Select.Trigger
+          aria-label={
+            replay.frames[replay.index]?.accessibleLabel
+              ? `棋譜の局面 ${replay.frames[replay.index]?.accessibleLabel}`
+              : undefined
+          }
+          className="w-full min-w-0 h-[34px] min-h-[34px] px-2 py-0 items-center text-[13px] bg-surface-muted [@media(max-width:767px)]:h-6 [@media(max-width:767px)]:min-h-6 [@media(max-width:767px)]:pl-1 [@media(max-width:767px)]:pr-[14px] [@media(max-width:767px)]:text-[11px] [@media(max-width:767px)]:rounded-[6px]"
+        >
           <Select.Value className="min-w-0 flex-1 truncate leading-5 [@media(max-width:767px)]:text-xs [@media(max-width:767px)]:leading-[18px]" />
           <Select.Indicator className="shrink-0 [@media(max-width:767px)]:size-[10px] [@media(max-width:767px)]:right-[3px]" />
         </Select.Trigger>
@@ -54,6 +65,7 @@ export function ReplayCard({
                 key={index}
                 id={String(index)}
                 textValue={frame.label}
+                aria-label={frame.accessibleLabel}
               >
                 <span className="min-w-0 flex-1 truncate">{frame.label}</span>
                 <ListBox.ItemIndicator className="shrink-0" />

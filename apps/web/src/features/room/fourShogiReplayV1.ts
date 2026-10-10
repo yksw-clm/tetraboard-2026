@@ -5,6 +5,7 @@ import {
   eliminateSide,
   setDrawProposal,
   getCheckState,
+  getLegalActions,
   type FourShogiState,
 } from "@tetraboard/four-shogi";
 import {
@@ -13,9 +14,11 @@ import {
   type FourShogiReplayEvent,
 } from "@tetraboard/protocol";
 import { shogiEliminationLabels, shogiSideNames } from "./fourShogiRoomPresentation";
+import { shogiMoveNotation, shogiReplayLabel, type ReplayLabel } from "./shogiNotation";
 export type FourShogiReplayFrame = {
   event?: FourShogiReplayEvent;
   label: string;
+  accessibleLabel?: string;
   game: FourShogiPublicState;
   checkState: ReturnType<typeof getCheckState>;
 };
@@ -33,29 +36,56 @@ export function applyFourShogiReplayEvent(state: FourShogiState, event: FourShog
 
 export function createFourShogiReplayFrame(
   state: FourShogiState,
-  event?: FourShogiReplayEvent,
+  transition?: { before: FourShogiState; event: FourShogiReplayEvent },
 ): FourShogiReplayFrame {
   const { repetitions: _repetitions, ...game } = state;
-  const label = event ? replayLabel(event, state) : "開始局面";
+  const label = transition
+    ? replayLabel(transition.event, state, transition.before)
+    : { label: "開始局面" };
   return {
-    label,
+    ...label,
     game: fourShogiPublicStateSchema.parse(game),
     checkState: getCheckState(state),
-    ...(event ? { event } : {}),
+    ...(transition ? { event: transition.event } : {}),
   };
 }
 
-function replayLabel(event: FourShogiReplayEvent, state: FourShogiState): string {
-  if (event.type === "drawProposal")
-    return `${shogiSideNames[event.side]} ${event.proposed ? "引分提案" : "引分取消"}`;
-  if (event.type === "eliminate")
-    return `${shogiSideNames[event.side]} ${shogiEliminationLabels[event.reason]}`;
+function replayLabel(
+  event: FourShogiReplayEvent,
+  state: FourShogiState,
+  before: FourShogiState,
+): ReplayLabel {
+  const mark = shogiSideNames[event.side];
+  const label = (text: string, moveNumber?: number) =>
+    shogiReplayLabel(mark, shogiSideNames[event.side], text, moveNumber);
+  if (event.type === "drawProposal") return label(event.proposed ? "引分提案" : "引分取消");
+  if (event.type === "eliminate") return label(shogiEliminationLabels[event.reason]);
   const action = event.action;
-  const destination = `${String.fromCharCode(65 + action.to.x)}${action.to.y + 1}`;
-  const suffix = action.type === "dropPiece" ? "打" : action.promote ? "成" : "";
-  const kind = action.type === "dropPiece" ? action.pieceKind : state.lastMove?.piece.kind;
-  const names = { pawn: "歩", silver: "銀", gold: "金", rook: "飛", king: "王" } as const;
-  return `${state.moveNumber}: ${shogiSideNames[event.side]}${destination}${kind ? names[kind] : ""}${suffix}`;
+  const piece =
+    action.type === "dropPiece"
+      ? { kind: action.pieceKind, promoted: false }
+      : before.board[action.from.y][action.from.x];
+  if (!piece) throw new Error("Replay move has no source piece");
+  const legalMoves =
+    action.type === "dropPiece"
+      ? []
+      : getLegalActions(before).flatMap((candidate) => {
+          if (candidate.type !== "movePiece") return [];
+          const source = before.board[candidate.from.y][candidate.from.x];
+          if (!source) throw new Error("Legal move has no source piece");
+          return [{ action: candidate, piece: source }];
+        });
+  return label(
+    shogiMoveNotation({
+      action,
+      piece,
+      legalMoves,
+      previousDestination: before.lastMove?.action.to ?? null,
+      side: event.side,
+      allowDragonStraight: true,
+    }),
+    state.moveNumber,
+  );
 }
 
 /** rulesVersion 1の再生境界。互換を壊す変更は別の版へ追加します。 */

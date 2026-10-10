@@ -231,20 +231,23 @@ test("保存棋譜は本人を下に置き、180度回転と読み取り専用�
   const frames = [createShogiReplayFrame(state)];
   for (let offset = 0; offset < 12; offset += 5)
     for (const { event } of page(offset).events) {
-      const next = applyShogiReplayEvent(state, event);
+      const before = state;
+      const next = applyShogiReplayEvent(before, event);
       if (!next.ok) throw Error(next.reason);
       state = next.state;
-      frames.push(createShogiReplayFrame(state, event));
+      frames.push(createShogiReplayFrame(state, { before, event }));
     }
   const view = render(wrap()(<ShogiMatchReplayView match={match} frames={frames} />));
   expect(view.querySelectorAll('[data-testid="player-card"]')).toHaveLength(2);
   expect(view.querySelector('[data-board-position="bottom"]')!.textContent).toContain("north");
+  const selectedLabel = view.querySelector('button[aria-haspopup="listbox"]')!.textContent;
   const board = view.querySelector('[aria-label="将棋の盤面"]')!;
   expect(board.querySelector("button")!.getAttribute("data-square")).toBe("I9");
   act(() =>
     view.querySelector<HTMLButtonElement>('[aria-label="盤面を時計回りに180度回転"]')!.click(),
   );
   expect(board.querySelector("button")!.getAttribute("data-square")).toBe("A1");
+  expect(view.querySelector('button[aria-haspopup="listbox"]')!.textContent).toBe(selectedLabel);
   expect(board.querySelectorAll("button:enabled")).toHaveLength(0);
   expect(view.textContent).not.toContain("シングルス");
 });
