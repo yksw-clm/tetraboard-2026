@@ -228,3 +228,5 @@ export {
   type ShogiMatchReplayPage,
   type FourShogiMatchReplayPage,
 } from "./matches";
+
+export * from "./stamps";

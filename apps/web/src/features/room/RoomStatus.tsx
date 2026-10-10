@@ -21,6 +21,7 @@ export function RoomStatus({
   onResults,
   onResign,
   turnActions,
+  stampPicker,
   onJoin,
   joinButtonRef,
   resultButtonRef,
@@ -32,6 +33,7 @@ export function RoomStatus({
   onResults: () => void;
   onResign: () => void;
   turnActions?: ReactNode;
+  stampPicker?: ReactNode;
   onJoin: () => void;
   joinButtonRef: Ref<HTMLButtonElement>;
   resultButtonRef?: Ref<HTMLButtonElement>;
@@ -111,7 +113,9 @@ export function RoomStatus({
           )}
         </div>
       </div>
-      <div className="flex gap-2 min-h-[38px] [&>button]:flex-1 [@media(min-width:768px)_and_(max-width:1279px)]:col-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:min-w-[140px] [@media(max-width:767px)]:h-[38px] [@media(max-width:767px)]:min-h-[38px] [@media(max-width:767px)]:shrink-0">
+      <div
+        className={`flex gap-2 min-h-[38px] [&>button]:flex-1 ${stampPicker ? "[&>button]:min-w-0 [&>button]:shrink [&>button]:px-2 [@media(max-width:767px)]:gap-1 [@media(max-width:767px)]:[&>button]:px-1" : ""} [@media(min-width:768px)_and_(max-width:1279px)]:col-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:min-w-[140px] [@media(max-width:767px)]:h-[38px] [@media(max-width:767px)]:min-h-[38px] [@media(max-width:767px)]:shrink-0`}
+      >
         {membership === null && (
           <ViewerControls
             label="観戦中"
@@ -157,6 +161,7 @@ export function RoomStatus({
           </AppButton>
         )}
         {turnActions}
+        {stampPicker}
       </div>
     </AppCard>
   );

@@ -17,6 +17,7 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
     initialPresence: data.presence,
     initialServerNowMs: data.serverNowMs,
     invited: data.invited,
+    initialStampsSupported: data.stampsSupported,
   };
   const key = `${data.room.instanceId}:${data.membership?.playerId ?? "spectator"}`;
   switch (data.game) {

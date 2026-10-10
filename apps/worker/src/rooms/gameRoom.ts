@@ -1,3 +1,4 @@
+import { roomInteractionIntervalMs, type RoomStampNotification } from "@tetraboard/protocol";
 import { isShogiRoom, type ShogiRoom, fourShogiActionSchema } from "@tetraboard/protocol";
 import {
   pendingStandardShogiMatchPrefix,
@@ -83,7 +84,7 @@ const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
 const reconnectGraceMs = 30_000;
 const idleMs = 24 * 60 * 60 * 1000;
-const chatIntervalMs = 3_000;
+const stampTag = "room-stamps-v1";
 const departedKey = (playerId: string) => `departed:${playerId}`;
 type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
 type CpuCommand = Extract<
@@ -996,7 +997,7 @@ export class GameRoom extends DurableObject<Env> {
     return this.readRoom();
   }
 
-  async getRoomSnapshot(formationAnalysis = false) {
+  async getRoomSnapshot(formationAnalysis = false, stamps = false) {
     const room = await this.getRoom();
     return room === null
       ? null
@@ -1005,6 +1006,7 @@ export class GameRoom extends DurableObject<Env> {
           presence: this.presence(room),
           serverNowMs: Date.now(),
           ...roomFormationAnalysis(room, formationAnalysis),
+          ...(stamps ? { stampsSupported: true as const } : {}),
         };
   }
 
@@ -1178,9 +1180,6 @@ export class GameRoom extends DurableObject<Env> {
   private sendCurrentMembership(tokenHash: string): void {
     const membership = this.readMembership(tokenHash);
     if (membership === null) return;
-    const message = JSON.stringify(
-      roomSocketContract.message.parse({ type: "room.authenticated", membership }),
-    );
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       const attachment: unknown = socket.deserializeAttachment();
@@ -1190,7 +1189,7 @@ export class GameRoom extends DurableObject<Env> {
         "tokenHash" in attachment &&
         attachment.tokenHash === tokenHash
       ) {
-        socket.send(message);
+        socket.send(JSON.stringify(this.authenticationMessage(socket, membership)));
       }
     }
   }
@@ -1579,12 +1578,12 @@ export class GameRoom extends DurableObject<Env> {
       const membership = this.readMembership(tokenHash);
       if (room === null || membership === null) return "unauthorized";
       const player = room.players.find((entry) => entry.id === membership.playerId);
-      if (player?.kind !== "human") return "unauthorized";
+      if (!player || !this.isHumanParticipant(player)) return "unauthorized";
       if ((this.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id)) return "muted";
       const now = Date.now();
       if (
         now - (this.ctx.storage.kv.get<number>(lastChatAtKey(player.id)) ?? -Infinity) <
-        chatIntervalMs
+        roomInteractionIntervalMs
       )
         return "rate_limited";
       const message = chatMessageSchema.parse({
@@ -1599,6 +1598,69 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.kv.put(roomStorageKey, roomSchema.parse({ ...room, lastActivityAtMs: now }));
       return "sent";
     });
+  }
+
+  private interactionAvailableAtMs(playerId: string): number {
+    const at = this.ctx.storage.kv.get<number>(lastChatAtKey(playerId));
+    return at === undefined ? 0 : at + roomInteractionIntervalMs;
+  }
+
+  private authenticationMessage(socket: WebSocket, membership: RoomMembership): RoomSocketMessage {
+    return roomSocketContract.message.parse({
+      type: "room.authenticated",
+      membership,
+      ...(this.ctx.getTags(socket).includes(stampTag)
+        ? { interactionAvailableAtMs: this.interactionAvailableAtMs(membership.playerId) }
+        : {}),
+    });
+  }
+
+  private sendStamp(
+    tokenHash: string,
+    command: Extract<RoomSocketClientMessage, { type: "room.stamp.send" }>,
+  ):
+    | { status: "sent"; notification: RoomStampNotification; room: Room }
+    | { status: "unauthorized" | "muted" | "room_changed" }
+    | { status: "rate_limited"; interactionAvailableAtMs: number } {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      const membership = this.readMembership(tokenHash);
+      if (!room || !membership) return { status: "unauthorized" };
+      if (room.instanceId !== command.instanceId) return { status: "room_changed" };
+      const player = room.players.find((entry) => entry.id === membership.playerId);
+      if (!player || !this.isHumanParticipant(player)) return { status: "unauthorized" };
+      if ((this.ctx.storage.kv.get<string[]>(mutedKey) ?? []).includes(player.id))
+        return { status: "muted" };
+      const now = Date.now();
+      const interactionAvailableAtMs = this.interactionAvailableAtMs(player.id);
+      if (now < interactionAvailableAtMs)
+        return { status: "rate_limited", interactionAvailableAtMs };
+      const updated = roomSchema.parse({ ...room, lastActivityAtMs: now });
+      const notification: RoomStampNotification = {
+        type: "room.stamp.received",
+        id: crypto.randomUUID(),
+        instanceId: room.instanceId,
+        requestId: command.requestId,
+        senderId: player.id,
+        stampId: command.stampId,
+        sentAtMs: now,
+      };
+      this.ctx.storage.kv.put(lastChatAtKey(player.id), now);
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "sent", notification, room: updated };
+    });
+  }
+
+  private broadcastStamp(notification: RoomStampNotification): void {
+    const payload = JSON.stringify(roomSocketContract.message.parse(notification));
+    for (const socket of this.ctx.getWebSockets(stampTag)) {
+      if (socket.readyState !== WebSocket.OPEN) continue;
+      try {
+        socket.send(payload);
+      } catch {
+        /* 切断中の相手には再送しません。 */
+      }
+    }
   }
 
   private async viewerMac(nonce: string): Promise<string> {
@@ -1944,10 +2006,10 @@ export class GameRoom extends DurableObject<Env> {
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-    this.ctx.acceptWebSocket(
-      server,
-      query.data.formationAnalysis === "1" ? [formationAnalysisTag] : [],
-    );
+    this.ctx.acceptWebSocket(server, [
+      ...(query.data.formationAnalysis === "1" ? [formationAnalysisTag] : []),
+      ...(query.data.stamps === "1" ? [stampTag] : []),
+    ]);
     this.sendRoomSnapshot(server, room);
     server.send(JSON.stringify(this.chatSnapshot()));
 
@@ -1970,7 +2032,22 @@ export class GameRoom extends DurableObject<Env> {
 
     const parsed = roomSocketContract.clientMessage.safeParse(body);
     if (!parsed.success) {
-      this.sendSocketError(socket, "invalid_request");
+      // スタンプの拒否は、並行する準備や着手の応答と区別します。
+      const stampError =
+        typeof body === "object" &&
+        body !== null &&
+        "type" in body &&
+        body.type === "room.stamp.send" &&
+        "requestId" in body
+          ? roomSocketContract.message.safeParse({
+              type: "room.stamp.error",
+              requestId: body.requestId,
+              error: "invalid_request",
+            })
+          : null;
+      if (stampError?.success && this.ctx.getTags(socket).includes(stampTag))
+        socket.send(JSON.stringify(stampError.data));
+      else this.sendSocketError(socket, "invalid_request");
       return;
     }
 
@@ -2025,14 +2102,7 @@ export class GameRoom extends DurableObject<Env> {
         }
         const connectedRoom = this.readRoom();
         if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
-        socket.send(
-          JSON.stringify(
-            roomSocketContract.message.parse({
-              type: "room.authenticated",
-              membership: result.membership,
-            }),
-          ),
-        );
+        socket.send(JSON.stringify(this.authenticationMessage(socket, result.membership)));
         return;
       }
 
@@ -2041,6 +2111,34 @@ export class GameRoom extends DurableObject<Env> {
         typeof attachment === "object" && attachment !== null && "tokenHash" in attachment
           ? membershipTokenSchema.safeParse(attachment.tokenHash)
           : null;
+      if (parsed.data.type === "room.stamp.send") {
+        if (!this.ctx.getTags(socket).includes(stampTag)) {
+          this.sendSocketError(socket, "invalid_request");
+          return;
+        }
+        const result = tokenHash?.success
+          ? this.sendStamp(tokenHash.data, parsed.data)
+          : { status: "unauthorized" as const };
+        if (result.status === "sent") {
+          await this.syncAlarm(result.room);
+          this.broadcastStamp(result.notification);
+        } else {
+          socket.send(
+            JSON.stringify(
+              roomSocketContract.message.parse({
+                type: "room.stamp.error",
+                requestId: parsed.data.requestId,
+                error: result.status,
+                ...("interactionAvailableAtMs" in result
+                  ? { interactionAvailableAtMs: result.interactionAvailableAtMs }
+                  : {}),
+              }),
+            ),
+          );
+        }
+        return;
+      }
+
       if (tokenHash === null || !tokenHash.success) {
         this.sendSocketError(socket, "unauthorized");
         return;
@@ -2176,7 +2274,15 @@ export class GameRoom extends DurableObject<Env> {
         this.rejectAction(socket, result.status);
       } else this.rejectAction(socket, result.status);
     } catch {
-      this.sendSocketError(socket, "internal_error");
+      if (parsed.data.type === "room.stamp.send" && this.ctx.getTags(socket).includes(stampTag)) {
+        socket.send(
+          JSON.stringify({
+            type: "room.stamp.error",
+            requestId: parsed.data.requestId,
+            error: "internal_error",
+          }),
+        );
+      } else this.sendSocketError(socket, "internal_error");
     }
   }
 

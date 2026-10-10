@@ -1,3 +1,4 @@
+import { roomStampSendSchema, roomStampReceivedSchema, roomStampErrorSchema } from "./stamps";
 import { gameCatalog } from "./games";
 import {
   shogiSideSchema,
@@ -706,12 +707,16 @@ export const getRoomContract = {
   method: "GET",
   path: "/rooms/:id",
   pathFor: (id: string) => `/rooms/${id}`,
-  query: z.object({ formationAnalysis: z.literal("1").optional() }),
+  query: z.object({
+    formationAnalysis: z.literal("1").optional(),
+    stamps: z.literal("1").optional(),
+  }),
   response: z.strictObject({
     room: roomSchema,
     presence: roomPresenceSchema,
     serverNowMs: serverNowMsSchema,
     formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
+    stampsSupported: z.literal(true).optional(),
   }),
   error: roomErrorSchema,
 } as const;
@@ -774,6 +779,7 @@ export const roomSocketContract = {
   query: z.strictObject({
     instanceId: z.uuid().optional(),
     formationAnalysis: z.literal("1").optional(),
+    stamps: z.literal("1").optional(),
   }),
   clientMessage: z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("room.auth"), token: membershipTokenSchema }),
@@ -805,6 +811,7 @@ export const roomSocketContract = {
       positionRevision: z.int().nonnegative(),
     }),
     z.strictObject({ type: z.literal("room.chat.send"), text: z.string() }),
+    roomStampSendSchema,
     z
       .strictObject({
         type: z.literal("room.game.action"),
@@ -845,7 +852,13 @@ export const roomSocketContract = {
       serverNowMs: serverNowMsSchema,
       formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
     }),
-    z.strictObject({ type: z.literal("room.authenticated"), membership: roomMembershipSchema }),
+    z.strictObject({
+      type: z.literal("room.authenticated"),
+      membership: roomMembershipSchema,
+      interactionAvailableAtMs: z.int().nonnegative().optional(),
+    }),
+    roomStampReceivedSchema,
+    roomStampErrorSchema,
     z.strictObject({
       type: z.literal("room.chat.snapshot"),
       messages: z.array(chatEntrySchema).max(chatHistoryLimit),

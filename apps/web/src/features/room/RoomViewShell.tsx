@@ -1,3 +1,6 @@
+import { RoomStampContext } from "./roomStampContext";
+import { useRoomStamps } from "./useRoomStamps";
+import { RoomStampPicker } from "./RoomStampPicker";
 import { useRoomDesktop } from "./useRoomDesktop";
 import { AppPageState } from "../../shared/ui/AppPageState";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -59,6 +62,7 @@ export function RoomViewShell({
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<"result" | "leave" | "resign" | "feedback" | null>(null);
   const { room, membership } = session;
+  const stamps = useRoomStamps(session, chat.hiddenSenders);
   const feedbackContext: FeedbackContext = {
     page: "room",
     game: room.settings.game,
@@ -183,13 +187,38 @@ export function RoomViewShell({
       }}
       onResign={() => setDialog("resign")}
       turnActions={turnActions}
+      stampPicker={
+        session.stampsSupported &&
+        membership &&
+        session.self && (
+          <RoomStampPicker
+            theme={theme}
+            disabled={
+              !session.authenticated ||
+              session.connection !== "接続済み" ||
+              session.leaving ||
+              session.pendingStamp ||
+              chat.pending ||
+              !session.interactionReady ||
+              dialog !== null ||
+              invitation.dialog !== null ||
+              cpuConfirmation !== null ||
+              autoResult.visible
+            }
+            pending={session.pendingStamp}
+            closeSignal={`${room.instanceId}:${room.status}:${session.canPlay}:${dialog}:${invitation.dialog}:${cpuConfirmation !== null}:${autoResult.visible}:${session.connection}:${session.leaving}`}
+            onSend={session.sendStamp}
+          />
+        )
+      }
     />
   );
   const chatPanel = (
     <RoomChat chat={chat} session={session} visible={desktop || tab === "chat"} theme={theme} />
   );
   const connectionNotice = session.connection !== "接続済み" ? session.connection : null;
-  const pendingNotice = !connectionNotice && !session.socketError ? operationNotice : null;
+  const operationError = session.socketError ?? session.stampError;
+  const pendingNotice = !connectionNotice && !operationError ? operationNotice : null;
 
   return (
     <main
@@ -197,27 +226,29 @@ export function RoomViewShell({
       ref={fallbackFocusRef}
       tabIndex={-1}
     >
-      {(connectionNotice || session.socketError || pendingNotice) && (
+      {(connectionNotice || operationError || pendingNotice) && (
         <div
           className="absolute top-[calc(env(safe-area-inset-top)_+_8px)] left-1/2 -translate-x-1/2 z-10 pointer-events-none w-max max-w-[min(480px,calc(100%_-_16px))] rounded-lg py-[7px] px-4 bg-[#fff4dc] text-[#755b21] text-xs text-center break-words"
           role="status"
         >
           {connectionNotice}
-          {connectionNotice && session.socketError ? " — " : ""}
-          {session.socketError}
+          {connectionNotice && operationError ? " — " : ""}
+          {operationError}
           {pendingNotice}
         </div>
       )}
-      <RoomLayout
-        desktop={desktop}
-        tab={tab}
-        onTabChange={setTab}
-        board={board}
-        info={info}
-        status={status}
-        chat={chatPanel}
-        replay={replayCard}
-      />
+      <RoomStampContext.Provider value={stamps}>
+        <RoomLayout
+          desktop={desktop}
+          tab={tab}
+          onTabChange={setTab}
+          board={board}
+          info={info}
+          status={status}
+          chat={chatPanel}
+          replay={replayCard}
+        />
+      </RoomStampContext.Provider>
       <Toast.Provider
         queue={chat.toastQueue}
         placement="top"

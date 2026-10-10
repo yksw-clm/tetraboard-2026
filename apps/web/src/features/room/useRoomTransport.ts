@@ -1,9 +1,13 @@
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { roomSnapshotFor } from "./roomSnapshot";
+import { createUuid } from "../../shared/createUuid";
 import type { GameSettingsCommandFor, PendingActionFor } from "./gameSessionTypes";
 import {
   roomSocketContract,
+  roomInteractionIntervalMs,
+  type RoomStampId,
+  type RoomStampNotification,
   type GameCommandFor,
   type ChatEntry,
   type CpuLevel,
@@ -14,7 +18,7 @@ import {
   type RoomPresence,
   type RoomSocketClientMessage,
 } from "@tetraboard/protocol";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import {
@@ -28,7 +32,7 @@ import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import { RoomSoundTracker, type SoundGameState } from "./roomSoundEvents";
 
 const responseTimeoutMs = 10_000;
-type ResponseWait = "fetch" | "connection" | "ready" | "settings" | "game" | "chat";
+type ResponseWait = "fetch" | "connection" | "ready" | "settings" | "game" | "chat" | "stamp";
 
 const roomClosedMessage = "ルームは閉鎖されています。ロビーへ戻ってください。";
 
@@ -60,6 +64,7 @@ export interface RoomTransportOptions<T extends Room> {
   initialServerNowMs: number;
   initialPresence: RoomPresence;
   initialFormationAnalysisSupported?: boolean;
+  initialStampsSupported?: boolean;
 }
 
 export type SharedRoomSession = Omit<
@@ -108,6 +113,7 @@ export function useRoomTransport<T extends Room>({
   gameOperationError,
   readSoundGame,
   initialFormationAnalysisSupported = false,
+  initialStampsSupported = false,
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
@@ -138,6 +144,41 @@ export function useRoomTransport<T extends Room>({
   const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
   const [chatNotifications, setChatNotifications] = useState<ChatEntry[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [stampsSupported, setStampsSupported] = useState(initialStampsSupported);
+  const [pendingStamp, setPendingStamp] = useState(false);
+  const [stampError, setStampError] = useState<string | null>(null);
+  const pendingStampRef = useRef<string | null>(null);
+  const [interactionBlockedUntil, setInteractionBlockedUntil] = useState(0);
+  const interactionBlockedUntilRef = useRef(0);
+  const serverOffsetRef = useRef(0);
+  const stampListeners = useRef(new Set<(notification: RoomStampNotification | null) => void>());
+  const subscribeStamps = useCallback(
+    (listener: (notification: RoomStampNotification | null) => void) => {
+      stampListeners.current.add(listener);
+      return () => {
+        stampListeners.current.delete(listener);
+      };
+    },
+    [],
+  );
+  const blockInteractionUntil = useCallback((serverAtMs: number) => {
+    const localAtMs = serverAtMs - serverOffsetRef.current;
+    if (localAtMs <= Date.now()) return;
+    interactionBlockedUntilRef.current = Math.max(interactionBlockedUntilRef.current, localAtMs);
+    setInteractionBlockedUntil(interactionBlockedUntilRef.current);
+  }, []);
+  useEffect(() => {
+    if (interactionBlockedUntil === 0) return;
+    const timer = setTimeout(
+      () => {
+        interactionBlockedUntilRef.current = 0;
+        setInteractionBlockedUntil(0);
+      },
+      Math.max(0, interactionBlockedUntil - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [interactionBlockedUntil]);
+
   const [clockSync, setClockSync] = useState(() => ({
     serverNowMs: initialServerNowMs,
     receivedAt: performance.now(),
@@ -170,6 +211,7 @@ export function useRoomTransport<T extends Room>({
   }, [room.status, clockSync]);
 
   useEffect(() => {
+    serverOffsetRef.current = initialServerNowMs - Date.now();
     let active = true;
     let suspended = false;
     let generation = 0;
@@ -197,6 +239,18 @@ export function useRoomTransport<T extends Room>({
     let retryDelay = 1000;
     let currentMembership = initialMembership;
     let formationAnalysisSupported = initialFormationAnalysisSupported;
+    let stampSupported = initialStampsSupported;
+    let socketStampSupported = initialStampsSupported;
+    let stampBaselineAtMs: number | null = null;
+    const stampIds = new Set<string>();
+    const resetStamps = () => {
+      for (const listener of stampListeners.current) listener(null);
+    };
+    const clearPendingStamp = () => {
+      pendingStampRef.current = null;
+      setPendingStamp(false);
+      clearWait("stamp");
+    };
 
     function clearWait(key: ResponseWait): void {
       const wait = waits.get(key);
@@ -208,7 +262,10 @@ export function useRoomTransport<T extends Room>({
       clearWait(key);
       waits.set(key, {
         expiresAt: Date.now() + responseTimeoutMs,
-        timer: setTimeout(() => recover(), responseTimeoutMs),
+        timer: setTimeout(() => {
+          if (key === "stamp") setStampError("スタンプの応答がありません。接続を確認しています。");
+          recover();
+        }, responseTimeoutMs),
       });
     }
     responseWaitRef.current = { start: startWait, clear: clearWait };
@@ -243,6 +300,9 @@ export function useRoomTransport<T extends Room>({
       timer = null;
       for (const key of waits.keys()) clearWait(key);
       pendingChat = null;
+      clearPendingStamp();
+      resetStamps();
+      stampIds.clear();
       soundTracker.reset();
       soundReady = false;
       roomSounds.stop();
@@ -289,6 +349,11 @@ export function useRoomTransport<T extends Room>({
           (fromFetch && latest.serverNowMs === latestSnapshot.serverNowMs))
       )
         return;
+      if (latestSnapshot?.room.status === "waiting" && latest.room.status === "playing") {
+        resetStamps();
+        stampBaselineAtMs = latest.serverNowMs;
+      }
+      serverOffsetRef.current = latest.serverNowMs - Date.now();
       latestSnapshot = latest;
       setRoom(latest.room);
       setPresence(latest.presence);
@@ -338,6 +403,15 @@ export function useRoomTransport<T extends Room>({
         applySnapshot({ ...latest, room: latest.room }, true);
         formationAnalysisSupported =
           latest.room.settings.game === "four-shogi" && latest.formationAnalysis !== undefined;
+        stampSupported = latest.stampsSupported === true;
+        setStampsSupported(stampSupported);
+        if (keepSocket && socketStampSupported !== stampSupported) {
+          stopTransport();
+          synchronizing = false;
+          connect();
+          return;
+        }
+        stampBaselineAtMs = latestSnapshot!.serverNowMs;
         if (keepSocket && socket?.readyState === WebSocket.OPEN) {
           // 復帰中に受信した新しい局面を基準にし、溜まった通知を再演しません。
           soundTracker.baseline(latestSnapshot!.room);
@@ -389,6 +463,7 @@ export function useRoomTransport<T extends Room>({
       if (!active || suspended) return;
       soundTracker.reset();
       soundReady = false;
+      resetStamps();
       if (document.visibilityState !== "visible") return;
       if ([...waits.values()].some((wait) => wait.expiresAt <= Date.now())) {
         recover();
@@ -404,10 +479,12 @@ export function useRoomTransport<T extends Room>({
       soundTracker.reset();
       soundReady = true;
       soundBaselineAtMs = null;
+      stampBaselineAtMs = null;
+      socketStampSupported = stampSupported;
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${formationAnalysisSupported ? "&formationAnalysis=1" : ""}`;
+      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${formationAnalysisSupported ? "&formationAnalysis=1" : ""}${stampSupported ? "&stamps=1" : ""}`;
       try {
         socket = new WebSocket(url);
       } catch {
@@ -522,8 +599,53 @@ export function useRoomTransport<T extends Room>({
           return;
         }
 
+        if (message.data.type === "room.stamp.received") {
+          const notification = message.data;
+          if (
+            !socketStampSupported ||
+            notification.instanceId !== initialRoom.instanceId ||
+            stampIds.has(notification.id)
+          )
+            return;
+          stampIds.add(notification.id);
+          if (notification.senderId === currentMembership?.playerId) {
+            blockInteractionUntil(notification.sentAtMs + roomInteractionIntervalMs);
+            if (notification.requestId === pendingStampRef.current) clearPendingStamp();
+          }
+          if (
+            receivedSnapshot &&
+            authenticationConfirmed &&
+            !synchronizing &&
+            document.visibilityState === "visible" &&
+            (stampBaselineAtMs === null || notification.sentAtMs > stampBaselineAtMs)
+          ) {
+            for (const listener of stampListeners.current) listener(notification);
+          }
+          return;
+        }
+        if (message.data.type === "room.stamp.error") {
+          if (message.data.requestId !== pendingStampRef.current) return;
+          clearPendingStamp();
+          if (message.data.interactionAvailableAtMs !== undefined)
+            blockInteractionUntil(message.data.interactionAvailableAtMs);
+          setStampError(
+            message.data.error === "rate_limited"
+              ? "3秒おいてから送信してください。"
+              : message.data.error === "muted"
+                ? "このルームでは送信を停止されています。"
+                : "スタンプを送信できませんでした。",
+          );
+          return;
+        }
+
         if (message.data.type === "room.chat.snapshot") {
           const incoming = message.data.messages;
+          if (stampSupported && currentMembership) {
+            for (const entry of incoming) {
+              if (entry.kind === "player" && entry.senderId === currentMembership.playerId)
+                blockInteractionUntil(entry.sentAtMs + roomInteractionIntervalMs);
+            }
+          }
           if (
             pendingChat !== null &&
             incoming.some(
@@ -570,6 +692,8 @@ export function useRoomTransport<T extends Room>({
             startWait("connection");
             return;
           }
+          if (socketStampSupported && message.data.interactionAvailableAtMs !== undefined)
+            blockInteractionUntil(message.data.interactionAvailableAtMs);
           currentMembership = message.data.membership;
           setMembership(message.data.membership);
           authenticationConfirmed = true;
@@ -621,6 +745,9 @@ export function useRoomTransport<T extends Room>({
     };
   }, [
     initialFormationAnalysisSupported,
+    initialStampsSupported,
+    initialServerNowMs,
+    blockInteractionUntil,
     initialRoom.id,
     initialRoom.instanceId,
     initialRoom.settings.game,
@@ -789,8 +916,55 @@ export function useRoomTransport<T extends Room>({
     }
   }
 
+  function sendStamp(stampId: RoomStampId): boolean {
+    const currentSocket = socketRef.current;
+    if (
+      !stampsSupported ||
+      !authenticated ||
+      connection !== "接続済み" ||
+      leaving ||
+      !self ||
+      currentSocket?.readyState !== WebSocket.OPEN ||
+      pendingStampRef.current !== null ||
+      interactionBlockedUntilRef.current > Date.now() ||
+      document.visibilityState !== "visible"
+    )
+      return false;
+    const requestId = createUuid();
+    pendingStampRef.current = requestId;
+    setPendingStamp(true);
+    setStampError(null);
+    try {
+      currentSocket.send(
+        JSON.stringify(
+          roomSocketContract.clientMessage.parse({
+            type: "room.stamp.send",
+            instanceId: room.instanceId,
+            requestId,
+            stampId,
+          }),
+        ),
+      );
+      responseWaitRef.current?.start("stamp");
+      return true;
+    } catch {
+      pendingStampRef.current = null;
+      setPendingStamp(false);
+      responseWaitRef.current?.clear("stamp");
+      setStampError("スタンプを送信できませんでした。接続を確認してください。");
+      return false;
+    }
+  }
+
   function sendChat(text: string): boolean {
-    if (!authenticated || socketRef.current?.readyState !== WebSocket.OPEN) return false;
+    if (
+      !authenticated ||
+      socketRef.current?.readyState !== WebSocket.OPEN ||
+      leaving ||
+      (stampsSupported &&
+        (pendingStampRef.current !== null || interactionBlockedUntilRef.current > Date.now()))
+    )
+      return false;
     try {
       socketRef.current.send(
         JSON.stringify(roomSocketContract.clientMessage.parse({ type: "room.chat.send", text })),
@@ -823,6 +997,12 @@ export function useRoomTransport<T extends Room>({
       pendingGameAction?.type === "game" ? pendingGameAction.action : pendingGameAction,
     socketError,
     leaving,
+    stampsSupported,
+    pendingStamp,
+    stampError,
+    subscribeStamps,
+    sendStamp,
+    interactionReady: !stampsSupported || interactionBlockedUntil === 0,
     chatMessages,
     chatNotifications,
     chatError,

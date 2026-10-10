@@ -25,7 +25,7 @@ test("直接アクセス・再読み込みはゲームを判別し、招待世�
       const count = requests.length;
       const input = args(`/rooms/12345?invite=${room.instanceId}`),
         pending = roomLoader(input);
-      expect(requests.at(-1)!.url).toBe("/api/rooms/12345?formationAnalysis=1");
+      expect(requests.at(-1)!.url).toBe("/api/rooms/12345?formationAnalysis=1&stamps=1");
       requests.at(-1)!.respond({
         ...snapshot(room),
         ...(room.settings.game === "four-shogi" ? { formationAnalysis: null } : {}),

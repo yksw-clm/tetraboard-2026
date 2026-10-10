@@ -74,6 +74,10 @@ export class BoundarySocket {
     });
   }
 
+  hasMessage(type: RoomSocketMessage["type"]): boolean {
+    return this.messages.some((message) => message.type === type);
+  }
+
   close(): void {
     if (this.closed) return;
     this.closed = true;
@@ -110,8 +114,8 @@ export class RoomBoundaryFixtures {
     return getRoomContract.response.parse(await response.json());
   }
 
-  async open(roomId: string): Promise<BoundarySocket> {
-    const response = await boundaryRequest(roomSocketContract.pathFor(roomId), {
+  async open(roomId: string, query = ""): Promise<BoundarySocket> {
+    const response = await boundaryRequest(roomSocketContract.pathFor(roomId) + query, {
       headers: { Upgrade: "websocket" },
     });
     expect(response.status).toBe(101);
@@ -122,8 +126,8 @@ export class RoomBoundaryFixtures {
     return client;
   }
 
-  async connect(entry: Entry): Promise<BoundarySocket> {
-    const client = await this.open(entry.room.id);
+  async connect(entry: Entry, query = ""): Promise<BoundarySocket> {
+    const client = await this.open(entry.room.id, query);
     client.send({ type: "room.auth", token: entry.membership.token });
     const authenticated = await client.waitFor("room.authenticated");
     expect(authenticated.membership).toEqual({
@@ -149,5 +153,10 @@ export class RoomBoundaryFixtures {
     } finally {
       for (const socket of this.sockets) socket.close();
     }
+  }
+
+  forgetClosedRoom(roomId: string): void {
+    // 呼出側が閉鎖を確認済みの部屋には、退室APIでの解放は不要です。
+    this.entries = this.entries.filter((entry) => entry.room.id !== roomId);
   }
 }
