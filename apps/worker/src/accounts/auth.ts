@@ -8,6 +8,28 @@ export type AuthEnv = Env & {
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
 };
+
+// 認証する経路だけでCookieを集め、最終HTTP応答にまとめて引き継ぎます。
+// Requestをキーにすることで、並行リクエストや別アカウントのCookieを混ぜません。
+const sessionCookies = new WeakMap<Request, string[]>();
+export async function withAccountSessionCookies(
+  request: Request,
+  respond: () => Promise<Response>,
+): Promise<Response> {
+  const cookies: string[] = [];
+  sessionCookies.set(request, cookies);
+  try {
+    const response = await respond();
+    if (!cookies.length) return response;
+    // fetchで取得した変更不可のヘッダーにも対応し、本文・status・WebSocketを保持します。
+    const updated = new Response(response.body, response);
+    for (const cookie of cookies) updated.headers.append("Set-Cookie", cookie);
+    return updated;
+  } finally {
+    sessionCookies.delete(request);
+  }
+}
+
 export function createAuth(env: AuthEnv) {
   const local = new URL(env.APP_ORIGIN).protocol === "http:";
   const secret =
@@ -57,7 +79,11 @@ export function createAuth(env: AuthEnv) {
 }
 export async function accountIdentity(request: Request, env: AuthEnv) {
   if (!request.headers.get("cookie")) return null;
-  const session = await createAuth(env).api.getSession({ headers: request.headers });
+  const { response: session, headers } = await createAuth(env).api.getSession({
+    headers: request.headers,
+    returnHeaders: true,
+  });
+  sessionCookies.get(request)?.push(...headers.getSetCookie());
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
   return env.APP_DB.prepare(

@@ -5,6 +5,7 @@ import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { analyticsRoutes } from "./analytics/routes";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
+import { withAccountSessionCookies } from "./accounts/auth";
 import { recoverAccountReservations } from "./accounts/roomAccounts";
 import { publicMatchRoutes } from "./rooms/publicMatchRoutes";
 import { matchRoutes } from "./accounts/matchRoutes";
@@ -51,7 +52,7 @@ const app = new Hono<{ Bindings: Env }>().route("/api", api).route("/", api);
 
 app.notFound((context) => context.text("Not Found", 404));
 
-export default {
+const worker = {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (
@@ -116,5 +117,12 @@ export default {
       env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM rateLimit WHERE lastRequest < ?").bind(Date.now() - 86400000),
     ]);
+  },
+};
+
+export default {
+  ...worker,
+  fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
+    return withAccountSessionCookies(request, () => worker.fetch(request, env, context));
   },
 };
