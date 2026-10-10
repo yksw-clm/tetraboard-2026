@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { SoundPlayer } from "./soundPlayer";
+import { browserSettings } from "./browserSettings";
 
 export const roomSounds = new SoundPlayer({
   sources: {
@@ -19,6 +20,9 @@ export const roomSounds = new SoundPlayer({
   createContext: () => new window.AudioContext(),
   fetch: (url) => fetch(url),
 });
+
+roomSounds.setEnabled(browserSettings.getSnapshot().soundEnabled);
+browserSettings.subscribe(() => roomSounds.setEnabled(browserSettings.getSnapshot().soundEnabled));
 
 /** captureで非同期の参加処理・着手処理より先に音声を有効化します。 */
 export function useSoundEffects(): void {

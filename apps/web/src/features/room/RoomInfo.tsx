@@ -19,6 +19,7 @@ import {
   updatingSettingsClasses,
   updatingSettingsButtonClasses,
 } from "./roomSettingsPresentation";
+import { BrowserSettingsButton } from "../../shared/ui/BrowserSettings";
 
 export function RoomInfo({
   session,
@@ -31,9 +32,15 @@ export function RoomInfo({
   onFeedback,
   feedbackButtonRef,
   gameSettings,
+  settingsOpen,
+  onSettingsOpenChange,
+  settingsDisabled,
 }: {
   session: SharedRoomSession;
   gameSettings?: ReactNode;
+  settingsOpen?: boolean;
+  onSettingsOpenChange?: (open: boolean) => void;
+  settingsDisabled?: boolean;
   onLeave: () => void;
   onCopyInvite: () => void;
   copying?: boolean;
@@ -57,7 +64,19 @@ export function RoomInfo({
     !account.loading &&
     !account.error;
   return (
-    <RoomInfoCard roomId={room.id} settings={room.settings}>
+    <RoomInfoCard
+      roomId={room.id}
+      settings={room.settings}
+      settingsAction={
+        <BrowserSettingsButton
+          compact
+          theme={gameThemes[room.settings.game]}
+          isOpen={settingsOpen}
+          onOpenChange={onSettingsOpenChange}
+          disabled={settingsDisabled}
+        />
+      }
+    >
       <AppButton
         appearance="secondary"
         size="compact"
@@ -253,10 +272,12 @@ export function RoomInfoCard({
   roomId,
   settings,
   children,
+  settingsAction,
 }: {
   roomId: string;
   settings: Room["settings"] | ReplayMatch["settings"];
   children: ReactNode;
+  settingsAction?: ReactNode;
 }) {
   return (
     <AppCard
@@ -265,12 +286,15 @@ export function RoomInfoCard({
     >
       <div className="flex justify-between items-center gap-3">
         <h1>ルーム情報</h1>
-        <Chip
-          className="bg-surface-muted text-ink-secondary text-xs font-bold tracking-[0.04em]"
-          size="sm"
-        >
-          #{roomId}
-        </Chip>
+        <div className="flex items-center gap-2">
+          <Chip
+            className="bg-surface-muted text-ink-secondary text-xs font-bold tracking-[0.04em]"
+            size="sm"
+          >
+            #{roomId}
+          </Chip>
+          {settingsAction ?? <BrowserSettingsButton compact theme={gameThemes[settings.game]} />}
+        </div>
       </div>
       <dl
         className={`grid grid-cols-2 py-1 px-[10px] border border-solid rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line ${settings.game === "four-shogi" ? "bg-[#fffaf0] border-[#eee4cd] [&>div>svg]:bg-[#fff0c9]" : "bg-[#f9fbf9] border-[#e8eee8] [&>div>svg]:bg-[#edf5ef]"}`}

@@ -26,6 +26,17 @@ bun run --cwd apps/worker deploy:dry-run
 
 Workerの公開ルーム索引のページングfixtureは、テスト専用の実D1 `ROOM_INDEX_TEST_DB` に保存し、一覧HTTPリクエストの `APP_DB` だけをそのDBに差し替えます。通常の `APP_DB` には以前のルームのrevisionとGameRoomの非同期更新が残るため、固定の部屋番号と衝突するとfixtureの古いrevisionが無視されます。部屋のライフサイクル・索引反映の検証は通常の `APP_DB` を使い続けます。
 
+## 表示・サウンド設定の確認
+
+| 確認する振る舞い | 検証先 |
+| --- | --- |
+| 初期値・不正JSONと項目単位の検証、再読込、古いタブでの別項目保持、読取／書込失敗、未保存値の復帰・同期時の保持、購読解除 | `apps/web/test/browserSettings.test.ts` |
+| ヘッダー入口・2項目の保存と共有、読み上げ名・現在値・閉鎖後の焦点指定、別タブのOFFでの音声停止、同期ONで有効化を代替しないこと、保存失敗補足と成功後の解除・キー削除 | `apps/web/test-dom/browserSettings.test.tsx` |
+| OFF時の演出・タイマー解除、OFF中の送信、OFF中／過去／重複通知の再演防止、送信待ち／制限中のパネル設定、全4ゲームのルーム内入口と共通設定による演出解除 | `apps/web/test-dom/roomStamps.test.tsx` |
+| 全音源と予約の停止、時計音のOFF／ONと5秒境界、音声未有効化・中断・再生失敗、既存の着手・終局・復帰と通知済み記録 | `apps/web/test-dom/soundPlayer.test.ts`・`clockWarning.test.tsx`・`roomSounds.test.tsx`、`apps/web/test/clockWarning.test.ts` |
+
+画面寸法は全4ゲーム・四人ゲームの両モードを320×640、390×844、768×1024、1279×900、1280×800で手動確認します。追加前と追加後の盤面・カード・持ち駒・状況カード・ルーム情報カードと見出し行・棋譜操作欄・タブを比較し、開閉・切替時も維持します。ネイティブ操作、実音声・消音・他アプリ併用・背景復帰、実絵文字とフェードはPC／iPhone Safari／Android Chromeで手動確認し、結果と未確認事項をPRへ記載します。ブラウザ起動型の自動テスト・設定・workflowは追加しません。
+
 ## ルームのスタンプの確認
 
 | 確認する振る舞い | 検証先 |

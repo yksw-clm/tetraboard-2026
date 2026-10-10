@@ -1,6 +1,7 @@
 import { afterEach, beforeEach } from "bun:test";
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { browserSettings } from "../src/shared/browserSettings";
 
 const roots = new Set<Root>();
 const mounted = new WeakMap<HTMLElement, Root>();
@@ -121,6 +122,7 @@ beforeEach(() => {
   requests = [];
   sessionStorage.clear();
   localStorage.clear();
+  browserSettings.sync();
   globalThis.fetch = ((url: string | URL | globalThis.Request, init: RequestInit = {}) =>
     new Promise<Response>((resolve, reject) => {
       requests.push({

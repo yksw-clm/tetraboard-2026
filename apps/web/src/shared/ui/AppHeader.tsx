@@ -2,15 +2,19 @@ import { type ReactNode } from "react";
 import { Link } from "react-router";
 import { cn } from "@heroui/react";
 import { appPageWidthClasses } from "./pageLayout";
+import { BrowserSettingsButton } from "./BrowserSettings";
+import type { AppTheme } from "./appTheme";
 
 export function AppHeader({
   homeTo,
   homeLabel,
   children,
+  theme,
 }: {
   homeTo: string;
   homeLabel: string;
   children?: ReactNode;
+  theme?: AppTheme;
 }) {
   return (
     <header className="border-0 border-b border-solid border-line bg-[#f9fbfac9]">
@@ -50,6 +54,7 @@ export function AppHeader({
               4人の遊びを、もっと気軽に。
             </span>
           )}
+          <BrowserSettingsButton theme={theme} />
         </div>
       </div>
     </header>
