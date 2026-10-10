@@ -191,7 +191,7 @@ export function LobbyView(props: Props) {
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">
       <AppHeader homeTo={game.homeTo} homeLabel={`TetraBoard ${game.title}のロビー`}>
-        <AccountMenu />
+        <AccountMenu lobbyGame={props.game} />
       </AppHeader>
       <div
         className={`lobby-background text-ink min-h-[calc(100dvh-69px)] [@media(max-width:650px)]:min-h-[calc(100dvh-61px)] ${appThemeClasses[game.theme]}`}

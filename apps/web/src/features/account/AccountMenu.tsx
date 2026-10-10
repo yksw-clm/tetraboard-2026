@@ -1,4 +1,4 @@
-import { gameCatalog, defaultGameId } from "@tetraboard/protocol/games";
+import { gameCatalog, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { Dropdown } from "@heroui/react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -8,12 +8,13 @@ import { AppPendingIndicator, pendingButtonClasses } from "../../shared/ui/AppPe
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "./useAccount";
 import { accountRequest } from "./accountApi";
+import { createAccountSelection } from "./useAccountSelection";
 import {
   clearRegistrationReturn,
   registrationPath,
   saveRegistrationReturn,
 } from "./registrationReturn";
-export function AccountMenu() {
+export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
   const { user, loading, error, pendingSource, refresh } = useAccount();
   const navigate = useNavigate();
   const location = useLocation();
@@ -103,7 +104,12 @@ export function AccountMenu() {
             onAction={(key) => {
               if (busy) return;
               if (key === "account")
-                navigate(user.profileCompleted ? "/account" : "/account/setup");
+                navigate(
+                  user.profileCompleted ? "/account" : "/account/setup",
+                  user.profileCompleted && lobbyGame
+                    ? { state: { accountSelection: createAccountSelection(lobbyGame) } }
+                    : undefined,
+                );
               if (key === "logout") void logout();
             }}
           >
