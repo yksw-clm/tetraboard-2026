@@ -546,6 +546,16 @@ PCでは棋譜表示の有無で盤面と全プレイヤーカードの座標・
 
 ## Google認証とアカウント移行
 
+### セッション更新Cookie
+
+Better Auth 1.7.5の既定値（有効期間7日・更新間隔1日）を維持します。`accountIdentity` は `getSession({ headers, returnHeaders: true })` の本文で本人を確認し、生成された全 `Set-Cookie` を保持します。期限切れ時の削除Cookieも引き継ぎます。
+
+Workerの最終HTTP応答を `withAccountSessionCookies` で包み、元の `Request` をキーとする `WeakMap` へリクエスト内のCookieを集めます。アカウント・バッジ・棋譜・戦績・ルーム入室・フィードバック・計測・管理APIと、Honoを通らない管理画面の認証も同じ応答境界を使います。本人確認をしない経路でセッションを読み取ることはありません。Cookieは `headers.getSetCookie()` で個別に取得し、既存の応答Cookieへ `append` します。属性・本文・status・WebSocketを保持し、終了時は例外の有無にかかわらず収集状態を破棄します。セッション更新後のプロフィール取得や権限判定が失敗しても、生成済みのCookieを最終応答へ返します。
+
+`bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts` で更新境界・複数Cookie・属性・失効・障害・並行リクエストを確認します。ブラウザでのCookie保存と本番QAのログイン喪失との因果関係は、このWorker統合テストだけでは確認できません。認証喪失後の画面再同期はIssue #143の範囲です。
+
+### Google・Discordの設定
+
 Discordは既存Better Authのproviderを使用します。権限は `identify email`、コールバックはローカル `http://localhost:5173/api/auth/callback/discord`、本番 `https://tetraboard.net/api/auth/callback/discord` です。Discord Developer Portalにそれぞれ登録し、`DISCORD_CLIENT_ID`・`DISCORD_CLIENT_SECRET` をGoogleと同じ方法で設定します。秘密値を会話・ログ・Gitへ出しません。選択したproviderの設定不足だけを503にし、もう一方は利用できます。
 
 認証開始APIのproviderは `google`・`discord` のみを許可し、省略はGoogle、未知値は400です。戻り先は従来のサーバー固定値を維持し、管理画面はGoogle限定です。Discordのメール欠落はBetter Authの `email_not_found` でユーザー作成前に拒否し、日本語でGoogleの選択肢を示します。アカウント連携は無効を維持し、`account_not_linked` は初回の登録方法を使う案内にします。DB migrationと認証依存更新は不要です。Google・Discordの識別子で再ログインし、プロバイダーの名前・画像を公開プロフィールに自動設定しません。

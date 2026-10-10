@@ -26,6 +26,12 @@ bun run --cwd apps/worker deploy:dry-run
 
 Workerの公開ルーム索引のページングfixtureは、テスト専用の実D1 `ROOM_INDEX_TEST_DB` に保存し、一覧HTTPリクエストの `APP_DB` だけをそのDBに差し替えます。通常の `APP_DB` には以前のルームのrevisionとGameRoomの非同期更新が残るため、固定の部屋番号と衝突するとfixtureの古いrevisionが無視されます。部屋のライフサイクル・索引反映の検証は通常の `APP_DB` を使い続けます。
 
+## セッション更新Cookie（Issue #142）
+
+`bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts test/accounts.test.ts` を使います。WorkerのHTTP入口とテスト用D1を使い、偽時計で発行から1日の直前・ちょうど・直後を確認します。DB期限とHTTP応答のCookieを照合し、更新CookieのMax-Ageに従って元の7日期限を越えて認証できることを確認します。
+
+複数のSet-CookieとExpiresのカンマ、Secure・HttpOnly・SameSite・Path、更新不要・未認証・改ざん・失効・DB障害、更新後のエラー応答、管理画面と各認証API、並行アカウントの分離、リダイレクト・WebSocketの保持を検証します。既存のOAuth・ログアウト・プロフィール・ルーム認証の回帰も維持します。ブラウザのCookie保存と本番で観測されたログイン喪失の直接原因は未確認事項として記録し、本番Cookie・本番DBを変更した再現は行いません。
+
 ## ルームのスタンプの確認
 
 | 確認する振る舞い | 検証先 |
