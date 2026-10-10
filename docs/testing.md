@@ -26,6 +26,22 @@ bun run --cwd apps/worker deploy:dry-run
 
 Workerの公開ルーム索引のページングfixtureは、テスト専用の実D1 `ROOM_INDEX_TEST_DB` に保存し、一覧HTTPリクエストの `APP_DB` だけをそのDBに差し替えます。通常の `APP_DB` には以前のルームのrevisionとGameRoomの非同期更新が残るため、固定の部屋番号と衝突するとfixtureの古いrevisionが無視されます。部屋のライフサイクル・索引反映の検証は通常の `APP_DB` を使い続けます。
 
+## 個人設定からの分離
+
+Workerテストは `apps/worker/vitest.config.mts` で `main` とMiniflare設定を直接指定します。追跡済み `wrangler.jsonc` はJSONCとして解析し、入口・互換日・互換フラグだけを使います。Wranglerの開発用設定ローダーを通さず、`.dev.vars`・`.env`・プロセス環境変数からbindingsを追加しません。
+
+- `GAME_ROOM` はSQLite対応Durable Object、`APP_DB` と既存3つの専用DBはローカルD1、`OBJECT_STORAGE` はローカルR2です。migration適用と既存のテスト間の状態管理を維持します。
+- `APP_ORIGIN` は `http://localhost:5173`、認証・通報・フィードバック用の値はテスト専用の固定値です。管理者設定は共通環境に登録せず、必要なテストだけで指定します。
+- 型生成は `bun run --cwd apps/worker cf-typegen` を使います。追跡済み `.dev.vars.example` を明示的な入力にし、プロセス環境変数から秘密設定のキーを追加しません。`typecheck` も同じコマンドを使います。
+
+部分確認は次のコマンドを使います。開発用設定を退避・変更せず、通常の作業ディレクトリで実行してください。
+
+```sh
+bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.test.ts test/feedback.test.ts test/accounts.test.ts test/sessionCookieRenewal.test.ts test/announcements.test.ts test/discordAuth.test.ts
+```
+
+`testEnvironment.test.ts` は固定値・管理者設定の未登録・開発用設定の追加キーが取り込まれないことと、生成型のキーを検証し、通常の `check` に含めます。CIはプロセス環境変数の取り込みを要求する環境で、設定なしと競合する `.env` だけの状態をこのテストで確認し、偽の管理者・Origin・認証情報を含む `.dev.vars` を追加して通常の `check` を実行します。各状態で生成型が同一であることも照合します。全テストは重複実行せず、これらの偽設定はCIの使い捨て環境だけに作成します。
+
 ## セッション更新Cookie（Issue #142）
 
 `bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts test/accounts.test.ts` を使います。WorkerのHTTP入口とテスト用D1を使い、偽時計で発行から1日の直前・ちょうど・直後を確認します。DB期限とHTTP応答のCookieを照合し、更新CookieのMax-Ageに従って元の7日期限を越えて認証できることを確認します。
@@ -53,8 +69,6 @@ Workerの公開ルーム索引のページングfixtureは、テスト専用の�
 | 3秒境界、置換・重複・非表示対象・各解除条件、アバター保持と保存棋譜のContextなし、6候補・Esc・焦点指定・切替時の閉鎖、全4ゲームの入口 | `apps/web/test-dom/roomStamps.test.tsx` |
 
 画面寸法・位置・タブ位置、絵文字の実描画とフェード、実フォーカス・タッチ・ドラッグは自動テストへ追加しません。全4ゲームを320×640、390×844、768×1024、1280×800で確認し、通常将棋で投了・持将棋・入玉宣言とスタンプが並ぶ状態を重点ケースにします。実施結果と未確認事項はPR本文へ記載します。
-
-ローカルの `apps/worker/.dev.vars` に管理者配列 `ADMIN_ACCOUNT_IDS` があると、従来の単一管理者設定を使う既存fixtureと競合する場合があります。この場合は個人設定を変更せず、同じソース・依存関係を個人設定のない作業用ディレクトリで検証し、環境の違いをPR本文へ記載します。
 
 ## 通常将棋の確認
 

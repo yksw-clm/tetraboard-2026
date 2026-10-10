@@ -21,7 +21,49 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
+      - name: Verify isolation without development settings
+        env:
+          CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+          CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
+          TETRABOARD_PROCESS_ENV_LEAK: must-not-be-loaded
+        run: |
+          bun run --cwd apps/worker cf-typegen
+          cp apps/worker/worker-configuration.d.ts "$RUNNER_TEMP/worker-configuration.clean.d.ts"
+          bun run --cwd apps/worker test test/testEnvironment.test.ts
+      - name: Verify isolation with conflicting dotenv settings
+        env:
+          CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+          CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
+          TETRABOARD_PROCESS_ENV_LEAK: must-not-be-loaded
+        run: |
+          cat > apps/worker/.env <<'VARS'
+          APP_ORIGIN=https://dotenv-settings.example.invalid
+          ADMIN_ACCOUNT_IDS=invalid-json
+          TETRABOARD_DOT_ENV_LEAK=must-not-be-loaded
+          VARS
+          bun run --cwd apps/worker cf-typegen
+          diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
+          bun run --cwd apps/worker test test/testEnvironment.test.ts
+      - name: Add conflicting development settings for isolation checks
+        run: |
+          cat > apps/worker/.dev.vars <<'VARS'
+          APP_ORIGIN=https://personal-settings.example.invalid
+          ADMIN_ACCOUNT_ID=personal-admin
+          ADMIN_ACCOUNT_IDS='["personal-admin"]'
+          MODERATOR_TOKEN=personal-moderator-token
+          FEEDBACK_HASH_SECRET=personal-feedback-secret-at-least-32-characters
+          BETTER_AUTH_SECRET=personal-auth-secret-at-least-32-characters
+          GOOGLE_CLIENT_ID=personal-google
+          GOOGLE_CLIENT_SECRET=personal-google-secret
+          DISCORD_CLIENT_ID=personal-discord
+          DISCORD_CLIENT_SECRET=personal-discord-secret
+          TETRABOARD_DEV_VARS_LEAK=must-not-be-loaded
+          VARS
       - name: Check (180-second target)
+        env:
+          CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+          CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
+          TETRABOARD_PROCESS_ENV_LEAK: must-not-be-loaded
         run: |
           started=$(date +%s)
           status=0
@@ -33,6 +75,8 @@ jobs:
             echo "::warning::bun run check exceeded the 180-second target (${elapsed}s). Review duplicate tests and type checks."
           fi
           exit "$status"
+      - name: Verify generated types with conflicting development settings
+        run: diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
       - run: bun run build
       - run: bun run --cwd apps/worker deploy:dry-run
       - uses: actions/upload-artifact@v4

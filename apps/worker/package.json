@@ -10,8 +10,8 @@
     "db:migrate:production": "wrangler d1 migrations apply APP_DB --env production --remote",
     "dev": "bun run db:migrate:local && wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply tetraboard-lobby-local --local",
-    "cf-typegen": "wrangler types",
-    "typecheck": "wrangler types && tsc --noEmit && tsc -p test/tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
+    "cf-typegen": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=true CLOUDFLARE_INCLUDE_PROCESS_ENV=false wrangler types --env-file .dev.vars.example",
+    "typecheck": "bun run cf-typegen && tsc --noEmit && tsc -p test/tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "lint": "oxlint .",
     "test": "vitest run --max-workers=1 --no-isolate"
   },
