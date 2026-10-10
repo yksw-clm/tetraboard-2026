@@ -4,6 +4,8 @@ import { PlayerAvatar } from "./PlayerAvatar";
 import { PlayerRankBadge } from "./PlayerRankBadge";
 import type { ResultPlayer } from "./gameResultPresentation";
 
+const resultColumns = "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-center gap-3";
+
 export function ResultParticipant({ player }: { player: ResultPlayer }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-2" data-player-id={player.id}>
@@ -26,7 +28,10 @@ export function GameResultRow({
 }) {
   return (
     <li
-      className="flex items-center gap-3 border-b border-solid border-line py-3"
+      className={cn(
+        right ? resultColumns : "flex items-center gap-3",
+        "border-b border-solid border-line py-3",
+      )}
       aria-label={`${player.name}の結果`}
     >
       <div
@@ -50,25 +55,43 @@ export function GameResultRow({
   );
 }
 
-export function GameResultList({ children }: { children: ReactNode }) {
-  return <ul className="m-0 list-none p-0">{children}</ul>;
+export function GameResultList({
+  children,
+  rightHeading,
+}: {
+  children: ReactNode;
+  rightHeading?: string;
+}) {
+  return (
+    <>
+      {rightHeading && (
+        <div className={cn(resultColumns, "mt-3 text-xs font-bold text-muted")}>
+          <span />
+          <span>{rightHeading}</span>
+        </div>
+      )}
+      <ul className="m-0 list-none p-0">{children}</ul>
+    </>
+  );
 }
 
 export function GameResultTeam({
   name,
   outcome,
   children,
+  rightHeading,
 }: {
   name: string;
   outcome: "勝利" | "敗北" | "引き分け";
   children: ReactNode;
+  rightHeading?: string;
 }) {
   return (
     <section aria-label={`${name} ${outcome}`} className="mt-4">
       <h3 className="m-0 text-sm font-bold">
         {name}：{outcome}
       </h3>
-      <GameResultList>{children}</GameResultList>
+      <GameResultList rightHeading={rightHeading}>{children}</GameResultList>
     </section>
   );
 }

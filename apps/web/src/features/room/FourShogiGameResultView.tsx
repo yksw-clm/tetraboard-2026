@@ -51,8 +51,7 @@ export function FourShogiGameResultView({
       rank={rank}
       details={<ShogiSideBadge side={side} proposed={false} />}
       right={
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-muted">撃破：</span>
+        <div className="flex flex-col gap-2">
           {replay.error ? (
             <>
               <span role="alert">撃破情報を取得できませんでした。</span>
@@ -79,7 +78,7 @@ export function FourShogiGameResultView({
     <section aria-label="対局結果の詳細">
       <p className="text-[13px] text-muted">終局理由：{endReasonNames[result.reason]}</p>
       {result.mode === "singles" ? (
-        <GameResultList>
+        <GameResultList rightHeading="撃破">
           {result.standings.map((standing) => row(standing.side, standing.rank))}
         </GameResultList>
       ) : (
@@ -91,6 +90,7 @@ export function FourShogiGameResultView({
             key={team}
             name={teamNames[team]}
             outcome={result.winner === null ? "引き分け" : result.winner === team ? "勝利" : "敗北"}
+            rightHeading="撃破"
           >
             {teamSides[team].map((side) => row(side))}
           </GameResultTeam>
