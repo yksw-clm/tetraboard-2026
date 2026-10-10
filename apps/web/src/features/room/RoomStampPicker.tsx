@@ -3,16 +3,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { roomStampIds, roomStamps, type RoomStampId } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { appThemeClasses, type AppTheme } from "../../shared/ui/appTheme";
+import { StampVisibilitySetting, SettingsStorageNotice } from "../../shared/ui/BrowserSettings";
+import { AppPendingIndicator } from "../../shared/ui/AppPendingIndicator";
 
 export function RoomStampPicker({
   disabled,
   pending,
+  sendDisabled = disabled || pending,
   closeSignal,
   onSend,
   theme,
 }: {
   disabled: boolean;
   pending: boolean;
+  sendDisabled?: boolean;
   closeSignal: string;
   onSend: (stampId: RoomStampId) => boolean;
   theme: AppTheme;
@@ -64,9 +68,9 @@ export function RoomStampPicker({
         aria-label="スタンプを送る"
         aria-expanded={open}
         isDisabled={disabled}
-        isPending={pending}
+        aria-busy={pending}
       >
-        <span aria-hidden="true">🙂</span>
+        {pending ? <AppPendingIndicator /> : <span aria-hidden="true">🙂</span>}
       </AppButton>
       <Popover.Content
         ref={panel}
@@ -76,10 +80,10 @@ export function RoomStampPicker({
         shouldCloseOnInteractOutside={(element) => !anchor.current?.contains(element)}
         offset={6}
         containerPadding={8}
-        className={`app-theme ${appThemeClasses[theme]} z-50 box-border w-max max-w-[calc(100vw-16px)] rounded-panel border border-line bg-white p-1 text-ink shadow-dialog outline-none`}
+        className={`app-theme ${appThemeClasses[theme]} z-50 box-border w-[244px] max-w-[calc(100vw-16px)] rounded-panel border border-line bg-white p-1 text-ink shadow-dialog outline-none`}
       >
         <Popover.Dialog aria-label="スタンプを選択" className="p-0 outline-none">
-          <div className="grid grid-cols-[repeat(3,40px)] gap-1">
+          <div className="grid grid-cols-[repeat(3,40px)] justify-center gap-1">
             {roomStampIds.map((id) => (
               <AppButton
                 key={id}
@@ -88,6 +92,7 @@ export function RoomStampPicker({
                 size="compact"
                 className="size-10 min-w-0 p-0"
                 aria-label={roomStamps[id].name}
+                isDisabled={sendDisabled}
                 onPress={() => {
                   onSend(id);
                   setOpen(false);
@@ -104,6 +109,12 @@ export function RoomStampPicker({
                 </span>
               </AppButton>
             ))}
+          </div>
+          <div className="mt-1 border-t border-line pt-1">
+            <StampVisibilitySetting compact />
+            <div className="px-2">
+              <SettingsStorageNotice />
+            </div>
           </div>
         </Popover.Dialog>
       </Popover.Content>

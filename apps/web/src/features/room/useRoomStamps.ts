@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { roomStampDurationMs, type RoomStampNotification } from "@tetraboard/protocol";
 import type { SharedRoomSession } from "./useRoomTransport";
+import { browserSettings } from "../../shared/browserSettings";
+import { useBrowserSettings } from "../../shared/useBrowserSettings";
+
+const noStamps: Record<string, RoomStampNotification> = {};
 
 export function useRoomStamps(
   session: Pick<
@@ -10,6 +14,7 @@ export function useRoomStamps(
   hiddenSenders: readonly string[],
 ) {
   const [stamps, setStamps] = useState<Record<string, RoomStampNotification>>({});
+  const { stampsVisible } = useBrowserSettings();
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const clear = useCallback(() => {
     for (const timer of timers.current.values()) clearTimeout(timer);
@@ -17,6 +22,13 @@ export function useRoomStamps(
     setStamps({});
   }, []);
   const { room, connection, leaving, unavailable, subscribeStamps } = session;
+  useEffect(
+    () =>
+      browserSettings.subscribe(() => {
+        if (!browserSettings.getSnapshot().stampsVisible) clear();
+      }),
+    [clear],
+  );
   useEffect(() => {
     if (connection !== "接続済み" || leaving || unavailable) {
       // eslint-disable-next-line react/set-state-in-effect -- 接続と退室の外部状態に同期して演出・タイマーを破棄します。
@@ -41,6 +53,7 @@ export function useRoomStamps(
         return;
       }
       if (
+        !browserSettings.getSnapshot().stampsVisible ||
         document.visibilityState !== "visible" ||
         notification.instanceId !== room.instanceId ||
         !playerIds.has(notification.senderId) ||
@@ -84,5 +97,5 @@ export function useRoomStamps(
       currentTimers.clear();
     };
   }, [clear]);
-  return stamps;
+  return stampsVisible ? stamps : noStamps;
 }

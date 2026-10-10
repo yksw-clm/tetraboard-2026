@@ -60,7 +60,9 @@ export function RoomViewShell({
   const account = useAccount();
   const signIn = useSocialSignIn();
   const [tab, setTab] = useState("board");
-  const [dialog, setDialog] = useState<"result" | "leave" | "resign" | "feedback" | null>(null);
+  const [dialog, setDialog] = useState<
+    "result" | "leave" | "resign" | "feedback" | "settings" | null
+  >(null);
   const { room, membership } = session;
   const stamps = useRoomStamps(session, chat.hiddenSenders);
   const feedbackContext: FeedbackContext = {
@@ -144,6 +146,14 @@ export function RoomViewShell({
 
   const info = (
     <RoomInfo
+      settingsOpen={dialog === "settings"}
+      settingsDisabled={
+        (dialog !== null && dialog !== "settings") ||
+        invitation.dialog !== null ||
+        cpuConfirmation !== null ||
+        autoResult.visible
+      }
+      onSettingsOpenChange={(open) => setDialog(open ? "settings" : null)}
       gameSettings={gameSettings}
       feedbackButtonRef={feedbackButtonRef}
       onFeedback={() => {
@@ -198,15 +208,13 @@ export function RoomViewShell({
               !session.authenticated ||
               session.connection !== "接続済み" ||
               session.leaving ||
-              session.pendingStamp ||
-              chat.pending ||
-              !session.interactionReady ||
               dialog !== null ||
               invitation.dialog !== null ||
               cpuConfirmation !== null ||
               autoResult.visible
             }
             pending={session.pendingStamp}
+            sendDisabled={session.pendingStamp || chat.pending || !session.interactionReady}
             closeSignal={`${room.instanceId}:${room.status}:${session.canPlay}:${dialog}:${invitation.dialog}:${cpuConfirmation !== null}:${autoResult.visible}:${session.connection}:${session.leaving}`}
             onSend={session.sendStamp}
           />

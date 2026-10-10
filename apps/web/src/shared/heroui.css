@@ -19,6 +19,7 @@
 @import "@heroui/styles/components/field-error.css" layer(components);
 @import "@heroui/styles/components/radio.css" layer(components);
 @import "@heroui/styles/components/radio-group.css" layer(components);
+@import "@heroui/styles/components/switch.css" layer(components);
 @import "@heroui/styles/components/chip.css" layer(components);
 @import "@heroui/styles/components/avatar.css" layer(components);
 @import "@heroui/styles/components/badge.css" layer(components);

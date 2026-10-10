@@ -36,6 +36,7 @@ import {
 } from "@tetraboard/protocol";
 import { act, clock, flush, render, renderHook, rerender, requests, wrap } from "./harness";
 import { installSocket, Socket } from "./socket";
+import { browserSettings } from "../src/shared/browserSettings";
 
 let restoreSocket: () => void;
 beforeEach(() => {
@@ -100,6 +101,53 @@ function submitted(socket: Socket) {
     { type: "room.stamp.send" }
   >;
 }
+
+test("表示OFFで演出を即時解除し、OFF中の通知をON後に再演せず送信は継続できる", () => {
+  const room = waitingRoom();
+  const h = renderHook(useStamps, options(room), wrap());
+  const socket = connect(room);
+  socket.receive(notification(room, "cry", playerIds[1]));
+  expect(Object.keys(h.current.stamps)).toHaveLength(1);
+  act(() => browserSettings.update({ stampsVisible: false }));
+  expect(h.current.stamps).toEqual({});
+  const hidden = notification(room, "hello", playerIds[1]);
+  socket.receive(hidden);
+  act(() => expect(h.current.session.sendStamp("cry")).toBe(true));
+  socket.receive({ ...notification(room), requestId: submitted(socket).requestId });
+  expect(h.current.stamps).toEqual({});
+  act(() => browserSettings.update({ stampsVisible: true }));
+  socket.receive(hidden);
+  expect(h.current.stamps).toEqual({});
+  socket.receive(notification(room, "like", playerIds[1]));
+  expect(Object.keys(h.current.stamps)).toHaveLength(1);
+  clock.advance(3000);
+  expect(h.current.stamps).toEqual({});
+});
+
+test("スタンプ送信待ち・制限中でもパネルを開いて表示設定だけを変更できる", async () => {
+  let sent = 0;
+  const view = render(
+    <RoomStampPicker
+      theme="default"
+      disabled={false}
+      pending
+      sendDisabled
+      closeSignal="waiting"
+      onSend={() => {
+        sent++;
+        return false;
+      }}
+    />,
+  );
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label="スタンプを送る"]')!.click());
+  await flush();
+  const panel = document.querySelector('[aria-label="スタンプを選択"]')!;
+  expect(panel.querySelectorAll("button[data-stamp-id]:disabled")).toHaveLength(6);
+  act(() => panel.querySelector<HTMLButtonElement>('[role="switch"]')!.click());
+  expect(browserSettings.getSnapshot().stampsVisible).toBe(false);
+  expect(document.querySelector('[aria-label="スタンプを選択"]')).not.toBeNull();
+  expect(sent).toBe(0);
+});
 
 test("受理通知後だけ3秒表示し、他タブのrequestIdでは待ちを解除しない。重複で延長しない", () => {
   const room = waitingRoom(),
@@ -476,4 +524,21 @@ for (const game of ["four-reversi", "four-shogi", "reversi", "shogi"] as const)
       "まだメッセージはありません",
     );
     expect(roomStampIds).toHaveLength(6);
+    act(() =>
+      [...view.querySelectorAll<HTMLElement>('[role="tab"]')]
+        .find((tab) => tab.textContent?.includes("ルーム"))!
+        .click(),
+    );
+    await flush();
+    act(() => view.querySelector<HTMLButtonElement>('[aria-label="表示・サウンド設定"]')!.click());
+    await flush();
+    const settings = document.querySelector('[data-slot="modal-dialog"][role="dialog"]')!;
+    expect(settings.textContent).toContain("表示・サウンド設定");
+    act(() =>
+      settings
+        .querySelector<HTMLInputElement>('[role="switch"][aria-label="カード上のスタンプ表示"]')!
+        .click(),
+    );
+    expect(view.querySelector('[data-testid="player-stamp"]')).toBeNull();
+    expect(browserSettings.getSnapshot().stampsVisible).toBe(false);
   });
