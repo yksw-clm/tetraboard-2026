@@ -1,6 +1,7 @@
 import { healthzContract, listRoomsContract } from "../packages/protocol/src/index";
 import { gameCatalog, gameIds } from "../packages/protocol/src/games";
 import { lobbyCanonical, lobbyMetadata, publicOrigin } from "../apps/web/src/seo/lobbyMetadata";
+import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
 
 const origin = process.argv[2];
 if (!origin) throw new Error("Usage: bun scripts/checkDeployment.ts <origin>");
@@ -89,6 +90,15 @@ await check("/sitemap.xml", async (response) => {
 await check("/api/healthz", async (response) => {
   healthzContract.response.parse(await response.json());
 });
+for (const { id } of formationCatalog) {
+  await check(`/four-shogi/formations/${id}.jpg`, async (response) => {
+    if (!response.headers.get("content-type")?.includes("image/jpeg"))
+      throw new Error("Expected formation JPEG");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff)
+      throw new Error("Invalid formation JPEG signature");
+  });
+}
 await check("/api/rooms", async (response) => {
   listRoomsContract.response.parse(await response.json());
 });
