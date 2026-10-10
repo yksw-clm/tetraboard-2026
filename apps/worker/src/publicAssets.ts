@@ -52,6 +52,7 @@ export async function servePublicAssets(
   }
   if (
     path.startsWith("/assets/") ||
+    path.startsWith("/four-shogi/formations/") ||
     ["/favicon.ico", "/robots.txt", "/sitemap.xml"].includes(path)
   ) {
     url.pathname = path;

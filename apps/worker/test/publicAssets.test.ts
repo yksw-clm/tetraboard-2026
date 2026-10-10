@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { env } from "cloudflare:workers";
 import worker from "../src/worker";
+import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
 
 const files: Record<string, { body: string; type: string }> = {
   "/games/four-shogi/index.html": {
@@ -25,6 +26,12 @@ const files: Record<string, { body: string; type: string }> = {
   },
   "/sitemap.xml": { body: "<urlset></urlset>", type: "application/xml" },
   "/assets/app.js": { body: "export {};", type: "application/javascript" },
+  ...Object.fromEntries(
+    formationCatalog.map(({ id }) => [
+      `/four-shogi/formations/${id}.jpg`,
+      { body: `formation image: ${id}`, type: "image/jpeg" },
+    ]),
+  ),
 };
 
 function assetFixture() {
@@ -97,6 +104,27 @@ test("トップと公開URLの別表記はクエリを保持した恒久転送�
   expect(assets.calls).toHaveLength(0);
 });
 
+test("全16戦法の画像をJPEGとして配信し、HEAD・304・キャッシュを保持", async () => {
+  const assets = assetFixture();
+  for (const { id } of formationCatalog) {
+    const path = `/four-shogi/formations/${id}.jpg`;
+    const response = await assets.fetch(path);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/jpeg");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new TextEncoder().encode(`formation image: ${id}`),
+    );
+    const head = await assets.fetch(path, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(head.headers.get("Content-Type")).toBe("image/jpeg");
+    expect((await head.arrayBuffer()).byteLength).toBe(0);
+    const conditional = await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } });
+    expect(conditional.status).toBe(304);
+    expect(conditional.headers.get("ETag")).toBe('"fixture"');
+    expect(conditional.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+  }
+});
+
 test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本文付き404を返す", async () => {
   const assets = assetFixture();
   for (const path of [
@@ -127,6 +155,8 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     "/games/unknown",
     "/games/four-shogi/rules",
     "/assets/missing.js",
+    "/four-shogi/formations/missing.jpg",
+    "/four-shogi/unknown",
   ]) {
     const response = await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } });
     expect(response.status).toBe(404);
