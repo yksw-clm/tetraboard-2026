@@ -373,6 +373,8 @@ HeroUIを継続使用し、ヘッダー・ボタン／ボタン風リンク・�
 
 通常CIは整形・lint・型チェック・単体テスト、Web・Adminのビルド、Workerの本番デプロイdry-runを実行します。コード・設定変更ではPR提出前に、ローカルで `bun run check`、`bun run build`、Workerの `deploy:dry-run` を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
 
+WorkerテストはローカルのD1・R2・SQLite対応Durable Objectとテスト専用の設定を明示し、開発用 `.dev.vars`・`.env` や個人の管理者設定を読み込みません。Workerの型生成は追跡済み `.dev.vars.example` を入力に固定します。設定の退避・一時コピーなしで通常の作業ディレクトリから検証し、CIでも設定なし・競合設定ありの結果と生成型の一致を確認します。
+
 自動検証はBunの単体テスト、Bun＋happy-domの部品・hookテスト、Worker統合テストを使います。format確認・lint・型チェック・全テストを含む `bun run check` の目標は180秒以内です。ブラウザテストとレポート保存は廃止し、画面寸法・ブラウザ固有の入力・実画像デコードを自動検証対象から外します。ゲーム・画面の仕様は維持します。リバーシ・将棋の少数E2Eの再構築は次の作業で行い、今回は追加しません。既存のPlaywright依存は維持します。[テスト方針と移管対応表](docs/testing.md)を参照してください。
 
 本番URLは `https://tetraboard.net`、Worker名は `tetraboard-2026`、D1名は `tetraboard-2026-prod-db` です。Worker 1つでWeb画面・管理画面・HTTP API・WebSocketを配信します。GitHub ActionsはmainのCI成功後にD1マイグレーションとデプロイを行います。CloudflareのGit連携による別の自動公開は設定しません。
