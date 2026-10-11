@@ -122,7 +122,17 @@ const worker = {
 
 export default {
   ...worker,
-  fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
-    return withAccountSessionCookies(request, () => worker.fetch(request, env, context));
+  async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
+    const response = await withAccountSessionCookies(request, () =>
+      worker.fetch(request, env, context),
+    );
+    if (
+      env.APP_ORIGIN !== "https://tetraboard-dev.chaossi-lab.workers.dev" ||
+      response.status === 101
+    )
+      return response;
+    const result = new Response(response.body, response);
+    result.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return result;
   },
 };

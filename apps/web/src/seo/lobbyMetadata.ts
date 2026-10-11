@@ -1,6 +1,7 @@
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 
-export const publicOrigin = "https://tetraboard.net";
+export const publicOrigin = import.meta.env?.VITE_PUBLIC_ORIGIN ?? "https://tetraboard.net";
+export const searchIndexable = import.meta.env?.VITE_SEARCH_INDEXABLE !== "false";
 
 export const lobbyMetadata = {
   shogi: {

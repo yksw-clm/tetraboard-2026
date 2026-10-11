@@ -121,7 +121,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 
 **Constraints**
 
-- 最新mainから仕様文書は `docs/gomoku-spec`、実装は `feat/gomoku` などの作業ブランチを作り、PRで取り込みます。mainへ直接push・force pushを行わず、仕様・主要構成の変更とマージ・公開はAGENTSの承認条件に従います。
+- 最新developから仕様文書は `docs/gomoku-spec`、実装は `feat/gomoku` などの作業ブランチを作り、PRで取り込みます。mainへ直接push・force pushを行わず、仕様・主要構成の変更とマージ・公開はAGENTSの承認条件に従います。
 - 既存のBun・TypeScript・React・HeroUI・Worker・Durable Object・D1を使います。純粋なルールエンジンとCPUは独立した `packages/gomoku` を予定し、新しい外部サービス・主要依存を追加しません。共通ライフサイクルを複製したり、将来のためだけの汎用化を行ったりしません。
 - 現行4ゲームのルール・通信・保存棋譜・認証・集計互換を守り、五目並べを未知ID時のフォールバックにしません。15路の座標を既存リバーシの0〜7の契約へ流用しません。規則版・保存形式と表示設定を区別し、対局開始時の禁手設定で旧棋譜を復元します。
 - 着手の正本はサーバーです。局・更新番号・手番・期限を照合し、二重送信や古い局面からの操作を防ぎます。禁手拒否で時計を停止・リセットせず、黒の合法手なしは全空点を検査して白勝ちにします。
@@ -146,7 +146,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 
 **コミット計画**
 
-各実装コミットに対応するテストを含め、最後のテストコミットまで検証を先送りしません。仕様確定は文書PR、実装は別PRを基本とし、文書PRが取り込まれた最新mainを実装の起点にします。取り込まれていない場合は依存する文書コミットを明示して、同じ文書を重複作成しません。
+各実装コミットに対応するテストを含め、最後のテストコミットまで検証を先送りしません。仕様確定は文書PR、実装は別PRを基本とし、文書PRが取り込まれた最新developを実装の起点にします。取り込まれていない場合は依存する文書コミットを明示して、同じ文書を重複作成しません。
 
 | 順 | コミットメッセージ | 主な内容・確認 |
 | --- | --- | --- |
@@ -361,7 +361,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 **Constraints**
 
-- 最新mainから専用ブランチを作り、mainへの直接push・force pushを行いません。コミットは種別と日本語の説明を使います。マージ・公開は開発者の承認後に行います。
+- 最新developから専用ブランチを作り、mainへの直接push・force pushを行いません。コミットは種別と日本語の説明を使います。マージ・公開は開発者の承認後に行います。
 - 最終期限・同期したサーバー時刻・5,000msの境界を時計音と強調で共用し、表示文字列から判定しません。時刻補正・同期復帰を扱い、タイマーが5秒ちょうどを飛び越えても境界を取りこぼしません。期限ちょうど以降は音を開始しません。
 - 手番ごとの通知記録を、通常のスナップショット更新・再描画・同期補正・同じ画面での再接続から分離します。ルーム世代・局・手番の変化を判定し、自動パスによる同一人物の新しい手番も扱います。通知記録を無制限に蓄積しません。
 - Webの共通時計・既存の単一AudioContextを使います。時計音の再生ノードを識別して個別停止と期限での停止予約を行い、既存の着手音・終了音の順序を維持します。AudioContextの中断時は予約中・再生中の時計音を破棄し、復帰で再演しません。
@@ -548,7 +548,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 Web・Adminの `test:unit` はDOMなし、`test:dom` は共有preloadでhappy-domを準備して実行します。`test` は両方を実行します。新しいWeb DOMテストは `tsconfig.test.json`、Adminは既存の型チェックに含めます。ゲーム間の型の取り違えを検出する型テストは維持します。
 
-対象だけを確認するときは以下のコマンドを使います。PR前にはルートの必須3コマンドを実行します。
+対象だけを確認するときは以下のコマンドを使います。PR前にはルートの必須コマンドを実行します。
 
 ```sh
 bun test --cwd apps/web ./test/matchCompatibility.test.ts
@@ -567,7 +567,7 @@ bun run --cwd apps/worker test test/feedback.test.ts
 
 ### ブランチと公開先
 
-最新のmainから `feat/xxx`・`fix/xxx`・`docs/xxx`・`chore/xxx` を作り、ローカルでのPR提出前の検証を成功させてからmain向けPRを開きます。mainへの直接push・force pushは行いません。非公開リポジトリでは現在のGitHubプランによる保護を利用できないため、GitHub CI成功、必須のローカル検証成功、開発者の確認を運用で必須にします。他者レビューは必須ではありません。初回も差分と検証結果の承認後にマージし、それ以降はPRのマージを公開の契機とします。
+最新developから `feat/xxx`・`fix/xxx`・`docs/xxx`・`chore/xxx` を作り、ローカル検証を成功させてdevelop向けPRを開きます。開発環境で確認後、develop→mainのリリースPRをマージコミットで取り込みます。両ブランチへの直接push・force pushは禁止します。GitHubの既定ブランチはdevelopです。非公開リポジトリでは現在のGitHubプランによる保護を利用できないため、GitHub CI成功、必須のローカル検証成功、開発者の確認を運用で必須にします。他者レビューは必須ではありません。初回も差分と検証結果の承認後にマージし、それ以降はPRのマージを公開の契機とします。
 
 | 設定 | 本番の値 |
 | --- | --- |
@@ -583,6 +583,27 @@ bun run --cwd apps/worker test test/feedback.test.ts
 
 ### 初回の認証設定
 
+開発環境の初回準備・ブランチ移行は次節に従います。本番用の既存Secretは維持します。
+
+### 開発環境の準備と移行
+
+`env.development` はWorker `tetraboard-dev`、URL `https://tetraboard-dev.chaossi-lab.workers.dev`、D1 `tetraboard-dev-db`、R2 `tetraboard-dev-objects` を使います。GAME_ROOMはこのWorker専用のSQLite Durable Objectです。本番からデータをコピーせず、アカウントも新規登録します。
+
+1. 初回のみ最新mainからdevelopを作成します。初回ブランチ作成は直接push禁止の例外です。そこから作業ブランチを作り、設定変更はdevelop向けPRにします。
+2. Cloudflareの認証を用意し、`apps/worker` で `bunx wrangler d1 create tetraboard-dev-db --location apac` と `bunx wrangler r2 bucket create tetraboard-dev-objects` を実行します。返されたD1 IDを `env.development.d1_databases` に記録します。ゼロ始まりIDは未準備の印で、開発用リモートmigration・deployコマンドは停止します。dry-runは実リソースの存在や権限を保証しません。
+3. GitHub Actionsの専用APIトークンが開発用D1・R2も操作できることを確認します。Google・Discordの既存OAuthアプリに開発URLの `/api/auth/callback/google`・`/api/auth/callback/discord` を追加します。
+4. `wrangler secret put <名前> --env development` でGoogle・Discord設定を登録します。BETTER_AUTH_SECRET・FEEDBACK_HASH_SECRET・MODERATOR_TOKENは開発専用の乱数を使います。秘密値は会話・ログ・Gitに記載しません。Secret登録がWorkerを作成する場合も初回公開承認後に行います。初回マージ前に必要なSecretを揃えます。
+5. 検証結果と差分の承認後、developへマージして初回公開します。開発環境で登録した本人のIDをADMIN_ACCOUNT_IDSに設定し、ログイン・画像・棋譜・ルーム・WebSocket再接続・管理画面と本番データとの分離を確認します。
+6. 開発環境の動作確認後、GitHubの既定ブランチをdevelopへ変更します。未マージPRがあれば差分を確認してdevelop向けに変更します。その後develop→mainのリリースPRを提出し、CI成功と開発者承認後にマージします。
+
+開発用コマンドは `bun run build:development`、Workerの `deploy:dry-run:development`、`db:migrate:development`、`deploy:development` です。公開確認は `bun scripts/checkDeployment.ts https://tetraboard-dev.chaossi-lab.workers.dev development`。本番は既存コマンドを維持します。リモートmigrationは通常Actionsからのみ実行します。
+
+開発ビルドはVITE_PUBLIC_ORIGINとVITE_SEARCH_INDEXABLEを設定し、初期HTMLと画面内遷移のcanonical・robotsを一致させます。開発Workerは101応答を除いてX-Robots-Tagを付与します。robots.txtはnoindexを読めるようクロールを許可し、サイトマップの案内を省きます。サイトマップは空のXMLです。本番のSEO確認は維持します。
+
+緊急修正も原則develop経由です。復旧は修正またはrevertのPRで行い、DB・Durable Object保存形式と旧コードの互換性を確認します。マイグレーションの自動巻き戻しはしません。
+
+### 本番の認証設定
+
 1. Cloudflareで本プロジェクト専用APIトークンを新規作成します。「Edit Cloudflare Workers」を基に、対象アカウントだけを選び、Workersの公開に必要な権限とD1の編集権限と対象R2バケットを読み書きできる権限を付与します。workers.devでの公開には独自ドメインのZone権限は不要です。ローカルWranglerのOAuthトークンや他プロジェクトのトークンは流用しません。
 2. GitHubのリポジトリ設定 → Secrets and variables → Actions → Repository secretsに `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を登録します。値をソース・PR・会話・ログに記載しません。GitHub Environmentは利用しません。
 3. 初回公開直後に `bunx wrangler secret put MODERATOR_TOKEN --env production` を `apps/worker` から実行し、運営者API専用の十分に長い乱数を非表示の入力欄へ渡します。APIトークンとは別の値を使い、運営者の安全な保管先で管理します。未登録の間は運営者APIの認証は成功しません。登録後に認証付き運営者APIを確認します。
@@ -591,9 +612,9 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-PRとmainのpushではchecksジョブで `bun install --frozen-lockfile` → `bun run check` → Web・Adminのビルド → `deploy:dry-run` を実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
+main・develop向けPRと両ブランチのpushでは、checksジョブで `bun install --frozen-lockfile` → `bun run check` → 本番ビルド・dry-run → 開発ビルド・dry-runを実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
 
-mainでは同じ実行で生成したWeb・Adminの成果物をデプロイジョブへ渡し、mainの先頭コミットであることを確認します。本番D1マイグレーション適用後にもう一度mainを確認し、古い実行ならWorkerの公開をスキップします。現行mainなら `wrangler deploy --env production` で画面とWorkerを一緒に公開します。同時デプロイを禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後にmainが更新された場合は、進行中の公開完了後に次の実行で更新します。
+main・developのpushでは同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
 
@@ -973,7 +994,7 @@ Worker統合テストはHTTP・実D1・R2で権限、並行再送、保存失敗
 
 管理画面は `/admin/announcements`、`/admin/announcements/new`、`/admin/announcements/:id` を使います。保存中の重複操作を防ぎ、競合では入力を保持して明示的な読み直しを案内します。新規保存後は編集URLへ移動します。公開画面は `/updates` と `/updates/:id` を使い、WorkerのSPA配信・プロフィール未設定時の閲覧許可へ詳細URLを含めます。HTMLとHTTPのnoindexを維持します。ロビーの告知取得は対局操作から独立させ、失敗時は告知だけを表示しません。
 
-Worker統合テストで保存・公開・掲載先・並び順・カーソル・権限・競合・batchロールバック・移行を確認します。Bun＋happy-domでフォーム・入力保持・プレビュー・権限喪失・ヘッダー・一覧・詳細・ロビー切り替えを確認します。幅・折り返し・キーボード操作は手動確認とし、ブラウザを起動する自動テストは追加しません。通常の必須3コマンドとCIの成功を確認し、開発者のマージ承認後に既存CI/CDでマイグレーションと配信を行います。公開後は既存記事の閲覧と、検証用非公開記事の管理保存・再取得を確認します。
+Worker統合テストで保存・公開・掲載先・並び順・カーソル・権限・競合・batchロールバック・移行を確認します。Bun＋happy-domでフォーム・入力保持・プレビュー・権限喪失・ヘッダー・一覧・詳細・ロビー切り替えを確認します。幅・折り返し・キーボード操作は手動確認とし、ブラウザを起動する自動テストは追加しません。通常の必須コマンドとCIの成功を確認し、開発者のマージ承認後に既存CI/CDでマイグレーションと配信を行います。公開後は既存記事の閲覧と、検証用非公開記事の管理保存・再取得を確認します。
 
 ## 任意登録の案内と画面復帰
 

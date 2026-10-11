@@ -1,5 +1,7 @@
 # テスト方針
 
+開発環境のSEOは `apps/web/test/developmentSeo.test.ts` で、開発設定を渡した別プロセスの初期HTML・サイトマップ・robots.txt・happy-dom上の画面内遷移を確認します。Workerの `apiRouting.test.ts` では開発用HTTP応答のnoindexと本番への誤転送がないことを検証します。本番SEOとWebSocket・認証Cookieの回帰は既存テストで維持します。公開後の確認は `scripts/checkDeployment.ts <URL> development` または `production` を指定します。dry-run成功だけでは実DB・R2・Secrets・OAuth設定の準備完了を意味しません。
+
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
 ## 変更対象別の確認
@@ -61,6 +63,8 @@ bun run --cwd packages/shogi test
 bun run check
 bun run build
 bun run --cwd apps/worker deploy:dry-run
+bun run build:development
+bun run --cwd apps/worker deploy:dry-run:development
 ```
 
 部分実行では `bun test --cwd apps/web ./test/matchReplayLoader.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSession.test.tsx`、`bun run --cwd apps/admin test:dom` を使います。`test` は単体とDOMの両プロセスを実行します。共有DOMは `test-support/dom.ts`、React操作と偽時計・保留可能なfetchは `apps/web/test-dom/support.tsx` に置きます。タイマーは直接進め、実時間のsleepと外部通信を使いません。WebSocketも状態と送受信内容だけを確認します。画像は入出力・処理中・失敗・古い完了の破棄を確認し、実デコードや画素の描画を行いません。効果音も音声API・取得・時刻の境界を制御し、実音声デコード・ネイティブ入力・他アプリとの同時再生は実機で確認します。

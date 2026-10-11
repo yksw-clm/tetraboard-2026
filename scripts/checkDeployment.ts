@@ -1,11 +1,19 @@
 import { healthzContract, listRoomsContract } from "../packages/protocol/src/index";
 import { gameCatalog, gameIds } from "../packages/protocol/src/games";
-import { lobbyCanonical, lobbyMetadata, publicOrigin } from "../apps/web/src/seo/lobbyMetadata";
+import { lobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
 
 const origin = process.argv[2];
 if (!origin) throw new Error("Usage: bun scripts/checkDeployment.ts <origin>");
 const base = new URL(origin);
+const environment = process.argv[3] ?? "production";
+if (!["production", "development"].includes(environment)) throw new Error("Unknown environment");
+const searchIndexable = environment === "production";
+const publicOrigin = searchIndexable
+  ? "https://tetraboard.net"
+  : "https://tetraboard-dev.chaossi-lab.workers.dev";
+const lobbyCanonical = (game: (typeof gameIds)[number]) =>
+  `${publicOrigin}${gameCatalog[game].lobbyPath}`;
 if (!["http:", "https:"].includes(base.protocol)) throw new Error("Expected an HTTP(S) URL");
 
 async function check(
@@ -48,13 +56,13 @@ for (const game of gameIds) {
   await check(gameCatalog[game].lobbyPath, async (response) => {
     if (!response.headers.get("content-type")?.includes("text/html"))
       throw new Error("Expected HTML");
-    if (response.headers.get("X-Robots-Tag")?.includes("noindex"))
-      throw new Error("Public lobby is noindex");
+    if (Boolean(response.headers.get("X-Robots-Tag")?.includes("noindex")) === searchIndexable)
+      throw new Error("Unexpected lobby indexing policy");
     const html = await response.text();
     for (const expected of [
       `<title>${lobbyMetadata[game].title}</title>`,
       `href="${lobbyCanonical(game)}"`,
-      'content="index,follow"',
+      `content="${searchIndexable ? "index,follow" : "noindex,follow"}"`,
       'name="description"',
       `data-public-lobby="${game}"`,
       lobbyMetadata[game].overview,
@@ -72,7 +80,9 @@ await check("/robots.txt", async (response) => {
   if (
     !text.includes("User-agent: *") ||
     !text.includes("Allow: /") ||
-    !text.includes(`Sitemap: ${publicOrigin}/sitemap.xml`)
+    (searchIndexable
+      ? !text.includes(`Sitemap: ${publicOrigin}/sitemap.xml`)
+      : text.includes("Sitemap:"))
   )
     throw new Error("Invalid robots.txt");
 });
@@ -82,8 +92,9 @@ await check("/sitemap.xml", async (response) => {
   const text = await response.text();
   if (
     !text.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"') ||
-    (text.match(/<loc>/g) ?? []).length !== gameIds.length ||
-    !gameIds.every((game) => text.includes(`<loc>${lobbyCanonical(game)}</loc>`))
+    (text.match(/<loc>/g) ?? []).length !== (searchIndexable ? gameIds.length : 0) ||
+    (searchIndexable &&
+      !gameIds.every((game) => text.includes(`<loc>${lobbyCanonical(game)}</loc>`)))
   )
     throw new Error("Invalid sitemap URLs");
 });
