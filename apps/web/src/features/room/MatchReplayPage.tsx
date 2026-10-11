@@ -24,6 +24,10 @@ function Replay({ data }: { data: MatchReplayData }) {
       const View = replayViews.shogi;
       return <View key={data.match.id} match={data.match} frames={data.frames} />;
     }
+    case "gomoku": {
+      const View = replayViews.gomoku;
+      return <View key={data.match.id} match={data.match} />;
+    }
     case "reversi": {
       const View = replayViews.reversi;
       return <View key={data.match.id} match={data.match} />;

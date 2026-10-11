@@ -20,6 +20,7 @@ export type RegistrationEntryDraft = {
   selectedRoomId?: string;
   humanOnly?: boolean;
   threePlayerAttackProhibited?: boolean;
+  forbiddenRules?: boolean;
 };
 export type RegistrationDestination = {
   path: string;
@@ -79,6 +80,7 @@ export function parseRegistrationReturn(
       (entry.selectedRoomId !== undefined &&
         (typeof entry.selectedRoomId !== "string" || !/^\d{5}$/.test(entry.selectedRoomId))) ||
       (entry.humanOnly !== undefined && typeof entry.humanOnly !== "boolean") ||
+      (entry.forbiddenRules !== undefined && typeof entry.forbiddenRules !== "boolean") ||
       (entry.threePlayerAttackProhibited !== undefined &&
         typeof entry.threePlayerAttackProhibited !== "boolean")
     )
@@ -96,6 +98,9 @@ export function parseRegistrationReturn(
         ? {}
         : { selectedRoomId: String(entry.selectedRoomId) }),
       ...(entry.humanOnly === undefined ? {} : { humanOnly: entry.humanOnly as boolean }),
+      ...(entry.forbiddenRules === undefined
+        ? {}
+        : { forbiddenRules: entry.forbiddenRules as boolean }),
       ...(entry.threePlayerAttackProhibited === undefined
         ? {}
         : { threePlayerAttackProhibited: entry.threePlayerAttackProhibited as boolean }),

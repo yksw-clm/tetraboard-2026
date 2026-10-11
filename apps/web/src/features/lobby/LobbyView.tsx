@@ -35,6 +35,8 @@ type Props = {
   onCpuLevelChange: (level: CpuLevel) => void;
   timeControl: RoomTimeControl;
   threePlayerAttackProhibited?: boolean;
+  forbiddenRules?: boolean;
+  onForbiddenRulesChange?: (enabled: boolean) => void;
   isSubmitting: RoomEntryIntent | null;
   message: string | null;
   renderRooms: (onJoin: (roomId: string, humanOnly?: boolean) => void) => ReactNode;
@@ -50,6 +52,7 @@ type Props = {
 };
 
 const gameDescriptions = {
+  gomoku: "五つの石をつなぐ、黒と白の真剣勝負。",
   reversi: "黒と白で楽しむリバーシ。",
   shogi: "先手と後手で楽しむ将棋。",
   "four-reversi": "4色で楽しむリバーシ。",
@@ -279,6 +282,8 @@ export function LobbyView(props: Props) {
           game={props.game}
           intent={dialog.intent}
           theme={game.theme}
+          forbiddenRules={props.forbiddenRules}
+          onForbiddenRulesChange={props.onForbiddenRulesChange}
           threePlayerAttackProhibited={props.threePlayerAttackProhibited}
           selectedRoomId={dialog.roomId}
           name={props.name}

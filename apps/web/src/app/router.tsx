@@ -22,6 +22,12 @@ export const lobbyRoutes = {
       Component: (await import("../features/lobby/ShogiLobbyPage")).ShogiLobbyPage,
     }),
   },
+  gomoku: {
+    path: gameCatalog.gomoku.lobbyPath,
+    lazy: async () => ({
+      Component: (await import("../features/lobby/GomokuLobbyPage")).GomokuLobbyPage,
+    }),
+  },
   reversi: {
     path: gameCatalog.reversi.lobbyPath,
     lazy: async () => ({

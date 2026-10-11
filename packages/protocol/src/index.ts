@@ -231,3 +231,30 @@ export {
 } from "./matches";
 
 export * from "./stamps";
+
+export {
+  gomokuSettingsSchema,
+  gomokuResultSchema,
+  gomokuStateSchema,
+  gomokuFinishedStateSchema,
+  gomokuReplaySchema,
+  gomokuRoomSchema,
+  isGomokuRoom,
+  type GomokuRoom,
+  type GomokuReplay,
+  type GomokuLastRound,
+  type GomokuClock,
+} from "./rooms";
+export {
+  gomokuMatchParticipantSchema,
+  gomokuMatchSummarySchema,
+  gomokuAccountStatsSchema,
+  publicGomokuMatchDetailSchema,
+  gomokuMatchDetailSchema,
+  isGomokuMatch,
+  type GomokuMatchDetail,
+  type PublicGomokuMatchDetail,
+  type ReplayGomokuMatch,
+  type GomokuMatchSummary,
+  type GomokuAccountStats,
+} from "./matches";

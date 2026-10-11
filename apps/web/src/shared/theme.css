@@ -102,6 +102,46 @@
     --muted: var(--color-muted);
   }
 
+  .game-theme-gomoku {
+    --color-brand: #6d28d9;
+    --color-brand-hover: #5b21b6;
+    --color-primary: #7c3aed;
+    --color-primary-hover: #6d28d9;
+    --color-primary-foreground: #ffffff;
+    --color-ink: #302341;
+    --color-ink-secondary: #60506f;
+    --color-muted: #756783;
+    --color-line: #e4d9ef;
+    --color-line-hover: #c4a4e3;
+    --color-input: #d6c5e7;
+    --color-surface-input: #fefbff;
+    --color-surface-muted: #f6effc;
+    --color-surface-hover: #eee3f8;
+    --color-modal-backdrop: #3023415e;
+    --color-lobby-play-line: #e4d3f4;
+    --color-lobby-footer-line: #e4d9ef;
+    --color-entry-selection-line: #9d72d3;
+    --color-entry-selection-surface: #f0e4ff;
+    --color-entry-room-surface: #f5edff;
+    --color-help-copy: #60506f;
+    --color-action-card-line-hover: #c4a4e3;
+    --color-action-card-icon: #f0e4ff;
+    --color-action-card-arrow: #8b6fa8;
+    --shadow-action: 0 3px 10px #7c3aed14;
+    --shadow-action-card-hover: 0 4px 16px #5b21b609;
+    --shadow-panel: 0 3px 10px #5b21b603;
+    --shadow-dialog: 0 24px 80px #30234129;
+    --lobby-background: #faf5ff;
+    --lobby-glow: #dac3f080;
+    --lobby-grid: #dac3f080;
+    --lobby-quick-middle: #fdfaff;
+    --lobby-quick-end: #efe2ff;
+    --accent: var(--color-primary);
+    --accent-foreground: var(--color-primary-foreground);
+    --foreground: var(--color-ink);
+    --muted: var(--color-muted);
+  }
+
   body {
     margin: 0;
   }

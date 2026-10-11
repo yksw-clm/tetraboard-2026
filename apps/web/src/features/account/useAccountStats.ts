@@ -23,6 +23,7 @@ export function useAccountStats(game: MatchGame) {
   const { request, generation } = useAccountDataRequest();
   const [states, setStates] = useState<Record<MatchGame, StatsState>>({
     reversi: empty(),
+    gomoku: empty(),
     shogi: empty(),
     "four-reversi": empty(),
     "four-shogi": empty(),

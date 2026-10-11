@@ -1,3 +1,4 @@
+import type { MatchRecord as GomokuMatchRecord } from "./gomokuMatchStore";
 import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
@@ -35,7 +36,7 @@ export const pendingMatchPrefix = "match-pending:";
 
 export async function writeMatch(
   db: D1Database,
-  record: MatchRecord | ReversiMatchRecord,
+  record: MatchRecord | ReversiMatchRecord | GomokuMatchRecord,
 ): Promise<void> {
   const statements = [
     db

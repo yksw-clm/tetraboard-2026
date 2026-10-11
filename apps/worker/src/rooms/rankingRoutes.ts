@@ -87,7 +87,7 @@ async function queryGameRankings(
 async function queryTwoPlayerRankings(
   db: D1Database,
   preview = false,
-  game: "reversi" | "shogi" = "reversi",
+  game: "reversi" | "shogi" | "gomoku" = "reversi",
 ): Promise<PreviewReversiRankings> {
   const rows = await db
     .prepare(`${matchOutcomesCte(game, false)}, totals AS (
@@ -127,6 +127,8 @@ async function queryTwoPlayerRankings(
 }
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
 export const rankingReaders = {
+  gomoku: async (db: D1Database) =>
+    matchDataContracts.gomoku.rankings(await queryTwoPlayerRankings(db, false, "gomoku")),
   shogi: async (db: D1Database) =>
     matchDataContracts.shogi.rankings(await queryTwoPlayerRankings(db, false, "shogi")),
   reversi: async (db: D1Database) =>
@@ -148,6 +150,8 @@ export async function readGameRankings(
     case "shogi":
       return rankingReaders[game](db);
     case "reversi":
+      return rankingReaders[game](db);
+    case "gomoku":
       return rankingReaders[game](db);
     case "four-reversi":
       return rankingReaders[game](db);
@@ -171,7 +175,11 @@ for (const game of gameIds) {
       if (preview && !gameCatalog[game].hasModes)
         return c.json(
           previewReversiRankingsSchema.parse(
-            await queryTwoPlayerRankings(c.env.APP_DB, true, game as "reversi" | "shogi"),
+            await queryTwoPlayerRankings(
+              c.env.APP_DB,
+              true,
+              game as "reversi" | "shogi" | "gomoku",
+            ),
           ),
         );
       if (preview)

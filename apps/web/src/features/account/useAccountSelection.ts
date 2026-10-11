@@ -15,6 +15,7 @@ export function createAccountSelection(game: MatchGame): Selection {
       "four-reversi": "singles",
       "four-shogi": "singles",
       reversi: "singles",
+      gomoku: "singles",
       shogi: "singles",
     },
   };
@@ -39,6 +40,7 @@ export function useAccountSelection() {
       .find((mode) => mode === "singles" || mode === "doubles") ?? "singles";
   const modes: Record<MatchGame, RoomMode> = {
     reversi: "singles",
+    gomoku: "singles",
     shogi: "singles",
     "four-reversi": storedMode("four-reversi"),
     "four-shogi": storedMode("four-shogi"),

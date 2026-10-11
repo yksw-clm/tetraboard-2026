@@ -39,7 +39,7 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 | 戦績・ランキング・戦型・バッジ | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[accounts](../apps/worker/src/accounts/) | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
 | 管理画面・計測・フィードバック・お知らせ | [計測画面](../README.md#計測用管理画面)、[フィードバック](../README.md#フィードバック受付とお知らせ)、[お知らせ管理](../README.md#お知らせの管理とロビー掲載) | [管理画面](#計測用管理画面の開発と公開)、[フィードバック運営](#フィードバックの受付運営)、[お知らせ](#お知らせの保存管理公開)、[admin](../apps/worker/src/admin/)、[apps/admin](../apps/admin/src/) | [adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)、[feedback.test.ts](../apps/worker/test/feedback.test.ts)、[announcements.test.ts](../apps/worker/test/announcements.test.ts) |
 | 公開・環境設定・CI | [開発と本番公開](../README.md#開発と本番公開)、[AGENTS.md](../AGENTS.md) | [本番デプロイ](#本番デプロイ)、[Checks](#checks)、[個人設定からの分離](testing.md#個人設定からの分離)、[ci.yml](../.github/workflows/ci.yml)、[buildAssets.ts](../scripts/buildAssets.ts) | [testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)、必須のcheck・build・Worker dry-run |
-| 五目並べの追加（仕様確定・未実装） | [追加範囲](../README.md#五目並べ仕様確定実装予定)、[ルール正本](rules/gomoku.md) | [実装計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応) | 実装計画のDone Whenと[テスト方針](testing.md)。個別の実装・テストファイルは追加時に案内を更新 |
+| 五目並べ | [追加範囲](../README.md#五目並べ)、[ルール正本](rules/gomoku.md) | [実装計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応) | [エンジン](../packages/gomoku/test/)、[Worker](../apps/worker/test/gomokuRoom.test.ts)、[DOM](../apps/web/test-dom/gomoku.test.tsx) |
 
 ## Development Strategy
 
@@ -100,7 +100,7 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 
 ## 五目並べの実装計画
 
-2026-10-11に開発者が仕様確定と実装計画の作成を指示しました。仕様の正本は[五目並べのルール](rules/gomoku.md)、サービスへの追加範囲は[README](../README.md#五目並べ仕様確定実装予定)です。この節は実装前の計画であり、実装済み・検証済みとは扱いません。初期確認の基準はmain `34d6353` です。
+2026-10-11に開発者が仕様確定と実装計画の作成を指示しました。仕様の正本は[五目並べのルール](rules/gomoku.md)、サービスへの追加範囲は[README](../README.md#五目並べ)です。この節は実装前の計画であり、実装済み・検証済みとは扱いません。初期確認の基準はmain `34d6353` です。
 
 **Goal**
 

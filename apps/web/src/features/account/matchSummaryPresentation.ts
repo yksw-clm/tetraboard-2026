@@ -7,7 +7,7 @@ export type HistoryResultGroup = {
 };
 
 export function matchResultGroups(match: MatchSummary): HistoryResultGroup[] {
-  if (match.game === "reversi") {
+  if (match.game === "reversi" || match.game === "gomoku") {
     const winner = match.result.winner;
     return [...match.participants]
       .sort((a, b) => Number(b.color === winner) - Number(a.color === winner))

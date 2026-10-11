@@ -1,4 +1,4 @@
-import type { ReversiRoom, ShogiRoom } from "@tetraboard/protocol";
+import type { GomokuRoom, ReversiRoom, ShogiRoom } from "@tetraboard/protocol";
 import type { Color as ReversiColor } from "@tetraboard/reversi";
 import type { FourReversiRoom, FourShogiRoom } from "@tetraboard/protocol";
 import type { Color } from "@tetraboard/four-reversi";
@@ -39,7 +39,7 @@ export function shogiPlayerClock(
 }
 
 export function reversiPlayerClock(
-  room: ReversiRoom,
+  room: ReversiRoom | GomokuRoom,
   color: ReversiColor | null,
   serverNowMs: number,
 ) {

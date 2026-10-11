@@ -42,6 +42,7 @@
         "@jsquash/webp": "1.5.0",
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
+        "@tetraboard/gomoku": "workspace:*",
         "@tetraboard/protocol": "workspace:*",
         "@tetraboard/reversi": "workspace:*",
         "@tetraboard/shogi": "workspace:*",
@@ -72,6 +73,7 @@
       "dependencies": {
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
+        "@tetraboard/gomoku": "workspace:*",
         "@tetraboard/protocol": "workspace:*",
         "@tetraboard/reversi": "workspace:*",
         "@tetraboard/shogi": "workspace:*",
