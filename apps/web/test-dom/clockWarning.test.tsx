@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { createInitialState as gomokuInitialState } from "@tetraboard/gomoku";
 import { createInitialState } from "@tetraboard/reversi";
 import { createInitialState as fourReversiInitialState } from "@tetraboard/four-reversi";
 import { createInitialState as fourShogiInitialState } from "@tetraboard/four-shogi";
 import {
   roomSchema,
   reversiRoomSchema,
+  gomokuRoomSchema,
   fourReversiRoomSchema,
   type Room,
 } from "@tetraboard/protocol";
@@ -33,6 +35,16 @@ function standardReversiRoom() {
     },
   });
 }
+function gomokuPlayingRoom() {
+  const base = standardReversiRoom();
+  return gomokuRoomSchema.parse({
+    ...base,
+    settings: { game: "gomoku", forbiddenRules: true, timeControl: base.settings.timeControl },
+    game: gomokuInitialState(),
+    roundId: "a0000000-0000-4000-8000-000000000001",
+    positionRevision: 0,
+  });
+}
 function doublesReversi() {
   const room = playingRoom();
   if (room.status !== "playing") throw Error("fixture");
@@ -52,6 +64,7 @@ const games = [
   playingShogiRoom,
   standardReversiRoom,
   standardPlayingRoom,
+  gomokuPlayingRoom,
   doublesReversi,
   doublesShogi,
 ];
