@@ -20,7 +20,9 @@ export function HowToPlayDialog({
       theme={gameThemes[game]}
     >
       <div className="flex flex-col gap-[22px] [&_h3]:mb-[6px] [&_h3]:text-[15px] [&_section_p]:text-help-copy [&_section_p]:text-[13px] [&_section_p]:leading-[1.9] [&_section_p+p]:mt-2">
-        {game === "gomoku" ? (
+        {game === "four-gomoku" ? (
+          <FourGomokuRules />
+        ) : game === "gomoku" ? (
           <GomokuRules />
         ) : game === "shogi" ? (
           <ShogiRules />
@@ -187,6 +189,40 @@ function GomokuRules() {
         <h3>友人やCPUと対局</h3>
         <p>
           「すぐ遊ぶ」はCPU1人と遊べます。人間全員が準備完了になったらホストが開始します。禁手設定は作成時と待機中に選べます。観戦・棋譜では盤面を180度回転でき、棋譜の座標表記は変わりません。CPU戦も棋譜を保存し、戦績とランキングは人間同士の対局を禁手ON/OFF合算で集計します。
+        </p>
+      </section>
+    </>
+  );
+}
+
+function FourGomokuRules() {
+  return (
+    <>
+      <section>
+        <h3>4色で五連を目指そう</h3>
+        <p>
+          15路の空盤に、黒→白→赤→青の順で1個ずつ置きます。縦・横・斜めの5個以上で完成。色は対局ごとに抽選し、禁手はありません。
+        </p>
+      </section>
+      <section>
+        <h3>シングルス</h3>
+        <p>
+          自分の色だけで五連を完成した順に上位から順位が決まります。勝ち抜けた人の石は残り、残った人で続けます。投了・退室・時間切れ・通信切れの復帰期限切れは下位から順位が確定します。最後の1人の順位が決まると終了です。
+        </p>
+        <p>
+          満盤になれば確定済みの順位を保ち、残った人は最上位の未確定順位で同順位・引き分けになります。
+        </p>
+      </section>
+      <section>
+        <h3>ダブルス</h3>
+        <p>
+          黒・赤と白・青のチーム戦です。味方2色が混ざった五連でも勝利できます。1人の脱落でチーム敗北、完成せずに満盤になれば引き分けです。
+        </p>
+      </section>
+      <section>
+        <h3>操作とCPU</h3>
+        <p>
+          空いている交点を1回タップすると着手します。CPUは「よわい」「ふつう」の2段階です。「すぐ遊ぶ」でCPU3人と対局できます。
         </p>
       </section>
     </>

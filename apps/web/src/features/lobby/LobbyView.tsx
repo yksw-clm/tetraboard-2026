@@ -52,6 +52,7 @@ type Props = {
 };
 
 const gameDescriptions = {
+  "four-gomoku": "4色でつなぐ五連。ひとりでも、チームでも。",
   gomoku: "五つの石をつなぐ、黒と白の真剣勝負。",
   reversi: "黒と白で楽しむリバーシ。",
   shogi: "先手と後手で楽しむ将棋。",

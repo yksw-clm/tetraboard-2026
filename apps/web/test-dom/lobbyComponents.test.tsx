@@ -123,7 +123,7 @@ test("ロビーの幅通知はセクションのDOM順だけを変え、ラン�
       ),
     );
     rerender(view, wrap()(<GameLobbyNavigation />));
-    expect(view.querySelectorAll('a[href^="/games/"]')).toHaveLength(5);
+    expect(view.querySelectorAll('a[href^="/games/"]')).toHaveLength(6);
   } finally {
     matchMedia.mockRestore();
   }

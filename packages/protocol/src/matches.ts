@@ -1,4 +1,10 @@
 import {
+  fourGomokuSettingsSchema,
+  fourGomokuResultSchema,
+  fourGomokuFinishedStateSchema,
+  fourGomokuReplaySchema,
+} from "./rooms";
+import {
   gomokuSettingsSchema,
   gomokuResultSchema,
   gomokuFinishedStateSchema,
@@ -184,12 +190,23 @@ export type GomokuMatchSummary = z.infer<typeof gomokuMatchSummarySchema>;
 export const gomokuMatchParticipantSchema = reversiMatchParticipantSchema;
 export const gomokuAccountStatsSchema = reversiAccountStatsSchema;
 export type GomokuAccountStats = ReversiAccountStats;
+export const fourGomokuMatchSummarySchema = z
+  .strictObject({
+    ...fourReversiMatchSummarySchema.shape,
+    game: z.literal("four-gomoku"),
+    result: fourGomokuResultSchema,
+  })
+  .refine((m) => m.mode === m.result.mode);
+export type FourGomokuMatchSummary = z.infer<typeof fourGomokuMatchSummarySchema>;
+export const fourGomokuMatchParticipantSchema = matchParticipantSchema;
+export type FourGomokuAccountStats = FourReversiAccountStats;
 export const matchSummarySchema = z.union([
   fourReversiMatchSummarySchema,
   fourShogiMatchSummarySchema,
   reversiMatchSummarySchema,
   shogiMatchSummarySchema,
   gomokuMatchSummarySchema,
+  fourGomokuMatchSummarySchema,
 ]);
 
 export const matchCursorSchema = z
@@ -414,6 +431,36 @@ export type ReplayGomokuMatch = PublicGomokuMatchDetail & { selfPlayerId?: strin
 export function isGomokuMatch(match: ReplayMatch): match is ReplayGomokuMatch {
   return match.settings.game === "gomoku";
 }
+export const publicFourGomokuMatchDetailSchema = z
+  .strictObject({
+    id: z.uuid(),
+    roomId: roomCodeSchema,
+    startedAtMs: z.int().nonnegative(),
+    endedAtMs: z.int().nonnegative(),
+    settings: fourGomokuSettingsSchema,
+    participants: z.array(matchParticipantSchema).length(4),
+    game: fourGomokuFinishedStateSchema,
+    eliminations: z.array(eliminationSchema).max(3),
+    replay: fourGomokuReplaySchema,
+  })
+  .refine(
+    (m) =>
+      m.replay.id === m.id &&
+      m.game.mode === m.settings.mode &&
+      m.replay.initial.mode === m.settings.mode &&
+      new Set(m.participants.map((p) => p.id)).size === 4 &&
+      new Set(m.participants.map((p) => p.color)).size === 4 &&
+      new Set(m.participants.map((p) => p.seat)).size === 4,
+  );
+export const fourGomokuMatchDetailSchema = publicFourGomokuMatchDetailSchema
+  .safeExtend({ selfPlayerId: z.uuid() })
+  .refine((m) => m.participants.some((p) => p.id === m.selfPlayerId));
+export type FourGomokuMatchDetail = z.infer<typeof fourGomokuMatchDetailSchema>;
+export type PublicFourGomokuMatchDetail = z.infer<typeof publicFourGomokuMatchDetailSchema>;
+export type ReplayFourGomokuMatch = PublicFourGomokuMatchDetail & { selfPlayerId?: string };
+export function isFourGomokuMatch(match: ReplayMatch): match is ReplayFourGomokuMatch {
+  return match.settings.game === "four-gomoku";
+}
 export const publicShogiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
@@ -451,6 +498,7 @@ export const publicMatchDetailSchema = z.union([
   publicReversiMatchDetailSchema,
   publicShogiMatchDetailSchema,
   publicGomokuMatchDetailSchema,
+  publicFourGomokuMatchDetailSchema,
 ]);
 export type PublicMatchDetail = z.infer<typeof publicMatchDetailSchema>;
 export type PublicFourReversiMatchDetail = z.infer<typeof publicFourReversiMatchDetailSchema>;
@@ -462,7 +510,8 @@ export type ReplayMatch =
   | ReplayFourShogiMatch
   | ReplayReversiMatch
   | ReplayShogiMatch
-  | ReplayGomokuMatch;
+  | ReplayGomokuMatch
+  | ReplayFourGomokuMatch;
 export const listPublicMatchesContract = {
   method: "GET",
   path: "/matches",
@@ -488,6 +537,7 @@ export const matchDetailSchema = z.union([
   reversiMatchDetailSchema,
   shogiMatchDetailSchema,
   gomokuMatchDetailSchema,
+  fourGomokuMatchDetailSchema,
 ]);
 export const getMatchContract = {
   method: "GET",
@@ -545,3 +595,5 @@ export const getPublicMatchReplayContract = {
   path: "/matches/:matchId/replay",
   pathFor: (id: string) => `/matches/${id}/replay`,
 } as const;
+
+export const fourGomokuAccountStatsSchema = fourReversiAccountStatsSchema;

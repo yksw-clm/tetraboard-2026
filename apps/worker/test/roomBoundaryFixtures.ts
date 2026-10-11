@@ -155,6 +155,10 @@ export class RoomBoundaryFixtures {
     }
   }
 
+  forgetDepartedPlayer(playerId: string): void {
+    this.entries = this.entries.filter((entry) => entry.membership.playerId !== playerId);
+  }
+
   forgetClosedRoom(roomId: string): void {
     // 呼出側が閉鎖を確認済みの部屋には、退室APIでの解放は不要です。
     this.entries = this.entries.filter((entry) => entry.room.id !== roomId);

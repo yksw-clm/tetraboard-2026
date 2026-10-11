@@ -465,6 +465,143 @@ export function isGomokuRoom(room: Room): room is GomokuRoom {
   return room.settings.game === "gomoku";
 }
 
+export const fourGomokuPositionSchema = z.strictObject({
+  x: z.int().min(0).max(14),
+  y: z.int().min(0).max(14),
+});
+export const fourGomokuColorSchema = fourReversiColorSchema;
+export const fourGomokuSettingsSchema = z.strictObject({
+  game: z.literal("four-gomoku"),
+  mode: roomModeSchema,
+  timeControl: roomTimeControlSchema,
+});
+export const fourGomokuStandingSchema = z.strictObject({
+  color: fourGomokuColorSchema,
+  rank: z.int().min(1).max(4),
+  reason: z.enum([
+    "five",
+    "resigned",
+    "left",
+    "timeout",
+    "disconnected",
+    "last_player",
+    "board_full",
+  ]),
+});
+export const fourGomokuResultSchema = z.discriminatedUnion("mode", [
+  z.strictObject({
+    mode: z.literal("singles"),
+    reason: z.enum(["ranked", "last_player", "board_full"]),
+    standings: z.array(fourGomokuStandingSchema).length(4),
+  }),
+  z.strictObject({
+    mode: z.literal("doubles"),
+    reason: z.enum(["five", "team_eliminated", "board_full"]),
+    winner: teamSchema.nullable(),
+  }),
+]);
+const fourGomokuStateBase = gameStateBaseSchema.omit({ consecutivePasses: true }).extend({
+  board: z.array(z.array(fourGomokuColorSchema.nullable()).length(15)).length(15),
+  eliminatedColors: z.array(fourGomokuColorSchema).max(3),
+  completedColors: z.array(fourGomokuColorSchema).max(3),
+  standings: z.array(fourGomokuStandingSchema).max(4),
+  winningLines: z.array(z.array(fourGomokuPositionSchema).min(5).max(15)).max(12),
+  rulesVersion: z.literal(1),
+  lastMove: fourGomokuPositionSchema.nullable(),
+});
+const fourGomokuPlayingStateSchema = fourGomokuStateBase.extend({
+  status: z.literal("playing"),
+  turn: fourGomokuColorSchema,
+  result: z.null(),
+});
+export const fourGomokuFinishedStateSchema = fourGomokuStateBase.extend({
+  status: z.literal("finished"),
+  turn: z.null(),
+  result: fourGomokuResultSchema,
+});
+export const fourGomokuStateSchema = z.discriminatedUnion("status", [
+  fourGomokuPlayingStateSchema,
+  fourGomokuFinishedStateSchema,
+]);
+export const fourGomokuEliminationSchema = eliminationSchema.extend({
+  color: fourGomokuColorSchema,
+});
+export const fourGomokuReplaySchema = z.strictObject({
+  id: z.uuid(),
+  initial: fourGomokuPlayingStateSchema,
+  steps: z.array(
+    z.strictObject({
+      action: z.discriminatedUnion("type", [
+        replayActionSchema.options[0].extend({
+          color: fourGomokuColorSchema,
+          position: fourGomokuPositionSchema,
+        }),
+        fourGomokuEliminationSchema.extend({ type: z.literal("eliminate") }),
+      ]),
+      game: fourGomokuStateSchema,
+    }),
+  ),
+});
+const fourGomokuLastRoundSchema = z.strictObject({
+  settings: fourGomokuSettingsSchema,
+  game: fourGomokuFinishedStateSchema,
+  players: z
+    .array(lastRoundSchema.shape.players.element.extend({ color: fourGomokuColorSchema }))
+    .length(4),
+  replay: fourGomokuReplaySchema,
+});
+export const fourGomokuClockSchema = playingClockSchema;
+const fourGomokuWaitingSchema = waitingRoomSchema.extend({
+  roundId: z.null(),
+  positionRevision: z.literal(0),
+  settings: fourGomokuSettingsSchema,
+  players: z
+    .array(
+      z.union([
+        cpuPlayerSchema.extend({ color: z.null() }),
+        humanPlayerSchema.extend({ color: z.null() }),
+      ]),
+    )
+    .max(4),
+  eliminations: z.array(fourGomokuEliminationSchema).length(0),
+  lastRound: fourGomokuLastRoundSchema.nullable(),
+});
+const fourGomokuPlayingRoomSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    instanceId: z.uuid(),
+    status: z.literal("playing"),
+    roundId: z.uuid(),
+    positionRevision: z.int().nonnegative(),
+    settings: fourGomokuSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
+    players: z
+      .array(
+        z.union([
+          cpuPlayerSchema.extend({ color: fourGomokuColorSchema }),
+          humanPlayerSchema.extend({ color: fourGomokuColorSchema }),
+        ]),
+      )
+      .length(4),
+    eliminations: z.array(fourGomokuEliminationSchema).max(3),
+    game: fourGomokuPlayingStateSchema,
+    clock: fourGomokuClockSchema,
+    lastRound: z.null(),
+  })
+  .refine((room) => new Set(room.players.map((p) => p.color)).size === 4);
+export const fourGomokuRoomSchema = z.discriminatedUnion("status", [
+  fourGomokuWaitingSchema,
+  fourGomokuPlayingRoomSchema,
+]);
+export type FourGomokuRoom = z.infer<typeof fourGomokuRoomSchema>;
+export type FourGomokuLastRound = z.infer<typeof fourGomokuLastRoundSchema>;
+export type FourGomokuReplay = z.infer<typeof fourGomokuReplaySchema>;
+export type FourGomokuClock = z.infer<typeof fourGomokuClockSchema>;
+export function isFourGomokuRoom(room: Room): room is FourGomokuRoom {
+  return room.settings.game === "four-gomoku";
+}
+
 export const roomGameSchema = gameIdSchema;
 export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend({
   game: z.literal("four-shogi"),
@@ -476,6 +613,7 @@ export const roomSettingsSchema = z.discriminatedUnion("game", [
   fourShogiRoomSettingsSchema,
   reversiSettingsSchema,
   gomokuSettingsSchema,
+  fourGomokuSettingsSchema,
   shogiSettingsSchema,
 ]);
 const shogiRemaining = z.strictObject({
@@ -653,6 +791,7 @@ export const roomSchema = z.union([
   fourShogiRoomSchema,
   reversiRoomSchema,
   gomokuRoomSchema,
+  fourGomokuRoomSchema,
   shogiRoomSchema,
 ]);
 export type FourReversiRoom = z.infer<typeof fourReversiRoomSchema>;
@@ -779,6 +918,7 @@ export const createRoomContract = {
       forbiddenRules: z.boolean().optional(),
       timeControl: roomTimeControlSchema.optional(),
     })
+    .refine((value) => value.game !== "four-gomoku" || value.forbiddenRules === undefined)
     .refine((value) =>
       value.game && !gameCatalog[value.game].hasModes
         ? value.mode === undefined
@@ -943,6 +1083,10 @@ export const roomSocketContract = {
         action: z.union([
           shogiActionSchema,
           z.strictObject({ type: z.literal("placeGomokuStone"), position: gomokuPositionSchema }),
+          z.strictObject({
+            type: z.literal("placeFourGomokuStone"),
+            position: fourGomokuPositionSchema,
+          }),
           z.strictObject({
             type: z.literal("placeStone"),
             position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),

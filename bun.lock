@@ -40,6 +40,7 @@
         "@heroui/react": "^3.2.6",
         "@heroui/styles": "^3.2.6",
         "@jsquash/webp": "1.5.0",
+        "@tetraboard/four-gomoku": "workspace:*",
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
         "@tetraboard/gomoku": "workspace:*",
@@ -71,6 +72,7 @@
       "name": "@tetraboard/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@tetraboard/four-gomoku": "workspace:*",
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
         "@tetraboard/gomoku": "workspace:*",

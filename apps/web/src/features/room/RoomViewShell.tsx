@@ -329,13 +329,15 @@ export function RoomViewShell({
           onClose={() => setDialog(null)}
         >
           <p>
-            {dialog === "leave"
-              ? !gameCatalog[room.settings.game].hasModes
-                ? "対局中に退室すると敗北になります。"
-                : "対局中に退室すると脱落になります。"
-              : !gameCatalog[room.settings.game].hasModes
-                ? "投了すると敗北になります。"
-                : "投了すると脱落になります。"}
+            {dialog === "leave" && room.settings.game === "four-gomoku" && selfEliminated
+              ? "確定した順位は変わりません。"
+              : dialog === "leave"
+                ? !gameCatalog[room.settings.game].hasModes
+                  ? "対局中に退室すると敗北になります。"
+                  : "対局中に退室すると脱落になります。"
+                : !gameCatalog[room.settings.game].hasModes
+                  ? "投了すると敗北になります。"
+                  : "投了すると脱落になります。"}
           </p>
           {session.socketError && (
             <p className="text-danger text-xs" role="alert">

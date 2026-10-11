@@ -1,3 +1,6 @@
+import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
+import { fourGomokuCpuJobKey, type FourGomokuCpuJob } from "./fourGomokuProgress";
+import { isFourGomokuRoom, type FourGomokuRoom } from "@tetraboard/protocol";
 import { gomokuCpuJobKey, type GomokuCpuJob } from "./gomokuProgress";
 import { isGomokuRoom, type GomokuRoom } from "@tetraboard/protocol";
 import type { PendingMatch as PendingGomokuMatch } from "./gomokuMatchStore";
@@ -131,6 +134,9 @@ export class GameRoom extends DurableObject<Env> {
     accountId: (playerId: string) => this.storedAccount(playerId)?.accountId ?? null,
   };
   private readonly reversiProgress = gameProgress["four-reversi"].create(this.progressDependencies);
+  private readonly fourGomokuProgress = gameProgress["four-gomoku"].create(
+    this.progressDependencies,
+  );
   private readonly gomokuProgress = gameProgress.gomoku.create(this.progressDependencies);
   private readonly standardProgress = gameProgress.reversi.create(this.progressDependencies);
   private readonly shogiProgress = gameProgress["four-shogi"].create(this.progressDependencies);
@@ -214,7 +220,9 @@ export class GameRoom extends DurableObject<Env> {
 
   private pendingMatches() {
     return new Map(
-      this.ctx.storage.kv.list<PendingMatch | PendingReversiMatch | PendingGomokuMatch>({
+      this.ctx.storage.kv.list<
+        PendingMatch | PendingReversiMatch | PendingGomokuMatch | PendingFourGomokuMatch
+      >({
         prefix: pendingMatchPrefix,
       }),
     );
@@ -447,7 +455,8 @@ export class GameRoom extends DurableObject<Env> {
     const room = roomSchema.parse(saved);
     if (isFourShogiRoom(room)) this.shogiProgress.normalize(room, saved);
     else if (isReversiRoom(room)) this.standardProgress.normalize(room, saved);
-    else if (!isShogiRoom(room) && !isGomokuRoom(room)) this.reversiProgress.normalize(room, saved);
+    else if (!isShogiRoom(room) && !isGomokuRoom(room) && !isFourGomokuRoom(room))
+      this.reversiProgress.normalize(room, saved);
     return room;
   }
 
@@ -576,10 +585,12 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(shogiCpuJobKey);
     this.ctx.storage.kv.delete("standard-shogi-cpu-job");
     this.ctx.storage.kv.delete(gomokuCpuJobKey);
+    this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
 
+  private applyProgress(result: ProgressFor<"four-gomoku">): FourGomokuRoom | null;
   private applyProgress(result: ProgressFor<"gomoku">): GomokuRoom | null;
   private applyProgress(result: ProgressFor<"shogi">): ShogiRoom | null;
   private applyProgress(result: ProgressFor<"reversi">): ReversiRoom | null;
@@ -596,6 +607,13 @@ export class GameRoom extends DurableObject<Env> {
       case "finished": {
         this.endAnalyticsMatch("completed", result.at);
         switch (result.gameId) {
+          case "four-gomoku": {
+            const lastRound = this.fourGomokuProgress.finalize(result);
+            const players = this.rematchPlayers(result.room.players, result.at);
+            return players === null
+              ? null
+              : this.fourGomokuProgress.waiting({ ...result, lastRound }, players);
+          }
           case "gomoku": {
             const lastRound = this.gomokuProgress.finalize(result);
             const players = this.rematchPlayers(result.room.players, result.at);
@@ -688,6 +706,21 @@ export class GameRoom extends DurableObject<Env> {
     }));
   }
 
+  private playFourGomoku(
+    tokenHash: string,
+    command: import("@tetraboard/protocol").GameActionCommandFor<"four-gomoku">,
+  ): { status: "placed"; room: Room | null } | { status: RoomSocketError } {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" };
+      if (!isFourGomokuRoom(room)) return { status: "invalid_move" };
+      const result = this.fourGomokuProgress.play(room, tokenHash, command);
+      if (result.kind === "rejected") return { status: result.error };
+      const updated = this.applyProgress(result);
+      if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
+      return { status: "placed", room: updated };
+    });
+  }
   private playGomoku(
     tokenHash: string,
     command: import("@tetraboard/protocol").GameActionCommandFor<"gomoku">,
@@ -958,9 +991,11 @@ export class GameRoom extends DurableObject<Env> {
           ? this.ctx.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey)
           : isShogiRoom(room)
             ? this.ctx.storage.kv.get<{ applyAt: number }>("standard-shogi-cpu-job")
-            : isGomokuRoom(room)
-              ? this.ctx.storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey)
-              : undefined;
+            : isFourGomokuRoom(room)
+              ? this.ctx.storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey)
+              : isGomokuRoom(room)
+                ? this.ctx.storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey)
+                : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
         deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
       }
@@ -1337,6 +1372,15 @@ export class GameRoom extends DurableObject<Env> {
             room = this.applyProgress(
               this.standardShogiProgress.eliminate(room, timed.id, "timeout", deadline.at),
             );
+          } else if (isFourGomokuRoom(room)) {
+            const turn: "black" | "white" | "red" | "blue" = room.game.turn;
+            const player: FourGomokuRoom["players"][number] | undefined = room.players.find(
+              (p) => p.color === turn,
+            );
+            if (!player) throw Error("Missing timed-out player");
+            room = this.applyProgress(
+              this.fourGomokuProgress.eliminate(room, player.id, "timeout", deadline.at),
+            );
           } else if (isGomokuRoom(room)) {
             const turn: "black" | "white" = room.game.turn;
             const player: GomokuRoom["players"][number] | undefined = room.players.find(
@@ -1394,27 +1438,36 @@ export class GameRoom extends DurableObject<Env> {
                       deadline.at,
                     ),
                   )
-                : isGomokuRoom(room)
+                : isFourGomokuRoom(room)
                   ? this.applyProgress(
-                      this.gomokuProgress.eliminate(room, player.id, "disconnected", deadline.at),
+                      this.fourGomokuProgress.eliminate(
+                        room,
+                        player.id,
+                        "disconnected",
+                        deadline.at,
+                      ),
                     )
-                  : isReversiRoom(room)
+                  : isGomokuRoom(room)
                     ? this.applyProgress(
-                        this.standardProgress.eliminate(
-                          room,
-                          player.id,
-                          "disconnected",
-                          deadline.at,
-                        ),
+                        this.gomokuProgress.eliminate(room, player.id, "disconnected", deadline.at),
                       )
-                    : this.applyProgress(
-                        this.reversiProgress.eliminate(
-                          room,
-                          player.id,
-                          "disconnected",
-                          deadline.at,
-                        ),
-                      );
+                    : isReversiRoom(room)
+                      ? this.applyProgress(
+                          this.standardProgress.eliminate(
+                            room,
+                            player.id,
+                            "disconnected",
+                            deadline.at,
+                          ),
+                        )
+                      : this.applyProgress(
+                          this.reversiProgress.eliminate(
+                            room,
+                            player.id,
+                            "disconnected",
+                            deadline.at,
+                          ),
+                        );
           }
         }
         room = this.closeIfNoHumanParticipants(room);
@@ -1457,6 +1510,15 @@ export class GameRoom extends DurableObject<Env> {
             if (!room || room.status !== "playing") return room;
             if (!isShogiRoom(room)) throw new Error("Expected Shogi room");
             const result = this.standardShogiProgress.cpu(room, now);
+            if (result.kind !== "unchanged") {
+              room = this.applyProgress(result);
+              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+              changed = true;
+            }
+          }
+        } else if (isFourGomokuRoom(room)) {
+          if (applyCpu && currentCpu(room) !== null) {
+            const result = this.fourGomokuProgress.cpu(room, now);
             if (result.kind !== "unchanged") {
               room = this.applyProgress(result);
               if (room) this.ctx.storage.kv.put(roomStorageKey, room);
@@ -1557,6 +1619,22 @@ export class GameRoom extends DurableObject<Env> {
           });
           this.ctx.storage.kv.put(roomStorageKey, updated);
         }
+      } else if (isFourGomokuRoom(room)) {
+        this.recordDeparture(player);
+        this.releaseAccount(player.id, false);
+        const prepared = this.fourGomokuProgress.prepareLeave(room, player.id);
+        this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
+        this.ctx.storage.kv.delete(playerTokenKey(player.id));
+        updated = this.applyProgress(
+          this.fourGomokuProgress.leave(
+            room,
+            player.id,
+            prepared,
+            Date.now(),
+            membership.role === "host",
+          ),
+        );
+        if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
       } else if (isGomokuRoom(room)) {
         this.recordDeparture(player);
         this.releaseAccount(player.id, false);
@@ -2033,11 +2111,13 @@ export class GameRoom extends DurableObject<Env> {
         ? this.shogiProgress.start(room)
         : isShogiRoom(room)
           ? this.standardShogiProgress.start(room)
-          : isGomokuRoom(room)
-            ? this.gomokuProgress.start(room)
-            : isReversiRoom(room)
-              ? this.standardProgress.start(room)
-              : this.reversiProgress.start(room);
+          : isFourGomokuRoom(room)
+            ? this.fourGomokuProgress.start(room)
+            : isGomokuRoom(room)
+              ? this.gomokuProgress.start(room)
+              : isReversiRoom(room)
+                ? this.standardProgress.start(room)
+                : this.reversiProgress.start(room);
       this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
       this.startAnalyticsMatch(started.roundId, started.room, started.at);
       return { status: "started", room: started.room };
@@ -2051,7 +2131,12 @@ export class GameRoom extends DurableObject<Env> {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (!room) return { status: "not_found" };
-      if (isGomokuRoom(room) || isFourShogiRoom(room) || isShogiRoom(room))
+      if (
+        isFourGomokuRoom(room) ||
+        isGomokuRoom(room) ||
+        isFourShogiRoom(room) ||
+        isShogiRoom(room)
+      )
         return { status: "invalid_move" };
       const result = isReversiRoom(room)
         ? this.standardProgress.play(room, tokenHash, { type: "room.game.action", action })
@@ -2072,11 +2157,13 @@ export class GameRoom extends DurableObject<Env> {
         ? this.shogiProgress.resign(room, tokenHash)
         : isShogiRoom(room)
           ? this.standardShogiProgress.resign(room, tokenHash)
-          : isGomokuRoom(room)
-            ? this.gomokuProgress.resign(room, tokenHash)
-            : isReversiRoom(room)
-              ? this.standardProgress.resign(room, tokenHash)
-              : this.reversiProgress.resign(room, tokenHash);
+          : isFourGomokuRoom(room)
+            ? this.fourGomokuProgress.resign(room, tokenHash)
+            : isGomokuRoom(room)
+              ? this.gomokuProgress.resign(room, tokenHash)
+              : isReversiRoom(room)
+                ? this.standardProgress.resign(room, tokenHash)
+                : this.reversiProgress.resign(room, tokenHash);
       if (result.kind === "rejected") return { status: result.error };
       const updated = this.applyProgress(result);
       if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -2377,19 +2464,26 @@ export class GameRoom extends DurableObject<Env> {
         command.action.type === "placeStone"
           ? this.placeStone(tokenHash.data, command.action)
           : command.roundId !== undefined && command.positionRevision !== undefined
-            ? command.action.type === "placeGomokuStone"
-              ? this.playGomoku(tokenHash.data, {
+            ? command.action.type === "placeFourGomokuStone"
+              ? this.playFourGomoku(tokenHash.data, {
                   type: "room.game.action",
                   action: command.action,
                   roundId: command.roundId,
                   positionRevision: command.positionRevision,
                 })
-              : this.playShogi(tokenHash.data, {
-                  type: "room.game.action",
-                  action: command.action,
-                  roundId: command.roundId,
-                  positionRevision: command.positionRevision,
-                })
+              : command.action.type === "placeGomokuStone"
+                ? this.playGomoku(tokenHash.data, {
+                    type: "room.game.action",
+                    action: command.action,
+                    roundId: command.roundId,
+                    positionRevision: command.positionRevision,
+                  })
+                : this.playShogi(tokenHash.data, {
+                    type: "room.game.action",
+                    action: command.action,
+                    roundId: command.roundId,
+                    positionRevision: command.positionRevision,
+                  })
             : { status: "invalid_request" as const };
       if (result.status === "placed") {
         await this.syncAlarm(result.room);

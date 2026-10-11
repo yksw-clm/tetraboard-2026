@@ -115,6 +115,14 @@ describe("ゲームIDとサービス全体の対象", () => {
         capacity: 2,
         hasModes: false,
       },
+      {
+        id: "four-gomoku",
+        name: "四人五目並べ",
+        lobbyPath: "/games/four-gomoku",
+        rankingsPath: "/games/four-gomoku/rankings",
+        capacity: 4,
+        hasModes: true,
+      },
     ]);
   });
 });

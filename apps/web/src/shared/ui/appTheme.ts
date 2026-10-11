@@ -11,6 +11,7 @@ export const appThemeClasses = {
 } satisfies Record<AppTheme, string>;
 
 export const gameThemes = {
+  "four-gomoku": "gomoku",
   gomoku: "gomoku",
   shogi: "shogi",
   reversi: "reversi",

@@ -258,3 +258,30 @@ export {
   type GomokuMatchSummary,
   type GomokuAccountStats,
 } from "./matches";
+
+export {
+  fourGomokuSettingsSchema,
+  fourGomokuResultSchema,
+  fourGomokuStateSchema,
+  fourGomokuFinishedStateSchema,
+  fourGomokuReplaySchema,
+  fourGomokuRoomSchema,
+  isFourGomokuRoom,
+  type FourGomokuRoom,
+  type FourGomokuReplay,
+  type FourGomokuLastRound,
+  type FourGomokuClock,
+} from "./rooms";
+export {
+  fourGomokuMatchParticipantSchema,
+  fourGomokuMatchSummarySchema,
+  fourGomokuAccountStatsSchema,
+  publicFourGomokuMatchDetailSchema,
+  fourGomokuMatchDetailSchema,
+  isFourGomokuMatch,
+  type FourGomokuMatchDetail,
+  type PublicFourGomokuMatchDetail,
+  type ReplayFourGomokuMatch,
+  type FourGomokuMatchSummary,
+  type FourGomokuAccountStats,
+} from "./matches";

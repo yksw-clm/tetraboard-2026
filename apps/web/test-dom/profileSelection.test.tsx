@@ -114,7 +114,7 @@ function chooseMode(view: HTMLElement, name: string) {
   expect(panel.getAttribute("aria-labelledby")).toBe(selected.id);
 }
 
-test("全4ロビーのマイページは移動元の戦績・棋譜を最初に取得し、0件でも選択と復元を維持", async () => {
+test("全6ロビーのマイページは移動元の戦績・棋譜を最初に取得し、0件でも選択と復元を維持", async () => {
   for (const game of gameIds) {
     const { view, router } = profilePage(
       {
@@ -135,7 +135,9 @@ test("全4ロビーのマイページは移動元の戦績・棋譜を最初に�
     expect(view.querySelector(`main a[href="${gameCatalog[game].lobbyPath}"]`)).not.toBeNull();
     const background = view.querySelector("main")!.closest(".lobby-background")!;
     if (game !== "four-reversi")
-      expect(background.classList.contains(`game-theme-${game}`)).toBe(true);
+      expect(
+        background.classList.contains(`game-theme-${game === "four-gomoku" ? "gomoku" : game}`),
+      ).toBe(true);
     if (gameCatalog[game].hasModes) {
       expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
         "シングルス",

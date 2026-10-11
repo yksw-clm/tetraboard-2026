@@ -1,3 +1,5 @@
+import FourGomokuRoomDetail from "../src/features/room/FourGomokuRoomDetail";
+import { fourGomokuWaitingRoom } from "../test/fixtures/fourGomokuFixtures";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { RoomStampPicker } from "../src/features/room/RoomStampPicker";
 import { RoomStampContext } from "../src/features/room/roomStampContext";
@@ -488,9 +490,11 @@ for (const game of gameIds)
           ? waitingShogiRoom()
           : game === "reversi"
             ? reversiWaitingRoom()
-            : game === "gomoku"
-              ? gomokuWaitingRoom()
-              : standardWaitingRoom();
+            : game === "four-gomoku"
+              ? fourGomokuWaitingRoom()
+              : game === "gomoku"
+                ? gomokuWaitingRoom()
+                : standardWaitingRoom();
     saveRoomMembershipToken(room.id, token);
     const common = {
       initialMembership: membership,
@@ -509,6 +513,8 @@ for (const game of gameIds)
         <FourShogiRoomDetail {...common} initialRoom={waitingShogiRoom()} />
       ) : game === "reversi" ? (
         <ReversiRoomDetail {...common} initialRoom={reversiWaitingRoom()} />
+      ) : game === "four-gomoku" ? (
+        <FourGomokuRoomDetail {...common} initialRoom={fourGomokuWaitingRoom()} />
       ) : game === "gomoku" ? (
         <GomokuRoomDetail {...common} initialRoom={gomokuWaitingRoom()} />
       ) : (
