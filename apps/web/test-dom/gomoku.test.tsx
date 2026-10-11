@@ -54,9 +54,11 @@ const options = (room: ReturnType<typeof waiting>) => ({
 });
 function connect(room: ReturnType<typeof waiting>) {
   const socket = Socket.instances.at(-1)!;
-  socket.open();
-  socket.snapshot(room);
-  socket.receive({ type: "room.authenticated", membership });
+  act(() => {
+    socket.open();
+    socket.snapshot(room);
+    socket.receive({ type: "room.authenticated", membership });
+  });
   return socket;
 }
 
@@ -162,4 +164,40 @@ test("遊び方は禁手拒否・合法手なし・CPU1人を案内する", () =
   render(wrap()(<HowToPlayDialog game="gomoku" onClose={() => {}} />));
   expect(document.body.textContent).toContain("黒の合法手がなくなれば白の勝ち");
   expect(document.body.textContent).toContain("CPU1人");
+});
+
+test("サーバーが禁手を拒否した場合も着手待ちを解き、理由付きtoastを本人へ表示する", async () => {
+  const room = playing();
+  saveRoomMembershipToken(room.id, token);
+  const view = render(wrap()(<GomokuRoomDetail {...options(room)} invited={false} />));
+  const socket = connect(room);
+  const point = view.querySelector<HTMLButtonElement>('[aria-label="H8 空点"]')!;
+  act(() => point.click());
+  expect(socket.sent.filter((m) => m.type === "room.game.action")).toHaveLength(1);
+  act(() => socket.receive({ type: "room.error", error: "gomoku_double_four_overline" }));
+  await flush();
+  expect(document.body.textContent).toContain("四四・長連の反則になるため、ここには打てません。");
+  expect(point.disabled).toBe(false);
+  expect(point.getAttribute("aria-label")).toBe("H8 空点");
+});
+
+test("観戦者と手番外の対局者は着手を送信しない", () => {
+  for (const participant of [null, { ...membership, playerId: playerIds[1] }]) {
+    const room = playing();
+    const h = renderHook(
+      useGomokuSession,
+      { ...options(room), initialMembership: participant },
+      wrap(),
+    );
+    const socket = Socket.instances.at(-1)!;
+    act(() => {
+      socket.open();
+      socket.snapshot(room);
+    });
+    if (participant)
+      act(() => socket.receive({ type: "room.authenticated", membership: participant }));
+    expect(h.current.canPlay).toBe(false);
+    act(() => h.current.handlePlaceStone({ x: 7, y: 7 }));
+    expect(socket.sent.filter((m) => m.type === "room.game.action")).toHaveLength(0);
+  }
 });

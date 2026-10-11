@@ -101,3 +101,22 @@ describe("五目並べ", () => {
     expect(result.ok && result.state.result).toMatchObject({ reason: "board_full", winner: null });
   });
 });
+
+test("白は禁手ONでも長連で勝ち、連全体を強調する", () => {
+  const result = applyAction(position(["KWWW.WWK"], "white", true), {
+    type: "placeStone",
+    position: { x: 4, y: 0 },
+  });
+  expect(result.ok && result.state.result).toMatchObject({ winner: "white", reason: "five" });
+  expect(result.ok && result.state.result?.winningLines[0]).toHaveLength(6);
+});
+test("同時に五連になった複数方向をすべて保存する", () => {
+  const state = createInitialState();
+  const board = state.board.map((row) => [...row]);
+  for (const offset of [-2, -1, 1, 2]) {
+    board[7][7 + offset] = "black";
+    board[7 + offset][7] = "black";
+  }
+  const result = applyAction({ ...state, board }, { type: "placeStone", position: { x: 7, y: 7 } });
+  expect(result.ok && result.state.result?.winningLines.map((line) => line.length)).toEqual([5, 5]);
+});

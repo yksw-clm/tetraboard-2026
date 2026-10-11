@@ -1,17 +1,19 @@
 import { expect, test } from "vitest";
 import { env } from "cloudflare:workers";
+import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
 import worker from "../src/worker";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
 
 const files: Record<string, { body: string; type: string }> = {
-  "/games/four-shogi/index.html": {
-    body: '<h1>四人将棋</h1><meta name="robots" content="index,follow">',
-    type: "text/html; charset=utf-8",
-  },
-  "/games/four-reversi/index.html": {
-    body: '<h1>四人リバーシ</h1><meta name="robots" content="index,follow">',
-    type: "text/html; charset=utf-8",
-  },
+  ...Object.fromEntries(
+    gameIds.map((game) => [
+      `/games/${game}/index.html`,
+      {
+        body: `<h1>${gameCatalog[game].name}</h1><meta name="robots" content="index,follow">`,
+        type: "text/html; charset=utf-8",
+      },
+    ]),
+  ),
   "/index.html": {
     body: '<div id="root"></div><meta name="robots" content="noindex,follow">',
     type: "text/html; charset=utf-8",
@@ -65,7 +67,7 @@ function assetFixture() {
 
 test("公開ロビーは通常UAとGooglebotへ同じHTMLを返し、HEAD・304・キャッシュを保持", async () => {
   const assets = assetFixture();
-  for (const game of ["four-shogi", "four-reversi"]) {
+  for (const game of gameIds) {
     const path = `/games/${game}`;
     const user = await assets.fetch(path, { headers: { "User-Agent": "Mozilla/5.0" } });
     const bot = await assets.fetch(path, { headers: { "User-Agent": "Googlebot" } });
@@ -89,10 +91,10 @@ test("トップと公開URLの別表記はクエリを保持した恒久転送�
   for (const method of ["GET", "HEAD"]) {
     for (const [path, target] of [
       ["/", "/games/four-reversi"],
-      ["/games/four-shogi/", "/games/four-shogi"],
-      ["/games/four-shogi/index.html", "/games/four-shogi"],
-      ["/games/four-reversi/", "/games/four-reversi"],
-      ["/games/four-reversi/index.html", "/games/four-reversi"],
+      ...gameIds.flatMap((game) => [
+        [`/games/${game}/`, `/games/${game}`],
+        [`/games/${game}/index.html`, `/games/${game}`],
+      ]),
     ]) {
       const response = await assets.fetch(`${path}?source=example`, { method });
       expect(response.status).toBe(308);

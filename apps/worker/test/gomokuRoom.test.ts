@@ -223,6 +223,23 @@ test("2人が合法手で終局まで進み、棋譜を保存して再戦待機�
   const list = await boundaryRequest("/matches?game=gomoku&humanOnly=true");
   expect(list.status).toBe(200);
   expect(JSON.stringify(await list.json())).toContain(id);
+  guest!.send({ type: "room.gomoku-forbidden.set", enabled: false });
+  expect((await guest!.waitFor("room.error")).error).toBe("forbidden");
+  const priorRound = structuredClone(room.lastRound);
+  host.send({ type: "room.gomoku-forbidden.set", enabled: false });
+  const changed = standard(
+    (
+      await host.waitFor(
+        "room.snapshot",
+        (m) => isGomokuRoom(m.room) && !m.room.settings.forbiddenRules,
+      )
+    ).room,
+  );
+  expect(changed.lastRound).toEqual(priorRound);
+  expect(changed.lastRound?.settings.forbiddenRules).toBe(true);
+  expect(standard((await fixtures.snapshot(entry.room.id)).room).settings.forbiddenRules).toBe(
+    false,
+  );
   host.send({ type: "room.ready.set", ready: true });
   guest!.send({ type: "room.ready.set", ready: true });
   await host.waitFor("room.snapshot", (m) => m.room.players.every((p) => p.ready));
@@ -231,6 +248,7 @@ test("2人が合法手で終局まで進み、棋譜を保存して再戦待機�
     (await host.waitFor("room.snapshot", (m) => m.room.status === "playing")).room,
   );
   expect(restarted.lastRound).toBeNull();
+  expect(restarted.game?.forbiddenRules).toBe(false);
   expect(restarted.players.map((p) => ("color" in p ? p.color : null)).sort()).toEqual([
     "black",
     "white",
