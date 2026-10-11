@@ -20,6 +20,7 @@ export type SearchOptions = {
   maxDepth?: number;
   width?: number;
   cacheLimit?: number;
+  endgameEmpties?: number;
   evaluationWeights?: Partial<EvaluationWeights>;
 };
 export type SearchStats = {
@@ -62,11 +63,15 @@ export function searchCpuMove(
   const maxDepth = options.maxDepth ?? 6;
   const width = options.width ?? 8;
   const cacheLimit = options.cacheLimit ?? 2048;
+  const endgameEmpties = options.endgameEmpties ?? 4;
   if (
     [maxWork, maxDepth, width].some((n) => !Number.isSafeInteger(n) || n < 1) ||
     !Number.isSafeInteger(cacheLimit) ||
     cacheLimit < 0 ||
-    cacheLimit > 2048
+    cacheLimit > 2048 ||
+    !Number.isSafeInteger(endgameEmpties) ||
+    endgameEmpties < 0 ||
+    endgameEmpties > 8
   )
     throw new TypeError("探索予算・深さ・幅は正の整数、cacheLimitは0〜2048で指定してください");
   const weights = resolveWeights(options.evaluationWeights);
@@ -122,7 +127,8 @@ export function searchCpuMove(
     stats.generatedMoves += legal.length;
     return legal;
   }
-  function ordered(state: Extract<FourReversiState, { status: "playing" }>) {
+  function ordered(state: Extract<FourReversiState, { status: "playing" }>, exact: boolean) {
+    if (exact) return legalMoves(state).map((legal) => ({ legal, index: indexOf(legal.position) }));
     // 並べ替えでは合法手数の再生成を省き、読んだ葉の評価で実際の可動性を比較します。
     return legalMoves(state)
       .map((legal) => {
@@ -143,9 +149,10 @@ export function searchCpuMove(
     depth: number,
     alpha: number,
     beta: number,
+    exact = false,
   ): PositionValues {
-    if (state.status === "finished" || depth === 0) return evaluate(state);
-    const key = `${depth}:${positionKey(state)}`;
+    if (state.status === "finished" || (!exact && depth === 0)) return evaluate(state);
+    const key = `${exact ? "exact" : "normal"}:${depth}:${positionKey(state)}`;
     // αβの境界値を確定値として使わないため、多人数探索の完了節点だけを再利用します。
     const existing = stats.algorithm === "maxn" ? cache.get(key) : undefined;
     if (existing) {
@@ -158,8 +165,8 @@ export function searchCpuMove(
       state.mode === "singles"
         ? state.turn === root
         : teamForColor(state.turn) === teamForColor(root);
-    for (const candidate of ordered(state)) {
-      const values = explore(advance(state, candidate.legal), depth - 1, alpha, beta);
+    for (const candidate of ordered(state, exact)) {
+      const values = explore(advance(state, candidate.legal), depth - 1, alpha, beta, exact);
       const actor: Color = stats.algorithm === "maxn" ? state.turn : root;
       const better =
         best === null ||
@@ -183,6 +190,24 @@ export function searchCpuMove(
   try {
     const legal = legalMoves(input);
     stats.rootMoves = legal.length;
+    const empties = input.board.flat().filter((cell) => cell === null).length;
+    if (empties <= endgameEmpties) {
+      let bestScore = -Infinity;
+      let bestMove = move;
+      for (const candidate of legal) {
+        const score = explore(advance(input, candidate), empties - 1, -Infinity, Infinity, true)[
+          root
+        ];
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = candidate.position;
+        }
+      }
+      move = bestMove;
+      stats.completedDepth = empties;
+      stats.exactEndgame = true;
+      return { move, stats };
+    }
     for (const candidate of legal) {
       const state = advance(input, candidate);
       rootCandidates.push({

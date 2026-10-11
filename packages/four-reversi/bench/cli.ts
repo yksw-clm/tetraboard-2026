@@ -172,6 +172,7 @@ try {
         expected: expected.moves,
         passed: expected.moves.some((p) => p.x === move?.x && p.y === move?.y),
         oracleNodes: expected.nodes,
+        stats: lastStats,
       };
     });
     report = {
