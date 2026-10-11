@@ -103,6 +103,14 @@
         "typescript": "^5.5.2",
       },
     },
+    "packages/gomoku": {
+      "name": "@tetraboard/gomoku",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
     "packages/protocol": {
       "name": "@tetraboard/protocol",
       "version": "0.0.0",
@@ -549,6 +557,8 @@
 
     "@tetraboard/four-shogi": ["@tetraboard/four-shogi@workspace:packages/four-shogi"],
 
+    "@tetraboard/gomoku": ["@tetraboard/gomoku@workspace:packages/gomoku"],
+
     "@tetraboard/protocol": ["@tetraboard/protocol@workspace:packages/protocol"],
 
     "@tetraboard/reversi": ["@tetraboard/reversi@workspace:packages/reversi"],
@@ -874,6 +884,8 @@
     "@tetraboard/four-reversi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/four-shogi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@tetraboard/gomoku/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/protocol/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
