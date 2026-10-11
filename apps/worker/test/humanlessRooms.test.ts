@@ -262,10 +262,11 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       return room.game.moveNumber;
     });
     await runDurableObjectAlarm(prepared.stub);
-    if (game === "four-shogi") {
+    if (game === "four-shogi" || game === "four-reversi") {
       await runInDurableObject(prepared.stub, async (_, state) => {
-        const job = state.storage.kv.get<{ applyAt: number }>("shogi-cpu-job")!;
-        state.storage.kv.put("shogi-cpu-job", { ...job, applyAt: Date.now() - 1 });
+        const key = game === "four-shogi" ? "shogi-cpu-job" : "four-reversi-cpu-job";
+        const job = state.storage.kv.get<{ applyAt: number }>(key)!;
+        state.storage.kv.put(key, { ...job, applyAt: Date.now() - 1 });
         await state.storage.setAlarm(Date.now() + 60_000);
       });
       await runDurableObjectAlarm(prepared.stub);

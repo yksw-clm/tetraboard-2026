@@ -67,20 +67,20 @@ bun run --cwd packages/shogi test
 
 部分確認は `bun test --cwd apps/web ./test/roomSharing.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSharing.test.tsx ./test-dom/lobbyComponents.test.tsx ./test-dom/entryRegistration.test.tsx`、`bun run --cwd apps/worker test test/roomSharing.test.ts test/publicAssets.test.ts` です。初期HTMLの取得失敗・1500msの期限、DOの保存状態とalarmの不変、ルームHTMLの条件付き取得で200・no-store、静的画像の304を確認します。画像の実デコードと見栄えは全7枚を目視確認済みですが、実機の画面寸法・ネイティブ入力・Xの実投稿カードは未確認です。
 
-## 四人リバーシAI強化の確認（実装予定）
+## 四人リバーシAI強化の確認
 
-2026-10-11に [ルール正本のCPU仕様](rules/four-reversi.md#cpu) と [実装計画・受入条件](four-reversi-ai.md) を確定しました。以下は実装時に追加・拡張する確認であり、現段階で強化AIや測定基盤が完成したことを示しません。
+2026-10-11に [ルール正本のCPU仕様](rules/four-reversi.md#cpu) と [実装計画・受入条件](four-reversi-ai.md) を確定しました。強化AI・測定基盤・回帰テストを実装し、採用結果と対象コミットを同文書へ記録しています。
 
 | 確認する振る舞い | 検証先と方法 |
 | --- | --- |
 | Lv1の乱数・合法性、Lv2の決定性・入力不変・元の列挙順・合法な代替手 | `packages/four-reversi/test/` のBunテスト |
 | 生成済み候補と公開着手の結果一致、味方を含む全滅禁止・脱落色・自動パス・終局・固定棋譜 | エンジンのBunテストと既存棋譜互換テスト |
-| 多人数／チーム探索、処理量・完了深さ・候補制限・キャッシュ、独立した全読みoracleとの一致 | CPUのBunテスト。空き1〜4マスの両モード200局面以上と固定問題 |
-| Lv1／Lv2の1999／2000ms、選択保存と適用、通常GET、期限・古い局面・手番外脱落・休止復帰・再戦・閉鎖・transaction | `apps/worker/test/cpuRoom.test.ts`・`gameRoom.test.ts`・`roomDeadlineBoundary.test.ts` などの実Worker統合テスト |
-| 新1体対旧3体、チーム対戦、重要問題・棋力・性能・集計の再現性 | 実装時に追加する `packages/four-reversi/bench/`。長時間測定はcheckに含めない |
+| 多人数／チーム探索、処理量・完了深さ・候補制限・キャッシュ、独立した全読みoracleとの一致 | CPUのBunテスト。空き1〜4マスの両モード200局面と5〜6マスの戦術問題。予測は公開APIによる独立した応手再現・全根候補の完了・中断と総上限も確認 |
+| Lv1／Lv2の1999／2000ms、選択保存と適用、通常GET、期限・古い局面・手番外脱落・休止復帰・再戦・閉鎖・transaction | `apps/worker/test/fourReversiCpu.test.ts`・`cpuRoom.test.ts`・`gameRoom.test.ts`・`roomDeadlineBoundary.test.ts` などの実Worker統合テスト |
+| 新1体対旧3体、チーム対戦、重要問題・棋力・性能・集計の再現性 | `packages/four-reversi/bench/`。長時間測定はcheckに含めない |
 | 他5ゲームの進行・CPU・時計、WebへのCPU／bench混入防止 | 既存の共有Worker回帰と両環境のbuild |
 
-部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
+部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/fourReversiCpu.test.ts test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。保存内容の破棄・ロールバック・チャットのWorker確認はLv1を使い、重い探索を繰り返しません。Lv2の両モードの選択・保存・休止復帰・適用と、選択後の期限・レベル照合・全読み終局は実際のLv2で確認します。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
 
 ## 実行環境
 

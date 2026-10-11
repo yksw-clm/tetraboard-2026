@@ -40,8 +40,32 @@ import type {
   FinishedProgress,
   RematchFor,
 } from "./gameProgress";
+import { z } from "zod";
 type Playing = PlayingFor<"four-reversi">;
 type Result = ProgressFor<"four-reversi">;
+export const fourReversiCpuJobKey = "four-reversi-cpu-job";
+const cpuJobSchema = z.object({
+  instanceId: z.string(),
+  roundId: z.string().nullable(),
+  playerId: z.string(),
+  color: z.enum(colors),
+  level: z.union([z.literal(1), z.literal(2)]),
+  turnStartedAt: z.number().finite(),
+  positionKey: z.string(),
+  move: z.object({ x: z.number().int().min(0).max(7), y: z.number().int().min(0).max(7) }),
+  applyAt: z.number().finite().nonnegative(),
+});
+export type FourReversiCpuJob = z.infer<typeof cpuJobSchema>;
+const cpuPositionKey = (game: FourReversiState) =>
+  JSON.stringify([
+    game.mode,
+    game.board,
+    game.turn,
+    game.moveNumber,
+    game.eliminatedColors,
+    game.consecutivePasses,
+    game.lastMove,
+  ]);
 export class FourReversiProgress {
   private readonly storage: DurableObjectStorage;
   private readonly membership: ProgressDependencies["membership"];
@@ -53,6 +77,7 @@ export class FourReversiProgress {
   }
 
   start(room: WaitingFor<"four-reversi">): { room: Playing; roundId: string; at: number } {
+    this.storage.kv.delete(fourReversiCpuJobKey);
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
     const matchId = crypto.randomUUID();
@@ -156,6 +181,7 @@ export class FourReversiProgress {
     turnEnded: boolean,
     clockAt = at,
   ): Result {
+    this.storage.kv.delete(fourReversiCpuJobKey);
     if (state.status === "finished") {
       const game = fourReversiStateSchema.parse(state);
       if (game.status !== "finished") throw new Error("Expected finished state");
@@ -251,28 +277,59 @@ export class FourReversiProgress {
     );
   }
 
+  cpuJob(room: Playing): FourReversiCpuJob | null {
+    const parsed = cpuJobSchema.safeParse(this.storage.kv.get(fourReversiCpuJobKey));
+    if (!parsed.success) return null;
+    const job = parsed.data;
+    const cpu = room.players.find((p) => p.color === room.game.turn);
+    return cpu?.kind === "cpu" &&
+      job.instanceId === room.instanceId &&
+      job.roundId === (this.storage.kv.get<MatchStart>(matchStartKey)?.id ?? null) &&
+      job.playerId === cpu.id &&
+      job.color === cpu.color &&
+      job.level === cpu.level &&
+      job.turnStartedAt === room.clock.turnStartedAt &&
+      job.positionKey === cpuPositionKey(room.game)
+      ? job
+      : null;
+  }
+
   cpu(room: Playing, now: number): Result {
     if (room.clock.turnStartedAt + cpuMoveDelayMs > now || isClockExpired(room.clock, now))
       return { kind: "unchanged", gameId: "four-reversi", room };
     const cpu = room.players.find((p) => p.color === room.game.turn);
     if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "four-reversi", room };
-    const move = chooseCpuMove(room.game, cpu.level);
-    if (move === null) throw new Error("CPU has no legal move");
-    const decidedAt = Date.now();
-    const expired = isClockExpired(room.clock, decidedAt);
-    const result = expired
-      ? eliminateColor(room.game, room.game.turn)
-      : applyAction(room.game, { type: "placeStone", position: move });
-    if (!result.ok) throw new Error("CPU selected an invalid move");
-    if (expired) this.recordElimination(room, room.game.turn, "timeout", result);
-    else this.recordReplayStep({ type: "place", color: room.game.turn, position: move }, result);
-    return this.accept(
-      room,
-      result.state,
-      decidedAt,
-      true,
-      expired ? room.clock.turnExpiresAt : decidedAt,
-    );
+    if (this.storage.kv.get(fourReversiCpuJobKey) !== undefined) {
+      const job = this.cpuJob(room);
+      if (!job) this.storage.kv.delete(fourReversiCpuJobKey);
+      else if (job.applyAt <= now) {
+        const result = applyAction(room.game, { type: "placeStone", position: job.move });
+        if (!result.ok) this.storage.kv.delete(fourReversiCpuJobKey);
+        else {
+          this.recordReplayStep(
+            { type: "place", color: room.game.turn, position: job.move },
+            result,
+          );
+          return this.accept(room, result.state, now, true);
+        }
+      }
+    } else {
+      const move = chooseCpuMove(room.game, cpu.level);
+      if (move === null) throw new Error("CPU has no legal move");
+      // Workersの同期計算中は時刻が進まないため、別イベントで期限を読み直します。
+      this.storage.kv.put(fourReversiCpuJobKey, {
+        instanceId: room.instanceId,
+        roundId: this.storage.kv.get<MatchStart>(matchStartKey)?.id ?? null,
+        playerId: cpu.id,
+        color: cpu.color,
+        level: cpu.level,
+        turnStartedAt: room.clock.turnStartedAt,
+        positionKey: cpuPositionKey(room.game),
+        move,
+        applyAt: Date.now() + 1,
+      } satisfies FourReversiCpuJob);
+    }
+    return { kind: "unchanged", gameId: "four-reversi", room };
   }
 
   finalize(result: FinishedProgress<"four-reversi">): LastRound {
@@ -283,6 +340,7 @@ export class FourReversiProgress {
     data: RematchFor<"four-reversi">,
     players: FourReversiRoom["players"],
   ): WaitingFor<"four-reversi"> {
+    this.storage.kv.delete(fourReversiCpuJobKey);
     const room = fourReversiRoomSchema.parse({
       ...data.room,
       status: "waiting",
@@ -345,6 +403,7 @@ export class FourReversiProgress {
     game: LastRound["game"],
     at: number,
   ): LastRound {
+    this.storage.kv.delete(fourReversiCpuJobKey);
     const start = this.storage.kv.get<MatchStart>(matchStartKey);
     const replay = this.storage.kv.get<RoundReplay>(replayKey);
     if (start && replay && start.id === replay.id) {
