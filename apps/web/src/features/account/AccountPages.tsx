@@ -10,7 +10,7 @@ import {
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { Navigate, useSearchParams } from "react-router";
+import { Navigate, useSearchParams, useLocation } from "react-router";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
@@ -182,6 +182,7 @@ function AccountStatus() {
 }
 export function LoginPage() {
   const { user, loading, error } = useAccount();
+  const location = useLocation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const signIn = useSocialSignIn();
@@ -231,6 +232,11 @@ export function LoginPage() {
                 </div>
               </>
             )}
+            {(location.state as { sessionLost?: boolean } | null)?.sessionLost && (
+              <p role="alert" className="text-sm text-danger">
+                ログイン状態が失われました。もう一度ログインしてください。
+              </p>
+            )}
             {(signIn.message || params.has("error")) && (
               <p role="alert" className="text-sm text-danger">
                 {signIn.message ??
@@ -276,7 +282,7 @@ export function LoginPage() {
   );
 }
 export function ProfilePage({ setup = false }: { setup?: boolean }) {
-  const { user, loading, error } = useAccount();
+  const { user, loading, error, sessionLost } = useAccount();
   const { game, mode, setGame, setMode } = useAccountSelection();
   const panelId = useId();
   // ファイル選択からの復帰による再確認では、編集中のフォームを取り外しません。
@@ -290,7 +296,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
         <AccountStatus />
       </AccountPageShell>
     );
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace state={{ sessionLost: Boolean(sessionLost) }} />;
   if (setup && user.profileCompleted) return <Navigate to="/account" replace />;
   if (!setup && !user.profileCompleted) return <Navigate to="/account/setup" replace />;
   if (!setup)
@@ -345,7 +351,12 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               />
             )}
           >
-            <AccountProfileView user={user} game={game} mode={mode} />
+            <AccountProfileView
+              key={user.profileId ?? user.username}
+              user={user}
+              game={game}
+              mode={mode}
+            />
           </AppTabs.Panel>
         </AccountPageShell>
       </AppTabs>

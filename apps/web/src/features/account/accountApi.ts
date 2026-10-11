@@ -6,8 +6,8 @@ export async function accountRequest(path: string, init?: RequestInit): Promise<
     throw new Error(body?.message ?? "通信に失敗しました。もう一度お試しください。");
   return body;
 }
-export async function readAccount() {
-  return accountSessionSchema.parse(await accountRequest("/api/account/session")).user;
+export async function readAccount(signal?: AbortSignal) {
+  return accountSessionSchema.parse(await accountRequest("/api/account/session", { signal })).user;
 }
 export async function saveProfile(setup: boolean, data: FormData) {
   return accountProfileSchema.parse(

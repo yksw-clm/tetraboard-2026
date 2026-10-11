@@ -93,6 +93,14 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 
 複数のSet-CookieとExpiresのカンマ、Secure・HttpOnly・SameSite・Path、更新不要・未認証・改ざん・失効・DB障害、更新後のエラー応答、管理画面と各認証API、並行アカウントの分離、リダイレクト・WebSocketの保持を検証します。既存のOAuth・ログアウト・プロフィール・ルーム認証の回帰も維持します。ブラウザのCookie保存と本番で観測されたログイン喪失の直接原因は未確認事項として記録し、本番Cookie・本番DBを変更した再現は行いません。
 
+## 認証喪失後の画面復帰（Issue #143）
+
+`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/accountRecovery.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/dataLoading.test.tsx ./test-dom/savedReplay.test.tsx ./test-dom/profileFeedback.test.tsx ./test-dom/formationStats.test.tsx` と `bun test --cwd apps/web ./test/matchReplayLoader.test.ts` を使います。
+
+全4ゲームの初回401、更新・再試行・追加履歴・画面内往復・戦法別戦績、同時401と進行中の通常確認の共有、有効な同一アカウントでの一度だけの再取得、同一カーソルと重複排除、再失敗後の手動再試行を確認します。未認証が確認された場合のヘッダー同期・喪失案内・ログイン遷移と、本人棋譜の取得／分割ページでの401・直接アクセス・再検証の上限を検証します。
+
+503・オフライン・10秒の期限と遅延応答、プロフィール・名前・ID・画像の下書きと既存データの保持、別アカウントのキャッシュ分離、古い200／401・認証更新・unmount・StrictModeを確認します。実OAuth、ブラウザのCookie期限と保存、本番での認証喪失の原因、画面寸法・実画像デコード・ネイティブ入力はこの自動検証では確認しません。本番Cookieや本番DBを変更した再現は行いません。
+
 ## 表示・サウンド設定の確認
 
 | 確認する振る舞い | 検証先 |

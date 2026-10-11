@@ -1,3 +1,5 @@
+import { useAccountDataRequest } from "./useAccountDataRequest";
+import { isCurrentAccountRequest, StaleAccountRequestError } from "./accountRequestScope";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -28,6 +30,7 @@ const emptyPage = (): HistoryPage => ({
   failedMore: false,
 });
 export function useMatchHistory(game: MatchGame, mode: RoomMode) {
+  const { request, generation } = useAccountDataRequest();
   const [pages, setPages] = useState<Record<MatchGame, Record<RoomMode, HistoryPage>>>({
     reversi: { singles: emptyPage(), doubles: emptyPage() },
     shogi: { singles: emptyPage(), doubles: emptyPage() },
@@ -59,17 +62,19 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
           },
         },
       }));
+      let responseGeneration: number | undefined;
       try {
         const query = new URLSearchParams(
           !gameCatalog[targetGame].hasModes ? {} : { mode: target },
         );
         if (targetGame !== "four-reversi") query.set("game", targetGame);
         if (cursor) query.set("cursor", cursor);
-        const response = await fetch(`/api${listMatchesContract.path}?${query}`, {
-          credentials: "same-origin",
-          cache: "no-store",
-          signal: controller.signal,
-        });
+        const resultRequest = await request(
+          `/api${listMatchesContract.path}?${query}`,
+          controller.signal,
+        );
+        const { response } = resultRequest;
+        responseGeneration = resultRequest.generation;
         if (!response.ok) throw new Error("History request failed");
         const result = listMatchesContract.response.parse(await response.json());
         if (
@@ -80,7 +85,8 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
           )
         )
           throw new Error("History game or mode mismatch");
-        if (controller.signal.aborted) return;
+        if (!isCurrentAccountRequest(resultRequest.generation, controller.signal))
+          throw new StaleAccountRequestError();
         setPages((current) => ({
           ...current,
           [targetGame]: {
@@ -107,7 +113,28 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
             },
           },
         }));
-      } catch {
+      } catch (error) {
+        if (
+          error instanceof StaleAccountRequestError ||
+          (responseGeneration !== undefined &&
+            !isCurrentAccountRequest(responseGeneration, controller.signal))
+        ) {
+          if (!controller.signal.aborted)
+            setPages((current) => ({
+              ...current,
+              [targetGame]: {
+                ...current[targetGame],
+                [target]: {
+                  ...current[targetGame][target],
+                  loaded: current[targetGame][target].matches.length > 0,
+                  loading: false,
+                  moreLoading: false,
+                  pendingSource: null,
+                },
+              },
+            }));
+          return;
+        }
         if (!controller.signal.aborted)
           setPages((current) => ({
             ...current,
@@ -130,13 +157,13 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
         if (requests.current[key] === controller) delete requests.current[key];
       }
     },
-    [pages],
+    [pages, request],
   );
   useEffect(() => {
     if (page.loaded || requests.current[`${game}:${mode}`]) return;
     const timeout = window.setTimeout(() => void load(game, mode), 0);
     return () => window.clearTimeout(timeout);
-  }, [game, mode, page.loaded, load]);
+  }, [game, mode, page.loaded, page.loading, generation, load]);
   useEffect(
     () => () => {
       for (const controller of Object.values(requests.current)) controller?.abort();

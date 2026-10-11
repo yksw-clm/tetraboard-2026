@@ -11,9 +11,15 @@ import {
   type ReplayMatch,
   type ReplayMatchFor,
 } from "@tetraboard/protocol";
-import { redirect, type LoaderFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
 import { preloadRecovery } from "../../shared/preloadRecovery";
+
+import {
+  accountRequestGeneration,
+  isCurrentAccountRequest,
+  unauthorizedAccountResponse,
+} from "../account/accountRequestScope";
 
 export type MatchReplayDataFor<G extends GameId> = {
   game: G;
@@ -58,6 +64,7 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
   const contract = publicView ? getPublicMatchContract : getMatchContract;
   const parsed = contract.params.safeParse(params);
   if (!parsed.success) throw new Response(null, { status: 400 });
+  const generation = accountRequestGeneration();
   let response: Response;
   try {
     response = await fetch(`/api${contract.pathFor(parsed.data.matchId)}`, {
@@ -68,21 +75,28 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
     if (request.signal.aborted) throw error;
     throw new Response(null, { status: 503 });
   }
-  if (!publicView && response.status === 401) throw redirect("/login");
+  if (request.signal.aborted) throw new DOMException("Replay request canceled", "AbortError");
+  if (!publicView && (response.status === 401 || !isCurrentAccountRequest(generation)))
+    throw unauthorizedAccountResponse(generation);
   if (!response.ok) throw new Response(null, { status: response.status });
   try {
     const match = parseMatch(await response.json(), publicView);
-    if (isShogiMatch(match)) return await replayLoaders.shogi(match, request.signal);
-    if (isReversiMatch(match)) return await replayLoaders.reversi(match, request.signal);
-    if (isFourReversiMatch(match))
-      return await replayLoaders["four-reversi"](match, request.signal);
-    if (isFourShogiMatch(match)) return await replayLoaders["four-shogi"](match, request.signal);
-    return assertNever(match);
+    let data: MatchReplayData;
+    if (isShogiMatch(match)) data = await replayLoaders.shogi(match, request.signal);
+    else if (isReversiMatch(match)) data = await replayLoaders.reversi(match, request.signal);
+    else if (isFourReversiMatch(match))
+      data = await replayLoaders["four-reversi"](match, request.signal);
+    else if (isFourShogiMatch(match))
+      data = await replayLoaders["four-shogi"](match, request.signal);
+    else return assertNever(match);
+    if (!publicView && !isCurrentAccountRequest(generation, request.signal))
+      throw unauthorizedAccountResponse(generation);
+    return data;
   } catch (error) {
     if (request.signal.aborted) throw error;
     if (preloadRecovery.isPreloadError(error)) throw error;
     if (error instanceof Response) {
-      if (!publicView && error.status === 401) throw redirect("/login");
+      if (!publicView && error.status === 401) throw unauthorizedAccountResponse(generation);
       throw error;
     }
     throw new Response(null, { status: 503 });

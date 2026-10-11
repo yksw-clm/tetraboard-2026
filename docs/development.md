@@ -660,7 +660,17 @@ Better Auth 1.7.5の既定値（有効期間7日・更新間隔1日）を維持�
 
 Workerの最終HTTP応答を `withAccountSessionCookies` で包み、元の `Request` をキーとする `WeakMap` へリクエスト内のCookieを集めます。アカウント・バッジ・棋譜・戦績・ルーム入室・フィードバック・計測・管理APIと、Honoを通らない管理画面の認証も同じ応答境界を使います。本人確認をしない経路でセッションを読み取ることはありません。Cookieは `headers.getSetCookie()` で個別に取得し、既存の応答Cookieへ `append` します。属性・本文・status・WebSocketを保持し、終了時は例外の有無にかかわらず収集状態を破棄します。セッション更新後のプロフィール取得や権限判定が失敗しても、生成済みのCookieを最終応答へ返します。
 
-`bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts` で更新境界・複数Cookie・属性・失効・障害・並行リクエストを確認します。ブラウザでのCookie保存と本番QAのログイン喪失との因果関係は、このWorker統合テストだけでは確認できません。認証喪失後の画面再同期はIssue #143の範囲です。
+`bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts` で更新境界・複数Cookie・属性・失効・障害・並行リクエストを確認します。ブラウザでのCookie保存と本番QAのログイン喪失との因果関係は、このWorker統合テストだけでは確認できません。認証喪失後の画面再同期は次の節を参照します。
+
+### 認証喪失後の画面復帰
+
+`AccountLayout` はセッション確認の要求版と、loader・hookで共有する `accountRequestScope` の認証世代を管理します。初回・focus・手動の確認は新しい要求版を使い、401からの `recoverUnauthorized` は進行中の確認を共有します。結果は同じ本人で有効・未認証・確認失敗・古い要求を区別します。確認はAbortControllerと10秒の期限で打ち切り、古い要求版の応答は採用しません。失敗時はプロフィールと下書きを保持します。
+
+`useAccountDataRequest` は戦績・本人履歴・戦法別戦績の401で確認を呼び、同じ本人で有効なら同じURLを一度だけ再取得します。要求前後とJSON解析後に認証世代・abortを照合します。正常な確認・明示的な認証更新・Providerの破棄で世代を進め、古い401を新しい認証の確認に使いません。古い初回取得は現行世代で取得し直し、取得済み値は同じ本人の間保持します。プロフィール本文は `profileId`（旧応答はusername）をkeyとし、別アカウントへの変更で取得要求・キャッシュ・編集フォームを破棄します。
+
+本人棋譜loaderは直接ログインへredirectせず、開始時の認証世代を持つ内部401 Responseを返します。分割棋譜取得中の401も同じ形式です。`AccountReplayRecovery` がContextで確認し、有効または古い要求なら現行世代でloaderを一度だけ再検証します。二度目の失敗は手動再試行へ戻し、公開棋譜はこの処理を使いません。ログイン喪失の確認後は履歴置換で `/login` へ移り、履歴stateの `sessionLost` で案内を表示します。stateを認証判定には使わず、再ログイン後の復帰先は既存方針を維持します。
+
+WorkerのAPI、Cookie、保存形式、protocol契約は変更しません。DOM/hookとloaderの検証は[認証喪失後の画面復帰の確認](testing.md#認証喪失後の画面復帰issue-143)を参照します。本番QAで認証を失った直接原因は未確定です。
 
 ### Google・Discordの設定
 
