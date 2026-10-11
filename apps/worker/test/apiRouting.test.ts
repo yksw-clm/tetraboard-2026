@@ -4,6 +4,30 @@ import { expect, test } from "vitest";
 import worker from "../src/worker";
 import { env } from "cloudflare:workers";
 
+test("開発環境は本番へ転送せずHTML・API・エラーを検索対象外にする", async () => {
+  const development = {
+    ...env,
+    APP_ORIGIN: "https://tetraboard-dev.chaossi-lab.workers.dev" as const,
+    ASSETS: { fetch: async () => new Response("development") } as unknown as Fetcher,
+  };
+  for (const path of ["/games/four-reversi", "/api/healthz", "/api/missing", "/admin"]) {
+    const response = await worker.fetch(
+      new Request(`${development.APP_ORIGIN}${path}`),
+      development,
+      {} as ExecutionContext,
+    );
+    expect(response.headers.get("X-Robots-Tag")).toContain("noindex");
+    expect(response.headers.get("Location") ?? "").not.toContain("tetraboard.net");
+  }
+  const response = await worker.fetch(
+    new Request("https://tetraboard.net/api/healthz"),
+    { ...env, APP_ORIGIN: "https://tetraboard.net" },
+    {} as ExecutionContext,
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("X-Robots-Tag")).toBeNull();
+});
+
 test("旧公開URLをパス・クエリ付きで本番ドメインへ転送し、APIを実行しない", async () => {
   const response = await worker.fetch(
     new Request("https://tetraboard-2026.chaossi-lab.workers.dev/rooms/12345?invite=example"),

@@ -425,9 +425,11 @@ HeroUIを継続使用し、ヘッダー・ボタン／ボタン風リンク・�
 
 ## 開発と本番公開
 
-`main` を本番として扱います。最新mainから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などのブランチを作り、GitHub CIと必須のローカル検証の成功後に開発者が確認してPRをマージします。mainへの直接push・force pushは行いません。非公開リポジトリの現行GitHubプランではブランチ保護を強制できないため、このルールを運用で守ります。他者レビューは必須ではありません。
+`main` を本番、`develop` を開発環境・GitHubの既定ブランチとして扱います。最新developから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などを作り、GitHub CIと必須のローカル検証の成功後に開発者が確認してdevelop向けPRをマージします。開発環境で確認後、develop→mainのリリースPRをマージコミットで取り込みます。両ブランチへの直接push・force pushは禁止します。非公開リポジトリの現行GitHubプランではブランチ保護を強制できないため、このルールを運用で守ります。他者レビューは必須ではありません。
 
-通常CIは整形・lint・型チェック・単体テスト、Web・Adminのビルド、Workerの本番デプロイdry-runを実行します。コード・設定変更ではPR提出前に、ローカルで `bun run check`、`bun run build`、Workerの `deploy:dry-run` を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
+developは `https://tetraboard-dev.chaossi-lab.workers.dev` へCI成功後に自動公開します。Workerは `tetraboard-dev`、D1は `tetraboard-dev-db`、R2は `tetraboard-dev-objects` とし、対局状態・アカウント・画像・棋譜を本番と分離します。本番データをコピーせず空の状態から開始します。誰でも利用できますがHTTPとHTMLのnoindexで検索対象外にします。canonicalは開発URL、サイトマップは空とし、robots.txtからサイトマップを案内しません。本番ドメイン・データ・検索設定は維持します。
+
+通常CIは整形・lint・型チェック・単体テスト、本番・開発それぞれのWeb・AdminビルドとWorker dry-runを実行します。コード・設定変更ではPR提出前に、ローカルで `bun run check`、`bun run build`、Workerの `deploy:dry-run`、`bun run build:development`、Workerの `deploy:dry-run:development` を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain・develop取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
 
 WorkerテストはローカルのD1・R2・SQLite対応Durable Objectとテスト専用の設定を明示し、開発用 `.dev.vars`・`.env` や個人の管理者設定を読み込みません。Workerの型生成は追跡済み `.dev.vars.example` を入力に固定します。設定の退避・一時コピーなしで通常の作業ディレクトリから検証し、CIでも設定なし・競合設定ありの結果と生成型の一致を確認します。
 
@@ -435,7 +437,7 @@ WorkerテストはローカルのD1・R2・SQLite対応Durable Objectとテス�
 
 本番URLは `https://tetraboard.net`、Worker名は `tetraboard-2026`、D1名は `tetraboard-2026-prod-db` です。Worker 1つでWeb画面・管理画面・HTTP API・WebSocketを配信します。GitHub ActionsはmainのCI成功後にD1マイグレーションとデプロイを行います。CloudflareのGit連携による別の自動公開は設定しません。
 
-初回は差分と検証結果を確認し、開発者の承認後にマージ・公開します。以後はPRのマージが本番更新の契機です。ローカルのデータは本番へ移行せず、ステージングやPRプレビューは設けません。`tetraboard-2026.chaossi-lab.workers.dev` はパスとクエリを保持して本番ドメインへ308転送します。ドメインをまたいだログイン状態・タブ内の参加資格は引き継がず、再ログイン・再入室します。旧版の `/profile` はマイページ、`/games/game-…` の棋譜と `/guest/name` はリバーシロビーへ案内します。旧ルームは移行せず、存在しない部屋には既存のエラー画面とロビーへの導線を表示します。設定・認証・確認・復旧の手順は [開発手順](docs/development.md#本番デプロイ) を参照してください。
+初回は差分と検証結果を確認し、開発者の承認後にマージ・公開します。以後はPRのマージが本番更新の契機です。ローカルのデータは本番へ移行せず、開発環境を設け、PRごとのプレビューは設けません。`tetraboard-2026.chaossi-lab.workers.dev` はパスとクエリを保持して本番ドメインへ308転送します。ドメインをまたいだログイン状態・タブ内の参加資格は引き継がず、再ログイン・再入室します。旧版の `/profile` はマイページ、`/games/game-…` の棋譜と `/guest/name` はリバーシロビーへ案内します。旧ルームは移行せず、存在しない部屋には既存のエラー画面とロビーへの導線を表示します。設定・認証・確認・復旧の手順は [開発手順](docs/development.md#本番デプロイ) を参照してください。
 
 ## ゲーム共通仕様
 

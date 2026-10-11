@@ -65,6 +65,7 @@ test("Discord OAuthは新規登録・再ログインで同じ本人を保持し�
         provider: "discord",
         callbackURL: "https://evil.test",
         newUserCallbackURL: "https://evil.test",
+        errorCallbackURL: "https://evil.test?error=oauth",
       }),
     );
     expect(first.headers.get("location")).toContain("/account/setup");
@@ -108,7 +109,9 @@ test("Discord OAuthは新規登録・再ログインで同じ本人を保持し�
     id = `${Date.now()}11111`;
     email = null;
     const missing = await callback(await start());
-    expect(missing.headers.get("location")).toContain("error=email_not_found");
+    const missingURL = new URL(missing.headers.get("location")!, origin);
+    expect(missingURL.pathname).toBe("/login");
+    expect(missingURL.searchParams.getAll("error")).toEqual(["email_not_found"]);
     expect(
       await env.APP_DB.prepare(
         "SELECT id FROM account WHERE providerId = 'discord' AND accountId = ?",
@@ -126,7 +129,9 @@ test("Discord OAuthは新規登録・再ログインで同じ本人を保持し�
       .bind(google.id)
       .first();
     const conflict = await callback(await start());
-    expect(conflict.headers.get("location")).toContain("error=account_not_linked");
+    const conflictURL = new URL(conflict.headers.get("location")!, origin);
+    expect(conflictURL.pathname).toBe("/login");
+    expect(conflictURL.searchParams.getAll("error")).toEqual(["account_not_linked"]);
     expect(
       await env.APP_DB.prepare("SELECT id, name, username, profileCompleted FROM user WHERE id = ?")
         .bind(google.id)
@@ -143,6 +148,32 @@ test("Discord OAuthは新規登録・再ログインで同じ本人を保持し�
     mock.mockRestore();
   }
 });
+
+test.each([undefined, "admin"])(
+  "Google OAuth取消でエラーを1件だけ渡し、管理画面の戻り先を保持する: %s",
+  async (destination) => {
+    const response = await signIn({
+      provider: "google",
+      destination,
+      errorCallbackURL: "https://evil.test",
+    });
+    expect(response.status).toBe(200);
+    const authorization = new URL(((await response.json()) as { url: string }).url);
+    const cookie = response.headers
+      .getSetCookie()
+      .map((value) => value.split(";")[0])
+      .join("; ");
+    const canceled = await request(
+      `/auth/callback/google?error=access_denied&state=${encodeURIComponent(authorization.searchParams.get("state")!)}`,
+      { headers: { Cookie: cookie } },
+    );
+    const location = new URL(canceled.headers.get("location")!, origin);
+    expect(location.origin).toBe(origin);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.getAll("error")).toEqual(["access_denied"]);
+    expect(location.searchParams.get("destination")).toBe(destination ?? null);
+  },
+);
 
 test("認証方法の許可リスト・固定戻り先・管理画面Google限定・設定不足を確認", async () => {
   for (const provider of ["github", "", null, 1])
