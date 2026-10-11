@@ -26,7 +26,8 @@ afterEach(async () => {
   await fixtures.dispose();
   fixtures = new RoomBoundaryFixtures();
 });
-async function setup(mode: GameMode = "singles", level = 2) {
+// 保存内容の検証は軽い選択で行い、Lv2の選択・期限・全読みは専用ケースで確認します。
+async function setup(mode: GameMode = "singles", level = 1) {
   const entry = await fixtures.create({
     game: "four-reversi",
     name: "ホスト",
@@ -121,7 +122,7 @@ test.each([
   "不正時刻",
   "壊れたジョブ",
 ])("古い・不正なCPU保存を破棄し、同じAlarmで着手・再選択しない (%s)", async (condition) => {
-  const { stub, at, before } = await setup();
+  const { stub, at, before } = await setup("singles", condition === "レベル" ? 2 : 1);
   await runInDurableObject(stub, async (instance, ctx) => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(at + 2000);
     try {
@@ -132,7 +133,7 @@ test.each([
       if (condition === "別局") changed.roundId = "old";
       if (condition === "本人") changed.playerId = "old";
       if (condition === "色") changed.color = job.color === "black" ? "white" : "black";
-      if (condition === "レベル") changed.level = 1;
+      if (condition === "レベル") changed.level = job.level === 1 ? 2 : 1;
       if (condition === "時計") changed.turnStartedAt--;
       if (condition === "不正手") changed.move = { x: 3, y: 3 };
       if (condition === "不正時刻") changed.applyAt = NaN;
@@ -169,7 +170,10 @@ test.each([
 test.each(["計算後に期限", "期限同時刻", "復帰期限が先"])(
   "保存後の期限を着手より優先する (%s)",
   async (condition) => {
-    const { stub, at, before, entry } = await setup();
+    const { stub, at, before, entry } = await setup(
+      "singles",
+      condition === "計算後に期限" ? 2 : 1,
+    );
     await runInDurableObject(stub, async (instance, ctx) => {
       const clock = vi.spyOn(Date, "now").mockReturnValue(at + 2000);
       try {
@@ -245,7 +249,7 @@ test("記録導入前のDOもジョブなしから進め、適用失敗のtransa
 
 for (const mode of ["singles", "doubles"] as const) {
   test(`${mode}: Lv2の全読み着手で終局し、次局開始でも旧ジョブを破棄する`, async () => {
-    const { stub, at, before } = await setup(mode);
+    const { stub, at, before } = await setup(mode, 2);
     await runInDurableObject(stub, async (instance, ctx) => {
       const board = Array.from({ length: 8 }, () =>
         Array<"black" | "white" | "red" | "blue" | null>(8).fill("black"),

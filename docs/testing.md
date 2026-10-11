@@ -62,7 +62,7 @@ bun run --cwd packages/shogi test
 | 新1体対旧3体、チーム対戦、重要問題・棋力・性能・集計の再現性 | `packages/four-reversi/bench/`。長時間測定はcheckに含めない |
 | 他5ゲームの進行・CPU・時計、WebへのCPU／bench混入防止 | 既存の共有Worker回帰と両環境のbuild |
 
-部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/fourReversiCpu.test.ts test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
+部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/fourReversiCpu.test.ts test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。保存内容の破棄・ロールバック・チャットのWorker確認はLv1を使い、重い探索を繰り返しません。Lv2の両モードの選択・保存・休止復帰・適用と、選択後の期限・レベル照合・全読み終局は実際のLv2で確認します。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
 
 ## 実行環境
 
