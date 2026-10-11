@@ -25,6 +25,10 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
       const View = liveViews.shogi;
       return <View key={key} {...common} initialRoom={data.room} />;
     }
+    case "gomoku": {
+      const View = liveViews.gomoku;
+      return <View key={data.room.id} {...common} initialRoom={data.room} />;
+    }
     case "reversi": {
       const View = liveViews.reversi;
       return <View key={data.room.id} {...common} initialRoom={data.room} />;

@@ -6,14 +6,35 @@ export type CreateRoomRequests = {
   ) => Omit<CreateRoomRequest, "game"> & (G extends "four-reversi" ? { game?: G } : { game: G });
 };
 export const createRoomRequests = {
-  shogi: ({ mode: _mode, threePlayerAttackProhibited: _setting, ...input }: Input) => ({
+  gomoku: ({ mode: _mode, threePlayerAttackProhibited: _setting, ...input }: Input) => ({
+    ...input,
+    game: "gomoku",
+  }),
+  shogi: ({
+    mode: _mode,
+    threePlayerAttackProhibited: _setting,
+    forbiddenRules: _forbidden,
+    ...input
+  }: Input) => ({
     ...input,
     game: "shogi" as const,
   }),
-  reversi: ({ mode: _mode, threePlayerAttackProhibited: _setting, ...input }: Input) => ({
+  reversi: ({
+    mode: _mode,
+    threePlayerAttackProhibited: _setting,
+    forbiddenRules: _forbidden,
+    ...input
+  }: Input) => ({
     ...input,
     game: "reversi",
   }),
-  "four-reversi": ({ threePlayerAttackProhibited: _setting, ...input }: Input) => input,
-  "four-shogi": (input: Input) => ({ ...input, game: "four-shogi" }),
+  "four-reversi": ({
+    threePlayerAttackProhibited: _setting,
+    forbiddenRules: _forbidden,
+    ...input
+  }: Input) => input,
+  "four-shogi": ({ forbiddenRules: _forbidden, ...input }: Input) => ({
+    ...input,
+    game: "four-shogi",
+  }),
 } satisfies CreateRoomRequests;

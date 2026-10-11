@@ -346,6 +346,125 @@ export function isReversiRoom(room: Room): room is ReversiRoom {
   return room.settings.game === "reversi";
 }
 
+export const gomokuPositionSchema = z.strictObject({
+  x: z.int().min(0).max(14),
+  y: z.int().min(0).max(14),
+});
+export const gomokuColorSchema = z.enum(["black", "white"]);
+export const gomokuSettingsSchema = z.strictObject({
+  game: z.literal("gomoku"),
+  mode: z.never().optional(),
+  timeControl: roomTimeControlSchema,
+  forbiddenRules: z.boolean(),
+});
+export const gomokuResultSchema = z.strictObject({
+  reason: z.enum(["five", "board_full", "no_legal_moves", "last_player"]),
+  winner: gomokuColorSchema.nullable(),
+  winningLines: z.array(z.array(gomokuPositionSchema).min(5).max(15)).max(4),
+  stoneCounts: z.strictObject({ black: z.int().min(0).max(225), white: z.int().min(0).max(225) }),
+});
+const gomokuStateBase = gameStateBaseSchema.omit({ mode: true, consecutivePasses: true }).extend({
+  board: z.array(z.array(gomokuColorSchema.nullable()).length(15)).length(15),
+  eliminatedColors: z.array(gomokuColorSchema).max(1),
+  rulesVersion: z.literal(1),
+  forbiddenRules: z.boolean(),
+  lastMove: gomokuPositionSchema.nullable(),
+});
+const gomokuPlayingStateSchema = gomokuStateBase.extend({
+  status: z.literal("playing"),
+  turn: gomokuColorSchema,
+  result: z.null(),
+});
+export const gomokuFinishedStateSchema = gomokuStateBase.extend({
+  status: z.literal("finished"),
+  turn: z.null(),
+  result: gomokuResultSchema,
+});
+export const gomokuStateSchema = z.discriminatedUnion("status", [
+  gomokuPlayingStateSchema,
+  gomokuFinishedStateSchema,
+]);
+export const gomokuEliminationSchema = eliminationSchema.extend({ color: gomokuColorSchema });
+export const gomokuReplaySchema = z.strictObject({
+  id: z.uuid(),
+  initial: gomokuPlayingStateSchema,
+  steps: z.array(
+    z.strictObject({
+      action: z.discriminatedUnion("type", [
+        replayActionSchema.options[0].extend({
+          color: gomokuColorSchema,
+          position: gomokuPositionSchema,
+        }),
+        gomokuEliminationSchema.extend({ type: z.literal("eliminate") }),
+      ]),
+      game: gomokuStateSchema,
+    }),
+  ),
+});
+const gomokuLastRoundSchema = z.strictObject({
+  settings: gomokuSettingsSchema,
+  game: gomokuFinishedStateSchema,
+  players: z
+    .array(lastRoundSchema.shape.players.element.extend({ color: gomokuColorSchema }))
+    .length(2),
+  replay: gomokuReplaySchema,
+});
+const gomokuRemaining = z.strictObject({
+  black: z.int().nonnegative(),
+  white: z.int().nonnegative(),
+});
+export const gomokuClockSchema = playingClockSchema.extend({ remainingMainMs: gomokuRemaining });
+const gomokuWaitingSchema = waitingRoomSchema.extend({
+  roundId: z.null(),
+  positionRevision: z.literal(0),
+  settings: gomokuSettingsSchema,
+  players: z
+    .array(
+      z.union([
+        cpuPlayerSchema.extend({ color: z.null() }),
+        humanPlayerSchema.extend({ color: z.null() }),
+      ]),
+    )
+    .max(2),
+  eliminations: z.array(gomokuEliminationSchema).length(0),
+  lastRound: gomokuLastRoundSchema.nullable(),
+});
+const gomokuPlayingRoomSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    instanceId: z.uuid(),
+    status: z.literal("playing"),
+    roundId: z.uuid(),
+    positionRevision: z.int().nonnegative(),
+    settings: gomokuSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
+    players: z
+      .array(
+        z.union([
+          cpuPlayerSchema.extend({ color: gomokuColorSchema }),
+          humanPlayerSchema.extend({ color: gomokuColorSchema }),
+        ]),
+      )
+      .length(2),
+    eliminations: z.array(gomokuEliminationSchema).max(1),
+    game: gomokuPlayingStateSchema,
+    clock: gomokuClockSchema,
+    lastRound: z.null(),
+  })
+  .refine((room) => new Set(room.players.map((p) => p.color)).size === 2);
+export const gomokuRoomSchema = z.discriminatedUnion("status", [
+  gomokuWaitingSchema,
+  gomokuPlayingRoomSchema,
+]);
+export type GomokuRoom = z.infer<typeof gomokuRoomSchema>;
+export type GomokuLastRound = z.infer<typeof gomokuLastRoundSchema>;
+export type GomokuReplay = z.infer<typeof gomokuReplaySchema>;
+export type GomokuClock = z.infer<typeof gomokuClockSchema>;
+export function isGomokuRoom(room: Room): room is GomokuRoom {
+  return room.settings.game === "gomoku";
+}
+
 export const roomGameSchema = gameIdSchema;
 export const fourShogiRoomSettingsSchema = fourReversiRoomSettingsSchema.extend({
   game: z.literal("four-shogi"),
@@ -356,6 +475,7 @@ export const roomSettingsSchema = z.discriminatedUnion("game", [
   fourReversiRoomSettingsSchema,
   fourShogiRoomSettingsSchema,
   reversiSettingsSchema,
+  gomokuSettingsSchema,
   shogiSettingsSchema,
 ]);
 const shogiRemaining = z.strictObject({
@@ -532,6 +652,7 @@ export const roomSchema = z.union([
   fourReversiRoomSchema,
   fourShogiRoomSchema,
   reversiRoomSchema,
+  gomokuRoomSchema,
   shogiRoomSchema,
 ]);
 export type FourReversiRoom = z.infer<typeof fourReversiRoomSchema>;
@@ -655,6 +776,7 @@ export const createRoomContract = {
       mode: roomModeSchema.optional(),
       game: roomGameSchema.optional(),
       threePlayerAttackProhibited: z.boolean().optional(),
+      forbiddenRules: z.boolean().optional(),
       timeControl: roomTimeControlSchema.optional(),
     })
     .refine((value) =>
@@ -790,6 +912,7 @@ export const roomSocketContract = {
       timeControl: roomTimeControlSchema,
     }),
     z.strictObject({ type: z.literal("room.three-player-attack.set"), prohibited: z.boolean() }),
+    z.strictObject({ type: z.literal("room.gomoku-forbidden.set"), enabled: z.boolean() }),
     z.strictObject({ type: z.literal("room.cpu.add"), level: cpuLevelSchema }),
     z.strictObject({ type: z.literal("room.cpu.remove"), playerId: z.uuid() }),
     z.strictObject({
@@ -819,6 +942,7 @@ export const roomSocketContract = {
         positionRevision: z.int().nonnegative().optional(),
         action: z.union([
           shogiActionSchema,
+          z.strictObject({ type: z.literal("placeGomokuStone"), position: gomokuPositionSchema }),
           z.strictObject({
             type: z.literal("placeStone"),
             position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
@@ -881,6 +1005,13 @@ export const roomSocketContract = {
         "game_finished",
         "not_your_turn",
         "invalid_move",
+        "gomoku_double_three",
+        "gomoku_double_four",
+        "gomoku_overline",
+        "gomoku_double_three_double_four",
+        "gomoku_double_three_overline",
+        "gomoku_double_four_overline",
+        "gomoku_double_three_double_four_overline",
         "already_eliminated",
         "time_expired",
         "room_full",

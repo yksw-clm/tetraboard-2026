@@ -97,7 +97,7 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 
 `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/accountRecovery.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/dataLoading.test.tsx ./test-dom/savedReplay.test.tsx ./test-dom/profileFeedback.test.tsx ./test-dom/formationStats.test.tsx` と `bun test --cwd apps/web ./test/matchReplayLoader.test.ts` を使います。
 
-全4ゲームの初回401、更新・再試行・追加履歴・画面内往復・戦法別戦績、同時401と進行中の通常確認の共有、有効な同一アカウントでの一度だけの再取得、同一カーソルと重複排除、再失敗後の手動再試行を確認します。未認証が確認された場合のヘッダー同期・喪失案内・ログイン遷移と、本人棋譜の取得／分割ページでの401・直接アクセス・再検証の上限を検証します。
+全5ゲームの初回401、更新・再試行・追加履歴・画面内往復・戦法別戦績、同時401と進行中の通常確認の共有、有効な同一アカウントでの一度だけの再取得、同一カーソルと重複排除、再失敗後の手動再試行を確認します。未認証が確認された場合のヘッダー同期・喪失案内・ログイン遷移と、本人棋譜の取得／分割ページでの401・直接アクセス・再検証の上限を検証します。
 
 503・オフライン・10秒の期限と遅延応答、プロフィール・名前・ID・画像の下書きと既存データの保持、別アカウントのキャッシュ分離、古い200／401・認証更新・unmount・StrictModeを確認します。実OAuth、ブラウザのCookie期限と保存、本番での認証喪失の原因、画面寸法・実画像デコード・ネイティブ入力はこの自動検証では確認しません。本番Cookieや本番DBを変更した再現は行いません。
 
@@ -107,25 +107,43 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 | --- | --- |
 | 初期値・不正JSONと項目単位の検証、再読込、古いタブでの別項目保持、読取／書込失敗、未保存値の復帰・同期時の保持、購読解除 | `apps/web/test/browserSettings.test.ts` |
 | ヘッダー入口・2項目の保存と共有、読み上げ名・現在値・閉鎖後の焦点指定、別タブのOFFでの音声停止、同期ONで有効化を代替しないこと、保存失敗補足と成功後の解除・キー削除 | `apps/web/test-dom/browserSettings.test.tsx` |
-| OFF時の演出・タイマー解除、OFF中の送信、OFF中／過去／重複通知の再演防止、送信待ち／制限中のパネル設定、全4ゲームのルーム内入口と共通設定による演出解除 | `apps/web/test-dom/roomStamps.test.tsx` |
+| OFF時の演出・タイマー解除、OFF中の送信、OFF中／過去／重複通知の再演防止、送信待ち／制限中のパネル設定、全5ゲームのルーム内入口と共通設定による演出解除 | `apps/web/test-dom/roomStamps.test.tsx` |
 | 全音源と予約の停止、時計音のOFF／ONと5秒境界、音声未有効化・中断・再生失敗、既存の着手・終局・復帰と通知済み記録 | `apps/web/test-dom/soundPlayer.test.ts`・`clockWarning.test.tsx`・`roomSounds.test.tsx`、`apps/web/test/clockWarning.test.ts` |
 
-画面寸法は全4ゲーム・四人ゲームの両モードを320×640、390×844、768×1024、1279×900、1280×800で手動確認します。追加前と追加後の盤面・カード・持ち駒・状況カード・ルーム情報カードと見出し行・棋譜操作欄・タブを比較し、開閉・切替時も維持します。ネイティブ操作、実音声・消音・他アプリ併用・背景復帰、実絵文字とフェードはPC／iPhone Safari／Android Chromeで手動確認し、結果と未確認事項をPRへ記載します。ブラウザ起動型の自動テスト・設定・workflowは追加しません。
+画面寸法は全5ゲーム・四人ゲームの両モードを320×640、390×844、768×1024、1279×900、1280×800で手動確認します。追加前と追加後の盤面・カード・持ち駒・状況カード・ルーム情報カードと見出し行・棋譜操作欄・タブを比較し、開閉・切替時も維持します。ネイティブ操作、実音声・消音・他アプリ併用・背景復帰、実絵文字とフェードはPC／iPhone Safari／Android Chromeで手動確認し、結果と未確認事項をPRへ記載します。ブラウザ起動型の自動テスト・設定・workflowは追加しません。
 
 ## ルームのスタンプの確認
 
 | 確認する振る舞い | 検証先 |
 | --- | --- |
-| 全4ゲームの待機・対局・再戦待機、本人・相手・観戦者への配信、旧接続への通知抑止、戦型解析との併用、認証時の制限復元 | `apps/worker/test/roomStamps.test.ts` |
+| 全5ゲームの待機・対局・再戦待機、本人・相手・観戦者への配信、旧接続への通知抑止、戦型解析との併用、認証時の制限復元 | `apps/worker/test/roomStamps.test.ts` |
 | チャットとの相互制限、2,999／3,000ms、複数タブとDO再作成、世代・不正ID・CPU・退室済み資格・送信停止、脱落後の在室、履歴不変・活動期限・時計・CPU予定 | `apps/worker/test/roomStamps.test.ts` |
 | 受理前の表示抑止、requestId相関と独立した待ち、10秒期限、旧Workerと再接続、非表示と旧接続の通知破棄、共有送信制限 | `apps/web/test-dom/roomStamps.test.tsx` |
-| 3秒境界、置換・重複・非表示対象・各解除条件、アバター保持と保存棋譜のContextなし、6候補・Esc・焦点指定・切替時の閉鎖、全4ゲームの入口 | `apps/web/test-dom/roomStamps.test.tsx` |
+| 3秒境界、置換・重複・非表示対象・各解除条件、アバター保持と保存棋譜のContextなし、6候補・Esc・焦点指定・切替時の閉鎖、全5ゲームの入口 | `apps/web/test-dom/roomStamps.test.tsx` |
 
-画面寸法・位置・タブ位置、絵文字の実描画とフェード、実フォーカス・タッチ・ドラッグは自動テストへ追加しません。全4ゲームを320×640、390×844、768×1024、1280×800で確認し、通常将棋で投了・持将棋・入玉宣言とスタンプが並ぶ状態を重点ケースにします。実施結果と未確認事項はPR本文へ記載します。
+画面寸法・位置・タブ位置、絵文字の実描画とフェード、実フォーカス・タッチ・ドラッグは自動テストへ追加しません。全5ゲームを320×640、390×844、768×1024、1280×800で確認し、通常将棋で投了・持将棋・入玉宣言とスタンプが並ぶ状態を重点ケースにします。実施結果と未確認事項はPR本文へ記載します。
+
+## 五目並べの確認
+
+| 対象 | テスト・確認 |
+| --- | --- |
+| 15路・全方向・五連／長連・複数勝利線・満盤・外部敗北、禁手の再帰・同方向四四・入力不変・全空点の合法手なし | `packages/gomoku/test/engine.test.ts`、`forbidden.test.ts` |
+| CPUの合法性・即勝ち優先・防御・ON/OFF・入力不変・決定性・探索上限 | `packages/gomoku/test/cpu.test.ts` |
+| 2席・モードなし・ホスト設定・準備解除・再戦／前局設定保持、本人限定の禁手拒否・局面更新番号・時計・CPU候補の保存と期限優先、終局保存・失敗と再送 | `apps/worker/test/gomokuRoom.test.ts` |
+| 公開／本人限定の棋譜、対人限定・CPU除外・ON/OFF合算・引き分け・重複防止・障害・プロフィールのバッジなし | `apps/worker/test/gomokuRecords.test.ts` |
+| 初期・途中・終局の再現、破損データの拒否、15路と従来8路の通信境界 | `apps/web/test/gomokuReplay.test.ts`、`test-fixtures/matches/gomoku-on-five.json`・`gomoku-off-overline.json` |
+| 紫テーマ・上下2席・交点操作・二重送信・局面更新・ローカル／サーバー禁手toast・3秒・観戦者／手番外の拒否・固定座標・回転・巻戻し・遊び方 | `apps/web/test-dom/gomoku.test.tsx` |
+| 5ゲームの共通ルーム・スタンプ・認証復帰・公開ページ・ナビ・必須登録・エンジンとCPUのチャンク境界 | 共通Worker／Webテスト、型検査専用fixture、`bun run build` |
+
+部分実行は `bun run --cwd packages/gomoku check`、`bun run --cwd apps/worker test test/gomokuRoom.test.ts test/gomokuRecords.test.ts`、`bun test --cwd apps/web ./test/gomokuReplay.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/gomoku.test.tsx ./test-dom/roomStamps.test.tsx` を使います。既存4ゲームの固定棋譜を変更せず、通常のcheckで回帰を確認します。
+
+ONの五連とOFFの六連のfixtureは初期局面から受理した着手と全局面を固定した規則版1の記録です。期待値をテスト実行時に再生成せず、同じエンジンで再実行して各保存局面と照合します。新しい互換ケースは既存fixtureを置換せず追加します。
+
+画面寸法、スマートフォンでの交点の押しやすさ、紫色・木目盤の実描画、長い名前、5項目の横スクロール、ネイティブ入力、実音声・読み上げは手動確認の実施結果または未確認理由をPRに記載します。ブラウザ自動テストは追加しません。必須3コマンドとGitHub CIは共通手順どおり実施します。
 
 ## 通常将棋の確認
 
-通常将棋の自動検証も上記の3つの実行環境へ集約します。共通ルーム検証はゲームカタログの全4ゲームへ同じ操作を適用し、新しいゲームにも参加・観戦・準備・資格認証・チャット・再接続を保証します。
+通常将棋の自動検証も上記の3つの実行環境へ集約します。共通ルーム検証はゲームカタログの全5ゲームへ同じ操作を適用し、新しいゲームにも参加・観戦・準備・資格認証・チャット・再接続を保証します。
 
 | 確認する振る舞い | 検証先 |
 | --- | --- |
@@ -139,7 +157,7 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 | 保存・ルーム棋譜の開始から千日手までの全局面、局識別・連続性・最終状態の一致・通信取消 | `apps/web/test/standardShogiReplay.test.ts` |
 | 40枚のプレビュー・上下2カード・各7種類の持ち駒・5項目の戦績・モードとバッジなし・ランキング、局revision付きの一度だけの送信、持将棋ボタンの条件と手番外操作、宣言確認と局面変更時の解除、本人の向きと180度回転 | `apps/web/test-dom/standardShogi.test.tsx` |
 | 四人将棋の過去棋譜・引分提案・画像19URL・盤面操作、通常リバーシと四人リバーシの既存機能 | 既存の全エンジン・Worker・Web・Adminテストを継続実行 |
-| 4ロビーの初期HTML・サイトマップ・通信境界、ゲーム別の遅延読み込みと別ゲームのエンジン・CPUの混入拒否 | 公開ロビーの既存テストと `bun run build` |
+| 5ロビーの初期HTML・サイトマップ・通信境界、ゲーム別の遅延読み込みと別ゲームのエンジン・CPUの混入拒否 | 公開ロビーの既存テストと `bun run build` |
 
 以下は2026-10-09の初期実装の検証記録です。コード検証対象 `3115c5bf0b4bd1b94116a9a0146a325c3939940f` をmacOS（Darwin 27.0.0）、Bun 1.4.2、Node.js 24.21.0で確認しました。後続の表示調整についても必須3コマンドを再実行し、最終検証対象コミットと結果をPR本文に記載します。
 

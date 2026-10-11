@@ -1,3 +1,4 @@
+import { GomokuForbiddenControl } from "./GomokuForbiddenControl";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { TimeControlSetting } from "../room/TimeControlSetting";
@@ -27,6 +28,8 @@ export function RoomEntryDialog({
   onCpuLevelChange,
   timeControl,
   onTimeControlChange,
+  forbiddenRules,
+  onForbiddenRulesChange,
   threePlayerAttackProhibited,
   busy: entryBusy,
   message,
@@ -52,6 +55,8 @@ export function RoomEntryDialog({
   timeControl: RoomTimeControl;
   onTimeControlChange: (value: RoomTimeControl) => void;
   threePlayerAttackProhibited?: boolean;
+  forbiddenRules?: boolean;
+  onForbiddenRulesChange?: (enabled: boolean) => void;
   busy: boolean;
   message: string | null;
   theme?: AppTheme;
@@ -128,6 +133,7 @@ export function RoomEntryDialog({
                   selectedRoomId,
                   humanOnly,
                   threePlayerAttackProhibited,
+                  forbiddenRules,
                 },
               }),
           }}
@@ -213,6 +219,13 @@ export function RoomEntryDialog({
                   ))}
                 </div>
               </RadioGroup>
+            )}
+            {forbiddenRules !== undefined && onForbiddenRulesChange && (
+              <GomokuForbiddenControl
+                enabled={forbiddenRules}
+                disabled={busy}
+                onChange={onForbiddenRulesChange}
+              />
             )}
             {threePlayerAttackProhibited !== undefined && onThreePlayerAttackChange && (
               <ThreePlayerAttackSetting

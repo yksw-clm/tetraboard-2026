@@ -80,6 +80,7 @@ for (const game of gameIds) {
         ctx.storage.kv.put("room", room);
         ctx.storage.kv.delete("shogi-cpu-job");
         ctx.storage.kv.delete("standard-shogi-cpu-job");
+        ctx.storage.kv.delete("gomoku-cpu-job");
         const clock = vi.spyOn(Date, "now").mockReturnValue(at + 1_999);
         try {
           await instance.alarm();
@@ -98,8 +99,13 @@ for (const game of gameIds) {
         const clock = vi.spyOn(Date, "now").mockReturnValue(at + 2_000);
         try {
           await instance.alarm();
-          if (game === "four-shogi" || game === "shogi") {
-            const key = game === "shogi" ? "standard-shogi-cpu-job" : "shogi-cpu-job";
+          if (game === "four-shogi" || game === "shogi" || game === "gomoku") {
+            const key =
+              game === "gomoku"
+                ? "gomoku-cpu-job"
+                : game === "shogi"
+                  ? "standard-shogi-cpu-job"
+                  : "shogi-cpu-job";
             const job = ctx.storage.kv.get<{ applyAt: number }>(key)!;
             expect(job).toBeDefined();
             clock.mockReturnValue(job.applyAt);

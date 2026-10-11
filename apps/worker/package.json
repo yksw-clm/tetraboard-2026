@@ -30,6 +30,7 @@
     "hono": "^4.13.10",
     "zod": "^4.0.0",
     "@tetraboard/reversi": "workspace:*",
-    "@tetraboard/shogi": "workspace:*"
+    "@tetraboard/shogi": "workspace:*",
+    "@tetraboard/gomoku": "workspace:*"
   }
 }

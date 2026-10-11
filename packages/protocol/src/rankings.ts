@@ -46,6 +46,7 @@ export const reversiRankingsSchema = z.strictObject({
 });
 export type ReversiRankings = z.infer<typeof reversiRankingsSchema>;
 export const gameRankingContracts = {
+  gomoku: { method: "GET", path: gameCatalog.gomoku.rankingsPath, response: reversiRankingsSchema },
   "four-reversi": getFourReversiRankingsContract,
   "four-shogi": getFourShogiRankingsContract,
   shogi: { method: "GET", path: gameCatalog.shogi.rankingsPath, response: reversiRankingsSchema },

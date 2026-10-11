@@ -3,6 +3,18 @@ import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 export const publicOrigin = "https://tetraboard.net";
 
 export const lobbyMetadata = {
+  gomoku: {
+    title: "TetraBoard | 五目並べをブラウザでオンライン対戦",
+    description:
+      "15路盤の五目並べを登録・インストール不要でオンライン対戦。禁手ルールのON/OFF、CPU対局、観戦と棋譜に対応しています。",
+    overview:
+      "五目並べは黒と白が交互に交点へ石を置き、縦・横・斜めの五連を目指す2人用ゲームです。友人やCPUと対局できます。",
+    rules: [
+      "黒から交互に1個ずつ置きます。先後は各対局の開始時にランダムで決まります。",
+      "禁手OFFでは5個以上で勝ち。初期ONでは黒の三三・四四・長連を禁止し、黒は5個ちょうど、白は5個以上で勝ちます。",
+      "禁手は着手を拒否します。黒の合法手がなければ白勝ち、勝者なく盤が埋まれば引き分けです。",
+    ],
+  },
   shogi: {
     title: "将棋をオンラインで対戦 | TetraBoard",
     description: "通常将棋を友達やCPUと対戦。登録なしで遊べる無料オンライン将棋。",

@@ -38,7 +38,7 @@ export const badgeDefinitions = {
 >;
 
 export function getBadgeIds(game: GameId): readonly BadgeId[] {
-  if (game === "reversi" || game === "shogi") return [];
+  if (game === "reversi" || game === "shogi" || game === "gomoku") return [];
   return game === "four-shogi" ? badgeIds : ["games", "wins"];
 }
 

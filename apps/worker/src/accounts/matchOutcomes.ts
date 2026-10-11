@@ -14,6 +14,13 @@ export const gameOutcomeSql = {
     team: "direction",
     knockouts: "0",
   },
+  gomoku: {
+    game: "gomoku",
+    direction: "json_extract(p.value, '$.color')",
+    rankDirection: "json_extract(s.value, '$.color')",
+    team: "direction",
+    knockouts: "0",
+  },
   reversi: {
     game: "reversi",
     direction: "json_extract(p.value, '$.color')",
