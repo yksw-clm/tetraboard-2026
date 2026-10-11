@@ -103,7 +103,7 @@ const worker = {
           new URL(gameCatalog[defaultGameId].lobbyPath, request.url).toString(),
           302,
         );
-      return servePublicAssets(request, env.ASSETS, assetPath);
+      return servePublicAssets(request, env.ASSETS, assetPath, env);
     }
     return app.fetch(request, env, context);
   },

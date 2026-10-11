@@ -14,6 +14,7 @@
 | 時計・接続・ルーム操作 | Workerの[clock.test.ts](../apps/worker/test/clock.test.ts)・[roomDeadlineBoundary.test.ts](../apps/worker/test/roomDeadlineBoundary.test.ts)・[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)、Web部品の[roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx)・[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx) |
 | 終局保存・棋譜・互換性 | Workerの[matchStore.test.ts](../apps/worker/test/matchStore.test.ts)・[shogiMatchStore.test.ts](../apps/worker/test/shogiMatchStore.test.ts)・[matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、Web純粋関数の[matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts)、Web部品の[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx) |
 | ロビー・画面・共通部品 | Web部品の[lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)・[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)・[shogiComponents.test.tsx](../apps/web/test-dom/shogiComponents.test.tsx)、[実行環境と手動確認の境界](#実行環境) |
+| ルーム共有 | [共有ダイアログ・X募集・OGPの確認](#ルーム共有の確認)、既存の[entryRegistration.test.tsx](../apps/web/test-dom/entryRegistration.test.tsx)・[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)・[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts) |
 | ゲームのルール・CPU | 四人リバーシの[engine.test.ts](../packages/four-reversi/test/engine.test.ts)・[cpu.test.ts](../packages/four-reversi/test/cpu.test.ts)、四人将棋の[movement.test.ts](../packages/four-shogi/test/movement.test.ts)・[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、通常リバーシの[engine.test.ts](../packages/reversi/test/engine.test.ts)、通常将棋の[rules.test.ts](../packages/shogi/test/rules.test.ts)・[cpu.test.ts](../packages/shogi/test/cpu.test.ts)、[通常将棋の統合確認](#通常将棋の確認) |
 | 表示設定・サウンド | Web純粋関数の[browserSettings.test.ts](../apps/web/test/browserSettings.test.ts)・[clockWarning.test.ts](../apps/web/test/clockWarning.test.ts)、Web部品の[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)・[soundPlayer.test.ts](../apps/web/test-dom/soundPlayer.test.ts)、[詳細と手動確認](#表示サウンド設定の確認) |
 | チャット・スタンプ | Workerの[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)・[roomStamps.test.ts](../apps/worker/test/roomStamps.test.ts)、Web部品の[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)・[roomStamps.test.tsx](../apps/web/test-dom/roomStamps.test.tsx)、[スタンプの詳細と手動確認](#ルームのスタンプの確認) |
@@ -48,6 +49,23 @@ bun run --cwd packages/shogi test
 ```
 
 部分実行の後、PR提出前の必須検証は[開発文書の共通手順](development.md#pr提出前の検証)に従います。実行環境の制約は[実行環境](#実行環境)、画面寸法・ネイティブ入力・実画像デコードなどの自動検証対象から外す範囲は[廃止した自動検証](#廃止した自動検証)を参照してください。
+
+## ルーム共有の確認
+
+2026-10-11に確定した [利用者向け仕様](../README.md#ルーム共有の確定仕様) と [実装のDone When](development.md#done-when) に対する受入項目です。機能と検証を追加し、以下の受入項目を自動検証と手動確認に分けて扱います。
+
+| 検証方法 | 受入項目 |
+| --- | --- |
+| Bun純粋関数 | 全6ゲームのゲーム名・ハッシュタグ・4行の投稿文、同一の共有URL、改行・日本語・クエリのエンコード、参加資格トークンを含めないこと、満室／対局中の募集可否、メタ情報の生成とHTMLエスケープ |
+| Bun＋happy-domの部品・hook | 作成成功直後の1回表示、失敗・すぐ遊ぶ・参加・観戦・再読み込み・再接続・戻り・他閲覧者での抑止、手動表示、対局者・観戦者の操作、コピー成功の3秒toast・失敗・手動選択用URL・再試行・連打、Xリンクの文章とURL・別タブ、満室化・対局開始・空席復帰への追従、画面内遷移でのメタ情報の除去と設定 |
+| 既存の招待・参加の回帰 | 未参加者への初回参加案内、観戦を継続して後から参加、登録からの復帰、名前・参加資格・部屋世代の照合、世代の異なる部屋へ入らないこと |
+| Worker統合テスト | 共有URLへの直接GET／HEADでの全6ゲームの初期HTML・OGP・Xメタ情報、通常UAと共有クローラーへの同じ内容、世代不一致・存在しない・期限切れの共通カード、メタ情報取得失敗時の画面配信、ルーム間・環境間・条件付きリクエストのメタ情報混在防止、画像7枚の配信・Content-Type・GET／HEAD・304・欠落時404 |
+| 既存の配信・SEOの回帰 | HTMLとHTTPヘッダーのnoindex、開発環境から本番への誤転送がないこと、サイトマップの6ロビー、ロビーの初期HTMLと画面内遷移、API・WebSocket・認証Cookieの境界 |
+| 手動確認 | PC・スマートフォンで既存ボタンの幅・高さ・余白・配置と周囲のレイアウトの前後比較、ダイアログの背景ぼかし・スクロール・閉鎖・Escape・フォーカスの閉じ込めと復帰、実クリップボード・URL選択・Xの投稿画面への遷移、画像の実デコード・縮小時の盤面と文字・共有カードの見栄え |
+
+外部通信・実時間の待機を自動テストへ持ち込まず、状態・偽時計・保留可能な通信応答で検証します。画面寸法・ネイティブ入力・実画像デコードをブラウザ自動テストへ追加しません。手動確認では機種・OS・ブラウザ・確認対象コミットと結果を記録します。Xの実カードは承認後に開発者が行う投稿で確認し、取得・キャッシュ・表示方式により確認できない場合は未確認として記録します。
+
+部分確認は `bun test --cwd apps/web ./test/roomSharing.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSharing.test.tsx ./test-dom/lobbyComponents.test.tsx ./test-dom/entryRegistration.test.tsx`、`bun run --cwd apps/worker test test/roomSharing.test.ts test/publicAssets.test.ts` です。初期HTMLの取得失敗・1500msの期限、DOの保存状態とalarmの不変、ルームHTMLの条件付き取得で200・no-store、静的画像の304を確認します。画像の実デコードと見栄えは全7枚を目視確認済みですが、実機の画面寸法・ネイティブ入力・Xの実投稿カードは未確認です。
 
 ## 四人リバーシAI強化の確認
 

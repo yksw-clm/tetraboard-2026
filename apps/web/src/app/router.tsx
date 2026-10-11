@@ -96,6 +96,7 @@ export const router = createBrowserRouter([
       })),
       {
         path: "/rooms/:id",
+        id: "room",
         Component: RoomPage,
         loader: roomLoader,
         ErrorBoundary: RoomErrorPage,

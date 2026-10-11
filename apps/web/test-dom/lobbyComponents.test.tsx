@@ -180,7 +180,7 @@ test("参加ダイアログはアカウントCPU確認条件と入力・送信�
   );
 });
 
-test("招待コピーは世代付きURLと連打防止、失敗時手動コピー、保存不可でも取消と焦点指定", async () => {
+test("共有コピーは世代付きURLと連打防止、失敗時の案内、保存不可でも取消と焦点指定", async () => {
   const room = waitingRoom();
   room.players = room.players.slice(0, 1);
   let focused = 0,
@@ -203,6 +203,7 @@ test("招待コピーは世代付きURLと連打防止、失敗時手動コピ�
     act(() => h.current.close());
     clock.advance(16);
     expect(focused).toBe(1);
+    act(() => h.current.openShare());
     act(() => {
       void h.current.copy(() => copied++);
       void h.current.copy(() => copied++);
@@ -217,7 +218,8 @@ test("招待コピーは世代付きURLと連打防止、失敗時手動コピ�
       void h.current.copy(() => copied++);
     });
     await flush();
-    expect(h.current.dialog).toBe("copy");
+    expect(h.current.dialog).toBe("share");
+    expect(h.current.copyError).toContain("コピーできませんでした");
     act(() => h.current.close());
     expect(h.current.dialog).toBeNull();
     act(() => h.current.openJoin());

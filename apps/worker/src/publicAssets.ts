@@ -1,4 +1,5 @@
 import { defaultGameId, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { serveRoomShareHtml } from "./roomShareHtml";
 
 export function withoutIndexing(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -14,6 +15,7 @@ export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
   path: string,
+  env?: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.headers.get("Upgrade"))
@@ -47,6 +49,7 @@ export async function servePublicAssets(
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
+    if (env && /^\/rooms\/[^/]+\/?$/.test(path)) return serveRoomShareHtml(request, env, assets);
     url.pathname = "/index.html";
     return withoutIndexing(await assets.fetch(new Request(url, request)));
   }
