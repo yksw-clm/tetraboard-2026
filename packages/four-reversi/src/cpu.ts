@@ -7,7 +7,7 @@ import {
   type Color,
   type FourReversiState,
   type Position,
-} from "./index";
+} from "./engine";
 
 export type CpuLevel = 1 | 2;
 

@@ -3,7 +3,7 @@ import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
-import { chooseCpuMove, colors, type GameMode } from "../src/index";
+import { applyAction, chooseCpuMove, colors, getLegalMoves, type GameMode } from "../src/index";
 import {
   openingPosition,
   playMatch,
@@ -44,7 +44,9 @@ try {
   if (archive.exitCode !== 0) throw new Error("比較対象コミットを取得できません");
   const extracted = Bun.spawnSync(["tar", "-xf", "-", "-C", directory], { stdin: archive.stdout });
   if (extracted.exitCode !== 0) throw new Error("比較対象ソースを展開できません");
-  const old = await import(pathToFileURL(join(directory, "packages/four-reversi/src/cpu.ts")).href);
+  const old = await import(
+    pathToFileURL(join(directory, "packages/four-reversi/src/index.ts")).href
+  );
   const baseline: Selector = (state) => old.chooseCpuMove(state, 2);
   if (
     args.has("candidate") &&
@@ -66,7 +68,30 @@ try {
   };
   const kind = args.get("kind") ?? "performance";
   let report: unknown;
-  if (kind === "matches") {
+  if (kind === "compatibility") {
+    const corpus = [...performancePositions(), ...endgameCases(500, 40)];
+    let transitions = 0;
+    for (const { state } of corpus) {
+      if (JSON.stringify(getLegalMoves(state)) !== JSON.stringify(old.getLegalMoves(state)))
+        throw new Error("旧エンジンの合法手と一致しません");
+      for (const position of getLegalMoves(state)) {
+        const action = { type: "placeStone" as const, position };
+        if (
+          JSON.stringify(applyAction(state, action)) !==
+          JSON.stringify(old.applyAction(state, action))
+        )
+          throw new Error("旧エンジンの遷移と一致しません");
+        transitions++;
+      }
+    }
+    report = {
+      metadata,
+      corpusHash: hash(corpus),
+      positions: corpus.length,
+      transitions,
+      passed: true,
+    };
+  } else if (kind === "matches") {
     const mode = args.get("mode") ?? "singles";
     if (mode !== "singles" && mode !== "doubles") throw new Error("modeが不正です");
     const games = integer("games", 4);
