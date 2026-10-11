@@ -20,6 +20,7 @@ import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/ro
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import { readGuestName, saveGuestName } from "../../shared/guestName";
+import { createRoomShareIntent, consumeRoomShareIntent } from "../room/roomShareIntent";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
@@ -140,7 +141,14 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         }
         saveGuestName(request.data.name);
         roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
-        await navigate(getRoomContract.pathFor(result.room.id));
+        const state =
+          intent === "create" ? createRoomShareIntent(result.room, result.membership) : undefined;
+        try {
+          await navigate(getRoomContract.pathFor(result.room.id), { state });
+        } catch (error) {
+          consumeRoomShareIntent(state);
+          throw error;
+        }
       } else {
         const error = contract.error.parse(body);
         setMessage(entryErrorMessage(error, intent));

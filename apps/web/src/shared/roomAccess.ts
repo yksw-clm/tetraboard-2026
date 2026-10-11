@@ -11,6 +11,7 @@ import {
   saveRoomMembershipToken,
 } from "./roomMembership";
 import { saveGuestName } from "./guestName";
+import { roomSharePath } from "@tetraboard/protocol/room-sharing";
 
 export const roomChangedMessage =
   "このルームは閉鎖されています。新しい招待リンクを確認するか、ロビーへ戻ってください。";
@@ -37,7 +38,7 @@ export function invitationInstance(url: URL): string | undefined {
 }
 
 export function roomInvitationPath(room: Pick<Room, "id" | "instanceId">): string {
-  return `${getRoomContract.pathFor(room.id)}?invite=${room.instanceId}`;
+  return roomSharePath(room);
 }
 
 export async function fetchRoom(id: string, signal?: AbortSignal, instanceId?: string) {

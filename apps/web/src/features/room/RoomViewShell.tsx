@@ -27,6 +27,7 @@ import { useAutoGameResult } from "./useAutoGameResult";
 import { roomInvitationPath } from "../../shared/roomAccess";
 import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
 import { FeedbackForm } from "../feedback/FeedbackForm";
+import { RoomShareDialog } from "./RoomShareDialog";
 
 export function RoomViewShell({
   session,
@@ -79,6 +80,7 @@ export function RoomViewShell({
   const theme = gameThemes[room.settings.game];
   const lobbyPath = gameCatalog[room.settings.game].lobbyPath;
   const joinButtonRef = useRef<HTMLButtonElement>(null);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
   const resultButtonRef = useRef<HTMLButtonElement>(null);
   const fallbackFocusRef = useRef<HTMLElement>(null);
   const cpuAddButtonRef = useRef<HTMLButtonElement>(null);
@@ -107,9 +109,27 @@ export function RoomViewShell({
     });
     return () => cancelAnimationFrame(frame);
   }, [cpuConfirmation]);
-  const invitation = useRoomInvitation(room, membership, invited, () => {
-    (joinButtonRef.current ?? fallbackFocusRef.current)?.focus();
-  });
+  const invitation = useRoomInvitation(
+    room,
+    membership,
+    invited,
+    () => (joinButtonRef.current ?? fallbackFocusRef.current)?.focus(),
+    () => {
+      const button = shareButtonRef.current;
+      button?.focus();
+      // 自動表示を閉じたとき、非表示のルームタブへ焦点を移さず画面本体へ戻します。
+      if (!button || document.activeElement !== button) fallbackFocusRef.current?.focus();
+    },
+  );
+  const onCopied = () =>
+    chat.toastQueue.add(
+      {
+        title: "ルームURLをコピーしました",
+        description: "友達にリンクを送って招待できます。",
+        theme,
+      },
+      { timeout: 3000 },
+    );
   const guest = !account.loading && !account.error && !account.user;
   const autoResult = useAutoGameResult(
     room,
@@ -164,19 +184,8 @@ export function RoomViewShell({
       cpuAddButtonRef={cpuAddButtonRef}
       canAddCpu={canAddCpu}
       onAddCpu={cpuAddition.request}
-      copying={invitation.copying}
-      onCopyInvite={() =>
-        void invitation.copy(() =>
-          chat.toastQueue.add(
-            {
-              title: "招待リンクをコピーしました",
-              description: "友達にリンクを送って招待できます。",
-              theme,
-            },
-            { timeout: 3000 },
-          ),
-        )
-      }
+      shareButtonRef={shareButtonRef}
+      onShare={invitation.openShare}
       onLeave={() => {
         if (room.status === "playing") setDialog("leave");
         else void session.handleLeaveClick();
@@ -259,6 +268,14 @@ export function RoomViewShell({
         />
       </RoomStampContext.Provider>
       {!chat.toastManagedGlobally && <AppToastRegion queue={chat.toastQueue} theme={theme} />}
+      {invitation.dialog === "share" && (
+        <RoomShareDialog
+          game={room.settings.game}
+          invitation={invitation}
+          theme={theme}
+          onCopied={onCopied}
+        />
+      )}
       <RoomInvitationDialogs
         game={room.settings.game}
         invitation={invitation}

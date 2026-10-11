@@ -2,7 +2,6 @@ import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
 import { AppButton } from "../../shared/ui/AppButton";
-import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
@@ -26,21 +25,6 @@ export function RoomInvitationDialogs({
   const account = useAccount();
   const signIn = useSocialSignIn();
   const busy = invitation.busy || signIn.busy;
-  if (invitation.dialog === "copy")
-    return (
-      <AppDialog size="compact" title="招待リンク" onClose={invitation.close} theme={theme}>
-        <div className="flex flex-col gap-3 min-w-0">
-          <p>リンクを選択してコピーし、友達に送ってください。</p>
-          <AppTextField isReadOnly value={invitation.invitationUrl}>
-            <AppTextField.Label>招待リンク</AppTextField.Label>
-            <AppTextField.Input autoFocus onFocus={(event) => event.currentTarget.select()} />
-          </AppTextField>
-          <AppButton appearance="secondary" size="compact" onPress={invitation.close}>
-            閉じる
-          </AppButton>
-        </div>
-      </AppDialog>
-    );
   if (invitation.dialog !== "join") return null;
   return (
     <AppDialog

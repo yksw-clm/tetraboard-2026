@@ -15,7 +15,7 @@ const files: Record<string, { body: string; type: string }> = {
     ]),
   ),
   "/index.html": {
-    body: '<div id="root"></div><meta name="robots" content="noindex,follow">',
+    body: '<html><head><title>TetraBoard</title><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
   },
   "/404.html": {
@@ -28,6 +28,12 @@ const files: Record<string, { body: string; type: string }> = {
   },
   "/sitemap.xml": { body: "<urlset></urlset>", type: "application/xml" },
   "/assets/app.js": { body: "export {};", type: "application/javascript" },
+  ...Object.fromEntries(
+    [...gameIds, "tetraboard"].map((game) => [
+      `/assets/ogp/${game}.png`,
+      { body: `share image: ${game}`, type: "image/png" },
+    ]),
+  ),
   ...Object.fromEntries(
     formationCatalog.map(({ id }) => [
       `/four-shogi/formations/${id}.jpg`,
@@ -148,7 +154,7 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
     expect(await response.text()).toContain('content="noindex,follow"');
     const conditional = await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } });
-    expect(conditional.status).toBe(304);
+    expect(conditional.status).toBe(path.startsWith("/rooms/") ? 200 : 304);
     expect(conditional.headers.get("X-Robots-Tag")).toBe("noindex, follow");
   }
   for (const path of [
@@ -192,4 +198,24 @@ test("robots・sitemap・資産のContent-Typeを保持し、画面のPOST・Web
   expect(await api.text()).not.toContain("<h1>");
   const admin = await assets.fetch("/admin");
   expect(admin.status).not.toBe(200);
+});
+
+test("共有画像7枚のPNG配信・HEAD・304と欠落画像の404を維持する", async () => {
+  const assets = assetFixture();
+  for (const game of [...gameIds, "tetraboard"]) {
+    const path = `/assets/ogp/${game}.png`;
+    const response = await assets.fetch(path);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new TextEncoder().encode(`share image: ${game}`),
+    );
+    const head = await assets.fetch(path, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    expect((await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } })).status).toBe(
+      304,
+    );
+  }
+  expect((await assets.fetch("/assets/ogp/missing.png")).status).toBe(404);
 });

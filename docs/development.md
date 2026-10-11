@@ -34,6 +34,7 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 | 時計・接続・ルーム進行 | [投了、通信切れと持ち時間](../README.md#投了通信切れと持ち時間) | [共有transport](#共有transportとゲーム別session)、[時計と期限](#workerの時計計算と期限選択)、[進行とライフサイクル](#workerのゲーム進行と共有ライフサイクル)、[clockCore.ts](../apps/worker/src/rooms/clockCore.ts)、[useRoomTransport.ts](../apps/web/src/features/room/useRoomTransport.ts) | [timeControl.test.ts](../apps/worker/test/timeControl.test.ts)、[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx) |
 | 終局保存・棋譜・互換性 | [終局保存](../README.md#終局データの保存対局履歴)、[保存棋譜](../README.md#保存済み棋譜の閲覧)、対象ゲームの正本 | [終局保存](#終局保存と本人の対局履歴)、[棋譜互換](#保存データの契約と棋譜互換)、[matchStore.ts](../apps/worker/src/rooms/matchStore.ts)、[shogiMatchStore.ts](../apps/worker/src/rooms/shogiMatchStore.ts)、[fetchEventReplay.ts](../apps/web/src/features/room/fetchEventReplay.ts) | [matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx) |
 | 画面・ロビー・共通部品 | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル) | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/) | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx) |
+| ルーム共有 | [確定した共有仕様](../README.md#ルーム共有の確定仕様) | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts) | [ルーム共有の確認](testing.md#ルーム共有の確認) |
 | ゲーム・CPU | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md) | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts) | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts) |
 | 表示・サウンド設定 | [設定](../README.md#表示サウンド設定)、[効果音](../README.md#効果音)、[時計通知](../README.md#時間切れ5秒前の通知) | [表示・サウンド設定](#表示サウンド設定)、[共通効果音](#ルームの共通効果音)、[browserSettings.ts](../apps/web/src/shared/browserSettings.ts)、[soundPlayer.ts](../apps/web/src/shared/soundPlayer.ts) | [設定の確認](testing.md#表示サウンド設定の確認)、[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx) |
 | チャット・スタンプ | [チャット](../README.md#チャット)、[保存とモデレーション](../README.md#チャットの保存期間とモデレーション)、[スタンプ](../README.md#ルームのスタンプ) | [スタンプ](#ルームのスタンプ)、[gameRoom.ts](../apps/worker/src/rooms/gameRoom.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts) | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts) |
@@ -278,7 +279,7 @@ Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します�
 ルーム内チャットは認証済みのプレイヤーが送信し、観戦者も閲覧・通報できます。投稿とシステムログは合計100件を上限に再接続後も復元します。運営者APIのローカル確認では `apps/worker/.dev.vars.example` を参考に、追跡対象外の `.dev.vars` に `MODERATOR_TOKEN` を設定します。`GET /admin/reports` と `POST /admin/reports/:id/actions` にその値をBearerトークンとして渡します。通報データのマイグレーションは通常の `bun run dev` 時にも適用されます。期限切れ通報は毎時の定期処理で削除されます。
 待機中の退室では席が解放され、ホストが抜けると最も早く入室した人へ役割が移ります。対局中は自分の手番で投了でき、退室や30秒の切断期限切れ、持ち時間切れでも脱落します。再読み込み・再接続が期限前なら同じ参加資格で復帰し、期限後は閲覧のみできます。対局はルームの持ち時間・秒読み設定で進み、初期設定は各人5分＋1手30秒です。GETの応答は `{ "room": ..., "presence": { "hostPlayerId": ..., "connectedPlayerIds": [...] }, "serverNowMs": ... }` で、WebSocketの `room.snapshot` にも接続情報と送信時のサーバー時刻が含まれます。接続情報は認証済みソケットから算出し、脱落後の切断・復帰も配信します。Webはこの時刻を基準に残り時間を表示します。復帰期限と時計の期限にはDurable Object Alarmを使い、Workerテストではアラームと保存済み期限を操作して確認します。以前のエンジン状態で保存されたローカルルームの移行は行わないため、進行確認には新規ルームを使用します。
 
-招待リンクはルーム情報の「招待リンクをコピー」から取得します。`/rooms/<ID>?invite=<instanceId>` を資格のない別タブで開くと、空席のある待機中ルームでは参加ダイアログを自動表示します。閉じれば観戦でき、状況カードから再度参加できます。参加時は `POST /rooms/<ID>/players` のJSONに `instanceId` を追加し、WebSocketは `/rooms/<ID>/ws?instanceId=<instanceId>` へ接続します。識別子が不正なら400、不一致なら410を返します。従来の識別子なしリクエストも受け付けます。コピーAPIが使えないLAN上のHTTPなどでは、手動コピー用のダイアログを表示します。
+招待リンクはルーム情報の「ルームを共有」で開くダイアログから取得します。`/rooms/<ID>?invite=<instanceId>` を資格のない別タブで開くと、空席のある待機中ルームでは参加ダイアログを自動表示します。閉じれば観戦でき、状況カードから再度参加できます。参加時は `POST /rooms/<ID>/players` のJSONに `instanceId` を追加し、WebSocketは `/rooms/<ID>/ws?instanceId=<instanceId>` へ接続します。識別子が不正なら400、不一致なら410を返します。従来の識別子なしリクエストも受け付けます。コピーAPIが使えないLAN上のHTTPなどでは、同じ共有ダイアログのURL欄と失敗案内から手動コピーできます。共有ダイアログ・X募集・OGPの実装は [ルーム共有の実装計画](#ルーム共有の実装計画) を参照します。
 
 ## Checks
 
@@ -827,6 +828,66 @@ CSSを追加できる範囲は `shared/theme.css` の共通テーマ／最小リ
 PCでは盤面領域右下、タブレット・スマートフォンでは状況カード内へ配置します。タブ切替後の局面保持と先頭・末尾でのボタン無効化を軽量テストで確認します。Workerテストは棋譜と実際の盤面の一致・パス・CPU着手・脱落原因・再取得・次局の記録更新を、Webテストは局面ラベルと自動パスの分割を検証します。表示は `ReplayCard.tsx`、選択状態は `useRoomReplay.ts`、項目の生成は `replayFrames.ts` を編集します。
 両ゲームの `ReplayCard` は選択値・候補を一行で表示し、幅不足時のみ省略記号を使います。候補の `textValue` は全文を保持し、矢印・選択マークの幅と画面内の候補領域を確保します。将棋の `createFourShogiReplayFrame` は着手または外部脱落の短いラベルだけを生成し、詰み・合法手なし・同時脱落・順位の説明を付加しません。`game.eliminations` と全局面・結果は保持し、通常ルームと保存済み棋譜で同じframe生成を使います。打ち駒・成り・投了・パス・退室・時間切れ・通信切れ・同時詰みを確認し、ラベル短縮後も局面数・順位・脱落理由が変わらないことを検証します。
 スマートフォンでは320px幅も含めて待機ラベル・棋譜カード・結果を一行に収め、棋譜の表示前後で状況カードの高さを維持します。
+
+## ルーム共有の実装計画
+
+2026-10-11に開発者が前回の提案を承認し、共有ダイアログ・X募集・OGPの仕様と以下の実装条件を確定しました。利用者向け仕様の正本は [README](../README.md#ルーム共有の確定仕様) です。同日の実装指示に基づき、機能と静的画像7枚を `feat/room-sharing` で実装しました。実装起点のdevelopは `115bedacd2169c5be5e56752c666375536423de9` です。Goalと以下の受入条件は引き続き実装の基準として維持します。
+
+### Goal
+
+全6ゲームで、ルーム作成直後に友達への招待・対戦相手の募集を始められる共通の共有ダイアログを提供します。ルーム内の同じ位置・寸法の「ルームを共有」からも開け、URLのコピーとXの投稿画面への移動を利用できます。共有URLにはゲームに合う画像付きカードを用意し、既存の参加・観戦・部屋世代の照合を維持します。
+
+下記のDone Whenを満たし、差分・検証対象コミット・結果・未確認事項をレビューできるdevelop向け実装PRを提出することを実装作業のGoalとします。マージ・公開は開発者が差分と結果を承認した後に行います。
+
+### ContextProviders
+
+優先順位は次のとおりです。実装や過去資料と正本に食い違いがあれば、承認済み指示と正本を優先し、未決定事項を推測で確定しません。
+
+| 優先度 | 参照元 | 用途 |
+| --- | --- | --- |
+| 1 | 開発者の今回の仕様確定指示と、その後の明示的な変更指示 | 承認済みの範囲と意思決定 |
+| 2 | [AGENTS.md](../AGENTS.md)、[READMEのルーム共有](../README.md#ルーム共有の確定仕様)・[ルーム画面](../README.md#四人リバーシのルーム画面)・[共通UI](../README.md#共通uiとスタイル)・[検索向け配信](../README.md#ゲームロビーの検索向け紹介と配信) | Git運用、利用者向け仕様、寸法・参加・検索除外の契約 |
+| 3 | [共通の作業手順](#共通の作業手順)、[Webの編集先](#webの編集先)、[ロビーのSEO生成](#ロビーのseo生成と成果確認)、[部屋の指定と検索](architecture.md#部屋の指定と検索)、[テスト方針](testing.md) | 共通部品・状態・配信・検証の責務 |
+| 4 | [useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[RoomInfo.tsx](../apps/web/src/features/room/RoomInfo.tsx)、[RoomViewShell.tsx](../apps/web/src/features/room/RoomViewShell.tsx)、[roomAccess.ts](../apps/web/src/shared/roomAccess.ts)、[pageMetadata.ts](../apps/web/src/seo/pageMetadata.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)、既存の関連テスト | 作成・招待・メタ情報・HTML配信の実装と回帰 |
+| 5 | [X公式Web Intents](https://docs.x.com/x-for-websites/web-intents/overview)、[Open Graph公式仕様](https://ogp.me/)、Git履歴と関連Issue・PRが利用できる場合はその記録 | 外部仕様と変更理由。実装時にも一次資料を確認 |
+
+ゲーム名・ハッシュタグは軽量ゲームカタログを参照します。ゲーム固有のルールと盤面表現を確認する場合は、[変更対象別の案内](#変更対象別の案内)から対象ゲームのルール正本へ進みます。
+
+### Constraints
+
+- 全6ゲームの共通ロビー・ルームへ接続します。自動表示は通常の作成成功直後の作成者に1回だけとし、「すぐ遊ぶ」・参加・観戦・再読み込み・再接続・戻りでは開きません。URLに自動表示用の共有フラグを含めず、参加先に自動表示の意図を引き継ぎません。
+- 既存ボタンの文言と動作を置き換え、幅・高さ・余白・配置・周囲のレイアウトを変えません。既存のHeroUI・AppDialog・ボタン・toast・ゲームテーマ・フォーカス制御を使います。
+- 共有URLは既存の部屋番号と `instanceId` を使い、コピーとXで一致させます。参加資格トークンを含めず、招待先の参加案内、登録からの復帰、参加資格の保存と世代照合を変更しません。
+- 満室・対局中のX募集抑止は最新のルーム状態へ追従します。Xは別タブの投稿画面を開く方式とし、自動投稿、投稿完了の推測、XのAPI認証・連携、外部SDKを追加しません。
+- ゲームごとの静的画像6枚と共通画像1枚を配信します。動的な人数・名前・募集状態を画像へ埋め込まず、実行時の画像生成サービス、新しい依存技術、ルームごとの画像生成を採用しません。
+- Workerは直接アクセスの初期HTMLへゲームに対応するメタ情報を設定します。部屋世代が異なる・存在しない・期限切れのURLは共通カードにし、古いリンクに再利用後の別ルームのゲーム情報を載せません。取得失敗によって既存の画面配信や参加を妨げない構成にします。
+- ルームのHTML・HTTPのnoindex、開発環境のOriginと検索除外、6ロビーのサイトマップ、API・WebSocket・認証Cookie・HTTP配信の契約を維持します。メタ情報とキャッシュをルーム間・環境間で混在させません。ゲーム進行、時計、参加資格、棋譜・戦績の保存形式を変更しません。
+- 検証はBun純粋関数、Bun＋happy-domの部品・hook、Worker統合テストへ集約します。ブラウザ起動型のテストは追加せず、画面寸法・ネイティブ入力・実画像デコード・Xの実表示は手動確認します。
+- 実装は最新developから作業ブランチを作り、develop向けPRを使います。main・developへの直接pushとforce pushは行いません。必須ローカル5コマンドとGitHub CIの成功を確認し、マージ・公開には開発者の承認を得ます。
+
+### Done When
+
+以下をすべて満たしたら実装作業を完了とします。外部共有先のキャッシュ反映やカード表示の保証は完了条件に含めず、実際に確認できた範囲を記録します。
+
+1. 全6ゲームの通常作成成功後、作成者のルーム画面に共有ダイアログが1回だけ開くことと、対象外の入口・再読み込み・再接続・戻り・他の閲覧者で開かないことを検証できている。
+2. ルーム内の「ルームを共有」から対局者・観戦者が開け、閉じる・Escape・フォーカスの閉じ込めと復帰・背景ぼかし・小さい画面でのスクロールを確認できている。既存ボタンの幅・高さ・余白・配置と周囲のレイアウトが変更前と一致している。
+3. 正しい世代の共有URLを表示し、コピー成功の3秒toast、失敗時の案内・手動選択・再試行・重複操作抑止を検証できている。共有URLからの既存の参加案内と参加・観戦・登録復帰が回帰していない。
+4. 全6ゲームの投稿文・ハッシュタグ・URLが正しく、Xの投稿画面を別タブで開ける。満室・対局中の無効化と案内、空席へ戻ったときの有効化、表示中の状態変更を検証できている。
+5. ゲーム別画像6枚と共通画像1枚が用意され、全ゲームの共有URLの初期HTMLに正しいOGP・X用メタ情報がある。世代不一致・存在しない・期限切れのルームは共通カードを返し、メタ情報の取得失敗でも既存画面へアクセスできる。ルーム間・画面内遷移・開発／本番でメタ情報が混在しない。
+6. 画像配信とHTMLのGET／HEAD・条件付きリクエスト、noindex、API・WebSocket・認証Cookieと既存ロビーSEOの回帰を検証できている。[テスト文書の受入項目](testing.md#ルーム共有の確認)に対応した純粋関数・DOM・Worker統合テストが成功している。
+7. PC・スマートフォンで既存ボタンの寸法・配置、ダイアログの閉鎖とURL選択、画像の読み込みと見栄えを手動確認している。Xの投稿画面への遷移と実際のカード表示は承認後に開発者が行う投稿で確認し、確認環境・結果・キャッシュなどによる未確認事項を記録している。検証目的の外部投稿を実装担当者が無断で行わない。
+8. README・開発文書・テスト文書を実装状態に合わせて更新し、関連文書に旧操作を現在仕様として残していない。対象コミットで `bun run check`、`bun run build`、`bun run --cwd apps/worker deploy:dry-run`、`bun run build:development`、`bun run --cwd apps/worker deploy:dry-run:development` とGitHub CIが成功し、対象コミット・環境・各結果・未確認事項を記載したdevelop向け実装PRがレビュー可能になっている。
+
+### 実装の責務と確認状況
+
+- 軽量な `@tetraboard/protocol/room-sharing` に共有URL・募集文・募集可否・メタ情報を集約します。エンジン・Zod・Reactへ依存しません。
+- `useRoomEntry` は通常作成の成功時だけ `roomShareIntent` を作成してルーターのstateへ渡します。nonceをメモリに保持し、作成者・世代・ホスト資格を照合します。`useRoomInvitation` の初期表示後に意図を消費するため、StrictMode・履歴stateの複製でも初回表示を保ち、戻り・再読み込みでは再演しません。共有URLにはこの意図を含めません。
+- `RoomShareDialog` は既存 `AppDialog`、入力欄・ボタン・toastを使用し、コピー失敗の案内、再試行、閉鎖後やunmount後の遅い完了の破棄、最新ルーム状態によるX募集の無効化へ対応します。`RoomInfo` の既存ボタンの寸法・配置のクラスは維持し、文言と操作を置き換えます。
+- Workerの `roomShareHtml` はルームHTMLをHTMLRewriterで処理します。`GameRoom.getShareMetadata` は保存状態を読み、世代・24時間の閉鎖期限・人間の復帰期限を照合します。normalize・期限処理・CPU・保存・索引更新は呼びません。情報の取得失敗または1500msの期限では共通カードを返します。
+- ルームHTMLは生成元のETag・更新時刻・Content-Length・Content-Encodingを引き継がず、条件付き取得にも新しいHTMLを200・no-storeで返します。HEADは本文なしです。静的画像7枚は `/assets/ogp/` のPNGで既存の資産配信・HEAD・304を使用します。ゲーム名・画像・URLは同じメタ情報生成関数を使い、Webのルーターから確定したloaderデータで更新して、画面間の残存を防ぎます。
+- OGP画像は既存のfavicon・将棋の盤と駒、エンジンの初期盤面を使って構成しました。五目並べは15路の初期空盤を描きます。全7枚の1200×630・PNG形式・5MB未満をファイルヘッダーで検証し、全画像の原寸・縮小した一覧を目視確認しました。画像生成の実行時依存はありません。
+- 自動検証の入口は [共有の純粋関数](../apps/web/test/roomSharing.test.ts)、[共有の部品・hook](../apps/web/test-dom/roomSharing.test.tsx)、[Worker共有配信](../apps/worker/test/roomSharing.test.ts)、[既存資産配信](../apps/worker/test/publicAssets.test.ts) です。検証対象コミットと必須コマンド・GitHub CIの結果はPRに記載します。
+- PC・スマートフォンの実画面での寸法・配置、ネイティブのクリップボード・URL選択・Escape・フォーカス・Xへの遷移と実際の投稿カードは未確認です。自動テストのDOM・操作検証や画像単体の目視確認を、これらの実機確認の代替にはしません。PRの未確認事項として引き継ぎ、マージ・公開は承認後に行います。
 
 ## ダイアログ・脱落理由の確認
 

@@ -24,8 +24,8 @@ import { BrowserSettingsButton } from "../../shared/ui/BrowserSettings";
 export function RoomInfo({
   session,
   onLeave,
-  onCopyInvite,
-  copying = false,
+  onShare,
+  shareButtonRef,
   onAddCpu,
   cpuAddButtonRef,
   canAddCpu,
@@ -42,8 +42,8 @@ export function RoomInfo({
   onSettingsOpenChange?: (open: boolean) => void;
   settingsDisabled?: boolean;
   onLeave: () => void;
-  onCopyInvite: () => void;
-  copying?: boolean;
+  onShare: () => void;
+  shareButtonRef?: RefObject<HTMLButtonElement | null>;
   onAddCpu: (level: CpuLevel) => void;
   cpuAddButtonRef: RefObject<HTMLButtonElement | null>;
   canAddCpu: boolean;
@@ -89,13 +89,12 @@ export function RoomInfo({
       <AppButton
         size="compact"
         className="w-full"
-        onPress={onCopyInvite}
-        isDisabled={copying}
-        isPending={copying}
+        onPress={onShare}
+        ref={shareButtonRef}
         appearance="secondary"
       >
         <AppIcon name="copy" />
-        招待リンクをコピー
+        ルームを共有
       </AppButton>
       {membership === null && <p className="text-muted text-xs">観戦中です</p>}
       {room.status === "waiting" && membership?.role === "host" && (

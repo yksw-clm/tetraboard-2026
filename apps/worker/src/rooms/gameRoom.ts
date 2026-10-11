@@ -1088,6 +1088,28 @@ export class GameRoom extends DurableObject<Env> {
     return this.readRoom();
   }
 
+  async getShareMetadata(instanceId: string) {
+    // normalizeや期限処理を呼ばず、クローラーの取得で対局・時計・保存を変更しません。
+    const parsed = roomSchema.safeParse(this.ctx.storage.kv.get(roomStorageKey));
+    if (!parsed.success) return null;
+    const room = parsed.data;
+    const now = Date.now();
+    if (room.instanceId !== instanceId || room.lastActivityAtMs + idleMs <= now) return null;
+    const retained = room.players.some((player) => {
+      if (!this.isHumanParticipant(player)) return false;
+      const hash = this.playerTokenHash(player.id);
+      if (hash && this.hasOpenConnection(hash)) return true;
+      const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
+      const deadline =
+        player.reconnectDeadline ??
+        (disconnectedAt === undefined ? now + reconnectGraceMs : disconnectedAt + reconnectGraceMs);
+      return deadline > now;
+    });
+    return retained
+      ? { id: room.id, instanceId: room.instanceId, settings: { game: room.settings.game } }
+      : null;
+  }
+
   async getRoomSnapshot(formationAnalysis = false, stamps = false) {
     const room = await this.getRoom();
     return room === null

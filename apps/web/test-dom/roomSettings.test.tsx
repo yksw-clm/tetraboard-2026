@@ -47,7 +47,7 @@ test("開いた設定は送信中の選択を保ち、確定・拒否・送信�
       <RoomInfo
         session={currentSession}
         onLeave={() => {}}
-        onCopyInvite={() => {}}
+        onShare={() => {}}
         onAddCpu={addition.request}
         cpuAddButtonRef={ref}
         canAddCpu={addition.canAdd}
@@ -125,7 +125,7 @@ test("CPUの追加レベルを送信し、既存CPUの送信中レベルを表�
       <RoomInfo
         session={currentSession}
         onLeave={() => {}}
-        onCopyInvite={() => {}}
+        onShare={() => {}}
         onAddCpu={addition.request}
         cpuAddButtonRef={ref}
         canAddCpu={addition.canAdd}
