@@ -100,7 +100,9 @@ test("両ゲームの招待・ルーム内参加に保存名を表示し、編�
         ),
       );
       await flush();
-      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("保存名");
+      expect(document.querySelector<HTMLInputElement>("input:not([type=checkbox])")!.value).toBe(
+        "保存名",
+      );
       act(() => {
         h.current.setName("編集中");
         h.current.close();

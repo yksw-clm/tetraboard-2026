@@ -1,3 +1,6 @@
+import { publicRecordNotice } from "@tetraboard/protocol/privacy";
+import { LegalAcceptance } from "../privacy/LegalAcceptance";
+import { useLocalConsent } from "../privacy/consent";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
@@ -22,6 +25,7 @@ export function RoomInvitationDialogs({
   registrationPath: string;
   humanOnly: boolean;
 }) {
+  const accepted = useLocalConsent();
   const account = useAccount();
   const signIn = useSocialSignIn();
   const busy = invitation.busy || signIn.busy;
@@ -39,10 +43,14 @@ export function RoomInvitationDialogs({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          if (busy) return;
+          if (busy || !accepted) return;
           void invitation.submit();
         }}
       >
+        <p className="text-sm text-muted">
+          {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
+        </p>
+        <LegalAcceptance disabled={busy} />
         <RoomIdentityFields
           name={invitation.name}
           onChange={invitation.setName}

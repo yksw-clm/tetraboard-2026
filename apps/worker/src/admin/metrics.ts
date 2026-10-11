@@ -1,3 +1,5 @@
+import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
+import { archiveAnalytics } from "../analytics/retention";
 import {
   analyticsMetricsSchema,
   type AdminAnalyticsQuery,
@@ -15,14 +17,14 @@ export function emptyMetrics(): AnalyticsMetrics {
 }
 function rates(metrics: AnalyticsMetrics) {
   metrics.startRate = metrics.conversionEligible
-    ? metrics.converted / metrics.conversionEligible
+    ? (metrics.converted ?? 0) / metrics.conversionEligible
     : null;
   metrics.completionRate = metrics.started ? metrics.completed / metrics.started : null;
   metrics.registeredRetentionRate = metrics.registeredRetentionEligible
-    ? metrics.registeredRetained / metrics.registeredRetentionEligible
+    ? (metrics.registeredRetained ?? 0) / metrics.registeredRetentionEligible
     : null;
   metrics.guestRetentionRate = metrics.guestRetentionEligible
-    ? metrics.guestRetained / metrics.guestRetentionEligible
+    ? (metrics.guestRetained ?? 0) / metrics.guestRetentionEligible
     : null;
 }
 export async function readAnalytics(
@@ -30,6 +32,7 @@ export async function readAnalytics(
   query: AdminAnalyticsQuery,
 ): Promise<AdminAnalytics> {
   const now = Date.now();
+  await archiveAnalytics(env, now);
   const from = Date.parse(`${query.from}T00:00:00+09:00`);
   const to = Date.parse(`${query.to}T00:00:00+09:00`) + 86400000;
   const include = query.includeInternal === "true";
@@ -79,10 +82,13 @@ export async function readAnalytics(
       args: [query.from, query.to, ...actorArgs(), ...gameArgs()],
     });
     jobs.push({
-      sql: `SELECT ${bucket(registeredAt)} AS period, COUNT(*) AS newUsers FROM user u
+      sql: `SELECT period,SUM(newUsers) AS newUsers FROM (
+      SELECT ${bucket(registeredAt)} AS period, COUNT(*) AS newUsers FROM user u
       WHERE COALESCE(u.isAnonymous, 0) = 0 AND (${registeredAt}) >= MAX(?, COALESCE((SELECT value FROM analytics_metadata WHERE key = 'collected_from'), ?)) AND (${registeredAt}) < ?
-      ${include ? "" : `AND COALESCE(u.isTestUser, 0) = 0 AND ${excludeOwners("u.id")}`}${grouped}`,
-      args: [from, now, to, ...actorArgs()],
+      ${include ? "" : `AND COALESCE(u.isTestUser, 0) = 0 AND ${excludeOwners("u.id")}`}${grouped}
+      UNION ALL SELECT ${total ? "'*'" : `substr(day,1,${query.bucket === "day" ? 10 : 7})`} AS period,count AS newUsers
+      FROM analytics_deleted_registrations WHERE day>=? AND day<=? AND internal=?)${grouped}`,
+      args: [from, now, to, ...actorArgs(), query.from, query.to, Number(include)],
     });
     jobs.push({
       sql: `${cte} SELECT ${bucket("m.started_at_ms")} AS period, COUNT(*) AS started,
@@ -137,9 +143,14 @@ export async function readAnalytics(
       args: [...cteArgs(), now, from, to],
     });
   }
-  const results = await env.APP_DB.batch<Row>(
-    jobs.map(({ sql, args }) => env.APP_DB.prepare(sql).bind(...args)),
-  );
+  const results = await env.APP_DB.batch<Row>([
+    ...jobs.map(({ sql, args }) => env.APP_DB.prepare(sql).bind(...args)),
+    env.APP_DB.prepare(
+      `SELECT day, SUM(page_views) AS pageViews,SUM(dwell_ms) AS dwellMs,SUM(started) AS started,SUM(completed) AS completed,SUM(abandoned) AS abandoned,SUM(cpu_matches) AS cpuMatches,SUM(human_matches) AS humanMatches,SUM(duration_ms) AS completedDurationMs,SUM(participation_ms) AS participationMs,SUM(singles) AS singles,SUM(doubles) AS doubles,SUM(incomplete) AS incomplete FROM analytics_daily WHERE day>=? AND day<=? AND internal=? ${game === "all" ? "" : "AND game=?"} GROUP BY day`,
+    ).bind(query.from, query.to, Number(include), ...gameArgs()),
+  ]);
+  // 保存期間の集約が同時に走っても、生データと集約済みデータを同一スナップショットで読む。
+  const archived = results.pop()!;
   for (const result of results)
     for (const row of result.results) {
       const target = row.period === "*" ? summary : periods.get(row.period);
@@ -147,19 +158,79 @@ export async function readAnalytics(
       for (const key of metricKeys)
         if (typeof row[key] === "number") (target[key] as number | null) = row[key] as number;
     }
+  for (const row of archived.results) {
+    const bucket = String(row.day).slice(0, query.bucket === "day" ? 10 : 7);
+    for (const target of [summary, periods.get(bucket)])
+      if (target)
+        for (const key of metricKeys)
+          if (typeof row[key] === "number")
+            (target[key] as number) = (target[key] ?? 0) + Number(row[key]);
+  }
   rates(summary);
   for (const values of periods.values()) rates(values);
+  for (const row of archived.results)
+    if (Number(row.incomplete) > 0) {
+      for (const target of [
+        summary,
+        periods.get(String(row.day).slice(0, query.bucket === "day" ? 10 : 7)),
+      ])
+        if (target) {
+          target.playing = null;
+          target.participationMs = null;
+          target.completionRate = null;
+        }
+    }
   const [coverage, users] = await Promise.all([
     env.APP_DB.prepare("SELECT value FROM analytics_metadata WHERE key = 'collected_from'").first<{
       value: number;
     }>(),
     env.APP_DB.prepare(
-      `SELECT COUNT(*) AS count FROM user WHERE COALESCE(isAnonymous, 0) = 0 ${include ? "" : `AND COALESCE(isTestUser, 0) = 0 AND ${excludeOwners("id")}`}`,
+      `SELECT COUNT(*) AS count FROM user WHERE NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id) AND COALESCE(isAnonymous, 0) = 0 ${include ? "" : `AND COALESCE(isTestUser, 0) = 0 AND ${excludeOwners("id")}`}`,
     )
       .bind(...actorArgs())
       .first<{ count: number }>(),
   ]);
+  const cutoff = now - analyticsRetentionMs;
+  const unavailable = (values: AnalyticsMetrics) => {
+    for (const key of [
+      "visitors",
+      "registeredActive",
+      "guestActive",
+      "registeredParticipations",
+      "guestParticipations",
+      "registeredRetentionEligible",
+      "registeredRetained",
+      "guestRetentionEligible",
+      "guestRetained",
+      "conversionEligible",
+      "converted",
+      "startRate",
+      "registeredRetentionRate",
+      "guestRetentionRate",
+    ] as const)
+      values[key] = null;
+  };
+  if (coverage && coverage.value < cutoff) {
+    if (from < cutoff) unavailable(summary);
+    for (const [period, values] of periods) {
+      if (Date.parse(`${period.length === 7 ? period + "-01" : period}T00:00:00+09:00`) < cutoff)
+        unavailable(values);
+    }
+    for (const values of [summary, ...periods.values()]) {
+      values.registeredRetentionEligible = null;
+      values.registeredRetained = null;
+      values.guestRetentionEligible = null;
+      values.guestRetained = null;
+    }
+    summary.registeredRetentionRate = null;
+    summary.guestRetentionRate = null;
+    for (const values of periods.values()) {
+      values.registeredRetentionRate = null;
+      values.guestRetentionRate = null;
+    }
+  }
   return {
+    individualDataFromMs: cutoff,
     collectedFromMs: coverage?.value ?? null,
     asOfMs: now,
     totalUsers: users?.count ?? 0,

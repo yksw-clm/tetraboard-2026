@@ -1,3 +1,5 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
+import { hasLocalConsent } from "../features/privacy/consent";
 import {
   getRoomContract,
   joinRoomContract,
@@ -91,7 +93,10 @@ export async function joinRoom(
   if (!request.success) throw new RoomEntryError("ニックネームを1〜10文字で入力してください。");
   const response = await fetch(`/api${joinRoomContract.pathFor(id)}`, {
     method: joinRoomContract.method,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Legal-Consent": hasLocalConsent() ? legalVersion : "",
+    },
     body: JSON.stringify(request.data),
   });
   const body: unknown = await response.json();
@@ -102,6 +107,7 @@ export async function joinRoom(
     const messages = {
       account_seated:
         "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。",
+      consent_required: "利用規約と年齢条件を確認してください。",
       profile_required: "プロフィールの初回設定を完了してください。",
       room_full: "このルームは満室です。観戦するか、空席ができるまでお待ちください。",
       room_started: "このルームの対局は始まっています。対局が終わるまで観戦できます。",

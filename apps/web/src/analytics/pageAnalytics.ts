@@ -1,9 +1,15 @@
+import {
+  analyticsEnabled,
+  analyticsPreferenceStorageKey,
+  syncAnalyticsPreference,
+} from "./preference";
 import { gameIds } from "@tetraboard/protocol/games";
 import type { router as appRouter } from "../app/router";
 import { createUuid } from "../shared/createUuid";
 export { createUuid as randomAnalyticsId } from "../shared/createUuid";
 export const analyticsCookie = "tetraboard-2026.analytics";
 export function ensureAnalyticsCookie() {
+  if (!analyticsEnabled()) return false;
   try {
     const existing = document.cookie
       .split(";")
@@ -32,6 +38,13 @@ function trackPage(page: string, game: string | null) {
   let release: (() => void) | null = null;
   let requesting = false;
   let registered = false;
+  const visitorAtStart = () =>
+    document.cookie
+      .split(";")
+      .find((v) => v.trim().startsWith(`${analyticsCookie}=`))
+      ?.trim();
+  const visitor = visitorAtStart();
+  const permitted = () => analyticsEnabled() && visitor === visitorAtStart();
   const created = fetch("/api/analytics/pageviews", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -49,6 +62,7 @@ function trackPage(page: string, game: string | null) {
     since = since === null ? null : now;
   }
   function flush() {
+    if (!permitted()) return;
     accountTime();
     if (!days.size) return;
     const data = {
@@ -68,7 +82,7 @@ function trackPage(page: string, game: string | null) {
     if (registered) void send();
     else
       void created.then((ok) => {
-        if (ok) return send();
+        if (ok && permitted()) return send();
       });
   }
   function relinquish() {
@@ -78,6 +92,11 @@ function trackPage(page: string, game: string | null) {
     release = null;
   }
   function update() {
+    if (!permitted()) {
+      relinquish();
+      if (alive && analyticsEnabled()) window.dispatchEvent(new Event("analytics-choice"));
+      return;
+    }
     if (!alive || document.visibilityState !== "visible" || !document.hasFocus()) {
       relinquish();
       return;
@@ -91,7 +110,13 @@ function trackPage(page: string, game: string | null) {
     void navigator.locks
       .request("tetraboard-visible-analytics", { ifAvailable: true }, async (lock) => {
         requesting = false;
-        if (!lock || !alive || document.visibilityState !== "visible" || !document.hasFocus())
+        if (
+          !lock ||
+          !alive ||
+          !permitted() ||
+          document.visibilityState !== "visible" ||
+          !document.hasFocus()
+        )
           return;
         since = Date.now();
         await new Promise<void>((resolve) => {
@@ -125,7 +150,6 @@ function trackPage(page: string, game: string | null) {
   };
 }
 export function startWebAnalytics(router: typeof appRouter) {
-  if (!ensureAnalyticsCookie()) return;
   let previous = "";
   let stop: (() => void) | undefined;
   function changed(state: typeof router.state) {
@@ -135,7 +159,14 @@ export function startWebAnalytics(router: typeof appRouter) {
     stop?.();
     stop = undefined;
     const path = state.location.pathname;
-    if (path === "/" || /^\/admin(?:\/|$)/.test(path)) return;
+    if (
+      !analyticsEnabled() ||
+      ["/privacy", "/terms"].includes(path) ||
+      path === "/" ||
+      /^\/admin(?:\/|$)/.test(path) ||
+      !ensureAnalyticsCookie()
+    )
+      return;
     const data = Object.values(state.loaderData) as {
       room?: { settings: { game: string } };
       match?: { settings: { game: string } };
@@ -163,6 +194,16 @@ export function startWebAnalytics(router: typeof appRouter) {
     if (["room", "replay"].includes(page) && !game) return;
     stop = trackPage(page, game);
   }
+  window.addEventListener("analytics-choice", () => {
+    previous = "";
+    changed(router.state);
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key !== analyticsPreferenceStorageKey) return;
+    syncAnalyticsPreference();
+    previous = "";
+    changed(router.state);
+  });
   router.subscribe(changed);
   changed(router.state);
 }

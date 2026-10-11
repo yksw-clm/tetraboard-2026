@@ -1,3 +1,5 @@
+import { DeletionPage } from "../features/privacy/DeletionPage";
+import { LegalPage } from "../features/privacy/LegalPage";
 import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/matchReplayLoader";
 import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
 import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
@@ -67,12 +69,15 @@ export const router = createBrowserRouter([
       </PlayerProfileProvider>
     ),
     children: [
+      { path: "/privacy", element: <LegalPage kind="privacy" /> },
+      { path: "/terms", element: <LegalPage kind="terms" /> },
       { path: "/feedback", Component: FeedbackPage },
       { path: "/updates", Component: UpdatesPage },
       { path: "/updates/:id", Component: UpdateDetailPage },
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },
+      { path: "/account/deletion", Component: DeletionPage },
       {
         path: "/account/matches/:matchId",
         Component: MatchReplayPage,

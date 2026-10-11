@@ -34,21 +34,23 @@ export function TrendChart({ buckets }: Pick<AdminAnalytics, "buckets">) {
             </text>
           </g>
         ))}
-        {series.map((s) => (
-          <g key={s.key}>
-            <polyline
-              fill="none"
-              stroke={s.color}
-              strokeWidth="3"
-              points={buckets
-                .map((row, index) => `${x(index)},${y(Number(row.metrics[s.key]))}`)
-                .join(" ")}
-            />
-            {buckets.length === 1 && (
-              <circle cx={x(0)} cy={y(Number(buckets[0].metrics[s.key]))} r="4" fill={s.color} />
-            )}
-          </g>
-        ))}
+        {series
+          .filter((s) => buckets.every((row) => row.metrics[s.key] !== null))
+          .map((s) => (
+            <g key={s.key}>
+              <polyline
+                fill="none"
+                stroke={s.color}
+                strokeWidth="3"
+                points={buckets
+                  .map((row, index) => `${x(index)},${y(Number(row.metrics[s.key]))}`)
+                  .join(" ")}
+              />
+              {buckets.length === 1 && (
+                <circle cx={x(0)} cy={y(Number(buckets[0].metrics[s.key]))} r="4" fill={s.color} />
+              )}
+            </g>
+          ))}
         {buckets
           .filter(
             (_, i) => i === 0 || i === buckets.length - 1 || i === Math.floor(buckets.length / 2),
@@ -71,6 +73,9 @@ export function TrendChart({ buckets }: Pick<AdminAnalytics, "buckets">) {
           <span key={s.key} className="flex items-center gap-2">
             <span className="h-2 w-5 rounded" style={{ background: s.color }} />
             {s.name}
+            {buckets.some((row) => row.metrics[s.key] === null)
+              ? "（期間の一部を算出できません）"
+              : ""}
           </span>
         ))}
       </figcaption>

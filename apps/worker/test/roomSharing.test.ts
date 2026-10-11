@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
@@ -39,7 +40,7 @@ function serve(origin = "https://tetraboard.net", extra: Partial<Env> = {}) {
     assetRequests,
     fetch: (path: string, init?: RequestInit) =>
       worker.fetch(
-        new Request(`${origin}${path}`, init),
+        new AcceptedGameRequest(`${origin}${path}`, init),
         { ...env, APP_ORIGIN: origin as Env["APP_ORIGIN"], ASSETS: assets, ...extra },
         {} as ExecutionContext,
       ),

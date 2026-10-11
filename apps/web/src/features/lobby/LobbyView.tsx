@@ -1,3 +1,5 @@
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
+import { AnalyticsChoice } from "../privacy/AnalyticsChoice";
 import { RecentMatches } from "../matches/RecentMatches";
 const previewStoneClasses = {
   black: "preview-stone-black",
@@ -274,6 +276,8 @@ export function LobbyView(props: Props) {
                 お知らせ
               </Link>
             </div>
+            <PrivacyLinks />
+            <AnalyticsChoice />
             <p className="mt-3">TetraBoard</p>
           </footer>
         </main>

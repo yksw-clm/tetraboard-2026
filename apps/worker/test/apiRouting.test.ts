@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { exports } from "cloudflare:workers";
 import { createRoomContract, getRoomContract, roomSocketContract } from "@tetraboard/protocol";
 import { expect, test } from "vitest";
@@ -12,7 +13,7 @@ test("開発環境は本番へ転送せずHTML・API・エラーを検索対象�
   };
   for (const path of ["/games/four-reversi", "/api/healthz", "/api/missing", "/admin"]) {
     const response = await worker.fetch(
-      new Request(`${development.APP_ORIGIN}${path}`),
+      new AcceptedGameRequest(`${development.APP_ORIGIN}${path}`),
       development,
       {} as ExecutionContext,
     );
@@ -20,7 +21,7 @@ test("開発環境は本番へ転送せずHTML・API・エラーを検索対象�
     expect(response.headers.get("Location") ?? "").not.toContain("tetraboard.net");
   }
   const response = await worker.fetch(
-    new Request("https://tetraboard.net/api/healthz"),
+    new AcceptedGameRequest("https://tetraboard.net/api/healthz"),
     { ...env, APP_ORIGIN: "https://tetraboard.net" },
     {} as ExecutionContext,
   );
@@ -30,7 +31,9 @@ test("開発環境は本番へ転送せずHTML・API・エラーを検索対象�
 
 test("旧公開URLをパス・クエリ付きで本番ドメインへ転送し、APIを実行しない", async () => {
   const response = await worker.fetch(
-    new Request("https://tetraboard-2026.chaossi-lab.workers.dev/rooms/12345?invite=example"),
+    new AcceptedGameRequest(
+      "https://tetraboard-2026.chaossi-lab.workers.dev/rooms/12345?invite=example",
+    ),
     { ...env, APP_ORIGIN: "https://tetraboard.net" },
     {} as ExecutionContext,
   );
@@ -54,20 +57,20 @@ test("本番の画面・画像をアセットへ渡し、APIと旧プロフィ�
     ["/assets/webp_enc_simd-example.wasm", "/assets/webp_enc_simd-example.wasm"],
   ]) {
     const response = await worker.fetch(
-      new Request(`https://tetraboard.net${path}`),
+      new AcceptedGameRequest(`https://tetraboard.net${path}`),
       production,
       {} as ExecutionContext,
     );
     expect(await response.text()).toBe(`asset:${target}`);
   }
   const health = await worker.fetch(
-    new Request("https://tetraboard.net/api/healthz"),
+    new AcceptedGameRequest("https://tetraboard.net/api/healthz"),
     production,
     {} as ExecutionContext,
   );
   expect(await health.json()).toEqual({ status: "ok" });
   const missing = await worker.fetch(
-    new Request("https://tetraboard.net/api/missing"),
+    new AcceptedGameRequest("https://tetraboard.net/api/missing"),
     production,
     {} as ExecutionContext,
   );
@@ -78,7 +81,7 @@ test("本番の画面・画像をアセットへ渡し、APIと旧プロフィ�
     ["/guest/name", "/games/four-reversi"],
   ]) {
     const response = await worker.fetch(
-      new Request(`https://tetraboard.net${path}`),
+      new AcceptedGameRequest(`https://tetraboard.net${path}`),
       production,
       {} as ExecutionContext,
     );
@@ -88,10 +91,10 @@ test("本番の画面・画像をアセットへ渡し、APIと旧プロフィ�
 
 test("/api はJSON・認証・WebSocketを既存のルーム処理へ渡す", async () => {
   const base = "https://example.com/api";
-  const health = await exports.default.fetch(new Request(`${base}/healthz`));
+  const health = await exports.default.fetch(new AcceptedGameRequest(`${base}/healthz`));
   expect(await health.json()).toEqual({ status: "ok" });
   const created = await exports.default.fetch(
-    new Request(`${base}/rooms`, {
+    new AcceptedGameRequest(`${base}/rooms`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "配信確認", mode: "singles", quickPlay: false }),
@@ -100,16 +103,18 @@ test("/api はJSON・認証・WebSocketを既存のルーム処理へ渡す", as
   expect(created.status).toBe(201);
   const { room, membership } = createRoomContract.response.parse(await created.json());
   try {
-    const response = await exports.default.fetch(new Request(`${base}/rooms/${room.id}`));
+    const response = await exports.default.fetch(
+      new AcceptedGameRequest(`${base}/rooms/${room.id}`),
+    );
     expect(getRoomContract.response.parse(await response.json()).room.id).toBe(room.id);
     const me = await exports.default.fetch(
-      new Request(`${base}/rooms/${room.id}/me`, {
+      new AcceptedGameRequest(`${base}/rooms/${room.id}/me`, {
         headers: { Authorization: `Bearer ${membership.token}` },
       }),
     );
     expect(me.status).toBe(200);
     const upgraded = await exports.default.fetch(
-      new Request(`${base}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
+      new AcceptedGameRequest(`${base}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
         headers: { Upgrade: "websocket" },
       }),
     );
@@ -133,14 +138,14 @@ test("/api はJSON・認証・WebSocketを既存のルーム処理へ渡す", as
       socket.close();
     }
     const stale = await exports.default.fetch(
-      new Request(`${base}/rooms/${room.id}/ws?instanceId=${crypto.randomUUID()}`, {
+      new AcceptedGameRequest(`${base}/rooms/${room.id}/ws?instanceId=${crypto.randomUUID()}`, {
         headers: { Upgrade: "websocket" },
       }),
     );
     expect(stale.status).toBe(410);
   } finally {
     await exports.default.fetch(
-      new Request(`${base}/rooms/${room.id}/leave`, {
+      new AcceptedGameRequest(`${base}/rooms/${room.id}/leave`, {
         method: "POST",
         headers: { Authorization: `Bearer ${membership.token}` },
       }),
@@ -149,7 +154,9 @@ test("/api はJSON・認証・WebSocketを既存のルーム処理へ渡す", as
 });
 
 test("未知の /api は画面のHTMLではなく404を返す", async () => {
-  const response = await exports.default.fetch(new Request("https://example.com/api/missing"));
+  const response = await exports.default.fetch(
+    new AcceptedGameRequest("https://example.com/api/missing"),
+  );
   expect(response.status).toBe(404);
   expect(response.headers.get("content-type")).not.toContain("text/html");
 });
@@ -160,9 +167,12 @@ test("公開棋譜の直接URLはSPAを配信し、検索対象外にする", as
   } as Fetcher;
   for (const method of ["GET", "HEAD"]) {
     const response = await worker.fetch(
-      new Request("https://tetraboard.net/matches/00000000-0000-4000-8000-000000000001", {
-        method,
-      }),
+      new AcceptedGameRequest(
+        "https://tetraboard.net/matches/00000000-0000-4000-8000-000000000001",
+        {
+          method,
+        },
+      ),
       { ...env, APP_ORIGIN: "https://tetraboard.net", ASSETS: assets },
       {} as ExecutionContext,
     );

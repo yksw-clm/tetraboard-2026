@@ -1,3 +1,6 @@
+import { publicRecordNotice } from "@tetraboard/protocol/privacy";
+import { LegalAcceptance } from "../privacy/LegalAcceptance";
+import { useLocalConsent } from "../privacy/consent";
 import { GomokuForbiddenControl } from "./GomokuForbiddenControl";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
@@ -70,10 +73,11 @@ export function RoomEntryDialog({
   registrationPath: string;
   humanOnly?: boolean;
 }) {
+  const accepted = useLocalConsent();
   const account = useAccount();
   const signIn = useSocialSignIn();
   const busy = entryBusy || signIn.busy;
-  const blocked = unavailable || busy || account.loading || Boolean(account.error);
+  const blocked = !accepted || unavailable || busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
       ? "すぐ遊ぶ"
@@ -111,6 +115,10 @@ export function RoomEntryDialog({
           if (!blocked) onSubmit();
         }}
       >
+        <p className="text-sm text-muted">
+          {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
+        </p>
+        <LegalAcceptance disabled={busy} />
         <RoomIdentityFields
           name={name}
           onChange={onNameChange}

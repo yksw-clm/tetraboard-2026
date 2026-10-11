@@ -69,6 +69,7 @@ export function RoomIdentityFields({
       </AppTextField>
       {registration && (
         <RegistrationPrompt
+          showConsent={false}
           game={registration.game}
           humanOnly={registration.humanOnly}
           busy={busy}

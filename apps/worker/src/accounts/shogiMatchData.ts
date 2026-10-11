@@ -29,6 +29,7 @@ function publicPlayers(record: StandardShogiMatchRecord, profiles: ParticipantPr
       side: p.side,
       seat: p.seat,
       name: identity?.name ?? p.name,
+      ...(p.kind === "human" && p.retired ? { retired: true } : {}),
       ...(p.kind === "cpu"
         ? { kind: p.kind, level: p.level }
         : { kind: p.kind, avatarUrl: identity?.avatarUrl ?? null }),

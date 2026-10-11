@@ -37,12 +37,13 @@ const columns: {
   {
     label: "登録IDあたり対局",
     key: "registeredParticipations",
-    value: (m) => (m.registeredActive ? m.registeredParticipations / m.registeredActive : null),
+    value: (m) =>
+      m.registeredActive ? (m.registeredParticipations ?? 0) / m.registeredActive : null,
   },
   {
     label: "ゲストIDあたり対局",
     key: "guestParticipations",
-    value: (m) => (m.guestActive ? m.guestParticipations / m.guestActive : null),
+    value: (m) => (m.guestActive ? (m.guestParticipations ?? 0) / m.guestActive : null),
   },
   { label: "新規登録", key: "newUsers" },
   { label: "登録・再対局率", key: "registeredRetentionRate", format: percent },
@@ -66,7 +67,7 @@ export function Dashboard({ game }: { game: GameScope }) {
         <p className="text-sm font-medium text-brand">ANALYTICS</p>
         <h1 className="mt-1 text-3xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-gray-600">
-          利用量と継続性を、日本時間の集計で確認できます。
+          利用量と継続性を、日本時間の集計で確認できます。個別計測は90日以内です。古い期間の人数・継続率、終了を確認できなかった対局の進行状態・率・参加時間など、算出できない値は「—」で表示します。
         </p>
       </div>
       <Card className="flex flex-row flex-wrap items-end gap-4 p-5">

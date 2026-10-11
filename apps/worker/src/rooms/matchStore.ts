@@ -1,3 +1,4 @@
+import { redactParticipants } from "../privacy/identity";
 import type { MatchRecord as FourGomokuMatchRecord } from "./fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "./gomokuMatchStore";
 import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
@@ -15,7 +16,7 @@ export type MatchParticipant = {
   name: string;
   color: NonNullable<Room["players"][number]["color"]>;
   seat: number;
-} & ({ kind: "human"; accountId: string | null } | { kind: "cpu"; level: 1 | 2 });
+} & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
 
 export type MatchStart = {
   id: string;
@@ -39,6 +40,7 @@ export async function writeMatch(
   db: D1Database,
   record: MatchRecord | ReversiMatchRecord | GomokuMatchRecord | FourGomokuMatchRecord,
 ): Promise<void> {
+  record = await redactParticipants(db, record);
   const statements = [
     db
       .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)

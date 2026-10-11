@@ -16,7 +16,7 @@ export async function readCurrentProfiles(
   if (!unique.length) return profiles;
   const rows = await db
     .prepare(
-      `SELECT id, name, username, avatarKey, publicProfileId, profileCompleted, isAnonymous FROM user WHERE id IN (${unique.map(() => "?").join(",")})`,
+      `SELECT id, name, username, avatarKey, publicProfileId, profileCompleted, isAnonymous FROM user WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND id IN (${unique.map(() => "?").join(",")})`,
     )
     .bind(...unique)
     .all<Omit<CurrentProfile, "avatarUrl"> & { id: string; avatarKey: string | null }>();

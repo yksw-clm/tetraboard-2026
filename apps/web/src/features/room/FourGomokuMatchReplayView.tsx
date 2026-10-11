@@ -31,7 +31,11 @@ export default function FourGomokuMatchReplayView({ match }: { match: ReplayFour
           self={p.id === match.selfPlayerId}
           host={p.seat === 0}
           game={game}
-          profileTarget={{ source: "match", matchId: match.id, playerId: p.id }}
+          profileTarget={
+            p.kind === "human" && p.retired
+              ? undefined
+              : { source: "match", matchId: match.id, playerId: p.id }
+          }
         />
       ))}
       <GomokuBoard

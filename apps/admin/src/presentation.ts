@@ -1,8 +1,8 @@
 import type { AnalyticsMetrics } from "@tetraboard/protocol";
 export const percent = (value: number | null) =>
   value === null ? "—" : `${(value * 100).toFixed(1)}%`;
-export const quantity = (value: number) =>
-  new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 }).format(value);
+export const quantity = (value: number | null) =>
+  value === null ? "—" : new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1 }).format(value);
 export function duration(value: number | null) {
   return value === null
     ? "—"
@@ -38,11 +38,11 @@ export function metricCards(m: AnalyticsMetrics, totalUsers: number) {
     ["ゲスト利用ブラウザ", quantity(m.guestActive)],
     [
       "登録IDあたりの対局数",
-      m.registeredActive ? quantity(m.registeredParticipations / m.registeredActive) : "—",
+      m.registeredActive ? quantity((m.registeredParticipations ?? 0) / m.registeredActive) : "—",
     ],
     [
       "ゲストIDあたりの対局数",
-      m.guestActive ? quantity(m.guestParticipations / m.guestActive) : "—",
+      m.guestActive ? quantity((m.guestParticipations ?? 0) / m.guestActive) : "—",
     ],
     ["登録・7日以内の再対局率", percent(m.registeredRetentionRate)],
     ["ゲスト・7日以内の再対局率", percent(m.guestRetentionRate)],

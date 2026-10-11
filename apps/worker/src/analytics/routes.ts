@@ -1,7 +1,9 @@
+import { digest } from "../privacy/deletion";
+import { analyticsPreferenceCookie, analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { Hono } from "hono";
 import { pageViewInputSchema, dwellInputSchema } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
-import { analyticsVisitor, coverageStatement } from "./store";
+import { analyticsVisitor, analyticsAllowed, coverageStatement } from "./store";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env }>();
 analyticsRoutes.use("/analytics/*", async (c, next) => {
@@ -39,7 +41,66 @@ async function body(request: Request) {
     return null;
   }
 }
+analyticsRoutes.post("/analytics/choice", async (c) => {
+  const input = await body(c.req.raw);
+  if (typeof input?.enabled !== "boolean") return c.body(null, 400);
+  const memberships = input.memberships ?? [];
+  if (
+    !Array.isArray(memberships) ||
+    memberships.length > 10 ||
+    memberships.some(
+      (p) =>
+        !p ||
+        typeof p.roomId !== "string" ||
+        !/^\d{5}$/.test(p.roomId) ||
+        typeof p.token !== "string" ||
+        !/^[0-9a-f]{64}$/.test(p.token),
+    )
+  )
+    return c.body(null, 400);
+  const visitor = analyticsVisitor(c.req.raw);
+  const user = await accountIdentity(c.req.raw, c.env);
+  for (const p of memberships)
+    await c.env.GAME_ROOM.getByName(p.roomId).setAnalyticsPreference(
+      await digest(p.token),
+      visitor,
+      input.enabled,
+    );
+  if (!input.enabled) {
+    const rooms = await c.env.APP_DB.prepare(
+      "SELECT room_id FROM account_room_seats WHERE account_id=?",
+    )
+      .bind(user?.id ?? "")
+      .all<{ room_id: string }>();
+    const guestRooms = visitor
+      ? await c.env.APP_DB.prepare(
+          "SELECT room_id FROM room_index WHERE closed=0 AND ? IS NOT NULL",
+        )
+          .bind(visitor)
+          .all<{ room_id: string }>()
+      : { results: [] };
+    for (const r of [...rooms.results, ...guestRooms.results])
+      await c.env.GAME_ROOM.getByName(r.room_id).disableAnalyticsIdentity(
+        visitor,
+        user?.id ?? null,
+      );
+  }
+  c.header(
+    "Set-Cookie",
+    `${analyticsPreferenceCookie}=${input.enabled ? "on" : "off"}; Path=/; Max-Age=31536000; SameSite=Lax${new URL(c.env.APP_ORIGIN).protocol === "https:" ? "; Secure" : ""}`,
+  );
+  if (!input.enabled)
+    c.header(
+      "Set-Cookie",
+      "tetraboard-2026.analytics=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax",
+      {
+        append: true,
+      },
+    );
+  return c.body(null, 204);
+});
 analyticsRoutes.post("/analytics/pageviews", async (c) => {
+  if (!analyticsAllowed(c.req.raw)) return c.body(null, 204);
   const input = pageViewInputSchema.safeParse(await body(c.req.raw));
   if (!input.success) return c.body(null, 400);
   const visitor = analyticsVisitor(c.req.raw);
@@ -69,6 +130,7 @@ analyticsRoutes.post("/analytics/pageviews", async (c) => {
   return c.body(null, 204);
 });
 analyticsRoutes.post("/analytics/dwell", async (c) => {
+  if (!analyticsAllowed(c.req.raw)) return c.body(null, 204);
   const input = dwellInputSchema.safeParse(await body(c.req.raw));
   if (!input.success) return c.body(null, 400);
   const visitor = analyticsVisitor(c.req.raw);
@@ -78,7 +140,7 @@ analyticsRoutes.post("/analytics/dwell", async (c) => {
   )
     .bind(input.data.id, visitor)
     .first<{ started_at_ms: number }>();
-  if (!view) return c.body(null, 404);
+  if (!view || view.started_at_ms <= Date.now() - analyticsRetentionMs) return c.body(null, 404);
   const now = Date.now();
   const entries = input.data.days;
   for (const entry of entries) {

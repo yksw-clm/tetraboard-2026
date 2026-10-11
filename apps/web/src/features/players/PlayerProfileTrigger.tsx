@@ -88,6 +88,9 @@ export function PlayerProfileTrigger({
     if (target && !localProfile) void context?.store.load(target, game);
   };
   useEffect(() => {
+    if (active && target === null && !localProfile) close();
+  }, [active, target, localProfile, close]);
+  useEffect(() => {
     if (anyPinned) clearTimers();
   }, [anyPinned, clearTimers]);
   useEffect(() => {

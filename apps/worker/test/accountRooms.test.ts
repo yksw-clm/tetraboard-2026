@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { GameRoom } from "../src/rooms/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
@@ -21,7 +22,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 const request = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(`${origin}/api${path}`, init));
+  exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 const create = (user?: Awaited<ReturnType<typeof accountFixture>>, extra = {}) =>
   request("/rooms", {
     method: "POST",
@@ -317,7 +318,7 @@ test("時間切れ後も在室中は制限を保持する", async () => {
 test("中断した予約を取消して回収し、遅延した参加RPCを拒否する", async () => {
   const user = await accountFixture();
   const result = await created();
-  const req = new Request(`${origin}/api/rooms`, { headers: user.headers });
+  const req = new AcceptedGameRequest(`${origin}/api/rooms`, { headers: user.headers });
   const profile = await accountIdentity(req, env);
   const admission = await reserveAccountSeat(req, env, profile!, result.room, crypto.randomUUID());
   await env.APP_DB.prepare("UPDATE account_room_seats SET created_at_ms = 0 WHERE operation_id = ?")
@@ -351,7 +352,10 @@ test("外部画像は公開せず、移行では未設定にする", async () =>
   await env.APP_DB.prepare("UPDATE user SET image = ? WHERE id = ?")
     .bind("https://example.test/image", user.id)
     .run();
-  const identity = await accountIdentity(new Request(origin, { headers: user.headers }), env);
+  const identity = await accountIdentity(
+    new AcceptedGameRequest(origin, { headers: user.headers }),
+    env,
+  );
   expect(publicProfile(identity!).avatarUrl).toBeNull();
   const result = await created(user);
   expect(result.room.players[0]).toMatchObject({ avatarUrl: null });
@@ -386,7 +390,7 @@ test("プロフィール編集が予約に先行した場合は再取得し、�
   const user = await accountFixture();
   const key = await attachAvatar(user);
   const result = await created();
-  const req = new Request(origin, { headers: user.headers });
+  const req = new AcceptedGameRequest(origin, { headers: user.headers });
   const initial = await accountIdentity(req, env);
   const batch = env.APP_DB.batch.bind(env.APP_DB);
   vi.spyOn(env.APP_DB, "batch").mockImplementationOnce(async (statements) => {

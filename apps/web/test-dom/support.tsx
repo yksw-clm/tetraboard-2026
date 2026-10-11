@@ -122,6 +122,7 @@ beforeEach(() => {
   requests = [];
   sessionStorage.clear();
   localStorage.clear();
+  localStorage.setItem("tetraboard:legal-version", "2026-10-12");
   browserSettings.sync();
   globalThis.fetch = ((url: string | URL | globalThis.Request, init: RequestInit = {}) =>
     new Promise<Response>((resolve, reject) => {

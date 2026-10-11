@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
@@ -41,7 +42,7 @@ import { accountFixture, origin } from "./accountFixtures";
 
 const base = "https://example.com";
 const request = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(base + path, init));
+  exports.default.fetch(new AcceptedGameRequest(base + path, init));
 const json = (body: unknown) => ({
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -1090,7 +1091,7 @@ test("切断中のログイン者が時間切れでも元の復帰期限を延�
   const user = await accountFixture();
   const createAccount = () =>
     exports.default.fetch(
-      new Request(`${origin}/api/rooms`, {
+      new AcceptedGameRequest(`${origin}/api/rooms`, {
         method: "POST",
         headers: user.headers,
         body: JSON.stringify({ game: "four-shogi", mode: "singles", quickPlay: true }),

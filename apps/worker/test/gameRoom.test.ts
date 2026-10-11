@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { applyD1Migrations, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import {
@@ -65,7 +66,9 @@ test("接続情報は観戦者にも配信し、脱落後の切断と復帰も�
     snapshot = await observer.nextType("room.snapshot");
   } while (!snapshot.presence.connectedPlayerIds.includes(playerId));
   expect(snapshot.room.players).toHaveLength(4);
-  const response = await exports.default.fetch(new Request(`${baseUrl}/rooms/${setup.id}`));
+  const response = await exports.default.fetch(
+    new AcceptedGameRequest(`${baseUrl}/rooms/${setup.id}`),
+  );
   expect(getRoomContract.response.parse(await response.json()).presence).toEqual(snapshot.presence);
 });
 
@@ -109,7 +112,7 @@ test("入退室・CPU操作・モード変更のログは一度だけ記録し�
   );
   expect(afterLeave.filter((entry) => entry.text === "二人目が退室しました")).toHaveLength(1);
   const report = await exports.default.fetch(
-    new Request(`${baseUrl}/rooms/${id}/reports`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${id}/reports`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${created.membership.token}`,
@@ -146,7 +149,7 @@ test("新規投稿は絵文字を含め100文字までとし、旧200文字履�
   host.send({ type: "room.chat.send", text: "👨‍👩‍👧‍👦".repeat(101) });
   expect((await host.nextType("room.chat.error")).error).toBe("invalid_request");
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}/rooms/${id}/reports`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${id}/reports`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${created.membership.token}`,
@@ -267,7 +270,7 @@ async function createRoom(
   timeControl?: RoomTimeControl,
 ) {
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}${createRoomContract.path}`, {
+    new AcceptedGameRequest(`${baseUrl}${createRoomContract.path}`, {
       method: createRoomContract.method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "ホスト", quickPlay, mode, timeControl }),
@@ -282,7 +285,7 @@ test("招待先と同じ世代に参加し、既存の番号参加も引き続�
   const { room, membership } = await createRoom();
   const host = await authenticatedRoom(room.id, membership.token);
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}/rooms/${room.id}/players`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${room.id}/players`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "招待された人", instanceId: room.instanceId }),
@@ -301,7 +304,7 @@ test("招待先と同じ世代に参加し、既存の番号参加も引き続�
   );
   await joinRoom(room.id, "番号から参加");
   const socketResponse = await exports.default.fetch(
-    new Request(`${baseUrl}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
       headers: { Upgrade: "websocket" },
     }),
   );
@@ -314,7 +317,7 @@ test("閉鎖・番号再利用後の古い招待は参加とWebSocket接続を�
   const { room, membership } = await createRoom();
   expect((await leaveRoom(room.id, membership.token)).status).toBe(204);
   const request = () =>
-    new Request(`${baseUrl}/rooms/${room.id}/players`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${room.id}/players`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "招待された人", instanceId: room.instanceId }),
@@ -332,7 +335,7 @@ test("閉鎖・番号再利用後の古い招待は参加とWebSocket接続を�
   expect(response.status).toBe(410);
   expect(await response.json()).toEqual({ error: "room_changed" });
   const socketResponse = await exports.default.fetch(
-    new Request(`${baseUrl}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${room.id}/ws?instanceId=${room.instanceId}`, {
       headers: { Upgrade: "websocket" },
     }),
   );
@@ -345,7 +348,7 @@ test("招待の不正な識別子、参加前の満室化・開始を案内す�
   const setup = await startFourPlayerRoom();
   for (const instanceId of ["invalid", setup.room.instanceId]) {
     const response = await exports.default.fetch(
-      new Request(`${baseUrl}/rooms/${setup.id}/players`, {
+      new AcceptedGameRequest(`${baseUrl}/rooms/${setup.id}/players`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "招待された人", instanceId }),
@@ -358,7 +361,7 @@ test("招待の不正な識別子、参加前の満室化・開始を案内す�
   }
   const full = await createRoom(true);
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}/rooms/${full.room.id}/players`, {
+    new AcceptedGameRequest(`${baseUrl}/rooms/${full.room.id}/players`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "招待された人", instanceId: full.room.instanceId }),
@@ -369,7 +372,7 @@ test("招待の不正な識別子、参加前の満室化・開始を案内す�
   expect(
     (
       await exports.default.fetch(
-        new Request(`${baseUrl}/rooms/${full.room.id}/ws?instanceId=invalid`, {
+        new AcceptedGameRequest(`${baseUrl}/rooms/${full.room.id}/ws?instanceId=invalid`, {
           headers: { Upgrade: "websocket" },
         }),
       )
@@ -379,7 +382,7 @@ test("招待の不正な識別子、参加前の満室化・開始を案内す�
 
 async function joinRoom(id: string, name: string) {
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}${joinRoomContract.pathFor(id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${joinRoomContract.pathFor(id)}`, {
       method: joinRoomContract.method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
@@ -392,7 +395,7 @@ async function joinRoom(id: string, name: string) {
 
 async function getRoom(id: string): Promise<Room> {
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
+    new AcceptedGameRequest(`${baseUrl}${getRoomContract.pathFor(id)}`),
   );
   expect(response.status).toBe(200);
   return roomSchema.parse(getRoomContract.response.parse(await response.json()).room);
@@ -406,7 +409,7 @@ async function listRooms(cursor?: string) {
   const path = cursor
     ? `${listRoomsContract.path}?cursor=${encodeURIComponent(cursor)}`
     : listRoomsContract.path;
-  const response = await exports.default.fetch(new Request(`${baseUrl}${path}`));
+  const response = await exports.default.fetch(new AcceptedGameRequest(`${baseUrl}${path}`));
   expect(response.status).toBe(200);
   return listRoomsContract.response.parse(await response.json());
 }
@@ -438,7 +441,7 @@ async function waitForIndexedRoom(
 
 async function leaveRoom(id: string, token: string): Promise<Response> {
   return exports.default.fetch(
-    new Request(`${baseUrl}${leaveRoomContract.pathFor(id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${leaveRoomContract.pathFor(id)}`, {
       method: leaveRoomContract.method,
       headers: { Authorization: `Bearer ${token}` },
     }),
@@ -447,7 +450,7 @@ async function leaveRoom(id: string, token: string): Promise<Response> {
 
 async function getMembership(id: string, token: string): Promise<Response> {
   return exports.default.fetch(
-    new Request(`${baseUrl}${getRoomMembershipContract.pathFor(id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${getRoomMembershipContract.pathFor(id)}`, {
       headers: { Authorization: `Bearer ${token}` },
     }),
   );
@@ -482,7 +485,7 @@ async function expirePlayers(id: string, playerIds: string[]): Promise<void> {
 
 async function openRoom(id: string): Promise<RoomClient> {
   const response = await env.GAME_ROOM.getByName(id).fetch(
-    new Request(`${baseUrl}${roomSocketContract.pathFor(id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${roomSocketContract.pathFor(id)}`, {
       headers: { Upgrade: "websocket" },
     }),
   );
@@ -814,7 +817,7 @@ test("待機中の最後の退室でルームを閉鎖する", async () => {
   const created = await createRoom();
   expect((await leaveRoom(created.room.id, created.membership.token)).status).toBe(204);
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
+    new AcceptedGameRequest(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
   );
   expect(response.status).toBe(404);
 });
@@ -906,7 +909,7 @@ test("期限後の認証では待機中の席を復帰させず、最後の席�
   await expectPending(created.room.id, created.membership.playerId);
   await expirePlayers(created.room.id, [created.membership.playerId]);
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
+    new AcceptedGameRequest(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
   );
   expect(response.status).toBe(404);
   expect((await getMembership(created.room.id, created.membership.token)).status).toBe(404);
@@ -998,7 +1001,7 @@ test("開始・着手・再取得で時計の基準時刻と期限を維持す�
   });
   expect(room.clock.turnExpiresAt - room.clock.turnStartedAt).toBe(330_000);
   const fetched = await exports.default.fetch(
-    new Request(`${baseUrl}${getRoomContract.pathFor(id)}`),
+    new AcceptedGameRequest(`${baseUrl}${getRoomContract.pathFor(id)}`),
   );
   const getPayload = getRoomContract.response.parse(await fetched.json());
   expect(getPayload.room).toEqual(room);
@@ -1244,7 +1247,7 @@ test("ルーム作成のモードは必須で、すぐ遊ぶにも選択した�
     { name: "ホスト", quickPlay: false, mode: "other" },
   ]) {
     const response = await exports.default.fetch(
-      new Request(`${baseUrl}${createRoomContract.path}`, {
+      new AcceptedGameRequest(`${baseUrl}${createRoomContract.path}`, {
         method: createRoomContract.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -1508,7 +1511,7 @@ test("一覧は同じ更新時刻でも部屋番号順で20件ずつ取得し、
   );
   const request = (cursor?: string) =>
     worker.fetch(
-      new Request(
+      new AcceptedGameRequest(
         `${baseUrl}${listRoomsContract.path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
       ),
       { ...env, APP_DB: db },
@@ -1648,12 +1651,14 @@ test("観戦者は匿名資格で通報し、運営者が削除・送信停止�
     -1,
   )!;
   const viewerResponse = await exports.default.fetch(
-    new Request(`${baseUrl}${viewerContract.pathFor(created.room.id)}`, { method: "POST" }),
+    new AcceptedGameRequest(`${baseUrl}${viewerContract.pathFor(created.room.id)}`, {
+      method: "POST",
+    }),
   );
   expect(viewerResponse.status).toBe(201);
   const viewer = viewerContract.response.parse(await viewerResponse.json());
   const reportRequest = () =>
-    new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${viewer.token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: message.id }),
@@ -1663,12 +1668,12 @@ test("観戦者は匿名資格で通報し、運営者が削除・送信停止�
   const reportId = reportContract.response.parse(await reported.json()).id;
   expect((await exports.default.fetch(reportRequest())).status).toBe(409);
   const unauthorized = await exports.default.fetch(
-    new Request(`${baseUrl}${listReportsContract.path}`),
+    new AcceptedGameRequest(`${baseUrl}${listReportsContract.path}`),
   );
   expect(unauthorized.status).toBe(401);
   const auth = { Authorization: "Bearer test-moderator-token" };
   const listing = await exports.default.fetch(
-    new Request(`${baseUrl}${listReportsContract.path}`, { headers: auth }),
+    new AcceptedGameRequest(`${baseUrl}${listReportsContract.path}`, { headers: auth }),
   );
   expect(listing.status).toBe(200);
   expect(
@@ -1677,7 +1682,7 @@ test("観戦者は匿名資格で通報し、運営者が削除・送信停止�
       .reports.some((report) => report.id === reportId),
   ).toBe(true);
   const action = await exports.default.fetch(
-    new Request(`${baseUrl}${moderateReportContract.pathFor(reportId)}`, {
+    new AcceptedGameRequest(`${baseUrl}${moderateReportContract.pathFor(reportId)}`, {
       method: "POST",
       headers: { ...auth, "Content-Type": "application/json" },
       body: JSON.stringify({ action: "delete_and_mute" }),
@@ -1702,7 +1707,7 @@ test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除
     -1,
   )!;
   const request = () =>
-    new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${created.membership.token}`,
@@ -1723,7 +1728,7 @@ test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除
     .bind(Date.now() - 1, id)
     .run();
   const listing = await exports.default.fetch(
-    new Request(`${baseUrl}${listReportsContract.path}`, {
+    new AcceptedGameRequest(`${baseUrl}${listReportsContract.path}`, {
       headers: { Authorization: "Bearer test-moderator-token" },
     }),
   );
@@ -1752,7 +1757,7 @@ test("24時間の活動停止でルームを閉鎖し、索引から除外する
   expect(
     (
       await exports.default.fetch(
-        new Request(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
+        new AcceptedGameRequest(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
       )
     ).status,
   ).toBe(404);
@@ -1766,7 +1771,7 @@ test("対局終了時に人間が残っていなければ部屋を閉鎖する",
   await host.nextSnapshotWhere((room) => room.status === "playing");
   expect((await leaveRoom(created.room.id, created.membership.token)).status).toBe(204);
   const response = await exports.default.fetch(
-    new Request(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
+    new AcceptedGameRequest(`${baseUrl}${getRoomContract.pathFor(created.room.id)}`),
   );
   expect(response.status).toBe(404);
   await waitForIndexedRoom(created.room.id, (row) => row.closed === 1);
@@ -1860,7 +1865,7 @@ test("通報済みの旧世代へ処分しても再利用された部屋を変�
     -1,
   )!;
   const report = await exports.default.fetch(
-    new Request(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
+    new AcceptedGameRequest(`${baseUrl}${reportContract.pathFor(created.room.id)}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${created.membership.token}`,
@@ -1882,7 +1887,7 @@ test("通報済みの旧世代へ処分しても再利用された部屋を変�
     await env.GAME_ROOM.getByName(created.room.id).createRoom(replacement, "b".repeat(64)),
   ).not.toBeNull();
   const action = await exports.default.fetch(
-    new Request(`${baseUrl}${moderateReportContract.pathFor(reportId)}`, {
+    new AcceptedGameRequest(`${baseUrl}${moderateReportContract.pathFor(reportId)}`, {
       method: "POST",
       headers: { Authorization: "Bearer test-moderator-token", "Content-Type": "application/json" },
       body: JSON.stringify({ action: "delete_and_mute" }),
