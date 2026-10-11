@@ -71,9 +71,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
               provider,
               callbackURL: adminLogin ? "/admin" : "/account",
               newUserCallbackURL: adminLogin ? "/admin" : "/account/setup",
-              errorCallbackURL: adminLogin
-                ? "/login?error=oauth&destination=admin"
-                : "/login?error=oauth",
+              errorCallbackURL: adminLogin ? "/login?destination=admin" : "/login",
             },
       ),
     }),
