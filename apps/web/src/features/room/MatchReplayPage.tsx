@@ -14,6 +14,7 @@ import {
   useNavigation,
   useRouteError,
 } from "react-router";
+import { AccountReplayRecovery } from "../account/AccountReplayRecovery";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import type { MatchReplayData } from "./matchReplayLoader";
@@ -59,6 +60,8 @@ export function MatchReplayErrorPage() {
   const publicView = location.pathname.startsWith("/matches/");
   const status = isRouteErrorResponse(error) ? error.status : 503;
   const retryable = status !== 400 && status !== 404;
+  if (!publicView && status === 401 && isRouteErrorResponse(error))
+    return <AccountReplayRecovery generation={error.data?.accountRequestGeneration} />;
   return (
     <AppPageState>
       <p role="alert">

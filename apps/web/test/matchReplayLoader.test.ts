@@ -66,7 +66,7 @@ test("リバーシは棋譜詳細だけを取得し、公開APIと本人APIを�
   ]);
 });
 
-test("未認証はログインへ戻し、URL・非公開・取得障害のstatusを維持する", async () => {
+test("未認証は再確認用401として返し、URL・非公開・取得障害のstatusを維持する", async () => {
   for (const status of [400, 401, 404, 503]) {
     fetchSpy.mockResolvedValue(new Response(null, { status }));
     try {
@@ -74,8 +74,8 @@ test("未認証はログインへ戻し、URL・非公開・取得障害のstatu
       throw new Error("Expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(Response);
-      expect((error as Response).status).toBe(status === 401 ? 302 : status);
-      if (status === 401) expect((error as Response).headers.get("Location")).toBe("/login");
+      expect((error as Response).status).toBe(status);
+      if (status === 401) expect((error as Response).headers.get("Location")).toBeNull();
     }
   }
   await expect(publicMatchReplayLoader(args(replayMatch().id))).rejects.toMatchObject({
@@ -85,13 +85,13 @@ test("未認証はログインへ戻し、URL・非公開・取得障害のstatu
   await expect(matchReplayLoader(args(replayMatch().id))).rejects.toMatchObject({ status: 503 });
 });
 
-test("将棋の100件ページ境界を復元し、途中の認証失効はログインへ戻す", async () => {
+test("将棋の100件ページ境界を復元し、途中の認証失効は再確認用401として返す", async () => {
   const fixture = shogiReplayMatch();
   fetchSpy
     .mockResolvedValueOnce(Response.json({ match: fixture.detail }))
     .mockResolvedValueOnce(Response.json(fixture.page(0)))
     .mockResolvedValueOnce(new Response(null, { status: 401 }));
-  await expect(matchReplayLoader(args(fixture.detail.id))).rejects.toMatchObject({ status: 302 });
+  await expect(matchReplayLoader(args(fixture.detail.id))).rejects.toMatchObject({ status: 401 });
   expect(fetchSpy.mock.calls.at(-1)?.[0]).toBe(
     `/api/account/matches/${fixture.detail.id}/replay?cursor=100`,
   );
