@@ -22,9 +22,19 @@ export type SearchOptions = {
   cacheLimit?: number;
   endgameEmpties?: number;
   evaluationWeights?: Partial<EvaluationWeights>;
+  policyForecast?: boolean;
 };
+export const defaultSearchOptions = {
+  maxWork: 262144,
+  maxDepth: 6,
+  width: 6,
+  cacheLimit: 2048,
+  endgameEmpties: 6,
+  policyForecast: true,
+} as const;
 export type SearchStats = {
   algorithm: "maxn" | "alpha-beta";
+  selection: "tree" | "forecast";
   work: number;
   nodes: number;
   generatedMoves: number;
@@ -35,6 +45,9 @@ export type SearchStats = {
   cacheEntries: number;
   fallbackScans: number;
   exactEndgame: boolean;
+  forecastCompleted: boolean;
+  forecastRoots: number;
+  forecastPlacements: number;
 };
 type Candidate = {
   move: LegalPlacement;
@@ -55,15 +68,9 @@ export function positionKey(state: FourReversiState): string {
   ]);
 }
 
-export function searchCpuMove(
-  input: FourReversiState,
-  options: SearchOptions = {},
-): { move: Position | null; stats: SearchStats } {
-  const maxWork = options.maxWork ?? 2048;
-  const maxDepth = options.maxDepth ?? 6;
-  const width = options.width ?? 8;
-  const cacheLimit = options.cacheLimit ?? 2048;
-  const endgameEmpties = options.endgameEmpties ?? 4;
+export function resolveSearchOptions(options: SearchOptions = {}) {
+  const settings = { ...defaultSearchOptions, ...options };
+  const { maxWork, maxDepth, width, cacheLimit, endgameEmpties, policyForecast } = settings;
   if (
     [maxWork, maxDepth, width].some((n) => !Number.isSafeInteger(n) || n < 1) ||
     !Number.isSafeInteger(cacheLimit) ||
@@ -71,13 +78,31 @@ export function searchCpuMove(
     cacheLimit > 2048 ||
     !Number.isSafeInteger(endgameEmpties) ||
     endgameEmpties < 0 ||
-    endgameEmpties > 8
+    endgameEmpties > 8 ||
+    typeof policyForecast !== "boolean"
   )
-    throw new TypeError("探索予算・深さ・幅は正の整数、cacheLimitは0〜2048で指定してください");
-  const weights = resolveWeights(options.evaluationWeights);
+    throw new TypeError(
+      "探索予算・深さ・幅は正の整数、cacheLimitは0〜2048、終盤空点は0〜8で指定してください",
+    );
+  return { ...settings, evaluationWeights: resolveWeights(options.evaluationWeights) };
+}
+
+export function searchCpuMove(
+  input: FourReversiState,
+  options: SearchOptions = {},
+): { move: Position | null; stats: SearchStats } {
+  const {
+    maxWork,
+    maxDepth,
+    width,
+    cacheLimit,
+    endgameEmpties,
+    evaluationWeights: weights,
+  } = resolveSearchOptions(options);
   const stats: SearchStats = {
     algorithm:
       input.mode === "singles" && getActiveColors(input).length > 2 ? "maxn" : "alpha-beta",
+    selection: "tree",
     work: 0,
     nodes: 0,
     generatedMoves: 0,
@@ -88,6 +113,9 @@ export function searchCpuMove(
     cacheEntries: 0,
     fallbackScans: 0,
     exactEndgame: false,
+    forecastCompleted: false,
+    forecastRoots: 0,
+    forecastPlacements: 0,
   };
   if (input.status === "finished") return { move: null, stats };
   stats.fallbackScans = 1;

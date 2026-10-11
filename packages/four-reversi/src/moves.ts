@@ -46,13 +46,13 @@ function captures(
   return flipped;
 }
 
-export function createPlacement(
+function checkPlacement(
   board: FourReversiState["board"],
   color: Color,
   active: readonly Color[],
   position: Position,
   counts = countStones(board),
-): { ok: true; move: LegalPlacement } | { ok: false; reason: Exclude<MoveError, "game_finished"> } {
+): { ok: true; flipped: Position[] } | { ok: false; reason: Exclude<MoveError, "game_finished"> } {
   const { x, y } = position;
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= 8 || y < 0 || y >= 8)
     return { ok: false, reason: "out_of_bounds" };
@@ -63,6 +63,20 @@ export function createPlacement(
   for (const p of flipped) remaining[board[p.y][p.x]!]--;
   if (active.some((other) => other !== color && remaining[other] === 0))
     return { ok: false, reason: "eliminates_player" };
+  return { ok: true, flipped };
+}
+
+export function createPlacement(
+  board: FourReversiState["board"],
+  color: Color,
+  active: readonly Color[],
+  position: Position,
+  counts = countStones(board),
+): { ok: true; move: LegalPlacement } | { ok: false; reason: Exclude<MoveError, "game_finished"> } {
+  const checked = checkPlacement(board, color, active, position, counts);
+  if (!checked.ok) return checked;
+  const { x, y } = position;
+  const { flipped } = checked;
   const next = board.map((row) => [...row]);
   next[y][x] = color;
   for (const p of flipped) next[p.y][p.x] = color;
@@ -77,6 +91,26 @@ export function createPlacement(
       flipped,
     },
   };
+}
+
+export function countLegalMoves(
+  board: FourReversiState["board"],
+  active: readonly Color[],
+  spend?: SpendWork,
+): Record<Color, number> {
+  // 全色の可動性を1回の空点走査で数え、評価に不要な着手後盤面を生成しません。
+  spend?.();
+  const counts = countStones(board);
+  const result: Record<Color, number> = { black: 0, white: 0, red: 0, blue: 0 };
+  let scanned = 0;
+  for (let y = 0; y < 8; y++)
+    for (let x = 0; x < 8; x++) {
+      if (board[y][x] !== null) continue;
+      if (scanned++ % 8 === 0) spend?.();
+      for (const color of active)
+        if (checkPlacement(board, color, active, { x, y }, counts).ok) result[color]++;
+    }
+  return result;
 }
 
 export function generatePlacements(

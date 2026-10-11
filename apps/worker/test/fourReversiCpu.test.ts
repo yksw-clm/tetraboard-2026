@@ -297,3 +297,31 @@ for (const mode of ["singles", "doubles"] as const) {
     });
   });
 }
+
+test("チャットで保存した選択・盤面・手番開始を変えない", async () => {
+  const { stub, host } = await setup();
+  const selected = await runInDurableObject(stub, async (instance, ctx) => {
+    const room = fourReversiRoomSchema.parse(ctx.storage.kv.get("room"));
+    if (room.status !== "playing") throw Error("Expected playing");
+    room.clock.turnStartedAt = Date.now() - 3000;
+    room.clock.turnExpiresAt = Date.now() + 300000;
+    ctx.storage.kv.put("room", room);
+    await instance.alarm();
+    const job = ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey)!;
+    const saved = { ...job, applyAt: Date.now() + 60000 };
+    ctx.storage.kv.put(fourReversiCpuJobKey, saved);
+    await ctx.storage.setAlarm(saved.applyAt);
+    return { job: saved, game: room.game, at: room.clock.turnStartedAt };
+  });
+  host.send({ type: "room.chat.send", text: "CPUの思考中です" });
+  await host.waitFor("room.chat.snapshot", (m) =>
+    m.messages.some((v) => v.text === "CPUの思考中です"),
+  );
+  await runInDurableObject(stub, async (instance, ctx) => {
+    const room = await instance.getRoom();
+    expect(ctx.storage.kv.get(fourReversiCpuJobKey)).toEqual(selected.job);
+    expect(room?.game).toEqual(selected.game);
+    expect(room?.clock?.turnStartedAt).toBe(selected.at);
+    expect(await ctx.storage.getAlarm()).toBe(selected.job.applyAt);
+  });
+});

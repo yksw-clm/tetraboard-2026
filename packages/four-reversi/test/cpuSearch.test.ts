@@ -3,6 +3,7 @@ import { colors, createInitialState, getLegalMoves, type Cell } from "../src/ind
 import { chooseCpuMoveWithDiagnostics } from "../src/cpu";
 import { positionKey } from "../src/cpuSearch";
 import { positionAt } from "../bench/measurement";
+import { solveEndgame } from "../bench/oracle";
 
 test("少ない予算でも合法手を返し、入力と乱数に依存しない", () => {
   for (const mode of ["singles", "doubles"] as const) {
@@ -53,7 +54,11 @@ test("全評価が同じなら元の上から左の列挙順を使う", () => {
   } as const;
   const state = createInitialState("singles");
   expect(
-    chooseCpuMoveWithDiagnostics(state, { maxDepth: 2, evaluationWeights: weights }).move,
+    chooseCpuMoveWithDiagnostics(state, {
+      maxDepth: 2,
+      evaluationWeights: weights,
+      policyForecast: false,
+    }).move,
   ).toEqual(getLegalMoves(state)[0]);
 });
 
@@ -67,4 +72,38 @@ test("進行中の合法手なしはnull、不正予算は拒否する", () => {
       chooseCpuMoveWithDiagnostics(createInitialState("singles"), { maxWork }),
     ).toThrow();
   expect(colors).toHaveLength(4);
+});
+
+test("内部幅1の外の合法な角も読んで、角取得に見える罠を避ける", () => {
+  const state = positionAt("singles", 10041, 51, 2);
+  const expected = solveEndgame(state);
+  expect(expected.moves).toEqual([{ x: 0, y: 1 }]);
+  const result = chooseCpuMoveWithDiagnostics(state, {
+    maxWork: 65536,
+    maxDepth: 6,
+    width: 1,
+    endgameEmpties: 0,
+  });
+  expect(result.move).toEqual({ x: 0, y: 1 });
+});
+
+test("深い探索の中断では全根候補が完了した深さの結果を保持する", () => {
+  const state = positionAt("singles", 1000, 24);
+  const options = {
+    maxWork: 1024,
+    maxDepth: 4,
+    width: 6,
+    endgameEmpties: 0,
+    policyForecast: false,
+  };
+  const stopped = chooseCpuMoveWithDiagnostics(state, options);
+  expect(stopped.stats.cutoff).toBe(true);
+  expect(stopped.stats.completedDepth).toBeGreaterThan(0);
+  const completed = chooseCpuMoveWithDiagnostics(state, {
+    ...options,
+    maxWork: 262144,
+    maxDepth: stopped.stats.completedDepth,
+  });
+  expect(completed.stats.cutoff).toBe(false);
+  expect(stopped.move).toEqual(completed.move);
 });

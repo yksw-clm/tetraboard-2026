@@ -2,12 +2,11 @@ import {
   colors,
   countStones,
   getActiveColors,
-  getLegalPlacements,
   type Color,
   type FourReversiState,
   type Team,
 } from "./engine";
-import type { SpendWork } from "./moves";
+import { countLegalMoves, type SpendWork } from "./moves";
 
 export type Features = {
   stones: number;
@@ -20,13 +19,13 @@ export type Features = {
 };
 export type EvaluationWeights = Record<keyof Features, readonly [number, number, number]>;
 export const defaultEvaluationWeights: EvaluationWeights = {
-  stones: [1, 4, 20],
-  mobility: [12, 8, 4],
-  corners: [80, 80, 80],
-  stableEdges: [20, 20, 20],
-  frontier: [-8, -6, -2],
-  xSquares: [-40, -30, -10],
-  cSquares: [-20, -15, -5],
+  stones: [1, 1, 1],
+  mobility: [3, 3, 3],
+  corners: [25, 25, 25],
+  stableEdges: [5, 5, 5],
+  frontier: [0, 0, 0],
+  xSquares: [-5, -5, -5],
+  cSquares: [0, 0, 0],
 };
 export type PositionValues = Record<Color, number>;
 export const teamForColor = (color: Color): Team =>
@@ -73,9 +72,10 @@ export function positionFeatures(
       },
     ]),
   ) as Record<Color, Features>;
-  if (includeMobility)
-    for (const color of getActiveColors(state))
-      features[color].mobility = getLegalPlacements(state, color, spend).length;
+  if (includeMobility) {
+    const mobility = countLegalMoves(state.board, getActiveColors(state), spend);
+    for (const color of colors) features[color].mobility = mobility[color];
+  }
   const stable = new Set<number>();
   for (const { x, y } of corners) {
     const color = state.board[y][x];

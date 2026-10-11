@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { applyAction, colors, getLegalMoves, type GameMode } from "../src/index";
 import { chooseCpuMoveWithDiagnostics } from "../src/cpu";
 import { defaultEvaluationWeights, resolveWeights } from "../src/cpuEvaluation";
-import type { SearchOptions, SearchStats } from "../src/cpuSearch";
+import { defaultSearchOptions, type SearchOptions, type SearchStats } from "../src/cpuSearch";
 import {
   openingPosition,
   playMatch,
@@ -15,7 +15,7 @@ import {
   type MatchSample,
   type Selector,
 } from "./measurement";
-import { endgameCases, performancePositions } from "./positions";
+import { endgameCases, performancePositions, tacticalCases } from "./positions";
 import { solveEndgame } from "./oracle";
 
 const baselineCommit = "23548378d5755cf13c3850857aea06da49293f93";
@@ -58,9 +58,12 @@ try {
   )
     throw new Error("candidateはcurrentまたはbaselineで指定してください");
   const searchOptions: SearchOptions = {
-    maxWork: integer("max-work", 2048),
-    maxDepth: integer("max-depth", 6),
-    width: integer("width", 8),
+    maxWork: integer("max-work", defaultSearchOptions.maxWork),
+    maxDepth: integer("max-depth", defaultSearchOptions.maxDepth),
+    width: integer("width", defaultSearchOptions.width),
+    endgameEmpties: integer("endgame-empties", defaultSearchOptions.endgameEmpties),
+    cacheLimit: defaultSearchOptions.cacheLimit,
+    policyForecast: args.get("policy-forecast") !== "false",
     evaluationWeights: args.has("weights")
       ? resolveWeights(JSON.parse(args.get("weights")!))
       : defaultEvaluationWeights,
@@ -84,6 +87,23 @@ try {
     cpu: cpus()[0]?.model,
     args: Object.fromEntries(args),
     searchOptions,
+    sourceHash: hash(
+      await Promise.all(
+        [
+          "src/index.ts",
+          "src/engine.ts",
+          "src/moves.ts",
+          "src/cpu.ts",
+          "src/cpuSearch.ts",
+          "src/cpuForecast.ts",
+          "src/cpuEvaluation.ts",
+          "bench/cli.ts",
+          "bench/measurement.ts",
+          "bench/positions.ts",
+          "bench/oracle.ts",
+        ].map(async (path) => [path, await Bun.file(join(import.meta.dir, "..", path)).text()]),
+      ),
+    ),
   };
   const kind = args.get("kind") ?? "performance";
   let report: unknown;
@@ -158,16 +178,18 @@ try {
   } else if (kind === "tactics" || kind === "endgame") {
     const split = args.get("split") ?? "validation";
     if (split !== "training" && split !== "validation") throw new Error("splitが不正です");
-    const corpus = endgameCases(
-      split === "training" ? 10000 : 30000,
-      integer("cases", kind === "tactics" ? 25 : 200),
-    );
-    const samples = corpus.map(({ id, state, labels }) => {
+    const corpus =
+      kind === "tactics"
+        ? tacticalCases(split)
+        : endgameCases(split === "training" ? 10000 : 30000, integer("cases", 200));
+    const samples = corpus.map((entry) => {
+      const { id, state, labels } = entry;
       const expected = solveEndgame(state);
       const move = candidate(state);
       return {
         id,
         labels,
+        important: "important" in entry && entry.important,
         move,
         expected: expected.moves,
         passed: expected.moves.some((p) => p.x === move?.x && p.y === move?.y),

@@ -1,10 +1,11 @@
 import { getLegalMoves, type FourReversiState, type Position } from "./engine";
-import { searchCpuMove, type SearchOptions } from "./cpuSearch";
+import { forecastCpuMove } from "./cpuForecast";
+import type { SearchOptions } from "./cpuSearch";
 
 export type CpuLevel = 1 | 2;
 
 export function chooseCpuMoveWithDiagnostics(state: FourReversiState, options: SearchOptions = {}) {
-  return searchCpuMove(state, options);
+  return forecastCpuMove(state, options);
 }
 
 export function chooseCpuMove(

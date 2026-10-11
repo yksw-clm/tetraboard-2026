@@ -7,7 +7,7 @@ import {
   summarizeMatches,
   summarizeTimes,
 } from "../bench/measurement";
-import { endgameCases, performancePositions } from "../bench/positions";
+import { endgameCases, performancePositions, tacticalCases } from "../bench/positions";
 import { solveEndgame } from "../bench/oracle";
 
 test("開始系列の再現性と性能集合の件数を維持する", () => {
@@ -17,6 +17,31 @@ test("開始系列の再現性と性能集合の件数を維持する", () => {
     Array.from({ length: 4 }, seededRandom(1)),
   );
   expect(performancePositions().length).toBeGreaterThanOrEqual(32);
+});
+
+test("戦術問題は調整・最終で25原局面ずつ分離し、重要な分類を揃える", () => {
+  const training = tacticalCases("training");
+  const validation = tacticalCases("validation");
+  const keys = new Set(training.map((entry) => JSON.stringify(entry.state.board)));
+  expect(validation.some((entry) => keys.has(JSON.stringify(entry.state.board)))).toBe(false);
+  for (const corpus of [training, validation]) {
+    expect(corpus).toHaveLength(25);
+    const labels = new Set(corpus.flatMap((entry) => entry.labels));
+    for (const label of [
+      "corner-handover",
+      "x-square",
+      "c-square",
+      "elimination-ban",
+      "team-interest",
+      "pass",
+      "2-colors",
+      "3-colors",
+    ])
+      expect(labels).toContain(label);
+    expect(
+      corpus.every((entry) => entry.important && solveEndgame(entry.state).moves.length > 0),
+    ).toBe(true);
+  }
 });
 
 test("集計は未終局を勝ちや引分へ置換せず、重複を拒否する", () => {

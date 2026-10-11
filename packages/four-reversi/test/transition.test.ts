@@ -57,3 +57,19 @@ test("最初の合法手だけの探索と処理量計上でも合法手を失�
     expect(work).toBeGreaterThan(1);
   }
 });
+
+test("全色の合法手数を共有走査しても、脱落・全滅禁止を含む公開の色別合法手数と一致する", async () => {
+  const { countLegalMoves } = await import("../src/moves");
+  const { getActiveColors, getLegalMovesForColor } = await import("../src/index");
+  for (const mode of ["singles", "doubles"] as const)
+    for (const seed of [1000, 1001, 1002, 1003])
+      for (const plies of [0, 12, 24, 36, 48, 54]) {
+        const state = positionAt(mode, seed, plies, mode === "singles" ? 2 + (seed % 3) : 4);
+        if (state.status !== "playing") continue;
+        let work = 0;
+        const counts = countLegalMoves(state.board, getActiveColors(state), () => work++);
+        for (const color of ["black", "white", "red", "blue"] as const)
+          expect(counts[color]).toBe(getLegalMovesForColor(state, color).length);
+        expect(work).toBe(1 + Math.ceil(state.board.flat().filter((p) => p === null).length / 8));
+      }
+});
