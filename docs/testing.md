@@ -25,7 +25,7 @@
 
 ## プライバシー・規約・退会の確認
 
-2026-10-12の [確定仕様](../README.md#プライバシー利用規約退会の確定仕様) と [実装計画](development.md#プライバシー規約退会の実装計画) に対する検証計画です。以下は実装コミットごとに追加・実行し、計画作成時点の成功結果と扱いません。新しいテストの実際のファイル名と部分実行コマンドは実装時にこの節へ更新します。
+2026-10-12の [確定仕様](../README.md#プライバシー利用規約退会の確定仕様) と [実装計画](development.md#プライバシー規約退会の実装計画) の実装を、次の境界で確認します。実際の検証対象コミットと必須5コマンド・CIの結果は同じPRに記録します。
 
 | 対象 | 自動検証する振る舞い |
 | --- | --- |
@@ -39,6 +39,12 @@
 | 計測設定 | 有効／停止／再有効化、計測Cookie削除と新ID、閲覧・滞在の送信停止、対局への個別識別停止、登録前後・複数タブ・保存失敗、停止中のログイン・参加・棋譜保存・戦績、必要なCookieへの非干渉 |
 | 保存期限・長期集計 | 90日の直前・一致・直後、期限後のAPI除外と毎時削除、導入前データ、集計後の削除失敗・重複実行・遅延送信、7日継続率の観測窓と月境界、個人ID・端末ID・対局ID・対応表の非保持、期間ユニーク数の誤加算防止、算出不可の管理表示 |
 | 互換・回帰 | 既存固定棋譜と旧記録、退会対象のないデータの不変、Google／Discord認証・プロフィール・ゲスト名記憶・ゲスト参加・戦績・バッジ・チャット・通報・フィードバックの既存動作 |
+
+[privacy.test.ts](../apps/worker/test/privacy.test.ts) は全6ゲームの未確認／旧版拒否、初回文書HTML、版別同意、全6棋譜の本人除去と相手維持、通常／四人将棋の転送途中、確認資格の一回性と在室拒否、DO・画像・認証・本人フィードバック等の削除、画像／外部解除失敗、完了後の旧索引再送、同時に失敗したDO保存、90日境界と日跨ぎ・重複集計・遅延再送、旧トークン暗号化を確認します。HTTPSの認証Cookie、取消による回数制限の維持、閉鎖済みDOの索引保存待ちも対象です。Google／DiscordのHTTPをモックし、実コールバックから取消・別人・期限・正常再認証・退会・新規再登録まで通します。実サービスのOAuth成功と混同しません。
+
+[privacy.test.tsx](../apps/web/test-dom/privacy.test.tsx) は全6ゲームの登録者／ゲストの事前説明、OAuth／参加の同意拒否と許可、全文・連絡先、計測設定・Cookie削除、退会の在室／確認・処理中／障害／完了を確認します。[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) と [roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx) は退会による接続失効・セッション再確認と、古い本人応答の破棄を確認します。
+
+部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMの共通fixtureも既存の確認を初期化し、未確認・旧版の新テストでは明示的に解除します。
 
 WorkerはローカルのD1・R2・SQLite対応DOで保存と資格・HTTP／WebSocketを確認します。期限・再認証の有効時間・表示変換は純粋関数、同意・退会・設定・非同期応答はBun＋happy-domで確認します。既存の `accounts.test.ts`・`discordAuth.test.ts`・`accountRooms.test.ts`・`publicMatches.test.ts`・`matchCompatibility.test.ts`・`commonRoomBehavior.test.ts`・`adminAnalytics.test.ts`・`feedback.test.ts`・`badgeNotifications.test.ts`・`publicAssets.test.ts` と関連DOMテストを入口にします。
 
