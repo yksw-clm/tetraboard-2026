@@ -1,0 +1,147 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { cpus, tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
+import { chooseCpuMove, colors, type GameMode } from "../src/index";
+import {
+  openingPosition,
+  playMatch,
+  summarizeMatches,
+  summarizeTimes,
+  type MatchSample,
+  type Selector,
+} from "./measurement";
+import { endgameCases, performancePositions } from "./positions";
+import { solveEndgame } from "./oracle";
+
+const baselineCommit = "23548378d5755cf13c3850857aea06da49293f93";
+const args = new Map(
+  Bun.argv.slice(2).map((arg) => {
+    const [key, ...rest] = arg.replace(/^--/, "").split("=");
+    return [key, rest.length ? rest.join("=") : "true"];
+  }),
+);
+const repoRoot = join(import.meta.dir, "../../..");
+const directory = mkdtempSync(join(tmpdir(), "tetraboard-reversi-baseline-"));
+const git = (...options: string[]) => {
+  const result = Bun.spawnSync(["git", ...options], { cwd: repoRoot });
+  if (result.exitCode !== 0) throw new Error(`git ${options[0]}に失敗しました`);
+  return result.stdout.toString().trim();
+};
+function integer(name: string, fallback: number) {
+  const value = Number(args.get(name) ?? fallback);
+  if (!Number.isSafeInteger(value) || value < 1)
+    throw new Error(`${name}は正の整数で指定してください`);
+  return value;
+}
+const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+try {
+  const archive = Bun.spawnSync(["git", "archive", baselineCommit, "packages/four-reversi/src"], {
+    cwd: repoRoot,
+  });
+  if (archive.exitCode !== 0) throw new Error("比較対象コミットを取得できません");
+  const extracted = Bun.spawnSync(["tar", "-xf", "-", "-C", directory], { stdin: archive.stdout });
+  if (extracted.exitCode !== 0) throw new Error("比較対象ソースを展開できません");
+  const old = await import(pathToFileURL(join(directory, "packages/four-reversi/src/cpu.ts")).href);
+  const baseline: Selector = (state) => old.chooseCpuMove(state, 2);
+  if (
+    args.has("candidate") &&
+    args.get("candidate") !== "baseline" &&
+    args.get("candidate") !== "current"
+  )
+    throw new Error("candidateはcurrentまたはbaselineで指定してください");
+  const candidate: Selector =
+    args.get("candidate") === "baseline" ? baseline : (state) => chooseCpuMove(state, 2);
+  const metadata = {
+    commit: git("rev-parse", "HEAD"),
+    dirty: git("status", "--porcelain").length > 0,
+    baselineCommit,
+    bun: Bun.version,
+    os: process.platform,
+    arch: process.arch,
+    cpu: cpus()[0]?.model,
+    args: Object.fromEntries(args),
+  };
+  const kind = args.get("kind") ?? "performance";
+  let report: unknown;
+  if (kind === "matches") {
+    const mode = args.get("mode") ?? "singles";
+    if (mode !== "singles" && mode !== "doubles") throw new Error("modeが不正です");
+    const games = integer("games", 4);
+    const seats = mode === "singles" ? colors : (["black", "white"] as const);
+    if (games % seats.length) throw new Error("gamesは担当色・チーム数の倍数で指定してください");
+    const firstSeed = integer("seed", mode === "singles" ? 1000 : 2000);
+    const samples: MatchSample[] = [];
+    const openings = [];
+    for (let game = 0; game < games; game++) {
+      const seed = firstSeed + Math.floor(game / seats.length);
+      const state = openingPosition(mode as GameMode, seed);
+      if (game % seats.length === 0) openings.push({ seed, state });
+      samples.push(playMatch(state, candidate, baseline, seats[game % seats.length], seed));
+      report = {
+        metadata,
+        mode,
+        complete: game + 1 === games,
+        corpusHash: hash(openings),
+        samples,
+        summary: summarizeMatches(samples),
+      };
+      if (args.has("output")) await Bun.write(args.get("output")!, JSON.stringify(report, null, 2));
+      if ((game + 1) % seats.length === 0) process.stderr.write(`${game + 1}/${games}\n`);
+    }
+  } else if (kind === "performance") {
+    const corpus = performancePositions();
+    const times: number[] = [];
+    const samples = corpus.flatMap(({ id, state }) => {
+      candidate(state);
+      return Array.from({ length: integer("repeats", 5) }, () => {
+        const before = performance.now();
+        const move = candidate(state);
+        const ms = performance.now() - before;
+        times.push(ms);
+        return { id, ms, move };
+      });
+    });
+    report = {
+      metadata,
+      corpusHash: hash(corpus),
+      positions: corpus.length,
+      samples,
+      summary: summarizeTimes(times),
+    };
+  } else if (kind === "tactics" || kind === "endgame") {
+    const split = args.get("split") ?? "validation";
+    if (split !== "training" && split !== "validation") throw new Error("splitが不正です");
+    const corpus = endgameCases(
+      split === "training" ? 10000 : 30000,
+      integer("cases", kind === "tactics" ? 25 : 200),
+    );
+    const samples = corpus.map(({ id, state, labels }) => {
+      const expected = solveEndgame(state);
+      const move = candidate(state);
+      return {
+        id,
+        labels,
+        move,
+        expected: expected.moves,
+        passed: expected.moves.some((p) => p.x === move?.x && p.y === move?.y),
+        oracleNodes: expected.nodes,
+      };
+    });
+    report = {
+      metadata,
+      split,
+      corpusHash: hash(corpus),
+      cases: samples.length,
+      correct: samples.filter((sample) => sample.passed).length,
+      samples,
+    };
+  } else throw new Error("kindはmatches、performance、tactics、endgameで指定してください");
+  const json = `${JSON.stringify(report, null, 2)}\n`;
+  if (args.has("output")) await Bun.write(args.get("output")!, json);
+  else process.stdout.write(json);
+} finally {
+  rmSync(directory, { recursive: true, force: true });
+}
