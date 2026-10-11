@@ -77,3 +77,20 @@ test("リプレイで部分順位と終局を復元し、途中順位の改変�
   expect(() => replayV1({ initial, steps: corrupt })).toThrow();
   expect(() => replayV1({ initial, steps: [...steps, steps[0]] })).toThrow();
 });
+test("ダブルスは満盤で引き分け、両端が敵石でも五連が成立する", () => {
+  const initial = createInitialState("doubles");
+  const board: Cell[][] = Array.from({ length: 15 }, (_, y) =>
+    Array.from({ length: 15 }, (_, x) => ((x + 2 * y) % 4 < 2 ? "black" : "white")),
+  );
+  board[14][14] = null;
+  const result = move({ ...initial, board }, 14, 14);
+  expect(result.result).toEqual({ mode: "doubles", reason: "board_full", winner: null });
+  const blocked = createInitialState();
+  const cells = blocked.board.map((r) => [...r]);
+  cells[0][0] = "red";
+  cells[0][6] = "blue";
+  for (let x = 1; x <= 5; x++) if (x !== 3) cells[0][x] = "black";
+  expect(move({ ...blocked, board: cells }, 3, 0).standings).toEqual([
+    { color: "black", rank: 1, reason: "five" },
+  ]);
+});

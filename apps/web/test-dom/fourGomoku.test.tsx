@@ -178,3 +178,25 @@ test("遊び方は順位・残石・混色とCPU3人を案内", () => {
   for (const text of ["勝ち抜け", "味方2色", "CPU3人", "禁手はありません"])
     expect(document.body.textContent).toContain(text);
 });
+
+test("途中の勝ち抜けでは結果を自動表示せず、退室しても確定順位を保つ案内を出す", async () => {
+  const room = playing();
+  saveRoomMembershipToken(room.id, token);
+  const view = render(wrap()(<FourGomokuRoomDetail {...options(room)} invited={false} />));
+  const socket = connect(room);
+  const detail = fourGomokuMatchDetailSchema.parse(archive.detail);
+  const updated = fourGomokuRoomSchema.parse({
+    ...room,
+    game: detail.replay.steps[16].game,
+    positionRevision: 17,
+  });
+  act(() => socket.snapshot(updated));
+  act(() => clock.advance(1001));
+  await flush();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+  expect(view.textContent).toContain("1位（五連完成）");
+  press(view, "退室");
+  await flush();
+  act(() => clock.advance(300));
+  expect(document.body.textContent).toContain("確定した順位は変わりません。");
+});

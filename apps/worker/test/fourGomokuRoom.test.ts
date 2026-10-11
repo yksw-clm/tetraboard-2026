@@ -319,3 +319,43 @@ test("保存失敗後に部屋を閉鎖しても保存待ちを保持し、復�
   });
   expect((await boundaryRequest(`/matches/${id}`)).status).toBe(200);
 });
+
+test("局ID・revision・担当色が古いCPU候補は適用せず破棄する", async () => {
+  const entry = await fixtures.create({
+    game: "four-gomoku",
+    mode: "singles",
+    name: "ホスト",
+    quickPlay: true,
+  });
+  const host = await fixtures.connect(entry);
+  host.send({ type: "room.game.start" });
+  let room = gameRoom(
+    (await host.waitFor("room.snapshot", (m) => m.room.status === "playing")).room,
+  );
+  if (room.status !== "playing") throw Error();
+  const first = room.game.turn;
+  if (room.players.find((p) => p.color === first)?.kind === "human")
+    room = await play(room, new Map([[entry.membership.playerId, host]]), host, 7, 7);
+  const stub = env.GAME_ROOM.getByName(entry.room.id);
+  for (const mismatch of ["roundId", "positionRevision", "color"])
+    await runInDurableObject(stub, async (instance, state) => {
+      const saved = gameRoom(state.storage.kv.get("room") as FourGomokuRoom);
+      if (saved.status !== "playing") throw Error();
+      saved.clock.turnStartedAt = Date.now() - 2001;
+      state.storage.kv.put("room", saved);
+      const job: FourGomokuCpuJob = {
+        roundId: saved.roundId,
+        positionRevision: saved.positionRevision,
+        color: saved.game.turn,
+        move: { x: 14, y: 14 },
+        applyAt: Date.now() - 1,
+      };
+      if (mismatch === "roundId") job.roundId = crypto.randomUUID();
+      if (mismatch === "positionRevision") job.positionRevision--;
+      if (mismatch === "color") job.color = saved.game.turn === "black" ? "white" : "black";
+      state.storage.kv.put(fourGomokuCpuJobKey, job);
+      await instance.alarm();
+      expect(state.storage.kv.get(fourGomokuCpuJobKey)).toBeUndefined();
+      expect(gameRoom(state.storage.kv.get("room") as FourGomokuRoom).game).toEqual(saved.game);
+    });
+});

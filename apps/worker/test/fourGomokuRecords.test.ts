@@ -142,3 +142,23 @@ test("2〜4位は敗数へ変換せず、それぞれの順位の件数に加算
     fourth: 1,
   });
 });
+
+test("未知の規則版と途中フレームの欠損を拒否する", () => {
+  const record = fourGomokuMatchData.read(ranked.recordJson);
+  expect(() =>
+    fourGomokuMatchData.read(
+      JSON.stringify({
+        ...record,
+        replay: { ...record.replay, initial: { ...record.replay.initial, rulesVersion: 2 } },
+      }),
+    ),
+  ).toThrow();
+  expect(() =>
+    fourGomokuMatchData.read(
+      JSON.stringify({
+        ...record,
+        replay: { ...record.replay, steps: record.replay.steps.slice(1) },
+      }),
+    ),
+  ).toThrow();
+});
