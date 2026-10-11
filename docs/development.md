@@ -12,6 +12,7 @@
 | この開発文書 | 実装の入口、変更手順、構造と互換性などの注意点 |
 | [テスト方針](testing.md) | 実行方法、検証範囲、対象別のテストと移管根拠 |
 | [四人将棋AIの測定・採用記録](four-shogi-ai.md) | 比較条件、対象コミット、結果、採用判断と限界 |
+| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | 実装予定のGoal・制約・受入条件・コミット計画。採用後は測定条件と判断の記録 |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
 
@@ -41,6 +42,16 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 | 公開・環境設定・CI | [開発と本番公開](../README.md#開発と本番公開)、[AGENTS.md](../AGENTS.md) | [本番デプロイ](#本番デプロイ)、[Checks](#checks)、[個人設定からの分離](testing.md#個人設定からの分離)、[ci.yml](../.github/workflows/ci.yml)、[buildAssets.ts](../scripts/buildAssets.ts) | [testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)、必須のcheck・build・Worker dry-run |
 | 五目並べ | [追加範囲](../README.md#五目並べ)、[ルール正本](rules/gomoku.md) | [実装](#五目並べの実装)・[計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応) | [エンジン](../packages/gomoku/test/)、[Worker](../apps/worker/test/gomokuRoom.test.ts)、[DOM](../apps/web/test-dom/gomoku.test.tsx) |
 | 四人五目並べ | [追加範囲](../README.md#四人五目並べ)、[ルール正本](rules/four-gomoku.md) | [実装](#四人五目並べの実装)・[計画と完了条件](#四人五目並べの実装計画) | [エンジン](../packages/four-gomoku/test/)、[Worker](../apps/worker/test/fourGomokuRoom.test.ts)、[DOM](../apps/web/test-dom/fourGomoku.test.tsx) |
+
+## 四人リバーシCPU
+
+現行APIは `@tetraboard/four-reversi` の `chooseCpuMove(state, level, random = Math.random): Position | null` です。合法手・公開API・現在のCPU方式と実装予定の強化仕様は [ルール正本のCPU節](rules/four-reversi.md#cpu) を確認してください。
+
+2026-10-11に強化仕様と [Goal・ContextProviders・Constraints・Done When・コミット計画](four-reversi-ai.md) を確定しました。CPU本体の実装・採用測定は未着手です。最新develop起点の文書PRで仕様を保存し、取り込み後の最新developから実装ブランチを作ります。
+
+実装の入口は [エンジン](../packages/four-reversi/src/index.ts)、[CPU](../packages/four-reversi/src/cpu.ts)、[Worker進行](../apps/worker/src/rooms/fourReversiProgress.ts)、[GameRoomのAlarmと期限処理](../apps/worker/src/rooms/gameRoom.ts) です。強化時には探索と評価をCPUモジュールへ分離し、生成済みの合法候補を使う内部経路を通常着手の確定処理と共有します。公開エンジン状態と通信契約は維持します。
+
+Workerの現行処理は通常アクセスでも同期選択・確定します。強化後は四人リバーシのLv1／Lv2をAlarm限定の選択保存・次Alarmでの適用へ移す予定です。将棋と異なり公開revisionはなく、内部対局ID・ゲーム局面キー・手番開始時刻で照合します。手番外の脱落でもジョブを破棄し、チャット・スタンプだけで再探索しません。詳細な検証の分担は [四人リバーシAI強化の確認](testing.md#四人リバーシai強化の確認実装予定) を参照します。
 
 ## Development Strategy
 
@@ -273,7 +284,7 @@ Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します�
 
 ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では6エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
-GitHub Actionsは `main` へのpushと `main` 宛てのPRで整形・lint・型チェック・テストに加え、Web・Adminのビルドと本番デプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
+GitHub Actionsは `main`・`develop` へのpushと両ブランチ宛てのPRで整形・lint・型チェック・テストに加え、本番・開発それぞれのWeb・AdminのビルドとWorkerデプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
 
 Workerテストは `vitest.config.mts` でローカルのD1・R2・SQLite対応Durable Objectとテスト専用のbindingsを指定します。追跡済みWrangler設定はJSONCとして入口・互換日・互換フラグだけを読み、Wranglerの開発用設定ローダーを通しません。管理者はテストごとに指定し、開発用 `.dev.vars`・`.env` やプロセスの秘密設定を取り込みません。詳細と回帰検証は [個人設定からの分離](testing.md#個人設定からの分離) を参照してください。
 
@@ -295,7 +306,7 @@ bun run --cwd apps/worker deploy:dry-run:development
 
 自動検証はBunの純粋関数テスト、Bun＋happy-domの部品・hookテスト、Worker統合テストへ集約します。ブラウザ起動・画面寸法・ネイティブ入力・実画像デコードの検証とレポート生成は廃止します。`bun run check` の目標は180秒以内です。[テスト方針・移管対応表](testing.md)に実行環境と各検証の対応を記載します。
 
-PR本文には検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載します。PR提出後にコード・設定を変更した場合と、main取り込みでコード・設定が変わった場合も上記の必須コマンドを再実行して結果を更新します。文書だけの変更では同一コード・設定の直前の成功結果を再利用できますが、検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行います。マージはGitHub CI成功、必須のローカル検証成功、差分と結果に対する開発者の承認を条件とし、ローカル成功でGitHub CIを代替しません。
+PR本文には検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載します。PR提出後にコード・設定を変更した場合と、main・develop取り込みでコード・設定が変わった場合も上記の必須コマンドを再実行して結果を更新します。文書だけの変更では同一コード・設定の直前の成功結果を再利用できますが、検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行います。マージはGitHub CI成功、必須のローカル検証成功、差分と結果に対する開発者の承認を条件とし、ローカル成功でGitHub CIを代替しません。
 
 ### 変更内容に応じた確認
 

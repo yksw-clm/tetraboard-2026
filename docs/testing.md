@@ -49,6 +49,21 @@ bun run --cwd packages/shogi test
 
 部分実行の後、PR提出前の必須検証は[開発文書の共通手順](development.md#pr提出前の検証)に従います。実行環境の制約は[実行環境](#実行環境)、画面寸法・ネイティブ入力・実画像デコードなどの自動検証対象から外す範囲は[廃止した自動検証](#廃止した自動検証)を参照してください。
 
+## 四人リバーシAI強化の確認（実装予定）
+
+2026-10-11に [ルール正本のCPU仕様](rules/four-reversi.md#cpu) と [実装計画・受入条件](four-reversi-ai.md) を確定しました。以下は実装時に追加・拡張する確認であり、現段階で強化AIや測定基盤が完成したことを示しません。
+
+| 確認する振る舞い | 検証先と方法 |
+| --- | --- |
+| Lv1の乱数・合法性、Lv2の決定性・入力不変・元の列挙順・合法な代替手 | `packages/four-reversi/test/` のBunテスト |
+| 生成済み候補と公開着手の結果一致、味方を含む全滅禁止・脱落色・自動パス・終局・固定棋譜 | エンジンのBunテストと既存棋譜互換テスト |
+| 多人数／チーム探索、処理量・完了深さ・候補制限・キャッシュ、独立した全読みoracleとの一致 | CPUのBunテスト。空き1〜4マスの両モード200局面以上と固定問題 |
+| Lv1／Lv2の1999／2000ms、選択保存と適用、通常GET、期限・古い局面・手番外脱落・休止復帰・再戦・閉鎖・transaction | `apps/worker/test/cpuRoom.test.ts`・`gameRoom.test.ts`・`roomDeadlineBoundary.test.ts` などの実Worker統合テスト |
+| 新1体対旧3体、チーム対戦、重要問題・棋力・性能・集計の再現性 | 実装時に追加する `packages/four-reversi/bench/`。長時間測定はcheckに含めない |
+| 他5ゲームの進行・CPU・時計、WebへのCPU／bench混入防止 | 既存の共有Worker回帰と両環境のbuild |
+
+部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
+
 ## 実行環境
 
 | 対象 | 実行環境 | 境界の扱い |
