@@ -105,6 +105,10 @@ export const statsReaders = {
       .first();
     return matchDataContracts.reversi.stats(row);
   },
+  "four-gomoku": async (db: D1Database, accountId: string) =>
+    matchDataContracts["four-gomoku"].stats(
+      (await queryAccountStats(db, accountId, "four-gomoku")).stats,
+    ),
   "four-reversi": async (db: D1Database, accountId: string) =>
     matchDataContracts["four-reversi"].stats(
       (await queryAccountStats(db, accountId, "four-reversi")).stats,
@@ -131,6 +135,8 @@ export async function readAccountStats(
     case "shogi":
       return statsReaders[game](db, accountId);
     case "reversi":
+      return statsReaders[game](db, accountId);
+    case "four-gomoku":
       return statsReaders[game](db, accountId);
     case "gomoku":
       return statsReaders[game](db, accountId);

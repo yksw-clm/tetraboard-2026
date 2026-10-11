@@ -3,6 +3,18 @@ import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 export const publicOrigin = "https://tetraboard.net";
 
 export const lobbyMetadata = {
+  "four-gomoku": {
+    title: "TetraBoard | 四人五目並べをブラウザでオンライン対戦",
+    description:
+      "4色で遊ぶ15路の五目並べ。登録・インストール不要で、シングルス・ダブルス、CPU対局、観戦と棋譜に対応。",
+    overview:
+      "四人五目並べは黒・白・赤・青の4色で五連を目指すゲームです。ひとりでCPUと遊ぶことも、友人と4人で対戦することもできます。",
+    rules: [
+      "黒→白→赤→青の順に空点へ置きます。縦・横・斜めの5個以上が完成で、禁手はありません。",
+      "シングルスは完成した順に上位の順位、脱落順に下位の順位が決まります。勝ち抜け・脱落した人の石は残り、最後の1人まで続けます。満盤なら残った人が同順位・引き分けです。",
+      "ダブルスは黒・赤対白・青。味方2色が混ざった五連でチーム勝利、1人の脱落でチーム敗北となります。",
+    ],
+  },
   gomoku: {
     title: "TetraBoard | 五目並べをブラウザでオンライン対戦",
     description:

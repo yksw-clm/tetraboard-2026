@@ -7,6 +7,7 @@ const counterPlaques: Record<
 > = {
   reversi: {},
   gomoku: {},
+  "four-gomoku": {},
   shogi: {},
   "four-reversi": { games: { x: 50, y: 70, width: 51 }, wins: { x: 50, y: 70, width: 51 } },
   "four-shogi": {

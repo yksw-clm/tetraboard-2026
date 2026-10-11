@@ -133,6 +133,8 @@ export const rankingReaders = {
     matchDataContracts.shogi.rankings(await queryTwoPlayerRankings(db, false, "shogi")),
   reversi: async (db: D1Database) =>
     matchDataContracts.reversi.rankings(await queryTwoPlayerRankings(db)),
+  "four-gomoku": async (db: D1Database) =>
+    matchDataContracts["four-gomoku"].rankings(await queryGameRankings(db, "four-gomoku")),
   "four-reversi": async (db: D1Database) =>
     matchDataContracts["four-reversi"].rankings(await queryGameRankings(db, "four-reversi")),
   "four-shogi": async (db: D1Database) =>
@@ -150,6 +152,8 @@ export async function readGameRankings(
     case "shogi":
       return rankingReaders[game](db);
     case "reversi":
+      return rankingReaders[game](db);
+    case "four-gomoku":
       return rankingReaders[game](db);
     case "gomoku":
       return rankingReaders[game](db);

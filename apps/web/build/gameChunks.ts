@@ -33,7 +33,7 @@ export function gameChunks(): Plugin {
       for (const chunk of chunks) {
         for (const [id, info] of Object.entries(chunk.modules)) {
           if (
-            /\/packages\/(four-reversi|four-shogi|reversi|shogi|gomoku)\/src\/cpu[^/]*\.ts$/.test(
+            /\/packages\/(four-reversi|four-shogi|reversi|shogi|gomoku|four-gomoku)\/src\/cpu[^/]*\.ts$/.test(
               id,
             ) &&
             hasImplementation(info.code)
@@ -43,6 +43,8 @@ export function gameChunks(): Plugin {
         }
       }
       const entries = [
+        "FourGomokuRoomDetail",
+        "FourGomokuMatchReplayView",
         "GomokuRoomDetail",
         "GomokuMatchReplayView",
         "ReversiRoomDetail",
@@ -66,16 +68,25 @@ export function gameChunks(): Plugin {
         );
         if (!chunk?.isDynamicEntry || initialModules.some((id) => id.endsWith(suffix)))
           this.error(`${entry} must be a lazy entry`);
-        const own = entry.startsWith("Gomoku")
-          ? "gomoku"
-          : entry.startsWith("Reversi")
-            ? "reversi"
-            : entry.includes("Reversi")
-              ? "four-reversi"
-              : entry.startsWith("Four") || entry.startsWith("four")
-                ? "four-shogi"
-                : "shogi";
-        for (const other of ["reversi", "four-reversi", "four-shogi", "shogi", "gomoku"]) {
+        const own = entry.startsWith("FourGomoku")
+          ? "four-gomoku"
+          : entry.startsWith("Gomoku")
+            ? "gomoku"
+            : entry.startsWith("Reversi")
+              ? "reversi"
+              : entry.includes("Reversi")
+                ? "four-reversi"
+                : entry.startsWith("Four") || entry.startsWith("four")
+                  ? "four-shogi"
+                  : "shogi";
+        for (const other of [
+          "reversi",
+          "four-reversi",
+          "four-shogi",
+          "shogi",
+          "gomoku",
+          "four-gomoku",
+        ]) {
           if (
             other !== own &&
             modulesFor(chunk.fileName).some((id) => id.includes(`/packages/${other}/src/`))

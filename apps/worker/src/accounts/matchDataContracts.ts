@@ -1,3 +1,6 @@
+import { fourGomokuMatchData } from "./fourGomokuMatchData";
+import type { MatchRecord as FourGomokuMatchRecord } from "../rooms/fourGomokuMatchStore";
+import type { FourGomokuMatchSummary, FourGomokuAccountStats } from "@tetraboard/protocol";
 import { gomokuMatchData } from "./gomokuMatchData";
 import type { MatchRecord as GomokuMatchRecord } from "../rooms/gomokuMatchStore";
 import type { GomokuMatchSummary, GomokuAccountStats } from "@tetraboard/protocol";
@@ -32,6 +35,11 @@ import type { MatchRecord } from "../rooms/matchStore";
 import type { ShogiMatchRecord } from "../rooms/shogiMatchStore";
 
 export interface MatchDataMap {
+  "four-gomoku": {
+    record: FourGomokuMatchRecord;
+    summary: FourGomokuMatchSummary;
+    stats: FourGomokuAccountStats;
+  };
   shogi: { record: StandardShogiMatchRecord; summary: ShogiMatchSummary; stats: ShogiAccountStats };
   gomoku: { record: GomokuMatchRecord; summary: GomokuMatchSummary; stats: GomokuAccountStats };
   reversi: { record: ReversiMatchRecord; summary: ReversiMatchSummary; stats: ReversiAccountStats };
@@ -160,6 +168,7 @@ export function readFourShogiMatchRecord(json: string): ShogiMatchRecord {
   return record;
 }
 export const matchDataContracts = {
+  "four-gomoku": fourGomokuMatchData,
   shogi: shogiMatchData,
   reversi: reversiMatchData,
   gomoku: gomokuMatchData,
@@ -207,6 +216,8 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
       return { game, record: matchDataContracts[game].read(json) };
     case "reversi":
       return { game, record: matchDataContracts[game].read(json) };
+    case "four-gomoku":
+      return { game, record: matchDataContracts[game].read(json) };
     case "gomoku":
       return { game, record: matchDataContracts[game].read(json) };
     case "four-reversi":
@@ -224,6 +235,8 @@ export function matchSummary(match: DecodedMatch, profiles: ParticipantProfiles)
     case "shogi":
       return matchDataContracts[match.game].summary(match.record, profiles);
     case "reversi":
+      return matchDataContracts[match.game].summary(match.record, profiles);
+    case "four-gomoku":
       return matchDataContracts[match.game].summary(match.record, profiles);
     case "gomoku":
       return matchDataContracts[match.game].summary(match.record, profiles);
@@ -246,6 +259,8 @@ export function matchDetail(
     case "shogi":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "reversi":
+      return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
+    case "four-gomoku":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);
     case "gomoku":
       return matchDataContracts[match.game].detail(match.record, selfPlayerId, profiles);

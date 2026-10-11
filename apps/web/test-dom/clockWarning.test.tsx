@@ -1,3 +1,4 @@
+import { fourGomokuPlayingRoom } from "../test/fixtures/fourGomokuFixtures";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { createInitialState as gomokuInitialState } from "@tetraboard/gomoku";
 import { createInitialState } from "@tetraboard/reversi";
@@ -65,6 +66,8 @@ const games = [
   standardReversiRoom,
   standardPlayingRoom,
   gomokuPlayingRoom,
+  () => fourGomokuPlayingRoom(),
+  () => fourGomokuPlayingRoom("doubles"),
   doublesReversi,
   doublesShogi,
 ];
@@ -133,7 +136,7 @@ afterEach(() => {
   roomSounds.setEnabled(true);
 });
 
-test("全4ゲームの本人だけに5秒で1回通知し、同じ通知・同期補正・手番外では繰り返さない", () => {
+test("全6ゲームの本人だけに5秒で1回通知し、同じ通知・同期補正・手番外では繰り返さない", () => {
   for (const makeRoom of games) {
     const room = shortClock(makeRoom());
     const h = mount(room);
@@ -158,7 +161,7 @@ test("全4ゲームの本人だけに5秒で1回通知し、同じ通知・同�
   }
 });
 
-test("全4ゲームで短い新手番は即時通知、初回5秒以下・観戦・CPUでは鳴らない", () => {
+test("全6ゲームで短い新手番は即時通知、初回5秒以下・観戦・CPUでは鳴らない", () => {
   for (const makeRoom of games) {
     const room = shortClock(makeRoom(), 4000);
     const h = mount(room);
