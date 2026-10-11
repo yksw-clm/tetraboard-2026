@@ -849,6 +849,8 @@ Discordは既存Better Authのproviderを使用します。権限は `identify e
 
 認証開始APIのproviderは `google`・`discord` のみを許可し、省略はGoogle、未知値は400です。戻り先は従来のサーバー固定値を維持し、管理画面はGoogle限定です。Discordのメール欠落はBetter Authの `email_not_found` でユーザー作成前に拒否し、日本語でGoogleの選択肢を示します。アカウント連携は無効を維持し、`account_not_linked` は初回の登録方法を使う案内にします。DB migrationと認証依存更新は不要です。Google・Discordの識別子で再ログインし、プロバイダーの名前・画像を公開プロフィールに自動設定しません。
 
+OAuthのエラー戻り先には事前の `error` パラメータを付けず、Better Authが実際のエラーコードを1件だけ追加します。一般の戻り先は `/login`、管理画面向けは `/login?destination=admin` です。`discordAuth.test.ts` はメール欠落・別方式での登録・Google認証の取消で `error` が1件だけになることと、管理画面の戻り先を保持することを確認します。
+
 ### ローカル確認と本番設定
 
 `bun run dev` は既存ローカルD1に認証テーブルも適用し、R2はローカルエミュレーターを使います。`APP_ORIGIN` の初期値は `http://localhost:5173` です。Google認証の確認はそのURLでWebを開きます。別のポートやLANのURLを使うときは、Workerの追跡対象外 `.dev.vars` で `APP_ORIGIN` を同じURLへ上書きします。Googleのコールバック設定にも同じオリジンが必要です。通常のロビー・対局はGoogle設定がなくても利用できます。

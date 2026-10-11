@@ -42,7 +42,7 @@ export function createAuth(env: AuthEnv) {
     basePath: "/api/auth",
     secret,
     trustedOrigins: [env.APP_ORIGIN],
-    onAPIError: { errorURL: `${env.APP_ORIGIN}/login?error=oauth` },
+    onAPIError: { errorURL: `${env.APP_ORIGIN}/login` },
     advanced: { useSecureCookies: !local, cookiePrefix: "tetraboard-2026" },
     rateLimit: { enabled: !local, storage: "database" },
     socialProviders: {
