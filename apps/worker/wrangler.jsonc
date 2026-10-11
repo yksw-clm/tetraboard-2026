@@ -137,7 +137,7 @@
         {
           "binding": "APP_DB",
           "database_name": "tetraboard-dev-db",
-          "database_id": "00000000-0000-4000-8000-000000000002",
+          "database_id": "7b32f756-ba1c-4247-a544-e91cfe64b9d3",
           "migrations_dir": "migrations",
           "remote": false
         }

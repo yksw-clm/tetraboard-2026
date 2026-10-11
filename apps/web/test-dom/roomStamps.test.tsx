@@ -1,3 +1,5 @@
+import FourGomokuRoomDetail from "../src/features/room/FourGomokuRoomDetail";
+import { fourGomokuWaitingRoom } from "../test/fixtures/fourGomokuFixtures";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { RoomStampPicker } from "../src/features/room/RoomStampPicker";
 import { RoomStampContext } from "../src/features/room/roomStampContext";
@@ -7,6 +9,7 @@ import { useRoomStamps } from "../src/features/room/useRoomStamps";
 import FourReversiRoomDetail from "../src/features/room/FourReversiRoomDetail";
 import ReversiRoomDetail from "../src/features/room/ReversiRoomDetail";
 import FourShogiRoomDetail from "../src/features/room/FourShogiRoomDetail";
+import GomokuRoomDetail from "../src/features/room/GomokuRoomDetail";
 import ShogiRoomDetail from "../src/features/room/ShogiRoomDetail";
 import { waitingShogiRoom } from "../test/fixtures/fourShogiFixtures";
 import {
@@ -25,6 +28,8 @@ import {
 } from "../test/fixtures/rooms";
 import {
   reversiRoomSchema,
+  gomokuRoomSchema,
+  gameIds,
   roomTimeControl,
   roomStampIds,
   roomStamps,
@@ -50,6 +55,16 @@ function reversiWaitingRoom() {
     ...room,
     settings: { game: "reversi", timeControl: roomTimeControl },
     players: room.players.slice(0, 2),
+  });
+}
+
+function gomokuWaitingRoom() {
+  const room = reversiWaitingRoom();
+  return gomokuRoomSchema.parse({
+    ...room,
+    settings: { game: "gomoku", forbiddenRules: true, timeControl: roomTimeControl },
+    roundId: null,
+    positionRevision: 0,
   });
 }
 
@@ -466,7 +481,7 @@ test("通常将棋の投了・持将棋・入玉宣言はスタンプ応答待�
   }
 });
 
-for (const game of ["four-reversi", "four-shogi", "reversi", "shogi"] as const)
+for (const game of gameIds)
   test(`${game}: 共通入口から送信し、本人カードに表示してもチャット履歴を追加しない`, async () => {
     const room =
       game === "four-reversi"
@@ -475,7 +490,11 @@ for (const game of ["four-reversi", "four-shogi", "reversi", "shogi"] as const)
           ? waitingShogiRoom()
           : game === "reversi"
             ? reversiWaitingRoom()
-            : standardWaitingRoom();
+            : game === "four-gomoku"
+              ? fourGomokuWaitingRoom()
+              : game === "gomoku"
+                ? gomokuWaitingRoom()
+                : standardWaitingRoom();
     saveRoomMembershipToken(room.id, token);
     const common = {
       initialMembership: membership,
@@ -494,6 +513,10 @@ for (const game of ["four-reversi", "four-shogi", "reversi", "shogi"] as const)
         <FourShogiRoomDetail {...common} initialRoom={waitingShogiRoom()} />
       ) : game === "reversi" ? (
         <ReversiRoomDetail {...common} initialRoom={reversiWaitingRoom()} />
+      ) : game === "four-gomoku" ? (
+        <FourGomokuRoomDetail {...common} initialRoom={fourGomokuWaitingRoom()} />
+      ) : game === "gomoku" ? (
+        <GomokuRoomDetail {...common} initialRoom={gomokuWaitingRoom()} />
       ) : (
         <ShogiRoomDetail {...common} initialRoom={standardWaitingRoom()} />
       );

@@ -4,6 +4,8 @@ import {
   getPublicMatchContract,
   isFourShogiMatch,
   isReversiMatch,
+  isGomokuMatch,
+  isFourGomokuMatch,
   isShogiMatch,
   isFourReversiMatch,
   assertNever,
@@ -31,6 +33,10 @@ export type MatchReplayDataFor<G extends GameId> = {
     : { frames?: never });
 export type MatchReplayData = { [G in GameId]: MatchReplayDataFor<G> }[GameId];
 export const replayLoaders = {
+  "four-gomoku": async (
+    match: ReplayMatchFor<"four-gomoku">,
+    _signal: AbortSignal,
+  ): Promise<MatchReplayDataFor<"four-gomoku">> => ({ game: "four-gomoku", match }),
   shogi: async (
     match: ReplayMatchFor<"shogi">,
     signal: AbortSignal,
@@ -38,6 +44,10 @@ export const replayLoaders = {
     const { fetchShogiMatchReplay } = await import("./standardShogiMatchReplay");
     return { game: "shogi", match, frames: await fetchShogiMatchReplay(match, signal) };
   },
+  gomoku: async (
+    match: ReplayMatchFor<"gomoku">,
+    _signal: AbortSignal,
+  ): Promise<MatchReplayDataFor<"gomoku">> => ({ game: "gomoku", match }),
   reversi: async (
     match: ReplayMatchFor<"reversi">,
     _signal: AbortSignal,
@@ -83,6 +93,9 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
     const match = parseMatch(await response.json(), publicView);
     let data: MatchReplayData;
     if (isShogiMatch(match)) data = await replayLoaders.shogi(match, request.signal);
+    else if (isFourGomokuMatch(match))
+      data = await replayLoaders["four-gomoku"](match, request.signal);
+    else if (isGomokuMatch(match)) data = await replayLoaders.gomoku(match, request.signal);
     else if (isReversiMatch(match)) data = await replayLoaders.reversi(match, request.signal);
     else if (isFourReversiMatch(match))
       data = await replayLoaders["four-reversi"](match, request.signal);

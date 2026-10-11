@@ -60,6 +60,42 @@ export const waitingRoomFactories = {
     legalActions: [],
     checkState: { south: false, north: false },
   }),
+  "four-gomoku": (
+    context: CreationContext,
+  ): WaitingRoomFactories["four-gomoku"] extends (...args: never[]) => infer R ? R : never => ({
+    ...base(context),
+    status: "waiting",
+    settings: {
+      game: "four-gomoku",
+      timeControl: context.request.timeControl ?? roomTimeControl,
+      mode: context.request.mode ?? "singles",
+    },
+    roundId: null,
+    positionRevision: 0,
+    players: players(context).map((p) => ({ ...p, color: null })),
+    eliminations: [],
+    game: null,
+    clock: null,
+    lastRound: null,
+  }),
+  gomoku: (
+    context: CreationContext,
+  ): WaitingRoomFactories["gomoku"] extends (...args: never[]) => infer R ? R : never => ({
+    ...base(context),
+    status: "waiting",
+    settings: {
+      game: "gomoku",
+      timeControl: context.request.timeControl ?? roomTimeControl,
+      forbiddenRules: context.request.forbiddenRules ?? true,
+    },
+    roundId: null,
+    positionRevision: 0,
+    players: players(context).map((p) => ({ ...p, color: null })),
+    eliminations: [],
+    game: null,
+    clock: null,
+    lastRound: null,
+  }),
   reversi: (
     context: CreationContext,
   ): WaitingRoomFactories["reversi"] extends (...args: never[]) => infer R ? R : never => ({

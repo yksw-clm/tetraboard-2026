@@ -1,3 +1,7 @@
+import type { FourGomokuRoom } from "./rooms";
+import type { FourGomokuMatchDetail, PublicFourGomokuMatchDetail } from "./matches";
+import type { GomokuRoom } from "./rooms";
+import type { GomokuMatchDetail, PublicGomokuMatchDetail } from "./matches";
 import type { ShogiRoom } from "./rooms";
 import type { ShogiMatchDetail, PublicShogiMatchDetail } from "./matches";
 import type { ShogiAction } from "./shogi";
@@ -21,6 +25,20 @@ type ReversiAction = Extract<
 >;
 /** 型だけの対応表。GameId の追加には各ゲームの具体型の登録が必要です。 */
 export interface GameTypeMap {
+  "four-gomoku": {
+    room: FourGomokuRoom;
+    match: FourGomokuMatchDetail;
+    publicMatch: PublicFourGomokuMatchDetail;
+    action: { type: "placeFourGomokuStone"; position: { x: number; y: number } };
+    rankings: FourReversiRankings;
+  };
+  gomoku: {
+    room: GomokuRoom;
+    match: GomokuMatchDetail;
+    publicMatch: PublicGomokuMatchDetail;
+    action: { type: "placeGomokuStone"; position: { x: number; y: number } };
+    rankings: ReversiRankings;
+  };
   shogi: {
     room: ShogiRoom;
     match: ShogiMatchDetail;
@@ -56,7 +74,11 @@ export type PublicMatchFor<G extends GameId> = GameTypeMap[G]["publicMatch"];
 export type ReplayMatchFor<G extends GameId> = PublicMatchFor<G> & { selfPlayerId?: string };
 export type ActionFor<G extends GameId> = GameTypeMap[G]["action"];
 export type RankingsFor<G extends GameId> = GameTypeMap[G]["rankings"];
-export type GameActionCommandFor<G extends GameId> = G extends "four-shogi" | "shogi"
+export type GameActionCommandFor<G extends GameId> = G extends
+  | "four-shogi"
+  | "shogi"
+  | "gomoku"
+  | "four-gomoku"
   ? { type: "room.game.action"; action: ActionFor<G>; roundId: string; positionRevision: number }
   : { type: "room.game.action"; action: ActionFor<G>; roundId?: never; positionRevision?: never };
 export type GameCommandFor<G extends GameId> =

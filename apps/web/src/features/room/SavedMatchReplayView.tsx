@@ -61,7 +61,7 @@ export function SavedMatchReplayView({
         <AppButton
           size="compact"
           appearance="quiet"
-          className={`text-brand ${theme === "four-shogi" ? "bg-[#fff0c9]" : "bg-[#e9f4ec]"} h-7 min-h-7 px-[6px] text-xs`}
+          className={`text-brand ${theme === "gomoku" ? "bg-surface-muted" : theme === "four-shogi" ? "bg-[#fff0c9]" : "bg-[#e9f4ec]"} h-7 min-h-7 px-[6px] text-xs`}
           onPress={() => setResults(true)}
         >
           結果

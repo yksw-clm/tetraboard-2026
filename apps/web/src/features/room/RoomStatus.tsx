@@ -13,6 +13,7 @@ import {
   isFourShogiRoom,
   isShogiRoom,
   isFourReversiRoom,
+  isFourGomokuRoom,
   isReversiRoom,
 } from "@tetraboard/protocol";
 
@@ -53,7 +54,7 @@ export function RoomStatus({
   const clock = turn
     ? (isFourShogiRoom(room) || isShogiRoom(room)) && "side" in turn
       ? shogiPlayerClock(room, turn.side, session.serverNowMs)
-      : isFourReversiRoom(room) && "color" in turn
+      : (isFourReversiRoom(room) || isFourGomokuRoom(room)) && "color" in turn
         ? playerClock(room, turn.color, session.serverNowMs)
         : isReversiRoom(room) &&
             "color" in turn &&

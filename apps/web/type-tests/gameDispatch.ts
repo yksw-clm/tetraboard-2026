@@ -155,3 +155,27 @@ export const invalidPendingSend: ShogiPendingSend = { type: "move" };
 
 // @ts-expect-error 開始は共有入口が管理し、ゲーム固有の送信待ちと混ぜられない
 export const invalidStartSend: ShogiSend = { type: "room.game.start" };
+
+declare const gomokuAction: ActionFor<"gomoku">;
+declare const gomokuRoom: RoomFor<"gomoku">;
+// @ts-expect-error 五目並べの着手も局IDと更新番号が必須
+export const missingGomokuPosition: GameActionCommandFor<"gomoku"> = {
+  type: "room.game.action",
+  action: gomokuAction,
+};
+// @ts-expect-error 15路の着手を既存のリバーシ通信に流入させない
+export const wrongGomokuAction: ActionFor<"reversi"> = gomokuAction;
+// @ts-expect-error 五目並べのルームを通常リバーシとして扱わない
+export const wrongGomokuRoom: RoomFor<"reversi"> = gomokuRoom;
+
+declare const fourGomokuAction: ActionFor<"four-gomoku">;
+declare const fourGomokuRoom: RoomFor<"four-gomoku">;
+// @ts-expect-error 四人五目並べの着手には局IDと更新番号が必須
+export const missingFourGomokuPosition: GameActionCommandFor<"four-gomoku"> = {
+  type: "room.game.action",
+  action: fourGomokuAction,
+};
+// @ts-expect-error 通常版と四人版の着手を混在させない
+export const wrongFourGomokuAction: ActionFor<"gomoku"> = fourGomokuAction;
+// @ts-expect-error 通常版と四人版のルームは別契約
+export const wrongFourGomokuRoom: RoomFor<"gomoku"> = fourGomokuRoom;

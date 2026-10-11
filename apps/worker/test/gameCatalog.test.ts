@@ -42,21 +42,18 @@ describe("ゲームIDとサービス全体の対象", () => {
     ).toBe(false);
   });
 
-  test.each(["four-reversi", "four-shogi", "reversi", "shogi"] as const)(
-    "%s は各ゲーム入口と対象入口で受理する",
-    (game) => {
-      expect(isGameId(game)).toBe(true);
-      expect(isGameScope(game)).toBe(true);
-      for (const schema of [
-        gameIdSchema,
-        roomGameSchema,
-        matchGameSchema,
-        analyticsGameSchema,
-        feedbackGameSchema,
-      ])
-        expect(schema.parse(game)).toBe(game);
-    },
-  );
+  test.each(gameIds)("%s は各ゲーム入口と対象入口で受理する", (game) => {
+    expect(isGameId(game)).toBe(true);
+    expect(isGameScope(game)).toBe(true);
+    for (const schema of [
+      gameIdSchema,
+      roomGameSchema,
+      matchGameSchema,
+      analyticsGameSchema,
+      feedbackGameSchema,
+    ])
+      expect(schema.parse(game)).toBe(game);
+  });
 
   test.each(["unknown-game", "", null, undefined])(
     "不正なID %s を既定ゲームへ流さない",
@@ -109,6 +106,22 @@ describe("ゲームIDとサービス全体の対象", () => {
         rankingsPath: "/games/shogi/rankings",
         capacity: 2,
         hasModes: false,
+      },
+      {
+        id: "gomoku",
+        name: "五目並べ",
+        lobbyPath: "/games/gomoku",
+        rankingsPath: "/games/gomoku/rankings",
+        capacity: 2,
+        hasModes: false,
+      },
+      {
+        id: "four-gomoku",
+        name: "四人五目並べ",
+        lobbyPath: "/games/four-gomoku",
+        rankingsPath: "/games/four-gomoku/rankings",
+        capacity: 4,
+        hasModes: true,
       },
     ]);
   });
