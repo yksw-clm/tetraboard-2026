@@ -12,7 +12,7 @@
 | この開発文書 | 実装の入口、変更手順、構造と互換性などの注意点 |
 | [テスト方針](testing.md) | 実行方法、検証範囲、対象別のテストと移管根拠 |
 | [四人将棋AIの測定・採用記録](four-shogi-ai.md) | 比較条件、対象コミット、結果、採用判断と限界 |
-| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | 実装予定のGoal・制約・受入条件・コミット計画。採用後は測定条件と判断の記録 |
+| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録 |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
 
@@ -45,13 +45,13 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 
 ## 四人リバーシCPU
 
-現行APIは `@tetraboard/four-reversi` の `chooseCpuMove(state, level, random = Math.random): Position | null` です。合法手・公開API・現在のCPU方式と実装予定の強化仕様は [ルール正本のCPU節](rules/four-reversi.md#cpu) を確認してください。
+現行APIは `@tetraboard/four-reversi` の `chooseCpuMove(state, level, random = Math.random): Position | null` です。合法手・公開API・採用したCPU方式は [ルール正本のCPU節](rules/four-reversi.md#cpu) を確認してください。
 
-2026-10-11に強化仕様と [Goal・ContextProviders・Constraints・Done When・コミット計画](four-reversi-ai.md) を確定しました。CPU本体の実装・採用測定は未着手です。最新develop起点の文書PRで仕様を保存し、取り込み後の最新developから実装ブランチを作ります。
+2026-10-11に強化仕様と [Goal・ContextProviders・Constraints・Done When・コミット計画](four-reversi-ai.md) を確定しました。仕様PR取り込み後のdevelopから実装し、多人数探索・配置とチーム評価・終盤全読み・終局予測・Worker接続を追加し、採用測定の結果を同文書へ記録しています。
 
-実装の入口は [エンジン](../packages/four-reversi/src/index.ts)、[CPU](../packages/four-reversi/src/cpu.ts)、[Worker進行](../apps/worker/src/rooms/fourReversiProgress.ts)、[GameRoomのAlarmと期限処理](../apps/worker/src/rooms/gameRoom.ts) です。強化時には探索と評価をCPUモジュールへ分離し、生成済みの合法候補を使う内部経路を通常着手の確定処理と共有します。公開エンジン状態と通信契約は維持します。
+実装の入口は [公開API](../packages/four-reversi/src/index.ts)、[エンジン](../packages/four-reversi/src/engine.ts)、[CPU](../packages/four-reversi/src/cpu.ts)、[探索](../packages/four-reversi/src/cpuSearch.ts)、[評価](../packages/four-reversi/src/cpuEvaluation.ts)、[終局予測](../packages/four-reversi/src/cpuForecast.ts)、[Worker進行](../apps/worker/src/rooms/fourReversiProgress.ts)、[GameRoomのAlarmと期限処理](../apps/worker/src/rooms/gameRoom.ts) です。生成済みの合法候補を使う内部経路を通常着手の確定処理と共有します。公開エンジン状態と通信契約は維持します。
 
-Workerの現行処理は通常アクセスでも同期選択・確定します。強化後は四人リバーシのLv1／Lv2をAlarm限定の選択保存・次Alarmでの適用へ移す予定です。将棋と異なり公開revisionはなく、内部対局ID・ゲーム局面キー・手番開始時刻で照合します。手番外の脱落でもジョブを破棄し、チャット・スタンプだけで再探索しません。詳細な検証の分担は [四人リバーシAI強化の確認](testing.md#四人リバーシai強化の確認実装予定) を参照します。
+Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Alarmで適用します。内部対局ID・部屋世代・CPU本人とレベル・ゲーム局面キー・手番開始時刻で照合し、通常GETでは選択も適用も起動しません。記録導入前の対局IDなしのDOも進行できます。手番外の脱落でもジョブを破棄し、チャット・スタンプだけで再探索しません。詳細な検証の分担は [四人リバーシAI強化の確認](testing.md#四人リバーシai強化の確認) を参照します。
 
 ## Development Strategy
 
@@ -482,7 +482,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## Workerの時計計算と期限選択
 
-CPUの最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs = 2_000` を全ゲームで共用し、サーバーの `clock.turnStartedAt` を基準に確定を制御します。保存済み将棋CPU選択のAlarmは選択の `applyAt` と手番開始＋2秒の遅い方を使い、早い旧予定でも待機中のAlarmを繰り返しません。時計・復帰期限を先に処理し、再接続や手番を変えない更新では開始時刻を保持します。思考計算は既存の同期選択・2段階適用を維持し、時間を固定するsleepを追加しません。
+CPUの最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs = 2_000` を全ゲームで共用し、サーバーの `clock.turnStartedAt` を基準に確定を制御します。保存済みCPU選択のAlarmは選択の `applyAt` と手番開始＋2秒の遅い方を使い、早い旧予定でも待機中のAlarmを繰り返しません。時計・復帰期限を先に処理し、再接続や手番を変えない更新では開始時刻を保持します。思考計算は既存の同期選択・2段階適用を維持し、時間を固定するsleepを追加しません。
 
 CPU付き作成の `POST /rooms` は任意の `cpuLevel: 1 | 2` を受け、未指定はLv1です。不正値は400で拒否します。`waitingRoomFactories` が全CPUへ適用し、Webの共有 `RoomEntryDialog`・`useRoomEntry` はquick作成にだけ選択を表示・送信します。OAuth復帰情報の任意 `cpuLevel` も1／2だけを復元し、旧復帰データはLv1にします。
 
@@ -490,7 +490,7 @@ CPU付き作成の `POST /rooms` は任意の `cpuLevel: 1 | 2` を受け、未�
 
 `roomDeadlines.ts` は現在の時計期限・プレイヤー配列の復帰期限・呼び出し側の現在時刻から、到達済みの次イベントと確定時刻を返します。早い期限を先に、同時刻なら時間切れを先に、切断同士の同時刻なら現在の配列順に選びます。GameRoomは処理のたびに更新後の状態から選び直します。Alarm候補の最小時刻も純粋関数で選び、空はnull、過去の候補は補正しません。
 
-GameRoomには共有ライフサイクルの現在時刻の取得、活動停止・人間不在の判定、transaction、配信・索引更新、Alarm候補収集と設定・削除を残します。ゲーム進行側の時計更新・脱落・CPU・終局については次節のモジュールへ委譲します。リバーシCPUの同期確定と将棋CPUの選択保存→次のAlarmで局ID・revision・手番・期限を再検証する順序を維持します。Webの時計取得・表示・時刻同期は従来どおりです。保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続管理は前述の共有transportが担当します。
+GameRoomには共有ライフサイクルの現在時刻の取得、活動停止・人間不在の判定、transaction、配信・索引更新、Alarm候補収集と設定・削除を残します。ゲーム進行側の時計更新・脱落・CPU・終局については次節のモジュールへ委譲します。通常リバーシCPUの同期確定と、四人リバーシ・将棋・五目並べCPUの選択保存→次Alarmで局面と期限を再検証する順序を維持します。Webの時計取得・表示・時刻同期は従来どおりです。保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続管理は前述の共有transportが担当します。
 
 関連回帰は `bun run --cwd apps/worker test test/clock.test.ts test/roomDeadlines.test.ts test/roomDeadlineBoundary.test.ts test/gameRoom.test.ts test/fourShogiRoom.test.ts test/humanlessRooms.test.ts test/shogiStore.test.ts` で実行します。全14設定・秒読み・期限前後・同時刻と遅延処理・期限後のエラー・Alarm候補に加え、実DOの `evictDurableObject` によるhibernation／接続を閉じた復元、保存済みCPU選択の再検証、終局再実行時の棋譜・対局保存・本人索引・計測の非重複を確認します。HTTP／WebSocketの公開応答を通信契約で解析し、時刻とCPU選択は保存境界で制御します。内部メソッドのモックや固定sleepを使いません。Color／Side・残時間recordの取り違えはWorkerのtypecheckに含まれる型検査専用fixtureで検証します。
 
@@ -502,7 +502,7 @@ GameRoomには共有ライフサイクルの現在時刻の取得、活動停止
 
 GameRoomは認証・参加・準備・接続／切断・チャット・transactionと共有副作用を担当します。期限ループは一つで、活動停止・人間不在の閉鎖、欠落した復帰期限の補完、期限の選び直し、待機席の解放、資格・アカウント処理を共有し、盤面の脱落だけをゲーム側へ渡します。終局はゲーム側の棋譜・局面更新 → 共有の計測確定 → ゲーム側の保存待ち・直前局確定 → 共有の席保持・元の復帰期限保持・資格解放・ホスト交代・準備解除 → ゲーム側の待機Room生成の順です。transaction後のflush・Alarm・配信・索引更新の既存順序を保ちます。
 
-リバーシCPUは通常アクセスでも同期選択し、計算後の現在時刻で期限を確認して確定します。将棋CPUはAlarm限定で提案を同期し、終局しなければ選択を保存、次Alarmで局ID・revision・手番・期限を再検証して適用します。五目並べCPUも同じ選択保存・次Alarmでの検証を使い、引分提案は行いません。明示退室はリバーシの盤面・棋譜処理後に資格を失効させ、将棋は資格失効後に盤面処理します。D1保存・SQL・再試行の設計は維持し、閉鎖後の保存待ちと保護棋譜も保持します。保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続管理は前述の共有transportが担当します。
+通常リバーシCPUは通常アクセスでも同期選択し、計算後の現在時刻で期限を確認して確定します。四人リバーシCPUはLv1・Lv2ともAlarmだけで内部選択を保存し、次Alarmで部屋世代・局ID・CPU本人・局面・時計・期限を再検証して適用します。将棋CPUはAlarm限定で提案を同期し、終局しなければ選択を保存、次Alarmで局ID・revision・手番・期限を再検証して適用します。五目並べCPUも同じ選択保存・次Alarmでの検証を使い、引分提案は行いません。明示退室はリバーシの盤面・棋譜処理後に資格を失効させ、将棋は資格失効後に盤面処理します。D1保存・SQL・再試行の設計は維持し、閉鎖後の保存待ちと保護棋譜も保持します。保存形式・互換性・戦績SQL・保存再試行の再設計は #58、ページ遷移時の接続管理は前述の共有transportが担当します。
 
 前節の回帰コマンドは通常GETでのCPU進行の差、将棋の複数接続・切断通知欠落・活動停止・再戦時の元の復帰期限も確認します。抽出した進行・終局更新を実storageのtransactionで実行し、例外後にKV・SQLiteの千日手・棋譜・保護状態・保存待ちが全て戻ることを検証します。公開応答は通信契約で解析し、内部メソッドのモック・固定sleep・テスト用公開APIを追加しません。
 

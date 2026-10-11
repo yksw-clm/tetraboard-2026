@@ -1215,6 +1215,12 @@ test.each([
     },
   }));
   expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
+  await runInDurableObject(env.GAME_ROOM.getByName(id), async (_, state) => {
+    const job = state.storage.kv.get<{ applyAt: number }>("four-reversi-cpu-job")!;
+    state.storage.kv.put("four-reversi-cpu-job", { ...job, applyAt: Date.now() - 1 });
+    await state.storage.setAlarm(Date.now() + 60_000);
+  });
+  expect(await runDurableObjectAlarm(env.GAME_ROOM.getByName(id))).toBe(true);
   const moved = await host.nextSnapshotWhere(
     (snapshot) => snapshot.status !== "waiting" && snapshot.game.moveNumber > before,
   );

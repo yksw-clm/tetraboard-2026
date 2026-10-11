@@ -84,6 +84,7 @@ for (const game of gameIds) {
         ctx.storage.kv.delete("standard-shogi-cpu-job");
         ctx.storage.kv.delete("gomoku-cpu-job");
         ctx.storage.kv.delete("four-gomoku-cpu-job");
+        ctx.storage.kv.delete("four-reversi-cpu-job");
         const clock = vi.spyOn(Date, "now").mockReturnValue(at + 1_999);
         try {
           await instance.alarm();
@@ -103,19 +104,22 @@ for (const game of gameIds) {
         try {
           await instance.alarm();
           if (
+            game === "four-reversi" ||
             game === "four-shogi" ||
             game === "shogi" ||
             game === "gomoku" ||
             game === "four-gomoku"
           ) {
             const key =
-              game === "four-gomoku"
-                ? "four-gomoku-cpu-job"
-                : game === "gomoku"
-                  ? "gomoku-cpu-job"
-                  : game === "shogi"
-                    ? "standard-shogi-cpu-job"
-                    : "shogi-cpu-job";
+              game === "four-reversi"
+                ? "four-reversi-cpu-job"
+                : game === "four-gomoku"
+                  ? "four-gomoku-cpu-job"
+                  : game === "gomoku"
+                    ? "gomoku-cpu-job"
+                    : game === "shogi"
+                      ? "standard-shogi-cpu-job"
+                      : "shogi-cpu-job";
             const job = ctx.storage.kv.get<{ applyAt: number }>(key)!;
             expect(job).toBeDefined();
             clock.mockReturnValue(job.applyAt);
