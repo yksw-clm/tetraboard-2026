@@ -25,7 +25,7 @@ export type SearchOptions = {
   policyForecast?: boolean;
 };
 export const defaultSearchOptions = {
-  maxWork: 262144,
+  maxWork: 65536,
   maxDepth: 6,
   width: 6,
   cacheLimit: 2048,
@@ -73,6 +73,7 @@ export function resolveSearchOptions(options: SearchOptions = {}) {
   const { maxWork, maxDepth, width, cacheLimit, endgameEmpties, policyForecast } = settings;
   if (
     [maxWork, maxDepth, width].some((n) => !Number.isSafeInteger(n) || n < 1) ||
+    maxWork > 262144 ||
     !Number.isSafeInteger(cacheLimit) ||
     cacheLimit < 0 ||
     cacheLimit > 2048 ||
@@ -82,7 +83,7 @@ export function resolveSearchOptions(options: SearchOptions = {}) {
     typeof policyForecast !== "boolean"
   )
     throw new TypeError(
-      "探索予算・深さ・幅は正の整数、cacheLimitは0〜2048、終盤空点は0〜8で指定してください",
+      "探索予算は1〜262144、深さ・幅は正の整数、cacheLimitは0〜2048、終盤空点は0〜8で指定してください",
     );
   return { ...settings, evaluationWeights: resolveWeights(options.evaluationWeights) };
 }

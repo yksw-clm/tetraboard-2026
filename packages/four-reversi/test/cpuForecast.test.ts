@@ -145,7 +145,7 @@ test("予測の入力は深く不変で、非対象モード・2色・終盤は�
     expect(result.stats.forecastRoots).toBe(0);
     expect(result).toEqual(searchCpuMove(input));
   }
-  for (const maxWork of [Infinity, Number.MAX_SAFE_INTEGER + 1])
+  for (const maxWork of [262145, Infinity, Number.MAX_SAFE_INTEGER + 1])
     expect(() =>
       chooseCpuMoveWithDiagnostics(createInitialState("singles"), { maxWork }),
     ).toThrow();
