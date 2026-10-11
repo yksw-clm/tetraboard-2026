@@ -7,6 +7,7 @@ import {
   gomokuAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
+import { gomokuCpuJobKey, type GomokuCpuJob } from "../src/rooms/gomokuProgress";
 import { getLegalMoves, applyAction } from "@tetraboard/gomoku";
 import { RoomBoundaryFixtures, boundaryRequest, boundaryJson } from "./roomBoundaryFixtures";
 let fixtures: RoomBoundaryFixtures;
@@ -274,59 +275,88 @@ test("手番外の投了は拒否し、手番本人の投了で相手が勝つ",
     color: "black",
   });
 });
-test.each([1, 2] as const)("CPUレベル%dは期限を保存境界で進めると合法手を指す", async (level) => {
-  const entry = await fixtures.create({ game: "gomoku", name: "ホスト", quickPlay: true });
-  const host = await fixtures.connect(entry);
-  const waiting = standard(entry.room);
-  expect(waiting.players).toHaveLength(2);
-  expect(waiting.players[1]).toMatchObject({ kind: "cpu", level: 1 });
-  const cpu = waiting.players.find((p) => p.kind === "cpu")!;
-  host.send({ type: "room.cpu.level.set", playerId: cpu.id, level });
-  await host.waitFor("room.snapshot", (m) =>
-    m.room.players.some((p) => p.kind === "cpu" && p.level === level),
-  );
-  host.send({ type: "room.game.start" });
-  let room = standard(
-    (await host.waitFor("room.snapshot", (m) => m.room.status === "playing")).room,
-  );
-  if (room.status !== "playing") throw Error("not playing");
-  const turn = room.game.turn;
-  if (room.players.find((p) => p.color === turn)?.kind === "human") {
-    host.send({
-      type: "room.game.action",
-      roundId: room.roundId,
-      positionRevision: room.positionRevision,
-      action: { type: "placeGomokuStone", position: getLegalMoves(room.game)[0] },
+test.each([
+  { level: 1, expired: false },
+  { level: 2, expired: false },
+  { level: 2, expired: true },
+] as const)(
+  "CPU候補を保存し次Alarmで期限を再検証する (Lv$level、期限切れ=$expired)",
+  async ({ level, expired }) => {
+    const entry = await fixtures.create({ game: "gomoku", name: "ホスト", quickPlay: true });
+    const host = await fixtures.connect(entry);
+    const waiting = standard(entry.room);
+    expect(waiting.players).toHaveLength(2);
+    expect(waiting.players[1]).toMatchObject({ kind: "cpu", level: 1 });
+    const cpu = waiting.players.find((p) => p.kind === "cpu")!;
+    host.send({ type: "room.cpu.level.set", playerId: cpu.id, level });
+    await host.waitFor("room.snapshot", (m) =>
+      m.room.players.some((p) => p.kind === "cpu" && p.level === level),
+    );
+    host.send({ type: "room.game.start" });
+    let room = standard(
+      (await host.waitFor("room.snapshot", (m) => m.room.status === "playing")).room,
+    );
+    if (room.status !== "playing") throw Error("not playing");
+    const turn = room.game.turn;
+    if (room.players.find((p) => p.color === turn)?.kind === "human") {
+      host.send({
+        type: "room.game.action",
+        roundId: room.roundId,
+        positionRevision: room.positionRevision,
+        action: { type: "placeGomokuStone", position: getLegalMoves(room.game)[0] },
+      });
+      room = standard(
+        (
+          await host.waitFor(
+            "room.snapshot",
+            (m) => m.room.status === "playing" && m.room.game.moveNumber > 0,
+          )
+        ).room,
+      );
+    }
+    if (room.status !== "playing") throw Error("not playing");
+    const before = room.game.moveNumber;
+    const stub = env.GAME_ROOM.getByName(entry.room.id);
+    await runInDurableObject(stub, async (instance, state) => {
+      await instance.alarm();
+      expect(state.storage.kv.get(gomokuCpuJobKey)).toBeUndefined();
+      const saved = standard(state.storage.kv.get("room") as typeof room);
+      if (saved.status !== "playing") throw Error("not playing");
+      saved.clock.turnStartedAt = Date.now() - 2001;
+      state.storage.kv.put("room", saved);
+      await instance.alarm();
+      const job = state.storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey)!;
+      expect(job.roundId).toBe(room.roundId);
+      expect(job.positionRevision).toBe(room.positionRevision);
+      expect(standard(state.storage.kv.get("room") as typeof room).game?.moveNumber).toBe(before);
+      state.storage.kv.put(gomokuCpuJobKey, { ...job, applyAt: Date.now() - 1 });
+      if (expired) {
+        saved.clock.turnExpiresAt = Date.now();
+        state.storage.kv.put("room", saved);
+      }
     });
-    room = standard(
+    await runDurableObjectAlarm(stub);
+    const updated = standard(
       (
-        await host.waitFor(
-          "room.snapshot",
-          (m) => m.room.status === "playing" && m.room.game.moveNumber > 0,
+        await host.waitFor("room.snapshot", (m) =>
+          expired
+            ? m.room.status === "waiting"
+            : m.room.status === "playing" && m.room.game.moveNumber > before,
         )
       ).room,
     );
-  }
-  if (room.status !== "playing") throw Error("not playing");
-  const before = room.game.moveNumber;
-  const stub = env.GAME_ROOM.getByName(entry.room.id);
-  await runInDurableObject(stub, (_instance, state) => {
-    const saved = standard(state.storage.kv.get("room") as typeof room);
-    if (saved.status !== "playing") throw Error("not playing");
-    saved.clock.turnStartedAt = Date.now() - 2001;
-    state.storage.kv.put("room", saved);
-  });
-  await fixtures.snapshot(entry.room.id);
-  const updated = standard(
-    (
-      await host.waitFor(
-        "room.snapshot",
-        (m) => m.room.status === "playing" && m.room.game.moveNumber > before,
-      )
-    ).room,
-  );
-  expect(updated.status === "playing" && updated.game.moveNumber).toBe(before + 1);
-});
+    if (expired) {
+      expect(updated.lastRound?.game.moveNumber).toBe(before);
+      expect(updated.lastRound?.replay.steps.at(-1)?.action).toMatchObject({
+        type: "eliminate",
+        reason: "timeout",
+      });
+    } else expect(updated.status === "playing" && updated.game.moveNumber).toBe(before + 1);
+    await runInDurableObject(stub, (_instance, state) =>
+      expect(state.storage.kv.get(gomokuCpuJobKey)).toBeUndefined(),
+    );
+  },
+);
 test("時計の期限ちょうどで敗北し、棋譜へ時間切れを1回だけ記録する", async () => {
   const { entry, host } = await setup();
   const stub = env.GAME_ROOM.getByName(entry.room.id);

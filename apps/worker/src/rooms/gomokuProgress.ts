@@ -15,6 +15,7 @@ import {
   eliminateColor,
   type GomokuState,
   type Color,
+  type Position,
 } from "@tetraboard/gomoku";
 import { advanceClock, createClock, isClockExpired } from "./reversiClock";
 import {
@@ -42,6 +43,14 @@ import type {
 } from "./gameProgress";
 type Playing = PlayingFor<"gomoku">;
 type Result = ProgressFor<"gomoku">;
+export const gomokuCpuJobKey = "gomoku-cpu-job";
+export type GomokuCpuJob = {
+  roundId: string;
+  positionRevision: number;
+  color: Color;
+  move: Position;
+  applyAt: number;
+};
 export class GomokuProgress {
   private readonly storage: DurableObjectStorage;
   private readonly membership: ProgressDependencies["membership"];
@@ -53,6 +62,7 @@ export class GomokuProgress {
   }
 
   start(room: WaitingFor<"gomoku">): { room: Playing; roundId: string; at: number } {
+    this.storage.kv.delete(gomokuCpuJobKey);
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
     const matchId = crypto.randomUUID();
@@ -162,6 +172,7 @@ export class GomokuProgress {
     turnEnded: boolean,
     clockAt = at,
   ): Result {
+    this.storage.kv.delete(gomokuCpuJobKey);
     if (state.status === "finished") {
       const game = gomokuStateSchema.parse(state);
       if (game.status !== "finished") throw new Error("Expected finished state");
@@ -263,23 +274,33 @@ export class GomokuProgress {
       return { kind: "unchanged", gameId: "gomoku", room };
     const cpu = room.players.find((p) => p.color === room.game.turn);
     if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "gomoku", room };
-    const move = chooseCpuMove(room.game, cpu.level);
-    if (move === null) throw new Error("CPU has no legal move");
-    const decidedAt = Date.now();
-    const expired = isClockExpired(room.clock, decidedAt);
-    const result = expired
-      ? eliminateColor(room.game, room.game.turn)
-      : applyAction(room.game, { type: "placeStone", position: move });
-    if (!result.ok) throw new Error("CPU selected an invalid move");
-    if (expired) this.recordElimination(room, room.game.turn, "timeout", result);
-    else this.recordReplayStep({ type: "place", color: room.game.turn, position: move }, result);
-    return this.accept(
-      room,
-      result.state,
-      decidedAt,
-      true,
-      expired ? room.clock.turnExpiresAt : decidedAt,
-    );
+    const job = this.storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey);
+    if (job) {
+      if (
+        job.roundId !== room.roundId ||
+        job.positionRevision !== room.positionRevision ||
+        job.color !== room.game.turn
+      ) {
+        this.storage.kv.delete(gomokuCpuJobKey);
+      } else if (job.applyAt <= now) {
+        const result = applyAction(room.game, { type: "placeStone", position: job.move });
+        if (!result.ok) throw new Error("Saved CPU move is no longer legal");
+        this.recordReplayStep({ type: "place", color: room.game.turn, position: job.move }, result);
+        return this.accept(room, result.state, now, true);
+      }
+    } else {
+      const move = chooseCpuMove(room.game, cpu.level);
+      if (move === null) throw new Error("CPU has no legal move");
+      // Workersの同期計算中は時刻が進まないため、次のAlarmで期限を再確認します。
+      this.storage.kv.put(gomokuCpuJobKey, {
+        roundId: room.roundId,
+        positionRevision: room.positionRevision,
+        color: room.game.turn,
+        move,
+        applyAt: Date.now() + 1,
+      } satisfies GomokuCpuJob);
+    }
+    return { kind: "unchanged", gameId: "gomoku", room };
   }
 
   finalize(result: FinishedProgress<"gomoku">): LastRound {
