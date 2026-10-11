@@ -1,0 +1,53 @@
+import type { Color, Position } from "@tetraboard/gomoku";
+import type { SoundGameState } from "./roomSoundEvents";
+import type { GomokuRoom } from "@tetraboard/protocol";
+import { assertNever } from "@tetraboard/protocol";
+
+export type PendingGomokuAction =
+  | { type: "move"; roundId: string; positionRevision: number }
+  | { type: "resign"; participant: Color };
+
+export function gomokuActionComplete(room: GomokuRoom, pending: PendingGomokuAction): boolean {
+  if (room.status === "waiting") return room.lastRound !== null;
+  switch (pending.type) {
+    case "move":
+      return room.roundId !== pending.roundId || room.positionRevision > pending.positionRevision;
+    case "resign":
+      return room.game.eliminatedColors.includes(pending.participant);
+    default:
+      return assertNever(pending);
+  }
+}
+
+export function gomokuOperationError(error: string): string | undefined {
+  if (error.startsWith("gomoku_")) return forbiddenMessage(error);
+  if (error === "invalid_move") return "その場所には石を置けません。";
+  if (error === "stale_position") return "局面が更新されました。最新の局面で選び直してください。";
+  return undefined;
+}
+
+export function gomokuSoundMove(position: Position, color: Color): string {
+  return `${color}:${position.x},${position.y}`;
+}
+
+export function gomokuSoundGame(room: GomokuRoom): SoundGameState {
+  const game = room.status === "playing" ? room.game : room.lastRound?.game;
+  const color = game?.lastMove ? game.board[game.lastMove.y]?.[game.lastMove.x] : null;
+  return {
+    phase: room.status === "playing" ? "playing" : game ? "finished" : "waiting",
+    roundId: room.status === "playing" ? room.roundId : (room.lastRound?.replay.id ?? null),
+    moveNumber: game?.moveNumber ?? 0,
+    lastMove: game?.lastMove && color ? gomokuSoundMove(game.lastMove, color) : null,
+  };
+}
+
+export function forbiddenMessage(error: string): string {
+  const names = [
+    ["double_three", "三三"],
+    ["double_four", "四四"],
+    ["overline", "長連"],
+  ]
+    .filter(([key]) => error.includes(key))
+    .map(([, label]) => label);
+  return `${names.join("・")}の反則になるため、ここには打てません。`;
+}

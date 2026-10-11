@@ -1,3 +1,7 @@
+import { FourGomokuProgress } from "./fourGomokuProgress";
+import type { FourGomokuLastRound } from "@tetraboard/protocol";
+import { GomokuProgress } from "./gomokuProgress";
+import type { GomokuLastRound } from "@tetraboard/protocol";
 import { ShogiProgress } from "./standardShogiProgress";
 import type { ShogiLastRound } from "@tetraboard/protocol";
 import type { ReversiLastRound } from "@tetraboard/protocol";
@@ -16,6 +20,8 @@ export type ProgressError = Extract<RoomSocketMessage, { type: "room.error" }>["
 export type PlayingFor<G extends GameId> = Extract<RoomFor<G>, { status: "playing" }>;
 export type WaitingFor<G extends GameId> = Extract<RoomFor<G>, { status: "waiting" }>;
 interface ProgressTypes {
+  "four-gomoku": { finished: FourGomokuLastRound["game"]; lastRound: FourGomokuLastRound };
+  gomoku: { finished: GomokuLastRound["game"]; lastRound: GomokuLastRound };
   shogi: { finished: ShogiLastRound["game"]; lastRound: ShogiLastRound };
   reversi: { finished: ReversiLastRound["game"]; lastRound: ReversiLastRound };
   "four-reversi": { finished: LastRound["game"]; lastRound: LastRound };
@@ -63,6 +69,10 @@ type Registration<G extends GameId> = {
 export type GameProgressRegistration = { [G in GameId]: Registration<G> };
 
 export const gameProgress = {
+  "four-gomoku": {
+    create: (dependencies: ProgressDependencies) => new FourGomokuProgress(dependencies),
+  },
+  gomoku: { create: (dependencies: ProgressDependencies) => new GomokuProgress(dependencies) },
   shogi: { create: (dependencies: ProgressDependencies) => new ShogiProgress(dependencies) },
   reversi: { create: (dependencies: ProgressDependencies) => new ReversiProgress(dependencies) },
   "four-reversi": {

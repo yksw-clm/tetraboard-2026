@@ -2,6 +2,8 @@ import {
   roomCodeSchema,
   isFourReversiRoom,
   isReversiRoom,
+  isGomokuRoom,
+  isFourGomokuRoom,
   isShogiRoom,
   isFourShogiRoom,
   assertNever,
@@ -50,6 +52,8 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     stampsSupported: stampsSupported === true,
   };
   if (isShogiRoom(room)) return { ...common, game: "shogi", room };
+  if (isFourGomokuRoom(room)) return { ...common, game: "four-gomoku", room };
+  if (isGomokuRoom(room)) return { ...common, game: "gomoku", room };
   if (isReversiRoom(room)) return { ...common, game: "reversi", room };
   if (isFourReversiRoom(room)) return { ...common, game: "four-reversi", room };
   if (isFourShogiRoom(room))

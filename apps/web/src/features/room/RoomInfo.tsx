@@ -297,7 +297,7 @@ export function RoomInfoCard({
         </div>
       </div>
       <dl
-        className={`grid grid-cols-2 py-1 px-[10px] border border-solid rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line ${settings.game === "four-shogi" ? "bg-[#fffaf0] border-[#eee4cd] [&>div>svg]:bg-[#fff0c9]" : "bg-[#f9fbf9] border-[#e8eee8] [&>div>svg]:bg-[#edf5ef]"}`}
+        className={`grid grid-cols-2 py-1 px-[10px] border border-solid rounded-[18px] [&>div]:flex [&>div]:items-center [&>div]:gap-2 [&>div]:p-1 [&>div]:min-w-0 [&>div>svg]:box-content [&>div>svg]:p-[7px] [&>div>svg]:rounded-control [&>div>svg]:text-brand [&>div>svg]:size-[18px] [&_dt]:text-muted [&_dt]:text-[10px] [&_dt]:font-[650] [&_dd]:text-xs [&_dd]:font-bold [&>div:nth-child(odd)]:border-r [&>div:nth-child(odd)]:border-solid [&>div:nth-child(odd)]:border-line [&>div:nth-child(even)]:pl-[10px] [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(-n+2)]:border-solid [&>div:nth-child(-n+2)]:border-line ${settings.game === "gomoku" || settings.game === "four-gomoku" ? "bg-surface-muted border-line [&>div>svg]:bg-surface-hover" : settings.game === "four-shogi" ? "bg-[#fffaf0] border-[#eee4cd] [&>div>svg]:bg-[#fff0c9]" : "bg-[#f9fbf9] border-[#e8eee8] [&>div>svg]:bg-[#edf5ef]"}`}
       >
         <div>
           <AppIcon name="board" />
@@ -342,6 +342,9 @@ export function RoomInfoCard({
           </div>
         </div>
       </dl>
+      {settings.game === "gomoku" && (
+        <p className="text-xs text-muted">禁手ルール：{settings.forbiddenRules ? "ON" : "OFF"}</p>
+      )}
       {settings.game === "four-shogi" && (
         <p className="text-xs text-muted">
           三人攻撃禁止：{settings.threePlayerAttackProhibited ? "ON" : "OFF"}

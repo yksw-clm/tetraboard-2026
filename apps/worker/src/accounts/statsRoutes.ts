@@ -87,6 +87,15 @@ export const statsReaders = {
       .first();
     return matchDataContracts.shogi.stats(row);
   },
+  gomoku: async (db: D1Database, accountId: string) => {
+    const row = await db
+      .prepare(
+        `${matchOutcomesCte("gomoku", true)} SELECT COUNT(*) AS total,COALESCE(SUM(winner=direction),0) AS wins,COALESCE(SUM(winner IS NOT NULL AND winner!=direction),0) AS losses,COALESCE(SUM(winner IS NULL),0) AS draws FROM outcomes`,
+      )
+      .bind("gomoku", accountId)
+      .first();
+    return matchDataContracts.gomoku.stats(row);
+  },
   reversi: async (db: D1Database, accountId: string) => {
     const row = await db
       .prepare(
@@ -96,6 +105,10 @@ export const statsReaders = {
       .first();
     return matchDataContracts.reversi.stats(row);
   },
+  "four-gomoku": async (db: D1Database, accountId: string) =>
+    matchDataContracts["four-gomoku"].stats(
+      (await queryAccountStats(db, accountId, "four-gomoku")).stats,
+    ),
   "four-reversi": async (db: D1Database, accountId: string) =>
     matchDataContracts["four-reversi"].stats(
       (await queryAccountStats(db, accountId, "four-reversi")).stats,
@@ -122,6 +135,10 @@ export async function readAccountStats(
     case "shogi":
       return statsReaders[game](db, accountId);
     case "reversi":
+      return statsReaders[game](db, accountId);
+    case "four-gomoku":
+      return statsReaders[game](db, accountId);
+    case "gomoku":
       return statsReaders[game](db, accountId);
     case "four-reversi":
       return statsReaders[game](db, accountId);

@@ -19,4 +19,4 @@ await writeFile(
 );
 await writeFile(new URL("robots.txt", dist), robotsText);
 await writeFile(new URL("sitemap.xml", dist), renderSitemap());
-console.info("Generated four public lobbies, robots.txt, sitemap.xml and 404.html");
+console.info(`Generated ${gameIds.length} public lobbies, robots.txt, sitemap.xml and 404.html`);

@@ -4,14 +4,26 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-25",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": { "APP_ORIGIN": "http://localhost:5173" },
-  "r2_buckets": [{ "binding": "OBJECT_STORAGE", "bucket_name": "tetraboard-2026-objects-local" }],
+  "vars": {
+    "APP_ORIGIN": "http://localhost:5173"
+  },
+  "r2_buckets": [
+    {
+      "binding": "OBJECT_STORAGE",
+      "bucket_name": "tetraboard-2026-objects-local"
+    }
+  ],
   "dev": {
     "ip": "0.0.0.0",
     "port": 8787
   },
   "durable_objects": {
-    "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
+    "bindings": [
+      {
+        "name": "GAME_ROOM",
+        "class_name": "GameRoom"
+      }
+    ]
   },
   "d1_databases": [
     {
@@ -22,17 +34,29 @@
     }
   ],
   "exports": {
-    "GameRoom": { "type": "durable-object", "storage": "sqlite" }
+    "GameRoom": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
   },
   "observability": {
     "enabled": true
   },
-  "triggers": { "crons": ["0 * * * *"] },
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
   "env": {
     "production": {
       "name": "tetraboard-2026",
-      "vars": { "APP_ORIGIN": "https://tetraboard.net" },
-      "routes": [{ "pattern": "tetraboard.net", "custom_domain": true }],
+      "vars": {
+        "APP_ORIGIN": "https://tetraboard.net"
+      },
+      "routes": [
+        {
+          "pattern": "tetraboard.net",
+          "custom_domain": true
+        }
+      ],
       "r2_buckets": [
         {
           "binding": "OBJECT_STORAGE",
@@ -50,7 +74,12 @@
         "run_worker_first": true
       },
       "durable_objects": {
-        "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
+        "bindings": [
+          {
+            "name": "GAME_ROOM",
+            "class_name": "GameRoom"
+          }
+        ]
       },
       "d1_databases": [
         {
@@ -62,10 +91,69 @@
         }
       ],
       "exports": {
-        "GameRoom": { "type": "durable-object", "storage": "sqlite" }
+        "GameRoom": {
+          "type": "durable-object",
+          "storage": "sqlite"
+        }
       },
-      "observability": { "enabled": true },
-      "triggers": { "crons": ["0 * * * *"] }
+      "observability": {
+        "enabled": true
+      },
+      "triggers": {
+        "crons": ["0 * * * *"]
+      }
+    },
+    "development": {
+      "name": "tetraboard-dev",
+      "vars": {
+        "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev"
+      },
+      "routes": [],
+      "r2_buckets": [
+        {
+          "binding": "OBJECT_STORAGE",
+          "bucket_name": "tetraboard-dev-objects",
+          "remote": false
+        }
+      ],
+      "workers_dev": true,
+      "preview_urls": false,
+      "assets": {
+        "directory": "./dist/assets",
+        "binding": "ASSETS",
+        "not_found_handling": "none",
+        "html_handling": "none",
+        "run_worker_first": true
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "GAME_ROOM",
+            "class_name": "GameRoom"
+          }
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "APP_DB",
+          "database_name": "tetraboard-dev-db",
+          "database_id": "7b32f756-ba1c-4247-a544-e91cfe64b9d3",
+          "migrations_dir": "migrations",
+          "remote": false
+        }
+      ],
+      "exports": {
+        "GameRoom": {
+          "type": "durable-object",
+          "storage": "sqlite"
+        }
+      },
+      "observability": {
+        "enabled": true
+      },
+      "triggers": {
+        "crons": ["0 * * * *"]
+      }
     }
   }
 }

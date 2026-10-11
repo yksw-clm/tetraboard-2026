@@ -59,6 +59,7 @@ export interface RoomTransportOptions<T extends Room> {
     command: CommonSettingsCommand | GameSettingsCommandFor<T["settings"]["game"]>,
     playerIds: ReadonlySet<string>,
   ) => boolean;
+  onGameError?: (error: string) => boolean;
   gameOperationError: (error: string) => string | undefined;
   readSoundGame: (room: T) => SoundGameState;
   initialMembership: RoomMembership | null;
@@ -112,6 +113,7 @@ export function useRoomTransport<T extends Room>({
   actionComplete,
   settingsComplete,
   gameOperationError,
+  onGameError,
   readSoundGame,
   initialFormationAnalysisSupported = false,
   initialStampsSupported = false,
@@ -806,7 +808,11 @@ export function useRoomTransport<T extends Room>({
           clearWait("connection");
           void refresh(true);
         } else {
-          setSocketError(operationErrorMessage(message.data.error, gameOperationError));
+          setSocketError(
+            onGameError?.(message.data.error)
+              ? null
+              : operationErrorMessage(message.data.error, gameOperationError),
+          );
         }
       };
       currentSocket.onerror = () => {
@@ -848,6 +854,7 @@ export function useRoomTransport<T extends Room>({
     actionComplete,
     settingsComplete,
     gameOperationError,
+    onGameError,
     readSoundGame,
   ]);
 

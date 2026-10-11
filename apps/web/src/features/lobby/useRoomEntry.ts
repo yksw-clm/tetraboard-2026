@@ -57,6 +57,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     restored?.entry?.timeControl ?? roomTimeControl,
   );
   const [mode, setMode] = useState<RoomMode>(restored?.entry?.mode ?? "singles");
+  const [forbiddenRules, setForbiddenRules] = useState(restored?.entry?.forbiddenRules ?? true);
   const [cpuLevel, setCpuLevel] = useState<CpuLevel>(restored?.entry?.cpuLevel ?? 1);
   const [threePlayerAttackProhibited, setThreePlayerAttackProhibited] = useState(
     restored?.entry?.threePlayerAttackProhibited ?? true,
@@ -109,6 +110,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
           mode,
           timeControl,
           threePlayerAttackProhibited,
+          forbiddenRules,
         }),
       );
       if (!request.success) {
@@ -173,6 +175,8 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     setTimeControl,
     threePlayerAttackProhibited,
     setThreePlayerAttackProhibited,
+    forbiddenRules,
+    setForbiddenRules,
     isSubmitting,
     message,
     clearMessage: () => setMessage(null),

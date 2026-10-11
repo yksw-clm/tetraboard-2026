@@ -1,4 +1,4 @@
-import { lobbyCanonical, lobbyGameForPath, lobbyMetadata } from "./lobbyMetadata";
+import { lobbyCanonical, lobbyGameForPath, lobbyMetadata, searchIndexable } from "./lobbyMetadata";
 
 export function updatePageMetadata(path: string): void {
   const game = lobbyGameForPath(path);
@@ -10,7 +10,7 @@ export function updatePageMetadata(path: string): void {
     element.remove();
   const robots = document.createElement("meta");
   robots.name = "robots";
-  robots.content = game ? "index,follow" : "noindex,follow";
+  robots.content = game && searchIndexable ? "index,follow" : "noindex,follow";
   document.head.append(robots);
   if (!game) return;
   const description = document.createElement("meta");

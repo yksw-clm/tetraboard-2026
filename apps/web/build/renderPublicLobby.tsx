@@ -2,7 +2,12 @@ import { appThemeClasses, gameThemes } from "../src/shared/ui/appTheme";
 import { renderToStaticMarkup } from "react-dom/server";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
-import { lobbyCanonical, lobbyMetadata, publicOrigin } from "../src/seo/lobbyMetadata";
+import {
+  lobbyCanonical,
+  lobbyMetadata,
+  publicOrigin,
+  searchIndexable,
+} from "../src/seo/lobbyMetadata";
 
 export function escapeHtml(value: string): string {
   return value
@@ -45,7 +50,7 @@ export function renderPublicLobby(template: string, game: GameId): string {
       </main>
     </div>,
   );
-  const metadata = `<title>${escapeHtml(page.title)}</title><meta name="description" content="${escapeHtml(page.description)}" /><meta name="robots" content="index,follow" /><link rel="canonical" href="${lobbyCanonical(game)}" />`;
+  const metadata = `<title>${escapeHtml(page.title)}</title><meta name="description" content="${escapeHtml(page.description)}" /><meta name="robots" content="${searchIndexable ? "index,follow" : "noindex,follow"}" /><link rel="canonical" href="${lobbyCanonical(game)}" />`;
   return template
     .replace(/<title>.*?<\/title>/, metadata)
     .replace('<div id="root"></div>', `<div id="root" data-public-lobby="${game}">${body}</div>`);
@@ -74,7 +79,7 @@ export function renderNotFound(template: string): string {
     );
 }
 
-export const robotsText = `User-agent: *\nAllow: /\nSitemap: ${publicOrigin}/sitemap.xml\n`;
+export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\n` : ""}`;
 export function renderSitemap(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${gameIds.map((game) => `<url><loc>${lobbyCanonical(game)}</loc></url>`).join("")}</urlset>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${(searchIndexable ? gameIds : []).map((game) => `<url><loc>${lobbyCanonical(game)}</loc></url>`).join("")}</urlset>\n`;
 }

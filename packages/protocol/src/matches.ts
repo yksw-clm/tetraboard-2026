@@ -1,4 +1,16 @@
 import {
+  fourGomokuSettingsSchema,
+  fourGomokuResultSchema,
+  fourGomokuFinishedStateSchema,
+  fourGomokuReplaySchema,
+} from "./rooms";
+import {
+  gomokuSettingsSchema,
+  gomokuResultSchema,
+  gomokuFinishedStateSchema,
+  gomokuReplaySchema,
+} from "./rooms";
+import {
   shogiSideSchema,
   finishedShogiStateSchema,
   shogiReplayInitialSchema,
@@ -170,11 +182,31 @@ export const shogiMatchSummarySchema = reversiMatchSummarySchema
 export const shogiAccountStatsSchema = reversiAccountStatsSchema;
 export type ShogiAccountStats = ReversiAccountStats;
 export type ShogiMatchSummary = z.infer<typeof shogiMatchSummarySchema>;
+export const gomokuMatchSummarySchema = reversiMatchSummarySchema.extend({
+  game: z.literal("gomoku"),
+  result: gomokuResultSchema,
+});
+export type GomokuMatchSummary = z.infer<typeof gomokuMatchSummarySchema>;
+export const gomokuMatchParticipantSchema = reversiMatchParticipantSchema;
+export const gomokuAccountStatsSchema = reversiAccountStatsSchema;
+export type GomokuAccountStats = ReversiAccountStats;
+export const fourGomokuMatchSummarySchema = z
+  .strictObject({
+    ...fourReversiMatchSummarySchema.shape,
+    game: z.literal("four-gomoku"),
+    result: fourGomokuResultSchema,
+  })
+  .refine((m) => m.mode === m.result.mode);
+export type FourGomokuMatchSummary = z.infer<typeof fourGomokuMatchSummarySchema>;
+export const fourGomokuMatchParticipantSchema = matchParticipantSchema;
+export type FourGomokuAccountStats = FourReversiAccountStats;
 export const matchSummarySchema = z.union([
   fourReversiMatchSummarySchema,
   fourShogiMatchSummarySchema,
   reversiMatchSummarySchema,
   shogiMatchSummarySchema,
+  gomokuMatchSummarySchema,
+  fourGomokuMatchSummarySchema,
 ]);
 
 export const matchCursorSchema = z
@@ -369,6 +401,66 @@ export type ReplayReversiMatch = PublicReversiMatchDetail & { selfPlayerId?: str
 export function isReversiMatch(match: ReplayMatch): match is ReplayReversiMatch {
   return match.settings.game === "reversi";
 }
+export const publicGomokuMatchDetailSchema = z
+  .strictObject({
+    id: z.uuid(),
+    roomId: roomCodeSchema,
+    startedAtMs: z.int().nonnegative(),
+    endedAtMs: z.int().nonnegative(),
+    settings: gomokuSettingsSchema,
+    participants: z.array(reversiMatchParticipantSchema).length(2),
+    game: gomokuFinishedStateSchema,
+    eliminations: z.array(reversiEliminationSchema).max(1),
+    replay: gomokuReplaySchema,
+  })
+  .refine(
+    (m) =>
+      m.replay.id === m.id &&
+      m.game.forbiddenRules === m.settings.forbiddenRules &&
+      m.replay.initial.forbiddenRules === m.settings.forbiddenRules &&
+      new Set(m.participants.map((p) => p.id)).size === 2 &&
+      new Set(m.participants.map((p) => p.color)).size === 2 &&
+      new Set(m.participants.map((p) => p.seat)).size === 2,
+  );
+export const gomokuMatchDetailSchema = publicGomokuMatchDetailSchema
+  .safeExtend({ selfPlayerId: z.uuid() })
+  .refine((m) => m.participants.some((p) => p.id === m.selfPlayerId));
+export type GomokuMatchDetail = z.infer<typeof gomokuMatchDetailSchema>;
+export type PublicGomokuMatchDetail = z.infer<typeof publicGomokuMatchDetailSchema>;
+export type ReplayGomokuMatch = PublicGomokuMatchDetail & { selfPlayerId?: string };
+export function isGomokuMatch(match: ReplayMatch): match is ReplayGomokuMatch {
+  return match.settings.game === "gomoku";
+}
+export const publicFourGomokuMatchDetailSchema = z
+  .strictObject({
+    id: z.uuid(),
+    roomId: roomCodeSchema,
+    startedAtMs: z.int().nonnegative(),
+    endedAtMs: z.int().nonnegative(),
+    settings: fourGomokuSettingsSchema,
+    participants: z.array(matchParticipantSchema).length(4),
+    game: fourGomokuFinishedStateSchema,
+    eliminations: z.array(eliminationSchema).max(3),
+    replay: fourGomokuReplaySchema,
+  })
+  .refine(
+    (m) =>
+      m.replay.id === m.id &&
+      m.game.mode === m.settings.mode &&
+      m.replay.initial.mode === m.settings.mode &&
+      new Set(m.participants.map((p) => p.id)).size === 4 &&
+      new Set(m.participants.map((p) => p.color)).size === 4 &&
+      new Set(m.participants.map((p) => p.seat)).size === 4,
+  );
+export const fourGomokuMatchDetailSchema = publicFourGomokuMatchDetailSchema
+  .safeExtend({ selfPlayerId: z.uuid() })
+  .refine((m) => m.participants.some((p) => p.id === m.selfPlayerId));
+export type FourGomokuMatchDetail = z.infer<typeof fourGomokuMatchDetailSchema>;
+export type PublicFourGomokuMatchDetail = z.infer<typeof publicFourGomokuMatchDetailSchema>;
+export type ReplayFourGomokuMatch = PublicFourGomokuMatchDetail & { selfPlayerId?: string };
+export function isFourGomokuMatch(match: ReplayMatch): match is ReplayFourGomokuMatch {
+  return match.settings.game === "four-gomoku";
+}
 export const publicShogiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
@@ -405,6 +497,8 @@ export const publicMatchDetailSchema = z.union([
   publicFourShogiMatchDetailSchema,
   publicReversiMatchDetailSchema,
   publicShogiMatchDetailSchema,
+  publicGomokuMatchDetailSchema,
+  publicFourGomokuMatchDetailSchema,
 ]);
 export type PublicMatchDetail = z.infer<typeof publicMatchDetailSchema>;
 export type PublicFourReversiMatchDetail = z.infer<typeof publicFourReversiMatchDetailSchema>;
@@ -415,7 +509,9 @@ export type ReplayMatch =
   | ReplayFourReversiMatch
   | ReplayFourShogiMatch
   | ReplayReversiMatch
-  | ReplayShogiMatch;
+  | ReplayShogiMatch
+  | ReplayGomokuMatch
+  | ReplayFourGomokuMatch;
 export const listPublicMatchesContract = {
   method: "GET",
   path: "/matches",
@@ -440,6 +536,8 @@ export const matchDetailSchema = z.union([
   fourShogiMatchDetailSchema,
   reversiMatchDetailSchema,
   shogiMatchDetailSchema,
+  gomokuMatchDetailSchema,
+  fourGomokuMatchDetailSchema,
 ]);
 export const getMatchContract = {
   method: "GET",
@@ -497,3 +595,5 @@ export const getPublicMatchReplayContract = {
   path: "/matches/:matchId/replay",
   pathFor: (id: string) => `/matches/${id}/replay`,
 } as const;
+
+export const fourGomokuAccountStatsSchema = fourReversiAccountStatsSchema;

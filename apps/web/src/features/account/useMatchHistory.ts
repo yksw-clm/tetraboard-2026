@@ -33,6 +33,8 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
   const { request, generation } = useAccountDataRequest();
   const [pages, setPages] = useState<Record<MatchGame, Record<RoomMode, HistoryPage>>>({
     reversi: { singles: emptyPage(), doubles: emptyPage() },
+    "four-gomoku": { singles: emptyPage(), doubles: emptyPage() },
+    gomoku: { singles: emptyPage(), doubles: emptyPage() },
     shogi: { singles: emptyPage(), doubles: emptyPage() },
     "four-reversi": { singles: emptyPage(), doubles: emptyPage() },
     "four-shogi": { singles: emptyPage(), doubles: emptyPage() },

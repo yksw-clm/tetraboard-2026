@@ -19,7 +19,9 @@ const requestFor = (game: (typeof gameIds)[number], cpuLevel?: number) => ({
   name: "ホスト",
   quickPlay: true,
   cpuLevel,
-  ...(game === "four-reversi" || game === "four-shogi" ? { mode: "singles" } : {}),
+  ...(game === "four-reversi" || game === "four-shogi" || game === "four-gomoku"
+    ? { mode: "singles" }
+    : {}),
 });
 for (const game of gameIds) {
   test(`${game}: 作成時のLv1・Lv2と省略時Lv1を全CPUに適用し、不正値を拒否する`, async () => {
@@ -80,6 +82,8 @@ for (const game of gameIds) {
         ctx.storage.kv.put("room", room);
         ctx.storage.kv.delete("shogi-cpu-job");
         ctx.storage.kv.delete("standard-shogi-cpu-job");
+        ctx.storage.kv.delete("gomoku-cpu-job");
+        ctx.storage.kv.delete("four-gomoku-cpu-job");
         const clock = vi.spyOn(Date, "now").mockReturnValue(at + 1_999);
         try {
           await instance.alarm();
@@ -98,8 +102,20 @@ for (const game of gameIds) {
         const clock = vi.spyOn(Date, "now").mockReturnValue(at + 2_000);
         try {
           await instance.alarm();
-          if (game === "four-shogi" || game === "shogi") {
-            const key = game === "shogi" ? "standard-shogi-cpu-job" : "shogi-cpu-job";
+          if (
+            game === "four-shogi" ||
+            game === "shogi" ||
+            game === "gomoku" ||
+            game === "four-gomoku"
+          ) {
+            const key =
+              game === "four-gomoku"
+                ? "four-gomoku-cpu-job"
+                : game === "gomoku"
+                  ? "gomoku-cpu-job"
+                  : game === "shogi"
+                    ? "standard-shogi-cpu-job"
+                    : "shogi-cpu-job";
             const job = ctx.storage.kv.get<{ applyAt: number }>(key)!;
             expect(job).toBeDefined();
             clock.mockReturnValue(job.applyAt);

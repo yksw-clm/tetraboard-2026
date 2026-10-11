@@ -16,10 +16,22 @@ import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
 export const lobbyRoutes = {
+  "four-gomoku": {
+    path: gameCatalog["four-gomoku"].lobbyPath,
+    lazy: async () => ({
+      Component: (await import("../features/lobby/FourGomokuLobbyPage")).FourGomokuLobbyPage,
+    }),
+  },
   shogi: {
     path: gameCatalog.shogi.lobbyPath,
     lazy: async () => ({
       Component: (await import("../features/lobby/ShogiLobbyPage")).ShogiLobbyPage,
+    }),
+  },
+  gomoku: {
+    path: gameCatalog.gomoku.lobbyPath,
+    lazy: async () => ({
+      Component: (await import("../features/lobby/GomokuLobbyPage")).GomokuLobbyPage,
     }),
   },
   reversi: {

@@ -231,3 +231,57 @@ export {
 } from "./matches";
 
 export * from "./stamps";
+
+export {
+  gomokuSettingsSchema,
+  gomokuResultSchema,
+  gomokuStateSchema,
+  gomokuFinishedStateSchema,
+  gomokuReplaySchema,
+  gomokuRoomSchema,
+  isGomokuRoom,
+  type GomokuRoom,
+  type GomokuReplay,
+  type GomokuLastRound,
+  type GomokuClock,
+} from "./rooms";
+export {
+  gomokuMatchParticipantSchema,
+  gomokuMatchSummarySchema,
+  gomokuAccountStatsSchema,
+  publicGomokuMatchDetailSchema,
+  gomokuMatchDetailSchema,
+  isGomokuMatch,
+  type GomokuMatchDetail,
+  type PublicGomokuMatchDetail,
+  type ReplayGomokuMatch,
+  type GomokuMatchSummary,
+  type GomokuAccountStats,
+} from "./matches";
+
+export {
+  fourGomokuSettingsSchema,
+  fourGomokuResultSchema,
+  fourGomokuStateSchema,
+  fourGomokuFinishedStateSchema,
+  fourGomokuReplaySchema,
+  fourGomokuRoomSchema,
+  isFourGomokuRoom,
+  type FourGomokuRoom,
+  type FourGomokuReplay,
+  type FourGomokuLastRound,
+  type FourGomokuClock,
+} from "./rooms";
+export {
+  fourGomokuMatchParticipantSchema,
+  fourGomokuMatchSummarySchema,
+  fourGomokuAccountStatsSchema,
+  publicFourGomokuMatchDetailSchema,
+  fourGomokuMatchDetailSchema,
+  isFourGomokuMatch,
+  type FourGomokuMatchDetail,
+  type PublicFourGomokuMatchDetail,
+  type ReplayFourGomokuMatch,
+  type FourGomokuMatchSummary,
+  type FourGomokuAccountStats,
+} from "./matches";

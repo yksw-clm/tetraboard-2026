@@ -1,6 +1,6 @@
 # 作業ルール
 
-- `main` は本番です。作業は最新mainから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などのブランチを作り、PRで取り込みます。mainへの直接push・force pushは行いません。非公開リポジトリの現行プランでは保護を強制できないため、GitHub CI成功、下記のローカル検証成功、開発者のマージ承認を運用で守ります。他者レビューは必須ではありません。
+- `main` は本番、`develop` は開発環境・GitHubの既定ブランチです。最新developから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などを作り、develop向けPRで取り込みます。開発環境で確認後、develop→mainのリリースPRをマージコミットで取り込みます。両ブランチへの直接push・force pushは禁止し、初回のdevelop作成だけは最新mainから行います。非公開リポジトリの現行プランでは保護を強制できないため、GitHub CI成功、下記のローカル検証成功、開発者のマージ承認を運用で守ります。他者レビューは必須ではありません。
 - コミットメッセージは `feat:`、`fix:`、`docs:`、`chore:` などの変更種別から始め、その後の説明は日本語で記述します（例：`docs: コミットメッセージの作成ルールを追加する`）。
 - 仕様に関わる作業では、まず `README.md` の案内から関連箇所を読み、次に対象ゲームのルール正本を読む。各ゲームの正本への入口は [変更対象別の案内](docs/development.md#変更対象別の案内) に置く。対象ゲームがない共通仕様の作業は `README.md` を参照する。
 - コードの作成・変更・レビューでは、作業前に `docs/development.md` の [最初に読む案内](docs/development.md#最初に読む案内) と [共通の作業手順](docs/development.md#共通の作業手順) を読み、変更対象に対応する仕様・実装・テストの節を確認する。横断する変更では関連する対象の節も確認する。
@@ -12,17 +12,19 @@
 
 ## PR提出前の検証
 
-- 通常のGitHub CIでは `bun install --frozen-lockfile` 後に `bun run check`、`bun run build`、`bun run --cwd apps/worker deploy:dry-run` を実行する。GitHub CI成功をローカル検証で代替しない。
+- 通常のGitHub CIでは `bun install --frozen-lockfile` 後に、下記のcheckと本番・開発それぞれのbuild・dry-runを実行する。GitHub CI成功をローカル検証で代替しない。
 - コード・設定変更では、PRを作成する前にローカルで次の全コマンドを成功させる。
 
   ```sh
   bun run check
   bun run build
   bun run --cwd apps/worker deploy:dry-run
+  bun run build:development
+  bun run --cwd apps/worker deploy:dry-run:development
   ```
 
 - 自動検証は純粋関数のBunテスト、Bun＋happy-domの部品・hookテスト、Worker統合テストへ集約する。ブラウザを起動するテスト・設定・workflowは廃止する。画面寸法・ネイティブ入力・実画像デコードは自動検証対象に含めない。`bun run check`（format確認・lint・型・全テスト）の目標は180秒以内とし、CIで所要時間を記録する。実行方法と移管対応表は [docs/testing.md](docs/testing.md) を参照する。
-- PR本文に検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載する。PR提出後にコード・設定を変更した場合も、更新対象に対して上記の必須コマンドを再実行し、結果を更新する。mainの取り込みでコード・設定が変わった場合も同様に扱う。
+- PR本文に検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載する。PR提出後にコード・設定を変更した場合も、更新対象に対して上記の必須コマンドを再実行し、結果を更新する。main・developの取り込みでコード・設定が変わった場合も同様に扱う。
 - 文書だけの変更では同一コード・設定に対する直前の成功結果を再利用できる。検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行う。
 
 ## 承認が必要な場合
