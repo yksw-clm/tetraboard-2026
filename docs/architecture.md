@@ -15,7 +15,7 @@
 - 通常リバーシ・通常将棋・五目並べも独立した `packages/reversi`・`packages/shogi`・`packages/gomoku` を持つ。五目並べの15路と禁手判定を既存8路へ混在させず、時計と共有ルーム管理を共用する。CPUは専用入口からWorkerだけが読み込み、Webのゲーム別遅延読み込みへ含めない。五目並べのCPU候補は局ID・revision・手番とともにDOへ保存し、次Alarmで期限を確認して計算時間も時計へ反映する。
 - ルームごとに1つのDurable Objectを使い、参加者、対局進行、持ち時間、チャットと接続を管理する。ゲーム固有の合法手・終局判定は、ルーム管理から分離したTypeScriptのロジックとして扱う。
 - CPUの着手候補の選択は `packages/four-reversi` の純粋なロジックで行う。Durable Objectが選択を起動し、通常の着手と同じエンジンで確定・保存・配信する。
-- 四人リバーシLv2強化は2026-10-11に仕様確定・実装予定。現在の採用方式と予定仕様は [ルール正本のCPU節](rules/four-reversi.md#cpu)、実装の責務・受入条件は [AI強化の計画](four-reversi-ai.md) を参照する。強化時は生成済み合法候補の確定処理を実対局と共有し、Worker内部のCPUジョブを次Alarmで検証する。公開状態・通信・棋譜へ局面revisionや探索情報を追加しない。
+- 四人リバーシLv2強化は2026-10-11に実装・採用測定済み。現在の採用方式は [ルール正本のCPU節](rules/four-reversi.md#cpu)、実装の責務・受入条件は [AI強化の計画](four-reversi-ai.md) を参照する。生成済み合法候補の確定処理を実対局と共有し、多人数探索・終局予測・終盤全読みへ利用する。Worker内部のCPUジョブは次Alarmで局面と期限を検証する。公開状態・通信・棋譜へ局面revisionや探索情報を追加しない。
 - 四人将棋のCPUは `packages/four-shogi` 内の [cpu.ts](../packages/four-shogi/src/cpu.ts) を公開APIの入口とし、[cpuSearch.ts](../packages/four-shogi/src/cpuSearch.ts) に探索、[cpuEvaluation.ts](../packages/four-shogi/src/cpuEvaluation.ts) に静的評価、[cpuOpenings.ts](../packages/four-shogi/src/cpuOpenings.ts) に序盤候補の構成・照合を分ける。CPUの採用仕様は [ルール正本のCPU節](rules/four-shogi.md#cpu) を参照する。選択処理は既存の合法手と着手処理を使う純粋関数とし、ルール状態や保存形式を増やさない。Workerの [fourShogiProgress.ts](../apps/worker/src/rooms/fourShogiProgress.ts) が思考を起動し、選択結果を局ID・revision・手番とともに保存する。次のAlarmで期限と保存時の局面を検査してから、通常の着手と同じ経路で確定・保存・配信する。
 - 公開ロビーのルーム索引、通報、アカウントと認証セッション、利用状況の計測はD1に保存する。通報には確認に必要な部屋IDも含む。全ゲームの終局データと本人の履歴をD1に保存し、ゲーム別の戦績・ランキングを集計する。将棋の棋譜は初期化情報と連番イベントを分けて保存し、部屋内の直前1局と恒久保存待ちを独立して管理する。
 
