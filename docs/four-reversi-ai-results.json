@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "verifiedCodeCommit": "93e06d222cd8198f1ac9dac27fc055658ee9468a",
+  "verifiedCodeCommit": "34845ce94b9a22f65cc6b668e5f2c170ff6e2a8d",
   "validation": {
     "environment": {
       "bun": "1.4.2",
@@ -11,35 +11,38 @@
     "commands": [
       {
         "command": "bun run check",
-        "startedAt": "2026-10-11T09:47:09.074Z",
+        "startedAt": "2026-10-11T11:02:52.776Z",
         "exitCode": 0,
-        "seconds": 125.3915425
+        "seconds": 48.304057875000005
       },
       {
         "command": "bun run build",
-        "startedAt": "2026-10-11T09:49:14.466Z",
+        "startedAt": "2026-10-11T11:03:41.080Z",
         "exitCode": 0,
-        "seconds": 22.39580275
+        "seconds": 8.371427417
       },
       {
         "command": "bun run --cwd apps/worker deploy:dry-run",
-        "startedAt": "2026-10-11T09:49:36.862Z",
+        "startedAt": "2026-10-11T11:03:49.452Z",
         "exitCode": 0,
-        "seconds": 1.5901729580000101
+        "seconds": 0.6853321250000008
       },
       {
         "command": "bun run build:development",
-        "startedAt": "2026-10-11T09:49:38.453Z",
+        "startedAt": "2026-10-11T11:03:50.137Z",
         "exitCode": 0,
-        "seconds": 19.480608125
+        "seconds": 8.125454749999998
       },
       {
         "command": "bun run --cwd apps/worker deploy:dry-run:development",
-        "startedAt": "2026-10-11T09:49:57.933Z",
+        "startedAt": "2026-10-11T11:03:58.263Z",
         "exitCode": 0,
-        "seconds": 1.2824042499999924
+        "seconds": 0.5774276670000036
       }
     ],
+    "measuredCpuAndBenchSourceUnchanged": true,
+    "productionWorkerSourceUnchanged": true,
+    "codeDifferenceFromMeasurement": ["apps/worker/test/fourReversiCpu.test.ts"],
     "githubCiSource": "develop向け実装PRのChecksで別に追跡する"
   },
   "training": [
@@ -31877,5 +31880,57 @@
         }
       }
     }
-  }
+  },
+  "validationHistory": [
+    {
+      "verifiedCodeCommit": "93e06d222cd8198f1ac9dac27fc055658ee9468a",
+      "validation": {
+        "environment": {
+          "bun": "1.4.2",
+          "os": "macOS 27.0.1",
+          "arch": "arm64",
+          "cpu": "Apple M5"
+        },
+        "commands": [
+          {
+            "command": "bun run check",
+            "startedAt": "2026-10-11T09:47:09.074Z",
+            "exitCode": 0,
+            "seconds": 125.3915425
+          },
+          {
+            "command": "bun run build",
+            "startedAt": "2026-10-11T09:49:14.466Z",
+            "exitCode": 0,
+            "seconds": 22.39580275
+          },
+          {
+            "command": "bun run --cwd apps/worker deploy:dry-run",
+            "startedAt": "2026-10-11T09:49:36.862Z",
+            "exitCode": 0,
+            "seconds": 1.5901729580000101
+          },
+          {
+            "command": "bun run build:development",
+            "startedAt": "2026-10-11T09:49:38.453Z",
+            "exitCode": 0,
+            "seconds": 19.480608125
+          },
+          {
+            "command": "bun run --cwd apps/worker deploy:dry-run:development",
+            "startedAt": "2026-10-11T09:49:57.933Z",
+            "exitCode": 0,
+            "seconds": 1.2824042499999924
+          }
+        ],
+        "githubCiSource": "develop向け実装PRのChecksで別に追跡する"
+      },
+      "githubCi": {
+        "commit": "03364f13b0fd9e22698490751aa9251bf538c61e",
+        "runUrl": "https://github.com/yksw-clm/tetraboard-2026/actions/runs/38132705434",
+        "conclusion": "success",
+        "checkSeconds": 228
+      }
+    }
+  ]
 }
