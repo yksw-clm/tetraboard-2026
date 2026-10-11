@@ -1,3 +1,6 @@
+import { forbiddenReasons, type ForbiddenReason } from "./forbidden";
+export { forbiddenReasons } from "./forbidden";
+export type { ForbiddenReason } from "./forbidden";
 export const boardSize = 15;
 export const rulesVersion = 1;
 export const colors = ["black", "white"] as const;
@@ -25,7 +28,8 @@ export type GomokuState =
 export type GomokuAction = { type: "placeStone"; position: Position };
 export type ApplyActionResult =
   | { ok: true; state: GomokuState }
-  | { ok: false; reason: "game_finished" | "out_of_bounds" | "occupied" };
+  | { ok: false; reason: "game_finished" | "out_of_bounds" | "occupied" }
+  | { ok: false; reason: "forbidden"; forbidden: ForbiddenReason[] };
 export const directions = [
   [1, 0],
   [0, 1],
@@ -33,7 +37,7 @@ export const directions = [
   [1, -1],
 ] as const;
 
-export function createInitialState(forbiddenRules = false): GomokuState {
+export function createInitialState(forbiddenRules = true): GomokuState {
   return {
     rulesVersion,
     forbiddenRules,
@@ -108,7 +112,14 @@ function finish(
 export function getLegalMovesForColor(state: GomokuState, color: Color): Position[] {
   if (state.status === "finished" || state.eliminatedColors.includes(color)) return [];
   return state.board.flatMap((row, y) =>
-    row.flatMap((cell, x) => (cell === null ? [{ x, y }] : [])),
+    row.flatMap((cell, x) =>
+      cell === null &&
+      (color !== "black" ||
+        !state.forbiddenRules ||
+        forbiddenReasons(state.board, { x, y }).length === 0)
+        ? [{ x, y }]
+        : [],
+    ),
   );
 }
 
@@ -121,6 +132,10 @@ export function applyAction(state: GomokuState, action: GomokuAction): ApplyActi
   const { position } = action;
   if (!inBounds(position)) return { ok: false, reason: "out_of_bounds" };
   if (state.board[position.y][position.x] !== null) return { ok: false, reason: "occupied" };
+  if (state.turn === "black" && state.forbiddenRules) {
+    const forbidden = forbiddenReasons(state.board, position);
+    if (forbidden.length) return { ok: false, reason: "forbidden", forbidden };
+  }
   const board = state.board.map((row) => [...row]);
   board[position.y][position.x] = state.turn;
   const moved: GomokuState = {
@@ -133,7 +148,8 @@ export function applyAction(state: GomokuState, action: GomokuAction): ApplyActi
   if (lines.length) return { ok: true, state: finish(moved, "five", state.turn, lines) };
   if (board.every((row) => row.every((cell) => cell !== null)))
     return { ok: true, state: finish(moved, "board_full", null) };
-  return { ok: true, state: { ...moved, turn: state.turn === "black" ? "white" : "black" } };
+  const next: GomokuState = { ...moved, turn: state.turn === "black" ? "white" : "black" };
+  return { ok: true, state: settleNoLegalMoves(next) };
 }
 
 export function eliminateColor(state: GomokuState, color: Color): ApplyActionResult {
@@ -146,4 +162,19 @@ export function eliminateColor(state: GomokuState, color: Color): ApplyActionRes
       color === "black" ? "white" : "black",
     ),
   };
+}
+
+export function settleNoLegalMoves(state: GomokuState): GomokuState {
+  if (state.status !== "playing") return state;
+  if (state.board.every((row) => row.every((cell) => cell !== null)))
+    return finish(state, "board_full", null);
+  if (
+    state.turn === "black" &&
+    state.forbiddenRules &&
+    !state.board.some((row, y) =>
+      row.some((cell, x) => cell === null && forbiddenReasons(state.board, { x, y }).length === 0),
+    )
+  )
+    return finish(state, "no_legal_moves", "white");
+  return state;
 }
