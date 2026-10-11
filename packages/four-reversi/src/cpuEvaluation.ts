@@ -54,6 +54,7 @@ export function resolveWeights(changes: Partial<EvaluationWeights> = {}): Evalua
 export function positionFeatures(
   state: FourReversiState,
   spend?: SpendWork,
+  includeMobility = true,
 ): { phase: 0 | 1 | 2; features: Record<Color, Features> } {
   const counts = countStones(state.board);
   const occupied = Object.values(counts).reduce((sum, n) => sum + n, 0);
@@ -72,8 +73,9 @@ export function positionFeatures(
       },
     ]),
   ) as Record<Color, Features>;
-  for (const color of getActiveColors(state))
-    features[color].mobility = getLegalPlacements(state, color, spend).length;
+  if (includeMobility)
+    for (const color of getActiveColors(state))
+      features[color].mobility = getLegalPlacements(state, color, spend).length;
   const stable = new Set<number>();
   for (const { x, y } of corners) {
     const color = state.board[y][x];
@@ -121,6 +123,7 @@ export function evaluatePosition(
   state: FourReversiState,
   weights = defaultEvaluationWeights,
   spend?: SpendWork,
+  includeMobility = true,
 ): PositionValues {
   const values: PositionValues = { black: 0, white: 0, red: 0, blue: 0 };
   if (state.status === "finished") {
@@ -144,7 +147,7 @@ export function evaluatePosition(
     }
     return values;
   }
-  const { features, phase } = positionFeatures(state, spend);
+  const { features, phase } = positionFeatures(state, spend, includeMobility);
   const raw = Object.fromEntries(
     colors.map((color) => [
       color,

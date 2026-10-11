@@ -3,7 +3,10 @@ import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
-import { applyAction, chooseCpuMove, colors, getLegalMoves, type GameMode } from "../src/index";
+import { applyAction, colors, getLegalMoves, type GameMode } from "../src/index";
+import { chooseCpuMoveWithDiagnostics } from "../src/cpu";
+import { defaultEvaluationWeights, resolveWeights } from "../src/cpuEvaluation";
+import type { SearchOptions, SearchStats } from "../src/cpuSearch";
 import {
   openingPosition,
   playMatch,
@@ -54,8 +57,23 @@ try {
     args.get("candidate") !== "current"
   )
     throw new Error("candidateはcurrentまたはbaselineで指定してください");
+  const searchOptions: SearchOptions = {
+    maxWork: integer("max-work", 2048),
+    maxDepth: integer("max-depth", 6),
+    width: integer("width", 8),
+    evaluationWeights: args.has("weights")
+      ? resolveWeights(JSON.parse(args.get("weights")!))
+      : defaultEvaluationWeights,
+  };
+  let lastStats: SearchStats | undefined;
   const candidate: Selector =
-    args.get("candidate") === "baseline" ? baseline : (state) => chooseCpuMove(state, 2);
+    args.get("candidate") === "baseline"
+      ? baseline
+      : (state) => {
+          const selected = chooseCpuMoveWithDiagnostics(state, searchOptions);
+          lastStats = selected.stats;
+          return selected.move;
+        };
   const metadata = {
     commit: git("rev-parse", "HEAD"),
     dirty: git("status", "--porcelain").length > 0,
@@ -65,6 +83,7 @@ try {
     arch: process.arch,
     cpu: cpus()[0]?.model,
     args: Object.fromEntries(args),
+    searchOptions,
   };
   const kind = args.get("kind") ?? "performance";
   let report: unknown;
@@ -126,7 +145,7 @@ try {
         const move = candidate(state);
         const ms = performance.now() - before;
         times.push(ms);
-        return { id, ms, move };
+        return { id, ms, move, stats: lastStats };
       });
     });
     report = {
