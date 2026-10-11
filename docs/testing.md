@@ -138,7 +138,7 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 | 紫テーマ・4カード・禁手設定なし・1回操作と送信抑止・勝ち抜けの時計停止・90度回転・棋譜の途中順位と完成線 | `apps/web/test-dom/fourGomoku.test.tsx` |
 | 6ゲーム共通の部屋・CPU待機・時計通知・スタンプ・認証と戦績、型対応と既存棋譜互換、公開HTML・遅延読み込み | 共通Worker／Webテスト、`apps/web/type-tests/gameDispatch.ts`、`bun run build` |
 
-部分確認は `bun run --cwd packages/four-gomoku check`、`bun run --cwd apps/worker test test/fourGomokuRoom.test.ts test/fourGomokuRecords.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/fourGomoku.test.tsx` です。PR前には必須3コマンドを実行します。実機での押しやすさ、長い名前、4色判別、6ゲームナビの横スクロール、音声は自動検証に含めず、実施状況と未確認事項をPRに記録します。
+部分確認は `bun run --cwd packages/four-gomoku check`、`bun run --cwd apps/worker test test/fourGomokuRoom.test.ts test/fourGomokuRecords.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/fourGomoku.test.tsx` です。PR前には必須コマンドを実行します。実機での押しやすさ、長い名前、4色判別、6ゲームナビの横スクロール、音声は自動検証に含めず、実施状況と未確認事項をPRに記録します。
 
 ### 四人五目並べCPUの処理量確認
 
@@ -169,7 +169,7 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 
 ONの五連とOFFの六連のfixtureは初期局面から受理した着手と全局面を固定した規則版1の記録です。期待値をテスト実行時に再生成せず、同じエンジンで再実行して各保存局面と照合します。新しい互換ケースは既存fixtureを置換せず追加します。
 
-画面寸法、スマートフォンでの交点の押しやすさ、紫色・木目盤の実描画、長い名前、5項目の横スクロール、ネイティブ入力、実音声・読み上げは手動確認の実施結果または未確認理由をPRに記載します。ブラウザ自動テストは追加しません。必須3コマンドとGitHub CIは共通手順どおり実施します。
+画面寸法、スマートフォンでの交点の押しやすさ、紫色・木目盤の実描画、長い名前、5項目の横スクロール、ネイティブ入力、実音声・読み上げは手動確認の実施結果または未確認理由をPRに記載します。ブラウザ自動テストは追加しません。必須コマンドとGitHub CIは共通手順どおり実施します。
 
 ## 通常将棋の確認
 
