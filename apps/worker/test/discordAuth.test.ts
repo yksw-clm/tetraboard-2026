@@ -1,14 +1,21 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
 import { accountRoutes } from "../src/accounts/accountRoutes";
 import { accountFixture, origin } from "./accountFixtures";
 
 const request = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(`${origin}/api${path}`, { redirect: "manual", ...init }));
+  exports.default.fetch(
+    new AcceptedGameRequest(`${origin}/api${path}`, { redirect: "manual", ...init }),
+  );
 const signIn = (body: unknown = { provider: "discord" }) =>
   request("/auth/sign-in/social", {
     method: "POST",
-    headers: { Origin: origin, "Content-Type": "application/json" },
+    headers: {
+      Origin: origin,
+      "Content-Type": "application/json",
+      "X-Legal-Consent": "2026-10-12",
+    },
     body: JSON.stringify(body),
   });
 async function start(body?: unknown) {
@@ -198,7 +205,11 @@ test("認証方法の許可リスト・固定戻り先・管理画面Google限�
   );
   const init = {
     method: "POST",
-    headers: { Origin: origin, "Content-Type": "application/json" },
+    headers: {
+      Origin: origin,
+      "Content-Type": "application/json",
+      "X-Legal-Consent": "2026-10-12",
+    },
     body: JSON.stringify({ provider: "discord" }),
   };
   const missing = await accountRoutes.request(`${origin}/auth/sign-in/social`, init, {

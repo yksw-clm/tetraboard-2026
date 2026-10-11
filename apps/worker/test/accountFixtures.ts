@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { env } from "cloudflare:workers";
 export const origin = "http://localhost:5173";
 export async function accountFixture(
@@ -21,6 +22,11 @@ export async function accountFixture(
       completed ? 1 : 0,
     )
     .run();
+  if (
+    completed &&
+    (await db.prepare("SELECT 1 FROM sqlite_master WHERE name='legal_consents'").first())
+  )
+    await db.prepare("INSERT INTO legal_consents VALUES (?,?,?)").bind(id, legalVersion, now).run();
   const token = crypto.randomUUID();
   await db
     .prepare(

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./games": "./src/games.ts",
-    "./room-sharing": "./src/roomSharing.ts"
+    "./room-sharing": "./src/roomSharing.ts",
+    "./privacy": "./src/privacy.ts"
   },
   "scripts": {
     "lint": "oxlint .",

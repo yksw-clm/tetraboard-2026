@@ -1,3 +1,5 @@
+import { authSecret } from "../privacy/tokens";
+import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
 import type { AccountProfile } from "@tetraboard/protocol";
 
@@ -23,7 +25,9 @@ export async function withAccountSessionCookies(
     if (!cookies.length) return response;
     // fetchで取得した変更不可のヘッダーにも対応し、本文・status・WebSocketを保持します。
     const updated = new Response(response.body, response);
-    for (const cookie of cookies) updated.headers.append("Set-Cookie", cookie);
+    const explicit = new Set(response.headers.getSetCookie().map((v) => v.split("=")[0]));
+    for (const cookie of cookies)
+      if (!explicit.has(cookie.split("=")[0])) updated.headers.append("Set-Cookie", cookie);
     return updated;
   } finally {
     sessionCookies.delete(request);
@@ -32,11 +36,9 @@ export async function withAccountSessionCookies(
 
 export function createAuth(env: AuthEnv) {
   const local = new URL(env.APP_ORIGIN).protocol === "http:";
-  const secret =
-    env.BETTER_AUTH_SECRET ??
-    (local ? "tetraboard-local-only-secret-at-least-32-characters" : undefined);
-  if (!secret) throw new Error("Authentication is not configured");
+  const secret = authSecret(env);
   return betterAuth({
+    logger: { disabled: true },
     database: env.APP_DB,
     baseURL: env.APP_ORIGIN,
     basePath: "/api/auth",
@@ -53,11 +55,15 @@ export function createAuth(env: AuthEnv) {
         scope: ["identify", "email"],
       },
       google: {
+        accessType: "online",
         clientId: env.GOOGLE_CLIENT_ID ?? "",
         clientSecret: env.GOOGLE_CLIENT_SECRET ?? "",
+        disableDefaultScope: true,
+        scope: ["openid", "email", "profile"],
       },
     },
     account: {
+      encryptOAuthTokens: true,
       accountLinking: {
         enabled: false,
         trustedProviders: [],
@@ -73,6 +79,21 @@ export function createAuth(env: AuthEnv) {
       },
     },
     databaseHooks: {
+      session: {
+        create: {
+          before: async (session) =>
+            (await isDeleted(env.APP_DB, session.userId)) ? false : undefined,
+        },
+      },
+      account: {
+        encryptOAuthTokens: true,
+        create: {
+          before: async (account) => ({ data: { ...account, refreshToken: null, idToken: null } }),
+        },
+        update: {
+          before: async (account) => ({ data: { ...account, refreshToken: null, idToken: null } }),
+        },
+      },
       user: { create: { before: async (user) => ({ data: { ...user, name: "", image: null } }) } },
     },
   });
@@ -87,7 +108,7 @@ export async function accountIdentity(request: Request, env: AuthEnv) {
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
   return env.APP_DB.prepare(
-    'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser, publicProfileId FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0',
+    'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser, publicProfileId FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
   )
     .bind(session.user.id)
     .first<StoredProfile>();
