@@ -38,6 +38,7 @@ import {
   roomSchema,
   roomSocketContract,
   isFourShogiRoom,
+  isFourReversiRoom,
   type FourShogiRoom,
   type FourReversiRoom,
   type Room,
@@ -54,6 +55,7 @@ import {
 } from "@tetraboard/protocol";
 import { gameProgress, unreachable, type AnyProgress, type ProgressFor } from "./gameProgress";
 import type { ShogiCpuJob } from "./fourShogiProgress";
+import { fourReversiCpuJobKey } from "./fourReversiProgress";
 import {
   roomStorageKey,
   replayKey,
@@ -586,6 +588,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete("standard-shogi-cpu-job");
     this.ctx.storage.kv.delete(gomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
+    this.ctx.storage.kv.delete(fourReversiCpuJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
@@ -995,7 +998,9 @@ export class GameRoom extends DurableObject<Env> {
               ? this.ctx.storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey)
               : isGomokuRoom(room)
                 ? this.ctx.storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey)
-                : undefined;
+                : isFourReversiRoom(room)
+                  ? this.reversiProgress.cpuJob(room)
+                  : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
         deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
       }
@@ -1534,10 +1539,17 @@ export class GameRoom extends DurableObject<Env> {
               changed = true;
             }
           }
+        } else if (isFourReversiRoom(room)) {
+          if (applyCpu && currentCpu(room) !== null) {
+            const result = this.reversiProgress.cpu(room, now);
+            if (result.kind !== "unchanged") {
+              room = this.applyProgress(result);
+              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+              changed = true;
+            }
+          }
         } else {
-          const result = isReversiRoom(room)
-            ? this.standardProgress.cpu(room, now)
-            : this.reversiProgress.cpu(room, now);
+          const result = this.standardProgress.cpu(room, now);
           if (result.kind !== "unchanged") {
             room = this.applyProgress(result);
             if (room) this.ctx.storage.kv.put(roomStorageKey, room);

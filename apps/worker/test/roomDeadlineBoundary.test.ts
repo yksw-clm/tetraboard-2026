@@ -638,14 +638,11 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
       return saved;
     });
     const response = await snapshot(prepared.room.id);
-    if (game === "four-shogi") {
-      expect(response.room.game).toEqual(before.game);
-      await runInDurableObject(prepared.stub, (_instance, state) => {
-        expect(state.storage.kv.get("shogi-cpu-job")).toBeUndefined();
-      });
-    } else {
-      expect(response.room.game).not.toEqual(before.game);
-    }
+    expect(response.room.game).toEqual(before.game);
+    await runInDurableObject(prepared.stub, (_instance, state) => {
+      const key = game === "four-shogi" ? "shogi-cpu-job" : "four-reversi-cpu-job";
+      expect(state.storage.kv.get(key)).toBeUndefined();
+    });
   });
 }
 
