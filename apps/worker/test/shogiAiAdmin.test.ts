@@ -21,7 +21,7 @@ test("管理者だけが監視APIへ接続でき、秘密値を返さず署名�
     const url = String(input),
       headers = new Headers(init?.headers);
     expect(url).toBe("https://ai.example.test/v1/admin/status");
-    expect(init?.redirect).toBe("error");
+    expect(init?.redirect).toBe("manual");
     expect(headers.get("x-ai-signature")).toBe(
       await signAiRequest(
         bindings.SHOGI_AI_MONITOR_KEY,
@@ -49,6 +49,12 @@ test("管理者だけが監視APIへ接続でき、秘密値を返さず署名�
   expect(allowed.status).toBe(200);
   expect(allowed.headers.get("Cache-Control")).toBe("no-store");
   expect(JSON.stringify(await allowed.json())).not.toContain(bindings.SHOGI_AI_MONITOR_KEY);
+  fetchMock.mockResolvedValueOnce(
+    new Response(null, { status: 302, headers: { Location: "https://other.example.test" } }),
+  );
+  const beforeRedirect = fetchMock.mock.calls.length;
+  expect((await call(owner.cookie)).status).toBe(503);
+  expect(fetchMock.mock.calls.length).toBe(beforeRedirect + 1);
   fetchMock.mockResolvedValueOnce(Response.json({ schemaVersion: 99 }));
   expect((await call(owner.cookie)).status).toBe(503);
   fetchMock.mockRejectedValueOnce(new Error("network"));

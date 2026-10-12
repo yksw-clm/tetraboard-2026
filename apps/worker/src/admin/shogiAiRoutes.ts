@@ -64,7 +64,7 @@ async function fetchAi(env: AiEnv, path: string) {
     const signature = await signAiRequest(env.SHOGI_AI_MONITOR_KEY, "GET", path, "", at, nonce);
     const response = await fetch(new URL(path, url), {
       method: "GET",
-      redirect: "error",
+      redirect: "manual",
       signal: controller.signal,
       headers: { "x-ai-at": String(at), "x-ai-nonce": nonce, "x-ai-signature": signature },
     });
