@@ -110,6 +110,10 @@ describe("四人将棋の直前局棋譜", () => {
       "北 通信切れ",
       "東 退室",
     ]);
+    expect(frames[0].eliminatedHands).toEqual({});
+    expect(frames[1].eliminatedHands).toEqual({});
+    expect(frames[2].eliminatedHands).toEqual({ west: { rook: 0, gold: 0, silver: 0, pawn: 0 } });
+    expect(Object.keys(frames[4].eliminatedHands!)).toEqual(["west", "north", "east"]);
     expect(frames[0].game.board[6][4]?.kind).toBe("pawn");
     expect(frames[1].game.board[6][4]).toBeNull();
     expect(frames[1].game.board[5][4]).toMatchObject({ kind: "pawn", side: "south" });

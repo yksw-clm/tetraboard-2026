@@ -72,6 +72,7 @@ export default function FourShogiMatchReplayView({
   const board = (
     <FourShogiBoardLayout
       game={frame.game}
+      eliminatedHands={frame.eliminatedHands}
       viewerSide={viewerSide}
       revision={`${match.id}:${index}`}
       canPlay={false}

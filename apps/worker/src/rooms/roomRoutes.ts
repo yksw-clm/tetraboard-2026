@@ -224,6 +224,7 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
     const snapshot = await context.env.GAME_ROOM.getByName(code).getRoomSnapshot(
       query.data.formationAnalysis === "1",
       query.data.stamps === "1",
+      query.data.eliminatedHands === "1",
     );
     context.header("Cache-Control", "no-store");
     return snapshot === null

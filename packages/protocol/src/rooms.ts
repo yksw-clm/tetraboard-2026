@@ -18,6 +18,7 @@ import {
   finishedFourShogiStateSchema,
   fourShogiReplayPageSchema,
   fourShogiFormationAnalysisSchema,
+  fourShogiEliminatedHandsSchema,
 } from "./fourShogi";
 
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
@@ -977,6 +978,7 @@ export const getRoomContract = {
   pathFor: (id: string) => `/rooms/${id}`,
   query: z.object({
     formationAnalysis: z.literal("1").optional(),
+    eliminatedHands: z.literal("1").optional(),
     stamps: z.literal("1").optional(),
   }),
   response: z.strictObject({
@@ -984,6 +986,7 @@ export const getRoomContract = {
     presence: roomPresenceSchema,
     serverNowMs: serverNowMsSchema,
     formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
+    eliminatedHands: fourShogiEliminatedHandsSchema.nullable().optional(),
     stampsSupported: z.literal(true).optional(),
   }),
   error: roomErrorSchema,
@@ -1047,6 +1050,7 @@ export const roomSocketContract = {
   query: z.strictObject({
     instanceId: z.uuid().optional(),
     formationAnalysis: z.literal("1").optional(),
+    eliminatedHands: z.literal("1").optional(),
     stamps: z.literal("1").optional(),
   }),
   clientMessage: z.discriminatedUnion("type", [
@@ -1125,6 +1129,7 @@ export const roomSocketContract = {
       presence: roomPresenceSchema,
       serverNowMs: serverNowMsSchema,
       formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
+      eliminatedHands: fourShogiEliminatedHandsSchema.nullable().optional(),
     }),
     z.strictObject({
       type: z.literal("room.authenticated"),

@@ -4,7 +4,7 @@ import {
   fourShogiPublicStateSchema,
   type FourShogiLastRound,
 } from "@tetraboard/protocol";
-import { getFourShogiReplayRules, type FourShogiReplayFrame } from "./fourShogiReplayV1";
+import { getFourShogiDisplayReplayRules, type FourShogiReplayFrame } from "./fourShogiReplayV1";
 import { fetchEventReplay } from "./fetchEventReplay";
 export {
   createFourShogiReplayFrame,
@@ -46,7 +46,7 @@ export function fetchFourShogiReplay({
       sides.every(
         (side) => lastRound.players.find((p) => p.side === side)?.id === initial.players[side],
       ),
-    rules: getFourShogiReplayRules(1),
+    rules: getFourShogiDisplayReplayRules(1),
     finalGame: fourShogiPublicStateSchema.parse(lastRound.game),
   });
 }

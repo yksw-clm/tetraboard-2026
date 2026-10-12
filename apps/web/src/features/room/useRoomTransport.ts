@@ -6,6 +6,8 @@ import { createUuid } from "../../shared/createUuid";
 import type { GameSettingsCommandFor, PendingActionFor } from "./gameSessionTypes";
 import {
   roomSocketContract,
+  isFourShogiRoom,
+  type FourShogiEliminatedHands,
   roomInteractionIntervalMs,
   type RoomStampId,
   type RoomStampNotification,
@@ -67,6 +69,7 @@ export interface RoomTransportOptions<T extends Room> {
   initialServerNowMs: number;
   initialPresence: RoomPresence;
   initialFormationAnalysisSupported?: boolean;
+  initialEliminatedHands?: FourShogiEliminatedHands | null;
   initialStampsSupported?: boolean;
 }
 
@@ -117,11 +120,13 @@ export function useRoomTransport<T extends Room>({
   onGameError,
   readSoundGame,
   initialFormationAnalysisSupported = false,
+  initialEliminatedHands,
   initialStampsSupported = false,
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
   const [room, setRoom] = useState(initialRoom);
+  const [eliminatedHands, setEliminatedHands] = useState(initialEliminatedHands ?? null);
   const profileStore = usePlayerProfiles()?.store;
   const previousStatus = useRef(initialRoom.status);
   useEffect(() => {
@@ -255,6 +260,8 @@ export function useRoomTransport<T extends Room>({
     let retryDelay = 1000;
     let currentMembership = initialMembership;
     let formationAnalysisSupported = initialFormationAnalysisSupported;
+    let handsSupported = initialEliminatedHands !== undefined;
+    let socketHandsSupported = handsSupported;
     let stampSupported = initialStampsSupported;
     let socketStampSupported = initialStampsSupported;
     let stampBaselineAtMs: number | null = null;
@@ -419,7 +426,12 @@ export function useRoomTransport<T extends Room>({
     }
 
     function applySnapshot(
-      latest: { room: T; presence: RoomPresence; serverNowMs: number },
+      latest: {
+        room: T;
+        presence: RoomPresence;
+        serverNowMs: number;
+        eliminatedHands?: FourShogiEliminatedHands | null;
+      },
       fromFetch = false,
     ): void {
       if (
@@ -447,6 +459,7 @@ export function useRoomTransport<T extends Room>({
         checkAccountPrivacy();
       }
       setRoom(latest.room);
+      setEliminatedHands(latest.eliminatedHands ?? null);
       setPresence(latest.presence);
       setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
       checkClock();
@@ -503,9 +516,14 @@ export function useRoomTransport<T extends Room>({
         applySnapshot({ ...latest, room: latest.room }, true);
         formationAnalysisSupported =
           latest.room.settings.game === "four-shogi" && latest.formationAnalysis !== undefined;
+        handsSupported =
+          latest.room.settings.game === "four-shogi" && latest.eliminatedHands !== undefined;
         stampSupported = latest.stampsSupported === true;
         setStampsSupported(stampSupported);
-        if (keepSocket && socketStampSupported !== stampSupported) {
+        if (
+          keepSocket &&
+          (socketStampSupported !== stampSupported || socketHandsSupported !== handsSupported)
+        ) {
           stopTransport();
           synchronizing = false;
           connect();
@@ -583,10 +601,11 @@ export function useRoomTransport<T extends Room>({
       soundBaselineAtMs = null;
       stampBaselineAtMs = null;
       socketStampSupported = stampSupported;
+      socketHandsSupported = handsSupported;
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${formationAnalysisSupported ? "&formationAnalysis=1" : ""}${stampSupported ? "&stamps=1" : ""}`;
+      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${formationAnalysisSupported ? "&formationAnalysis=1" : ""}${handsSupported ? "&eliminatedHands=1" : ""}${stampSupported ? "&stamps=1" : ""}`;
       try {
         socket = new WebSocket(url);
       } catch {
@@ -683,6 +702,7 @@ export function useRoomTransport<T extends Room>({
             room: snapshot,
             presence: message.data.presence,
             serverNowMs: message.data.serverNowMs,
+            eliminatedHands: message.data.eliminatedHands,
           });
           const confirmation = settingsConfirmationRef.current;
           if (
@@ -870,6 +890,7 @@ export function useRoomTransport<T extends Room>({
     };
   }, [
     initialFormationAnalysisSupported,
+    initialEliminatedHands,
     initialStampsSupported,
     initialServerNowMs,
     blockInteractionUntil,
@@ -1112,8 +1133,14 @@ export function useRoomTransport<T extends Room>({
     setChatError(null);
   }
 
+  const displayedRoundId = isFourShogiRoom(room)
+    ? room.status === "playing"
+      ? room.roundId
+      : room.lastRound?.roundId
+    : null;
   return {
     room,
+    eliminatedHands: eliminatedHands?.roundId === displayedRoundId ? eliminatedHands : null,
     unavailable,
     presence,
     membership,

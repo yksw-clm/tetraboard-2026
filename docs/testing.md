@@ -112,6 +112,14 @@ bun run --cwd packages/shogi test
 
 部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/fourReversiCpu.test.ts test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。保存内容の破棄・ロールバック・チャットのWorker確認はLv1を使い、重い探索を繰り返しません。Lv2の両モードの選択・保存・休止復帰・適用と、選択後の期限・レベル照合・全読み終局は実際のLv2で確認します。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
 
+## 四人将棋の脱落後の持ち駒表示
+
+エンジンの `eliminatedHands.test.ts` は全6脱落原因・両モード、0枚・1枚・複数枚・全種類、同時詰み・後続脱落、成駒捕獲と打ち駒後の枚数、入力不変と既存表示の保持を確認します。Workerの `fourShogiRoom.test.ts` はHTTP・WebSocketの要求有無、戦型解析との混在、同時詰み、再取得・インスタンス再作成、終局・次局・閉鎖、保存ロールバック、旧局・別局・他ゲームの分離を確認します。
+
+Webの `shogiComponents.test.tsx` は種類・枚数・4方向と選択・pointer操作・着手禁止を、`roomLoader.test.ts` と `roomTransportLifecycle.test.tsx` は初回・更新・古い応答・局ID・旧Worker復帰を確認します。`fourShogiReplay.test.ts` と `matchCompatibility.test.ts` はページ境界と旧棋譜の各局面に表示用枚数を導出し、固定fixtureのルール状態を維持することを確認します。固定fixtureは書き換えません。
+
+PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネイティブ操作は手動確認し、環境と未確認事項をPRへ記録します。ブラウザ起動型の自動テストは追加しません。PR前は共通の必須5コマンドとGitHub CIを成功させます。
+
 ## 実行環境
 
 | 対象 | 実行環境 | 境界の扱い |

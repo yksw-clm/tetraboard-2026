@@ -1,4 +1,4 @@
-import type { FourShogiAction as LegacyAction } from "@tetraboard/four-shogi";
+import type { EliminatedHands, FourShogiAction as LegacyAction } from "@tetraboard/four-shogi";
 import type { FourShogiAction, Piece, Position, Side } from "./shogiUiTypes";
 import {
   useEffect,
@@ -105,6 +105,7 @@ const groupClasses = {
 
 export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> = {
   game: ShogiBoardView;
+  eliminatedHands?: EliminatedHands;
   pendingAction?: A;
   viewerSide: Side;
   revision: Revision;
@@ -122,6 +123,7 @@ export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> 
 
 export function FourShogiBoardLayout({
   game,
+  eliminatedHands = {},
   standard = false,
   pendingAction,
   viewerSide,
@@ -146,7 +148,11 @@ export function FourShogiBoardLayout({
   const [selected, setSelected] = useState<Selected | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const eliminated = game.eliminations.map((entry) => entry.side);
-  const enabled = canPlay && game.status === "playing" && game.turn === viewerSide;
+  const enabled =
+    canPlay &&
+    game.status === "playing" &&
+    game.turn === viewerSide &&
+    !eliminated.includes(viewerSide);
   const selectableActions = [...legalActions, ...threePlayerAttackForbiddenActions];
   const promotion = useShogiPromotion(promotionContext, legalActions, enabled);
   const promotionChoices = promotion.choices;
@@ -324,7 +330,11 @@ export function FourShogiBoardLayout({
         : [];
     return (
       <FourShogiHand
-        hand={game.hands[side] ?? {}}
+        hand={
+          (!standard && eliminated.includes(side)
+            ? (eliminatedHands[side] ?? game.hands[side])
+            : game.hands[side]) ?? {}
+        }
         standard={standard}
         label={`${standard ? (side === "south" ? "先手" : "後手") : shogiSideNames[side]}の持ち駒`}
         direction={direction}
@@ -339,10 +349,12 @@ export function FourShogiBoardLayout({
             : null
         }
         onSelect={(kind, event) => {
+          if (!availableKinds.includes(kind)) return;
           if (event.detail === 0) suppressClick.current = false;
           select({ type: "dropPiece", pieceKind: kind });
         }}
         onPointerDown={(event, kind) =>
+          availableKinds.includes(kind) &&
           startPointer(event, {
             selection: { type: "dropPiece", pieceKind: kind },
             kind,
