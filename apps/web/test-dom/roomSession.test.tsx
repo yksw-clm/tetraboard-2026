@@ -269,3 +269,22 @@ test("時計は受信server時刻と経過時間を使い、チャット履歴�
   act(() => expect(h.current.sendChat("返信")).toBe(true));
   expect(socket.sent.at(-1)).toEqual({ type: "room.chat.send", text: "返信" });
 });
+
+test("退会による接続終了で参加資格を消し、アカウントの再確認を通知する", async () => {
+  const room = waitingRoom();
+  const h = renderHook(useRoomSession, options(room), wrap());
+  const socket = connected(room);
+  let checks = 0;
+  const listener = () => checks++;
+  window.addEventListener("tetraboard-account-privacy-check", listener);
+  try {
+    act(() =>
+      (socket.onclose as unknown as (e: { reason: string }) => void)({ reason: "Account deleted" }),
+    );
+    expect(h.current.membership).toBeNull();
+    expect(sessionStorage.getItem(`tetraboard:room:${room.id}:membership`)).toBeNull();
+    expect(checks).toBe(1);
+  } finally {
+    window.removeEventListener("tetraboard-account-privacy-check", listener);
+  }
+});

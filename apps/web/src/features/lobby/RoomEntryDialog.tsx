@@ -1,3 +1,6 @@
+import { publicRecordNotice } from "@tetraboard/protocol/privacy";
+import { LegalNotice } from "../privacy/LegalNotice";
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { GomokuForbiddenControl } from "./GomokuForbiddenControl";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
@@ -111,6 +114,9 @@ export function RoomEntryDialog({
           if (!blocked) onSubmit();
         }}
       >
+        <p className="text-sm text-muted">
+          {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
+        </p>
         <RoomIdentityFields
           name={name}
           onChange={onNameChange}
@@ -250,6 +256,7 @@ export function RoomEntryDialog({
             {message}
           </p>
         )}
+        <LegalNotice />
         <AppButton
           type="submit"
           className="w-full min-h-12"
@@ -265,6 +272,7 @@ export function RoomEntryDialog({
                 : "ルームを作る"}
           {!unavailable && <AppIcon name="arrow" />}
         </AppButton>
+        <PrivacyLinks newTab />
       </form>
     </AppDialog>
   );

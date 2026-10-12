@@ -1,3 +1,4 @@
+import { accountPrivacyEvent } from "./accountPrivacy";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 import type { AccountProfile } from "@tetraboard/protocol";
@@ -153,6 +154,10 @@ export function AccountLayout() {
     // eslint-disable-next-line react/set-state-in-effect
     void refresh();
     const onFocus = () => void refresh();
+    const onPrivacy = () => {
+      if (userRef.current) void refresh("privacy");
+    };
+    window.addEventListener(accountPrivacyEvent, onPrivacy);
     window.addEventListener("focus", onFocus);
     const requests = version;
     return () => {
@@ -160,6 +165,7 @@ export function AccountLayout() {
       active.current?.controller.abort();
       recovery.current = null;
       advanceAccountRequestGeneration();
+      window.removeEventListener(accountPrivacyEvent, onPrivacy);
       window.removeEventListener("focus", onFocus);
     };
   }, [refresh]);
@@ -169,6 +175,7 @@ export function AccountLayout() {
         {state.user &&
         !state.user.profileCompleted &&
         location.pathname !== "/account/setup" &&
+        !["/privacy", "/terms", "/account/deletion"].includes(location.pathname) &&
         location.pathname !== "/feedback" &&
         !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
         !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&

@@ -1,8 +1,10 @@
+import { publicRecordNotice } from "@tetraboard/protocol/privacy";
+import { LegalNotice } from "../privacy/LegalNotice";
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
 import { AppButton } from "../../shared/ui/AppButton";
-import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
@@ -26,21 +28,6 @@ export function RoomInvitationDialogs({
   const account = useAccount();
   const signIn = useSocialSignIn();
   const busy = invitation.busy || signIn.busy;
-  if (invitation.dialog === "copy")
-    return (
-      <AppDialog size="compact" title="招待リンク" onClose={invitation.close} theme={theme}>
-        <div className="flex flex-col gap-3 min-w-0">
-          <p>リンクを選択してコピーし、友達に送ってください。</p>
-          <AppTextField isReadOnly value={invitation.invitationUrl}>
-            <AppTextField.Label>招待リンク</AppTextField.Label>
-            <AppTextField.Input autoFocus onFocus={(event) => event.currentTarget.select()} />
-          </AppTextField>
-          <AppButton appearance="secondary" size="compact" onPress={invitation.close}>
-            閉じる
-          </AppButton>
-        </div>
-      </AppDialog>
-    );
   if (invitation.dialog !== "join") return null;
   return (
     <AppDialog
@@ -59,6 +46,9 @@ export function RoomInvitationDialogs({
           void invitation.submit();
         }}
       >
+        <p className="text-sm text-muted">
+          {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
+        </p>
         <RoomIdentityFields
           name={invitation.name}
           onChange={invitation.setName}
@@ -81,6 +71,7 @@ export function RoomInvitationDialogs({
             {invitation.message ?? invitation.unavailableReason}
           </p>
         )}
+        <LegalNotice />
         <div className="flex justify-end gap-[10px] mt-[22px]">
           <AppButton
             appearance="secondary"
@@ -104,6 +95,7 @@ export function RoomInvitationDialogs({
             参加する
           </AppButton>
         </div>
+        <PrivacyLinks newTab />
       </form>
     </AppDialog>
   );

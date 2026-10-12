@@ -11,9 +11,11 @@
 | 変更対象 | 代表的な検証先・詳細 |
 | --- | --- |
 | 認証・プロフィール | Workerの[accounts.test.ts](../apps/worker/test/accounts.test.ts)・[discordAuth.test.ts](../apps/worker/test/discordAuth.test.ts)、Web部品の[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx)、[セッション更新Cookieの確認](#セッション更新cookieissue-142) |
+| プライバシー・規約・退会・計測期限 | [計画した検証と手動確認](#プライバシー規約退会の確認)、既存の認証・棋譜・計測・フィードバック・共通ルームの検証 |
 | 時計・接続・ルーム操作 | Workerの[clock.test.ts](../apps/worker/test/clock.test.ts)・[roomDeadlineBoundary.test.ts](../apps/worker/test/roomDeadlineBoundary.test.ts)・[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)、Web部品の[roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx)・[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx) |
 | 終局保存・棋譜・互換性 | Workerの[matchStore.test.ts](../apps/worker/test/matchStore.test.ts)・[shogiMatchStore.test.ts](../apps/worker/test/shogiMatchStore.test.ts)・[matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、Web純粋関数の[matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts)、Web部品の[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx) |
 | ロビー・画面・共通部品 | Web部品の[lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)・[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)・[shogiComponents.test.tsx](../apps/web/test-dom/shogiComponents.test.tsx)、[実行環境と手動確認の境界](#実行環境) |
+| ルーム共有 | [共有ダイアログ・X募集・OGPの確認](#ルーム共有の確認)、既存の[entryRegistration.test.tsx](../apps/web/test-dom/entryRegistration.test.tsx)・[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)・[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts) |
 | ゲームのルール・CPU | 四人リバーシの[engine.test.ts](../packages/four-reversi/test/engine.test.ts)・[cpu.test.ts](../packages/four-reversi/test/cpu.test.ts)、四人将棋の[movement.test.ts](../packages/four-shogi/test/movement.test.ts)・[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、通常リバーシの[engine.test.ts](../packages/reversi/test/engine.test.ts)、通常将棋の[rules.test.ts](../packages/shogi/test/rules.test.ts)・[cpu.test.ts](../packages/shogi/test/cpu.test.ts)、[通常将棋の統合確認](#通常将棋の確認) |
 | 表示設定・サウンド | Web純粋関数の[browserSettings.test.ts](../apps/web/test/browserSettings.test.ts)・[clockWarning.test.ts](../apps/web/test/clockWarning.test.ts)、Web部品の[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)・[soundPlayer.test.ts](../apps/web/test-dom/soundPlayer.test.ts)、[詳細と手動確認](#表示サウンド設定の確認) |
 | チャット・スタンプ | Workerの[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)・[roomStamps.test.ts](../apps/worker/test/roomStamps.test.ts)、Web部品の[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)・[roomStamps.test.tsx](../apps/web/test-dom/roomStamps.test.tsx)、[スタンプの詳細と手動確認](#ルームのスタンプの確認) |
@@ -21,7 +23,36 @@
 | 管理・フィードバック・お知らせ | Workerの[adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)・[feedback.test.ts](../apps/worker/test/feedback.test.ts)・[announcements.test.ts](../apps/worker/test/announcements.test.ts)、Admin部品の[adminViews.test.tsx](../apps/admin/test-dom/adminViews.test.tsx)・[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)・[announcements.test.tsx](../apps/admin/test-dom/announcements.test.tsx) |
 | 公開・検索向け配信・設定 | Workerの[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)・[testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、Web部品の[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx)、[個人設定からの分離](#個人設定からの分離)、ビルドとWorker dry-run |
 
-### 部分実行コマンドの選び方
+## プライバシー・規約・退会の確認
+
+2026-10-12の [確定仕様](../README.md#プライバシー利用規約退会の確定仕様) と [実装計画](development.md#プライバシー規約退会の実装計画) の実装を、次の境界で確認します。実際の検証対象コミットと必須5コマンド・CIの結果は同じPRに記録します。
+
+| 対象 | 自動検証する振る舞い |
+| --- | --- |
+| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、運営者・窓口・版・改定日・リンク、文書閲覧だけでは計測IDを発行しないこと |
+| 公開説明・同意 | 全6ゲーム・全作成／参加導線のゲスト名保存・公開の説明、登録・初回設定・ゲスト参加のボタン操作、未確認・旧版APIの拒否、既存登録者、同意版の記録、改定後の再確認、同意チェック・端末保存への非依存、年齢・保護者同意、生年月日の非保存 |
+| 再認証・受付 | 未認証・別アカウント・別プロバイダー・取消・期限切れ・Origin違反・回数制限・確認の再利用、本人再認証、在室・切断保持席・同時参加、重複受付と再登録者の保護 |
+| 即時利用停止 | 全セッション・参加資格の失効、取得・プロフィール編集・参加の拒否、ランキング・公開情報・管理一覧からの除外、古い応答・キャッシュからの本人表示の復活防止 |
+| 棋譜と相手 | 全6ゲームの公開／本人一覧・詳細・イベントページ・相手履歴・ルーム内棋譜／結果、複数の退会者、CPU・ゲストの保存名維持、元から参照先がない旧記録との区別、名前・画像・公開ID・内部参照の除去、盤面・結果・順位・撃破数・日時・相手戦績の維持 |
+| 保存の競合 | D1保存失敗、再送・二重送信、DO再起動、保存開始前／受付直後／転送途中／完了後の退会、将棋manifestと全チャンク検証、部屋閉鎖・番号再利用、バッジ・計測待ち、同時編集、遅延RPCによる旧名・画像・本人索引の復活防止 |
+| 削除と進捗 | 認証情報・画像・履歴索引・同意・バッジ・個別計測・本人フィードバック・編集履歴の対象発見と削除、D1・DO・R2失敗からの再開、外部解除のモックによる再試行、他の利用者の情報保護、受付と完了の区別、完了前の完了表示拒否 |
+| 常時計測 | ON/OFF UI・設定APIを提供しない、旧選択Cookieに依存しない、Cookieと内部IDの関連付け・閲覧・滞在、規約ページでの計測ID非発行、退会の本人識別除去 |
+| 保存期限・長期集計 | 90日の直前・一致・直後、期限後のAPI除外と毎時削除、導入前データ、集計後の削除失敗・重複実行・遅延送信、7日継続率の観測窓と月境界、個人ID・端末ID・対局ID・対応表の非保持、期間ユニーク数の誤加算防止、算出不可の管理表示 |
+| 互換・回帰 | 既存固定棋譜と旧記録、退会対象のないデータの不変、Google／Discord認証・プロフィール・ゲスト名記憶・ゲスト参加・戦績・バッジ・チャット・通報・フィードバックの既存動作 |
+
+[privacy.test.ts](../apps/worker/test/privacy.test.ts) は全6ゲームの未確認／旧版拒否、初回文書HTML、ボタン操作の版別同意、全6棋譜の本人除去と相手維持、通常／四人将棋の転送途中、確認資格の一回性と在室拒否、DO・画像・認証・本人フィードバック等の削除、画像／外部解除失敗、完了後の旧索引再送、同時に失敗したDO保存、90日境界と日跨ぎ・重複集計・遅延再送、旧トークン暗号化を確認します。HTTPSの認証Cookie、取消による回数制限の維持、閉鎖済みDOの索引保存待ちも対象です。Google／DiscordのHTTPをモックし、実コールバックから取消・別人・期限・正常再認証・退会・新規再登録まで通します。実サービスのOAuth成功と混同しません。
+
+[privacy.test.tsx](../apps/web/test-dom/privacy.test.tsx) は全6ゲームの登録者／ゲストの事前説明、OAuth／参加の同意拒否と許可、全文・連絡先、同意文言→ボタン→別タブの文書リンクの順序、常時計測の説明、退会の在室／確認・処理中／障害／完了を確認します。[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) と [roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx) は退会による接続失効・セッション再確認と、古い本人応答の破棄を確認します。
+
+部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMでは同意チェック・端末保存がなくても、説明後のボタン操作で現在版を送ることを確認します。
+
+WorkerはローカルのD1・R2・SQLite対応DOで保存と資格・HTTP／WebSocketを確認します。期限・再認証の有効時間・表示変換は純粋関数、同意・退会・非同期応答はBun＋happy-domで確認します。既存の `accounts.test.ts`・`discordAuth.test.ts`・`accountRooms.test.ts`・`publicMatches.test.ts`・`matchCompatibility.test.ts`・`commonRoomBehavior.test.ts`・`adminAnalytics.test.ts`・`feedback.test.ts`・`badgeNotifications.test.ts`・`publicAssets.test.ts` と関連DOMテストを入口にします。
+
+手動確認は、PC／スマートフォンの文章・リンク・最終確認と処理中表示、キーボード・読み上げ、実Google／Discord認証と取消・同じ本人の再認証・連携解除、複数端末の失効、実画像削除、窓口メール受信、Google Cloudのscope・本番URL・所有ドメイン、Cloudflareの処理先・ログ／バックアップ期限、バックアップ復元後の削除再適用です。ブラウザを起動する自動テストを追加しません。
+
+実装完了後のPRでは、対象コミット・実行環境と `bun run check`、本番／開発buildと両Worker dry-run、文書整形・リンク、`git diff --check`、GitHub CIの結果を記載します。外部設定・実認証・メール・バックアップ等の未確認は公開前の確認事項として明示します。ローカル成功はGoogle審査・本番反映・メール到達の成功を意味しません。
+
+## 部分実行コマンドの選び方
 
 次の例はリポジトリルートから実行します。上表のリンク先に合わせて、同じ実行環境のファイル名を置き換えます。同じ環境の関連ファイルは空白区切りで追加できます。WebとAdminの部品・hookにはDOM用preloadを指定し、純粋関数とは別プロセスで確認します。
 
@@ -48,6 +79,46 @@ bun run --cwd packages/shogi test
 ```
 
 部分実行の後、PR提出前の必須検証は[開発文書の共通手順](development.md#pr提出前の検証)に従います。実行環境の制約は[実行環境](#実行環境)、画面寸法・ネイティブ入力・実画像デコードなどの自動検証対象から外す範囲は[廃止した自動検証](#廃止した自動検証)を参照してください。
+
+## ルーム共有の確認
+
+2026-10-11に確定した [利用者向け仕様](../README.md#ルーム共有の確定仕様) と [実装のDone When](development.md#done-when) に対する受入項目です。機能と検証を追加し、以下の受入項目を自動検証と手動確認に分けて扱います。
+
+| 検証方法 | 受入項目 |
+| --- | --- |
+| Bun純粋関数 | 全6ゲームのゲーム名・ハッシュタグ・4行の投稿文、同一の共有URL、改行・日本語・クエリのエンコード、参加資格トークンを含めないこと、満室／対局中の募集可否、メタ情報の生成とHTMLエスケープ |
+| Bun＋happy-domの部品・hook | 作成成功直後の1回表示、失敗・すぐ遊ぶ・参加・観戦・再読み込み・再接続・戻り・他閲覧者での抑止、手動表示、対局者・観戦者の操作、コピー成功の3秒toast・失敗・手動選択用URL・再試行・連打、Xリンクの文章とURL・別タブ、満室化・対局開始・空席復帰への追従、画面内遷移でのメタ情報の除去と設定 |
+| 既存の招待・参加の回帰 | 未参加者への初回参加案内、観戦を継続して後から参加、登録からの復帰、名前・参加資格・部屋世代の照合、世代の異なる部屋へ入らないこと |
+| Worker統合テスト | 共有URLへの直接GET／HEADでの全6ゲームの初期HTML・OGP・Xメタ情報、通常UAと共有クローラーへの同じ内容、世代不一致・存在しない・期限切れの共通カード、メタ情報取得失敗時の画面配信、ルーム間・環境間・条件付きリクエストのメタ情報混在防止、画像7枚の配信・Content-Type・GET／HEAD・304・欠落時404 |
+| 既存の配信・SEOの回帰 | HTMLとHTTPヘッダーのnoindex、開発環境から本番への誤転送がないこと、サイトマップの6ロビー、ロビーの初期HTMLと画面内遷移、API・WebSocket・認証Cookieの境界 |
+| 手動確認 | PC・スマートフォンで既存ボタンの幅・高さ・余白・配置と周囲のレイアウトの前後比較、ダイアログの背景ぼかし・スクロール・閉鎖・Escape・フォーカスの閉じ込めと復帰、実クリップボード・URL選択・Xの投稿画面への遷移、画像の実デコード・縮小時の盤面と文字・共有カードの見栄え |
+
+外部通信・実時間の待機を自動テストへ持ち込まず、状態・偽時計・保留可能な通信応答で検証します。画面寸法・ネイティブ入力・実画像デコードをブラウザ自動テストへ追加しません。手動確認では機種・OS・ブラウザ・確認対象コミットと結果を記録します。Xの実カードは承認後に開発者が行う投稿で確認し、取得・キャッシュ・表示方式により確認できない場合は未確認として記録します。
+
+部分確認は `bun test --cwd apps/web ./test/roomSharing.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSharing.test.tsx ./test-dom/lobbyComponents.test.tsx ./test-dom/entryRegistration.test.tsx`、`bun run --cwd apps/worker test test/roomSharing.test.ts test/publicAssets.test.ts` です。初期HTMLの取得失敗・1500msの期限、DOの保存状態とalarmの不変、ルームHTMLの条件付き取得で200・no-store、静的画像の304を確認します。画像の実デコードと見栄えは全7枚を目視確認済みですが、実機の画面寸法・ネイティブ入力・Xの実投稿カードは未確認です。
+
+## 四人リバーシAI強化の確認
+
+2026-10-11に [ルール正本のCPU仕様](rules/four-reversi.md#cpu) と [実装計画・受入条件](four-reversi-ai.md) を確定しました。強化AI・測定基盤・回帰テストを実装し、採用結果と対象コミットを同文書へ記録しています。
+
+| 確認する振る舞い | 検証先と方法 |
+| --- | --- |
+| Lv1の乱数・合法性、Lv2の決定性・入力不変・元の列挙順・合法な代替手 | `packages/four-reversi/test/` のBunテスト |
+| 生成済み候補と公開着手の結果一致、味方を含む全滅禁止・脱落色・自動パス・終局・固定棋譜 | エンジンのBunテストと既存棋譜互換テスト |
+| 多人数／チーム探索、処理量・完了深さ・候補制限・キャッシュ、独立した全読みoracleとの一致 | CPUのBunテスト。空き1〜4マスの両モード200局面と5〜6マスの戦術問題。予測は公開APIによる独立した応手再現・全根候補の完了・中断と総上限も確認 |
+| Lv1／Lv2の1999／2000ms、選択保存と適用、通常GET、期限・古い局面・手番外脱落・休止復帰・再戦・閉鎖・transaction | `apps/worker/test/fourReversiCpu.test.ts`・`cpuRoom.test.ts`・`gameRoom.test.ts`・`roomDeadlineBoundary.test.ts` などの実Worker統合テスト |
+| 新1体対旧3体、チーム対戦、重要問題・棋力・性能・集計の再現性 | `packages/four-reversi/bench/`。長時間測定はcheckに含めない |
+| 他5ゲームの進行・CPU・時計、WebへのCPU／bench混入防止 | 既存の共有Worker回帰と両環境のbuild |
+
+部分確認は `bun run --cwd packages/four-reversi test` と `bun run --cwd apps/worker test test/fourReversiCpu.test.ts test/cpuRoom.test.ts test/gameRoom.test.ts test/roomDeadlineBoundary.test.ts` を使います。保存内容の破棄・ロールバック・チャットのWorker確認はLv1を使い、重い探索を繰り返しません。Lv2の両モードの選択・保存・休止復帰・適用と、選択後の期限・レベル照合・全読み終局は実際のLv2で確認します。採用判定の対戦400局以上・戦術50原局面以上・性能32局面以上は独立して実行し、対象コミット・seed・設定・環境・根拠データを記録します。PR提出前は既存の必須5コマンドとGitHub CIを確認します。画面寸法・ネイティブ入力・実画像デコードとブラウザ起動型テストは追加しません。
+
+## 四人将棋の脱落後の持ち駒表示
+
+エンジンの `eliminatedHands.test.ts` は全6脱落原因・両モード、0枚・1枚・複数枚・全種類、同時詰み・後続脱落、成駒捕獲と打ち駒後の枚数、入力不変と既存表示の保持を確認します。Workerの `fourShogiRoom.test.ts` はHTTP・WebSocketの要求有無、戦型解析との混在、同時詰み、再取得・インスタンス再作成、終局・次局・閉鎖、保存ロールバック、旧局・別局・他ゲームの分離を確認します。
+
+Webの `shogiComponents.test.tsx` は種類・枚数・4方向と選択・pointer操作・着手禁止を、`roomLoader.test.ts` と `roomTransportLifecycle.test.tsx` は初回・更新・古い応答・局ID・旧Worker復帰を確認します。`fourShogiReplay.test.ts` と `matchCompatibility.test.ts` はページ境界と旧棋譜の各局面に表示用枚数を導出し、固定fixtureのルール状態を維持することを確認します。固定fixtureは書き換えません。
+
+PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネイティブ操作は手動確認し、環境と未確認事項をPRへ記録します。ブラウザ起動型の自動テストは追加しません。PR前は共通の必須5コマンドとGitHub CIを成功させます。
 
 ## 実行環境
 

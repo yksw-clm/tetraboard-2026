@@ -346,3 +346,38 @@ test("非表示中にタイマーが停止しても復帰時に過ぎた操作�
     else Reflect.deleteProperty(document, "visibilityState");
   }
 });
+
+test("表示用持ち駒の初回・ソケット更新・古い応答・局違い・旧Worker復帰を照合する", async () => {
+  const room = playingShogiRoom();
+  const retained = {
+    roundId: room.roundId,
+    hands: { west: { rook: 1, gold: 2, silver: 0, pawn: 12 } },
+  };
+  const h = renderHook(
+    useFourShogiRoomSession,
+    { ...options(room), initialEliminatedHands: retained },
+    wrap(),
+  );
+  expect(h.current.eliminatedHands).toEqual(retained);
+  const socket = Socket.instances.at(-1)!;
+  expect(socket.url).toContain("eliminatedHands=1");
+  socket.open();
+  socket.receive({ type: "room.snapshot", ...snapshot(room, now + 1), eliminatedHands: retained });
+  socket.receive({ type: "room.authenticated", membership });
+  expect(h.current.eliminatedHands).toEqual(retained);
+  socket.receive({ type: "room.snapshot", ...snapshot(room, now), eliminatedHands: null });
+  expect(h.current.eliminatedHands).toEqual(retained);
+  socket.receive({
+    type: "room.snapshot",
+    ...snapshot(room, now + 2),
+    eliminatedHands: { ...retained, roundId: crypto.randomUUID() },
+  });
+  expect(h.current.eliminatedHands).toBeNull();
+  socket.receive({ type: "room.snapshot", ...snapshot(room, now + 3), eliminatedHands: retained });
+  act(() => window.dispatchEvent(new Event("pagehide")));
+  clock.advance(100);
+  act(() => window.dispatchEvent(new Event("pageshow")));
+  await restore(room);
+  expect(h.current.eliminatedHands).toBeNull();
+  expect(Socket.instances.at(-1)!.url).not.toContain("eliminatedHands=1");
+});

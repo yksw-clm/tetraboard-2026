@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { type MatchRecord } from "../src/rooms/matchStore";
 import { env, exports } from "cloudflare:workers";
@@ -16,7 +17,7 @@ import { accountFixture, origin } from "./accountFixtures";
 
 type TokenMembership = { playerId: string; role: "host" | "player"; token: string };
 export const matchRequest = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(`${origin}/api${path}`, init));
+  exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 export async function matchRoom(id: string) {
   return fourReversiRoomSchema.parse(
     getRoomContract.response.parse(await (await matchRequest(`/rooms/${id}`)).json()).room,

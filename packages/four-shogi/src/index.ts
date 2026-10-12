@@ -191,3 +191,5 @@ export function eliminateSide(
     eliminations: settled.eliminations.slice(state.eliminations.length),
   };
 }
+
+export { captureEliminatedHands, type EliminatedHands } from "./eliminatedHands";

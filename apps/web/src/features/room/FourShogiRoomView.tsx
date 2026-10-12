@@ -74,6 +74,9 @@ export function FourShogiRoomView({
         formationNotice={formation.notice?.name}
         onFormationNoticeDismiss={formation.dismiss}
         game={replay.frame?.game ?? session.displayGame}
+        eliminatedHands={
+          replay.frame ? replay.frame.eliminatedHands : session.eliminatedHands?.hands
+        }
         pendingAction={replay.frame === null ? session.pendingMove?.action : undefined}
         viewerSide={viewerSide}
         revision={`${room.roundId ?? room.lastRound?.roundId ?? "waiting"}:${room.positionRevision}:${replay.index}`}

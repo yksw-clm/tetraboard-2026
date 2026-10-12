@@ -205,3 +205,32 @@ test("OAuth完了は一度だけ復帰情報を消費し、ゲスト参加資格
   expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBe("a".repeat(64));
   expect(requests).toHaveLength(0);
 });
+
+test("退会による接続失効の通知で本人を再確認し、古いプロフィール取得を破棄する", async () => {
+  let account!: ReturnType<typeof useAccount>;
+  function Probe() {
+    account = useAccount();
+    return <span>{account.user?.name ?? "guest"}</span>;
+  }
+  render(
+    <MemoryRouter>
+      <Routes>
+        <Route element={<AccountLayout />}>
+          <Route path="*" element={<Probe />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+  const sessions = () => requests.filter((r) => r.url === "/api/account/session");
+  sessions()[0].respond({ user: profile });
+  await flush();
+  act(() => window.dispatchEvent(new Event("focus")));
+  const stale = sessions().at(-1)!;
+  act(() => window.dispatchEvent(new Event("tetraboard-account-privacy-check")));
+  sessions().at(-1)!.respond({ user: null });
+  await flush();
+  expect(account.user).toBeNull();
+  stale.respond({ user: profile });
+  await flush();
+  expect(account.user).toBeNull();
+});

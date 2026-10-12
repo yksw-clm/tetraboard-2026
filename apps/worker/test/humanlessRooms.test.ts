@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { z } from "zod";
 import { isReversiRoom, isShogiRoom, fourReversiRoomSchema } from "@tetraboard/protocol";
 import { env, exports } from "cloudflare:workers";
@@ -26,7 +27,7 @@ afterEach(() => {
   for (const socket of sockets.splice(0)) socket.close();
 });
 const request = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(origin + "/api" + path, init));
+  exports.default.fetch(new AcceptedGameRequest(origin + "/api" + path, init));
 const post = (body: unknown) => ({
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -262,10 +263,11 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       return room.game.moveNumber;
     });
     await runDurableObjectAlarm(prepared.stub);
-    if (game === "four-shogi") {
+    if (game === "four-shogi" || game === "four-reversi") {
       await runInDurableObject(prepared.stub, async (_, state) => {
-        const job = state.storage.kv.get<{ applyAt: number }>("shogi-cpu-job")!;
-        state.storage.kv.put("shogi-cpu-job", { ...job, applyAt: Date.now() - 1 });
+        const key = game === "four-shogi" ? "shogi-cpu-job" : "four-reversi-cpu-job";
+        const job = state.storage.kv.get<{ applyAt: number }>(key)!;
+        state.storage.kv.put(key, { ...job, applyAt: Date.now() - 1 });
         await state.storage.setAlarm(Date.now() + 60_000);
       });
       await runDurableObjectAlarm(prepared.stub);

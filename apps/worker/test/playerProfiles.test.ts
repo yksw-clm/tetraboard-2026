@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import { beforeAll, afterEach, expect, test } from "vitest";
@@ -23,7 +24,7 @@ const db = (env as typeof env & { PUBLIC_MATCH_TEST_DB: D1Database }).PUBLIC_MAT
 const ids: string[] = [];
 const request = (path: string, init?: RequestInit, database = db) =>
   worker.fetch(
-    new Request(`${origin}/api${path}`, init),
+    new AcceptedGameRequest(`${origin}/api${path}`, init),
     { ...env, APP_DB: database },
     {} as ExecutionContext,
   );

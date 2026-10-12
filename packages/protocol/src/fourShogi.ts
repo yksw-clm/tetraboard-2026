@@ -150,3 +150,16 @@ export type FourShogiPublicState = z.infer<typeof fourShogiPublicStateSchema>;
 export type FourShogiReplayPage = z.infer<typeof fourShogiReplayPageSchema>;
 export type FourShogiReplayEvent = z.infer<typeof fourShogiReplayEventSchema>;
 export type FourShogiAction = z.infer<typeof fourShogiActionSchema>;
+
+export const fourShogiEliminatedHandsSchema = z.strictObject({
+  roundId: z.uuid(),
+  hands: sideRecord(
+    z.strictObject({
+      rook: z.int().nonnegative(),
+      gold: z.int().nonnegative(),
+      silver: z.int().nonnegative(),
+      pawn: z.int().nonnegative(),
+    }),
+  ).partial(),
+});
+export type FourShogiEliminatedHands = z.infer<typeof fourShogiEliminatedHandsSchema>;

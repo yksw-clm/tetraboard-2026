@@ -1,3 +1,8 @@
+import { deletionRoutes } from "./privacy/deletionRoutes";
+import { migrateOAuthTokens } from "./privacy/tokens";
+import { processDeletions } from "./privacy/deletion";
+import { archiveAnalytics } from "./analytics/retention";
+import { legalRoutes } from "./privacy/legalRoutes";
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
 import { announcementRoutes, announcementAdminRoutes } from "./announcements/routes";
 import { adminRoutes } from "./admin/routes";
@@ -44,6 +49,8 @@ api.route("/", badgeNotificationRoutes);
 api.route("/", formationStatsRoutes);
 api.route("/", playerProfileRoutes);
 api.route("/", rankingRoutes);
+api.route("/", deletionRoutes);
+api.route("/", legalRoutes);
 api.route("/", accountRoutes);
 api.route("/", roomRoutes);
 
@@ -103,11 +110,14 @@ const worker = {
           new URL(gameCatalog[defaultGameId].lobbyPath, request.url).toString(),
           302,
         );
-      return servePublicAssets(request, env.ASSETS, assetPath);
+      return servePublicAssets(request, env.ASSETS, assetPath, env);
     }
     return app.fetch(request, env, context);
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await migrateOAuthTokens(env);
+    await processDeletions(env);
+    await archiveAnalytics(env);
     await cleanupFeedback(env);
     await deleteExpiredReports(env.APP_DB);
     await recoverAccountReservations(env);
@@ -115,6 +125,13 @@ const worker = {
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(Date.now()),
+      env.APP_DB.prepare("DELETE FROM deletion_flows WHERE expires_at_ms < ?").bind(Date.now()),
+      env.APP_DB.prepare("DELETE FROM oauth_legal_consents WHERE expires_at_ms < ?").bind(
+        Date.now(),
+      ),
+      env.APP_DB.prepare("DELETE FROM deletion_challenges WHERE expires_at_ms < ?").bind(
+        Date.now(),
+      ),
       env.APP_DB.prepare("DELETE FROM rateLimit WHERE lastRequest < ?").bind(Date.now() - 86400000),
     ]);
   },

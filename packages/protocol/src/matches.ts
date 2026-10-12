@@ -60,6 +60,7 @@ const participantBase = z.strictObject({
 export const matchParticipantSchema = z.discriminatedUnion("kind", [
   participantBase.extend({
     kind: z.literal("human"),
+    retired: z.literal(true).optional(),
     avatarUrl: z
       .string()
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
@@ -85,6 +86,7 @@ const shogiParticipantBase = participantBase
 export const fourShogiMatchParticipantSchema = z.discriminatedUnion("kind", [
   shogiParticipantBase.extend({
     kind: z.literal("human"),
+    retired: z.literal(true).optional(),
     avatarUrl: z
       .string()
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)

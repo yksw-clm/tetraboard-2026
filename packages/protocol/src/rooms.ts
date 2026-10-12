@@ -18,6 +18,7 @@ import {
   finishedFourShogiStateSchema,
   fourShogiReplayPageSchema,
   fourShogiFormationAnalysisSchema,
+  fourShogiEliminatedHandsSchema,
 } from "./fourShogi";
 
 const segmenter = new Intl.Segmenter("ja", { granularity: "grapheme" });
@@ -36,7 +37,11 @@ const avatarUrlSchema = z
   .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
   .nullable();
 const playerAppearanceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("human"), avatarUrl: avatarUrlSchema }),
+  z.strictObject({
+    kind: z.literal("human"),
+    avatarUrl: avatarUrlSchema,
+    retired: z.literal(true).optional(),
+  }),
   z.strictObject({ kind: z.literal("cpu"), level: cpuLevelSchema }),
 ]);
 export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
@@ -176,6 +181,7 @@ const playerBaseSchema = z.strictObject({
 });
 const humanPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("human"),
+  retired: z.literal(true).optional(),
   avatarUrl: avatarUrlSchema.default(null),
   ready: z.boolean(),
   reconnectDeadline: z.int().nonnegative().nullable(),
@@ -895,6 +901,7 @@ const roomErrorSchema = z.strictObject({
     "room_full",
     "account_seated",
     "profile_required",
+    "consent_required",
     "room_started",
     "room_changed",
     "unauthorized",
@@ -971,6 +978,7 @@ export const getRoomContract = {
   pathFor: (id: string) => `/rooms/${id}`,
   query: z.object({
     formationAnalysis: z.literal("1").optional(),
+    eliminatedHands: z.literal("1").optional(),
     stamps: z.literal("1").optional(),
   }),
   response: z.strictObject({
@@ -978,6 +986,7 @@ export const getRoomContract = {
     presence: roomPresenceSchema,
     serverNowMs: serverNowMsSchema,
     formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
+    eliminatedHands: fourShogiEliminatedHandsSchema.nullable().optional(),
     stampsSupported: z.literal(true).optional(),
   }),
   error: roomErrorSchema,
@@ -1041,6 +1050,7 @@ export const roomSocketContract = {
   query: z.strictObject({
     instanceId: z.uuid().optional(),
     formationAnalysis: z.literal("1").optional(),
+    eliminatedHands: z.literal("1").optional(),
     stamps: z.literal("1").optional(),
   }),
   clientMessage: z.discriminatedUnion("type", [
@@ -1119,6 +1129,7 @@ export const roomSocketContract = {
       presence: roomPresenceSchema,
       serverNowMs: serverNowMsSchema,
       formationAnalysis: fourShogiFormationAnalysisSchema.nullable().optional(),
+      eliminatedHands: fourShogiEliminatedHandsSchema.nullable().optional(),
     }),
     z.strictObject({
       type: z.literal("room.authenticated"),

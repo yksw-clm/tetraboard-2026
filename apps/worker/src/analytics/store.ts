@@ -1,3 +1,4 @@
+import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 export type AnalyticsIdentity = {
   visitorId: string | null;
   accountId: string | null;
@@ -38,6 +39,7 @@ export function coverageStatement(db: D1Database, at: number) {
     .bind(at);
 }
 export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch) {
+  if (record.startedAtMs <= Date.now() - analyticsRetentionMs) return;
   await db.batch([
     coverageStatement(db, record.startedAtMs),
     db
@@ -57,8 +59,16 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
     ...record.participants.map((p) =>
       db
         .prepare(`INSERT INTO analytics_participants (match_id, player_id, account_id, visitor_id, is_test)
-      VALUES (?, ?, ?, ?, ?) ON CONFLICT(match_id, player_id) DO NOTHING`)
-        .bind(record.id, p.playerId, p.accountId, p.visitorId, Number(p.isTest)),
+      SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?) AND EXISTS (SELECT 1 FROM analytics_matches WHERE id=?) ON CONFLICT(match_id, player_id) DO NOTHING`)
+        .bind(
+          record.id,
+          p.playerId,
+          p.accountId,
+          p.visitorId,
+          Number(p.isTest),
+          p.accountId,
+          record.id,
+        ),
     ),
   ]);
 }

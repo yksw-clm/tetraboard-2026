@@ -32,7 +32,11 @@ export default function FourShogiMatchReplayView({
       <PlayerCardView
         key={player.id}
         shogi
-        profileTarget={{ source: "match", matchId: match.id, playerId: player.id }}
+        profileTarget={
+          player.kind === "human" && player.retired
+            ? undefined
+            : { source: "match", matchId: match.id, playerId: player.id }
+        }
         profileMode={match.settings.mode}
         player={player}
         self={player.id === match.selfPlayerId}
@@ -68,6 +72,7 @@ export default function FourShogiMatchReplayView({
   const board = (
     <FourShogiBoardLayout
       game={frame.game}
+      eliminatedHands={frame.eliminatedHands}
       viewerSide={viewerSide}
       revision={`${match.id}:${index}`}
       canPlay={false}

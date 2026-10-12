@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import worker from "../src/worker";
@@ -17,7 +18,7 @@ const paths = [
 ];
 const request = (path: string, cookie?: string, init: RequestInit = {}, bindings: Env = env) =>
   worker.fetch(
-    new Request(`${bindings.APP_ORIGIN}${path}`, {
+    new AcceptedGameRequest(`${bindings.APP_ORIGIN}${path}`, {
       ...init,
       headers: { ...(cookie ? { Cookie: cookie } : {}), ...init.headers },
     }),
@@ -351,7 +352,7 @@ test("計測APIとルーム作成の成功応答にも更新Cookieを返す", as
 test("既存の複数CookieにExpiresのカンマがあっても欠落・結合させない", async () => {
   const user = await fixture();
   vi.setSystemTime(issuedAt + day);
-  const req = new Request(origin, { headers: { Cookie: user.cookie } });
+  const req = new AcceptedGameRequest(origin, { headers: { Cookie: user.cookie } });
   const existing = [
     "visitor=first; Expires=Tue, 01 Jan 2030 00:00:00 GMT; Path=/; HttpOnly",
     "preference=second; Expires=Wed, 02 Jan 2030 00:00:00 GMT; Path=/; SameSite=Lax",
@@ -372,7 +373,7 @@ test("既存の複数CookieにExpiresのカンマがあっても欠落・結合�
 test("変更不可の応答ヘッダーとWebSocketを保持し、例外終了後はCookieを破棄する", async () => {
   const user = await fixture();
   vi.setSystemTime(issuedAt + day);
-  const req = new Request(origin, { headers: { Cookie: user.cookie } });
+  const req = new AcceptedGameRequest(origin, { headers: { Cookie: user.cookie } });
   await expect(
     withAccountSessionCookies(req, async () => {
       await accountIdentity(req, env);

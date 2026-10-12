@@ -1,4 +1,6 @@
+import { legalHtml } from "./privacy/legalHtml";
 import { defaultGameId, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { serveRoomShareHtml } from "./roomShareHtml";
 
 export function withoutIndexing(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -14,6 +16,7 @@ export async function servePublicAssets(
   request: Request,
   assets: Fetcher,
   path: string,
+  env?: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (request.headers.get("Upgrade"))
@@ -22,6 +25,8 @@ export async function servePublicAssets(
     return withoutIndexing(
       new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } }),
     );
+  if (path === "/privacy" || path === "/terms")
+    return legalHtml(request, assets, path.slice(1) as "privacy" | "terms");
   if (path === "/") {
     url.pathname = gameCatalog[defaultGameId].lobbyPath;
     return Response.redirect(url.toString(), 308);
@@ -41,12 +46,19 @@ export async function servePublicAssets(
     return response.status < 400 ? response : withoutIndexing(response);
   }
   const spa =
-    ["/index.html", "/login", "/account", "/account/setup", "/feedback", "/updates"].includes(
-      path.replace(/\/$/, ""),
-    ) ||
+    [
+      "/index.html",
+      "/login",
+      "/account",
+      "/account/setup",
+      "/account/deletion",
+      "/feedback",
+      "/updates",
+    ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
+    if (env && /^\/rooms\/[^/]+\/?$/.test(path)) return serveRoomShareHtml(request, env, assets);
     url.pathname = "/index.html";
     return withoutIndexing(await assets.fetch(new Request(url, request)));
   }

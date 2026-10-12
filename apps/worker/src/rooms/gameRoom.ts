@@ -1,3 +1,6 @@
+import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
+import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
+import { retiredName } from "../privacy/identity";
 import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
 import { fourGomokuCpuJobKey, type FourGomokuCpuJob } from "./fourGomokuProgress";
 import { isFourGomokuRoom, type FourGomokuRoom } from "@tetraboard/protocol";
@@ -38,6 +41,7 @@ import {
   roomSchema,
   roomSocketContract,
   isFourShogiRoom,
+  isFourReversiRoom,
   type FourShogiRoom,
   type FourReversiRoom,
   type Room,
@@ -54,6 +58,7 @@ import {
 } from "@tetraboard/protocol";
 import { gameProgress, unreachable, type AnyProgress, type ProgressFor } from "./gameProgress";
 import type { ShogiCpuJob } from "./fourShogiProgress";
+import { fourReversiCpuJobKey } from "./fourReversiProgress";
 import {
   roomStorageKey,
   replayKey,
@@ -161,9 +166,12 @@ export class GameRoom extends DurableObject<Env> {
         .map((p) => {
           const identity = this.ctx.storage.kv.get<AnalyticsIdentity>(analyticsPlayerKey(p.id));
           return {
-            playerId: p.id,
+            playerId:
+              identity && !identity.accountId && !identity.visitorId ? crypto.randomUUID() : p.id,
             visitorId: identity?.visitorId ?? null,
-            accountId: this.storedAccount(p.id)?.accountId ?? null,
+            accountId: identity
+              ? identity.accountId
+              : (this.storedAccount(p.id)?.accountId ?? null),
             isTest: identity?.isTest ?? false,
           };
         }),
@@ -204,7 +212,10 @@ export class GameRoom extends DurableObject<Env> {
         } catch {
           this.ctx.storage.transactionSync(() => {
             if (this.ctx.storage.kv.get<AnalyticsJob>(key)?.revision === job.revision)
-              this.ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() + 5000 });
+              this.ctx.storage.kv.put(key, {
+                ...this.ctx.storage.kv.get<AnalyticsJob>(key)!,
+                retryAtMs: Date.now() + 5000,
+              });
           });
           console.error("Analytics save will be retried");
           break;
@@ -255,8 +266,10 @@ export class GameRoom extends DurableObject<Env> {
             "formationUsage" in job ? job.formationUsage : undefined,
           );
           this.ctx.storage.transactionSync(() => {
+            const latest = this.pendingShogiMatches().get(key);
+            if (!latest) return;
             if (progress)
-              this.ctx.storage.kv.put(key, { ...job, progress, retryAtMs: Date.now() + 1 });
+              this.ctx.storage.kv.put(key, { ...latest, progress, retryAtMs: Date.now() + 1 });
             else {
               this.ctx.storage.kv.delete(key);
               const room = this.readRoom();
@@ -274,7 +287,8 @@ export class GameRoom extends DurableObject<Env> {
           });
         } catch {
           console.error("Shogi match save will be retried", job.record.id);
-          this.ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() + 5_000 });
+          const latest = this.pendingShogiMatches().get(key);
+          if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs: Date.now() + 5_000 });
         }
       }
       await this.syncAlarm(this.readRoom());
@@ -297,7 +311,8 @@ export class GameRoom extends DurableObject<Env> {
           this.ctx.storage.kv.delete(key);
         } catch {
           console.error("Match save will be retried", job.record.id);
-          this.ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() + 5_000 });
+          const latest = this.pendingMatches().get(key);
+          if (latest) this.ctx.storage.kv.put(key, { ...latest, retryAtMs: Date.now() + 5_000 });
           break;
         }
       }
@@ -307,6 +322,162 @@ export class GameRoom extends DurableObject<Env> {
       this.matchFlush = null;
     });
     return this.matchFlush;
+  }
+
+  async purgeAccount(accountId: string) {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const entries = [...this.ctx.storage.kv.list<unknown>()];
+      const ids = new Set<string>();
+      const names = new Set<string>();
+      const code =
+        this.ctx.id.name ??
+        this.readRoom()?.id ??
+        this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey)?.metadata.id;
+      if (code) {
+        const retained = await this.env.APP_DB.prepare(
+          "SELECT player_id FROM privacy_room_players WHERE account_id=? AND room_id=?",
+        )
+          .bind(accountId, code)
+          .all<{ player_id: string }>();
+        for (const row of retained.results) ids.add(row.player_id);
+      }
+      let found = false;
+      for (const [key, value] of entries) {
+        if (
+          key.startsWith("seat-account:") &&
+          value &&
+          typeof value === "object" &&
+          "accountId" in value &&
+          value.accountId === accountId
+        ) {
+          const seat = value as StoredAccountSeat;
+          if (seat.occupying) throw new Error("Account still seated");
+          ids.add(seat.playerId);
+          if (seat.avatarKey) {
+            await this.env.APP_DB.prepare("INSERT OR IGNORE INTO deletion_images VALUES (?,?)")
+              .bind(accountId, seat.avatarKey)
+              .run();
+          }
+          await this.env.APP_DB.prepare(
+            "DELETE FROM room_avatar_refs WHERE operation_id=? AND instance_id=?",
+          )
+            .bind(seat.operationId, seat.instanceId)
+            .run();
+        }
+        const discover = async (v: unknown): Promise<void> => {
+          if (Array.isArray(v)) {
+            for (const item of v) await discover(item);
+          } else if (v && typeof v === "object") {
+            const row = v as Record<string, unknown>;
+            if (
+              row.accountId === accountId ||
+              ids.has(String(row.id)) ||
+              ids.has(String(row.playerId)) ||
+              ids.has(String(row.senderId)) ||
+              ids.has(String(row.hostPlayerId))
+            ) {
+              found = true;
+              if (typeof row.id === "string") ids.add(row.id);
+              if (typeof row.playerId === "string") ids.add(row.playerId);
+              if (typeof row.name === "string") names.add(row.name);
+              if (typeof row.hostName === "string") names.add(row.hostName);
+              if (typeof row.avatarKey === "string")
+                await this.env.APP_DB.prepare("INSERT OR IGNORE INTO deletion_images VALUES (?,?)")
+                  .bind(accountId, row.avatarKey)
+                  .run();
+              if (typeof row.operationId === "string")
+                await this.env.APP_DB.prepare("DELETE FROM room_avatar_refs WHERE operation_id=?")
+                  .bind(row.operationId)
+                  .run();
+            }
+            for (const value of Object.values(row)) await discover(value);
+          }
+        };
+        await discover(value);
+      }
+      if (!found) return;
+      const removedKeys = new Set<string>();
+      for (const id of ids) {
+        const token = this.playerTokenHash(id);
+        if (token) {
+          removedKeys.add(membershipStorageKey(token));
+          removedKeys.add(playerTokenKey(id));
+          this.closeSockets(token, "Account deleted");
+          this.ctx.storage.kv.delete(membershipStorageKey(token));
+          this.ctx.storage.kv.delete(playerTokenKey(id));
+        }
+        this.ctx.storage.kv.delete(accountKey(id));
+      }
+      const strip = (value: unknown, inherited = false): unknown => {
+        if (Array.isArray(value)) return value.map((v) => strip(v));
+        if (!value || typeof value !== "object") return value;
+        const row = value as Record<string, unknown>;
+        const own =
+          inherited ||
+          row.accountId === accountId ||
+          ids.has(String(row.id)) ||
+          ids.has(String(row.playerId)) ||
+          ids.has(String(row.senderId)) ||
+          ids.has(String(row.hostPlayerId));
+        if (
+          row.kind === "system" &&
+          typeof row.text === "string" &&
+          [...names].some(
+            (name) => row.text === `${name}が入室しました` || row.text === `${name}が退室しました`,
+          )
+        )
+          return {
+            ...row,
+            text: `${retiredName}${row.text.endsWith("が入室しました") ? "が入室しました" : "が退室しました"}`,
+          };
+        const out = Object.fromEntries(
+          Object.entries(row).map(([key, v]) => [
+            key,
+            own && ["name", "senderName", "hostName"].includes(key)
+              ? retiredName
+              : own &&
+                  ["accountId", "avatarUrl", "avatarKey", "profileId", "hostAvatarUrl"].includes(
+                    key,
+                  )
+                ? null
+                : strip(v, own && key === "appearance"),
+          ]),
+        );
+        if (own && row.kind === "human") out.retired = true;
+        if (own && "visitorId" in row) out.visitorId = null;
+        return out;
+      };
+      for (const [key, value] of entries) {
+        if (removedKeys.has(key)) continue;
+        if (
+          key.startsWith("seat-account:") &&
+          value &&
+          typeof value === "object" &&
+          "accountId" in value &&
+          value.accountId === accountId
+        )
+          continue;
+        if (key === accountCleanupKey) {
+          this.ctx.storage.kv.put(
+            key,
+            (value as AccountCleanup[]).filter((v) => v.reservation.accountId !== accountId),
+          );
+          continue;
+        }
+        this.ctx.storage.kv.put(key, strip(value));
+      }
+      this.withIndexTransaction(() => {
+        const room = this.readRoom();
+        if (room)
+          this.ctx.storage.kv.put(roomStorageKey, {
+            ...room,
+            publicUpdatedAtMs: nextPublicUpdateAt(room),
+          });
+      });
+      const room = this.readRoom();
+      if (room) this.broadcastRoom(room);
+      this.broadcastChat();
+    });
   }
 
   private storedAccount(playerId: string) {
@@ -382,7 +553,7 @@ export class GameRoom extends DurableObject<Env> {
           return { ok: true as const, value: null };
         const reservation =
           await this.env.APP_DB.prepare(`SELECT operation_id FROM account_room_seats
-        WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ?`)
+        WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=account_room_seats.account_id)`)
             .bind(
               admission.accountId,
               admission.operationId,
@@ -471,7 +642,12 @@ export class GameRoom extends DurableObject<Env> {
 
   // 復帰期限切れの退室は期限イベントで確定し、復帰待ちと脱落後の在室を含めます。
   private isHumanParticipant(player: Room["players"][number]): boolean {
-    if (player.kind !== "human" || this.ctx.storage.kv.get(departedKey(player.id))) return false;
+    if (
+      player.kind !== "human" ||
+      player.retired ||
+      this.ctx.storage.kv.get(departedKey(player.id))
+    )
+      return false;
     if (this.storedAccount(player.id)?.occupying === false) return false;
     const hash = this.playerTokenHash(player.id);
     return hash !== null && this.readMembership(hash)?.playerId === player.id;
@@ -578,6 +754,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(replayKey);
     this.ctx.storage.kv.delete(matchStartKey);
     this.ctx.storage.kv.delete(shogiMatchStartKey);
+    this.ctx.storage.kv.delete(shogiEliminatedHandsKey);
     this.ctx.storage.kv.delete(standardShogiMatchStartKey);
     this.ctx.storage.kv.delete(chatKey);
     this.ctx.storage.kv.delete(mutedKey);
@@ -586,6 +763,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete("standard-shogi-cpu-job");
     this.ctx.storage.kv.delete(gomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
+    this.ctx.storage.kv.delete(fourReversiCpuJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
@@ -867,7 +1045,7 @@ export class GameRoom extends DurableObject<Env> {
     room: Room,
   ): RoomPublicMetadata & { instanceId: string; hostPlayerId: string | null } {
     const host = room.players.find((player) => {
-      if (player.kind !== "human") return false;
+      if (player.kind !== "human" || player.retired) return false;
       const tokenHash = this.playerTokenHash(player.id);
       return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
     });
@@ -995,7 +1173,9 @@ export class GameRoom extends DurableObject<Env> {
               ? this.ctx.storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey)
               : isGomokuRoom(room)
                 ? this.ctx.storage.kv.get<GomokuCpuJob>(gomokuCpuJobKey)
-                : undefined;
+                : isFourReversiRoom(room)
+                  ? this.reversiProgress.cpuJob(room)
+                  : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
         deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
       }
@@ -1088,7 +1268,29 @@ export class GameRoom extends DurableObject<Env> {
     return this.readRoom();
   }
 
-  async getRoomSnapshot(formationAnalysis = false, stamps = false) {
+  async getShareMetadata(instanceId: string) {
+    // normalizeや期限処理を呼ばず、クローラーの取得で対局・時計・保存を変更しません。
+    const parsed = roomSchema.safeParse(this.ctx.storage.kv.get(roomStorageKey));
+    if (!parsed.success) return null;
+    const room = parsed.data;
+    const now = Date.now();
+    if (room.instanceId !== instanceId || room.lastActivityAtMs + idleMs <= now) return null;
+    const retained = room.players.some((player) => {
+      if (!this.isHumanParticipant(player)) return false;
+      const hash = this.playerTokenHash(player.id);
+      if (hash && this.hasOpenConnection(hash)) return true;
+      const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
+      const deadline =
+        player.reconnectDeadline ??
+        (disconnectedAt === undefined ? now + reconnectGraceMs : disconnectedAt + reconnectGraceMs);
+      return deadline > now;
+    });
+    return retained
+      ? { id: room.id, instanceId: room.instanceId, settings: { game: room.settings.game } }
+      : null;
+  }
+
+  async getRoomSnapshot(formationAnalysis = false, stamps = false, eliminatedHands = false) {
     const room = await this.getRoom();
     return room === null
       ? null
@@ -1097,6 +1299,7 @@ export class GameRoom extends DurableObject<Env> {
           presence: this.presence(room),
           serverNowMs: Date.now(),
           ...roomFormationAnalysis(room, formationAnalysis),
+          ...this.shogiProgress.displayHands(room, eliminatedHands),
           ...(stamps ? { stampsSupported: true as const } : {}),
         };
   }
@@ -1106,6 +1309,7 @@ export class GameRoom extends DurableObject<Env> {
     if (!room) return { status: "not_found" as const };
     if (room.instanceId !== instanceId) return { status: "room_changed" as const };
     const player = room.players.find((p) => p.id === playerId);
+    if (player?.kind === "human" && player.retired) return { status: "not_found" as const };
     if (!player) return { status: "not_found" as const };
     return {
       status: "found" as const,
@@ -1285,7 +1489,7 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private closeSockets(tokenHash?: string): void {
+  private closeSockets(tokenHash?: string, reason = "Room membership ended"): void {
     for (const socket of this.ctx.getWebSockets()) {
       if (tokenHash !== undefined) {
         const attachment: unknown = socket.deserializeAttachment();
@@ -1305,7 +1509,7 @@ export class GameRoom extends DurableObject<Env> {
         }
       }
       try {
-        socket.close(1000, "Room membership ended");
+        socket.close(1000, reason);
       } catch {
         // 切断済みの接続は、そのまま無視します。
       }
@@ -1313,6 +1517,20 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private async reconcileDeadlines(applyCpu = false): Promise<void> {
+    const code = this.ctx.id.name ?? this.readRoom()?.id;
+    if (code) {
+      const pending = await this.env.APP_DB.prepare(
+        "SELECT account_id FROM deletion_rooms WHERE room_id=?",
+      )
+        .bind(code)
+        .all<{ account_id: string }>();
+      for (const row of pending.results) {
+        await this.purgeAccount(row.account_id);
+        await this.env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE room_id=? AND account_id=?")
+          .bind(code, row.account_id)
+          .run();
+      }
+    }
     const initial = this.readRoom();
     const now = Date.now();
     const promoted: string[] = [];
@@ -1534,10 +1752,17 @@ export class GameRoom extends DurableObject<Env> {
               changed = true;
             }
           }
+        } else if (isFourReversiRoom(room)) {
+          if (applyCpu && currentCpu(room) !== null) {
+            const result = this.reversiProgress.cpu(room, now);
+            if (result.kind !== "unchanged") {
+              room = this.applyProgress(result);
+              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+              changed = true;
+            }
+          }
         } else {
-          const result = isReversiRoom(room)
-            ? this.standardProgress.cpu(room, now)
-            : this.reversiProgress.cpu(room, now);
+          const result = this.standardProgress.cpu(room, now);
           if (result.kind !== "unchanged") {
             room = this.applyProgress(result);
             if (room) this.ctx.storage.kv.put(roomStorageKey, room);
@@ -1697,15 +1922,19 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private broadcastRoom(room: Room): void {
-    let regular: string | undefined;
-    let analyzed: string | undefined;
+    const snapshots = new Map<string, string>();
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       try {
-        const requested = this.ctx.getTags(socket).includes(formationAnalysisTag);
-        const message = requested
-          ? (analyzed ??= JSON.stringify(this.roomSnapshot(room, true)))
-          : (regular ??= JSON.stringify(this.roomSnapshot(room)));
+        const tags = this.ctx.getTags(socket);
+        const formation = tags.includes(formationAnalysisTag);
+        const hands = tags.includes(eliminatedHandsTag);
+        const key = `${formation}:${hands}`;
+        let message = snapshots.get(key);
+        if (message === undefined) {
+          message = JSON.stringify(this.roomSnapshot(room, formation, hands));
+          snapshots.set(key, message);
+        }
         socket.send(message);
       } catch {
         // 切断中の接続への送信失敗は、保存済みのルーム状態に影響させません。
@@ -1725,20 +1954,29 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private roomSnapshot(room: Room, formationAnalysis = false): RoomSocketMessage {
+  private roomSnapshot(
+    room: Room,
+    formationAnalysis = false,
+    eliminatedHands = false,
+  ): RoomSocketMessage {
     return roomSocketContract.message.parse({
       type: "room.snapshot",
       room,
       presence: this.presence(room),
       serverNowMs: Date.now(),
       ...roomFormationAnalysis(room, formationAnalysis),
+      ...this.shogiProgress.displayHands(room, eliminatedHands),
     });
   }
 
   private sendRoomSnapshot(socket: WebSocket, room: Room): void {
     socket.send(
       JSON.stringify(
-        this.roomSnapshot(room, this.ctx.getTags(socket).includes(formationAnalysisTag)),
+        this.roomSnapshot(
+          room,
+          this.ctx.getTags(socket).includes(formationAnalysisTag),
+          this.ctx.getTags(socket).includes(eliminatedHandsTag),
+        ),
       ),
     );
   }
@@ -2205,6 +2443,7 @@ export class GameRoom extends DurableObject<Env> {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server, [
       ...(query.data.formationAnalysis === "1" ? [formationAnalysisTag] : []),
+      ...(query.data.eliminatedHands === "1" ? [eliminatedHandsTag] : []),
       ...(query.data.stamps === "1" ? [stampTag] : []),
     ]);
     this.sendRoomSnapshot(server, room);

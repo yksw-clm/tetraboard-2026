@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { useRef, useState } from "react";
 import { accountRequest } from "./accountApi";
 import {
@@ -25,7 +26,10 @@ export function useSocialSignIn() {
     try {
       const result = (await accountRequest("/api/auth/sign-in/social", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Legal-Consent": legalVersion,
+        },
         body: JSON.stringify({
           provider,
           ...(destination === "admin" ? { destination: "admin" } : {}),

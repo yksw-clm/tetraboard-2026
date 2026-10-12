@@ -1,3 +1,4 @@
+import { isDeleted } from "../privacy/identity";
 import { Hono, type MiddlewareHandler } from "hono";
 import {
   feedbackInputSchema,
@@ -107,7 +108,7 @@ feedbackRoutes.post("/feedback", async (c) => {
   if (
     !user &&
     (input.data.accountRequired ||
-      /(?:^|;\s*)tetraboard-2026\.session_token=/.test(c.req.header("Cookie") ?? ""))
+      /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(c.req.header("Cookie") ?? ""))
   )
     return c.json(
       { message: "ログイン状態を確認できません。再ログイン後に送信してください。" },
@@ -140,6 +141,7 @@ feedbackRoutes.post("/feedback", async (c) => {
         browserHash,
         ipHash,
         author: user ? "account" : "guest",
+        accountId: user?.id ?? null,
         internal: Boolean(user && (user.isTestUser || adminAccountIds(c.env)?.includes(user.id))),
       },
       payloadHash,
@@ -159,6 +161,23 @@ feedbackRoutes.post("/feedback", async (c) => {
       await c.env.OBJECT_STORAGE.put(row.attachment_key, image, {
         httpMetadata: { contentType: "image/webp" },
       });
+    if (user && (await isDeleted(c.env.APP_DB, user.id))) {
+      if (row.attachment_key)
+        await c.env.APP_DB.batch([
+          c.env.APP_DB.prepare("INSERT OR IGNORE INTO deletion_images VALUES (?,?)").bind(
+            user.id,
+            row.attachment_key,
+          ),
+          c.env.APP_DB.prepare("UPDATE deleted_accounts SET completed_at_ms=NULL WHERE id=?").bind(
+            user.id,
+          ),
+        ]);
+      if (row.attachment_key) await c.env.OBJECT_STORAGE.delete(row.attachment_key);
+      await c.env.APP_DB.prepare("DELETE FROM feedback_uploads WHERE key=?")
+        .bind(row.attachment_key ?? "")
+        .run();
+      return c.body(null, 401);
+    }
     await c.env.APP_DB.prepare(
       "UPDATE feedback SET ready = 1 WHERE id = ? AND deleted = 0 AND expires_at_ms > ?",
     )

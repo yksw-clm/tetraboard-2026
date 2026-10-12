@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import {
   getRoomContract,
   joinRoomContract,
@@ -11,6 +12,7 @@ import {
   saveRoomMembershipToken,
 } from "./roomMembership";
 import { saveGuestName } from "./guestName";
+import { roomSharePath } from "@tetraboard/protocol/room-sharing";
 
 export const roomChangedMessage =
   "このルームは閉鎖されています。新しい招待リンクを確認するか、ロビーへ戻ってください。";
@@ -37,15 +39,19 @@ export function invitationInstance(url: URL): string | undefined {
 }
 
 export function roomInvitationPath(room: Pick<Room, "id" | "instanceId">): string {
-  return `${getRoomContract.pathFor(room.id)}?invite=${room.instanceId}`;
+  return roomSharePath(room);
 }
 
 export async function fetchRoom(id: string, signal?: AbortSignal, instanceId?: string) {
-  const response = await fetch(`/api${getRoomContract.pathFor(id)}?formationAnalysis=1&stamps=1`, {
+  const path = `/api${getRoomContract.pathFor(id)}?formationAnalysis=1&stamps=1`;
+  let response = await fetch(`${path}&eliminatedHands=1`, {
     method: getRoomContract.method,
     cache: "no-store",
     signal,
   });
+  if (response.status === 400) {
+    response = await fetch(path, { method: getRoomContract.method, cache: "no-store", signal });
+  }
   const body: unknown = await response.json();
   if (!response.ok) {
     if (!getRoomContract.error.safeParse(body).success) {
@@ -90,7 +96,10 @@ export async function joinRoom(
   if (!request.success) throw new RoomEntryError("ニックネームを1〜10文字で入力してください。");
   const response = await fetch(`/api${joinRoomContract.pathFor(id)}`, {
     method: joinRoomContract.method,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Legal-Consent": legalVersion,
+    },
     body: JSON.stringify(request.data),
   });
   const body: unknown = await response.json();
@@ -101,6 +110,7 @@ export async function joinRoom(
     const messages = {
       account_seated:
         "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。",
+      consent_required: "利用規約と年齢条件を確認してください。",
       profile_required: "プロフィールの初回設定を完了してください。",
       room_full: "このルームは満室です。観戦するか、空席ができるまでお待ちください。",
       room_started: "このルームの対局は始まっています。対局が終わるまで観戦できます。",

@@ -2,7 +2,7 @@ import { gameCapacity } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { type Room, type RoomMembership } from "@tetraboard/protocol";
 import {
   joinRoom,
@@ -13,6 +13,8 @@ import {
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { roomSounds } from "../../shared/soundEffects";
 import { readGuestName } from "../../shared/guestName";
+import { canOpenCreatedRoomShare, consumeRoomShareIntent } from "./roomShareIntent";
+import { recruitmentUnavailable } from "@tetraboard/protocol/room-sharing";
 
 export function joinUnavailableReason(room: Room): string | null {
   if (room.status === "playing") return "対局中のため、今は観戦のみできます。";
@@ -26,8 +28,10 @@ export function useRoomInvitation(
   membership: RoomMembership | null,
   invited: boolean,
   restoreJoinFocus: () => void,
+  restoreShareFocus: () => void = restoreJoinFocus,
 ) {
   const navigate = useNavigate();
+  const location = useLocation();
   const account = useAccount();
   const restored = useRegistrationRestore();
   const storageKey = `tetraboard:room:${room.id}:${room.instanceId}:invitation-shown`;
@@ -39,9 +43,13 @@ export function useRoomInvitation(
       return true;
     }
   });
-  const [dialog, setDialog] = useState<"join" | "copy" | null>(
-    autoJoin || restored?.joinName !== undefined ? "join" : null,
+  const [autoShare] = useState(() => canOpenCreatedRoomShare(location.state, room, membership));
+  const [dialog, setDialog] = useState<"join" | "share" | null>(
+    autoJoin || restored?.joinName !== undefined ? "join" : autoShare ? "share" : null,
   );
+  useEffect(() => {
+    if (autoShare) consumeRoomShareIntent(location.state);
+  }, [autoShare, location.state]);
   useEffect(() => {
     if (!autoJoin) return;
     // 初期化中には書き込まず、自動表示が描画された後に同じタブの履歴へ記録します。
@@ -57,6 +65,15 @@ export function useRoomInvitation(
   const submitting = useRef(false);
   const copyingRef = useRef(false);
   const [copying, setCopying] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const copyScope = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const invitationUrl = new URL(roomInvitationPath(room), window.location.origin).href;
   const unavailableReason = membership === null ? joinUnavailableReason(room) : null;
 
@@ -64,22 +81,28 @@ export function useRoomInvitation(
     if (submitting.current) return;
     if (dialog === "join") {
       requestAnimationFrame(restoreJoinFocus);
+    } else if (dialog === "share") {
+      requestAnimationFrame(() => requestAnimationFrame(restoreShareFocus));
     }
+    copyScope.current++;
     setDialog(null);
   }
 
   async function copy(onCopied: () => void): Promise<void> {
     if (copyingRef.current) return;
     copyingRef.current = true;
+    const scope = copyScope.current;
+    setCopyError(null);
     setCopying(true);
     try {
       await navigator.clipboard.writeText(invitationUrl);
-      onCopied();
+      if (mounted.current) onCopied();
     } catch {
-      setDialog("copy");
+      if (mounted.current && scope === copyScope.current)
+        setCopyError("コピーできませんでした。URLを選択してコピーしてください。");
     } finally {
       copyingRef.current = false;
-      setCopying(false);
+      if (mounted.current) setCopying(false);
     }
   }
 
@@ -118,6 +141,13 @@ export function useRoomInvitation(
     close,
     copy,
     copying,
+    copyError,
+    recruitmentUnavailable: recruitmentUnavailable(room),
+    openShare: () => {
+      copyScope.current++;
+      setCopyError(null);
+      setDialog("share");
+    },
     submit,
     invitationUrl,
     unavailableReason,

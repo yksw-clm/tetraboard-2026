@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { createRoomRequests } from "./createRoomRequests";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
@@ -20,6 +21,7 @@ import { joinRoom, roomEntryErrorMessage, RoomEntryError } from "../../shared/ro
 import { useRegistrationRestore } from "../account/useRegistrationRestore";
 import { roomSounds, useSoundEffects } from "../../shared/soundEffects";
 import { readGuestName, saveGuestName } from "../../shared/guestName";
+import { createRoomShareIntent, consumeRoomShareIntent } from "../room/roomShareIntent";
 
 export type RoomEntryIntent = "create" | "quick" | "join";
 
@@ -27,6 +29,8 @@ function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
   switch (error.error) {
     case "account_seated":
       return "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。";
+    case "consent_required":
+      return "利用規約と年齢条件を確認してください。";
     case "profile_required":
       return "プロフィールの初回設定を完了してください。";
     case "not_found":
@@ -121,7 +125,10 @@ export function useRoomEntry(game: GameId = defaultGameId) {
       const path = createRoomContract.path;
       const response = await fetch(`/api${path}`, {
         method: contract.method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Legal-Consent": legalVersion,
+        },
         body: JSON.stringify(request.data),
       });
       const body: unknown = await response.json();
@@ -140,7 +147,14 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         }
         saveGuestName(request.data.name);
         roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
-        await navigate(getRoomContract.pathFor(result.room.id));
+        const state =
+          intent === "create" ? createRoomShareIntent(result.room, result.membership) : undefined;
+        try {
+          await navigate(getRoomContract.pathFor(result.room.id), { state });
+        } catch (error) {
+          consumeRoomShareIntent(state);
+          throw error;
+        }
       } else {
         const error = contract.error.parse(body);
         setMessage(entryErrorMessage(error, intent));

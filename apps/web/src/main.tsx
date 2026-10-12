@@ -7,9 +7,14 @@ import { RouterProvider } from "react-router/dom";
 import { router } from "./app/router.tsx";
 import { updatePageMetadata } from "./seo/pageMetadata";
 import { startPublicLobby } from "./seo/startPublicLobby";
+import type { RoomLoaderData } from "./features/room/roomLoader";
 
-updatePageMetadata(router.state.location.pathname);
-router.subscribe((state) => updatePageMetadata(state.location.pathname));
+function syncMetadata(state: typeof router.state) {
+  const data = state.errors ? undefined : (state.loaderData.room as RoomLoaderData | undefined);
+  updatePageMetadata(state.location.pathname, data?.room);
+}
+syncMetadata(router.state);
+router.subscribe(syncMetadata);
 startWebAnalytics(router);
 
 const root = document.getElementById("root")!;

@@ -4,11 +4,14 @@ import {
   type FourShogiRoom,
   type FourShogiLastRound,
   type FourShogiReplayEvent,
+  type Room,
+  type FourShogiEliminatedHands,
   type RoomSocketClientMessage,
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import {
   applyAction as applyShogiAction,
+  captureEliminatedHands,
   chooseCpuAction,
   createInitialState as createShogiState,
   eliminateSide,
@@ -52,6 +55,8 @@ import type {
   FinishedProgress,
   RematchFor,
 } from "./gameProgress";
+export const shogiEliminatedHandsKey = "shogi-eliminated-hands";
+export const eliminatedHandsTag = "eliminated-hands-v1";
 type Playing = PlayingFor<"four-shogi">;
 type Result = ProgressFor<"four-shogi">;
 export type ShogiCpuJob = {
@@ -74,6 +79,17 @@ export class FourShogiProgress {
 
   store(): ShogiStore {
     return (this.shogiStore ??= new ShogiStore(this.storage.sql));
+  }
+
+  displayHands(
+    room: Room,
+    requested: boolean,
+  ): { eliminatedHands?: FourShogiEliminatedHands | null } {
+    if (!requested || !isFourShogiRoom(room)) return {};
+    const roundId = room.status === "playing" ? room.roundId : room.lastRound?.roundId;
+    if (!roundId) return { eliminatedHands: null };
+    const stored = this.storage.kv.get<FourShogiEliminatedHands>(shogiEliminatedHandsKey);
+    return { eliminatedHands: stored?.roundId === roundId ? stored : { roundId, hands: {} } };
   }
 
   isEliminated(room: FourShogiRoom, playerId: string): boolean {
@@ -186,6 +202,7 @@ export class FourShogiProgress {
     const roundId = crypto.randomUUID();
     const at = Date.now();
     this.store().startReplay(roundId, initial);
+    this.storage.kv.put(shogiEliminatedHandsKey, { roundId, hands: {} });
     this.storage.kv.delete(shogiCpuJobKey);
     const started = fourShogiRoomSchema.parse({
       ...room,
@@ -240,6 +257,11 @@ export class FourShogiProgress {
     at: number,
     turnEnded: boolean,
   ): Result {
+    const stored = this.storage.kv.get<FourShogiEliminatedHands>(shogiEliminatedHandsKey);
+    const previous = stored?.roundId === room.roundId ? stored.hands : {};
+    const hands = captureEliminatedHands(previous, room.game, state);
+    if (hands !== previous)
+      this.storage.kv.put(shogiEliminatedHandsKey, { roundId: room.roundId, hands });
     this.store().appendEvent(room.roundId, event);
     const core = this.store().saveState(room.roundId, state);
     const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);

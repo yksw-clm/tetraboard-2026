@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import {
@@ -12,7 +13,7 @@ import {
 import { origin } from "./accountFixtures";
 
 export const boundaryRequest = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(`${origin}/api${path}`, init));
+  exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 
 export const boundaryJson = (body: unknown): RequestInit => ({
   method: "POST",

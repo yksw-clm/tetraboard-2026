@@ -142,3 +142,25 @@ test("計測API失敗は例外にせず、view登録前にdwellを送信しな�
   await flush();
   expect(requests).toHaveLength(1);
 });
+
+test("旧選択Cookieが残っていても計測し、規約ページだけでは計測IDを発行しない", async () => {
+  foreground();
+  document.cookie = "tetraboard-2026.analytics-choice=off; Path=/";
+  document.cookie =
+    "tetraboard-2026.analytics=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  const r = router("/privacy");
+  expect(requests).toHaveLength(0);
+  expect(document.cookie).not.toContain(`${analyticsCookie}=`);
+  r.navigate("/terms");
+  expect(requests).toHaveLength(0);
+  r.navigate("/games/four-reversi");
+  expect(requests).toHaveLength(1);
+  expect(document.cookie).toContain(`${analyticsCookie}=`);
+  requests[0]!.respond(null, 204);
+  await flush();
+  clock.advance(30000);
+  expect(JSON.parse(String(requests.at(-1)!.init.body)).days[0].milliseconds).toBe(30000);
+  r.navigate("/");
+  document.cookie =
+    "tetraboard-2026.analytics-choice=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+});

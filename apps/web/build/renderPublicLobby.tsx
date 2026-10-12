@@ -47,6 +47,9 @@ export function renderPublicLobby(template: string, game: GameId): string {
           再読み込み
         </a>
         <noscript>対局するにはJavaScriptを有効にしてください。</noscript>
+        <nav aria-label="規約とプライバシー">
+          <a href="/terms">利用規約</a> <a href="/privacy">プライバシーポリシー</a>
+        </nav>
       </main>
     </div>,
   );
@@ -73,6 +76,9 @@ export function renderNotFound(template: string): string {
                 <a href={gameCatalog[game].lobbyPath}>{gameCatalog[game].name}のロビーへ</a>
               </p>
             ))}
+            <nav aria-label="規約とプライバシー">
+              <a href="/terms">利用規約</a> <a href="/privacy">プライバシーポリシー</a>
+            </nav>
           </main>
         </div>,
       ),
