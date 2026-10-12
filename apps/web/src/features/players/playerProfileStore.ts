@@ -46,7 +46,7 @@ export class PlayerProfileStore {
     this.states.set(key, { ...state, loading: true, error: null });
     this.emit();
     try {
-      const query = new URLSearchParams({ ...target, game, includeBadges: "1" });
+      const query = new URLSearchParams({ ...target, game, includeBadges: "1", includeStats: "1" });
       const fetchProfile = () =>
         fetch(`/api${getPlayerProfileContract.path}?${query}`, {
           cache: "no-store",
@@ -55,6 +55,7 @@ export class PlayerProfileStore {
       let response = await fetchProfile();
       if (response.status === 400 && !controller.signal.aborted) {
         query.delete("includeBadges");
+        query.delete("includeStats");
         response = await fetchProfile();
       }
       if (!response.ok)

@@ -39,6 +39,12 @@ test("独立取得・全16枚・未経験の秘匿・経験済みの順位詳細
   requests.find((entry) => entry.url === "/api/account/stats?game=four-shogi")!.respond(shogiStats);
   await flush();
   expect(view.textContent).toContain("完全優勝数");
+  const firstRow = view.querySelector('table[aria-label="戦績"] tr')!;
+  expect(
+    [...firstRow.querySelectorAll("td")].map(
+      (cell) => cell.firstElementChild?.firstElementChild?.textContent,
+    ),
+  ).toEqual(["対局数", "完全優勝数"]);
   expect(view.textContent).toContain("1.375");
   formationRequest().respond(stats);
   await flush();

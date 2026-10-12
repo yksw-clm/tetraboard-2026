@@ -174,7 +174,9 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
     accountRequests.find((r) => r.url.endsWith("/formation-stats"))?.respond([]);
     await flush();
     expect(view.textContent).toContain("まだ対局履歴がありません。");
-    expect(view.querySelector('[aria-labelledby="account-stats-title"] dd')!.textContent).toBe("0");
+    expect(
+      view.querySelector('table[aria-label="戦績"] td > span > span:last-child')!.textContent,
+    ).toBe("0");
     expect(
       view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
     ).not.toBeNull();
