@@ -1,3 +1,4 @@
+import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { retiredName } from "../privacy/identity";
 import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
@@ -753,6 +754,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(replayKey);
     this.ctx.storage.kv.delete(matchStartKey);
     this.ctx.storage.kv.delete(shogiMatchStartKey);
+    this.ctx.storage.kv.delete(shogiEliminatedHandsKey);
     this.ctx.storage.kv.delete(standardShogiMatchStartKey);
     this.ctx.storage.kv.delete(chatKey);
     this.ctx.storage.kv.delete(mutedKey);
@@ -1288,7 +1290,7 @@ export class GameRoom extends DurableObject<Env> {
       : null;
   }
 
-  async getRoomSnapshot(formationAnalysis = false, stamps = false) {
+  async getRoomSnapshot(formationAnalysis = false, stamps = false, eliminatedHands = false) {
     const room = await this.getRoom();
     return room === null
       ? null
@@ -1297,6 +1299,7 @@ export class GameRoom extends DurableObject<Env> {
           presence: this.presence(room),
           serverNowMs: Date.now(),
           ...roomFormationAnalysis(room, formationAnalysis),
+          ...this.shogiProgress.displayHands(room, eliminatedHands),
           ...(stamps ? { stampsSupported: true as const } : {}),
         };
   }
@@ -1919,15 +1922,19 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private broadcastRoom(room: Room): void {
-    let regular: string | undefined;
-    let analyzed: string | undefined;
+    const snapshots = new Map<string, string>();
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       try {
-        const requested = this.ctx.getTags(socket).includes(formationAnalysisTag);
-        const message = requested
-          ? (analyzed ??= JSON.stringify(this.roomSnapshot(room, true)))
-          : (regular ??= JSON.stringify(this.roomSnapshot(room)));
+        const tags = this.ctx.getTags(socket);
+        const formation = tags.includes(formationAnalysisTag);
+        const hands = tags.includes(eliminatedHandsTag);
+        const key = `${formation}:${hands}`;
+        let message = snapshots.get(key);
+        if (message === undefined) {
+          message = JSON.stringify(this.roomSnapshot(room, formation, hands));
+          snapshots.set(key, message);
+        }
         socket.send(message);
       } catch {
         // 切断中の接続への送信失敗は、保存済みのルーム状態に影響させません。
@@ -1947,20 +1954,29 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  private roomSnapshot(room: Room, formationAnalysis = false): RoomSocketMessage {
+  private roomSnapshot(
+    room: Room,
+    formationAnalysis = false,
+    eliminatedHands = false,
+  ): RoomSocketMessage {
     return roomSocketContract.message.parse({
       type: "room.snapshot",
       room,
       presence: this.presence(room),
       serverNowMs: Date.now(),
       ...roomFormationAnalysis(room, formationAnalysis),
+      ...this.shogiProgress.displayHands(room, eliminatedHands),
     });
   }
 
   private sendRoomSnapshot(socket: WebSocket, room: Room): void {
     socket.send(
       JSON.stringify(
-        this.roomSnapshot(room, this.ctx.getTags(socket).includes(formationAnalysisTag)),
+        this.roomSnapshot(
+          room,
+          this.ctx.getTags(socket).includes(formationAnalysisTag),
+          this.ctx.getTags(socket).includes(eliminatedHandsTag),
+        ),
       ),
     );
   }
@@ -2427,6 +2443,7 @@ export class GameRoom extends DurableObject<Env> {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server, [
       ...(query.data.formationAnalysis === "1" ? [formationAnalysisTag] : []),
+      ...(query.data.eliminatedHands === "1" ? [eliminatedHandsTag] : []),
       ...(query.data.stamps === "1" ? [stampTag] : []),
     ]);
     this.sendRoomSnapshot(server, room);

@@ -285,3 +285,5 @@ export {
   type FourGomokuMatchSummary,
   type FourGomokuAccountStats,
 } from "./matches";
+
+export { fourShogiEliminatedHandsSchema, type FourShogiEliminatedHands } from "./fourShogi";

@@ -4,7 +4,7 @@ import {
   fourShogiPublicStateSchema,
   type ReplayFourShogiMatch,
 } from "@tetraboard/protocol";
-import { getFourShogiReplayRules, type FourShogiReplayFrame } from "./fourShogiReplayV1";
+import { getFourShogiDisplayReplayRules, type FourShogiReplayFrame } from "./fourShogiReplayV1";
 import { replayDataEqual } from "./replayDataEqual";
 import { fetchEventReplay } from "./fetchEventReplay";
 export function fetchFourShogiMatchReplay(
@@ -26,7 +26,7 @@ export function fetchFourShogiMatchReplay(
       return page;
     },
     validateInitial: (initial) => replayDataEqual(initial, match.replay.initial),
-    rules: getFourShogiReplayRules(match.replay.rulesVersion),
+    rules: getFourShogiDisplayReplayRules(match.replay.rulesVersion),
     finalGame: fourShogiPublicStateSchema.parse(match.game),
   });
 }

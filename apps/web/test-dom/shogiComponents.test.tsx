@@ -559,3 +559,67 @@ test("持ち駒の禁止候補だけでも選択・解除でき、成りだけ�
   expect(sent).toEqual([drop, plain]);
   expect(document.querySelector('[aria-label="成りの選択"]')).toBeNull();
 });
+
+test("脱落者の持ち駒を向き変更後も保持し、選択・pointer操作・着手を禁止する", () => {
+  const sent: FourShogiAction[] = [];
+  const props = boardProps((action) => {
+    sent.push(action);
+    return true;
+  });
+  const game = {
+    ...props.game,
+    eliminations: [{ side: "south" as const }],
+    hands: { ...props.game.hands, south: { rook: 0, gold: 0, silver: 0, pawn: 0 } },
+  };
+  const retained = { south: { rook: 1, gold: 2, silver: 3, pawn: 12 } };
+  const view = render(<FourShogiBoardLayout {...props} game={game} eliminatedHands={retained} />);
+  for (const viewerSide of ["south", "west", "north", "east"] as const) {
+    rerender(
+      view,
+      <FourShogiBoardLayout
+        {...props}
+        game={game}
+        eliminatedHands={retained}
+        viewerSide={viewerSide}
+      />,
+    );
+    const buttons = [
+      ...view.querySelectorAll<HTMLButtonElement>('button[aria-label^="南の持ち駒"]'),
+    ];
+    expect(buttons).toHaveLength(8);
+    for (const button of buttons) {
+      expect(button.disabled).toBe(true);
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+      expect(button.getAttribute("aria-label")).not.toContain("選択できます");
+      act(() => {
+        button.click();
+        button.dispatchEvent(
+          new PointerEvent("pointerdown", { button: 0, isPrimary: true, pointerId: 1 }),
+        );
+      });
+    }
+    expect(view.querySelector('[data-testid="shogi-drag-ghost"]')).toBeNull();
+    expect(buttons.some((button) => button.getAttribute("aria-label")?.includes("歩12枚"))).toBe(
+      true,
+    );
+  }
+  const other = { ...props.game, eliminations: [{ side: "west" as const }] };
+  rerender(
+    view,
+    <FourShogiBoardLayout {...props} game={other} eliminatedHands={{ west: retained.south }} />,
+  );
+  for (const button of view.querySelectorAll<HTMLButtonElement>(
+    'button[aria-label^="西の持ち駒"]',
+  )) {
+    expect(button.disabled).toBe(true);
+    act(() =>
+      button.dispatchEvent(
+        new PointerEvent("pointerdown", { button: 0, isPrimary: true, pointerId: 1 }),
+      ),
+    );
+  }
+  expect(view.querySelector('[data-testid="shogi-drag-ghost"]')).toBeNull();
+  expect(sent).toHaveLength(0);
+  rerender(view, <FourShogiBoardLayout {...props} game={game} />);
+  expect(view.querySelectorAll('button[aria-label^="南の持ち駒"]')).toHaveLength(0);
+});

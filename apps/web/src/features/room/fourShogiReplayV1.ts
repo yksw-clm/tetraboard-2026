@@ -1,6 +1,8 @@
 export { replayDataEqual } from "./replayDataEqual";
 import {
   applyAction,
+  captureEliminatedHands,
+  type EliminatedHands,
   createInitialState,
   eliminateSide,
   setDrawProposal,
@@ -17,6 +19,7 @@ import { shogiEliminationLabels, shogiSideNames } from "./fourShogiRoomPresentat
 import { shogiMoveNotation, shogiReplayLabel, type ReplayLabel } from "./shogiNotation";
 export type FourShogiReplayFrame = {
   event?: FourShogiReplayEvent;
+  eliminatedHands?: EliminatedHands;
   label: string;
   accessibleLabel?: string;
   game: FourShogiPublicState;
@@ -99,4 +102,37 @@ export function getFourShogiReplayRules(version: unknown) {
   if (version !== fourShogiReplayV1.rulesVersion)
     throw new Error("Unsupported Shogi replay rules version");
   return fourShogiReplayV1;
+}
+
+/** 表示情報を併走させ、版1のルール状態と最終局面照合を維持します。 */
+export function getFourShogiDisplayReplayRules(version: unknown) {
+  const rules = getFourShogiReplayRules(version);
+  type State = { game: FourShogiState; hands: EliminatedHands };
+  return {
+    initialize: (initial: Parameters<typeof rules.initialize>[0]): State => ({
+      game: rules.initialize(initial),
+      hands: {},
+    }),
+    applyEvent: (before: State, event: FourShogiReplayEvent) => {
+      const result = rules.applyEvent(before.game, event);
+      if (!result.ok) return result;
+      return {
+        ok: true as const,
+        state: {
+          game: result.state,
+          hands: captureEliminatedHands(before.hands, before.game, result.state),
+        },
+      };
+    },
+    createFrame: (
+      state: State,
+      transition?: { before: State; event: FourShogiReplayEvent },
+    ): FourShogiReplayFrame => ({
+      ...rules.createFrame(
+        state.game,
+        transition ? { before: transition.before.game, event: transition.event } : undefined,
+      ),
+      eliminatedHands: state.hands,
+    }),
+  };
 }

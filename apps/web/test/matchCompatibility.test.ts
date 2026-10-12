@@ -86,10 +86,28 @@ for (const fixture of shogiArchives) {
       notationLabels[fixture.name],
     );
     for (const point of fixture.checkpoints) {
-      const { event, label: _label, accessibleLabel: _accessible, ...frame } = frames[point.index]!;
+      const {
+        event,
+        eliminatedHands: _hands,
+        label: _label,
+        accessibleLabel: _accessible,
+        ...frame
+      } = frames[point.index]!;
       const { label: _oldLabel, ...expected } = point.frame;
       expect(frame).toEqual(expected);
       expect(event).toEqual(fixture.events[point.index - 1]?.event);
+    }
+    const retained: Record<string, unknown> = {};
+    for (let index = 0; index < frames.length; index++) {
+      const frame = frames[index]!;
+      if (index > 0) {
+        const prior = frames[index - 1]!.game;
+        for (const entry of frame.game.eliminations) {
+          if (!prior.eliminations.some((old) => old.side === entry.side))
+            retained[entry.side] = prior.hands[entry.side];
+        }
+      }
+      expect(frame.eliminatedHands).toEqual(retained);
     }
     expect(JSON.stringify(fixture)).toBe(before);
   });

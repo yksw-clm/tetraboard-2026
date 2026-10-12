@@ -566,6 +566,18 @@ CPUの待ち時間と計時は [READMEの共通仕様](../README.md#投了通信
 
 固定局面を使ったBun・DOMテストと、実HTTP・WebSocket・D1を使う通常のWorker統合テストで、作成・参加・観戦・準備・開始・着手・CPU両レベル・チャット・再接続・終局・棋譜・再戦を確認します。ブラウザE2Eは廃止し、少数E2Eの再構築は次の作業で行います。PR前の必須検証は `bun run check`、`bun run build`、Worker dry-runです。
 
+### 脱落後の持ち駒表示
+
+全脱落原因で脱落時の持ち駒を表示として残します。`captureEliminatedHands` は遷移前後のルール状態から新たな脱落陣営を抽出し、着手時の捕獲・打ち駒の増減を反映した表示用枚数を追加します。入力とルール上の `hands` は変更しません。
+
+Workerの `FourShogiProgress.accept` は確定遷移と同じトランザクションで、局IDと陣営別枚数を専用KV `shogi-eliminated-hands` に保存します。終局後も保持し、次局開始で空情報へ置き換え、部屋閉鎖で削除します。導入前に脱落済みだった陣営の失われた枚数を推測しません。
+
+ルームGET・WebSocketの任意クエリ `eliminatedHands=1` を要求した四人将棋の画面だけへ、`room` の外側に `{ eliminatedHands: { roundId, hands } | null }` を付加します。対象局のない待機中はnull、非要求と他ゲームは項目なしです。ソケットタグ `eliminated-hands-v1` で休止後も要求を保持し、戦型解析との要求組合せごとに配信JSONを共有します。認証attachmentは変更しません。
+
+WebはHTTP応答の項目の有無で対応を確認し、対応Workerだけにソケットの要求を追加します。追加クエリが400になればその項目を外して一度再取得し、再接続時に対応を再確認します。付加情報は同じsnapshotのルームと受理し、局IDが異なる情報や旧Workerの省略情報は表示へ使いません。表示専用の持ち駒には操作可能な種類を渡しません。
+
+ルーム内・保存棋譜は版1のルール再生と表示用枚数を併走させ、フレームの `game` の外側へ `eliminatedHands` を保持します。完全な旧棋譜もイベントから導出でき、選択局面・回転に追従します。最終ルール状態の一致検証、保存JSON、分割イベント、manifest、D1形式、`rulesVersion: 1` を維持し、保存記録を書き換えません。検証と手動確認の境界は [テスト方針](testing.md#四人将棋の脱落後の持ち駒表示) を参照してください。
+
 ## 四人将棋エンジン
 
 `packages/four-shogi` は `@tetraboard/four-shogi` として利用する独立したパッケージです。ランタイム依存はなく、既存の四人リバーシと同じTypeScript・Bunの構成を使います。`bun run --cwd packages/four-shogi check` で単体の整形・lint・型・テストを確認できます。

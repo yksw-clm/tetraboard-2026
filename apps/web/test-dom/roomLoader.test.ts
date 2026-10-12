@@ -25,7 +25,9 @@ test("直接アクセス・再読み込みはゲームを判別し、招待世�
       const count = requests.length;
       const input = args(`/rooms/12345?invite=${room.instanceId}`),
         pending = roomLoader(input);
-      expect(requests.at(-1)!.url).toBe("/api/rooms/12345?formationAnalysis=1&stamps=1");
+      expect(requests.at(-1)!.url).toBe(
+        "/api/rooms/12345?formationAnalysis=1&stamps=1&eliminatedHands=1",
+      );
       requests.at(-1)!.respond({
         ...snapshot(room),
         ...(room.settings.game === "four-shogi" ? { formationAnalysis: null } : {}),
@@ -71,4 +73,15 @@ test("本人資格が失効した読み込みは資格を消去して観戦へ�
   requests.at(-1)!.respond({ error: "unauthorized" }, 401);
   expect((await pending).membership).toBeNull();
   expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBeNull();
+});
+
+test("旧Workerの400では表示用クエリだけを外して一度再取得する", async () => {
+  const pending = roomLoader(args("/rooms/12345"));
+  requests.at(-1)!.respond({ error: "invalid_request" }, 400);
+  await flush();
+  expect(requests.at(-1)!.url).toBe("/api/rooms/12345?formationAnalysis=1&stamps=1");
+  requests.at(-1)!.respond(snapshot(waitingShogiRoom()));
+  const loaded = await pending;
+  expect(loaded.game).toBe("four-shogi");
+  expect(loaded.eliminatedHands).toBeUndefined();
 });
