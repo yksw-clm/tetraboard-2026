@@ -1,12 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import {
-  legalVersion,
-  analyticsRetentionMs,
-  analyticsPreferenceCookie,
-  legalDocuments,
-} from "@tetraboard/protocol/privacy";
+import { legalVersion, analyticsRetentionMs, legalDocuments } from "@tetraboard/protocol/privacy";
 import { accountFixture, origin } from "./accountFixtures";
 import {
   challengeCookie,
@@ -509,22 +504,34 @@ test("R2失敗は処理中を維持して再試行し、完了時は認証・同
   ).not.toBeNull();
 });
 
-test("計測停止は閲覧・滞在と個別識別を止め、90日境界の集計・削除は日跨ぎと再送に対応する", async () => {
+test("利用計測は常時有効で旧選択Cookieに依存せず、90日境界で集計・削除する", async () => {
   const browser = crypto.randomUUID();
-  const off = new Request(origin, {
-    headers: { Cookie: `tetraboard-2026.analytics=${browser}; ${analyticsPreferenceCookie}=off` },
-  });
-  expect(analyticsVisitor(off)).toBeNull();
-  for (const path of ["pageviews", "dwell"])
-    expect(
-      (
-        await request(`/analytics/${path}`, {
-          method: "POST",
-          headers: { Origin: origin, Cookie: off.headers.get("Cookie")! },
-          body: "{}",
-        })
-      ).status,
-    ).toBe(204);
+  const cookies = `tetraboard-2026.analytics=${browser}; tetraboard-2026.analytics-choice=off`;
+  expect(analyticsVisitor(new Request(origin, { headers: { Cookie: cookies } }))).toBe(browser);
+  const viewId = crypto.randomUUID();
+  expect(
+    (
+      await request("/analytics/pageviews", {
+        method: "POST",
+        headers: { Origin: origin, Cookie: cookies, "Content-Type": "application/json" },
+        body: JSON.stringify({ id: viewId, page: "lobby", game: "four-reversi" }),
+      })
+    ).status,
+  ).toBe(204);
+  expect(
+    await env.APP_DB.prepare("SELECT visitor_id FROM analytics_pageviews WHERE id=?")
+      .bind(viewId)
+      .first(),
+  ).toEqual({ visitor_id: browser });
+  expect(
+    (
+      await request("/analytics/choice", {
+        method: "POST",
+        headers: { Origin: origin },
+        body: JSON.stringify({ enabled: false }),
+      })
+    ).status,
+  ).toBe(404);
   const now = Date.now(),
     cutoff = now - analyticsRetentionMs,
     day = japanDay(cutoff),
@@ -804,65 +811,39 @@ for (const provider of ["google", "discord"] as const)
     mock.mockRestore();
   });
 
-test("対局中の計測停止はD1とDOに反映し、古い開始記録の再送でも識別を復活させない", async () => {
+test("退会はDOの計測識別を除去し、遅延した開始記録で本人識別を復活させない", async () => {
   const user = await accountFixture(),
-    browser = crypto.randomUUID(),
-    record: AnalyticsMatch = {
-      id: crypto.randomUUID(),
-      game: "four-reversi",
-      mode: "singles",
-      startedAtMs: Date.now(),
-      endedAtMs: null,
-      status: "playing",
-      cpuCount: 0,
-      participants: [
-        { playerId: crypto.randomUUID(), accountId: user.id, visitorId: browser, isTest: false },
-      ],
-    };
-  const stub = env.GAME_ROOM.getByName("privacy-choice-fixture");
+    browser = crypto.randomUUID();
+  const record: AnalyticsMatch = {
+    id: crypto.randomUUID(),
+    game: "four-reversi",
+    mode: "singles",
+    startedAtMs: Date.now(),
+    endedAtMs: null,
+    status: "playing",
+    cpuCount: 0,
+    participants: [
+      { playerId: crypto.randomUUID(), accountId: user.id, visitorId: browser, isTest: false },
+    ],
+  };
+  const stub = env.GAME_ROOM.getByName("privacy-retired-analytics");
+  await runInDurableObject(stub, async (_, ctx) => ctx.storage.kv.put("analytics-active", record));
+  expect(await tombstone(user.id)).toBe(true);
+  await stub.purgeAccount(user.id);
   await writeAnalyticsMatch(env.APP_DB, record);
-  await runInDurableObject(stub, async (_, state) =>
-    state.storage.kv.put("analytics-active", record),
+  expect(
+    await env.APP_DB.prepare(
+      "SELECT 1 FROM analytics_participants WHERE match_id=? AND (account_id=? OR visitor_id=?)",
+    )
+      .bind(record.id, user.id, browser)
+      .first(),
+  ).toBeNull();
+  await runInDurableObject(stub, async (_, ctx) =>
+    expect(ctx.storage.kv.get<AnalyticsMatch>("analytics-active")!.participants[0]).toMatchObject({
+      accountId: null,
+      visitorId: null,
+    }),
   );
-  await stub.disableAnalyticsIdentity(browser, user.id);
-  await writeAnalyticsMatch(env.APP_DB, record);
-  expect(
-    await env.APP_DB.prepare(
-      "SELECT account_id,visitor_id FROM analytics_participants WHERE match_id=?",
-    )
-      .bind(record.id)
-      .first(),
-  ).toEqual({ account_id: null, visitor_id: null });
-  // 開始書込みが停止より遅れた場合にも同じ保存先の制約を適用します。
-  await env.APP_DB.prepare("DELETE FROM analytics_participants WHERE match_id=?")
-    .bind(record.id)
-    .run();
-  await writeAnalyticsMatch(env.APP_DB, record);
-  expect(
-    await env.APP_DB.prepare(
-      "SELECT account_id,visitor_id FROM analytics_participants WHERE match_id=?",
-    )
-      .bind(record.id)
-      .first(),
-  ).toEqual({ account_id: null, visitor_id: null });
-  await runInDurableObject(stub, async (_, state) => {
-    const active = state.storage.kv.get<AnalyticsMatch>("analytics-active")!;
-    expect(active.participants[0]).toMatchObject({ accountId: null, visitorId: null });
-  });
-  const response = await request("/analytics/choice", {
-    method: "POST",
-    headers: {
-      Origin: origin,
-      "Content-Type": "application/json",
-      Cookie: `${user.cookie}; tetraboard-2026.analytics=${browser}`,
-    },
-    body: JSON.stringify({ enabled: false }),
-  });
-  expect(response.status).toBe(204);
-  expect(response.headers.getSetCookie().join(";")).toContain(`${analyticsPreferenceCookie}=off`);
-  expect(
-    await accountIdentity(new Request(origin, { headers: { Cookie: user.cookie } }), env),
-  ).not.toBeNull();
 });
 
 test("複数退会者と元から存在しない参照を区別し、相手の公開棋譜・戦績を維持する", async () => {
@@ -1192,49 +1173,6 @@ test("同時に再認証を始めても1分5回を超えず、削除後のCookie
     body: JSON.stringify({ name: "ゲスト", mode: "singles", quickPlay: false }),
   });
   expect(guest.status).toBe(201);
-});
-
-test("再有効化は参加資格で確認した席の次局に新IDを設定し、他の資格を流用しない", async () => {
-  const old = crypto.randomUUID(),
-    fresh = crypto.randomUUID();
-  const response = await request("/rooms", {
-    method: "POST",
-    headers: {
-      Origin: origin,
-      Cookie: `tetraboard-2026.analytics=${old}`,
-      "X-Legal-Consent": legalVersion,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name: "再開する名", mode: "singles", quickPlay: false }),
-  });
-  expect(response.status).toBe(201);
-  const data = (await response.json()) as {
-    room: { id: string };
-    membership: { playerId: string; token: string };
-  };
-  const set = (enabled: boolean, visitor: string, token = data.membership.token) =>
-    request("/analytics/choice", {
-      method: "POST",
-      headers: {
-        Origin: origin,
-        Cookie: `${analyticsPreferenceCookie}=${enabled ? "on" : "off"}; tetraboard-2026.analytics=${visitor}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ enabled, memberships: [{ roomId: data.room.id, token }] }),
-    });
-  expect((await set(false, old)).status).toBe(204);
-  const on = await set(true, fresh);
-  expect(on.status).toBe(204);
-  expect(on.headers.getSetCookie().some((v) => v.startsWith("tetraboard-2026.analytics="))).toBe(
-    false,
-  );
-  expect((await set(true, old, "0".repeat(64))).status).toBe(204);
-  await runInDurableObject(env.GAME_ROOM.getByName(data.room.id), async (_, state) =>
-    expect(state.storage.kv.get(`analytics-player:${data.membership.playerId}`)).toMatchObject({
-      accountId: null,
-      visitorId: fresh,
-    }),
-  );
 });
 
 test("集計後の削除が失敗してもD1 batchを巻き戻し、再試行で集計を二重加算しない", async () => {

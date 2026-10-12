@@ -40,7 +40,6 @@ export async function archiveAnalytics(env: Env, now = Date.now()) {
     );
   }
   statements.push(
-    db.prepare("DELETE FROM analytics_disabled_participants WHERE expires_at_ms<=?").bind(now),
     db
       .prepare(
         "DELETE FROM analytics_dwell WHERE view_id IN (SELECT id FROM analytics_pageviews WHERE started_at_ms<=?)",

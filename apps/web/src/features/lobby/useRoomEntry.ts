@@ -1,5 +1,4 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { hasLocalConsent } from "../privacy/consent";
 import { createRoomRequests } from "./createRoomRequests";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
@@ -128,7 +127,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         method: contract.method,
         headers: {
           "Content-Type": "application/json",
-          "X-Legal-Consent": hasLocalConsent() ? legalVersion : "",
+          "X-Legal-Consent": legalVersion,
         },
         body: JSON.stringify(request.data),
       });

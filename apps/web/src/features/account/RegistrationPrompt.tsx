@@ -7,7 +7,6 @@ import { AppButton } from "../../shared/ui/AppButton";
 
 export function RegistrationPrompt({
   game = defaultGameId,
-  showConsent = true,
   humanOnly,
   seated = false,
   result = false,
@@ -17,7 +16,6 @@ export function RegistrationPrompt({
   onDismiss,
 }: {
   game?: GameId;
-  showConsent?: boolean;
   humanOnly: boolean;
   seated?: boolean;
   result?: boolean;
@@ -58,12 +56,7 @@ export function RegistrationPrompt({
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        <SocialSignInButtons
-          showConsent={showConsent}
-          busy={busy}
-          pendingProvider={pendingProvider}
-          onSignIn={onRegister}
-        />
+        <SocialSignInButtons busy={busy} pendingProvider={pendingProvider} onSignIn={onRegister} />
         {onDismiss && (
           <AppButton appearance="secondary" size="compact" isDisabled={busy} onPress={onDismiss}>
             今はしない

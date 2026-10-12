@@ -1,15 +1,9 @@
-import {
-  analyticsEnabled,
-  analyticsPreferenceStorageKey,
-  syncAnalyticsPreference,
-} from "./preference";
 import { gameIds } from "@tetraboard/protocol/games";
 import type { router as appRouter } from "../app/router";
 import { createUuid } from "../shared/createUuid";
 export { createUuid as randomAnalyticsId } from "../shared/createUuid";
 export const analyticsCookie = "tetraboard-2026.analytics";
 export function ensureAnalyticsCookie() {
-  if (!analyticsEnabled()) return false;
   try {
     const existing = document.cookie
       .split(";")
@@ -44,7 +38,7 @@ function trackPage(page: string, game: string | null) {
       .find((v) => v.trim().startsWith(`${analyticsCookie}=`))
       ?.trim();
   const visitor = visitorAtStart();
-  const permitted = () => analyticsEnabled() && visitor === visitorAtStart();
+  const permitted = () => visitor === visitorAtStart();
   const created = fetch("/api/analytics/pageviews", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,7 +88,7 @@ function trackPage(page: string, game: string | null) {
   function update() {
     if (!permitted()) {
       relinquish();
-      if (alive && analyticsEnabled()) window.dispatchEvent(new Event("analytics-choice"));
+      if (alive) window.dispatchEvent(new Event("analytics-identity-changed"));
       return;
     }
     if (!alive || document.visibilityState !== "visible" || !document.hasFocus()) {
@@ -160,7 +154,6 @@ export function startWebAnalytics(router: typeof appRouter) {
     stop = undefined;
     const path = state.location.pathname;
     if (
-      !analyticsEnabled() ||
       ["/privacy", "/terms"].includes(path) ||
       path === "/" ||
       /^\/admin(?:\/|$)/.test(path) ||
@@ -194,13 +187,7 @@ export function startWebAnalytics(router: typeof appRouter) {
     if (["room", "replay"].includes(page) && !game) return;
     stop = trackPage(page, game);
   }
-  window.addEventListener("analytics-choice", () => {
-    previous = "";
-    changed(router.state);
-  });
-  window.addEventListener("storage", (event) => {
-    if (event.key !== analyticsPreferenceStorageKey) return;
-    syncAnalyticsPreference();
+  window.addEventListener("analytics-identity-changed", () => {
     previous = "";
     changed(router.state);
   });

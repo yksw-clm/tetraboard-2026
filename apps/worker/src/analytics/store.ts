@@ -1,4 +1,4 @@
-import { analyticsPreferenceCookie, analyticsRetentionMs } from "@tetraboard/protocol/privacy";
+import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 export type AnalyticsIdentity = {
   visitorId: string | null;
   accountId: string | null;
@@ -19,14 +19,7 @@ export const analyticsPendingPrefix = "analytics-pending:";
 export const analyticsActiveKey = "analytics-active";
 export const analyticsPlayerKey = (id: string) => `analytics-player:${id}`;
 export const visitorCookie = "tetraboard-2026.analytics";
-export function analyticsAllowed(request: Request) {
-  return !request.headers
-    .get("Cookie")
-    ?.split(";")
-    .some((v) => v.trim() === `${analyticsPreferenceCookie}=off`);
-}
 export function analyticsVisitor(request: Request): string | null {
-  if (!analyticsAllowed(request)) return null;
   const value = request.headers
     .get("Cookie")
     ?.split(";")

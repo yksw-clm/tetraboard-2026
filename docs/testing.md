@@ -29,24 +29,24 @@
 
 | 対象 | 自動検証する振る舞い |
 | --- | --- |
-| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、運営者・窓口・版・改定日・リンク、文書閲覧時の計測選択不要 |
-| 公開説明・同意 | 全6ゲーム・全作成／参加導線のゲスト名保存・公開の説明、登録・初回設定・ゲスト参加、未同意の拒否、既存登録者、同意版の記録、改定後の再確認、端末保存失敗、年齢・保護者同意、生年月日の非保存 |
+| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、運営者・窓口・版・改定日・リンク、文書閲覧だけでは計測IDを発行しないこと |
+| 公開説明・同意 | 全6ゲーム・全作成／参加導線のゲスト名保存・公開の説明、登録・初回設定・ゲスト参加のボタン操作、未確認・旧版APIの拒否、既存登録者、同意版の記録、改定後の再確認、同意チェック・端末保存への非依存、年齢・保護者同意、生年月日の非保存 |
 | 再認証・受付 | 未認証・別アカウント・別プロバイダー・取消・期限切れ・Origin違反・回数制限・確認の再利用、本人再認証、在室・切断保持席・同時参加、重複受付と再登録者の保護 |
 | 即時利用停止 | 全セッション・参加資格の失効、取得・プロフィール編集・参加の拒否、ランキング・公開情報・管理一覧からの除外、古い応答・キャッシュからの本人表示の復活防止 |
 | 棋譜と相手 | 全6ゲームの公開／本人一覧・詳細・イベントページ・相手履歴・ルーム内棋譜／結果、複数の退会者、CPU・ゲストの保存名維持、元から参照先がない旧記録との区別、名前・画像・公開ID・内部参照の除去、盤面・結果・順位・撃破数・日時・相手戦績の維持 |
 | 保存の競合 | D1保存失敗、再送・二重送信、DO再起動、保存開始前／受付直後／転送途中／完了後の退会、将棋manifestと全チャンク検証、部屋閉鎖・番号再利用、バッジ・計測待ち、同時編集、遅延RPCによる旧名・画像・本人索引の復活防止 |
 | 削除と進捗 | 認証情報・画像・履歴索引・同意・バッジ・個別計測・本人フィードバック・編集履歴の対象発見と削除、D1・DO・R2失敗からの再開、外部解除のモックによる再試行、他の利用者の情報保護、受付と完了の区別、完了前の完了表示拒否 |
-| 計測設定 | 有効／停止／再有効化、計測Cookie削除と新ID、閲覧・滞在の送信停止、対局への個別識別停止、登録前後・複数タブ・保存失敗、停止中のログイン・参加・棋譜保存・戦績、必要なCookieへの非干渉 |
+| 常時計測 | ON/OFF UI・設定APIを提供しない、旧選択Cookieに依存しない、Cookieと内部IDの関連付け・閲覧・滞在、規約ページでの計測ID非発行、退会の本人識別除去 |
 | 保存期限・長期集計 | 90日の直前・一致・直後、期限後のAPI除外と毎時削除、導入前データ、集計後の削除失敗・重複実行・遅延送信、7日継続率の観測窓と月境界、個人ID・端末ID・対局ID・対応表の非保持、期間ユニーク数の誤加算防止、算出不可の管理表示 |
 | 互換・回帰 | 既存固定棋譜と旧記録、退会対象のないデータの不変、Google／Discord認証・プロフィール・ゲスト名記憶・ゲスト参加・戦績・バッジ・チャット・通報・フィードバックの既存動作 |
 
-[privacy.test.ts](../apps/worker/test/privacy.test.ts) は全6ゲームの未確認／旧版拒否、初回文書HTML、版別同意、全6棋譜の本人除去と相手維持、通常／四人将棋の転送途中、確認資格の一回性と在室拒否、DO・画像・認証・本人フィードバック等の削除、画像／外部解除失敗、完了後の旧索引再送、同時に失敗したDO保存、90日境界と日跨ぎ・重複集計・遅延再送、旧トークン暗号化を確認します。HTTPSの認証Cookie、取消による回数制限の維持、閉鎖済みDOの索引保存待ちも対象です。Google／DiscordのHTTPをモックし、実コールバックから取消・別人・期限・正常再認証・退会・新規再登録まで通します。実サービスのOAuth成功と混同しません。
+[privacy.test.ts](../apps/worker/test/privacy.test.ts) は全6ゲームの未確認／旧版拒否、初回文書HTML、ボタン操作の版別同意、全6棋譜の本人除去と相手維持、通常／四人将棋の転送途中、確認資格の一回性と在室拒否、DO・画像・認証・本人フィードバック等の削除、画像／外部解除失敗、完了後の旧索引再送、同時に失敗したDO保存、90日境界と日跨ぎ・重複集計・遅延再送、旧トークン暗号化を確認します。HTTPSの認証Cookie、取消による回数制限の維持、閉鎖済みDOの索引保存待ちも対象です。Google／DiscordのHTTPをモックし、実コールバックから取消・別人・期限・正常再認証・退会・新規再登録まで通します。実サービスのOAuth成功と混同しません。
 
-[privacy.test.tsx](../apps/web/test-dom/privacy.test.tsx) は全6ゲームの登録者／ゲストの事前説明、OAuth／参加の同意拒否と許可、全文・連絡先、計測設定・Cookie削除、退会の在室／確認・処理中／障害／完了を確認します。[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) と [roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx) は退会による接続失効・セッション再確認と、古い本人応答の破棄を確認します。
+[privacy.test.tsx](../apps/web/test-dom/privacy.test.tsx) は全6ゲームの登録者／ゲストの事前説明、OAuth／参加の同意拒否と許可、全文・連絡先、同意文言→ボタン→別タブの文書リンクの順序、常時計測の説明、退会の在室／確認・処理中／障害／完了を確認します。[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) と [roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx) は退会による接続失効・セッション再確認と、古い本人応答の破棄を確認します。
 
-部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMの共通fixtureも既存の確認を初期化し、未確認・旧版の新テストでは明示的に解除します。
+部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMでは同意チェック・端末保存がなくても、説明後のボタン操作で現在版を送ることを確認します。
 
-WorkerはローカルのD1・R2・SQLite対応DOで保存と資格・HTTP／WebSocketを確認します。期限・再認証の有効時間・表示変換は純粋関数、同意・退会・設定・非同期応答はBun＋happy-domで確認します。既存の `accounts.test.ts`・`discordAuth.test.ts`・`accountRooms.test.ts`・`publicMatches.test.ts`・`matchCompatibility.test.ts`・`commonRoomBehavior.test.ts`・`adminAnalytics.test.ts`・`feedback.test.ts`・`badgeNotifications.test.ts`・`publicAssets.test.ts` と関連DOMテストを入口にします。
+WorkerはローカルのD1・R2・SQLite対応DOで保存と資格・HTTP／WebSocketを確認します。期限・再認証の有効時間・表示変換は純粋関数、同意・退会・非同期応答はBun＋happy-domで確認します。既存の `accounts.test.ts`・`discordAuth.test.ts`・`accountRooms.test.ts`・`publicMatches.test.ts`・`matchCompatibility.test.ts`・`commonRoomBehavior.test.ts`・`adminAnalytics.test.ts`・`feedback.test.ts`・`badgeNotifications.test.ts`・`publicAssets.test.ts` と関連DOMテストを入口にします。
 
 手動確認は、PC／スマートフォンの文章・リンク・最終確認と処理中表示、キーボード・読み上げ、実Google／Discord認証と取消・同じ本人の再認証・連携解除、複数端末の失効、実画像削除、窓口メール受信、Google Cloudのscope・本番URL・所有ドメイン、Cloudflareの処理先・ログ／バックアップ期限、バックアップ復元後の削除再適用です。ブラウザを起動する自動テストを追加しません。
 

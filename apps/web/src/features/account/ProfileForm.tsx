@@ -1,5 +1,5 @@
-import { LegalAcceptance } from "../privacy/LegalAcceptance";
-import { useLocalConsent } from "../privacy/consent";
+import { LegalNotice } from "../privacy/LegalNotice";
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { type AccountProfile } from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -17,7 +17,6 @@ export function ProfileForm({
   onSaved?: (profile: AccountProfile) => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
-  const accepted = useLocalConsent();
   const {
     name,
     setName,
@@ -37,17 +36,7 @@ export function ProfileForm({
     removeImage,
   } = useProfileDraft({ user, setup, onSaved, onBusyChange });
   return (
-    <form
-      onSubmit={(e) => {
-        if (setup && !accepted) {
-          e.preventDefault();
-          return;
-        }
-        void submit(e);
-      }}
-      noValidate
-      className="flex flex-col gap-6"
-    >
+    <form onSubmit={(e) => void submit(e)} noValidate className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-3">
         <div className="relative size-24">
           <AppAvatar src={image} label="アイコンのプレビュー" className="size-24 [&_svg]:size-10" />
@@ -125,7 +114,7 @@ export function ProfileForm({
         </AppTextField.Description>
         <AppTextField.Error>IDは英数字・_の3〜20文字で入力してください。</AppTextField.Error>
       </AppTextField>
-      {setup && <LegalAcceptance disabled={busy} />}
+      {setup && <LegalNotice />}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
@@ -133,12 +122,13 @@ export function ProfileForm({
       )}
       <AppButton
         type="submit"
-        isDisabled={busy || (setup && !accepted)}
+        isDisabled={busy}
         isPending={saving}
         className={setup ? undefined : "self-end"}
       >
         {setup ? "プロフィールを作成" : "保存"}
       </AppButton>
+      {setup && <PrivacyLinks newTab />}
     </form>
   );
 }

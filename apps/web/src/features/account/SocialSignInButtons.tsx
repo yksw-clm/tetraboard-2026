@@ -1,5 +1,5 @@
-import { LegalAcceptance } from "../privacy/LegalAcceptance";
-import { useLocalConsent } from "../privacy/consent";
+import { LegalNotice } from "../privacy/LegalNotice";
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import type { SocialProvider } from "./useSocialSignIn";
 import { AppButton } from "../../shared/ui/AppButton";
 
@@ -7,26 +7,23 @@ export function SocialSignInButtons({
   busy,
   pendingProvider = null,
   adminOnly = false,
-  showConsent = true,
   onSignIn,
 }: {
   busy: boolean;
   pendingProvider?: SocialProvider | null;
   adminOnly?: boolean;
-  showConsent?: boolean;
   onSignIn: (provider: SocialProvider) => void;
 }) {
-  const accepted = useLocalConsent();
   return (
     <div className="@container w-full flex flex-col gap-3">
-      {!adminOnly && showConsent && <LegalAcceptance disabled={busy} />}
+      {!adminOnly && <LegalNotice />}
       <div
         className={`grid gap-2 ${adminOnly ? "grid-cols-1" : "grid-cols-1 @min-[480px]:grid-cols-2"}`}
       >
         <AppButton
           appearance="secondary"
           className="min-h-11 w-full gap-2.5 border-[#747775] bg-white px-3 text-sm font-medium [font-family:Google_Sans,Arial,sans-serif] text-[#1f1f1f]"
-          isDisabled={busy || (!adminOnly && !accepted)}
+          isDisabled={busy}
           isPending={pendingProvider === "google"}
           onPress={() => onSignIn("google")}
         >
@@ -46,7 +43,7 @@ export function SocialSignInButtons({
           <AppButton
             appearance="secondary"
             className="min-h-11 w-full gap-2.5 border-[#747775] bg-white px-3 text-sm font-medium text-[#1f1f1f]"
-            isDisabled={busy || (!adminOnly && !accepted)}
+            isDisabled={busy}
             isPending={pendingProvider === "discord"}
             onPress={() => onSignIn("discord")}
           >
@@ -63,6 +60,7 @@ export function SocialSignInButtons({
           </AppButton>
         )}
       </div>
+      {!adminOnly && <PrivacyLinks newTab />}
     </div>
   );
 }

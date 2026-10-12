@@ -1,6 +1,6 @@
 import { publicRecordNotice } from "@tetraboard/protocol/privacy";
-import { LegalAcceptance } from "../privacy/LegalAcceptance";
-import { useLocalConsent } from "../privacy/consent";
+import { LegalNotice } from "../privacy/LegalNotice";
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
@@ -25,7 +25,6 @@ export function RoomInvitationDialogs({
   registrationPath: string;
   humanOnly: boolean;
 }) {
-  const accepted = useLocalConsent();
   const account = useAccount();
   const signIn = useSocialSignIn();
   const busy = invitation.busy || signIn.busy;
@@ -43,14 +42,13 @@ export function RoomInvitationDialogs({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          if (busy || !accepted) return;
+          if (busy) return;
           void invitation.submit();
         }}
       >
         <p className="text-sm text-muted">
           {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
         </p>
-        <LegalAcceptance disabled={busy} />
         <RoomIdentityFields
           name={invitation.name}
           onChange={invitation.setName}
@@ -73,6 +71,7 @@ export function RoomInvitationDialogs({
             {invitation.message ?? invitation.unavailableReason}
           </p>
         )}
+        <LegalNotice />
         <div className="flex justify-end gap-[10px] mt-[22px]">
           <AppButton
             appearance="secondary"
@@ -96,6 +95,7 @@ export function RoomInvitationDialogs({
             参加する
           </AppButton>
         </div>
+        <PrivacyLinks newTab />
       </form>
     </AppDialog>
   );

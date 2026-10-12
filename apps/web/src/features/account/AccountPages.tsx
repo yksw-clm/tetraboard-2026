@@ -1,5 +1,4 @@
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
-import { AnalyticsChoice } from "../privacy/AnalyticsChoice";
 import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
 import {
@@ -117,7 +116,6 @@ export function AccountPageShell({
           )}
           {children}
           <PrivacyLinks />
-          <AnalyticsChoice />
           {profileLayout && (
             <AppButtonLink to="/account/deletion" appearance="quiet">
               アカウントを削除

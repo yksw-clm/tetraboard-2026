@@ -151,77 +151,6 @@ export class GameRoom extends DurableObject<Env> {
     return new Map(this.ctx.storage.kv.list<AnalyticsJob>({ prefix: analyticsPendingPrefix }));
   }
 
-  async disableAnalyticsIdentity(visitorId: string | null, accountId: string | null) {
-    await this.ctx.blockConcurrencyWhile(async () => {
-      for (const [key, value] of this.ctx.storage.kv.list<unknown>()) {
-        if (!key.startsWith("analytics-")) continue;
-        const strip = (input: unknown): unknown => {
-          if (Array.isArray(input)) return input.map(strip);
-          if (!input || typeof input !== "object") return input;
-          const row = input as Record<string, unknown>;
-          const found =
-            (accountId && row.accountId === accountId) ||
-            (visitorId && row.visitorId === visitorId);
-          return Object.fromEntries(
-            Object.entries(row).map(([k, v]) => [
-              k,
-              found && (k === "accountId" || k === "visitorId") ? null : strip(v),
-            ]),
-          );
-        };
-        const collect = async (input: unknown): Promise<void> => {
-          if (Array.isArray(input)) {
-            for (const v of input) await collect(v);
-            return;
-          }
-          if (!input || typeof input !== "object") return;
-          const record = input as Record<string, unknown>;
-          if (typeof record.id === "string" && Array.isArray(record.participants)) {
-            for (const entry of record.participants) {
-              const p = entry as Record<string, unknown>;
-              if (
-                (accountId && p.accountId === accountId) ||
-                (visitorId && p.visitorId === visitorId)
-              )
-                await this.env.APP_DB.batch([
-                  this.env.APP_DB.prepare(
-                    "INSERT OR IGNORE INTO analytics_disabled_participants VALUES (?,?,?)",
-                  ).bind(record.id, p.playerId, Number(record.startedAtMs) + analyticsRetentionMs),
-                  this.env.APP_DB.prepare(
-                    "UPDATE analytics_participants SET account_id=NULL,visitor_id=NULL WHERE match_id=? AND player_id=?",
-                  ).bind(record.id, p.playerId),
-                ]);
-            }
-          }
-          for (const v of Object.values(record)) await collect(v);
-        };
-        await collect(value);
-        this.ctx.storage.kv.put(key, strip(value));
-      }
-    });
-  }
-
-  async setAnalyticsPreference(tokenHash: string, visitorId: string | null, enabled: boolean) {
-    await this.reconcileDeadlines();
-    const membership = this.readMembership(tokenHash),
-      room = this.readRoom();
-    if (
-      !membership ||
-      !room?.players.some((p) => p.id === membership.playerId && this.isHumanParticipant(p))
-    )
-      return false;
-    const key = analyticsPlayerKey(membership.playerId),
-      previous = this.ctx.storage.kv.get<AnalyticsIdentity>(key);
-    const accountId = this.storedAccount(membership.playerId)?.accountId ?? null;
-    if (!enabled) await this.disableAnalyticsIdentity(previous?.visitorId ?? visitorId, accountId);
-    this.ctx.storage.kv.put(key, {
-      visitorId: enabled ? visitorId : null,
-      accountId: enabled ? accountId : null,
-      isTest: previous?.isTest ?? false,
-    } satisfies AnalyticsIdentity);
-    return true;
-  }
-
   private startAnalyticsMatch(id: string, room: Room, at: number) {
     const record: AnalyticsMatch = {
       id,
@@ -548,7 +477,6 @@ export class GameRoom extends DurableObject<Env> {
       if (room) this.broadcastRoom(room);
       this.broadcastChat();
     });
-    await this.disableAnalyticsIdentity(null, accountId);
   }
 
   private storedAccount(playerId: string) {

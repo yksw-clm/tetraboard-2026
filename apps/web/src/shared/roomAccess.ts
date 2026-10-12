@@ -1,5 +1,4 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { hasLocalConsent } from "../features/privacy/consent";
 import {
   getRoomContract,
   joinRoomContract,
@@ -95,7 +94,7 @@ export async function joinRoom(
     method: joinRoomContract.method,
     headers: {
       "Content-Type": "application/json",
-      "X-Legal-Consent": hasLocalConsent() ? legalVersion : "",
+      "X-Legal-Consent": legalVersion,
     },
     body: JSON.stringify(request.data),
   });

@@ -1,5 +1,4 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { hasLocalConsent } from "../privacy/consent";
 import { useRef, useState } from "react";
 import { accountRequest } from "./accountApi";
 import {
@@ -29,7 +28,7 @@ export function useSocialSignIn() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Legal-Consent": hasLocalConsent() ? legalVersion : "",
+          "X-Legal-Consent": legalVersion,
         },
         body: JSON.stringify({
           provider,

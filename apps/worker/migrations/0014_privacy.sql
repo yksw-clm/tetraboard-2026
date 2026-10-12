@@ -78,8 +78,6 @@ CREATE TRIGGER privacy_scrub_room_index_update AFTER UPDATE OF host_name ON room
 CREATE TABLE oauth_legal_consents (state TEXT PRIMARY KEY,provider TEXT NOT NULL,version TEXT NOT NULL,created_at_ms INTEGER NOT NULL,expires_at_ms INTEGER NOT NULL);
 ALTER TABLE deleted_accounts ADD COLUMN last_attempted_at_ms INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE analytics_daily ADD COLUMN incomplete INTEGER NOT NULL DEFAULT 0;
-CREATE TABLE analytics_disabled_participants (match_id TEXT NOT NULL, player_id TEXT NOT NULL, expires_at_ms INTEGER NOT NULL, PRIMARY KEY(match_id,player_id));
-CREATE TRIGGER privacy_disabled_participant AFTER INSERT ON analytics_participants WHEN EXISTS (SELECT 1 FROM analytics_disabled_participants x WHERE x.match_id=NEW.match_id AND x.player_id=NEW.player_id) BEGIN UPDATE analytics_participants SET account_id=NULL,visitor_id=NULL WHERE match_id=NEW.match_id AND player_id=NEW.player_id; END;
 CREATE TABLE analytics_deleted_registrations (day TEXT NOT NULL,internal INTEGER NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(day,internal));
 
 CREATE TABLE deletion_flows (id TEXT PRIMARY KEY,account_id TEXT NOT NULL,expires_at_ms INTEGER NOT NULL);

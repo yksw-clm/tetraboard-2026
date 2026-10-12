@@ -143,26 +143,20 @@ test("計測API失敗は例外にせず、view登録前にdwellを送信しな�
   expect(requests).toHaveLength(1);
 });
 
-test("別タブで計測を止めた時間を加算せず、再有効化した新IDと新viewで再開する", async () => {
+test("旧選択Cookieが残っていても計測し、規約ページだけでは計測IDを発行しない", async () => {
   foreground();
-  const r = router("/games/four-reversi");
-  const first = JSON.parse(String(requests.at(-1)!.init.body));
-  requests.at(-1)!.respond(null, 204);
-  await flush();
-  clock.advance(20000);
   document.cookie = "tetraboard-2026.analytics-choice=off; Path=/";
   document.cookie =
     "tetraboard-2026.analytics=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  window.dispatchEvent(new window.StorageEvent("storage", { key: "tetraboard:analytics-choice" }));
-  const count = requests.length;
-  clock.advance(60000);
-  expect(requests.length).toBe(count);
-  document.cookie = "tetraboard-2026.analytics-choice=on; Path=/";
-  document.cookie = `tetraboard-2026.analytics=${crypto.randomUUID()}; Path=/`;
-  window.dispatchEvent(new window.StorageEvent("storage", { key: "tetraboard:analytics-choice" }));
-  const next = JSON.parse(String(requests.at(-1)!.init.body));
-  expect(next.id).not.toBe(first.id);
-  requests.at(-1)!.respond(null, 204);
+  const r = router("/privacy");
+  expect(requests).toHaveLength(0);
+  expect(document.cookie).not.toContain(`${analyticsCookie}=`);
+  r.navigate("/terms");
+  expect(requests).toHaveLength(0);
+  r.navigate("/games/four-reversi");
+  expect(requests).toHaveLength(1);
+  expect(document.cookie).toContain(`${analyticsCookie}=`);
+  requests[0]!.respond(null, 204);
   await flush();
   clock.advance(30000);
   expect(JSON.parse(String(requests.at(-1)!.init.body)).days[0].milliseconds).toBe(30000);
