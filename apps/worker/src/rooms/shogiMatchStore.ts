@@ -1,3 +1,4 @@
+import { redactParticipants } from "../privacy/identity";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
@@ -22,7 +23,7 @@ export type ShogiMatchParticipant = {
   name: string;
   side: Side;
   seat: number;
-} & ({ kind: "human"; accountId: string | null } | { kind: "cpu"; level: 1 | 2 });
+} & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
 export type ShogiMatchStart = {
   id: string;
   roomId: string;
@@ -70,7 +71,7 @@ export type StandardShogiMatchRecord = {
   endedAtMs: number;
   settings: ShogiMatchDetail["settings"];
   participants: ({ id: string; name: string; side: "south" | "north"; seat: number } & (
-    | { kind: "human"; accountId: string | null }
+    | { kind: "human"; accountId: string | null; retired?: true }
     | { kind: "cpu"; level: 1 | 2 }
   ))[];
   game: ShogiMatchDetail["game"];
@@ -121,6 +122,7 @@ export async function advanceShogiMatchSave(
   readEvents: (cursor: number) => StoredEvent[],
   formationUsage?: ShogiFormationUsage,
 ): Promise<ShogiSaveProgress | null> {
+  record = await redactParticipants(db, record);
   const game = record.settings.game;
   if (formationUsage) {
     shogiFormationUsageSchema.parse(formationUsage);

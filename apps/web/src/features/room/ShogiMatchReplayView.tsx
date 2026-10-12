@@ -30,7 +30,11 @@ export default function ShogiMatchReplayView({
         key={player.id}
         shogi
         game="shogi"
-        profileTarget={{ source: "match", matchId: match.id, playerId: player.id }}
+        profileTarget={
+          player.kind === "human" && player.retired
+            ? undefined
+            : { source: "match", matchId: match.id, playerId: player.id }
+        }
         player={player}
         self={player.id === match.selfPlayerId}
         host={player.seat === 0}

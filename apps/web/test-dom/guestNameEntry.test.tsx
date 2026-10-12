@@ -100,7 +100,9 @@ test("両ゲームの招待・ルーム内参加に保存名を表示し、編�
         ),
       );
       await flush();
-      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("保存名");
+      expect(document.querySelector<HTMLInputElement>("input:not([type=checkbox])")!.value).toBe(
+        "保存名",
+      );
       act(() => {
         h.current.setName("編集中");
         h.current.close();
@@ -192,6 +194,7 @@ test("招待・ルーム内参加の成功後も正規化したゲスト名を�
       await flush();
       requests[1]!.respond(snapshot(room));
       await flush();
+      expect(new Headers(requests[2]!.init.headers).get("X-Legal-Consent")).toBe("2026-10-12");
       expect(JSON.parse(String(requests[2]!.init.body))).toEqual({
         name: "招待の名前",
         instanceId: room.instanceId,
@@ -415,6 +418,7 @@ test("名前の保存領域が読取り／書込み不能でもゲストの作�
       });
       requests[0]!.respond({ user: null });
       await flush();
+      expect(new Headers(requests[1]!.init.headers).get("X-Legal-Consent")).toBe("2026-10-12");
       requests[1]!.respond(
         {
           room: waitingRoom(),

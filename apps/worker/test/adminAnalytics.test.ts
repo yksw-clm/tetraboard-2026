@@ -1,5 +1,6 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env } from "cloudflare:workers";
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   adminAnalyticsSchema,
   adminUsersSchema,
@@ -19,9 +20,10 @@ import {
 } from "../src/analytics/store";
 import type { AdminEnv } from "../src/admin/auth";
 import { matchSetup, matchStart, matchLeave, matchClients } from "./matchFixtures";
+afterEach(() => vi.restoreAllMocks());
 const context = { waitUntil: () => {} } as unknown as ExecutionContext;
 const fetchWith = (bindings: AdminEnv, path: string, init?: RequestInit) =>
-  worker.fetch(new Request(origin + path, init), bindings, context);
+  worker.fetch(new AcceptedGameRequest(origin + path, init), bindings, context);
 const visitor = () => crypto.randomUUID();
 const cookie = (id: string) => `tetraboard-2026.analytics=${id}`;
 function record(at: number, overrides: Partial<AnalyticsMatch> = {}): AnalyticsMatch {
@@ -114,6 +116,7 @@ test("管理API・HTMLは本人限定で、通報用トークンを流用せず�
 });
 
 test("日本時間の境界・月別・両ゲーム・内部参加者除外と進行状態を集計する", async () => {
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2001-01-31T12:00:00+09:00"));
   const ownerId = visitor();
   const guestId = visitor();
   const before = Date.parse("2001-01-01T23:59:30+09:00");
@@ -191,6 +194,7 @@ test("日本時間の境界・月別・両ゲーム・内部参加者除外と�
 });
 
 test("訪問との開始率・初回完了から7日以内の再対局・観測未完了・期間のユニーク数", async () => {
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2001-01-31T12:00:00+09:00"));
   const at = Date.parse("2001-01-03T12:00:00+09:00");
   const guest = visitor();
   const account = visitor();
@@ -688,8 +692,12 @@ test("指定した2つの本人アカウントだけを許可し、不正な配�
 });
 
 test("複数の本人アカウントを閲覧・滞在・対局・登録から除外し、一般利用者との混在対局は残す", async () => {
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2002-01-31T12:00:00+09:00"));
   const people = [await accountFixture(), await accountFixture(), await accountFixture()];
   const at = Date.parse("2002-01-01T12:00:00+09:00");
+  await env.APP_DB.prepare("INSERT OR REPLACE INTO analytics_metadata VALUES ('collected_from',?)")
+    .bind(at)
+    .run();
   const participants = people.map((person) => ({
     playerId: visitor(),
     accountId: person.id,

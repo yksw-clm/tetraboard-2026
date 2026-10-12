@@ -40,7 +40,7 @@ async function queryGameRankings(
       ) AS position
     FROM metrics m JOIN user u ON u.id = m.account_id
     WHERE m.value > 0 AND u.profileCompleted = 1 AND u.username IS NOT NULL
-      AND COALESCE(u.isAnonymous, 0) = 0
+      AND COALESCE(u.isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
   )
   SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, rank
   FROM ranked WHERE position <= 10 ORDER BY mode, metric, position`)

@@ -36,7 +36,11 @@ const avatarUrlSchema = z
   .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
   .nullable();
 const playerAppearanceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("human"), avatarUrl: avatarUrlSchema }),
+  z.strictObject({
+    kind: z.literal("human"),
+    avatarUrl: avatarUrlSchema,
+    retired: z.literal(true).optional(),
+  }),
   z.strictObject({ kind: z.literal("cpu"), level: cpuLevelSchema }),
 ]);
 export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
@@ -176,6 +180,7 @@ const playerBaseSchema = z.strictObject({
 });
 const humanPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("human"),
+  retired: z.literal(true).optional(),
   avatarUrl: avatarUrlSchema.default(null),
   ready: z.boolean(),
   reconnectDeadline: z.int().nonnegative().nullable(),
@@ -895,6 +900,7 @@ const roomErrorSchema = z.strictObject({
     "room_full",
     "account_seated",
     "profile_required",
+    "consent_required",
     "room_started",
     "room_changed",
     "unauthorized",

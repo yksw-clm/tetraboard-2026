@@ -1,7 +1,9 @@
+import { checkAccountPrivacy } from "./accountPrivacy";
 import { accountProfileSchema, accountSessionSchema } from "@tetraboard/protocol";
 export async function accountRequest(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(path, { ...init, credentials: "same-origin", cache: "no-store" });
   const body = (await response.json().catch(() => null)) as { message?: string } | null;
+  if (response.status === 401) checkAccountPrivacy();
   if (!response.ok)
     throw new Error(body?.message ?? "通信に失敗しました。もう一度お試しください。");
   return body;

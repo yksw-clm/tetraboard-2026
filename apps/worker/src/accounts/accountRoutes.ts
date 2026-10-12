@@ -1,3 +1,9 @@
+import { reserveAvatarUpload, finishAvatarUpload } from "../privacy/avatarUploads";
+import { isDeleted } from "../privacy/identity";
+import { completeLegalAuthentication } from "../privacy/oauthConsent";
+import { completeReauthentication } from "../privacy/deletion";
+import { legalVersion } from "@tetraboard/protocol/privacy";
+import { consentStatement } from "../privacy/consent";
 import { Hono } from "hono";
 import { accountSessionSchema, profileInputSchema } from "@tetraboard/protocol";
 import {
@@ -22,10 +28,17 @@ accountRoutes.onError((err, c) => {
 });
 accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
   const path = new URL(c.req.url).pathname.replace(/^\/api/, "");
-  if (c.req.method === "GET" && ["/auth/callback/google", "/auth/callback/discord"].includes(path))
-    return createAuth(c.env).handler(
+  if (
+    c.req.method === "GET" &&
+    ["/auth/callback/google", "/auth/callback/discord"].includes(path)
+  ) {
+    const response = await createAuth(c.env).handler(
       new Request(`${c.env.APP_ORIGIN}/api${path}${new URL(c.req.url).search}`, c.req.raw),
     );
+    await completeReauthentication(c.req.raw, response, c.env);
+    await completeLegalAuthentication(c.req.raw, response, c.env);
+    return response;
+  }
   if (c.req.method !== "POST" || !["/auth/sign-in/social", "/auth/sign-out"].includes(path))
     return c.json(error("見つかりません。"), 404);
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)
@@ -46,6 +59,12 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     if (data.provider !== undefined && data.provider !== "google" && data.provider !== "discord")
       return c.json(error("認証方法の指定が正しくありません。"), 400);
     provider = data.provider === "discord" ? "discord" : "google";
+    if (
+      data.destination !== "admin" &&
+      data.consentVersion !== legalVersion &&
+      c.req.header("X-Legal-Consent") !== legalVersion
+    )
+      return c.json(error("規約と年齢条件を確認してください。"), 403);
     adminLogin = data.destination === "admin";
     if (adminLogin && provider !== "google")
       return c.json(error("管理画面にはGoogleでログインしてください。"), 400);
@@ -60,7 +79,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       );
   }
   // 許可したプロバイダーだけを使い、遷移先はサーバーで固定します。
-  return createAuth(c.env).handler(
+  const response = await createAuth(c.env).handler(
     new Request(`${c.env.APP_ORIGIN}/api${path}`, {
       method: "POST",
       headers: c.req.raw.headers,
@@ -76,6 +95,15 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       ),
     }),
   );
+  if (path === "/auth/sign-in/social" && !adminLogin && response.ok) {
+    const data = (await response.clone().json()) as { url?: string };
+    const state = data.url ? new URL(data.url).searchParams.get("state") : null;
+    if (state)
+      await c.env.APP_DB.prepare("INSERT INTO oauth_legal_consents VALUES (?,?,?,?,?)")
+        .bind(state, provider, legalVersion, Date.now(), Date.now() + 600000)
+        .run();
+  }
+  return response;
 });
 accountRoutes.get("/account/session", async (c) => {
   const user = await accountIdentity(c.req.raw, c.env);
@@ -84,6 +112,12 @@ accountRoutes.get("/account/session", async (c) => {
 accountRoutes.get("/avatars/:id", async (c) => {
   const key = `avatars/${c.req.param("id")}.webp`;
   if (!avatarKeyPattern.test(key)) return c.notFound();
+  const blocked = await c.env.APP_DB.prepare(
+    "SELECT 1 FROM deleted_accounts WHERE avatar_key=? UNION ALL SELECT 1 FROM deletion_images WHERE key=? LIMIT 1",
+  )
+    .bind(key, key)
+    .first();
+  if (blocked) return c.notFound();
   const object = await c.env.OBJECT_STORAGE.get(key);
   if (!object) return c.notFound();
   return new Response(object.body, {
@@ -163,6 +197,8 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   } catch {
     return c.json(error("入力内容を読み取れませんでした。"), 400);
   }
+  if (action === "setup" && data.get("consentVersion") !== legalVersion)
+    return c.json(error("規約と年齢条件を確認してください。"), 403);
   const input = profileInputSchema.safeParse({
     name: data.get("name"),
     username: data.get("username"),
@@ -185,9 +221,16 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     const id = crypto.randomUUID();
     uploadedKey = avatarKey = `avatars/${id}.webp`;
     image = `/api/avatars/${id}`;
-    await c.env.OBJECT_STORAGE.put(avatarKey, avatarBytes, {
-      httpMetadata: { contentType: "image/webp" },
-    });
+    if (!(await reserveAvatarUpload(c.env, user.id, avatarKey)))
+      return c.json(error("ログイン状態を確認してください。"), 401);
+    try {
+      await c.env.OBJECT_STORAGE.put(avatarKey, avatarBytes, {
+        httpMetadata: { contentType: "image/webp" },
+      });
+    } catch (e) {
+      await finishAvatarUpload(c.env, user.id, avatarKey);
+      throw e;
+    }
   } else if (avatarAction === "remove") {
     avatarKey = null;
     image = null;
@@ -198,7 +241,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     // 同時編集で参照中の画像を消さず、旧画像の削除待ちをプロフィールと同時に保存します。
     const results = await c.env.APP_DB.batch<{ id: string; publicProfileId: string }>([
       c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
-        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? RETURNING id, publicProfileId`).bind(
+        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id) RETURNING id, publicProfileId`).bind(
         input.data.name,
         input.data.username,
         image,
@@ -212,17 +255,33 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
       c.env.APP_DB.prepare(
         "INSERT OR IGNORE INTO avatar_deletions (key) SELECT ? WHERE ? IS NOT NULL AND ? IS NOT ? AND changes() = 1",
       ).bind(user.avatarKey, user.avatarKey, user.avatarKey, avatarKey),
+      ...(data.get("consentVersion") === legalVersion
+        ? [consentStatement(c.env.APP_DB, user.id)]
+        : []),
+      ...(uploadedKey
+        ? [
+            c.env.APP_DB.prepare(
+              "DELETE FROM avatar_deletions WHERE key=? AND EXISTS(SELECT 1 FROM user WHERE id=? AND avatarKey=?)",
+            ).bind(uploadedKey, user.id, uploadedKey),
+          ]
+        : []),
     ]);
     changed = results[0].results.length === 1;
     if (changed) publicProfileId = String(results[0].results[0]!.publicProfileId);
   } catch (err) {
-    if (uploadedKey) await c.env.OBJECT_STORAGE.delete(uploadedKey);
+    if (uploadedKey) {
+      await finishAvatarUpload(c.env, user.id, uploadedKey);
+      await c.env.OBJECT_STORAGE.delete(uploadedKey);
+    }
     if (err instanceof Error && /unique/i.test(err.message))
       return c.json(error("このIDはすでに使われています。"), 409);
     throw err;
   }
+  if (uploadedKey) await finishAvatarUpload(c.env, user.id, uploadedKey);
   if (!changed) {
     if (uploadedKey) await c.env.OBJECT_STORAGE.delete(uploadedKey);
+    if (await isDeleted(c.env.APP_DB, user.id))
+      return c.json(error("アカウントは削除されました。"), 401);
     return c.json(error("設定が更新されています。ページを開き直してください。"), 409);
   }
   c.executionCtx.waitUntil(deleteUnusedAvatars(c.env));

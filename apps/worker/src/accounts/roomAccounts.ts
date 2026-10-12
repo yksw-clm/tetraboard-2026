@@ -1,3 +1,5 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
+import { consentStatement } from "../privacy/consent";
 import { profileInputSchema, type RoomError } from "@tetraboard/protocol";
 import { accountIdentity, avatarKeyPattern, type StoredProfile } from "./auth";
 
@@ -22,14 +24,23 @@ export class RoomAccountError extends Error {
 const pendingGraceMs = 30_000;
 
 export async function roomEntryProfile(request: Request, env: Env, name?: string) {
+  if (request.headers.get("X-Legal-Consent") !== legalVersion)
+    throw new RoomAccountError("consent_required", 403);
   const user = await accountIdentity(request, env);
   if (user) {
     if (request.headers.get("Origin") !== env.APP_ORIGIN)
       throw new RoomAccountError("unauthorized", 403);
     if (!user.profileCompleted || !profileInputSchema.safeParse(user).success)
       throw new RoomAccountError("profile_required", 403);
+    await consentStatement(env.APP_DB, user.id).run();
     return { name: user.name, user };
   }
+  if (
+    /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(
+      request.headers.get("Cookie") ?? "",
+    )
+  )
+    throw new RoomAccountError("unauthorized", 403);
   if (!name) throw new RoomAccountError("invalid_request", 400);
   return { name, user: null };
 }
@@ -97,7 +108,7 @@ export async function reserveAccountSeat(
       env.APP_DB.prepare(`INSERT OR IGNORE INTO account_room_seats
         (account_id, operation_id, room_id, instance_id, player_id, name, avatar_key, created_at_ms)
         SELECT id, ?, ?, ?, ?, name, ?, ? FROM user
-        WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ?`).bind(
+        WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)`).bind(
         admission.operationId,
         room.id,
         room.instanceId,
@@ -114,8 +125,16 @@ export async function reserveAccountSeat(
         FROM account_room_seats WHERE operation_id = ? AND avatar_key IS NOT NULL`).bind(
         admission.operationId,
       ),
+      env.APP_DB.prepare(
+        "INSERT OR IGNORE INTO privacy_room_accounts SELECT account_id,room_id FROM account_room_seats WHERE operation_id=?",
+      ).bind(admission.operationId),
+      env.APP_DB.prepare(
+        "INSERT OR IGNORE INTO privacy_room_players SELECT account_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats WHERE operation_id=?",
+      ).bind(admission.operationId),
     ]);
-    if (result[0].meta.changes === 1) return admission;
+    if (result[0].meta.changes === 1) {
+      return admission;
+    }
     const existing = await existingReservation(env.APP_DB, user.id);
     if (existing) {
       // A committed seat is checked even during the grace period so departure

@@ -31,7 +31,11 @@ export default function ReversiMatchReplayView({ match }: { match: ReplayReversi
           self={p.id === match.selfPlayerId}
           host={p.seat === 0}
           game={game}
-          profileTarget={{ source: "match", matchId: match.id, playerId: p.id }}
+          profileTarget={
+            p.kind === "human" && p.retired
+              ? undefined
+              : { source: "match", matchId: match.id, playerId: p.id }
+          }
         />
       ))}
       <FourReversiBoard

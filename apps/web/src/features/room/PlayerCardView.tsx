@@ -65,7 +65,7 @@ export function PlayerCardView({
 }) {
   const stamp = usePlayerStamp(player?.id);
   const preview = {
-    target: profileTarget,
+    target: player?.kind === "human" && player.retired ? null : profileTarget,
     localProfile:
       player?.kind === "cpu" ? { kind: "cpu" as const, level: player.level } : undefined,
     game,

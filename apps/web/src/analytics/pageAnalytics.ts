@@ -32,6 +32,13 @@ function trackPage(page: string, game: string | null) {
   let release: (() => void) | null = null;
   let requesting = false;
   let registered = false;
+  const visitorAtStart = () =>
+    document.cookie
+      .split(";")
+      .find((v) => v.trim().startsWith(`${analyticsCookie}=`))
+      ?.trim();
+  const visitor = visitorAtStart();
+  const permitted = () => visitor === visitorAtStart();
   const created = fetch("/api/analytics/pageviews", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -49,6 +56,7 @@ function trackPage(page: string, game: string | null) {
     since = since === null ? null : now;
   }
   function flush() {
+    if (!permitted()) return;
     accountTime();
     if (!days.size) return;
     const data = {
@@ -68,7 +76,7 @@ function trackPage(page: string, game: string | null) {
     if (registered) void send();
     else
       void created.then((ok) => {
-        if (ok) return send();
+        if (ok && permitted()) return send();
       });
   }
   function relinquish() {
@@ -78,6 +86,11 @@ function trackPage(page: string, game: string | null) {
     release = null;
   }
   function update() {
+    if (!permitted()) {
+      relinquish();
+      if (alive) window.dispatchEvent(new Event("analytics-identity-changed"));
+      return;
+    }
     if (!alive || document.visibilityState !== "visible" || !document.hasFocus()) {
       relinquish();
       return;
@@ -91,7 +104,13 @@ function trackPage(page: string, game: string | null) {
     void navigator.locks
       .request("tetraboard-visible-analytics", { ifAvailable: true }, async (lock) => {
         requesting = false;
-        if (!lock || !alive || document.visibilityState !== "visible" || !document.hasFocus())
+        if (
+          !lock ||
+          !alive ||
+          !permitted() ||
+          document.visibilityState !== "visible" ||
+          !document.hasFocus()
+        )
           return;
         since = Date.now();
         await new Promise<void>((resolve) => {
@@ -125,7 +144,6 @@ function trackPage(page: string, game: string | null) {
   };
 }
 export function startWebAnalytics(router: typeof appRouter) {
-  if (!ensureAnalyticsCookie()) return;
   let previous = "";
   let stop: (() => void) | undefined;
   function changed(state: typeof router.state) {
@@ -135,7 +153,13 @@ export function startWebAnalytics(router: typeof appRouter) {
     stop?.();
     stop = undefined;
     const path = state.location.pathname;
-    if (path === "/" || /^\/admin(?:\/|$)/.test(path)) return;
+    if (
+      ["/privacy", "/terms"].includes(path) ||
+      path === "/" ||
+      /^\/admin(?:\/|$)/.test(path) ||
+      !ensureAnalyticsCookie()
+    )
+      return;
     const data = Object.values(state.loaderData) as {
       room?: { settings: { game: string } };
       match?: { settings: { game: string } };
@@ -163,6 +187,10 @@ export function startWebAnalytics(router: typeof appRouter) {
     if (["room", "replay"].includes(page) && !game) return;
     stop = trackPage(page, game);
   }
+  window.addEventListener("analytics-identity-changed", () => {
+    previous = "";
+    changed(router.state);
+  });
   router.subscribe(changed);
   changed(router.state);
 }

@@ -1,3 +1,4 @@
+import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { Hono } from "hono";
 import { pageViewInputSchema, dwellInputSchema } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
@@ -78,7 +79,7 @@ analyticsRoutes.post("/analytics/dwell", async (c) => {
   )
     .bind(input.data.id, visitor)
     .first<{ started_at_ms: number }>();
-  if (!view) return c.body(null, 404);
+  if (!view || view.started_at_ms <= Date.now() - analyticsRetentionMs) return c.body(null, 404);
   const now = Date.now();
   const entries = input.data.days;
   for (const entry of entries) {

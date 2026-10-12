@@ -1,3 +1,4 @@
+import { checkAccountPrivacy } from "../account/accountPrivacy";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { roomSnapshotFor } from "./roomSnapshot";
@@ -434,6 +435,17 @@ export function useRoomTransport<T extends Room>({
       serverOffsetRef.current = latest.serverNowMs - Date.now();
       latestSnapshot = latest;
       clockReceivedAt = performance.now();
+      if (
+        currentMembership &&
+        latest.room.players.some(
+          (p) => p.id === currentMembership?.playerId && p.kind === "human" && p.retired,
+        )
+      ) {
+        clearRoomMembershipToken(initialRoom.id);
+        currentMembership = null;
+        setMembership(null);
+        checkAccountPrivacy();
+      }
       setRoom(latest.room);
       setPresence(latest.presence);
       setClockSync({ serverNowMs: latest.serverNowMs, receivedAt: performance.now() });
@@ -479,6 +491,13 @@ export function useRoomTransport<T extends Room>({
           !latest.room.players.some((player) => player.id === latestMembership.playerId)
         )
           throw new Error("Membership does not match room");
+        if (
+          currentMembership &&
+          latest.room.players.some(
+            (p) => p.id === currentMembership?.playerId && p.kind === "human" && p.retired,
+          )
+        )
+          checkAccountPrivacy();
         currentMembership = latestMembership;
         setMembership(latestMembership);
         applySnapshot({ ...latest, room: latest.room }, true);
@@ -818,8 +837,16 @@ export function useRoomTransport<T extends Room>({
       currentSocket.onerror = () => {
         if (active && !suspended && currentSocket === socketRef.current) recover();
       };
-      currentSocket.onclose = () => {
-        if (active && !suspended && currentSocket === socketRef.current) recover();
+      currentSocket.onclose = (event) => {
+        if (active && !suspended && currentSocket === socketRef.current) {
+          if (event?.reason === "Account deleted") {
+            clearRoomMembershipToken(initialRoom.id);
+            currentMembership = null;
+            setMembership(null);
+            checkAccountPrivacy();
+          }
+          recover();
+        }
       };
       trackChatRef.current = (text) => {
         pendingChat = { text, ids: new Set(chatIds ?? []) };

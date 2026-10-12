@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { exports } from "cloudflare:workers";
 import { expect, test } from "vitest";
 import {
@@ -17,7 +18,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     ),
   )(`${game} は時間設定 $mainTimeMs + $byoyomiMs で作成できる`, async (timeControl) => {
     const response = await exports.default.fetch(
-      new Request("https://example.com/rooms", {
+      new AcceptedGameRequest("https://example.com/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -44,7 +45,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
   ])(`${game} は不正な時間設定を作成時に拒否する %j`, async (timeControl) => {
     expect(roomTimeControlSchema.safeParse(timeControl).success).toBe(false);
     const response = await exports.default.fetch(
-      new Request("https://example.com/rooms", {
+      new AcceptedGameRequest("https://example.com/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -61,7 +62,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
   });
   test(`${game} の時間設定を省略した作成は従来の初期値になる`, async () => {
     const response = await exports.default.fetch(
-      new Request("https://example.com/rooms", {
+      new AcceptedGameRequest("https://example.com/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "ホスト", game, mode: "singles", quickPlay: true }),

@@ -75,6 +75,7 @@ export async function reserveFeedback(
     browserHash: string;
     ipHash: string;
     author: "account" | "guest";
+    accountId?: string | null;
     internal: boolean;
   },
   payloadHash: string,
@@ -107,8 +108,8 @@ export async function reserveFeedback(
     .join(" AND ");
   const insert = db
     .prepare(`INSERT OR IGNORE INTO feedback
-    (id, submission_id, payload_hash, author, reporter_hash, internal, kind, game, body, expectation, steps, technical, received_at_ms, expires_at_ms, attachment_key)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${checks}`)
+    (id, submission_id, payload_hash, author, reporter_hash, internal, kind, game, body, expectation, steps, technical, received_at_ms, expires_at_ms, attachment_key,account_id)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,? WHERE ${checks}`)
     .bind(
       id,
       input.submissionId,
@@ -125,6 +126,7 @@ export async function reserveFeedback(
       now,
       now + feedbackRetentionMs,
       key,
+      identity.accountId ?? null,
       ...limits.flatMap((v) => [v.key, v.start, v.max]),
     );
   const statements = [

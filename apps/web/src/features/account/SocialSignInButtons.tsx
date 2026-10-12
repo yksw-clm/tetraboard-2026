@@ -1,3 +1,5 @@
+import { LegalNotice } from "../privacy/LegalNotice";
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import type { SocialProvider } from "./useSocialSignIn";
 import { AppButton } from "../../shared/ui/AppButton";
 
@@ -13,7 +15,8 @@ export function SocialSignInButtons({
   onSignIn: (provider: SocialProvider) => void;
 }) {
   return (
-    <div className="@container w-full">
+    <div className="@container w-full flex flex-col gap-3">
+      {!adminOnly && <LegalNotice />}
       <div
         className={`grid gap-2 ${adminOnly ? "grid-cols-1" : "grid-cols-1 @min-[480px]:grid-cols-2"}`}
       >
@@ -57,6 +60,7 @@ export function SocialSignInButtons({
           </AppButton>
         )}
       </div>
+      {!adminOnly && <PrivacyLinks newTab />}
     </div>
   );
 }

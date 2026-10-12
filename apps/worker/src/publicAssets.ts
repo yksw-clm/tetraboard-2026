@@ -1,3 +1,4 @@
+import { legalHtml } from "./privacy/legalHtml";
 import { defaultGameId, gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 
@@ -24,6 +25,8 @@ export async function servePublicAssets(
     return withoutIndexing(
       new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } }),
     );
+  if (path === "/privacy" || path === "/terms")
+    return legalHtml(request, assets, path.slice(1) as "privacy" | "terms");
   if (path === "/") {
     url.pathname = gameCatalog[defaultGameId].lobbyPath;
     return Response.redirect(url.toString(), 308);
@@ -43,9 +46,15 @@ export async function servePublicAssets(
     return response.status < 400 ? response : withoutIndexing(response);
   }
   const spa =
-    ["/index.html", "/login", "/account", "/account/setup", "/feedback", "/updates"].includes(
-      path.replace(/\/$/, ""),
-    ) ||
+    [
+      "/index.html",
+      "/login",
+      "/account",
+      "/account/setup",
+      "/account/deletion",
+      "/feedback",
+      "/updates",
+    ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {

@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { countCharacters, usernameSchema, type AccountProfile } from "@tetraboard/protocol";
@@ -66,6 +67,7 @@ export function useProfileDraft({
     setSaving(true);
     onBusyChange?.(true);
     const data = new FormData();
+    if (setup) data.set("consentVersion", legalVersion);
     data.set("name", name);
     data.set("username", username);
     data.set("avatarAction", avatarAction);

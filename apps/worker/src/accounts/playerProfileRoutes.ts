@@ -53,6 +53,8 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         return c.json(
           getPlayerProfileContract.response.parse({ kind: "cpu", level: player.level }),
         );
+      if ("retired" in player && player.retired)
+        return c.json({ message: "退会したプレイヤーです。" }, 404);
       if (!accountId)
         return c.json(
           getPlayerProfileContract.response.parse({

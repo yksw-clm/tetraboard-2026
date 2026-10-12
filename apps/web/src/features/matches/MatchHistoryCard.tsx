@@ -12,7 +12,11 @@ import { formatMatchDate } from "./matchDatePresentation";
 function Participant({ player, match }: { player: MatchHistoryParticipant; match: MatchSummary }) {
   return (
     <PlayerProfileTrigger
-      target={{ source: "match", matchId: match.id, playerId: player.id }}
+      target={
+        player.kind === "human" && player.retired
+          ? null
+          : { source: "match", matchId: match.id, playerId: player.id }
+      }
       localProfile={player.kind === "cpu" ? { kind: "cpu", level: player.level } : undefined}
       game={match.game}
       mode={match.mode ?? "singles"}

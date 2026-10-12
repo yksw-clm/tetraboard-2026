@@ -1,3 +1,4 @@
+import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
 import {
@@ -114,6 +115,12 @@ export function AccountPageShell({
             </div>
           )}
           {children}
+          <PrivacyLinks />
+          {profileLayout && (
+            <AppButtonLink to="/account/deletion" appearance="quiet">
+              アカウントを削除
+            </AppButtonLink>
+          )}
           {!profileLayout && (
             <div className={loginLayout ? "text-center" : undefined}>{lobbyLink}</div>
           )}

@@ -222,7 +222,7 @@ test("migration snapshots historical badges without notifications and detects th
   const last = migrations.find((m) => m.name.includes("0013_badge_notifications"))!;
   await applyD1Migrations(
     database,
-    migrations.filter((m) => m !== last),
+    migrations.filter((m) => m.name < last.name),
   );
   const user = await accountFixture(true, crypto.randomUUID(), database);
   for (let i = 1; i <= 19; i++) {
@@ -245,7 +245,10 @@ test("migration snapshots historical badges without notifications and detects th
         .bind(user.id, record.id, "singles", record.startedAtMs, "four-reversi"),
     ]);
   }
-  await applyD1Migrations(database, [last]);
+  await applyD1Migrations(
+    database,
+    migrations.filter((m) => m.name >= last.name),
+  );
   const baseline = await database
     .prepare("SELECT badge_id, MAX(tier) AS tier FROM account_badge_awards GROUP BY badge_id")
     .all();

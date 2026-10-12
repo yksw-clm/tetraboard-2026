@@ -1,3 +1,4 @@
+import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
 import { createRoomContract } from "@tetraboard/protocol";
@@ -5,7 +6,7 @@ import { accountFixture, origin } from "./accountFixtures";
 import { createAuth } from "../src/accounts/auth";
 import { deleteUnusedAvatars, validAvatar } from "../src/accounts/accountRoutes";
 const request = (path: string, init?: RequestInit) =>
-  exports.default.fetch(new Request(`${origin}/api${path}`, init));
+  exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 const webp = () => {
   const bytes = new Uint8Array(32);
   bytes.set(new TextEncoder().encode("RIFF"), 0);
@@ -19,6 +20,7 @@ const webp = () => {
 };
 const form = (name: string, username: string, avatarAction = "keep", bytes?: Uint8Array) => {
   const data = new FormData();
+  data.set("consentVersion", "2026-10-12");
   data.set("name", name);
   data.set("username", username);
   data.set("avatarAction", avatarAction);
@@ -118,7 +120,7 @@ test("画像の保存・置換・削除、重複ID時のロールバックと削
   const upload = await write(user.cookie, form("名前", user.username, "replace", webp()));
   expect(upload.status).toBe(200);
   const first = (await upload.json()) as { avatarUrl: string };
-  const image = await exports.default.fetch(new Request(`${origin}${first.avatarUrl}`));
+  const image = await exports.default.fetch(new AcceptedGameRequest(`${origin}${first.avatarUrl}`));
   expect(image.status).toBe(200);
   expect(image.headers.get("content-type")).toBe("image/webp");
   expect(image.headers.get("x-content-type-options")).toBe("nosniff");
@@ -137,14 +139,14 @@ test("画像の保存・置換・削除、重複ID時のロールバックと削
     await write(user.cookie, form("名前", user.username, "replace", webp()))
   ).json()) as { avatarUrl: string };
   await deleteUnusedAvatars(env);
-  expect((await exports.default.fetch(new Request(`${origin}${first.avatarUrl}`))).status).toBe(
-    404,
-  );
+  expect(
+    (await exports.default.fetch(new AcceptedGameRequest(`${origin}${first.avatarUrl}`))).status,
+  ).toBe(404);
   expect((await write(user.cookie, form("名前", user.username, "remove"))).status).toBe(200);
   await deleteUnusedAvatars(env);
-  expect((await exports.default.fetch(new Request(`${origin}${second.avatarUrl}`))).status).toBe(
-    404,
-  );
+  expect(
+    (await exports.default.fetch(new AcceptedGameRequest(`${origin}${second.avatarUrl}`))).status,
+  ).toBe(404);
   const key = `avatars/${crypto.randomUUID()}.webp`;
   await env.OBJECT_STORAGE.put(key, webp());
   await env.APP_DB.prepare("INSERT INTO avatar_deletions VALUES (?)").bind(key).run();
@@ -246,7 +248,7 @@ test("Google OAuth往復・キャンセル・state検証・既存プロフィー
       throw new Error("Unexpected OAuth request");
     });
     const response = await auth.handler(
-      new Request(
+      new AcceptedGameRequest(
         `${origin}/api/auth/callback/google?code=test-code&state=${encodeURIComponent(flow.state)}`,
         { headers: { Cookie: flow.cookie } },
       ),
@@ -276,7 +278,7 @@ test("Google OAuth往復・キャンセル・state検証・既存プロフィー
       await env.APP_DB.prepare("SELECT name, image FROM user WHERE id = ?").bind(user!.id).first(),
     ).toEqual({ name: "公開名", image: null });
     const replay = await auth.handler(
-      new Request(
+      new AcceptedGameRequest(
         `${origin}/api/auth/callback/google?code=test-code&state=${encodeURIComponent(second.flow.state)}`,
         { headers: { Cookie: second.flow.cookie } },
       ),
@@ -284,13 +286,13 @@ test("Google OAuth往復・キャンセル・state検証・既存プロフィー
     expect(replay.headers.get("location")).toContain("error=");
     const flow = await start();
     const forged = await auth.handler(
-      new Request(`${origin}/api/auth/callback/google?code=test-code&state=wrong`, {
+      new AcceptedGameRequest(`${origin}/api/auth/callback/google?code=test-code&state=wrong`, {
         headers: { Cookie: flow.cookie },
       }),
     );
     expect(forged.headers.get("location")).toContain("error=");
     const cancel = await auth.handler(
-      new Request(
+      new AcceptedGameRequest(
         `${origin}/api/auth/callback/google?error=access_denied&state=${encodeURIComponent(flow.state)}`,
         { headers: { Cookie: flow.cookie } },
       ),
@@ -300,7 +302,7 @@ test("Google OAuth往復・キャンセル・state検証・既存プロフィー
     expect(
       (
         await auth.handler(
-          new Request(
+          new AcceptedGameRequest(
             `${origin}/api/auth/callback/google?code=test-code&state=${encodeURIComponent(missingCookie.flow.state)}`,
           ),
         )
