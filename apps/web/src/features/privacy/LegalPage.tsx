@@ -1,7 +1,6 @@
 import { legalDocuments, legalVersion } from "@tetraboard/protocol/privacy";
 import { AccountPageShell } from "../account/AccountPages";
 import { AppCard } from "../../shared/ui/AppCard";
-import { PrivacyLinks } from "./PrivacyLinks";
 export function LegalPage({ kind }: { kind: keyof typeof legalDocuments }) {
   const doc = legalDocuments[kind];
   return (
@@ -18,7 +17,6 @@ export function LegalPage({ kind }: { kind: keyof typeof legalDocuments }) {
         <a href="mailto:support@tetraboard.net" className="text-brand underline">
           support@tetraboard.net
         </a>
-        <PrivacyLinks />
       </AppCard>
     </AccountPageShell>
   );

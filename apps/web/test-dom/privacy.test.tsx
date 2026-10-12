@@ -101,6 +101,8 @@ test("設定前・未認証で規約全文と連絡先を読め、常時計測�
       expect(view.textContent).toContain(text);
     }
     expect(view.querySelector('a[href="mailto:support@tetraboard.net"]')).not.toBeNull();
+    expect(view.querySelectorAll('a[href="/terms"]')).toHaveLength(1);
+    expect(view.querySelectorAll('a[href="/privacy"]')).toHaveLength(1);
     rerender(view, null);
   }
 });
