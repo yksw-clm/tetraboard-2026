@@ -12,11 +12,13 @@ export function StatsTable({ rows, label }: { rows: StatsRow[]; label: string })
               className="border-0 border-b border-solid border-line/50 first:bg-surface-muted/70 last:border-b-0"
             >
               {[row[0], row[1]].map((metric, index) => (
-                <td key={index} className="px-3 py-3 align-middle sm:px-4">
+                <td key={index} className="px-2 py-3 align-top sm:px-4">
                   {metric && (
-                    <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <span className="text-muted">{metric.label}</span>
-                      <span className="text-base font-semibold tabular-nums">{metric.value}</span>
+                    <span className="grid grid-cols-[4em_minmax(0,1fr)] items-baseline gap-x-2 sm:grid-cols-[5em_minmax(0,1fr)]">
+                      <span className="min-w-0 text-muted wrap-anywhere">{metric.label}</span>
+                      <span className="min-w-0 text-base font-semibold tabular-nums wrap-anywhere">
+                        {metric.value}
+                      </span>
                     </span>
                   )}
                 </td>
