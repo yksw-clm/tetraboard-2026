@@ -1,0 +1,15 @@
+**/node_modules
+**/.wrangler
+**/.dev.vars*
+**/.env*
+**/dist
+.git
+.aws
+.agents
+.codex
+**/*.pem
+**/*.key
+.shogi-ai
+ops/shogi-ai/exports
+ops/shogi-ai/package
+*.log

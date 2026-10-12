@@ -6,6 +6,7 @@ import { legalRoutes } from "./privacy/legalRoutes";
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
 import { announcementRoutes, announcementAdminRoutes } from "./announcements/routes";
 import { adminRoutes } from "./admin/routes";
+import { shogiAiAdminRoutes } from "./admin/shogiAiRoutes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { analyticsRoutes } from "./analytics/routes";
 import { healthzContract } from "@tetraboard/protocol";
@@ -37,6 +38,7 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 });
 
 api.route("/", adminRoutes);
+api.route("/", shogiAiAdminRoutes);
 api.route("/", announcementRoutes);
 api.route("/", announcementAdminRoutes);
 api.route("/", feedbackAdminRoutes);

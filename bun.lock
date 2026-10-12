@@ -34,6 +34,16 @@
         "vite": "^8.3.0",
       },
     },
+    "apps/shogi-ai": {
+      "name": "@tetraboard/shogi-ai",
+      "dependencies": {
+        "@tetraboard/four-shogi": "workspace:*",
+        "@tetraboard/protocol": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.5.2",
+      },
+    },
     "apps/web": {
       "name": "@tetraboard/web",
       "dependencies": {
@@ -579,6 +589,8 @@
 
     "@tetraboard/shogi": ["@tetraboard/shogi@workspace:packages/shogi"],
 
+    "@tetraboard/shogi-ai": ["@tetraboard/shogi-ai@workspace:apps/shogi-ai"],
+
     "@tetraboard/web": ["@tetraboard/web@workspace:apps/web"],
 
     "@tetraboard/worker": ["@tetraboard/worker@workspace:apps/worker"],
@@ -908,6 +920,8 @@
     "@tetraboard/reversi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/shogi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@tetraboard/shogi-ai/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/worker/@types/node": ["@types/node@22.20.4", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA=="],
 

@@ -1,0 +1,6 @@
+{$AI_DOMAIN} {
+  request_body {
+    max_size 1KB
+  }
+  reverse_proxy ai:8090
+}

@@ -619,6 +619,8 @@ CPUの同意判断は人間／CPUを識別できるルーム側で行い、CPU�
 
 レベルごとの選択方式、探索上限、評価値、同点時の選択とAPIの契約は [ルール正本のCPU仕様](rules/four-shogi.md#cpu) を参照します。呼び出し側は `@tetraboard/four-shogi` の公開入口を使います。
 
+2026-10-12の追加指示に従い、初回は通常シングルスの三人攻撃禁止ON／OFFの自己対局・学習に限定します。Lv3探索は `cpuLv3.ts`、最大5並列のBun実行基盤は `apps/shogi-ai`、Dockerと停止・exportの手順は [ops/shogi-ai](../ops/shogi-ai/README.md) に置きます。管理画面 `/admin/four-shogi-ai` は既存管理者認証を経由してVPSの読取APIへ接続します。現行のサービスのLv1／Lv2は維持し、実対局接続は [全体計画](four-shogi-lv3-plan.md) の後続段階です。
+
 ```ts
 import { chooseCpuAction } from "@tetraboard/four-shogi";
 

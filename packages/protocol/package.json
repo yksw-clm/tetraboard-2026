@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",
-    "./privacy": "./src/privacy.ts"
+    "./privacy": "./src/privacy.ts",
+    "./shogi-ai": "./src/shogiAi.ts"
   },
   "scripts": {
     "lint": "oxlint .",

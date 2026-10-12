@@ -10,6 +10,7 @@ import { Dashboard } from "./Dashboard";
 import { Users } from "./Users";
 import { Announcements, AnnouncementCreatePage, AnnouncementEditPage } from "./Announcements";
 import { Feedback, FeedbackDetailPage } from "./Feedback";
+import { FourShogiAi } from "./FourShogiAi";
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 function App() {
   const session = useAdminData("/api/admin/session", parseSession);
@@ -48,6 +49,7 @@ function App() {
             ["/users", "登録ユーザー"],
             ["/feedback", "フィードバック"],
             ["/announcements", "お知らせ"],
+            ["/four-shogi-ai", "四人将棋AI"],
           ].map(([to, label]) => (
             <NavLink
               key={to}
@@ -79,6 +81,7 @@ function App() {
             />
           ))}
           <Route path="/users" element={<Users />} />
+          <Route path="/four-shogi-ai" element={<FourShogiAi />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/announcements/new" element={<AnnouncementCreatePage />} />
           <Route path="/announcements/:id" element={<AnnouncementEditPage />} />

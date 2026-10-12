@@ -1,1 +1,6 @@
 node_modules/
+.shogi-ai/
+ops/shogi-ai/.env
+ops/shogi-ai/exports/
+ops/shogi-ai/package/
+ops/shogi-ai/.ssh/

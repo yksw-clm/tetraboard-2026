@@ -483,3 +483,11 @@ Web・AdminのブラウザテストとWorker E2E、全Playwright設定、専用S
 - Worker: `bun run --cwd apps/worker test test/badgeNotifications.test.ts`。閾値・昇格・対象外、ゲーム分離、最大4種類、導入前戦績の基準化、保存失敗時の一括ロールバックと再送、複数tokenの競合・期限・解放、認証・Origin・本人制限を確認します。
 - Web: `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/badgeNotifications.test.tsx`。画像・表示順・読み上げ属性、表示開始後の記録、5秒境界、時間停止、遷移・表示復帰・再試行・失効復旧、ログアウト／切替・StrictMode・既存通知との共用を確認します。
 - PC／スマートフォンの実画像・折り返し・結果ダイアログとの重なり・盤面操作・ホバー／キーボード・実際の読み上げは手動確認とし、PRに結果と未確認事項を記録します。ブラウザ自動テストは追加しません。
+
+## 四人将棋Lv3の自己対局と監視
+
+`bun test packages/four-shogi/test/cpuLv3.test.ts apps/shogi-ai/test/training.test.ts` で本番由来の30匿名局面、3戦術回帰、合法性・探索予算・決定性・入力不変、候補の重み更新、少標本の不採用、HMAC監視API、並列停止／再開と永続モデルを確認します。四人将棋の既存Lv1／Lv2とダブルスは全既存テストを維持します。
+
+`bun run --cwd apps/worker test test/shogiAiAdmin.test.ts` は既存管理者認証、未認証・権限拒否時のVPS取得禁止、固定originと署名、未設定・応答不正・応答上限・接続障害を検証します。`bun test --preload ./test-support/dom.ts apps/admin/test-dom/shogiAi.test.tsx` は10秒更新、重複取得防止、タブ非表示、遅延応答・権限喪失・古いデータ保持を確認します。新しい自己対局アプリのテストはルートの `bun run check` に含めます。
+
+Dockerの5並列起動、期限停止、exportのチェックサムと読込みは [運用手順](../ops/shogi-ai/README.md) の短時間試験で確認します。ConoHa実機24時間の負荷、DNS/TLS、開発Workerとの実通信、Lv2に対する棋力は実配置後の測定対象です。短い手数上限のsmokeを棋力測定として報告しません。

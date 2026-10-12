@@ -1,0 +1,61 @@
+services:
+  ai:
+    build:
+      context: ../..
+      dockerfile: ops/shogi-ai/Dockerfile
+      args:
+        AI_CODE_COMMIT: ${AI_CODE_COMMIT:-source-archive}
+    init: true
+    restart: "no"
+    cpus: 5.0
+    mem_limit: 10g
+    pids_limit: 256
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:size=64m]
+    environment:
+      AI_MONITOR_KEY: ${AI_MONITOR_KEY:?Set AI_MONITOR_KEY}
+    command:
+      [
+        bun,
+        apps/shogi-ai/src/cli.ts,
+        serve,
+        --workers,
+        "${AI_WORKERS:-5}",
+        --seconds,
+        "${AI_SECONDS:-86400}",
+        --seeds,
+        "${AI_SEEDS:-8}",
+        --max-plies,
+        "${AI_MAX_PLIES:-800}",
+        --work,
+        "${AI_WORK:-16384}",
+      ]
+    volumes:
+      - ai-data:/data
+    ports: ["127.0.0.1:8090:8090"]
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+  proxy:
+    profiles: [https]
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 256m
+    environment:
+      AI_DOMAIN: ${AI_DOMAIN:-localhost}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+volumes:
+  ai-data:
+  caddy-data:
+  caddy-config:

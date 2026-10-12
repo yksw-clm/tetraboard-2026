@@ -24,6 +24,7 @@ TetraBoardは、四人用を中心としたボードゲームをブラウザで�
 | ロビー・ルーム・共通UI | [四人リバーシのロビー](#四人リバーシのロビー)・[ルーム画面](#四人リバーシのルーム画面)、[四人将棋のロビー](#四人将棋のロビー)・[ルーム画面](#四人将棋のルーム画面)、[通常リバーシ](#通常リバーシ)、[通常将棋](#通常将棋)、[共通UIとスタイル](#共通uiとスタイル)、[読み込み・処理中・エラーの表示](#読み込み処理中エラーの表示) |
 | ルーム共有 | [共有ダイアログ・X募集・OGP](#ルーム共有の確定仕様)、[Goal・ContextProviders・Constraints・Done When](docs/development.md#ルーム共有の実装計画)、[検証項目](docs/testing.md#ルーム共有の確認) |
 | ゲーム・CPU | [四人リバーシのルール正本](docs/rules/four-reversi.md)、[四人将棋のルール正本](docs/rules/four-shogi.md)、[通常リバーシのルール正本](docs/rules/reversi.md)、[通常将棋のルール正本](docs/rules/shogi.md)、[五目並べのルール正本](docs/rules/gomoku.md)、[四人五目並べのルール正本](docs/rules/four-gomoku.md) |
+| 四人将棋Lv3とVPS学習 | [全体計画](docs/four-shogi-lv3-plan.md)、[今回の自己対局・学習・管理画面・1日試用の運用](ops/shogi-ai/README.md) |
 | 四人リバーシLv2強化 | [採用したCPU仕様](docs/rules/four-reversi.md#lv2の採用仕様)、[計画・受入条件・測定結果](docs/four-reversi-ai.md) |
 | 表示設定・サウンド | [表示・サウンド設定](#表示サウンド設定)、[効果音](#効果音)、[時間切れ5秒前の通知](#時間切れ5秒前の通知) |
 | チャット・スタンプ | [チャット](#チャット)、[保存期間とモデレーション](#チャットの保存期間とモデレーション)、[ルームのスタンプ](#ルームのスタンプ) |

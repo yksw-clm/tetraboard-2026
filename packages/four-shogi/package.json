@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./lv3": "./src/cpuLv3.ts",
     "./formation-catalog": "./src/formationCatalog.ts"
   },
   "scripts": {

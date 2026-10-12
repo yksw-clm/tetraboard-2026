@@ -11,7 +11,7 @@
     "lint": "oxlint .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "bun run --cwd packages/four-gomoku test && bun run --cwd packages/gomoku test && bun run --cwd packages/shogi test && bun run --cwd packages/reversi test && bun run --cwd packages/four-reversi test && bun run --cwd packages/four-shogi test && bun run --cwd apps/worker test && bun run --cwd apps/web test && bun run --cwd apps/admin test",
+    "test": "bun run --cwd packages/four-gomoku test && bun run --cwd packages/gomoku test && bun run --cwd packages/shogi test && bun run --cwd packages/reversi test && bun run --cwd packages/four-reversi test && bun run --cwd packages/four-shogi test && bun run --cwd apps/shogi-ai test && bun run --cwd apps/worker test && bun run --cwd apps/web test && bun run --cwd apps/admin test",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
     "prepare": "husky",
     "build": "bun run --cwd apps/web build && bun run --cwd apps/admin build && bun scripts/buildAssets.ts",
