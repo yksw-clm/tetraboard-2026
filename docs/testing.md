@@ -23,6 +23,10 @@
 | 管理・フィードバック・お知らせ | Workerの[adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)・[feedback.test.ts](../apps/worker/test/feedback.test.ts)・[announcements.test.ts](../apps/worker/test/announcements.test.ts)、Admin部品の[adminViews.test.tsx](../apps/admin/test-dom/adminViews.test.tsx)・[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)・[announcements.test.tsx](../apps/admin/test-dom/announcements.test.tsx) |
 | 公開・検索向け配信・設定 | Workerの[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)・[testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、Web部品の[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx)、[個人設定からの分離](#個人設定からの分離)、ビルドとWorker dry-run |
 
+## プレイヤー情報と戦績の表示
+
+`apps/web/test/playerStatsSummary.test.ts` は勝敗分、優勝率、順位の加重平均と丸め、0局、撃破数、旧Workerの不足項目を確認します。`playerProfiles.test.tsx` と `badges.test.tsx` はコンパクトな文章の表示、ゲーム・モード別項目、追加指定と旧Workerへのフォールバックを確認します。戦績表のラベル・数値、先頭行の左右配置と空セルは `presentation.test.tsx`・`formationStats.test.tsx`・`reversi.test.tsx`・`standardShogi.test.tsx` で確認します。Workerの `playerProfiles.test.ts` は追加指定時の全戦績と従来応答の維持、内部IDの非公開、不正指定の拒否を確認します。実寸法での折り返し・罫線・ラベルと数値の間隔は手動確認の対象です。
+
 ## プライバシー・規約・退会の確認
 
 2026-10-12の [確定仕様](../README.md#プライバシー利用規約退会の確定仕様) と [実装計画](development.md#プライバシー規約退会の実装計画) の実装を、次の境界で確認します。実際の検証対象コミットと必須5コマンド・CIの結果は同じPRに記録します。

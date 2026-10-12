@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { Link, MemoryRouter } from "react-router";
 import { PlayerProfileProvider } from "../src/features/players/PlayerProfileProvider";
 import { PlayerProfileTrigger } from "../src/features/players/PlayerProfileTrigger";
+import { PlayerProfileCard } from "../src/features/players/PlayerProfileCard";
+import type { PlayerProfile } from "@tetraboard/protocol";
 import { PlayerProfileStore, profileKey } from "../src/features/players/playerProfileStore";
 import { AppDialog } from "../src/shared/ui/AppDialog";
 import { act, clock, flush, render, rerender, requests } from "./harness";
@@ -33,6 +35,50 @@ const trigger = (label = "プレイヤー", cpu = false) => (
   </PlayerProfileTrigger>
 );
 const region = () => document.querySelector<HTMLElement>('[role="region"]');
+test("全ゲームの戦績をモードに応じたコンパクトな文章で表示する", () => {
+  const singles = { total: 83, first: 22, second: 36, third: 17, fourth: 8 };
+  const shogiSingles = { ...singles, knockouts: 51, perfectWins: 2 };
+  const doubles = { total: 20, wins: 12, losses: 7, draws: 1 };
+  for (const game of [
+    "four-reversi",
+    "four-gomoku",
+    "four-shogi",
+    "reversi",
+    "shogi",
+    "gomoku",
+  ] as const) {
+    const current: PlayerProfile = {
+      ...profile,
+      kind: "account",
+      game,
+      stats: game.startsWith("four-")
+        ? {
+            singles: game === "four-shogi" ? shogiSingles : singles,
+            doubles,
+          }
+        : doubles,
+    };
+    for (const mode of ["singles", "doubles"] as const) {
+      const view = render(
+        <PlayerProfileCard
+          state={{ loading: false, profile: current, error: null, loadedAt: 0 }}
+          game={game}
+          mode={mode}
+          onRetry={() => {}}
+        />,
+      );
+      const summary = [...view.querySelectorAll("p")].find(
+        (node) => node.textContent?.startsWith("83局") || node.textContent?.startsWith("20局"),
+      )!;
+      expect(summary.textContent).toBe(
+        game.startsWith("four-") && mode === "singles"
+          ? `83局 22優勝 (.265) 平均2.13位${game === "four-shogi" ? " 51撃破" : ""}`
+          : "20局 12勝7敗1分 (.600)",
+      );
+      expect(view.querySelector("dl")).toBeNull();
+    }
+  }
+});
 test("dismissal cancels another trigger's pending hover until its pointer leaves", async () => {
   const view = render(
     wrap(

@@ -30,9 +30,14 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
   });
   await flush();
   const metric = (label: string) =>
-    [...view.querySelectorAll("dt")]
-      .find((node) => node.textContent === label)!
-      .parentElement!.querySelector("dd")!.textContent;
+    [...view.querySelectorAll("td > span")].find(
+      (node) => node.firstElementChild?.textContent === label,
+    )!.lastElementChild!.textContent;
+  const firstRow = view.querySelector('table[aria-label="戦績"] tr')!;
+  expect([...firstRow.querySelectorAll("td")].map((cell) => cell.textContent)).toEqual([
+    "対局数12",
+    "",
+  ]);
   expect(metric("優勝率")).toBe(".333");
   expect(metric("3位率")).toBe(".500");
   expect(metric("4位率")).toBe(".000");

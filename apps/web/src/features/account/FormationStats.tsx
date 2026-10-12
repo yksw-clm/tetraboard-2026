@@ -1,8 +1,8 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { formationCatalog } from "@tetraboard/four-shogi/formation-catalog";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
-import { StatsMetric } from "./StatsMetric";
+import { StatsTable, type StatsRow } from "./StatsTable";
 import { formatStatsRate } from "./statsPresentation";
 import type { useFormationStats } from "./useFormationStats";
 
@@ -84,20 +84,21 @@ export default function FormationStats({ data }: { data: ReturnType<typeof useFo
       {selected && definition && (
         <AppDialog title={definition.name} theme="four-shogi" onClose={() => setSelectedId(null)}>
           <p className="mb-4 text-sm text-muted">この戦法を使用した対局の戦績です。</p>
-          <dl className="m-0 grid grid-cols-2 gap-x-5 gap-y-3">
-            <StatsMetric className="col-span-2" label="使用対局数" value={selected.total} />
-            {[
-              { label: "優勝", count: selected.first },
-              { label: "2位", count: selected.second },
-              { label: "3位", count: selected.third },
-              { label: "4位", count: selected.fourth },
-            ].map(({ label, count }) => (
-              <Fragment key={label}>
-                <StatsMetric label={`${label}数`} value={count} />
-                <StatsMetric label={`${label}率`} value={formatStatsRate(count, selected.total)} />
-              </Fragment>
-            ))}
-          </dl>
+          <StatsTable
+            label={`${definition.name}の戦績`}
+            rows={[
+              [{ label: "使用対局数", value: selected.total }],
+              ...[
+                { label: "優勝", count: selected.first },
+                { label: "2位", count: selected.second },
+                { label: "3位", count: selected.third },
+                { label: "4位", count: selected.fourth },
+              ].map(({ label, count }): StatsRow => [
+                { label: `${label}数`, value: count },
+                { label: `${label}率`, value: formatStatsRate(count, selected.total) },
+              ]),
+            ]}
+          />
         </AppDialog>
       )}
     </section>

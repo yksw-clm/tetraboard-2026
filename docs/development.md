@@ -1180,6 +1180,8 @@ Webは`ProfilePage`で`useAccountSelection`を一度読み、共通のゲーム�
 
 全6ゲームの共通`LobbyView`だけが`AccountMenu`へ`lobbyGame`を渡し、プロフィール設定済みユーザーの「マイページ」遷移に`createAccountSelection`で作った`accountSelection`を設定します。初期ゲームは移動元、ゲーム別モードはシングルスです。ロビーのフォーム入力や履歴stateは引き継がず、URLパラメーター・新しい永続保存は追加しません。選択情報のない直接アクセスでは従来どおり四人リバーシ・シングルスです。ロビー以外のメニュー、認証・初回設定・認証後の復帰導線は従来の動作を維持します。ゲーム選択は戦績・棋譜・本文テーマ・ロビーリンクで共有し、再読み込み・履歴移動・棋譜往復は現在の選択を復元します。
 
+戦績の表は `StatsTable` で共用し、`AccountStats` の先頭行は対局数と四人将棋シングルスの完全優勝数を左右に配置します。その他の先頭行の右セルは空欄です。`FormationStats` の順位詳細も同じ2列の表を使います。
+
 Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過去分除外、CPU戦のみの本人の0件表示と履歴・詳細・棋譜の保存を確認します。集計用データは対人戦、保存用データはCPU戦を維持します。本人限定・全順位・同順位・両チームの勝敗・引き分け・0件・20件超・保存再送・実終局の反映・認証とD1障害を確認します。Webは率の丸め・0件、表示値、棋譜と共通の選択・ゲーム別モードの復元、読み込み・失敗・再試行・更新を純粋関数とDOMテストで確認します。
 
 ## 公開プレイヤー情報
@@ -1188,11 +1190,11 @@ Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過�
 
 `0010_player_profiles.sql` は `user.publicProfileId` の一意UUIDと `room_index` の部屋世代・ホストID列を追加します。内部アカウントIDと変更可能な公開IDから独立した参照キーを既存ユーザーへ付与し、プロフィール保存では未設定の場合だけ生成します。デプロイの間に未付与の登録者が生じても、参照の返却時に条件付きUPDATEで補完します。旧Workerの動作は追加migration後も維持できます。
 
-`GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId` を渡します。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
+`GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId` を渡します。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
 
 ロビー・ランキングは `profilePreview=1` の要求にだけ参照情報を追加します。通常の応答は従来の形で、旧Workerの400では通常取得へ戻ります。ロビーの古い索引で参照情報がない行は `getPublicMetadata` で現在の部屋世代とホストへ補完し、閉鎖済みを除外します。参照のない旧応答をゲストと判断しません。
 
-Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。HeroUIのPopoverは非モーダルで位置・Portalを再利用し、開閉・フォーカスは操作種別に応じて制御します。ランキング内ではPortalを所属ダイアログへ置き、Escapeの伝播を止めて外側を閉じません。
+Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1` と `includeBadges=1` を指定し、400時は両方を外して一度だけ再取得します。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。HeroUIのPopoverは非モーダルで位置・Portalを再利用し、開閉・フォーカスは操作種別に応じて制御します。ランキング内ではPortalを所属ダイアログへ置き、Escapeの伝播を止めて外側を閉じません。
 
 Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テスト、Webの `playerProfiles.test.tsx` で未ログインでの取得、別人への誤紐付け防止、ゲスト・CPU・参照先なし、旧応答、取得障害、開閉、再試行、キャッシュ期限・無効化・遅延応答を確認します。実寸法・ネイティブ入力・画像デコードは手動確認し、PRへ結果と未確認を記載します。
 

@@ -96,13 +96,9 @@ test("通常将棋のマイページは5項目と引き分けを含む率、モ�
     else if (request.url.includes("/matches?")) request.respond({ matches: [], nextCursor: null });
   }
   await flush();
-  expect([...view.querySelectorAll("dt")].map((n) => n.textContent)).toEqual([
-    "対局数",
-    "勝数",
-    "勝率",
-    "敗数",
-    "敗率",
-  ]);
+  expect(
+    [...view.querySelectorAll("td > span")].map((n) => n.firstElementChild?.textContent),
+  ).toEqual(["対局数", "勝数", "勝率", "敗数", "敗率"]);
   expect(view.textContent).toContain(".250");
   expect(view.textContent).toContain(".500");
   expect(view.textContent).not.toContain("シングルス");

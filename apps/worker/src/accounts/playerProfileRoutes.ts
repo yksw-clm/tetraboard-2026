@@ -88,7 +88,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         game: target.game,
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:
-          "wins" in stats
+          target.includeStats === "1" || "wins" in stats
             ? stats
             : {
                 singles: { total: stats.singles.total, first: stats.singles.first },
