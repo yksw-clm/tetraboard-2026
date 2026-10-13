@@ -1,6 +1,6 @@
 import { healthzContract, listRoomsContract } from "../packages/protocol/src/index";
 import { gameCatalog, gameIds } from "../packages/protocol/src/games";
-import { lobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
+import { lobbyMetadata, generalLobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
 
 const origin = process.argv[2];
@@ -43,12 +43,14 @@ async function check(
 await check(
   "/?seo-check=1",
   async (response) => {
+    if (response.status !== 200) throw new Error("Expected general lobby HTML");
+    const html = await response.text();
     if (
-      response.status !== 308 ||
-      response.headers.get("Location") !==
-        new URL(`${gameCatalog["four-reversi"].lobbyPath}?seo-check=1`, base).toString()
+      !html.includes(generalLobbyMetadata.title) ||
+      !html.includes('data-public-lobby="all"') ||
+      !html.includes(`href="${publicOrigin}/"`)
     )
-      throw new Error("Expected root redirect with query");
+      throw new Error("Missing general lobby metadata");
   },
   "manual",
 );
@@ -92,7 +94,7 @@ await check("/sitemap.xml", async (response) => {
   const text = await response.text();
   if (
     !text.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"') ||
-    (text.match(/<loc>/g) ?? []).length !== (searchIndexable ? gameIds.length : 0) ||
+    (text.match(/<loc>/g) ?? []).length !== (searchIndexable ? gameIds.length + 1 : 0) ||
     (searchIndexable &&
       !gameIds.every((game) => text.includes(`<loc>${lobbyCanonical(game)}</loc>`)))
   )

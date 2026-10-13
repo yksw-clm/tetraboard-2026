@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
@@ -14,7 +15,7 @@ const signIn = (body: unknown = { provider: "discord" }) =>
     headers: {
       Origin: origin,
       "Content-Type": "application/json",
-      "X-Legal-Consent": "2026-10-12",
+      "X-Legal-Consent": legalVersion,
     },
     body: JSON.stringify(body),
   });
@@ -208,7 +209,7 @@ test("認証方法の許可リスト・固定戻り先・管理画面Google限�
     headers: {
       Origin: origin,
       "Content-Type": "application/json",
-      "X-Legal-Consent": "2026-10-12",
+      "X-Legal-Consent": legalVersion,
     },
     body: JSON.stringify({ provider: "discord" }),
   };

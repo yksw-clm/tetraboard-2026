@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameId, MatchSummary } from "@tetraboard/protocol";
 import { fetchRecentMatches } from "./recentMatchesApi";
 
-export function useRecentMatches(game: GameId) {
+export function useRecentMatches(game: GameId | "all") {
   const [humanOnly, setHumanOnly] = useState(false);
   const [page, setPage] = useState({
     matches: [] as MatchSummary[],

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   renderPublicLobby,
+  renderGeneralLobby,
   renderNotFound,
   renderSitemap,
   robotsText,
@@ -32,10 +33,10 @@ test("四人ゲームの初期HTMLは固有本文・正規URL・描画資産と�
   }
 });
 
-test("サイトマップは6ロビーだけ、robotsはクロールを許可し404は検索除外する", () => {
+test("サイトマップは総合と6ゲームのロビー、robotsはクロールを許可し404は検索除外する", () => {
   const xml = renderSitemap();
   expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"');
-  expect(xml.match(/<loc>/g)).toHaveLength(6);
+  expect(xml.match(/<loc>/g)).toHaveLength(7);
   expect(xml).toContain("https://tetraboard.net/games/four-shogi</loc>");
   expect(xml).toContain("https://tetraboard.net/games/four-reversi</loc>");
   expect(robotsText).toContain("Allow: /\nSitemap: https://tetraboard.net/sitemap.xml");
@@ -48,4 +49,12 @@ test("サイトマップは6ロビーだけ、robotsはクロールを許可し4
 test("メタ情報の特殊文字をエスケープし、不正な生成テンプレートを拒否する", () => {
   expect(escapeHtml('<script title="A&B">')).toBe("&lt;script title=&quot;A&amp;B&quot;&gt;");
   expect(() => renderPublicLobby("<html></html>", "four-shogi")).toThrow("template markers");
+});
+
+test("総合ロビーの初期HTMLは全ゲームへの入口と正規URLを持つ", () => {
+  const html = renderGeneralLobby(template);
+  expect(html).toContain('data-public-lobby="all"');
+  expect(html).toContain('href="https://tetraboard.net/"');
+  expect(html).toContain("総合ロビー");
+  expect(html).not.toContain("chat-1");
 });

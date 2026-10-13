@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
@@ -20,7 +21,7 @@ const webp = () => {
 };
 const form = (name: string, username: string, avatarAction = "keep", bytes?: Uint8Array) => {
   const data = new FormData();
-  data.set("consentVersion", "2026-10-12");
+  data.set("consentVersion", legalVersion);
   data.set("name", name);
   data.set("username", username);
   data.set("avatarAction", avatarAction);

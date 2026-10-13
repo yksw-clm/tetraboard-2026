@@ -175,6 +175,7 @@ export function AccountLayout() {
         {state.user &&
         !state.user.profileCompleted &&
         location.pathname !== "/account/setup" &&
+        location.pathname !== "/" &&
         !["/privacy", "/terms", "/account/deletion"].includes(location.pathname) &&
         location.pathname !== "/feedback" &&
         !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&

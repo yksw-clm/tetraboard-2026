@@ -6,7 +6,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { MatchHistoryCard } from "./MatchHistoryCard";
 import { useRecentMatches } from "./useRecentMatches";
 
-export function RecentMatches({ game }: { game: GameId }) {
+export function RecentMatches({ game }: { game: GameId | "all" }) {
   const page = useRecentMatches(game);
   const [nowMs, setNowMs] = useState(Date.now);
   useEffect(() => {
@@ -47,7 +47,7 @@ export function RecentMatches({ game }: { game: GameId }) {
           checked={page.humanOnly}
           onChange={(event) => page.changeHumanOnly(event.target.checked)}
         />
-        人間{gameCapacity(game)}人の対局のみ
+        {game === "all" ? "人間同士の対局のみ" : `人間${gameCapacity(game)}人の対局のみ`}
       </label>
       {page.loading && !page.pendingSource && (
         <p role="status" className="text-sm text-muted">
@@ -74,7 +74,9 @@ export function RecentMatches({ game }: { game: GameId }) {
       {page.loaded && !page.loading && !page.error && !page.matches.length && (
         <p className="text-sm text-muted">
           {page.humanOnly
-            ? `人間${gameCapacity(game)}人の対局履歴がありません。`
+            ? game === "all"
+              ? "人間同士の対局履歴がありません。"
+              : `人間${gameCapacity(game)}人の対局履歴がありません。`
             : "まだ対局履歴がありません。"}
         </p>
       )}

@@ -1,11 +1,6 @@
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { RecentMatches } from "../matches/RecentMatches";
-const previewStoneClasses = {
-  black: "preview-stone-black",
-  white: "preview-stone-white",
-  red: "preview-stone-red",
-  blue: "preview-stone-blue",
-} as const;
+import { ReversiLobbyBoardPreview } from "./ReversiLobbyBoardPreview";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 
@@ -66,17 +61,6 @@ type ActiveDialog =
   | { type: "rules" }
   | null;
 
-const previewStones: Record<number, keyof typeof previewStoneClasses> = {
-  19: "black",
-  28: "black",
-  35: "white",
-  44: "white",
-  27: "red",
-  34: "red",
-  29: "blue",
-  36: "blue",
-};
-
 const mobileQuery = "(max-width: 767px)";
 function subscribeToLobbyWidth(onChange: () => void) {
   const query = window.matchMedia(mobileQuery);
@@ -129,12 +113,6 @@ export function LobbyView(props: Props) {
         }
       : null,
   );
-  const stones = !gameCatalog[props.game].hasModes
-    ? ({ 27: "white", 28: "black", 35: "black", 36: "white" } as Record<
-        number,
-        keyof typeof previewStoneClasses
-      >)
-    : previewStones;
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = {
     title: gameCatalog[props.game].name,
@@ -195,11 +173,7 @@ export function LobbyView(props: Props) {
 
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">
-      <AppHeader
-        homeTo={game.homeTo}
-        homeLabel={`TetraBoard ${game.title}のロビー`}
-        theme={game.theme}
-      >
+      <AppHeader homeTo="/" homeLabel={`TetraBoard ${game.title}のロビー`} theme={game.theme}>
         <AccountMenu lobbyGame={props.game} />
       </AppHeader>
       <div
@@ -214,24 +188,7 @@ export function LobbyView(props: Props) {
                 {props.boardPreview}
               </Fragment>
               {props.boardPreview == null && (
-                <div
-                  aria-hidden="true"
-                  data-testid="lobby-board-preview"
-                  className="grid shrink-0 grid-cols-8 grid-rows-8 w-[88px] aspect-square gap-px p-[5px] border border-solid border-[#316a4d] rounded-lg bg-[#326a4e] shadow-[4px_7px_12px_#32694a22] -rotate-7 [@media(max-width:767px)]:w-[56px] [@media(max-width:767px)]:p-[3px]"
-                >
-                  {Array.from({ length: 64 }, (_, index) => (
-                    <span
-                      className="relative min-w-0 min-h-0 bg-[#4d976c] even:bg-[#529c71]"
-                      key={index}
-                    >
-                      {stones[index] && (
-                        <span
-                          className={`absolute inset-[8%] rounded-full border border-solid border-[#00000018] shadow-[1px_2px_3px_#122d3150] ${previewStoneClasses[stones[index]!]}`}
-                        />
-                      )}
-                    </span>
-                  ))}
-                </div>
+                <ReversiLobbyBoardPreview fourPlayer={gameCatalog[props.game].hasModes} />
               )}
               <div className="min-w-0">
                 <h1 className="text-[36px] leading-[1.35] tracking-[0.02em] [@media(max-width:767px)]:text-[27px]">

@@ -5,10 +5,10 @@ import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchRep
 import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
-import { createBrowserRouter, Link, Navigate } from "react-router";
+import { createBrowserRouter, Link } from "react-router";
 import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
-import { fourReversiLobbyPath } from "./paths";
+
 import { FeedbackPage } from "../features/feedback/FeedbackPage";
 import { UpdatesPage, UpdateDetailPage } from "../features/updates/UpdatesPage";
 
@@ -92,7 +92,13 @@ export const router = createBrowserRouter([
         ErrorBoundary: MatchReplayErrorPage,
         hydrateFallbackElement: <AppPageLoading message="棋譜を読み込んでいます…" />,
       },
-      { path: "/", element: <Navigate to={fourReversiLobbyPath} replace /> },
+      {
+        path: "/",
+        lazy: async () => ({
+          Component: (await import("../features/lobby/GeneralLobbyPage")).GeneralLobbyPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="ロビーを読み込んでいます…" />,
+      },
       ...gameIds.map((game) => ({
         ...lobbyRoutes[game],
         hydrateFallbackElement: (
@@ -113,7 +119,7 @@ export const router = createBrowserRouter([
           <>
             <p>ページが見つかりません。</p>
             <p>
-              <Link to={fourReversiLobbyPath}>ロビーへ</Link>
+              <Link to="/">ロビーへ</Link>
             </p>
           </>
         ),

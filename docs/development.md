@@ -35,6 +35,7 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 | プライバシー・規約・退会・計測期限 | [確定仕様](../README.md#プライバシー利用規約退会の確定仕様) | [実装計画](#プライバシー規約退会の実装計画)、認証・棋譜・ルーム・計測・フィードバックの既存入口 | [検証と公開前の確認](testing.md#プライバシー規約退会の確認) |
 | 時計・接続・ルーム進行 | [投了、通信切れと持ち時間](../README.md#投了通信切れと持ち時間) | [共有transport](#共有transportとゲーム別session)、[時計と期限](#workerの時計計算と期限選択)、[進行とライフサイクル](#workerのゲーム進行と共有ライフサイクル)、[clockCore.ts](../apps/worker/src/rooms/clockCore.ts)、[useRoomTransport.ts](../apps/web/src/features/room/useRoomTransport.ts) | [timeControl.test.ts](../apps/worker/test/timeControl.test.ts)、[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx) |
 | 終局保存・棋譜・互換性 | [終局保存](../README.md#終局データの保存対局履歴)、[保存棋譜](../README.md#保存済み棋譜の閲覧)、対象ゲームの正本 | [終局保存](#終局保存と本人の対局履歴)、[棋譜互換](#保存データの契約と棋譜互換)、[matchStore.ts](../apps/worker/src/rooms/matchStore.ts)、[shogiMatchStore.ts](../apps/worker/src/rooms/shogiMatchStore.ts)、[fetchEventReplay.ts](../apps/web/src/features/room/fetchEventReplay.ts) | [matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx) |
+| 総合ロビー・公開チャット | [確定仕様](../README.md#総合ロビーの確定仕様) | [実装計画](#総合ロビーの実装計画)・[実装](#総合ロビーの実装)、既存のルーム索引・公開棋譜・認証・管理・配信 | [受入検証](testing.md#総合ロビーの確認) |
 | 画面・ロビー・共通部品 | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル) | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/) | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx) |
 | ルーム共有 | [確定した共有仕様](../README.md#ルーム共有の確定仕様) | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts) | [ルーム共有の確認](testing.md#ルーム共有の確認) |
 | ゲーム・CPU | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md) | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts) | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts) |
@@ -272,7 +273,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ルーム作成は `POST http://127.0.0.1:8787/rooms` に `{"name":"てとら","quickPlay":false,"mode":"singles"}` をJSONで送ります。`mode` は `singles` または `doubles` の必須項目です。成功応答の `room.id` に含まれる5桁のIDを使い、`GET http://127.0.0.1:8787/rooms/<ID>` で保存した部屋を確認できます。Workerを再起動した後も同じIDで取得できます。開発時のDurable ObjectとD1の状態は `apps/worker/.wrangler/state` に保存されます。D1だけを準備する場合は `bun run --cwd apps/worker db:migrate:local` を実行します。
 既存ルームへの入室は `POST http://127.0.0.1:8787/rooms/<ID>/players` に `{"name":"二人目"}` をJSONで送ります。作成・入室の成功応答は `{ "room": ..., "membership": { "playerId": ..., "role": ..., "token": ... } }` です。満室なら409を返します。本人確認は `GET http://127.0.0.1:8787/rooms/<ID>/me` に `Authorization: Bearer <token>` を付けて行います。トークンは公開GETやWebSocketの応答には含めません。
-Webの `/` は履歴を置き換えて `/games/four-reversi` へ転送します。四人リバーシ専用ロビーで「ルームを作る」「ルーム番号で参加」などを押すと、入力ダイアログを開きます。ニックネームなどを入力して確定すると、`/rooms/<ID>` に移動します。ルームページはGETで保存済みの情報を確認してから表示し、WebSocket接続後に受信したルーム情報と接続状態を表示します。別の画面からの入室もWebSocketで反映します。ページを再読み込みしても同じルームを取得できます。接続が切れた場合はGETで状態を再取得してから再接続します。開発機のブラウザで確認後、スマートフォンでもViteの `Network` URLから同じルームURLを開いて確認します。
+Webの `/` は総合ロビーを表示します。四人リバーシ専用ロビーで「ルームを作る」「ルーム番号で参加」などを押すと、入力ダイアログを開きます。ニックネームなどを入力して確定すると、`/rooms/<ID>` に移動します。ルームページはGETで保存済みの情報を確認してから表示し、WebSocket接続後に受信したルーム情報と接続状態を表示します。別の画面からの入室もWebSocketで反映します。ページを再読み込みしても同じルームを取得できます。接続が切れた場合はGETで状態を再取得してから再接続します。開発機のブラウザで確認後、スマートフォンでもViteの `Network` URLから同じルームURLを開いて確認します。
 作成・「すぐ遊ぶ」のダイアログでシングルス・ダブルスを選択します。初期値はシングルスです。「すぐ遊ぶ」を確定すると、選択したモードでホストは準備完了、CPU 3体は作成時に選んだレベル（省略時はLv1）で待機します。ホストが「対局開始」を押した後、CPUの各手番は最低2秒待ってから自動で進みます。通常の待機部屋では、ホストがCPUの追加・削除・レベル変更とモード変更を行えます。モード・時間設定の変更時は人間全員の準備状態を解除します。人間とCPUの合計が4席で、接続中の人間全員が準備完了なら開始できます。設定変更と自動着手はWebSocketのルームスナップショットで他の画面へ反映されます。
 同じタブで再読み込みすると、保存した参加資格をサーバーで確認してホスト・プレイヤーの区分と「[あなた]」を表示します。別の独立したタブから資格なしで通常URLを開いた場合は観戦者として表示し、空席のある待機中なら状況カードから参加できます。
 ホスト・プレイヤーのWebSocket接続は、接続後に資格トークンを送って認証します。認証後の「準備完了」「準備取消」はWebSocketメッセージで送信し、Durable Objectが本人の状態を保存して全接続へ最新のルーム情報を配信します。別のタブで同じ部屋を観戦し、表示が更新されることを確認できます。GET、再読み込み、Worker再起動後も準備状態を取得できます。観戦者や無効な資格では準備状態を変更できません。
@@ -511,6 +512,82 @@ GameRoomは認証・参加・準備・接続／切断・チャット・transacti
 
 前節の回帰コマンドは通常GETでのCPU進行の差、将棋の複数接続・切断通知欠落・活動停止・再戦時の元の復帰期限も確認します。抽出した進行・終局更新を実storageのtransactionで実行し、例外後にKV・SQLiteの千日手・棋譜・保護状態・保存待ちが全て戻ることを検証します。公開応答は通信契約で解析し、内部メソッドのモック・固定sleep・テスト用公開APIを追加しません。
 
+## 総合ロビーの実装計画
+
+2026-10-13に開発者がUIモックと本実装の提案を承認し、仕様確定と以下の4項目の決定を指示しました。利用者向け仕様の正本は[README](../README.md#総合ロビーの確定仕様)です。実装の入口と保存・配信の構成は[次節](#総合ロビーの実装)、受入検証は[テスト方針](testing.md#総合ロビーの確認)を参照します。本節は承認された目的・制約・完了条件を保持します。
+
+**Goal**
+
+`/` を全6ゲームの総合ロビーにし、空席のある募集を優先して参加・観戦へ進め、最近の終局を振り返り、公開チャットで次の対局の約束を話せる状態を作ります。承認済みのUIを維持して実データ・認証・永続化・運営機能へ接続し、対人戦と継続利用の効果を既存の管理計測で比較できる、develop向けのレビュー可能な実装PRを完成させます。
+
+本番βの公開は、開発環境での確認と開発者のリリース承認後に行います。対人戦比率の改善は公開後の成果指標とし、実装PRの完成条件には数値の改善を要求しません。会話で示されたCPU戦177・対人戦29は問題意識の参考値で、計測期間・条件が未指定のため比較基準として固定しません。
+
+**ContextProviders**
+
+次の優先順位と用途で参照します。プレビューの架空データや現行コードを、承認された本実装仕様と混同しません。
+
+1. この会話の開発者の承認・変更指示。総合ロビーを左端とトップにすること、部屋の3分類順、満室の無効な参加ボタン、固定高さ、簡潔なチャット、ナビゲーションの盤面図・見出し・幅・区切り線、および本実装提案の承認です。
+2. [AGENTS.md](../AGENTS.md)のブランチ・日本語コミット・仕様承認・必須検証・CI・マージと公開のルール。
+3. [READMEの確定仕様](../README.md#総合ロビーの確定仕様)と、同文書の認証・参加・公開棋譜・ルーム内チャット・退会・プライバシー・計測・共通UI・検索向け配信。ゲームのルールは変更しません。
+4. [構成文書](architecture.md#総合ロビーの追加方針)、この文書の[共通手順](#共通の作業手順)・[ゲームID](#ゲームidと軽量カタログ)・[共通ロビー](#共通ロビーと四人将棋ui)・[SEO生成](#ロビーのseo生成と成果確認)・認証と管理の案内、[受入検証](testing.md#総合ロビーの確認)。
+5. 承認済みのモック：`features/lobby/GeneralLobbyPage.tsx`・`GeneralLobbyRooms.tsx`・`GeneralLobbyChat.tsx`・`GeneralLobbyGameNavigation.tsx` と共通ナビゲーション・盤面図・`shared/ui`。配置・寸法・見た目の参照とし、疑似ログイン・架空データ・確認用ダイアログは本実装へ持ち越しません。
+6. 実データと資格の入口：Workerの [roomIndex.ts](../apps/worker/src/rooms/roomIndex.ts)・[roomRoutes.ts](../apps/worker/src/rooms/roomRoutes.ts)・[publicMatchRoutes.ts](../apps/worker/src/rooms/publicMatchRoutes.ts)、Webの [useLobby.ts](../apps/web/src/features/lobby/useLobby.ts)・[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)・[AccountSession.tsx](../apps/web/src/features/account/AccountSession.tsx)。ゲームカタログは `packages/protocol/src/games.ts` を参照します。
+7. 運営・保存期限・配信・計測の入口：Workerの `rooms/reportStore.ts`・`admin/auth.ts`・`admin/routes.ts`・`privacy/deletion.ts`・`analytics/retention.ts`・`publicAssets.ts`、`apps/admin/src`、Webの `analytics/pageAnalytics.ts`・`seo/pageMetadata.ts`・`build/generatePublicLobbies.ts`、`scripts/checkDeployment.ts`。ルーム専用の通報契約を公開チャットへそのまま流用せず、既存の認証・期限処理を参照します。
+8. Git履歴で導入経緯・互換性を確認します。必要になった過去のIssue・PRは補助資料として参照し、現在仕様の決定には正本とこの会話の承認を優先します。
+
+**Constraints**
+
+- `feat/general-lobby` はdevelopから作成済みです。既存モックの差分を保持し、develop向けPRで取り込みます。main・developへ直接push・force pushせず、取り込みでコード・設定が変われば必須検証をやり直します。コミットの種別に続く説明は日本語にします。マージ・公開は差分と検証結果を示した後の承認が必要です。
+- 既存のBun・TypeScript・React・HeroUI・Cloudflare Worker・Durable Objects・D1を使います。新しい主要依存・外部サービス、ゲームルーム全体の複製、将来用途だけの汎用化を追加しません。保存先・責務は既存構成内で選び、アカウント単位の制限と競合時の整合性を満たす方式を実装文書へ記録します。
+- 総合ロビーは実ゲームの `GameId` を増やしません。横断取得とページ計測にはサービス全体のスコープを用い、`all` を対局のゲームとして保存せず、既定ゲームの省略時挙動・未知ゲームIDの拒否を維持します。
+- 横断一覧はサーバー側でフィルター・分類・並べ替え・ページ分割します。ルーム索引を使い、一覧更新ごとに各DOを巡回しません。索引の遅延を前提に、参加・観戦の最終可否はルームの正本と世代で再検証します。既存のゲーム別APIの条件・順序・戻り値を無断変更しません。
+- 公開チャットの状態・保存・制限・投稿停止をゲーム進行から分離し、障害や全体投稿停止が対局・ルーム内チャットを止めないようにします。部屋の時計・準備・再戦・資格・棋譜・戦績・ランキングを変更しません。
+- 閲覧者・投稿者・通報者・管理者の資格をサーバーで検証します。投稿と管理操作は既存の同一オリジン検証・認証方針に従い、Cookie・メール・内部ID・トークンを公開応答へ含めません。本文はテキストとして表示し、URL禁止と100文字・10秒制限、停止中・退会後の拒否を直接APIにも適用します。
+- 投稿の確定・重複防止・送信間隔を複数タブ／端末・同時送信・応答喪失・再試行でも守ります。公開チャットの通常投稿と通報証拠を分け、7日・500件の境界、削除再試行、退会受付後の即時取得除外と遅延投稿の復活防止を検証します。追加migrationは目的・既存データへの影響・両環境での適用手順を記載し、既存棋譜の一括書換えは行いません。
+- 承認済みのナビゲーション幅、固定高さ、色、共通部品、キーボード・読み上げ操作を維持します。非表示時のポーリング停止、復帰時の再取得、古い応答の破棄、閲覧位置と入力の保持を機能別に扱います。ある領域の取得失敗を画面全体の失敗にしません。
+- ローカル限定分岐、架空データ、疑似認証、確認用操作を本実装で外します。本番／開発buildの両方で総合ロビーが機能し、公開チャット本文を初期HTMLへ埋め込まず、開発環境の検索除外と既存非検索画面の扱いを維持します。
+- 計測は既存の開始時CPU有無・完了・7日継続率と除外・保存期限を使います。総合ロビー閲覧を特定ゲームの開始率へ混ぜず、チャット本文・操作内容を分析用に保存しません。予約・通知・自動マッチング・新ランキングなど、確定仕様外の機能を追加しません。
+- 自動検証はBun純粋関数、Bun＋happy-dom、Worker統合に集約し、ブラウザ起動型テスト・設定・workflowを追加しません。画面寸法・ネイティブ入力・実画像・実OAuthは手動確認の結果または未確認理由を記録します。
+- 実装PR前に `bun run check`、`bun run build`、`bun run --cwd apps/worker deploy:dry-run`、`bun run build:development`、`bun run --cwd apps/worker deploy:dry-run:development` をすべて成功させ、同じ対象コミットのGitHub CIを独立して確認します。checkは180秒以内を目標とし、所要時間を記録します。
+
+**Done When**
+
+1. READMEの確定仕様・本計画・テスト方針が実装と一致し、モックと実装済み範囲を明記しています。プライバシーポリシー・規約に公開チャットの公開範囲・保存期限・退会を反映し、関連文書に旧トップ転送やモック限定を現行の完成仕様として残していません。
+2. 本番／開発buildの `/` が総合ロビーで、通常の遷移と直接GET／HEAD・再読み込みが動作します。6ゲームのURL・通常タブと既定ゲームの契約を維持し、根拠のないGameId追加・架空データ・疑似ログインがありません。ホームリンク・title・description・canonical・トップを含むサイトマップ・開発noindexを検証しています。
+3. 6ゲームを横断する公開ルームが3分類順で表示され、同分類の順序・定員フィルター・20件の追加取得・0件・少数・多数が正しい状態です。満室の参加は表示されて無効、対局中は非表示、観戦は全件にあります。10秒更新・非表示／復帰・条件変更・通信失敗・古い応答・スクロール保持を検証しています。
+4. 全6ゲームでゲスト／登録者の参加と観戦を既存フローへ接続し、満室化・開始・閉鎖・番号再利用・別ルームの席競合をサーバーが拒否でき、理由と復旧操作が表示されます。招待・ゲスト登録引き継ぎ・ルーム資格の既存回帰が成功しています。
+5. 最近の対局が全6ゲームの保存済み終局の最新20件で、開始日時とUUIDの順序・ゲスト／CPU／両モード・人間限定条件・手動更新・失敗時保持が正しく、公開棋譜へ進めます。保存中・未終局・不正ゲームの混入がなく、定員フィルターと独立しています。
+6. 公開チャットが未ログインで読め、プロフィール完成済みの本人だけが投稿できます。100文字・URL禁止・10秒の境界・同時送信・複数端末・応答喪失と再送をサーバーで検証し、二重投稿がありません。入力保持・IME・認証復帰、50件と過去分、新着と追従、5秒更新・日付・古い応答を検証しています。
+7. 通常投稿の7日・500件の上限、期限到達時の除外、削除・保存失敗からの再試行、退会受付・同時投稿・遅延応答、通報証拠の別の7日期限を検証しています。一般画面や古い同期応答から削除済み情報が復活しません。
+8. ブラウザ内の送信者非表示・名前変更時の同一性・ログイン必須の通報、管理者だけの一覧／削除／投稿停止・解除／全体停止・再開が動作します。直接APIの権限・停止状態を検証し、停止中も履歴・ルーム・対局が利用できます。
+9. サービス全体の総合ロビー閲覧・滞在を確認でき、対人／CPUの開始・完了・割合・継続率の既存定義と除外・期限・退会を維持しています。個別ゲームの開始率に総合ロビーだけの閲覧が混入せず、本文・操作内容が分析に保存されません。
+10. [受入検証](testing.md#総合ロビーの確認)と6ゲーム・認証・棋譜・ルーム内チャット・管理・配信の関連回帰が成功しています。PC／スマートフォンの幅・固定高さ・内部スクロール・配置、キーボード・読み上げ・実認証は手動確認結果か未確認理由を記録しています。
+11. 必須5コマンド・文書整形・リンク・`git diff --check` と対象コミットのGitHub CIが成功し、develop向けPRに対象コミット・実行環境・結果・check所要時間・未確認事項を記載してレビューできます。マージ・開発／本番公開は、この実装PRの完了とは別の承認手順として扱います。
+
+**実装の順序**
+
+横断取得と契約 → 公開チャットの保存・認証・重複／制限・期限 → 管理操作と退会 → 承認済みUIの実データ接続 → トップ配信・SEO・計測 → 横断回帰・手動確認・PRの順に進めます。各機能の実装と関連テストを同じ段階で追加し、公開時点で運営・削除を欠いたβにしません。分割方法は実装の都合で調整できますが、承認済みの範囲と完了条件は変更しません。
+
+## 総合ロビーの実装
+
+`features/lobby/GeneralLobbyPage.tsx` がトップ、`GeneralLobbyRooms.tsx`・`useGeneralLobbyRooms.ts` が横断一覧、`GeneralLobbyChat.tsx`・`useLobbyChat.ts` が公開チャットです。架空データ・プレビュー操作・疑似ログイン・DEV限定分岐は撤去し、`/` を両環境のbuildへ含めます。既存の `AccountMenu`・`useRoomEntry`・`RoomEntryDialog`・`RecentMatches` を使い、参加時と観戦URLにルーム世代を渡します。観戦URLは世代確認用の `invite` と `watch=1` を持ち、参加ダイアログを自動表示しません。通常の招待URLは従来どおり参加案内を表示します。登録復帰先に `/` を許可し、チャット下書きはsessionStorage、送信者非表示は公開IDをキーにlocalStorageへ保存します。
+
+PCの2列はCSS Gridのsubgridで見出し・720pxの本文・凡例を共有し、767px以下では400pxの縦並びにします。`GeneralLobbyGameNavigation` だけが初期盤面図を読み込み、通常のナビゲーションは文字表示と同じ幅・間隔を使います。タイトル・共有盤面図・共通UIはモックの承認済み配置を維持します。
+
+通信契約は `@tetraboard/protocol/general-lobby`、Workerの `lobby/routes.ts` が `/lobby/rooms`・`/lobby/matches` を提供します。ルームは既存D1索引の状態分類・更新日時・番号のカーソルで20件ずつ取得し、Webは取得済みページ数を再取得して追加分も10秒更新します。最近の終局はゲーム条件を外した既存記録から最新20件を取得し、人間限定をページ分割より先に適用します。
+
+`lobby/chatRoutes.ts` と `chatStore.ts` が `/lobby/chat`・`/lobby/chat/reports`・`/admin/lobby-chat` を扱います。D1の条件付きINSERTが本人・プロフィール・停止・10秒制限・退会・再送IDを検証し、AFTER INSERTトリガーが同一トランザクションで送信時刻・再送台帳・最新500件を更新します。再送台帳は本文のハッシュと投稿IDを持ち、運営削除後の同一再送も本文を復活させません。通常投稿と再送台帳は7日、通報証拠は通報から7日です。期限と退会受付の時点で取得から除外し、毎時削除・削除失敗の再試行へ接続します。退会の完了前に通常投稿と再送台帳を削除し、証拠内の本人識別を除去します。
+
+通報は開発者の明示承認に従い、直近1時間で1アカウント5件までです。同じ発言への再通報は重複登録せず、件数を消費しません。件数の照合と登録を単一の条件付きINSERTで行い、同時要求でも上限を守ります。
+
+管理画面の `LobbyChat.tsx` は通報と現在の投稿、停止中の利用者、全体受付状態を表示します。既存の管理者認証とOrigin検証を使い、実行前に操作内容を確認でき、失敗時は再試行できます。ルームチャットの通報契約・進行処理は変更しません。
+
+`general-lobby` のページ種別・ゲームnullで閲覧と滞在を計測し、ゲーム別開始率へ混入させません。管理集計に総合ロビー閲覧・滞在、対人／CPUの完了数と対人開始割合を追加しました。90日超の集計にも追加列を保存し、導入前に集約済みで完了内訳が分からない期間は「—」で表示します。導入前の内訳を推測して補完しません。
+
+D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳・証拠・全体設定とトリガー、ルーム索引、計測集計列を追加します。既存棋譜の書換えと外部依存の追加はありません。ローカルは `bun run dev` のmigrationで適用します。公開は開発環境のmigration適用と実認証・運営操作・削除処理の確認後、リリース承認を得て本番にも適用します。必要なSecretsは既存の認証・管理者設定を利用し、新しい外部サービス設定は不要です。OAuthのホームページ設定は公開時にトップURLへ整合させます。
+
+トップの初期紹介HTMLは `renderGeneralLobby` で生成します。通常のSPA用の空root・noindexを持つ `app.html` を別に生成し、ログイン・ルーム共有・規約にはこちらを配信します。`index.html` の直接アクセスはトップへクエリを保持して308、トップ自体は200です。公開チャット本文をHTMLへ埋め込まず、サイトマップはトップ＋6ゲーム、開発は検索対象外です。
+
 ## 共通ロビーと四人将棋UI
 
 `/games/four-reversi` と `/games/four-shogi` は `features/lobby/LobbyView` を共通利用します。タイトル・説明・遊び方・盤面プレビューはゲームごとに切り替え、一覧とランキングは各ページから渡します。両ゲームともPCは操作カードとランキングを上段、その下に公開ルームを置き、スマートフォンでは操作・公開ルーム・ランキングの順にします。画面幅による並べ替えでもランキングの状態を維持します。
@@ -521,7 +598,7 @@ GameRoomは認証・参加・準備・接続／切断・チャット・transacti
 
 両ゲームで `useLobby` と `useRoomEntry` を使い、ゲーム指定を付けて取得・作成・参加します。省略時はリバーシです。将棋では作成時に三人攻撃禁止を設定できます。ランキングもゲーム別に集計し、リバーシの値を将棋へ流用しません。ダイアログを閉じても入力を保持し、ゲームを切り替えたときは破棄します。
 
-`GameLobbyNavigation` は全ロビーのヘッダー直下に `NavLink` を並べ、現在のURLを選択表示と `aria-current="page"` に反映します。PCでは幅360px以内、650px以下では本文幅を3等分し、全リンクの高さを44px以上にします。アカウント・ルーム画面には追加せず、`/` のリバーシへの転送も維持します。
+`GameLobbyNavigation` は全ロビーのヘッダー直下に `NavLink` を並べ、現在のURLを選択表示と `aria-current="page"` に反映します。リンク幅は768px以上で124px、767px以下で104px、通常のリンクの高さは44px以上にし、横スクロールの1行を維持します。総合ロビーだけは盤面図を含む高さ128px以上のリンクにし、区切り線の右側のゲーム群の上に「ゲーム一覧」を表示します。通常の文字タブも同じ幅・間隔を使い、ゲーム群の横位置をそろえます。アカウント・ルーム画面には追加せず、`/` は総合ロビーへ接続します。
 
 既定の共通テーマは緑です。将棋の本文には `game-theme-four-shogi` を付け、Portalの入力・遊び方・ランキングのダイアログには `AppDialog` の `theme="four-shogi"` を渡します。`primary`／`primary-hover` は主要ボタンの塗り、`primary-foreground` は文字、`brand` は文字アクセントとして分けます。HeroUIの `--accent` と `--accent-foreground` も同じ範囲で設定します。共通ヘッダー・アカウントメニューをゲームのテーマ範囲に含めず、グローバルなテーマ切り替えは行いません。意味を持つdanger・focusの色は上書きしません。
 
@@ -529,13 +606,15 @@ GameRoomは認証・参加・準備・接続／切断・チャット・transacti
 
 ## ロビーのSEO生成と成果確認
 
+`/` の初期紹介HTMLとメタ情報を生成し、サイトマップと配信確認はトップ＋6ゲームです。[確定仕様](../README.md#検索向け配信と効果の確認)に従います。
+
 `src/seo/lobbyMetadata.ts` はWeb側のゲーム別title・description・紹介の正本です。ゲーム名・ロビーパスは軽量ゲームカタログを参照します。紹介は `GameIntroduction` で通常ロビーと初期HTMLが共用し、ルール正本に合わせて同じ変更で更新します。エンジン・認証・API・動的一覧を静的生成へ持ち込みません。
 
-WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した6ロビーのHTML、robots.txt、6件のsitemap.xml、404.html、検索対象外のindex.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
+WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した6ロビーのHTML、robots.txt、7件のsitemap.xml、404.html、トップのindex.htmlと検索対象外のapp.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
 
 `startPublicLobby` は紹介HTMLを持つ初回ロビーだけでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には紹介・通常リンクを残して再読み込みを案内します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。
 
-本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`/` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ転送、全ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。
+本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。
 
 関連検証は `bun test --cwd apps/web ./test/publicLobbies.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/publicLobbies.test.tsx`、`bun run --cwd apps/worker test test/publicAssets.test.ts test/apiRouting.test.ts` です。Bun・happy-dom・Worker統合テストで生成、遷移、200／308／404、GET／HEAD／304、Content-Type、通常UA／Googlebot、認証とAPIの境界を確認します。画面寸法・実ブラウザ入力・JavaScript無効時の見え方は手動確認とし、ブラウザ自動テストは追加しません。
 
@@ -877,7 +956,7 @@ PCでは盤面領域右下、タブレット・スマートフォンでは状況
 - 満室・対局中のX募集抑止は最新のルーム状態へ追従します。Xは別タブの投稿画面を開く方式とし、自動投稿、投稿完了の推測、XのAPI認証・連携、外部SDKを追加しません。
 - ゲームごとの静的画像6枚と共通画像1枚を配信します。動的な人数・名前・募集状態を画像へ埋め込まず、実行時の画像生成サービス、新しい依存技術、ルームごとの画像生成を採用しません。
 - Workerは直接アクセスの初期HTMLへゲームに対応するメタ情報を設定します。部屋世代が異なる・存在しない・期限切れのURLは共通カードにし、古いリンクに再利用後の別ルームのゲーム情報を載せません。取得失敗によって既存の画面配信や参加を妨げない構成にします。
-- ルームのHTML・HTTPのnoindex、開発環境のOriginと検索除外、6ロビーのサイトマップ、API・WebSocket・認証Cookie・HTTP配信の契約を維持します。メタ情報とキャッシュをルーム間・環境間で混在させません。ゲーム進行、時計、参加資格、棋譜・戦績の保存形式を変更しません。
+- ルームのHTML・HTTPのnoindex、開発環境のOriginと検索除外、総合ロビーと6ゲームのサイトマップ、API・WebSocket・認証Cookie・HTTP配信の契約を維持します。メタ情報とキャッシュをルーム間・環境間で混在させません。ゲーム進行、時計、参加資格、棋譜・戦績の保存形式を変更しません。
 - 検証はBun純粋関数、Bun＋happy-domの部品・hook、Worker統合テストへ集約します。ブラウザ起動型のテストは追加せず、画面寸法・ネイティブ入力・実画像デコード・Xの実表示は手動確認します。
 - 実装は最新developから作業ブランチを作り、develop向けPRを使います。main・developへの直接pushとforce pushは行いません。必須ローカル5コマンドとGitHub CIの成功を確認し、マージ・公開には開発者の承認を得ます。
 

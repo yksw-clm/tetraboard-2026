@@ -72,11 +72,7 @@ export function AccountPageShell({
         loginLayout && "flex flex-col",
       )}
     >
-      <AppHeader
-        homeTo={gameCatalog[defaultGameId].lobbyPath}
-        homeLabel="TetraBoard ロビー"
-        theme={gameThemes[game]}
-      >
+      <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={gameThemes[game]}>
         <AccountMenu />
       </AppHeader>
       <div

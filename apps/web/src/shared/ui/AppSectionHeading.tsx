@@ -8,7 +8,7 @@ export function AppSectionHeading({
 }: {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   children?: ReactNode;
 }) {
   return (
@@ -17,9 +17,11 @@ export function AppSectionHeading({
         <h2 id={id} className="text-xl leading-normal [@media(max-width:650px)]:text-lg">
           {title}
         </h2>
-        <p className="mt-1 text-muted text-[13px] [@media(max-width:650px)]:text-xs">
-          {description}
-        </p>
+        {description && (
+          <p className="mt-1 text-muted text-[13px] [@media(max-width:650px)]:text-xs">
+            {description}
+          </p>
+        )}
       </div>
       {children}
     </div>

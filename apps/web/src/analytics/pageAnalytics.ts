@@ -155,7 +155,6 @@ export function startWebAnalytics(router: typeof appRouter) {
     const path = state.location.pathname;
     if (
       ["/privacy", "/terms"].includes(path) ||
-      path === "/" ||
       /^\/admin(?:\/|$)/.test(path) ||
       !ensureAnalyticsCookie()
     )
@@ -166,23 +165,28 @@ export function startWebAnalytics(router: typeof appRouter) {
     }[];
     const detail = data.find((value) => value?.room || value?.match);
     const game =
-      gameIds.find((id) => path.includes(id)) ??
-      detail?.room?.settings.game ??
-      detail?.match?.settings.game ??
-      null;
-    const page = path.startsWith("/games/")
-      ? "lobby"
-      : path.startsWith("/rooms/")
-        ? "room"
-        : path.startsWith("/account/matches/") || path.startsWith("/matches/")
-          ? "replay"
-          : path === "/account/setup"
-            ? "setup"
-            : path === "/login"
-              ? "login"
-              : path === "/account"
-                ? "account"
-                : "other";
+      path === "/"
+        ? null
+        : (gameIds.find((id) => path.includes(id)) ??
+          detail?.room?.settings.game ??
+          detail?.match?.settings.game ??
+          null);
+    const page =
+      path === "/"
+        ? "general-lobby"
+        : path.startsWith("/games/")
+          ? "lobby"
+          : path.startsWith("/rooms/")
+            ? "room"
+            : path.startsWith("/account/matches/") || path.startsWith("/matches/")
+              ? "replay"
+              : path === "/account/setup"
+                ? "setup"
+                : path === "/login"
+                  ? "login"
+                  : path === "/account"
+                    ? "account"
+                    : "other";
     // 取得失敗時には、ゲームが不明なルームや棋譜をゲーム別の訪問に混ぜません。
     if (["room", "replay"].includes(page) && !game) return;
     stop = trackPage(page, game);

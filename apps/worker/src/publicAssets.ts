@@ -1,5 +1,5 @@
 import { legalHtml } from "./privacy/legalHtml";
-import { defaultGameId, gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
 
 export function withoutIndexing(response: Response): Response {
@@ -27,9 +27,13 @@ export async function servePublicAssets(
     );
   if (path === "/privacy" || path === "/terms")
     return legalHtml(request, assets, path.slice(1) as "privacy" | "terms");
-  if (path === "/") {
-    url.pathname = gameCatalog[defaultGameId].lobbyPath;
-    return Response.redirect(url.toString(), 308);
+  if (path === "/" || path === "/index.html") {
+    if (path === "/index.html") {
+      url.pathname = "/";
+      return Response.redirect(url.toString(), 308);
+    }
+    url.pathname = "/index.html";
+    return assets.fetch(new Request(url, request));
   }
   const game = gameIds.find((id) => {
     const lobby = gameCatalog[id].lobbyPath;
@@ -59,7 +63,7 @@ export async function servePublicAssets(
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
     if (env && /^\/rooms\/[^/]+\/?$/.test(path)) return serveRoomShareHtml(request, env, assets);
-    url.pathname = "/index.html";
+    url.pathname = "/app.html";
     return withoutIndexing(await assets.fetch(new Request(url, request)));
   }
   if (

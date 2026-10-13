@@ -34,6 +34,30 @@ const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new Request(`${origin}/api${path}`, { redirect: "manual", ...init }));
 afterEach(() => vi.restoreAllMocks());
 
+// 削除待ちの他テストのアカウントを処理せず、本人の失敗・再試行だけを検証します。
+async function processFixtureDeletion(
+  accountId: string,
+  bindings: Parameters<typeof processDeletions>[0] = env,
+) {
+  const database = new Proxy(bindings.APP_DB, {
+    get(target, key) {
+      if (key === "prepare")
+        return (sql: string) => {
+          if (
+            sql.startsWith("SELECT id,avatar_key,provider,revocation_token FROM deleted_accounts")
+          )
+            return target
+              .prepare(sql.replace("completed_at_ms IS NULL", "completed_at_ms IS NULL AND id=?"))
+              .bind(accountId);
+          return target.prepare(sql);
+        };
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  await processDeletions({ ...bindings, APP_DB: database });
+}
+
 for (const game of [
   "four-reversi",
   "four-shogi",
@@ -476,13 +500,13 @@ test("R2失敗は処理中を維持して再試行し、完了時は認証・同
       },
     } as unknown as R2Bucket,
   };
-  await processDeletions(failure);
+  await processFixtureDeletion(user.id, failure);
   expect(
     await env.APP_DB.prepare("SELECT completed_at_ms FROM deleted_accounts WHERE id=?")
       .bind(user.id)
       .first(),
   ).toEqual({ completed_at_ms: null });
-  await processDeletions(env);
+  await processFixtureDeletion(user.id);
   expect(await env.OBJECT_STORAGE.get(key)).toBeNull();
   for (const [table, column] of [
     ["user", "id"],
@@ -629,14 +653,14 @@ test("旧OAuthトークンを暗号化し、解除の失敗を成功にせず再
     expect(String(init!.body)).toContain(token);
     return Response.json({ error: "invalid_client" }, { status: 400 });
   });
-  await processDeletions(env);
+  await processFixtureDeletion(user.id);
   expect(
     await env.APP_DB.prepare("SELECT completed_at_ms FROM deleted_accounts WHERE id=?")
       .bind(user.id)
       .first(),
   ).toEqual({ completed_at_ms: null });
-  mock.mockResolvedValue(Response.json({ error: "invalid_token" }, { status: 400 }));
-  await processDeletions(env);
+  mock.mockImplementation(async () => Response.json({ error: "invalid_token" }, { status: 400 }));
+  await processFixtureDeletion(user.id);
   expect(
     (await env.APP_DB.prepare("SELECT completed_at_ms FROM deleted_accounts WHERE id=?")
       .bind(user.id)
@@ -799,7 +823,7 @@ for (const provider of ["google", "discord"] as const)
     });
     expect(response.status).toBe(202);
     await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-    await processDeletions(env);
+    await processFixtureDeletion(user.id);
     expect(
       await env.APP_DB.prepare("SELECT 1 FROM account WHERE userId=?").bind(user.id).first(),
     ).toBeNull();
@@ -915,7 +939,7 @@ test("受付後はセッション・編集・画像の再作成を拒否し、�
     await env.APP_DB.prepare("SELECT 1 FROM session WHERE userId=?").bind(user.id).first(),
   ).toBeNull();
   await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-  await processDeletions(env);
+  await processFixtureDeletion(user.id);
   await env.APP_DB.prepare(
     "INSERT INTO room_index(room_id,game,mode,main_time_ms,byoyomi_ms,status,host_name,human_count,cpu_count,capacity,open_seats,updated_at_ms,revision,closed,instance_id,host_player_id,host_avatar_url) VALUES (?,'four-reversi','singles',300000,30000,'waiting','復活する旧名',1,0,4,3,?,1,0,?,?,?)",
   )
@@ -981,7 +1005,7 @@ test("本人の新旧フィードバック・画像・編集履歴・計測・�
       await env.APP_DB.prepare("SELECT deleted FROM feedback WHERE id=?").bind(id).first(),
     ).toEqual({ deleted: 1 });
   await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-  await processDeletions(env);
+  await processFixtureDeletion(user.id);
   for (const id of ids) {
     expect(
       await env.APP_DB.prepare("SELECT 1 FROM feedback WHERE id=?").bind(id).first(),
@@ -1022,8 +1046,8 @@ test("長期集計は期限前に未完了だった対局の率・時間を推�
   expect(await tombstone(user.id)).toBe(true);
   expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
   await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-  await processDeletions(env);
-  await processDeletions(env);
+  await processFixtureDeletion(user.id);
+  await processFixtureDeletion(user.id);
   expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
   const id = crypto.randomUUID();
   await env.APP_DB.prepare(
@@ -1234,7 +1258,7 @@ test("退会受付中に到着する新しいプロフィール画像も発見�
       uploaded = key;
       expect(await tombstone(user.id)).toBe(true);
       await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-      await processDeletions(env);
+      await processFixtureDeletion(user.id);
       expect(
         await env.APP_DB.prepare("SELECT completed_at_ms FROM deleted_accounts WHERE id=?")
           .bind(user.id)
@@ -1263,7 +1287,7 @@ test("退会受付中に到着する新しいプロフィール画像も発見�
   expect(response.status).toBe(503);
   expect(uploaded).toBeTruthy();
   expect(await original.get(uploaded)).not.toBeNull();
-  await processDeletions(env);
+  await processFixtureDeletion(user.id);
   expect(await original.get(uploaded)).toBeNull();
   expect(
     await env.APP_DB.prepare("SELECT 1 FROM privacy_avatar_uploads WHERE account_id=?")
