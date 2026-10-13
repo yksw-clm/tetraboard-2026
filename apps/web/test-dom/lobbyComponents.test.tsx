@@ -1,9 +1,14 @@
 import { expect, spyOn, test } from "bun:test";
+import { LayoutGroup } from "motion/react";
+import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
 import { LobbyRankings } from "../src/features/lobby/LobbyRankings";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import { RoomEntryDialog } from "../src/features/lobby/RoomEntryDialog";
 import { useRoomInvitation } from "../src/features/room/useRoomInvitation";
 import { GameLobbyNavigation } from "../src/features/lobby/GameLobbyNavigation";
+import { GeneralLobbyGameNavigation } from "../src/features/lobby/GeneralLobbyGameNavigation";
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { useLocation } from "react-router";
 import { profile } from "../test/fixtures/account";
 import { waitingRoom } from "../test/fixtures/rooms";
 import {
@@ -30,11 +35,107 @@ const rankings = {
   singles: { first: entries, total: entries },
   doubles: { wins: entries, total: entries },
 };
+test("全6ロビーの作成導線はダイアログだけを開き、再訪時の作成意図を消費", async () => {
+  function Location() {
+    const location = useLocation();
+    return <output>{JSON.stringify(location.state)}</output>;
+  }
+  for (const game of gameIds) {
+    const props = {
+      game,
+      name: "",
+      roomCode: "",
+      mode: "singles" as const,
+      cpuLevel: 1 as const,
+      timeControl: { mainTimeMs: 60000, byoyomiMs: 0 } as const,
+      isSubmitting: null,
+      message: null,
+      renderRooms: () => null,
+      onNameChange() {},
+      onRoomCodeChange() {},
+      onModeChange() {},
+      onCpuLevelChange() {},
+      onTimeControlChange() {},
+      onClearMessage() {},
+    };
+    const view = render(
+      wrap(null, {
+        pathname: gameCatalog[game].lobbyPath,
+        state: { roomEntryIntent: "create", preserved: true },
+      })(
+        <>
+          <LobbyView {...props} />
+          <Location />
+        </>,
+      ),
+    );
+    await flush();
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("ルームを作る");
+    expect(JSON.parse(view.querySelector("output")!.textContent!)).toEqual({ preserved: true });
+    expect(requests.some((request) => request.init.method === "POST")).toBe(false);
+    rerender(view, null);
+  }
+});
+test("ロビーの入れ替えと戻る操作で、総合ロビーと6ゲームのリンク・現在地を維持", async () => {
+  const router = createMemoryRouter(
+    [
+      {
+        element: (
+          <LayoutGroup id="lobby-navigation-test">
+            <Outlet />
+          </LayoutGroup>
+        ),
+        children: [
+          { path: "/", element: <GeneralLobbyGameNavigation /> },
+          ...gameIds.map((game) => ({
+            path: gameCatalog[game].lobbyPath,
+            element: <GameLobbyNavigation key={game} />,
+          })),
+        ],
+      },
+    ],
+    { initialEntries: [gameCatalog["four-reversi"].lobbyPath] },
+  );
+  const view = render(<RouterProvider router={router} />);
+  try {
+    for (const game of gameIds) {
+      const link = view.querySelector<HTMLAnchorElement>(
+        `a[href="${gameCatalog[game].lobbyPath}"]`,
+      )!;
+      act(() => link.click());
+      await flush();
+      expect(router.state.location.pathname).toBe(gameCatalog[game].lobbyPath);
+      const selected = view.querySelectorAll('a[aria-current="page"]');
+      expect(selected).toHaveLength(1);
+      expect(selected[0]!.textContent).toBe(gameCatalog[game].name);
+      expect(view.querySelectorAll("a")).toHaveLength(7);
+      expect(view.textContent).not.toContain("ゲーム一覧");
+    }
+    act(() => view.querySelector<HTMLAnchorElement>('a[href="/"]')!.click());
+    await flush();
+    expect(view.querySelector('a[aria-current="page"]')!.textContent).toBe("総合ロビー");
+    expect(view.textContent).toContain("ゲーム一覧");
+    expect(view.querySelectorAll("a")).toHaveLength(7);
+    act(() => void router.navigate(-1));
+    await flush();
+    expect(view.querySelector('a[aria-current="page"]')!.textContent).toBe(
+      gameCatalog[gameIds.at(-1)!].name,
+    );
+    expect(view.textContent).not.toContain("ゲーム一覧");
+  } finally {
+    rerender(view, null);
+    router.dispose();
+  }
+});
+
 test("両ゲームのランキングは上位3人・詳細10人・集計選択、失敗時保持・空一覧を表示", async () => {
   for (const game of ["four-reversi", "four-shogi"] as const) {
     const view = render(<LobbyRankings game={game} />);
     clock.advance(0);
-    expect(requests.at(-1)!.url).toBe(`/api/games/${game}/rankings?profilePreview=1`);
+    expect(requests.at(-1)!.url).toBe(
+      `/api/games/${game}/rankings?profilePreview=1${game === "four-shogi" ? "&includeKnockouts=1" : ""}`,
+    );
     expect(view.textContent).toContain("読み込んで");
     requests.at(-1)!.respond(rankings);
     await flush();
@@ -102,7 +203,7 @@ test("ロビーの幅通知はセクションのDOM順だけを変え、ラン�
     };
     const view = render(wrap()(<LobbyView {...props} />));
     clock.advance(0);
-    const request = requests.find((r) => r.url.endsWith("/rankings?profilePreview=1"))!;
+    const request = requests.find((r) => r.url.includes("/rankings?profilePreview=1"))!;
     request.respond(rankings);
     await flush();
     const ranking = view.querySelector('section[aria-labelledby="lobby-rankings-title"]')!;

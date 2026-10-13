@@ -8,13 +8,11 @@ import { FourShogiGameResultView } from "./FourShogiGameResultView";
 import { FourShogiPlayerCard } from "./FourShogiPlayerCard";
 import { ReplayCard } from "./ReplayCard";
 import { RoomViewShell } from "./RoomViewShell";
-import { ThreePlayerAttackSetting } from "../lobby/ThreePlayerAttackSetting";
 import { shogiCardPosition, shogiRoomSeats, shogiViewerSide } from "./fourShogiRoomPresentation";
 import { useFourShogiRoomReplay } from "./useFourShogiRoomReplay";
 import { useShogiFormationNotice } from "./useShogiFormationNotice";
 import type { useFourShogiRoomSession } from "./useFourShogiRoomSession";
 import type { useRoomChat } from "./useRoomChat";
-import { isRoomSettingsUpdating } from "./roomSettingsPresentation";
 
 export function FourShogiRoomView({
   session,
@@ -143,20 +141,7 @@ export function FourShogiRoomView({
           </AppButton>
         )
       }
-      gameSettings={
-        <div className="mb-3">
-          <ThreePlayerAttackSetting
-            prohibited={
-              isRoomSettingsUpdating(session) &&
-              session.pendingSettingsCommand?.type === "room.three-player-attack.set"
-                ? session.pendingSettingsCommand.prohibited
-                : room.settings.threePlayerAttackProhibited
-            }
-            disabled={!session.canManageSettings}
-            onChange={session.changeThreePlayerAttack}
-          />
-        </div>
-      }
+
       onRotate={rotate}
       chat={chat}
       invited={invited}

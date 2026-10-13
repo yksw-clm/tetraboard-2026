@@ -1,3 +1,4 @@
+import { prepareRoomSettings } from "./applyRoomSettings";
 import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
 import { retiredName } from "../privacy/identity";
 import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
@@ -2701,6 +2702,35 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  private applySettings(
+    tokenHash: string,
+    command: Extract<RoomSocketClientMessage, { type: "room.settings.apply" }>,
+  ) {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" as const };
+      if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" as const };
+      const result = prepareRoomSettings(room, command);
+      if (result.status !== "updated") return result;
+      if (command.mode !== undefined && command.mode !== room.settings.mode)
+        this.appendSystem(
+          "mode_changed",
+          `対局形式が${command.mode === "singles" ? "シングルス" : "ダブルス"}に変更されました`,
+        );
+      for (const player of room.players)
+        if (
+          player.kind === "cpu" &&
+          !result.room.players.some((current) => current.id === player.id)
+        )
+          this.recordDeparture(player);
+      for (const player of result.room.players)
+        if (player.kind === "cpu" && !room.players.some((previous) => previous.id === player.id))
+          this.appendSystem("joined", `CPU Lv${player.level}が入室しました`);
+      this.ctx.storage.kv.put(roomStorageKey, result.room);
+      return result;
+    });
+  }
+
   private setTimeControl(
     tokenHash: string,
     timeControl: RoomTimeControl,
@@ -3129,6 +3159,15 @@ export class GameRoom extends DurableObject<Env> {
         return;
       }
 
+      if (parsed.data.type === "room.settings.apply") {
+        const result = this.applySettings(tokenHash.data, parsed.data);
+        if (result.status === "updated") this.broadcastRoom(result.room);
+        else if (result.status === "unchanged") {
+          const room = this.readRoom();
+          if (room) this.sendRoomSnapshot(socket, room);
+        } else this.rejectAction(socket, result.status);
+        return;
+      }
       if (parsed.data.type === "room.gomoku-forbidden.set") {
         const result = this.setGomokuForbidden(tokenHash.data, parsed.data.enabled);
         if (result.status === "updated") this.broadcastRoom(result.room);

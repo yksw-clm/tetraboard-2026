@@ -47,6 +47,7 @@ type CommonSettingsCommand = Extract<
     type:
       | "room.mode.set"
       | "room.time-control.set"
+      | "room.settings.apply"
       | "room.cpu.add"
       | "room.cpu.level.set"
       | "room.cpu.remove";
@@ -103,6 +104,8 @@ function operationErrorMessage(
       return "持ち時間が切れました。";
     case "room_full":
       return "このルームは満室です。";
+    case "room_changed":
+      return "ルーム情報が更新されました。設定を読み直してください。";
     case "cpu_not_found":
       return "指定したCPUが見つかりません。";
     default:
@@ -1178,6 +1181,8 @@ export function useRoomTransport<T extends Room>({
     playOwnMove,
     handleStartClick,
     handleReadyClick,
+    applySettings: (command: Extract<RoomSocketClientMessage, { type: "room.settings.apply" }>) =>
+      sendSettingsMessage(command),
     changeMode,
     changeTimeControl: (timeControl: RoomTimeControl) =>
       sendSettingsMessage({ type: "room.time-control.set", timeControl }),

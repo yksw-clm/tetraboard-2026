@@ -3,6 +3,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { chatCharacterLimit, countCharacters } from "@tetraboard/protocol";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type useRoomChat } from "./useRoomChat";
 import { type useRoomTransport } from "./useRoomTransport";
@@ -17,6 +18,7 @@ export function RoomChat({
   chat: ReturnType<typeof useRoomChat>;
   session: Pick<
     ReturnType<typeof useRoomTransport>,
+    | "room"
     | "chatMessages"
     | "membership"
     | "authenticated"
@@ -32,7 +34,7 @@ export function RoomChat({
   const anchor = useRef<{ id: string; offset: number } | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [expandedMessage, setExpandedMessage] = useState<string | null>(null);
-  const { chatMessages: messages, membership, authenticated, connection } = session;
+  const { room, chatMessages: messages, membership, authenticated, connection } = session;
   const count = countCharacters(chat.input);
   const canSend =
     authenticated &&
@@ -125,14 +127,15 @@ export function RoomChat({
                 </li>
               );
             const hidden = chat.hiddenSenders.includes(message.senderId);
+            const sender = room.players.find((player) => player.id === message.senderId);
             return (
               <li
                 key={message.id}
                 data-message-id={message.id}
                 data-own={message.senderId === membership?.playerId}
-                className="mt-0 mb-[14px] group/message"
+                className="mt-0 mb-[14px] group/message grid grid-cols-[34px_minmax(0,1fr)] gap-x-2"
               >
-                <div className="flex items-center gap-[7px] text-[11px] text-muted [&_strong]:text-ink-secondary [&_strong]:wrap-anywhere [&_strong]:min-w-0 [&_time]:ml-auto [&_time]:text-[10px] [&_time]:whitespace-nowrap">
+                <div className="col-start-2 flex items-start gap-[7px] text-[11px] text-muted [&_strong]:text-ink-secondary [&_strong]:wrap-anywhere [&_strong]:min-w-0 [&_time]:ml-auto [&_time]:text-[10px] [&_time]:whitespace-nowrap">
                   <strong>{message.senderName}</strong>
                   <time dateTime={new Date(message.sentAtMs).toISOString()}>
                     {new Intl.DateTimeFormat("ja", { hour: "2-digit", minute: "2-digit" }).format(
@@ -153,17 +156,22 @@ export function RoomChat({
                     ···
                   </AppButton>
                 </div>
+                <AppAvatar
+                  src={sender?.kind === "human" && !sender.retired ? sender.avatarUrl : null}
+                  label={`${message.senderName}のアイコン`}
+                  className="col-start-1 row-start-1 row-span-2 self-start size-[34px] [&_svg]:size-5"
+                />
                 <p
                   className={
                     hidden
-                      ? "text-muted text-xs"
-                      : `whitespace-pre-wrap wrap-anywhere rounded-[0_12px_12px] py-[7px] px-[10px] text-[13px] ${theme === "four-shogi" ? "bg-surface-muted group-data-[own=true]/message:bg-entry-selection-surface" : "bg-[#f1f5f1] group-data-[own=true]/message:bg-[#e9f4ec]"}`
+                      ? "col-start-2 row-start-2 py-[7px] text-muted text-xs leading-5"
+                      : `col-start-2 row-start-2 whitespace-pre-wrap wrap-anywhere rounded-[0_12px_12px] py-[7px] px-[10px] text-[13px] leading-5 ${theme === "four-shogi" ? "bg-surface-muted group-data-[own=true]/message:bg-entry-selection-surface" : "bg-[#f1f5f1] group-data-[own=true]/message:bg-[#e9f4ec]"}`
                   }
                 >
                   {hidden ? "この人の発言を非表示中" : message.text}
                 </p>
                 {expandedMessage === message.id && (
-                  <div className="flex gap-1 flex-wrap pt-1 [&>button]:text-[11px] [&>button]:min-h-7 [&>button]:h-auto [&>button]:whitespace-normal">
+                  <div className="col-start-2 flex gap-1 flex-wrap pt-1 [&>button]:text-[11px] [&>button]:min-h-7 [&>button]:h-auto [&>button]:whitespace-normal">
                     <AppButton
                       size="compact"
                       appearance="quiet"

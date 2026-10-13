@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { Link } from "react-router";
 import { cn } from "@heroui/react";
 import { appPageWidthClasses } from "./pageLayout";
+import { AppButtonLink } from "./AppButton";
 import { BrowserSettingsButton } from "./BrowserSettings";
 import type { AppTheme } from "./appTheme";
 
@@ -43,12 +44,14 @@ export function AppHeader({
           </span>
         </Link>
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
-          <Link
+          <AppButtonLink
             to="/updates"
-            className="inline-flex min-h-11 items-center text-xs sm:text-sm text-brand underline"
+            appearance="secondary"
+            size="compact"
+            className="min-h-11 px-2 text-xs sm:px-3 sm:text-sm"
           >
             お知らせ
-          </Link>
+          </AppButtonLink>
           {children ?? (
             <span className="text-xs tracking-[0.06em] text-muted [@media(max-width:650px)]:hidden">
               4人の遊びを、もっと気軽に。

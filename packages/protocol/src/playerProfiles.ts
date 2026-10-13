@@ -84,7 +84,7 @@ export const previewRoomListSchema = z.strictObject({
 });
 const entries = z.array(rankingEntrySchema.extend({ profileId: z.uuid().optional() })).max(10);
 export const previewRankingsSchema = z.strictObject({
-  singles: z.strictObject({ first: entries, total: entries }),
+  singles: z.strictObject({ first: entries, total: entries, knockouts: entries.optional() }),
   doubles: z.strictObject({ wins: entries, total: entries }),
 });
 export type PreviewRankings = z.infer<typeof previewRankingsSchema>;

@@ -5,7 +5,7 @@ import { AppHeader } from "../../shared/ui/AppHeader";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "../account/AccountMenu";
 import { useAccount } from "../account/useAccount";
-import { PrivacyLinks } from "../privacy/PrivacyLinks";
+import { LobbyFooter } from "./LobbyFooter";
 import { GeneralLobbyGameNavigation } from "./GeneralLobbyGameNavigation";
 import { GeneralLobbyRooms } from "./GeneralLobbyRooms";
 import { GeneralLobbyChat } from "./GeneralLobbyChat";
@@ -60,24 +60,11 @@ export function GeneralLobbyPage() {
             <GeneralLobbyChat />
           </div>
           <RecentMatches game="all" />
-          <footer className="border-t border-solid border-lobby-footer-line pt-[14px] pb-5 text-center text-xs text-muted">
-            <div className="mb-3 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                to="/feedback"
-                className="inline-flex min-h-11 items-center text-brand underline"
-              >
-                不具合・ご意見
-              </Link>
-              <Link
-                to="/updates"
-                className="inline-flex min-h-11 items-center text-brand underline"
-              >
-                お知らせ
-              </Link>
-            </div>
-            <PrivacyLinks />
-            <p className="mt-3">TetraBoard</p>
-          </footer>
+          <LobbyFooter>
+            <Link to="/feedback" className="inline-flex min-h-11 items-center text-brand underline">
+              不具合・ご意見
+            </Link>
+          </LobbyFooter>
         </main>
       </div>
       {selected && (

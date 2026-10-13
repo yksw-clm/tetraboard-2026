@@ -16,16 +16,17 @@
     "@heroui/react": "^3.2.6",
     "@heroui/styles": "^3.2.6",
     "@jsquash/webp": "1.5.0",
+    "@tetraboard/four-gomoku": "workspace:*",
     "@tetraboard/four-reversi": "workspace:*",
     "@tetraboard/four-shogi": "workspace:*",
+    "@tetraboard/gomoku": "workspace:*",
     "@tetraboard/protocol": "workspace:*",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router": "^8.4.0",
     "@tetraboard/reversi": "workspace:*",
     "@tetraboard/shogi": "workspace:*",
-    "@tetraboard/four-gomoku": "workspace:*",
-    "@tetraboard/gomoku": "workspace:*"
+    "motion": "^14.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "^8.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

@@ -27,7 +27,10 @@ generalLobbyRoutes.get("/lobby/rooms", async (c) => {
 });
 generalLobbyRoutes.get("/lobby/matches", async (c) => {
   const query = z
-    .strictObject({ humanOnly: z.enum(["true", "false"]).default("false") })
+    .strictObject({
+      humanOnly: z.enum(["true", "false"]).default("false"),
+      includeMoveCount: z.literal("1").optional(),
+    })
     .safeParse(c.req.query());
   if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
   const rows = await c.env.APP_DB.prepare(`SELECT game,record_json FROM matches
@@ -41,6 +44,10 @@ generalLobbyRoutes.get("/lobby/matches", async (c) => {
   const records = rows.results.map((row) => readStoredMatch(row.record_json, row.game));
   const profiles = await participantProfiles(c.env.APP_DB, records);
   return c.json(
-    lobbyMatchesSchema.parse({ matches: records.map((record) => matchSummary(record, profiles)) }),
+    lobbyMatchesSchema.parse({
+      matches: records.map((record) =>
+        matchSummary(record, profiles, query.data.includeMoveCount === "1"),
+      ),
+    }),
   );
 });

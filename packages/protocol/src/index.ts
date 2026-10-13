@@ -130,6 +130,7 @@ export type {
   PlayingRoomClock,
   FinishedRoomClock,
   RoomSocketClientMessage,
+  RoomSettingsApplyCommand,
   RoomSocketMessage,
 } from "./rooms";
 

@@ -25,7 +25,11 @@ export const getFourReversiRankingsContract = {
 } as const;
 export type RankingEntry = z.infer<typeof rankingEntrySchema>;
 export type FourReversiRankings = z.infer<typeof fourReversiRankingsSchema>;
-export const fourShogiRankingsSchema = fourReversiRankingsSchema;
+export const fourShogiRankingsSchema = fourReversiRankingsSchema.safeExtend({
+  singles: fourReversiRankingsSchema.shape.singles.extend({
+    knockouts: rankingListSchema.optional(),
+  }),
+});
 export const getFourShogiRankingsContract = {
   method: "GET",
   path: gameCatalog["four-shogi"].rankingsPath,

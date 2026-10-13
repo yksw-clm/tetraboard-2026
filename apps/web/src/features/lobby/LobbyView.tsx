@@ -1,11 +1,11 @@
-import { PrivacyLinks } from "../privacy/PrivacyLinks";
+import { LobbyFooter } from "./LobbyFooter";
 import { RecentMatches } from "../matches/RecentMatches";
 import { ReversiLobbyBoardPreview } from "./ReversiLobbyBoardPreview";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 
 import { type RoomTimeControl, type RoomMode, type CpuLevel } from "@tetraboard/protocol";
-import { Fragment, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
@@ -17,7 +17,7 @@ import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import type { RegistrationEntryDraft } from "../account/registrationReturn";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
-import { Link } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
 
@@ -103,6 +103,14 @@ function LobbyEntryButton({
 }
 
 export function LobbyView(props: Props) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const createRequested = location.state?.roomEntryIntent === "create";
+  useEffect(() => {
+    if (!createRequested) return;
+    const { roomEntryIntent: _intent, ...state } = location.state;
+    void navigate(location.pathname + location.search + location.hash, { replace: true, state });
+  }, [createRequested, location, navigate]);
   const [dialog, setDialog] = useState<ActiveDialog>(() =>
     props.registrationDraft
       ? {
@@ -111,7 +119,9 @@ export function LobbyView(props: Props) {
           roomId: props.registrationDraft.selectedRoomId,
           humanOnly: props.registrationDraft.humanOnly,
         }
-      : null,
+      : createRequested
+        ? { type: "entry", intent: "create" }
+        : null,
   );
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = {
@@ -222,19 +232,9 @@ export function LobbyView(props: Props) {
             {order.map((section) => sections[section])}
           </div>
           <GameIntroduction game={props.game} />
-          <footer className="mt-0 pt-[14px] pb-5 border-t border-solid border-lobby-footer-line text-muted text-xs text-center">
-            <div className="flex flex-wrap justify-center items-center gap-3">
-              <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />
-              <Link
-                to="/updates"
-                className="inline-flex min-h-11 items-center text-brand underline"
-              >
-                お知らせ
-              </Link>
-            </div>
-            <PrivacyLinks />
-            <p className="mt-3">TetraBoard</p>
-          </footer>
+          <LobbyFooter>
+            <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />
+          </LobbyFooter>
         </main>
       </div>
       {dialog?.type === "entry" && (

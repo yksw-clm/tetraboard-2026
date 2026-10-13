@@ -5,6 +5,8 @@ import { GeneralLobbyRooms } from "../src/features/lobby/GeneralLobbyRooms";
 import { GeneralLobbyChat } from "../src/features/lobby/GeneralLobbyChat";
 import { clock, flush, requests, renderHook, act, render, wrap, press, enter } from "./harness";
 import { profile } from "../test/fixtures/account";
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { useLocation } from "react-router";
 const room = {
   id: "12345",
   instanceId: "11111111-1111-4111-8111-111111111111",
@@ -40,6 +42,70 @@ function visibility(value: string) {
   Object.defineProperty(document, "visibilityState", { configurable: true, value });
   act(() => document.dispatchEvent(new Event("visibilitychange")));
 }
+test("自動更新中は空表示とカードを保持し、手動更新だけ一覧のスピナーを表示", async () => {
+  visibility("visible");
+  function Page() {
+    const page = useGeneralLobbyRooms();
+    return <GeneralLobbyRooms page={page} onRoomAction={() => {}} />;
+  }
+  const view = render(wrap()(<Page />));
+  clock.advance(0);
+  requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+  await flush();
+  const empty = view.querySelector("h3")!;
+  clock.advance(10000);
+  expect(view.querySelector("h3")).toBe(empty);
+  expect(view.querySelector('[role="status"]')).toBeNull();
+  requests.at(-1)!.respond({ rooms: [room], nextCursor: null });
+  await flush();
+  const card = view.querySelector<HTMLLIElement>('ul[aria-label="公開ルーム一覧"] li')!;
+  expect(card.querySelector('a[href="/games/four-reversi"]')?.textContent).toBe("四人リバーシ");
+  clock.advance(10000);
+  expect(view.querySelector("li")).toBe(card);
+  expect(view.querySelector('[role="status"]')).toBeNull();
+  requests.at(-1)!.respond({ rooms: [room], nextCursor: null });
+  await flush();
+  press(view, "更新");
+  expect(
+    view.querySelector('[role="status"][aria-label="公開ルームを更新しています"]'),
+  ).not.toBeNull();
+  expect(view.querySelector("li")).toBe(card);
+  requests.at(-1)!.respond({ message: "更新失敗" }, 503);
+  await flush();
+  expect(view.querySelector("li")).toBe(card);
+  expect(view.querySelector('[role="status"]')).toBeNull();
+});
+test("空一覧のゲームボタンは定員別に分け、作成意図とともにロビーへ移動", async () => {
+  function Page() {
+    const page = useGeneralLobbyRooms();
+    const location = useLocation();
+    return (
+      <>
+        <GeneralLobbyRooms page={page} onRoomAction={() => {}} />
+        <output>{JSON.stringify({ path: location.pathname, state: location.state })}</output>
+      </>
+    );
+  }
+  const view = render(wrap()(<Page />));
+  clock.advance(0);
+  requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+  await flush();
+  for (const game of gameIds) {
+    const group = view.querySelector(
+      `[role="group"][aria-label="${gameCatalog[game].capacity}人プレイ"]`,
+    )!;
+    const link = group.querySelector<HTMLAnchorElement>(
+      `a[href="${gameCatalog[game].lobbyPath}"]`,
+    )!;
+    expect(link.textContent).toBe(gameCatalog[game].name);
+    act(() => link.click());
+    await flush();
+    expect(JSON.parse(view.querySelector("output")!.textContent!)).toEqual({
+      path: gameCatalog[game].lobbyPath,
+      state: { roomEntryIntent: "create" },
+    });
+  }
+});
 test("満室の参加は表示・無効、定員フィルターと取得失敗は既存一覧を保つ", async () => {
   function Page() {
     const page = useGeneralLobbyRooms();

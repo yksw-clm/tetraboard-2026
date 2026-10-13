@@ -11,6 +11,7 @@ import {
   isFourShogiMatch,
   fourShogiMatchDetailSchema,
   fourShogiMatchSummarySchema,
+  previewRankingsSchema,
 } from "@tetraboard/protocol";
 import { accountFixture } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord, matchRequest } from "./matchFixtures";
@@ -229,6 +230,71 @@ test("将棋ランキングは同率優勝・対人戦・引き分けを数え�
   expect(JSON.stringify(result)).not.toContain(user.id);
   expect(JSON.stringify(result)).not.toContain(incomplete.id);
   expect(result.singles).not.toHaveProperty("knockouts");
+});
+
+test("撃破数ランキングは要求時だけ追加し、対人シングルスの保存済み累計・同順位を返す", async () => {
+  const leader = await accountFixture(),
+    second = await accountFixture(),
+    tied = await accountFixture(),
+    zero = await accountFixture(),
+    incomplete = await accountFixture(false);
+  for (const [account, count] of [
+    [leader, 3],
+    [second, 2],
+    [tied, 2],
+    [zero, 0],
+    [incomplete, 3],
+  ] as const) {
+    const fixture = humanShogiRecord(account.id);
+    fixture.record.knockouts.south = count;
+    await saveShogiFixture(fixture);
+  }
+  const extra = humanShogiRecord(leader.id, "west");
+  extra.record.knockouts.west = 1;
+  await saveShogiFixture(extra);
+  const cpu = shogiRecord(leader.id);
+  cpu.record.knockouts.south = 3;
+  await saveShogiFixture(cpu);
+  await saveShogiFixture(humanShogiRecord(leader.id, "south", "doubles"));
+  const pending = humanShogiRecord(leader.id);
+  pending.record.knockouts.south = 3;
+  await advanceShogiMatchSave(
+    env.APP_DB,
+    pending.record,
+    { phase: "upload", cursor: 0 },
+    (cursor) => pending.events.slice(cursor, cursor + 100),
+  );
+  expect((await rankings()).singles).not.toHaveProperty("knockouts");
+  const expected = [
+    [leader.username, 4, 1],
+    ...[second, tied]
+      .sort((a, b) => a.username.localeCompare(b.username))
+      .map((account) => [account.username, 2, 2]),
+  ];
+  for (const query of ["includeKnockouts=1", "profilePreview=1&includeKnockouts=1"]) {
+    const response = await matchRequest(`${getFourShogiRankingsContract.path}?${query}`);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    const result = previewRankingsSchema.parse(body);
+    expect(
+      result.singles.knockouts!.map((entry) => [entry.username, entry.value, entry.rank]),
+    ).toEqual(expected);
+    expect(result.doubles).not.toHaveProperty("knockouts");
+    expect(JSON.stringify(body)).not.toContain(leader.id);
+    expect(JSON.stringify(body)).not.toContain(incomplete.id);
+    if (query.startsWith("profilePreview"))
+      expect(result.singles.knockouts![0]!.profileId).toMatch(/^[0-9a-f-]{36}$/);
+    else {
+      getFourShogiRankingsContract.response.parse(body);
+      expect(result.singles.knockouts![0]).not.toHaveProperty("profileId");
+    }
+  }
+  for (const path of [
+    "/games/four-shogi/rankings?includeKnockouts=0",
+    "/games/four-reversi/rankings?includeKnockouts=1",
+    "/games/shogi/rankings?includeKnockouts=1",
+  ])
+    expect((await matchRequest(path)).status).toBe(400);
 });
 
 test("不正ゲーム指定を拒否し、省略時には従来のリバーシ戦績と一覧を返す", async () => {

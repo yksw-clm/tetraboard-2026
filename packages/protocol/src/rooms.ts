@@ -1060,6 +1060,21 @@ export const roomSocketContract = {
     z.strictObject({ type: z.literal("room.ready.set"), ready: z.boolean() }),
     z.strictObject({ type: z.literal("room.mode.set"), mode: roomModeSchema }),
     z.strictObject({
+      type: z.literal("room.settings.apply"),
+      expectedPublicUpdatedAtMs: serverNowMsSchema,
+      mode: roomModeSchema.optional(),
+      timeControl: roomTimeControlSchema,
+      threePlayerAttackProhibited: z.boolean().optional(),
+      forbiddenRules: z.boolean().optional(),
+      cpus: z
+        .array(z.strictObject({ playerId: z.uuid().nullable(), level: cpuLevelSchema }))
+        .max(3)
+        .refine((cpus) => {
+          const ids = cpus.flatMap((cpu) => (cpu.playerId === null ? [] : [cpu.playerId]));
+          return new Set(ids).size === ids.length;
+        }),
+    }),
+    z.strictObject({
       type: z.literal("room.time-control.set"),
       timeControl: roomTimeControlSchema,
     }),
@@ -1174,6 +1189,7 @@ export const roomSocketContract = {
         "time_expired",
         "room_full",
         "cpu_not_found",
+        "room_changed",
         "stale_position",
       ]),
     }),
@@ -1228,3 +1244,8 @@ export const getShogiReplayContract = {
   ...getFourShogiReplayContract,
   response: shogiReplayPageSchema,
 } as const;
+
+export type RoomSettingsApplyCommand = Extract<
+  RoomSocketClientMessage,
+  { type: "room.settings.apply" }
+>;

@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { RoomBoardGroup, RoomBoardStatusProvider } from "./RoomBoardGroup";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { AppIcon } from "../../shared/ui/AppIcon";
 const tabLabels = { board: "盤面", room: "ルーム", chat: "チャット" } as const;
@@ -12,11 +13,12 @@ export function RoomBoardLayout({
   // スマホではカード2段と間隔を残し、盤だけを空き高さに収めます。
   // 自動パスの通知がある場合は、その1行分と間隔も確保します。
   return (
-    <div
-      className={`[--board-notice-space:0px] ${hasNotice ? "[@media(max-width:767px)]:[--board-notice-space:17px]" : ""} [--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:clamp(168px,23cqw,280px)] [--board-size:max(160px,min(640px,calc(100cqw_-_2_*_var(--seat-width)_-_16px),calc(100cqh_-_2_*_var(--player-height)_-_32px)))] grid w-full min-h-full py-2 px-0 grid-cols-[var(--seat-width)_var(--board-size)_var(--seat-width)] grid-rows-[var(--player-height)_var(--board-size)_var(--player-height)] [grid-template-areas:'._top_.'_'left_board_right'_'._bottom_.'] gap-2 content-center justify-center items-center relative [@media(max-width:767px)]:[--board-size:max(0px,min(100cqw,calc(100cqh_-_2_*_var(--player-height)_-_4px_-_var(--board-notice-space))))] [@media(max-width:767px)]:[--seat-width:100%] [@media(max-width:767px)]:grid-cols-2 [@media(max-width:767px)]:grid-rows-[var(--player-height)_auto_var(--player-height)] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:p-0`}
+    <RoomBoardGroup
+      hasNotice={hasNotice}
+      className={`group/board-layout [--board-notice-space:0px] ${hasNotice ? "[@media(max-width:767px)]:[--board-notice-space:17px]" : ""} [--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:clamp(168px,23cqw,280px)] [--board-size:max(var(--board-min-size,160px),min(640px,calc(100cqw_-_2_*_var(--seat-width)_-_16px),calc(100cqh_-_2_*_var(--player-height)_-_32px_-_var(--board-status-space,0px)_-_var(--board-notice-space))))] grid w-full min-h-full py-2 px-0 grid-cols-[var(--seat-width)_var(--board-size)_var(--seat-width)] grid-rows-[var(--player-height)_var(--board-size)_var(--player-height)] [grid-template-areas:'._top_.'_'left_board_right'_'._bottom_.'] gap-2 content-center justify-center items-center relative [@media(max-width:767px)]:[--board-size:max(0px,min(100cqw,calc(100cqh_-_2_*_var(--player-height)_-_4px_-_var(--board-notice-space))))] [@media(max-width:767px)]:[--seat-width:100%] [@media(max-width:767px)]:grid-cols-2 [@media(max-width:767px)]:grid-rows-[var(--player-height)_auto_var(--player-height)] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:p-0`}
     >
       {children}
-    </div>
+    </RoomBoardGroup>
   );
 }
 
@@ -30,6 +32,7 @@ export function RoomLayout({
   chat,
   replay,
   showChatTab = true,
+  statusBelowBoard = false,
 }: {
   desktop: boolean;
   tab: string;
@@ -40,6 +43,7 @@ export function RoomLayout({
   chat: ReactNode;
   replay: ReactNode;
   showChatTab?: boolean;
+  statusBelowBoard?: boolean;
 }) {
   return (
     <>
@@ -50,7 +54,9 @@ export function RoomLayout({
             aria-label="盤面とプレイヤー"
           >
             <div className="flex-1 min-w-0 min-h-0 [container-type:size] overflow-auto">
-              {board}
+              <RoomBoardStatusProvider status={statusBelowBoard ? status : null}>
+                {board}
+              </RoomBoardStatusProvider>
             </div>
             {replay}
           </section>
@@ -58,7 +64,7 @@ export function RoomLayout({
             <section className="min-w-0 shrink-0" aria-label="ルーム">
               {info}
             </section>
-            {status}
+            {!statusBelowBoard && status}
             <section className="min-w-0 min-h-[140px] flex-1 shrink-0" aria-label="チャット">
               {chat}
             </section>

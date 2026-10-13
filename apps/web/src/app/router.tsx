@@ -17,6 +17,7 @@ import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
+import { LayoutGroup } from "motion/react";
 export const lobbyRoutes = {
   "four-gomoku": {
     path: gameCatalog["four-gomoku"].lobbyPath,
@@ -64,9 +65,12 @@ export const router = createBrowserRouter([
   {
     ErrorBoundary: AppRouteErrorPage,
     Component: () => (
-      <PlayerProfileProvider>
-        <AccountLayout />
-      </PlayerProfileProvider>
+      // ロビーページが入れ替わっても、選択背景の移動を同じグループで引き継ぎます。
+      <LayoutGroup id="lobby-navigation">
+        <PlayerProfileProvider>
+          <AccountLayout />
+        </PlayerProfileProvider>
+      </LayoutGroup>
     ),
     children: [
       { path: "/privacy", element: <LegalPage kind="privacy" /> },
