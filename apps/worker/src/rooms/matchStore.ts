@@ -1,4 +1,5 @@
 import { redactParticipants } from "../privacy/identity";
+import { applyMatchClaims } from "../accounts/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "./fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "./gomokuMatchStore";
 import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
@@ -68,4 +69,5 @@ export async function writeMatch(
   );
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   await db.batch(statements);
+  await applyMatchClaims(db, record.id);
 }

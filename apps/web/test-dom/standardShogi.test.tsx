@@ -49,7 +49,6 @@ test("通常将棋の作成はCPU1人・モードなしで、ロビー初期図�
       <RoomEntryDialog
         game="shogi"
         intent="quick"
-        registrationPath="/games/shogi"
         name="ゲスト"
         roomCode=""
         mode="singles"

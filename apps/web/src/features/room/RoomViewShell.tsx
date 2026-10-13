@@ -6,6 +6,7 @@ import { AppPageState } from "../../shared/ui/AppPageState";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppToastRegion } from "../../shared/ui/AppToastRegion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { useCpuAddition } from "./useCpuAddition";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { useRoomInvitation } from "./useRoomInvitation";
@@ -22,9 +23,15 @@ import { gameThemes, appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
-import { useSocialSignIn } from "../account/useSocialSignIn";
+import { useResultRegistration } from "../account/useResultRegistration";
+import {
+  registrationMatchId,
+  readGuestRegistration,
+  clearGuestRegistration,
+} from "../account/guestRegistration";
+import { clearRegistrationReturn } from "../account/registrationReturn";
+import { readRoomMembershipToken } from "../../shared/roomMembership";
 import { useAutoGameResult } from "./useAutoGameResult";
-import { roomInvitationPath } from "../../shared/roomAccess";
 import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
 import { FeedbackForm } from "../feedback/FeedbackForm";
 import { RoomShareDialog } from "./RoomShareDialog";
@@ -59,12 +66,80 @@ export function RoomViewShell({
 }) {
   const desktop = useRoomDesktop();
   const account = useAccount();
-  const signIn = useSocialSignIn();
+  const signIn = useResultRegistration(session.room);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [unfinishedRegistration, setUnfinishedRegistration] = useState(readGuestRegistration);
+  const [registrationResult] = useState(() => {
+    const result =
+      (location.state as { registrationResult?: { matchId: string; record: string } } | null)
+        ?.registrationResult ??
+      (unfinishedRegistration?.returning && {
+        matchId: unfinishedRegistration.matchId,
+        record: unfinishedRegistration.returning.record,
+      });
+    return result?.matchId === registrationMatchId(session.room) ? result : null;
+  });
+  const [registrationCancelled] = useState(
+    () =>
+      (location.state as { registrationCancelledMatchId?: string } | null)
+        ?.registrationCancelledMatchId === registrationMatchId(session.room),
+  );
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<
     "result" | "leave" | "resign" | "feedback" | "settings" | null
-  >(null);
+  >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
+  useEffect(() => {
+    if (
+      !unfinishedRegistration?.returning ||
+      !session.authenticated ||
+      !membership?.accountLinked ||
+      room.instanceId !== unfinishedRegistration.instanceId ||
+      membership.playerId !== unfinishedRegistration.returning.playerId ||
+      readRoomMembershipToken(room.id) !== unfinishedRegistration.newToken
+    )
+      return;
+    clearGuestRegistration(unfinishedRegistration);
+    clearRegistrationReturn();
+    // WebSocketが新しい資格で同じ席への復帰を確認した時点で情報を消費します。
+    // eslint-disable-next-line react/set-state-in-effect
+    setUnfinishedRegistration(null);
+  }, [unfinishedRegistration, session.authenticated, membership, room.instanceId, room.id]);
+  const [registrationNow, setRegistrationNow] = useState(Date.now);
+  const registering = room.players.filter(
+    (player) => player.kind === "human" && player.registrationPendingUntilMs !== undefined,
+  );
+  const registrationCount = registering.length;
+  useEffect(() => {
+    if (registrationCount === 0) return;
+    const timer = setInterval(() => setRegistrationNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [registrationCount]);
+  const registrationNotice =
+    registering.length > 0
+      ? registering
+          .map((player) => {
+            const deadline = player.kind === "human" ? player.registrationPendingUntilMs! : 0;
+            const seconds = Math.max(
+              0,
+              Math.ceil((deadline - Math.max(registrationNow, session.serverNowMs)) / 1000),
+            );
+            return `${player.name}さんが登録手続中です（残り${Math.floor(seconds / 60)}分${seconds % 60}秒）`;
+          })
+          .join("。")
+      : null;
+  useEffect(() => {
+    if ((registrationResult || registrationCancelled) && location.state)
+      void navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [
+    registrationResult,
+    registrationCancelled,
+    location.state,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
   const stamps = useRoomStamps(session, chat.hiddenSenders);
   const feedbackContext: FeedbackContext = {
     page: "room",
@@ -130,7 +205,7 @@ export function RoomViewShell({
       },
       { timeout: 3000 },
     );
-  const guest = !account.loading && !account.error && !account.user;
+  const accountAvailable = !account.loading && !account.error;
   const autoResult = useAutoGameResult(
     room,
     dialog !== null || invitation.dialog !== null || cpuConfirmation !== null,
@@ -158,6 +233,9 @@ export function RoomViewShell({
     return (
       <AppPageState theme={theme}>
         <p role="alert">{session.unavailable}</p>
+        {unfinishedRegistration && (
+          <AppButtonLink to="/account">登録の引継ぎを確認する</AppButtonLink>
+        )}
         <AppButtonLink size="compact" to={lobbyPath}>
           ロビーへ戻る
         </AppButtonLink>
@@ -236,7 +314,8 @@ export function RoomViewShell({
   );
   const connectionNotice = session.connection !== "接続済み" ? session.connection : null;
   const operationError = session.socketError ?? session.stampError;
-  const pendingNotice = !connectionNotice && !operationError ? operationNotice : null;
+  const pendingNotice =
+    !connectionNotice && !operationError ? (registrationNotice ?? operationNotice) : null;
 
   return (
     <main
@@ -276,14 +355,7 @@ export function RoomViewShell({
           onCopied={onCopied}
         />
       )}
-      <RoomInvitationDialogs
-        game={room.settings.game}
-        invitation={invitation}
-        roomId={room.id}
-        theme={theme}
-        registrationPath={roomInvitationPath(room)}
-        humanOnly={!room.players.some((p) => p.kind === "cpu")}
-      />
+      <RoomInvitationDialogs invitation={invitation} roomId={room.id} theme={theme} />
       {cpuConfirmation !== null && (
         <AppDialog
           size="compact"
@@ -312,29 +384,49 @@ export function RoomViewShell({
           busy={signIn.busy}
         >
           {result}
-          {guest && (
-            <div className="mt-5">
-              <RegistrationPrompt
-                game={room.settings.game}
-                result
-                seated={membership !== null}
-                humanOnly={room.lastRound.players.every((p) =>
-                  room.players.some((current) => current.id === p.id && current.kind === "human"),
-                )}
-                busy={signIn.busy}
-                pendingProvider={signIn.pendingProvider}
-                onRegister={(provider) =>
-                  void signIn.start(provider, { path: roomInvitationPath(room) })
-                }
-                onDismiss={closeResult}
-              />
-              {signIn.message && (
-                <p role="alert" className="mt-3 text-sm text-danger">
-                  {signIn.message}
-                </p>
-              )}
-            </div>
+          {registrationCancelled && (
+            <p role="status" className="mt-4 text-sm">
+              登録手続きを中止しました。
+            </p>
           )}
+          {registrationResult && (
+            <p role="status" className="mt-4 text-sm">
+              {registrationResult.record === "complete"
+                ? "この対局をマイページに追加しました。"
+                : "この対局の引継ぎを受け付けました。棋譜の保存を待っています。"}
+              このアカウントでそのまま再戦できます。
+            </p>
+          )}
+          {accountAvailable &&
+            membership &&
+            !membership.accountLinked &&
+            registrationMatchId(room) &&
+            room.lastRound.players.some((player) => player.id === membership.playerId) && (
+              <div className="mt-5">
+                <RegistrationPrompt
+                  game={room.settings.game}
+                  humanOnly={room.lastRound.players.every(
+                    (p) =>
+                      (p.appearance?.kind ??
+                        room.players.find((current) => current.id === p.id)?.kind) === "human",
+                  )}
+                  busy={signIn.busy}
+                  pendingProvider={signIn.pendingProvider}
+                  onRegister={(provider) => void signIn.start(provider)}
+                  onDismiss={closeResult}
+                />
+                {signIn.message && (
+                  <p role="alert" className="mt-3 text-sm text-danger">
+                    {signIn.message}
+                  </p>
+                )}
+                {(unfinishedRegistration || signIn.message) && (
+                  <AppButtonLink to="/login" appearance="quiet">
+                    登録手続きを確認・中止する
+                  </AppButtonLink>
+                )}
+              </div>
+            )}
         </AppDialog>
       )}
       {(dialog === "leave" || dialog === "resign") && (

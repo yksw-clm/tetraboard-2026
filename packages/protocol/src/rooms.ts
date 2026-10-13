@@ -185,6 +185,7 @@ const humanPlayerSchema = playerBaseSchema.extend({
   avatarUrl: avatarUrlSchema.default(null),
   ready: z.boolean(),
   reconnectDeadline: z.int().nonnegative().nullable(),
+  registrationPendingUntilMs: z.int().nonnegative().optional(),
 });
 const cpuPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("cpu"),
@@ -880,6 +881,7 @@ export const roomPresenceSchema = z.strictObject({
 export const roomMembershipSchema = z.strictObject({
   playerId: z.uuid(),
   role: z.enum(["host", "player"]),
+  accountLinked: z.boolean().optional(),
 });
 
 const roomMembershipIssuedSchema = z.strictObject({
@@ -1155,6 +1157,7 @@ export const roomSocketContract = {
         "internal_error",
         "forbidden",
         "not_ready",
+        "registration_pending",
         "already_started",
         "game_not_started",
         "game_finished",

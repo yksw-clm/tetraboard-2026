@@ -1,33 +1,24 @@
 import { publicRecordNotice } from "@tetraboard/protocol/privacy";
 import { LegalNotice } from "../privacy/LegalNotice";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
-import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useAccount } from "../account/useAccount";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
-import { useSocialSignIn } from "../account/useSocialSignIn";
 
 export function RoomInvitationDialogs({
-  game = defaultGameId,
   invitation,
   roomId,
   theme = "default",
-  registrationPath,
-  humanOnly,
 }: {
-  game?: GameId;
   invitation: ReturnType<typeof useRoomInvitation>;
   roomId: string;
   theme?: AppTheme;
-  registrationPath: string;
-  humanOnly: boolean;
 }) {
   const account = useAccount();
-  const signIn = useSocialSignIn();
-  const busy = invitation.busy || signIn.busy;
+  const busy = invitation.busy;
   if (invitation.dialog !== "join") return null;
   return (
     <AppDialog
@@ -49,23 +40,8 @@ export function RoomInvitationDialogs({
         <p className="text-sm text-muted">
           {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
         </p>
-        <RoomIdentityFields
-          name={invitation.name}
-          onChange={invitation.setName}
-          busy={busy}
-          registration={{
-            game,
-            pendingProvider: signIn.pendingProvider,
-            humanOnly,
-            onRegister: (provider) =>
-              void signIn.start(provider, { path: registrationPath, joinName: invitation.name }),
-          }}
-        />
-        {signIn.message && (
-          <p role="alert" className="text-sm text-danger">
-            {signIn.message}
-          </p>
-        )}
+        <RoomIdentityFields name={invitation.name} onChange={invitation.setName} busy={busy} />
+
         {(invitation.message || invitation.unavailableReason) && (
           <p className="text-danger text-xs" role="alert">
             {invitation.message ?? invitation.unavailableReason}

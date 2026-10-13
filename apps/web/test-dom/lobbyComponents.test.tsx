@@ -148,7 +148,6 @@ test("参加ダイアログはアカウントCPU確認条件と入力・送信�
     onCpuLevelChange() {},
     onSubmit: () => sent++,
     onClose: () => closed++,
-    registrationPath: "/games/four-reversi",
   };
   const view = render(wrap(profile)(<RoomEntryDialog {...props} />));
   await flush();

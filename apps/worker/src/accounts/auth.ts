@@ -98,7 +98,7 @@ export function createAuth(env: AuthEnv) {
     },
   });
 }
-export async function accountIdentity(request: Request, env: AuthEnv) {
+export async function accountSessionIdentity(request: Request, env: AuthEnv) {
   if (!request.headers.get("cookie")) return null;
   const { response: session, headers } = await createAuth(env).api.getSession({
     headers: request.headers,
@@ -107,11 +107,15 @@ export async function accountIdentity(request: Request, env: AuthEnv) {
   sessionCookies.get(request)?.push(...headers.getSetCookie());
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
-  return env.APP_DB.prepare(
+  const user = await env.APP_DB.prepare(
     'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser, publicProfileId FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
   )
     .bind(session.user.id)
     .first<StoredProfile>();
+  return user ? { user, sessionId: session.session.id } : null;
+}
+export async function accountIdentity(request: Request, env: AuthEnv) {
+  return (await accountSessionIdentity(request, env))?.user ?? null;
 }
 export type StoredProfile = {
   id: string;

@@ -1,28 +1,18 @@
-import type { SocialProvider } from "./useSocialSignIn";
-import type { GameId } from "@tetraboard/protocol/games";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { useAccount } from "./useAccount";
-import { RegistrationPrompt } from "./RegistrationPrompt";
 
 export function RoomIdentityFields({
   name,
   onChange,
   busy,
   id,
-  registration,
 }: {
   name: string;
   onChange: (name: string) => void;
   busy: boolean;
   id?: string;
-  registration?: {
-    game?: GameId;
-    humanOnly: boolean;
-    onRegister: (provider: SocialProvider) => void;
-    pendingProvider?: SocialProvider | null;
-  };
 }) {
   const account = useAccount();
   if (account.loading && !account.error)
@@ -67,15 +57,6 @@ export function RoomIdentityFields({
           1〜10文字。ユーザー登録は必要ありません。
         </AppTextField.Description>
       </AppTextField>
-      {registration && (
-        <RegistrationPrompt
-          game={registration.game}
-          humanOnly={registration.humanOnly}
-          busy={busy}
-          onRegister={registration.onRegister}
-          pendingProvider={registration.pendingProvider}
-        />
-      )}
     </div>
   );
 }

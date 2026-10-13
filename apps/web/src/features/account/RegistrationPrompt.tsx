@@ -8,8 +8,6 @@ import { AppButton } from "../../shared/ui/AppButton";
 export function RegistrationPrompt({
   game = defaultGameId,
   humanOnly,
-  seated = false,
-  result = false,
   busy,
   pendingProvider = null,
   onRegister,
@@ -17,8 +15,6 @@ export function RegistrationPrompt({
 }: {
   game?: GameId;
   humanOnly: boolean;
-  seated?: boolean;
-  result?: boolean;
   busy: boolean;
   pendingProvider?: SocialProvider | null;
   onRegister: (provider: SocialProvider) => void;
@@ -29,11 +25,13 @@ export function RegistrationPrompt({
       aria-label="ユーザー登録のご案内"
       className="flex flex-col gap-3 rounded-control border border-solid border-line bg-surface-muted p-3 text-sm"
     >
-      <h2 className="m-0 text-base font-bold">
-        {result && gameCatalog[game].hasModes
-          ? "これからの対局で、バッジを集めよう"
-          : "登録して、対局の成果を残そう"}
-      </h2>
+      <h2 className="m-0 text-base font-bold">この対局を、自分の記録に残そう</h2>
+      <p className="m-0 text-sm leading-relaxed">
+        {humanOnly
+          ? "登録・ログインすると、この対局の戦績と棋譜がマイページに追加されます。"
+          : "登録・ログインすると、この対局の棋譜がマイページに追加されます。"}
+        そのまま同じ席で、アカウントとして再戦できます。
+      </p>
       <RegistrationBenefits game={game} />
       <RegistrationBadgeExamples game={game} />
       {!humanOnly && (
@@ -43,18 +41,10 @@ export function RegistrationPrompt({
             : "CPUを含む対局は、戦績・ランキング・バッジの対象外です。"}
         </p>
       )}
-      {result && (
-        <p className="m-0 text-xs leading-relaxed text-muted">
-          {!gameCatalog[game].hasModes
-            ? "今回のゲスト対局は、登録後の戦績・本人の対局履歴には引き継がれません。"
-            : "今回のゲスト対局は、登録後の戦績・バッジ・本人の対局履歴には引き継がれません。"}
-        </p>
-      )}
-      {seated && (
-        <p className="text-xs text-muted">
-          この部屋の席はゲストのままです。記録を残すには、登録後にアカウントで参加し直してください。
-        </p>
-      )}
+      <p className="m-0 text-xs leading-relaxed text-muted">
+        席は最初の登録開始から10分間保持します。対局の引継ぎは開始から1時間以内で、やり直しても期限は延びません。
+        公開棋譜の名前・画像も、登録プロフィールの現在の表示に変わります。
+      </p>
       <div className="flex flex-wrap gap-2">
         <SocialSignInButtons busy={busy} pendingProvider={pendingProvider} onSignIn={onRegister} />
         {onDismiss && (

@@ -45,3 +45,13 @@ test("Alarmの最小候補は過去・0・重複も保持し、候補なしだ�
   expect(earliestAlarmAt([100, 0, 0])).toBe(0);
   expect(earliestAlarmAt([0, -1])).toBe(-1);
 });
+test("登録待ちの切断期限は保持中に処理せず、保持期限ちょうどで元の切断期限を選ぶ", () => {
+  const player = { id: "registering", reconnectDeadline: 100, registrationPendingUntilMs: 600 };
+  expect(nextDueRoomDeadline(null, [player], 599)).toBeNull();
+  expect(nextDueRoomDeadline(null, [player], 600)).toEqual({
+    type: "disconnect",
+    playerId: player.id,
+    at: 100,
+  });
+  expect(nextDueRoomDeadline(500, [player], 550)).toEqual({ type: "timeout", at: 500 });
+});

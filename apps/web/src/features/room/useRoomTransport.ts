@@ -83,6 +83,8 @@ function operationErrorMessage(
   gameError: (error: string) => string | undefined,
 ): string {
   switch (error) {
+    case "registration_pending":
+      return "登録手続きが完了するか、席の保持期限が過ぎるまでお待ちください。";
     case "not_ready":
       return "参加者全員の準備完了が必要です。";
     case "forbidden":
@@ -962,7 +964,10 @@ export function useRoomTransport<T extends Room>({
       membership?.role !== "host" ||
       room.players.length !== gameCapacity(room.settings.game) ||
       room.players.some(
-        (player) => !player.ready || !presence.connectedPlayerIds.includes(player.id),
+        (player) =>
+          !player.ready ||
+          !presence.connectedPlayerIds.includes(player.id) ||
+          (player.kind === "human" && player.registrationPendingUntilMs !== undefined),
       )
     ) {
       return;
@@ -974,6 +979,7 @@ export function useRoomTransport<T extends Room>({
     const currentSocket = socketRef.current;
     if (
       self === undefined ||
+      (self.kind === "human" && self.registrationPendingUntilMs !== undefined) ||
       room.status !== "waiting" ||
       !authenticated ||
       pendingReadyRef.current !== null ||
