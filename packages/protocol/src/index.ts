@@ -287,3 +287,5 @@ export {
 } from "./matches";
 
 export { fourShogiEliminatedHandsSchema, type FourShogiEliminatedHands } from "./fourShogi";
+
+export * from "./registration";
