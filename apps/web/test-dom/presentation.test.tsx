@@ -56,11 +56,13 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
 });
 test("棋譜カードは同順位・CPU・日時・チーム結果・本人棋譜リンクを表示", () => {
   const detail = match(2);
+  detail.moveCount = 60;
   const element = <MatchHistoryCard match={detail} to={`/account/matches/${detail.id}`} />;
   const view = render(<RouterProvider router={createMemoryRouter([{ path: "*", element }])} />);
   expect(view.textContent).toContain("優勝");
   expect(view.textContent).toContain("3位");
   expect(view.textContent).toContain("CPU Lv2");
+  expect(view.textContent).toContain("60手");
   expect(view.querySelector("time")!.getAttribute("datetime")).toBe(
     new Date(detail.startedAtMs).toISOString(),
   );
@@ -76,6 +78,7 @@ test("棋譜カードは同順位・CPU・日時・チーム結果・本人棋�
   );
   expect(view.textContent).toContain("勝利");
   expect(view.textContent).toContain("敗北");
+  expect(view.textContent).not.toContain("60手");
 });
 test("両ゲームのプレイヤー表示は本人・host・接続・方向・時計・準備を反映", () => {
   const room = playingRoom();
@@ -160,6 +163,7 @@ test("ロビーは人数と4席を表示し、満室の参加を無効にし末�
   const rows = view.querySelectorAll("li");
   expect(rows).toHaveLength(2);
   expect(view.textContent).toContain("ホスト");
+  expect(view.textContent).not.toContain("四人リバーシ");
   press(rows[0]!, "参加");
   expect(rows[1]!.querySelector('[aria-label="ルーム 23456 に参加"]')).toBeNull();
   expect(joined).toEqual(["12345"]);

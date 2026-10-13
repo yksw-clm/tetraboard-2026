@@ -1,3 +1,5 @@
+import { GameBadge } from "../../shared/ui/GameBadge";
+import { countCharacters } from "@tetraboard/protocol";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { gameCatalog } from "@tetraboard/protocol/games";
@@ -22,7 +24,7 @@ function Participant({ player, match }: { player: MatchHistoryParticipant; match
       mode={match.mode ?? "singles"}
       theme={gameThemes[match.game]}
       label={player.name}
-      className="flex min-w-0 items-center gap-1.5"
+      className="flex min-w-0 flex-1 shrink items-center justify-start gap-1.5 whitespace-normal"
     >
       {player.kind === "cpu" ? (
         <Avatar
@@ -40,7 +42,9 @@ function Participant({ player, match }: { player: MatchHistoryParticipant; match
           className="size-6 [&_svg]:size-4"
         />
       )}
-      <span className="min-w-0 text-xs font-semibold leading-4 [overflow-wrap:anywhere]">
+      <span
+        className={`min-w-0 flex-1 font-semibold leading-4 whitespace-normal wrap-anywhere ${countCharacters(player.name) > 7 ? "text-[10px]" : "text-xs"}`}
+      >
         {player.name}
       </span>
     </PlayerProfileTrigger>
@@ -51,11 +55,13 @@ export function MatchHistoryCard({
   to,
   className = "",
   relativeToMs,
+  showGame = true,
 }: {
   match: MatchSummary;
   to: string;
   className?: string;
   relativeToMs?: number;
+  showGame?: boolean;
 }) {
   const navigation = useNavigation();
   const location = useLocation();
@@ -77,14 +83,18 @@ export function MatchHistoryCard({
         <time dateTime={new Date(match.startedAtMs).toISOString()} title={absoluteDate}>
           {formatMatchDate(match.startedAtMs, relativeToMs)}
         </time>
-        <span>{gameLabel}</span>
+        {showGame && <GameBadge game={match.game} />}
+        {match.mode && <span>{match.mode === "singles" ? "シングルス" : "ダブルス"}</span>}
       </div>
       {!("mode" in result) || result.mode === "singles" ? (
         <ol className="m-0 grid list-none grid-cols-2 gap-x-3 gap-y-2 p-0">
           {groups.map((group) => {
             const player = group.players[0]!;
             return (
-              <li key={player.id} className="flex min-w-0 items-center gap-1.5">
+              <li
+                key={player.id}
+                className="flex min-w-0 flex-1 shrink items-center justify-start gap-1.5 whitespace-normal"
+              >
                 <span
                   className={`w-7 shrink-0 text-xs font-bold ${group.emphasized ? "text-brand" : "text-muted"}`}
                 >
@@ -116,7 +126,10 @@ export function MatchHistoryCard({
       )}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-muted">
-          {match.participants.some((p) => p.kind === "cpu") ? "CPUあり" : "人間同士"}
+          {match.participants.some((p) => p.kind === "cpu") ? "CPUあり" : "対人戦"}
+          {match.moveCount !== undefined && (
+            <span className="ml-2 tabular-nums">{match.moveCount}手</span>
+          )}
         </span>
         <AppButtonLink
           size="compact"

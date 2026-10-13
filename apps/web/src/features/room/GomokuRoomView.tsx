@@ -1,5 +1,4 @@
 import { AppToastRegion } from "../../shared/ui/AppToastRegion";
-import { GomokuForbiddenControl } from "../lobby/GomokuForbiddenControl";
 import { useState } from "react";
 import type { QuarterTurn } from "./boardRotation";
 import { GomokuBoard } from "./GomokuBoard";
@@ -67,17 +66,6 @@ export function GomokuRoomView({
       selfEliminated={false}
       onRotate={() => setRotation((r) => (r === 0 ? 2 : 0))}
       operationNotice={`禁手ルール：${(replay.frame?.game.forbiddenRules ?? room.settings.forbiddenRules) ? "ON" : "OFF"}`}
-      gameSettings={
-        <GomokuForbiddenControl
-          enabled={
-            session.pendingSettingsCommand?.type === "room.gomoku-forbidden.set"
-              ? session.pendingSettingsCommand.enabled
-              : room.settings.forbiddenRules
-          }
-          disabled={!session.canManageSettings}
-          onChange={session.handleForbiddenChange}
-        />
-      }
     />
   );
 }

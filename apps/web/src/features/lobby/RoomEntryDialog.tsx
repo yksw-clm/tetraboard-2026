@@ -17,6 +17,7 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import { type AppTheme } from "../../shared/ui/appTheme";
+import { RoomModeSetting } from "./RoomModeSetting";
 import { ThreePlayerAttackSetting } from "./ThreePlayerAttackSetting";
 
 export function RoomEntryDialog({
@@ -161,33 +162,7 @@ export function RoomEntryDialog({
               </RadioGroup>
             )}
             {gameCatalog[game].hasModes && (
-              <RadioGroup
-                className="min-w-0 m-0 p-0 border-0 flex-col! gap-[10px]! [&>.label]:text-[13px] [&>.label]:font-[650] [&>.label]:mb-0 [&>.label]:p-0"
-                name="mode"
-                value={mode}
-                onChange={(value) => {
-                  if (value === "singles" || value === "doubles") onModeChange(value);
-                }}
-                isDisabled={busy}
-                orientation="horizontal"
-              >
-                <Label>対局モード</Label>
-                <div className="grid grid-cols-2 gap-[10px] [@media(max-width:400px)]:grid-cols-1 [&_.radio]:min-w-0">
-                  {(["singles", "doubles"] as const).map((option) => (
-                    <AppRadio key={option} value={option}>
-                      <AppRadio.Content className="flex items-center gap-[9px] py-[13px] px-3 border border-solid border-line rounded-[11px] cursor-pointer font-normal w-full data-[selected=true]:border-entry-selection-line data-[selected=true]:bg-entry-selection-surface [&_strong]:block [&_strong]:text-[13px] [&_small]:block [&_small]:mt-[3px] [&_small]:text-muted [&_small]:text-[11px]">
-                        <AppRadio.Control>
-                          <AppRadio.Indicator />
-                        </AppRadio.Control>
-                        <span>
-                          <strong>{option === "singles" ? "シングルス" : "ダブルス"}</strong>
-                          <small>{option === "singles" ? "4人で個人戦" : "2対2のチーム戦"}</small>
-                        </span>
-                      </AppRadio.Content>
-                    </AppRadio>
-                  ))}
-                </div>
-              </RadioGroup>
+              <RoomModeSetting mode={mode} onChange={onModeChange} disabled={busy} />
             )}
             {forbiddenRules !== undefined && onForbiddenRulesChange && (
               <GomokuForbiddenControl

@@ -7,7 +7,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppToastRegion } from "../../shared/ui/AppToastRegion";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useCpuAddition } from "./useCpuAddition";
+import { RoomSettingsDialog } from "./RoomSettingsDialog";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { useRoomInvitation } from "./useRoomInvitation";
 import { RoomInvitationDialogs } from "./RoomInvitationDialogs";
@@ -21,7 +21,6 @@ import type { SharedRoomSession } from "./useRoomTransport";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes, appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
-import { CpuMatchNotice } from "../account/CpuMatchNotice";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
 import { useResultRegistration } from "../account/useResultRegistration";
 import {
@@ -46,7 +45,6 @@ export function RoomViewShell({
   selfEliminated,
   onRotate,
   turnActions,
-  gameSettings,
   operationNotice,
 }: {
   session: SharedRoomSession & {
@@ -61,7 +59,6 @@ export function RoomViewShell({
   selfEliminated: boolean;
   onRotate: () => void;
   turnActions?: ReactNode;
-  gameSettings?: ReactNode;
   operationNotice?: string | null;
 }) {
   const desktop = useRoomDesktop();
@@ -87,7 +84,7 @@ export function RoomViewShell({
   );
   const [tab, setTab] = useState("board");
   const [dialog, setDialog] = useState<
-    "result" | "leave" | "resign" | "feedback" | "settings" | null
+    "result" | "leave" | "resign" | "feedback" | "settings" | "room-settings" | null
   >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
   useEffect(() => {
@@ -158,32 +155,7 @@ export function RoomViewShell({
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const resultButtonRef = useRef<HTMLButtonElement>(null);
   const fallbackFocusRef = useRef<HTMLElement>(null);
-  const cpuAddButtonRef = useRef<HTMLButtonElement>(null);
-  const previousCpuConfirmation = useRef(false);
-  const cpuAddition = useCpuAddition({
-    room,
-    membership,
-    hostPlayerId: session.presence.hostPlayerId,
-    canManageSettings: session.canManageSettings,
-    account,
-    addCpu: session.addCpu,
-  });
-  const canAddCpu = cpuAddition.canAdd;
-  const cpuConfirmation = cpuAddition.confirmation;
-  useEffect(() => {
-    const closed = previousCpuConfirmation.current && cpuConfirmation === null;
-    previousCpuConfirmation.current = cpuConfirmation !== null;
-    if (!closed) return;
-    // Modalのフォーカス復帰を待ち、リサイズで元のボタンが消えた場合も戻します。
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        const button = cpuAddButtonRef.current;
-        if (button && !button.disabled) button.focus();
-        if (!button || document.activeElement !== button) fallbackFocusRef.current?.focus();
-      });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [cpuConfirmation]);
+  const roomSettingsButtonRef = useRef<HTMLButtonElement>(null);
   const invitation = useRoomInvitation(
     room,
     membership,
@@ -208,7 +180,7 @@ export function RoomViewShell({
   const accountAvailable = !account.loading && !account.error;
   const autoResult = useAutoGameResult(
     room,
-    dialog !== null || invitation.dialog !== null || cpuConfirmation !== null,
+    dialog !== null || invitation.dialog !== null,
     Boolean(session.unavailable) || session.leaving,
   );
   const closeResult = () => {
@@ -244,24 +216,21 @@ export function RoomViewShell({
 
   const info = (
     <RoomInfo
+      onRoomSettings={() => setDialog("room-settings")}
+      roomSettingsButtonRef={roomSettingsButtonRef}
       settingsOpen={dialog === "settings"}
       settingsDisabled={
         (dialog !== null && dialog !== "settings") ||
         invitation.dialog !== null ||
-        cpuConfirmation !== null ||
         autoResult.visible
       }
       onSettingsOpenChange={(open) => setDialog(open ? "settings" : null)}
-      gameSettings={gameSettings}
       feedbackButtonRef={feedbackButtonRef}
       onFeedback={() => {
         if (autoResult.visible) autoResult.dismiss();
         setDialog("feedback");
       }}
       session={session}
-      cpuAddButtonRef={cpuAddButtonRef}
-      canAddCpu={canAddCpu}
-      onAddCpu={cpuAddition.request}
       shareButtonRef={shareButtonRef}
       onShare={invitation.openShare}
       onLeave={() => {
@@ -297,12 +266,11 @@ export function RoomViewShell({
               session.leaving ||
               dialog !== null ||
               invitation.dialog !== null ||
-              cpuConfirmation !== null ||
               autoResult.visible
             }
             pending={session.pendingStamp}
             sendDisabled={session.pendingStamp || chat.pending || !session.interactionReady}
-            closeSignal={`${room.instanceId}:${room.status}:${session.canPlay}:${dialog}:${invitation.dialog}:${cpuConfirmation !== null}:${autoResult.visible}:${session.connection}:${session.leaving}`}
+            closeSignal={`${room.instanceId}:${room.status}:${session.canPlay}:${dialog}:${invitation.dialog}:${autoResult.visible}:${session.connection}:${session.leaving}`}
             onSend={session.sendStamp}
           />
         )
@@ -336,6 +304,7 @@ export function RoomViewShell({
       )}
       <RoomStampContext.Provider value={stamps}>
         <RoomLayout
+          statusBelowBoard
           desktop={desktop}
           tab={tab}
           onTabChange={setTab}
@@ -356,24 +325,20 @@ export function RoomViewShell({
         />
       )}
       <RoomInvitationDialogs invitation={invitation} roomId={room.id} theme={theme} />
-      {cpuConfirmation !== null && (
-        <AppDialog
-          size="compact"
-          title="CPUを追加しますか？"
-          onClose={cpuAddition.cancel}
-          theme={theme}
-        >
-          <p className="mb-3 text-sm">追加するCPU：Lv{cpuConfirmation}</p>
-          <CpuMatchNotice />
-          <div className="mt-[22px] flex justify-end gap-[10px]">
-            <AppButton size="compact" appearance="secondary" onPress={cpuAddition.cancel}>
-              キャンセル
-            </AppButton>
-            <AppButton size="compact" isDisabled={!canAddCpu} onPress={cpuAddition.confirm}>
-              CPUを追加
-            </AppButton>
-          </div>
-        </AppDialog>
+      {dialog === "room-settings" && (
+        <RoomSettingsDialog
+          session={session}
+          onClose={() => {
+            setDialog(null);
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                const button = roomSettingsButtonRef.current;
+                if (button && !button.disabled) button.focus();
+                if (!button || document.activeElement !== button) fallbackFocusRef.current?.focus();
+              }),
+            );
+          }}
+        />
       )}
       {(dialog === "result" || autoResult.visible) && room.lastRound && (
         <AppDialog

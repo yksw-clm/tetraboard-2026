@@ -26,7 +26,9 @@ export function useRankings(game: MatchGame = defaultGameId) {
       if (!source?.endsWith("retry")) setError(null);
       try {
         const contract = gameRankingContracts[game];
-        let response = await fetch(`/api${contract.path}?profilePreview=1`, {
+        const query = new URLSearchParams({ profilePreview: "1" });
+        if (game === "four-shogi") query.set("includeKnockouts", "1");
+        let response = await fetch(`/api${contract.path}?${query}`, {
           cache: "no-store",
           signal: controller.signal,
         });

@@ -49,7 +49,7 @@ export function RoomView({
       />
       {room.status === "playing" && room.game.consecutivePasses.length > 0 && (
         <p
-          className="absolute bottom-0 w-full text-center text-[11px] text-[#536d5c] pointer-events-none [@media(max-width:767px)]:static [@media(max-width:767px)]:col-span-full [@media(max-width:767px)]:text-[10px]"
+          className="absolute bottom-0 w-full group-data-[with-status=true]/board-layout:static group-data-[with-status=true]/board-layout:col-span-full group-data-[with-status=true]/board-layout:row-start-4 text-center text-[11px] text-[#536d5c] pointer-events-none [@media(max-width:767px)]:static [@media(max-width:767px)]:col-span-full [@media(max-width:767px)]:text-[10px]"
           role="status"
         >
           自動パス：{room.game.consecutivePasses.map((color) => colorNames[color]).join(" → ")}

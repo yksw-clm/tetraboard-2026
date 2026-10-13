@@ -57,6 +57,38 @@ function track<T extends { id: string }>(record: T) {
   return record;
 }
 
+test("公開・総合・本人の棋譜一覧は要求時だけ保存局面の手数を返す", async () => {
+  const user = await accountFixture(true, crypto.randomUUID(), db);
+  const record = track(fixtureRecord(user.id, 1));
+  await writeMatch(db, record);
+  const shogi = humanShogiRecord(user.id, "south", "singles");
+  track(shogi.record);
+  await saveShogiFixture(shogi, db);
+  for (const saved of [record, shogi.record]) {
+    for (const path of [
+      `/matches?game=${saved.settings.game}`,
+      "/lobby/matches?humanOnly=false",
+      `/account/matches?game=${saved.settings.game}&mode=singles`,
+    ]) {
+      const options = { headers: { Cookie: user.cookie } };
+      const legacy = await matchRequest(path, options);
+      expect(legacy.status).toBe(200);
+      const oldBody = (await legacy.json()) as { matches: { id: string; moveCount?: number }[] };
+      expect(oldBody.matches.find((match) => match.id === saved.id)).not.toHaveProperty(
+        "moveCount",
+      );
+      const response = await matchRequest(`${path}&includeMoveCount=1`, options);
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { matches: { id: string; moveCount: number }[] };
+      expect(body.matches.find((match) => match.id === saved.id)?.moveCount).toBe(
+        saved.game.moveNumber,
+      );
+      const invalid = await matchRequest(`${path}&includeMoveCount=2`, options);
+      expect(invalid.status).toBe(400);
+    }
+  }
+});
+
 async function saveFilteredFixture(
   game: GameId,
   namespace: string,

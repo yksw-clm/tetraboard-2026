@@ -18,6 +18,7 @@ export async function listMatches(
   mode: RoomMode | undefined,
   cursor: { startedAtMs: number; id: string } | null,
   game: MatchGame = defaultGameId,
+  includeMoveCount = false,
 ) {
   const sql = `SELECT m.game, m.record_json FROM account_match_history h
     JOIN matches m ON m.id = h.match_id WHERE h.account_id = ? AND h.game = ? AND m.game = h.game AND h.mode = ?`;
@@ -41,7 +42,7 @@ export async function listMatches(
     .slice(0, 20)
     .map((row) => readStoredMatch(row.record_json, row.game));
   const profiles = await participantProfiles(db, records);
-  const matches = records.map((record) => matchSummary(record, profiles));
+  const matches = records.map((record) => matchSummary(record, profiles, includeMoveCount));
   const last = matches.at(-1);
   return listMatchesContract.response.parse({
     matches,
@@ -59,6 +60,7 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
       game: c.req.query("game"),
       mode: c.req.query("mode"),
       cursor: c.req.query("cursor"),
+      includeMoveCount: c.req.query("includeMoveCount"),
     });
     if (!query.success) return c.json({ message: "履歴の取得条件が正しくありません。" }, 400);
     return c.json(
@@ -68,6 +70,7 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
         query.data.mode,
         query.data.cursor ?? null,
         query.data.game,
+        query.data.includeMoveCount === "1",
       ),
     );
   } catch {

@@ -73,8 +73,8 @@ test("待機中は空盤と上下2カード、紫テーマで禁手設定を表�
   press(view, "ルーム設定");
   await flush();
   clock.advance(300);
-  expect(view.textContent).toContain("禁手ルール");
-  expect(view.textContent).not.toContain("シングルス");
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("禁手ルール");
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("シングルス");
 });
 test("交点を一度押すと局ID付きで着手し、二重送信を抑止する", () => {
   const room = playing();

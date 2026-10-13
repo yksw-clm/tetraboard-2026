@@ -146,8 +146,8 @@ test("通常リバーシのランキングは勝数3人・詳細10人、対局�
   requests.at(-1)!.respond({ wins: entries, total: entries });
   await flush();
   expect(view.querySelectorAll("li")).toHaveLength(3);
-  expect(view.textContent).toContain("勝数");
-  expect(view.querySelector('[role="tablist"]:not([hidden])')).toBeNull();
+  expect(view.textContent).toContain("勝利数");
+  expect(view.querySelector('[role="tablist"][aria-label="ランキングの対局モード"]')).toBeNull();
   press(view, "もっと見る");
   await flush();
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
@@ -167,10 +167,10 @@ test("通常リバーシの待機画面はカード2人、設定からモード�
   press(view, "ルーム設定");
   await flush();
   clock.advance(300);
-  expect(view.querySelectorAll('input[type="radio"]')).toHaveLength(0);
-  expect(view.textContent).not.toContain("シングルス");
+  expect(document.querySelectorAll('input[type="radio"]')).toHaveLength(0);
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("シングルス");
   expect(
-    [...view.querySelectorAll("button")].find((b) => b.textContent?.includes("CPUを追加"))
+    [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("CPUを追加"))
       ?.disabled,
   ).toBe(true);
 });

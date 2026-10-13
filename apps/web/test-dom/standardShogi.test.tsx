@@ -161,9 +161,9 @@ test("通常将棋の待機画面と設定には左右カード・モード・�
   press(view, "ルーム設定");
   await flush();
   clock.advance(300);
-  expect(view.querySelectorAll('input[type="radio"]')).toHaveLength(0);
-  expect(view.textContent).not.toContain("シングルス");
-  expect(view.textContent).not.toContain("三人攻撃禁止");
+  expect(document.querySelectorAll('input[type="radio"]')).toHaveLength(0);
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("シングルス");
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("三人攻撃禁止");
 });
 test("通常将棋の着手は局revision付きで一度だけ送り、受信局面で完了する", () => {
   const room = standardPlayingRoom();

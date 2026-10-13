@@ -122,7 +122,7 @@ export function GeneralLobbyChat() {
           使ってみた感想を送る
         </AppButtonLink>
       </div>
-      <AppCard className="h-[400px] min-h-0 gap-3 p-4 [@media(min-width:768px)]:h-full">
+      <AppCard className="h-[600px] min-h-0 gap-3 p-4 [@media(min-width:768px)]:h-full">
         <ul
           ref={log}
           onScroll={() => {
@@ -329,7 +329,7 @@ export function GeneralLobbyChat() {
                   {count} / {chatCharacterLimit}
                 </span>
               </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2">
                 <AppTextField.Input
                   placeholder="何時から、何のゲームで遊びますか？"
                   autoComplete="off"
@@ -346,11 +346,12 @@ export function GeneralLobbyChat() {
                     )
                       event.preventDefault();
                   }}
-                  className="min-h-[42px] px-2.5 text-[13px] [@media(max-width:767px)]:text-base"
+                  className="h-12 min-h-12 px-2.5 py-0 text-[13px] [@media(max-width:767px)]:text-base"
                 />
                 <AppButton
                   size="compact"
                   type="submit"
+                  className="h-12 min-h-12"
                   isDisabled={!valid || blocked}
                   isPending={page.sending}
                 >

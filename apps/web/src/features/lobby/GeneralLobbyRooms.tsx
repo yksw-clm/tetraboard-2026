@@ -1,15 +1,13 @@
-import { Chip } from "@heroui/react";
 import { useRef } from "react";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
-import { Link } from "react-router";
-import { AppAvatar } from "../../shared/ui/AppAvatar";
-import { AppButton } from "../../shared/ui/AppButton";
+import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
+import { AppPendingIndicator } from "../../shared/ui/AppPendingIndicator";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
-import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import type { LobbyRoom } from "@tetraboard/protocol/general-lobby";
 import type { useGeneralLobbyRooms } from "./useGeneralLobbyRooms";
+import { LobbyRoomCard, LobbyRoomLegend } from "./LobbyRoomCard";
 
 const filters = [
   { value: "all" as const, label: "すべて" },
@@ -69,168 +67,113 @@ export function GeneralLobbyRooms({
           ))}
         </div>
       </div>
-      <div
-        ref={list}
-        className="h-[400px] min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin] [@media(min-width:768px)]:h-full"
-      >
-        {page.error && (
-          <p role="alert" className="text-sm text-danger">
-            {page.error}
-          </p>
-        )}
-        {page.loading && !page.loaded && (
-          <p role="status" className="text-sm text-muted">
-            公開ルームを読み込んでいます…
-          </p>
-        )}
-        {visibleRooms.length > 0 ? (
-          <ul aria-label="公開ルーム一覧" tabIndex={0} className="m-0 grid list-none gap-2.5 p-0">
-            {visibleRooms.map((room) => {
-              const game = gameCatalog[room.game];
-              const openSeats = game.capacity - room.humanCount - room.cpuCount;
-              const canJoin = room.status === "waiting" && room.openSeats > 0;
-              return (
-                <li key={room.id}>
-                  <AppCard className="gap-2.5 px-4 py-3.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Link
-                          to={game.lobbyPath}
-                          className={`${appThemeClasses[gameThemes[room.game]]} rounded-control bg-surface-muted px-2 py-1 text-xs font-semibold text-brand no-underline hover:underline`}
-                        >
-                          {game.name}
-                        </Link>
-                        {room.mode && (
-                          <span className="text-xs text-muted">
-                            {room.mode === "singles" ? "シングルス" : "ダブルス"}
-                          </span>
-                        )}
-                      </div>
-                      <Chip
-                        className={`rounded-[20px] px-2.5 py-1 text-[11px] font-semibold ${room.status === "playing" ? "bg-[#fcf5e4] text-[#806323]" : "bg-[#edf7f0] text-[#27794f]"}`}
-                      >
-                        <Chip.Label className="inline-flex items-center gap-1.5">
-                          <span className="size-[5px] rounded-full bg-current" />
-                          {room.status === "playing" ? "対局中" : "対局前"}
-                        </Chip.Label>
-                      </Chip>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <AppAvatar src={room.hostAvatarUrl} label={`${room.hostName}のアイコン`} />
-                        <div className="min-w-0">
-                          <strong className="block text-sm wrap-anywhere">{room.hostName}</strong>
-                          <span className="inline-flex flex-wrap items-center gap-2 text-[11px] text-muted tabular-nums">
-                            {room.id}
-                            <span className="inline-flex items-center gap-1">
-                              <AppIcon name="clock" className="size-3" />
-                              {`${room.timeControl.mainTimeMs / 60000}分＋${room.timeControl.byoyomiMs / 1000}秒`}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                      <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-                        <div className="flex items-center gap-2">
-                          <strong className="text-sm tabular-nums">
-                            {room.humanCount + room.cpuCount}/{game.capacity}
-                          </strong>
-                          <span
-                            role="img"
-                            aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${openSeats}席`}
-                            className="inline-flex gap-1"
-                          >
-                            {Array.from({ length: game.capacity }, (_, index) => (
-                              <span
-                                key={index}
-                                className={`size-2 rounded-full ${index < room.humanCount ? "bg-[#34a871]" : index < room.humanCount + room.cpuCount ? "bg-[#376597]" : "bg-[#cbd3ce]"}`}
-                              />
-                            ))}
-                          </span>
-                        </div>
-                        <div className="flex gap-2">
-                          {room.status === "waiting" && (
-                            <AppButton
-                              size="compact"
-                              isDisabled={!canJoin}
-                              aria-label={`ルーム ${room.id} に参加`}
-                              onPress={() => onRoomAction(room, "join")}
-                            >
-                              参加
-                            </AppButton>
-                          )}
-                          <AppButton
-                            size="compact"
-                            appearance="secondary"
-                            aria-label={`ルーム ${room.id} を観戦`}
-                            onPress={() => onRoomAction(room, "watch")}
-                          >
-                            観戦
-                          </AppButton>
-                        </div>
-                      </div>
-                    </div>
-                  </AppCard>
-                </li>
-              );
-            })}
-          </ul>
-        ) : !page.loading && !page.error ? (
-          <AppCard className="h-full min-h-0 items-center justify-center gap-3 border-dashed text-center shadow-none">
-            <span className="grid size-11 place-items-center rounded-[13px] bg-surface-muted text-brand">
-              <AppIcon name="users" />
-            </span>
-            <h3 className="text-[15px]">
-              {capacityFilter === "all"
-                ? "公開ルームはまだありません"
-                : `${capacityFilter === 4 ? "四人" : "二人"}用の公開ルームはありません`}
-            </h3>
-            <p className="text-xs leading-6 text-muted">
-              公開チャットで対戦を呼びかけたり、
-              <br />
-              ゲームタブからルームを作ったりできます。
+      <div className="relative h-[400px] min-h-0 [@media(min-width:768px)]:h-full">
+        <div
+          ref={list}
+          className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-panel border border-solid border-line bg-surface-muted p-3 [scrollbar-width:thin]"
+        >
+          {page.error && (
+            <p role="alert" className="text-sm text-danger">
+              {page.error}
             </p>
-            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
-              {gameIds.map((id) => (
-                <Link
-                  key={id}
-                  to={gameCatalog[id].lobbyPath}
-                  className="inline-flex min-h-11 items-center text-xs text-brand underline"
-                >
-                  {gameCatalog[id].name}
-                </Link>
-              ))}
-            </div>
-          </AppCard>
-        ) : null}
-        {page.nextCursor && (
-          <AppButton
-            appearance="secondary"
-            size="compact"
-            isDisabled={page.loading}
-            isPending={page.pendingSource === "more"}
-            onPress={page.loadMore}
+          )}
+          {page.loading && !page.loaded && (
+            <p role="status" className="text-sm text-muted">
+              公開ルームを読み込んでいます…
+            </p>
+          )}
+          {visibleRooms.length > 0 ? (
+            <ul aria-label="公開ルーム一覧" tabIndex={0} className="m-0 grid list-none gap-2.5 p-0">
+              {visibleRooms.map((room) => {
+                const canJoin = room.status === "waiting" && room.openSeats > 0;
+                return (
+                  <li key={room.id}>
+                    <LobbyRoomCard room={room} gameLink>
+                      {room.status === "waiting" && (
+                        <AppButton
+                          size="compact"
+                          isDisabled={!canJoin}
+                          aria-label={`ルーム ${room.id} に参加`}
+                          onPress={() => onRoomAction(room, "join")}
+                        >
+                          参加
+                        </AppButton>
+                      )}
+                      <AppButton
+                        size="compact"
+                        appearance="secondary"
+                        aria-label={`ルーム ${room.id} を観戦`}
+                        onPress={() => onRoomAction(room, "watch")}
+                      >
+                        観戦
+                      </AppButton>
+                    </LobbyRoomCard>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : page.loaded && !page.error ? (
+            <AppCard className="h-full min-h-0 items-center justify-center gap-3 border-dashed text-center shadow-none">
+              <span className="grid size-11 place-items-center rounded-[13px] bg-surface-muted text-brand">
+                <AppIcon name="users" />
+              </span>
+              <h3 className="text-[15px]">
+                {capacityFilter === "all"
+                  ? "公開ルームはまだありません"
+                  : `${capacityFilter === 4 ? "四人" : "二人"}用の公開ルームはありません`}
+              </h3>
+              <p className="text-xs leading-6 text-muted">
+                公開チャットで対戦を呼びかけたり、
+                <br />
+                ゲームタブからルームを作ったりできます。
+              </p>
+              <div className="flex w-full flex-col gap-3">
+                {[4, 2].map((capacity) => (
+                  <div key={capacity} role="group" aria-label={`${capacity}人プレイ`}>
+                    <p className="mb-1.5 text-xs font-semibold text-muted">{capacity}人プレイ</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {gameIds
+                        .filter((id) => gameCatalog[id].capacity === capacity)
+                        .map((id) => (
+                          <AppButtonLink
+                            key={id}
+                            size="compact"
+                            to={gameCatalog[id].lobbyPath}
+                            state={{ roomEntryIntent: "create" }}
+                            className="px-2 text-xs"
+                          >
+                            {gameCatalog[id].name}
+                          </AppButtonLink>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </AppCard>
+          ) : null}
+          {page.nextCursor && (
+            <AppButton
+              appearance="secondary"
+              size="compact"
+              isDisabled={page.loading}
+              isPending={page.pendingSource === "more"}
+              onPress={page.loadMore}
+            >
+              もっと見る
+            </AppButton>
+          )}
+        </div>
+        {page.pendingSource === "refresh" && (
+          <div
+            role="status"
+            aria-label="公開ルームを更新しています"
+            className="pointer-events-none absolute inset-0 rounded-panel bg-white/60"
           >
-            もっと見る
-          </AppButton>
+            <AppPendingIndicator />
+          </div>
         )}
       </div>
-      <div className="mt-2.5 text-[11px] text-muted">
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2 rounded-full bg-[#34a871]" />
-            人間
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2 rounded-full bg-[#376597]" />
-            CPU
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2 rounded-full bg-[#cbd3ce]" />
-            空席
-          </span>
-        </p>
-        <p className="mt-1">対局中は開始時の参加人数を表示しています。</p>
-      </div>
+      <LobbyRoomLegend />
     </section>
   );
 }

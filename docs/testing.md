@@ -23,6 +23,8 @@
 
 ## 総合ロビーの確認
 
+UI改修の回帰では `generalLobby.test.tsx` で自動更新中の空表示・カード保持と手動更新だけの一覧スピナー、定員別ボタンと作成意図の受渡しを確認します。`lobbyComponents.test.tsx` で全6ロビーの作成ダイアログ表示・意図の消費・自動POSTなし、`presentation.test.tsx` で手数の表示・省略、Workerの `publicMatches.test.ts` で3種類の一覧APIの手数・旧応答互換・不正条件を確認します。矢印ボタンの出現位置と移動量、710pxでの遷移、長い名前の折り返し、スマホのチャット600pxと入力・送信の高さは手動確認対象です。
+
 Workerの非分離実行では、退会の失敗・再試行テストがキュー取得だけを本人のアカウントに絞り、別テストの削除待ちデータや外部応答mockへ干渉しないようにします。破損棋譜の互換テストは独立した実D1を使い、不正JSONが別ルームのAlarmへ混入しないようにします。CPU候補の破棄テストは、古い候補が消え、盤面が変わらないことを検証し、後続Alarmが生成した現在の局・revision・手番に一致する候補は区別します。
 
 2026-10-13に承認された[確定仕様](../README.md#総合ロビーの確定仕様)と[実装計画のDone When](development.md#総合ロビーの実装計画)に対する受入検証です。Workerの `generalLobby.test.ts`、Webの `generalLobby.test.tsx`、Adminの `lobbyChat.test.tsx` と既存回帰へ検証を追加しています。必須5コマンド・対象コミットの結果と実機未確認事項はPRへ記録します。
@@ -46,7 +48,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 
 既存の入口はWorkerの `publicMatches.test.ts`・`accountRooms.test.ts`・`commonRoomBehavior.test.ts`・`privacy.test.ts`・`adminAnalytics.test.ts`・`publicAssets.test.ts`、Webの `lobbyComponents.test.tsx`・`lobbyLoading.test.tsx`・`entryRegistration.test.tsx`・`accountSession.test.tsx`・`publicLobbies.test.tsx`・`analytics.test.tsx`、Adminの `adminViews.test.tsx` です。固有の検証は[Worker](../apps/worker/test/generalLobby.test.ts)・[Web DOM](../apps/web/test-dom/generalLobby.test.tsx)・[Admin DOM](../apps/admin/test-dom/lobbyChat.test.tsx)です。
 
-手動確認はPC／スマートフォンの盤面図・ゲーム名・同じタブ幅と区切り線・横スクロール、767px／768pxの境界、720px／400pxの固定領域、少数・多数の内部スクロール、長い名前・長文・時刻と操作欄・自分の発言の余白、最下部の投稿欄、キーボード・フォーカス・読み上げ、日本語の実入力、実Google／Discord認証からの復帰です。機種・OS・ブラウザ・対象コミット・結果または未確認理由を記録します。ブラウザを起動する自動検証を追加しません。
+手動確認はPC／スマートフォンの盤面図・ゲーム名・同じタブ幅と区切り線・横スクロール、767px／768pxの境界、公開ルーム720px／400pxとチャット720px／600pxの固定領域、少数・多数の内部スクロール、長い名前・長文・時刻と操作欄・自分の発言の余白、最下部の投稿欄、キーボード・フォーカス・読み上げ、日本語の実入力、実Google／Discord認証からの復帰です。機種・OS・ブラウザ・対象コミット・結果または未確認理由を記録します。ブラウザを起動する自動検証を追加しません。
 
 実装PRには必須5コマンド・文書整形・リンク・`git diff --check`・GitHub CIと、対象コミット・実行環境・check所要時間・手動確認／未確認事項を記載します。公開は承認後に開発環境のmigration・Secrets・実認証・管理操作・削除処理を確認してから進めます。dry-runは実環境での動作成功を意味しません。公開後の同期間比較は実装テストの成功とは別に記録します。
 
@@ -69,6 +71,12 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 | 戦績・ランキング・バッジ | Workerの[accountStats.test.ts](../apps/worker/test/accountStats.test.ts)・[rankings.test.ts](../apps/worker/test/rankings.test.ts)・[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、Web部品の[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)・[badgeNotifications.test.tsx](../apps/web/test-dom/badgeNotifications.test.tsx)、[バッジ獲得通知の詳細](#バッジ獲得通知issue-122) |
 | 管理・フィードバック・お知らせ | Workerの[adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)・[feedback.test.ts](../apps/worker/test/feedback.test.ts)・[announcements.test.ts](../apps/worker/test/announcements.test.ts)、Admin部品の[adminViews.test.tsx](../apps/admin/test-dom/adminViews.test.tsx)・[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)・[announcements.test.tsx](../apps/admin/test-dom/announcements.test.tsx) |
 | 公開・検索向け配信・設定 | Workerの[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)・[testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、Web部品の[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx)、[個人設定からの分離](#個人設定からの分離)、ビルドとWorker dry-run |
+
+## ロビーのルームカードとランキングの切替
+
+`lobbyLoading.test.tsx` と `generalLobby.test.tsx` で共通カードのホスト・席数・状態、参加／観戦の条件、取得中・失敗時の保持を確認します。ゲーム別の2列配置（1件だけのときも半幅）や狭い幅での折返し、総合ロビーの一覧枠、更新アイコンは手動確認します。
+
+`rankingCarousel.test.tsx` は全6ゲームの10秒境界・循環・四人将棋シングルスだけの撃破数、手動切替・自動切り替えチェックの初期ONとON/OFF、フォーカス・タブ非表示・詳細表示中の停止、モード切替時の初期化、詳細への項目引継ぎ、旧応答の欠落を偽時計とhappy-domで確認します。タブの選択状態とtabpanelの参照、自動切替と選択の連動、表示切替だけで再取得しないことを確認し、実ブラウザの動き・OS設定は手動確認とします。`shogiAccountRecords.test.ts` は撃破数APIの追加指定、通常応答の互換性、累計・同順位、CPU戦・未公開保存・設定前アカウントの除外、公開プロフィール参照と不正指定を確認します。
 
 ## プレイヤー情報と戦績の表示
 
@@ -534,3 +542,17 @@ Web・AdminのブラウザテストとWorker E2E、全Playwright設定、専用S
 - Worker: `bun run --cwd apps/worker test test/badgeNotifications.test.ts`。閾値・昇格・対象外、ゲーム分離、最大4種類、導入前戦績の基準化、保存失敗時の一括ロールバックと再送、複数tokenの競合・期限・解放、認証・Origin・本人制限を確認します。
 - Web: `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/badgeNotifications.test.tsx`。画像・表示順・読み上げ属性、表示開始後の記録、5秒境界、時間停止、遷移・表示復帰・再試行・失効復旧、ログアウト／切替・StrictMode・既存通知との共用を確認します。
 - PC／スマートフォンの実画像・折り返し・結果ダイアログとの重なり・盤面操作・ホバー／キーボード・実際の読み上げは手動確認とし、PRに結果と未確認事項を記録します。ブラウザ自動テストは追加しません。
+
+## ルーム設定ダイアログの確認
+
+`roomSettings.test.tsx` は下書き編集・キャンセル／閉じる・適用まで送信しないこと、一度の送信・適用中ロック・確定後の閉鎖、拒否・送信失敗・切断後の保持と古い版の読み直し、CPU追加・削除・レベル変更・満席・最初のCPUの確認、四人将棋の固有設定をDOMと実transportで検証します。各ゲームの既存DOMテストは共通ダイアログ内の項目と2人用のモード非表示を確認します。Workerの `commonRoomBehavior.test.ts` は全6ゲームの一括適用・同値・CPU増減とID保持・準備解除、定員超過・不正CPU・重複ID・固有項目・古い版・非ホスト・開始後の拒否で部分反映しないことを確認します。必須5コマンドの結果は変更報告に記載します。
+
+PC／スマホでのダイアログの高さ・内部スクロール・CPU選択のホバーと文字の見やすさ、開閉してもチャットの高さが変わらないこと、実キーボード操作は手動確認対象です。画面寸法を測る自動テストやブラウザ起動テストは追加しません。
+
+ルームUIの追加調整では `roomAuxiliary.test.tsx` で同名の送信者をIDで区別した画像選択・画像なし／退室後の仮アイコン・システム発言を確認します。PCの状況カードの移動によるチャットの高さと盤面の収まり、設定ボタンの中央揃え、発言アイコンの高さは実ブラウザでの手動確認対象です。
+
+PCの盤面と状況カードは全6ゲームで画面の高さを変えて手動確認します。縮小が始まる前後のスクロールバー、まとまりの上下中央揃え、盤面と状況カードの幅、長い名前や操作の折り返し、自動パス通知と棋譜操作の併用を確認します。`roomBoardGroup.test.tsx` で高さ予約の更新・observerの破棄とPCだけの状況カード配置を確認し、実際の寸法は自動検証に含めません。
+
+`horizontalScroll.test.tsx` はスクロールAPIの境界値と幅通知を制御し、左右ボタンの出し分け・移動量・動きを減らす場合の即時移動・observerの破棄を確認します。実際の画面寸法は検証しません。棋譜のゲームバッジは総合ロビーだけに表示することと、更新失敗時の表示保持を確認します。ゲームタブと全ロビーの棋譜一覧の実スクロールは手動確認対象です。
+
+2026-10-13のロビー追加調整では、ローカル開発画面を実ブラウザで確認しました。四人将棋の集計タブはPC幅1211pxと1499pxで163px、各タブ49pxに収まり、710px・390pxでは操作行のscrollWidthとclientWidthが一致します。390pxでは「もっと見る」を次の行の右へ折り返し、710px以上では集計タブ・自動切替・詳細ボタンを同じ行に表示します。タブの手動切替・表示内容、詳細ダイアログの開閉、棋譜一覧の右矢印での移動と左右ボタンの表示も確認しました。この確認は手動の一時的なブラウザ操作で、自動テストやworkflowへ追加しません。

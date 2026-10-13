@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { type RoomSocketClientMessage } from "@tetraboard/protocol";
+import {
+  type RoomSocketClientMessage,
+  type RoomSettingsApplyCommand,
+  type Room,
+} from "@tetraboard/protocol";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
 import { RoomBoundaryFixtures, type BoundarySocket } from "./roomBoundaryFixtures";
 
@@ -36,6 +40,125 @@ for (const game of gameIds) {
       const observer = await fixtures.open(entry.room.id);
       return { entry, joined, host, player, observer };
     }
+
+    function settingsCommand(room: Room): RoomSettingsApplyCommand {
+      return {
+        type: "room.settings.apply",
+        expectedPublicUpdatedAtMs: room.publicUpdatedAtMs,
+        timeControl: { mainTimeMs: 600_000, byoyomiMs: 10_000 },
+        ...(gameCatalog[game].hasModes ? { mode: "doubles" as const } : {}),
+        ...(room.settings.game === "four-shogi"
+          ? { threePlayerAttackProhibited: !room.settings.threePlayerAttackProhibited }
+          : {}),
+        ...(room.settings.game === "gomoku"
+          ? { forbiddenRules: !room.settings.forbiddenRules }
+          : {}),
+        cpus: [{ playerId: null, level: 2 }],
+      };
+    }
+
+    test("設定を一括適用し、モード・時間・CPU・固有設定を一つのスナップショットで確定", async () => {
+      const { entry, host } = await create();
+      host.send({ type: "room.ready.set", ready: true });
+      await host.waitFor("room.snapshot", (message) => message.room.players[0]!.ready);
+      const command = settingsCommand(entry.room);
+      host.send(command);
+      const result = (
+        await host.waitFor(
+          "room.snapshot",
+          (message) => message.room.settings.timeControl.mainTimeMs === 600_000,
+        )
+      ).room;
+      expect(result.settings.timeControl).toEqual(command.timeControl);
+      if (command.mode !== undefined) expect(result.settings.mode).toBe(command.mode);
+      if (result.settings.game === "four-shogi")
+        expect(result.settings.threePlayerAttackProhibited).toBe(
+          command.threePlayerAttackProhibited,
+        );
+      if (result.settings.game === "gomoku")
+        expect(result.settings.forbiddenRules).toBe(command.forbiddenRules);
+      const cpu = result.players.find((player) => player.kind === "cpu")!;
+      expect(cpu).toMatchObject({ level: 2, ready: true });
+      expect(result.players[0]!.ready).toBe(false);
+      const next = {
+        ...command,
+        expectedPublicUpdatedAtMs: result.publicUpdatedAtMs,
+        cpus: [{ playerId: cpu.id, level: 1 as const }],
+      };
+      host.send(next);
+      const leveled = (
+        await host.waitFor("room.snapshot", (message) =>
+          message.room.players.some((player) => player.kind === "cpu" && player.level === 1),
+        )
+      ).room;
+      expect(leveled.players.find((player) => player.kind === "cpu")!.id).toBe(cpu.id);
+      host.send({ ...next, expectedPublicUpdatedAtMs: leveled.publicUpdatedAtMs, cpus: [] });
+      const removed = (
+        await host.waitFor("room.snapshot", (message) => message.room.players.length === 1)
+      ).room;
+      expect(removed.settings).toEqual(leveled.settings);
+      host.send({ ...next, expectedPublicUpdatedAtMs: removed.publicUpdatedAtMs, cpus: [] });
+      const unchanged = (await host.waitFor("room.snapshot")).room;
+      expect(unchanged.publicUpdatedAtMs).toBe(removed.publicUpdatedAtMs);
+      host.send({
+        ...command,
+        expectedPublicUpdatedAtMs: unchanged.publicUpdatedAtMs,
+        cpus: Array.from({ length: gameCatalog[game].capacity - 1 }, () => ({
+          playerId: null,
+          level: 1 as const,
+        })),
+      });
+      await host.waitFor(
+        "room.snapshot",
+        (message) => message.room.players.length === gameCatalog[game].capacity,
+      );
+      host.send({ type: "room.ready.set", ready: true });
+      await host.waitFor("room.snapshot", (message) =>
+        message.room.players.every((player) => player.ready),
+      );
+      host.send({ type: "room.game.start" });
+      const playing = (
+        await host.waitFor("room.snapshot", (message) => message.room.status === "playing")
+      ).room;
+      host.send({ ...command, expectedPublicUpdatedAtMs: playing.publicUpdatedAtMs });
+      expect((await host.waitFor("room.error")).error).toBe("already_started");
+    });
+
+    test("不正CPU・重複ID・満席・他ゲームの設定・古い編集は全項目を変更しない", async () => {
+      const { entry, host } = await create();
+      const command = settingsCommand(entry.room);
+      const baseline = (await fixtures.snapshot(entry.room.id)).room;
+      for (const invalid of [
+        { ...command, cpus: [{ playerId: crypto.randomUUID(), level: 1 as const }] },
+        {
+          ...command,
+          cpus: [
+            { playerId: entry.membership.playerId, level: 1 as const },
+            { playerId: entry.membership.playerId, level: 2 as const },
+          ],
+        },
+        {
+          ...command,
+          cpus: Array.from({ length: gameCatalog[game].capacity }, () => ({
+            playerId: null,
+            level: 1 as const,
+          })),
+        },
+        {
+          ...command,
+          ...(game === "gomoku" ? { threePlayerAttackProhibited: true } : { forbiddenRules: true }),
+        },
+        { ...command, expectedPublicUpdatedAtMs: 0 },
+      ]) {
+        host.send(invalid);
+        await host.waitFor("room.error");
+        expect((await fixtures.snapshot(entry.room.id)).room).toEqual(baseline);
+      }
+      const guestEntry = await fixtures.join(entry.room.id, "参加者");
+      const guest = await fixtures.connect(guestEntry);
+      guest.send(settingsCommand(guestEntry.room));
+      expect((await guest.waitFor("room.error")).error).toBe("forbidden");
+    });
 
     async function ready(clients: BoundarySocket[], playerId: string, value: boolean) {
       return Promise.all(

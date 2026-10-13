@@ -23,7 +23,8 @@ export function CpuLevelSelector({
         <AppButton
           key={value}
           size="compact"
-          className={`text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand ${updating ? updatingSettingsButtonClasses : ""}`}
+          appearance="quiet"
+          className={`text-[11px] h-6 min-h-6 min-w-[38px] bg-transparent hover:bg-surface-hover data-[hovered=true]:bg-surface-hover rounded-[6px] py-[2px] px-2 text-muted aria-pressed:bg-white aria-pressed:shadow-[0_1px_4px_#2138271a] aria-pressed:text-brand ${updating ? updatingSettingsButtonClasses : ""}`}
           aria-pressed={level === value}
           isDisabled={disabled}
           isPending={pendingLevel === value}
