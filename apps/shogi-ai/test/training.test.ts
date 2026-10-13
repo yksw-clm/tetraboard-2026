@@ -87,6 +87,7 @@ test("永続モデルは改変できず、監視APIは署名・期限・nonceの
     rmSync(directory, { recursive: true, force: true });
   }
 });
+// 2回の停止が各最大5秒待つため、起動・再開を含む試験の期限を別に確保します。
 test("2並列の両ルール自己対局を停止・再開し、保存済み着手とモデルを維持します", async () => {
   const directory = mkdtempSync(join(tmpdir(), "shogi-training-")),
     store = new AiStore(directory);
@@ -129,4 +130,4 @@ test("2並列の両ルール自己対局を停止・再開し、保存済み着�
     store.close();
     rmSync(directory, { recursive: true, force: true });
   }
-});
+}, 15000);
