@@ -90,6 +90,7 @@ export async function reserveAccountSeat(
   initialUser: StoredProfile,
   room: { id: string; instanceId: string },
   playerId: string,
+  options?: { reuseForGuestRegistration: true },
 ): Promise<AccountAdmission> {
   let user = initialUser;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -142,6 +143,14 @@ export async function reserveAccountSeat(
       const state = await env.GAME_ROOM.getByName(existing.roomId).accountReservationState(
         existing,
       );
+      if (
+        options?.reuseForGuestRegistration &&
+        existing.roomId === room.id &&
+        existing.instanceId === room.instanceId &&
+        existing.playerId === playerId &&
+        (state === "occupied" || state === "pending")
+      )
+        return existing;
       if (
         state === "occupied" ||
         (state === "pending" && existing.createdAtMs + pendingGraceMs > Date.now())
