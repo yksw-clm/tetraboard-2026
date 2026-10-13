@@ -259,14 +259,16 @@ test("migration snapshots historical badges without notifications and detects th
   expect(
     (await database.prepare("SELECT * FROM account_badge_notifications").all()).results,
   ).toEqual([]);
-  // migrationの固定SQLが閾値・集計の正本に追従していることも確認します。
+  // 過去migrationの固定SQLは維持し、新しい本人関係の集計でも基準行が増えないことを確認します。
   for (const game of ["four-reversi", "four-shogi"] as const)
-    expect(last.queries.join("\n").replace(/\s+/g, " ")).toContain(
-      badgeAwardsSql(game, true)
-        .replace("h.game = ?", `h.game = '${game}'`)
-        .trim()
-        .replace(/\s+/g, " "),
-    );
+    await database.prepare(badgeAwardsSql(game, true)).bind(game).run();
+  expect(
+    (
+      await database
+        .prepare("SELECT COUNT(*) AS n FROM account_badge_awards")
+        .first<{ n: number }>()
+    )?.n,
+  ).toBe(3);
   await writeMatch(database, humanFixtureRecord(user.id, 20));
   const response = await operation(user, "claim", crypto.randomUUID(), undefined, database);
   expect(badgeNotificationResponseSchema.parse(await response.json()).notification?.badges).toEqual(

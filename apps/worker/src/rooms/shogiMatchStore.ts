@@ -1,4 +1,5 @@
 import { redactParticipants } from "../privacy/identity";
+import { applyMatchClaims } from "../accounts/matchClaims";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
@@ -142,6 +143,7 @@ export async function advanceShogiMatchSave(
   if (existing) {
     if (existing.game !== game) throw new Error("Match ID belongs to another game");
     await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
+    await applyMatchClaims(db, record.id);
     return null;
   }
   const canonical = JSON.stringify(record);
@@ -233,6 +235,7 @@ export async function advanceShogiMatchSave(
   if (!(await db.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first()))
     throw new Error("Shogi match publication was incomplete");
   await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
+  await applyMatchClaims(db, record.id);
   return null;
 }
 

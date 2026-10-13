@@ -90,11 +90,11 @@ matchRoutes.get(getMatchContract.path, async (c) => {
         .first<{ game: string; record_json: string }>();
     if (!row) return c.json({ message: "この棋譜は閲覧できません。" }, 404);
     const record = readStoredMatch(row.record_json, row.game);
+    const profiles = await participantProfiles(c.env.APP_DB, [record]);
     const self = record.record.participants.find(
       (p) => p.kind === "human" && p.accountId === user.id,
     );
     if (!self) throw new Error("Match participant missing");
-    const profiles = await participantProfiles(c.env.APP_DB, [record]);
     return c.json(
       getMatchContract.response.parse({
         match: matchDetail(record, self.id, profiles),

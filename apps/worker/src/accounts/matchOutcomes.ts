@@ -61,7 +61,12 @@ export function matchOutcomesCte(game: GameId, personal: boolean, affectedMatch 
       (SELECT ${sql.direction}
        FROM json_each(m.record_json, '$.participants') p
        WHERE json_extract(p.value, '$.kind') = 'human'
-         AND json_extract(p.value, '$.accountId') = h.account_id) AS direction
+         AND COALESCE(json_extract(p.value, '$.retired'),0) != 1
+         AND (json_extract(p.value, '$.accountId') = h.account_id OR
+           (json_extract(p.value, '$.accountId') IS NULL AND EXISTS (
+             SELECT 1 FROM match_participant_accounts c
+             WHERE c.match_id=m.id AND c.player_id=json_extract(p.value, '$.id')
+               AND c.account_id=h.account_id AND c.state='applied')))) AS direction
     FROM account_match_history h JOIN matches m ON m.id = h.match_id
     WHERE h.game = ? AND m.game = h.game ${personal ? "AND h.account_id = ?" : ""}
       ${affectedMatch ? "AND h.account_id IN (SELECT account_id FROM account_match_history WHERE match_id = ?)" : ""}
