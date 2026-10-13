@@ -6,8 +6,13 @@ import { createApi } from "./server";
 import { chooseLv3Action } from "@tetraboard/four-shogi/lv3";
 import { openingPosition } from "../../../packages/four-shogi/bench/measurement";
 import { Database } from "bun:sqlite";
+import { buildCurriculum } from "./buildCurriculum";
 const [command, ...args] = process.argv.slice(2);
 const directory = resolve(process.env.AI_DATA_DIR ?? ".shogi-ai");
+if (command === "curriculum") {
+  await buildCurriculum(args);
+  process.exit(0);
+}
 if (command === "status") {
   const db = new Database(join(directory, "ai.sqlite"), { readonly: true });
   const row = db.query<{ json: string }, []>("SELECT json FROM meta WHERE key='status'").get();
@@ -22,6 +27,7 @@ if (command === "verify-export") {
 const store = new AiStore(directory);
 if (command === "serve" || command === "train") {
   const options = parseOptions(args);
+  if (options.initialExport) await verifyExport(resolve(options.initialExport));
   const api =
     command === "serve"
       ? Bun.serve({
@@ -86,7 +92,7 @@ if (command === "serve" || command === "train") {
   let games = 0;
   for (const r of store.db
     .query<{ json: string; events: string; result: string | null }, []>(
-      "SELECT json,events,result FROM tasks WHERE result IS NOT NULL ORDER BY id",
+      "SELECT json,events,result FROM tasks WHERE result IS NOT NULL AND json_extract(json,'$.cachedFrom') IS NULL ORDER BY id",
     )
     .iterate()) {
     writer.write(
@@ -161,7 +167,9 @@ if (command === "serve" || command === "train") {
   if (result.diskFreeGiB < 20) process.exit(1);
 } else {
   store.close();
-  throw new Error("Commands: serve, train, status, export, verify-export, benchmark, preflight");
+  throw new Error(
+    "Commands: serve, train, status, export, verify-export, benchmark, preflight, curriculum",
+  );
 }
 async function verifyExport(root: string) {
   const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));

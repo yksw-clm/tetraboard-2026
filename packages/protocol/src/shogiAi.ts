@@ -80,6 +80,18 @@ export const aiStatusSchema = z.strictObject({
     games: count,
     gamesPerHour: z.number().nonnegative(),
     checkpointAt: timestamp.nullable(),
+    training: z
+      .strictObject({
+        method: z.enum(["rank-random", "teacher-preference"]),
+        lessons: count,
+        screenedCandidates: count,
+        guidedCandidates: count,
+        reusedGames: count,
+        earlyOutcomes: count,
+        fullGames: count,
+        importedGames: count.optional(),
+      })
+      .optional(),
     activeGames: z
       .array(z.strictObject({ id: identifier, profileId: aiProfileSchema, ply: count }))
       .max(5),

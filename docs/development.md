@@ -621,6 +621,8 @@ CPUの同意判断は人間／CPUを識別できるルーム側で行い、CPU�
 
 2026-10-12の追加指示に従い、初回は通常シングルスの三人攻撃禁止ON／OFFの自己対局・学習に限定します。Lv3探索は `cpuLv3.ts`、最大5並列のBun実行基盤は `apps/shogi-ai`、Dockerと停止・exportの手順は [ops/shogi-ai](../ops/shogi-ai/README.md) に置きます。管理画面 `/admin/four-shogi-ai` は既存管理者認証を経由してVPSの読取APIへ接続します。現行のサービスのLv1／Lv2は維持し、実対局接続は [全体計画](four-shogi-lv3-plan.md) の後続段階です。
 
+2026-10-13の学習見直しは `curriculum.ts`・`buildCurriculum.ts`・教師/選別workerへ分けます。棋譜の再生と開始系列ごとの集合分離、より深い教師の選好、代理指標と実着手の候補選別を使います。教師案が通過した世代は調整対局を省き、未使用系列の対局検証へ直接進みます。順位確定後の調整打切りは `outcome.ts`、同条件の調整用親の再利用は `AiStore.reuseBaseline` です。検証の最低8系列・95%区間・引分/未完了率・戦術確認を維持します。方式変更は新しい保存先へ検証済みexportを引き継ぎ、元の期限を延長しません。管理画面は教師の局面数と候補数、実終局/脱落/再利用/引継ぎ前を区別します。測定条件とCLIは運用手順を参照します。
+
 ```ts
 import { chooseCpuAction } from "@tetraboard/four-shogi";
 

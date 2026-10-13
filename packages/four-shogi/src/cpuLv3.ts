@@ -32,7 +32,16 @@ export type Lv3Options = {
   rootWidth?: number;
   weights?: EvaluationWeights;
   onProgress?: (result: Lv3Result) => void;
+  onRootCandidates?: (candidates: readonly Lv3RootCandidate[]) => void;
 };
+export type Lv3RootCandidate = {
+  action: FourShogiAction;
+  state: FourShogiState;
+  risk: number;
+  score: number;
+  index: number;
+};
+export { evaluatePosition as evaluateLv3Position } from "./cpuEvaluation";
 export type Lv3Result = {
   action: FourShogiAction | null;
   stats: {
@@ -168,13 +177,7 @@ export function chooseLv3Action(
     }
     return worst;
   }
-  const candidates: {
-    action: FourShogiAction;
-    state: FourShogiState;
-    risk: number;
-    score: number;
-    index: number;
-  }[] = [];
+  const candidates: Lv3RootCandidate[] = [];
   function explore(s: FourShogiState, depth: number, alpha: number, beta: number): Values {
     if (s.status === "finished" || depth === 0) {
       spend();
@@ -236,6 +239,7 @@ export function chooseLv3Action(
     }
     stats.safetyComplete = true;
     candidates.sort((a, b) => b.score - a.score || a.index - b.index);
+    options.onRootCandidates?.(candidates);
     action = candidates[0].action;
     stats.completedDepth = 1;
     publish();

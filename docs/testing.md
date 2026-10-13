@@ -490,4 +490,6 @@ Web・AdminのブラウザテストとWorker E2E、全Playwright設定、専用S
 
 `bun run --cwd apps/worker test test/shogiAiAdmin.test.ts` は既存管理者認証、未認証・権限拒否時のVPS取得禁止、固定originと署名、未設定・応答不正・応答上限・接続障害を検証します。`bun test --preload ./test-support/dom.ts apps/admin/test-dom/shogiAi.test.tsx` は10秒更新、重複取得防止、タブ非表示、遅延応答・権限喪失・古いデータ保持を確認します。新しい自己対局アプリのテストはルートの `bun run check` に含めます。
 
+`bun test apps/shogi-ai/test/curriculum.test.ts` は開始系列と席の集合分離、検証棋譜の除外、教師選好による重み更新、少標本・集合漏れ・別コード/予算の拒否、調整結果の同条件だけの再利用、対応標本の重複拒否、脱落順位の確定と敗者の引分集計、親の重み・世代・元の期限の引継ぎを確認します。管理画面のDOMテストは実終局・脱落結果・再利用の区別も確認します。実際の教師生成・実着手の選別・5並列Docker実行・VPS配置後の読み取りは手動の測定で条件を記録し、CIで長い棋力測定を回しません。
+
 Dockerの5並列起動、期限停止、exportのチェックサムと読込みは [運用手順](../ops/shogi-ai/README.md) の短時間試験で確認します。ConoHa実機24時間の負荷、DNS/TLS、開発Workerとの実通信、Lv2に対する棋力は実配置後の測定対象です。短い手数上限のsmokeを棋力測定として報告しません。

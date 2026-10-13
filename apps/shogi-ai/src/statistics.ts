@@ -7,6 +7,7 @@ export type Sample = {
   draw: boolean;
   unfinished: boolean;
   plies: number;
+  termination?: "finished" | "learner-eliminated" | "limit";
 };
 export function metrics(samples: Sample[]) {
   const n = samples.length,
@@ -38,8 +39,14 @@ export function metrics(samples: Sample[]) {
 /** 同じ開始系列の4席を一つの標本とし、席を独立試行として水増ししません。 */
 export function pairedInterval(candidate: Sample[], parent: Sample[]): [number, number] | null {
   const bySeed = new Map<number, number[]>();
+  const controls = new Map(parent.map((sample) => [`${sample.seed}:${sample.seat}`, sample]));
+  const seen = new Set<string>();
+  if (controls.size !== parent.length) return null;
   for (const sample of candidate) {
-    const match = parent.find((s) => s.seed === sample.seed && s.seat === sample.seat);
+    const key = `${sample.seed}:${sample.seat}`;
+    if (seen.has(key)) return null;
+    seen.add(key);
+    const match = controls.get(key);
     if (!match) return null;
     const values = bySeed.get(sample.seed) ?? [];
     values.push(sample.reward - match.reward);

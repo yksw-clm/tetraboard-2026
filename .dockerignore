@@ -12,4 +12,5 @@
 .shogi-ai
 ops/shogi-ai/exports
 ops/shogi-ai/package
+ops/shogi-ai/.ssh
 *.log

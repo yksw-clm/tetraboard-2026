@@ -20,6 +20,7 @@ export type Task = {
   seat: Side;
   maxPlies: number;
   pool: "tune" | "test";
+  cachedFrom?: string;
 };
 export class AiStore {
   readonly db: Database;
@@ -93,6 +94,39 @@ export class AiStore {
         "INSERT INTO tasks (id,run_id,json,updated_at) VALUES (?,?,?,?) ON CONFLICT DO NOTHING",
       )
       .run(task.id, task.runId, JSON.stringify(task), Date.now());
+  }
+  /** 決定的な調整用対局だけを再利用。独立検証の標本には流用しません。 */
+  reuseBaseline(task: Task): boolean {
+    if (task.pool !== "tune") return false;
+    const previous = this.db
+      .query<{ id: string; json: string; result: string }, []>(
+        "SELECT id,json,result FROM tasks WHERE result IS NOT NULL AND json_extract(json,'$.cachedFrom') IS NULL ORDER BY id",
+      )
+      .all()
+      .find((row) => {
+        const old = JSON.parse(row.json) as Task;
+        return (
+          old.pool === "tune" &&
+          old.profileId === task.profileId &&
+          old.modelId === task.modelId &&
+          old.opponentId === task.opponentId &&
+          old.seed === task.seed &&
+          old.seat === task.seat &&
+          old.maxPlies === task.maxPlies
+        );
+      });
+    if (!previous) return false;
+    this.db
+      .query(
+        "UPDATE tasks SET json=?,status='done',result=?,updated_at=? WHERE id=? AND result IS NULL",
+      )
+      .run(
+        JSON.stringify({ ...task, cachedFrom: previous.id }),
+        previous.result,
+        Date.now(),
+        task.id,
+      );
+    return true;
   }
   task(id: string) {
     const row = this.db

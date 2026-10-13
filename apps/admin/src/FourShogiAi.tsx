@@ -187,9 +187,26 @@ export function FourShogiAi() {
         <>
           <Card className="gap-2 p-5">
             <p className="font-bold">
-              {stages[data.learning.stage]} ・ {data.learning.games}局完了 ・{" "}
-              {data.learning.gamesPerHour.toFixed(1)}局/時
+              {stages[data.learning.stage]} ・ {data.learning.games}
+              {data.learning.training ? "件完了" : "局完了"} ・{" "}
+              {data.learning.gamesPerHour.toFixed(1)}
+              {data.learning.training ? "件/時" : "局/時"}
             </p>
+            {data.learning.training && (
+              <p className="text-sm">
+                {data.learning.training.method === "teacher-preference"
+                  ? "棋譜の教師局面から候補を提案"
+                  : "順位報酬で候補を比較"}
+                ：教師局面 {data.learning.training.lessons}、比較した重み{" "}
+                {data.learning.training.screenedCandidates}、教師からの候補{" "}
+                {data.learning.training.guidedCandidates}
+                <br />
+                引継ぎ前 {data.learning.training.importedGames ?? 0}、今回の実終局{" "}
+                {data.learning.training.fullGames}、調整中の脱落結果{" "}
+                {data.learning.training.earlyOutcomes}、親の結果再利用{" "}
+                {data.learning.training.reusedGames}
+              </p>
+            )}
             <p>
               並列対局：{data.learning.activeGames.length}　試用終了：{date(data.learningEndsAt)}
             </p>

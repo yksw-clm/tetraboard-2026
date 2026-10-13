@@ -61,3 +61,24 @@ test("未測定・二つのルール・更新停止と最後の取得時刻を�
   expect(view.textContent).toContain("最新取得");
   expect(view.textContent).toContain("未保存");
 });
+test("実終局と脱落結果・再利用を区別し、学習候補数を表示します", async () => {
+  const view = render(<FourShogiAi />),
+    data = aiStatusFixture();
+  data.learning.games = 12;
+  data.learning.training = {
+    method: "teacher-preference",
+    lessons: 24,
+    screenedCandidates: 64,
+    guidedCandidates: 2,
+    reusedGames: 8,
+    earlyOutcomes: 5,
+    fullGames: 7,
+  };
+  requests[0].respond(data);
+  await flush();
+  expect(view.textContent).toContain("12件完了");
+  expect(view.textContent).toContain("実終局 7");
+  expect(view.textContent).toContain("脱落結果 5");
+  expect(view.textContent).toContain("再利用 8");
+  expect(view.textContent).toContain("教師からの候補 2");
+});
