@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { gameCatalog, gameIds, type GameId } from "@tetraboard/protocol/games";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
 import {
+  generalLobbyMetadata,
   lobbyCanonical,
   lobbyMetadata,
   publicOrigin,
@@ -85,7 +86,41 @@ export function renderNotFound(template: string): string {
     );
 }
 
+export function renderGeneralLobby(template: string): string {
+  const body = renderToStaticMarkup(
+    <div className="app-theme lobby-background min-h-dvh text-ink">
+      <main className="max-w-[1148px] mx-auto px-5 py-6 flex flex-col gap-5">
+        <h1>総合ロビー</h1>
+        <p>{generalLobbyMetadata.description}</p>
+        <nav aria-label="ゲーム一覧">
+          {gameIds.map((game) => (
+            <p key={game}>
+              <a href={gameCatalog[game].lobbyPath}>{gameCatalog[game].name}</a>
+            </p>
+          ))}
+        </nav>
+        <p role="status" data-startup-status>
+          ロビーを読み込んでいます…
+        </p>
+        <a data-startup-reload href="/">
+          再読み込み
+        </a>
+        <noscript>参加・観戦するにはJavaScriptを有効にしてください。</noscript>
+        <nav aria-label="規約とプライバシー">
+          <a href="/terms">利用規約</a> <a href="/privacy">プライバシーポリシー</a>
+        </nav>
+      </main>
+    </div>,
+  );
+  return template
+    .replace(
+      /<title>.*?<\/title>/,
+      `<title>${escapeHtml(generalLobbyMetadata.title)}</title><meta name="description" content="${escapeHtml(generalLobbyMetadata.description)}" /><meta name="robots" content="${searchIndexable ? "index,follow" : "noindex,follow"}" /><link rel="canonical" href="${publicOrigin}/" />`,
+    )
+    .replace('<div id="root"></div>', `<div id="root" data-public-lobby="all">${body}</div>`);
+}
+
 export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\n` : ""}`;
 export function renderSitemap(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${(searchIndexable ? gameIds : []).map((game) => `<url><loc>${lobbyCanonical(game)}</loc></url>`).join("")}</urlset>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${(searchIndexable ? [`${publicOrigin}/`, ...gameIds.map(lobbyCanonical)] : []).map((url) => `<url><loc>${url}</loc></url>`).join("")}</urlset>\n`;
 }

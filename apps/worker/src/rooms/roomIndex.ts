@@ -76,7 +76,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .run();
 }
 
-function parseRow(row: IndexRow, preview: boolean) {
+export function parseRow(row: IndexRow, preview: boolean) {
   return {
     ...(preview && row.instance_id
       ? {
@@ -133,5 +133,31 @@ export async function listRoomIndex(
   return {
     rooms,
     nextCursor: result.results.length > 20 && last ? `${last.updatedAtMs}:${last.id}` : null,
+  };
+}
+
+export async function listGeneralRooms(db: D1Database, capacity?: string, cursor?: string) {
+  const priority =
+    "CASE WHEN status='waiting' AND open_seats>0 THEN 0 WHEN status='waiting' THEN 1 ELSE 2 END";
+  const [rank, at, id] = cursor?.split(":") ?? [];
+  const values: (string | number)[] = [];
+  if (capacity) values.push(Number(capacity));
+  if (cursor) values.push(Number(rank), Number(rank), Number(at), Number(at), id);
+  const rows = await db
+    .prepare(`SELECT *, ${priority} AS priority FROM room_index
+    WHERE closed=0 AND status IN ('waiting','playing') AND instance_id IS NOT NULL
+    ${capacity ? "AND capacity=?" : ""}
+    ${cursor ? `AND (${priority}>? OR (${priority}=? AND (updated_at_ms<? OR (updated_at_ms=? AND room_id<?))))` : ""}
+    ORDER BY priority,updated_at_ms DESC,room_id DESC LIMIT 21`)
+    .bind(...values)
+    .all<IndexRow & { priority: number }>();
+  const page = rows.results.slice(0, 20);
+  const last = page.at(-1);
+  return {
+    rooms: page.map((row) => ({ ...parseRow(row, false), instanceId: row.instance_id })),
+    nextCursor:
+      rows.results.length > 20 && last
+        ? `${last.priority}:${last.updated_at_ms}:${last.room_id}`
+        : null,
   };
 }

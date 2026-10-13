@@ -206,6 +206,15 @@ export async function processDeletions(env: AuthEnv) {
         env.APP_DB.prepare("DELETE FROM feedback_history WHERE admin_id=?").bind(job.id),
         env.APP_DB.prepare("DELETE FROM session WHERE userId=?").bind(job.id),
         env.APP_DB.prepare("DELETE FROM account WHERE userId=?").bind(job.id),
+        env.APP_DB.prepare("DELETE FROM lobby_chat_messages WHERE account_id=?").bind(job.id),
+        env.APP_DB.prepare("DELETE FROM lobby_chat_requests WHERE account_id=?").bind(job.id),
+        env.APP_DB.prepare(
+          "UPDATE lobby_chat_reports SET sender_name='退会したプレイヤー',sender_account_id=NULL,sender_public_id=NULL WHERE sender_account_id=?",
+        ).bind(job.id),
+        env.APP_DB.prepare(
+          "UPDATE lobby_chat_reports SET reporter_account_id=NULL WHERE reporter_account_id=?",
+        ).bind(job.id),
+        env.APP_DB.prepare("DELETE FROM lobby_chat_senders WHERE account_id=?").bind(job.id),
         env.APP_DB.prepare("DELETE FROM user WHERE id=?").bind(job.id),
       ]);
 

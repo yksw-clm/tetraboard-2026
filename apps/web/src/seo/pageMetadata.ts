@@ -1,9 +1,17 @@
-import { lobbyCanonical, lobbyGameForPath, lobbyMetadata, searchIndexable } from "./lobbyMetadata";
+import {
+  lobbyCanonical,
+  lobbyGameForPath,
+  lobbyMetadata,
+  searchIndexable,
+  generalLobbyMetadata,
+  publicOrigin,
+} from "./lobbyMetadata";
 import { roomShareMetadata, type ShareRoom } from "@tetraboard/protocol/room-sharing";
 
 export function updatePageMetadata(path: string, room?: ShareRoom): void {
   const game = lobbyGameForPath(path);
-  document.title = game ? lobbyMetadata[game].title : "TetraBoard";
+  const metadata = path === "/" ? generalLobbyMetadata : game ? lobbyMetadata[game] : null;
+  document.title = metadata?.title ?? "TetraBoard";
   // 管理対象だけを取り替え、faviconやviewportなどには触れない。
   for (const element of document.head.querySelectorAll(
     'meta[name="description"], meta[name="robots"], link[rel="canonical"], meta[property^="og:"], meta[name^="twitter:"]',
@@ -11,7 +19,7 @@ export function updatePageMetadata(path: string, room?: ShareRoom): void {
     element.remove();
   const robots = document.createElement("meta");
   robots.name = "robots";
-  robots.content = game && searchIndexable ? "index,follow" : "noindex,follow";
+  robots.content = metadata && searchIndexable ? "index,follow" : "noindex,follow";
   document.head.append(robots);
   if (/^\/rooms\/[^/]+\/?$/.test(path)) {
     const currentRoom = room && path.replace(/\/$/, "") === `/rooms/${room.id}` ? room : null;
@@ -25,12 +33,12 @@ export function updatePageMetadata(path: string, room?: ShareRoom): void {
     }
     return;
   }
-  if (!game) return;
+  if (!metadata) return;
   const description = document.createElement("meta");
   description.name = "description";
-  description.content = lobbyMetadata[game].description;
+  description.content = metadata.description;
   const canonical = document.createElement("link");
   canonical.rel = "canonical";
-  canonical.href = lobbyCanonical(game);
+  canonical.href = game ? lobbyCanonical(game) : `${publicOrigin}/`;
   document.head.append(description, canonical);
 }

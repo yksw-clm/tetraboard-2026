@@ -21,6 +21,8 @@ export default defineConfig({
         r2Buckets: ["OBJECT_STORAGE"],
         d1Databases: {
           APP_DB: "app-tests",
+          LOBBY_TEST_DB: "lobby-tests",
+          MATCH_COMPATIBILITY_TEST_DB: "match-compatibility-tests",
           PUBLIC_MATCH_TEST_DB: "public-match-tests",
           BADGE_MIGRATION_TEST_DB: "badge-migration-tests",
           ROOM_INDEX_TEST_DB: "room-index-tests",

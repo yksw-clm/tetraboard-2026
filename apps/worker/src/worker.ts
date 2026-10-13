@@ -1,3 +1,6 @@
+import { generalLobbyRoutes } from "./lobby/routes";
+import { lobbyChatRoutes } from "./lobby/chatRoutes";
+import { cleanupLobbyChat } from "./lobby/chatStore";
 import { deletionRoutes } from "./privacy/deletionRoutes";
 import { migrateOAuthTokens } from "./privacy/tokens";
 import { processDeletions } from "./privacy/deletion";
@@ -38,6 +41,8 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
   return context.json(response);
 });
 
+api.route("/", generalLobbyRoutes);
+api.route("/", lobbyChatRoutes);
 api.route("/", adminRoutes);
 api.route("/", announcementRoutes);
 api.route("/", announcementAdminRoutes);
@@ -120,6 +125,7 @@ const worker = {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     await migrateOAuthTokens(env);
     await processDeletions(env);
+    await cleanupLobbyChat(env.APP_DB);
     await archiveAnalytics(env);
     await cleanupFeedback(env);
     await deleteExpiredReports(env.APP_DB);

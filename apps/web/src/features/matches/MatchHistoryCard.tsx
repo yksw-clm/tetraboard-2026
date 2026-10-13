@@ -114,7 +114,10 @@ export function MatchHistoryCard({
           ))}
         </div>
       )}
-      <div className="mt-auto flex flex-wrap items-center justify-end gap-2">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] text-muted">
+          {match.participants.some((p) => p.kind === "cpu") ? "CPUあり" : "人間同士"}
+        </span>
         <AppButtonLink
           size="compact"
           appearance="secondary"

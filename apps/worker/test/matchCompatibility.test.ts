@@ -1,10 +1,10 @@
-import { runInDurableObject } from "cloudflare:test";
-import { env } from "cloudflare:workers";
-import { afterEach, expect, test } from "vitest";
+import { applyD1Migrations, runInDurableObject } from "cloudflare:test";
+import { env as bindings } from "cloudflare:workers";
+import { afterEach, beforeAll, expect, test } from "vitest";
 import { getMatchContract, listMatchesContract } from "@tetraboard/protocol";
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
-import { accountFixture } from "./accountFixtures";
-import { matchRequest } from "./matchFixtures";
+import { accountFixture, origin } from "./accountFixtures";
+import worker from "../src/worker";
 import {
   advanceShogiMatchSave,
   readShogiMatchRecord,
@@ -12,6 +12,24 @@ import {
   type ShogiSaveProgress,
 } from "../src/rooms/shogiMatchStore";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
+// 不正JSONの保存テストが、別の部屋のAlarmによる退会処理へ干渉しない実D1を使います。
+const env = {
+  ...bindings,
+  APP_DB: (bindings as typeof bindings & { MATCH_COMPATIBILITY_TEST_DB: D1Database })
+    .MATCH_COMPATIBILITY_TEST_DB,
+};
+const matchRequest = (path: string, init?: RequestInit) =>
+  worker.fetch(new Request(`${origin}/api${path}`, init), env, {} as ExecutionContext);
+beforeAll(async () => {
+  await applyD1Migrations(
+    env.APP_DB,
+    (
+      bindings as typeof bindings & {
+        TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
+      }
+    ).TEST_MIGRATIONS,
+  );
+});
 // 旧形式は実DO storageに残る元データを保存処理へ渡します。読取り正規化の結果を再保存しません。
 async function persistedRecord(json: string) {
   readShogiMatchRecord(json);
@@ -45,7 +63,7 @@ afterEach(async () => {
 });
 for (const fixture of [...reversiArchives, ...shogiArchives]) {
   test(`${fixture.name}: 固定保存記録を本人限定で取得する`, async () => {
-    const user = await accountFixture();
+    const user = await accountFixture(true, crypto.randomUUID(), env.APP_DB);
     users.push(user.id);
     const json = fixture.recordJson.replaceAll("fixture-self", user.id);
     const match = fixture.detail;
@@ -168,7 +186,7 @@ const corruptions = [
 for (const corruption of corruptions) {
   test(`${corruption.name}の保存記録は履歴・詳細の取得失敗として扱う`, async () => {
     const fixture = shogiArchives[0];
-    const user = await accountFixture();
+    const user = await accountFixture(true, crypto.randomUUID(), env.APP_DB);
     users.push(user.id);
     const json = corruption.json(fixture.recordJson.replaceAll("fixture-self", user.id));
     const match = fixture.detail;

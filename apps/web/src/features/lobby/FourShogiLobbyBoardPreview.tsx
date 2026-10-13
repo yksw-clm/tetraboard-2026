@@ -10,6 +10,6 @@ const initialBoard = createInitialState({
   },
 }).board;
 
-export function FourShogiLobbyBoardPreview() {
-  return <ShogiBoardPreview board={initialBoard} />;
+export function FourShogiLobbyBoardPreview({ compact = false }: { compact?: boolean }) {
+  return <ShogiBoardPreview board={initialBoard} compact={compact} />;
 }

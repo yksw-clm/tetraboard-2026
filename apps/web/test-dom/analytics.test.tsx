@@ -28,7 +28,7 @@ function router(pathname: string) {
     state.location = { ...state.location, key: crypto.randomUUID(), pathname: path };
     notify?.(state);
   }
-  stops.push(() => navigate("/"));
+  stops.push(() => navigate("/privacy"));
   startWebAnalytics(fake as unknown as Parameters<typeof startWebAnalytics>[0]);
   return { navigate, sameLocation: () => notify?.(state) };
 }
@@ -78,7 +78,7 @@ test("30秒heartbeatと離脱時keepaliveを送り、非表示中の時間を加
     expect(requests).toHaveLength(count);
     visibility("visible");
     clock.advance(2000);
-    r.navigate("/");
+    r.navigate("/privacy");
     expect(JSON.parse(String(requests.at(-1)!.init.body)).days[0].milliseconds).toBe(32000);
     expect(requests.at(-1)!.init.keepalive).toBe(true);
   } finally {
@@ -117,12 +117,12 @@ test("偽のLock主体間で滞在時間を排他し、終了後に次の主体�
     await flush();
     clock.advance(30000);
     expect(requests.filter((r) => r.url.endsWith("dwell"))).toHaveLength(1);
-    first.navigate("/");
+    first.navigate("/privacy");
     await flush();
     clock.advance(1000);
     await flush();
     clock.advance(30000);
-    second.navigate("/");
+    second.navigate("/privacy");
     await flush();
     expect(requests.filter((r) => r.url.endsWith("dwell")).at(-1)!.init.body).toContain("30000");
   } finally {
@@ -138,7 +138,7 @@ test("計測API失敗は例外にせず、view登録前にdwellを送信しな�
   requests[0]!.respond({}, 503);
   await flush();
   expect(requests).toHaveLength(1);
-  r.navigate("/");
+  r.navigate("/privacy");
   await flush();
   expect(requests).toHaveLength(1);
 });
@@ -160,7 +160,16 @@ test("旧選択Cookieが残っていても計測し、規約ページだけで�
   await flush();
   clock.advance(30000);
   expect(JSON.parse(String(requests.at(-1)!.init.body)).days[0].milliseconds).toBe(30000);
-  r.navigate("/");
+  r.navigate("/privacy");
   document.cookie =
     "tetraboard-2026.analytics-choice=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+});
+
+test("総合ロビーはサービス全体の閲覧として計測し、ゲームを指定しない", () => {
+  foreground();
+  router("/");
+  expect(JSON.parse(String(requests[0]!.init.body))).toMatchObject({
+    page: "general-lobby",
+    game: null,
+  });
 });

@@ -70,14 +70,14 @@ export async function readAnalytics(
     const grouped = " GROUP BY period";
     jobs.push({
       sql: `SELECT ${bucket("v.started_at_ms")} AS period,
-      COUNT(DISTINCT v.visitor_id) AS visitors, COUNT(*) AS pageViews
+      COUNT(DISTINCT v.visitor_id) AS visitors, COUNT(*) AS pageViews, SUM(v.page='general-lobby') AS generalLobbyViews
       FROM analytics_pageviews v WHERE v.started_at_ms >= ? AND v.started_at_ms < ?
       AND ${actorFilter("v")} AND ${gameFilter("v")}${grouped}`,
       args: [from, to, ...actorArgs(), ...gameArgs()],
     });
     jobs.push({
       sql: `SELECT ${total ? "'*'" : `substr(d.day, 1, ${query.bucket === "day" ? 10 : 7})`} AS period,
-      SUM(d.milliseconds) AS dwellMs FROM analytics_dwell d JOIN analytics_pageviews v ON v.id = d.view_id
+      SUM(d.milliseconds) AS dwellMs, SUM(CASE WHEN v.page='general-lobby' THEN d.milliseconds ELSE 0 END) AS generalLobbyDwellMs FROM analytics_dwell d JOIN analytics_pageviews v ON v.id = d.view_id
       WHERE d.day >= ? AND d.day <= ? AND ${actorFilter("v")} AND ${gameFilter("v")}${grouped}`,
       args: [query.from, query.to, ...actorArgs(), ...gameArgs()],
     });
@@ -94,7 +94,7 @@ export async function readAnalytics(
       sql: `${cte} SELECT ${bucket("m.started_at_ms")} AS period, COUNT(*) AS started,
       SUM(m.status = 'completed') AS completed, SUM(m.status = 'abandoned') AS abandoned,
       SUM(m.status = 'playing') AS playing, SUM(m.cpu_count > 0) AS cpuMatches,
-      SUM(m.cpu_count = 0) AS humanMatches, SUM(m.mode = 'singles') AS singles, SUM(m.mode = 'doubles') AS doubles,
+      SUM(m.cpu_count = 0) AS humanMatches, SUM(m.cpu_count=0 AND m.status='completed') AS humanCompleted,SUM(m.cpu_count>0 AND m.status='completed') AS cpuCompleted, SUM(m.mode = 'singles') AS singles, SUM(m.mode = 'doubles') AS doubles,
       SUM(CASE WHEN m.status = 'completed' THEN m.ended_at_ms - m.started_at_ms ELSE 0 END) AS completedDurationMs,
       SUM((COALESCE(m.ended_at_ms, ?) - m.started_at_ms) *
         (SELECT COUNT(*) FROM eligible_participants p WHERE p.match_id = m.id)) AS participationMs
@@ -146,7 +146,7 @@ export async function readAnalytics(
   const results = await env.APP_DB.batch<Row>([
     ...jobs.map(({ sql, args }) => env.APP_DB.prepare(sql).bind(...args)),
     env.APP_DB.prepare(
-      `SELECT day, SUM(page_views) AS pageViews,SUM(dwell_ms) AS dwellMs,SUM(started) AS started,SUM(completed) AS completed,SUM(abandoned) AS abandoned,SUM(cpu_matches) AS cpuMatches,SUM(human_matches) AS humanMatches,SUM(duration_ms) AS completedDurationMs,SUM(participation_ms) AS participationMs,SUM(singles) AS singles,SUM(doubles) AS doubles,SUM(incomplete) AS incomplete FROM analytics_daily WHERE day>=? AND day<=? AND internal=? ${game === "all" ? "" : "AND game=?"} GROUP BY day`,
+      `SELECT day, SUM(general_lobby_views) AS generalLobbyViews,SUM(general_lobby_dwell_ms) AS generalLobbyDwellMs,SUM(human_completed) AS humanCompleted,SUM(cpu_completed) AS cpuCompleted,SUM(started>0 AND human_completed IS NULL) AS missingCompletionBreakdown, SUM(page_views) AS pageViews,SUM(dwell_ms) AS dwellMs,SUM(started) AS started,SUM(completed) AS completed,SUM(abandoned) AS abandoned,SUM(cpu_matches) AS cpuMatches,SUM(human_matches) AS humanMatches,SUM(duration_ms) AS completedDurationMs,SUM(participation_ms) AS participationMs,SUM(singles) AS singles,SUM(doubles) AS doubles,SUM(incomplete) AS incomplete FROM analytics_daily WHERE day>=? AND day<=? AND internal=? ${game === "all" ? "" : "AND game=?"} GROUP BY day`,
     ).bind(query.from, query.to, Number(include), ...gameArgs()),
   ]);
   // 保存期間の集約が同時に走っても、生データと集約済みデータを同一スナップショットで読む。
@@ -168,6 +168,17 @@ export async function readAnalytics(
   }
   rates(summary);
   for (const values of periods.values()) rates(values);
+  for (const row of archived.results)
+    if (Number(row.missingCompletionBreakdown) > 0) {
+      for (const target of [
+        summary,
+        periods.get(String(row.day).slice(0, query.bucket === "day" ? 10 : 7)),
+      ])
+        if (target) {
+          target.humanCompleted = null;
+          target.cpuCompleted = null;
+        }
+    }
   for (const row of archived.results)
     if (Number(row.incomplete) > 0) {
       for (const target of [

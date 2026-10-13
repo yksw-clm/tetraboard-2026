@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const analyticsGameSchema = gameIdSchema;
 export const analyticsPageSchema = z.enum([
+  "general-lobby",
   "lobby",
   "room",
   "replay",
@@ -25,7 +26,8 @@ export const pageViewInputSchema = z
     game: analyticsGameSchema.nullable(),
   })
   .strict()
-  .refine((value) => !["lobby", "room", "replay"].includes(value.page) || value.game !== null);
+  .refine((value) => !["lobby", "room", "replay"].includes(value.page) || value.game !== null)
+  .refine((value) => value.page !== "general-lobby" || value.game === null);
 export const dwellInputSchema = z
   .object({
     id: z.uuid(),
@@ -58,6 +60,10 @@ export const analyticsMetricsSchema = z.object({
   visitors: count.nullable(),
   pageViews: count,
   dwellMs: count,
+  generalLobbyViews: count.default(0),
+  generalLobbyDwellMs: count.default(0),
+  humanCompleted: count.nullable().default(null),
+  cpuCompleted: count.nullable().default(null),
   newUsers: count,
   started: count,
   completed: count,

@@ -7,6 +7,7 @@ import { Button, Card } from "@heroui/react";
 import { adminSessionSchema } from "@tetraboard/protocol";
 import { useAdminData } from "./useAdminData";
 import { Dashboard } from "./Dashboard";
+import { LobbyChat } from "./LobbyChat";
 import { Users } from "./Users";
 import { Announcements, AnnouncementCreatePage, AnnouncementEditPage } from "./Announcements";
 import { Feedback, FeedbackDetailPage } from "./Feedback";
@@ -46,6 +47,7 @@ function App() {
             ["/", "全体概要"],
             ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
             ["/users", "登録ユーザー"],
+            ["/lobby-chat", "公開チャット"],
             ["/feedback", "フィードバック"],
             ["/announcements", "お知らせ"],
           ].map(([to, label]) => (
@@ -78,6 +80,7 @@ function App() {
               element={<Dashboard key={id} game={id} />}
             />
           ))}
+          <Route path="/lobby-chat" element={<LobbyChat />} />
           <Route path="/users" element={<Users />} />
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/announcements/new" element={<AnnouncementCreatePage />} />

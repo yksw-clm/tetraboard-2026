@@ -86,3 +86,9 @@ export function lobbyGameForPath(path: string): GameId | undefined {
 export function lobbyCanonical(game: GameId): string {
   return `${publicOrigin}${gameCatalog[game].lobbyPath}`;
 }
+
+export const generalLobbyMetadata = {
+  title: "TetraBoard | 総合ロビー・オンライン対戦相手を探す",
+  description:
+    "四人リバーシ・四人将棋など6つのボードゲームの公開ルームを探して参加・観戦。公開チャットで次の対局を話し、最近の棋譜を振り返れます。",
+};

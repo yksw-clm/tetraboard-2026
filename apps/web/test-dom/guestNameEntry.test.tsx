@@ -1,3 +1,4 @@
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { expect, test } from "bun:test";
 import { useLocation } from "react-router";
 import { type GameId, type Room } from "@tetraboard/protocol";
@@ -186,7 +187,7 @@ test("招待・ルーム内参加の成功後も正規化したゲスト名を�
       await flush();
       requests[1]!.respond(snapshot(room));
       await flush();
-      expect(new Headers(requests[2]!.init.headers).get("X-Legal-Consent")).toBe("2026-10-12");
+      expect(new Headers(requests[2]!.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
       expect(JSON.parse(String(requests[2]!.init.body))).toEqual({
         name: "招待の名前",
         instanceId: room.instanceId,
@@ -410,7 +411,7 @@ test("名前の保存領域が読取り／書込み不能でもゲストの作�
       });
       requests[0]!.respond({ user: null });
       await flush();
-      expect(new Headers(requests[1]!.init.headers).get("X-Legal-Consent")).toBe("2026-10-12");
+      expect(new Headers(requests[1]!.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
       requests[1]!.respond(
         {
           room: waitingRoom(),
