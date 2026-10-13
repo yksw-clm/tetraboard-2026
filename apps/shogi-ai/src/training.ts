@@ -273,7 +273,7 @@ export class Trainer {
       );
       const timeout = setTimeout(
         () => this.gate?.kill("SIGKILL"),
-        Math.min(180000, Math.max(1, this.endsAt - Date.now())),
+        Math.min(600000, Math.max(1, this.endsAt - Date.now())),
       );
       const code = await this.gate.exited;
       clearTimeout(timeout);
