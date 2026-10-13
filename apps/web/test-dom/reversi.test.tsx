@@ -63,7 +63,6 @@ test("通常リバーシの作成・遊び方はCPU1人、モード選択なし"
   const props = {
     game: "reversi" as const,
     intent: "quick" as const,
-    registrationPath: "/games/reversi",
     name: "ゲスト",
     roomCode: "",
     mode: "singles" as const,

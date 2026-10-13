@@ -61,7 +61,6 @@ test("両ゲームの作成・すぐ遊ぶ・番号／公開一覧のダイア�
             onCpuLevelChange={h.setCpuLevel}
             onSubmit={() => {}}
             onClose={() => {}}
-            registrationPath={`/games/${game}`}
           />
         );
       }
@@ -90,14 +89,7 @@ test("両ゲームの招待・ルーム内参加に保存名を表示し、編�
       );
       if (!invited) act(() => h.current.openJoin());
       const view = render(
-        wrap()(
-          <RoomInvitationDialogs
-            invitation={h.current}
-            roomId={room.id}
-            registrationPath={`/rooms/${room.id}?invite=${room.instanceId}`}
-            humanOnly
-          />,
-        ),
+        wrap()(<RoomInvitationDialogs invitation={h.current} roomId={room.id} />),
       );
       await flush();
       expect(document.querySelector<HTMLInputElement>("input:not([type=checkbox])")!.value).toBe(

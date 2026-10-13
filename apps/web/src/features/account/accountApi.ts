@@ -1,5 +1,6 @@
 import { checkAccountPrivacy } from "./accountPrivacy";
 import { accountProfileSchema, accountSessionSchema } from "@tetraboard/protocol";
+import { readGuestRegistration } from "./guestRegistration";
 export async function accountRequest(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(path, { ...init, credentials: "same-origin", cache: "no-store" });
   const body = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -12,9 +13,18 @@ export async function readAccount(signal?: AbortSignal) {
   return accountSessionSchema.parse(await accountRequest("/api/account/session", { signal })).user;
 }
 export async function saveProfile(setup: boolean, data: FormData) {
+  const registration = setup ? readGuestRegistration() : null;
   return accountProfileSchema.parse(
     await accountRequest(setup ? "/api/account/setup" : "/api/account/profile", {
       method: setup ? "POST" : "PATCH",
+      ...(registration
+        ? {
+            headers: {
+              "X-Registration-Id": registration.registrationId,
+              "X-Registration-Secret": registration.secret,
+            },
+          }
+        : {}),
       body: data,
     }),
   );

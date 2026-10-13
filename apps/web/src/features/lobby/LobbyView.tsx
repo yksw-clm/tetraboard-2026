@@ -304,8 +304,6 @@ export function LobbyView(props: Props) {
           onThreePlayerAttackChange={props.onThreePlayerAttackChange}
           onSubmit={() => props.onSubmitRoom?.(dialog.intent, dialog.roomId)}
           onClose={closeDialog}
-          registrationPath={game.homeTo}
-          humanOnly={dialog.humanOnly}
         />
       )}
       {dialog?.type === "rules" && <HowToPlayDialog game={props.game} onClose={closeDialog} />}

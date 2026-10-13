@@ -74,12 +74,13 @@ test("全6ゲーム・ゲストと登録者の参加ダイアログで公開説�
               onTimeControlChange={() => {}}
               onSubmit={() => submitted++}
               onClose={() => {}}
-              registrationPath={`/games/${game}`}
             />,
           ),
         );
         await flush();
         expect(document.body.textContent).toContain(publicRecordNotice);
+        expect(document.body.textContent).not.toContain("ユーザー登録のご案内");
+        expect(document.body.textContent).not.toContain("Googleで続ける");
         expect(document.querySelector('a[href="/privacy"]')).not.toBeNull();
         expect(document.querySelector('a[href="/terms"]')).not.toBeNull();
         expect(document.querySelector('input[type="checkbox"]')).toBeNull();
@@ -191,7 +192,6 @@ test("全6ゲームの結果登録案内も同じ同意文言・ボタン・リ�
       wrap()(
         <RegistrationPrompt
           game={game}
-          result
           humanOnly={false}
           busy={false}
           onRegister={(p) => (provider = p)}
@@ -244,16 +244,7 @@ test("招待・観戦からのゲスト参加も説明を示し、同意チェ�
       submitted++;
     },
   } as unknown as ReturnType<typeof useRoomInvitation>;
-  const view = render(
-    wrap()(
-      <RoomInvitationDialogs
-        invitation={invitation}
-        roomId="12345"
-        registrationPath="/rooms/12345"
-        humanOnly
-      />,
-    ),
-  );
+  const view = render(wrap()(<RoomInvitationDialogs invitation={invitation} roomId="12345" />));
   await flush();
   expect(document.body.textContent).toContain(publicRecordNotice);
   const form = document.querySelector("form")!;
