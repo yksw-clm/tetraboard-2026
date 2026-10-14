@@ -71,8 +71,9 @@ const worker = {
   async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (
-      url.hostname === "tetraboard-2026.chaossi-lab.workers.dev" &&
-      env.APP_ORIGIN === "https://tetraboard.net"
+      env.APP_ORIGIN === "https://tetraboard.net" &&
+      (url.hostname === "tetraboard-2026.chaossi-lab.workers.dev" ||
+        (url.hostname === "tetraboard.net" && url.protocol === "http:"))
     )
       return Response.redirect(`${env.APP_ORIGIN}${url.pathname}${url.search}`, 308);
     // 画面・画像はアセットへ渡し、APIだけをHonoで処理します。

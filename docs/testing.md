@@ -2,6 +2,8 @@
 
 開発環境のSEOは `apps/web/test/developmentSeo.test.ts` で、開発設定を渡した別プロセスの初期HTML・サイトマップ・robots.txt・happy-dom上の画面内遷移を確認します。Workerの `apiRouting.test.ts` では開発用HTTP応答のnoindexと本番への誤転送がないことを検証します。本番SEOとWebSocket・認証Cookieの回帰は既存テストで維持します。公開後の確認は `scripts/checkDeployment.ts <URL> development` または `production` を指定します。dry-run成功だけでは実DB・R2・Secrets・OAuth設定の準備完了を意味しません。
 
+本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
+
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
 ## 終局後の登録引き継ぎ
