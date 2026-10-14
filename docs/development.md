@@ -12,6 +12,7 @@
 | この開発文書 | 実装の入口、変更手順、構造と互換性などの注意点 |
 | [テスト方針](testing.md) | 実行方法、検証範囲、対象別のテストと移管根拠 |
 | [四人将棋AIの測定・採用記録](four-shogi-ai.md) | 比較条件、対象コミット、結果、採用判断と限界 |
+| [四人将棋シングルスAIの契約](four-shogi-ai-engine.md) | 新AIの承認済み目標・D01〜D05の設計契約、判断IDと未決事項。実装前の計画と現行CPUの採用仕様を分ける |
 | [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録 |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
@@ -731,6 +732,14 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 ルーム連携の変更では [時計計算と期限選択](#workerの時計計算と期限選択) と [ゲーム進行と共有ライフサイクル](#workerのゲーム進行と共有ライフサイクル) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 
 関連確認は [CPU探索](../packages/four-shogi/test/cpuSearch.test.ts)、[評価](../packages/four-shogi/test/cpuEvaluation.test.ts)、[手筋](../packages/four-shogi/test/cpuTactics.test.ts)、[序盤候補](../packages/four-shogi/test/cpuOpenings.test.ts)、[オンラインルーム](../apps/worker/test/fourShogiRoom.test.ts) のテストを使います。パッケージ全体は `bun run --cwd packages/four-shogi check`、ルーム側は `bun run --cwd apps/worker test test/fourShogiRoom.test.ts` で部分確認します。比較条件・測定対象コミット・結果と限界、再測定手順は [四人将棋AIの測定・採用記録](four-shogi-ai.md) を参照します。
+
+### 四人将棋シングルスAIの実装前整理
+
+[Issue #184](https://github.com/yksw-clm/tetraboard-2026/issues/184)で、[READMEの開発目標](../README.md#四人将棋シングルスaiの開発計画)を起点に、[契約と判断一覧](four-shogi-ai-engine.md)を整理しました。VPSで推論しMac等で学習する前提は開発者の指示済みです。初期の規則、探索の副目的・引分同意、構成、試用範囲、障害時の動作は2026-10-14にD01〜D05の推奨案で承認済みです。具体的なAPI型や推論形式などの未決事項は担当Issueで検証します。
+
+現在の入口は `packages/four-shogi/src/cpu.ts`・`cpuSearch.ts`・`cpuEvaluation.ts`、`apps/worker/src/rooms/fourShogiProgress.ts`・`shogiStore.ts`、Webの `fourShogiReplayV1.ts`・`fourShogiMatchReplay.ts` です。表示frameから千日手履歴が除かれること、Workerの `cpuDraw` が着手探索と別に同意を決めることを確認します。既存benchは強化前の旧Lv2比較なので、#185で開始時の現行Lv2を固定し直します。
+
+後続のエージェントは親Issueの依存と契約案の判断IDを確認し、影響する判断だけを開始条件にします。承認済みの目標・既存ルール・現行基準の調査を全項目の決定待ちにせず、変更は最新developから専用ブランチにまとめます。新パッケージやモデル形式は提案段階で、空の実装・主要依存を先に追加しません。確認分担は[契約確認](testing.md#四人将棋シングルスaiの契約確認)を参照します。
 
 ## 軽量テスト
 
