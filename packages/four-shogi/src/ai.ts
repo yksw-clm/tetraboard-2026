@@ -1,15 +1,15 @@
 import { createAnalysisCacheKey, type AnalysisPosition } from "./analysis";
 import { readReplayEvent } from "./analysisInput";
-import { evaluateAiPosition } from "./aiEvaluation";
 import { checkedSides, createAiSearch } from "./aiSearch";
+import { createAiMcts } from "./aiMcts";
+import { createAiClock, runAiSession } from "./aiBudget";
+import { defaultEvaluationWeights } from "./cpuEvaluation";
 import {
   aiVersions,
   type AiOptions,
   type AiSearchSettings,
   type AiControl,
-  type AiProgress,
   type AiResult,
-  type AiStopReason,
 } from "./aiTypes";
 
 export { aiVersions } from "./aiTypes";
@@ -37,7 +37,10 @@ function snapshot<T>(value: T): T {
   freeze(copy);
   return copy;
 }
-function resolveOptions(options: AiOptions): { codeVersion: string; settings: AiSearchSettings } {
+export function resolveAiOptions(options: AiOptions): {
+  codeVersion: string;
+  settings: AiSearchSettings;
+} {
   const allowed = new Set([
     "codeVersion",
     "modelId",
@@ -49,6 +52,16 @@ function resolveOptions(options: AiOptions): { codeVersion: string; settings: Ai
     "extensions",
     "candidateCount",
     "includeAction",
+    "algorithm",
+    "cacheSize",
+    "moveOrdering",
+    "evaluationWeights",
+    "exploration",
+    "rolloutPlies",
+    "maxSimulations",
+    "seed",
+    "dangerWork",
+    "dangerPlies",
   ]);
   if (
     !options ||
@@ -61,14 +74,34 @@ function resolveOptions(options: AiOptions): { codeVersion: string; settings: Ai
     throw new TypeError("コード版と既知の探索条件が必要です");
   if (options.modelId !== undefined && options.modelId !== null)
     throw new TypeError("この版は静的評価のみで、モデルIDを使用できません");
+  if (
+    options.evaluationWeights !== undefined &&
+    (!options.evaluationWeights ||
+      typeof options.evaluationWeights !== "object" ||
+      Array.isArray(options.evaluationWeights) ||
+      Object.keys(options.evaluationWeights).some(
+        (key) => !Object.hasOwn(defaultEvaluationWeights, key),
+      ))
+  )
+    throw new TypeError("評価係数は既知の非負の有限数で指定してください");
   const settings: AiSearchSettings = {
     timeBudgetMs: options.timeBudgetMs ?? null,
     maxWork: options.maxWork ?? 2048,
     maxDepth: options.maxDepth ?? 64,
     width: options.width ?? 6,
     rootWidth: options.rootWidth ?? 24,
-    extensions: options.extensions ?? 2,
+    extensions: options.extensions ?? 1,
     candidateCount: options.candidateCount ?? 3,
+    algorithm: options.algorithm ?? "maxn",
+    cacheSize: options.cacheSize ?? 256,
+    moveOrdering: options.moveOrdering ?? "tactical",
+    evaluationWeights: { ...defaultEvaluationWeights, survival: 0, ...options.evaluationWeights },
+    exploration: options.exploration ?? 1.4,
+    rolloutPlies: options.rolloutPlies ?? 2,
+    maxSimulations: options.maxSimulations ?? 10000,
+    seed: options.seed ?? 0,
+    dangerWork: options.dangerWork ?? 0,
+    dangerPlies: options.dangerPlies ?? 8,
     includeAction:
       options.includeAction == null
         ? null
@@ -104,6 +137,30 @@ function resolveOptions(options: AiOptions): { codeVersion: string; settings: Ai
     (!Number.isFinite(settings.timeBudgetMs) || settings.timeBudgetMs < 0)
   )
     throw new TypeError("時間予算は非負の有限ミリ秒です");
+  if (
+    !["maxn", "mcts"].includes(settings.algorithm) ||
+    !["tactical", "previous"].includes(settings.moveOrdering)
+  )
+    throw new TypeError("未知の探索方式・手順序です");
+  if (
+    Object.values(settings.evaluationWeights).some(
+      (value) => !Number.isFinite(value) || value < 0,
+    ) ||
+    settings.evaluationWeights.survival !== 0
+  )
+    throw new TypeError("評価係数は非負の有限数で、生存人数の加点は0にしてください");
+  for (const [value, minimum, maximum] of [
+    [settings.cacheSize, 0, 2048],
+    [settings.rolloutPlies, 0, 32],
+    [settings.maxSimulations, 1, 1000000],
+    [settings.seed, 0, 0xffffffff],
+    [settings.dangerWork, 0, settings.maxWork],
+    [settings.dangerPlies, 1, 16],
+  ])
+    if (!Number.isSafeInteger(value) || value < minimum || value > maximum)
+      throw new TypeError("実験の探索条件が範囲外です");
+  if (!Number.isFinite(settings.exploration) || settings.exploration < 0)
+    throw new TypeError("探索係数は非負の有限数です");
   return { codeVersion: options.codeVersion, settings: snapshot(settings) };
 }
 
@@ -113,78 +170,39 @@ export async function analyzePosition(
   options: AiOptions,
   control: AiControl = {},
 ): Promise<AiResult> {
-  const { codeVersion, settings } = resolveOptions(options);
-  const readTime = control.now ?? (() => performance.now());
-  let lastTime = -Infinity;
-  function now() {
-    const value = readTime();
-    if (!Number.isFinite(value) || value < lastTime)
-      throw new TypeError("時計は単調な有限ミリ秒を返してください");
-    lastTime = value;
-    return value;
-  }
+  const { codeVersion, settings } = resolveAiOptions(options);
+  const versions = {
+    ...aiVersions,
+    codeVersion,
+    searchVersion:
+      settings.algorithm === "maxn" ? aiVersions.searchVersion : "vector-uct-experiment-v1",
+    opponentModelId: settings.algorithm === "maxn" ? aiVersions.opponentModelId : "selfish-uct-v1",
+    seed: settings.algorithm === "mcts" ? settings.seed : null,
+  };
+  const now = createAiClock(control.now);
   const started = now();
   // hash計算・合法手の確保も同じ時間予算に含め、解決済み設定を識別します。
   const cacheKey = await createAnalysisCacheKey(position, {
     codeVersion,
     analysisVersion: aiVersions.analysisVersion,
     modelId: null,
-    parameters: { ...aiVersions, ...settings },
+    parameters: { ...versions, ...settings },
   });
   const preparationStarted = now();
-  const session = createAiSearch(position.state, settings);
+  const session =
+    settings.algorithm === "maxn"
+      ? createAiSearch(position.state, settings)
+      : createAiMcts(position.state, settings);
   const preparationMs = now() - preparationStarted;
-  const staticEvaluation = evaluateAiPosition(position.state);
-  session.stats.evaluations++;
-  const yieldToHost =
-    control.yieldToHost ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-  let yields = 0;
-  let lastYieldWork = 0;
-  let lastYieldTime = lastTime;
-  let notifiedDepth = -1;
-  let reason: AiStopReason | null = null;
-  function progress(): AiProgress {
-    return snapshot({
-      ...session.stats,
-      elapsedMs: now() - started,
-      candidates: session.results().candidates,
-    });
-  }
-  function interrupted(): AiStopReason | null {
-    const elapsed = now() - started;
-    if (control.signal?.aborted || control.isCancelled?.()) return "cancelled";
-    if (settings.timeBudgetMs !== null && elapsed >= settings.timeBudgetMs) return "deadline";
-    return null;
-  }
-  if (position.state.status === "playing" && session.stats.generatedMoves > 0) {
-    for (let step = session.steps.next(); !step.done; step = session.steps.next()) {
-      reason = interrupted();
-      if (reason !== null) break;
-      if (session.stats.work + step.value > settings.maxWork) {
-        reason = "work_limit";
-        break;
-      }
-      if (session.stats.completedDepth !== notifiedDepth) {
-        notifiedDepth = session.stats.completedDepth;
-        control.onProgress?.(progress());
-        reason = interrupted();
-        if (reason !== null) break;
-      }
-      if (session.stats.work - lastYieldWork >= 128 || lastTime - lastYieldTime >= 8) {
-        control.onProgress?.(progress());
-        await yieldToHost();
-        yields++;
-        lastYieldWork = session.stats.work;
-        lastYieldTime = now();
-        reason = interrupted();
-        if (reason !== null) break;
-      }
-    }
-  }
-  session.steps.return();
-  reason ??= session.doneReason;
-  const cutoff = reason === "work_limit" || reason === "deadline" || reason === "cancelled";
-  const { candidates, comparedAction } = session.results(cutoff);
+  const staticEvaluation = session.staticEvaluation;
+  const { reason, cutoff, yields, candidates, comparedAction } = await runAiSession(
+    session,
+    settings,
+    control,
+    started,
+    now,
+    control.onProgress ? (progress) => control.onProgress!(snapshot(progress)) : undefined,
+  );
   const currentDanger = {
     checkedSides: checkedSides(position.state),
     eliminations: position.state.eliminations,
@@ -210,7 +228,7 @@ export async function analyzePosition(
       rootSide: position.state.turn,
     },
     cacheKey,
-    versions: { ...aiVersions, codeVersion },
+    versions,
     settings,
     model: { requestedModelId: null, loadedModelId: null, usedModelId: null, inferenceCount: 0 },
     recommendedAction: candidates[0]?.action ?? null,
@@ -231,7 +249,7 @@ export async function analyzePosition(
       deadlineOverrunMs:
         settings.timeBudgetMs === null ? 0 : Math.max(0, elapsedMs - settings.timeBudgetMs),
       yields,
-      algorithm: "maxn",
+      algorithm: settings.algorithm,
     },
   };
   return snapshot(result);

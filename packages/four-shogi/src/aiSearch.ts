@@ -1,124 +1,44 @@
 import { getCheckState } from "./board";
-import { priority } from "./cpuSearch";
-import { compareAiValue, evaluateAiPosition } from "./aiEvaluation";
-import { applyLegalMove, getLegalMoves } from "./transition";
-import { getActiveSides, type FourShogiState, type Side } from "./types";
+import { compareAiValue } from "./aiEvaluation";
+import { createAiContext, makeAiCandidate, type AiBranch, type AiContext } from "./aiSearchContext";
+import { probeAiReplies } from "./aiTactics";
 import type { OrdinaryMove } from "./moves";
-import type {
-  AiCandidate,
-  AiEvaluation,
-  AiLineStep,
-  AiSearchSettings,
-  AiStopReason,
-} from "./aiTypes";
+import { getActiveSides, type FourShogiState } from "./types";
+import type { AiCandidate, AiSearchSettings, AiStopReason } from "./aiTypes";
+export { checkedSides } from "./aiSearchContext";
 
-type Branch = { evaluation: AiEvaluation; line: AiLineStep[]; selective: boolean };
 type RootCandidate = {
   move: OrdinaryMove;
   state: FourShogiState;
-  branch: Branch;
+  branch: AiBranch;
   index: number;
   nodes: number;
   work: number;
 };
-export function checkedSides(state: FourShogiState): Side[] {
-  const checks = getCheckState(state);
-  return getActiveSides(state).filter((side) => checks[side]);
-}
-function danger(line: readonly AiLineStep[], root: Side): AiCandidate["danger"] {
-  let boundary: AiCandidate["danger"]["untilNextOwnTurn"] = "horizon";
-  let end = line.length;
-  for (const [index, step] of line.entries()) {
-    if (step.eliminations.some((entry) => entry.side === root)) boundary = "eliminated";
-    else if (step.result) boundary = "terminal";
-    else if (step.nextTurn === root) boundary = "returned";
-    if (boundary !== "horizon") {
-      end = index + 1;
-      break;
-    }
-  }
-  return {
-    kind: "pv_example",
-    forced: false,
-    untilNextOwnTurn: boundary,
-    evidence: line.slice(0, end),
-  };
-}
-
-/** 数える操作の直前にyieldし、運転側が期限・取消・処理量を検査します。 */
-export function createAiSearch(input: FourShogiState, settings: AiSearchSettings) {
-  if (input.mode !== "singles") throw new TypeError("新AIはシングルス専用です");
-  const stats = {
-    work: 0,
-    nodes: 0,
-    generatedMoves: 0,
-    evaluations: 0,
-    completedDepth: 0,
-    extendedNodes: 0,
-  };
-  const root = input.turn;
-  const start: FourShogiState = { ...input, repetitions: {} };
-  const lookup = (key: string) => input.repetitions[key] ?? 0;
-  // 取消済みでも合法な予備着手を確保します。このルール呼出し自体は分割しません。
-  const legal = getLegalMoves(start);
-  stats.generatedMoves = legal.length;
-  const includeIndex =
-    settings.includeAction === null
-      ? -1
-      : legal.findIndex(
-          (move) => JSON.stringify(move.action) === JSON.stringify(settings.includeAction),
-        );
-  if (settings.includeAction !== null && includeIndex < 0)
-    throw new TypeError("比較指定手は元局面の合法手である必要があります");
+export function createAiSearch(
+  input: FourShogiState,
+  settings: AiSearchSettings,
+  context?: AiContext,
+) {
+  const ctx = context ?? createAiContext(input, settings);
+  const { stats, root, start, legal, spend, evaluate, advance } = ctx;
   let published: AiCandidate[] = [];
   let comparedAction: AiCandidate | null = null;
+  const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
   let doneReason: AiStopReason =
     input.status === "finished"
       ? "terminal"
       : legal.length === 0
         ? "no_legal_actions"
         : "max_depth";
-
-  function* spend(cost = 1): Generator<number, void> {
-    yield cost;
-    stats.work += cost;
-  }
-  function* evaluate(state: FourShogiState): Generator<number, AiEvaluation> {
-    yield* spend();
-    stats.evaluations++;
-    return evaluateAiPosition(state);
-  }
-  function* advance(
-    state: FourShogiState,
-    move: OrdinaryMove,
-    ply: number,
-  ): Generator<number, { state: FourShogiState; step: AiLineStep }> {
-    yield* spend();
-    stats.nodes++;
-    const transition = applyLegalMove(state, state.turn!, move, lookup);
-    const next = transition.state;
-    return {
-      state: next,
-      step: {
-        side: state.turn!,
-        action: move.action,
-        afterPly: ply + 1,
-        nextTurn: next.turn,
-        checkedSides: checkedSides(next),
-        captured: transition.captured,
-        eliminations: transition.eliminations,
-        result: next.result,
-      },
-    };
-  }
   function* explore(
     state: FourShogiState,
     depth: number,
     extra: number,
     ply: number,
-  ): Generator<number, Branch> {
+  ): Generator<number, AiBranch> {
     yield* spend(0);
-    if (state.status === "finished")
+    if (state.status === "finished" || !getActiveSides(state).includes(root!))
       return { evaluation: yield* evaluate(state), line: [], selective: false };
     const checked = getCheckState(state)[state.turn];
     if (depth <= 0 && extra > 0 && (checked || state.lastMove?.captured || state.turn === root)) {
@@ -127,24 +47,12 @@ export function createAiSearch(input: FourShogiState, settings: AiSearchSettings
       stats.extendedNodes++;
     }
     if (depth <= 0) return { evaluation: yield* evaluate(state), line: [], selective: false };
-    yield* spend();
-    const legalMoves = getLegalMoves(state);
-    stats.generatedMoves += legalMoves.length;
-    yield* spend(Math.ceil(legalMoves.length / 16));
-    const ordered = legalMoves
-      .map((move, index) => ({ move, index, score: priority(move, state.turn) }))
-      .sort((a, b) => b.score - a.score || a.index - b.index)
-      .filter(
-        (entry, index) =>
-          index < settings.width ||
-          checked ||
-          entry.score >= 10_000 ||
-          entry.move.captured !== null,
-      );
-    let best: Branch | null = null;
+    const moves = yield* ctx.moves(state);
+    const ordered = ctx.ordered(state, moves);
+    let best: AiBranch | null = null;
     let bestIndex = Infinity;
-    let selective = ordered.length < legalMoves.length;
-    // 二人生存も実手番者の値で選び、相手の値を根の負値へ読み替えません。
+    let bestMove: OrdinaryMove | null = null;
+    let selective = ordered.length < moves.length;
     for (const { move, index } of ordered) {
       const next = yield* advance(state, move, ply);
       const child = yield* explore(next.state, depth - 1, extra, ply + 1);
@@ -152,7 +60,7 @@ export function createAiSearch(input: FourShogiState, settings: AiSearchSettings
       const branch = {
         evaluation: child.evaluation,
         line: [next.step, ...child.line],
-        selective: child.selective || ordered.length < legalMoves.length,
+        selective: child.selective,
       };
       const comparison =
         best === null
@@ -164,8 +72,10 @@ export function createAiSearch(input: FourShogiState, settings: AiSearchSettings
       if (comparison > 0 || (comparison === 0 && index < bestIndex)) {
         best = branch;
         bestIndex = index;
+        bestMove = move;
       }
     }
+    if (bestMove) ctx.remember(state, bestMove.action);
     return best === null
       ? { evaluation: yield* evaluate(state), line: [], selective }
       : { ...best, selective };
@@ -174,20 +84,23 @@ export function createAiSearch(input: FourShogiState, settings: AiSearchSettings
     compareAiValue(b.branch.evaluation.values[root!], a.branch.evaluation.values[root!]) ||
     a.index - b.index;
   function publish(candidates: RootCandidate[], depth: number, rootPruned: boolean) {
-    const result = candidates.sort(compareRoot).map((candidate): AiCandidate => ({
-      action: candidate.move.action,
-      evaluation: candidate.branch.evaluation,
-      completedDepth: depth,
-      iterationNodes: candidate.nodes,
-      iterationWork: candidate.work,
-      selective: rootPruned || candidate.branch.selective,
-      cutoff: false,
-      line: candidate.branch.line,
-      danger: danger(candidate.branch.line, root!),
-    }));
+    const result = candidates.sort(compareRoot).map((candidate) => {
+      const value = makeAiCandidate(
+        candidate.move.action,
+        { ...candidate.branch, selective: rootPruned || candidate.branch.selective },
+        root!,
+        depth,
+        candidate.nodes,
+        candidate.work,
+      );
+      return {
+        ...value,
+        danger: { ...value.danger, alternatives: risks.get(candidate.index) ?? null },
+      };
+    });
     published = result.slice(0, settings.candidateCount);
     comparedAction =
-      includeIndex < 0
+      ctx.includeIndex < 0
         ? null
         : result.find(
             (candidate) =>
@@ -221,47 +134,57 @@ export function createAiSearch(input: FourShogiState, settings: AiSearchSettings
       doneReason = "sole_win";
       return;
     }
+    if (settings.dangerWork > 0) {
+      const examined = shallow.filter(
+        (candidate, index) =>
+          index < settings.candidateCount || candidate.index === ctx.includeIndex,
+      );
+      const quota = Math.floor(settings.dangerWork / examined.length);
+      for (const candidate of examined) {
+        const probe = probeAiReplies(ctx, candidate.state, candidate.branch.line[0], quota);
+        risks.set(candidate.index, probe.result);
+        publish(shallow, 1, false);
+        yield* probe.steps;
+      }
+      publish(shallow, 1, false);
+    }
     const selected = shallow.filter(
       (candidate, index) =>
         index < settings.rootWidth ||
-        candidate.index === includeIndex ||
+        candidate.index === ctx.includeIndex ||
         candidate.state.lastMove?.captured ||
         (candidate.state.status === "playing" &&
           getCheckState(candidate.state)[candidate.state.turn]),
     );
     for (let depth = 2; depth <= settings.maxDepth; depth++) {
+      if (settings.moveOrdering === "previous") selected.sort(compareRoot);
       const completed: RootCandidate[] = [];
       for (const candidate of selected) {
         const before = { ...stats };
         const child = yield* explore(candidate.state, depth - 1, settings.extensions, 1);
+        const branch = { ...child, line: [candidate.branch.line[0], ...child.line] };
         completed.push({
           ...candidate,
-          branch: { ...child, line: [candidate.branch.line[0], ...child.line] },
+          branch,
           nodes: stats.nodes - before.nodes,
           work: stats.work - before.work,
         });
       }
       publish(completed, depth, selected.length < legal.length);
+      if (settings.moveOrdering === "previous")
+        for (const candidate of selected) {
+          const previous = completed.find((entry) => entry.index === candidate.index)!;
+          candidate.branch = previous.branch;
+        }
       yield* spend(0);
     }
   }
   function results(cutoff = false) {
-    if (published.length === 0 && legal.length > 0 && root !== null) {
-      const fallback: AiCandidate = {
-        action: legal[0].action,
-        evaluation: null,
-        completedDepth: 0,
-        iterationNodes: 0,
-        iterationWork: 0,
-        selective: true,
-        cutoff,
-        line: [],
-        danger: danger([], root),
-      };
-      return { candidates: [fallback], comparedAction: null };
-    }
     return {
-      candidates: published.map((candidate) => ({ ...candidate, cutoff })),
+      candidates: (published.length ? published : ctx.fallback()).map((candidate) => ({
+        ...candidate,
+        cutoff,
+      })),
       comparedAction: comparedAction === null ? null : { ...comparedAction, cutoff },
     };
   }
@@ -269,6 +192,7 @@ export function createAiSearch(input: FourShogiState, settings: AiSearchSettings
     steps: run(),
     stats,
     results,
+    staticEvaluation: ctx.staticEvaluation,
     get doneReason() {
       return doneReason;
     },

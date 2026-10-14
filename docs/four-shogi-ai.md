@@ -120,3 +120,23 @@ AI・測定の対象は `f8e29bb45f2dbf463416a0ad5a0dd287695d90f3`、環境はma
 ローカル検証の対象コードは `533f7a0d2745492f212dfd7799f3a7e164b3f984`。`bun run check` は成功・66.27秒、`bun run build` と `bun run --cwd apps/worker deploy:dry-run` も順に成功した。測定対象からのAI・Worker本体の差分はなく、導入PRでは以後、この結果文書と説明の補足だけを変更した。文書の表・リンク・JSON構文の確認と最終差分の `git diff --check` は、導入PRの提出時に行う確認項目だった。
 
 導入先は [PR #99](https://github.com/yksw-clm/tetraboard-2026/pull/99) で、2026-10-08にマージされた。測定対象コミットのGitHub CIは成功した。導入時は最終headのCI成功と開発者の承認をマージ・本番公開の条件とした。測定時点では、外部棋譜の一括取得仕様・利用条件、本番Lv2の具体的悪手、上級者相当の棋力、本番Cloudflareでの速度は未確認だった。
+
+## シングルス専用AIの限定探索実験（#188）
+
+この節はIssue #184の承認済みD01〜D05と#188に基づく新AIの内部実験です。上の2026-10-08の公開Lv2の測定・採用記録、固定基準 `913a09d`、当時の設定を変更しません。合法手/手番/勝敗は同じ正本で、三人攻撃ON/OFFを分けます。
+
+#187の取込 `65380c8` を参照版とし、駒一覧の重複走査、実行内の不変状態キャッシュ、手順序、深さ/幅/延長、kingRing係数を比較します。初回プロファイルでは `pieces` の単一ホット区間が自己時間22.4%を占めました。盤面複製やキー生成も独立に測りましたが、今回は主要な駒走査と再計算へ改善を絞ります。キャッシュは履歴を省いた局面キーを作らず、同じ入力/枝の参照だけを共有します。
+
+調整は旧regressionのシングルス7構図56展開と、新しい王手付き捕獲/逆王手/飛車損の3構図24展開。ON/OFFと4方向を別条件として記録し、回転した8展開を8個の独立な手筋とは数えません。旧validationと最終seed100000以降を調整へ使用せず、新しい対局/性能の開始seedは18800台です。これらは調整・smokeで、#197の最終評価と区別します。
+
+予備比較では延長2手で候補一巡が完成せず即詰みを見落とすケースがあり、1手で重要回帰の失敗を解消できました。幅3は成りの見落としが増え、深さ6への上限縮小・前回の有望手順序・kingRing50では採用に足る改善を確認できませんでした。内部既定はMaxⁿ・延長1・キャッシュ256とし、残る失敗や同時間の対戦を記録して棋力の保証にはしません。
+
+MCTSは完成試行の絶対4人値を伝播する選択肢として実装し、同時間と同処理量を分けて測定します。試行平均とPV末尾評価、試行数と全読みの深さを混同しません。予備の100ms対局でMCTSにも単独勝ちは出ましたが、少数開始系列と未終局が多く、通常方式への全面採用は保留します。MaxⁿとMCTSの勝敗率/同率/未終局、完了深さ/試行数、時間/RSSと条件・対象SHAは最終の限定測定で記録します。
+
+```sh
+bun run --cwd packages/four-shogi bench:search --kind=factors --budget=work --amount=2048 --output=/tmp/search-factors.json
+bun run --cwd packages/four-shogi bench:search --kind=performance --variants=base,cached,tuned,mcts --budget=time --amount=100 --repeats=3 --output=/tmp/search-time.json
+bun run --cwd packages/four-shogi bench:search --kind=matches --variants=tuned,mcts --budget=time --amount=100 --series=2 --seed=18800 --max-plies=96 --output=/tmp/search-matches.json
+```
+
+時間比較では共通APIの入力識別・準備・探索・yieldを含め、内部の構図実験は同じ予算運転でAPI識別のない範囲と明記します。基準AIは固定Lv2を3体・既定2048単位で使い、新AI両方式の候補席の時間は同じにします。基準AIまで100ms制限の方式に置き換えた比較ではありません。未終局は分母に残し、系列数・観測された終了/単独/同率を併記します。モデル/IPC/待ち行列とLinux/VPS性能、正式棋力・校正・人間相手は後続Issueです。

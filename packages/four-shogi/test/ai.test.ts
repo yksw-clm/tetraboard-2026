@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   analyzePosition,
+  resolveAiOptions,
   type AiCandidate,
   type AiOptions,
   type AiSearchSettings,
@@ -69,7 +70,8 @@ function replay(state: FourShogiState, candidate: AiCandidate) {
   return state;
 }
 function settings(overrides: Partial<AiSearchSettings> = {}): AiSearchSettings {
-  return {
+  return resolveAiOptions({
+    codeVersion: "test",
     timeBudgetMs: null,
     maxWork: 10000,
     maxDepth: 2,
@@ -79,7 +81,7 @@ function settings(overrides: Partial<AiSearchSettings> = {}): AiSearchSettings {
     candidateCount: 5,
     includeAction: null,
     ...overrides,
-  };
+  }).settings;
 }
 function runCore(state: FourShogiState, config = settings()) {
   const session = createAiSearch(state, config);
