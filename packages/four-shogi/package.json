@@ -9,6 +9,7 @@
   },
   "scripts": {
     "bench": "bun bench/cli.ts",
+    "bench:singles": "bun bench/singlesCli.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",

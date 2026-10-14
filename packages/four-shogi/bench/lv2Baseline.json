@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "lv2-start-2026-10-14",
+  "commit": "913a09d4edce5e44c96d190a60757ef184a4738d",
+  "fixedAt": "2026-10-14",
+  "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+  "rulesVersion": 1,
+  "description": "Issue #185着手時の最新develop（PR #200取込後）。旧強化前基準は別に保持する。",
+  "sourceHashMethod": "sha256(JSON.stringify(path-bytewise-sorted array of {path,sha256(raw file bytes)})); paths relative to packages/four-shogi/src",
+  "source": {
+    "sha256": "38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3",
+    "files": [
+      {
+        "path": "attacks.ts",
+        "sha256": "0545eca33929112fecfce9802d8b872f41276b8ba8d58dae63136775e8491001"
+      },
+      {
+        "path": "board.ts",
+        "sha256": "6cb6fdff21a2ed1737f3094786386d5b739d15a7445f2633c90f5be7b044d341"
+      },
+      {
+        "path": "cpu.ts",
+        "sha256": "28e9aee0ad2236eea326568b233dc8a936420b6143f6ad23fa3ead25e72c7b38"
+      },
+      {
+        "path": "cpuEvaluation.ts",
+        "sha256": "5d619c278b99789a53c5b81971423b15b741d841e50eb53b9ad0bc34fadb8479"
+      },
+      {
+        "path": "cpuOpenings.ts",
+        "sha256": "d5b78c35ab12478d45f817722a6317b555f1564e5b7acb7827eec8a5b6a8b898"
+      },
+      {
+        "path": "cpuSearch.ts",
+        "sha256": "ede5711a64e4917c14f24197be4a740bce3dc4b4dc2f12cf74112641b01812b5"
+      },
+      {
+        "path": "eliminatedHands.ts",
+        "sha256": "e0dc94738e21a8a8d56e91ff84bab81a30d8d2a11e298afa94cbc486da4a41f8"
+      },
+      {
+        "path": "formationCatalog.ts",
+        "sha256": "588bdaca64c946bc6b7d0342da3eba3e159614fb228590fbc08f989ae96fb59b"
+      },
+      {
+        "path": "formations.ts",
+        "sha256": "cd4db99496953553b037f62b409bb0e7328aaa2a3f66191ca459563793b43ba0"
+      },
+      {
+        "path": "index.ts",
+        "sha256": "ca004164c8fe8f4c0a1007ad24443ccfc29cff4bdfb77bdd1495bc53f1924772"
+      },
+      {
+        "path": "moves.ts",
+        "sha256": "f0cb2a408e13c4b1b052b5930e335e327531b16fec3d94083cfb994e23b9ba64"
+      },
+      {
+        "path": "progression.ts",
+        "sha256": "d1fc4431bb54d25102ab8df27f73ecf701271cf42ea6d524040b3587bb71bee4"
+      },
+      {
+        "path": "repetition.ts",
+        "sha256": "a83740eb9c5356130f833d6bf4076c02497ec690c9740bf5f2ff198d4d2391b0"
+      },
+      {
+        "path": "transition.ts",
+        "sha256": "69d3f6bf19b4cf5af163af3cd80eaa149d86322c14252bf73977d7787cb0743f"
+      },
+      {
+        "path": "types.ts",
+        "sha256": "3b6f9abf067cd53223b7dc698d809bd3731c14d10bfe70a1b40d10e469ea5e57"
+      }
+    ]
+  },
+  "searchOptions": {
+    "maxWork": 2048,
+    "maxDepth": 6,
+    "width": 6,
+    "rootWidth": 24,
+    "extensions": 2,
+    "evaluationWeights": {
+      "undefended": 0.7,
+      "exchange": 0.45,
+      "kingRing": 35,
+      "check": 300,
+      "mobility": 3,
+      "advancement": 6,
+      "shelter": 12,
+      "survival": 5000
+    }
+  },
+  "evaluation": {
+    "unpromotedPieceValues": {
+      "king": 0,
+      "rook": 800,
+      "gold": 500,
+      "silver": 400,
+      "pawn": 100
+    },
+    "terminalRankValues": [1000000, -1000000, -2000000, -3000000],
+    "tiedFirstHasSameValueAsSoleFirst": true,
+    "openingPreference": "versioned cpuOpenings.ts, same-score priority only"
+  },
+  "legacyCommit": "3b84f2cdaf9e280b6f84ee34eaa95de8a1441d03",
+  "legacySourceSha256": "7b46ad37988524ffedc36bbfb6191774002d2a61703e24d88d99fa8becbbfc82"
+}
