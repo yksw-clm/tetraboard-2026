@@ -40,6 +40,26 @@ async function check(
   }
 }
 
+if (searchIndexable && base.origin === publicOrigin) {
+  for (const path of [
+    "/?seo-check=1",
+    "/games/four-shogi?seo-check=1",
+    "/api/healthz?seo-check=1",
+  ]) {
+    await check(
+      `http://${base.host}${path}`,
+      async (response) => {
+        if (
+          response.status !== 308 ||
+          response.headers.get("Location") !== `${publicOrigin}${path}`
+        )
+          throw new Error("Expected permanent redirect to production HTTPS");
+      },
+      "manual",
+    );
+  }
+}
+
 await check(
   "/?seo-check=1",
   async (response) => {
