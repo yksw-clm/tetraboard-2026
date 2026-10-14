@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { ChatEntry, FourShogiRoom } from "@tetraboard/protocol";
 import type { FormEvent } from "react";
 import { useRoomChat } from "../src/features/room/useRoomChat";
+import { RoomChat } from "../src/features/room/RoomChat";
 import { useFourShogiRoomReplay } from "../src/features/room/useFourShogiRoomReplay";
 import { useRoundReplay } from "../src/features/room/useRoomReplay";
 import { useBoardRotation } from "../src/features/room/useBoardRotation";
@@ -12,7 +13,108 @@ import {
 } from "../test/fixtures/fourShogiFixtures";
 import { replayMatch } from "../test/fixtures/matchReplayFixtures";
 import { membership, waitingRoom } from "../test/fixtures/rooms";
-import { act, flush, requests, renderHook } from "./harness";
+import { act, flush, requests, renderHook, render, rerender } from "./harness";
+
+test("チャットのアイコンは同名でも送信者IDで選び、画像なし・退室済みは仮アイコン", async () => {
+  const images: HTMLImageElement[] = [];
+  const NativeImage = window.Image;
+  window.Image = class extends NativeImage {
+    constructor(width?: number, height?: number) {
+      super(width, height);
+      images.push(this);
+    }
+  };
+  try {
+    const room = waitingRoom();
+    const first = room.players[0]!;
+    if (first.kind !== "human") throw new Error("Expected human");
+    first.avatarUrl = "/api/avatars/chat-avatar.webp";
+    const messages: ChatEntry[] = [
+      {
+        id: crypto.randomUUID(),
+        kind: "player",
+        senderId: first.id,
+        senderName: "同じ名前",
+        text: "画像あり",
+        sentAtMs: Date.now(),
+      },
+      {
+        id: crypto.randomUUID(),
+        kind: "player",
+        senderId: room.players[1]!.id,
+        senderName: "同じ名前",
+        text: "画像なし",
+        sentAtMs: Date.now(),
+      },
+      {
+        id: crypto.randomUUID(),
+        kind: "player",
+        senderId: crypto.randomUUID(),
+        senderName: "退室済み",
+        text: "退室前の発言",
+        sentAtMs: Date.now(),
+      },
+      {
+        id: crypto.randomUUID(),
+        kind: "system",
+        event: "left",
+        text: "退室しました",
+        sentAtMs: Date.now(),
+      },
+    ];
+    function Chat({ currentRoom }: { currentRoom: typeof room }) {
+      const chat = useRoomChat({
+        room: currentRoom,
+        membership,
+        messages,
+        notifications: [],
+        connected: true,
+        remoteError: null,
+        sendChat: () => true,
+        clearRemoteError: () => {},
+      });
+      return (
+        <RoomChat
+          chat={chat}
+          visible
+          session={{
+            room: currentRoom,
+            chatMessages: messages,
+            membership,
+            authenticated: true,
+            connection: "接続済み",
+            interactionReady: true,
+            pendingStamp: false,
+          }}
+        />
+      );
+    }
+    const view = render(<Chat currentRoom={room} />);
+    expect(images.at(-1)!.src).toBe(new URL(first.avatarUrl!, window.location.href).href);
+    Object.defineProperties(images.at(-1)!, {
+      complete: { value: true },
+      naturalWidth: { value: 34 },
+    });
+    act(() => images.at(-1)!.dispatchEvent(new Event("load")));
+    await flush();
+    const rows = view.querySelectorAll("li[data-message-id]");
+    expect(rows[0]!.querySelector("img")!.getAttribute("src")).toBe(first.avatarUrl);
+    expect(rows[1]!.querySelector("img")).toBeNull();
+    expect(rows[2]!.querySelector("img")).toBeNull();
+    expect(rows[1]!.querySelector('[data-slot="avatar-fallback"]')).not.toBeNull();
+    expect(rows[2]!.querySelector('[data-slot="avatar-fallback"]')).not.toBeNull();
+    expect(rows[3]!.querySelector('[data-slot="avatar-fallback"]')).toBeNull();
+    rerender(
+      view,
+      <Chat
+        currentRoom={{ ...room, players: room.players.filter((player) => player.id !== first.id) }}
+      />,
+    );
+    expect(view.querySelector("img")).toBeNull();
+  } finally {
+    window.Image = NativeImage;
+  }
+});
 
 test("チャットはタブ・resize相当の再描画で下書きを保持し、自己メッセージ確定だけで消す", () => {
   const sent: string[] = [],

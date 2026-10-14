@@ -4,6 +4,14 @@ import { completeLegalAuthentication } from "../privacy/oauthConsent";
 import { completeReauthentication } from "../privacy/deletion";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
+import {
+  completeRegistrationOAuth,
+  prepareRegistrationOAuth,
+  rememberRegistrationOAuth,
+  validateRegistrationSetup,
+  RegistrationError,
+  type RegistrationFlow,
+} from "./registrationFlows";
 import { Hono } from "hono";
 import { accountSessionSchema, profileInputSchema } from "@tetraboard/protocol";
 import {
@@ -23,6 +31,8 @@ accountRoutes.use("*", async (c, next) => {
   await next();
 });
 accountRoutes.onError((err, c) => {
+  if (err instanceof RegistrationError)
+    return c.json({ error: err.code, message: err.message }, err.status);
   console.error("Account request failed", err.name);
   return c.json(error("処理できませんでした。時間をおいてもう一度お試しください。"), 503);
 });
@@ -37,6 +47,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     );
     await completeReauthentication(c.req.raw, response, c.env);
     await completeLegalAuthentication(c.req.raw, response, c.env);
+    await completeRegistrationOAuth(c.req.raw, response, c.env);
     return response;
   }
   if (c.req.method !== "POST" || !["/auth/sign-in/social", "/auth/sign-out"].includes(path))
@@ -45,6 +56,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     return c.json(error("操作元を確認できません。ページを開き直してください。"), 403);
   let provider: "google" | "discord" = "google";
   let adminLogin = false;
+  let registration: RegistrationFlow | undefined;
   if (path === "/auth/sign-in/social") {
     let input: unknown;
     try {
@@ -66,6 +78,10 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     )
       return c.json(error("規約と年齢条件を確認してください。"), 403);
     adminLogin = data.destination === "admin";
+    if (data.registration !== undefined) {
+      if (adminLogin) return c.json(error("管理画面のログインでは対局を引き継げません。"), 400);
+      registration = await prepareRegistrationOAuth(c.env, data.registration);
+    }
     if (adminLogin && provider !== "google")
       return c.json(error("管理画面にはGoogleでログインしてください。"), 400);
     const configured =
@@ -98,10 +114,12 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
   if (path === "/auth/sign-in/social" && !adminLogin && response.ok) {
     const data = (await response.clone().json()) as { url?: string };
     const state = data.url ? new URL(data.url).searchParams.get("state") : null;
-    if (state)
+    if (state) {
       await c.env.APP_DB.prepare("INSERT INTO oauth_legal_consents VALUES (?,?,?,?,?)")
         .bind(state, provider, legalVersion, Date.now(), Date.now() + 600000)
         .run();
+      if (registration) await rememberRegistrationOAuth(c.env, registration, state, provider);
+    }
   }
   return response;
 });
@@ -181,6 +199,8 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   )
     return c.notFound();
   const user = c.get("user");
+  const registration =
+    action === "setup" ? await validateRegistrationSetup(c.req.raw, c.env) : undefined;
   const expectedCompleted = action === "setup" ? 0 : 1;
   if (Number(Boolean(user.profileCompleted)) !== expectedCompleted)
     return c.json(error("設定状態が変わりました。ページを開き直してください。"), 409);
@@ -241,7 +261,14 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     // 同時編集で参照中の画像を消さず、旧画像の削除待ちをプロフィールと同時に保存します。
     const results = await c.env.APP_DB.batch<{ id: string; publicProfileId: string }>([
       c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
-        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id) RETURNING id, publicProfileId`).bind(
+        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)
+        ${
+          registration
+            ? `AND EXISTS (SELECT 1 FROM registration_flows f JOIN session s ON s.id=f.session_id AND s.userId=f.account_id
+          WHERE f.id=? AND f.account_id=user.id AND f.session_id=? AND f.cancelled_at_ms IS NULL AND f.claim_until_ms>? AND s.expiresAt>?)`
+            : ""
+        }
+        RETURNING id, publicProfileId`).bind(
         input.data.name,
         input.data.username,
         image,
@@ -251,6 +278,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
         user.id,
         expectedCompleted,
         user.avatarKey,
+        ...(registration ? [registration.id, registration.session_id, Date.now(), Date.now()] : []),
       ),
       c.env.APP_DB.prepare(
         "INSERT OR IGNORE INTO avatar_deletions (key) SELECT ? WHERE ? IS NOT NULL AND ? IS NOT ? AND changes() = 1",
@@ -282,6 +310,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     if (uploadedKey) await c.env.OBJECT_STORAGE.delete(uploadedKey);
     if (await isDeleted(c.env.APP_DB, user.id))
       return c.json(error("アカウントは削除されました。"), 401);
+    if (registration) await validateRegistrationSetup(c.req.raw, c.env);
     return c.json(error("設定が更新されています。ページを開き直してください。"), 409);
   }
   c.executionCtx.waitUntil(deleteUnusedAvatars(c.env));

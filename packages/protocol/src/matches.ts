@@ -75,6 +75,7 @@ export const fourReversiMatchSummarySchema = z
     mode: roomModeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
+    moveCount: z.int().nonnegative().optional(),
     participants: z.array(matchParticipantSchema).length(4),
     result: gameResultSchema,
   })
@@ -117,6 +118,7 @@ export const fourShogiMatchSummarySchema = z
     mode: roomModeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
+    moveCount: z.int().nonnegative().optional(),
     participants: z.array(fourShogiMatchParticipantSchema).length(4),
     result: finishedFourShogiStateSchema.shape.result,
   })
@@ -143,6 +145,7 @@ export const reversiMatchSummarySchema = z.strictObject({
   mode: z.never().optional(),
   startedAtMs: z.int().nonnegative(),
   endedAtMs: z.int().nonnegative(),
+  moveCount: z.int().nonnegative().optional(),
   participants: z.array(reversiMatchParticipantSchema).length(2),
   result: reversiResultSchema,
 });
@@ -228,6 +231,7 @@ export const listMatchesContract = {
       game: matchGameSchema.default(defaultGameId),
       mode: roomModeSchema.optional(),
       cursor: matchCursorSchema.optional(),
+      includeMoveCount: z.literal("1").optional(),
     })
     .refine((value) =>
       gameCatalog[value.game].hasModes ? value.mode !== undefined : value.mode === undefined,
@@ -519,6 +523,7 @@ export const listPublicMatchesContract = {
   path: "/matches",
   query: z.object({
     game: matchGameSchema,
+    includeMoveCount: z.literal("1").optional(),
     humanOnly: z
       .enum(["true", "false"])
       .default("false")

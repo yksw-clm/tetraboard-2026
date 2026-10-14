@@ -161,7 +161,10 @@ test("最近の対局は指定ゲームで取得し、別ゲームや不正応�
   const spy = fetchSpy().mockResolvedValue(Response.json({ matches: [summary] }));
   const signal = new AbortController().signal;
   expect(await fetchRecentMatches("four-reversi", signal)).toEqual([summary]);
-  expect(spy).toHaveBeenCalledWith("/api/matches?game=four-reversi", { cache: "no-store", signal });
+  expect(spy).toHaveBeenCalledWith("/api/matches?game=four-reversi&includeMoveCount=1", {
+    cache: "no-store",
+    signal,
+  });
   spy.mockResolvedValue(Response.json({ matches: [summary] }));
   await expect(fetchRecentMatches("four-shogi", signal)).rejects.toThrow("game mismatch");
   spy.mockResolvedValue(Response.json({ matches: [] }));
@@ -196,14 +199,17 @@ test("対人フィルタを送信し、CPU入りの応答を採用しない", as
     spy.mockImplementation(async () => Response.json({ matches: [humanSummary] }));
     const signal = new AbortController().signal;
     expect(await fetchRecentMatches(game, signal, true)).toEqual([humanSummary]);
-    expect(spy).toHaveBeenLastCalledWith(`/api/matches?game=${game}&humanOnly=true`, {
-      cache: "no-store",
-      signal,
-    });
+    expect(spy).toHaveBeenLastCalledWith(
+      `/api/matches?game=${game}&includeMoveCount=1&humanOnly=true`,
+      {
+        cache: "no-store",
+        signal,
+      },
+    );
     spy.mockImplementation(async () => Response.json({ matches: [summary] }));
     await expect(fetchRecentMatches(game, signal, true)).rejects.toThrow("participant mismatch");
     expect(await fetchRecentMatches(game, signal, false)).toEqual([summary]);
-    expect(spy).toHaveBeenLastCalledWith(`/api/matches?game=${game}`, {
+    expect(spy).toHaveBeenLastCalledWith(`/api/matches?game=${game}&includeMoveCount=1`, {
       cache: "no-store",
       signal,
     });

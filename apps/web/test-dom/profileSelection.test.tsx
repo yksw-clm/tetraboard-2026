@@ -174,7 +174,9 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
     accountRequests.find((r) => r.url.endsWith("/formation-stats"))?.respond([]);
     await flush();
     expect(view.textContent).toContain("まだ対局履歴がありません。");
-    expect(view.querySelector('[aria-labelledby="account-stats-title"] dd')!.textContent).toBe("0");
+    expect(
+      view.querySelector('table[aria-label="戦績"] td > span > span:last-child')!.textContent,
+    ).toBe("0");
     expect(
       view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
     ).not.toBeNull();
@@ -217,7 +219,7 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   clock.advance(0);
   requests.find((r) => r.url === "/api/account/stats")!.respond(stats);
   requests
-    .find((r) => r.url === "/api/account/matches?mode=singles")!
+    .find((r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1")!
     .respond({
       matches: [match(1)],
       nextCursor: "next",
@@ -226,7 +228,7 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   await chooseGame(view, "四人将棋");
   clock.advance(0);
   const shogiSingles = requests.find(
-    (r) => r.url === "/api/account/matches?mode=singles&game=four-shogi",
+    (r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1&game=four-shogi",
   )!;
   chooseMode(view, "ダブルス");
   clock.advance(0);
@@ -246,20 +248,22 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   expect(view.textContent).not.toContain("撃破数");
   expect(view.textContent).not.toContain("まだ対局履歴がありません。");
   requests
-    .find((r) => r.url === "/api/account/matches?mode=doubles&game=four-shogi")!
+    .find((r) => r.url === "/api/account/matches?mode=doubles&includeMoveCount=1&game=four-shogi")!
     .respond({
       matches: [shogi.summary],
       nextCursor: null,
     });
   await flush();
-  expect(historyCard!.textContent).toContain("四人将棋・ダブルス");
+  expect(historyCard!.textContent).toContain("四人将棋");
+  expect(historyCard!.textContent).toContain("ダブルス");
   const count = requests.length;
   await chooseGame(view, "四人リバーシ");
   clock.advance(0);
   expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
     "シングルス",
   );
-  expect(historyCard!.textContent).toContain("四人リバーシ・シングルス");
+  expect(historyCard!.textContent).toContain("四人リバーシ");
+  expect(historyCard!.textContent).toContain("シングルス");
   expect(view.textContent).toContain("もっと見る");
   expect(requests).toHaveLength(count);
   await chooseGame(view, "四人将棋");
@@ -267,7 +271,8 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
     "ダブルス",
   );
-  expect(historyCard!.textContent).toContain("四人将棋・ダブルス");
+  expect(historyCard!.textContent).toContain("四人将棋");
+  expect(historyCard!.textContent).toContain("ダブルス");
   expect(requests).toHaveLength(count);
   chooseMode(view, "シングルス");
   clock.advance(0);

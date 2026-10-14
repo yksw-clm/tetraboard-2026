@@ -1,5 +1,5 @@
+import { prepareRoomSettings } from "./applyRoomSettings";
 import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
-import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { retiredName } from "../privacy/identity";
 import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
 import { fourGomokuCpuJobKey, type FourGomokuCpuJob } from "./fourGomokuProgress";
@@ -73,15 +73,34 @@ import {
   type PendingShogiMatch,
 } from "./shogiMatchStore";
 import { profileAvatarUrl } from "../accounts/auth";
+import { retryPendingMatchClaims } from "../accounts/matchClaims";
+import { readStoredMatch } from "../accounts/matchDataContracts";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
 import { isClockExpired } from "./clock";
 import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
 import { matchStartKey, pendingMatchPrefix, writeMatch, type PendingMatch } from "./matchStore";
+import {
+  activeRegistrationKey,
+  cancelledRegistrationKey,
+  guestRegistrationState,
+  registrationClaimMs,
+  registrationHoldMs,
+  registrationKey,
+  registrationPrefix,
+  registrationTargetKey,
+  type BeginGuestRegistrationResult,
+  type CompleteGuestRegistrationResult,
+  type GuestRegistrationInput,
+  type GuestRegistrationState,
+  type StoredGuestRegistration,
+} from "./registrationTypes";
 
 const accountKey = (playerId: string) => `seat-account:${playerId}`;
 const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
 const accountCleanupKey = "account-cleanups";
+const guestClaimsKey = "guest-match-claims-pending";
+type PendingGuestClaims = { generation: string; retryAtMs: number };
 type StoredAccountSeat = AccountAdmission & { occupying: boolean };
 type AccountCleanup = { reservation: AccountAdmission; releaseAvatar: boolean; retryAtMs: number };
 const indexRevisionKey = "room-index-revision";
@@ -131,6 +150,7 @@ export class GameRoom extends DurableObject<Env> {
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
   private accountFlush: Promise<void> | null = null;
+  private guestClaimsFlush: Promise<void> | null = null;
   private matchFlush: Promise<void> | null = null;
   private shogiMatchFlush: Promise<void> | null = null;
   private readonly progressDependencies = {
@@ -329,6 +349,12 @@ export class GameRoom extends DurableObject<Env> {
       const entries = [...this.ctx.storage.kv.list<unknown>()];
       const ids = new Set<string>();
       const names = new Set<string>();
+      const matchPlayers = new Map<string, Set<string>>();
+      const rememberMatchPlayer = (matchId: string, playerId: string) => {
+        const players = matchPlayers.get(matchId) ?? new Set<string>();
+        players.add(playerId);
+        matchPlayers.set(matchId, players);
+      };
       const code =
         this.ctx.id.name ??
         this.readRoom()?.id ??
@@ -340,7 +366,62 @@ export class GameRoom extends DurableObject<Env> {
           .bind(accountId, code)
           .all<{ player_id: string }>();
         for (const row of retained.results) ids.add(row.player_id);
+        const matchIdentities = await this.env.APP_DB.prepare(`
+          SELECT m.id AS match_id, json_extract(p.value, '$.id') AS player_id
+          FROM matches m, json_each(m.record_json, '$.participants') p
+          WHERE json_extract(m.record_json, '$.roomId')=? AND (
+            json_extract(p.value, '$.accountId')=? OR
+            (json_extract(p.value, '$.retired')=1 AND EXISTS (
+              SELECT 1 FROM privacy_room_players r WHERE r.account_id=? AND r.room_id=?
+                AND r.instance_id=json_extract(m.record_json, '$.instanceId')
+                AND r.player_id=json_extract(p.value, '$.id'))))
+          UNION SELECT match_id,player_id FROM match_participant_accounts
+          WHERE room_id=? AND state='retired'`)
+          .bind(code, accountId, accountId, code, code)
+          .all<{ match_id: string; player_id: string }>();
+        for (const row of matchIdentities.results) rememberMatchPlayer(row.match_id, row.player_id);
       }
+      // 同じ席IDでも、登録前の別の局へ本人情報を遡及させません。
+      const collectMatchPlayers = (value: unknown): void => {
+        if (Array.isArray(value)) {
+          for (const item of value) collectMatchPlayers(item);
+          return;
+        }
+        if (!value || typeof value !== "object") return;
+        const row = value as Record<string, unknown>;
+        if (typeof row.id === "string" && Array.isArray(row.participants)) {
+          for (const participant of row.participants) {
+            if (participant?.accountId === accountId && typeof participant.id === "string")
+              rememberMatchPlayer(row.id, participant.id);
+          }
+        }
+        for (const item of Object.values(row)) collectMatchPlayers(item);
+      };
+      for (const [, value] of entries) collectMatchPlayers(value);
+      const identityScope = (row: Record<string, unknown>, inherited?: ReadonlySet<string>) => {
+        if (Array.isArray(row.participants)) {
+          const participants = row.participants as {
+            id?: string;
+            playerId?: string;
+            accountId?: string;
+            visitorId?: string;
+          }[];
+          const own = new Set(
+            participants
+              .filter((p) => p.accountId === accountId)
+              .flatMap((p) => p.id ?? p.playerId ?? []),
+          );
+          if (!participants.some((p) => "visitorId" in p) && typeof row.id === "string")
+            for (const id of matchPlayers.get(row.id) ?? []) own.add(id);
+          return own;
+        }
+        if (row.game && Array.isArray(row.players)) {
+          const replay = row.replay as { id?: unknown } | null | undefined;
+          const matchId = typeof row.roundId === "string" ? row.roundId : replay?.id;
+          if (typeof matchId === "string") return matchPlayers.get(matchId) ?? new Set<string>();
+        }
+        return inherited;
+      };
       let found = false;
       for (const [key, value] of entries) {
         if (
@@ -364,17 +445,22 @@ export class GameRoom extends DurableObject<Env> {
             .bind(seat.operationId, seat.instanceId)
             .run();
         }
-        const discover = async (v: unknown): Promise<void> => {
+        const discover = async (
+          v: unknown,
+          inheritedScope?: ReadonlySet<string>,
+        ): Promise<void> => {
           if (Array.isArray(v)) {
-            for (const item of v) await discover(item);
+            for (const item of v) await discover(item, inheritedScope);
           } else if (v && typeof v === "object") {
             const row = v as Record<string, unknown>;
+            const scope = identityScope(row, inheritedScope);
+            const matchingIds = scope ?? ids;
             if (
               row.accountId === accountId ||
-              ids.has(String(row.id)) ||
-              ids.has(String(row.playerId)) ||
-              ids.has(String(row.senderId)) ||
-              ids.has(String(row.hostPlayerId))
+              matchingIds.has(String(row.id)) ||
+              matchingIds.has(String(row.playerId)) ||
+              matchingIds.has(String(row.senderId)) ||
+              matchingIds.has(String(row.hostPlayerId))
             ) {
               found = true;
               if (typeof row.id === "string") ids.add(row.id);
@@ -390,7 +476,7 @@ export class GameRoom extends DurableObject<Env> {
                   .bind(row.operationId)
                   .run();
             }
-            for (const value of Object.values(row)) await discover(value);
+            for (const value of Object.values(row)) await discover(value, scope);
           }
         };
         await discover(value);
@@ -408,17 +494,23 @@ export class GameRoom extends DurableObject<Env> {
         }
         this.ctx.storage.kv.delete(accountKey(id));
       }
-      const strip = (value: unknown, inherited = false): unknown => {
-        if (Array.isArray(value)) return value.map((v) => strip(v));
+      const strip = (
+        value: unknown,
+        inherited = false,
+        inheritedScope?: ReadonlySet<string>,
+      ): unknown => {
+        if (Array.isArray(value)) return value.map((v) => strip(v, false, inheritedScope));
         if (!value || typeof value !== "object") return value;
         const row = value as Record<string, unknown>;
+        const scope = identityScope(row, inheritedScope);
+        const matchingIds = scope ?? ids;
         const own =
           inherited ||
           row.accountId === accountId ||
-          ids.has(String(row.id)) ||
-          ids.has(String(row.playerId)) ||
-          ids.has(String(row.senderId)) ||
-          ids.has(String(row.hostPlayerId));
+          matchingIds.has(String(row.id)) ||
+          matchingIds.has(String(row.playerId)) ||
+          matchingIds.has(String(row.senderId)) ||
+          matchingIds.has(String(row.hostPlayerId));
         if (
           row.kind === "system" &&
           typeof row.text === "string" &&
@@ -440,7 +532,7 @@ export class GameRoom extends DurableObject<Env> {
                     key,
                   )
                 ? null
-                : strip(v, own && key === "appearance"),
+                : strip(v, own && key === "appearance", scope),
           ]),
         );
         if (own && row.kind === "human") out.retired = true;
@@ -482,6 +574,392 @@ export class GameRoom extends DurableObject<Env> {
 
   private storedAccount(playerId: string) {
     return this.ctx.storage.kv.get<StoredAccountSeat>(accountKey(playerId)) ?? null;
+  }
+
+  private registrationForPlayer(playerId: string): StoredGuestRegistration | null {
+    const id = this.ctx.storage.kv.get<string>(activeRegistrationKey(playerId));
+    if (!id) return null;
+    const record = this.ctx.storage.kv.get<StoredGuestRegistration>(registrationKey(id));
+    return record?.state === "pending" ? record : null;
+  }
+
+  private endRegistration(
+    record: StoredGuestRegistration,
+    state: "cancelled" | "expired" | "released",
+  ) {
+    this.ctx.storage.kv.put(registrationKey(record.registrationId), { ...record, state });
+    if (this.ctx.storage.kv.get(activeRegistrationKey(record.playerId)) === record.registrationId)
+      this.ctx.storage.kv.delete(activeRegistrationKey(record.playerId));
+  }
+
+  private releaseRegistration(playerId: string) {
+    const record = this.registrationForPlayer(playerId);
+    if (record) this.endRegistration(record, "released");
+  }
+
+  private registrationView(record: StoredGuestRegistration): GuestRegistrationState {
+    const result = guestRegistrationState(record);
+    if (record.state === "converted") {
+      const room = this.readRoom();
+      const seat = this.storedAccount(record.playerId);
+      if (
+        room?.instanceId !== record.instanceId ||
+        !seat?.occupying ||
+        seat.accountId !== record.accountId ||
+        this.playerTokenHash(record.playerId) !== record.newTokenHash
+      )
+        result.state = "released";
+    }
+    return result;
+  }
+
+  async getGuestRegistration(registrationId: string): Promise<GuestRegistrationState | null> {
+    await this.reconcileDeadlines();
+    const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+      registrationKey(registrationId),
+    );
+    return record ? this.registrationView(record) : null;
+  }
+
+  async validateGuestRegistrationAccount(
+    registrationId: string,
+    accountId: string,
+  ): Promise<"eligible" | "conflict" | "not_found" | "cancelled" | "expired"> {
+    const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+      registrationKey(registrationId),
+    );
+    if (!record) return "not_found";
+    if (record.state === "cancelled") return "cancelled";
+    if (record.claimUntilMs <= Date.now()) return "expired";
+    if (
+      (record.accountId && record.accountId !== accountId) ||
+      record.originalAccountIds.includes(accountId)
+    )
+      return "conflict";
+    return "eligible";
+  }
+
+  private async originalMatchAccounts(input: GuestRegistrationInput): Promise<string[] | null> {
+    const pending = [
+      ...this.pendingMatches().values(),
+      ...this.pendingShogiMatches().values(),
+    ].find((job) => job.record.id === input.matchId)?.record;
+    let record = pending;
+    if (!record) {
+      const saved = await this.env.APP_DB.prepare("SELECT game,record_json FROM matches WHERE id=?")
+        .bind(input.matchId)
+        .first<{ game: string; record_json: string }>();
+      if (saved) record = readStoredMatch(saved.record_json, saved.game).record;
+    }
+    if (!record || record.instanceId !== input.instanceId || record.roomId !== this.ctx.id.name)
+      return null;
+    return record.participants.flatMap((player) =>
+      player.kind === "human" && player.accountId ? [player.accountId] : [],
+    );
+  }
+
+  async armGuestMatchClaims(): Promise<void> {
+    this.ctx.storage.kv.put(guestClaimsKey, {
+      generation: crypto.randomUUID(),
+      retryAtMs: Date.now(),
+    } satisfies PendingGuestClaims);
+    await this.syncAlarm(this.readRoom());
+    this.ctx.waitUntil(this.flushGuestMatchClaims());
+  }
+
+  private async flushGuestMatchClaims(): Promise<void> {
+    if (this.guestClaimsFlush) return this.guestClaimsFlush;
+    const flush = async () => {
+      const job = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
+      const code = this.ctx.id.name;
+      if (!job || job.retryAtMs > Date.now() || !code) return;
+      let pending = true;
+      try {
+        await retryPendingMatchClaims(this.env.APP_DB, code);
+        pending = Boolean(
+          await this.env.APP_DB.prepare(
+            "SELECT 1 FROM match_participant_accounts WHERE room_id=? AND state='pending' LIMIT 1",
+          )
+            .bind(code)
+            .first(),
+        );
+      } catch {
+        console.error("Guest match claims will be retried");
+      }
+      this.ctx.storage.transactionSync(() => {
+        const latest = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
+        if (latest?.generation !== job.generation) return;
+        if (pending)
+          this.ctx.storage.kv.put(guestClaimsKey, { ...job, retryAtMs: Date.now() + 5_000 });
+        else this.ctx.storage.kv.delete(guestClaimsKey);
+      });
+      await this.syncAlarm(this.readRoom());
+    };
+    this.guestClaimsFlush = flush().finally(() => {
+      this.guestClaimsFlush = null;
+    });
+    return this.guestClaimsFlush;
+  }
+
+  async beginGuestRegistration(
+    input: GuestRegistrationInput,
+  ): Promise<BeginGuestRegistrationResult> {
+    await this.reconcileDeadlines();
+    const originalAccountIds = await this.originalMatchAccounts(input);
+    const result = this.withIndexTransaction((): BeginGuestRegistrationResult => {
+      if (this.ctx.storage.kv.get(cancelledRegistrationKey(input.registrationId)))
+        return { status: "expired" };
+      const previous = this.ctx.storage.kv.get<StoredGuestRegistration>(
+        registrationKey(input.registrationId),
+      );
+      if (previous) {
+        if (
+          previous.instanceId !== input.instanceId ||
+          previous.matchId !== input.matchId ||
+          previous.oldTokenHash !== input.oldTokenHash ||
+          previous.newTokenHash !== input.newTokenHash
+        )
+          return { status: "registration_conflict" };
+        if (
+          previous.state === "cancelled" ||
+          (previous.state !== "converted" && previous.claimUntilMs <= Date.now())
+        )
+          return { status: "expired" };
+        return { status: "started", registration: this.registrationView(previous) };
+      }
+      const now = Date.now();
+      if (
+        input.newTokenHash === input.oldTokenHash ||
+        !membershipTokenSchema.safeParse(input.newTokenHash).success
+      )
+        return { status: "registration_conflict" };
+      if (
+        [...this.ctx.storage.kv.list<StoredGuestRegistration>({ prefix: registrationPrefix })].some(
+          ([, record]) => record.state === "pending" && record.newTokenHash === input.newTokenHash,
+        )
+      )
+        return { status: "registration_conflict" };
+      // 席を失った後も、初回に検証した本人資格から前局だけを引き継げます。
+      const retained = [
+        ...this.ctx.storage.kv.list<StoredGuestRegistration>({ prefix: registrationPrefix }),
+      ]
+        .map(([, record]) => record)
+        .find(
+          (record) =>
+            record.instanceId === input.instanceId &&
+            record.matchId === input.matchId &&
+            record.oldTokenHash === input.oldTokenHash &&
+            !record.accountId &&
+            (record.holdUntilMs <= now || record.state === "released") &&
+            record.claimUntilMs > now,
+        );
+      if (retained) {
+        const record: StoredGuestRegistration = {
+          ...retained,
+          ...input,
+          state: "expired",
+          accountId: null,
+        };
+        this.ctx.storage.kv.put(registrationKey(input.registrationId), record);
+        return { status: "started", registration: guestRegistrationState(record) };
+      }
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" };
+      if (room.instanceId !== input.instanceId) return { status: "room_changed" };
+      if (room.status !== "waiting") return { status: "room_started" };
+      const membership = this.readMembership(input.oldTokenHash);
+      const player = room.players.find((p) => p.id === membership?.playerId);
+      if (!membership || player?.kind !== "human" || !this.isHumanParticipant(player))
+        return { status: "unauthorized" };
+      if (this.storedAccount(player.id)) return { status: "not_guest" };
+      const last = room.lastRound;
+      const matchId = last && ("roundId" in last ? last.roundId : last.replay?.id);
+      if (matchId !== input.matchId || !last?.players.some((p) => p.id === player.id))
+        return { status: "invalid_match" };
+      if (!originalAccountIds) return { status: "invalid_match" };
+      if (this.registrationForPlayer(player.id)) return { status: "registration_conflict" };
+      if (
+        input.newTokenHash === input.oldTokenHash ||
+        !membershipTokenSchema.safeParse(input.newTokenHash).success ||
+        this.readMembership(input.newTokenHash)
+      )
+        return { status: "registration_conflict" };
+      const targetKey = registrationTargetKey(input.matchId, player.id);
+      const startedAtMs = this.ctx.storage.kv.get<number>(targetKey) ?? now;
+      if (startedAtMs + registrationHoldMs <= now) return { status: "expired" };
+      const record: StoredGuestRegistration = {
+        ...input,
+        playerId: player.id,
+        startedAtMs,
+        holdUntilMs: startedAtMs + registrationHoldMs,
+        claimUntilMs: startedAtMs + registrationClaimMs,
+        state: "pending",
+        accountId: null,
+        originalAccountIds,
+      };
+      this.ctx.storage.kv.put(targetKey, startedAtMs);
+      this.ctx.storage.kv.put(registrationKey(input.registrationId), record);
+      this.ctx.storage.kv.put(activeRegistrationKey(player.id), input.registrationId);
+      this.ctx.storage.kv.put(
+        roomStorageKey,
+        roomSchema.parse({
+          ...room,
+          lastActivityAtMs: now,
+          players: room.players.map((p) =>
+            p.id === player.id
+              ? { ...p, ready: false, registrationPendingUntilMs: record.holdUntilMs }
+              : p,
+          ),
+        }),
+      );
+      return { status: "started", registration: guestRegistrationState(record) };
+    });
+    const room = this.readRoom();
+    await this.syncAlarm(room);
+    if (room && result.status === "started") this.broadcastRoom(room);
+    return result;
+  }
+
+  async cancelGuestRegistration(registrationId: string): Promise<GuestRegistrationState | null> {
+    await this.reconcileDeadlines();
+    this.withIndexTransaction(() => {
+      const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+        registrationKey(registrationId),
+      );
+      if (record?.state !== "converted")
+        this.ctx.storage.kv.put(cancelledRegistrationKey(registrationId), true);
+      if (record?.state === "pending") this.endRegistration(record, "cancelled");
+    });
+    // 解除後は元の切断時刻に戻し、既に過ぎた通常期限も同じ呼出しで処理します。
+    await this.reconcileDeadlines();
+    const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+      registrationKey(registrationId),
+    );
+    return record ? this.registrationView(record) : null;
+  }
+
+  async completeGuestRegistration(
+    registrationId: string,
+    admission: AccountAdmission,
+    analytics?: AnalyticsIdentity,
+  ): Promise<CompleteGuestRegistrationResult> {
+    await this.reconcileDeadlines();
+    const completed = (): CompleteGuestRegistrationResult | null => {
+      const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+        registrationKey(registrationId),
+      );
+      if (!record) return { status: "not_found" };
+      if (record.accountId && record.accountId !== admission.accountId)
+        return { status: "account_conflict" };
+      if (record.state === "converted") {
+        const state = this.registrationView(record);
+        const membership = this.readMembership(record.newTokenHash);
+        return state.state === "converted" && membership
+          ? { status: "converted", registration: state, membership }
+          : { status: "released" };
+      }
+      if (record.state !== "pending") return { status: record.state };
+      return null;
+    };
+    const prior = completed();
+    if (prior) return prior;
+    const result = await this.withAccountAdmission(admission, () =>
+      this.withIndexTransaction((): CompleteGuestRegistrationResult => {
+        const prior = completed();
+        if (prior) return prior;
+        const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+          registrationKey(registrationId),
+        )!;
+        const now = Date.now();
+        if (record.holdUntilMs <= now) return { status: "expired" };
+        const room = this.readRoom();
+        if (
+          !room ||
+          room.instanceId !== record.instanceId ||
+          room.instanceId !== admission.instanceId ||
+          room.id !== admission.roomId
+        )
+          return { status: "room_changed" };
+        const last = room.lastRound;
+        const matchId = last && ("roundId" in last ? last.roundId : last.replay?.id);
+        if (
+          room.status !== "waiting" ||
+          matchId !== record.matchId ||
+          admission.playerId !== record.playerId ||
+          this.registrationForPlayer(record.playerId)?.registrationId !== registrationId
+        )
+          return { status: "released" };
+        const membership = this.readMembership(record.oldTokenHash);
+        if (membership?.playerId !== record.playerId || this.storedAccount(record.playerId))
+          return { status: "released" };
+        if (this.readMembership(record.newTokenHash))
+          return { status: "account_reservation_invalid" };
+        const updatedRecord: StoredGuestRegistration = {
+          ...record,
+          state: "converted",
+          accountId: admission.accountId,
+          admission,
+        };
+        this.ctx.storage.kv.put(accountKey(record.playerId), { ...admission, occupying: true });
+        this.ctx.storage.kv.delete(membershipStorageKey(record.oldTokenHash));
+        this.ctx.storage.kv.put(membershipStorageKey(record.newTokenHash), membership);
+        this.ctx.storage.kv.put(playerTokenKey(record.playerId), record.newTokenHash);
+        this.ctx.storage.kv.put(disconnectedAtKey(record.playerId), now);
+        this.ctx.storage.kv.put(registrationKey(registrationId), updatedRecord);
+        this.ctx.storage.kv.delete(activeRegistrationKey(record.playerId));
+        const previousIdentity = this.ctx.storage.kv.get<AnalyticsIdentity>(
+          analyticsPlayerKey(record.playerId),
+        );
+        this.ctx.storage.kv.put(analyticsPlayerKey(record.playerId), {
+          visitorId: analytics?.visitorId ?? previousIdentity?.visitorId ?? null,
+          accountId: admission.accountId,
+          isTest: analytics?.isTest ?? false,
+        } satisfies AnalyticsIdentity);
+        const avatarUrl = profileAvatarUrl(admission.avatarKey);
+        this.ctx.storage.kv.put(
+          roomStorageKey,
+          roomSchema.parse({
+            ...room,
+            publicUpdatedAtMs: nextPublicUpdateAt(room),
+            lastActivityAtMs: now,
+            players: room.players.map((p) => {
+              if (p.id !== record.playerId || p.kind !== "human") return p;
+              const { registrationPendingUntilMs: _pending, ...player } = p;
+              return {
+                ...player,
+                name: admission.name,
+                avatarUrl,
+                ready: false,
+                reconnectDeadline: now + reconnectGraceMs,
+              };
+            }),
+            lastRound: last && {
+              ...last,
+              players: last.players.map((p) =>
+                p.id === record.playerId
+                  ? { ...p, name: admission.name, appearance: { kind: "human", avatarUrl } }
+                  : p,
+              ),
+            },
+          }),
+        );
+        return {
+          status: "converted",
+          registration: guestRegistrationState(updatedRecord),
+          membership,
+        };
+      }),
+    );
+    if (result?.status === "converted") {
+      const record = this.ctx.storage.kv.get<StoredGuestRegistration>(
+        registrationKey(registrationId),
+      )!;
+      this.closeSockets(record.oldTokenHash, "Room membership updated");
+      const room = this.readRoom();
+      await this.syncAlarm(room);
+      if (room) this.broadcastRoom(room);
+    } else await this.reconcileDeadlines();
+    return result ?? { status: "account_reservation_invalid" };
   }
 
   private queueAccountCleanup(reservation: AccountAdmission, releaseAvatar: boolean) {
@@ -636,6 +1114,12 @@ export class GameRoom extends DurableObject<Env> {
     return value === undefined ? null : roomMembershipSchema.parse(value);
   }
 
+  private publicMembership(membership: RoomMembership): RoomMembership {
+    return this.storedAccount(membership.playerId)?.accountId
+      ? { ...membership, accountLinked: true }
+      : membership;
+  }
+
   private playerTokenHash(playerId: string): string | null {
     return this.ctx.storage.kv.get<string>(playerTokenKey(playerId)) ?? null;
   }
@@ -742,6 +1226,7 @@ export class GameRoom extends DurableObject<Env> {
     for (const player of room?.players ?? []) {
       this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
       if (player.kind !== "human") continue;
+      this.releaseRegistration(player.id);
       this.releaseAccount(player.id, true);
       const tokenHash = this.playerTokenHash(player.id);
       if (tokenHash !== null) this.ctx.storage.kv.delete(membershipStorageKey(tokenHash));
@@ -1158,10 +1643,14 @@ export class GameRoom extends DurableObject<Env> {
   private async syncAlarm(room: Room | null): Promise<void> {
     const deadlines =
       room?.players
-        .filter((player) => player.kind === "human")
+        .filter((player) => player.kind === "human" && !this.registrationForPlayer(player.id))
         .map((player) => player.reconnectDeadline)
         .filter((value) => value !== null) ?? [];
     if (room !== null) deadlines.push(room.lastActivityAtMs + idleMs);
+    for (const player of room?.players ?? []) {
+      const registration = this.registrationForPlayer(player.id);
+      if (registration) deadlines.push(registration.holdUntilMs);
+    }
     if (room?.status === "playing") {
       deadlines.push(room.clock.turnExpiresAt);
       if (currentCpu(room) !== null) {
@@ -1187,6 +1676,8 @@ export class GameRoom extends DurableObject<Env> {
     for (const job of this.pendingAnalytics().values()) deadlines.push(job.retryAtMs);
     for (const job of this.pendingMatches().values()) deadlines.push(job.retryAtMs);
     for (const job of this.pendingShogiMatches().values()) deadlines.push(job.retryAtMs);
+    const claims = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);
+    if (claims) deadlines.push(claims.retryAtMs);
     const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -1277,6 +1768,7 @@ export class GameRoom extends DurableObject<Env> {
     if (room.instanceId !== instanceId || room.lastActivityAtMs + idleMs <= now) return null;
     const retained = room.players.some((player) => {
       if (!this.isHumanParticipant(player)) return false;
+      if ((this.registrationForPlayer(player.id)?.holdUntilMs ?? 0) > now) return true;
       const hash = this.playerTokenHash(player.id);
       if (hash && this.hasOpenConnection(hash)) return true;
       const disconnectedAt = this.ctx.storage.kv.get<number>(disconnectedAtKey(player.id));
@@ -1348,7 +1840,7 @@ export class GameRoom extends DurableObject<Env> {
     return room.players.some(
       (player) => player.kind === "human" && player.id === membership.playerId,
     )
-      ? { status: "found", membership }
+      ? { status: "found", membership: this.publicMembership(membership) }
       : { status: "unauthorized" };
   }
 
@@ -1436,6 +1928,7 @@ export class GameRoom extends DurableObject<Env> {
     room: Extract<Room, { status: "waiting" }>,
     playerId: string,
   ): Room | null {
+    this.releaseRegistration(playerId);
     const departing = room.players.find((player) => player.id === playerId);
     if (departing) this.recordDeparture(departing);
     this.releaseAccount(
@@ -1544,6 +2037,25 @@ export class GameRoom extends DurableObject<Env> {
         if (room.lastActivityAtMs + idleMs <= now) this.closeRoom();
         changed = true;
         return null;
+      }
+      const registrationPlayers = room.players.map((player) => {
+        if (player.kind !== "human") return player;
+        let registration = this.registrationForPlayer(player.id);
+        if (registration && registration.holdUntilMs <= now) {
+          this.endRegistration(registration, "expired");
+          registration = null;
+          changed = true;
+        }
+        if (player.registrationPendingUntilMs === registration?.holdUntilMs) return player;
+        changed = true;
+        const { registrationPendingUntilMs: _pending, ...rest } = player;
+        return registration
+          ? { ...rest, registrationPendingUntilMs: registration.holdUntilMs }
+          : rest;
+      });
+      if (changed) {
+        room = roomSchema.parse({ ...room, players: registrationPlayers });
+        this.ctx.storage.kv.put(roomStorageKey, room);
       }
       const players = room.players.map((player) => {
         const hash = this.playerTokenHash(player.id);
@@ -1776,6 +2288,7 @@ export class GameRoom extends DurableObject<Env> {
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
     if (!initial || !isFourShogiRoom(initial)) this.ctx.waitUntil(this.flushMatches());
+    this.ctx.waitUntil(this.flushGuestMatchClaims());
     if (changed) {
       if (updated) this.broadcastRoom(updated);
       else this.closeSockets();
@@ -2028,7 +2541,7 @@ export class GameRoom extends DurableObject<Env> {
   private authenticationMessage(socket: WebSocket, membership: RoomMembership): RoomSocketMessage {
     return roomSocketContract.message.parse({
       type: "room.authenticated",
-      membership,
+      membership: this.publicMembership(membership),
       ...(this.ctx.getTags(socket).includes(stampTag)
         ? { interactionAvailableAtMs: this.interactionAvailableAtMs(membership.playerId) }
         : {}),
@@ -2163,6 +2676,7 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "unchanged" }
     | { status: "not_found" }
     | { status: "unauthorized" }
+    | { status: "registration_pending" }
     | { status: "already_started" } {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
@@ -2173,6 +2687,7 @@ export class GameRoom extends DurableObject<Env> {
       if (membership === null) return { status: "unauthorized" };
       const player = room.players.find((entry) => entry.id === membership.playerId);
       if (player === undefined) return { status: "unauthorized" };
+      if (this.registrationForPlayer(player.id)) return { status: "registration_pending" };
       if (player.ready === ready) return { status: "unchanged" };
 
       const updatedRoom = roomSchema.parse({
@@ -2184,6 +2699,35 @@ export class GameRoom extends DurableObject<Env> {
       });
       this.ctx.storage.kv.put(roomStorageKey, updatedRoom);
       return { status: "updated", room: updatedRoom };
+    });
+  }
+
+  private applySettings(
+    tokenHash: string,
+    command: Extract<RoomSocketClientMessage, { type: "room.settings.apply" }>,
+  ) {
+    return this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room) return { status: "not_found" as const };
+      if (this.readMembership(tokenHash)?.role !== "host") return { status: "forbidden" as const };
+      const result = prepareRoomSettings(room, command);
+      if (result.status !== "updated") return result;
+      if (command.mode !== undefined && command.mode !== room.settings.mode)
+        this.appendSystem(
+          "mode_changed",
+          `対局形式が${command.mode === "singles" ? "シングルス" : "ダブルス"}に変更されました`,
+        );
+      for (const player of room.players)
+        if (
+          player.kind === "cpu" &&
+          !result.room.players.some((current) => current.id === player.id)
+        )
+          this.recordDeparture(player);
+      for (const player of result.room.players)
+        if (player.kind === "cpu" && !room.players.some((previous) => previous.id === player.id))
+          this.appendSystem("joined", `CPU Lv${player.level}が入室しました`);
+      this.ctx.storage.kv.put(roomStorageKey, result.room);
+      return result;
     });
   }
 
@@ -2321,11 +2865,17 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private startGame(
-    tokenHash: string,
-  ):
+  private startGame(tokenHash: string):
     | { status: "started"; room: Room }
-    | { status: "not_found" | "unauthorized" | "forbidden" | "not_ready" | "already_started" } {
+    | {
+        status:
+          | "not_found"
+          | "unauthorized"
+          | "forbidden"
+          | "not_ready"
+          | "already_started"
+          | "registration_pending";
+      } {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
@@ -2334,6 +2884,8 @@ export class GameRoom extends DurableObject<Env> {
       const membership = this.readMembership(tokenHash);
       if (membership === null) return { status: "unauthorized" };
       if (membership.role !== "host") return { status: "forbidden" };
+      if (room.players.some((player) => this.registrationForPlayer(player.id)))
+        return { status: "registration_pending" };
       if (
         room.players.length !== gameCapacity(room.settings.game) ||
         room.players.some((player) => {
@@ -2607,6 +3159,15 @@ export class GameRoom extends DurableObject<Env> {
         return;
       }
 
+      if (parsed.data.type === "room.settings.apply") {
+        const result = this.applySettings(tokenHash.data, parsed.data);
+        if (result.status === "updated") this.broadcastRoom(result.room);
+        else if (result.status === "unchanged") {
+          const room = this.readRoom();
+          if (room) this.sendRoomSnapshot(socket, room);
+        } else this.rejectAction(socket, result.status);
+        return;
+      }
       if (parsed.data.type === "room.gomoku-forbidden.set") {
         const result = this.setGomokuForbidden(tokenHash.data, parsed.data.enabled);
         if (result.status === "updated") this.broadcastRoom(result.room);

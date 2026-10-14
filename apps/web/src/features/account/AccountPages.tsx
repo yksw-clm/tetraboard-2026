@@ -27,6 +27,8 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { ProfileForm } from "./ProfileForm";
+import { readGuestRegistration } from "./guestRegistration";
+import { GuestRegistrationCompletion } from "./GuestRegistrationCompletion";
 import { useSocialSignIn } from "./useSocialSignIn";
 import {
   clearRegistrationReturn,
@@ -70,11 +72,7 @@ export function AccountPageShell({
         loginLayout && "flex flex-col",
       )}
     >
-      <AppHeader
-        homeTo={gameCatalog[defaultGameId].lobbyPath}
-        homeLabel="TetraBoard ロビー"
-        theme={gameThemes[game]}
-      >
+      <AppHeader homeTo="/" homeLabel="TetraBoard ロビー" theme={gameThemes[game]}>
         <AccountMenu />
       </AppHeader>
       <div
@@ -194,6 +192,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const signIn = useSocialSignIn();
   const [destination] = useState(readRegistrationReturn);
+  const [handoff] = useState(readGuestRegistration);
   const adminDestination = params.get("destination") === "admin";
   useEffect(() => {
     if (params.has("error") && destination && !adminDestination)
@@ -203,6 +202,8 @@ export function LoginPage() {
     if (!loading && !error && user && adminDestination && !params.has("error"))
       window.location.replace("/admin");
   }, [loading, error, user, adminDestination, params]);
+  if (handoff && !adminDestination && (!user || params.has("error")))
+    return <GuestRegistrationCompletion flow={handoff} />;
   if (!loading && !error && user && !params.has("error")) {
     if (adminDestination) return <p role="status">管理画面へ移動しています…</p>;
     return <Navigate to={user.profileCompleted ? "/account" : "/account/setup"} replace />;

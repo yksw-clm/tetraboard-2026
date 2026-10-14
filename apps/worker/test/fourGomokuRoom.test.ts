@@ -355,7 +355,15 @@ test("局ID・revision・担当色が古いCPU候補は適用せず破棄する"
       if (mismatch === "color") job.color = saved.game.turn === "black" ? "white" : "black";
       state.storage.kv.put(fourGomokuCpuJobKey, job);
       await instance.alarm();
-      expect(state.storage.kv.get(fourGomokuCpuJobKey)).toBeUndefined();
+      // 破棄後のAlarmが新しい候補を作っても、古い候補の適用とは区別します。
+      const pending = state.storage.kv.get<FourGomokuCpuJob>(fourGomokuCpuJobKey);
+      expect(pending).not.toEqual(job);
+      if (pending)
+        expect(pending).toMatchObject({
+          roundId: saved.roundId,
+          positionRevision: saved.positionRevision,
+          color: saved.game.turn,
+        });
       expect(gameRoom(state.storage.kv.get("room") as FourGomokuRoom).game).toEqual(saved.game);
     });
 });

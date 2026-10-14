@@ -64,6 +64,16 @@ afterEach(async () => {
       db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(id),
     ]);
 });
+test("extended stats rejects unsupported opt-in values", async () => {
+  expect(
+    (
+      await request(
+        `/player-profile?source=profile&profileId=${crypto.randomUUID()}&game=four-shogi&includeStats=0`,
+      )
+    ).status,
+  ).toBe(400);
+});
+
 test("migration assigns unique UUIDs to existing accounts and keeps previous-code inserts compatible", async () => {
   const migrations = (
     env as typeof env & {
@@ -154,6 +164,15 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       first: stats.singles.first,
     });
     expect(profile.stats.doubles).toEqual({ total: stats.doubles.total, wins: stats.doubles.wins });
+    const extendedResponse = await request(
+      `/player-profile?${new URLSearchParams({ ...target, game, includeStats: "1" })}`,
+    );
+    expect(extendedResponse.status).toBe(200);
+    const extended = getPlayerProfileContract.response.parse(await extendedResponse.json());
+    if (extended.kind !== "account") throw new Error("Account preview expected");
+    expect(extended.stats).toEqual(stats);
+    for (const secret of [user.id, "accountId", "email", "replay", "token"])
+      expect(JSON.stringify(extended)).not.toContain(secret);
     for (const secret of [user.id, "accountId", "email", "second", "knockouts", "replay", "token"])
       expect(JSON.stringify(profile)).not.toContain(secret);
     await db

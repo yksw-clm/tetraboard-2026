@@ -1,12 +1,13 @@
-import { gameCapacity } from "@tetraboard/protocol/games";
 import type { GameId } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
+import { AppHorizontalScrollButtons } from "../../shared/ui/AppHorizontalScrollButtons";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppButton } from "../../shared/ui/AppButton";
 import { MatchHistoryCard } from "./MatchHistoryCard";
 import { useRecentMatches } from "./useRecentMatches";
 
-export function RecentMatches({ game }: { game: GameId }) {
+export function RecentMatches({ game }: { game: GameId | "all" }) {
   const page = useRecentMatches(game);
   const [nowMs, setNowMs] = useState(Date.now);
   useEffect(() => {
@@ -38,6 +39,7 @@ export function RecentMatches({ game }: { game: GameId }) {
           isPending={page.pendingSource === "refresh"}
           onPress={() => void page.refresh("refresh")}
         >
+          <AppIcon name="refresh" />
           更新
         </AppButton>
       </AppSectionHeading>
@@ -47,35 +49,37 @@ export function RecentMatches({ game }: { game: GameId }) {
           checked={page.humanOnly}
           onChange={(event) => page.changeHumanOnly(event.target.checked)}
         />
-        人間{gameCapacity(game)}人の対局のみ
+        対人戦のみ
       </label>
       {page.loading && !page.pendingSource && (
         <p role="status" className="text-sm text-muted">
           最近の対局を読み込んでいます…
         </p>
       )}
-      <ul
-        ref={list}
-        aria-label="最近行われた対局の棋譜"
-        tabIndex={page.matches.length ? 0 : undefined}
-        className="m-0 flex w-full min-w-0 flex-nowrap gap-3 overflow-x-auto list-none p-0 pb-1"
-      >
-        {page.matches.map((match) => (
-          <li key={match.id} className="min-w-0 shrink-0 [width:min(320px,100%)]">
-            <MatchHistoryCard
-              match={match}
-              to={`/matches/${match.id}`}
-              className="h-full"
-              relativeToMs={nowMs}
-            />
-          </li>
-        ))}
-      </ul>
+      <div className="relative isolate min-w-0">
+        <ul
+          ref={list}
+          aria-label="最近行われた対局の棋譜"
+          tabIndex={page.matches.length ? 0 : undefined}
+          className="m-0 flex w-full min-w-0 flex-nowrap gap-3 overflow-x-auto list-none p-0 pb-1"
+        >
+          {page.matches.map((match) => (
+            <li key={match.id} className="min-w-0 shrink-0 [width:min(320px,100%)]">
+              <MatchHistoryCard
+                match={match}
+                to={`/matches/${match.id}`}
+                className="h-full"
+                relativeToMs={nowMs}
+                showGame={game === "all"}
+              />
+            </li>
+          ))}
+        </ul>
+        <AppHorizontalScrollButtons scrollRef={list} label="最近の対局" contentKey={page.matches} />
+      </div>
       {page.loaded && !page.loading && !page.error && !page.matches.length && (
         <p className="text-sm text-muted">
-          {page.humanOnly
-            ? `人間${gameCapacity(game)}人の対局履歴がありません。`
-            : "まだ対局履歴がありません。"}
+          {page.humanOnly ? "対人戦の対局履歴がありません。" : "まだ対局履歴がありません。"}
         </p>
       )}
       {page.error && (

@@ -1,6 +1,7 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { useRef, useState } from "react";
 import { accountRequest } from "./accountApi";
+import type { RegistrationCredential } from "@tetraboard/protocol";
 import {
   clearRegistrationReturn,
   saveRegistrationReturn,
@@ -14,8 +15,12 @@ export function useSocialSignIn() {
   const [busy, setBusy] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  async function start(provider: SocialProvider, destination?: RegistrationDestination | "admin") {
-    if (submitting.current) return;
+  async function start(
+    provider: SocialProvider,
+    destination?: RegistrationDestination | "admin",
+    registration?: RegistrationCredential,
+  ): Promise<boolean> {
+    if (submitting.current) return false;
     submitting.current = true;
     setBusy(true);
     setPendingProvider(provider);
@@ -26,6 +31,7 @@ export function useSocialSignIn() {
     try {
       const result = (await accountRequest("/api/auth/sign-in/social", {
         method: "POST",
+        signal: AbortSignal.timeout(10000),
         headers: {
           "Content-Type": "application/json",
           "X-Legal-Consent": legalVersion,
@@ -33,6 +39,14 @@ export function useSocialSignIn() {
         body: JSON.stringify({
           provider,
           ...(destination === "admin" ? { destination: "admin" } : {}),
+          ...(registration
+            ? {
+                registration: {
+                  registrationId: registration.registrationId,
+                  secret: registration.secret,
+                },
+              }
+            : {}),
         }),
       })) as { url?: string } | null;
       if (
@@ -44,6 +58,7 @@ export function useSocialSignIn() {
           `${provider === "google" ? "Google" : "Discord"}ログインを開始できませんでした。`,
         );
       window.location.assign(result.url);
+      return true;
     } catch (err) {
       if (registrationDestination) saveRegistrationReturn(registrationDestination, false);
       else clearRegistrationReturn();
@@ -55,6 +70,7 @@ export function useSocialSignIn() {
       submitting.current = false;
       setBusy(false);
       setPendingProvider(null);
+      return false;
     }
   }
   return { busy, pendingProvider, message, start };

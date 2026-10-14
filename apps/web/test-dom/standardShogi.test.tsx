@@ -49,7 +49,6 @@ test("通常将棋の作成はCPU1人・モードなしで、ロビー初期図�
       <RoomEntryDialog
         game="shogi"
         intent="quick"
-        registrationPath="/games/shogi"
         name="ゲスト"
         roomCode=""
         mode="singles"
@@ -96,13 +95,9 @@ test("通常将棋のマイページは5項目と引き分けを含む率、モ�
     else if (request.url.includes("/matches?")) request.respond({ matches: [], nextCursor: null });
   }
   await flush();
-  expect([...view.querySelectorAll("dt")].map((n) => n.textContent)).toEqual([
-    "対局数",
-    "勝数",
-    "勝率",
-    "敗数",
-    "敗率",
-  ]);
+  expect(
+    [...view.querySelectorAll("td > span")].map((n) => n.firstElementChild?.textContent),
+  ).toEqual(["対局数", "勝数", "勝率", "敗数", "敗率"]);
   expect(view.textContent).toContain(".250");
   expect(view.textContent).toContain(".500");
   expect(view.textContent).not.toContain("シングルス");
@@ -166,9 +161,9 @@ test("通常将棋の待機画面と設定には左右カード・モード・�
   press(view, "ルーム設定");
   await flush();
   clock.advance(300);
-  expect(view.querySelectorAll('input[type="radio"]')).toHaveLength(0);
-  expect(view.textContent).not.toContain("シングルス");
-  expect(view.textContent).not.toContain("三人攻撃禁止");
+  expect(document.querySelectorAll('input[type="radio"]')).toHaveLength(0);
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("シングルス");
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("三人攻撃禁止");
 });
 test("通常将棋の着手は局revision付きで一度だけ送り、受信局面で完了する", () => {
   const room = standardPlayingRoom();

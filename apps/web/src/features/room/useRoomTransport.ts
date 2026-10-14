@@ -47,6 +47,7 @@ type CommonSettingsCommand = Extract<
     type:
       | "room.mode.set"
       | "room.time-control.set"
+      | "room.settings.apply"
       | "room.cpu.add"
       | "room.cpu.level.set"
       | "room.cpu.remove";
@@ -83,6 +84,8 @@ function operationErrorMessage(
   gameError: (error: string) => string | undefined,
 ): string {
   switch (error) {
+    case "registration_pending":
+      return "登録手続きが完了するか、席の保持期限が過ぎるまでお待ちください。";
     case "not_ready":
       return "参加者全員の準備完了が必要です。";
     case "forbidden":
@@ -101,6 +104,8 @@ function operationErrorMessage(
       return "持ち時間が切れました。";
     case "room_full":
       return "このルームは満室です。";
+    case "room_changed":
+      return "ルーム情報が更新されました。設定を読み直してください。";
     case "cpu_not_found":
       return "指定したCPUが見つかりません。";
     default:
@@ -962,7 +967,10 @@ export function useRoomTransport<T extends Room>({
       membership?.role !== "host" ||
       room.players.length !== gameCapacity(room.settings.game) ||
       room.players.some(
-        (player) => !player.ready || !presence.connectedPlayerIds.includes(player.id),
+        (player) =>
+          !player.ready ||
+          !presence.connectedPlayerIds.includes(player.id) ||
+          (player.kind === "human" && player.registrationPendingUntilMs !== undefined),
       )
     ) {
       return;
@@ -974,6 +982,7 @@ export function useRoomTransport<T extends Room>({
     const currentSocket = socketRef.current;
     if (
       self === undefined ||
+      (self.kind === "human" && self.registrationPendingUntilMs !== undefined) ||
       room.status !== "waiting" ||
       !authenticated ||
       pendingReadyRef.current !== null ||
@@ -1172,6 +1181,8 @@ export function useRoomTransport<T extends Room>({
     playOwnMove,
     handleStartClick,
     handleReadyClick,
+    applySettings: (command: Extract<RoomSocketClientMessage, { type: "room.settings.apply" }>) =>
+      sendSettingsMessage(command),
     changeMode,
     changeTimeControl: (timeControl: RoomTimeControl) =>
       sendSettingsMessage({ type: "room.time-control.set", timeControl }),

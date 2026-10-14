@@ -67,9 +67,14 @@ export function RoomStatus({
     connection === "接続済み" &&
     !session.leaving &&
     session.pendingGameAction === null;
-  const ready = available && session.pendingReady === null;
+  const registering = room.players.filter(
+    (player) => player.kind === "human" && player.registrationPendingUntilMs !== undefined,
+  );
+  const ownRegistration = self?.kind === "human" && self.registrationPendingUntilMs !== undefined;
+  const ready = available && session.pendingReady === null && !ownRegistration;
   const canStart =
     ready &&
+    registering.length === 0 &&
     room.players.length === gameCapacity(room.settings.game) &&
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
   return (
@@ -88,7 +93,9 @@ export function RoomStatus({
           aria-live="polite"
         >
           {waiting
-            ? "待機中です。"
+            ? registering.length > 0
+              ? "登録手続きの完了を待っています。"
+              : "待機中です。"
             : myTurn
               ? "あなたの番です。"
               : `${turn ? playerName(turn) : ""}の番です。`}
@@ -138,7 +145,7 @@ export function RoomStatus({
             isPending={session.pendingReady !== null}
             onPress={session.handleReadyClick}
           >
-            {self.ready ? "準備取消" : "準備完了"}
+            {ownRegistration ? "登録手続中" : self.ready ? "準備取消" : "準備完了"}
           </AppButton>
         )}
         {waiting && membership?.role === "host" && (

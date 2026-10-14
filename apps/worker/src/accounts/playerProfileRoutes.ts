@@ -7,6 +7,7 @@ import {
 import { readStoredMatch } from "./matchDataContracts";
 import { readCurrentProfiles, ensurePublicProfileId } from "./currentProfiles";
 import { readAccountStats } from "./statsRoutes";
+import { resolveMatchParticipants } from "./matchClaims";
 export const playerProfileRoutes = new Hono<{ Bindings: Env }>();
 playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
   c.header("Cache-Control", "no-store");
@@ -45,6 +46,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         if (!row) return c.json({ message: "プロフィールを表示できません。" }, 404);
         if (row.game !== target.game) return c.json({ message: "ゲームが一致しません。" }, 400);
         const record = readStoredMatch(row.record_json, row.game);
+        await resolveMatchParticipants(c.env.APP_DB, record);
         player = record.record.participants.find((p) => p.id === target.playerId);
         if (!player) return c.json({ message: "プロフィールを表示できません。" }, 404);
         accountId = player.kind === "human" ? player.accountId : null;
@@ -88,7 +90,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         game: target.game,
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:
-          "wins" in stats
+          target.includeStats === "1" || "wins" in stats
             ? stats
             : {
                 singles: { total: stats.singles.total, first: stats.singles.first },

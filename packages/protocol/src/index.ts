@@ -130,6 +130,7 @@ export type {
   PlayingRoomClock,
   FinishedRoomClock,
   RoomSocketClientMessage,
+  RoomSettingsApplyCommand,
   RoomSocketMessage,
 } from "./rooms";
 
@@ -287,3 +288,5 @@ export {
 } from "./matches";
 
 export { fourShogiEliminatedHandsSchema, type FourShogiEliminatedHands } from "./fourShogi";
+
+export * from "./registration";

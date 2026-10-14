@@ -1,16 +1,11 @@
-import { PrivacyLinks } from "../privacy/PrivacyLinks";
+import { LobbyFooter } from "./LobbyFooter";
 import { RecentMatches } from "../matches/RecentMatches";
-const previewStoneClasses = {
-  black: "preview-stone-black",
-  white: "preview-stone-white",
-  red: "preview-stone-red",
-  blue: "preview-stone-blue",
-} as const;
+import { ReversiLobbyBoardPreview } from "./ReversiLobbyBoardPreview";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 
 import { type RoomTimeControl, type RoomMode, type CpuLevel } from "@tetraboard/protocol";
-import { Fragment, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
@@ -22,7 +17,7 @@ import { RoomEntryDialog } from "./RoomEntryDialog";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import type { RegistrationEntryDraft } from "../account/registrationReturn";
 import { FeedbackEntry } from "../feedback/FeedbackEntry";
-import { Link } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
 
@@ -66,17 +61,6 @@ type ActiveDialog =
   | { type: "rules" }
   | null;
 
-const previewStones: Record<number, keyof typeof previewStoneClasses> = {
-  19: "black",
-  28: "black",
-  35: "white",
-  44: "white",
-  27: "red",
-  34: "red",
-  29: "blue",
-  36: "blue",
-};
-
 const mobileQuery = "(max-width: 767px)";
 function subscribeToLobbyWidth(onChange: () => void) {
   const query = window.matchMedia(mobileQuery);
@@ -119,6 +103,14 @@ function LobbyEntryButton({
 }
 
 export function LobbyView(props: Props) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const createRequested = location.state?.roomEntryIntent === "create";
+  useEffect(() => {
+    if (!createRequested) return;
+    const { roomEntryIntent: _intent, ...state } = location.state;
+    void navigate(location.pathname + location.search + location.hash, { replace: true, state });
+  }, [createRequested, location, navigate]);
   const [dialog, setDialog] = useState<ActiveDialog>(() =>
     props.registrationDraft
       ? {
@@ -127,14 +119,10 @@ export function LobbyView(props: Props) {
           roomId: props.registrationDraft.selectedRoomId,
           humanOnly: props.registrationDraft.humanOnly,
         }
-      : null,
+      : createRequested
+        ? { type: "entry", intent: "create" }
+        : null,
   );
-  const stones = !gameCatalog[props.game].hasModes
-    ? ({ 27: "white", 28: "black", 35: "black", 36: "white" } as Record<
-        number,
-        keyof typeof previewStoneClasses
-      >)
-    : previewStones;
   const mobile = useSyncExternalStore(subscribeToLobbyWidth, isMobileWidth);
   const game = {
     title: gameCatalog[props.game].name,
@@ -195,11 +183,7 @@ export function LobbyView(props: Props) {
 
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">
-      <AppHeader
-        homeTo={game.homeTo}
-        homeLabel={`TetraBoard ${game.title}のロビー`}
-        theme={game.theme}
-      >
+      <AppHeader homeTo="/" homeLabel={`TetraBoard ${game.title}のロビー`} theme={game.theme}>
         <AccountMenu lobbyGame={props.game} />
       </AppHeader>
       <div
@@ -214,24 +198,7 @@ export function LobbyView(props: Props) {
                 {props.boardPreview}
               </Fragment>
               {props.boardPreview == null && (
-                <div
-                  aria-hidden="true"
-                  data-testid="lobby-board-preview"
-                  className="grid shrink-0 grid-cols-8 grid-rows-8 w-[88px] aspect-square gap-px p-[5px] border border-solid border-[#316a4d] rounded-lg bg-[#326a4e] shadow-[4px_7px_12px_#32694a22] -rotate-7 [@media(max-width:767px)]:w-[56px] [@media(max-width:767px)]:p-[3px]"
-                >
-                  {Array.from({ length: 64 }, (_, index) => (
-                    <span
-                      className="relative min-w-0 min-h-0 bg-[#4d976c] even:bg-[#529c71]"
-                      key={index}
-                    >
-                      {stones[index] && (
-                        <span
-                          className={`absolute inset-[8%] rounded-full border border-solid border-[#00000018] shadow-[1px_2px_3px_#122d3150] ${previewStoneClasses[stones[index]!]}`}
-                        />
-                      )}
-                    </span>
-                  ))}
-                </div>
+                <ReversiLobbyBoardPreview fourPlayer={gameCatalog[props.game].hasModes} />
               )}
               <div className="min-w-0">
                 <h1 className="text-[36px] leading-[1.35] tracking-[0.02em] [@media(max-width:767px)]:text-[27px]">
@@ -265,19 +232,9 @@ export function LobbyView(props: Props) {
             {order.map((section) => sections[section])}
           </div>
           <GameIntroduction game={props.game} />
-          <footer className="mt-0 pt-[14px] pb-5 border-t border-solid border-lobby-footer-line text-muted text-xs text-center">
-            <div className="flex flex-wrap justify-center items-center gap-3">
-              <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />
-              <Link
-                to="/updates"
-                className="inline-flex min-h-11 items-center text-brand underline"
-              >
-                お知らせ
-              </Link>
-            </div>
-            <PrivacyLinks />
-            <p className="mt-3">TetraBoard</p>
-          </footer>
+          <LobbyFooter>
+            <FeedbackEntry context={{ page: "lobby", game: props.game }} theme={game.theme} />
+          </LobbyFooter>
         </main>
       </div>
       {dialog?.type === "entry" && (
@@ -304,8 +261,6 @@ export function LobbyView(props: Props) {
           onThreePlayerAttackChange={props.onThreePlayerAttackChange}
           onSubmit={() => props.onSubmitRoom?.(dialog.intent, dialog.roomId)}
           onClose={closeDialog}
-          registrationPath={game.homeTo}
-          humanOnly={dialog.humanOnly}
         />
       )}
       {dialog?.type === "rules" && <HowToPlayDialog game={props.game} onClose={closeDialog} />}

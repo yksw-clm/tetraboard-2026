@@ -18,13 +18,15 @@ async function queryGameRankings(
   db: D1Database,
   game: MatchGame = defaultGameId,
   preview = false,
+  includeKnockouts = false,
 ): Promise<PreviewRankings> {
   // 保存済みの結果を一度集計し、同順位の判定と人数制限を別々に扱います。
   const rows = await db
     .prepare(`${matchOutcomesCte(game, false)}, totals AS (
     SELECT account_id, mode, COUNT(*) AS total,
       SUM(CASE WHEN mode = 'singles' AND rank = 1 THEN 1
-        WHEN mode = 'doubles' AND winner = team THEN 1 ELSE 0 END) AS victories
+        WHEN mode = 'doubles' AND winner = team THEN 1 ELSE 0 END) AS victories,
+      SUM(knockouts) AS knockouts
     FROM outcomes GROUP BY account_id, mode
   ), metrics AS (
     SELECT account_id, mode, 'total' AS metric, total AS value FROM totals
@@ -32,6 +34,7 @@ async function queryGameRankings(
     SELECT account_id, mode,
       CASE WHEN mode = 'singles' THEN 'first' ELSE 'wins' END AS metric,
       victories AS value FROM totals
+    ${includeKnockouts && game === "four-shogi" ? "UNION ALL SELECT account_id, mode, 'knockouts' AS metric, knockouts AS value FROM totals WHERE mode = 'singles'" : ""}
   ), ranked AS (
     SELECT u.id AS accountId, u.publicProfileId, m.mode, m.metric, m.value, u.username, u.name, u.avatarKey,
       RANK() OVER (PARTITION BY m.mode, m.metric ORDER BY m.value DESC) AS rank,
@@ -49,7 +52,7 @@ async function queryGameRankings(
       accountId: string;
       publicProfileId: string | null;
       mode: RoomMode;
-      metric: "first" | "wins" | "total";
+      metric: "first" | "wins" | "total" | "knockouts";
       value: number;
       username: string;
       name: string;
@@ -57,7 +60,7 @@ async function queryGameRankings(
       rank: number;
     }>();
   const rankings: PreviewRankings = {
-    singles: { first: [], total: [] },
+    singles: { first: [], total: [], ...(includeKnockouts ? { knockouts: [] } : {}) },
     doubles: { wins: [], total: [] },
   };
   const ids = new Map<string, string>();
@@ -80,6 +83,8 @@ async function queryGameRankings(
     if (row.metric === "total") rankings[row.mode].total.push(entry);
     else if (row.mode === "singles" && row.metric === "first") rankings.singles.first.push(entry);
     else if (row.mode === "doubles" && row.metric === "wins") rankings.doubles.wins.push(entry);
+    else if (row.mode === "singles" && row.metric === "knockouts")
+      rankings.singles.knockouts?.push(entry);
   }
   return rankings;
 }
@@ -174,6 +179,10 @@ for (const game of gameIds) {
     c.header("Cache-Control", "no-store");
     try {
       const preview = c.req.query("profilePreview");
+      const knockoutQuery = c.req.query("includeKnockouts");
+      if (knockoutQuery !== undefined && (knockoutQuery !== "1" || game !== "four-shogi"))
+        return c.json({ message: "取得条件が正しくありません。" }, 400);
+      const includeKnockouts = knockoutQuery === "1";
       if (preview !== undefined && preview !== "1")
         return c.json({ message: "取得条件が正しくありません。" }, 400);
       if (preview && !gameCatalog[game].hasModes)
@@ -188,7 +197,15 @@ for (const game of gameIds) {
         );
       if (preview)
         return c.json(
-          previewRankingsSchema.parse(await queryGameRankings(c.env.APP_DB, game, true)),
+          previewRankingsSchema.parse(
+            await queryGameRankings(c.env.APP_DB, game, true, includeKnockouts),
+          ),
+        );
+      if (includeKnockouts)
+        return c.json(
+          gameRankingContracts["four-shogi"].response.parse(
+            await queryGameRankings(c.env.APP_DB, "four-shogi", false, true),
+          ),
         );
       return c.json(await rankingReaders[game](c.env.APP_DB));
     } catch {

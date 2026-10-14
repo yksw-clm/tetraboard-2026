@@ -224,7 +224,9 @@ test("ランキングはゲーム別API、失敗時保持、更新によるabort
   h.rerender("four-shogi");
   expect(requests[2]!.init.signal?.aborted).toBe(true);
   clock.advance(0);
-  expect(requests[3]!.url).toBe("/api/games/four-shogi/rankings?profilePreview=1");
+  expect(requests[3]!.url).toBe(
+    "/api/games/four-shogi/rankings?profilePreview=1&includeKnockouts=1",
+  );
   requests[2]!.respond(rankings);
   requests[3]!.respond(rankings);
   await flush();

@@ -1,13 +1,9 @@
-import { gameCatalog } from "@tetraboard/protocol/games";
-import { gameThemes } from "../../shared/ui/appTheme";
-import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
-import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
-import { Chip } from "@heroui/react";
 import { type PreviewRoomMetadata } from "@tetraboard/protocol";
 import { AppIcon } from "../../shared/ui/AppIcon";
+import { LobbyRoomCard, LobbyRoomLegend } from "./LobbyRoomCard";
 
 type Props = {
   rooms: PreviewRoomMetadata[];
@@ -38,10 +34,6 @@ export function LobbyList({
   onJoin,
   onWatch,
 }: Props) {
-  const hasModes = rooms.some((room) => gameCatalog[room.game].hasModes);
-  const columns = hasModes
-    ? "grid-cols-[minmax(150px,1.5fr)_minmax(90px,0.85fr)_minmax(130px,1fr)_100px_156px]"
-    : "grid-cols-[minmax(150px,1.5fr)_minmax(130px,1fr)_100px_156px]";
   return (
     <section
       aria-labelledby="public-rooms-title"
@@ -97,116 +89,40 @@ export function LobbyList({
       )}
       {rooms.length > 0 && (
         <>
-          <div
-            className={`grid ${columns} items-center gap-4 px-6 pb-[10px] text-muted text-[11px] [@media(max-width:900px)]:hidden`}
-            aria-hidden="true"
-          >
-            <span>ルーム</span>
-            {hasModes && <span>モード</span>}
-            <span>参加人数</span>
-            <span>状態</span>
-            <span />
-          </div>
           <div className="[@media(max-width:767px)]:max-h-[400px] [@media(max-width:767px)]:overflow-y-auto">
-            <ul className="m-0 p-0 overflow-hidden border border-solid border-line rounded-panel bg-white list-none [&>li+li>div]:border-t [&>li+li>div]:border-line [@media(max-width:900px)]:grid [@media(650px<width<=900px)]:grid-cols-2 [@media(650px<width<=900px)]:gap-[14px] [@media(max-width:900px)]:overflow-visible [@media(max-width:900px)]:border-0 [@media(max-width:900px)]:rounded-none [@media(max-width:900px)]:bg-transparent [@media(max-width:650px)]:grid-cols-1 [@media(max-width:650px)]:gap-[10px]">
-              {rooms.map((room) => {
-                const canJoin = room.status === "waiting" && room.openSeats > 0;
-                return (
-                  <li key={room.id}>
-                    <AppCard
-                      className={`grid ${columns} items-center gap-4 py-[14px] px-6 border-0 rounded-none shadow-none [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_auto] [@media(max-width:900px)]:gap-[10px] [@media(max-width:900px)]:py-4 [@media(max-width:900px)]:px-5 [@media(max-width:900px)]:border [@media(max-width:900px)]:border-solid [@media(max-width:900px)]:border-line [@media(max-width:900px)]:rounded-panel [@media(max-width:900px)]:bg-white`}
+            <ul
+              aria-label="公開ルーム一覧"
+              className="m-0 grid grid-cols-[repeat(auto-fill,minmax(min(100%,440px),1fr))] gap-3.5 p-0 list-none"
+            >
+              {rooms.map((room) => (
+                <li key={room.id} className="min-w-0">
+                  <LobbyRoomCard room={room} showGame={false}>
+                    {room.status === "waiting" && room.openSeats > 0 && (
+                      <AppButton
+                        size="compact"
+                        type="button"
+                        aria-label={`ルーム ${room.id} に参加`}
+                        onPress={() => onJoin(room.id, room.cpuCount === 0)}
+                      >
+                        参加
+                      </AppButton>
+                    )}
+                    <AppButton
+                      size="compact"
+                      appearance="secondary"
+                      type="button"
+                      aria-label={`ルーム ${room.id} を観戦`}
+                      isPending={pendingWatchRoomId === room.id}
+                      onPress={() => onWatch(room.id)}
                     >
-                      <div className="flex items-center min-w-0 gap-3">
-                        <PlayerProfileTrigger
-                          target={room.hostName === null ? null : room.profileTarget}
-                          game={room.game}
-                          mode={room.mode ?? "singles"}
-                          theme={gameThemes[room.game]}
-                          label={room.hostName ?? "ホストなし"}
-                        >
-                          <AppAvatar
-                            src={room.hostAvatarUrl}
-                            label={room.hostName ?? "ホストなし"}
-                          />
-                        </PlayerProfileTrigger>
-                        <div className="min-w-0">
-                          <strong className="block text-sm wrap-anywhere">
-                            <PlayerProfileTrigger
-                              target={room.hostName === null ? null : room.profileTarget}
-                              game={room.game}
-                              mode={room.mode ?? "singles"}
-                              theme={gameThemes[room.game]}
-                              label={room.hostName ?? "ホストなし"}
-                            >
-                              {room.hostName ?? "ホストなし"}
-                            </PlayerProfileTrigger>
-                          </strong>
-                          <span className="block text-xs text-muted tabular-nums">{room.id}</span>
-                        </div>
-                      </div>
-                      {gameCatalog[room.game].hasModes && (
-                        <span className="text-ink-secondary text-[13px] [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-2">
-                          {room.mode === "singles" ? "シングルス" : "ダブルス"}
-                        </span>
-                      )}
-                      <div className="flex items-center min-w-0 gap-3 [@media(max-width:900px)]:col-start-1 [@media(max-width:900px)]:row-start-3">
-                        <strong className="text-base tabular-nums whitespace-nowrap">
-                          {room.humanCount + room.cpuCount}/{room.capacity}
-                        </strong>
-                        <span
-                          className="inline-flex gap-1"
-                          role="img"
-                          aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${room.capacity - room.humanCount - room.cpuCount}席`}
-                        >
-                          {Array.from({ length: room.capacity }, (_, index) => (
-                            <span
-                              key={index}
-                              className={`size-2 rounded-full ${index < room.humanCount ? "bg-[#34a871]" : index < room.humanCount + room.cpuCount ? "bg-[#376597]" : "bg-[#cbd3ce]"}`}
-                            />
-                          ))}
-                        </span>
-                      </div>
-                      <div className="flex items-center flex-wrap gap-1 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-1 [@media(max-width:900px)]:justify-end">
-                        <Chip
-                          className={`inline-flex items-center gap-[6px] w-fit rounded-[20px] py-1 px-[10px] text-[11px] font-semibold whitespace-nowrap ${room.status === "playing" ? "text-[#806323] bg-[#fcf5e4]" : "text-[#27794f] bg-[#edf7f0]"}`}
-                        >
-                          <Chip.Label className="inline-flex items-center gap-[6px]">
-                            <span className="size-[5px] rounded-full bg-current" />
-                            {room.status === "waiting" ? "対局前" : "対局中"}
-                          </Chip.Label>
-                        </Chip>
-                      </div>
-                      <div className="flex justify-end gap-2 [@media(max-width:900px)]:col-start-2 [@media(max-width:900px)]:row-start-3">
-                        {canJoin && (
-                          <AppButton
-                            size="compact"
-                            type="button"
-                            aria-label={`ルーム ${room.id} に参加`}
-                            onPress={() => onJoin(room.id, room.cpuCount === 0)}
-                          >
-                            参加
-                          </AppButton>
-                        )}
-                        <AppButton
-                          size="compact"
-                          appearance="secondary"
-                          type="button"
-                          aria-label={`ルーム ${room.id} を観戦`}
-                          isPending={pendingWatchRoomId === room.id}
-                          onPress={() => onWatch(room.id)}
-                        >
-                          観戦
-                        </AppButton>
-                      </div>
-                    </AppCard>
-                  </li>
-                );
-              })}
+                      観戦
+                    </AppButton>
+                  </LobbyRoomCard>
+                </li>
+              ))}
             </ul>
           </div>
-          <p className="mt-[10px]! text-muted text-[11px]">
-            CPUを含む席数です。対局中は開始時の参加人数を表示しています。
-          </p>
+          <LobbyRoomLegend />
         </>
       )}
       {nextCursor !== null && (

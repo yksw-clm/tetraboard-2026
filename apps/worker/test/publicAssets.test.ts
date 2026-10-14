@@ -14,6 +14,10 @@ const files: Record<string, { body: string; type: string }> = {
       },
     ]),
   ),
+  "/app.html": {
+    body: '<html><head><title>TetraBoard</title><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
+    type: "text/html; charset=utf-8",
+  },
   "/index.html": {
     body: '<html><head><title>TetraBoard</title><meta name="robots" content="noindex,follow"></head><body><div id="root"></div></body></html>',
     type: "text/html; charset=utf-8",
@@ -96,7 +100,7 @@ test("トップと公開URLの別表記はクエリを保持した恒久転送�
   const assets = assetFixture();
   for (const method of ["GET", "HEAD"]) {
     for (const [path, target] of [
-      ["/", "/games/four-reversi"],
+      ["/index.html", "/"],
       ...gameIds.flatMap((game) => [
         [`/games/${game}/`, `/games/${game}`],
         [`/games/${game}/index.html`, `/games/${game}`],
@@ -218,4 +222,14 @@ test("共有画像7枚のPNG配信・HEAD・304と欠落画像の404を維持す
     );
   }
   expect((await assets.fetch("/assets/ogp/missing.png")).status).toBe(404);
+});
+
+test("トップはGETとHEADで総合ロビーHTMLを転送せず配信する", async () => {
+  const assets = assetFixture();
+  for (const method of ["GET", "HEAD"]) {
+    const response = await assets.fetch("/?source=example", { method });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(response.headers.get("X-Robots-Tag")).toBeNull();
+  }
 });

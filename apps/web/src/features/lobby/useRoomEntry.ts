@@ -70,7 +70,11 @@ export function useRoomEntry(game: GameId = defaultGameId) {
   const [message, setMessage] = useState<string | null>(null);
   const submitting = useRef(false);
 
-  async function submitRoom(intent: RoomEntryIntent, selectedRoomCode = roomCode): Promise<void> {
+  async function submitRoom(
+    intent: RoomEntryIntent,
+    selectedRoomCode = roomCode,
+    instanceId?: string,
+  ): Promise<void> {
     if (submitting.current || account.loading || account.error) return;
     const contract = createRoomContract;
 
@@ -100,7 +104,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
       if (user && !user.profileCompleted) return;
       const entryName = user ? undefined : name;
       if (intent === "join") {
-        const result = await joinRoom(selectedRoomCode, entryName);
+        const result = await joinRoom(selectedRoomCode, entryName, instanceId);
         if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         await navigate(getRoomContract.pathFor(selectedRoomCode));
         return;

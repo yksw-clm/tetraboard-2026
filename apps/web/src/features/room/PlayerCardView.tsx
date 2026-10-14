@@ -203,7 +203,13 @@ export function PlayerCardView({
       </div>
       <div className="col-start-2 row-start-2 min-w-0 grid grid-cols-[54px_minmax(0,1fr)] items-center gap-[3px] [@container(max-width:160px)]:grid-cols-[40px_minmax(0,1fr)] [@container(max-width:160px)]:gap-[2px]">
         <span data-testid="player-score-slot" className="flex items-center min-w-0 h-[22px]">
-          {score}
+          {player &&
+          "registrationPendingUntilMs" in player &&
+          player.registrationPendingUntilMs !== undefined ? (
+            <span className="text-[10px] font-bold text-muted whitespace-nowrap">登録手続中</span>
+          ) : (
+            score
+          )}
         </span>
         <span
           data-testid="player-time-slot"

@@ -36,7 +36,8 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
   if (!roomCodeSchema.safeParse(id).success) {
     throw new Response("ルームIDが不正です。", { status: 400 });
   }
-  const instanceId = invitationInstance(new URL(request.url));
+  const url = new URL(request.url);
+  const instanceId = invitationInstance(url);
   const { room, presence, serverNowMs, formationAnalysis, stampsSupported, eliminatedHands } =
     await fetchRoom(id!, request.signal, instanceId);
   const membership = await fetchRoomMembership(room.id, request.signal);
@@ -47,7 +48,7 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     membership,
     presence,
     serverNowMs,
-    invited: instanceId !== undefined,
+    invited: instanceId !== undefined && url.searchParams.get("watch") !== "1",
     stampsSupported: stampsSupported === true,
   };
   if (isShogiRoom(room)) return { ...common, game: "shogi", room };

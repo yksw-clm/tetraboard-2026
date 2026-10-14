@@ -231,7 +231,15 @@ export function readStoredMatch(json: string, expectedGame: unknown): DecodedMat
     }
   }
 }
-export function matchSummary(match: DecodedMatch, profiles: ParticipantProfiles) {
+export function matchSummary(
+  match: DecodedMatch,
+  profiles: ParticipantProfiles,
+  includeMoveCount = false,
+) {
+  const summary = baseMatchSummary(match, profiles);
+  return includeMoveCount ? { ...summary, moveCount: match.record.game.moveNumber } : summary;
+}
+function baseMatchSummary(match: DecodedMatch, profiles: ParticipantProfiles) {
   switch (match.game) {
     case "shogi":
       return matchDataContracts[match.game].summary(match.record, profiles);

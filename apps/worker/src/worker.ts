@@ -1,3 +1,6 @@
+import { generalLobbyRoutes } from "./lobby/routes";
+import { lobbyChatRoutes } from "./lobby/chatRoutes";
+import { cleanupLobbyChat } from "./lobby/chatStore";
 import { deletionRoutes } from "./privacy/deletionRoutes";
 import { migrateOAuthTokens } from "./privacy/tokens";
 import { processDeletions } from "./privacy/deletion";
@@ -12,6 +15,8 @@ import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes, deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { withAccountSessionCookies } from "./accounts/auth";
 import { recoverAccountReservations } from "./accounts/roomAccounts";
+import { registrationRoutes } from "./accounts/registrationRoutes";
+import { retryPendingMatchClaims } from "./accounts/matchClaims";
 import { publicMatchRoutes } from "./rooms/publicMatchRoutes";
 import { matchRoutes } from "./accounts/matchRoutes";
 import { playerProfileRoutes } from "./accounts/playerProfileRoutes";
@@ -36,6 +41,8 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
   return context.json(response);
 });
 
+api.route("/", generalLobbyRoutes);
+api.route("/", lobbyChatRoutes);
 api.route("/", adminRoutes);
 api.route("/", announcementRoutes);
 api.route("/", announcementAdminRoutes);
@@ -51,6 +58,7 @@ api.route("/", playerProfileRoutes);
 api.route("/", rankingRoutes);
 api.route("/", deletionRoutes);
 api.route("/", legalRoutes);
+api.route("/", registrationRoutes);
 api.route("/", accountRoutes);
 api.route("/", roomRoutes);
 
@@ -117,16 +125,21 @@ const worker = {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     await migrateOAuthTokens(env);
     await processDeletions(env);
+    await cleanupLobbyChat(env.APP_DB);
     await archiveAnalytics(env);
     await cleanupFeedback(env);
     await deleteExpiredReports(env.APP_DB);
     await recoverAccountReservations(env);
+    await retryPendingMatchClaims(env.APP_DB);
     await deleteUnusedAvatars(env);
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM deletion_flows WHERE expires_at_ms < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM oauth_legal_consents WHERE expires_at_ms < ?").bind(
+        Date.now(),
+      ),
+      env.APP_DB.prepare("DELETE FROM registration_oauth_states WHERE expires_at_ms <= ?").bind(
         Date.now(),
       ),
       env.APP_DB.prepare("DELETE FROM deletion_challenges WHERE expires_at_ms < ?").bind(

@@ -3,7 +3,7 @@ import { gameIdSchema } from "./gameSchemas";
 import { usernameSchema } from "./accounts";
 import { roomCodeSchema, roomPublicMetadataSchema } from "./rooms";
 import { rankingEntrySchema } from "./rankings";
-import { reversiAccountStatsSchema } from "./matches";
+import { accountStatsSchema } from "./matches";
 import { badgeIds } from "./badges";
 
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
@@ -21,14 +21,17 @@ export const playerProfileQuerySchema = z.discriminatedUnion("source", [
   playerProfileTargetSchema.options[0].extend({
     game: gameIdSchema,
     includeBadges: z.literal("1").optional(),
+    includeStats: z.literal("1").optional(),
   }),
   playerProfileTargetSchema.options[1].extend({
     game: gameIdSchema,
     includeBadges: z.literal("1").optional(),
+    includeStats: z.literal("1").optional(),
   }),
   playerProfileTargetSchema.options[2].extend({
     game: gameIdSchema,
     includeBadges: z.literal("1").optional(),
+    includeStats: z.literal("1").optional(),
   }),
 ]);
 const count = z.int().nonnegative();
@@ -54,7 +57,7 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
       .max(4)
       .optional(),
     stats: z.union([
-      reversiAccountStatsSchema,
+      accountStatsSchema,
       z.strictObject({
         singles: z.strictObject({ total: count, first: count }),
         doubles: z.strictObject({ total: count, wins: count }),
@@ -81,7 +84,7 @@ export const previewRoomListSchema = z.strictObject({
 });
 const entries = z.array(rankingEntrySchema.extend({ profileId: z.uuid().optional() })).max(10);
 export const previewRankingsSchema = z.strictObject({
-  singles: z.strictObject({ first: entries, total: entries }),
+  singles: z.strictObject({ first: entries, total: entries, knockouts: entries.optional() }),
   doubles: z.strictObject({ wins: entries, total: entries }),
 });
 export type PreviewRankings = z.infer<typeof previewRankingsSchema>;

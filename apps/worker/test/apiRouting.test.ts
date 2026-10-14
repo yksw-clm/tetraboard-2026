@@ -49,8 +49,8 @@ test("本番の画面・画像をアセットへ渡し、APIと旧プロフィ�
   } as Fetcher;
   const production = { ...env, APP_ORIGIN: "https://tetraboard.net" as const, ASSETS: assets };
   for (const [path, target] of [
-    ["/rooms/12345", "/index.html"],
-    ["/account/matches/example", "/index.html"],
+    ["/rooms/12345", "/app.html"],
+    ["/account/matches/example", "/app.html"],
     ["/games/four-shogi", "/games/four-shogi/index.html"],
     ["/assets/logo.svg", "/assets/logo.svg"],
     ["/assets/webp_enc-example.wasm", "/assets/webp_enc-example.wasm"],
@@ -178,6 +178,6 @@ test("公開棋譜の直接URLはSPAを配信し、検索対象外にする", as
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
-    expect(await response.text()).toBe("asset:/index.html");
+    expect(await response.text()).toBe("asset:/app.html");
   }
 });

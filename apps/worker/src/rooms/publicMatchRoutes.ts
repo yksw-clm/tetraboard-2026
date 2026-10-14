@@ -15,6 +15,7 @@ publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {
   const query = listPublicMatchesContract.query.safeParse({
     game: c.req.query("game"),
     humanOnly: c.req.query("humanOnly"),
+    includeMoveCount: c.req.query("includeMoveCount"),
   });
   if (!query.success) return c.json({ message: "対局の取得条件が正しくありません。" }, 400);
   try {
@@ -33,7 +34,9 @@ publicMatchRoutes.get(listPublicMatchesContract.path, async (c) => {
     const profiles = await participantProfiles(c.env.APP_DB, records);
     return c.json(
       listPublicMatchesContract.response.parse({
-        matches: records.map((record) => matchSummary(record, profiles)),
+        matches: records.map((record) =>
+          matchSummary(record, profiles, query.data.includeMoveCount === "1"),
+        ),
       }),
     );
   } catch {

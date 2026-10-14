@@ -152,10 +152,12 @@ test("profile opt-in falls back once on old Worker and does not fabricate badges
   const store = new PlayerProfileStore();
   const pending = store.load(target, "four-shogi");
   expect(requests[0]!.url).toContain("includeBadges=1");
+  expect(requests[0]!.url).toContain("includeStats=1");
   requests[0]!.respond({}, 400);
   await flush();
   expect(requests).toHaveLength(2);
   expect(requests[1]!.url).not.toContain("includeBadges");
+  expect(requests[1]!.url).not.toContain("includeStats");
   const { badges: _badges, ...legacy } = profile;
   requests[1]!.respond(legacy);
   await pending;

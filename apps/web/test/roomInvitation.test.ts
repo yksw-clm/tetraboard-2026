@@ -75,8 +75,12 @@ afterEach(() => {
 test("招待は同じ部屋だけ読み込み、不正・期限切れリンクから別の部屋へ進まない", async () => {
   const fetcher = stubFetch(() => Response.json(snapshot));
   expect((await load(`?invite=${room.instanceId}`)).invited).toBe(true);
+  expect((await load(`?invite=${room.instanceId}&watch=1`)).invited).toBe(false);
   expect((await load()).invited).toBe(false);
   await expect(load(`?invite=${crypto.randomUUID()}`)).rejects.toMatchObject({ status: 410 });
+  await expect(load(`?invite=${crypto.randomUUID()}&watch=1`)).rejects.toMatchObject({
+    status: 410,
+  });
   const before = fetcher.mock.calls.length;
   for (const query of [
     "?invite=",
