@@ -1,8 +1,11 @@
 import { applyAction, getLegalActions } from "../src/index";
 import { evaluatePosition } from "../src/cpuEvaluation";
 import { sides, type FourShogiState } from "../src/types";
-import { initialPosition, openingPosition, summarizeTimes } from "./measurement";
+import { initialPosition, openingPosition, seededRandom, summarizeTimes } from "./measurement";
 import { hashJson, type MeasuredSelector } from "./singlesMeasurement";
+import { restoreAnalysisPosition, analysisRuleProfileId } from "../src/analysis";
+import { analyzePosition, type AiOptions, type AiResult, type AiCandidate } from "../src/ai";
+import type { FourShogiReplayEvent } from "../src/replay";
 
 export function performanceCorpus(restrictions: readonly boolean[] = [false, true]) {
   return restrictions.flatMap((restricted) => {
@@ -109,5 +112,109 @@ export function measurePerformance(
     queue: { status: "not_applicable_local", measurements: null },
     interpretation:
       "各phaseは独立に再実行した測定です。遷移は合法性検証を含み、探索はルール・評価を含むため時間を加算しません。静的評価は現行コードです。RSSは測定プロセス全体のbytesです。Macの結果はVPS性能保証ではありません。",
+  };
+}
+
+/** #185と同じ初期・seed301の開始系列を、公開復元/共通AIの入口で測ります。 */
+export async function measureAnalysisPerformance(
+  options: AiOptions,
+  repeats: number,
+  restrictions: readonly boolean[] = [false, true],
+) {
+  if (!Number.isSafeInteger(repeats) || repeats < 1) throw new Error("測定回数は正の整数です");
+  const corpus = performanceCorpus(restrictions).filter((entry) => !entry.name.endsWith("-hands"));
+  const positions = await Promise.all(
+    corpus.map(async ({ name, state }) => {
+      const initial = {
+        mode: "singles" as const,
+        players: state.players,
+        threePlayerAttackProhibited: state.threePlayerAttackProhibited,
+      };
+      let replayState = initialPosition("singles", state.threePlayerAttackProhibited);
+      const events: { index: number; event: FourShogiReplayEvent }[] = [];
+      const random = seededRandom(301);
+      for (let ply = 0; ply < (name.endsWith("-opening") ? 12 : 0); ply++) {
+        if (replayState.status !== "playing") throw new Error("開始系列が終局しました");
+        const legal = getLegalActions(replayState);
+        const action = legal[Math.floor(random() * legal.length)];
+        events.push({ index: ply, event: { type: "action", side: replayState.turn, action } });
+        const transition = applyAction(replayState, replayState.turn, action);
+        if (!transition.ok) throw new Error(transition.reason);
+        replayState = transition.state;
+      }
+      const position = await restoreAnalysisPosition({
+        schemaVersion: 1,
+        ruleProfileId: analysisRuleProfileId,
+        rulesVersion: 1,
+        initial,
+        events,
+      });
+      if (hashJson(position.state) !== hashJson(state))
+        throw new Error("#185の測定局面と復元が一致しません");
+      return { name, position };
+    }),
+  );
+  const timeline: {
+    round: number;
+    name: string;
+    phase: string;
+    elapsedMs: number;
+    rssBytes: number;
+    input: AiResult["input"];
+    settings: AiResult["settings"];
+    model: AiResult["model"];
+    versions: AiResult["versions"];
+    diagnostics: AiResult["diagnostics"];
+    recommendedAction: AiResult["recommendedAction"];
+    candidates: (Pick<
+      AiCandidate,
+      "action" | "completedDepth" | "iterationNodes" | "iterationWork" | "cutoff" | "selective"
+    > & { lineLength: number })[];
+  }[] = [];
+  for (const { position } of positions) await analyzePosition(position, options);
+  for (let round = 0; round < repeats; round++)
+    for (const { name, position } of positions) {
+      const before = performance.now();
+      const result = await analyzePosition(position, options);
+      timeline.push({
+        round,
+        name,
+        phase: "commonAnalysisIncludingIdentityRulesEvaluationAndHostYields",
+        elapsedMs: performance.now() - before,
+        rssBytes: process.memoryUsage().rss,
+        input: result.input,
+        settings: result.settings,
+        model: result.model,
+        versions: result.versions,
+        diagnostics: result.diagnostics,
+        recommendedAction: result.recommendedAction,
+        candidates: result.candidates.map((candidate) => ({
+          action: candidate.action,
+          completedDepth: candidate.completedDepth,
+          iterationNodes: candidate.iterationNodes,
+          iterationWork: candidate.iterationWork,
+          cutoff: candidate.cutoff,
+          selective: candidate.selective,
+          lineLength: candidate.line.length,
+        })),
+      });
+    }
+  return {
+    corpusHash: hashJson(corpus),
+    repeats,
+    timeline,
+    measurements: positions.map(({ name }) => {
+      const rows = timeline.filter((row) => row.name === name);
+      return {
+        name,
+        ...summarizeTimes(rows.map((row) => row.elapsedMs)),
+        maxRssBytes: Math.max(...rows.map((row) => row.rssBytes)),
+      };
+    }),
+    modelEvaluation: { status: "not_implemented", measurements: null },
+    ipc: { status: "not_applicable_local", measurements: null },
+    queue: { status: "not_applicable_local", measurements: null },
+    interpretation:
+      "#185の初期/12手開始系列だけを再利用します。手作りの持ち駒局面は公開復元入力に代用しません。hash/ルール/静的評価/ホストへのyieldを含む共通API全体の測定です。Macの値はVPS性能・棋力・厳密な応答時間の保証ではありません。",
   };
 }

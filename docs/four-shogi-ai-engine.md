@@ -1,6 +1,6 @@
 # 四人将棋シングルスAI・解析エンジンの実装計画と契約
 
-> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-14。新AI・VPS接続・解析画面は未実装。
+> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-14。完全状態復元と静的評価による共通AIを実装。学習済みモデル・VPS接続・解析画面は後続。
 
 [親Issue #183](https://github.com/yksw-clm/tetraboard-2026/issues/183) の計画を実装へ渡すための文書。現在の合法手・手番・勝敗と現行Lv1/Lv2は [四人将棋ルール正本](rules/four-shogi.md)、共通の時計・参加・棋譜公開は [README](../README.md) を参照する。D01〜D05の推奨案を採用する。具体的なAPI型・推論形式・設定値は後続Issueで検証し、未決事項を推測で確定しない。利用者向け変更とCPU採用仕様は、実装時に対応する正本へ反映する。
 
@@ -154,6 +154,48 @@ stateHashは `analysisStateVersion`・プロフィールと、参加者IDを除�
 | 診断        | code/engine/search/model/feature/action/evaluation版、loadedModelIdと実使用modelId、推論回数、work/depth、取消/打切り/fallback理由             |
 
 候補比較と「実際に指した手」の比較は同一局面・同じ視点・同じ評価/モデル/相手仮定で行う。上位外の実戦手も再解析できるようにし、予算や読みの量が異なる場合は結果へ残す。PV中で手番が変わったことを理由に、比較する本人の値を別人の値へ入れ替えない。
+
+### 共通AI・解析API（#187）
+
+公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。HTTP・対局への着手確定・学習済みモデルの接続は後続Issueで実装する。
+
+```ts
+import { analyzePosition } from "@tetraboard/four-shogi/ai";
+
+const result = await analyzePosition(
+  position,
+  {
+    codeVersion: deployedCommit,
+    timeBudgetMs: 500,
+    maxWork: 2048,
+    candidateCount: 3,
+  },
+  { signal: controller.signal, onProgress: reportProgress },
+);
+const action = result.recommendedAction;
+```
+
+`codeVersion` は呼び出し側が実際のビルド版を指定する。初期版は静的評価のみで、`modelId` は省略またはnull。非nullを受けてモデル使用を偽装しない。requested/loaded/usedModelIdはすべてnull、inferenceCountは0。解析・ルール・探索・評価・行動・相手仮定の版、未使用featureVersion/seedはnullとして返す。解決済み設定、版、入力の完全状態hashで `cacheKey` を作り、ON/OFF・基底反復履歴・比較指定手も分離する。結果キャッシュ保存はまだ実装しない。`eventOffset` は要求文脈にも残す。
+
+探索と評価の初期内部仕様は[ルール正本のCPU節](rules/four-shogi.md#cpu)を参照する。`maxWork: 2048`、`maxDepth: 64`、`width: 6`、`rootWidth: 24`、`extensions: 2`、`candidateCount: 3`、`timeBudgetMs: null` が内部既定。深さは1〜256、幅/処理量は正の安全整数、延長は0〜4、候補数は2〜5、根の幅は候補数以上、時間は非負の有限ミリ秒またはnull。30秒の指定でも処理量・深さに先に達すれば終了する。時間を主に比較する実験では処理量/深さ上限も明示して増やす。これらは棋力を認定した公開CPUレベルではない。
+
+根の全合法手を同じ深さ1で評価し、完成した候補群を公開する。以後は同じ選択集合を同じ深さで比較する。上位候補と捕獲・王手を中心に絞り、内部の王手中は全応手を残す。候補/その部分木に幅制限があれば `selective`、反復途中の中断は `cutoff`。`completedDepth` は通常探索の手数で、終局ならPVは短く、戦術延長なら長くなり得る。候補ごとの `iterationNodes/iterationWork` は最後に完成した反復に使った量で、全探索量と分ける。省いた手も含めた最善の証明には使わない。
+
+候補の並びは常に元手番者の効用で比較する。PVの各手はその実手番者が自身の効用を最大化する例であり、同点は元の合法手列挙順。二人生存も同じMaxⁿで、相手の値を根の負値に置き換えない。旧Lv2のαβ・定跡・敵が別の撃破を選んでも即脱落を危険視する規則は旧入口に保持し、新探索へ暗黙に持ち込まない。追加の戦術検査・枝刈り・キャッシュ・MCTS比較は#188で測る。
+
+`staticEvaluation` は元局面の静的評価、`evaluation` は推奨候補のPV末尾から伝播した評価。未完了fallbackでは後者と候補評価はnull。終局入力では確定評価を返す。固定順は南/西/北/東で、各人の `primary`、副比較の `secondaryRank`、非終局の `heuristicScore` を分ける。未校正なので `probabilities` は常にnull。暫定順位と脱落/終局の確定順位を `kind` で区別する。
+
+上位外の実戦手は `includeAction` へ元局面の合法手を指定し、根の絞込みへ追加する。上位一覧のほか `comparedAction` に同じ完成深さの結果を返す。予算が足りず完成候補群がない場合はnull。非合法手を解析用の仮着手に置き換えない。全候補のPVは正本で再生でき、各手に実方向・着手・次手番・王手・捕獲・その手の脱落/終局を含む。
+
+`currentDanger` は元局面の王手と既に確定した脱落。候補の `danger` は `pv_example`・`forced: false` とし、PVの根拠を次の自手番/自分の脱落/終局まで、または読めた末尾まで返す。`horizon` は次の自手番まで読めていない。王手・詰み理由・駒損はその進行で正本が判定した事実であり、相手が別の手を選んでも成立する保証とはしない。根拠局面は入力stateHashとPVの `afterPly` で再現する。
+
+時間は単調時計で、識別計算・合法手確保・探索・ホストへのyieldを含む。計上操作の前後で期限/取消/処理量を検査し、128処理単位または約8msごとにホストへ譲る。`AbortSignal`、注入する `isCancelled`、テスト用 `now/yieldToHost`、凍結した `onProgress` を扱う。進捗には全探索量・完了深さ・最後の完成候補群があり、部分評価を上位比較へ混ぜない。
+
+workは合法手生成の開始・着手遷移・探索内の静的評価各1と、生成後の16合法手ごと1。元局面の合法手確保と静的評価は取消/予算0でも行い、この準備はworkによる打切りの対象外。evaluationsには元局面の評価1回も含む。ルールAPI1回の内部処理と結果の組立ては分割できないため、壁時計の厳密な応答上限は保証しない。`legalPreparationMs`、elapsedMs、`deadlineOverrunMs` を残す。診断のelapsedMsは最終の凍結コピー直前、性能CLIのelapsedMsはAPIの応答までを含む。VPSでの強制終了・並列枠は#193の別責務。
+
+打切りでは最後に完成した深さの候補群を返す。一度も完成しなければ、最初の合法手1件をdepth0・評価null・空PV・`fallbackReason: no_completed_iteration` で返す。候補数が1件なのは完成比較がないことを示し、薄い候補を2〜5件の評価済み一覧に見せない。終局/合法手なし/取消は異なるstatus、期限/処理量/最大深さ/単独即勝利はstopReasonで区別する。取消や期限後のfallbackを実対局へ適用してよいかはWorkerが別に照合する。
+
+少数性能測定は `bun run --cwd packages/four-shogi bench:analysis --time-ms=500 --max-work=100000000 --max-depth=128 --repeats=1 --output=/tmp/analysis-500.json`。#185の初期/seed301の12手開始系列を復元し、ON/OFFの共通API全体、実設定・版・候補幅・完了深さ・打切り・RSSを記録する。手作り持ち駒局面は復元済み入力へ代用しない。モデル/IPC/待ち行列は未実装/該当なし。重い測定・棋力判定は通常checkに入れない。
 
 ### 相手モデルとモデル配布
 
