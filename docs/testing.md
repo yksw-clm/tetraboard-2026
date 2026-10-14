@@ -189,6 +189,8 @@ PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネ
 
 #185の測定基盤は `bun run --cwd packages/four-shogi check` で確認します。`test/singlesMeasurement.test.ts` はON/OFF開始系列・相対相手配置・実手番の合法遷移・単独/同率/未終局ラベル・系列単位の区間・重複拒否を小さな局面で検証します。固定ソース取得、公開Lv2との一致、ON/OFF対局smoke、時系列の性能は [専用CLI](four-shogi-ai-engine.md#現行lv2の固定基準と測定cli) と提出時のコマンド・結果で確認し、通常checkへ大量対局やGit履歴取得を追加しません。学習済みモデルの選択・IPC・待ち行列の計測は担当Issueの実装後に検証します。
 
+#186の復元APIは `test/analysis.test.ts` で既存の固定シングルス/引分/旧形式棋譜と全チェックポイントを照合します。4/3/2人生存・攻撃理由/標的/解除待ち・取り返しマス、32手系列の千日手直前、履歴だけ異なる同盤面、49イベント目のON/OFF合法手差、提案と手数/反復の区別、入力/結果の不変、版/連番/offset/座標の拒否、コード/モデル/予算を含む識別を検証します。独立計算した版1のSHA-256を固定し、期待棋譜を実行時に再生成しません。部分実行は `bun test --cwd packages/four-shogi test/analysis.test.ts`、Webの共有裁定は `bun test --cwd apps/web test/fourShogiReplay.test.ts test/fourShogiMatchReplay.test.ts test/fourShogiDrawReplay.test.ts test/matchCompatibility.test.ts`。公開frameに反復辞書を追加しません。
+
 | 境界 | 確認する内容・担当Issue |
 | --- | --- |
 | 結果・規則・復元 | #186/#187。単独1位/同率/未終局、ON/OFF・4/3/2人生存、攻撃/反復履歴、外部脱落/引分提案、固定棋譜・入力不変 |

@@ -1,15 +1,14 @@
 export { replayDataEqual } from "./replayDataEqual";
 import {
-  applyAction,
   captureEliminatedHands,
   type EliminatedHands,
   createInitialState,
-  eliminateSide,
-  setDrawProposal,
   getCheckState,
   getLegalActions,
   type FourShogiState,
 } from "@tetraboard/four-shogi";
+import { applyReplayEvent as applyFourShogiReplayEvent } from "@tetraboard/four-shogi/replay";
+export { applyFourShogiReplayEvent };
 import {
   fourShogiPublicStateSchema,
   type FourShogiPublicState,
@@ -25,17 +24,6 @@ export type FourShogiReplayFrame = {
   game: FourShogiPublicState;
   checkState: ReturnType<typeof getCheckState>;
 };
-
-export function applyFourShogiReplayEvent(state: FourShogiState, event: FourShogiReplayEvent) {
-  switch (event.type) {
-    case "action":
-      return applyAction(state, event.side, event.action);
-    case "eliminate":
-      return eliminateSide(state, event.side, event.reason);
-    case "drawProposal":
-      return setDrawProposal(state, event.side, event.proposed);
-  }
-}
 
 export function createFourShogiReplayFrame(
   state: FourShogiState,

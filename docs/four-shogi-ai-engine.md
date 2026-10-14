@@ -96,6 +96,49 @@ PyTorchの配布候補はモデル定義を版付きコードで固定し、重�
 - 対局CPUには局ID・部屋世代・revision・担当方向と時計/期限を別の要求文脈として渡す。棋譜解析には対局ID・イベント位置/番号・保存形式を付ける。
 - エンジンへ時計/接続/アカウントを持ち込まない。VPSへ渡す参加者表現は方向への不透明な対応だけとし、名前・画像・認証Cookie・参加資格を送らない。
 
+### 完全解析状態の復元API（#186）
+
+`@tetraboard/four-shogi/analysis` は通信・保存から独立したシングルス専用の関数API。ルール版1を既存エンジンで再実行する。`@tetraboard/four-shogi/replay` のイベント裁定はWebの版1再生も共用し、公開frame・保存JSON・ゲームルールは維持する。HTTP経路・認証・VPS配置は#193以降で接続する。
+
+| 関数                                         | 契約                                                                                                        |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `restoreAnalysisPosition(input: unknown)`    | 入力を検証・コピーし、指定イベント位置の完全な`AnalysisPosition`を非同期で返す                              |
+| `getAnalysisLegalActions(position)`          | 復元済み局面の実手番に対する読取り専用の合法手。終局なら空配列                                              |
+| `advanceAnalysisPosition(position, event)`   | 着手・外部脱落・引分提案/取消を仮適用し、新しい完全状態・hash・イベント位置を返す。元局面・棋譜は変更しない |
+| `createAnalysisCacheKey(position, identity)` | 局面hashとコード/解析/モデル版・解決済みの解析条件を合わせたSHA-256。キャッシュ自体は実装しない             |
+
+```ts
+import { restoreAnalysisPosition, getAnalysisLegalActions } from "@tetraboard/four-shogi/analysis";
+
+const position = await restoreAnalysisPosition({
+  schemaVersion: 1,
+  ruleProfileId: "tetraboard-four-shogi-singles-v1",
+  rulesVersion: 1,
+  initial: {
+    mode: "singles",
+    players: { south: "s", west: "w", north: "n", east: "e" },
+    threePlayerAttackProhibited: true,
+  },
+  events: [],
+  eventOffset: 0,
+});
+const actions = getAnalysisLegalActions(position);
+```
+
+入力のschemaVersion・プロフィール・rulesVersion・初期値・`{ index, event }`配列は必須。初期値のモード・四方向の異なる非空ID・ON/OFFを明示し、設定省略を既定ONへ補完しない。未知の版/プロフィール・ダブルス・余分な項目・不正な座標/イベントを拒否する。初期IDは対局内の不透明な対応に限定し、VPSへ送る際の本人情報除去は呼び出し側の責務とする。
+
+eventOffsetは0から提供配列長までの**イベント数**で、省略時は全提供イベントを適用する。着手数と異なり、提案・取消・外部脱落も数える。配列は0始まりの連続indexと全要素の形状を検証し、指定位置までの裁定を再実行する。配列は完全棋譜でも対象位置までのprefixでもよく、未提供の後続や指定位置より先の合法性は検証済みと扱わない。ページ取得側は従来どおり対局/世代・初期値・版・件数・連番・最終状態を照合する。`AnalysisInputError`のcodeで拒否理由を識別し、適用失敗には0始まりのeventIndexを付ける。
+
+出力は `analysisStateVersion: 1`・プロフィール・ルール版・eventOffset・stateHash・完全なFourShogiState。全反復辞書、攻撃理由/標的駒/解除待ち、取り返しマス、持ち駒、実手番、確定順位、引分提案を保持する。出力と合法手は深く凍結し、入力イベントの可変参照を共有しない。仮遷移のeventOffsetは仮に延長した系列の位置であり、元の保存棋譜の位置を更新しない。
+
+stateHashは `analysisStateVersion`・プロフィールと、参加者IDを除く全内部状態をJSONキー順で正規化し、UTF-8のSHA-256で計算する。盤上駒ID/次ID・手数・直前手も保持するので、意味が同じ局面を保守的に別hashとする場合がある。全反復辞書とON/OFFを含め、制限解除後も区別する。参加者対応・対局ID/世代/revision・時計は要求文脈で照合し、stateHashだけで着手を受理しない。
+
+合法手/仮遷移/キャッシュ識別へ渡せる局面は同じ実行内でこのAPIが復元・作成したものだけ。表示frame・手作り状態・JSONへ直列化した局面の再読込みを代用せず、別実行では版付き初期値とイベントから復元する。Workerの部分反復辞書/lookupを持つ内部状態の入口は後続で完全履歴との同等性を確認して接続する。
+
+キャッシュ識別のidentityには非空のcodeVersion・analysisVersion、不変のモデル版を指すmodelId（従来評価はnull）、JSONオブジェクトのparametersを渡す。parametersへ特徴/行動/評価/探索版、思考予算・幅/深さ、相手仮定、seed等の**解決済み全条件**を含める。省略条件をこの関数が推測せず、#187以降の要求解決側が条件をそろえる。キー順は正規化し、非有限数・undefined・関数・循環参照・深すぎるJSONを拒否する。
+
+既存の固定棋譜の初期/途中/終局・省略形旧データを変更せず照合する。通常初期配置からの固定32手反復系列、盤面/手数/直前手が同じで履歴だけが異なる二系列、既存棋譜の49イベント目のON/OFF合法手差を検証する。モデル入り探索・大量自己対戦・VPS接続の合格は入力APIの完了と別に判定する。
+
 ### 予算・モデル・結果
 
 | 入力/出力   | 契約案                                                                                                                                         |
