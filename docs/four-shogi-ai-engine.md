@@ -180,6 +180,48 @@ D01の主報酬は承認済みの学習目的であり、校正済み勝率の�
 
 ## 初期一巡のDone Whenと進行
 
+### 現行Lv2の固定基準と測定CLI
+
+Issue #185の固定基準はPR #200取り込み後のdevelop `913a09d4edce5e44c96d190a60757ef184a4738d`。探索・評価設定と15ソースのSHA-256を [lv2Baseline.json](../packages/four-shogi/bench/lv2Baseline.json) に記録する。全ソースの集合hashは `38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3`。基準のソースが一致しなければ測定を拒否する。新AIの単独1位目的へ固定Lv2の評価を変更しない。
+
+新しい実行入口は `bun run --cwd packages/four-shogi bench:singles`。従来の `bench` と [過去の測定記録](four-shogi-ai.md) は強化前の旧Lv2 `3b84f2cdaf9e280b6f84ee34eaa95de8a1441d03` を比較する条件のまま維持する。Git履歴が必要なので、浅いcloneでは必要な基準コミットを事前に取得する。通常checkの論理テストはGit履歴や大量対局を必要としない。
+
+```sh
+# 候補1体対固定現行Lv2三体。ON/OFFそれぞれ2系列×4席、8手で打ち切る動作確認
+bun run --cwd packages/four-shogi bench:singles --kind=matches --restricted=both --start=mixed --series=2 --seed=1000 --max-plies=8 --output=/tmp/four-shogi-smoke.json
+# 固定現行Lv2の性能。計算負荷を並行実行せず、各phaseを準備実行後に測定
+bun run --cwd packages/four-shogi bench:singles --kind=performance --candidate=frozen --restricted=both --repeats=5 --output=/tmp/four-shogi-performance.json
+# 従来の旧基準も使用可能。相手の順は候補席の次から南→西→北→東の循環順
+bun run --cwd packages/four-shogi bench:singles --kind=matches --opponents=frozen,legacy,frozen --start=initial --series=1 --restricted=both --max-plies=8 --output=/tmp/four-shogi-mixed.json
+```
+
+- 候補・相手は `current`（作業中コード）、`frozen`（固定現行Lv2）、`legacy`（強化前）、`commit:<40桁SHA>`（履歴のCPU）を指定できる。学習済みモデルはまだ存在せず `modelId: null` を明記する。モデル入り共通探索の接続は#192で行う。runnerには注入可能な方向別selectorの境界がある。
+- `--max-work`、`--max-depth`、`--width`、`--root-width`、`--extensions`、`--weights` は候補側だけの上書き。固定基準を候補に指定したときは上書きを拒否する。時間上限は未実装で、現在は処理量・深さ・幅を記録する。固定基準の処理量2048・深さ6・幅6・根幅24・延長2は時間保証ではない。
+- `--start=initial` は一つの初期配置×4候補席。`opening` はseedごとの合法な12手系列、`mixed` は最初を初期配置、残りを12手系列にする。ON/OFFを分け、同一完全開始状態の重複は拒否する。4席は同系列の標本であり独立4局とは数えない。回転による開始局面の水増しはしない。
+- 結果には単独1位・本人の同率1位・確定終局の単独勝者なし・確定順位・脱落理由・終局理由・手数上限の未終局を分けて残す。未終局は単独1位率の分母に残し、引分ラベルへ変えない。合意提案・持ち時間・切断はこの着手専用runnerでは再現しない。
+- 単独1位率の区間は開始状態hash単位のクラスタbootstrap（1000回）。同じ開始状態の4席をまとめ、2系列未満なら区間はnull。同一対局IDの二重集計を拒否する。小規模・調整用データの区間を正式な棋力証明に使わず、#197で独立系列と条件を事前に決める。
+- code SHA、未コミット変更、runner/ルール/各AIソースのhash、設定、方向別相手ID、seed、完全開始集合のhash、着手列/最終状態のhash、Bun・OS・CPU・メモリ・アーキテクチャを出力する。開始状態は設定/履歴を含み、同じ版から復元できる。時間/RSSを除いた対局結果・集計を再現する。
+- 性能は合法手生成、合法性検証込みの公開遷移、現行静的評価、選択したAIの探索を独立に再測定する。探索にはルール・評価が含まれるのでphaseの時間を加算しない。平均/p95/最大はms、RSSはプロセス全体のbytes。各反復の時系列と実work/depthを残して継続負荷の推移を読めるようにする。モデル評価・IPC・ジョブ待ちは未実装/対象外を明記し、#191〜#194で追加する。Macの実測からVPS性能を保証しない。
+
+2026-10-14の動作確認の対象コードは `9c298096294b9f3c759a0a8e2a2d820ade9ac588`。根拠とコマンドは [固定基準の測定データ](four-shogi-ai-baseline-results.json) に保存する。M5・24GiB・macOS/arm64・Bun 1.4.2でローカルの計算を並行せず実行した。`matches` は初期配置＋seed 1001の12手系列、各4候補席、ON/OFF各8局を8手で打ち切るsmoke。同一引数で再実行し、時間/RSSを除く着手列・最終状態hash・実work/depth・集計が16局すべて一致した。全16局は未終局で、単独勝者なしの終局へ置き換えていない。記録された率やbootstrap区間はこの打切りsmokeの集計であり、勝率予測・棋力判定の根拠にしない。
+
+`frozen` と公開Lv2はON/OFF×初期/持ち駒多数/開始系列の6局面で同一着手。`legacy` を含む混合相手8局、コミット指定候補4局も合法に動作した。従来benchの旧Lv2性能12局面を再実行し、過去の性能集合hash `1f2a278178b84ea4ea79ced0e0e33183d78a145dd6226b6f23516c912e122ae5` を再現した。
+
+固定現行Lv2の探索性能は準備実行後に各5回測定した。新しい性能集合hashは `b1dc5d4a91a56580c532dc4c910ff7a05d4c07f3731d47572864351521c9fa70`。合法手生成・遷移・静的評価の値と全120測定の時系列は根拠データを参照する。
+
+| 三人攻撃禁止・局面 | 探索平均ms | p95/最大ms |
+| ------------------ | ---------- | ---------- |
+| OFF・初期          | 71.31      | 86.96      |
+| OFF・持ち駒多数    | 46.80      | 51.25      |
+| OFF・開始系列      | 75.08      | 83.83      |
+| ON・初期           | 106.36     | 128.37     |
+| ON・持ち駒多数     | 56.05      | 62.67      |
+| ON・開始系列       | 208.45     | 221.08     |
+
+探索の実workは2046/2048、完了深さは1〜3。最大RSSは322,125,824 bytes（プロセス全体、約307MiB）。5回の測定では熱平衡後の長時間性能は未検証。Linux/VPS、モデル入り評価、IPC/ジョブ待ち、正式棋力は後続で確認する。
+
+### 初期一巡の受入条件
+
 [初期マイルストーン](https://github.com/yksw-clm/tetraboard-2026/milestone/1) は#184〜#196。順序/並行可能範囲は [親Issue](https://github.com/yksw-clm/tetraboard-2026/issues/183)、検証分担は [テスト方針](testing.md#四人将棋シングルスaiの契約確認) を参照する。
 
 - 完全状態復元→共通探索/候補/PV→自己対戦/教師生成→Mac等の学習→Linux CPUのモデル推論→モデル入り共通探索→旧モデル/固定現行Lv2比較を、小規模データと再開可能なCLIで再現する。

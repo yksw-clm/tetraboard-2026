@@ -737,7 +737,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 [Issue #184](https://github.com/yksw-clm/tetraboard-2026/issues/184)で、[READMEの開発目標](../README.md#四人将棋シングルスaiの開発計画)を起点に、[契約と判断一覧](four-shogi-ai-engine.md)を整理しました。VPSで推論しMac等で学習する前提は開発者の指示済みです。初期の規則、探索の副目的・引分同意、構成、試用範囲、障害時の動作は2026-10-14にD01〜D05の推奨案で承認済みです。具体的なAPI型や推論形式などの未決事項は担当Issueで検証します。
 
-現在の入口は `packages/four-shogi/src/cpu.ts`・`cpuSearch.ts`・`cpuEvaluation.ts`、`apps/worker/src/rooms/fourShogiProgress.ts`・`shogiStore.ts`、Webの `fourShogiReplayV1.ts`・`fourShogiMatchReplay.ts` です。表示frameから千日手履歴が除かれること、Workerの `cpuDraw` が着手探索と別に同意を決めることを確認します。既存benchは強化前の旧Lv2比較なので、#185で開始時の現行Lv2を固定し直します。
+現在の入口は `packages/four-shogi/src/cpu.ts`・`cpuSearch.ts`・`cpuEvaluation.ts`、`apps/worker/src/rooms/fourShogiProgress.ts`・`shogiStore.ts`、Webの `fourShogiReplayV1.ts`・`fourShogiMatchReplay.ts` です。表示frameから千日手履歴が除かれること、Workerの `cpuDraw` が着手探索と別に同意を決めることを確認します。#185の現行Lv2固定は [lv2Baseline.json](../packages/four-shogi/bench/lv2Baseline.json)、新しい測定入口は [singlesCli.ts](../packages/four-shogi/bench/singlesCli.ts)。開始系列/合法対局/集計は `singlesMeasurement.ts`、履歴版の取得/hash検査は `baseline.ts`、性能は `singlesPerformance.ts` に置きます。[実行条件と使い方](four-shogi-ai-engine.md#現行lv2の固定基準と測定cli)を確認し、既存benchの旧基準と過去測定条件は維持します。
 
 後続のエージェントは親Issueの依存と契約案の判断IDを確認し、影響する判断だけを開始条件にします。承認済みの目標・既存ルール・現行基準の調査を全項目の決定待ちにせず、変更は最新developから専用ブランチにまとめます。新パッケージやモデル形式は提案段階で、空の実装・主要依存を先に追加しません。確認分担は[契約確認](testing.md#四人将棋シングルスaiの契約確認)を参照します。
 
