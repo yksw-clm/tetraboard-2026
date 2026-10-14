@@ -743,6 +743,8 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 後続のエージェントは親Issueの依存と契約案の判断IDを確認し、影響する判断だけを開始条件にします。承認済みの目標・既存ルール・現行基準の調査を全項目の決定待ちにせず、変更は最新developから専用ブランチにまとめます。新パッケージやモデル形式は提案段階で、空の実装・主要依存を先に追加しません。確認分担は[契約確認](testing.md#四人将棋シングルスaiの契約確認)を参照します。
 
+#187の `@tetraboard/four-shogi/ai` は [ai.ts](../packages/four-shogi/src/ai.ts) が版/条件の解決と識別、時間/取消/ホストへのyield、完成結果の凍結を担当します。[aiSearch.ts](../packages/four-shogi/src/aiSearch.ts) は旧Maxⁿの反復深化・並べ替えを起点に、既存の合法手/確定遷移/基底反復参照を共有し、各手番者自身の値・PVを伝播します。[aiEvaluation.ts](../packages/four-shogi/src/aiEvaluation.ts) がD01の単独1位/副順位、[aiTypes.ts](../packages/four-shogi/src/aiTypes.ts) が出力と版です。旧 `cpuSearch.ts` の並べ替え関数を共有しますが、Lv2の選択結果・初期設定は変えません。[共通APIの使用例と診断](four-shogi-ai-engine.md#共通ai解析api187)、[部分テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。性能CLIは [analysisCli.ts](../packages/four-shogi/bench/analysisCli.ts) と既存 `singlesPerformance.ts` を使い、#185の初期/開始系列だけを完全状態復元から測定します。
+
 ## 軽量テスト
 
 純粋関数は既存のBunプロセス、React部品・hookはBun＋happy-domの別プロセスで実行します。Workerは従来のCloudflare環境で実HTTP・WebSocket・D1・R2を検証します。全195定義の論理検証は [移管対応表](testing.md#移管対応表) を参照してください。
