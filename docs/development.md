@@ -12,7 +12,7 @@
 | この開発文書 | 実装の入口、変更手順、構造と互換性などの注意点 |
 | [テスト方針](testing.md) | 実行方法、検証範囲、対象別のテストと移管根拠 |
 | [四人将棋AIの測定・採用記録](four-shogi-ai.md) | 比較条件、対象コミット、結果、採用判断と限界 |
-| [四人将棋シングルスAIの契約案](four-shogi-ai-engine.md) | 新AIの承認済み目標、実装前の契約案、判断IDと未決事項。推奨案を現行採用仕様として扱わない |
+| [四人将棋シングルスAIの契約](four-shogi-ai-engine.md) | 新AIの承認済み目標・D01〜D05の設計契約、判断IDと未決事項。実装前の計画と現行CPUの採用仕様を分ける |
 | [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録 |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
@@ -735,7 +735,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ### 四人将棋シングルスAIの実装前整理
 
-[Issue #184](https://github.com/yksw-clm/tetraboard-2026/issues/184)で、[READMEの開発目標](../README.md#四人将棋シングルスaiの開発計画)を起点に、[契約案と判断一覧](four-shogi-ai-engine.md)を整理します。VPSで推論しMac等で学習する前提は開発者の指示済みです。初期の規則、探索の副目的・引分同意、構成、試用範囲、障害時の動作は判断ID付きで提案し、未承認の内容を実装しません。
+[Issue #184](https://github.com/yksw-clm/tetraboard-2026/issues/184)で、[READMEの開発目標](../README.md#四人将棋シングルスaiの開発計画)を起点に、[契約と判断一覧](four-shogi-ai-engine.md)を整理しました。VPSで推論しMac等で学習する前提は開発者の指示済みです。初期の規則、探索の副目的・引分同意、構成、試用範囲、障害時の動作は2026-10-14にD01〜D05の推奨案で承認済みです。具体的なAPI型や推論形式などの未決事項は担当Issueで検証します。
 
 現在の入口は `packages/four-shogi/src/cpu.ts`・`cpuSearch.ts`・`cpuEvaluation.ts`、`apps/worker/src/rooms/fourShogiProgress.ts`・`shogiStore.ts`、Webの `fourShogiReplayV1.ts`・`fourShogiMatchReplay.ts` です。表示frameから千日手履歴が除かれること、Workerの `cpuDraw` が着手探索と別に同意を決めることを確認します。既存benchは強化前の旧Lv2比較なので、#185で開始時の現行Lv2を固定し直します。
 
