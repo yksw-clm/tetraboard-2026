@@ -622,13 +622,13 @@ WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、�
 
 `startPublicLobby` は紹介HTMLを持つ初回ロビーだけでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には紹介・通常リンクを残して再読み込みを案内します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。
 
-本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。
+本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`worker.ts` の入口で、本番設定の `tetraboard.net` へのHTTPと旧Workerホストを本番HTTPSへ308転送し、パス・クエリを保持します。資産・API・認証・WebSocketの処理前に転送し、ローカル・開発環境には適用しません。HTTPSの `/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。本番URLを指定した場合だけ、HTTPのトップ・ロビー・APIの308とクエリを含むHTTPS転送先も確認します。
 
 関連検証は `bun test --cwd apps/web ./test/publicLobbies.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/publicLobbies.test.tsx`、`bun run --cwd apps/worker test test/publicAssets.test.ts test/apiRouting.test.ts` です。Bun・happy-dom・Worker統合テストで生成、遷移、200／308／404、GET／HEAD／304、Content-Type、通常UA／Googlebot、認証とAPIの境界を確認します。画面寸法・実ブラウザ入力・JavaScript無効時の見え方は手動確認とし、ブラウザ自動テストは追加しません。
 
 公開前に既存Search Consoleのドメインプロパティ `tetraboard.net` で「検索タイプ: ウェブ」「国: 日本」を指定し、直近28日間の対象ページ別・対象検索語別のクリック数・表示回数・CTR・平均掲載順位を記録します。対象語は「四人将棋」「四人リバーシ」、ページは各正規URLの完全一致です。期間・フィルター・端末区分も併記し、データのない項目を0と断定せず「データなし」とします。集計・期間はSearch Consoleの表示に従い、既存Adminの日本時間の指標と混ぜません。新たな個人別流入計測を追加しません。
 
-必須ローカル検証とGitHub CI、差分・結果に対する開発者の承認後にマージ・公開します。本番確認後、Search ConsoleのライブURL検査で全ロビーの本文・検索許可を確認し、既存のサイトマップURLを再送信して3ページのインデックス登録をリクエストします。実Googlebotによる登録と正規URL選択はライブ検査・UAのローカル比較と区別します。SEO整備の完了は本番確認・送信・基準値記録までとし、公開前は未完了です。
+必須ローカル検証とGitHub CI、差分・結果に対する開発者の承認後にマージ・公開します。本番確認後、Search ConsoleのライブURL検査でトップと全6ロビーの本文・検索許可を確認し、既存のサイトマップURLを再送信して未登録・更新対象ページのインデックス登録をリクエストします。サイトマップ送信の受理は取得待ちを意味し、個別URLの登録依頼や登録完了とは区別します。URL検査APIは登録済み情報の確認だけに使い、ライブURL検査と個別の登録リクエストはSearch Console画面から行います。実Googlebotによる登録と正規URL選択はライブ検査・UAのローカル比較と区別します。SEO整備の完了は本番確認・送信・基準値記録までとし、公開前は未完了です。
 
 公開後4〜8週間で最初の成果を評価します。両URLが登録されGoogleの正規URLと一致し、日本・日本語・ログアウト状態のPC／スマートフォンで週1回×4週間、両検索語の通常の自然検索1位を確認し、各ページの評価対象28日間クリック数が公開前28日間より増加した場合を成果達成とします。日時・地域・端末を記録し、平均順位だけで常に1位と判定しません。データ不足は観測期間を延長し、未達なら継続課題とします。順位・反映時期の保証と自動監視は設けません。
 

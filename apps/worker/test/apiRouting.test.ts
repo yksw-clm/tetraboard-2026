@@ -1,7 +1,7 @@
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { exports } from "cloudflare:workers";
 import { createRoomContract, getRoomContract, roomSocketContract } from "@tetraboard/protocol";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import worker from "../src/worker";
 import { env } from "cloudflare:workers";
 
@@ -41,6 +41,64 @@ test("旧公開URLをパス・クエリ付きで本番ドメインへ転送し�
   expect(response.headers.get("Location")).toBe(
     "https://tetraboard.net/rooms/12345?invite=example",
   );
+});
+
+test("本番のHTTPは画面・API・WebSocketの処理前にHTTPSへ308転送する", async () => {
+  const fetchAsset = vi.fn(async () => new Response("unexpected asset"));
+  const production = {
+    ...env,
+    APP_ORIGIN: "https://tetraboard.net" as const,
+    ASSETS: { fetch: fetchAsset } as unknown as Fetcher,
+  };
+  for (const [path, options] of [
+    ["/", { method: "GET" }],
+    ["/games/four-shogi?source=search", { method: "HEAD" }],
+    ["/rooms/12345?invite=example%2Btoken", { method: "GET" }],
+    ["/api/healthz", { method: "GET" }],
+    ["/api/rooms", { method: "POST", body: "{}" }],
+    ["/api/rooms/12345/ws?instanceId=example", { headers: { Upgrade: "websocket" } }],
+  ] satisfies [string, RequestInit][]) {
+    const response = await worker.fetch(
+      new Request(`http://tetraboard.net${path}`, options),
+      production,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(308);
+    expect(response.headers.get("Location")).toBe(`https://tetraboard.net${path}`);
+  }
+  expect(fetchAsset).not.toHaveBeenCalled();
+});
+
+test("旧WorkerのHTTPも一度の308転送で本番HTTPSへ移動する", async () => {
+  const response = await worker.fetch(
+    new Request("http://tetraboard-2026.chaossi-lab.workers.dev/games/four-shogi?source=old"),
+    { ...env, APP_ORIGIN: "https://tetraboard.net" },
+    {} as ExecutionContext,
+  );
+  expect(response.status).toBe(308);
+  expect(response.headers.get("Location")).toBe(
+    "https://tetraboard.net/games/four-shogi?source=old",
+  );
+});
+
+test("ローカル・開発環境・本番以外のホストのHTTPは本番HTTPSへ転送しない", async () => {
+  for (const [origin, appOrigin] of [
+    ["http://localhost:8787", "http://localhost:5173"],
+    [
+      "http://tetraboard-dev.chaossi-lab.workers.dev",
+      "https://tetraboard-dev.chaossi-lab.workers.dev",
+    ],
+    ["http://example.com", "https://tetraboard.net"],
+  ] as const) {
+    const response = await worker.fetch(
+      new Request(`${origin}/api/healthz`),
+      { ...env, APP_ORIGIN: appOrigin },
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Location")).toBeNull();
+    expect(await response.json()).toEqual({ status: "ok" });
+  }
 });
 
 test("本番の画面・画像をアセットへ渡し、APIと旧プロフィール・棋譜の導線を分ける", async () => {
