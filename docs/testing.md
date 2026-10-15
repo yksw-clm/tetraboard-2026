@@ -2,6 +2,8 @@
 
 開発環境のSEOは `apps/web/test/developmentSeo.test.ts` で、開発設定を渡した別プロセスの初期HTML・サイトマップ・robots.txt・happy-dom上の画面内遷移を確認します。Workerの `apiRouting.test.ts` では開発用HTTP応答のnoindexと本番への誤転送がないことを検証します。本番SEOとWebSocket・認証Cookieの回帰は既存テストで維持します。公開後の確認は `scripts/checkDeployment.ts <URL> development` または `production` を指定します。dry-run成功だけでは実DB・R2・Secrets・OAuth設定の準備完了を意味しません。
 
+`apps/web/test/publicLobbies.test.ts` と `test-dom/publicLobbies.test.tsx` は、全6ロビーのtitleの語順と長さ、descriptionの120字以内、「4人将棋」「4人オセロ」がtitle・description・紹介文に含まれること、既定HTML・初期HTMLと遷移後のブランド表記・メタ情報の一致を確認します。サイトマップは全7URLにページごとの有効な日付の `lastmod` があること、開発環境ではURLと `lastmod` が出力されないことを確認します。`test-dom/roomSharing.test.tsx` でルーム共有の画像・titleがロビーへ残らず、`og:site_name` が重複しないことも確認します。
+
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
@@ -90,7 +92,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 
 | 対象 | 自動検証する振る舞い |
 | --- | --- |
-| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、運営者・窓口・版・改定日・リンク、文書閲覧だけでは計測IDを発行しないこと |
+| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、直接表示・再読み込み相当の初期化・アプリ内遷移での文書名を含むタブ名、運営者・窓口・版・改定日・リンク、文書閲覧だけでは計測IDを発行しないこと |
 | 公開説明・同意 | 全6ゲーム・全作成／参加導線のゲスト名保存・公開の説明、登録・初回設定・ゲスト参加のボタン操作、未確認・旧版APIの拒否、既存登録者、同意版の記録、改定後の再確認、同意チェック・端末保存への非依存、年齢・保護者同意、生年月日の非保存 |
 | 再認証・受付 | 未認証・別アカウント・別プロバイダー・取消・期限切れ・Origin違反・回数制限・確認の再利用、本人再認証、在室・切断保持席・同時参加、重複受付と再登録者の保護 |
 | 即時利用停止 | 全セッション・参加資格の失効、取得・プロフィール編集・参加の拒否、ランキング・公開情報・管理一覧からの除外、古い応答・キャッシュからの本人表示の復活防止 |
@@ -104,6 +106,8 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 [privacy.test.ts](../apps/worker/test/privacy.test.ts) は全6ゲームの未確認／旧版拒否、初回文書HTML、ボタン操作の版別同意、全6棋譜の本人除去と相手維持、通常／四人将棋の転送途中、確認資格の一回性と在室拒否、DO・画像・認証・本人フィードバック等の削除、画像／外部解除失敗、完了後の旧索引再送、同時に失敗したDO保存、90日境界と日跨ぎ・重複集計・遅延再送、旧トークン暗号化を確認します。HTTPSの認証Cookie、取消による回数制限の維持、閉鎖済みDOの索引保存待ちも対象です。Google／DiscordのHTTPをモックし、実コールバックから取消・別人・期限・正常再認証・退会・新規再登録まで通します。実サービスのOAuth成功と混同しません。
 
 [privacy.test.tsx](../apps/web/test-dom/privacy.test.tsx) は全6ゲームの登録者／ゲストの事前説明、OAuth／参加の同意拒否と許可、全文・連絡先、同意文言→ボタン→別タブの文書リンクの順序、常時計測の説明、退会の在室／確認・処理中／障害／完了を確認します。[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) と [roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx) は退会による接続失効・セッション再確認と、古い本人応答の破棄を確認します。
+
+[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx) は `/terms`・`/privacy` の初期表示・再読み込み相当のメタ情報同期と、クエリ・ハッシュを含む画面遷移・履歴の戻りで文書名を含むtitleを確認します。ロビー・棋譜・アカウント等の既存titleと検索除外も回帰確認し、Workerの `privacy.test.ts` で初回HTMLのtitleを確認します。
 
 部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMでは同意チェック・端末保存がなくても、説明後のボタン操作で現在版を送ることを確認します。
 
@@ -180,6 +184,31 @@ bun run --cwd packages/shogi test
 Webの `shogiComponents.test.tsx` は種類・枚数・4方向と選択・pointer操作・着手禁止を、`roomLoader.test.ts` と `roomTransportLifecycle.test.tsx` は初回・更新・古い応答・局ID・旧Worker復帰を確認します。`fourShogiReplay.test.ts` と `matchCompatibility.test.ts` はページ境界と旧棋譜の各局面に表示用枚数を導出し、固定fixtureのルール状態を維持することを確認します。固定fixtureは書き換えません。
 
 PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネイティブ操作は手動確認し、環境と未確認事項をPRへ記録します。ブラウザ起動型の自動テストは追加しません。PR前は共通の必須5コマンドとGitHub CIを成功させます。
+
+## 四人将棋シングルスAIの契約確認
+
+[Issue #184の契約](four-shogi-ai-engine.md)はD01〜D05を2026-10-14に承認済みです。この文書変更では現在のルール・CPU・通信・設定を変更せず、相対リンク・整形・判断ID・承認記録と未決表示、最終 `git diff --check` を確認します。コード/設定が同一と確認できる直前の5必須コマンド成功結果は、AGENTSの条件で検証済みコミットを明記して再利用できます。GitHub CI成功は別に確認します。
+
+後続実装では次の境界を検証します。まだ存在しないテストやLinux/VPSの実測を「実施済み」と記載しません。
+
+#185の測定基盤は `bun run --cwd packages/four-shogi check` で確認します。`test/singlesMeasurement.test.ts` はON/OFF開始系列・相対相手配置・実手番の合法遷移・単独/同率/未終局ラベル・系列単位の区間・重複拒否を小さな局面で検証します。固定ソース取得、公開Lv2との一致、ON/OFF対局smoke、時系列の性能は [専用CLI](four-shogi-ai-engine.md#現行lv2の固定基準と測定cli) と提出時のコマンド・結果で確認し、通常checkへ大量対局やGit履歴取得を追加しません。学習済みモデルの選択・IPC・待ち行列の計測は担当Issueの実装後に検証します。
+
+#186の復元APIは `test/analysis.test.ts` で既存の固定シングルス/引分/旧形式棋譜と全チェックポイントを照合します。4/3/2人生存・攻撃理由/標的/解除待ち・取り返しマス、32手系列の千日手直前、履歴だけ異なる同盤面、49イベント目のON/OFF合法手差、提案と手数/反復の区別、入力/結果の不変、版/連番/offset/座標の拒否、コード/モデル/予算を含む識別を検証します。独立計算した版1のSHA-256を固定し、期待棋譜を実行時に再生成しません。部分実行は `bun test --cwd packages/four-shogi test/analysis.test.ts`、Webの共有裁定は `bun test --cwd apps/web test/fourShogiReplay.test.ts test/fourShogiMatchReplay.test.ts test/fourShogiDrawReplay.test.ts test/matchCompatibility.test.ts`。公開frameに反復辞書を追加しません。
+
+| 境界 | 確認する内容・担当Issue |
+| --- | --- |
+| 結果・規則・復元 | #186/#187。単独1位/同率/未終局、ON/OFF・4/3/2人生存、攻撃/反復履歴、外部脱落/引分提案、固定棋譜・入力不変 |
+| 探索・候補・読み筋 | #187/#188。実手番、二人生存・引き分けを含む各人の効用伝播、PV再生、同一視点の比較、取消/処理量/時間予算、静的上限、戦術の回帰 |
+| データ・学習 | #189/#190。再開/重複/系列単位の分割、合法手マスク、行動/方向対応、未終局を引き分けにしないこと、checkpoint再開 |
+| Linux CPUモデル | #191/#192。Macとの出力誤差、manifest互換、モデル入り探索での実使用件数、破損/不在/fallback、RSS/起動/推論速度 |
+| VPSジョブ | #193。認証/上限/重複/取消/期限/再起動、CPU枠と30秒解析の共存、待ち行列/通信/計算の分離 |
+| Worker・時計 | #194。局ID/世代/revision/実手番/期限の照合、1回だけ合法着手を確定、遅い応答/再戦/脱落、最低2秒・時計・新AI引分同意 |
+| 棋譜解析UI | #195。完全状態と局面の照合、上位外の実戦手比較、切替/取消/古い応答、未校正勝率の非表示、保存棋譜と解析結果の分離 |
+| 初期一巡と棋力 | #196〜#199。モデル実使用の一巡、独立対局/席/相手群/区間、実VPS未確認とLinux検証済みの区別、正式棋力/校正/人間実戦の別判定 |
+
+純粋関数・Web部品/hook・Workerは既存のBun/happy-dom/Worker統合へ分担し、ブラウザ自動テストを追加しません。大量自己対戦・PyTorch学習・正式棋力測定はcheck外で実行し、極小smokeの環境/コマンド/版を記録します。PyTorch/Linuxの専用検証を通常checkへどう接続するかは採用依存とCI構成の確認後に決め、check180秒の目標を保ちます。画面寸法・実画像・ネイティブ入力は手動確認と未確認事項へ分けます。
+
+#187の `test/ai.test.ts` は最小処理量/期限0/開始前取消の合法fallback、未完了反復の破棄、注入時計の500ms/30000ms、実イベントループでのAbortSignal、ON/OFF・4/3/2人生存の全候補PV再生、根の固定視点、単独勝ち/同率と厳密な副順位、二人生存時に根の最小化で引分を選ばないこと、詰み/王手の実手番、合法手なし、上位外の比較手、版/条件の識別・不正入力を確認します。部分実行は `bun test --cwd packages/four-shogi test/ai.test.ts`、全体は `bun run --cwd packages/four-shogi check`。注入時計の検査とMacの実時間測定を区別し、後者は[解析性能CLI](four-shogi-ai-engine.md#共通ai解析api187)で記録します。VPSや学習済みモデルの使用、強制終了の応答上限、棋力の向上はこのテストの認定対象に含めません。
 
 ## 実行環境
 

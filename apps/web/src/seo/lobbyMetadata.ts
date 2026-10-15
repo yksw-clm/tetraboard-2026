@@ -5,9 +5,10 @@ export const searchIndexable = import.meta.env?.VITE_SEARCH_INDEXABLE !== "false
 
 export const lobbyMetadata = {
   "four-gomoku": {
-    title: "TetraBoard | 四人五目並べをブラウザでオンライン対戦",
+    title: "四人五目並べをブラウザで無料対戦 | TetraBoard",
     description:
-      "4色で遊ぶ15路の五目並べ。登録・インストール不要で、シングルス・ダブルス、CPU対局、観戦と棋譜に対応。",
+      "四人五目並べをブラウザで無料対戦。登録・インストール不要で、黒・白・赤・青の4色で五連を目指します。CPUとの一人プレイや友人との4人対局、シングルス・ダブルスに対応。公開ルームの観戦や対局後の棋譜閲覧も楽しめます。",
+    lastModified: "2026-10-15",
     overview:
       "四人五目並べは黒・白・赤・青の4色で五連を目指すゲームです。ひとりでCPUと遊ぶことも、友人と4人で対戦することもできます。",
     rules: [
@@ -17,9 +18,10 @@ export const lobbyMetadata = {
     ],
   },
   gomoku: {
-    title: "TetraBoard | 五目並べをブラウザでオンライン対戦",
+    title: "五目並べをブラウザで無料対戦 | TetraBoard",
     description:
-      "15路盤の五目並べを登録・インストール不要でオンライン対戦。禁手ルールのON/OFF、CPU対局、観戦と棋譜に対応しています。",
+      "五目並べをブラウザで無料対戦。登録・インストール不要で、15路盤に黒と白が交互に石を置き、五連を目指します。禁手ルールのON/OFFに対応。CPUとの一人プレイや友人との2人対局、公開ルームの観戦、棋譜閲覧を楽しめます。",
+    lastModified: "2026-10-15",
     overview:
       "五目並べは黒と白が交互に交点へ石を置き、縦・横・斜めの五連を目指す2人用ゲームです。友人やCPUと対局できます。",
     rules: [
@@ -29,8 +31,10 @@ export const lobbyMetadata = {
     ],
   },
   shogi: {
-    title: "将棋をオンラインで対戦 | TetraBoard",
-    description: "通常将棋を友達やCPUと対戦。登録なしで遊べる無料オンライン将棋。",
+    title: "将棋をブラウザで無料対戦 | TetraBoard",
+    description:
+      "将棋をブラウザで無料対戦。登録・インストール不要で、9×9の盤を使う通常将棋を友人やCPUと楽しめます。取った駒を持ち駒として使い、相手の玉の詰みを目指します。公開ルームの観戦や対局後の棋譜閲覧にも対応しています。",
+    lastModified: "2026-10-15",
     overview: "9×9の盤で先手と後手が対戦する将棋です。友達やCPUと対局し、棋譜も閲覧できます。",
     rules: [
       "先手から交互に指し、相手の玉を詰ませます。",
@@ -39,9 +43,10 @@ export const lobbyMetadata = {
     ],
   },
   reversi: {
-    title: "TetraBoard | リバーシをブラウザでオンライン対戦",
+    title: "リバーシをブラウザで無料対戦 | TetraBoard",
     description:
-      "リバーシを登録・インストール不要のブラウザでオンライン対戦。CPUとの一人プレイや友人との2人対局、棋譜の閲覧を楽しめます。",
+      "リバーシをブラウザで無料対戦。登録・インストール不要で、8×8の盤を使う黒と白の2人用ボードゲームを楽しめます。CPUとの一人プレイや友人とのオンライン対局に対応。公開ルームの観戦や対局後の棋譜閲覧もできます。",
+    lastModified: "2026-10-15",
     overview:
       "リバーシは8×8の盤で黒と白の2人が競うボードゲームです。TetraBoardではCPUと一人で遊ぶことも、友人とオンラインで対局することもできます。",
     rules: [
@@ -51,11 +56,12 @@ export const lobbyMetadata = {
     ],
   },
   "four-reversi": {
-    title: "TetraBoard | 四人リバーシをブラウザでオンライン対戦",
+    title: "四人リバーシ（4人オセロ）をブラウザで無料対戦 | TetraBoard",
     description:
-      "四人リバーシを登録・インストール不要のブラウザでオンライン対戦。CPUとの一人プレイや友人との対局、シングルス・ダブルスを楽しめます。",
+      "四人リバーシ（4人オセロ）をブラウザで無料対戦。登録・インストール不要で、CPUとの一人プレイや友人との4人対局を楽しめます。シングルス・ダブルスに対応し、公開ルームの観戦や対局後の棋譜閲覧もできます。",
+    lastModified: "2026-10-15",
     overview:
-      "四人リバーシ（4人リバーシ）は、8×8の盤で黒・白・赤・青の4色が競うボードゲームです。TetraBoardではCPUと一人で遊ぶことも、友人とオンラインで対局することもできます。",
+      "四人リバーシ（4人リバーシ・4人オセロ）は、8×8の盤で黒・白・赤・青の4色が競うボードゲームです。TetraBoardではCPUと一人で遊ぶことも、友人とオンラインで対局することもできます。",
     rules: [
       "黒→白→赤→青の順に石を置き、縦・横・斜めに他の色を挟んで自分の色へ返します。間に複数の色が混ざっていても、まとめて返せます。",
       "対局を続けている他の人の石を0枚にする全滅手は禁止です。ダブルスの味方も対象です。置ける場所がないときは自動でパスします。",
@@ -63,9 +69,10 @@ export const lobbyMetadata = {
     ],
   },
   "four-shogi": {
-    title: "TetraBoard | 四人将棋をブラウザでオンライン対戦",
+    title: "四人将棋（4人将棋）をブラウザで無料対戦 | TetraBoard",
     description:
-      "四人将棋を登録・インストール不要のブラウザでオンライン対戦。CPUとの一人プレイや友人との対局、シングルス・ダブルスを楽しめます。",
+      "四人将棋（4人将棋）をブラウザで無料対戦。登録・インストール不要で、9×9の盤を4人で囲む将棋を楽しめます。CPUとの一人プレイや友人との対局、シングルス・ダブルスに対応。公開ルームの観戦や棋譜閲覧もできます。",
+    lastModified: "2026-10-15",
     overview:
       "四人将棋（4人将棋）は、9×9の盤を南・西・北・東の4人で囲む将棋です。各9枚の駒を使い、自分の王を守りながら相手の王を詰ませます。TetraBoardではCPUや友人とオンラインで遊べます。",
     rules: [
@@ -76,7 +83,7 @@ export const lobbyMetadata = {
   },
 } satisfies Record<
   GameId,
-  { title: string; description: string; overview: string; rules: string[] }
+  { title: string; description: string; lastModified: string; overview: string; rules: string[] }
 >;
 
 export function lobbyGameForPath(path: string): GameId | undefined {
@@ -88,7 +95,8 @@ export function lobbyCanonical(game: GameId): string {
 }
 
 export const generalLobbyMetadata = {
-  title: "TetraBoard | 総合ロビー・オンライン対戦相手を探す",
+  title: "総合ロビー・オンライン対戦相手を探す | TetraBoard",
   description:
     "四人リバーシ・四人将棋など6つのボードゲームの公開ルームを探して参加・観戦。公開チャットで次の対局を話し、最近の棋譜を振り返れます。",
+  lastModified: "2026-10-15",
 };

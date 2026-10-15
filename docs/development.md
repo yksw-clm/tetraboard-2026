@@ -12,6 +12,7 @@
 | この開発文書 | 実装の入口、変更手順、構造と互換性などの注意点 |
 | [テスト方針](testing.md) | 実行方法、検証範囲、対象別のテストと移管根拠 |
 | [四人将棋AIの測定・採用記録](four-shogi-ai.md) | 比較条件、対象コミット、結果、採用判断と限界 |
+| [四人将棋シングルスAIの契約](four-shogi-ai-engine.md) | 新AIの承認済み目標・D01〜D05の設計契約、判断IDと未決事項。実装前の計画と現行CPUの採用仕様を分ける |
 | [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録 |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
@@ -618,9 +619,13 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 `src/seo/lobbyMetadata.ts` はWeb側のゲーム別title・description・紹介の正本です。ゲーム名・ロビーパスは軽量ゲームカタログを参照します。紹介は `GameIntroduction` で通常ロビーと初期HTMLが共用し、ルール正本に合わせて同じ変更で更新します。エンジン・認証・API・動的一覧を静的生成へ持ち込みません。
 
+6ロビーのtitleは「ゲーム名をブラウザで無料対戦 | TetraBoard」、四人将棋・四人リバーシの検索向け別表記は[README](../README.md#ゲームロビーの検索向け紹介と配信)に従います。既定HTMLと遷移後の `og:site_name` も `TetraBoard` にそろえます。ルーム共有では `protocol/room-sharing` の同じブランド表記を使い、遷移時に共有用のtitle・画像を残しません。
+
+各ロビーと `generalLobbyMetadata` の `lastModified` は、title・description・紹介・主要ルールなどページの内容を更新した日に `YYYY-MM-DD` で更新します。全7URLの `lastmod` はこの値から生成し、再ビルドや動的一覧の更新だけで日付を進めません。[Googleのlastmodの説明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps)を参照します。
+
 WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、ハッシュ付きJS・CSSの参照を保持した6ロビーのHTML、robots.txt、7件のsitemap.xml、404.html、トップのindex.htmlと検索対象外のapp.htmlを生成します。生成コードと関連Bunテストは `tsconfig.build.json` でも型検査します。ルートのbuildが既存の `scripts/buildAssets.ts` でこれらをWorker資産へコピーします。生成物はGit管理しません。Viteの開発画面は従来のCSRを使い、初期HTML・HTTPヘッダーの確認には `bun run build` 後の本番相当ローカルWorkerを使います。
 
-`startPublicLobby` は紹介HTMLを持つ初回ロビーだけでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には紹介・通常リンクを残して再読み込みを案内します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。
+`startPublicLobby` は紹介HTMLを持つ初回ロビーだけでルーターの初期化完了を待ちます。成功時に既存createRootへ渡し、遅延ルートの失敗時には紹介・通常リンクを残して再読み込みを案内します。他画面の初回loader・fallbackは従来どおりです。`pageMetadata` は初期表示とルーターのlocation変更でtitle・description・canonical・robotsを同期し、公開棋譜独自のrobots操作は行いません。`/terms`・`/privacy` のtitleはWorkerの `legalHtml.ts` と同じ `protocol/privacy` の `legalDocuments` を参照し、文書名とサービス名を保ちます。
 
 本番の資産配信はWorkerが公開ロビー・既知SPA経路・静的資産を明示し、Wranglerの無条件SPAフォールバックを使いません。`worker.ts` の入口で、本番設定の `tetraboard.net` へのHTTPと旧Workerホストを本番HTTPSへ308転送し、パス・クエリを保持します。資産・API・認証・WebSocketの処理前に転送し、ローカル・開発環境には適用しません。HTTPSの `/` は200、`/index.html` と公開URLの別表記は308、未知URL・欠落資産は404、既知の非検索画面はnoindexです。公開ページのGET／HEAD・ETag／304を維持し、404本文の取得では条件付きヘッダーを除去します。`scripts/checkDeployment.ts` はトップ配信、全ロビーの初期本文・メタ情報、robots／sitemapと既存APIを確認します。本番URLを指定した場合だけ、HTTPのトップ・ロビー・APIの308とクエリを含むHTTPS転送先も確認します。
 
@@ -629,6 +634,8 @@ WebのbuildはVite出力後に `build/generatePublicLobbies.ts` を実行し、�
 公開前に既存Search Consoleのドメインプロパティ `tetraboard.net` で「検索タイプ: ウェブ」「国: 日本」を指定し、直近28日間の対象ページ別・対象検索語別のクリック数・表示回数・CTR・平均掲載順位を記録します。対象語は「四人将棋」「四人リバーシ」、ページは各正規URLの完全一致です。期間・フィルター・端末区分も併記し、データのない項目を0と断定せず「データなし」とします。集計・期間はSearch Consoleの表示に従い、既存Adminの日本時間の指標と混ぜません。新たな個人別流入計測を追加しません。
 
 必須ローカル検証とGitHub CI、差分・結果に対する開発者の承認後にマージ・公開します。本番確認後、Search ConsoleのライブURL検査でトップと全6ロビーの本文・検索許可を確認し、既存のサイトマップURLを再送信して未登録・更新対象ページのインデックス登録をリクエストします。サイトマップ送信の受理は取得待ちを意味し、個別URLの登録依頼や登録完了とは区別します。URL検査APIは登録済み情報の確認だけに使い、ライブURL検査と個別の登録リクエストはSearch Console画面から行います。実Googlebotによる登録と正規URL選択はライブ検査・UAのローカル比較と区別します。SEO整備の完了は本番確認・送信・基準値記録までとし、公開前は未完了です。
+
+Issue [#207](https://github.com/yksw-clm/tetraboard-2026/issues/207) の別表記追加を本番公開したら、公開日とコミットを成果確認Issue [#87](https://github.com/yksw-clm/tetraboard-2026/issues/87) に記録します。公開4週間後に「4人将棋」のCTR・クリック数・表示回数・平均掲載順位を公開前28日間と同じフィルターで比較し、「四人将棋」と対象ロビーの数値も併記します。実装PR提出時点では公開日や公開後の結果を確定しません。
 
 公開後4〜8週間で最初の成果を評価します。両URLが登録されGoogleの正規URLと一致し、日本・日本語・ログアウト状態のPC／スマートフォンで週1回×4週間、両検索語の通常の自然検索1位を確認し、各ページの評価対象28日間クリック数が公開前28日間より増加した場合を成果達成とします。日時・地域・端末を記録し、平均順位だけで常に1位と判定しません。データ不足は観測期間を延長し、未達なら継続課題とします。順位・反映時期の保証と自動監視は設けません。
 
@@ -691,6 +698,8 @@ if (result.ok) {
 
 成功時は新状態・捕獲駒・今回の脱落一覧を、失敗時は理由を返し、入力状態を変更しません。詰み・合法手なしは着手や外部脱落に伴って自動処理し、同時脱落の群と理由・順位を保持します。持ち時間、接続期限、プロフィール、ネットワークはエンジンへ持ち込みません。担当方向の抽選は呼び出し側で行います。保存した状態はJSONで復元して同じAPIへ渡せます。外部入力の検証と認証は、将来のルーム接続側で行います。
 
+`@tetraboard/four-shogi/analysis` の [analysis.ts](../packages/four-shogi/src/analysis.ts) は版付き棋譜から完全なシングルス解析状態を復元し、合法手・仮遷移・状態/解析識別を提供します。[入力と識別の契約](four-shogi-ai-engine.md#完全解析状態の復元api186)に従い、表示frameを直接入力しません。[analysisInput.ts](../packages/four-shogi/src/analysisInput.ts) は外部JSONの形状と版を検証し、[replay.ts](../packages/four-shogi/src/replay.ts) は既存エンジンへイベントを渡す裁定をWebと共有します。ランタイム依存・DB/通信・ルール本体を追加せず、HTTPとWorker内部状態の接続は後続Issueで行います。
+
 ### 四人将棋の引分提案
 
 エンジンの `setDrawProposal(state, side, proposed)` は自手番の生存者の提案・取消を処理します。`drawProposals: readonly Side[]` を保持し、全生存者の同意で終局理由 `agreement` を返します。提案操作では手番・盤面・手数・直前手・千日手回数を変えません。着手・外部脱落による自動処理の後は、通常終局を優先して残った生存者の同意を再判定します。
@@ -731,6 +740,16 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 ルーム連携の変更では [時計計算と期限選択](#workerの時計計算と期限選択) と [ゲーム進行と共有ライフサイクル](#workerのゲーム進行と共有ライフサイクル) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 
 関連確認は [CPU探索](../packages/four-shogi/test/cpuSearch.test.ts)、[評価](../packages/four-shogi/test/cpuEvaluation.test.ts)、[手筋](../packages/four-shogi/test/cpuTactics.test.ts)、[序盤候補](../packages/four-shogi/test/cpuOpenings.test.ts)、[オンラインルーム](../apps/worker/test/fourShogiRoom.test.ts) のテストを使います。パッケージ全体は `bun run --cwd packages/four-shogi check`、ルーム側は `bun run --cwd apps/worker test test/fourShogiRoom.test.ts` で部分確認します。比較条件・測定対象コミット・結果と限界、再測定手順は [四人将棋AIの測定・採用記録](four-shogi-ai.md) を参照します。
+
+### 四人将棋シングルスAIの実装前整理
+
+[Issue #184](https://github.com/yksw-clm/tetraboard-2026/issues/184)で、[READMEの開発目標](../README.md#四人将棋シングルスaiの開発計画)を起点に、[契約と判断一覧](four-shogi-ai-engine.md)を整理しました。VPSで推論しMac等で学習する前提は開発者の指示済みです。初期の規則、探索の副目的・引分同意、構成、試用範囲、障害時の動作は2026-10-14にD01〜D05の推奨案で承認済みです。具体的なAPI型や推論形式などの未決事項は担当Issueで検証します。
+
+現在の入口は `packages/four-shogi/src/cpu.ts`・`cpuSearch.ts`・`cpuEvaluation.ts`、`apps/worker/src/rooms/fourShogiProgress.ts`・`shogiStore.ts`、Webの `fourShogiReplayV1.ts`・`fourShogiMatchReplay.ts` です。表示frameから千日手履歴が除かれること、Workerの `cpuDraw` が着手探索と別に同意を決めることを確認します。#185の現行Lv2固定は [lv2Baseline.json](../packages/four-shogi/bench/lv2Baseline.json)、新しい測定入口は [singlesCli.ts](../packages/four-shogi/bench/singlesCli.ts)。開始系列/合法対局/集計は `singlesMeasurement.ts`、履歴版の取得/hash検査は `baseline.ts`、性能は `singlesPerformance.ts` に置きます。[実行条件と使い方](four-shogi-ai-engine.md#現行lv2の固定基準と測定cli)を確認し、既存benchの旧基準と過去測定条件は維持します。
+
+後続のエージェントは親Issueの依存と契約案の判断IDを確認し、影響する判断だけを開始条件にします。承認済みの目標・既存ルール・現行基準の調査を全項目の決定待ちにせず、変更は最新developから専用ブランチにまとめます。新パッケージやモデル形式は提案段階で、空の実装・主要依存を先に追加しません。確認分担は[契約確認](testing.md#四人将棋シングルスaiの契約確認)を参照します。
+
+#187の `@tetraboard/four-shogi/ai` は [ai.ts](../packages/four-shogi/src/ai.ts) が版/条件の解決と識別、時間/取消/ホストへのyield、完成結果の凍結を担当します。[aiSearch.ts](../packages/four-shogi/src/aiSearch.ts) は旧Maxⁿの反復深化・並べ替えを起点に、既存の合法手/確定遷移/基底反復参照を共有し、各手番者自身の値・PVを伝播します。[aiEvaluation.ts](../packages/four-shogi/src/aiEvaluation.ts) がD01の単独1位/副順位、[aiTypes.ts](../packages/four-shogi/src/aiTypes.ts) が出力と版です。旧 `cpuSearch.ts` の並べ替え関数を共有しますが、Lv2の選択結果・初期設定は変えません。[共通APIの使用例と診断](four-shogi-ai-engine.md#共通ai解析api187)、[部分テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。性能CLIは [analysisCli.ts](../packages/four-shogi/bench/analysisCli.ts) と既存 `singlesPerformance.ts` を使い、#185の初期/開始系列だけを完全状態復元から測定します。
 
 ## 軽量テスト
 
@@ -1473,7 +1492,7 @@ WorkerはWebSocketの要求を `formation-analysis-v1` 接続タグで保持し�
 
 囲いなどの派生解析は復元済みの読取り専用局面を入力とする純粋な処理として設計します。入力の出所はゲーム・対局ID・局面位置・保存形式・ルール版で識別し、結果は解析器ID・解析バージョン・対象局面・判定根拠を持つ別データとします。保存された盤面・棋譜・勝敗・撃破数は記録の正本であり、解析結果によって変更しません。解析からGameRoom、storage、D1の更新、戦績SQLを呼びません。解析の再実行も元データを変更せず、版ごとの結果を比較できる構成にします。
 
-基本6戦型の判定と通信・通知は上記の専用処理で実装しています。汎用解析基盤・公開指標は追加しません。本人戦績用の専用成立履歴テーブルは下記の範囲で使用します。戦型別ランキングなど新しい指標とバックフィルは仕様承認、比較検証、再実行可能な移行計画を別途必要とし、Admin KPIは #43 の範囲です。
+16戦型の判定と通信・通知は上記の専用処理で実装しています。シングルス専用AIの入力復元は [独立API](four-shogi-ai-engine.md#完全解析状態の復元api186) で扱い、戦型の公開指標を追加するものではありません。本人戦績用の専用成立履歴テーブルは下記の範囲で使用します。戦型別ランキングなど新しい指標とバックフィルは仕様承認、比較検証、再実行可能な移行計画を別途必要とし、Admin KPIは #43 の範囲です。
 
 ### 四人将棋シングルスの拡張戦績
 

@@ -122,5 +122,14 @@ export function renderGeneralLobby(template: string): string {
 
 export const robotsText = `User-agent: *\nAllow: /\n${searchIndexable ? `Sitemap: ${publicOrigin}/sitemap.xml\n` : ""}`;
 export function renderSitemap(): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${(searchIndexable ? [`${publicOrigin}/`, ...gameIds.map(lobbyCanonical)] : []).map((url) => `<url><loc>${url}</loc></url>`).join("")}</urlset>\n`;
+  const pages = searchIndexable
+    ? [
+        { url: `${publicOrigin}/`, lastModified: generalLobbyMetadata.lastModified },
+        ...gameIds.map((game) => ({
+          url: lobbyCanonical(game),
+          lastModified: lobbyMetadata[game].lastModified,
+        })),
+      ]
+    : [];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(({ url, lastModified }) => `<url><loc>${escapeHtml(url)}</loc><lastmod>${escapeHtml(lastModified)}</lastmod></url>`).join("")}</urlset>\n`;
 }
