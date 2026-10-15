@@ -1,6 +1,6 @@
 # 四人将棋シングルスAI・解析エンジンの実装計画と契約
 
-> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-14。完全状態復元と静的評価による共通AIを実装。学習済みモデル・VPS接続・解析画面は後続。
+> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-15。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。学習済みモデル・VPS接続・解析画面は後続。
 
 [親Issue #183](https://github.com/yksw-clm/tetraboard-2026/issues/183) の計画を実装へ渡すための文書。現在の合法手・手番・勝敗と現行Lv1/Lv2は [四人将棋ルール正本](rules/four-shogi.md)、共通の時計・参加・棋譜公開は [README](../README.md) を参照する。D01〜D05の推奨案を採用する。具体的なAPI型・推論形式・設定値は後続Issueで検証し、未決事項を推測で確定しない。利用者向け変更とCPU採用仕様は、実装時に対応する正本へ反映する。
 
@@ -254,6 +254,60 @@ VPSの予算は単調時計で計測する案とし、異なるホストの時�
 - 初期のジョブ再起動復旧は期限付きの再要求とfallbackを基本案にし、永続ジョブ基盤・新しいDB/キューサービスは測定前に追加しない。TTL/ログ保持/解析結果の永続保存はT05へ分離する。
 
 CPUの障害時の動作はD05の判断対象。推奨案は、現時点で有効な同じ手番・期限内に限ってローカルの現行Lv2を使うこと。fallbackの予算を残す期限/余裕を計測し、足りなければ既に確保した合法手を使う。VPSの故障を理由に時計を停止・巻き戻ししない。実際の時計期限に達した場合は通常の時間切れを先に扱う。解析失敗は失敗/再試行として表示し、予備の浅い評価を「30秒解析完了」と表示しない。
+
+### 自己対戦と探索教師データ（#189）
+
+保存先には所有マーカー `.selfplay-store` を置き、無関係な既存ファイルがある場所の初期化を拒否します。固定CPUの一時ソースはdataset内の `.scratch` で管理し、通常終了と再開時に回収します。親が強制終了した後も、一時ソースを別の場所へ無制限に残しません。
+
+`bun run --cwd packages/four-shogi selfplay` がMac/Linux上の独立した生成・検査CLIです。既存の対戦runnerへ保存hookを追加し、全イベントの受理は `/analysis` と既存TSエンジン、教師は `/ai` を使います。新しい依存・DB・外部サービスは追加しません。Pythonの学習CLIは#190で接続します。
+
+保存先は利用者が指定する専用ディレクトリです。`manifest.json` とゲームIDごとのJSONをchecksum付きで保存し、初期値・全受理イベント・元系列・split・実手番/相手・必要局面の完全状態・合法手ID・選択した探索教師・結果を保持します。元棋譜の参加者IDは合成IDへ置換します。表示frameだけで反復/攻撃履歴を代用しません。ゲームファイルの `in_progress` と、生成完了の `finished` / `truncated` を区別します。`inspect.complete` は計画した記録がそろった意味であり、全局が終局した意味ではありません。
+
+1手ごとに教師・着手・状態・結果を一つのファイルへまとめ、親プロセスだけが `fsync` → atomic renameで確定します。子プロセスは保存ACKを受けるまで次の着手へ進みません。中断後は最後の保存済みイベント列から再生し、未確定の計算を採用しません。所有者が生存する二重起動は拒否し、終了済み所有者のロックと孤立した一時ファイルを回復します。回復中のプロセスまで強制終了して回復ロックが残った場合、所有PIDの終了を確認してから手動で除去します。電源断/ファイルシステム障害への耐久性は未検証です。
+
+manifestの系列・相手群・思考予算・教師・選別・手数上限は再開時に変更できません。完了済みゲームはスキップし、同じ開始状態と相手配列になる席替えも重複生成しません。ソース集合/runner hashとBun版・OS・アーキテクチャが異なれば再開を拒否します。文書だけのコミットで同一ソースを使う場合は、元manifestのコードSHAを継続使用します。新コード/モデル/別の計画は別datasetにし、初期の学習入力は一つのmanifestを単位に扱います。複数manifestの無検査結合は認めません。
+
+相手は共通AIの異なる処理量と、#185の固定Lv2または `commit:<40桁SHA>` の過去CPUを混ぜられます。過去CPUのソースhash・探索条件もmanifestへ記録/照合します。学習済みモデルの旧checkpointはまだなく、model IDはnullです。固定CPUの履歴が必要な環境では事前に対象コミットをfetchします。通常checkのテストはGit履歴や学習モデルを必要としません。
+
+教師は周期・現在の王手/直前の捕獲で選び、局あたりの件数に上限を設けます。`every: 0` と `important: true` で重要局面だけにし、teacherのworkを大きくすれば長い再解析を選択局面へ限定できます。再開の決定性のため、生成時のAIは壁時計予算を拒否し、固定workと記録したseedを使います。各教師には実戦手を `includeAction` で比較指定します。候補・読み筋・4人評価・試行数・選択的探索/打切り・実使用モデルを保存し、完成比較がない場合はPolicy教師IDをnullにします。MCTSの上位候補だけの訪問数を、全合法手の完全な訪問分布へ正規化しません。
+
+`@tetraboard/four-shogi/action-encoding` の版は `four-shogi-policy-index-v1`、行動空間は13,446です。座標を `square = y*9+x` とし、移動は `2*(fromSquare*81+toSquare)+promote`、打は `13122 + kindIndex*81+toSquare`（駒順は飛・金・銀・歩）です。成りはこの手で新たに成る指定で、成駒の通常移動はfalseです。幾何的に不可能なIDも含む固定空間なので、保存した疎な合法手IDを `legalActionMask` で復元して制限します。絶対座標と南・西・北・東の対応を固定し、席替えを座標変換と混同しません。AIの生の着手語彙 `four-shogi-action-v1` と数値index版は別の項目です。`stateEncodingVersion: analysis-state-v1` は完全状態の保存形式で、NNの特徴tensorは未実装のため `featureVersion: null` です。
+
+終局結果のValueは `[南の単独勝ち, 西, 北, 東, 単独勝者なし]`。同率1位は最後の分類で、順位は正本の結果を別に保持します。`in_progress` / `truncated` は `outcome: null` で、引分やValue教師へ置換しません。完成した打切り記録の有効なPolicy教師は利用できますが、生成途中のファイルは採用対象外です。探索評価を校正済み勝率として公開しません。
+
+split版1のseed範囲はtrain=10000〜49999、validation=50000〜59999、calibration=60000〜69999、test=70000〜99999。同系列のON/OFF・席替え・別手数は同じ集合へ固定します。元棋譜の全体/途中ファイル・回転したイベント列の関連も検査します。旧戦術validationと正式棋力用seed100000以降は生成へ使いません。データ内testと#197の正式棋力評価は別です。検査時は、完全状態を確認した上で、盤面/持駒/手番/生存者の回転一致も保守的にsplit漏れとして拒否します。この漏れ検査用の指紋を探索cacheや履歴の同一視へ使いません。
+
+資源の既定上限は並列1（指定は1〜4）、計画64局（最大4096）、論理容量256MiB、親子の合計RSS 1GiB、1回30分です。局の上限は既定256手、教師は最大32局面/局。容量は旧ファイルと新しい一時ファイルの同時存在も含めて書込み前に検査するため、最終サイズより余裕が必要です。RSSはmacOSのps/Linuxのprocを250ms周期と保存時に観測し、超過したら子を止めて再開可能な状態を残します。これはOSのhard memory limitではなく、一時的な超過を許す観測上限です。ファイルシステムのblock消費・archive用の一時ソース・他プロセスのRSSは容量/RSSの上限に含めません。件数/byte/RSS/実行時間の上限は再開時に調整でき、無制限値は受理しません。
+
+```sh
+# configを省略するとON/OFF・1系列・4席の既定混合相手。最初の8手を保存して停止するsmoke
+bun run --cwd packages/four-shogi selfplay --output=/tmp/four-shogi-data --stop-after-moves=8 --max-bytes=268435456 --max-rss-mb=1024
+# 同じ保存先を再開。configを省略すればmanifestの計画を使用する
+bun run --cwd packages/four-shogi selfplay --output=/tmp/four-shogi-data --concurrency=2 --max-games=64
+# 全イベント/教師PV/結果/合法手マスク/版/分割/重複を再生検査する
+bun run --cwd packages/four-shogi selfplay --kind=inspect --output=/tmp/four-shogi-data --report=/tmp/four-shogi-data-report.json
+```
+
+設定ファイルを使う場合は `--config=/path/config.json`。項目は以下の例を起点にします。actorの `options` と `teacher` は共通AIの設定で、`codeVersion` は実行側が供給します。`origins[].replay` に正規の完全棋譜と `eventOffset` を渡すと途中局面から生成でき、元棋譜全体は系列の識別だけに使い、入力・結果には実際に適用したprefixと自己対戦の進行を使います。外部棋譜の収集・利用条件・長期保持はT05の未決事項です。
+
+```json
+{
+  "origins": [{ "seed": 18900 }, { "seed": 58900 }],
+  "restrictions": [false, true],
+  "seatOffsets": ["south"],
+  "agents": [
+    { "id": "search", "kind": "analysis", "options": { "maxWork": 256 } },
+    { "id": "small", "kind": "analysis", "options": { "maxWork": 64 } },
+    { "id": "lv2", "kind": "cpu", "reference": "frozen" }
+  ],
+  "lineups": [["search", "lv2", "small", "lv2"]],
+  "teacher": { "maxWork": 2048 },
+  "sampling": { "every": 8, "important": true, "maxPositions": 16 },
+  "maxPlies": 256
+}
+```
+
+コード/runnerに未コミット変更がある生成は既定で拒否し、開発中の実験に限って `--allow-dirty=true` を明示できます。大量データをGitへ追加せず、検証用の/tmpと長期保存先を区別します。レポートには今回生成した局面/秒・選別教師/秒・新規記録/時（打切りを含む）・自然終局/時・byte量・観測RSS・10万Policy局面の容量見積りを出します。少数smokeの値を持続性能や棋力の保証にせず、[測定記録](four-shogi-ai.md#自己対戦と探索教師生成の初期検証189)へ対象SHAと条件を残します。
 
 ## 承認済みの設計判断
 

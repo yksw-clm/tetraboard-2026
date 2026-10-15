@@ -40,6 +40,7 @@ function snapshot<T>(value: T): T {
 export function resolveAiOptions(options: AiOptions): {
   codeVersion: string;
   settings: AiSearchSettings;
+  versions: typeof aiVersions & { codeVersion: string };
 } {
   const allowed = new Set([
     "codeVersion",
@@ -161,7 +162,19 @@ export function resolveAiOptions(options: AiOptions): {
       throw new TypeError("実験の探索条件が範囲外です");
   if (!Number.isFinite(settings.exploration) || settings.exploration < 0)
     throw new TypeError("探索係数は非負の有限数です");
-  return { codeVersion: options.codeVersion, settings: snapshot(settings) };
+  return {
+    codeVersion: options.codeVersion,
+    settings: snapshot(settings),
+    versions: snapshot({
+      ...aiVersions,
+      codeVersion: options.codeVersion,
+      searchVersion:
+        settings.algorithm === "maxn" ? aiVersions.searchVersion : "vector-uct-experiment-v1",
+      opponentModelId:
+        settings.algorithm === "maxn" ? aiVersions.opponentModelId : "selfish-uct-v1",
+      seed: settings.algorithm === "mcts" ? settings.seed : null,
+    }),
+  };
 }
 
 /** CPU・解析・教師生成で同じ探索を使い、完成した反復だけを比較結果へ公開します。 */
@@ -170,15 +183,7 @@ export async function analyzePosition(
   options: AiOptions,
   control: AiControl = {},
 ): Promise<AiResult> {
-  const { codeVersion, settings } = resolveAiOptions(options);
-  const versions = {
-    ...aiVersions,
-    codeVersion,
-    searchVersion:
-      settings.algorithm === "maxn" ? aiVersions.searchVersion : "vector-uct-experiment-v1",
-    opponentModelId: settings.algorithm === "maxn" ? aiVersions.opponentModelId : "selfish-uct-v1",
-    seed: settings.algorithm === "mcts" ? settings.seed : null,
-  };
+  const { codeVersion, settings, versions } = resolveAiOptions(options);
   const now = createAiClock(control.now);
   const started = now();
   // hash計算・合法手の確保も同じ時間予算に含め、解決済み設定を識別します。

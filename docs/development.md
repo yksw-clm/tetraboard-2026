@@ -70,6 +70,8 @@ Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Ala
 
 IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCatalog.test.ts test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` で確認します。軽量入口の依存は `bun build packages/protocol/src/games.ts --target=browser --outfile=/tmp/tetraboard-game-catalog.js --metafile=/tmp/tetraboard-game-catalog.meta.json` の入力一覧で確認できます。
 
+#189のデータ生成は [selfPlayCli.ts](../packages/four-shogi/bench/selfPlayCli.ts) が入口です。[selfPlayData.ts](../packages/four-shogi/bench/selfPlayData.ts) は版付きmanifest/系列/分割/相手/教師の設定、[selfPlayGame.ts](../packages/four-shogi/bench/selfPlayGame.ts) は既存対戦runnerのhookで完全イベント・必要局面・教師を記録します。[selfPlayRun.ts](../packages/four-shogi/bench/selfPlayRun.ts) と [selfPlayWorker.ts](../packages/four-shogi/bench/selfPlayWorker.ts) がBun子プロセスの上限/中断/ACKを、[selfPlayStore.ts](../packages/four-shogi/bench/selfPlayStore.ts) が親だけの原子的保存/lock/容量を担当し、[selfPlayInspect.ts](../packages/four-shogi/bench/selfPlayInspect.ts) が再生/結果/マスク/版/漏れを照合します。[actionEncoding.ts](../packages/four-shogi/src/actionEncoding.ts) はBun/FSへ依存しない固定行動IDです。固定CPUの一時ソースもdataset内scratchへ置き、終了・再開時に回収します。[保存形式と操作手順](four-shogi-ai-engine.md#自己対戦と探索教師データ189)、[テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。Python学習は#190で実装し、空の学習パッケージは追加しません。
+
 ## 通常リバーシの実装
 
 `packages/reversi` は黒白2人の独立したルールエンジンとCPUを持ちます。ゲームカタログの `capacity` と `hasModes` に定員2・モードなしを登録し、共有の席管理・開始条件・公開情報・集計条件はゲーム別定員を参照します。

@@ -304,12 +304,21 @@ export type PositionDecision = {
   stats: SinglesSample["decisions"][number]["stats"];
   details: unknown;
 };
+export type AnalysisStep = {
+  before: AnalysisPosition;
+  after: AnalysisPosition;
+  decision: PositionDecision;
+  side: Side;
+  playerId: string;
+  elapsedMs: number;
+};
 export async function playAnalysisSingles(
   start: ExperimentStart,
   seat: Side,
   lineup: Record<Side, string>,
   selectors: ReadonlyMap<string, (position: AnalysisPosition) => Promise<PositionDecision>>,
   maxPlies: number,
+  onStep?: (step: AnalysisStep) => Promise<void>,
 ) {
   if (!Number.isSafeInteger(maxPlies) || maxPlies < 1) throw new Error("手数上限は正の整数です");
   let position = start.position;
@@ -338,6 +347,7 @@ export async function playAnalysisSingles(
       side,
       action: decision.action,
     });
+    await onStep?.({ before: position, after: next, decision, side, playerId, elapsedMs });
     trajectory.update(JSON.stringify({ side, action: decision.action }));
     position = next;
     decisions.push({
