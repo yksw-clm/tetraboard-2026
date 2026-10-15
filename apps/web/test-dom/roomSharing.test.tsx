@@ -213,7 +213,12 @@ test("ルーム間とロビー・アカウントへの移動で共有メタ情�
     document.head.querySelector('meta[property="og:image"]')?.getAttribute("content"),
   ).toContain("tetraboard.png");
   updatePageMetadata("/games/four-reversi");
-  expect(document.head.querySelector('meta[property^="og:"]')).toBeNull();
+  expect(document.head.querySelector('meta[property="og:image"]')).toBeNull();
+  expect(document.head.querySelector('meta[property="og:title"]')).toBeNull();
+  expect(document.head.querySelectorAll('meta[property="og:site_name"]')).toHaveLength(1);
+  expect(
+    document.head.querySelector('meta[property="og:site_name"]')?.getAttribute("content"),
+  ).toBe("TetraBoard");
   updatePageMetadata("/account");
   expect(document.head.querySelector('meta[name^="twitter:"]')).toBeNull();
 });

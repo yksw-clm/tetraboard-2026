@@ -3,6 +3,8 @@ import { createMemoryRouter } from "react-router";
 import { GameIntroduction } from "../src/seo/GameIntroduction";
 import { updatePageMetadata } from "../src/seo/pageMetadata";
 import { startPublicLobby } from "../src/seo/startPublicLobby";
+import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
+import { renderGeneralLobby, renderPublicLobby } from "../build/renderPublicLobby";
 import { render, flush } from "./support";
 
 test("紹介はダイアログを開かず読め、両ゲームのモードと固有ルールを表示する", () => {
@@ -13,6 +15,35 @@ test("紹介はダイアログを開かず読め、両ゲームのモードと�
     expect(view.textContent).toContain("ダブルス");
     expect(view.textContent).toContain("ユーザー登録は不要");
     expect(view.querySelector('[role="dialog"]')).toBeNull();
+  }
+});
+
+test("全公開ロビーの初期HTMLと画面内遷移は同じtitle・description・ブランド表記を持つ", async () => {
+  const previousHead = document.head.innerHTML;
+  const template = await Bun.file(new URL("../index.html", import.meta.url)).text();
+  try {
+    const pages = [
+      { path: "/", html: renderGeneralLobby(template) },
+      ...gameIds.map((game) => ({
+        path: gameCatalog[game].lobbyPath,
+        html: renderPublicLobby(template, game),
+      })),
+    ];
+    for (const { path, html } of pages) {
+      const initial = document.implementation.createHTMLDocument();
+      initial.documentElement.innerHTML = html;
+      updatePageMetadata(path);
+      expect(document.title).toBe(initial.title);
+      expect(document.head.querySelector('meta[name="description"]')?.getAttribute("content")).toBe(
+        initial.querySelector('meta[name="description"]')?.getAttribute("content"),
+      );
+      expect(document.head.querySelectorAll('meta[property="og:site_name"]')).toHaveLength(1);
+      expect(
+        document.head.querySelector('meta[property="og:site_name"]')?.getAttribute("content"),
+      ).toBe("TetraBoard");
+    }
+  } finally {
+    document.head.innerHTML = previousHead;
   }
 });
 
@@ -43,7 +74,7 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
   updatePageMetadata(router.state.location.pathname);
   const unsubscribe = router.subscribe((state) => updatePageMetadata(state.location.pathname));
   try {
-    expect(document.title).toContain("四人将棋を");
+    expect(document.title).toContain("四人将棋（4人将棋）を");
     expect(document.head.querySelector('link[rel="canonical"]')!.getAttribute("href")).toBe(
       "https://tetraboard.net/games/four-shogi",
     );
@@ -59,7 +90,7 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
     await router.navigate(-1);
     expect(document.title).toBe("利用規約 | TetraBoard");
     await router.navigate(-1);
-    expect(document.title).toContain("四人将棋を");
+    expect(document.title).toContain("四人将棋（4人将棋）を");
     await router.navigate("/matches/example");
     expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
       "noindex,follow",
@@ -67,14 +98,14 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
     expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
     expect(document.head.querySelector('meta[name="description"]')).toBeNull();
     await router.navigate("/games/four-reversi?test=1");
-    expect(document.title).toContain("四人リバーシを");
+    expect(document.title).toContain("四人リバーシ（4人オセロ）を");
     expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
       "index,follow",
     );
     await router.navigate(-1);
     expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
     await router.navigate(-1);
-    expect(document.title).toContain("四人将棋を");
+    expect(document.title).toContain("四人将棋（4人将棋）を");
     expect(document.head.querySelectorAll('meta[name="robots"]')).toHaveLength(1);
     for (const path of [
       "/login",

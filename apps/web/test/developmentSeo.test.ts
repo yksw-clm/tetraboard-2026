@@ -11,7 +11,7 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     import { updatePageMetadata } from "./src/seo/pageMetadata";
     const window = new Window();
     globalThis.document = window.document;
-    const html = renderPublicLobby('<html><head><title>Tetra Board</title></head><body><div id="root"></div></body></html>', "four-reversi");
+    const html = renderPublicLobby('<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>', "four-reversi");
     const pages = [];
     for (const path of ["/games/four-reversi", "/matches/example", "/games/shogi"]) {
       updatePageMetadata(path);
@@ -36,6 +36,7 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     'href="https://tetraboard-dev.chaossi-lab.workers.dev/games/four-reversi"',
   );
   expect(output.sitemap).not.toContain("<loc>");
+  expect(output.sitemap).not.toContain("<lastmod>");
   expect(output.robotsText).toContain("Allow: /");
   expect(output.robotsText).not.toContain("Sitemap:");
   for (const page of output.pages) {

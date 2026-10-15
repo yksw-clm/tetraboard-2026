@@ -38,6 +38,10 @@ export function updatePageMetadata(path: string, room?: ShareRoom): void {
     }
     return;
   }
+  const siteName = document.createElement("meta");
+  siteName.setAttribute("property", "og:site_name");
+  siteName.content = "TetraBoard";
+  document.head.append(siteName);
   if (!metadata) return;
   const description = document.createElement("meta");
   description.name = "description";
