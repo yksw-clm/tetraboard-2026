@@ -10,6 +10,7 @@
     "./replay": "./src/replay.ts",
     "./action-encoding": "./src/actionEncoding.ts",
     "./model-features": "./src/modelFeatures.ts",
+    "./model-inference": "./src/modelInference.ts",
     "./formation-catalog": "./src/formationCatalog.ts"
   },
   "scripts": {
@@ -20,6 +21,8 @@
     "selfplay": "bun bench/selfPlayCli.ts",
     "training:export": "bun bench/trainingExport.ts",
     "training:smoke-data": "bun bench/trainingSmokeData.ts",
+    "inference:fixture": "bun bench/inferenceFixture.ts",
+    "inference:smoke": "bun bench/inferenceCli.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",

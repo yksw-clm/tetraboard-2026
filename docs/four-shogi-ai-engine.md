@@ -1,6 +1,6 @@
 # 四人将棋シングルスAI・解析エンジンの実装計画と契約
 
-> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-15。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開も実装。Linux推論・共通探索へのモデル実使用・VPS接続・解析画面は後続。
+> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-16。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開とLinux CPU推論/Mac出力照合も実装。共通探索へのモデル実使用・VPS接続・解析画面は後続。
 
 [親Issue #183](https://github.com/yksw-clm/tetraboard-2026/issues/183) の計画を実装へ渡すための文書。現在の合法手・手番・勝敗と現行Lv1/Lv2は [四人将棋ルール正本](rules/four-shogi.md)、共通の時計・参加・棋譜公開は [README](../README.md) を参照する。D01〜D05の推奨案を採用する。具体的なAPI型・推論形式・設定値は後続Issueで検証し、未決事項を推測で確定しない。利用者向け変更とCPU採用仕様は、実装時に対応する正本へ反映する。
 
@@ -74,14 +74,14 @@ Valueの初期案は「南・西・北・東の単独勝ち＋単独勝者なし
 | ルール正本     | `packages/four-shogi`。合法手・実手番・遷移・終局・履歴                                          | #186。既存公開APIと棋譜の互換性を確認                                             |
 | 新AIの共通入口 | `packages/four-shogi-ai` を追加する案。既存探索を再利用し、予算・候補/PV・評価器注入・診断を扱う | #187/#188/#192。移動/抽出の必要性を確認し、ルール→新AI→ルールの循環依存を作らない |
 | VPSサービス    | `apps/four-shogi-ai` を追加する案。Bun/TypeScriptのHTTP・ジョブ受付と独立した計算worker          | #193。長時間探索で受付/取消を塞がないことを確認                                   |
-| モデル推論     | 同じVPS内の永続Python/PyTorch CPUプロセスを第一比較候補とする。モデル評価をまとめて依頼する      | #191。CPU性能・RSS・起動/バッチ効率を測定後に方式を決める                         |
+| モデル推論     | 同じホストの永続Python/PyTorch CPUプロセスへモデル評価をまとめて依頼する                         | #191のLinux実測で初期方式を選定。VPSの配置・同時数は後続                          |
 | 学習・実験     | `training/four-shogi-ai` にPythonの学習CLIを置く案。TS側で生成/検証したデータを利用する          | #189/#190。重い処理を通常checkから分離                                            |
 | 対局進行       | 現在のWorker/DOが時計・現在状態・着手受理・保存を管理し、VPSへ計算だけ依頼する                   | #194。待機中も時計/切断/投了を進める                                              |
 | 棋譜解析       | Web→権限検査したWorker→VPSの経路。保存済み終局棋譜を復元して読む                                 | #195。棋譜・勝敗・戦績の正本を更新しない                                          |
 
 パッケージ配置は新しい独立実行部分の責任を示す案で、空のパッケージや将来用の抽象化を先に実装しない。既存探索の再利用・抽出でAPIの互換を守り、現在の `chooseCpuAction` の同期契約へ非同期モデル推論を混ぜない。新AIのCPUと解析を共通入口へ接続し、現行Lv2は比較/fallback用の固定版として別に識別する。
 
-PyTorchの配布候補はモデル定義を版付きコードで固定し、重み `state_dict` とmanifestを合わせてロードする方式。[PyTorch公式資料](https://docs.pytorch.org/docs/2.14/notes/serialization.html#saving-and-loading-torch-nn-modules) は互換性のため重み保存を推奨する。採用ランタイム/形式と誤差許容値は#191の測定対象であり、ONNX等の新たな主要依存の採用はその時点で理由と影響を示す。探索ノードごとにプロセスを起動したり、Macへ遠隔推論を依頼したりしない案とする。
+PyTorchの配布はモデル定義を版付きコードで固定し、重み `state_dict` とmanifestを合わせてロードする方式。[PyTorch公式資料](https://docs.pytorch.org/docs/2.14/notes/serialization.html#saving-and-loading-torch-nn-modules) は互換性のため重み保存を推奨する。#191で必要ランタイムと誤差許容値を定め、下記のLinux CPU実測で照合する。ONNX等の新たな主要依存の採用時には理由と影響を示す。探索ノードごとのプロセス起動やMacへの遠隔推論は行わない。
 
 ## 共通APIの契約案
 
@@ -338,7 +338,35 @@ bun run --cwd packages/four-shogi training:smoke-data /tmp/four-shogi-raw /tmp/f
 
 Macでは `--device=mps` を両実行へ同じように追加できます。利用できないMPSはエラーにし、CPUへ黙って切り替えません。開発中の未コミットコードには生成・学習それぞれで `--allow-dirty` が必要です。通常checkへPyTorchや学習を追加せず、Bunの特徴/出力テストと別実行の極小smokeを分担します。大量生成・重い学習も別コマンドです。データとcheckpointはGitへ追加せず、長期保存場所/期間はT05の未決事項を維持します。
 
-モデルの出力は未校正で、manifest/reportも `calibrated: false`。UIへ勝率％を公開せず、Linux CPUロード・数値整合/配布方式は#191、共通探索での実使用は#192で測定します。初期smokeの少数・弱い相手・同じ結果へ偏ったValue教師では棋力や一般化を判定しません。
+モデルの出力は未校正で、manifest/reportも `calibrated: false`。UIへ勝率％を公開せず、Linux CPUロード・数値整合/配布方式は下記#191、共通探索での実使用は#192で測定します。初期smokeの少数・弱い相手・同じ結果へ偏ったValue教師では棋力や一般化を判定しません。
+
+### Linux CPU推論とMac出力の照合（#191）
+
+初期方式はD03の永続Python/PyTorch CPUです。学習用checkpointを `inference.py export` で `four-shogi-inference-v1` の新規専用ディレクトリへ取り出します。Adam/乱数を除いたCPU float32重み・manifest・Mac CPUの基準出力と入力 `probe.json` を組にします。モデルIDは元の学習checkpointのSHA-256を維持し、推論artifactは別のSHA-256で識別します。元checkpointを書き換えず、既存出力も上書きしません。
+
+manifestはモデル/特徴/行動/ルール/席順の版、推論コードhash、対応ON/OFF、構成、学習コード/データ/環境、重み/基準fixtureのhashとbyte数、必要なPython 3.12/PyTorch 2.14.1 CPUを保持します。同じ契約を重みにも保存して組合せ違いを拒否します。`weights_only=True, map_location="cpu"` で読み、型/shape/有限値と、同梱基準に対する出力誤差・最良手一致を確認してから採用します。学習再開と異なりOS/CPUは固定せず、TorchのCPU版suffixは許容します。manifestのhashは配布元の認証や署名の代わりではなく、配布先/権限は#193/T05で定めます。
+
+共通fixtureはTS正本による14局面です。ON/OFFそれぞれに南/西/北/東の実手番、攻撃、取り返し、脱落した西のValueスロットを含みます。行動IDと回転表の固定値はBunテストでも検証します。特徴は絶対座標で、回転によるモデル出力の対称性は仮定しません。合法手/最良手IDは完全一致、違法手と脱落者は0、数値はPython `math.isclose(a, b, abs_tol=1e-5, rel_tol=1e-4)` で判定します。比較前に固定した閾値を測定結果に合わせて緩めません。出力は内部の未校正分布で、勝率％を表示しません。
+
+`inference.py serve` はstdin/stdoutのJSONL `four-shogi-inference-ipc-v1` です。起動応答のIDは0、後続は要求IDを戻します。`health`、`evaluate`、`activate` を受け、評価では要求modelIdと全版を照合します。候補を別にロードして基準fixtureと追加probeを検査し、成功後に参照を切り替えます。失敗時は `ok:false/error/activeModelId/fallback` を返し、稼働中のモデルとディスクの旧配布物を保持します。起動候補が使えないときは明示した `--fallback <旧配布物>` だけを試し、`candidateFailure` と実際のmodelIdを返します。両方失敗なら静的評価へのfallback理由を返して非零終了します。静的評価の実行とモデル入り探索への切替は#192です。
+
+サーバー専用 `@tetraboard/four-shogi/model-inference` の `ModelInferenceClient.start(command, options)` は1プロセスを保持し、`evaluate(positions)` で正本から特徴と合法手を生成します。応答の要求ID/モデルID/合法手/数値/席を照合します。`activate(directory, probePositions)` の失敗で旧モデルを維持し、エラーから理由を取得できます。起動既定30秒、要求既定5秒（各1〜60,000ms）、待ち要求16、batch16/全履歴4,096項目、1局面2,048履歴、1frame16MiB、重み32MiB、manifest256KiBを上限にし、黙って切り捨てません。期限超過・異常応答・子終了で全待ち要求を失敗させプロセスを終了します。自動再起動/再試行はせず、呼出側が予算内の静的fallbackを選びます。取消と対局時計を含む最終予算は#192〜#194で接続します。ブラウザ/Worker用入口へ子プロセス依存を混ぜません。
+
+```sh
+# #190のPython 3.12 venvとcheckpointを使用します
+bun run --cwd packages/four-shogi inference:fixture /tmp/four-shogi-fixture.json
+/tmp/four-shogi-training-env/bin/python training/four-shogi-ai/inference.py export --checkpoint /tmp/four-shogi-checkpoint --fixture /tmp/four-shogi-fixture.json --output /tmp/four-shogi-model
+/tmp/four-shogi-training-env/bin/python training/four-shogi-ai/inferenceTest.py /tmp/four-shogi-model /tmp/four-shogi-fixture.json
+/tmp/four-shogi-training-env/bin/python training/four-shogi-ai/inferenceSmoke.py --model /tmp/four-shogi-model --fixture /tmp/four-shogi-fixture.json --output /tmp/four-shogi-mac.json
+bun run --cwd packages/four-shogi inference:smoke /tmp/four-shogi-training-env/bin/python /tmp/four-shogi-model /tmp/four-shogi-fixture.json
+# Linux CPU配布物の再現環境。CPU版Torchだけをインストールし、GPUを使いません
+docker build -t tetraboard-four-shogi-inference:local training/four-shogi-ai
+# /tmp/four-shogi-checkにはmodel/fixture.json/mac.jsonを配置します。出力だけ書込可能にします
+docker run --rm --cpus=2 --memory=1g --pids-limit=64 --network=none --read-only --cap-drop=ALL --tmpfs /tmp:rw,size=64m --user "$(id -u):$(id -g)" --mount type=bind,source=/tmp/four-shogi-check,target=/work --entrypoint python tetraboard-four-shogi-inference:local inferenceSmoke.py --model /work/model --fixture /work/fixture.json --reference /work/mac.json --output /work/linux.json
+docker run --rm --cpus=2 --memory=1g --network=none --read-only --tmpfs /tmp:rw,size=64m --mount type=bind,source=/tmp/four-shogi-check,target=/work,readonly --entrypoint python tetraboard-four-shogi-inference:local inferenceTest.py /work/model /work/fixture.json
+```
+
+smokeはウォームアップ3回後に既定30回、batch1/4/14の入力検査/疎→密/推論/出力変換、永続プロセスの起動（Python/Torch import込み）とbatch4のJSONL往復、最大RSSを別々に記録します。バッチ分割時の出力も同じ許容差で比較します。Torch内の `torch.export` も試行しますが、現モデルの合法手検査がデータ依存のPython分岐であるため、そのままのexportは失敗します。可変履歴に合わせた別モデルの作り直しやONNX依存は採用せず、最小の既存モデルをそのまま動かす初期方式とします。export方式との速度比較は未実施です。[測定と採用理由](four-shogi-ai.md#linux-cpu推論とmac出力の検証191)に条件と限界を残します。実VPSの性能・x86_64・長時間/多並列・最大履歴負荷は別確認で、T02の契約/配置とT05の長期保存は未決です。
 
 ## 承認済みの設計判断
 
@@ -360,7 +388,7 @@ D01の主報酬は承認済みの学習目的であり、校正済み勝率の�
 
 | ID  | 未決事項・推奨する進め方                                                                                                                           | 担当/判断時点                                         | 今進められる範囲                                               |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------- |
-| T01 | PyTorch CPUかエクスポート推論か。推論速度/RSS/配布容量/出力誤差から選ぶ。新たな主要依存の採用時だけ理由と影響を提示                                | エージェント比較→開発者、#191                         | モデル/特徴/行動の版、共通fixture、評価器注入                  |
+| T01 | #191で初期方式に既承認の永続PyTorch CPUを選定。torch.exportは現モデルのデータ依存分岐で失敗。再検討/新たな主要依存時に理由と影響を提示             | エージェント比較→開発者、#191                         | モデル/特徴/行動の版、共通fixture、評価器注入                  |
 | T02 | VPSの提供者/プラン/OS/CPUアーキテクチャ、予算、配置開始日、同時数。根拠のない最小スペックや料金を断定しない                                        | 開発者＋測定、#191/#193の実VPS確認前                  | Linux CPUの起動/モデル整合、設定可能な上限、配布・切り戻し手順 |
 | T03 | 公開CPUレベル数/名前/思考予算、認証・利用量の具体上限、一般公開。予算増加が棋力を上げるとは仮定しない                                              | 開発者、#194/#195および#197の測定後                   | 開発用の予算プロファイル、制限機構、ON/OFF別比較               |
 | T04 | 比較対象の連盟規定、3人の優勝者級、持ち時間/席/局数、達成認定の閾値。単発1勝と継続した棋力を分ける                                                 | 開発者が手配、#199前                                  | 正本による合法性、現行Lv2/混合相手群への独立評価               |
