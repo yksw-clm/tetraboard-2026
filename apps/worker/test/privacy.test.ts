@@ -122,6 +122,7 @@ test("ポリシーと規約は初回HTMLとHEADで未認証にも提供する", 
     );
     expect(response.status).toBe(200);
     const html = await response.text();
+    expect(html).toContain(`<title>${legalDocuments[kind].title} | TetraBoard</title>`);
     for (const [title, text] of legalDocuments[kind].sections) {
       expect(html).toContain(title);
       expect(html).toContain(text);
