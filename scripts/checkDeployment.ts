@@ -115,8 +115,16 @@ await check("/sitemap.xml", async (response) => {
   if (
     !text.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"') ||
     (text.match(/<loc>/g) ?? []).length !== (searchIndexable ? gameIds.length + 1 : 0) ||
+    (text.match(/<lastmod>/g) ?? []).length !== (searchIndexable ? gameIds.length + 1 : 0) ||
     (searchIndexable &&
-      !gameIds.every((game) => text.includes(`<loc>${lobbyCanonical(game)}</loc>`)))
+      (!text.includes(
+        `<loc>${publicOrigin}/</loc><lastmod>${generalLobbyMetadata.lastModified}</lastmod>`,
+      ) ||
+        !gameIds.every((game) =>
+          text.includes(
+            `<loc>${lobbyCanonical(game)}</loc><lastmod>${lobbyMetadata[game].lastModified}</lastmod>`,
+          ),
+        )))
   )
     throw new Error("Invalid sitemap URLs");
 });

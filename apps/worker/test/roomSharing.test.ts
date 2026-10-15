@@ -24,7 +24,7 @@ function serve(origin = "https://tetraboard.net", extra: Partial<Env> = {}) {
     async fetch(request: Request) {
       assetRequests.push(request);
       return new Response(
-        '<!doctype html><html><head><title>Old title</title><meta name="description" content="old"><meta name="robots" content="noindex,follow"><meta property="og:title" content="old"><meta name="twitter:card" content="summary"><link rel="canonical" href="https://old.invalid"></head><body><div id="root"></div><script src="/assets/app.js"></script></body></html>',
+        '<!doctype html><html><head><title>Old title</title><meta name="description" content="old"><meta name="robots" content="noindex,follow"><meta property="og:title" content="old"><meta property="og:site_name" content="old"><meta name="twitter:card" content="summary"><link rel="canonical" href="https://old.invalid"></head><body><div id="root"></div><script src="/assets/app.js"></script></body></html>',
         {
           headers: {
             "Content-Type": "text/html",
@@ -67,6 +67,8 @@ test("全6ゲームの共有URLは通常UAとクローラーへゲーム別初�
     expect(html).toContain(`content="https://tetraboard.net${path}"`);
     expect(html).toContain('name="twitter:card" content="summary_large_image"');
     expect(html.match(/property="og:title"/g)).toHaveLength(1);
+    expect(html.match(/property="og:site_name"/g)).toHaveLength(1);
+    expect(html).toContain('property="og:site_name" content="TetraBoard"');
     expect(html).not.toContain("old.invalid");
     expect(html).toContain('<script src="/assets/app.js"></script>');
     expect(user.headers.get("Cache-Control")).toBe("no-store");
