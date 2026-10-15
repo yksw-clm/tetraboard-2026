@@ -162,12 +162,22 @@ export function attackedPositions(board: Board, piece: Piece, from: Position): P
 }
 
 export function getCheckState(state: FourShogiState): Record<Side, boolean> {
-  return {
-    south: isInCheck(state, "south"),
-    west: isInCheck(state, "west"),
-    north: isInCheck(state, "north"),
-    east: isInCheck(state, "east"),
-  };
+  const active = getActiveSides(state);
+  const all = pieces(state.board);
+  const checks: Record<Side, boolean> = { south: false, west: false, north: false, east: false };
+  // 同じ盤面の駒一覧を共有し、所属・脱落・味方・遮蔽物の裁定を維持します。
+  for (const side of active) {
+    const king = all.find(({ piece }) => piece.side === side && piece.kind === "king");
+    checks[side] =
+      king !== undefined &&
+      all.some(
+        ({ piece, position }) =>
+          active.includes(piece.side) &&
+          areEnemies(state.mode, side, piece.side) &&
+          attacksSquare(state.board, piece, position, king.position),
+      );
+  }
+  return checks;
 }
 
 export function positionForSide({ x, y }: Position, side: Side): Position {

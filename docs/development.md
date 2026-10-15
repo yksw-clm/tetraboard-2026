@@ -751,6 +751,8 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 #187の `@tetraboard/four-shogi/ai` は [ai.ts](../packages/four-shogi/src/ai.ts) が版/条件の解決と識別、時間/取消/ホストへのyield、完成結果の凍結を担当します。[aiSearch.ts](../packages/four-shogi/src/aiSearch.ts) は旧Maxⁿの反復深化・並べ替えを起点に、既存の合法手/確定遷移/基底反復参照を共有し、各手番者自身の値・PVを伝播します。[aiEvaluation.ts](../packages/four-shogi/src/aiEvaluation.ts) がD01の単独1位/副順位、[aiTypes.ts](../packages/four-shogi/src/aiTypes.ts) が出力と版です。旧 `cpuSearch.ts` の並べ替え関数を共有しますが、Lv2の選択結果・初期設定は変えません。[共通APIの使用例と診断](four-shogi-ai-engine.md#共通ai解析api187)、[部分テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。性能CLIは [analysisCli.ts](../packages/four-shogi/bench/analysisCli.ts) と既存 `singlesPerformance.ts` を使い、#185の初期/開始系列だけを完全状態復元から測定します。
 
+#188では [aiSearchContext.ts](../packages/four-shogi/src/aiSearchContext.ts) に実行内の参照キャッシュと合法手/遷移/評価/並べ替えを共有し、[aiBudget.ts](../packages/four-shogi/src/aiBudget.ts) を共通APIと局面実験の同じ時計/取消/処理量運転に使います。[aiMcts.ts](../packages/four-shogi/src/aiMcts.ts) は4方向のUCT試行と平均/合法PV、[aiTactics.ts](../packages/four-shogi/src/aiTactics.ts) は次の実自手番までの別応手の証拠です。通常の `getCheckState` も駒一覧を一度の走査で共有し、旧単独判定と照合します。[searchExperimentCli.ts](../packages/four-shogi/bench/searchExperimentCli.ts) と [searchExperiment.ts](../packages/four-shogi/bench/searchExperiment.ts) が一要因の設定・同時間/処理量・固定Lv2との対戦を記録し、[searchTactics.ts](../packages/four-shogi/bench/searchTactics.ts) を新しい調整構図として使います。[契約](four-shogi-ai-engine.md#探索の戦術速度とmcts比較188)と[測定・採否](four-shogi-ai.md#シングルス専用aiの限定探索実験188)を参照し、旧基準と最終評価を調整へ流用しません。
+
 ## 軽量テスト
 
 純粋関数は既存のBunプロセス、React部品・hookはBun＋happy-domの別プロセスで実行します。Workerは従来のCloudflare環境で実HTTP・WebSocket・D1・R2を検証します。全195定義の論理検証は [移管対応表](testing.md#移管対応表) を参照してください。
