@@ -90,7 +90,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 
 | 対象 | 自動検証する振る舞い |
 | --- | --- |
-| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、運営者・窓口・版・改定日・リンク、文書閲覧だけでは計測IDを発行しないこと |
+| 公開文書 | 未ログイン・初回設定前の直接URLと再読み込み、HTML配信とルーティング、直接表示・再読み込み相当の初期化・アプリ内遷移での文書名を含むタブ名、運営者・窓口・版・改定日・リンク、文書閲覧だけでは計測IDを発行しないこと |
 | 公開説明・同意 | 全6ゲーム・全作成／参加導線のゲスト名保存・公開の説明、登録・初回設定・ゲスト参加のボタン操作、未確認・旧版APIの拒否、既存登録者、同意版の記録、改定後の再確認、同意チェック・端末保存への非依存、年齢・保護者同意、生年月日の非保存 |
 | 再認証・受付 | 未認証・別アカウント・別プロバイダー・取消・期限切れ・Origin違反・回数制限・確認の再利用、本人再認証、在室・切断保持席・同時参加、重複受付と再登録者の保護 |
 | 即時利用停止 | 全セッション・参加資格の失効、取得・プロフィール編集・参加の拒否、ランキング・公開情報・管理一覧からの除外、古い応答・キャッシュからの本人表示の復活防止 |
@@ -104,6 +104,8 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 [privacy.test.ts](../apps/worker/test/privacy.test.ts) は全6ゲームの未確認／旧版拒否、初回文書HTML、ボタン操作の版別同意、全6棋譜の本人除去と相手維持、通常／四人将棋の転送途中、確認資格の一回性と在室拒否、DO・画像・認証・本人フィードバック等の削除、画像／外部解除失敗、完了後の旧索引再送、同時に失敗したDO保存、90日境界と日跨ぎ・重複集計・遅延再送、旧トークン暗号化を確認します。HTTPSの認証Cookie、取消による回数制限の維持、閉鎖済みDOの索引保存待ちも対象です。Google／DiscordのHTTPをモックし、実コールバックから取消・別人・期限・正常再認証・退会・新規再登録まで通します。実サービスのOAuth成功と混同しません。
 
 [privacy.test.tsx](../apps/web/test-dom/privacy.test.tsx) は全6ゲームの登録者／ゲストの事前説明、OAuth／参加の同意拒否と許可、全文・連絡先、同意文言→ボタン→別タブの文書リンクの順序、常時計測の説明、退会の在室／確認・処理中／障害／完了を確認します。[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) と [roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx) は退会による接続失効・セッション再確認と、古い本人応答の破棄を確認します。
+
+[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx) は `/terms`・`/privacy` の初期表示・再読み込み相当のメタ情報同期と、クエリ・ハッシュを含む画面遷移・履歴の戻りで文書名を含むtitleを確認します。ロビー・棋譜・アカウント等の既存titleと検索除外も回帰確認し、Workerの `privacy.test.ts` で初回HTMLのtitleを確認します。
 
 部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMでは同意チェック・端末保存がなくても、説明後のボタン操作で現在版を送ることを確認します。
 
