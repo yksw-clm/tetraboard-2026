@@ -8,6 +8,7 @@
     "./analysis": "./src/analysis.ts",
     "./ai": "./src/ai.ts",
     "./replay": "./src/replay.ts",
+    "./action-encoding": "./src/actionEncoding.ts",
     "./formation-catalog": "./src/formationCatalog.ts"
   },
   "scripts": {
@@ -15,6 +16,7 @@
     "bench:singles": "bun bench/singlesCli.ts",
     "bench:analysis": "bun bench/analysisCli.ts",
     "bench:search": "bun bench/searchExperimentCli.ts",
+    "selfplay": "bun bench/selfPlayCli.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",

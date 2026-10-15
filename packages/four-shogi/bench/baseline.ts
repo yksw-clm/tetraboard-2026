@@ -54,7 +54,11 @@ export type Player = {
   dispose: () => void;
 };
 
-export async function loadPlayer(name: string, options: SearchOptions = {}): Promise<Player> {
+export async function loadPlayer(
+  name: string,
+  options: SearchOptions = {},
+  runtime: { temporaryDirectory?: string } = {},
+): Promise<Player> {
   const frozen = name === "frozen";
   const legacy = name === "legacy";
   const live = name === "current";
@@ -74,7 +78,7 @@ export async function loadPlayer(name: string, options: SearchOptions = {}): Pro
   try {
     let src = join(repoRoot, "packages/four-shogi/src");
     if (!live) {
-      directory = mkdtempSync(join(tmpdir(), "tetraboard-lv2-"));
+      directory = mkdtempSync(join(runtime.temporaryDirectory ?? tmpdir(), "tetraboard-lv2-"));
       const archive = Bun.spawnSync(["git", "archive", commit, "packages/four-shogi/src"], {
         cwd: repoRoot,
       });
