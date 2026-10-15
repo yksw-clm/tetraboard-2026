@@ -1,6 +1,6 @@
 # 四人将棋シングルスAI・解析エンジンの実装計画と契約
 
-> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-16。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開とLinux CPU推論/Mac出力照合も実装。共通探索へのモデル実使用・VPS接続・解析画面は後続。
+> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-16。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開とLinux CPU推論/Mac出力照合も実装。共通MaxⁿのPolicy/Value実使用・従来/fallback比較・モデル教師生成も実装。モデルは実験用で、VPS接続・公開CPU・解析画面は後続。
 
 [親Issue #183](https://github.com/yksw-clm/tetraboard-2026/issues/183) の計画を実装へ渡すための文書。現在の合法手・手番・勝敗と現行Lv1/Lv2は [四人将棋ルール正本](rules/four-shogi.md)、共通の時計・参加・棋譜公開は [README](../README.md) を参照する。D01〜D05の推奨案を採用する。具体的なAPI型・推論形式・設定値は後続Issueで検証し、未決事項を推測で確定しない。利用者向け変更とCPU採用仕様は、実装時に対応する正本へ反映する。
 
@@ -157,7 +157,7 @@ stateHashは `analysisStateVersion`・プロフィールと、参加者IDを除�
 
 ### 共通AI・解析API（#187）
 
-公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。HTTP・対局への着手確定・学習済みモデルの接続は後続Issueで実装する。
+公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTP・対局への着手確定は後続Issueで実装する。
 
 ```ts
 import { analyzePosition } from "@tetraboard/four-shogi/ai";
@@ -175,7 +175,7 @@ const result = await analyzePosition(
 const action = result.recommendedAction;
 ```
 
-`codeVersion` は呼び出し側が実際のビルド版を指定する。初期版は静的評価のみで、`modelId` は省略またはnull。非nullを受けてモデル使用を偽装しない。requested/loaded/usedModelIdはすべてnull、inferenceCountは0。解析・ルール・探索・評価・行動・相手仮定の版、未使用featureVersion/seedはnullとして返す。解決済み設定、版、入力の完全状態hashで `cacheKey` を作り、ON/OFF・基底反復履歴・比較指定手も分離する。結果キャッシュ保存はまだ実装しない。`eventOffset` は要求文脈にも残す。
+`codeVersion` は呼び出し側が実際のビルド版を指定する。`modelId` の省略/nullは従来静的評価で、featureVersion/seedは従来の未使用表現を保つ。#192では非nullの不変モデルIDと評価器を指定できる。ロードだけで実使用を偽装せず、requested/loaded/usedと推論件数を区別する。解決済み設定、版、入力の完全状態hashで `cacheKey` を作り、ON/OFF・基底反復履歴・比較指定手も分離する。結果キャッシュ保存はまだ実装しない。`eventOffset` は要求文脈にも残す。
 
 探索と評価の初期内部仕様は[ルール正本のCPU節](rules/four-shogi.md#cpu)を参照する。`maxWork: 2048`、`maxDepth: 64`、`width: 6`、`rootWidth: 24`、`extensions: 1`、`cacheSize: 256`、`candidateCount: 3`、`timeBudgetMs: null` が内部既定。深さは1〜256、幅/処理量は正の安全整数、延長は0〜4、候補数は2〜5、根の幅は候補数以上、時間は非負の有限ミリ秒またはnull。30秒の指定でも処理量・深さに先に達すれば終了する。時間を主に比較する実験では処理量/深さ上限も明示して増やす。これらは棋力を認定した公開CPUレベルではない。
 
@@ -215,7 +215,7 @@ Maxⁿは実際の次手番で反復深化し、王手/捕獲を幅で除かず�
 
 MCTSも全根候補の浅い比較を先に完成させ、初回の比較前には合法fallbackを返す。根集合へ完成試行が一通り入るまでは、この完成済みの浅い比較を残す。以後は `comparisonKind: sample_mean`、`evaluationKind: sample_mean`、`visits` を返す。途中試行を平均へ混ぜない。`completedDepth: 1` は浅い全根比較の完了だけを表し、深い全読みの完了ではない。`simulations/maxVisitedPly` と実PVを別に診断する。有限サンプルの結果は常にselectiveとし、確率はnull。
 
-読み筋は実際に訪れた木から各担当者の平均効用で選ぶ進行例。平均は複数の末尾から集計したものなので、`lineEvaluation` をその平均と一致させて偽装しない。探索係数 `exploration` は既定1.4、非負有限値。seedは0〜2³²−1、既定0。ロールアウトは一様な合法手を既定2手（0〜32）、木の深さはmaxDepth。`maxSimulations` は既定10000（1〜1000000）。登録モデルはまだ使用しない。Maxⁿでは実使用seedはnull、MCTSでは指定seedを版情報へ返す。
+読み筋は実際に訪れた木から各担当者の平均効用で選ぶ進行例。平均は複数の末尾から集計したものなので、`lineEvaluation` をその平均と一致させて偽装しない。探索係数 `exploration` は既定1.4、非負有限値。seedは0〜2³²−1、既定0。ロールアウトは一様な合法手を既定2手（0〜32）、木の深さはmaxDepth。`maxSimulations` は既定10000（1〜1000000）。モデル付きは#192のMaxⁿで扱い、MCTSへの非null modelIdは明示的に拒否する。Maxⁿでは実使用seedはnull、MCTSでは指定seedを版情報へ返す。
 
 比較入口は `bench:search`。`--kind=factors|performance|matches`、`--budget=work|time --amount=<単位またはms>`、比較方式・反復・系列数・手数上限を明示する。時間比較は両方式を同じ制限にし、処理量1億/試行100万は保護上限として停止理由を検査する。#185の開始生成/結果ラベル/席回転/系列単位集計を再利用し、新調整seed18800台と独立した構図を使う。過去のvalidation手筋と最終seed100000以降は調整で使わない。重い比較は通常check外。未終局を引分へ変換せず、少数系列の観測値を棋力達成や校正と判定しない。
 
@@ -267,7 +267,7 @@ CPUの障害時の動作はD05の判断対象。推奨案は、現時点で有�
 
 manifestの系列・相手群・思考予算・教師・選別・手数上限は再開時に変更できません。完了済みゲームはスキップし、同じ開始状態と相手配列になる席替えも重複生成しません。ソース集合/runner hashとBun版・OS・アーキテクチャが異なれば再開を拒否します。文書だけのコミットで同一ソースを使う場合は、元manifestのコードSHAを継続使用します。新コード/モデル/別の計画は別datasetにし、初期の学習入力は一つのmanifestを単位に扱います。複数manifestの無検査結合は認めません。
 
-相手は共通AIの異なる処理量と、#185の固定Lv2または `commit:<40桁SHA>` の過去CPUを混ぜられます。過去CPUのソースhash・探索条件もmanifestへ記録/照合します。この生成版は静的評価の相手だけを扱い、model IDはnullです。#190の学習checkpointを探索・生成に使う接続は#192で行います。固定CPUの履歴が必要な環境では事前に対象コミットをfetchします。通常checkのテストはGit履歴や学習モデルを必要としません。
+相手は共通AIの異なる処理量と、#185の固定Lv2または `commit:<40桁SHA>` の過去CPUを混ぜられます。過去CPUのソースhash・探索条件もmanifestへ記録/照合します。省略時は従来静的評価です。#192ではconfig.modelに不変ID/artifact/code hashを指定し、共通探索の相手と教師へ同じモデルを使えます。固定CPUは従来のままです。固定CPUの履歴が必要な環境では事前に対象コミットをfetchします。通常checkのテストはGit履歴や学習モデルを必要としません。
 
 教師は周期・現在の王手/直前の捕獲で選び、局あたりの件数に上限を設けます。`every: 0` と `important: true` で重要局面だけにし、teacherのworkを大きくすれば長い再解析を選択局面へ限定できます。再開の決定性のため、生成時のAIは壁時計予算を拒否し、固定workと記録したseedを使います。各教師には実戦手を `includeAction` で比較指定します。候補・読み筋・4人評価・試行数・選択的探索/打切り・実使用モデルを保存し、完成比較がない場合はPolicy教師IDをnullにします。MCTSの上位候補だけの訪問数を、全合法手の完全な訪問分布へ正規化しません。
 
@@ -348,9 +348,9 @@ manifestはモデル/特徴/行動/ルール/席順の版、推論コードhash�
 
 共通fixtureはTS正本による14局面です。ON/OFFそれぞれに南/西/北/東の実手番、攻撃、取り返し、脱落した西のValueスロットを含みます。行動IDと回転表の固定値はBunテストでも検証します。特徴は絶対座標で、回転によるモデル出力の対称性は仮定しません。合法手/最良手IDは完全一致、違法手と脱落者は0、数値はPython `math.isclose(a, b, abs_tol=1e-5, rel_tol=1e-4)` で判定します。比較前に固定した閾値を測定結果に合わせて緩めません。出力は内部の未校正分布で、勝率％を表示しません。
 
-`inference.py serve` はstdin/stdoutのJSONL `four-shogi-inference-ipc-v1` です。起動応答のIDは0、後続は要求IDを戻します。`health`、`evaluate`、`activate` を受け、評価では要求modelIdと全版を照合します。候補を別にロードして基準fixtureと追加probeを検査し、成功後に参照を切り替えます。失敗時は `ok:false/error/activeModelId/fallback` を返し、稼働中のモデルとディスクの旧配布物を保持します。起動候補が使えないときは明示した `--fallback <旧配布物>` だけを試し、`candidateFailure` と実際のmodelIdを返します。両方失敗なら静的評価へのfallback理由を返して非零終了します。静的評価の実行とモデル入り探索への切替は#192です。
+`inference.py serve` はstdin/stdoutのJSONL `four-shogi-inference-ipc-v1` です。起動応答のIDは0、後続は要求IDを戻します。`health`、`evaluate`、`activate` を受け、評価では要求modelIdと全版を照合します。候補を別にロードして基準fixtureと追加probeを検査し、成功後に参照を切り替えます。失敗時は `ok:false/error/activeModelId/fallback` を返し、稼働中のモデルとディスクの旧配布物を保持します。起動候補が使えないときは明示した `--fallback <旧配布物>` だけを試し、`candidateFailure` と実際のmodelIdを返します。両方失敗なら静的評価へのfallback理由を返して非零終了します。静的評価の実行とモデル入り探索への切替は下記#192です。
 
-サーバー専用 `@tetraboard/four-shogi/model-inference` の `ModelInferenceClient.start(command, options)` は1プロセスを保持し、`evaluate(positions)` で正本から特徴と合法手を生成します。応答の要求ID/モデルID/合法手/数値/席を照合します。`activate(directory, probePositions)` の失敗で旧モデルを維持し、エラーから理由を取得できます。起動既定30秒、要求既定5秒（各1〜60,000ms）、待ち要求16、batch16/全履歴4,096項目、1局面2,048履歴、1frame16MiB、重み32MiB、manifest256KiBを上限にし、黙って切り捨てません。期限超過・異常応答・子終了で全待ち要求を失敗させプロセスを終了します。自動再起動/再試行はせず、呼出側が予算内の静的fallbackを選びます。取消と対局時計を含む最終予算は#192〜#194で接続します。ブラウザ/Worker用入口へ子プロセス依存を混ぜません。
+サーバー専用 `@tetraboard/four-shogi/model-inference` の `ModelInferenceClient.start(command, options)` は1プロセスを保持し、`evaluate(positions)` で正本から特徴と合法手を生成します。応答の要求ID/モデルID/合法手/数値/席を照合します。`activate(directory, probePositions)` の失敗で旧モデルを維持し、エラーから理由を取得できます。起動既定30秒、要求既定5秒（各1〜60,000ms）、待ち要求16、batch16/全履歴4,096項目、1局面2,048履歴、1frame16MiB、重み32MiB、manifest256KiBを上限にし、黙って切り捨てません。期限超過・異常応答・子終了で全待ち要求を失敗させプロセスを終了します。自動再起動/再試行はせず、呼出側が予算内の静的fallbackを選びます。#192で要求単位のAbortSignalと遅い応答の排出を加えます。要求の取消/手番期限だけではプロセスを終了せず、通信/推論自体のタイムアウトや異常応答で終了します。対局時計・ジョブ受付を含む最終予算は#193〜#194です。ブラウザ/Worker用入口へ子プロセス依存を混ぜません。
 
 ```sh
 # #190のPython 3.12 venvとcheckpointを使用します
@@ -367,6 +367,62 @@ docker run --rm --cpus=2 --memory=1g --network=none --read-only --tmpfs /tmp:rw,
 ```
 
 smokeはウォームアップ3回後に既定30回、batch1/4/14の入力検査/疎→密/推論/出力変換、永続プロセスの起動（Python/Torch import込み）とbatch4のJSONL往復、最大RSSを別々に記録します。バッチ分割時の出力も同じ許容差で比較します。Torch内の `torch.export` も試行しますが、現モデルの合法手検査がデータ依存のPython分岐であるため、そのままのexportは失敗します。可変履歴に合わせた別モデルの作り直しやONNX依存は採用せず、最小の既存モデルをそのまま動かす初期方式とします。export方式との速度比較は未実施です。[測定と採用理由](four-shogi-ai.md#linux-cpu推論とmac出力の検証191)に条件と限界を残します。実VPSの性能・x86_64・長時間/多並列・最大履歴負荷は別確認で、T02の契約/配置とT05の長期保存は未決です。
+
+### Policy/Valueを使う共通探索（#192）
+
+`analyzePosition` の同じ入口へ `options.modelId` と `control.modelEvaluator` を渡します。主探索は#188のMaxⁿを維持し、MCTSとの組合せは拒否します。評価器のモデルID/関数を開始時に固定し、要求を凍結し、応答をコピーしてからID・合法手・5分類の席・有限値・正規化・脱落者0を検査します。一般の利用者から重みパス/コマンドを受けるAPIは追加しません。サーバー側が管理した常駐clientの `asEvaluator()` を注入します。
+
+Policyは根の着手と内部候補を並べ替えます。王手対応/捕獲/既存の強制手保護を維持し、静穏手の幅内選択に学習Policyを使います。根の全合法手の浅い比較を完成してから公開し、次局面はbatch16/全履歴4,096以下でまとめます。キャッシュは同じ実行の同じ枝参照だけで、モデルやON/OFFをまたいで共有しません。入力は正本の合法手と遷移から作り、探索の差分反復辞書は元の完全辞書へ上書き合成して全項目を特徴化します。特徴版/13,446行動/絶対座標を変えず、履歴上限は切り捨てず拒否します。
+
+Valueの南/西/北/東の単独勝ち成分を各人の主効用にします。生存者は数値を `(0,1)` へclampし、正本の確定単独勝ち1、非単独勝ち0、脱落者0を上書きしません。根の視点を手番ごとに変えず、各手番者が自分の成分で選びます。順位は完全な主効用同点時の副比較だけで、順位加点やヒューリスティックとの重み付け混合はしません。`evaluationKind: model`、`heuristicScore:null`、`probabilities:null` で未校正の内部値を返し、根の `staticEvaluation` は比較用の従来静的値です。終局は `terminal` の正本値です。
+
+モデル有効時の版は `singles-analysis-model-v1` / `selective-maxn-policy-value-v1` / `uncalibrated-sole-first-model-v1` / 既存feature/policy-index版です。静的要求の版・省略設定は維持します。モデルなし/ロード失敗/ID不一致/特徴限界/不正出力/推論失敗/遅延では、モデル探索を破棄して静的評価へやり直します。既に消費したworkと壁時計をリセットしません。同じ候補集合へ両尺度を混ぜず、実際の評価版とrequested ID/fallback理由を含めたcacheKeyを返します。残予算で比較が完成しなければ従来どおり合法な予備手・評価nullを返します。
+
+`modelTimeoutMs` はモデル指定時だけ1〜60,000ms、既定1,000msです。全体の残時間が短ければその期限を先に使います。取消/手番期限で待ちを解き、遅い応答は登録IDのまま排出して結果へ使いません。Pythonの実行中のnative演算を途中で停止する意味ではありません。待ち数は排出まで上限16に含みます。推論タイムアウト自体・通信タイムアウト・不正応答ではclientを閉じ、通常の手番期限ごとの再起動はしません。同期の特徴準備/合法手生成は協調停止のため、厳密なhard deadlineは保証せず超過時間を診断します。最終の着手期限確認は#193〜#194です。
+
+`result.model` はrequested/開始時loaded/結果を作ったused IDと `inferenceCount`（有効なモデル探索で受理した予測局面数）、`inferenceCalls`（batch往復数）、`policyUses/valueUses`、推論待ちmsを返します。失敗して破棄した場合はused=null/有効件数0とし、`attemptedInferenceCount` と `discardedWork` に実際の試行量を残します。完成比較前の打切りもused=null/有効件数0です。モデルをロードしただけの正常系を実使用と数えません。
+
+```ts
+import { analyzePosition } from "@tetraboard/four-shogi/ai";
+// clientはサーバー起動時にモデルを検査して作成し、同じプロセスを保持します
+const evaluator = client.asEvaluator();
+const options = { codeVersion, modelId: evaluator.modelId, maxWork: 1_000_000 };
+const cpu = await analyzePosition(
+  position,
+  { ...options, timeBudgetMs: 500 },
+  { modelEvaluator: evaluator },
+);
+const analysis = await analyzePosition(
+  position,
+  { ...options, timeBudgetMs: 30_000 },
+  { modelEvaluator: evaluator },
+);
+```
+
+`selfplay` のconfig.modelは `{ modelId, artifactSha256, codeHash }`。全共通AIの対局選択と教師へ同じIDを適用し、固定CPUは変更しません。実行用python/model-dirはmanifestの局面設定へ混ぜず、独立workerの起動設定に渡します。各ゲームに一つの常駐Pythonを作り、探索ノードでは起動しません。親の観測RSSにはBun workerとPythonも含めます。モデルID/artifact/code不一致で再開を拒否し、モデル未使用/fallbackの教師を保存せず停止します。raw datasetの `featureVersion:null` は `analysis-state-v1` の完全状態保存を表し、モデル使用版はconfig.modelと各教師のversions/modelへ保存します。従来datasetは省略形のまま互換を維持します。
+
+保存記録の検査は元イベントを正本で全再生し、PV/合法手/単独1位ラベル/モデル版・ID/非終局値の範囲と席/終局優先を確認します。非終局モデル値の再推論は行わず、checkpointと同梱基準の照合はモデル起動時の#191で行います。打切りをValue教師へ変換しません。生成側と解析側の評価定義は同じ `modelEvaluation` です。
+
+```sh
+# 同じ初期/seed301局面のwork/time比較、一手単独勝ち、500msと30sの共通入口
+bun run --cwd packages/four-shogi bench:model --python=/tmp/four-shogi-training-env/bin/python --model-dir=/tmp/four-shogi-model --code-version=$(git rev-parse HEAD) --kind=performance --repeats=3 --max-work=1024 --time-ms=100 --analysis-ms=30000 --output=/tmp/four-shogi-model-performance.json
+# #185と同じ開始生成/4席/終局ラベル/系列単位集計。少数対戦を別測定します
+bun run --cwd packages/four-shogi bench:model --python=/tmp/four-shogi-training-env/bin/python --model-dir=/tmp/four-shogi-model --code-version=$(git rev-parse HEAD) --kind=matches --series=1 --seed=19210 --max-plies=64 --time-ms=100 --output=/tmp/four-shogi-model-matches.json
+# #191のPython/Torch CPUイメージに、採用済みBun1.4.2を加えます
+docker build -t tetraboard-four-shogi-inference:local training/four-shogi-ai
+docker build -f training/four-shogi-ai/Dockerfile.search -t tetraboard-four-shogi-search:local training/four-shogi-ai
+# Linuxではrepoと配布物をread-onlyでmountし、同じbench/modelSearchCli.tsを実行します
+```
+
+モデルを使う自己対戦は既存configのmodel欄へ、配布物manifestから上の3識別を転記します。識別は `bench/modelRuntime.ts` の `modelIdentity(directory)` でも取得できます。config.modelなしのmodel-dir指定や、実行設定なしのモデル生成を拒否します。
+
+```sh
+bun run --cwd packages/four-shogi selfplay --config=/tmp/four-shogi-model-config.json --output=/tmp/four-shogi-model-data --python=/tmp/four-shogi-training-env/bin/python --model-dir=/tmp/four-shogi-model --max-games=4 --stop-after-moves=1 --report=/tmp/four-shogi-model-first.json
+bun run --cwd packages/four-shogi selfplay --output=/tmp/four-shogi-model-data --python=/tmp/four-shogi-training-env/bin/python --model-dir=/tmp/four-shogi-model --max-games=4 --report=/tmp/four-shogi-model-resumed.json
+bun run --cwd packages/four-shogi training:export /tmp/four-shogi-model-data /tmp/four-shogi-model-input
+```
+
+比較CLIの従来相手は共通静的Maxⁿ3体で、固定Lv2を上回ったという検定ではありません。最終seed/校正対局を調整に使わず、モデルが弱くても実験設定として残します。現行Lv1/Lv2・公開CPU・Workerの時計/着手・ルールを変更せず、棋力と機能完成を分けます。[測定と採用判断](four-shogi-ai.md#モデル入り共通探索の検証192)へ対象SHA/環境/使用件数/速度/未終局/制約を記録します。
 
 ## 承認済みの設計判断
 
@@ -415,7 +471,7 @@ bun run --cwd packages/four-shogi bench:singles --kind=performance --candidate=f
 bun run --cwd packages/four-shogi bench:singles --kind=matches --opponents=frozen,legacy,frozen --start=initial --series=1 --restricted=both --max-plies=8 --output=/tmp/four-shogi-mixed.json
 ```
 
-- 候補・相手は `current`（作業中コード）、`frozen`（固定現行Lv2）、`legacy`（強化前）、`commit:<40桁SHA>`（履歴のCPU）を指定できる。学習済みモデルはまだ存在せず `modelId: null` を明記する。モデル入り共通探索の接続は#192で行う。runnerには注入可能な方向別selectorの境界がある。
+- 候補・相手は `current`（作業中コード）、`frozen`（固定現行Lv2）、`legacy`（強化前）、`commit:<40桁SHA>`（履歴のCPU）を指定できる。この固定CPU用CLIのselectorは `modelId: null` を明記する。モデル入り共通探索の比較には#192の `bench:model` を使う。runnerには注入可能な方向別selectorの境界がある。
 - `--max-work`、`--max-depth`、`--width`、`--root-width`、`--extensions`、`--weights` は候補側だけの上書き。固定基準を候補に指定したときは上書きを拒否する。時間上限は未実装で、現在は処理量・深さ・幅を記録する。固定基準の処理量2048・深さ6・幅6・根幅24・延長2は時間保証ではない。
 - `--start=initial` は一つの初期配置×4候補席。`opening` はseedごとの合法な12手系列、`mixed` は最初を初期配置、残りを12手系列にする。ON/OFFを分け、同一完全開始状態の重複は拒否する。4席は同系列の標本であり独立4局とは数えない。回転による開始局面の水増しはしない。
 - 結果には単独1位・本人の同率1位・確定終局の単独勝者なし・確定順位・脱落理由・終局理由・手数上限の未終局を分けて残す。未終局は単独1位率の分母に残し、引分ラベルへ変えない。合意提案・持ち時間・切断はこの着手専用runnerでは再現しない。

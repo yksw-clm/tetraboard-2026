@@ -4,15 +4,20 @@ import { checkedSides, createAiSearch } from "./aiSearch";
 import { createAiMcts } from "./aiMcts";
 import { createAiClock, runAiSession } from "./aiBudget";
 import { defaultEvaluationWeights } from "./cpuEvaluation";
+import { createAiContext } from "./aiSearchContext";
+import { AiModelFailure, createModelDriver } from "./aiModel";
+import { featureVersion } from "./modelFeatureEncoding";
 import {
   aiVersions,
   type AiOptions,
   type AiSearchSettings,
   type AiControl,
   type AiResult,
+  type AiSearchStats,
 } from "./aiTypes";
 
 export { aiVersions } from "./aiTypes";
+export type { AiModelEvaluator, AiModelInput, AiModelOutput } from "./aiModel";
 export type {
   AiOptions,
   AiSearchSettings,
@@ -45,6 +50,7 @@ export function resolveAiOptions(options: AiOptions): {
   const allowed = new Set([
     "codeVersion",
     "modelId",
+    "modelTimeoutMs",
     "timeBudgetMs",
     "maxWork",
     "maxDepth",
@@ -73,8 +79,21 @@ export function resolveAiOptions(options: AiOptions): {
     options.codeVersion.trim().length === 0
   )
     throw new TypeError("コード版と既知の探索条件が必要です");
-  if (options.modelId !== undefined && options.modelId !== null)
-    throw new TypeError("この版は静的評価のみで、モデルIDを使用できません");
+  const requested = options.modelId ?? null;
+  if (
+    requested !== null &&
+    (!/^four-shogi-tiny-policy-value-v1:[0-9a-f]{64}$/.test(requested) ||
+      (options.algorithm ?? "maxn") !== "maxn")
+  )
+    throw new TypeError("登録されたモデルIDとMaxⁿを指定してください");
+  if (
+    options.modelTimeoutMs !== undefined &&
+    (!requested ||
+      !Number.isSafeInteger(options.modelTimeoutMs) ||
+      options.modelTimeoutMs < 1 ||
+      options.modelTimeoutMs > 60000)
+  )
+    throw new TypeError("モデル推論期限はモデル指定時に1〜60000msです");
   if (
     options.evaluationWeights !== undefined &&
     (!options.evaluationWeights ||
@@ -86,6 +105,7 @@ export function resolveAiOptions(options: AiOptions): {
   )
     throw new TypeError("評価係数は既知の非負の有限数で指定してください");
   const settings: AiSearchSettings = {
+    ...(requested ? { modelTimeoutMs: options.modelTimeoutMs ?? 1000 } : {}),
     timeBudgetMs: options.timeBudgetMs ?? null,
     maxWork: options.maxWork ?? 2048,
     maxDepth: options.maxDepth ?? 64,
@@ -173,6 +193,15 @@ export function resolveAiOptions(options: AiOptions): {
       opponentModelId:
         settings.algorithm === "maxn" ? aiVersions.opponentModelId : "selfish-uct-v1",
       seed: settings.algorithm === "mcts" ? settings.seed : null,
+      ...(requested
+        ? {
+            analysisVersion: "singles-analysis-model-v1",
+            searchVersion: "selective-maxn-policy-value-v1",
+            evaluationVersion: "uncalibrated-sole-first-model-v1",
+            featureVersion,
+            actionVersion: "four-shogi-policy-index-v1",
+          }
+        : {}),
     }),
   };
 }
@@ -183,36 +212,93 @@ export async function analyzePosition(
   options: AiOptions,
   control: AiControl = {},
 ): Promise<AiResult> {
-  const { codeVersion, settings, versions } = resolveAiOptions(options);
+  const { codeVersion, settings, versions: requestedVersions } = resolveAiOptions(options);
+  let versions = requestedVersions;
   const now = createAiClock(control.now);
   const started = now();
+  const requestedModelId = options.modelId ?? null;
+  const loadedModelId = control.modelEvaluator?.modelId ?? null;
+  let modelFailure: AiModelFailure | null =
+    requestedModelId === null
+      ? null
+      : !control.modelEvaluator
+        ? new AiModelFailure(
+            control.modelLoadError ? "model_load_failed" : "missing_model",
+            control.modelLoadError ?? "モデル評価器がありません",
+          )
+        : loadedModelId !== requestedModelId
+          ? new AiModelFailure("model_mismatch", "要求とロード済みモデルが不一致です")
+          : null;
+  const driver =
+    requestedModelId && !modelFailure
+      ? createModelDriver(control.modelEvaluator!, settings.modelTimeoutMs!, now)
+      : undefined;
   // hash計算・合法手の確保も同じ時間予算に含め、解決済み設定を識別します。
-  const cacheKey = await createAnalysisCacheKey(position, {
+  let cacheKey = await createAnalysisCacheKey(position, {
     codeVersion,
-    analysisVersion: aiVersions.analysisVersion,
-    modelId: null,
+    analysisVersion: versions.analysisVersion,
+    modelId: requestedModelId,
     parameters: { ...versions, ...settings },
   });
   const preparationStarted = now();
-  const session =
+  let session =
     settings.algorithm === "maxn"
-      ? createAiSearch(position.state, settings)
+      ? createAiSearch(position.state, settings, createAiContext(position.state, settings, driver))
       : createAiMcts(position.state, settings);
-  const preparationMs = now() - preparationStarted;
+  let preparationMs = now() - preparationStarted;
   const staticEvaluation = session.staticEvaluation;
-  const { reason, cutoff, yields, candidates, comparedAction } = await runAiSession(
-    session,
-    settings,
-    control,
-    started,
-    now,
-    control.onProgress ? (progress) => control.onProgress!(snapshot(progress)) : undefined,
-  );
+  let discarded: AiSearchStats | null = null;
+  const sumStats = (current: AiSearchStats): AiSearchStats =>
+    discarded
+      ? (Object.fromEntries(
+          Object.entries(current).map(([key, value]) => [
+            key,
+            key === "completedDepth"
+              ? value
+              : key === "maxVisitedPly"
+                ? Math.max(value, discarded![key])
+                : value + discarded![key as keyof AiSearchStats],
+          ]),
+        ) as AiSearchStats)
+      : current;
+  const notify = control.onProgress
+    ? (progress: Parameters<NonNullable<AiControl["onProgress"]>>[0]) =>
+        control.onProgress!(snapshot({ ...progress, ...sumStats(progress) }))
+    : undefined;
+  let execution;
+  try {
+    execution = await runAiSession(session, settings, control, started, now, notify);
+  } catch (error) {
+    if (!(error instanceof AiModelFailure)) throw error;
+    modelFailure = error;
+    discarded = { ...session.stats };
+    const remaining = { ...settings, maxWork: Math.max(0, settings.maxWork - discarded.work) };
+    const restarted = now();
+    session = createAiSearch(position.state, remaining);
+    preparationMs += now() - restarted;
+    execution = await runAiSession(session, remaining, control, started, now, notify);
+  }
+  if (modelFailure) {
+    versions = resolveAiOptions({ ...options, modelId: null, modelTimeoutMs: undefined }).versions;
+    cacheKey = await createAnalysisCacheKey(position, {
+      codeVersion,
+      analysisVersion: versions.analysisVersion,
+      modelId: null,
+      parameters: {
+        ...versions,
+        ...settings,
+        requestedModelId,
+        modelFallbackReason: modelFailure.reason,
+      },
+    });
+  }
+  const { reason, cutoff, yields, candidates, comparedAction } = execution;
+  const stats = sumStats(session.stats);
   const currentDanger = {
     checkedSides: checkedSides(position.state),
     eliminations: position.state.eliminations,
   };
-  control.onProgress?.(snapshot({ ...session.stats, elapsedMs: now() - started, candidates }));
+  control.onProgress?.(snapshot({ ...stats, elapsedMs: now() - started, candidates }));
   const elapsedMs = now() - started;
   const result: AiResult = {
     schemaVersion: 1,
@@ -235,7 +321,37 @@ export async function analyzePosition(
     cacheKey,
     versions,
     settings,
-    model: { requestedModelId: null, loadedModelId: null, usedModelId: null, inferenceCount: 0 },
+    model:
+      requestedModelId === null
+        ? { requestedModelId: null, loadedModelId, usedModelId: null, inferenceCount: 0 }
+        : {
+            requestedModelId,
+            loadedModelId,
+            usedModelId:
+              !modelFailure &&
+              session.stats.completedDepth > 0 &&
+              (driver?.stats.policyUses || driver?.stats.valueUses)
+                ? requestedModelId
+                : null,
+            inferenceCount:
+              modelFailure || session.stats.completedDepth === 0
+                ? 0
+                : (driver?.stats.inferenceCount ?? 0),
+            attemptedInferenceCount: driver?.stats.inferenceCount ?? 0,
+            inferenceCalls: driver?.stats.inferenceCalls ?? 0,
+            policyUses:
+              modelFailure || session.stats.completedDepth === 0
+                ? 0
+                : (driver?.stats.policyUses ?? 0),
+            valueUses:
+              modelFailure || session.stats.completedDepth === 0
+                ? 0
+                : (driver?.stats.valueUses ?? 0),
+            inferenceMs: driver?.stats.inferenceMs ?? 0,
+            discardedWork: discarded?.work ?? 0,
+            fallbackReason: modelFailure?.reason ?? null,
+            fallbackDetail: modelFailure?.message ?? null,
+          },
     recommendedAction: candidates[0]?.action ?? null,
     staticEvaluation,
     evaluation: reason === "terminal" ? staticEvaluation : (candidates[0]?.evaluation ?? null),
@@ -243,7 +359,7 @@ export async function analyzePosition(
     candidates,
     comparedAction,
     diagnostics: {
-      ...session.stats,
+      ...stats,
       elapsedMs,
       stopReason: reason,
       fallbackReason:

@@ -1,12 +1,13 @@
 import type { FourShogiAction, Side, Piece, Elimination, GameResult } from "./types";
 import type { EvaluationWeights } from "./cpuEvaluation";
+import type { AiModelEvaluator } from "./aiModel";
 
 export type AiVersions = Readonly<{
   analysisVersion: string;
   engineVersion: string;
   searchVersion: string;
   evaluationVersion: string;
-  featureVersion: null;
+  featureVersion: string | null;
   actionVersion: string;
   opponentModelId: string;
   tieBreak: string;
@@ -43,11 +44,12 @@ export type AiSearchSettings = Readonly<{
   seed: number;
   dangerWork: number;
   dangerPlies: number;
+  modelTimeoutMs?: number;
 }>;
 export type AiOptions = Readonly<
   Partial<Omit<AiSearchSettings, "evaluationWeights">> & {
     codeVersion: string;
-    modelId?: null;
+    modelId?: string | null;
     evaluationWeights?: Partial<EvaluationWeights>;
   }
 >;
@@ -57,7 +59,7 @@ export type AiValue = Readonly<{
   heuristicScore: number | null;
 }>;
 export type AiEvaluation = Readonly<{
-  evaluationKind: "heuristic" | "terminal" | "sample_mean";
+  evaluationKind: "heuristic" | "terminal" | "sample_mean" | "model";
   values: Readonly<Record<Side, AiValue>>;
   ranks: readonly Readonly<{ side: Side; rank: number; kind: "provisional" | "confirmed" }>[];
   probabilities: null;
@@ -146,10 +148,18 @@ export type AiResult = Readonly<{
   versions: AiVersions & Readonly<{ codeVersion: string }>;
   settings: AiSearchSettings;
   model: Readonly<{
-    requestedModelId: null;
-    loadedModelId: null;
-    usedModelId: null;
-    inferenceCount: 0;
+    requestedModelId: string | null;
+    loadedModelId: string | null;
+    usedModelId: string | null;
+    inferenceCount: number;
+    inferenceCalls?: number;
+    attemptedInferenceCount?: number;
+    policyUses?: number;
+    valueUses?: number;
+    inferenceMs?: number;
+    discardedWork?: number;
+    fallbackReason?: string | null;
+    fallbackDetail?: string | null;
   }>;
   recommendedAction: FourShogiAction | null;
   staticEvaluation: AiEvaluation;
@@ -168,6 +178,8 @@ export type AiResult = Readonly<{
     }>;
 }>;
 export type AiControl = Readonly<{
+  modelEvaluator?: AiModelEvaluator;
+  modelLoadError?: string;
   signal?: AbortSignal;
   isCancelled?: () => boolean;
   now?: () => number;

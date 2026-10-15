@@ -1,5 +1,6 @@
 *
 !Dockerfile
+!Dockerfile.search
 !requirements.txt
 !dataset.py
 !model.py

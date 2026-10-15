@@ -79,3 +79,19 @@ test("推論の不正な最良手と期限超過は明示的に失敗し、再�
   await expect(late.evaluate([source])).rejects.toThrow("期限");
   expect(() => late.loadedModel).toThrow("期限");
 });
+
+test("一要求の取消は遅い応答を排出し、同じ常駐プロセスで次の要求を評価できる", async () => {
+  const client = await ModelInferenceClient.start(command());
+  try {
+    const source = await position();
+    const controller = new AbortController();
+    const pending = client.evaluate([source], controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow("取り消し");
+    const next = await client.evaluate([source]);
+    expect(next[0].legalActionIds).toContain(next[0].topActionId);
+    expect(client.loadedModel.modelId).toBe(modelId);
+  } finally {
+    client.close();
+  }
+});

@@ -4,6 +4,9 @@ import { evaluateAiPosition } from "./aiEvaluation";
 import { getLegalMoves, applyLegalMove } from "./transition";
 import { getActiveSides, type FourShogiState, type Side } from "./types";
 import type { OrdinaryMove } from "./moves";
+import { encodeAction } from "./actionEncoding";
+import { encodeStateFeatures } from "./modelFeatureEncoding";
+import { AiModelFailure, modelEvaluation, type AiModelDriver, type AiModelOutput } from "./aiModel";
 import type {
   AiCandidate,
   AiEvaluation,
@@ -17,6 +20,7 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 type CachedNode = {
   moves?: OrdinaryMove[];
   evaluation?: AiEvaluation;
+  prediction?: AiModelOutput;
   transitions: Map<OrdinaryMove, AiAdvance>;
   bestAction?: string;
   ordered?: { move: OrdinaryMove; index: number; score: number }[];
@@ -70,7 +74,11 @@ export function makeAiCandidate(
 }
 
 /** 同じ実行・同じ枝状態の参照だけを再利用し、履歴を省いた局面キーで混同しません。 */
-export function createAiContext(input: FourShogiState, settings: AiSearchSettings) {
+export function createAiContext(
+  input: FourShogiState,
+  settings: AiSearchSettings,
+  model?: AiModelDriver,
+) {
   if (input.mode !== "singles") throw new TypeError("新AIはシングルス専用です");
   const stats: AiSearchStats = {
     work: 0,
@@ -136,10 +144,94 @@ export function createAiContext(input: FourShogiState, settings: AiSearchSetting
       stats.evaluationCacheHits++;
       return record.evaluation;
     }
-    const value = evaluateAiPosition(state, settings.evaluationWeights);
+    const prediction = model && state.status === "playing" ? yield* predict(state) : null;
+    const value = prediction
+      ? modelEvaluation(state, prediction)
+      : evaluateAiPosition(state, settings.evaluationWeights);
+    if (prediction) model!.stats.valueUses++;
     stats.evaluations++;
     if (record) record.evaluation = value;
     return value;
+  }
+  function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
+    try {
+      return {
+        id,
+        restricted: state.threePlayerAttackProhibited,
+        features: encodeStateFeatures({
+          ...state,
+          repetitions: { ...input.repetitions, ...state.repetitions },
+        }),
+        legalActionIds: legalMoves.map((move) => encodeAction(move.action)).sort((a, b) => a - b),
+      };
+    } catch (error) {
+      throw new AiModelFailure("model_features", String(error));
+    }
+  }
+  function* predict(
+    state: FourShogiState,
+    legalMoves?: OrdinaryMove[],
+  ): Generator<number, AiModelOutput> {
+    const record = node(state);
+    if (record?.prediction) return record.prediction;
+    const available = legalMoves ?? (yield* moves(state));
+    yield* spend();
+    const [prediction] = yield* model!.request([modelInput(state, available, "0")]);
+    if (record) record.prediction = prediction;
+    return prediction;
+  }
+  function* prefetch(states: FourShogiState[]): Generator<number, void> {
+    if (!model) return;
+    const pending = states.filter(
+      (state) => state.status === "playing" && node(state) && !node(state)?.prediction,
+    );
+    const batch: { state: FourShogiState; input: ReturnType<typeof modelInput> }[] = [];
+    let histories = 0;
+    function* flush(): Generator<number, void> {
+      if (!batch.length) return;
+      const outputs = yield* model!.request(batch.map((entry) => entry.input));
+      batch.forEach((entry, index) => {
+        node(entry.state)!.prediction = outputs[index];
+      });
+      batch.length = 0;
+      histories = 0;
+    }
+    for (const state of pending) {
+      const available = yield* moves(state);
+      yield* spend();
+      const next = modelInput(state, available, String(batch.length));
+      if (batch.length >= 16 || histories + next.features.history.length > 4096) yield* flush();
+      next.id = String(batch.length);
+      histories += next.features.history.length;
+      batch.push({ state, input: next });
+    }
+    yield* flush();
+  }
+  function* rootOrder(): Generator<number, { move: OrdinaryMove; index: number }[]> {
+    if (!model) return legal.map((move, index) => ({ move, index }));
+    const prediction = yield* predict(start, legal);
+    model.stats.policyUses++;
+    return sortWithPolicy(
+      legal.map((move, index) => ({ move, index, score: priority(move, start.turn!) })),
+      prediction,
+    );
+  }
+  function sortWithPolicy(
+    entries: { move: OrdinaryMove; index: number; score: number }[],
+    prediction: AiModelOutput,
+  ) {
+    const policy = new Map(
+      prediction.legalActionIds.map((id, index) => [id, prediction.policy[index]]),
+    );
+    const forcing = (entry: (typeof entries)[number]) =>
+      Number(entry.score >= 10000 || entry.move.captured !== null);
+    return entries.sort(
+      (a, b) =>
+        forcing(b) - forcing(a) ||
+        policy.get(encodeAction(b.move.action))! - policy.get(encodeAction(a.move.action))! ||
+        b.score - a.score ||
+        a.index - b.index,
+    );
   }
   function* advance(
     state: FourShogiState,
@@ -172,22 +264,29 @@ export function createAiContext(input: FourShogiState, settings: AiSearchSetting
     if (record) record.transitions.set(move, result);
     return result;
   }
-  function ordered(state: FourShogiState, legalMoves: OrdinaryMove[]) {
+  function* ordered(
+    state: FourShogiState,
+    legalMoves: OrdinaryMove[],
+  ): Generator<number, { move: OrdinaryMove; index: number; score: number }[]> {
     const record = node(state);
     let selected = record?.ordered;
     if (selected) stats.orderingCacheHits++;
     else {
       const checked = getCheckState(state)[state.turn!];
-      selected = legalMoves
-        .map((move, index) => ({ move, index, score: priority(move, state.turn!) }))
-        .sort((a, b) => b.score - a.score || a.index - b.index)
-        .filter(
-          (entry, index) =>
-            index < settings.width ||
-            checked ||
-            entry.score >= 10000 ||
-            entry.move.captured !== null,
-        );
+      const entries = legalMoves.map((move, index) => ({
+        move,
+        index,
+        score: priority(move, state.turn!),
+      }));
+      if (model) {
+        const prediction = yield* predict(state, legalMoves);
+        model.stats.policyUses++;
+        selected = sortWithPolicy(entries, prediction);
+      } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
+      selected = selected.filter(
+        (entry, index) =>
+          index < settings.width || checked || entry.score >= 10000 || entry.move.captured !== null,
+      );
       if (record) record.ordered = selected;
     }
     const preferred =
@@ -242,6 +341,9 @@ export function createAiContext(input: FourShogiState, settings: AiSearchSetting
     ordered,
     remember,
     fallback,
+    model,
+    prefetch,
+    rootOrder,
   };
 }
 export type AiContext = ReturnType<typeof createAiContext>;

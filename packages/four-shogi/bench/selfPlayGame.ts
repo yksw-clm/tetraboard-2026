@@ -56,10 +56,15 @@ export async function loadDataPlayers(
         selectors.set(agent.id, async (position) => {
           const result = await analyzePosition(
             position,
-            { ...agent.settings, codeVersion: manifest.code.commit },
+            {
+              ...agent.settings,
+              modelId: manifest.config.model?.modelId ?? null,
+              codeVersion: manifest.code.commit,
+            },
             control,
           );
           if (result.status === "cancelled") throw new GenerationPaused("cancelled");
+          requireGenerationModel(manifest, result);
           return {
             action: result.recommendedAction,
             stats: {
@@ -169,12 +174,14 @@ export async function generateSelfPlayGame(
             step.before,
             {
               ...manifest.config.teacher,
+              modelId: manifest.config.model?.modelId ?? null,
               includeAction: action,
               codeVersion: manifest.code.commit,
             },
             control,
           );
           if (teacher.status === "cancelled") throw new GenerationPaused("cancelled");
+          requireGenerationModel(manifest, teacher);
           record.samples.push({
             eventOffset: step.before.eventOffset,
             stateHash: step.before.stateHash,
@@ -228,9 +235,19 @@ export function teacherSettings(
 ) {
   return resolveAiOptions({
     ...manifest.config.teacher,
+    modelId: manifest.config.model?.modelId ?? null,
     includeAction: action,
     codeVersion: manifest.code.commit,
   });
+}
+function requireGenerationModel(manifest: DataManifest, result: AiResult) {
+  if (
+    manifest.config.model &&
+    (result.model.usedModelId !== manifest.config.model.modelId ||
+      result.model.inferenceCount < 1 ||
+      result.model.fallbackReason)
+  )
+    throw new GenerationPaused("指定モデルを実使用できないため、fallback教師を保存せず停止します");
 }
 export function validateOutcome(record: GameArtifact, position: AnalysisPosition, limit: number) {
   const status =
