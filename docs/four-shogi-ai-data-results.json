@@ -1,0 +1,5519 @@
+{
+  "schemaVersion": 1,
+  "measurement": "Resumable generation smoke; not strength evaluation or a sufficient Value training corpus. All completed smoke games here are repetitions/no-sole-winner. Calibration and formal evaluation data were not used for tuning.",
+  "codeCommit": "6f655b47602bd5cf518219bd563cbce7c72aec98",
+  "environment": {
+    "cpu": "Apple M5",
+    "memoryBytes": 25769803776,
+    "osRelease": "27.0.0",
+    "platform": "Darwin",
+    "arch": "arm64",
+    "bun": "1.4.2",
+    "node": "v22.23.3"
+  },
+  "storage": "Full training games stay outside Git; this file records configs, identifiers, checksums and summaries. Wall times/RSS are observations of a short batch; estimates include full JSON histories, not future packed NN tensors.",
+  "commands": [
+    {
+      "name": "lv2-parity",
+      "command": [
+        "bun",
+        "/private/tmp/tetraboard-ai187/lv2-parity.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 1.48
+    },
+    {
+      "name": "mixed-interrupted",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/mixed-data",
+        "--config=/private/tmp/tetraboard-ai189/mixed-config.json",
+        "--concurrency=2",
+        "--max-games=4",
+        "--max-bytes=67108864",
+        "--stop-after-moves=8",
+        "--report=/private/tmp/tetraboard-ai189/mixed-interrupted.json"
+      ],
+      "exitCode": 0,
+      "seconds": 1.31
+    },
+    {
+      "name": "mixed-resumed",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/mixed-data",
+        "--concurrency=2",
+        "--max-games=4",
+        "--max-bytes=67108864",
+        "--report=/private/tmp/tetraboard-ai189/mixed-resumed.json"
+      ],
+      "exitCode": 0,
+      "seconds": 41.09
+    },
+    {
+      "name": "mixed-repeated",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/mixed-data",
+        "--concurrency=2",
+        "--max-games=4",
+        "--max-bytes=67108864",
+        "--report=/private/tmp/tetraboard-ai189/mixed-repeated.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.65
+    },
+    {
+      "name": "mixed-inspected",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--kind=inspect",
+        "--output=/private/tmp/tetraboard-ai189/mixed-data",
+        "--max-bytes=67108864",
+        "--report=/private/tmp/tetraboard-ai189/mixed-inspected.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.54
+    },
+    {
+      "name": "terminal-generated",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/terminal-data",
+        "--config=/private/tmp/tetraboard-ai189/terminal-config.json",
+        "--concurrency=2",
+        "--max-games=2",
+        "--max-bytes=67108864",
+        "--report=/private/tmp/tetraboard-ai189/terminal-generated.json"
+      ],
+      "exitCode": 0,
+      "seconds": 2.16
+    },
+    {
+      "name": "terminal-inspected",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--kind=inspect",
+        "--output=/private/tmp/tetraboard-ai189/terminal-data",
+        "--max-bytes=67108864",
+        "--report=/private/tmp/tetraboard-ai189/terminal-inspected.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.26
+    },
+    {
+      "name": "capacity-paused",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/capacity-data",
+        "--config=/private/tmp/tetraboard-ai189/small-config.json",
+        "--concurrency=2",
+        "--max-games=2",
+        "--max-bytes=32768",
+        "--report=/private/tmp/tetraboard-ai189/capacity-paused.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.14
+    },
+    {
+      "name": "capacity-resumed",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/capacity-data",
+        "--concurrency=2",
+        "--max-games=2",
+        "--max-bytes=8388608",
+        "--report=/private/tmp/tetraboard-ai189/capacity-resumed.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.25
+    },
+    {
+      "name": "memory-paused",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "selfplay",
+        "--output=/private/tmp/tetraboard-ai189/memory-data",
+        "--config=/private/tmp/tetraboard-ai189/small-config.json",
+        "--concurrency=2",
+        "--max-games=2",
+        "--max-rss-mb=64",
+        "--report=/private/tmp/tetraboard-ai189/memory-paused.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.11
+    }
+  ],
+  "inputConfigs": {
+    "mixed": {
+      "origins": [
+        {
+          "seed": 18910
+        },
+        {
+          "seed": 58910
+        }
+      ],
+      "restrictions": [
+        false,
+        true
+      ],
+      "seatOffsets": [
+        "south"
+      ],
+      "agents": [
+        {
+          "id": "search",
+          "kind": "analysis",
+          "options": {
+            "maxWork": 256
+          }
+        },
+        {
+          "id": "small",
+          "kind": "analysis",
+          "options": {
+            "maxWork": 64
+          }
+        },
+        {
+          "id": "lv2",
+          "kind": "cpu",
+          "reference": "frozen"
+        },
+        {
+          "id": "past",
+          "kind": "cpu",
+          "reference": "commit:913a09d4edce5e44c96d190a60757ef184a4738d"
+        }
+      ],
+      "lineups": [
+        [
+          "search",
+          "lv2",
+          "small",
+          "past"
+        ]
+      ],
+      "teacher": {
+        "maxWork": 2048
+      },
+      "sampling": {
+        "every": 8,
+        "important": true,
+        "maxPositions": 16
+      },
+      "maxPlies": 128
+    },
+    "terminal": {
+      "origins": [
+        {
+          "seed": 18911,
+          "replay": {
+            "schemaVersion": 1,
+            "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+            "rulesVersion": 1,
+            "initial": {
+              "mode": "singles",
+              "players": {
+                "south": "s",
+                "west": "w",
+                "north": "n",
+                "east": "e"
+              },
+              "threePlayerAttackProhibited": true
+            },
+            "events": [
+              {
+                "index": 0,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 1,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 2,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 3
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 3,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 4,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 5,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 0,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 6,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 7,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 8,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 9,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 0,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 10,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 6,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 11,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 6,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 12,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 5,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 6,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 13,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 0,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 14,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 15,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 16,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 17,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 18,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 5,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 6,
+                      "y": 0
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 19,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 3
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 20,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 8
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 21,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 22,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 0,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 23,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 3
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 24,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 25,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 26,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 27,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 3
+                    },
+                    "to": {
+                      "x": 6,
+                      "y": 3
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 28,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 8
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 29,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "pawn",
+                    "to": {
+                      "x": 2,
+                      "y": 6
+                    }
+                  }
+                }
+              },
+              {
+                "index": 30,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 31,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 6,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 32,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 33,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 34,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "gold",
+                    "to": {
+                      "x": 7,
+                      "y": 2
+                    }
+                  }
+                }
+              },
+              {
+                "index": 35,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 36,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 0
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 37,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "rook",
+                    "to": {
+                      "x": 2,
+                      "y": 2
+                    }
+                  }
+                }
+              },
+              {
+                "index": 38,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 39,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 0,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 40,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 41,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 3
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 3
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 42,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 43,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 2,
+                      "y": 3
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 44,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 45,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 46,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "silver",
+                    "to": {
+                      "x": 3,
+                      "y": 1
+                    }
+                  }
+                }
+              },
+              {
+                "index": 47,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 3
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 48,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 0
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 49,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 50,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 5,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 51,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 52,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 0,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 0,
+                      "y": 3
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 53,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 54,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 0
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 55,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 56,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "gold",
+                    "to": {
+                      "x": 7,
+                      "y": 0
+                    }
+                  }
+                }
+              },
+              {
+                "index": 57,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 58,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 6,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 59,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 60,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 61,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 2
+                    },
+                    "promote": true
+                  }
+                }
+              },
+              {
+                "index": 62,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 5,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 63,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 64,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "silver",
+                    "to": {
+                      "x": 5,
+                      "y": 8
+                    }
+                  }
+                }
+              },
+              {
+                "index": 65,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "gold",
+                    "to": {
+                      "x": 8,
+                      "y": 5
+                    }
+                  }
+                }
+              },
+              {
+                "index": 66,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 6,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 6,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 67,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 68,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 69,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 70,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 71,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 72,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 5,
+                      "y": 8
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 7
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 73,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 74,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 75,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 76,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 77,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 78,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "pawn",
+                    "to": {
+                      "x": 1,
+                      "y": 1
+                    }
+                  }
+                }
+              },
+              {
+                "index": 79,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "pawn",
+                    "to": {
+                      "x": 1,
+                      "y": 0
+                    }
+                  }
+                }
+              },
+              {
+                "index": 80,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 8
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 81,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 8
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 82,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 2,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 83,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 84,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 0,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 85,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "silver",
+                    "to": {
+                      "x": 2,
+                      "y": 7
+                    }
+                  }
+                }
+              },
+              {
+                "index": 86,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 1,
+                      "y": 6
+                    },
+                    "to": {
+                      "x": 1,
+                      "y": 5
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 87,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 3
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 88,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 7
+                    },
+                    "to": {
+                      "x": 8,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 89,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 6
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 90,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 3,
+                      "y": 4
+                    },
+                    "to": {
+                      "x": 4,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 91,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 6,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 6,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 92,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 0,
+                      "y": 2
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 93,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 3,
+                      "y": 2
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 94,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 7,
+                      "y": 5
+                    },
+                    "to": {
+                      "x": 7,
+                      "y": 4
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 95,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 4,
+                      "y": 0
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 1
+                    },
+                    "promote": true
+                  }
+                }
+              },
+              {
+                "index": 96,
+                "event": {
+                  "type": "action",
+                  "side": "north",
+                  "action": {
+                    "type": "movePiece",
+                    "from": {
+                      "x": 6,
+                      "y": 1
+                    },
+                    "to": {
+                      "x": 5,
+                      "y": 1
+                    },
+                    "promote": false
+                  }
+                }
+              },
+              {
+                "index": 97,
+                "event": {
+                  "type": "action",
+                  "side": "east",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "pawn",
+                    "to": {
+                      "x": 6,
+                      "y": 4
+                    }
+                  }
+                }
+              },
+              {
+                "index": 98,
+                "event": {
+                  "type": "action",
+                  "side": "south",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "pawn",
+                    "to": {
+                      "x": 4,
+                      "y": 3
+                    }
+                  }
+                }
+              },
+              {
+                "index": 99,
+                "event": {
+                  "type": "action",
+                  "side": "west",
+                  "action": {
+                    "type": "dropPiece",
+                    "pieceKind": "pawn",
+                    "to": {
+                      "x": 7,
+                      "y": 8
+                    }
+                  }
+                }
+              },
+              {
+                "index": 100,
+                "event": {
+                  "type": "eliminate",
+                  "side": "west",
+                  "reason": "left"
+                }
+              },
+              {
+                "index": 101,
+                "event": {
+                  "type": "eliminate",
+                  "side": "east",
+                  "reason": "timeout"
+                }
+              },
+              {
+                "index": 102,
+                "event": {
+                  "type": "eliminate",
+                  "side": "south",
+                  "reason": "left"
+                }
+              }
+            ],
+            "eventOffset": 102
+          }
+        }
+      ],
+      "restrictions": [
+        false,
+        true
+      ],
+      "seatOffsets": [
+        "south"
+      ],
+      "agents": [
+        {
+          "id": "search",
+          "kind": "analysis",
+          "options": {
+            "maxWork": 256
+          }
+        },
+        {
+          "id": "small",
+          "kind": "analysis",
+          "options": {
+            "maxWork": 64
+          }
+        },
+        {
+          "id": "lv2",
+          "kind": "cpu",
+          "reference": "frozen"
+        },
+        {
+          "id": "past",
+          "kind": "cpu",
+          "reference": "commit:913a09d4edce5e44c96d190a60757ef184a4738d"
+        }
+      ],
+      "lineups": [
+        [
+          "search",
+          "lv2",
+          "small",
+          "past"
+        ]
+      ],
+      "teacher": {
+        "maxWork": 2048
+      },
+      "sampling": {
+        "every": 8,
+        "important": true,
+        "maxPositions": 16
+      },
+      "maxPlies": 64
+    },
+    "small": {
+      "origins": [
+        {
+          "seed": 18912
+        }
+      ],
+      "restrictions": [
+        false,
+        true
+      ],
+      "seatOffsets": [
+        "south"
+      ],
+      "agents": [
+        {
+          "id": "a",
+          "kind": "analysis",
+          "options": {
+            "maxWork": 64
+          }
+        }
+      ],
+      "lineups": [
+        [
+          "a",
+          "a",
+          "a",
+          "a"
+        ]
+      ],
+      "teacher": {
+        "maxWork": 256,
+        "extensions": 0
+      },
+      "sampling": {
+        "every": 1,
+        "important": true,
+        "maxPositions": 2
+      },
+      "maxPlies": 4
+    }
+  },
+  "reports": {
+    "mixed-interrupted": {
+      "datasetId": "af87183fd7ccb61a55407b8737fad004544291f73e38d2b53a9c442d498d656a",
+      "planned": 4,
+      "pending": 2,
+      "inProgress": 2,
+      "finished": 0,
+      "truncated": 0,
+      "positions": 8,
+      "policySamples": 0,
+      "valueSamples": 0,
+      "splits": {
+        "train": 0,
+        "validation": 0,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 338201,
+      "splitFamilies": 1,
+      "complete": false,
+      "contentHash": "1c74f5b07abacd5d0538ebcb6abd37ad1802216b7e0d78d3ad0b9357e6e9ef7e",
+      "status": "paused",
+      "stopReason": "move_limit",
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 4,
+        "maxBytes": 67108864,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": 8,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 2,
+        "maxRssBytes": 424378368,
+        "rssSamplingMs": 250,
+        "elapsedMs": 1271.9934580000001,
+        "committedMoves": 8,
+        "teacherPositions": 8
+      },
+      "throughput": {
+        "positionsPerSecond": 6.289340522693159,
+        "teacherPositionsPerSecond": 6.289340522693159,
+        "completedRecordsPerHour": 0,
+        "naturallyFinishedPerHour": 0,
+        "bytesPerPolicySample": null,
+        "estimate100kPolicySamplesBytes": null
+      }
+    },
+    "mixed-resumed": {
+      "datasetId": "af87183fd7ccb61a55407b8737fad004544291f73e38d2b53a9c442d498d656a",
+      "planned": 4,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 0,
+      "truncated": 4,
+      "positions": 512,
+      "policySamples": 64,
+      "valueSamples": 0,
+      "splits": {
+        "train": 2,
+        "validation": 2,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 4331324,
+      "splitFamilies": 2,
+      "complete": true,
+      "contentHash": "5d23374905f4e64a6f4eebc9fd1776bc71c0d16cb1d58594e4b6815c8df6b675",
+      "status": "completed",
+      "stopReason": null,
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 4,
+        "maxBytes": 67108864,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 2,
+        "maxRssBytes": 725909504,
+        "rssSamplingMs": 250,
+        "elapsedMs": 41057.679291,
+        "committedMoves": 504,
+        "teacherPositions": 56
+      },
+      "throughput": {
+        "positionsPerSecond": 12.275413727791447,
+        "teacherPositionsPerSecond": 1.363934858643494,
+        "completedRecordsPerHour": 350.72610650832706,
+        "naturallyFinishedPerHour": 0,
+        "bytesPerPolicySample": 67676.9375,
+        "estimate100kPolicySamplesBytes": 6767693750
+      }
+    },
+    "mixed-repeated": {
+      "datasetId": "af87183fd7ccb61a55407b8737fad004544291f73e38d2b53a9c442d498d656a",
+      "planned": 4,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 0,
+      "truncated": 4,
+      "positions": 512,
+      "policySamples": 64,
+      "valueSamples": 0,
+      "splits": {
+        "train": 2,
+        "validation": 2,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 4331324,
+      "splitFamilies": 2,
+      "complete": true,
+      "contentHash": "5d23374905f4e64a6f4eebc9fd1776bc71c0d16cb1d58594e4b6815c8df6b675",
+      "status": "completed",
+      "stopReason": null,
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 4,
+        "maxBytes": 67108864,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 0,
+        "maxRssBytes": 124485632,
+        "rssSamplingMs": 250,
+        "elapsedMs": 614.6402499999999,
+        "committedMoves": 0,
+        "teacherPositions": 0
+      },
+      "throughput": {
+        "positionsPerSecond": 0,
+        "teacherPositionsPerSecond": 0,
+        "completedRecordsPerHour": 0,
+        "naturallyFinishedPerHour": 0,
+        "bytesPerPolicySample": 67676.9375,
+        "estimate100kPolicySamplesBytes": 6767693750
+      }
+    },
+    "mixed-inspected": {
+      "datasetId": "af87183fd7ccb61a55407b8737fad004544291f73e38d2b53a9c442d498d656a",
+      "planned": 4,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 0,
+      "truncated": 4,
+      "positions": 512,
+      "policySamples": 64,
+      "valueSamples": 0,
+      "splits": {
+        "train": 2,
+        "validation": 2,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 4331324,
+      "splitFamilies": 2,
+      "complete": true,
+      "contentHash": "5d23374905f4e64a6f4eebc9fd1776bc71c0d16cb1d58594e4b6815c8df6b675"
+    },
+    "terminal-generated": {
+      "datasetId": "03e635135c8f1352f01b958579c35c435965c5830c9e045a4f83152416f00600",
+      "planned": 2,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 2,
+      "truncated": 0,
+      "positions": 58,
+      "policySamples": 18,
+      "valueSamples": 18,
+      "splits": {
+        "train": 2,
+        "validation": 0,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 3192140,
+      "splitFamilies": 1,
+      "complete": true,
+      "contentHash": "e5ebbf4e3eab949fd92c82992f811c4f7526d5565a2d379803c77beab45db8f0",
+      "status": "completed",
+      "stopReason": null,
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 2,
+        "maxBytes": 67108864,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 2,
+        "maxRssBytes": 396574720,
+        "rssSamplingMs": 250,
+        "elapsedMs": 2126.763292,
+        "committedMoves": 58,
+        "teacherPositions": 18
+      },
+      "throughput": {
+        "positionsPerSecond": 27.271488189669203,
+        "teacherPositionsPerSecond": 8.463565300242166,
+        "completedRecordsPerHour": 3385.4261200968667,
+        "naturallyFinishedPerHour": 3385.4261200968667,
+        "bytesPerPolicySample": 177341.11111111112,
+        "estimate100kPolicySamplesBytes": 17734111112
+      }
+    },
+    "terminal-inspected": {
+      "datasetId": "03e635135c8f1352f01b958579c35c435965c5830c9e045a4f83152416f00600",
+      "planned": 2,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 2,
+      "truncated": 0,
+      "positions": 58,
+      "policySamples": 18,
+      "valueSamples": 18,
+      "splits": {
+        "train": 2,
+        "validation": 0,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 3192140,
+      "splitFamilies": 1,
+      "complete": true,
+      "contentHash": "e5ebbf4e3eab949fd92c82992f811c4f7526d5565a2d379803c77beab45db8f0"
+    },
+    "capacity-paused": {
+      "datasetId": "b9dc3552ec31e2ab19d34260bfa3ec1a0fc837d5aaf1b495d3039e5d23490996",
+      "planned": 2,
+      "pending": 0,
+      "inProgress": 2,
+      "finished": 0,
+      "truncated": 0,
+      "positions": 0,
+      "policySamples": 0,
+      "valueSamples": 0,
+      "splits": {
+        "train": 0,
+        "validation": 0,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 11176,
+      "splitFamilies": 1,
+      "complete": false,
+      "contentHash": "b1fedb1c3bd5ec01febe7861423981b0f6b57209944e82b3588e0f7a70a92deb",
+      "status": "paused",
+      "stopReason": "byte_limit",
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 2,
+        "maxBytes": 32768,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 2,
+        "maxRssBytes": 181420032,
+        "rssSamplingMs": 250,
+        "elapsedMs": 105.70483300000001,
+        "committedMoves": 0,
+        "teacherPositions": 0
+      },
+      "throughput": {
+        "positionsPerSecond": 0,
+        "teacherPositionsPerSecond": 0,
+        "completedRecordsPerHour": 0,
+        "naturallyFinishedPerHour": 0,
+        "bytesPerPolicySample": null,
+        "estimate100kPolicySamplesBytes": null
+      }
+    },
+    "capacity-resumed": {
+      "datasetId": "b9dc3552ec31e2ab19d34260bfa3ec1a0fc837d5aaf1b495d3039e5d23490996",
+      "planned": 2,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 0,
+      "truncated": 2,
+      "positions": 8,
+      "policySamples": 4,
+      "valueSamples": 0,
+      "splits": {
+        "train": 2,
+        "validation": 0,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 157644,
+      "splitFamilies": 1,
+      "complete": true,
+      "contentHash": "90414e4ba4e207a6f7582f081333b8654a3e64219a17c0f072864702451247da",
+      "status": "completed",
+      "stopReason": null,
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 2,
+        "maxBytes": 8388608,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 2,
+        "maxRssBytes": 191184896,
+        "rssSamplingMs": 250,
+        "elapsedMs": 206.726458,
+        "committedMoves": 8,
+        "teacherPositions": 4
+      },
+      "throughput": {
+        "positionsPerSecond": 38.6984814493363,
+        "teacherPositionsPerSecond": 19.34924072466815,
+        "completedRecordsPerHour": 34828.63330440267,
+        "naturallyFinishedPerHour": 0,
+        "bytesPerPolicySample": 39411,
+        "estimate100kPolicySamplesBytes": 3941100000
+      }
+    },
+    "memory-paused": {
+      "datasetId": "b9dc3552ec31e2ab19d34260bfa3ec1a0fc837d5aaf1b495d3039e5d23490996",
+      "planned": 2,
+      "pending": 2,
+      "inProgress": 0,
+      "finished": 0,
+      "truncated": 0,
+      "positions": 0,
+      "policySamples": 0,
+      "valueSamples": 0,
+      "splits": {
+        "train": 0,
+        "validation": 0,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 6037,
+      "splitFamilies": 0,
+      "complete": false,
+      "contentHash": "b308fdb252aae7ee142bc71b543d2594310caa6b1e025ff43b102009caf55f4b",
+      "status": "paused",
+      "stopReason": "memory_limit",
+      "limits": {
+        "concurrency": 2,
+        "maxGames": 2,
+        "maxBytes": 268435456,
+        "maxRssBytes": 67108864,
+        "maxRunMs": 1800000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 2,
+        "maxRssBytes": 140623872,
+        "rssSamplingMs": 250,
+        "elapsedMs": 71.41725,
+        "committedMoves": 0,
+        "teacherPositions": 0
+      },
+      "throughput": {
+        "positionsPerSecond": 0,
+        "teacherPositionsPerSecond": 0,
+        "completedRecordsPerHour": 0,
+        "naturallyFinishedPerHour": 0,
+        "bytesPerPolicySample": null,
+        "estimate100kPolicySamplesBytes": null
+      }
+    }
+  },
+  "datasets": {
+    "mixed-data": {
+      "datasetId": "af87183fd7ccb61a55407b8737fad004544291f73e38d2b53a9c442d498d656a",
+      "code": {
+        "commit": "6f655b47602bd5cf518219bd563cbce7c72aec98",
+        "dirty": false,
+        "sourceHash": "cc5afe04a782b51064e623b6c5457605abf26156a4cded4003c4195786f81e0e",
+        "runnerHash": "e6a6e2bb0312251ab4c2007488f84a3586f8dcf8bd3c43dbea408357af60f850",
+        "runtime": {
+          "bun": "1.4.2",
+          "platform": "darwin",
+          "arch": "arm64"
+        }
+      },
+      "format": "four-shogi-training-record-v1",
+      "actionEncodingVersion": "four-shogi-policy-index-v1",
+      "featureVersion": null,
+      "stateEncodingVersion": "analysis-state-v1",
+      "config": {
+        "origins": [
+          {
+            "seed": 18910,
+            "replay": null
+          },
+          {
+            "seed": 58910,
+            "replay": null
+          }
+        ],
+        "restrictions": [
+          false,
+          true
+        ],
+        "seatOffsets": [
+          "south"
+        ],
+        "agents": [
+          {
+            "id": "search",
+            "kind": "analysis",
+            "settings": {
+              "timeBudgetMs": null,
+              "maxWork": 256,
+              "maxDepth": 64,
+              "width": 6,
+              "rootWidth": 24,
+              "extensions": 1,
+              "candidateCount": 3,
+              "algorithm": "maxn",
+              "cacheSize": 256,
+              "moveOrdering": "tactical",
+              "evaluationWeights": {
+                "undefended": 0.7,
+                "exchange": 0.45,
+                "kingRing": 35,
+                "check": 300,
+                "mobility": 3,
+                "advancement": 6,
+                "shelter": 12,
+                "survival": 0
+              },
+              "exploration": 1.4,
+              "rolloutPlies": 2,
+              "maxSimulations": 10000,
+              "seed": 0,
+              "dangerWork": 0,
+              "dangerPlies": 8,
+              "includeAction": null
+            }
+          },
+          {
+            "id": "small",
+            "kind": "analysis",
+            "settings": {
+              "timeBudgetMs": null,
+              "maxWork": 64,
+              "maxDepth": 64,
+              "width": 6,
+              "rootWidth": 24,
+              "extensions": 1,
+              "candidateCount": 3,
+              "algorithm": "maxn",
+              "cacheSize": 256,
+              "moveOrdering": "tactical",
+              "evaluationWeights": {
+                "undefended": 0.7,
+                "exchange": 0.45,
+                "kingRing": 35,
+                "check": 300,
+                "mobility": 3,
+                "advancement": 6,
+                "shelter": 12,
+                "survival": 0
+              },
+              "exploration": 1.4,
+              "rolloutPlies": 2,
+              "maxSimulations": 10000,
+              "seed": 0,
+              "dangerWork": 0,
+              "dangerPlies": 8,
+              "includeAction": null
+            }
+          },
+          {
+            "id": "lv2",
+            "kind": "cpu",
+            "reference": "frozen"
+          },
+          {
+            "id": "past",
+            "kind": "cpu",
+            "reference": "commit:913a09d4edce5e44c96d190a60757ef184a4738d"
+          }
+        ],
+        "lineups": [
+          [
+            "search",
+            "lv2",
+            "small",
+            "past"
+          ]
+        ],
+        "teacher": {
+          "timeBudgetMs": null,
+          "maxWork": 2048,
+          "maxDepth": 64,
+          "width": 6,
+          "rootWidth": 24,
+          "extensions": 1,
+          "candidateCount": 3,
+          "algorithm": "maxn",
+          "cacheSize": 256,
+          "moveOrdering": "tactical",
+          "evaluationWeights": {
+            "undefended": 0.7,
+            "exchange": 0.45,
+            "kingRing": 35,
+            "check": 300,
+            "mobility": 3,
+            "advancement": 6,
+            "shelter": 12,
+            "survival": 0
+          },
+          "exploration": 1.4,
+          "rolloutPlies": 2,
+          "maxSimulations": 10000,
+          "seed": 0,
+          "dangerWork": 0,
+          "dangerPlies": 8,
+          "includeAction": null
+        },
+        "sampling": {
+          "every": 8,
+          "important": true,
+          "maxPositions": 16
+        },
+        "maxPlies": 128
+      },
+      "cpuSources": {
+        "lv2": {
+          "selector": "frozen",
+          "commit": "913a09d4edce5e44c96d190a60757ef184a4738d",
+          "searchOptions": {
+            "maxWork": 2048,
+            "maxDepth": 6,
+            "width": 6,
+            "rootWidth": 24,
+            "extensions": 2,
+            "evaluationWeights": {
+              "undefended": 0.7,
+              "exchange": 0.45,
+              "kingRing": 35,
+              "check": 300,
+              "mobility": 3,
+              "advancement": 6,
+              "shelter": 12,
+              "survival": 5000
+            }
+          },
+          "modelId": null,
+          "configurationOrigin": "fixed-manifest",
+          "sourceSha256": "38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3"
+        },
+        "past": {
+          "selector": "commit:913a09d4edce5e44c96d190a60757ef184a4738d",
+          "commit": "913a09d4edce5e44c96d190a60757ef184a4738d",
+          "searchOptions": {
+            "maxWork": 2048,
+            "maxDepth": 6,
+            "width": 6,
+            "rootWidth": 24,
+            "extensions": 2,
+            "evaluationWeights": {
+              "undefended": 0.7,
+              "exchange": 0.45,
+              "kingRing": 35,
+              "check": 300,
+              "mobility": 3,
+              "advancement": 6,
+              "shelter": 12,
+              "survival": 5000
+            }
+          },
+          "modelId": null,
+          "configurationOrigin": "overrides-and-versioned-source-defaults",
+          "sourceSha256": "38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3"
+        }
+      },
+      "starts": [
+        {
+          "origin": 0,
+          "seed": 18910,
+          "familyId": "a32b67f18bb718aa7d073123b138ef535e644457b99c43fb059566055cb81cb4",
+          "split": "train",
+          "stateHash": "9495de7734a142e0cbb81796aafd8889d839a328592f9733987c9c6ad05e35b1",
+          "restricted": false,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        },
+        {
+          "origin": 0,
+          "seed": 18910,
+          "familyId": "a32b67f18bb718aa7d073123b138ef535e644457b99c43fb059566055cb81cb4",
+          "split": "train",
+          "stateHash": "71376e9f5a8f7e77fbdae4abc98d5cb3540d657c060ab733bc3ddb4303041c15",
+          "restricted": true,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        },
+        {
+          "origin": 1,
+          "seed": 58910,
+          "familyId": "7ff2a2160b08e8f95cb38265b7d0d4aed8f1b0c0ea6480aaf94e44297b7f8276",
+          "split": "validation",
+          "stateHash": "be1a922426792418af29ff7ebf5553051e4c3b693a47fde6719089bd22544225",
+          "restricted": false,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        },
+        {
+          "origin": 1,
+          "seed": 58910,
+          "familyId": "7ff2a2160b08e8f95cb38265b7d0d4aed8f1b0c0ea6480aaf94e44297b7f8276",
+          "split": "validation",
+          "stateHash": "385a14306f1818c79b874560559f40a14b48b857c66659ccf9c74d2c27679970",
+          "restricted": true,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        }
+      ],
+      "games": [
+        {
+          "gameId": "1b56d14970ec9166d0b13936f923fcb00de20638022a7d2fcfdcb7e09e778ab3",
+          "familyId": "7ff2a2160b08e8f95cb38265b7d0d4aed8f1b0c0ea6480aaf94e44297b7f8276",
+          "seed": 58910,
+          "split": "validation",
+          "restricted": false,
+          "lineup": {
+            "south": "search",
+            "west": "lv2",
+            "north": "small",
+            "east": "past"
+          },
+          "status": "truncated",
+          "moves": 128,
+          "teacherPositions": 16,
+          "policySamples": 16,
+          "valueTarget": null,
+          "result": null,
+          "stateHash": "3a925b2129b091b094c4e7ff69b1621ec0c2167ab07422251dee587a54eb0204",
+          "checksum": "741366385e818338376cec4919ea64cd304029e31963bf3514342cd1119d2fff",
+          "fileSha256": "981b9524a489d208c4d4d9121160c9556adf2cfd54e2d4cb0277f25cd01a1a92",
+          "logicalBytes": 1124983
+        },
+        {
+          "gameId": "1d604582945edafb02b453fcece921550326532fc67196f157718283bb094427",
+          "familyId": "a32b67f18bb718aa7d073123b138ef535e644457b99c43fb059566055cb81cb4",
+          "seed": 18910,
+          "split": "train",
+          "restricted": true,
+          "lineup": {
+            "south": "search",
+            "west": "lv2",
+            "north": "small",
+            "east": "past"
+          },
+          "status": "truncated",
+          "moves": 128,
+          "teacherPositions": 16,
+          "policySamples": 16,
+          "valueTarget": null,
+          "result": null,
+          "stateHash": "a9c5cc1d2fc8dfdc82eef43cad28ac2aeff269e8efd741a50ffc7dc333b81c82",
+          "checksum": "c7a0dd53d622c8c3f720dd6858e3cf5a5bc418c50b53a87a862a554ae9281355",
+          "fileSha256": "b3fabdac24288adafac114c9b5836d407c649fb972d89b962736dd60792d9bfb",
+          "logicalBytes": 1028072
+        },
+        {
+          "gameId": "c26b56f2e056eca7e246b89a9cd332b849b1b2c7bed3bb62be67a4006da3707c",
+          "familyId": "a32b67f18bb718aa7d073123b138ef535e644457b99c43fb059566055cb81cb4",
+          "seed": 18910,
+          "split": "train",
+          "restricted": false,
+          "lineup": {
+            "south": "search",
+            "west": "lv2",
+            "north": "small",
+            "east": "past"
+          },
+          "status": "truncated",
+          "moves": 128,
+          "teacherPositions": 16,
+          "policySamples": 16,
+          "valueTarget": null,
+          "result": null,
+          "stateHash": "964c9fa702a7b941f7e91f4144fc24da0272cf9557374f91a40cf01752ba85bc",
+          "checksum": "435be8b25519582cd00c45debca816c2acacea16ecc17c86b1b8964a17f7e1cc",
+          "fileSha256": "af534291c660e1a17ac20821923bddee19802b038131426a043d5a0b0c8a0c2c",
+          "logicalBytes": 974109
+        },
+        {
+          "gameId": "d7e0a99861900f8c2fefbe5b090f1370aa2074057b07b952ffa9f81ea9f69aac",
+          "familyId": "7ff2a2160b08e8f95cb38265b7d0d4aed8f1b0c0ea6480aaf94e44297b7f8276",
+          "seed": 58910,
+          "split": "validation",
+          "restricted": true,
+          "lineup": {
+            "south": "search",
+            "west": "lv2",
+            "north": "small",
+            "east": "past"
+          },
+          "status": "truncated",
+          "moves": 128,
+          "teacherPositions": 16,
+          "policySamples": 16,
+          "valueTarget": null,
+          "result": null,
+          "stateHash": "aa70245e90f9588eb7a01ba6e320d9a58621c1cb4e60eac0059f46751a8a5916",
+          "checksum": "def886d0878eb2db9cbf9c9d728ee5b4f8383f000b79b9cf9e61aab8ad17fe46",
+          "fileSha256": "cd36b524df00fdf7d48dfe1b016a3519a9d58540e1f036cf0afa1caf42e4de04",
+          "logicalBytes": 1189290
+        }
+      ]
+    },
+    "terminal-data": {
+      "datasetId": "03e635135c8f1352f01b958579c35c435965c5830c9e045a4f83152416f00600",
+      "code": {
+        "commit": "6f655b47602bd5cf518219bd563cbce7c72aec98",
+        "dirty": false,
+        "sourceHash": "cc5afe04a782b51064e623b6c5457605abf26156a4cded4003c4195786f81e0e",
+        "runnerHash": "e6a6e2bb0312251ab4c2007488f84a3586f8dcf8bd3c43dbea408357af60f850",
+        "runtime": {
+          "bun": "1.4.2",
+          "platform": "darwin",
+          "arch": "arm64"
+        }
+      },
+      "format": "four-shogi-training-record-v1",
+      "actionEncodingVersion": "four-shogi-policy-index-v1",
+      "featureVersion": null,
+      "stateEncodingVersion": "analysis-state-v1",
+      "config": {
+        "origins": [
+          {
+            "seed": 18911,
+            "replay": {
+              "schemaVersion": 1,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "initial": {
+                "mode": "singles",
+                "players": {
+                  "south": "self-s",
+                  "west": "self-w",
+                  "north": "self-n",
+                  "east": "self-e"
+                },
+                "threePlayerAttackProhibited": true
+              },
+              "events": [
+                {
+                  "index": 0,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 1,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 2,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 3,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 4,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 5,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 6,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 7,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 8,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 9,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 10,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 11,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 12,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 13,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 14,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 15,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 16,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 17,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 18,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 19,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 20,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 8
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 21,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 22,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 23,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 24,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 25,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 26,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 27,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 28,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 8
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 29,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "pawn",
+                      "to": {
+                        "x": 2,
+                        "y": 6
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 30,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 31,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 32,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 33,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 34,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "gold",
+                      "to": {
+                        "x": 7,
+                        "y": 2
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 35,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 36,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 0
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 37,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "rook",
+                      "to": {
+                        "x": 2,
+                        "y": 2
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 38,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 39,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 40,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 41,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 42,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 43,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 44,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 45,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 46,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "silver",
+                      "to": {
+                        "x": 3,
+                        "y": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 47,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 48,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 0
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 49,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 50,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 51,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 52,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 53,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 54,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 0
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 55,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 56,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "gold",
+                      "to": {
+                        "x": 7,
+                        "y": 0
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 57,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 58,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 59,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 60,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 61,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "promote": true
+                    }
+                  }
+                },
+                {
+                  "index": 62,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 63,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 64,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "silver",
+                      "to": {
+                        "x": 5,
+                        "y": 8
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 65,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "gold",
+                      "to": {
+                        "x": 8,
+                        "y": 5
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 66,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 67,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 68,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 69,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 70,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 71,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 72,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 73,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 74,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 75,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 76,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 77,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 78,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "pawn",
+                      "to": {
+                        "x": 1,
+                        "y": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 79,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "pawn",
+                      "to": {
+                        "x": 1,
+                        "y": 0
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 80,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 8
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 81,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 8
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 82,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 83,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 84,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 85,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "silver",
+                      "to": {
+                        "x": 2,
+                        "y": 7
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 86,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 87,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 88,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 89,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 90,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 4,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 91,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 92,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 93,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 94,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 95,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 4,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 1
+                      },
+                      "promote": true
+                    }
+                  }
+                },
+                {
+                  "index": 96,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 97,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "pawn",
+                      "to": {
+                        "x": 6,
+                        "y": 4
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 98,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "pawn",
+                      "to": {
+                        "x": 4,
+                        "y": 3
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 99,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "pawn",
+                      "to": {
+                        "x": 7,
+                        "y": 8
+                      }
+                    }
+                  }
+                },
+                {
+                  "index": 100,
+                  "event": {
+                    "type": "eliminate",
+                    "side": "west",
+                    "reason": "left"
+                  }
+                },
+                {
+                  "index": 101,
+                  "event": {
+                    "type": "eliminate",
+                    "side": "east",
+                    "reason": "timeout"
+                  }
+                },
+                {
+                  "index": 102,
+                  "event": {
+                    "type": "eliminate",
+                    "side": "south",
+                    "reason": "left"
+                  }
+                }
+              ],
+              "eventOffset": 102
+            }
+          }
+        ],
+        "restrictions": [
+          false,
+          true
+        ],
+        "seatOffsets": [
+          "south"
+        ],
+        "agents": [
+          {
+            "id": "search",
+            "kind": "analysis",
+            "settings": {
+              "timeBudgetMs": null,
+              "maxWork": 256,
+              "maxDepth": 64,
+              "width": 6,
+              "rootWidth": 24,
+              "extensions": 1,
+              "candidateCount": 3,
+              "algorithm": "maxn",
+              "cacheSize": 256,
+              "moveOrdering": "tactical",
+              "evaluationWeights": {
+                "undefended": 0.7,
+                "exchange": 0.45,
+                "kingRing": 35,
+                "check": 300,
+                "mobility": 3,
+                "advancement": 6,
+                "shelter": 12,
+                "survival": 0
+              },
+              "exploration": 1.4,
+              "rolloutPlies": 2,
+              "maxSimulations": 10000,
+              "seed": 0,
+              "dangerWork": 0,
+              "dangerPlies": 8,
+              "includeAction": null
+            }
+          },
+          {
+            "id": "small",
+            "kind": "analysis",
+            "settings": {
+              "timeBudgetMs": null,
+              "maxWork": 64,
+              "maxDepth": 64,
+              "width": 6,
+              "rootWidth": 24,
+              "extensions": 1,
+              "candidateCount": 3,
+              "algorithm": "maxn",
+              "cacheSize": 256,
+              "moveOrdering": "tactical",
+              "evaluationWeights": {
+                "undefended": 0.7,
+                "exchange": 0.45,
+                "kingRing": 35,
+                "check": 300,
+                "mobility": 3,
+                "advancement": 6,
+                "shelter": 12,
+                "survival": 0
+              },
+              "exploration": 1.4,
+              "rolloutPlies": 2,
+              "maxSimulations": 10000,
+              "seed": 0,
+              "dangerWork": 0,
+              "dangerPlies": 8,
+              "includeAction": null
+            }
+          },
+          {
+            "id": "lv2",
+            "kind": "cpu",
+            "reference": "frozen"
+          },
+          {
+            "id": "past",
+            "kind": "cpu",
+            "reference": "commit:913a09d4edce5e44c96d190a60757ef184a4738d"
+          }
+        ],
+        "lineups": [
+          [
+            "search",
+            "lv2",
+            "small",
+            "past"
+          ]
+        ],
+        "teacher": {
+          "timeBudgetMs": null,
+          "maxWork": 2048,
+          "maxDepth": 64,
+          "width": 6,
+          "rootWidth": 24,
+          "extensions": 1,
+          "candidateCount": 3,
+          "algorithm": "maxn",
+          "cacheSize": 256,
+          "moveOrdering": "tactical",
+          "evaluationWeights": {
+            "undefended": 0.7,
+            "exchange": 0.45,
+            "kingRing": 35,
+            "check": 300,
+            "mobility": 3,
+            "advancement": 6,
+            "shelter": 12,
+            "survival": 0
+          },
+          "exploration": 1.4,
+          "rolloutPlies": 2,
+          "maxSimulations": 10000,
+          "seed": 0,
+          "dangerWork": 0,
+          "dangerPlies": 8,
+          "includeAction": null
+        },
+        "sampling": {
+          "every": 8,
+          "important": true,
+          "maxPositions": 16
+        },
+        "maxPlies": 64
+      },
+      "cpuSources": {
+        "lv2": {
+          "selector": "frozen",
+          "commit": "913a09d4edce5e44c96d190a60757ef184a4738d",
+          "searchOptions": {
+            "maxWork": 2048,
+            "maxDepth": 6,
+            "width": 6,
+            "rootWidth": 24,
+            "extensions": 2,
+            "evaluationWeights": {
+              "undefended": 0.7,
+              "exchange": 0.45,
+              "kingRing": 35,
+              "check": 300,
+              "mobility": 3,
+              "advancement": 6,
+              "shelter": 12,
+              "survival": 5000
+            }
+          },
+          "modelId": null,
+          "configurationOrigin": "fixed-manifest",
+          "sourceSha256": "38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3"
+        },
+        "past": {
+          "selector": "commit:913a09d4edce5e44c96d190a60757ef184a4738d",
+          "commit": "913a09d4edce5e44c96d190a60757ef184a4738d",
+          "searchOptions": {
+            "maxWork": 2048,
+            "maxDepth": 6,
+            "width": 6,
+            "rootWidth": 24,
+            "extensions": 2,
+            "evaluationWeights": {
+              "undefended": 0.7,
+              "exchange": 0.45,
+              "kingRing": 35,
+              "check": 300,
+              "mobility": 3,
+              "advancement": 6,
+              "shelter": 12,
+              "survival": 5000
+            }
+          },
+          "modelId": null,
+          "configurationOrigin": "overrides-and-versioned-source-defaults",
+          "sourceSha256": "38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3"
+        }
+      },
+      "starts": [
+        {
+          "origin": 0,
+          "seed": 18911,
+          "familyId": "fb60ccd0ca60de86565727f21462e61ad1fab8244a9d41c05260f8b5646eacc9",
+          "split": "train",
+          "stateHash": "01d01d6b24f858a68ee46b1aa1b5af6a033e1673b1f2759827aaff217935312d",
+          "restricted": false,
+          "sourceEvents": 103,
+          "eventOffset": 102
+        },
+        {
+          "origin": 0,
+          "seed": 18911,
+          "familyId": "fb60ccd0ca60de86565727f21462e61ad1fab8244a9d41c05260f8b5646eacc9",
+          "split": "train",
+          "stateHash": "a9d662f6e575c74691b4b905e6092196bbefa79933bd918395fe7fb27e7c2f24",
+          "restricted": true,
+          "sourceEvents": 103,
+          "eventOffset": 102
+        }
+      ],
+      "games": [
+        {
+          "gameId": "17ba75e27980974b3e2f7b38192862ebb10634e7b1bb7d225b009be571815179",
+          "familyId": "fb60ccd0ca60de86565727f21462e61ad1fab8244a9d41c05260f8b5646eacc9",
+          "seed": 18911,
+          "split": "train",
+          "restricted": false,
+          "lineup": {
+            "south": "search",
+            "west": "lv2",
+            "north": "small",
+            "east": "past"
+          },
+          "status": "finished",
+          "moves": 29,
+          "teacherPositions": 9,
+          "policySamples": 9,
+          "valueTarget": [
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "result": {
+            "mode": "singles",
+            "reason": "repetition",
+            "standings": [
+              {
+                "side": "south",
+                "rank": 1
+              },
+              {
+                "side": "north",
+                "rank": 1
+              },
+              {
+                "side": "east",
+                "rank": 3
+              },
+              {
+                "side": "west",
+                "rank": 4
+              }
+            ]
+          },
+          "stateHash": "61ae69435fcd8787d10bf3ea76207253e736266f40b2e0d2d6a2a10547e5859b",
+          "checksum": "185218dcf84b12014f7774cf33ed04915ce04ab2488e2bb54af9013c33e0b393",
+          "fileSha256": "62f6ece50d404494e8bc6126fd87026b4b1cb11caf65adebfc9c62cb2a0a5616",
+          "logicalBytes": 1531971
+        },
+        {
+          "gameId": "61129d3157096f59db1d5ad1aea8d5e77739f638f0ed234763f9d41c9c07b5cc",
+          "familyId": "fb60ccd0ca60de86565727f21462e61ad1fab8244a9d41c05260f8b5646eacc9",
+          "seed": 18911,
+          "split": "train",
+          "restricted": true,
+          "lineup": {
+            "south": "search",
+            "west": "lv2",
+            "north": "small",
+            "east": "past"
+          },
+          "status": "finished",
+          "moves": 29,
+          "teacherPositions": 9,
+          "policySamples": 9,
+          "valueTarget": [
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "result": {
+            "mode": "singles",
+            "reason": "repetition",
+            "standings": [
+              {
+                "side": "south",
+                "rank": 1
+              },
+              {
+                "side": "north",
+                "rank": 1
+              },
+              {
+                "side": "east",
+                "rank": 3
+              },
+              {
+                "side": "west",
+                "rank": 4
+              }
+            ]
+          },
+          "stateHash": "d4eb399e3bf0cd45d82089dd047248b41ac531409916a6bd5f41fba62144e3c6",
+          "checksum": "118fde51672be786502b1e0d8e918b3d5d4bd800d09785c9bd5313fac7033762",
+          "fileSha256": "ed24be85a8c3c2f1d49a96694f5c832d5e0ec56408d01473eca4d70362308ea4",
+          "logicalBytes": 1610751
+        }
+      ]
+    },
+    "capacity-data": {
+      "datasetId": "b9dc3552ec31e2ab19d34260bfa3ec1a0fc837d5aaf1b495d3039e5d23490996",
+      "code": {
+        "commit": "6f655b47602bd5cf518219bd563cbce7c72aec98",
+        "dirty": false,
+        "sourceHash": "cc5afe04a782b51064e623b6c5457605abf26156a4cded4003c4195786f81e0e",
+        "runnerHash": "e6a6e2bb0312251ab4c2007488f84a3586f8dcf8bd3c43dbea408357af60f850",
+        "runtime": {
+          "bun": "1.4.2",
+          "platform": "darwin",
+          "arch": "arm64"
+        }
+      },
+      "format": "four-shogi-training-record-v1",
+      "actionEncodingVersion": "four-shogi-policy-index-v1",
+      "featureVersion": null,
+      "stateEncodingVersion": "analysis-state-v1",
+      "config": {
+        "origins": [
+          {
+            "seed": 18912,
+            "replay": null
+          }
+        ],
+        "restrictions": [
+          false,
+          true
+        ],
+        "seatOffsets": [
+          "south"
+        ],
+        "agents": [
+          {
+            "id": "a",
+            "kind": "analysis",
+            "settings": {
+              "timeBudgetMs": null,
+              "maxWork": 64,
+              "maxDepth": 64,
+              "width": 6,
+              "rootWidth": 24,
+              "extensions": 1,
+              "candidateCount": 3,
+              "algorithm": "maxn",
+              "cacheSize": 256,
+              "moveOrdering": "tactical",
+              "evaluationWeights": {
+                "undefended": 0.7,
+                "exchange": 0.45,
+                "kingRing": 35,
+                "check": 300,
+                "mobility": 3,
+                "advancement": 6,
+                "shelter": 12,
+                "survival": 0
+              },
+              "exploration": 1.4,
+              "rolloutPlies": 2,
+              "maxSimulations": 10000,
+              "seed": 0,
+              "dangerWork": 0,
+              "dangerPlies": 8,
+              "includeAction": null
+            }
+          }
+        ],
+        "lineups": [
+          [
+            "a",
+            "a",
+            "a",
+            "a"
+          ]
+        ],
+        "teacher": {
+          "timeBudgetMs": null,
+          "maxWork": 256,
+          "maxDepth": 64,
+          "width": 6,
+          "rootWidth": 24,
+          "extensions": 0,
+          "candidateCount": 3,
+          "algorithm": "maxn",
+          "cacheSize": 256,
+          "moveOrdering": "tactical",
+          "evaluationWeights": {
+            "undefended": 0.7,
+            "exchange": 0.45,
+            "kingRing": 35,
+            "check": 300,
+            "mobility": 3,
+            "advancement": 6,
+            "shelter": 12,
+            "survival": 0
+          },
+          "exploration": 1.4,
+          "rolloutPlies": 2,
+          "maxSimulations": 10000,
+          "seed": 0,
+          "dangerWork": 0,
+          "dangerPlies": 8,
+          "includeAction": null
+        },
+        "sampling": {
+          "every": 1,
+          "important": true,
+          "maxPositions": 2
+        },
+        "maxPlies": 4
+      },
+      "cpuSources": {},
+      "starts": [
+        {
+          "origin": 0,
+          "seed": 18912,
+          "familyId": "e0594b535ba51a389220546814198b58661ea694a36efaab18a26023a2f5924f",
+          "split": "train",
+          "stateHash": "5031150882eb1e2cf5bbdd5c3b701e06dc8c044548acf2183440fafd31874eb2",
+          "restricted": false,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        },
+        {
+          "origin": 0,
+          "seed": 18912,
+          "familyId": "e0594b535ba51a389220546814198b58661ea694a36efaab18a26023a2f5924f",
+          "split": "train",
+          "stateHash": "57e6a60135237fde09c59063626a5fab5750bdd55128635b68329b335949ca14",
+          "restricted": true,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        }
+      ],
+      "games": [
+        {
+          "gameId": "ba98e66cbb3036e12f93929be647b91ed26fd6875e2c0c92938b975457fb770c",
+          "familyId": "e0594b535ba51a389220546814198b58661ea694a36efaab18a26023a2f5924f",
+          "seed": 18912,
+          "split": "train",
+          "restricted": true,
+          "lineup": {
+            "south": "a",
+            "west": "a",
+            "north": "a",
+            "east": "a"
+          },
+          "status": "truncated",
+          "moves": 4,
+          "teacherPositions": 2,
+          "policySamples": 2,
+          "valueTarget": null,
+          "result": null,
+          "stateHash": "603843db2bc1accb038caf66d57a223c1f3aa916ef5ef2830507cb6892c21134",
+          "checksum": "a06aae6f0c7f1fac79e55c16b33f22a771f838995dfef61bddf435c3f2bfff22",
+          "fileSha256": "499450c6e0864e896d929c3bf6232b5f21ed662b7e1cb6f138d59618fd7cd20c",
+          "logicalBytes": 76641
+        },
+        {
+          "gameId": "e18b29a5ffa74a4d3f3c3e0484950b5d49f197b045f3a394798d553838ce4309",
+          "familyId": "e0594b535ba51a389220546814198b58661ea694a36efaab18a26023a2f5924f",
+          "seed": 18912,
+          "split": "train",
+          "restricted": false,
+          "lineup": {
+            "south": "a",
+            "west": "a",
+            "north": "a",
+            "east": "a"
+          },
+          "status": "truncated",
+          "moves": 4,
+          "teacherPositions": 2,
+          "policySamples": 2,
+          "valueTarget": null,
+          "result": null,
+          "stateHash": "7b099c888e41731c9e8a587de3b8e624f605931a4a30269e598b73c127c78061",
+          "checksum": "60910fe59f544fd5080f9e28d8b3a1ff0b64e438c0bcd5727d14916819f0e5dd",
+          "fileSha256": "97076a756eb88e87add7a6eff58bc2639bf499d57ab9b6b2250106be2439d3cc",
+          "logicalBytes": 74966
+        }
+      ]
+    },
+    "memory-data": {
+      "datasetId": "b9dc3552ec31e2ab19d34260bfa3ec1a0fc837d5aaf1b495d3039e5d23490996",
+      "code": {
+        "commit": "6f655b47602bd5cf518219bd563cbce7c72aec98",
+        "dirty": false,
+        "sourceHash": "cc5afe04a782b51064e623b6c5457605abf26156a4cded4003c4195786f81e0e",
+        "runnerHash": "e6a6e2bb0312251ab4c2007488f84a3586f8dcf8bd3c43dbea408357af60f850",
+        "runtime": {
+          "bun": "1.4.2",
+          "platform": "darwin",
+          "arch": "arm64"
+        }
+      },
+      "format": "four-shogi-training-record-v1",
+      "actionEncodingVersion": "four-shogi-policy-index-v1",
+      "featureVersion": null,
+      "stateEncodingVersion": "analysis-state-v1",
+      "config": {
+        "origins": [
+          {
+            "seed": 18912,
+            "replay": null
+          }
+        ],
+        "restrictions": [
+          false,
+          true
+        ],
+        "seatOffsets": [
+          "south"
+        ],
+        "agents": [
+          {
+            "id": "a",
+            "kind": "analysis",
+            "settings": {
+              "timeBudgetMs": null,
+              "maxWork": 64,
+              "maxDepth": 64,
+              "width": 6,
+              "rootWidth": 24,
+              "extensions": 1,
+              "candidateCount": 3,
+              "algorithm": "maxn",
+              "cacheSize": 256,
+              "moveOrdering": "tactical",
+              "evaluationWeights": {
+                "undefended": 0.7,
+                "exchange": 0.45,
+                "kingRing": 35,
+                "check": 300,
+                "mobility": 3,
+                "advancement": 6,
+                "shelter": 12,
+                "survival": 0
+              },
+              "exploration": 1.4,
+              "rolloutPlies": 2,
+              "maxSimulations": 10000,
+              "seed": 0,
+              "dangerWork": 0,
+              "dangerPlies": 8,
+              "includeAction": null
+            }
+          }
+        ],
+        "lineups": [
+          [
+            "a",
+            "a",
+            "a",
+            "a"
+          ]
+        ],
+        "teacher": {
+          "timeBudgetMs": null,
+          "maxWork": 256,
+          "maxDepth": 64,
+          "width": 6,
+          "rootWidth": 24,
+          "extensions": 0,
+          "candidateCount": 3,
+          "algorithm": "maxn",
+          "cacheSize": 256,
+          "moveOrdering": "tactical",
+          "evaluationWeights": {
+            "undefended": 0.7,
+            "exchange": 0.45,
+            "kingRing": 35,
+            "check": 300,
+            "mobility": 3,
+            "advancement": 6,
+            "shelter": 12,
+            "survival": 0
+          },
+          "exploration": 1.4,
+          "rolloutPlies": 2,
+          "maxSimulations": 10000,
+          "seed": 0,
+          "dangerWork": 0,
+          "dangerPlies": 8,
+          "includeAction": null
+        },
+        "sampling": {
+          "every": 1,
+          "important": true,
+          "maxPositions": 2
+        },
+        "maxPlies": 4
+      },
+      "cpuSources": {},
+      "starts": [
+        {
+          "origin": 0,
+          "seed": 18912,
+          "familyId": "e0594b535ba51a389220546814198b58661ea694a36efaab18a26023a2f5924f",
+          "split": "train",
+          "stateHash": "5031150882eb1e2cf5bbdd5c3b701e06dc8c044548acf2183440fafd31874eb2",
+          "restricted": false,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        },
+        {
+          "origin": 0,
+          "seed": 18912,
+          "familyId": "e0594b535ba51a389220546814198b58661ea694a36efaab18a26023a2f5924f",
+          "split": "train",
+          "stateHash": "57e6a60135237fde09c59063626a5fab5750bdd55128635b68329b335949ca14",
+          "restricted": true,
+          "sourceEvents": 12,
+          "eventOffset": 12
+        }
+      ],
+      "games": []
+    }
+  },
+  "verification": {
+    "localCodeCommit": "6f655b47602bd5cf518219bd563cbce7c72aec98",
+    "bunRunCheck": "success via normal pre-commit; commit total 70.78 seconds; four-shogi 455 tests (15 added)",
+    "requiredCommands": [
+      {
+        "command": "bun run build",
+        "exitCode": 0,
+        "seconds": 8.99
+      },
+      {
+        "command": "bun run --cwd apps/worker deploy:dry-run",
+        "exitCode": 0,
+        "seconds": 0.67
+      },
+      {
+        "command": "bun run build:development",
+        "exitCode": 0,
+        "seconds": 8.65
+      },
+      {
+        "command": "bun run --cwd apps/worker deploy:dry-run:development",
+        "exitCode": 0,
+        "seconds": 0.6
+      }
+    ],
+    "frozenLv2Parity": "6 baseline positions: action and diagnostics identical to 913a09d; frozen source SHA256 38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3"
+  }
+}
