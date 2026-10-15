@@ -16,6 +16,25 @@ test("紹介はダイアログを開かず読め、両ゲームのモードと�
   }
 });
 
+test.each([
+  ["/terms", "利用規約 | TetraBoard"],
+  ["/privacy", "プライバシーポリシー | TetraBoard"],
+])("%sの初期表示と再読み込みで文書名を含むタイトルを維持する", (path, title) => {
+  const previousHead = document.head.innerHTML;
+  try {
+    for (const initialTitle of ["TetraBoard", title]) {
+      document.title = initialTitle;
+      updatePageMetadata(path);
+      expect(document.title).toBe(title);
+      expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+        "noindex,follow",
+      );
+    }
+  } finally {
+    document.head.innerHTML = previousHead;
+  }
+});
+
 test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いcanonicalとnoindexを残さない", async () => {
   const router = createMemoryRouter([{ path: "*", element: <div /> }], {
     initialEntries: ["/games/four-shogi"],
@@ -28,6 +47,19 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
     expect(document.head.querySelector('link[rel="canonical"]')!.getAttribute("href")).toBe(
       "https://tetraboard.net/games/four-shogi",
     );
+    await router.navigate("/terms?from=lobby");
+    expect(document.title).toBe("利用規約 | TetraBoard");
+    await router.navigate("/privacy#contact");
+    expect(document.title).toBe("プライバシーポリシー | TetraBoard");
+    expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
+      "noindex,follow",
+    );
+    expect(document.head.querySelector('link[rel="canonical"]')).toBeNull();
+    expect(document.head.querySelector('meta[name="description"]')).toBeNull();
+    await router.navigate(-1);
+    expect(document.title).toBe("利用規約 | TetraBoard");
+    await router.navigate(-1);
+    expect(document.title).toContain("四人将棋を");
     await router.navigate("/matches/example");
     expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
       "noindex,follow",
@@ -54,6 +86,7 @@ test("ロビー往復・棋譜・履歴移動でメタ情報を同期し古いca
       "/unknown",
     ]) {
       await router.navigate(path);
+      if (!path.startsWith("/rooms/")) expect(document.title).toBe("TetraBoard");
       expect(document.head.querySelector('meta[name="robots"]')!.getAttribute("content")).toBe(
         "noindex,follow",
       );
