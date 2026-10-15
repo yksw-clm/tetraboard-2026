@@ -164,6 +164,19 @@ class TrainingTest(unittest.TestCase):
             CheckpointStore(unrelated)
         self.assertEqual([p.name for p in unrelated.iterdir()], ["preserve.txt"])
 
+    def testRepeatedSaveRetainsPreviousDistinctCheckpoint(self):
+        directory = self.root / "checkpoint"
+        store = CheckpointStore(directory)
+        try:
+            state = {"format": CHECKPOINT_VERSION, "metadata": {}, "model": {"w": torch.ones(1)}}
+            first = store.save({**state, "step": 1})
+            second = store.save({**state, "step": 2})
+            self.assertEqual(store.save({**state, "step": 2}), second)
+            self.assertEqual(json.loads((directory / "latest.json").read_text())["previousSha256"], first)
+            self.assertEqual(len(list(directory.glob("*.pt"))), 2)
+        finally:
+            store.close()
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -99,6 +99,10 @@ class CheckpointStore:
         digest = hashlib.sha256(data).hexdigest()
         latest = self.directory / "latest.json"
         previous = json.loads(latest.read_text())["sha256"] if latest.exists() else None
+        if previous == digest:
+            if fileHash(self.directory / (digest + ".pt")) != digest:
+                raise ValueError("checkpointのchecksumが不一致です")
+            return digest
         manifest = json.dumps({"format": CHECKPOINT_VERSION, "sha256": digest, "previousSha256": previous,
                                "metadata": state["metadata"]}, ensure_ascii=False, indent=2).encode()
         currentBytes = sum(path.stat().st_size for path in self.directory.iterdir())
