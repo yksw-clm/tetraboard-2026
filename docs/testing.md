@@ -214,6 +214,9 @@ PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネ
 
 #189の `test/selfPlay.test.ts` は全13,446行動IDの往復、成り/不成/打の区別、4方向と正本の合法手マスク、ON/OFF・席替え・元棋譜の全体/途中ファイル・回転のsplit漏れを確認します。保存直後の中断と連続実行の完全一致、実プロセスの並列/逐次の着手一致、親のSIGKILL後のCLI再開、完了済み記録の不採用、checksum破損/版・予算混在の拒否、件数/容量/RSS制限も扱います。単独勝ち・同率終局は固定棋譜の既知結果と照合し、未終局はValue教師にしません。乱数/workを固定し、停止は保存イベントで同期して固定sleepを使いません。部分実行は `bun test --cwd packages/four-shogi test/selfPlay.test.ts`。大量生成と局面/秒・局/時・容量の測定は[自己対戦CLI](four-shogi-ai-engine.md#自己対戦と探索教師データ189)でcheck外に置き、OSのhard memory limit・電源断・実VPS・学習済みモデルは未確認へ分けます。
 
+#190の `test/modelFeatures.test.ts` はBunで絶対座標の4方向・ON/OFF・実手番、全反復辞書/攻撃/取り返し/提案、TS検査済みの出力・分割・合法手・打切りValue除外・容量・上書き拒否を確認します。部分実行は `bun test --cwd packages/four-shogi test/modelFeatures.test.ts`。Python/PyTorchは通常checkに追加せず、[セットアップと極小smoke](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を別に実行します。`trainingTest.py <学習入力>` は実データを使い、違法手確率0、脱落者のValue確率0、5分類の席順、未終局/分割漏れ/違法教師の拒否、容量失敗時の旧checkpoint保持・排他・破損検出・孤立ファイル回収、CPU中断再開後の全重み/Adam状態/乱数/最終loss一致を確認します。MPS利用可能時は決定性設定のまま逆伝播する回帰テストも実行し、利用不可時はその1件を明示的にskipします。CPUとMPSのbit単位一致、Linux推論、十分な独立対局の棋力・勝率校正は別の検証です。
+
+
 ## 実行環境
 
 | 対象 | 実行環境 | 境界の扱い |

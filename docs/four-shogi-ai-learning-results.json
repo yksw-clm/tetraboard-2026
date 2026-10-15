@@ -1,0 +1,2177 @@
+{
+  "codeCommit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+  "comparisons": {
+    "cpu": {
+      "model": true,
+      "optimizer": true,
+      "samplerRng": true,
+      "rng": true,
+      "mpsRng": true
+    },
+    "mps": {
+      "model": true,
+      "optimizer": true,
+      "samplerRng": true,
+      "rng": true,
+      "mpsRng": true
+    }
+  },
+  "reloadPredictionsOnMacCpu": {
+    "cpu": {
+      "maxIllegalPolicy": 0.0,
+      "policySums": [1.0, 1.0],
+      "calibrated": false
+    },
+    "mps": {
+      "maxIllegalPolicy": 0.0,
+      "policySums": [0.9999998211860657, 1.0],
+      "calibrated": false
+    }
+  },
+  "data": {
+    "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+    "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+    "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+  },
+  "samples": {
+    "file": "samples.jsonl",
+    "sha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+    "bytes": 496174,
+    "count": 32,
+    "splits": {
+      "train": 16,
+      "validation": 16,
+      "calibration": 0,
+      "test": 0
+    }
+  },
+  "reports": {
+    "cpu-first": {
+      "status": "paused",
+      "step": 10,
+      "checkpointSha256": "35666c3950b7a2eab12dcb99c52610f7ed9a1279768450062f0902d91e10afda",
+      "modelId": "four-shogi-tiny-policy-value-v1:35666c3950b7a2eab12dcb99c52610f7ed9a1279768450062f0902d91e10afda",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "calibrated": false,
+      "data": {
+        "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+        "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "code": {
+        "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+        "dirty": false,
+        "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+      },
+      "parameterCount": 1237835,
+      "history": [
+        {
+          "step": 0,
+          "train": {
+            "policyLoss": 1.7022641142209372,
+            "valueLoss": 1.6218514442443848,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9925730526447296,
+            "valueLoss": 1.6178095042705536,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 10,
+          "train": {
+            "policyLoss": 1.4652641932169597,
+            "valueLoss": 0.9162149131298065,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.6
+          },
+          "validation": {
+            "policyLoss": 1.9750303030014038,
+            "valueLoss": 1.0587359368801117,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        }
+      ],
+      "elapsedSeconds": 0.08330587500040565
+    },
+    "cpu-resumed": {
+      "status": "completed",
+      "step": 20,
+      "checkpointSha256": "28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "calibrated": false,
+      "data": {
+        "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+        "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "code": {
+        "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+        "dirty": false,
+        "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+      },
+      "parameterCount": 1237835,
+      "history": [
+        {
+          "step": 0,
+          "train": {
+            "policyLoss": 1.7022641142209372,
+            "valueLoss": 1.6218514442443848,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9925730526447296,
+            "valueLoss": 1.6178095042705536,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 10,
+          "train": {
+            "policyLoss": 1.4652641932169597,
+            "valueLoss": 0.9162149131298065,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.6
+          },
+          "validation": {
+            "policyLoss": 1.9750303030014038,
+            "valueLoss": 1.0587359368801117,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 20,
+          "train": {
+            "policyLoss": 0.6747790237267812,
+            "valueLoss": 0.07617420330643654,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 1.0
+          },
+          "validation": {
+            "policyLoss": 1.908238559961319,
+            "valueLoss": 0.1766384020447731,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.5
+          }
+        }
+      ],
+      "elapsedSeconds": 0.08102708400019765
+    },
+    "cpu-continuous": {
+      "status": "completed",
+      "step": 20,
+      "checkpointSha256": "0a15fabc15debf8617122b60cdd146ca838dd5aaeb1ed433c3c72875eeae79ea",
+      "modelId": "four-shogi-tiny-policy-value-v1:0a15fabc15debf8617122b60cdd146ca838dd5aaeb1ed433c3c72875eeae79ea",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "calibrated": false,
+      "data": {
+        "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+        "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "code": {
+        "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+        "dirty": false,
+        "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+      },
+      "parameterCount": 1237835,
+      "history": [
+        {
+          "step": 0,
+          "train": {
+            "policyLoss": 1.7022641142209372,
+            "valueLoss": 1.6218514442443848,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9925730526447296,
+            "valueLoss": 1.6178095042705536,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 10,
+          "train": {
+            "policyLoss": 1.4652641932169597,
+            "valueLoss": 0.9162149131298065,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.6
+          },
+          "validation": {
+            "policyLoss": 1.9750303030014038,
+            "valueLoss": 1.0587359368801117,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 20,
+          "train": {
+            "policyLoss": 0.6747790237267812,
+            "valueLoss": 0.07617420330643654,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 1.0
+          },
+          "validation": {
+            "policyLoss": 1.908238559961319,
+            "valueLoss": 0.1766384020447731,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.5
+          }
+        }
+      ],
+      "elapsedSeconds": 0.13410291600030178
+    },
+    "mps-first": {
+      "status": "paused",
+      "step": 4,
+      "checkpointSha256": "65035ea7fed8430b39f4d21a0dfaa362fd394901be7c064e62286b38ba8edb7b",
+      "modelId": "four-shogi-tiny-policy-value-v1:65035ea7fed8430b39f4d21a0dfaa362fd394901be7c064e62286b38ba8edb7b",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "calibrated": false,
+      "data": {
+        "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+        "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "code": {
+        "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+        "dirty": false,
+        "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+      },
+      "parameterCount": 1237835,
+      "history": [
+        {
+          "step": 0,
+          "train": {
+            "policyLoss": 1.702264098326365,
+            "valueLoss": 1.62185138463974,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9925729632377625,
+            "valueLoss": 1.6178094446659088,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 4,
+          "train": {
+            "policyLoss": 1.6576104323069254,
+            "valueLoss": 1.4201067686080933,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9936572313308716,
+            "valueLoss": 1.457022249698639,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        }
+      ],
+      "elapsedSeconds": 0.24416116700012935
+    },
+    "mps-resumed": {
+      "status": "completed",
+      "step": 8,
+      "checkpointSha256": "164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "calibrated": false,
+      "data": {
+        "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+        "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "code": {
+        "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+        "dirty": false,
+        "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+      },
+      "parameterCount": 1237835,
+      "history": [
+        {
+          "step": 0,
+          "train": {
+            "policyLoss": 1.702264098326365,
+            "valueLoss": 1.62185138463974,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9925729632377625,
+            "valueLoss": 1.6178094446659088,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 4,
+          "train": {
+            "policyLoss": 1.6576104323069254,
+            "valueLoss": 1.4201067686080933,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9936572313308716,
+            "valueLoss": 1.457022249698639,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 8,
+          "train": {
+            "policyLoss": 1.5552254875500997,
+            "valueLoss": 1.1127617359161377,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.6
+          },
+          "validation": {
+            "policyLoss": 1.984443187713623,
+            "valueLoss": 1.218702107667923,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        }
+      ],
+      "elapsedSeconds": 0.23108312500016837
+    },
+    "mps-continuous": {
+      "status": "completed",
+      "step": 8,
+      "checkpointSha256": "363cb9a86eea952f2e07640c45c078a6dc80fd756486a4e6639e394ebb4c8504",
+      "modelId": "four-shogi-tiny-policy-value-v1:363cb9a86eea952f2e07640c45c078a6dc80fd756486a4e6639e394ebb4c8504",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "calibrated": false,
+      "data": {
+        "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+        "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "code": {
+        "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+        "dirty": false,
+        "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+      },
+      "parameterCount": 1237835,
+      "history": [
+        {
+          "step": 0,
+          "train": {
+            "policyLoss": 1.702264098326365,
+            "valueLoss": 1.62185138463974,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.4
+          },
+          "validation": {
+            "policyLoss": 1.9925729632377625,
+            "valueLoss": 1.6178094446659088,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        },
+        {
+          "step": 8,
+          "train": {
+            "policyLoss": 1.5552254875500997,
+            "valueLoss": 1.1127617359161377,
+            "policySamples": 15,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.6
+          },
+          "validation": {
+            "policyLoss": 1.984443187713623,
+            "valueLoss": 1.218702107667923,
+            "policySamples": 16,
+            "valueSamples": 16,
+            "valueClasses": [0, 0, 0, 0, 16],
+            "restricted": {
+              "on": 8,
+              "off": 8
+            },
+            "policyAccuracy": 0.25
+          }
+        }
+      ],
+      "elapsedSeconds": 0.26853262500026176
+    }
+  },
+  "commands": [
+    {
+      "name": "data",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "training:smoke-data",
+        "/private/tmp/tetraboard-ai190-final/final-raw",
+        "/private/tmp/tetraboard-ai190-final/final-learning"
+      ],
+      "exitCode": 0,
+      "seconds": 7.90992099999994
+    },
+    {
+      "name": "tests",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/trainingTest.py",
+        "/private/tmp/tetraboard-ai190-final/final-learning"
+      ],
+      "exitCode": 0,
+      "seconds": 1.381114708000041
+    },
+    {
+      "name": "cpu-first",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/train.py",
+        "--data=/private/tmp/tetraboard-ai190-final/final-learning",
+        "--output=/private/tmp/tetraboard-ai190-final/final-cpu",
+        "--steps=20",
+        "--device=cpu",
+        "--report=/private/tmp/tetraboard-ai190-final/cpu-first.json",
+        "--stop-after-steps=10"
+      ],
+      "exitCode": 0,
+      "seconds": 0.9268542499999057
+    },
+    {
+      "name": "cpu-resumed",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/train.py",
+        "--data=/private/tmp/tetraboard-ai190-final/final-learning",
+        "--output=/private/tmp/tetraboard-ai190-final/final-cpu",
+        "--steps=20",
+        "--device=cpu",
+        "--report=/private/tmp/tetraboard-ai190-final/cpu-resumed.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.9182900410000912
+    },
+    {
+      "name": "cpu-continuous",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/train.py",
+        "--data=/private/tmp/tetraboard-ai190-final/final-learning",
+        "--output=/private/tmp/tetraboard-ai190-final/final-cpu-continuous",
+        "--steps=20",
+        "--device=cpu",
+        "--report=/private/tmp/tetraboard-ai190-final/cpu-continuous.json"
+      ],
+      "exitCode": 0,
+      "seconds": 0.9800009159998808
+    },
+    {
+      "name": "mps-first",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/train.py",
+        "--data=/private/tmp/tetraboard-ai190-final/final-learning",
+        "--output=/private/tmp/tetraboard-ai190-final/final-mps",
+        "--steps=8",
+        "--device=mps",
+        "--report=/private/tmp/tetraboard-ai190-final/mps-first.json",
+        "--stop-after-steps=4"
+      ],
+      "exitCode": 0,
+      "seconds": 1.0916432089998125
+    },
+    {
+      "name": "mps-resumed",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/train.py",
+        "--data=/private/tmp/tetraboard-ai190-final/final-learning",
+        "--output=/private/tmp/tetraboard-ai190-final/final-mps",
+        "--steps=8",
+        "--device=mps",
+        "--report=/private/tmp/tetraboard-ai190-final/mps-resumed.json"
+      ],
+      "exitCode": 0,
+      "seconds": 1.0792873329996837
+    },
+    {
+      "name": "mps-continuous",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/train.py",
+        "--data=/private/tmp/tetraboard-ai190-final/final-learning",
+        "--output=/private/tmp/tetraboard-ai190-final/final-mps-continuous",
+        "--steps=8",
+        "--device=mps",
+        "--report=/private/tmp/tetraboard-ai190-final/mps-continuous.json"
+      ],
+      "exitCode": 0,
+      "seconds": 1.111319583000295
+    }
+  ],
+  "checkpointBytes": {
+    "cpu": 29773096,
+    "cpu-continuous": 29772840,
+    "mps": 29773666,
+    "mps-continuous": 14888642
+  },
+  "date": "2026-10-15",
+  "environment": {
+    "cpu": "Apple M5",
+    "physicalMemoryBytes": 25769803776,
+    "os": "Darwin 27.0.0 arm64",
+    "bun": "1.4.2",
+    "python": "3.12.14",
+    "torch": "2.14.1",
+    "normalCheckIncludesPyTorch": false
+  },
+  "generation": {
+    "generation": {
+      "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97",
+      "planned": 4,
+      "pending": 0,
+      "inProgress": 0,
+      "finished": 4,
+      "truncated": 0,
+      "positions": 889,
+      "policySamples": 31,
+      "valueSamples": 32,
+      "splits": {
+        "train": 2,
+        "validation": 2,
+        "calibration": 0,
+        "test": 0
+      },
+      "logicalBytes": 2849517,
+      "splitFamilies": 2,
+      "complete": true,
+      "contentHash": "a15a7052e152825d4fe5fc76b081658cf18d50c444e5aa26772039664554d83c",
+      "status": "completed",
+      "stopReason": null,
+      "limits": {
+        "concurrency": 1,
+        "maxGames": 4,
+        "maxBytes": 134217728,
+        "maxRssBytes": 1073741824,
+        "maxRunMs": 120000,
+        "stopAfterMoves": null,
+        "allowDirty": false
+      },
+      "observed": {
+        "peakWorkers": 1,
+        "maxRssBytes": 259375104,
+        "rssSamplingMs": 250,
+        "elapsedMs": 7345.791582999999,
+        "committedMoves": 889,
+        "teacherPositions": 32
+      },
+      "throughput": {
+        "positionsPerSecond": 121.02167478551509,
+        "teacherPositionsPerSecond": 4.3562357628081925,
+        "completedRecordsPerHour": 1960.3060932636865,
+        "naturallyFinishedPerHour": 1960.3060932636865,
+        "bytesPerPolicySample": 91919.90322580645,
+        "estimate100kPolicySamplesBytes": 9191990323
+      }
+    },
+    "samples": {
+      "file": "samples.jsonl",
+      "sha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+      "bytes": 496174,
+      "count": 32,
+      "splits": {
+        "train": 16,
+        "validation": 16,
+        "calibration": 0,
+        "test": 0
+      }
+    }
+  },
+  "checkpointManifests": {
+    "cpu": {
+      "format": "four-shogi-checkpoint-v1",
+      "sha256": "28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "previousSha256": "35666c3950b7a2eab12dcb99c52610f7ed9a1279768450062f0902d91e10afda",
+      "metadata": {
+        "contract": {
+          "modelVersion": "four-shogi-tiny-policy-value-v1",
+          "featureVersion": "four-shogi-features-v1",
+          "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+          "rulesVersion": 1,
+          "actionEncodingVersion": "four-shogi-policy-index-v1",
+          "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+          "data": {
+            "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+            "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+            "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+          },
+          "codeHash": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14",
+          "runtime": {
+            "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+            "torch": "2.14.1",
+            "platform": "macOS-27.0.1-arm64-arm-64bit",
+            "machine": "arm64",
+            "device": "cpu",
+            "threads": 1,
+            "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+            "dependencies": [
+              "Jinja2==3.1.6",
+              "MarkupSafe==3.0.4",
+              "filelock==4.2.0",
+              "fsspec==2026.9.0",
+              "mpmath==1.3.0",
+              "networkx==3.7",
+              "pip==25.0.1",
+              "setuptools==84.0.0",
+              "sympy==1.14.0",
+              "torch==2.14.1",
+              "typing_extensions==4.16.0"
+            ],
+            "environment": {
+              "PYTORCH_ENABLE_MPS_FALLBACK": null,
+              "OMP_NUM_THREADS": null,
+              "MKL_NUM_THREADS": null,
+              "VECLIB_MAXIMUM_THREADS": null
+            }
+          },
+          "config": {
+            "seed": 19000,
+            "width": 64,
+            "historyWidth": 16,
+            "batchSize": 4,
+            "learningRate": 0.001,
+            "allowPolicyOnly": false
+          }
+        },
+        "code": {
+          "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+          "dirty": false,
+          "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+        },
+        "calibrated": false,
+        "parameterCount": 1237835
+      }
+    },
+    "mps": {
+      "format": "four-shogi-checkpoint-v1",
+      "sha256": "164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "previousSha256": "65035ea7fed8430b39f4d21a0dfaa362fd394901be7c064e62286b38ba8edb7b",
+      "metadata": {
+        "contract": {
+          "modelVersion": "four-shogi-tiny-policy-value-v1",
+          "featureVersion": "four-shogi-features-v1",
+          "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+          "rulesVersion": 1,
+          "actionEncodingVersion": "four-shogi-policy-index-v1",
+          "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+          "data": {
+            "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+            "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+            "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+          },
+          "codeHash": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14",
+          "runtime": {
+            "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+            "torch": "2.14.1",
+            "platform": "macOS-27.0.1-arm64-arm-64bit",
+            "machine": "arm64",
+            "device": "mps",
+            "threads": 1,
+            "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+            "dependencies": [
+              "Jinja2==3.1.6",
+              "MarkupSafe==3.0.4",
+              "filelock==4.2.0",
+              "fsspec==2026.9.0",
+              "mpmath==1.3.0",
+              "networkx==3.7",
+              "pip==25.0.1",
+              "setuptools==84.0.0",
+              "sympy==1.14.0",
+              "torch==2.14.1",
+              "typing_extensions==4.16.0"
+            ],
+            "environment": {
+              "PYTORCH_ENABLE_MPS_FALLBACK": null,
+              "OMP_NUM_THREADS": null,
+              "MKL_NUM_THREADS": null,
+              "VECLIB_MAXIMUM_THREADS": null
+            }
+          },
+          "config": {
+            "seed": 19000,
+            "width": 64,
+            "historyWidth": 16,
+            "batchSize": 4,
+            "learningRate": 0.001,
+            "allowPolicyOnly": false
+          }
+        },
+        "code": {
+          "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+          "dirty": false,
+          "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+        },
+        "calibrated": false,
+        "parameterCount": 1237835
+      }
+    }
+  },
+  "learningManifest": {
+    "schemaVersion": 1,
+    "format": "four-shogi-learning-data-v1",
+    "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+    "rulesVersion": 1,
+    "featureVersion": "four-shogi-features-v1",
+    "actionEncodingVersion": "four-shogi-policy-index-v1",
+    "actionSpaceSize": 13446,
+    "currentFeatureSize": 4481,
+    "historyFeatureSize": 4463,
+    "maxHistoryEntries": 2048,
+    "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+    "source": {
+      "manifest": {
+        "schemaVersion": 1,
+        "format": "four-shogi-training-record-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "featureVersion": null,
+        "stateEncodingVersion": "analysis-state-v1",
+        "code": {
+          "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+          "dirty": false,
+          "sourceHash": "807c06d2021d800ec96e1eb5a28117278cba2ab16313d7d4413de4ba510b3679",
+          "runnerHash": "2fb132194fb265c9c512e2fb11f6e50d65bd3764c2e2012c86ef9b51d3364219",
+          "runtime": {
+            "bun": "1.4.2",
+            "platform": "darwin",
+            "arch": "arm64"
+          }
+        },
+        "config": {
+          "origins": [
+            {
+              "seed": 19000,
+              "replay": null
+            },
+            {
+              "seed": 59000,
+              "replay": null
+            }
+          ],
+          "restrictions": [false, true],
+          "seatOffsets": ["south"],
+          "agents": [
+            {
+              "id": "small",
+              "kind": "analysis",
+              "settings": {
+                "timeBudgetMs": null,
+                "maxWork": 1,
+                "maxDepth": 64,
+                "width": 6,
+                "rootWidth": 24,
+                "extensions": 1,
+                "candidateCount": 3,
+                "algorithm": "maxn",
+                "cacheSize": 256,
+                "moveOrdering": "tactical",
+                "evaluationWeights": {
+                  "undefended": 0.7,
+                  "exchange": 0.45,
+                  "kingRing": 35,
+                  "check": 300,
+                  "mobility": 3,
+                  "advancement": 6,
+                  "shelter": 12,
+                  "survival": 0
+                },
+                "exploration": 1.4,
+                "rolloutPlies": 2,
+                "maxSimulations": 10000,
+                "seed": 0,
+                "dangerWork": 0,
+                "dangerPlies": 8,
+                "includeAction": null
+              }
+            }
+          ],
+          "lineups": [["small", "small", "small", "small"]],
+          "teacher": {
+            "timeBudgetMs": null,
+            "maxWork": 128,
+            "maxDepth": 64,
+            "width": 6,
+            "rootWidth": 24,
+            "extensions": 0,
+            "candidateCount": 3,
+            "algorithm": "maxn",
+            "cacheSize": 256,
+            "moveOrdering": "tactical",
+            "evaluationWeights": {
+              "undefended": 0.7,
+              "exchange": 0.45,
+              "kingRing": 35,
+              "check": 300,
+              "mobility": 3,
+              "advancement": 6,
+              "shelter": 12,
+              "survival": 0
+            },
+            "exploration": 1.4,
+            "rolloutPlies": 2,
+            "maxSimulations": 10000,
+            "seed": 0,
+            "dangerWork": 0,
+            "dangerPlies": 8,
+            "includeAction": null
+          },
+          "sampling": {
+            "every": 16,
+            "important": true,
+            "maxPositions": 8
+          },
+          "maxPlies": 512
+        },
+        "cpuSources": {},
+        "starts": [
+          {
+            "origin": 0,
+            "seed": 19000,
+            "familyId": "991596f6b870ba2dcdfe11c7d5f973ba9f4198ebc51a2bcc0ad7d8a9614c730b",
+            "split": "train",
+            "replay": {
+              "schemaVersion": 1,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "initial": {
+                "mode": "singles",
+                "players": {
+                  "south": "south",
+                  "west": "west",
+                  "north": "north",
+                  "east": "east"
+                },
+                "threePlayerAttackProhibited": false
+              },
+              "events": [
+                {
+                  "index": 0,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 1,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 2,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 3,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 4,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 5,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 6,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 7,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 8,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 9,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 10,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 11,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "silver",
+                      "to": {
+                        "x": 4,
+                        "y": 3
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "stateHash": "2df889eb6d1ba1e12a69a6ef09ef57a95cd2bbaa9e1529994088012894e5b024",
+            "restricted": false
+          },
+          {
+            "origin": 0,
+            "seed": 19000,
+            "familyId": "991596f6b870ba2dcdfe11c7d5f973ba9f4198ebc51a2bcc0ad7d8a9614c730b",
+            "split": "train",
+            "replay": {
+              "schemaVersion": 1,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "initial": {
+                "mode": "singles",
+                "players": {
+                  "south": "south",
+                  "west": "west",
+                  "north": "north",
+                  "east": "east"
+                },
+                "threePlayerAttackProhibited": true
+              },
+              "events": [
+                {
+                  "index": 0,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 1,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 2,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 3,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 5,
+                        "y": 4
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 4,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 5,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 2
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 6,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 0
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 7,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 6
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 8,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 9,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 0,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 10,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 11,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "dropPiece",
+                      "pieceKind": "silver",
+                      "to": {
+                        "x": 4,
+                        "y": 3
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "stateHash": "7d63d3034e266d7f6dafa3aaeab153f3f03bda6faebe8f040b468c50f69cbcd2",
+            "restricted": true
+          },
+          {
+            "origin": 1,
+            "seed": 59000,
+            "familyId": "af9726eaa62ff2dec0c2b8198bc66dcaacc7260d8a00cfd476c054f8da56bb30",
+            "split": "validation",
+            "replay": {
+              "schemaVersion": 1,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "initial": {
+                "mode": "singles",
+                "players": {
+                  "south": "south",
+                  "west": "west",
+                  "north": "north",
+                  "east": "east"
+                },
+                "threePlayerAttackProhibited": false
+              },
+              "events": [
+                {
+                  "index": 0,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 1,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 2,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 3,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 4,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 5,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 6,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 7,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 8,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 9,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 10,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 11,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                }
+              ]
+            },
+            "stateHash": "7265f9f83b1d72041c099815bbddca4e66bc2d71ffcf33b62a099cb441d950e6",
+            "restricted": false
+          },
+          {
+            "origin": 1,
+            "seed": 59000,
+            "familyId": "af9726eaa62ff2dec0c2b8198bc66dcaacc7260d8a00cfd476c054f8da56bb30",
+            "split": "validation",
+            "replay": {
+              "schemaVersion": 1,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "initial": {
+                "mode": "singles",
+                "players": {
+                  "south": "south",
+                  "west": "west",
+                  "north": "north",
+                  "east": "east"
+                },
+                "threePlayerAttackProhibited": true
+              },
+              "events": [
+                {
+                  "index": 0,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 1,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 0,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 2,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 5,
+                        "y": 0
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 3,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 8,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 4,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 8
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 7
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 5,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 2,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 6,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 6,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 7,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 7,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 3
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 8,
+                  "event": {
+                    "type": "action",
+                    "side": "south",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 2,
+                        "y": 7
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 6
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 9,
+                  "event": {
+                    "type": "action",
+                    "side": "west",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 1,
+                        "y": 4
+                      },
+                      "to": {
+                        "x": 1,
+                        "y": 3
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 10,
+                  "event": {
+                    "type": "action",
+                    "side": "north",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 3,
+                        "y": 1
+                      },
+                      "to": {
+                        "x": 3,
+                        "y": 2
+                      },
+                      "promote": false
+                    }
+                  }
+                },
+                {
+                  "index": 11,
+                  "event": {
+                    "type": "action",
+                    "side": "east",
+                    "action": {
+                      "type": "movePiece",
+                      "from": {
+                        "x": 7,
+                        "y": 5
+                      },
+                      "to": {
+                        "x": 6,
+                        "y": 5
+                      },
+                      "promote": false
+                    }
+                  }
+                }
+              ]
+            },
+            "stateHash": "9cb446fc52fae44392db81c9d7d0a24a8e3aeb9aa72ea555a2a7f71a6d2d5927",
+            "restricted": true
+          }
+        ],
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+      },
+      "inspection": {
+        "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97",
+        "planned": 4,
+        "pending": 0,
+        "inProgress": 0,
+        "finished": 4,
+        "truncated": 0,
+        "positions": 889,
+        "policySamples": 31,
+        "valueSamples": 32,
+        "splits": {
+          "train": 2,
+          "validation": 2,
+          "calibration": 0,
+          "test": 0
+        },
+        "logicalBytes": 2849517,
+        "splitFamilies": 2,
+        "complete": true,
+        "contentHash": "a15a7052e152825d4fe5fc76b081658cf18d50c444e5aa26772039664554d83c"
+      },
+      "plans": [
+        {
+          "gameId": "6a8cacd5d4511d12a72b7575973480c1d877bd26d9648cddbd05f44fbeefebdc",
+          "start": 0,
+          "seatOffset": "south",
+          "familyId": "991596f6b870ba2dcdfe11c7d5f973ba9f4198ebc51a2bcc0ad7d8a9614c730b",
+          "split": "train",
+          "lineup": {
+            "south": "small",
+            "west": "small",
+            "north": "small",
+            "east": "small"
+          }
+        },
+        {
+          "gameId": "cb5a6f5283f3249034e03b3eb3d10d51bc0070c1e80830e41644c4c5e3dbb0d3",
+          "start": 1,
+          "seatOffset": "south",
+          "familyId": "991596f6b870ba2dcdfe11c7d5f973ba9f4198ebc51a2bcc0ad7d8a9614c730b",
+          "split": "train",
+          "lineup": {
+            "south": "small",
+            "west": "small",
+            "north": "small",
+            "east": "small"
+          }
+        },
+        {
+          "gameId": "2c4e3708669141285e028ea4bfdfe5024464112c90614a756786d21507c144ba",
+          "start": 2,
+          "seatOffset": "south",
+          "familyId": "af9726eaa62ff2dec0c2b8198bc66dcaacc7260d8a00cfd476c054f8da56bb30",
+          "split": "validation",
+          "lineup": {
+            "south": "small",
+            "west": "small",
+            "north": "small",
+            "east": "small"
+          }
+        },
+        {
+          "gameId": "03b8dd736cb0710dc8b85834c11fe0f8fda9ae352c1928d533e33b404723a5cb",
+          "start": 3,
+          "seatOffset": "south",
+          "familyId": "af9726eaa62ff2dec0c2b8198bc66dcaacc7260d8a00cfd476c054f8da56bb30",
+          "split": "validation",
+          "lineup": {
+            "south": "small",
+            "west": "small",
+            "north": "small",
+            "east": "small"
+          }
+        }
+      ]
+    },
+    "exporter": {
+      "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+      "dirty": false,
+      "sourceHash": "807c06d2021d800ec96e1eb5a28117278cba2ab16313d7d4413de4ba510b3679",
+      "runnerHash": "2fb132194fb265c9c512e2fb11f6e50d65bd3764c2e2012c86ef9b51d3364219",
+      "runtime": {
+        "bun": "1.4.2",
+        "platform": "darwin",
+        "arch": "arm64"
+      }
+    },
+    "samples": {
+      "file": "samples.jsonl",
+      "sha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+      "bytes": 496174,
+      "count": 32,
+      "splits": {
+        "train": 16,
+        "validation": 16,
+        "calibration": 0,
+        "test": 0
+      }
+    }
+  },
+  "verification": {
+    "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+    "results": [
+      {
+        "command": "bun run build",
+        "exitCode": 0,
+        "seconds": 8.75
+      },
+      {
+        "command": "bun run --cwd apps/worker deploy:dry-run",
+        "exitCode": 0,
+        "seconds": 0.68
+      },
+      {
+        "command": "bun run build:development",
+        "exitCode": 0,
+        "seconds": 8.85
+      },
+      {
+        "command": "bun run --cwd apps/worker deploy:dry-run:development",
+        "exitCode": 0,
+        "seconds": 0.66
+      }
+    ],
+    "check": {
+      "command": "bun run check",
+      "exitCode": 0,
+      "execution": "通常のHusky pre-commit",
+      "commitWallSeconds": 66.58,
+      "fourShogiTests": 458,
+      "pythonTestsOutsideCheck": 10
+    }
+  },
+  "limitations": [
+    "四局・各fold一開始系列のみ",
+    "Valueは全32局面が単独勝者なし",
+    "CPU20step/MPS8stepは機能確認で棋力・校正の証拠ではない",
+    "CPUとMPSのbit一致・Linux推論・長時間最大RSSは未確認",
+    "データ・checkpointの長期保存場所/期間はT05で未決"
+  ]
+}

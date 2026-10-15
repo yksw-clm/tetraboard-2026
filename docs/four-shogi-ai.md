@@ -216,3 +216,24 @@ work比較は全件が処理量、100ms比較は全件が期限で終了しま�
 容量32,768 bytesの検査では、次の書込み前に `byte_limit` で停止し、11,176 bytes・生成途中2局のチェックポイントを保持しました。容量だけを8MiBへ増やして再開し、8手・4Policy教師・手数打切り2局を完成しました。64MiBのRSS設定では `memory_limit` で停止し、生成途中を完了へ置換していません。観測RSSは140,623,872 bytesまで達しており、設定値を超えないhard limitではないことも確認しました。
 
 測定対象の通常pre-commitで `bun run check` が成功（コミット全体70.78秒、四人将棋455テスト・新規15件）。本番build8.99秒・dry-run0.67秒・開発build8.65秒・開発dry-run0.60秒も同じコードで成功しました。固定Lv2との6局面の着手/診断も一致し、15ソースの固定hash `38e9b81f…` を維持しています。測定後は記録文書と、非零座標の4方向の行動IDを固定した期待値で検証するテストを補いました。生成ソース/runnerのhashは維持し、提出対象の必須5コマンドとGitHub CIの結果はPRにも記載します。PyTorch学習・Linux/VPS・モデル実使用・棋力・確率校正は後続です。
+
+
+## 軽量Policy/Value学習と再開の初期検証（#190）
+
+2026-10-15、測定コード `87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c`、Apple M5/24GiB/Darwin27 arm64、Bun1.4.2、Python3.12.14/PyTorch2.14.1で実行しました。[設定・環境・全コマンド・損失・hash](four-shogi-ai-learning-results.json)と[学習契約・再現手順](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を参照してください。生成/出力/学習のdirtyはいずれもfalseです。大量データ・重みはGitへ含めず、今回の機能確認用artifactは `/private/tmp/tetraboard-ai190-final` に保存しました。
+
+`training:smoke-data` はtrain seed19000/validation seed59000の各1系列、三人攻撃禁止ON/OFF、同一の弱い相手4体（work1）、教師work128/延長0、最大512手/8教師局面で生成します。計4局889手が全て千日手で自然終局し、Policy31局面・Value32局面を保存しました。各fold16局面、ON/OFF各8、**全Valueが単独勝者なし**です。Policyの完成比較がない1局面もValueのみで扱いました。TSの全再生/教師PV/分割検査後に32局面/496,174bytesのJSONLへ出力しました。dataset IDは `213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97`、入力SHA-256は `2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af`。calibration/testと最終棋力用seedは未使用です。
+
+モデルは既定幅64/履歴16、1,237,835パラメータ、batch4/Adam0.001/seed19000。CPU1threadは20stepを10stepで保存/停止して再開し、MPSは8stepを4stepで保存/停止して再開しました。各device内の同条件の連続実行と、全重み・Adam状態・サンプラ/CPU/Python/MPS乱数が一致しました。MPSは `deterministic_algorithms=True` を維持します。CPUとMPSの比較は異なるstep数なので速度/優劣の判断には使いません。
+
+| 条件              | train Policy loss | train Value loss | validation Policy loss | validation Value loss | validation Policy一致率 |
+| ----------------- | ----------------- | ---------------- | ---------------------- | --------------------- | ----------------------- |
+| CPU学習前         | 1.702264          | 1.621851         | 1.992573               | 1.617810              | 0.25                    |
+| CPU20step・再開後 | 0.674779          | 0.076174         | 1.908239               | 0.176638              | 0.50                    |
+| MPS8step・再開後  | 1.555225          | 1.112762         | 1.984443               | 1.218702              | 0.25                    |
+
+CPUの機能確認モデルIDは `four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5`、MPSは `four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d`。各checkpointをMac CPUへ再読込し、ON/OFF両局面で違法手のPolicy確率0と正規化を確認しました。再開した保存先は直前/最新の2世代を含み、CPU29,773,096bytes・MPS29,773,666bytesです。同じ状態の再保存でも直前の別checkpointを保持する回帰を検証しました。保存容量上限・排他・checksum破損・不正参照時の重み保持・孤立ファイル回収も確認しています。
+
+通常checkの四人将棋458テスト（新規Bun3）と、check外のPython10テスト（MPS逆伝播を含む）が成功しました。CPU中断再開の全状態一致、違法Policy/未終局Value/系列漏れの拒否と5分類の絶対席順も確認しました。必須5コマンドは上記コードで成功し、checkは通常のpre-commit（commit処理全体66.58秒）、build8.75秒・本番dry-run0.68秒・開発build8.85秒・開発dry-run0.66秒です。後続の測定記録追加は文書だけで、学習/生成ソース・設定は同じです。最終PRでGitHub CIも独立して確認します。
+
+少数かつ各fold1系列で、弱い相手の千日手だけをValue教師にしています。loss低下やPolicy一致率は棋力・単独1位の予測精度・勝率校正の証拠にしません。勝者を含む十分な独立データ、Linux CPUでの出力整合/速度、共通探索での実使用、長時間RSS/学習性能は後続です。全artifactは `calibrated: false` で、UIの勝率％表示は追加していません。

@@ -1,6 +1,6 @@
 # 四人将棋シングルスAI・解析エンジンの実装計画と契約
 
-> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-15。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。学習済みモデル・VPS接続・解析画面は後続。
+> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-15。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開も実装。Linux推論・共通探索へのモデル実使用・VPS接続・解析画面は後続。
 
 [親Issue #183](https://github.com/yksw-clm/tetraboard-2026/issues/183) の計画を実装へ渡すための文書。現在の合法手・手番・勝敗と現行Lv1/Lv2は [四人将棋ルール正本](rules/four-shogi.md)、共通の時計・参加・棋譜公開は [README](../README.md) を参照する。D01〜D05の推奨案を採用する。具体的なAPI型・推論形式・設定値は後続Issueで検証し、未決事項を推測で確定しない。利用者向け変更とCPU採用仕様は、実装時に対応する正本へ反映する。
 
@@ -43,7 +43,7 @@
 | 暫定順位              | 評価から推定した優劣・順位。確定順位を上書きせず、同評価の同率や不確実性を許す                                            |
 | 単独1位確率           | 相手群・思考予算・ルール・モデルを指定した予測。校正前の数値は探索内部の実験に限定する                                    |
 
-Valueの初期案は「南・西・北・東の単独勝ち＋単独勝者なし」の5分類。4人の単独1位確率の和は100%以下となり得る。順位は必要なら別の補助出力にし、勝利ラベルと混ぜない。出力形式・損失・特徴量は [#190](https://github.com/yksw-clm/tetraboard-2026/issues/190) で実装・検証する案であり、具体的な特徴テンソルや重みは未確定。
+Valueの初期案は「南・西・北・東の単独勝ち＋単独勝者なし」の5分類。4人の単独1位確率の和は100%以下となり得る。順位は必要なら別の補助出力にし、勝利ラベルと混ぜない。初期の出力形式・損失・特徴量は [#190の学習契約](#軽量policyvalueの学習とチェックポイント190)で実装しました。棋力と校正の達成は別に検証します。
 
 現行Lv2は同率1位も即勝利として優先し、終局の1位へ同じ評価を与える。現行仕様に沿う動作であり、今回の目的との差として扱う。新AIの即勝利判定と教師ラベルは単独勝者を区別する。また現行Workerの `cpuDraw` は生存する人間全員の引分提案へCPUが同意する。現行Lv1/Lv2の同意は維持し、新AIの同意は承認済みD01に従って#194で実装する。
 
@@ -267,11 +267,11 @@ CPUの障害時の動作はD05の判断対象。推奨案は、現時点で有�
 
 manifestの系列・相手群・思考予算・教師・選別・手数上限は再開時に変更できません。完了済みゲームはスキップし、同じ開始状態と相手配列になる席替えも重複生成しません。ソース集合/runner hashとBun版・OS・アーキテクチャが異なれば再開を拒否します。文書だけのコミットで同一ソースを使う場合は、元manifestのコードSHAを継続使用します。新コード/モデル/別の計画は別datasetにし、初期の学習入力は一つのmanifestを単位に扱います。複数manifestの無検査結合は認めません。
 
-相手は共通AIの異なる処理量と、#185の固定Lv2または `commit:<40桁SHA>` の過去CPUを混ぜられます。過去CPUのソースhash・探索条件もmanifestへ記録/照合します。学習済みモデルの旧checkpointはまだなく、model IDはnullです。固定CPUの履歴が必要な環境では事前に対象コミットをfetchします。通常checkのテストはGit履歴や学習モデルを必要としません。
+相手は共通AIの異なる処理量と、#185の固定Lv2または `commit:<40桁SHA>` の過去CPUを混ぜられます。過去CPUのソースhash・探索条件もmanifestへ記録/照合します。この生成版は静的評価の相手だけを扱い、model IDはnullです。#190の学習checkpointを探索・生成に使う接続は#192で行います。固定CPUの履歴が必要な環境では事前に対象コミットをfetchします。通常checkのテストはGit履歴や学習モデルを必要としません。
 
 教師は周期・現在の王手/直前の捕獲で選び、局あたりの件数に上限を設けます。`every: 0` と `important: true` で重要局面だけにし、teacherのworkを大きくすれば長い再解析を選択局面へ限定できます。再開の決定性のため、生成時のAIは壁時計予算を拒否し、固定workと記録したseedを使います。各教師には実戦手を `includeAction` で比較指定します。候補・読み筋・4人評価・試行数・選択的探索/打切り・実使用モデルを保存し、完成比較がない場合はPolicy教師IDをnullにします。MCTSの上位候補だけの訪問数を、全合法手の完全な訪問分布へ正規化しません。
 
-`@tetraboard/four-shogi/action-encoding` の版は `four-shogi-policy-index-v1`、行動空間は13,446です。座標を `square = y*9+x` とし、移動は `2*(fromSquare*81+toSquare)+promote`、打は `13122 + kindIndex*81+toSquare`（駒順は飛・金・銀・歩）です。成りはこの手で新たに成る指定で、成駒の通常移動はfalseです。幾何的に不可能なIDも含む固定空間なので、保存した疎な合法手IDを `legalActionMask` で復元して制限します。絶対座標と南・西・北・東の対応を固定し、席替えを座標変換と混同しません。AIの生の着手語彙 `four-shogi-action-v1` と数値index版は別の項目です。`stateEncodingVersion: analysis-state-v1` は完全状態の保存形式で、NNの特徴tensorは未実装のため `featureVersion: null` です。
+`@tetraboard/four-shogi/action-encoding` の版は `four-shogi-policy-index-v1`、行動空間は13,446です。座標を `square = y*9+x` とし、移動は `2*(fromSquare*81+toSquare)+promote`、打は `13122 + kindIndex*81+toSquare`（駒順は飛・金・銀・歩）です。成りはこの手で新たに成る指定で、成駒の通常移動はfalseです。幾何的に不可能なIDも含む固定空間なので、保存した疎な合法手IDを `legalActionMask` で復元して制限します。絶対座標と南・西・北・東の対応を固定し、席替えを座標変換と混同しません。AIの生の着手語彙 `four-shogi-action-v1` と数値index版は別の項目です。`stateEncodingVersion: analysis-state-v1` は完全状態の保存形式で、この生成形式の `featureVersion: null` は維持し、#190の別形式への出力時にNN特徴版を付けます。
 
 終局結果のValueは `[南の単独勝ち, 西, 北, 東, 単独勝者なし]`。同率1位は最後の分類で、順位は正本の結果を別に保持します。`in_progress` / `truncated` は `outcome: null` で、引分やValue教師へ置換しません。完成した打切り記録の有効なPolicy教師は利用できますが、生成途中のファイルは採用対象外です。探索評価を校正済み勝率として公開しません。
 
@@ -308,6 +308,37 @@ bun run --cwd packages/four-shogi selfplay --kind=inspect --output=/tmp/four-sho
 ```
 
 コード/runnerに未コミット変更がある生成は既定で拒否し、開発中の実験に限って `--allow-dirty=true` を明示できます。大量データをGitへ追加せず、検証用の/tmpと長期保存先を区別します。レポートには今回生成した局面/秒・選別教師/秒・新規記録/時（打切りを含む）・自然終局/時・byte量・観測RSS・10万Policy局面の容量見積りを出します。少数smokeの値を持続性能や棋力の保証にせず、[測定記録](four-shogi-ai.md#自己対戦と探索教師生成の初期検証189)へ対象SHAと条件を残します。
+
+### 軽量Policy/Valueの学習とチェックポイント（#190）
+
+`training/four-shogi-ai` にPython 3.12とPyTorch 2.14.1の小規模学習CLIを置きます。ルール判定はTSが正本です。`training:export` は#189の単一datasetを排他して全イベント・完全状態・教師PV・結果・版・系列分離を再検査し、完了済みの局だけを新しい出力先へ渡します。`samples.jsonl` とmanifestにSHA-256、全件数/分割、元manifest/検査/計画、出力コード版を残します。生成途中は除外し、手数打切りはPolicyだけ、自然終局だけをValueへ採用します。教師は完成した探索の最良手IDで、全合法手の訪問分布と偽りません。
+
+特徴版は `four-shogi-features-v1`。絶対座標・南/西/北/東を維持し、行動IDは既存の `four-shogi-policy-index-v1`（13,446）を使います。現在局面4,481要素は、81マス×33駒/空マス、持駒16、生存4、実手番5、各攻撃関係の有無/理由/解除待ち/標的マス、取り返し4×81、ON/OFF・引分提案・確定順位/脱落群・手数・直前の手/陣営です。盤上の一時IDはルールの千日手キーと同じ標的マス対応へ正規化し、参加者の個人情報を含めません。
+
+反復辞書の**全項目**を、過去の盤面・持駒・生存/手番・攻撃/取り返しと反復回数を含む4,463要素の可変長集合にします。合法手マスクや履歴hashでの代用、一定手数だけの切出しは行いません。最大2,048項目を超えた局面は黙って切り捨てず拒否します。各疎特徴を共有MLPで16次元へ変換し、全項目の和/件数平方根と件数を現在局面へ結合します。この学習集約は合法手判定や履歴の同一性判定には使いません。
+
+モデル版は `four-shogi-tiny-policy-value-v1`。既定の隠れ幅64の小さなMLPとPolicy 13,446/Value 5分類です。PolicyはTSから渡した合法手以外のlogitを負の無限大にし、softmax後は違法手へ厳密に0を返します。Valueの順は `[南の単独勝ち, 西, 北, 東, 単独勝者なし]`、既に脱落した陣営の出力も0にします。同率1位は最後の分類で、未終局をその教師へ変換しません。Policy/Valueはそれぞれ有効な教師だけのcross entropy平均を加算し、Adamで学習します。Value教師のないtrainは既定で拒否し、Policyのみの実験に限り `--allow-policy-only` を明示します。train/validationの両方を必須にして系列・回転局面・ゲームID・版・checksumをPythonでも検査します。calibration/testは整合性検査だけを行い、最適化や学習中の損失評価に使いません。
+
+checkpointはモデルの `state_dict`・Adam状態・step・専用サンプラ/CPU/Python/MPS乱数・各headの教師数/5分類分布/ON/OFF件数とlossを保存します。モデル/特徴/行動/ルール版、データのmanifest/内容hash、学習ソースhash、seed/設定、Python/PyTorch/全依存版・OS/アーキテクチャ/演算設定も残します。再開は同じデータ・ソース・環境・学習設定を照合し、steps/保存周期/容量/時間は運用上限として変更できます。CPUの同一環境で連続学習との重み・最適化器・乱数の一致を検証します。[PyTorchの再現性の制約](https://docs.pytorch.org/docs/2.14/notes/randomness.html)に従い、異なる環境・CPUとMPSの一致は保証しません。
+
+保存先は専用ディレクトリに限定し、OSのfile lockで二重学習を拒否します。重みをhash名へfsync/atomic renameしてから最新manifestを原子的に切り替え、前回と今回を保持します。失敗や強制終了で残った一時/孤立ファイルは再開時に回収します。容量超過では前回のcheckpointを維持し、参照が壊れた場合は重みを削除せず停止します。[重み保存の公式推奨](https://docs.pytorch.org/docs/2.14/notes/serialization.html)に沿い、`torch.load(..., weights_only=True, map_location="cpu")` で読み、任意のPythonモデルobjectを復元しません。モデルIDはモデル版と保存artifactのSHA-256です。既定上限は入力256MiB・checkpoint128MiB（旧版と一時書込み込み）・100step・1回600秒、batch4/CPU1thread。時間はstep境界で確認するため、初期化・評価・保存を含む厳密な期限ではありません。全データの疎表現はメモリへ読み、密tensorはbatch単位で作ります。長時間の最大RSS・大規模性能は別測定です。
+
+```sh
+# Python 3.12を使用。専用venvだけに依存を入れる
+python3.12 -m venv /tmp/four-shogi-training-env
+/tmp/four-shogi-training-env/bin/python -m pip install -r training/four-shogi-ai/requirements.txt
+# 4局の実自己対戦とTS再生検査。raw/inputは専用パスで、inputの既存先は上書きしない
+bun run --cwd packages/four-shogi training:smoke-data /tmp/four-shogi-raw /tmp/four-shogi-input
+# CPU再開一致・合法手/席対応・破損/分割拒否、利用可能ならMPS逆伝播も検証
+/tmp/four-shogi-training-env/bin/python training/four-shogi-ai/trainingTest.py /tmp/four-shogi-input
+# 20stepの途中で保存して停止し、同じ設定で残りを再開
+/tmp/four-shogi-training-env/bin/python training/four-shogi-ai/train.py --data=/tmp/four-shogi-input --output=/tmp/four-shogi-checkpoint --steps=20 --stop-after-steps=10 --report=/tmp/four-shogi-first.json
+/tmp/four-shogi-training-env/bin/python training/four-shogi-ai/train.py --data=/tmp/four-shogi-input --output=/tmp/four-shogi-checkpoint --steps=20 --report=/tmp/four-shogi-resumed.json
+```
+
+Macでは `--device=mps` を両実行へ同じように追加できます。利用できないMPSはエラーにし、CPUへ黙って切り替えません。開発中の未コミットコードには生成・学習それぞれで `--allow-dirty` が必要です。通常checkへPyTorchや学習を追加せず、Bunの特徴/出力テストと別実行の極小smokeを分担します。大量生成・重い学習も別コマンドです。データとcheckpointはGitへ追加せず、長期保存場所/期間はT05の未決事項を維持します。
+
+モデルの出力は未校正で、manifest/reportも `calibrated: false`。UIへ勝率％を公開せず、Linux CPUロード・数値整合/配布方式は#191、共通探索での実使用は#192で測定します。初期smokeの少数・弱い相手・同じ結果へ偏ったValue教師では棋力や一般化を判定しません。
 
 ## 承認済みの設計判断
 
