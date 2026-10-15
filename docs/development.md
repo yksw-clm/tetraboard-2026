@@ -58,6 +58,8 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 
 Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Alarmで適用します。内部対局ID・部屋世代・CPU本人とレベル・ゲーム局面キー・手番開始時刻で照合し、通常GETでは選択も適用も起動しません。記録導入前の対局IDなしのDOも進行できます。手番外の脱落でもジョブを破棄し、チャット・スタンプだけで再探索しません。詳細な検証の分担は [四人リバーシAI強化の確認](testing.md#四人リバーシai強化の確認) を参照します。
 
+#190の [modelFeatures.ts](../packages/four-shogi/src/modelFeatures.ts) は固定の盤面/実手番/攻撃/取り返しと全反復辞書を疎特徴へ変換します。[trainingExport.ts](../packages/four-shogi/bench/trainingExport.ts) は#189の全再生検査後に単一manifestの教師を新規出力先へ出し、元データを書き換えません。[trainingSmokeData.ts](../packages/four-shogi/bench/trainingSmokeData.ts) は通常check外の少数実自己対戦です。Pythonの [dataset.py](../training/four-shogi-ai/dataset.py) がchecksum/分割/ラベルを、[model.py](../training/four-shogi-ai/model.py) が全履歴の共有MLPとPolicy/Valueを、[train.py](../training/four-shogi-ai/train.py) と [checkpoint.py](../training/four-shogi-ai/checkpoint.py) が決定的なCPU学習・MPS・再開契約・原子的保存を担当します。依存は [requirements.txt](../training/four-shogi-ai/requirements.txt) に固定し、通常のBun/Web/WorkerにPyTorchを含めません。[セットアップと再現コマンド](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を使い、実モデルの推論接続は#191/#192へ引き継ぎます。
+
 ## Development Strategy
 
 既存の共通ロビー・ルーム・記録機能を土台に、ゲーム固有のエンジンと画面を追加します。検証は純粋関数、部品・hook、Worker統合テストへ集約します。
@@ -70,7 +72,7 @@ Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Ala
 
 IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCatalog.test.ts test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` で確認します。軽量入口の依存は `bun build packages/protocol/src/games.ts --target=browser --outfile=/tmp/tetraboard-game-catalog.js --metafile=/tmp/tetraboard-game-catalog.meta.json` の入力一覧で確認できます。
 
-#189のデータ生成は [selfPlayCli.ts](../packages/four-shogi/bench/selfPlayCli.ts) が入口です。[selfPlayData.ts](../packages/four-shogi/bench/selfPlayData.ts) は版付きmanifest/系列/分割/相手/教師の設定、[selfPlayGame.ts](../packages/four-shogi/bench/selfPlayGame.ts) は既存対戦runnerのhookで完全イベント・必要局面・教師を記録します。[selfPlayRun.ts](../packages/four-shogi/bench/selfPlayRun.ts) と [selfPlayWorker.ts](../packages/four-shogi/bench/selfPlayWorker.ts) がBun子プロセスの上限/中断/ACKを、[selfPlayStore.ts](../packages/four-shogi/bench/selfPlayStore.ts) が親だけの原子的保存/lock/容量を担当し、[selfPlayInspect.ts](../packages/four-shogi/bench/selfPlayInspect.ts) が再生/結果/マスク/版/漏れを照合します。[actionEncoding.ts](../packages/four-shogi/src/actionEncoding.ts) はBun/FSへ依存しない固定行動IDです。固定CPUの一時ソースもdataset内scratchへ置き、終了・再開時に回収します。[保存形式と操作手順](four-shogi-ai-engine.md#自己対戦と探索教師データ189)、[テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。Python学習は#190で実装し、空の学習パッケージは追加しません。
+#189のデータ生成は [selfPlayCli.ts](../packages/four-shogi/bench/selfPlayCli.ts) が入口です。[selfPlayData.ts](../packages/four-shogi/bench/selfPlayData.ts) は版付きmanifest/系列/分割/相手/教師の設定、[selfPlayGame.ts](../packages/four-shogi/bench/selfPlayGame.ts) は既存対戦runnerのhookで完全イベント・必要局面・教師を記録します。[selfPlayRun.ts](../packages/four-shogi/bench/selfPlayRun.ts) と [selfPlayWorker.ts](../packages/four-shogi/bench/selfPlayWorker.ts) がBun子プロセスの上限/中断/ACKを、[selfPlayStore.ts](../packages/four-shogi/bench/selfPlayStore.ts) が親だけの原子的保存/lock/容量を担当し、[selfPlayInspect.ts](../packages/four-shogi/bench/selfPlayInspect.ts) が再生/結果/マスク/版/漏れを照合します。[actionEncoding.ts](../packages/four-shogi/src/actionEncoding.ts) はBun/FSへ依存しない固定行動IDです。固定CPUの一時ソースもdataset内scratchへ置き、終了・再開時に回収します。[保存形式と操作手順](four-shogi-ai-engine.md#自己対戦と探索教師データ189)、[テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。#190の学習は以下の専用CLIで実装しました。
 
 ## 通常リバーシの実装
 
