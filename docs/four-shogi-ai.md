@@ -240,3 +240,27 @@ CPUの機能確認モデルIDは `four-shogi-tiny-policy-value-v1:28a86d3fdea2bc
 ## Linux CPU推論とMac出力の検証（#191）
 
 既承認D03の永続PyTorch CPU方式を、学習checkpointから取り出した推論専用artifactで確認します。[配布・照合・再現コマンド](four-shogi-ai-engine.md#linux-cpu推論とmac出力の照合191)を参照してください。条件はApple M5/24GiBのMacと、同じ機器上のOrbStack Linux aarch64・2CPU/1GiB制限・Torch CPU1threadです。実VPS・x86_64・最大履歴/長時間負荷の性能は未確認です。
+
+2026-10-16、対象コード `eb758ccb3ff1a337150d56a55a74c54b0a882c7e`、Python3.12.14、Mac Torch2.14.1/Linux Torch2.14.1+cpuで検証しました。[全出力・hash・環境・コマンド・結果](four-shogi-ai-inference-results.json)に根拠を保存します。#190のCPU20step/MPS8stepの機能確認モデルを再学習せず使用し、推論配布物を `/private/tmp/tetraboard-ai191` に生成しました。両方とも未校正です。
+
+共通fixture14局面の全最良手/合法手IDが一致しました。CPU学習モデルのMac CPU対Linux CPUはPolicy logit/Policyの最大誤差0、Valueが `5.96e-8`、Mac CPU対MPSはlogit `3.58e-7`、Policy/Value `5.96e-8` です。MPS学習モデルもMac CPU→Linux CPUで全出力の最大誤差0となり、Mac MPSとの照合も合格しました。測定前に固定した絶対1e-5/相対1e-4の許容差を維持し、バッチ1/4に分割した出力との一致も確認しました。違法手と脱落者の出力は厳密に0です。
+
+CPU学習モデルの推論配布物は5,062,907 bytes（重み・manifest・基準fixture込み、元の学習checkpoint約14.9MBからAdam/乱数を除外）です。LinuxイメージはPythonベースとTorch/依存を含み、容量とdigestを上記JSONに記録しました。下表の各推論はウォームアップ3回後30回、疎特徴検査/密tensor化/モデル/結果変換を含みます。IPCは別の永続プロセスへJSONLで30回送り、探索ノードごとの起動をしていません。
+
+| 項目                                                      |           Mac CPU |         Linux CPU |
+| --------------------------------------------------------- | ----------------: | ----------------: |
+| ロード・同梱基準と14局面の検査                            |           15.21ms |           26.76ms |
+| 新規常駐プロセス起動（Python/Torch import・基準検査込み） |          362.39ms |          563.89ms |
+| batch1・平均 / p95                                        |   0.201 / 0.248ms |   0.878 / 0.934ms |
+| batch4・平均 / p95                                        |   0.757 / 0.813ms |   1.494 / 1.577ms |
+| batch14・平均 / p95                                       |   3.213 / 3.320ms |   4.785 / 4.837ms |
+| JSONL batch4往復・平均 / p95                              |   1.122 / 1.348ms |   1.807 / 1.910ms |
+| 常駐workerの最大RSS                                       | 227,803,136 bytes | 265,867,264 bytes |
+
+通常Bun子プロセスを使うIPCテスト3件と四人将棋全461件、check外のPython9件をMac/Linux両方で成功しました。破損/hash/各版/重みとmanifestの組違い/設定外/欠落/非有限重みと、数値基準の不一致を拒否し、切替失敗後の旧モデル保持・起動候補失敗時の明示的な予備モデル・不正JSON後の復帰を確認しました。Bun1.4.2から同じLinux内のPython常駐プロセスを起動し、両設定2局面を30回評価する経路も検証しました。Bun IPCの起動/往復時間は上記JSONに保存しています。
+
+既存PyTorchの `torch.export` をMac/Linuxで試すと、現モデルの合法手のdata-dependent Python条件分岐により `GuardOnDataDependentSymNode` で失敗しました。可変履歴用に別のグラフ/モデルを作る追加作業と依存を増やさず、初期方式にはD03の永続PyTorch CPUを採用します。export済みランタイムとの速度比較はできていません。CPUの配布物にはMPS専用状態を含めず、学習コード/元checkpointと別の推論artifact hashを保持します。
+
+この測定は同じMac上のLinux aarch64です。実VPS・x86_64・長時間/最大履歴/多数同時実行・実探索の強さは未確認です。最大RSSは常駐workerを表にし、export試行も行う測定親プロセスの最大RSSはJSONで別記します。起動は新規プロセスですがOSのcold cacheは保証しません。機能確認モデルのValue教師は全て単独勝者なしで、棋力や勝率校正の証拠にはしません。#192で共通探索へ実使用し、#193/T02で対象VPSを決めて検証します。T05の長期保存場所は未決で、今回のartifactは一時保存です。
+
+上記ソースの通常pre-commitで `bun run check` が成功（commit処理全体65.81秒）。必須の本番build8.93秒・本番dry-run0.63秒・開発build8.74秒・開発dry-run0.60秒も成功しました。測定後は記録文書だけを追加し、最終PRでGitHub CIを独立して確認します。

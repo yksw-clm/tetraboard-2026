@@ -1,0 +1,3187 @@
+{
+  "format": "four-shogi-inference-validation-v1",
+  "date": "2026-10-16",
+  "sourceCommit": "eb758ccb3ff1a337150d56a55a74c54b0a882c7e",
+  "baseMergeCommit": "a638807b2c50c1d2abda679fc07c9a53dd7edf3c",
+  "sourceDirty": false,
+  "artifactsDirectory": "/private/tmp/tetraboard-ai191",
+  "host": {
+    "cpu": "Apple M5",
+    "memoryBytes": 25769803776,
+    "system": "Darwin27 arm64"
+  },
+  "fixture": {
+    "sha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+    "rows": 14,
+    "restrictions": [false, true],
+    "absoluteSeats": ["south", "west", "north", "east"],
+    "contains": ["attack", "recapture", "west eliminated", "action rotation correspondence"]
+  },
+  "modelPackages": {
+    "cpu-model-final": {
+      "format": "four-shogi-inference-v1",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "actionEncodingVersion": "four-shogi-policy-index-v1",
+      "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+      "rulesVersion": 1,
+      "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+      "runtime": {
+        "python": "3.12",
+        "torch": "2.14.1",
+        "device": "cpu"
+      },
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "supportedRestrictions": [false, true],
+      "calibrated": false,
+      "config": {
+        "width": 64,
+        "historyWidth": 16
+      },
+      "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "training": {
+        "checkpointSha256": "28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+        "metadata": {
+          "contract": {
+            "modelVersion": "four-shogi-tiny-policy-value-v1",
+            "featureVersion": "four-shogi-features-v1",
+            "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+            "rulesVersion": 1,
+            "actionEncodingVersion": "four-shogi-policy-index-v1",
+            "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+            "data": {
+              "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+              "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+              "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+            },
+            "codeHash": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14",
+            "runtime": {
+              "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+              "torch": "2.14.1",
+              "platform": "macOS-27.0.1-arm64-arm-64bit",
+              "machine": "arm64",
+              "device": "cpu",
+              "threads": 1,
+              "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+              "dependencies": [
+                "Jinja2==3.1.6",
+                "MarkupSafe==3.0.4",
+                "filelock==4.2.0",
+                "fsspec==2026.9.0",
+                "mpmath==1.3.0",
+                "networkx==3.7",
+                "pip==25.0.1",
+                "setuptools==84.0.0",
+                "sympy==1.14.0",
+                "torch==2.14.1",
+                "typing_extensions==4.16.0"
+              ],
+              "environment": {
+                "PYTORCH_ENABLE_MPS_FALLBACK": null,
+                "OMP_NUM_THREADS": null,
+                "MKL_NUM_THREADS": null,
+                "VECLIB_MAXIMUM_THREADS": null
+              }
+            },
+            "config": {
+              "seed": 19000,
+              "width": 64,
+              "historyWidth": 16,
+              "batchSize": 4,
+              "learningRate": 0.001,
+              "allowPolicyOnly": false
+            }
+          },
+          "code": {
+            "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+            "dirty": false,
+            "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+          },
+          "calibrated": false,
+          "parameterCount": 1237835
+        },
+        "step": 20
+      },
+      "probe": {
+        "file": "probe.json",
+        "sha256": "b048014c9fce163b127c24b71df37a6f1d042de5842f21a1b97be331001a1317",
+        "bytes": 97876
+      },
+      "weights": {
+        "file": "b328dcc9bf1ef6989c0b88b328a677cb6f359b1ff065402954def73ee9011890.pt",
+        "sha256": "b328dcc9bf1ef6989c0b88b328a677cb6f359b1ff065402954def73ee9011890",
+        "bytes": 4959685
+      }
+    },
+    "mps-model-final": {
+      "format": "four-shogi-inference-v1",
+      "modelVersion": "four-shogi-tiny-policy-value-v1",
+      "featureVersion": "four-shogi-features-v1",
+      "actionEncodingVersion": "four-shogi-policy-index-v1",
+      "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+      "rulesVersion": 1,
+      "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+      "runtime": {
+        "python": "3.12",
+        "torch": "2.14.1",
+        "device": "cpu"
+      },
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "supportedRestrictions": [false, true],
+      "calibrated": false,
+      "config": {
+        "width": 64,
+        "historyWidth": 16
+      },
+      "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "training": {
+        "checkpointSha256": "164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+        "metadata": {
+          "contract": {
+            "modelVersion": "four-shogi-tiny-policy-value-v1",
+            "featureVersion": "four-shogi-features-v1",
+            "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+            "rulesVersion": 1,
+            "actionEncodingVersion": "four-shogi-policy-index-v1",
+            "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+            "data": {
+              "manifestSha256": "7dd7374b974287f4a1dd9ad9b4e6f198b85c26cd1b87e194dfbd11b140ab35d3",
+              "samplesSha256": "2287a42978f1ca975f9e5c49834f0149098f3d553d2dfd9f3fadc5dfc2c0e5af",
+              "datasetId": "213c6b562bbcf873889d7b07db49c0dc07ef6b06e399923fe5b2e88c38ea4d97"
+            },
+            "codeHash": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14",
+            "runtime": {
+              "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+              "torch": "2.14.1",
+              "platform": "macOS-27.0.1-arm64-arm-64bit",
+              "machine": "arm64",
+              "device": "mps",
+              "threads": 1,
+              "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+              "dependencies": [
+                "Jinja2==3.1.6",
+                "MarkupSafe==3.0.4",
+                "filelock==4.2.0",
+                "fsspec==2026.9.0",
+                "mpmath==1.3.0",
+                "networkx==3.7",
+                "pip==25.0.1",
+                "setuptools==84.0.0",
+                "sympy==1.14.0",
+                "torch==2.14.1",
+                "typing_extensions==4.16.0"
+              ],
+              "environment": {
+                "PYTORCH_ENABLE_MPS_FALLBACK": null,
+                "OMP_NUM_THREADS": null,
+                "MKL_NUM_THREADS": null,
+                "VECLIB_MAXIMUM_THREADS": null
+              }
+            },
+            "config": {
+              "seed": 19000,
+              "width": 64,
+              "historyWidth": 16,
+              "batchSize": 4,
+              "learningRate": 0.001,
+              "allowPolicyOnly": false
+            }
+          },
+          "code": {
+            "commit": "87a8361dcd1e9e0d896b2e58fa6d161a15eadd5c",
+            "dirty": false,
+            "sha256": "abcf7b62aab463cec95fc982d6fecd1953fcb084d7a1c29faa86c6200292fa14"
+          },
+          "calibrated": false,
+          "parameterCount": 1237835
+        },
+        "step": 8
+      },
+      "probe": {
+        "file": "probe.json",
+        "sha256": "6e598eb0eeb046d0e74e0b810c109fa2826aee477461e5ebbfdefd71969c426e",
+        "bytes": 97942
+      },
+      "weights": {
+        "file": "466dbf335c90a7bc77562045d02a0f6d593ec874173eed3967fedd3637e22489.pt",
+        "sha256": "466dbf335c90a7bc77562045d02a0f6d593ec874173eed3967fedd3637e22489",
+        "bytes": 4959685
+      }
+    }
+  },
+  "linuxImage": {
+    "Id": "sha256:96d18f531a87bda0c2f86f28e93271f47e510f77e466463b0740fb09ac74d5a0",
+    "Architecture": "arm64",
+    "Os": "linux",
+    "Size": 1218578315,
+    "RepoDigests": [
+      "tetraboard-four-shogi-inference@sha256:96d18f531a87bda0c2f86f28e93271f47e510f77e466463b0740fb09ac74d5a0"
+    ]
+  },
+  "linuxEnvironment": {
+    "platform": "Linux-7.2.9-orbstack-00391-g2b298d05fbd4-aarch64-with-glibc2.36",
+    "cpu": "processor\t: 0\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 1\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 2\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 3\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 4\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 5\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 6\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 7\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 8\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\nprocessor\t: 9\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb dcpodp flagm2 frint i8mm bf16 ecv afp rpres ebf16\nCPU implementer\t: 0x61\nCPU architecture: 8\nCPU variant\t: 0x0\nCPU part\t: 0x000\nCPU revision\t: 0\n\n",
+    "os": "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"12\"\nVERSION=\"12 (bookworm)\"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+    "cpuMax": "200000 100000\n",
+    "memoryMax": "1073741824\n",
+    "swapMax": "0\n"
+  },
+  "commands": [
+    {
+      "name": "final-docker-build",
+      "command": [
+        "docker",
+        "build",
+        "-t",
+        "tetraboard-four-shogi-inference:issue191",
+        "training/four-shogi-ai"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.5546405410004809
+    },
+    {
+      "name": "final-mac-tests",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/inferenceTest.py",
+        "/private/tmp/tetraboard-ai191/cpu-model-final",
+        "/private/tmp/tetraboard-ai191/fixture.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.2743044580001879
+    },
+    {
+      "name": "final-mac-cpu",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/inferenceSmoke.py",
+        "--model",
+        "/private/tmp/tetraboard-ai191/cpu-model-final",
+        "--fixture",
+        "/private/tmp/tetraboard-ai191/fixture.json",
+        "--output",
+        "/private/tmp/tetraboard-ai191/final-mac-cpu.json",
+        "--device",
+        "cpu"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.8088467919997129
+    },
+    {
+      "name": "final-mac-mps",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/inferenceSmoke.py",
+        "--model",
+        "/private/tmp/tetraboard-ai191/cpu-model-final",
+        "--fixture",
+        "/private/tmp/tetraboard-ai191/fixture.json",
+        "--output",
+        "/private/tmp/tetraboard-ai191/final-mac-mps.json",
+        "--device",
+        "mps",
+        "--reference",
+        "/private/tmp/tetraboard-ai191/final-mac-cpu.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.8603365830003895
+    },
+    {
+      "name": "final-mps-trained-mac-cpu",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/inferenceSmoke.py",
+        "--model",
+        "/private/tmp/tetraboard-ai191/mps-model-final",
+        "--fixture",
+        "/private/tmp/tetraboard-ai191/fixture.json",
+        "--output",
+        "/private/tmp/tetraboard-ai191/final-mps-trained-mac-cpu.json",
+        "--device",
+        "cpu"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.6479529999996885
+    },
+    {
+      "name": "final-mps-trained-mac-mps",
+      "command": [
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "training/four-shogi-ai/inferenceSmoke.py",
+        "--model",
+        "/private/tmp/tetraboard-ai191/mps-model-final",
+        "--fixture",
+        "/private/tmp/tetraboard-ai191/fixture.json",
+        "--output",
+        "/private/tmp/tetraboard-ai191/final-mps-trained-mac-mps.json",
+        "--device",
+        "mps",
+        "--reference",
+        "/private/tmp/tetraboard-ai191/final-mps-trained-mac-cpu.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.4909170840001025
+    },
+    {
+      "name": "final-linux-cpu",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--cpus=2",
+        "--memory=1g",
+        "--memory-swap=1g",
+        "--pids-limit=64",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--tmpfs",
+        "/tmp:rw,size=64m",
+        "--user",
+        "501:20",
+        "--mount",
+        "type=bind,source=/private/tmp/tetraboard-ai191,target=/work",
+        "--entrypoint",
+        "python",
+        "tetraboard-four-shogi-inference:issue191",
+        "inferenceSmoke.py",
+        "--model",
+        "/work/cpu-model-final",
+        "--fixture",
+        "/work/fixture.json",
+        "--output",
+        "/work/final-linux-cpu.json",
+        "--reference",
+        "/work/final-mac-cpu.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 2.390886292000687
+    },
+    {
+      "name": "final-mps-trained-linux-cpu",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--cpus=2",
+        "--memory=1g",
+        "--memory-swap=1g",
+        "--pids-limit=64",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--tmpfs",
+        "/tmp:rw,size=64m",
+        "--user",
+        "501:20",
+        "--mount",
+        "type=bind,source=/private/tmp/tetraboard-ai191,target=/work",
+        "--entrypoint",
+        "python",
+        "tetraboard-four-shogi-inference:issue191",
+        "inferenceSmoke.py",
+        "--model",
+        "/work/mps-model-final",
+        "--fixture",
+        "/work/fixture.json",
+        "--output",
+        "/work/final-mps-trained-linux-cpu.json",
+        "--reference",
+        "/work/final-mps-trained-mac-cpu.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 2.342816374999529
+    },
+    {
+      "name": "final-linux-tests",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--cpus=2",
+        "--memory=1g",
+        "--memory-swap=1g",
+        "--pids-limit=64",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--tmpfs",
+        "/tmp:rw,size=64m",
+        "--mount",
+        "type=bind,source=/private/tmp/tetraboard-ai191,target=/work,readonly",
+        "--entrypoint",
+        "python",
+        "tetraboard-four-shogi-inference:issue191",
+        "inferenceTest.py",
+        "/work/cpu-model-final",
+        "/work/fixture.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.59301908299949
+    },
+    {
+      "name": "final-bun-ipc",
+      "command": [
+        "bun",
+        "run",
+        "--cwd",
+        "packages/four-shogi",
+        "inference:smoke",
+        "/private/tmp/tetraboard-ai190/venv/bin/python",
+        "/private/tmp/tetraboard-ai191/cpu-model-final",
+        "/private/tmp/tetraboard-ai191/fixture.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.5128191670000888
+    }
+  ],
+  "bunLinuxCommand": {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--cpus=2",
+      "--memory=1g",
+      "--memory-swap=1g",
+      "--pids-limit=64",
+      "--network=none",
+      "--read-only",
+      "--cap-drop=ALL",
+      "--tmpfs",
+      "/tmp:rw,size=64m",
+      "--mount",
+      "type=bind,source=/private/tmp/tetraboard-ai191,target=/work,readonly",
+      "--mount",
+      "type=bind,source=/Users/yksw-clm/.codex/worktrees/four-shogi-ai-spec/tetraboard-2026,target=/source,readonly",
+      "--entrypoint",
+      "/work/linux-bun",
+      "tetraboard-four-shogi-inference:issue191",
+      "/source/packages/four-shogi/bench/inferenceCli.ts",
+      "/usr/local/bin/python",
+      "/work/cpu-model-final",
+      "/work/fixture.json"
+    ],
+    "exitCode": 0
+  },
+  "reports": {
+    "final-mac-cpu": {
+      "format": "four-shogi-inference-measurement-v1",
+      "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "weightsSha256": "b328dcc9bf1ef6989c0b88b328a677cb6f359b1ff065402954def73ee9011890",
+      "fixtureSha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "versions": {
+        "modelVersion": "four-shogi-tiny-policy-value-v1",
+        "featureVersion": "four-shogi-features-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+        "rulesVersion": 1,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"]
+      },
+      "calibrated": false,
+      "runtime": {
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "torch": "2.14.1",
+        "platform": "macOS-27.0.1-arm64-arm-64bit",
+        "machine": "arm64",
+        "device": "cpu",
+        "threads": 1,
+        "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+        "cpuCount": 10,
+        "dependencies": [
+          "Jinja2==3.1.6",
+          "MarkupSafe==3.0.4",
+          "filelock==4.2.0",
+          "fsspec==2026.9.0",
+          "mpmath==1.3.0",
+          "networkx==3.7",
+          "pip==25.0.1",
+          "setuptools==84.0.0",
+          "sympy==1.14.0",
+          "torch==2.14.1",
+          "typing_extensions==4.16.0"
+        ]
+      },
+      "packageBytes": 5062907,
+      "loadAndProbeMs": 15.214500000183762,
+      "direct": {
+        "1": {
+          "iterations": 30,
+          "meanMs": 0.20055833338119555,
+          "p95Ms": 0.24841600043146173,
+          "maxMs": 0.2586660002634744,
+          "positionsPerSecond": 4986.080524010579
+        },
+        "4": {
+          "iterations": 30,
+          "meanMs": 0.7565305667109593,
+          "p95Ms": 0.8130830001391587,
+          "maxMs": 0.8550000002287561,
+          "positionsPerSecond": 5287.294626296631
+        },
+        "14": {
+          "iterations": 30,
+          "meanMs": 3.2131666000471646,
+          "p95Ms": 3.319749999718624,
+          "maxMs": 3.32233399967663,
+          "positionsPerSecond": 4357.07255260107
+        }
+      },
+      "rows": [
+        {
+          "id": "off-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2428668886423111, -0.6203010082244873, -0.22510793805122375, 0.1113874763250351,
+            0.11551384627819061, -0.35142025351524353, -0.15439771115779877, -0.37395599484443665,
+            0.23833344876766205
+          ],
+          "policy": [
+            0.09955746680498123, 0.06825842708349228, 0.10134129226207733, 0.1418810933828354,
+            0.14246776700019836, 0.08931609988212585, 0.1087665930390358, 0.0873258039355278,
+            0.16108551621437073
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07247059792280197, 0.09860454499721527, 0.07058984041213989, 0.07493512332439423,
+            0.6833999752998352
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.14655834436416626, -0.05724259838461876, -0.3174562156200409, 1.1136115789413452,
+            -0.14256560802459717, -0.5844894051551819, -0.14234305918216705, 0.07303294539451599,
+            -0.5048458576202393
+          ],
+          "policy": [
+            0.09041272848844528, 0.09885961562395096, 0.07620958238840103, 0.31879717111587524,
+            0.09077444672584534, 0.05834968760609627, 0.09079466015100479, 0.1126151755452156,
+            0.06318693608045578
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.06503085047006607, 0.09061428904533386, 0.06257124990224838, 0.0667656660079956,
+            0.7150179743766785
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.9626941084861755, -0.12081115692853928, 0.26988935470581055, -0.08155885338783264,
+            0.8699849843978882, 0.025296730920672417, -0.3933887183666229, 0.7644915580749512,
+            -0.3247310221195221
+          ],
+          "policy": [
+            0.20629233121871948, 0.06981081515550613, 0.10318148881196976, 0.07260554283857346,
+            0.18802691996097565, 0.08079352974891663, 0.05315496027469635, 0.16920173168182373,
+            0.05693265423178673
+          ],
+          "topActionId": 344,
+          "value": [
+            0.06258366256952286, 0.08788888901472092, 0.05988527834415436, 0.06426872313022614,
+            0.7253735065460205
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.6898729801177979, -0.571896493434906, -0.603644847869873, -1.2923494577407837,
+            0.5466235280036926, -0.427372008562088, 0.3815104365348816, -0.20565620064735413,
+            0.46069061756134033
+          ],
+          "policy": [
+            0.06169517710804939, 0.06942049413919449, 0.06725113093852997, 0.03377527743577957,
+            0.21244904398918152, 0.08021468669176102, 0.18011383712291718, 0.10012529790401459,
+            0.19495509564876556
+          ],
+          "topActionId": 6886,
+          "value": [
+            0.05954736843705177, 0.08436351269483566, 0.056434422731399536, 0.06076215207576752,
+            0.7388925552368164
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            1.027563452720642, -0.13037937879562378, 0.294487327337265, -0.10166825354099274,
+            0.9405544996261597, 0.0366801917552948, -0.43277856707572937, -0.060258522629737854,
+            0.8129943013191223, -0.6168827414512634
+          ],
+          "policy": [
+            0.2010100930929184, 0.06314365565776825, 0.09657105058431625, 0.06498284637928009,
+            0.18425969779491425, 0.07462472468614578, 0.046665869653224945, 0.06773027032613754,
+            0.16219283640384674, 0.03881896659731865
+          ],
+          "topActionId": 344,
+          "value": [
+            0.05522795766592026, 0.07890775054693222, 0.0521286204457283, 0.056018099188804626,
+            0.7577176094055176
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            1.3547601699829102, -0.16624677181243896, 0.7011616826057434, 0.3793172836303711,
+            -0.6516335606575012, -0.19193515181541443, -0.9074177742004395, -0.10131615400314331,
+            -1.0287333726882935, 0.002456045476719737, -0.4238717555999756, 1.2102407217025757,
+            0.8294531106948853, 0.7487838864326477, 0.3043428063392639, -0.5830721259117126,
+            -1.3020689487457275, 0.4622027575969696, 0.5673342943191528, 1.0650947093963623,
+            -0.28793466091156006, -0.8436340689659119, -0.5084303617477417, -1.6112537384033203,
+            -0.0827266052365303, -0.8026983141899109
+          ],
+          "policy": [
+            0.1195620447397232, 0.026123322546482086, 0.062192656099796295, 0.04507791996002197,
+            0.016077836975455284, 0.025460802018642426, 0.012449214234948158, 0.027875803411006927,
+            0.01102694682776928, 0.030923960730433464, 0.020190324634313583, 0.10347355157136917,
+            0.0707058534026146, 0.06522607058286667, 0.041821811348199844, 0.017218822613358498,
+            0.008389713242650032, 0.048973433673381805, 0.05440247058868408, 0.08949385583400726,
+            0.023130234330892563, 0.01326914131641388, 0.018553249537944794, 0.0061584278009831905,
+            0.028398850932717323, 0.013823594897985458
+          ],
+          "topActionId": 344,
+          "value": [
+            0.02994576282799244, 0.04844898357987404, 0.026064379140734673, 0.02918313629925251,
+            0.8663578033447266
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2557932734489441, -0.6527753472328186, -0.23269887268543243, 0.10790886729955673,
+            0.12607450783252716, -0.3782211244106293, -0.16943199932575226, -0.388139545917511,
+            0.2512023448944092
+          ],
+          "policy": [
+            0.09890536218881607, 0.06649862974882126, 0.10121609270572662, 0.14228975772857666,
+            0.1448981612920761, 0.08750846236944199, 0.10782663524150848, 0.08664481341838837,
+            0.16421212255954742
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07351360470056534, 0.0, 0.07076133042573929, 0.07543336600065231, 0.780291736125946
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.24503228068351746, -0.6248919367790222, -0.22512051463127136, 0.11180245131254196,
+            0.11865854263305664, -0.35631319880485535, -0.15623314678668976, -0.37627190351486206,
+            0.23917675018310547
+          ],
+          "policy": [
+            0.09941400587558746, 0.06799494475126266, 0.10141334682703018, 0.14204271137714386,
+            0.143019899725914, 0.0889444500207901, 0.10864569991827011, 0.08718682825565338,
+            0.16133807599544525
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07152487337589264, 0.09760431945323944, 0.06964267045259476, 0.07386858761310577,
+            0.6873595118522644
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.1481507569551468, -0.057248812168836594, -0.32164350152015686, 1.1213008165359497,
+            -0.14287404716014862, -0.5881831049919128, -0.14243611693382263, 0.07186028361320496,
+            -0.5082426071166992
+          ],
+          "policy": [
+            0.09014265984296799, 0.09872078895568848, 0.07578504085540771, 0.3208087682723999,
+            0.09061958640813828, 0.058053288608789444, 0.09065927565097809, 0.11232592910528183,
+            0.0628846287727356
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.06414466351270676, 0.08964262902736664, 0.06169557198882103, 0.06577690690755844,
+            0.7187401056289673
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.9706656336784363, -0.12160694599151611, 0.27284640073776245, -0.08386526256799698,
+            0.8767415285110474, 0.026354065164923668, -0.3969138562679291, 0.7717995047569275,
+            -0.32831770181655884
+          ],
+          "policy": [
+            0.2071264237165451, 0.0694812461733818, 0.10308048874139786, 0.07215369492769241,
+            0.1885579228401184, 0.08056125044822693, 0.052759818732738495, 0.1697731614112854,
+            0.0565059520304203
+          ],
+          "topActionId": 344,
+          "value": [
+            0.061719026416540146, 0.08692985773086548, 0.05903592333197594, 0.06330486387014389,
+            0.7290104031562805
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.6963205933570862, -0.5748757719993591, -0.6101365685462952, -1.301844835281372,
+            0.5494357347488403, -0.433146595954895, 0.38260921835899353, -0.2065533697605133,
+            0.46290653944015503
+          ],
+          "policy": [
+            0.06134038046002388, 0.0692610889673233, 0.06686144322156906, 0.033478859812021255,
+            0.21319234371185303, 0.0798070952296257, 0.18043458461761475, 0.10010360181331635,
+            0.1955205649137497
+          ],
+          "topActionId": 6886,
+          "value": [
+            0.05871003493666649, 0.08342213928699493, 0.055620111525058746, 0.05983593687415123,
+            0.7424117922782898
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            1.0358670949935913, -0.13590575754642487, 0.2997605502605438, -0.10418938100337982,
+            0.9465811252593994, 0.040472611784935, -0.43080654740333557, -0.05559008941054344,
+            0.8233652710914612, -0.6127444505691528
+          ],
+          "policy": [
+            0.20161090791225433, 0.06246252730488777, 0.09656661748886108, 0.06447536498308182,
+            0.1843901127576828, 0.07451088726520538, 0.046509940177202225, 0.06768621504306793,
+            0.1630142778158188, 0.038773152977228165
+          ],
+          "topActionId": 344,
+          "value": [
+            0.05454685539007187, 0.07762423902750015, 0.05155608430504799, 0.05518021434545517,
+            0.7610926032066345
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            1.3676880598068237, -0.16737966239452362, 0.7080302834510803, 0.3830127716064453,
+            -0.6542637348175049, -0.1964920461177826, -0.9145992398262024, -0.10184235870838165,
+            -1.036370038986206, 0.003155921818688512, -0.4260305166244507, 1.2208470106124878,
+            0.8378551602363586, 0.7550433874130249, 0.3088817596435547, -0.5908564925193787,
+            -1.3130755424499512, 0.46719664335250854, 0.5727381706237793, 1.0755006074905396,
+            -0.2892034649848938, -0.8475354909896851, -0.5172849297523499, -1.6236546039581299,
+            -0.08191147446632385, -0.807425856590271
+          ],
+          "policy": [
+            0.120522141456604, 0.02596542425453663, 0.062313348054885864, 0.04502230882644653,
+            0.01595674827694893, 0.02522040344774723, 0.01229934673756361, 0.0277241263538599,
+            0.010889244265854359, 0.030793430283665657, 0.020047709345817566, 0.10406257957220078,
+            0.07095178961753845, 0.06531284749507904, 0.04180546849966049, 0.017001286149024963,
+            0.008257069624960423, 0.04897657409310341, 0.05442826449871063, 0.08998526632785797,
+            0.022987300530076027, 0.013152474537491798, 0.018299255520105362, 0.0060526179149746895,
+            0.02828223817050457, 0.013690738007426262
+          ],
+          "topActionId": 344,
+          "value": [
+            0.029207294806838036, 0.047277141362428665, 0.025390248745679855, 0.02836197055876255,
+            0.8697633147239685
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.25795868039131165, -0.657366156578064, -0.2327115535736084, 0.10832399874925613,
+            0.1292191594839096, -0.3831140995025635, -0.17126750946044922, -0.3904554843902588,
+            0.25204578042030334
+          ],
+          "policy": [
+            0.09875966608524323, 0.06623982638120651, 0.10128480941057205, 0.14244727790355682,
+            0.14545506238937378, 0.08714155852794647, 0.1077033281326294, 0.08650416135787964,
+            0.1644643396139145
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07244279235601425, 0.0, 0.06970461457967758, 0.07424549758434296, 0.7836071252822876
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ],
+      "batchComparisons": {
+        "1": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 5.960464477539062e-7,
+            "policy": 5.960464477539063e-8,
+            "value": 5.960464477539063e-8
+          },
+          "topActionAgreement": 14
+        },
+        "4": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 3.5762786865234375e-7,
+            "policy": 2.9802322387695312e-8,
+            "value": 5.960464477539063e-8
+          },
+          "topActionAgreement": 14
+        }
+      },
+      "persistentWorker": {
+        "startupIncludingImportMs": 362.38833400057047,
+        "batchSize": 4,
+        "roundTrip": {
+          "iterations": 30,
+          "meanMs": 1.1220819332568983,
+          "p95Ms": 1.3479170002028695,
+          "maxMs": 1.810916999602341
+        },
+        "ready": {
+          "protocol": "four-shogi-inference-ipc-v1",
+          "id": 0,
+          "ok": true,
+          "result": {
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+            "calibrated": false,
+            "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+            "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+            "runtime": {
+              "python": "3.12",
+              "torch": "2.14.1",
+              "device": "cpu"
+            },
+            "supportedRestrictions": [false, true]
+          }
+        },
+        "processes": 1
+      },
+      "exportExperiment": {
+        "exported": false,
+        "adopted": false,
+        "error": "GuardOnDataDependentSymNode",
+        "reason": "Could not guard on data-dependent expression Eq(u0, 1) (unhinted: Eq(u0, 1)).  (Size-like symbols: none)\n\nconsider using data-dependent friendly APIs such as guard_or_false, guard_or_true and statically_known_true.\nCaused by: (_export/non_strict_utils.py:1377 in __torch_function__)\nFor more information, run with TORCH_LOGS=\"dynamic\"\nFor extended logs when we create symbols, also add TORCHDYNAMO_EXTENDED_DEBUG_CREATE_SYMBOL=\"u0\"\nIf you suspect the guard was triggered from C++, add TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\nFor more debugging help, see https://docs.google.com/document/d/1HSuTTVvYH1pTew89Rtpeu84Ht3nQEFTYhAX3Ypa_xJs/edit?usp=sharing\n\nFor C++ stack trace, run with TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\n\nThe following call raised this error:\n  File \"/Users/yksw-clm/.codex/worktrees/four-shogi-ai-spec/tetraboard-2026/training/four-shogi-ai/model.py\", line 35, in forward\n    if not bool(legal.any(dim=1).all()):\n\n\nThe error above occurred when calling torch.export.export. If you would like to view some more information about this error, and get a list of all other errors that may occur in your export call, you can replace your `export()` call with `draft_export()`."
+      },
+      "peakRssBytes": 317161472,
+      "workerPeakRssBytes": 227803136
+    },
+    "final-mac-mps": {
+      "format": "four-shogi-inference-measurement-v1",
+      "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "weightsSha256": "b328dcc9bf1ef6989c0b88b328a677cb6f359b1ff065402954def73ee9011890",
+      "fixtureSha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "versions": {
+        "modelVersion": "four-shogi-tiny-policy-value-v1",
+        "featureVersion": "four-shogi-features-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+        "rulesVersion": 1,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"]
+      },
+      "calibrated": false,
+      "runtime": {
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "torch": "2.14.1",
+        "platform": "macOS-27.0.1-arm64-arm-64bit",
+        "machine": "arm64",
+        "device": "mps",
+        "threads": 1,
+        "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+        "cpuCount": 10,
+        "dependencies": [
+          "Jinja2==3.1.6",
+          "MarkupSafe==3.0.4",
+          "filelock==4.2.0",
+          "fsspec==2026.9.0",
+          "mpmath==1.3.0",
+          "networkx==3.7",
+          "pip==25.0.1",
+          "setuptools==84.0.0",
+          "sympy==1.14.0",
+          "torch==2.14.1",
+          "typing_extensions==4.16.0"
+        ]
+      },
+      "packageBytes": 5062907,
+      "loadAndProbeMs": 202.3884589998488,
+      "direct": {
+        "1": {
+          "iterations": 30,
+          "meanMs": 3.225491600035942,
+          "p95Ms": 4.377250000288768,
+          "maxMs": 4.481207999560866,
+          "positionsPerSecond": 310.0302601900612
+        },
+        "4": {
+          "iterations": 30,
+          "meanMs": 5.782873699990887,
+          "p95Ms": 6.097875000705244,
+          "maxMs": 6.221333000212326,
+          "positionsPerSecond": 691.6976243154512
+        },
+        "14": {
+          "iterations": 30,
+          "meanMs": 16.95069163339819,
+          "p95Ms": 17.32958399952622,
+          "maxMs": 17.816667000261077,
+          "positionsPerSecond": 825.9250007483824
+        }
+      },
+      "rows": [
+        {
+          "id": "off-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2428668737411499, -0.6203011274337769, -0.22510795295238495, 0.11138749122619629,
+            0.11551391333341599, -0.3514202833175659, -0.1543976068496704, -0.37395596504211426,
+            0.2383335381746292
+          ],
+          "policy": [
+            0.09955746680498123, 0.06825841218233109, 0.10134129226207733, 0.1418810933828354,
+            0.14246776700019836, 0.08931607753038406, 0.1087666004896164, 0.0873257964849472,
+            0.16108551621437073
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07247059792280197, 0.09860452264547348, 0.0705898255109787, 0.07493510842323303,
+            0.6833999752998352
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.14655840396881104, -0.05724257230758667, -0.31745612621307373, 1.1136114597320557,
+            -0.14256566762924194, -0.5844895243644714, -0.14234305918216705, 0.07303304970264435,
+            -0.5048457980155945
+          ],
+          "policy": [
+            0.09041272103786469, 0.09885961562395096, 0.07620958983898163, 0.31879711151123047,
+            0.09077443927526474, 0.05834968015551567, 0.09079466015100479, 0.1126151829957962,
+            0.06318693608045578
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.06503084301948547, 0.09061425179243088, 0.06257125735282898, 0.06676565110683441,
+            0.7150180339813232
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.9626942276954651, -0.12081122398376465, 0.26988929510116577, -0.08155880868434906,
+            0.8699848651885986, 0.025296702980995178, -0.39338862895965576, 0.7644914984703064,
+            -0.32473117113113403
+          ],
+          "policy": [
+            0.20629236102104187, 0.06981082260608673, 0.10318149626255035, 0.07260555028915405,
+            0.18802690505981445, 0.08079352974891663, 0.05315496399998665, 0.16920173168182373,
+            0.05693265050649643
+          ],
+          "topActionId": 344,
+          "value": [
+            0.06258365511894226, 0.08788888156414032, 0.05988528952002525, 0.06426872313022614,
+            0.7253734469413757
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.6898729205131531, -0.5718964338302612, -0.6036449074745178, -1.2923495769500732,
+            0.5466234683990479, -0.4273719787597656, 0.3815104365348816, -0.2056562751531601,
+            0.46069055795669556
+          ],
+          "policy": [
+            0.06169517710804939, 0.06942050904035568, 0.06725113093852997, 0.03377528116106987,
+            0.21244904398918152, 0.08021469414234161, 0.18011385202407837, 0.10012529790401459,
+            0.19495509564876556
+          ],
+          "topActionId": 6886,
+          "value": [
+            0.05954737588763237, 0.08436351269483566, 0.05643443763256073, 0.06076217070221901,
+            0.7388925552368164
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            1.0275633335113525, -0.13037946820259094, 0.2944874167442322, -0.10166822373867035,
+            0.9405544996261597, 0.036680132150650024, -0.43277859687805176, -0.060258470475673676,
+            0.8129944205284119, -0.6168828010559082
+          ],
+          "policy": [
+            0.201010063290596, 0.06314364820718765, 0.09657105803489685, 0.06498285382986069,
+            0.18425969779491425, 0.07462471723556519, 0.046665869653224945, 0.06773027032613754,
+            0.16219285130500793, 0.03881896659731865
+          ],
+          "topActionId": 344,
+          "value": [
+            0.05522797629237175, 0.07890776544809341, 0.0521286241710186, 0.05601811408996582,
+            0.7577176094055176
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            1.3547601699829102, -0.1662469208240509, 0.7011616230010986, 0.3793172836303711,
+            -0.6516335010528564, -0.19193506240844727, -0.9074177742004395, -0.1013161689043045,
+            -1.028733253479004, 0.0024561211466789246, -0.42387160658836365, 1.2102404832839966,
+            0.8294532895088196, 0.7487838864326477, 0.30434277653694153, -0.5830719470977783,
+            -1.302069067955017, 0.4622027277946472, 0.5673341751098633, 1.0650944709777832,
+            -0.2879347503185272, -0.8436340689659119, -0.5084302425384521, -1.6112537384033203,
+            -0.0827266126871109, -0.8026984333992004
+          ],
+          "policy": [
+            0.1195620596408844, 0.026123322546482086, 0.06219266355037689, 0.04507792741060257,
+            0.016077840700745583, 0.025460809469223022, 0.012449216097593307, 0.027875807136297226,
+            0.011026948690414429, 0.03092396818101406, 0.02019033022224903, 0.10347353667020798,
+            0.07070587575435638, 0.06522607803344727, 0.04182181507349014, 0.017218828201293945,
+            0.008389711380004883, 0.0489734411239624, 0.05440247431397438, 0.08949384838342667,
+            0.023130236193537712, 0.013269143179059029, 0.018553253263235092, 0.006158428732305765,
+            0.028398854658007622, 0.013823597691953182
+          ],
+          "topActionId": 344,
+          "value": [
+            0.029945772141218185, 0.04844898357987404, 0.026064381003379822, 0.02918313629925251,
+            0.8663578033447266
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2557932436466217, -0.6527752876281738, -0.23269882798194885, 0.10790883004665375,
+            0.1260744333267212, -0.3782211244106293, -0.16943195462226868, -0.3881395161151886,
+            0.25120240449905396
+          ],
+          "policy": [
+            0.09890534728765488, 0.06649862974882126, 0.10121609270572662, 0.14228974282741547,
+            0.14489814639091492, 0.08750846982002258, 0.10782663524150848, 0.08664481341838837,
+            0.16421212255954742
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07351360470056534, 0.0, 0.07076136022806168, 0.07543337345123291, 0.780291736125946
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.24503228068351746, -0.6248918771743774, -0.22512048482894897, 0.1118023693561554,
+            0.11865853518247604, -0.35631319880485535, -0.15623314678668976, -0.3762717843055725,
+            0.2391766756772995
+          ],
+          "policy": [
+            0.09941402077674866, 0.06799495220184326, 0.10141336172819138, 0.14204269647598267,
+            0.1430199146270752, 0.0889444649219513, 0.1086457148194313, 0.08718685060739517,
+            0.16133807599544525
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07152488082647324, 0.09760431945323944, 0.06964267045259476, 0.07386858761310577,
+            0.6873595118522644
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.14815080165863037, -0.05724877864122391, -0.3216434717178345, 1.1213009357452393,
+            -0.14287403225898743, -0.5881830453872681, -0.14243611693382263, 0.07186026871204376,
+            -0.508242666721344
+          ],
+          "policy": [
+            0.09014266729354858, 0.09872078895568848, 0.07578504830598831, 0.3208087980747223,
+            0.09061958640813828, 0.05805329233407974, 0.09065926820039749, 0.11232592165470123,
+            0.0628846287727356
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.06414466351270676, 0.08964262902736664, 0.06169557571411133, 0.06577690690755844,
+            0.7187401056289673
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.9706656336784363, -0.12160696089267731, 0.27284643054008484, -0.0838652104139328,
+            0.8767414093017578, 0.026354074478149414, -0.3969138562679291, 0.7717995047569275,
+            -0.3283177614212036
+          ],
+          "policy": [
+            0.2071264535188675, 0.0694812461733818, 0.10308050364255905, 0.07215370982885361,
+            0.1885579228401184, 0.08056127279996872, 0.05275982990860939, 0.1697731912136078,
+            0.0565059669315815
+          ],
+          "topActionId": 344,
+          "value": [
+            0.061719030141830444, 0.08692986518144608, 0.059035904705524445, 0.0633048564195633,
+            0.7290104031562805
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.6963205933570862, -0.5748757123947144, -0.6101366281509399, -1.301844835281372,
+            0.5494356751441956, -0.43314653635025024, 0.38260912895202637, -0.2065533995628357,
+            0.46290645003318787
+          ],
+          "policy": [
+            0.061340391635894775, 0.0692610964179039, 0.06686144322156906, 0.033478863537311554,
+            0.21319234371185303, 0.0798071101307869, 0.18043456971645355, 0.10010360926389694,
+            0.1955205500125885
+          ],
+          "topActionId": 6886,
+          "value": [
+            0.05871003121137619, 0.08342213928699493, 0.055620111525058746, 0.059835951775312424,
+            0.7424117922782898
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            1.0358669757843018, -0.13590583205223083, 0.29976052045822144, -0.10418935120105743,
+            0.9465810656547546, 0.04047253727912903, -0.4308062791824341, -0.05558997392654419,
+            0.823365330696106, -0.6127445101737976
+          ],
+          "policy": [
+            0.20161089301109314, 0.062462519854307175, 0.09656661748886108, 0.06447536498308182,
+            0.1843900978565216, 0.07451087981462479, 0.04650995135307312, 0.06768622994422913,
+            0.16301430761814117, 0.038773152977228165
+          ],
+          "topActionId": 344,
+          "value": [
+            0.05454685539007187, 0.07762422412633896, 0.051556073129177094, 0.055180203169584274,
+            0.7610926032066345
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            1.367687702178955, -0.1673797369003296, 0.7080302238464355, 0.3830127716064453,
+            -0.6542634963989258, -0.1964920461177826, -0.9145991802215576, -0.10184241831302643,
+            -1.0363701581954956, 0.003155924379825592, -0.4260304570198059, 1.2208470106124878,
+            0.8378552198410034, 0.7550433278083801, 0.3088817298412323, -0.5908565521240234,
+            -1.313075304031372, 0.46719664335250854, 0.5727380514144897, 1.075500726699829,
+            -0.28920355439186096, -0.8475354313850403, -0.5172848701477051, -1.6236546039581299,
+            -0.0819113701581955, -0.8074257969856262
+          ],
+          "policy": [
+            0.12052209675312042, 0.02596542052924633, 0.062313344329595566, 0.04502231627702713,
+            0.015956750139594078, 0.02522040531039238, 0.012299347668886185, 0.0277241263538599,
+            0.010889239609241486, 0.030793434008955956, 0.020047711208462715, 0.10406257957220078,
+            0.07095178961753845, 0.06531284749507904, 0.04180546849966049, 0.017001284286379814,
+            0.008257073350250721, 0.04897657409310341, 0.054428257048130035, 0.08998528867959976,
+            0.022987300530076027, 0.013152476400136948, 0.01829925738275051, 0.006052617449313402,
+            0.02828224189579487, 0.013690739870071411
+          ],
+          "topActionId": 344,
+          "value": [
+            0.029207294806838036, 0.047277141362428665, 0.025390248745679855, 0.028361976146697998,
+            0.8697633147239685
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.25795862078666687, -0.6573660373687744, -0.23271150887012482, 0.10832379013299942,
+            0.12921908497810364, -0.38311395049095154, -0.1712675392627716, -0.390455424785614,
+            0.25204575061798096
+          ],
+          "policy": [
+            0.09875966608524323, 0.06623982638120651, 0.10128480941057205, 0.14244723320007324,
+            0.1454550325870514, 0.08714157342910767, 0.1077033132314682, 0.08650416135787964,
+            0.1644643247127533
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07244280725717545, 0.0, 0.06970463693141937, 0.07424551248550415, 0.7836071252822876
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ],
+      "batchComparisons": {
+        "1": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 3.5762786865234375e-7,
+            "policy": 2.9802322387695312e-8,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        },
+        "4": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 3.5762786865234375e-7,
+            "policy": 2.9802322387695312e-8,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        }
+      },
+      "peakRssBytes": 357597184,
+      "workerPeakRssBytes": 5373952,
+      "comparison": {
+        "passed": true,
+        "absoluteTolerance": 1e-5,
+        "relativeTolerance": 0.0001,
+        "maxAbsoluteError": {
+          "policyLogits": 3.5762786865234375e-7,
+          "policy": 5.960464477539063e-8,
+          "value": 5.960464477539063e-8
+        },
+        "topActionAgreement": 14
+      }
+    },
+    "final-linux-cpu": {
+      "format": "four-shogi-inference-measurement-v1",
+      "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "weightsSha256": "b328dcc9bf1ef6989c0b88b328a677cb6f359b1ff065402954def73ee9011890",
+      "fixtureSha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "versions": {
+        "modelVersion": "four-shogi-tiny-policy-value-v1",
+        "featureVersion": "four-shogi-features-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+        "rulesVersion": 1,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"]
+      },
+      "calibrated": false,
+      "runtime": {
+        "python": "3.12.14 (main, Sep 19 2026, 01:11:39) [GCC 12.2.0]",
+        "torch": "2.14.1+cpu",
+        "platform": "Linux-7.2.9-orbstack-00391-g2b298d05fbd4-aarch64-with-glibc2.36",
+        "machine": "aarch64",
+        "device": "cpu",
+        "threads": 1,
+        "torchConfig": "PyTorch built with:\n  - GCC 13.3\n  - C++ Version: 202002\n  - Intel(R) MKL-DNN v3.12.0 (Git Hash 80afa71049cd69a3df32adcccb623b12cd7baa22)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=open, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/opt/rh/gcc-toolset-13/root/usr/bin/c++, CXX_FLAGS= -ffunction-sections -fdata-sections -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -faligned-new -Wno-maybe-uninitialized -fno-omit-frame-pointer -fno-math-errno -fno-trapping-math -Werror=format -Wno-dangling-reference -Wno-error=dangling-reference -Wno-stringop-overflow, LAPACK_INFO=open, TORCH_VERSION=2.14.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKLDNN=1, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+        "cpuCount": 10,
+        "dependencies": [
+          "Jinja2==3.1.6",
+          "MarkupSafe==3.0.3",
+          "filelock==3.32.3",
+          "fsspec==2026.7.0",
+          "mpmath==1.3.0",
+          "networkx==3.6.1",
+          "pip==25.0.1",
+          "setuptools==78.1.0",
+          "sympy==1.14.0",
+          "torch==2.14.1+cpu",
+          "typing_extensions==4.16.0"
+        ]
+      },
+      "packageBytes": 5062907,
+      "loadAndProbeMs": 26.76052099991466,
+      "direct": {
+        "1": {
+          "iterations": 30,
+          "meanMs": 0.8776492333633238,
+          "p95Ms": 0.9335839999948803,
+          "maxMs": 0.9753339998042065,
+          "positionsPerSecond": 1139.4073645661424
+        },
+        "4": {
+          "iterations": 30,
+          "meanMs": 1.493594133330589,
+          "p95Ms": 1.5774600001350336,
+          "maxMs": 1.5811260000191396,
+          "positionsPerSecond": 2678.1037168915072
+        },
+        "14": {
+          "iterations": 30,
+          "meanMs": 4.785070466671944,
+          "p95Ms": 4.8370869999416755,
+          "maxMs": 4.909419999876263,
+          "positionsPerSecond": 2925.7667358318163
+        }
+      },
+      "rows": [
+        {
+          "id": "off-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2428668886423111, -0.6203010082244873, -0.22510793805122375, 0.1113874763250351,
+            0.11551384627819061, -0.35142025351524353, -0.15439771115779877, -0.37395599484443665,
+            0.23833344876766205
+          ],
+          "policy": [
+            0.09955746680498123, 0.06825842708349228, 0.10134129226207733, 0.1418810933828354,
+            0.14246776700019836, 0.08931609988212585, 0.1087665930390358, 0.0873258039355278,
+            0.16108551621437073
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07247059792280197, 0.09860454499721527, 0.07058984041213989, 0.07493512332439423,
+            0.6833999752998352
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.14655834436416626, -0.05724259838461876, -0.3174562156200409, 1.1136115789413452,
+            -0.14256560802459717, -0.5844894051551819, -0.14234305918216705, 0.07303294539451599,
+            -0.5048458576202393
+          ],
+          "policy": [
+            0.09041272848844528, 0.09885961562395096, 0.07620958238840103, 0.31879717111587524,
+            0.09077444672584534, 0.05834968760609627, 0.09079466015100479, 0.1126151755452156,
+            0.06318693608045578
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.06503085047006607, 0.09061428904533386, 0.06257124990224838, 0.0667656660079956,
+            0.7150179743766785
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.9626941084861755, -0.12081115692853928, 0.26988935470581055, -0.08155885338783264,
+            0.8699849843978882, 0.025296730920672417, -0.3933887183666229, 0.7644915580749512,
+            -0.3247310221195221
+          ],
+          "policy": [
+            0.20629233121871948, 0.06981081515550613, 0.10318148881196976, 0.07260554283857346,
+            0.18802691996097565, 0.08079352974891663, 0.05315496027469635, 0.16920173168182373,
+            0.05693265423178673
+          ],
+          "topActionId": 344,
+          "value": [
+            0.06258366256952286, 0.08788888901472092, 0.05988527834415436, 0.06426872313022614,
+            0.7253735065460205
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.6898729801177979, -0.571896493434906, -0.603644847869873, -1.2923494577407837,
+            0.5466235280036926, -0.427372008562088, 0.3815104365348816, -0.20565620064735413,
+            0.46069061756134033
+          ],
+          "policy": [
+            0.06169517710804939, 0.06942049413919449, 0.06725113093852997, 0.03377527743577957,
+            0.21244904398918152, 0.08021468669176102, 0.18011383712291718, 0.10012529790401459,
+            0.19495509564876556
+          ],
+          "topActionId": 6886,
+          "value": [
+            0.05954736843705177, 0.08436351269483566, 0.056434422731399536, 0.06076215207576752,
+            0.7388925552368164
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            1.027563452720642, -0.13037937879562378, 0.294487327337265, -0.10166825354099274,
+            0.9405544996261597, 0.0366801917552948, -0.43277856707572937, -0.060258522629737854,
+            0.8129943013191223, -0.6168827414512634
+          ],
+          "policy": [
+            0.2010100930929184, 0.06314365565776825, 0.09657105058431625, 0.06498284637928009,
+            0.18425969779491425, 0.07462472468614578, 0.046665869653224945, 0.06773027032613754,
+            0.16219283640384674, 0.03881896659731865
+          ],
+          "topActionId": 344,
+          "value": [
+            0.05522795766592026, 0.07890775054693222, 0.0521286204457283, 0.056018099188804626,
+            0.7577176094055176
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            1.3547601699829102, -0.16624677181243896, 0.7011616826057434, 0.3793172836303711,
+            -0.6516335606575012, -0.19193515181541443, -0.9074177742004395, -0.10131615400314331,
+            -1.0287333726882935, 0.002456045476719737, -0.4238717555999756, 1.2102407217025757,
+            0.8294531106948853, 0.7487838864326477, 0.3043428063392639, -0.5830721259117126,
+            -1.3020689487457275, 0.4622027575969696, 0.5673342943191528, 1.0650947093963623,
+            -0.28793466091156006, -0.8436340689659119, -0.5084303617477417, -1.6112537384033203,
+            -0.0827266052365303, -0.8026983141899109
+          ],
+          "policy": [
+            0.1195620447397232, 0.026123322546482086, 0.062192656099796295, 0.04507791996002197,
+            0.016077836975455284, 0.025460802018642426, 0.012449214234948158, 0.027875803411006927,
+            0.01102694682776928, 0.030923960730433464, 0.020190324634313583, 0.10347355157136917,
+            0.0707058534026146, 0.06522607058286667, 0.041821811348199844, 0.017218822613358498,
+            0.008389713242650032, 0.048973433673381805, 0.05440247058868408, 0.08949385583400726,
+            0.023130234330892563, 0.01326914131641388, 0.018553249537944794, 0.0061584278009831905,
+            0.028398850932717323, 0.013823594897985458
+          ],
+          "topActionId": 344,
+          "value": [
+            0.02994576282799244, 0.04844898357987404, 0.026064379140734673, 0.02918313629925251,
+            0.8663578033447266
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2557932734489441, -0.6527753472328186, -0.23269887268543243, 0.10790886729955673,
+            0.12607450783252716, -0.3782211244106293, -0.16943199932575226, -0.388139545917511,
+            0.2512023448944092
+          ],
+          "policy": [
+            0.09890536218881607, 0.06649862974882126, 0.10121609270572662, 0.14228975772857666,
+            0.1448981612920761, 0.08750846236944199, 0.10782663524150848, 0.08664481341838837,
+            0.16421212255954742
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07351360470056534, 0.0, 0.07076133042573929, 0.07543336600065231, 0.780291736125946
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.24503228068351746, -0.6248919367790222, -0.22512051463127136, 0.11180245131254196,
+            0.11865854263305664, -0.35631319880485535, -0.15623314678668976, -0.37627190351486206,
+            0.23917675018310547
+          ],
+          "policy": [
+            0.09941400587558746, 0.06799494475126266, 0.10141334682703018, 0.14204271137714386,
+            0.143019899725914, 0.0889444500207901, 0.10864569991827011, 0.08718682825565338,
+            0.16133807599544525
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07152487337589264, 0.09760431945323944, 0.06964267045259476, 0.07386858761310577,
+            0.6873595118522644
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.1481507569551468, -0.057248812168836594, -0.32164350152015686, 1.1213008165359497,
+            -0.14287404716014862, -0.5881831049919128, -0.14243611693382263, 0.07186028361320496,
+            -0.5082426071166992
+          ],
+          "policy": [
+            0.09014265984296799, 0.09872078895568848, 0.07578504085540771, 0.3208087682723999,
+            0.09061958640813828, 0.058053288608789444, 0.09065927565097809, 0.11232592910528183,
+            0.0628846287727356
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.06414466351270676, 0.08964262902736664, 0.06169557198882103, 0.06577690690755844,
+            0.7187401056289673
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.9706656336784363, -0.12160694599151611, 0.27284640073776245, -0.08386526256799698,
+            0.8767415285110474, 0.026354065164923668, -0.3969138562679291, 0.7717995047569275,
+            -0.32831770181655884
+          ],
+          "policy": [
+            0.2071264237165451, 0.0694812461733818, 0.10308048874139786, 0.07215369492769241,
+            0.1885579228401184, 0.08056125044822693, 0.052759818732738495, 0.1697731614112854,
+            0.0565059520304203
+          ],
+          "topActionId": 344,
+          "value": [
+            0.061719026416540146, 0.08692985773086548, 0.05903592333197594, 0.06330486387014389,
+            0.7290104031562805
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.6963205933570862, -0.5748757719993591, -0.6101365685462952, -1.301844835281372,
+            0.5494357347488403, -0.433146595954895, 0.38260921835899353, -0.2065533697605133,
+            0.46290653944015503
+          ],
+          "policy": [
+            0.06134038046002388, 0.0692610889673233, 0.06686144322156906, 0.033478859812021255,
+            0.21319234371185303, 0.0798070952296257, 0.18043458461761475, 0.10010360181331635,
+            0.1955205649137497
+          ],
+          "topActionId": 6886,
+          "value": [
+            0.05871003493666649, 0.08342213928699493, 0.055620111525058746, 0.05983593687415123,
+            0.7424117922782898
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            1.0358670949935913, -0.13590575754642487, 0.2997605502605438, -0.10418938100337982,
+            0.9465811252593994, 0.040472611784935, -0.43080654740333557, -0.05559008941054344,
+            0.8233652710914612, -0.6127444505691528
+          ],
+          "policy": [
+            0.20161090791225433, 0.06246252730488777, 0.09656661748886108, 0.06447536498308182,
+            0.1843901127576828, 0.07451088726520538, 0.046509940177202225, 0.06768621504306793,
+            0.1630142778158188, 0.038773152977228165
+          ],
+          "topActionId": 344,
+          "value": [
+            0.05454685539007187, 0.07762423902750015, 0.05155608430504799, 0.05518021434545517,
+            0.7610926032066345
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            1.3676880598068237, -0.16737966239452362, 0.7080302834510803, 0.3830127716064453,
+            -0.6542637348175049, -0.1964920461177826, -0.9145992398262024, -0.10184235870838165,
+            -1.036370038986206, 0.003155921818688512, -0.4260305166244507, 1.2208470106124878,
+            0.8378551602363586, 0.7550433874130249, 0.3088817596435547, -0.5908564925193787,
+            -1.3130755424499512, 0.46719664335250854, 0.5727381706237793, 1.0755006074905396,
+            -0.2892034649848938, -0.8475354909896851, -0.5172849297523499, -1.6236546039581299,
+            -0.08191147446632385, -0.807425856590271
+          ],
+          "policy": [
+            0.120522141456604, 0.02596542425453663, 0.062313348054885864, 0.04502230882644653,
+            0.01595674827694893, 0.02522040344774723, 0.01229934673756361, 0.0277241263538599,
+            0.010889244265854359, 0.030793430283665657, 0.020047709345817566, 0.10406257957220078,
+            0.07095178961753845, 0.06531284749507904, 0.04180546849966049, 0.017001286149024963,
+            0.008257069624960423, 0.04897657409310341, 0.05442826449871063, 0.08998526632785797,
+            0.022987300530076027, 0.013152474537491798, 0.018299255520105362, 0.0060526179149746895,
+            0.02828223817050457, 0.013690738007426262
+          ],
+          "topActionId": 344,
+          "value": [
+            0.02920730598270893, 0.04727713763713837, 0.02539025992155075, 0.028361981734633446,
+            0.8697632551193237
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.25795868039131165, -0.657366156578064, -0.2327115535736084, 0.10832399874925613,
+            0.1292191594839096, -0.3831140995025635, -0.17126750946044922, -0.3904554843902588,
+            0.25204578042030334
+          ],
+          "policy": [
+            0.09875966608524323, 0.06623982638120651, 0.10128480941057205, 0.14244727790355682,
+            0.14545506238937378, 0.08714155852794647, 0.1077033281326294, 0.08650416135787964,
+            0.1644643396139145
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07244279235601425, 0.0, 0.06970461457967758, 0.07424548268318176, 0.7836071252822876
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ],
+      "batchComparisons": {
+        "1": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 0.0,
+            "policy": 0.0,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        },
+        "4": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 0.0,
+            "policy": 0.0,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        }
+      },
+      "persistentWorker": {
+        "startupIncludingImportMs": 563.8869469999008,
+        "batchSize": 4,
+        "roundTrip": {
+          "iterations": 30,
+          "meanMs": 1.8065793000005215,
+          "p95Ms": 1.9097100000635692,
+          "maxMs": 1.9331260000399197
+        },
+        "ready": {
+          "protocol": "four-shogi-inference-ipc-v1",
+          "id": 0,
+          "ok": true,
+          "result": {
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+            "calibrated": false,
+            "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+            "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+            "runtime": {
+              "python": "3.12",
+              "torch": "2.14.1",
+              "device": "cpu"
+            },
+            "supportedRestrictions": [false, true]
+          }
+        },
+        "processes": 1
+      },
+      "exportExperiment": {
+        "exported": false,
+        "adopted": false,
+        "error": "GuardOnDataDependentSymNode",
+        "reason": "Could not guard on data-dependent expression Eq(u0, 1) (unhinted: Eq(u0, 1)).  (Size-like symbols: none)\n\nconsider using data-dependent friendly APIs such as guard_or_false, guard_or_true and statically_known_true.\nCaused by: (_export/non_strict_utils.py:1377 in __torch_function__)\nFor more information, run with TORCH_LOGS=\"dynamic\"\nFor extended logs when we create symbols, also add TORCHDYNAMO_EXTENDED_DEBUG_CREATE_SYMBOL=\"u0\"\nIf you suspect the guard was triggered from C++, add TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\nFor more debugging help, see https://docs.google.com/document/d/1HSuTTVvYH1pTew89Rtpeu84Ht3nQEFTYhAX3Ypa_xJs/edit?usp=sharing\n\nFor C++ stack trace, run with TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\n\nThe following call raised this error:\n  File \"/engine/model.py\", line 35, in forward\n    if not bool(legal.any(dim=1).all()):\n\n\nThe error above occurred when calling torch.export.export. If you would like to view some more information about this error, and get a list of all other errors that may occur in your export call, you can replace your `export()` call with `draft_export()`."
+      },
+      "peakRssBytes": 365121536,
+      "workerPeakRssBytes": 265867264,
+      "comparison": {
+        "passed": true,
+        "absoluteTolerance": 1e-5,
+        "relativeTolerance": 0.0001,
+        "maxAbsoluteError": {
+          "policyLogits": 0.0,
+          "policy": 0.0,
+          "value": 5.960464477539063e-8
+        },
+        "topActionAgreement": 14
+      }
+    },
+    "final-mps-trained-mac-cpu": {
+      "format": "four-shogi-inference-measurement-v1",
+      "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "weightsSha256": "466dbf335c90a7bc77562045d02a0f6d593ec874173eed3967fedd3637e22489",
+      "fixtureSha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "versions": {
+        "modelVersion": "four-shogi-tiny-policy-value-v1",
+        "featureVersion": "four-shogi-features-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+        "rulesVersion": 1,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"]
+      },
+      "calibrated": false,
+      "runtime": {
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "torch": "2.14.1",
+        "platform": "macOS-27.0.1-arm64-arm-64bit",
+        "machine": "arm64",
+        "device": "cpu",
+        "threads": 1,
+        "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+        "cpuCount": 10,
+        "dependencies": [
+          "Jinja2==3.1.6",
+          "MarkupSafe==3.0.4",
+          "filelock==4.2.0",
+          "fsspec==2026.9.0",
+          "mpmath==1.3.0",
+          "networkx==3.7",
+          "pip==25.0.1",
+          "setuptools==84.0.0",
+          "sympy==1.14.0",
+          "torch==2.14.1",
+          "typing_extensions==4.16.0"
+        ]
+      },
+      "packageBytes": 5062972,
+      "loadAndProbeMs": 19.298834000437637,
+      "direct": {
+        "1": {
+          "iterations": 30,
+          "meanMs": 0.20035563335720022,
+          "p95Ms": 0.22716700004821178,
+          "maxMs": 0.2970830000776914,
+          "positionsPerSecond": 4991.124947393763
+        },
+        "4": {
+          "iterations": 30,
+          "meanMs": 0.757201199970344,
+          "p95Ms": 0.8010000001377193,
+          "maxMs": 0.8588330001657596,
+          "positionsPerSecond": 5282.611808006461
+        },
+        "14": {
+          "iterations": 30,
+          "meanMs": 3.1543000333537443,
+          "p95Ms": 3.2154160007848986,
+          "maxMs": 3.299249999145104,
+          "positionsPerSecond": 4438.38564878522
+        }
+      },
+      "rows": [
+        {
+          "id": "off-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.0415743924677372, -0.10531824082136154, -0.09856048971414566, 0.20549270510673523,
+            0.07679149508476257, 0.05322471261024475, 0.0028054211288690567, -0.1605702042579651,
+            0.05039305239915848
+          ],
+          "policy": [
+            0.11433646082878113, 0.09871657192707062, 0.09938593208789825, 0.13470184803009033,
+            0.11843480169773102, 0.11567629873752594, 0.10998857766389847, 0.09341023117303848,
+            0.11534920334815979
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.1682928204536438, 0.171242356300354, 0.191165953874588, 0.18705958127975464,
+            0.28223922848701477
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.06264111399650574, -0.004662192892283201, -0.07336356490850449, 0.2571660876274109,
+            -0.02332761511206627, -0.2410111278295517, -0.04294366389513016, 0.05506790801882744,
+            -0.10473759472370148
+          ],
+          "policy": [
+            0.10631279647350311, 0.11265889555215836, 0.10517895966768265, 0.14637808501720428,
+            0.11057556420564651, 0.08894477039575577, 0.10842765867710114, 0.119593046605587,
+            0.10193029791116714
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.16673488914966583, 0.17113612592220306, 0.19099542498588562, 0.18543994426727295,
+            0.28569361567497253
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.18038266897201538, -0.06634870171546936, 0.10096050053834915, 0.009566822089254856,
+            0.2177693098783493, -0.03843249753117561, -0.03580012172460556, 0.25097110867500305,
+            -0.13288024067878723
+          ],
+          "policy": [
+            0.12501050531864166, 0.09767702966928482, 0.11546593904495239, 0.10538095980882645,
+            0.12977269291877747, 0.10044221580028534, 0.10070696473121643, 0.13415370881557465,
+            0.09138989448547363
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16626940667629242, 0.17119286954402924, 0.19068628549575806, 0.18575197458267212,
+            0.28609946370124817
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.06595124304294586, -0.23310227692127228, -0.07942117750644684, -0.38036349415779114,
+            0.21142570674419403, 0.006244244519621134, 0.09761174768209457, -0.09614502638578415,
+            0.21412208676338196
+          ],
+          "policy": [
+            0.10606001317501068, 0.08973439037799835, 0.10464096814393997, 0.07744693011045456,
+            0.1399635523557663, 0.11400025337934494, 0.12490683048963547, 0.1029055267572403,
+            0.14034146070480347
+          ],
+          "topActionId": 10184,
+          "value": [
+            0.165901318192482, 0.17131327092647552, 0.19027991592884064, 0.18522068858146667,
+            0.287284791469574
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            0.17226946353912354, -0.0640958696603775, 0.10468457639217377, 0.0045337677001953125,
+            0.22617068886756897, -0.03441908210515976, -0.036149196326732635, -0.06646065413951874,
+            0.2392149269580841, -0.08682902157306671
+          ],
+          "policy": [
+            0.11262720823287964, 0.0889182984828949, 0.10526683181524277, 0.09523501247167587,
+            0.11886453628540039, 0.09159665554761887, 0.09143831580877304, 0.08870827406644821,
+            0.12042519450187683, 0.08691971004009247
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.1656927913427353, 0.16972029209136963, 0.19183413684368134, 0.18547867238521576,
+            0.28727415204048157
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            0.20213767886161804, -0.06411845237016678, 0.16884608566761017, 0.11395607143640518,
+            -0.18892255425453186, 0.0013544269604608417, -0.09210102260112762, -0.03500566631555557,
+            -0.1819666624069214, -0.06008252501487732, -0.09354216605424881, 0.25699809193611145,
+            0.19706164300441742, 0.1724063754081726, 0.029738031327724457, -0.12379544228315353,
+            -0.36262646317481995, 0.1417238414287567, 0.20636801421642303, 0.2714240849018097,
+            0.036490198224782944, -0.20064102113246918, -0.10083021223545074, -0.3591311275959015,
+            0.014723383821547031, -0.09524945169687271
+          ],
+          "policy": [
+            0.04664161801338196, 0.035738807171583176, 0.04511440917849541, 0.04270481318235397,
+            0.03154556825757027, 0.03815702721476555, 0.034752607345581055, 0.03679455444216728,
+            0.031765758991241455, 0.0358833372592926, 0.03470255807042122, 0.04927188530564308,
+            0.04640546441078186, 0.04527531564235687, 0.03925558179616928, 0.03366841375827789,
+            0.02651549130678177, 0.043907247483730316, 0.04683934524655342, 0.04998783394694328,
+            0.039521537721157074, 0.031178057193756104, 0.03445056080818176, 0.026608332991600037,
+            0.038670577108860016, 0.03464335948228836
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16382013261318207, 0.16866183280944824, 0.18708771467208862, 0.18199999630451202,
+            0.2984303832054138
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04519924893975258, -0.1059064045548439, -0.09875474125146866, 0.20610013604164124,
+            0.07729668915271759, 0.05306351184844971, 0.0029383222572505474, -0.16205856204032898,
+            0.04901846498250961
+          ],
+          "policy": [
+            0.11473122239112854, 0.09864096343517303, 0.09934893995523453, 0.13475969433784485,
+            0.11847354471683502, 0.11563706398010254, 0.10998360067605972, 0.0932547003030777,
+            0.11517025530338287
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.20219554007053375, 0.0, 0.23012074828147888, 0.2244730442762375, 0.3432106077671051
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04173692315816879, -0.10524401068687439, -0.09738621115684509, 0.20724137127399445,
+            0.07936519384384155, 0.051572367548942566, 0.003062016563490033, -0.1598970592021942,
+            0.05084768682718277
+          ],
+          "policy": [
+            0.11428233981132507, 0.09866113215684891, 0.09943944215774536, 0.13485181331634521,
+            0.11866451799869537, 0.1154118999838829, 0.10994686186313629, 0.09341370314359665,
+            0.11532829701900482
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.1682211309671402, 0.1710808426141739, 0.19110222160816193, 0.18699070811271667,
+            0.2826050817966461
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.06378769129514694, -0.004495571833103895, -0.07573139667510986, 0.2584756016731262,
+            -0.022614723071455956, -0.24248811602592468, -0.043024301528930664, 0.05339405685663223,
+            -0.10467957705259323
+          ],
+          "policy": [
+            0.106235072016716, 0.11272446066141129, 0.10497377812862396, 0.14663076400756836,
+            0.11070039123296738, 0.08885038644075394, 0.10846393555402756, 0.11944261938333511,
+            0.10197854042053223
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.16658620536327362, 0.17097429931163788, 0.19097661972045898, 0.18532094359397888,
+            0.28614190220832825
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.18124651908874512, -0.06701982766389847, 0.1029575914144516, 0.007483828812837601,
+            0.21929188072681427, -0.038128867745399475, -0.035507943481206894, 0.25443947315216064,
+            -0.135588139295578
+          ],
+          "policy": [
+            0.12505219876766205, 0.09755973517894745, 0.11563541740179062, 0.1051059141755104,
+            0.12990151345729828, 0.10041943937540054, 0.10068298131227493, 0.13454842567443848,
+            0.09109441936016083
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16617397964000702, 0.17097999155521393, 0.19067935645580292, 0.18558241426944733,
+            0.2865842282772064
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.06743891537189484, -0.23360073566436768, -0.08213496953248978, -0.3820510506629944,
+            0.21196605265140533, 0.0047542620450258255, 0.09803735464811325, -0.0959073081612587,
+            0.21544469892978668
+          ],
+          "policy": [
+            0.10594974458217621, 0.08972980827093124, 0.10440408438444138, 0.07735093683004379,
+            0.1401018649339676, 0.11388145387172699, 0.12501592934131622, 0.10297604650259018,
+            0.14059008657932281
+          ],
+          "topActionId": 10184,
+          "value": [
+            0.16581279039382935, 0.17109565436840057, 0.1902824491262436, 0.1849987655878067,
+            0.287810355424881
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            0.17231912910938263, -0.07020670175552368, 0.11454334855079651, 0.003383345203474164,
+            0.22486922144889832, -0.03304363414645195, -0.03173377737402916, -0.0607612319290638,
+            0.2441505640745163, -0.08218173682689667
+          ],
+          "policy": [
+            0.11237644404172897, 0.0881754457950592, 0.10606780648231506, 0.09490900486707687,
+            0.11843975633382797, 0.09151396155357361, 0.09163391590118408, 0.0890122503042221,
+            0.12074559181928635, 0.08712583780288696
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16573071479797363, 0.1685979962348938, 0.19268102943897247, 0.1851983517408371,
+            0.2877919375896454
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            0.20476999878883362, -0.0645870715379715, 0.17013569176197052, 0.11555389314889908,
+            -0.18843545019626617, 0.0013568657450377941, -0.09209024906158447, -0.03437062352895737,
+            -0.1831475794315338, -0.05867942050099373, -0.0926971361041069, 0.2599584460258484,
+            0.1988227367401123, 0.1729668378829956, 0.031217414885759354, -0.1260809451341629,
+            -0.3656742572784424, 0.1444120556116104, 0.20842245221138, 0.2742270231246948,
+            0.037591926753520966, -0.19826370477676392, -0.1045168936252594, -0.3606546223163605,
+            0.015778932720422745, -0.09534825384616852
+          ],
+          "policy": [
+            0.04672667756676674, 0.03569312393665314, 0.04513603448867798, 0.042738452553749084,
+            0.03153536841273308, 0.03812621161341667, 0.03472483158111572, 0.036788105964660645,
+            0.031702566891908646, 0.03590461611747742, 0.034703757613897324, 0.0493779331445694,
+            0.04644960165023804, 0.045263998210430145, 0.039281852543354034, 0.03356434404850006,
+            0.026413384824991226, 0.04398977756500244, 0.04689765349030495, 0.05008753761649132,
+            0.03953305259346962, 0.031226949766278267, 0.03429598733782768, 0.026546306908130646,
+            0.0386800542473793, 0.03461188077926636
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16350243985652924, 0.16790853440761566, 0.18726415932178497, 0.18168839812278748,
+            0.29963645339012146
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.045269884169101715, -0.1059146597981453, -0.09743855148553848, 0.20723304152488708,
+            0.07944400608539581, 0.051157914102077484, 0.0029151057824492455, -0.1619172841310501,
+            0.048900410532951355
+          ],
+          "policy": [
+            0.11470234394073486, 0.0986083522439003, 0.09944771975278854, 0.13486896455287933,
+            0.11868995428085327, 0.1153797134757042, 0.10994560271501541, 0.09323781728744507,
+            0.11511953920125961
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.20197178423404694, 0.0, 0.2300620824098587, 0.2242341935634613, 0.34373193979263306
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ],
+      "batchComparisons": {
+        "1": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 6.705522537231445e-8,
+            "policy": 2.2351741790771484e-8,
+            "value": 4.470348358154297e-8
+          },
+          "topActionAgreement": 14
+        },
+        "4": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 7.450580596923828e-8,
+            "policy": 1.4901161193847656e-8,
+            "value": 2.9802322387695312e-8
+          },
+          "topActionAgreement": 14
+        }
+      },
+      "persistentWorker": {
+        "startupIncludingImportMs": 358.3220000000438,
+        "batchSize": 4,
+        "roundTrip": {
+          "iterations": 30,
+          "meanMs": 1.2773152332859656,
+          "p95Ms": 1.7437920005249907,
+          "maxMs": 1.8661250005607144
+        },
+        "ready": {
+          "protocol": "four-shogi-inference-ipc-v1",
+          "id": 0,
+          "ok": true,
+          "result": {
+            "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+            "calibrated": false,
+            "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+            "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+            "runtime": {
+              "python": "3.12",
+              "torch": "2.14.1",
+              "device": "cpu"
+            },
+            "supportedRestrictions": [false, true]
+          }
+        },
+        "processes": 1
+      },
+      "exportExperiment": {
+        "exported": false,
+        "adopted": false,
+        "error": "GuardOnDataDependentSymNode",
+        "reason": "Could not guard on data-dependent expression Eq(u0, 1) (unhinted: Eq(u0, 1)).  (Size-like symbols: none)\n\nconsider using data-dependent friendly APIs such as guard_or_false, guard_or_true and statically_known_true.\nCaused by: (_export/non_strict_utils.py:1377 in __torch_function__)\nFor more information, run with TORCH_LOGS=\"dynamic\"\nFor extended logs when we create symbols, also add TORCHDYNAMO_EXTENDED_DEBUG_CREATE_SYMBOL=\"u0\"\nIf you suspect the guard was triggered from C++, add TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\nFor more debugging help, see https://docs.google.com/document/d/1HSuTTVvYH1pTew89Rtpeu84Ht3nQEFTYhAX3Ypa_xJs/edit?usp=sharing\n\nFor C++ stack trace, run with TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\n\nThe following call raised this error:\n  File \"/Users/yksw-clm/.codex/worktrees/four-shogi-ai-spec/tetraboard-2026/training/four-shogi-ai/model.py\", line 35, in forward\n    if not bool(legal.any(dim=1).all()):\n\n\nThe error above occurred when calling torch.export.export. If you would like to view some more information about this error, and get a list of all other errors that may occur in your export call, you can replace your `export()` call with `draft_export()`."
+      },
+      "peakRssBytes": 317112320,
+      "workerPeakRssBytes": 228212736
+    },
+    "final-mps-trained-mac-mps": {
+      "format": "four-shogi-inference-measurement-v1",
+      "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "weightsSha256": "466dbf335c90a7bc77562045d02a0f6d593ec874173eed3967fedd3637e22489",
+      "fixtureSha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "versions": {
+        "modelVersion": "four-shogi-tiny-policy-value-v1",
+        "featureVersion": "four-shogi-features-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+        "rulesVersion": 1,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"]
+      },
+      "calibrated": false,
+      "runtime": {
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "torch": "2.14.1",
+        "platform": "macOS-27.0.1-arm64-arm-64bit",
+        "machine": "arm64",
+        "device": "mps",
+        "threads": 1,
+        "torchConfig": "PyTorch built with:\n  - GCC 4.2\n  - C++ Version: 202002\n  - clang 21.0.0\n  - OpenMP 202011\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=accelerate, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/usr/bin/c++, CXX_FLAGS= -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DUSE_PYTORCH_METAL_EXPORT -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -DUSE_COREML_DELEGATE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=braced-scalar-init -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wvla-extension -Wsuggest-override -Wnewline-eof -Winconsistent-missing-override -Winconsistent-missing-destructor-override -Wno-pass-failed -Wno-error=old-style-cast -Wconstant-conversion -Qunused-arguments -faligned-new -fno-math-errno -fno-trapping-math -Werror=format -fclang-abi-compat=17 -DUSE_MPS -Wno-missing-braces, LAPACK_INFO=accelerate, TORCH_VERSION=2.14.1, USE_CUDA=OFF, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EIGEN_FOR_BLAS=ON, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKL=OFF, USE_MKLDNN=OFF, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+        "cpuCount": 10,
+        "dependencies": [
+          "Jinja2==3.1.6",
+          "MarkupSafe==3.0.4",
+          "filelock==4.2.0",
+          "fsspec==2026.9.0",
+          "mpmath==1.3.0",
+          "networkx==3.7",
+          "pip==25.0.1",
+          "setuptools==84.0.0",
+          "sympy==1.14.0",
+          "torch==2.14.1",
+          "typing_extensions==4.16.0"
+        ]
+      },
+      "packageBytes": 5062972,
+      "loadAndProbeMs": 109.43991700059996,
+      "direct": {
+        "1": {
+          "iterations": 30,
+          "meanMs": 2.741576433284839,
+          "p95Ms": 2.833208000083687,
+          "maxMs": 3.5547920006138156,
+          "positionsPerSecond": 364.75364606262065
+        },
+        "4": {
+          "iterations": 30,
+          "meanMs": 5.720705600106157,
+          "p95Ms": 5.854832999830251,
+          "maxMs": 6.186792000335117,
+          "positionsPerSecond": 699.2144465406109
+        },
+        "14": {
+          "iterations": 30,
+          "meanMs": 16.933197233386938,
+          "p95Ms": 17.455917000006593,
+          "maxMs": 18.330666999645473,
+          "positionsPerSecond": 826.7782986898898
+        }
+      },
+      "rows": [
+        {
+          "id": "off-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.041574373841285706, -0.10531820356845856, -0.09856048226356506, 0.20549270510673523,
+            0.07679147273302078, 0.053224705159664154, 0.0028053894639015198, -0.1605701744556427,
+            0.05039304494857788
+          ],
+          "policy": [
+            0.11433646827936172, 0.09871659427881241, 0.09938594698905945, 0.13470186293125153,
+            0.11843480169773102, 0.11567631363868713, 0.10998858511447906, 0.09341023862361908,
+            0.11534921824932098
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.1682928502559662, 0.17124240100383759, 0.191165953874588, 0.18705958127975464,
+            0.28223925828933716
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.06264111399650574, -0.00466220173984766, -0.07336359471082687, 0.25716614723205566,
+            -0.023327603936195374, -0.24101106822490692, -0.04294367879629135, 0.05506790429353714,
+            -0.10473757982254028
+          ],
+          "policy": [
+            0.10631278902292252, 0.11265888810157776, 0.10517894476652145, 0.14637808501720428,
+            0.11057556420564651, 0.08894478529691696, 0.10842764377593994, 0.119593046605587,
+            0.10193029046058655
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.16673490405082703, 0.17113614082336426, 0.19099542498588562, 0.18543994426727295,
+            0.28569361567497253
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.180382639169693, -0.06634869426488876, 0.10096056759357452, 0.009566858410835266,
+            0.2177693396806717, -0.03843254595994949, -0.03580014407634735, 0.25097110867500305,
+            -0.13288022577762604
+          ],
+          "policy": [
+            0.12501052021980286, 0.09767703711986542, 0.11546596884727478, 0.10538097470998764,
+            0.12977270781993866, 0.10044222325086594, 0.10070697963237762, 0.13415372371673584,
+            0.09138990193605423
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.1662694364786148, 0.17119283974170685, 0.19068627059459686, 0.18575197458267212,
+            0.28609946370124817
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.06595122814178467, -0.23310230672359467, -0.07942113280296326, -0.38036349415779114,
+            0.21142573654651642, 0.0062442347407341, 0.09761174768209457, -0.09614503383636475,
+            0.21412214636802673
+          ],
+          "policy": [
+            0.10606003552675247, 0.08973440527915955, 0.10464099049568176, 0.07744694501161575,
+            0.13996358215808868, 0.11400026828050613, 0.12490685284137726, 0.10290554165840149,
+            0.14034149050712585
+          ],
+          "topActionId": 10184,
+          "value": [
+            0.165901318192482, 0.17131328582763672, 0.19027993083000183, 0.18522068858146667,
+            0.287284791469574
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            0.17226940393447876, -0.0640958622097969, 0.10468457639217377, 0.0045337677001953125,
+            0.22617071866989136, -0.03441908210515976, -0.03614918887615204, -0.06646063923835754,
+            0.23921483755111694, -0.08682902157306671
+          ],
+          "policy": [
+            0.11262718588113785, 0.0889182984828949, 0.10526683181524277, 0.09523500502109528,
+            0.11886453628540039, 0.09159664809703827, 0.09143831580877304, 0.08870827406644821,
+            0.12042517960071564, 0.08691971004009247
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.1656927913427353, 0.16972032189369202, 0.19183412194252014, 0.18547868728637695,
+            0.2872741222381592
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            0.20213764905929565, -0.06411847472190857, 0.16884610056877136, 0.11395612359046936,
+            -0.18892255425453186, 0.001354411244392395, -0.09210102260112762, -0.03500567376613617,
+            -0.1819666624069214, -0.06008254736661911, -0.09354215115308762, 0.25699806213378906,
+            0.1970616579055786, 0.172406405210495, 0.029738038778305054, -0.12379541993141174,
+            -0.36262643337249756, 0.14172381162643433, 0.20636799931526184, 0.27142414450645447,
+            0.036490198224782944, -0.20064106583595276, -0.10083018243312836, -0.3591311275959015,
+            0.014723386615514755, -0.09524945169687271
+          ],
+          "policy": [
+            0.04664161056280136, 0.03573880344629288, 0.04511440172791481, 0.04270481318235397,
+            0.03154556453227997, 0.03815702721476555, 0.034752603620290756, 0.03679455444216728,
+            0.03176575526595116, 0.035883333534002304, 0.03470255434513092, 0.049271877855062485,
+            0.04640546068549156, 0.04527531564235687, 0.03925557807087898, 0.03366841375827789,
+            0.02651549130678177, 0.04390724375844002, 0.04683934524655342, 0.04998783394694328,
+            0.039521533995866776, 0.031178053468465805, 0.03445056080818176, 0.026608332991600037,
+            0.03867057338356972, 0.03464335948228836
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16382010281085968, 0.16866181790828705, 0.18708769977092743, 0.18199999630451202,
+            0.29843035340309143
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04519924148917198, -0.1059064269065857, -0.09875476360321045, 0.20610013604164124,
+            0.07729669660329819, 0.05306350439786911, 0.002938283607363701, -0.1620585322380066,
+            0.049018457531929016
+          ],
+          "policy": [
+            0.11473122239112854, 0.09864096343517303, 0.09934893995523453, 0.13475969433784485,
+            0.11847354471683502, 0.11563706398010254, 0.10998360067605972, 0.0932547003030777,
+            0.11517024785280228
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.20219555497169495, 0.0, 0.23012076318264008, 0.22447307407855988, 0.3432106077671051
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04173688590526581, -0.10524402558803558, -0.09738621115684509, 0.20724138617515564,
+            0.07936521619558334, 0.05157240107655525, 0.0030619949102401733, -0.1598970890045166,
+            0.05084771662950516
+          ],
+          "policy": [
+            0.11428233236074448, 0.0986611396074295, 0.09943944960832596, 0.13485181331634521,
+            0.11866451799869537, 0.1154118999838829, 0.1099468544125557, 0.09341369569301605,
+            0.11532829701900482
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.168221116065979, 0.17108085751533508, 0.19110219180583954, 0.18699070811271667,
+            0.28260505199432373
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.06378765404224396, -0.004495585337281227, -0.07573142647743225, 0.258475661277771,
+            -0.02261471003293991, -0.2424880415201187, -0.043024301528930664, 0.053394049406051636,
+            -0.10467957705259323
+          ],
+          "policy": [
+            0.1062350794672966, 0.11272446811199188, 0.10497378557920456, 0.14663077890872955,
+            0.11070039123296738, 0.08885040134191513, 0.10846394300460815, 0.11944261938333511,
+            0.10197854787111282
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.16658622026443481, 0.17097431421279907, 0.19097663462162018, 0.18532094359397888,
+            0.28614190220832825
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.18124651908874512, -0.06701982766389847, 0.1029575765132904, 0.007483847439289093,
+            0.21929191052913666, -0.038128890097141266, -0.0355079248547554, 0.25443947315216064,
+            -0.1355881243944168
+          ],
+          "policy": [
+            0.12505219876766205, 0.09755973517894745, 0.11563540995121002, 0.10510590672492981,
+            0.12990152835845947, 0.10041943937540054, 0.10068297386169434, 0.13454842567443848,
+            0.09109443426132202
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.1661739945411682, 0.17097999155521393, 0.19067935645580292, 0.18558241426944733,
+            0.2865842282772064
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.06743893027305603, -0.23360075056552887, -0.08213497698307037, -0.3820510506629944,
+            0.21196606755256653, 0.004754222929477692, 0.09803736209869385, -0.0959073156118393,
+            0.21544469892978668
+          ],
+          "policy": [
+            0.10594973713159561, 0.08972980827093124, 0.10440408438444138, 0.07735094428062439,
+            0.1401018649339676, 0.11388145387172699, 0.12501591444015503, 0.10297604650259018,
+            0.14059008657932281
+          ],
+          "topActionId": 10184,
+          "value": [
+            0.16581279039382935, 0.17109565436840057, 0.1902824342250824, 0.1849987506866455,
+            0.28781038522720337
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            0.17231908440589905, -0.07020670175552368, 0.11454340815544128, 0.0033833682537078857,
+            0.2248692661523819, -0.033043622970581055, -0.03173377364873886, -0.06076116859912872,
+            0.2441505491733551, -0.08218172192573547
+          ],
+          "policy": [
+            0.11237644404172897, 0.08817543834447861, 0.10606782138347626, 0.09490900486707687,
+            0.11843976378440857, 0.09151396155357361, 0.09163391590118408, 0.0890122577548027,
+            0.12074559181928635, 0.08712583780288696
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16573069989681244, 0.1685979962348938, 0.19268099963665009, 0.1851983368396759,
+            0.287791907787323
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            0.20476996898651123, -0.0645870566368103, 0.1701357364654541, 0.11555394530296326,
+            -0.18843543529510498, 0.001356855034828186, -0.09209024161100388, -0.03437060862779617,
+            -0.1831476092338562, -0.05867944285273552, -0.09269711375236511, 0.2599584460258484,
+            0.19882270693778992, 0.1729668378829956, 0.03121737390756607, -0.1260809600353241,
+            -0.36567422747612, 0.1444120556116104, 0.20842245221138, 0.2742270529270172,
+            0.03759193792939186, -0.19826368987560272, -0.1045169085264206, -0.36065468192100525,
+            0.01577892154455185, -0.09534823149442673
+          ],
+          "policy": [
+            0.04672667011618614, 0.03569312393665314, 0.04513602703809738, 0.042738448828458786,
+            0.03153536841273308, 0.03812621161341667, 0.034724824130535126, 0.036788102239370346,
+            0.03170256316661835, 0.03590460866689682, 0.03470376133918762, 0.0493779294192791,
+            0.04644959792494774, 0.045263998210430145, 0.03928184509277344, 0.03356434032320976,
+            0.026413386687636375, 0.043989770114421844, 0.04689764976501465, 0.05008753389120102,
+            0.03953304886817932, 0.03122694604098797, 0.034295983612537384, 0.026546301320195198,
+            0.0386800542473793, 0.03461188077926636
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16350243985652924, 0.16790853440761566, 0.18726415932178497, 0.18168838322162628,
+            0.29963645339012146
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04526988044381142, -0.1059146448969841, -0.09743852913379669, 0.20723307132720947,
+            0.07944401353597641, 0.05115794017910957, 0.0029150843620300293, -0.1619173139333725,
+            0.04890042543411255
+          ],
+          "policy": [
+            0.11470234394073486, 0.0986083447933197, 0.09944771975278854, 0.13486896455287933,
+            0.11868995428085327, 0.1153797134757042, 0.10994560271501541, 0.09323780238628387,
+            0.11511953920125961
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.20197179913520813, 0.0, 0.2300620824098587, 0.2242341935634613, 0.34373193979263306
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ],
+      "batchComparisons": {
+        "1": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 5.960464477539063e-8,
+            "policy": 1.4901161193847656e-8,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        },
+        "4": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 5.960464477539063e-8,
+            "policy": 1.4901161193847656e-8,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        }
+      },
+      "peakRssBytes": 354156544,
+      "workerPeakRssBytes": 5373952,
+      "comparison": {
+        "passed": true,
+        "absoluteTolerance": 1e-5,
+        "relativeTolerance": 0.0001,
+        "maxAbsoluteError": {
+          "policyLogits": 8.940696716308594e-8,
+          "policy": 2.9802322387695312e-8,
+          "value": 4.470348358154297e-8
+        },
+        "topActionAgreement": 14
+      }
+    },
+    "final-mps-trained-linux-cpu": {
+      "format": "four-shogi-inference-measurement-v1",
+      "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+      "weightsSha256": "466dbf335c90a7bc77562045d02a0f6d593ec874173eed3967fedd3637e22489",
+      "fixtureSha256": "f8cd5df64de66747db94fa2997b63db0250ae746d62876e52f10eab61dfe7eaa",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+      "versions": {
+        "modelVersion": "four-shogi-tiny-policy-value-v1",
+        "featureVersion": "four-shogi-features-v1",
+        "actionEncodingVersion": "four-shogi-policy-index-v1",
+        "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+        "rulesVersion": 1,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"]
+      },
+      "calibrated": false,
+      "runtime": {
+        "python": "3.12.14 (main, Sep 19 2026, 01:11:39) [GCC 12.2.0]",
+        "torch": "2.14.1+cpu",
+        "platform": "Linux-7.2.9-orbstack-00391-g2b298d05fbd4-aarch64-with-glibc2.36",
+        "machine": "aarch64",
+        "device": "cpu",
+        "threads": 1,
+        "torchConfig": "PyTorch built with:\n  - GCC 13.3\n  - C++ Version: 202002\n  - Intel(R) MKL-DNN v3.12.0 (Git Hash 80afa71049cd69a3df32adcccb623b12cd7baa22)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: DEFAULT\n  - Build settings: BLAS_INFO=open, BUILD_TYPE=Release, COMMIT_SHA=5c4886908584029761b579af026dcfb627c84070, CUDA_FLAGS= -DLIBCUDACXX_ENABLE_SIMPLIFIED_COMPLEX_OPERATIONS -Xfatbin -compress-all  -Wno-deprecated-gpu-targets --expt-extended-lambda -DCUB_WRAPPED_NAMESPACE=at_cuda_detail -DDISABLE_CUSPARSE_DEPRECATED -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -DC10_NODEPRECATED, CXX_COMPILER=/opt/rh/gcc-toolset-13/root/usr/bin/c++, CXX_FLAGS= -ffunction-sections -fdata-sections -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DAT_BUILD_ARM_VEC256_WITH_SLEEF -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -DC10_NODEPRECATED -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=range-loop-construct -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -faligned-new -Wno-maybe-uninitialized -fno-omit-frame-pointer -fno-math-errno -fno-trapping-math -Werror=format -Wno-dangling-reference -Wno-error=dangling-reference -Wno-stringop-overflow, LAPACK_INFO=open, TORCH_VERSION=2.14.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_HIPSPARSELT=OFF, USE_MKLDNN=1, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, USE_XCCL=OFF, USE_XPU=OFF, \n",
+        "cpuCount": 10,
+        "dependencies": [
+          "Jinja2==3.1.6",
+          "MarkupSafe==3.0.3",
+          "filelock==3.32.3",
+          "fsspec==2026.7.0",
+          "mpmath==1.3.0",
+          "networkx==3.6.1",
+          "pip==25.0.1",
+          "setuptools==78.1.0",
+          "sympy==1.14.0",
+          "torch==2.14.1+cpu",
+          "typing_extensions==4.16.0"
+        ]
+      },
+      "packageBytes": 5062972,
+      "loadAndProbeMs": 20.785390999890296,
+      "direct": {
+        "1": {
+          "iterations": 30,
+          "meanMs": 0.8678172667108205,
+          "p95Ms": 0.9042089998274605,
+          "maxMs": 1.0030010000718903,
+          "positionsPerSecond": 1152.316320911861
+        },
+        "4": {
+          "iterations": 30,
+          "meanMs": 1.499179000014313,
+          "p95Ms": 1.5691680000600172,
+          "maxMs": 1.589502000115317,
+          "positionsPerSecond": 2668.1270214976403
+        },
+        "14": {
+          "iterations": 30,
+          "meanMs": 4.823063566656553,
+          "p95Ms": 4.87096200004089,
+          "maxMs": 4.93467100000089,
+          "positionsPerSecond": 2902.7193621885203
+        }
+      },
+      "rows": [
+        {
+          "id": "off-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.0415743924677372, -0.10531824082136154, -0.09856048971414566, 0.20549270510673523,
+            0.07679149508476257, 0.05322471261024475, 0.0028054211288690567, -0.1605702042579651,
+            0.05039305239915848
+          ],
+          "policy": [
+            0.11433646082878113, 0.09871657192707062, 0.09938593208789825, 0.13470184803009033,
+            0.11843480169773102, 0.11567629873752594, 0.10998857766389847, 0.09341023117303848,
+            0.11534920334815979
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.1682928204536438, 0.171242356300354, 0.191165953874588, 0.18705958127975464,
+            0.28223922848701477
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.06264111399650574, -0.004662192892283201, -0.07336356490850449, 0.2571660876274109,
+            -0.02332761511206627, -0.2410111278295517, -0.04294366389513016, 0.05506790801882744,
+            -0.10473759472370148
+          ],
+          "policy": [
+            0.10631279647350311, 0.11265889555215836, 0.10517895966768265, 0.14637808501720428,
+            0.11057556420564651, 0.08894477039575577, 0.10842765867710114, 0.119593046605587,
+            0.10193029791116714
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.16673488914966583, 0.17113612592220306, 0.19099542498588562, 0.18543994426727295,
+            0.28569361567497253
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.18038266897201538, -0.06634870171546936, 0.10096050053834915, 0.009566822089254856,
+            0.2177693098783493, -0.03843249753117561, -0.03580012172460556, 0.25097110867500305,
+            -0.13288024067878723
+          ],
+          "policy": [
+            0.12501050531864166, 0.09767702966928482, 0.11546593904495239, 0.10538095980882645,
+            0.12977269291877747, 0.10044221580028534, 0.10070696473121643, 0.13415370881557465,
+            0.09138989448547363
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16626940667629242, 0.17119286954402924, 0.19068628549575806, 0.18575197458267212,
+            0.28609946370124817
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.06595124304294586, -0.23310227692127228, -0.07942117750644684, -0.38036349415779114,
+            0.21142570674419403, 0.006244244519621134, 0.09761174768209457, -0.09614502638578415,
+            0.21412208676338196
+          ],
+          "policy": [
+            0.10606001317501068, 0.08973439037799835, 0.10464096814393997, 0.07744693011045456,
+            0.1399635523557663, 0.11400025337934494, 0.12490683048963547, 0.1029055267572403,
+            0.14034146070480347
+          ],
+          "topActionId": 10184,
+          "value": [
+            0.165901318192482, 0.17131327092647552, 0.19027991592884064, 0.18522068858146667,
+            0.287284791469574
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            0.17226946353912354, -0.0640958696603775, 0.10468457639217377, 0.0045337677001953125,
+            0.22617068886756897, -0.03441908210515976, -0.036149196326732635, -0.06646065413951874,
+            0.2392149269580841, -0.08682902157306671
+          ],
+          "policy": [
+            0.11262720823287964, 0.0889182984828949, 0.10526683181524277, 0.09523501247167587,
+            0.11886453628540039, 0.09159665554761887, 0.09143831580877304, 0.08870827406644821,
+            0.12042519450187683, 0.08691971004009247
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.1656927913427353, 0.16972029209136963, 0.19183413684368134, 0.18547867238521576,
+            0.28727415204048157
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            0.20213767886161804, -0.06411845237016678, 0.16884608566761017, 0.11395607143640518,
+            -0.18892255425453186, 0.0013544269604608417, -0.09210102260112762, -0.03500566631555557,
+            -0.1819666624069214, -0.06008252501487732, -0.09354216605424881, 0.25699809193611145,
+            0.19706164300441742, 0.1724063754081726, 0.029738031327724457, -0.12379544228315353,
+            -0.36262646317481995, 0.1417238414287567, 0.20636801421642303, 0.2714240849018097,
+            0.036490198224782944, -0.20064102113246918, -0.10083021223545074, -0.3591311275959015,
+            0.014723383821547031, -0.09524945169687271
+          ],
+          "policy": [
+            0.04664161801338196, 0.035738807171583176, 0.04511440917849541, 0.04270481318235397,
+            0.03154556825757027, 0.03815702721476555, 0.034752607345581055, 0.03679455444216728,
+            0.031765758991241455, 0.0358833372592926, 0.03470255807042122, 0.04927188530564308,
+            0.04640546441078186, 0.04527531564235687, 0.03925558179616928, 0.03366841375827789,
+            0.02651549130678177, 0.043907247483730316, 0.04683934524655342, 0.04998783394694328,
+            0.039521537721157074, 0.031178057193756104, 0.03445056080818176, 0.026608332991600037,
+            0.038670577108860016, 0.03464335948228836
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16382013261318207, 0.16866183280944824, 0.18708771467208862, 0.18199999630451202,
+            0.2984303832054138
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "off-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04519924893975258, -0.1059064045548439, -0.09875474125146866, 0.20610013604164124,
+            0.07729668915271759, 0.05306351184844971, 0.0029383222572505474, -0.16205856204032898,
+            0.04901846498250961
+          ],
+          "policy": [
+            0.11473122239112854, 0.09864096343517303, 0.09934893995523453, 0.13475969433784485,
+            0.11847354471683502, 0.11563706398010254, 0.10998360067605972, 0.0932547003030777,
+            0.11517025530338287
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.20219554007053375, 0.0, 0.23012074828147888, 0.2244730442762375, 0.3432106077671051
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.04173692315816879, -0.10524401068687439, -0.09738621115684509, 0.20724137127399445,
+            0.07936519384384155, 0.051572367548942566, 0.003062016563490033, -0.1598970592021942,
+            0.05084768682718277
+          ],
+          "policy": [
+            0.11428233981132507, 0.09866113215684891, 0.09943944215774536, 0.13485181331634521,
+            0.11866451799869537, 0.1154118999838829, 0.10994686186313629, 0.09341370314359665,
+            0.11532829701900482
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.1682211309671402, 0.1710808426141739, 0.19110222160816193, 0.18699070811271667,
+            0.2826050817966461
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-1",
+          "legalActionIds": [2936, 2954, 4412, 4594, 6234, 7400, 7546, 8858, 8876],
+          "policyLogits": [
+            -0.06378769129514694, -0.004495571833103895, -0.07573139667510986, 0.2584756016731262,
+            -0.022614723071455956, -0.24248811602592468, -0.043024301528930664, 0.05339405685663223,
+            -0.10467957705259323
+          ],
+          "policy": [
+            0.106235072016716, 0.11272446066141129, 0.10497377812862396, 0.14663076400756836,
+            0.11070039123296738, 0.08885038644075394, 0.10846393555402756, 0.11944261938333511,
+            0.10197854042053223
+          ],
+          "topActionId": 4594,
+          "value": [
+            0.16658620536327362, 0.17097429931163788, 0.19097661972045898, 0.18532094359397888,
+            0.28614190220832825
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-2",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2314, 3626],
+          "policyLogits": [
+            0.18124651908874512, -0.06701982766389847, 0.1029575914144516, 0.007483828812837601,
+            0.21929188072681427, -0.038128867745399475, -0.035507943481206894, 0.25443947315216064,
+            -0.135588139295578
+          ],
+          "policy": [
+            0.12505219876766205, 0.09755973517894745, 0.11563541740179062, 0.1051059141755104,
+            0.12990151345729828, 0.10041943937540054, 0.10068298131227493, 0.13454842567443848,
+            0.09109441936016083
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16617397964000702, 0.17097999155521393, 0.19067935645580292, 0.18558241426944733,
+            0.2865842282772064
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-3",
+          "legalActionIds": [4244, 4262, 5574, 5720, 6886, 8526, 8708, 10166, 10184],
+          "policyLogits": [
+            -0.06743891537189484, -0.23360073566436768, -0.08213496953248978, -0.3820510506629944,
+            0.21196605265140533, 0.0047542620450258255, 0.09803735464811325, -0.0959073081612587,
+            0.21544469892978668
+          ],
+          "policy": [
+            0.10594974458217621, 0.08972980827093124, 0.10440408438444138, 0.07735093683004379,
+            0.1401018649339676, 0.11388145387172699, 0.12501592934131622, 0.10297604650259018,
+            0.14059008657932281
+          ],
+          "topActionId": 10184,
+          "value": [
+            0.16581279039382935, 0.17109565436840057, 0.1902824491262436, 0.1849987655878067,
+            0.287810355424881
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-6",
+          "legalActionIds": [344, 346, 508, 840, 1002, 1004, 1986, 2150, 2314, 5102],
+          "policyLogits": [
+            0.17231912910938263, -0.07020670175552368, 0.11454334855079651, 0.003383345203474164,
+            0.22486922144889832, -0.03304363414645195, -0.03173377737402916, -0.0607612319290638,
+            0.2441505640745163, -0.08218173682689667
+          ],
+          "policy": [
+            0.11237644404172897, 0.0881754457950592, 0.10606780648231506, 0.09490900486707687,
+            0.11843975633382797, 0.09151396155357361, 0.09163391590118408, 0.0890122503042221,
+            0.12074559181928635, 0.08712583780288696
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16573071479797363, 0.1685979962348938, 0.19268102943897247, 0.1851983517408371,
+            0.2877919375896454
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-26",
+          "legalActionIds": [
+            344, 346, 348, 508, 510, 512, 658, 672, 674, 982, 986, 1002, 1458, 1478, 1480, 1482,
+            1484, 1494, 1512, 2314, 2608, 2640, 2642, 2644, 3462, 5102
+          ],
+          "policyLogits": [
+            0.20476999878883362, -0.0645870715379715, 0.17013569176197052, 0.11555389314889908,
+            -0.18843545019626617, 0.0013568657450377941, -0.09209024906158447, -0.03437062352895737,
+            -0.1831475794315338, -0.05867942050099373, -0.0926971361041069, 0.2599584460258484,
+            0.1988227367401123, 0.1729668378829956, 0.031217414885759354, -0.1260809451341629,
+            -0.3656742572784424, 0.1444120556116104, 0.20842245221138, 0.2742270231246948,
+            0.037591926753520966, -0.19826370477676392, -0.1045168936252594, -0.3606546223163605,
+            0.015778932720422745, -0.09534825384616852
+          ],
+          "policy": [
+            0.04672667756676674, 0.03569312393665314, 0.04513603448867798, 0.042738452553749084,
+            0.03153536841273308, 0.03812621161341667, 0.03472483158111572, 0.036788105964660645,
+            0.031702566891908646, 0.03590461611747742, 0.034703757613897324, 0.0493779331445694,
+            0.04644960165023804, 0.045263998210430145, 0.039281852543354034, 0.03356434404850006,
+            0.026413384824991226, 0.04398977756500244, 0.04689765349030495, 0.05008753761649132,
+            0.03953305259346962, 0.031226949766278267, 0.03429598733782768, 0.026546306908130646,
+            0.0386800542473793, 0.03461188077926636
+          ],
+          "topActionId": 2314,
+          "value": [
+            0.16350243985652924, 0.16790853440761566, 0.18726415932178497, 0.18168839812278748,
+            0.29963645339012146
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "on-west-eliminated",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            0.045269884169101715, -0.1059146597981453, -0.09743855148553848, 0.20723304152488708,
+            0.07944400608539581, 0.051157914102077484, 0.0029151057824492455, -0.1619172841310501,
+            0.048900410532951355
+          ],
+          "policy": [
+            0.11470234394073486, 0.0986083522439003, 0.09944771975278854, 0.13486896455287933,
+            0.11868995428085327, 0.1153797134757042, 0.10994560271501541, 0.09323781728744507,
+            0.11511953920125961
+          ],
+          "topActionId": 12116,
+          "value": [
+            0.20197178423404694, 0.0, 0.2300620824098587, 0.2242341935634613, 0.34373193979263306
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ],
+      "batchComparisons": {
+        "1": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 0.0,
+            "policy": 0.0,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        },
+        "4": {
+          "passed": true,
+          "absoluteTolerance": 1e-5,
+          "relativeTolerance": 0.0001,
+          "maxAbsoluteError": {
+            "policyLogits": 0.0,
+            "policy": 0.0,
+            "value": 0.0
+          },
+          "topActionAgreement": 14
+        }
+      },
+      "persistentWorker": {
+        "startupIncludingImportMs": 557.829067000057,
+        "batchSize": 4,
+        "roundTrip": {
+          "iterations": 30,
+          "meanMs": 1.8107431666673317,
+          "p95Ms": 1.9371270000192453,
+          "maxMs": 1.9442100001469953
+        },
+        "ready": {
+          "protocol": "four-shogi-inference-ipc-v1",
+          "id": 0,
+          "ok": true,
+          "result": {
+            "modelId": "four-shogi-tiny-policy-value-v1:164994c09aa3497f3768a5d8d78e360b5d5611f3de344f0ff78c6f1068cafb6d",
+            "calibrated": false,
+            "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+            "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+            "runtime": {
+              "python": "3.12",
+              "torch": "2.14.1",
+              "device": "cpu"
+            },
+            "supportedRestrictions": [false, true]
+          }
+        },
+        "processes": 1
+      },
+      "exportExperiment": {
+        "exported": false,
+        "adopted": false,
+        "error": "GuardOnDataDependentSymNode",
+        "reason": "Could not guard on data-dependent expression Eq(u0, 1) (unhinted: Eq(u0, 1)).  (Size-like symbols: none)\n\nconsider using data-dependent friendly APIs such as guard_or_false, guard_or_true and statically_known_true.\nCaused by: (_export/non_strict_utils.py:1377 in __torch_function__)\nFor more information, run with TORCH_LOGS=\"dynamic\"\nFor extended logs when we create symbols, also add TORCHDYNAMO_EXTENDED_DEBUG_CREATE_SYMBOL=\"u0\"\nIf you suspect the guard was triggered from C++, add TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\nFor more debugging help, see https://docs.google.com/document/d/1HSuTTVvYH1pTew89Rtpeu84Ht3nQEFTYhAX3Ypa_xJs/edit?usp=sharing\n\nFor C++ stack trace, run with TORCHDYNAMO_EXTENDED_DEBUG_CPP=1\n\nThe following call raised this error:\n  File \"/engine/model.py\", line 35, in forward\n    if not bool(legal.any(dim=1).all()):\n\n\nThe error above occurred when calling torch.export.export. If you would like to view some more information about this error, and get a list of all other errors that may occur in your export call, you can replace your `export()` call with `draft_export()`."
+      },
+      "peakRssBytes": 365068288,
+      "workerPeakRssBytes": 265895936,
+      "comparison": {
+        "passed": true,
+        "absoluteTolerance": 1e-5,
+        "relativeTolerance": 0.0001,
+        "maxAbsoluteError": {
+          "policyLogits": 0.0,
+          "policy": 0.0,
+          "value": 0.0
+        },
+        "topActionAgreement": 14
+      }
+    }
+  },
+  "bunIpc": {
+    "mac": {
+      "health": {
+        "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+        "calibrated": false,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+        "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+        "runtime": {
+          "python": "3.12",
+          "torch": "2.14.1",
+          "device": "cpu"
+        },
+        "supportedRestrictions": [false, true]
+      },
+      "runtime": {
+        "bun": "1.4.2",
+        "platform": "darwin",
+        "arch": "arm64"
+      },
+      "startupMs": 359.983583,
+      "batchSize": 2,
+      "iterations": 30,
+      "meanRoundTripMs": 1.1486736333333358,
+      "maxRoundTripMs": 2.8417910000000006,
+      "outputs": [
+        {
+          "id": "0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.24286681413650513, -0.6203009486198425, -0.22510792315006256, 0.1113874688744545,
+            0.11551379412412643, -0.3514202833175659, -0.15439766645431519, -0.37395599484443665,
+            0.23833344876766205
+          ],
+          "policy": [
+            0.09955748170614243, 0.06825842708349228, 0.10134129226207733, 0.1418810933828354,
+            0.14246775209903717, 0.08931608498096466, 0.1087665930390358, 0.0873258039355278,
+            0.16108551621437073
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07247059792280197, 0.09860454499721527, 0.07058984041213989, 0.07493510842323303,
+            0.6833999752998352
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "1",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.24503228068351746, -0.6248919367790222, -0.22512052953243256, 0.11180241405963898,
+            0.11865854263305664, -0.35631319880485535, -0.15623313188552856, -0.3762718439102173,
+            0.23917680978775024
+          ],
+          "policy": [
+            0.09941400587558746, 0.06799494475126266, 0.10141335427761078, 0.14204269647598267,
+            0.1430199146270752, 0.0889444574713707, 0.10864569991827011, 0.08718684315681458,
+            0.16133809089660645
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07152488082647324, 0.09760432690382004, 0.06964266300201416, 0.07386858761310577,
+            0.6873595714569092
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ]
+    },
+    "linux": {
+      "health": {
+        "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+        "calibrated": false,
+        "valueOrder": ["south", "west", "north", "east", "noSoleWinner"],
+        "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac",
+        "runtime": {
+          "python": "3.12",
+          "torch": "2.14.1",
+          "device": "cpu"
+        },
+        "supportedRestrictions": [false, true]
+      },
+      "runtime": {
+        "bun": "1.4.2",
+        "platform": "linux",
+        "arch": "arm64"
+      },
+      "startupMs": 569.2072430000001,
+      "batchSize": 2,
+      "iterations": 30,
+      "meanRoundTripMs": 1.7654500000000097,
+      "maxRoundTripMs": 3.9761700000000246,
+      "outputs": [
+        {
+          "id": "0",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.2428668886423111, -0.6203010082244873, -0.22510793805122375, 0.1113874763250351,
+            0.11551384627819061, -0.35142025351524353, -0.15439771115779877, -0.37395599484443665,
+            0.23833344876766205
+          ],
+          "policy": [
+            0.09955746680498123, 0.06825842708349228, 0.10134129226207733, 0.1418810933828354,
+            0.14246776700019836, 0.08931609988212585, 0.1087665930390358, 0.0873258039355278,
+            0.16108551621437073
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07247059792280197, 0.09860454499721527, 0.07058984041213989, 0.07493512332439423,
+            0.6833999752998352
+          ],
+          "illegalPolicyNonzero": 0
+        },
+        {
+          "id": "1",
+          "legalActionIds": [9494, 10806, 11134, 12116, 12118, 12280, 12612, 12774, 12776],
+          "policyLogits": [
+            -0.24503228068351746, -0.6248919367790222, -0.22512051463127136, 0.11180245131254196,
+            0.11865854263305664, -0.35631319880485535, -0.15623314678668976, -0.37627190351486206,
+            0.23917675018310547
+          ],
+          "policy": [
+            0.09941400587558746, 0.06799494475126266, 0.10141334682703018, 0.14204271137714386,
+            0.143019899725914, 0.0889444500207901, 0.10864569991827011, 0.08718682825565338,
+            0.16133807599544525
+          ],
+          "topActionId": 12776,
+          "value": [
+            0.07152487337589264, 0.09760431945323944, 0.06964267045259476, 0.07386858761310577,
+            0.6873595118522644
+          ],
+          "illegalPolicyNonzero": 0
+        }
+      ]
+    }
+  },
+  "validation": {
+    "macPythonTests": {
+      "passed": 9,
+      "skipped": 0
+    },
+    "linuxPythonTests": {
+      "passed": 9,
+      "skipped": 0
+    },
+    "bunFourShogiTests": 461,
+    "newBunTests": 3,
+    "preCommit": {
+      "exitCode": 0,
+      "commitWallSeconds": 65.81491341699984,
+      "sourceCommit": "eb758ccb3ff1a337150d56a55a74c54b0a882c7e"
+    },
+    "requiredBuilds": {
+      "commit": "eb758ccb3ff1a337150d56a55a74c54b0a882c7e",
+      "results": [
+        {
+          "command": "bun run build",
+          "exitCode": 0,
+          "seconds": 8.93
+        },
+        {
+          "command": "bun run --cwd apps/worker deploy:dry-run",
+          "exitCode": 0,
+          "seconds": 0.63
+        },
+        {
+          "command": "bun run build:development",
+          "exitCode": 0,
+          "seconds": 8.74
+        },
+        {
+          "command": "bun run --cwd apps/worker deploy:dry-run:development",
+          "exitCode": 0,
+          "seconds": 0.6
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "local OrbStack Linux on Apple M5, not actual VPS",
+    "x86_64 not measured",
+    "no long-run/max-history/concurrency claim",
+    "benchmark process RSS includes torch.export experiment; worker RSS is separate",
+    "OS filesystem caches are not cold",
+    "model is uncalibrated and learned from tiny noSoleWinner-only value data",
+    "common search uses static evaluation until #192",
+    "artifacts are temporary; T05 long-term storage undecided",
+    "torch.export failed before exported-runtime performance comparison"
+  ]
+}
