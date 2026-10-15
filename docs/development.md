@@ -4,16 +4,16 @@
 
 この文書は実装を探す入口、変更手順、構造と注意点を記します。最初にこの案内と次の共通手順を読み、変更対象別の表から必要な節へ進んでください。仕様を判断するときは、案内のリンク先にある正本の本文を確認します。
 
-| 文書 | 主に残す内容 |
-| --- | --- |
-| [README](../README.md) | サービスの目的、利用者向け仕様、ゲーム共通仕様、詳細への入口 |
-| [ゲームのルール正本](#変更対象別の案内) | ゲーム固有のルールとCPUの現在の採用仕様 |
-| [構成文書](architecture.md) | 技術構成、責務と状態の分担、長期参照が必要な設計理由 |
-| この開発文書 | 実装の入口、変更手順、構造と互換性などの注意点 |
-| [テスト方針](testing.md) | 実行方法、検証範囲、対象別のテストと移管根拠 |
-| [四人将棋AIの測定・採用記録](four-shogi-ai.md) | 比較条件、対象コミット、結果、採用判断と限界 |
-| [四人将棋シングルスAIの契約](four-shogi-ai-engine.md) | 新AIの承認済み目標・D01〜D05の設計契約、判断IDと未決事項。実装前の計画と現行CPUの採用仕様を分ける |
-| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録 |
+| 文書                                                     | 主に残す内容                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [README](../README.md)                                   | サービスの目的、利用者向け仕様、ゲーム共通仕様、詳細への入口                                      |
+| [ゲームのルール正本](#変更対象別の案内)                  | ゲーム固有のルールとCPUの現在の採用仕様                                                           |
+| [構成文書](architecture.md)                              | 技術構成、責務と状態の分担、長期参照が必要な設計理由                                              |
+| この開発文書                                             | 実装の入口、変更手順、構造と互換性などの注意点                                                    |
+| [テスト方針](testing.md)                                 | 実行方法、検証範囲、対象別のテストと移管根拠                                                      |
+| [四人将棋AIの測定・採用記録](four-shogi-ai.md)           | 比較条件、対象コミット、結果、採用判断と限界                                                      |
+| [四人将棋シングルスAIの契約](four-shogi-ai-engine.md)    | 新AIの承認済み目標・D01〜D05の設計契約、判断IDと未決事項。実装前の計画と現行CPUの採用仕様を分ける |
+| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録                                      |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
 
@@ -29,24 +29,24 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 
 実装・テスト欄は代表的な入口です。対象別の部分実行コマンドは [変更対象別の確認](testing.md#変更対象別の確認) にまとめています。PR前の必須検証は上の共通手順に従います。
 
-| 変更対象 | 仕様の正本 | 開発文書の該当節と主な実装 | テストの入口 |
-| --- | --- | --- | --- |
-| 終局後の登録・対局引き継ぎ | [共通仕様](../README.md#終局後の登録と継続再戦) | [実装と完了条件](#任意登録の案内と画面復帰)、[構成](architecture.md#終局後の登録フローと記録の帰属)、[registrationRoutes.ts](../apps/worker/src/accounts/registrationRoutes.ts)、[matchClaims.ts](../apps/worker/src/accounts/matchClaims.ts) | [受入検証](testing.md#終局後の登録引き継ぎ) |
-| 認証・プロフィール・参加資格 | [認証とプロフィール](../README.md#googlediscord認証とプロフィール)、[参加](../README.md#対局部屋と参加) | [認証と移行](#google認証とアカウント移行)、[アカウント参加](#アカウントでのルーム参加)、[auth.ts](../apps/worker/src/accounts/auth.ts)、[AccountSession.tsx](../apps/web/src/features/account/AccountSession.tsx) | [accounts.test.ts](../apps/worker/test/accounts.test.ts)、[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx) |
-| プライバシー・規約・退会・計測期限 | [確定仕様](../README.md#プライバシー利用規約退会の確定仕様) | [実装計画](#プライバシー規約退会の実装計画)、認証・棋譜・ルーム・計測・フィードバックの既存入口 | [検証と公開前の確認](testing.md#プライバシー規約退会の確認) |
-| 時計・接続・ルーム進行 | [投了、通信切れと持ち時間](../README.md#投了通信切れと持ち時間) | [共有transport](#共有transportとゲーム別session)、[時計と期限](#workerの時計計算と期限選択)、[進行とライフサイクル](#workerのゲーム進行と共有ライフサイクル)、[clockCore.ts](../apps/worker/src/rooms/clockCore.ts)、[useRoomTransport.ts](../apps/web/src/features/room/useRoomTransport.ts) | [timeControl.test.ts](../apps/worker/test/timeControl.test.ts)、[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx) |
-| 終局保存・棋譜・互換性 | [終局保存](../README.md#終局データの保存対局履歴)、[保存棋譜](../README.md#保存済み棋譜の閲覧)、対象ゲームの正本 | [終局保存](#終局保存と本人の対局履歴)、[棋譜互換](#保存データの契約と棋譜互換)、[matchStore.ts](../apps/worker/src/rooms/matchStore.ts)、[shogiMatchStore.ts](../apps/worker/src/rooms/shogiMatchStore.ts)、[fetchEventReplay.ts](../apps/web/src/features/room/fetchEventReplay.ts) | [matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx) |
-| 総合ロビー・公開チャット | [確定仕様](../README.md#総合ロビーの確定仕様) | [実装計画](#総合ロビーの実装計画)・[実装](#総合ロビーの実装)、既存のルーム索引・公開棋譜・認証・管理・配信 | [受入検証](testing.md#総合ロビーの確認) |
-| 画面・ロビー・共通部品 | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル) | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/) | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx) |
-| ルーム共有 | [確定した共有仕様](../README.md#ルーム共有の確定仕様) | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts) | [ルーム共有の確認](testing.md#ルーム共有の確認) |
-| ゲーム・CPU | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md) | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts) | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts) |
-| 表示・サウンド設定 | [設定](../README.md#表示サウンド設定)、[効果音](../README.md#効果音)、[時計通知](../README.md#時間切れ5秒前の通知) | [表示・サウンド設定](#表示サウンド設定)、[共通効果音](#ルームの共通効果音)、[browserSettings.ts](../apps/web/src/shared/browserSettings.ts)、[soundPlayer.ts](../apps/web/src/shared/soundPlayer.ts) | [設定の確認](testing.md#表示サウンド設定の確認)、[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx) |
-| チャット・スタンプ | [チャット](../README.md#チャット)、[保存とモデレーション](../README.md#チャットの保存期間とモデレーション)、[スタンプ](../README.md#ルームのスタンプ) | [スタンプ](#ルームのスタンプ)、[gameRoom.ts](../apps/worker/src/rooms/gameRoom.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts) | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts) |
-| 戦績・ランキング・戦型・バッジ | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[accounts](../apps/worker/src/accounts/) | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
-| 管理画面・計測・フィードバック・お知らせ | [計測画面](../README.md#計測用管理画面)、[フィードバック](../README.md#フィードバック受付とお知らせ)、[お知らせ管理](../README.md#お知らせの管理とロビー掲載) | [管理画面](#計測用管理画面の開発と公開)、[フィードバック運営](#フィードバックの受付運営)、[お知らせ](#お知らせの保存管理公開)、[admin](../apps/worker/src/admin/)、[apps/admin](../apps/admin/src/) | [adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)、[feedback.test.ts](../apps/worker/test/feedback.test.ts)、[announcements.test.ts](../apps/worker/test/announcements.test.ts) |
-| 公開・環境設定・CI | [開発と本番公開](../README.md#開発と本番公開)、[AGENTS.md](../AGENTS.md) | [本番デプロイ](#本番デプロイ)、[Checks](#checks)、[個人設定からの分離](testing.md#個人設定からの分離)、[ci.yml](../.github/workflows/ci.yml)、[buildAssets.ts](../scripts/buildAssets.ts) | [testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)、必須のcheck・build・Worker dry-run |
-| 五目並べ | [追加範囲](../README.md#五目並べ)、[ルール正本](rules/gomoku.md) | [実装](#五目並べの実装)・[計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応) | [エンジン](../packages/gomoku/test/)、[Worker](../apps/worker/test/gomokuRoom.test.ts)、[DOM](../apps/web/test-dom/gomoku.test.tsx) |
-| 四人五目並べ | [追加範囲](../README.md#四人五目並べ)、[ルール正本](rules/four-gomoku.md) | [実装](#四人五目並べの実装)・[計画と完了条件](#四人五目並べの実装計画) | [エンジン](../packages/four-gomoku/test/)、[Worker](../apps/worker/test/fourGomokuRoom.test.ts)、[DOM](../apps/web/test-dom/fourGomoku.test.tsx) |
+| 変更対象                                 | 仕様の正本                                                                                                                                                        | 開発文書の該当節と主な実装                                                                                                                                                                                                                                                                    | テストの入口                                                                                                                                                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 終局後の登録・対局引き継ぎ               | [共通仕様](../README.md#終局後の登録と継続再戦)                                                                                                                   | [実装と完了条件](#任意登録の案内と画面復帰)、[構成](architecture.md#終局後の登録フローと記録の帰属)、[registrationRoutes.ts](../apps/worker/src/accounts/registrationRoutes.ts)、[matchClaims.ts](../apps/worker/src/accounts/matchClaims.ts)                                                 | [受入検証](testing.md#終局後の登録引き継ぎ)                                                                                                                                                            |
+| 認証・プロフィール・参加資格             | [認証とプロフィール](../README.md#googlediscord認証とプロフィール)、[参加](../README.md#対局部屋と参加)                                                           | [認証と移行](#google認証とアカウント移行)、[アカウント参加](#アカウントでのルーム参加)、[auth.ts](../apps/worker/src/accounts/auth.ts)、[AccountSession.tsx](../apps/web/src/features/account/AccountSession.tsx)                                                                             | [accounts.test.ts](../apps/worker/test/accounts.test.ts)、[accountSession.test.tsx](../apps/web/test-dom/accountSession.test.tsx)                                                                      |
+| プライバシー・規約・退会・計測期限       | [確定仕様](../README.md#プライバシー利用規約退会の確定仕様)                                                                                                       | [実装計画](#プライバシー規約退会の実装計画)、認証・棋譜・ルーム・計測・フィードバックの既存入口                                                                                                                                                                                               | [検証と公開前の確認](testing.md#プライバシー規約退会の確認)                                                                                                                                            |
+| 時計・接続・ルーム進行                   | [投了、通信切れと持ち時間](../README.md#投了通信切れと持ち時間)                                                                                                   | [共有transport](#共有transportとゲーム別session)、[時計と期限](#workerの時計計算と期限選択)、[進行とライフサイクル](#workerのゲーム進行と共有ライフサイクル)、[clockCore.ts](../apps/worker/src/rooms/clockCore.ts)、[useRoomTransport.ts](../apps/web/src/features/room/useRoomTransport.ts) | [timeControl.test.ts](../apps/worker/test/timeControl.test.ts)、[roomTransportLifecycle.test.tsx](../apps/web/test-dom/roomTransportLifecycle.test.tsx)                                                |
+| 終局保存・棋譜・互換性                   | [終局保存](../README.md#終局データの保存対局履歴)、[保存棋譜](../README.md#保存済み棋譜の閲覧)、対象ゲームの正本                                                  | [終局保存](#終局保存と本人の対局履歴)、[棋譜互換](#保存データの契約と棋譜互換)、[matchStore.ts](../apps/worker/src/rooms/matchStore.ts)、[shogiMatchStore.ts](../apps/worker/src/rooms/shogiMatchStore.ts)、[fetchEventReplay.ts](../apps/web/src/features/room/fetchEventReplay.ts)          | [matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx)                                                        |
+| 総合ロビー・公開チャット                 | [確定仕様](../README.md#総合ロビーの確定仕様)                                                                                                                     | [実装計画](#総合ロビーの実装計画)・[実装](#総合ロビーの実装)、既存のルーム索引・公開棋譜・認証・管理・配信                                                                                                                                                                                    | [受入検証](testing.md#総合ロビーの確認)                                                                                                                                                                |
+| 画面・ロビー・共通部品                   | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル)                                                                                                         | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/)                                                    | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)                                                         |
+| ルーム共有                               | [確定した共有仕様](../README.md#ルーム共有の確定仕様)                                                                                                             | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)                 | [ルーム共有の確認](testing.md#ルーム共有の確認)                                                                                                                                                        |
+| ゲーム・CPU                              | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md)         | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts)                  | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                   |
+| 表示・サウンド設定                       | [設定](../README.md#表示サウンド設定)、[効果音](../README.md#効果音)、[時計通知](../README.md#時間切れ5秒前の通知)                                                | [表示・サウンド設定](#表示サウンド設定)、[共通効果音](#ルームの共通効果音)、[browserSettings.ts](../apps/web/src/shared/browserSettings.ts)、[soundPlayer.ts](../apps/web/src/shared/soundPlayer.ts)                                                                                          | [設定の確認](testing.md#表示サウンド設定の確認)、[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)                                                                             |
+| チャット・スタンプ                       | [チャット](../README.md#チャット)、[保存とモデレーション](../README.md#チャットの保存期間とモデレーション)、[スタンプ](../README.md#ルームのスタンプ)             | [スタンプ](#ルームのスタンプ)、[gameRoom.ts](../apps/worker/src/rooms/gameRoom.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts)                                                                  | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                                                      |
+| 戦績・ランキング・戦型・バッジ           | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[accounts](../apps/worker/src/accounts/)                                                                                                                | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
+| 管理画面・計測・フィードバック・お知らせ | [計測画面](../README.md#計測用管理画面)、[フィードバック](../README.md#フィードバック受付とお知らせ)、[お知らせ管理](../README.md#お知らせの管理とロビー掲載)     | [管理画面](#計測用管理画面の開発と公開)、[フィードバック運営](#フィードバックの受付運営)、[お知らせ](#お知らせの保存管理公開)、[admin](../apps/worker/src/admin/)、[apps/admin](../apps/admin/src/)                                                                                           | [adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)、[feedback.test.ts](../apps/worker/test/feedback.test.ts)、[announcements.test.ts](../apps/worker/test/announcements.test.ts)     |
+| 公開・環境設定・CI                       | [開発と本番公開](../README.md#開発と本番公開)、[AGENTS.md](../AGENTS.md)                                                                                          | [本番デプロイ](#本番デプロイ)、[Checks](#checks)、[個人設定からの分離](testing.md#個人設定からの分離)、[ci.yml](../.github/workflows/ci.yml)、[buildAssets.ts](../scripts/buildAssets.ts)                                                                                                     | [testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)、必須のcheck・build・Worker dry-run                           |
+| 五目並べ                                 | [追加範囲](../README.md#五目並べ)、[ルール正本](rules/gomoku.md)                                                                                                  | [実装](#五目並べの実装)・[計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応)                                                                                                                                                                                         | [エンジン](../packages/gomoku/test/)、[Worker](../apps/worker/test/gomokuRoom.test.ts)、[DOM](../apps/web/test-dom/gomoku.test.tsx)                                                                    |
+| 四人五目並べ                             | [追加範囲](../README.md#四人五目並べ)、[ルール正本](rules/four-gomoku.md)                                                                                         | [実装](#四人五目並べの実装)・[計画と完了条件](#四人五目並べの実装計画)                                                                                                                                                                                                                        | [エンジン](../packages/four-gomoku/test/)、[Worker](../apps/worker/test/fourGomokuRoom.test.ts)、[DOM](../apps/web/test-dom/fourGomoku.test.tsx)                                                       |
 
 ## 四人リバーシCPU
 
@@ -57,8 +57,6 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 実装の入口は [公開API](../packages/four-reversi/src/index.ts)、[エンジン](../packages/four-reversi/src/engine.ts)、[CPU](../packages/four-reversi/src/cpu.ts)、[探索](../packages/four-reversi/src/cpuSearch.ts)、[評価](../packages/four-reversi/src/cpuEvaluation.ts)、[終局予測](../packages/four-reversi/src/cpuForecast.ts)、[Worker進行](../apps/worker/src/rooms/fourReversiProgress.ts)、[GameRoomのAlarmと期限処理](../apps/worker/src/rooms/gameRoom.ts) です。生成済みの合法候補を使う内部経路を通常着手の確定処理と共有します。公開エンジン状態と通信契約は維持します。
 
 Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Alarmで適用します。内部対局ID・部屋世代・CPU本人とレベル・ゲーム局面キー・手番開始時刻で照合し、通常GETでは選択も適用も起動しません。記録導入前の対局IDなしのDOも進行できます。手番外の脱落でもジョブを破棄し、チャット・スタンプだけで再探索しません。詳細な検証の分担は [四人リバーシAI強化の確認](testing.md#四人リバーシai強化の確認) を参照します。
-
-#190の [modelFeatures.ts](../packages/four-shogi/src/modelFeatures.ts) は固定の盤面/実手番/攻撃/取り返しと全反復辞書を疎特徴へ変換します。[trainingExport.ts](../packages/four-shogi/bench/trainingExport.ts) は#189の全再生検査後に単一manifestの教師を新規出力先へ出し、元データを書き換えません。[trainingSmokeData.ts](../packages/four-shogi/bench/trainingSmokeData.ts) は通常check外の少数実自己対戦です。Pythonの [dataset.py](../training/four-shogi-ai/dataset.py) がchecksum/分割/ラベルを、[model.py](../training/four-shogi-ai/model.py) が全履歴の共有MLPとPolicy/Valueを、[train.py](../training/four-shogi-ai/train.py) と [checkpoint.py](../training/four-shogi-ai/checkpoint.py) が決定的なCPU学習・MPS・再開契約・原子的保存を担当します。依存は [requirements.txt](../training/four-shogi-ai/requirements.txt) に固定し、通常のBun/Web/WorkerにPyTorchを含めません。[セットアップと再現コマンド](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を使い、実モデルの推論接続は#191/#192へ引き継ぎます。
 
 ## Development Strategy
 
@@ -178,15 +176,15 @@ Done Whenは全駒・禁止手・詰み・千日手・持将棋・入玉・500�
 
 各実装コミットに対応するテストを含め、最後のテストコミットまで検証を先送りしません。仕様確定は文書PR、実装は別PRを基本とし、文書PRが取り込まれた最新developを実装の起点にします。取り込まれていない場合は依存する文書コミットを明示して、同じ文書を重複作成しません。
 
-| 順 | コミットメッセージ | 主な内容・確認 |
-| --- | --- | --- |
-| 1 | `docs: 五目並べの仕様と実装計画を確定する` | 仕様PR #149。README、ルール正本、本節に確定仕様・4項目・計画を記載。文書確認と既存コードに対する検証結果の確認 |
-| 2 | `feat: 五目並べの基本ルールエンジンを追加する` | 独立パッケージ、15路・手番・石の配置・連の判定・満盤・外部敗北と純粋関数テスト。公開ゲームにはまだ登録しない |
-| 3 | `feat: 五目並べの禁手判定と合法手なしの終局を追加する` | 黒の禁手ON/OFF、三三の再帰・四四・長連・五連優先、全空点の合法手、白勝ちの裁定と固定局面テスト |
-| 4 | `feat: 五目並べのCPUレベル1とレベル2を追加する` | 近傍ランダム、即勝ち・防御と探索上限。合法性・入力不変・処理量・レベル差を確認し、採用した調整値を正本へ追記 |
-| 5 | `feat: 五目並べをオンライン対局と記録機能に統合する` | protocol・Worker・Webの必須登録を同時追加。設定・時計・保存・再戦、紫のロビーと盤面、禁手toast、棋譜・集計・管理・SEOを接続。関連する統合／DOM／型検証も追加 |
-| 6 | `test: 五目並べの対局フローと既存ゲームの互換性を検証する` | ON/OFFの固定棋譜、終局・保存失敗と再送・時計境界、5ゲームの共通動作・既存棋譜・集計・配信の横断回帰を補完 |
-| 7 | `docs: 五目並べの実装案内と検証範囲を更新する` | 実際の実装・テストへの入口、調整値、実装済み範囲を正本・開発・テスト文書へ反映。コミット別の測定結果・環境・未確認事項はPR本文に記録 |
+| 順  | コミットメッセージ                                         | 主な内容・確認                                                                                                                                               |
+| --- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `docs: 五目並べの仕様と実装計画を確定する`                 | 仕様PR #149。README、ルール正本、本節に確定仕様・4項目・計画を記載。文書確認と既存コードに対する検証結果の確認                                               |
+| 2   | `feat: 五目並べの基本ルールエンジンを追加する`             | 独立パッケージ、15路・手番・石の配置・連の判定・満盤・外部敗北と純粋関数テスト。公開ゲームにはまだ登録しない                                                 |
+| 3   | `feat: 五目並べの禁手判定と合法手なしの終局を追加する`     | 黒の禁手ON/OFF、三三の再帰・四四・長連・五連優先、全空点の合法手、白勝ちの裁定と固定局面テスト                                                               |
+| 4   | `feat: 五目並べのCPUレベル1とレベル2を追加する`            | 近傍ランダム、即勝ち・防御と探索上限。合法性・入力不変・処理量・レベル差を確認し、採用した調整値を正本へ追記                                                 |
+| 5   | `feat: 五目並べをオンライン対局と記録機能に統合する`       | protocol・Worker・Webの必須登録を同時追加。設定・時計・保存・再戦、紫のロビーと盤面、禁手toast、棋譜・集計・管理・SEOを接続。関連する統合／DOM／型検証も追加 |
+| 6   | `test: 五目並べの対局フローと既存ゲームの互換性を検証する` | ON/OFFの固定棋譜、終局・保存失敗と再送・時計境界、5ゲームの共通動作・既存棋譜・集計・配信の横断回帰を補完                                                    |
+| 7   | `docs: 五目並べの実装案内と検証範囲を更新する`             | 実際の実装・テストへの入口、調整値、実装済み範囲を正本・開発・テスト文書へ反映。コミット別の測定結果・環境・未確認事項はPR本文に記録                         |
 
 GameIdを追加すると型付きの必須登録が一斉に必要になるため、5番の統合では未対応の画面や保存契約を残しません。実際の差分が大きい場合は、公開登録前に準備できる内部部品を先行コミットへ分けます。コミット分割は実装の都合で調整できますが、承認済みの仕様・範囲・完了条件は変えません。
 
@@ -253,15 +251,15 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 
 仕様確定は文書PR、実装は別PRとし、文書PRを取り込んだ最新developから実装を始めます。文書PR未取り込みの場合は依存する文書コミットを明示します。各実装コミットに関連テストを含め、最後まで検証を先送りしません。
 
-| 順 | コミットメッセージ | 主な内容・確認 |
-| --- | --- | --- |
-| 1 | `docs: 四人五目並べの仕様と実装計画を確定する` | 今回の文書PR。README、ルール正本、本節へ確定仕様・4項目・計画を記載。文書の整形・リンク・差分と、同一コードの直前成功結果を確認 |
-| 2 | `feat: 四人五目並べの基本ルールとシングルス順位を追加する` | 独立パッケージ、15路・4色・着手・連、勝ち抜け・脱落・満盤・全順位確定と純粋関数テスト。公開カタログにはまだ登録しない |
-| 3 | `feat: 四人五目並べの混色ダブルスと棋譜再生を追加する` | チーム混色の連、チーム勝敗・脱落、両モードの規則版1の再生と固定局面テスト |
-| 4 | `feat: 四人五目並べのCPUレベル1とレベル2を追加する` | 近傍ランダム、個人／チームの完成・防御・手番評価、探索上限。両モードの合法性・決定性・入力不変・処理量を確認し、採用値を正本へ追記 |
-| 5 | `feat: 四人五目並べをオンライン対局と記録機能に統合する` | protocol・Worker・Web・保存・集計の必須登録を同時追加。モード・時計・CPU・順位・再戦、紫のロビー・4カード・棋譜・ランキング・管理・SEOを接続。関連統合／DOM／型検証を追加 |
-| 6 | `test: 四人五目並べの対局フローと既存ゲームの互換性を検証する` | 両モードの固定棋譜、勝ち抜けと脱落の混在、満盤、時計境界、保存再送、6ゲームの共通動作と既存棋譜・集計・配信の横断回帰を補完 |
-| 7 | `docs: 四人五目並べの実装案内と検証範囲を更新する` | 実装・テストへの入口、採用したCPU値、6ゲームの実装済み範囲を正本・開発・テスト・構成文書へ反映。対象コミット・検証環境・測定結果・未確認事項をPRへ記録 |
+| 順  | コミットメッセージ                                             | 主な内容・確認                                                                                                                                                            |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `docs: 四人五目並べの仕様と実装計画を確定する`                 | 今回の文書PR。README、ルール正本、本節へ確定仕様・4項目・計画を記載。文書の整形・リンク・差分と、同一コードの直前成功結果を確認                                           |
+| 2   | `feat: 四人五目並べの基本ルールとシングルス順位を追加する`     | 独立パッケージ、15路・4色・着手・連、勝ち抜け・脱落・満盤・全順位確定と純粋関数テスト。公開カタログにはまだ登録しない                                                     |
+| 3   | `feat: 四人五目並べの混色ダブルスと棋譜再生を追加する`         | チーム混色の連、チーム勝敗・脱落、両モードの規則版1の再生と固定局面テスト                                                                                                 |
+| 4   | `feat: 四人五目並べのCPUレベル1とレベル2を追加する`            | 近傍ランダム、個人／チームの完成・防御・手番評価、探索上限。両モードの合法性・決定性・入力不変・処理量を確認し、採用値を正本へ追記                                        |
+| 5   | `feat: 四人五目並べをオンライン対局と記録機能に統合する`       | protocol・Worker・Web・保存・集計の必須登録を同時追加。モード・時計・CPU・順位・再戦、紫のロビー・4カード・棋譜・ランキング・管理・SEOを接続。関連統合／DOM／型検証を追加 |
+| 6   | `test: 四人五目並べの対局フローと既存ゲームの互換性を検証する` | 両モードの固定棋譜、勝ち抜けと脱落の混在、満盤、時計境界、保存再送、6ゲームの共通動作と既存棋譜・集計・配信の横断回帰を補完                                               |
+| 7   | `docs: 四人五目並べの実装案内と検証範囲を更新する`             | 実装・テストへの入口、採用したCPU値、6ゲームの実装済み範囲を正本・開発・テスト・構成文書へ反映。対象コミット・検証環境・測定結果・未確認事項をPRへ記録                    |
 
 GameIdを登録すると各層の型付き登録が必要になるため、5番で未対応の画面・保存契約・集計を残しません。差分が大きい場合は、公開登録前に準備できる内部部品を先行コミットに分けます。コミットの分割は実装の都合で調整できますが、承認済みの仕様・初回範囲・完了条件は変更しません。
 
@@ -733,17 +731,21 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 実装を変更するときは次の入口を使います。
 
-| 担当 | 実装の入口 |
-| --- | --- |
-| 公開APIと診断付き選択、レベルの振り分け | [cpu.ts](../packages/four-shogi/src/cpu.ts) |
-| 探索と処理量の計上、履歴・キャッシュの分離 | [cpuSearch.ts](../packages/four-shogi/src/cpuSearch.ts) |
-| 局面の静的評価 | [cpuEvaluation.ts](../packages/four-shogi/src/cpuEvaluation.ts) |
-| 序盤候補の構成と照合 | [cpuOpenings.ts](../packages/four-shogi/src/cpuOpenings.ts) |
-| ルームでの選択保存とAlarmによる適用 | [fourShogiProgress.ts](../apps/worker/src/rooms/fourShogiProgress.ts) |
+| 担当                                       | 実装の入口                                                            |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| 公開APIと診断付き選択、レベルの振り分け    | [cpu.ts](../packages/four-shogi/src/cpu.ts)                           |
+| 探索と処理量の計上、履歴・キャッシュの分離 | [cpuSearch.ts](../packages/four-shogi/src/cpuSearch.ts)               |
+| 局面の静的評価                             | [cpuEvaluation.ts](../packages/four-shogi/src/cpuEvaluation.ts)       |
+| 序盤候補の構成と照合                       | [cpuOpenings.ts](../packages/four-shogi/src/cpuOpenings.ts)           |
+| ルームでの選択保存とAlarmによる適用        | [fourShogiProgress.ts](../apps/worker/src/rooms/fourShogiProgress.ts) |
 
 ルーム連携の変更では [時計計算と期限選択](#workerの時計計算と期限選択) と [ゲーム進行と共有ライフサイクル](#workerのゲーム進行と共有ライフサイクル) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 
 関連確認は [CPU探索](../packages/four-shogi/test/cpuSearch.test.ts)、[評価](../packages/four-shogi/test/cpuEvaluation.test.ts)、[手筋](../packages/four-shogi/test/cpuTactics.test.ts)、[序盤候補](../packages/four-shogi/test/cpuOpenings.test.ts)、[オンラインルーム](../apps/worker/test/fourShogiRoom.test.ts) のテストを使います。パッケージ全体は `bun run --cwd packages/four-shogi check`、ルーム側は `bun run --cwd apps/worker test test/fourShogiRoom.test.ts` で部分確認します。比較条件・測定対象コミット・結果と限界、再測定手順は [四人将棋AIの測定・採用記録](four-shogi-ai.md) を参照します。
+
+#190の [modelFeatures.ts](../packages/four-shogi/src/modelFeatures.ts) は固定の盤面/実手番/攻撃/取り返しと全反復辞書を疎特徴へ変換します。[trainingExport.ts](../packages/four-shogi/bench/trainingExport.ts) は#189の全再生検査後に単一manifestの教師を新規出力先へ出し、元データを書き換えません。[trainingSmokeData.ts](../packages/four-shogi/bench/trainingSmokeData.ts) は通常check外の少数実自己対戦です。Pythonの [dataset.py](../training/four-shogi-ai/dataset.py) がchecksum/分割/ラベルを、[model.py](../training/four-shogi-ai/model.py) が全履歴の共有MLPとPolicy/Valueを、[train.py](../training/four-shogi-ai/train.py) と [checkpoint.py](../training/four-shogi-ai/checkpoint.py) が決定的なCPU学習・MPS・再開契約・原子的保存を担当します。依存は [requirements.txt](../training/four-shogi-ai/requirements.txt) に固定し、通常のBun/Web/WorkerにPyTorchを含めません。[セットアップと再現コマンド](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を使い、Linux CPU推論は#191、共通探索での実使用は#192へ引き継ぎます。
+
+#191の [modelInference.ts](../packages/four-shogi/src/modelInference.ts) はサーバー専用の `/model-inference` 入口です。正本から疎特徴/合法手を作り、同一ホストの永続プロセスへまとめて送り、版/要求ID/実使用モデルID/数値/合法手/脱落者の席を検査します。期限超過・不正応答でプロセスを停止し、理由を呼出側へ返します。[inference.py](../training/four-shogi-ai/inference.py) が推論用配布物・Mac基準fixtureの照合・候補の起動/切替を、[inferenceSmoke.py](../training/four-shogi-ai/inferenceSmoke.py) が単発/バッチ/IPC/RSS/異環境比較を担当します。[Dockerfile](../training/four-shogi-ai/Dockerfile) は既存のPyTorchだけをCPU版で入れたLinux再現環境です。[再現手順と制限](four-shogi-ai-engine.md#linux-cpu推論とmac出力の照合191)を参照し、HTTP/Workerや現行同期CPUへ推論を混ぜません。
 
 ### 四人将棋シングルスAIの実装前整理
 
@@ -796,15 +798,15 @@ bun run --cwd apps/worker test test/feedback.test.ts
 
 最新developから `feat/xxx`・`fix/xxx`・`docs/xxx`・`chore/xxx` を作り、ローカル検証を成功させてdevelop向けPRを開きます。開発環境で確認後、develop→mainのリリースPRをマージコミットで取り込みます。両ブランチへの直接push・force pushは禁止します。GitHubの既定ブランチはdevelopです。非公開リポジトリでは現在のGitHubプランによる保護を利用できないため、GitHub CI成功、必須のローカル検証成功、開発者の確認を運用で必須にします。他者レビューは必須ではありません。初回も差分と検証結果の承認後にマージし、それ以降はPRのマージを公開の契機とします。
 
-| 設定 | 本番の値 |
-| --- | --- |
-| Wrangler環境 | `production` |
-| Worker | `tetraboard-2026` |
-| URL | `https://tetraboard.net` |
-| D1 | `tetraboard-2026-prod-db` |
-| D1接続名 | `APP_DB` |
-| R2 | `tetraboard-2026-objects-prod` / `OBJECT_STORAGE` |
-| Durable Object | `GAME_ROOM` / `GameRoom`（SQLite） |
+| 設定           | 本番の値                                          |
+| -------------- | ------------------------------------------------- |
+| Wrangler環境   | `production`                                      |
+| Worker         | `tetraboard-2026`                                 |
+| URL            | `https://tetraboard.net`                          |
+| D1             | `tetraboard-2026-prod-db`                         |
+| D1接続名       | `APP_DB`                                          |
+| R2             | `tetraboard-2026-objects-prod` / `OBJECT_STORAGE` |
+| Durable Object | `GAME_ROOM` / `GameRoom`（SQLite）                |
 
 本番用D1はAPACの配置ヒントで新規作成済みです。IDは `env.production.d1_databases` に記載しています。通常の `bun run dev` とWorkerテストはトップレベルのローカルDBだけを利用します。productionの `remote: false` はローカル実行時にリモートDBへ接続しない指定で、本番Workerでは本番D1へ接続します。ローカルデータは移行しません。
 
@@ -981,13 +983,13 @@ PCでは盤面領域右下、タブレット・スマートフォンでは状況
 
 優先順位は次のとおりです。実装や過去資料と正本に食い違いがあれば、承認済み指示と正本を優先し、未決定事項を推測で確定しません。
 
-| 優先度 | 参照元 | 用途 |
-| --- | --- | --- |
-| 1 | 開発者の今回の仕様確定指示と、その後の明示的な変更指示 | 承認済みの範囲と意思決定 |
-| 2 | [AGENTS.md](../AGENTS.md)、[READMEのルーム共有](../README.md#ルーム共有の確定仕様)・[ルーム画面](../README.md#四人リバーシのルーム画面)・[共通UI](../README.md#共通uiとスタイル)・[検索向け配信](../README.md#ゲームロビーの検索向け紹介と配信) | Git運用、利用者向け仕様、寸法・参加・検索除外の契約 |
-| 3 | [共通の作業手順](#共通の作業手順)、[Webの編集先](#webの編集先)、[ロビーのSEO生成](#ロビーのseo生成と成果確認)、[部屋の指定と検索](architecture.md#部屋の指定と検索)、[テスト方針](testing.md) | 共通部品・状態・配信・検証の責務 |
-| 4 | [useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[RoomInfo.tsx](../apps/web/src/features/room/RoomInfo.tsx)、[RoomViewShell.tsx](../apps/web/src/features/room/RoomViewShell.tsx)、[roomAccess.ts](../apps/web/src/shared/roomAccess.ts)、[pageMetadata.ts](../apps/web/src/seo/pageMetadata.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)、既存の関連テスト | 作成・招待・メタ情報・HTML配信の実装と回帰 |
-| 5 | [X公式Web Intents](https://docs.x.com/x-for-websites/web-intents/overview)、[Open Graph公式仕様](https://ogp.me/)、Git履歴と関連Issue・PRが利用できる場合はその記録 | 外部仕様と変更理由。実装時にも一次資料を確認 |
+| 優先度 | 参照元                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 用途                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1      | 開発者の今回の仕様確定指示と、その後の明示的な変更指示                                                                                                                                                                                                                                                                                                                                                                                                                  | 承認済みの範囲と意思決定                            |
+| 2      | [AGENTS.md](../AGENTS.md)、[READMEのルーム共有](../README.md#ルーム共有の確定仕様)・[ルーム画面](../README.md#四人リバーシのルーム画面)・[共通UI](../README.md#共通uiとスタイル)・[検索向け配信](../README.md#ゲームロビーの検索向け紹介と配信)                                                                                                                                                                                                                         | Git運用、利用者向け仕様、寸法・参加・検索除外の契約 |
+| 3      | [共通の作業手順](#共通の作業手順)、[Webの編集先](#webの編集先)、[ロビーのSEO生成](#ロビーのseo生成と成果確認)、[部屋の指定と検索](architecture.md#部屋の指定と検索)、[テスト方針](testing.md)                                                                                                                                                                                                                                                                           | 共通部品・状態・配信・検証の責務                    |
+| 4      | [useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[RoomInfo.tsx](../apps/web/src/features/room/RoomInfo.tsx)、[RoomViewShell.tsx](../apps/web/src/features/room/RoomViewShell.tsx)、[roomAccess.ts](../apps/web/src/shared/roomAccess.ts)、[pageMetadata.ts](../apps/web/src/seo/pageMetadata.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)、既存の関連テスト | 作成・招待・メタ情報・HTML配信の実装と回帰          |
+| 5      | [X公式Web Intents](https://docs.x.com/x-for-websites/web-intents/overview)、[Open Graph公式仕様](https://ogp.me/)、Git履歴と関連Issue・PRが利用できる場合はその記録                                                                                                                                                                                                                                                                                                     | 外部仕様と変更理由。実装時にも一次資料を確認        |
 
 ゲーム名・ハッシュタグは軽量ゲームカタログを参照します。ゲーム固有のルールと盤面表現を確認する場合は、[変更対象別の案内](#変更対象別の案内)から対象ゲームのルール正本へ進みます。
 
@@ -1119,23 +1121,23 @@ PR提出・レビュー可能な状態の条件は次のすべてです。
 
 公開文書の本文・版は [privacy.ts](../packages/protocol/src/privacy.ts)、画面は [privacy/](../apps/web/src/features/privacy/)、初回HTMLは [legalHtml.ts](../apps/worker/src/privacy/legalHtml.ts) にあります。OAuth開始と成功したコールバックの同意を結び、登録者はD1に版・日時を保存します。登録・参加・初回設定の操作時に現在版を送信し、同意チェックや端末の同意保存に依存しません。参加APIも現在版の確認を要求します。説明は `LegalNotice`、リンクは `PrivacyLinks`、登録ボタン群は `SocialSignInButtons` で共用し、文書リンクは別タブで開きます。プロフィール設定前でも規約と退会ページを読めます。
 
-| 情報・取得元 | 目的・保存先・公開範囲 | 保存上限・退会・再送元 |
-| --- | --- | --- |
-| Google／Discordの識別子、メール・確認状態 | 本人確認。D1 `user`・`account`、非公開 | 利用中。受付時に利用停止、外部解除後に物理削除。再登録は新しいID |
-| プロバイダーの名前・画像、IDトークン | OAuthコールバック内の基本プロフィール確認 | 名前・画像を公開プロフィールに転記せず、IDトークンとrefresh tokenを保存しない。旧トークンもmigrationで除去 |
-| access token、scope・有効期限 | 連携解除。Better Authの暗号化を使いD1 `account` に保存 | 現在のトークンだけを保存。退会中の解除用コピーも暗号化のまま、解除後に削除。秘密鍵は既存 `BETTER_AUTH_SECRET` |
-| Cookie、セッションID・IP・user agent | 認証・不正対策。D1 `session`、HttpOnly Cookie | セッション7日、更新1日。期限切れを毎時回収、退会受付で全セッション削除。Cookieキャッシュからも旧本人を採用しない |
-| OAuth state／PKCE・同意state・再認証challenge | 認証と同意／削除操作の対応。D1 `verification`・`oauth_legal_consents`・`deletion_challenges` | 同意stateとchallengeは10分で無効、削除対象を固定するflowは最大1日。期限切れを毎時削除。通常ログインを削除確認に流用しない |
-| 公開名・公開ID・画像 | プロフィール。D1 `user`、R2 `avatars/`、公開API | 現在プロフィールを公開。受付で参照除去・画像配信抑止、DOの旧画像参照も回収し、R2失敗は再試行 |
-| 席、資格、開始時プロフィール・直前局・保存待ち | ゲーム。DO KV、D1席予約・部屋索引・画像参照・アップロード待ち | 在室中は受付不可。退会で資格・表示・保存待ちの本人情報を除去。古い非同期処理は現在KVとD1制約で復活を抑止 |
-| 棋譜・結果・日時・設定・ゲスト名 | D1 `matches`、将棋manifest／chunks、相手履歴。公開 | 期限なし。退会者だけを `retired: true`、本人参照なしに変換。着手・イベント・結果・ゲスト名を保ち、転送途中も照合して公開 |
-| 本人履歴・戦績・バッジ・通知・同意 | D1索引・集計・通知・`legal_consents` | 退会で本人索引・バッジ・通知・同意を削除。相手の索引と結果は維持 |
-| チャット・システムログ／通報証拠 | DO直近100件／D1 `reports`。チャットは観戦者も閲覧、証拠は管理者だけ | 部屋閉鎖で通常ログを除去。退会者の送信者名と入退室ログをマスク。通報証拠は7日、本文中の個人情報は窓口で個別確認 |
-| 計測Cookie・閲覧・滞在・対局参加者 | ブラウザ送信とDO保存待ち、D1 `analytics_*`。管理者だけ | Cookie最大1年、個別記録90日。常時計測と関連付けを明記し、ON/OFF・選択Cookie・設定APIを提供しない。退会で本人の個別行を削除 |
-| 長期の閲覧・滞在・対局・退会者の登録数 | D1日別集計、管理者だけ | ID・対応表を含まない集計を期限なしで保持。日別人数を期間ユニークへ足さない。終了不明の古い対局と初回観測不明の継続率は「—」 |
-| フィードバック本文・画像・技術情報・編集履歴・投稿者HMAC | D1 `feedback*`、R2 `feedback/`。管理者だけ | 180日、退会で原文・画像・履歴・本人由来の制限キーも削除。旧HMAC形式と新account列を照合。削除後の画像再送も削除キューへ戻す |
-| 削除済みID・旧部屋世代とプレイヤーID・受付／完了時刻・資格ハッシュ | D1 `deleted_accounts`・`privacy_room_players`。非公開 | 再送・復元による復活防止のためサービス運営中。メール・プロバイダー識別子・名前・画像を含めない。作業中の画像・解除トークンは完了時に除去 |
-| 障害ログ・提供者バックアップ | Cloudflareの実設定、提供者の管理機能 | 保存先・処理先・保存期間は公開前に実設定を確認。復元前に削除台帳を確保して再適用。利用者の端末や第三者の保存は遠隔消去できない |
+| 情報・取得元                                                       | 目的・保存先・公開範囲                                                                       | 保存上限・退会・再送元                                                                                                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Google／Discordの識別子、メール・確認状態                          | 本人確認。D1 `user`・`account`、非公開                                                       | 利用中。受付時に利用停止、外部解除後に物理削除。再登録は新しいID                                                                         |
+| プロバイダーの名前・画像、IDトークン                               | OAuthコールバック内の基本プロフィール確認                                                    | 名前・画像を公開プロフィールに転記せず、IDトークンとrefresh tokenを保存しない。旧トークンもmigrationで除去                               |
+| access token、scope・有効期限                                      | 連携解除。Better Authの暗号化を使いD1 `account` に保存                                       | 現在のトークンだけを保存。退会中の解除用コピーも暗号化のまま、解除後に削除。秘密鍵は既存 `BETTER_AUTH_SECRET`                            |
+| Cookie、セッションID・IP・user agent                               | 認証・不正対策。D1 `session`、HttpOnly Cookie                                                | セッション7日、更新1日。期限切れを毎時回収、退会受付で全セッション削除。Cookieキャッシュからも旧本人を採用しない                         |
+| OAuth state／PKCE・同意state・再認証challenge                      | 認証と同意／削除操作の対応。D1 `verification`・`oauth_legal_consents`・`deletion_challenges` | 同意stateとchallengeは10分で無効、削除対象を固定するflowは最大1日。期限切れを毎時削除。通常ログインを削除確認に流用しない                |
+| 公開名・公開ID・画像                                               | プロフィール。D1 `user`、R2 `avatars/`、公開API                                              | 現在プロフィールを公開。受付で参照除去・画像配信抑止、DOの旧画像参照も回収し、R2失敗は再試行                                             |
+| 席、資格、開始時プロフィール・直前局・保存待ち                     | ゲーム。DO KV、D1席予約・部屋索引・画像参照・アップロード待ち                                | 在室中は受付不可。退会で資格・表示・保存待ちの本人情報を除去。古い非同期処理は現在KVとD1制約で復活を抑止                                 |
+| 棋譜・結果・日時・設定・ゲスト名                                   | D1 `matches`、将棋manifest／chunks、相手履歴。公開                                           | 期限なし。退会者だけを `retired: true`、本人参照なしに変換。着手・イベント・結果・ゲスト名を保ち、転送途中も照合して公開                 |
+| 本人履歴・戦績・バッジ・通知・同意                                 | D1索引・集計・通知・`legal_consents`                                                         | 退会で本人索引・バッジ・通知・同意を削除。相手の索引と結果は維持                                                                         |
+| チャット・システムログ／通報証拠                                   | DO直近100件／D1 `reports`。チャットは観戦者も閲覧、証拠は管理者だけ                          | 部屋閉鎖で通常ログを除去。退会者の送信者名と入退室ログをマスク。通報証拠は7日、本文中の個人情報は窓口で個別確認                          |
+| 計測Cookie・閲覧・滞在・対局参加者                                 | ブラウザ送信とDO保存待ち、D1 `analytics_*`。管理者だけ                                       | Cookie最大1年、個別記録90日。常時計測と関連付けを明記し、ON/OFF・選択Cookie・設定APIを提供しない。退会で本人の個別行を削除               |
+| 長期の閲覧・滞在・対局・退会者の登録数                             | D1日別集計、管理者だけ                                                                       | ID・対応表を含まない集計を期限なしで保持。日別人数を期間ユニークへ足さない。終了不明の古い対局と初回観測不明の継続率は「—」              |
+| フィードバック本文・画像・技術情報・編集履歴・投稿者HMAC           | D1 `feedback*`、R2 `feedback/`。管理者だけ                                                   | 180日、退会で原文・画像・履歴・本人由来の制限キーも削除。旧HMAC形式と新account列を照合。削除後の画像再送も削除キューへ戻す               |
+| 削除済みID・旧部屋世代とプレイヤーID・受付／完了時刻・資格ハッシュ | D1 `deleted_accounts`・`privacy_room_players`。非公開                                        | 再送・復元による復活防止のためサービス運営中。メール・プロバイダー識別子・名前・画像を含めない。作業中の画像・解除トークンは完了時に除去 |
+| 障害ログ・提供者バックアップ                                       | Cloudflareの実設定、提供者の管理機能                                                         | 保存先・処理先・保存期間は公開前に実設定を確認。復元前に削除台帳を確保して再適用。利用者の端末や第三者の保存は遠隔消去できない           |
 
 認証ライブラリのログ出力を停止し、アプリ側でも障害の種類だけを記録してOAuth応答・トークン・メールを記録しません。HTTPSの `__Secure-` 認証Cookieも同意・再認証・失効の対象です。
 
@@ -1450,10 +1452,10 @@ Worker統合テストで保存・公開・掲載先・並び順・カーソル�
 
 Workerの `matchDataContracts` は `GameId` ごとの保存記録読取り・公開要約／棋譜・戦績・ランキングの解析を必須登録します。JSONはunknownからゲーム別スキーマで検証し、内部IDと参加者のアカウント情報、設定・結果・棋譜の対応を確認します。D1のゲーム列と記録内のゲームが異なる場合も取得失敗です。集計の方向・順位・チーム・撃破数は `gameOutcomeSql` へ登録し、人間4人の条件と集計SQLは共有します。新ゲームは双方の登録と型対応が必要です。軽量カタログには保存スキーマ・エンジン・SQLを置きません。
 
-| ゲーム | 保存形式 | 再生ルール | 既知の旧データ補完 |
-| --- | --- | --- | --- |
-| 四人リバーシ | 版項目のない既存JSON。初期・各手の局面を保存 | 保存された局面列を表示。ルール版を新設しない | 既存通信スキーマに定義された既定値のみ |
-| 四人将棋 | 版項目のない既存メタデータJSONと分割イベント | `rulesVersion: 1` の初期化・イベント適用・フレーム生成 | 省略された引分提案を読取り時に空配列へ補完 |
+| ゲーム       | 保存形式                                     | 再生ルール                                             | 既知の旧データ補完                         |
+| ------------ | -------------------------------------------- | ------------------------------------------------------ | ------------------------------------------ |
+| 四人リバーシ | 版項目のない既存JSON。初期・各手の局面を保存 | 保存された局面列を表示。ルール版を新設しない           | 既存通信スキーマに定義された既定値のみ     |
+| 四人将棋     | 版項目のない既存メタデータJSONと分割イベント | `rulesVersion: 1` の初期化・イベント適用・フレーム生成 | 省略された引分提案を読取り時に空配列へ補完 |
 
 保存形式の版、再生ルールの版、派生解析の版は別の責務です。未知のゲーム・ルール版・未対応の保存形状を既知形式へ読み替えません。破損した保存記録は既存の503、Webの再生不整合は既存のルートエラーとして扱い、未完成の棋譜を表示しません。ゲーム本体の保存JSONへ版項目を追加せず、通常の互換対応で既存データ書換え・撃破数の補完は行いません。承認された退会対応では本人の保存名と参照を除去しますが、ゲーム進行データを変更しません。本人戦績用の成立履歴は、後述の専用migrationと別テーブルで管理します。
 
