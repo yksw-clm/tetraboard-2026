@@ -121,6 +121,11 @@ test("4方向の座標対応と正本の合法手マスクを、既存棋譜の�
     to: { x: 4, y: 6 },
     promote: false,
   };
+  expect(sides.map((side) => encodeAction(rotateAction(pawn, side)))).toEqual([
+    10970, 6070, 2150, 7050,
+  ]);
+  expect(encodeAction({ ...pawn, promote: true })).toBe(10971);
+  expect(decodeAction(13445)).toEqual({ type: "dropPiece", pieceKind: "pawn", to: { x: 8, y: 8 } });
   expect(rotateAction(pawn, "west")).toEqual({
     type: "movePiece",
     from: { x: 1, y: 4 },
