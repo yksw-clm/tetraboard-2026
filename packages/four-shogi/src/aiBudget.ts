@@ -7,6 +7,7 @@ import type {
   AiSearchStats,
   AiStopReason,
 } from "./aiTypes";
+import { AiModelFailure } from "./aiModel";
 
 export type AiSession = {
   steps: Generator<number, void>;
@@ -14,6 +15,8 @@ export type AiSession = {
   staticEvaluation: AiEvaluation;
   results: (cutoff?: boolean) => { candidates: AiCandidate[]; comparedAction: AiCandidate | null };
   readonly doneReason: AiStopReason;
+  hasPendingModel?: () => boolean;
+  fulfillModel?: (remainingMs: number | null, control: AiControl) => Promise<void>;
 };
 export function createAiClock(readTime: () => number = () => performance.now()) {
   let last = -Infinity;
@@ -64,6 +67,16 @@ export async function runAiSession(
           reason = "work_limit";
           break;
         }
+        if (session.hasPendingModel?.()) {
+          await session.fulfillModel!(
+            settings.timeBudgetMs === null
+              ? null
+              : Math.max(0, settings.timeBudgetMs - (now() - started)),
+            control,
+          );
+          reason = interrupted();
+          if (reason !== null) break;
+        }
         if (session.stats.completedDepth !== notifiedDepth) {
           notifiedDepth = session.stats.completedDepth;
           notify?.(progress());
@@ -81,6 +94,13 @@ export async function runAiSession(
         }
       }
     }
+  } catch (error) {
+    if (
+      error instanceof AiModelFailure &&
+      (error.reason === "cancelled" || error.reason === "deadline")
+    )
+      reason = error.reason;
+    else throw error;
   } finally {
     session.steps.return();
   }

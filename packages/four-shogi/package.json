@@ -23,6 +23,7 @@
     "training:smoke-data": "bun bench/trainingSmokeData.ts",
     "inference:fixture": "bun bench/inferenceFixture.ts",
     "inference:smoke": "bun bench/inferenceCli.ts",
+    "bench:model": "bun bench/modelSearchCli.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",

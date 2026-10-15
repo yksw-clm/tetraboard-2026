@@ -4,6 +4,7 @@ import { git, repoRoot, sourceIdentity, loadPlayer } from "./baseline";
 import { SelfPlayStore } from "./selfPlayStore";
 import { GenerationPaused, configInput } from "./selfPlayGame";
 import { inspectDataStore } from "./selfPlayInspect";
+import type { ModelRuntime } from "./modelRuntime";
 import {
   createDataManifest,
   defaultSelfPlayConfig,
@@ -27,6 +28,7 @@ export type GenerationLimits = {
   allowDirty: boolean;
 };
 export type GenerationControl = {
+  modelRuntime?: ModelRuntime;
   signal?: AbortSignal;
   readRss?: (pids: number[]) => number;
   onCommit?: (record: GameArtifact) => void;
@@ -172,6 +174,7 @@ export async function runSelfPlayDataset(
   let peakWorkers = 0;
   let writeQueue = Promise.resolve();
   const active = new Map<number, Bun.Subprocess>();
+  const modelPids = new Map<number, number>();
   const readRss = control.readRss ?? processRss;
   let timer: ReturnType<typeof setInterval> | undefined;
   function pause(why: string) {
@@ -180,7 +183,7 @@ export async function runSelfPlayDataset(
   }
   const cancel = () => pause("cancelled");
   function resources() {
-    const rss = readRss([...active.keys()]);
+    const rss = readRss([...active.keys(), ...modelPids.values()]);
     if (!Number.isFinite(rss) || rss < 0) throw new Error("RSSが不正です");
     maxRssBytes = Math.max(maxRssBytes, rss);
     if (rss > limits.maxRssBytes) pause("memory_limit");
@@ -197,6 +200,12 @@ export async function runSelfPlayDataset(
       previous?.code ?? code,
       store.scratchDirectory,
     );
+    if (manifest.config.model && !control.modelRuntime)
+      throw new Error("モデル生成にはpython/model-dirの実行設定が必要です");
+    if (!manifest.config.model && control.modelRuntime)
+      throw new Error(
+        "モデルを使う生成はconfig.modelにも不変のID/artifact/code hashを指定してください",
+      );
     if (previous && !sameData(previous, manifest))
       throw new Error("再開元と系列/相手/予算/教師/分割/版が不一致です");
     const plans = gamePlans(manifest);
@@ -285,15 +294,29 @@ export async function runSelfPlayDataset(
                 fatal = error as Error;
                 pause("error");
               });
-          } else if (message?.type === "error") childError = String(message.message);
+          } else if (
+            message?.type === "model_process" &&
+            Number.isSafeInteger(message.pid) &&
+            message.pid > 0
+          )
+            modelPids.set(subprocess.pid, message.pid);
+          else if (message?.type === "error") childError = String(message.message);
         },
       });
       active.set(child.pid, child);
       peakWorkers = Math.max(peakWorkers, active.size);
       const stderr = new Response(child.stderr).text();
-      child.send({ type: "start", manifest, plan, saved, scratch });
+      child.send({
+        type: "start",
+        manifest,
+        plan,
+        saved,
+        scratch,
+        modelRuntime: control.modelRuntime,
+      });
       const exit = await child.exited;
       active.delete(child.pid);
+      modelPids.delete(child.pid);
       const output = await stderr;
       rmSync(scratch, { recursive: true, force: true });
       if (exit !== 0 && !reason) {

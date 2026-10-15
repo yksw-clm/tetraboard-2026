@@ -16,6 +16,7 @@ import { actionEncodingVersion, rotateAction } from "../src/actionEncoding";
 import { sides, type Side, type FourShogiState } from "../src/types";
 import type { Player } from "./baseline";
 import { experimentStarts } from "./searchExperiment";
+import type { DataModel } from "./modelRuntime";
 
 export const selfPlayVersion = "four-shogi-training-record-v1";
 export type DataSplit = "train" | "validation" | "calibration" | "test";
@@ -30,6 +31,7 @@ export type DataAgent =
   | { id: string; kind: "analysis"; settings: AiSearchSettings }
   | { id: string; kind: "cpu"; reference: string };
 export type SelfPlayConfig = {
+  model?: DataModel;
   origins: { seed: number; replay: AnalysisReplayInput | null }[];
   restrictions: boolean[];
   seatOffsets: Side[];
@@ -151,12 +153,18 @@ function array(value: unknown, maximum: number): unknown[] {
     throw new TypeError("配列の件数が範囲外です");
   return value;
 }
-function searchSettings(input: unknown, codeVersion: string, fallbackWork: number) {
+function searchSettings(
+  input: unknown,
+  codeVersion: string,
+  fallbackWork: number,
+  modelId?: string,
+) {
   const options =
     input === undefined
       ? {}
       : dataObject(input, [
           "modelId",
+          "modelTimeoutMs",
           "timeBudgetMs",
           "maxWork",
           "maxDepth",
@@ -176,9 +184,12 @@ function searchSettings(input: unknown, codeVersion: string, fallbackWork: numbe
           "dangerPlies",
           "includeAction",
         ]);
+  if (options.modelId != null && options.modelId !== modelId)
+    throw new TypeError("生成設定のモデルIDと不一致です");
   const resolved = resolveAiOptions({
     maxWork: fallbackWork,
     ...options,
+    modelId: modelId ?? null,
     codeVersion,
   } as AiOptions).settings;
   if (resolved.timeBudgetMs !== null)
@@ -204,6 +215,7 @@ export function defaultSelfPlayConfig() {
 }
 export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayConfig {
   const raw = dataObject(input, [
+    "model",
     "origins",
     "restrictions",
     "seatOffsets",
@@ -213,6 +225,20 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
     "sampling",
     "maxPlies",
   ]);
+  let model: DataModel | undefined;
+  if (raw.model !== undefined) {
+    const entry = dataObject(raw.model, ["modelId", "artifactSha256", "codeHash"]);
+    if (
+      typeof entry.modelId !== "string" ||
+      !/^four-shogi-tiny-policy-value-v1:[0-9a-f]{64}$/.test(entry.modelId) ||
+      typeof entry.artifactSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(entry.artifactSha256) ||
+      typeof entry.codeHash !== "string" ||
+      !/^[0-9a-f]{64}$/.test(entry.codeHash)
+    )
+      throw new TypeError("生成モデルのID/artifact/code hashが不正です");
+    model = entry as DataModel;
+  }
   const origins = array(raw.origins, 512).map((entry) => {
     const origin = dataObject(entry, ["seed", "replay"]);
     const seed = dataInteger(origin.seed, 10000, 99999);
@@ -256,7 +282,7 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
       return {
         id: agent.id,
         kind: "analysis",
-        settings: searchSettings(agent.options, code.commit, 256),
+        settings: searchSettings(agent.options, code.commit, 256, model?.modelId),
       };
     if (
       agent.kind === "cpu" &&
@@ -281,12 +307,13 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   if (typeof sampling.important !== "boolean")
     throw new TypeError("重要局面の選別を明示してください");
   const config = {
+    ...(model ? { model } : {}),
     origins,
     restrictions,
     seatOffsets,
     agents,
     lineups,
-    teacher: searchSettings(raw.teacher, code.commit, 2048),
+    teacher: searchSettings(raw.teacher, code.commit, 2048, model?.modelId),
     sampling: {
       every: dataInteger(sampling.every, 0, 10000),
       important: sampling.important,

@@ -8,6 +8,8 @@ import {
 } from "../src/analysis";
 import { actionEncodingVersion, encodeAction, decodeAction } from "../src/actionEncoding";
 import { evaluateAiPosition } from "../src/aiEvaluation";
+import { modelEvaluation, type AiModelOutput } from "../src/aiModel";
+import type { FourShogiState } from "../src/types";
 import {
   dataHash,
   sameData,
@@ -61,16 +63,26 @@ export async function validateManifest(manifest: DataManifest, temporaryDirector
 function checkDetails(
   result: Pick<AiResult, "versions" | "settings" | "model" | "diagnostics">,
   expected: ReturnType<typeof resolveAiOptions>,
+  modelId: string | null = null,
 ) {
+  const modelMatches =
+    modelId === null
+      ? sameData(result.model, {
+          requestedModelId: null,
+          loadedModelId: null,
+          usedModelId: null,
+          inferenceCount: 0,
+        })
+      : result.model.requestedModelId === modelId &&
+        result.model.loadedModelId === modelId &&
+        result.model.usedModelId === modelId &&
+        Number.isSafeInteger(result.model.inferenceCount) &&
+        result.model.inferenceCount > 0 &&
+        result.model.fallbackReason === null;
   if (
     !sameData(result.versions, expected.versions) ||
     !sameData(result.settings, expected.settings) ||
-    !sameData(result.model, {
-      requestedModelId: null,
-      loadedModelId: null,
-      usedModelId: null,
-      inferenceCount: 0,
-    }) ||
+    !modelMatches ||
     result.diagnostics.algorithm !== expected.settings.algorithm
   )
     throw new Error("探索のコード/モデル/条件/版が混在しています");
@@ -84,7 +96,7 @@ async function checkTeacher(
   const action = decodeAction(playedId);
   const expected = teacherSettings(manifest, action);
   const result = sample.teacher;
-  checkDetails(result, expected);
+  checkDetails(result, expected, manifest.config.model?.modelId ?? null);
   const mask = getAnalysisLegalActions(position).map(encodeAction);
   if (
     sample.stateHash !== position.stateHash ||
@@ -109,7 +121,7 @@ async function checkTeacher(
   const cacheKey = await createAnalysisCacheKey(position, {
     codeVersion: manifest.code.commit,
     analysisVersion: expected.versions.analysisVersion,
-    modelId: null,
+    modelId: manifest.config.model?.modelId ?? null,
     parameters: { ...expected.versions, ...expected.settings },
   });
   if (
@@ -151,13 +163,38 @@ async function checkTeacher(
     }
     if (
       candidate.line.length &&
-      !sameData(
-        candidate.lineEvaluation,
-        evaluateAiPosition(branch.state, manifest.config.teacher.evaluationWeights),
-      )
+      !validLineEvaluation(branch.state, candidate.lineEvaluation, manifest)
     )
       throw new Error("PV末尾と試行平均の評価が混同されています");
+    if (
+      manifest.config.model &&
+      (!sameData(candidate.evaluation, candidate.lineEvaluation) ||
+        candidate.comparisonKind !== "uniform_depth")
+    )
+      throw new Error("モデル教師へ異なる尺度/末尾の評価が混在しています");
   }
+}
+function validLineEvaluation(
+  state: FourShogiState,
+  value: AiResult["evaluation"],
+  manifest: DataManifest,
+) {
+  if (value?.evaluationKind !== "model")
+    return sameData(value, evaluateAiPosition(state, manifest.config.teacher.evaluationWeights));
+  if (!manifest.config.model || state.status !== "playing" || value.probabilities !== null)
+    return false;
+  const vector = (["south", "west", "north", "east"] as const).map(
+    (side) => value.values[side].primary,
+  );
+  if (
+    vector.some((v) => !Number.isFinite(v) || v < 0 || v >= 1) ||
+    vector.reduce((a, b) => a + b, 0) > 1 + 1e-5
+  )
+    return false;
+  const reconstructed = modelEvaluation(state, {
+    value: [...vector, Math.max(0, 1 - vector.reduce((a, b) => a + b, 0))],
+  } as AiModelOutput);
+  return sameData(value, reconstructed);
 }
 
 /** 保存された全イベントを一度ずつ正本で再生し、必要局面と終局ラベルを照合します。 */
@@ -206,7 +243,12 @@ export async function validateGameArtifact(
     if (agent.kind === "analysis")
       checkDetails(
         actor.diagnostics as Parameters<typeof checkDetails>[0],
-        resolveAiOptions({ ...agent.settings, codeVersion: manifest.code.commit }),
+        resolveAiOptions({
+          ...agent.settings,
+          modelId: manifest.config.model?.modelId ?? null,
+          codeVersion: manifest.code.commit,
+        }),
+        manifest.config.model?.modelId ?? null,
       );
     else if (
       !sameData(actor.diagnostics, { source: manifest.cpuSources[agent.id], featureVersion: null })

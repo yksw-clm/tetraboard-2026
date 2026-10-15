@@ -187,7 +187,7 @@ export function createAiMcts(
     while (leaf.state.status === "playing" && path.length < settings.maxDepth) {
       if (leaf.edges === null) {
         const moves = yield* ctx.moves(leaf.state);
-        const ordered = ctx.ordered(leaf.state, moves);
+        const ordered = yield* ctx.ordered(leaf.state, moves);
         leaf.selective = ordered.length < moves.length;
         leaf.edges = ordered.map(({ move, index }) => ({ move, index, child: null }));
       }

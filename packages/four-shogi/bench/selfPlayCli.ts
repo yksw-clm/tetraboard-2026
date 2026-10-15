@@ -16,6 +16,8 @@ const known = [
   "stop-after-moves",
   "allow-dirty",
   "report",
+  "python",
+  "model-dir",
 ];
 for (const arg of Bun.argv.slice(2)) {
   const match = /^--([^=]+)=(.+)$/.exec(arg);
@@ -27,6 +29,10 @@ const directory = args.get("output");
 if (!directory) throw new Error("--outputで専用のdataset保存先を指定してください");
 const kind = args.get("kind") ?? "generate";
 if (kind !== "generate" && kind !== "inspect") throw new Error("kindはgenerate/inspectです");
+if (args.has("python") && !args.has("model-dir"))
+  throw new Error("python指定にはmodel-dirが必要です");
+if (kind === "inspect" && args.has("model-dir"))
+  throw new Error("inspectは保存済み識別とPVを検査し、モデルruntimeを指定しません");
 const names = {
   concurrency: "concurrency",
   "max-games": "maxGames",
@@ -61,7 +67,17 @@ process.on("SIGTERM", stop);
 try {
   let report: unknown;
   if (kind === "generate")
-    report = await runSelfPlayDataset(directory, config, limits, { signal: controller.signal });
+    report = await runSelfPlayDataset(directory, config, limits, {
+      signal: controller.signal,
+      ...(args.has("model-dir")
+        ? {
+            modelRuntime: {
+              python: args.get("python") ?? "python3",
+              directory: resolve(args.get("model-dir")!),
+            },
+          }
+        : {}),
+    });
   else {
     if (args.has("config") || args.has("stop-after-moves"))
       throw new Error("inspectではconfig/stop-after-movesを指定しません");

@@ -48,7 +48,7 @@ export function createAiSearch(
     }
     if (depth <= 0) return { evaluation: yield* evaluate(state), line: [], selective: false };
     const moves = yield* ctx.moves(state);
-    const ordered = ctx.ordered(state, moves);
+    const ordered = yield* ctx.ordered(state, moves);
     let best: AiBranch | null = null;
     let bestIndex = Infinity;
     let bestMove: OrdinaryMove | null = null;
@@ -112,9 +112,22 @@ export function createAiSearch(
     if (input.status === "finished" || legal.length === 0) return;
     yield* spend(1 + Math.ceil(legal.length / 16));
     const shallow: RootCandidate[] = [];
-    for (const [index, move] of legal.entries()) {
+    const rootMoves = yield* ctx.rootOrder();
+    for (const { index, move } of rootMoves) {
       const before = { ...stats };
       const next = yield* advance(start, move, 0);
+      // 根の次局面はまとめて予測し、CPUプロセスとの往復を葉ごとに増やしません。
+      if (ctx.model) {
+        shallow.push({
+          move,
+          index,
+          state: next.state,
+          branch: { evaluation: ctx.staticEvaluation, line: [next.step], selective: false },
+          nodes: stats.nodes - before.nodes,
+          work: stats.work - before.work,
+        });
+        continue;
+      }
       const evaluation = yield* evaluate(next.state);
       shallow.push({
         move,
@@ -124,6 +137,15 @@ export function createAiSearch(
         nodes: stats.nodes - before.nodes,
         work: stats.work - before.work,
       });
+    }
+    if (ctx.model) {
+      yield* ctx.prefetch(shallow.map((candidate) => candidate.state));
+      for (const candidate of shallow) {
+        const before = { ...stats };
+        candidate.branch.evaluation = yield* evaluate(candidate.state);
+        candidate.nodes += stats.nodes - before.nodes;
+        candidate.work += stats.work - before.work;
+      }
     }
     publish(shallow, 1, false);
     yield* spend(0);
@@ -193,6 +215,8 @@ export function createAiSearch(
     stats,
     results,
     staticEvaluation: ctx.staticEvaluation,
+    hasPendingModel: () => ctx.model?.pending ?? false,
+    fulfillModel: ctx.model?.fulfill,
     get doneReason() {
       return doneReason;
     },

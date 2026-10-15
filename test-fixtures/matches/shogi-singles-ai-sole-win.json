@@ -1,0 +1,2932 @@
+{
+  "format": "four-shogi-ai-tactical-replay-v1",
+  "origin": {
+    "archive": "shogi-singles.json",
+    "eventOffset": 102,
+    "tuningSeed": 19200,
+    "randomPlies": 58
+  },
+  "replay": {
+    "schemaVersion": 1,
+    "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+    "rulesVersion": 1,
+    "initial": {
+      "mode": "singles",
+      "players": {
+        "south": "s",
+        "west": "w",
+        "north": "n",
+        "east": "e"
+      },
+      "threePlayerAttackProhibited": false
+    },
+    "events": [
+      {
+        "index": 0,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 6
+            },
+            "to": {
+              "x": 4,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 1,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 5
+            },
+            "to": {
+              "x": 2,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 2,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 2
+            },
+            "to": {
+              "x": 4,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 3,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 2
+            },
+            "to": {
+              "x": 7,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 4,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 7
+            },
+            "to": {
+              "x": 4,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 5,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 6
+            },
+            "to": {
+              "x": 1,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 6,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 1
+            },
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 7,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 6
+            },
+            "to": {
+              "x": 7,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 8,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 8
+            },
+            "to": {
+              "x": 4,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 9,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 10,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 0
+            },
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 11,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 4
+            },
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 12,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 8
+            },
+            "to": {
+              "x": 6,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 13,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 5
+            },
+            "to": {
+              "x": 1,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 14,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 15,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 2
+            },
+            "to": {
+              "x": 8,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 16,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 8
+            },
+            "to": {
+              "x": 2,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 17,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 5
+            },
+            "to": {
+              "x": 2,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 18,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 0
+            },
+            "to": {
+              "x": 6,
+              "y": 0
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 19,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 3
+            },
+            "to": {
+              "x": 8,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 20,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 7
+            },
+            "to": {
+              "x": 3,
+              "y": 8
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 21,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 6
+            },
+            "to": {
+              "x": 3,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 22,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 1
+            },
+            "to": {
+              "x": 0,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 23,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 2
+            },
+            "to": {
+              "x": 8,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 24,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 6
+            },
+            "to": {
+              "x": 8,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 25,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 5
+            },
+            "to": {
+              "x": 4,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 26,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 0
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 27,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 3
+            },
+            "to": {
+              "x": 6,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 28,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 6
+            },
+            "to": {
+              "x": 8,
+              "y": 8
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 29,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 2,
+              "y": 6
+            }
+          }
+        }
+      },
+      {
+        "index": 30,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 0
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 31,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 5
+            },
+            "to": {
+              "x": 6,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 32,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 8
+            },
+            "to": {
+              "x": 8,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 33,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 4
+            },
+            "to": {
+              "x": 8,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 34,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 7,
+              "y": 2
+            }
+          }
+        }
+      },
+      {
+        "index": 35,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 4
+            },
+            "to": {
+              "x": 1,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 36,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 0
+            },
+            "to": {
+              "x": 2,
+              "y": 0
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 37,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "rook",
+            "to": {
+              "x": 2,
+              "y": 2
+            }
+          }
+        }
+      },
+      {
+        "index": 38,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 2
+            },
+            "to": {
+              "x": 8,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 39,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 7
+            },
+            "to": {
+              "x": 0,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 40,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 1
+            },
+            "to": {
+              "x": 7,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 41,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 3
+            },
+            "to": {
+              "x": 7,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 42,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 7
+            },
+            "to": {
+              "x": 3,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 43,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 2
+            },
+            "to": {
+              "x": 2,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 44,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 0
+            },
+            "to": {
+              "x": 1,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 45,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 7
+            },
+            "to": {
+              "x": 8,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 46,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 3,
+              "y": 1
+            }
+          }
+        }
+      },
+      {
+        "index": 47,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 3
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 48,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 1
+            },
+            "to": {
+              "x": 3,
+              "y": 0
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 49,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 4
+            },
+            "to": {
+              "x": 7,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 50,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 7
+            },
+            "to": {
+              "x": 5,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 51,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 5
+            },
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 52,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 1
+            },
+            "to": {
+              "x": 0,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 53,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 6
+            },
+            "to": {
+              "x": 7,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 54,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 1
+            },
+            "to": {
+              "x": 4,
+              "y": 0
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 55,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 4
+            },
+            "to": {
+              "x": 4,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 56,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 7,
+              "y": 0
+            }
+          }
+        }
+      },
+      {
+        "index": 57,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 5
+            },
+            "to": {
+              "x": 8,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 58,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 8
+            },
+            "to": {
+              "x": 5,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 59,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 5
+            },
+            "to": {
+              "x": 3,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 60,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 1
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 61,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      },
+      {
+        "index": 62,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 7
+            },
+            "to": {
+              "x": 4,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 63,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 5
+            },
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 64,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 5,
+              "y": 8
+            }
+          }
+        }
+      },
+      {
+        "index": 65,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        }
+      },
+      {
+        "index": 66,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 7
+            },
+            "to": {
+              "x": 6,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 67,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 4
+            },
+            "to": {
+              "x": 0,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 68,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "to": {
+              "x": 5,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 69,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 5
+            },
+            "to": {
+              "x": 7,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 70,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 8
+            },
+            "to": {
+              "x": 3,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 71,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 5
+            },
+            "to": {
+              "x": 1,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 72,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 8
+            },
+            "to": {
+              "x": 4,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 73,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 6
+            },
+            "to": {
+              "x": 8,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 74,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 6
+            },
+            "to": {
+              "x": 3,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 75,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 4
+            },
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 76,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 0
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 77,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 6
+            },
+            "to": {
+              "x": 7,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 78,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 1,
+              "y": 1
+            }
+          }
+        }
+      },
+      {
+        "index": 79,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 1,
+              "y": 0
+            }
+          }
+        }
+      },
+      {
+        "index": 80,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 7
+            },
+            "to": {
+              "x": 4,
+              "y": 8
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 81,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 7
+            },
+            "to": {
+              "x": 4,
+              "y": 8
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 82,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 4
+            },
+            "to": {
+              "x": 3,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 83,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 0
+            },
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 84,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 2
+            },
+            "to": {
+              "x": 0,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 85,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 2,
+              "y": 7
+            }
+          }
+        }
+      },
+      {
+        "index": 86,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 6
+            },
+            "to": {
+              "x": 1,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 87,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 3
+            },
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 88,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 7
+            },
+            "to": {
+              "x": 8,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 89,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 5
+            },
+            "to": {
+              "x": 4,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 90,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 4
+            },
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 91,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 0
+            },
+            "to": {
+              "x": 6,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 92,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 2
+            },
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 93,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 94,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 5
+            },
+            "to": {
+              "x": 7,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 95,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 0
+            },
+            "to": {
+              "x": 5,
+              "y": 1
+            },
+            "promote": true
+          }
+        }
+      },
+      {
+        "index": 96,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 1
+            },
+            "to": {
+              "x": 5,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 97,
+        "event": {
+          "type": "action",
+          "side": "east",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 6,
+              "y": 4
+            }
+          }
+        }
+      },
+      {
+        "index": 98,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 4,
+              "y": 3
+            }
+          }
+        }
+      },
+      {
+        "index": 99,
+        "event": {
+          "type": "action",
+          "side": "west",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 7,
+              "y": 8
+            }
+          }
+        }
+      },
+      {
+        "index": 100,
+        "event": {
+          "type": "eliminate",
+          "side": "west",
+          "reason": "left"
+        }
+      },
+      {
+        "index": 101,
+        "event": {
+          "type": "eliminate",
+          "side": "east",
+          "reason": "timeout"
+        }
+      },
+      {
+        "index": 102,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "rook",
+            "to": {
+              "x": 1,
+              "y": 4
+            }
+          }
+        }
+      },
+      {
+        "index": 103,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 7
+            },
+            "to": {
+              "x": 1,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 104,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 2
+            },
+            "to": {
+              "x": 8,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 105,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 6
+            },
+            "to": {
+              "x": 2,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 106,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 5,
+              "y": 7
+            }
+          }
+        }
+      },
+      {
+        "index": 107,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 8
+            },
+            "to": {
+              "x": 5,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 108,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 2
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 109,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 0,
+              "y": 7
+            }
+          }
+        }
+      },
+      {
+        "index": 110,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 1
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 111,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 6
+            },
+            "to": {
+              "x": 4,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 112,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 1
+            },
+            "to": {
+              "x": 8,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 113,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 7
+            },
+            "to": {
+              "x": 2,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 114,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 1,
+              "y": 7
+            }
+          }
+        }
+      },
+      {
+        "index": 115,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 6
+            },
+            "to": {
+              "x": 3,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 116,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 0,
+              "y": 5
+            }
+          }
+        }
+      },
+      {
+        "index": 117,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 6
+            },
+            "to": {
+              "x": 5,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 118,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 3,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 119,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 0,
+              "y": 2
+            }
+          }
+        }
+      },
+      {
+        "index": 120,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 7
+            },
+            "to": {
+              "x": 0,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 121,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 5
+            },
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 122,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 2
+            },
+            "to": {
+              "x": 7,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 123,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 4
+            },
+            "to": {
+              "x": 5,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 124,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 4,
+              "y": 4
+            }
+          }
+        }
+      },
+      {
+        "index": 125,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 3
+            },
+            "to": {
+              "x": 4,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 126,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "to": {
+              "x": 3,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 127,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 5
+            },
+            "to": {
+              "x": 2,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 128,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 3
+            },
+            "to": {
+              "x": 0,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 129,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 6,
+              "y": 6
+            }
+          }
+        }
+      },
+      {
+        "index": 130,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "rook",
+            "to": {
+              "x": 6,
+              "y": 8
+            }
+          }
+        }
+      },
+      {
+        "index": 131,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 8,
+              "y": 5
+            }
+          }
+        }
+      },
+      {
+        "index": 132,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 8
+            },
+            "to": {
+              "x": 6,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 133,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 8
+            },
+            "to": {
+              "x": 3,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 134,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 4,
+              "y": 0
+            }
+          }
+        }
+      },
+      {
+        "index": 135,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 7
+            },
+            "to": {
+              "x": 4,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 136,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 3
+            },
+            "to": {
+              "x": 4,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 137,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 6
+            },
+            "to": {
+              "x": 2,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 138,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 139,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 2
+            },
+            "to": {
+              "x": 0,
+              "y": 1
+            },
+            "promote": true
+          }
+        }
+      },
+      {
+        "index": 140,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 2
+            },
+            "to": {
+              "x": 5,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 141,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 5
+            },
+            "to": {
+              "x": 7,
+              "y": 5
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 142,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 6,
+              "y": 1
+            }
+          }
+        }
+      },
+      {
+        "index": 143,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 4
+            },
+            "to": {
+              "x": 6,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 144,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 6
+            },
+            "to": {
+              "x": 6,
+              "y": 5
+            },
+            "promote": true
+          }
+        }
+      },
+      {
+        "index": 145,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 5
+            },
+            "to": {
+              "x": 4,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 146,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 1
+            },
+            "to": {
+              "x": 8,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 147,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 5
+            },
+            "to": {
+              "x": 6,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 148,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 2
+            },
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 149,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 4,
+              "y": 6
+            },
+            "to": {
+              "x": 3,
+              "y": 7
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 150,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 2
+            },
+            "to": {
+              "x": 7,
+              "y": 3
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 151,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 3
+            },
+            "to": {
+              "x": 7,
+              "y": 2
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 152,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "gold",
+            "to": {
+              "x": 7,
+              "y": 0
+            }
+          }
+        }
+      },
+      {
+        "index": 153,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "silver",
+            "to": {
+              "x": 5,
+              "y": 1
+            }
+          }
+        }
+      },
+      {
+        "index": 154,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 5
+            },
+            "to": {
+              "x": 7,
+              "y": 6
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 155,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 1
+            },
+            "to": {
+              "x": 1,
+              "y": 0
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 156,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 2,
+              "y": 0
+            }
+          }
+        }
+      },
+      {
+        "index": 157,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 5
+            },
+            "to": {
+              "x": 3,
+              "y": 4
+            },
+            "promote": false
+          }
+        }
+      },
+      {
+        "index": 158,
+        "event": {
+          "type": "action",
+          "side": "north",
+          "action": {
+            "type": "dropPiece",
+            "pieceKind": "rook",
+            "to": {
+              "x": 8,
+              "y": 7
+            }
+          }
+        }
+      },
+      {
+        "index": 159,
+        "event": {
+          "type": "action",
+          "side": "south",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 7
+            },
+            "to": {
+              "x": 6,
+              "y": 8
+            },
+            "promote": false
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "side": "north",
+    "winningActionIds": [10020, 11641]
+  }
+}

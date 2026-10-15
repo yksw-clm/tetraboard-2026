@@ -3,6 +3,13 @@ import { getAnalysisLegalActions, type AnalysisPosition } from "./analysis";
 import { encodeAction, actionEncodingVersion } from "./actionEncoding";
 import { encodeModelFeatures, featureVersion } from "./modelFeatures";
 import { sides } from "./types";
+import {
+  validateModelOutputs,
+  AiModelFailure,
+  type AiModelEvaluator,
+  type AiModelInput,
+  type AiModelOutput,
+} from "./aiModel";
 
 export const inferenceProtocol = "four-shogi-inference-ipc-v1";
 const maxFrameBytes = 16 * 1024 ** 2;
@@ -23,15 +30,7 @@ export type ModelHealth = {
   runtime: { python: string; torch: string; device: string };
   startupCandidateFailure?: string;
 };
-export type ModelOutput = {
-  id: string;
-  legalActionIds: number[];
-  policyLogits: number[];
-  policy: number[];
-  topActionId: number;
-  value: number[];
-  illegalPolicyNonzero: 0;
-};
+export type ModelOutput = AiModelOutput;
 export class ModelInferenceError extends Error {
   constructor(
     message: string,
@@ -119,6 +118,9 @@ export class ModelInferenceClient {
       throw this.failure ?? new ModelInferenceError("モデル未起動です");
     return structuredClone(this.active);
   }
+  get processId() {
+    return this.process.pid;
+  }
   private wait(id: number, timeoutMs: number) {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000)
       return Promise.reject(new RangeError("期限は1〜60000msです"));
@@ -182,51 +184,60 @@ export class ModelInferenceClient {
     );
     return this.loadedModel;
   }
-  async evaluate(positions: readonly AnalysisPosition[]): Promise<ModelOutput[]> {
-    const rows = inputRows(positions);
+  async evaluate(
+    positions: readonly AnalysisPosition[],
+    signal?: AbortSignal,
+  ): Promise<ModelOutput[]> {
+    return this.evaluateInputs(inputRows(positions), this.loadedModel.modelId, signal);
+  }
+  /** 開始時のモデルIDを固定し、探索へプロセス依存を渡さないアダプターを作ります。 */
+  asEvaluator(): AiModelEvaluator {
     const modelId = this.loadedModel.modelId;
-    const response = (await this.request({ op: "evaluate", ...versions, modelId, rows })) as {
-      modelId: string;
-      rows: ModelOutput[];
+    return {
+      modelId,
+      evaluate: async (rows, signal) => ({
+        modelId,
+        rows: await this.evaluateInputs(rows, modelId, signal),
+      }),
     };
+  }
+  private async evaluateInputs(
+    rows: readonly AiModelInput[],
+    modelId: string,
+    signal?: AbortSignal,
+  ): Promise<ModelOutput[]> {
+    let cancel = () => {};
+    const cancellation = new Promise<never>((_resolve, reject) => {
+      cancel = () => {
+        if (signal?.reason instanceof AiModelFailure && signal.reason.reason === "model_timeout")
+          this.close();
+        reject(new ModelInferenceError("推論を取り消しました"));
+      };
+    });
+    signal?.addEventListener("abort", cancel, { once: true });
     try {
-      if (response.modelId !== modelId || response.rows.length !== rows.length)
-        throw new Error("モデルID/件数が不一致です");
-      response.rows.forEach((output, i) => {
-        const ids = rows[i].legalActionIds;
-        if (
-          output.id !== rows[i].id ||
-          JSON.stringify(output.legalActionIds) !== JSON.stringify(ids) ||
-          output.policy.length !== ids.length ||
-          output.policyLogits.length !== ids.length ||
-          output.value.length !== 5 ||
-          output.illegalPolicyNonzero !== 0
-        )
-          throw new Error("合法手ID/席/次元が不一致です");
-        for (const scores of [output.policy, output.value]) {
-          if (
-            scores.some((v) => !Number.isFinite(v) || v < 0 || v > 1) ||
-            Math.abs(scores.reduce((a, b) => a + b, 0) - 1) > 1e-5
-          )
-            throw new Error("Policy/Valueの数値が不正です");
-        }
-        if (output.policyLogits.some((v) => !Number.isFinite(v)))
-          throw new Error("logitが不正です");
-        const top = output.policyLogits.indexOf(Math.max(...output.policyLogits));
-        if (ids[top] !== output.topActionId) throw new Error("最良行動IDが不一致です");
-        sides.forEach((side, index) => {
-          if (
-            positions[i].state.eliminations.some((entry) => entry.side === side) &&
-            output.value[index] !== 0
-          )
-            throw new Error("脱落した席のValueが不正です");
-        });
-      });
-      return response.rows;
-    } catch (error) {
-      const failure = new ModelInferenceError(`推論結果の整合検査に失敗しました: ${String(error)}`);
-      this.fail(failure);
-      throw failure;
+      if (signal?.aborted) throw new ModelInferenceError("推論を取り消しました");
+      // 要求の待ちだけを取り消し、遅い応答は登録済みIDで排出します。通常の手番期限ごとには起動し直しません。
+      const response = (await Promise.race([
+        this.request({ op: "evaluate", ...versions, modelId, rows }),
+        cancellation,
+      ])) as {
+        modelId: string;
+        rows: ModelOutput[];
+      };
+      try {
+        if (response.modelId !== modelId) throw new Error("モデルIDが不一致です");
+        validateModelOutputs(rows, response.rows);
+        return response.rows;
+      } catch (error) {
+        const failure = new ModelInferenceError(
+          `推論結果の整合検査に失敗しました: ${String(error)}`,
+        );
+        this.fail(failure);
+        throw failure;
+      }
+    } finally {
+      signal?.removeEventListener("abort", cancel);
     }
   }
   private fail(error: Error) {
