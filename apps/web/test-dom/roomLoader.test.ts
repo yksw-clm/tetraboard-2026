@@ -388,12 +388,10 @@ test("大会roomを連続reloadしても成功した所有版と資格を保存�
     expect(JSON.parse(requests.at(-1)!.init.body as string).expectedControllerVersion).toBe(
       version,
     );
-    requests
-      .at(-1)!
-      .respond({
-        participation: { ...participation, controller: "self", controllerVersion: version + 1 },
-        token: String(version).repeat(64),
-      });
+    requests.at(-1)!.respond({
+      participation: { ...participation, controller: "self", controllerVersion: version + 1 },
+      token: String(version).repeat(64),
+    });
     await pending;
     expect(readTournamentRoom(room.id, room.instanceId)?.controllerVersion).toBe(version + 1);
     controller.release(`1:${profile.username}`);
