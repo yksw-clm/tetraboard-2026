@@ -115,7 +115,7 @@ export async function fetchAiService(
   try {
     const response = await fetch(config.url + path, {
       ...init,
-      redirect: "error",
+      redirect: "manual",
       signal: init.signal
         ? AbortSignal.any([init.signal, AbortSignal.timeout(3000)])
         : AbortSignal.timeout(3000),
@@ -126,6 +126,9 @@ export async function fetchAiService(
         ...(instance ? { "X-AI-Instance": instance } : {}),
       },
     });
+    // Cloudflareはredirect:errorを受け付けないため、追従せず本文を読む前に拒否します。
+    if (response.status >= 300 && response.status < 400)
+      throw new AiGatewayError("ai_redirect", 503);
     const bytes = await readLimitedBody(response, 2097152);
     if (!bytes) throw new AiGatewayError("ai_response_size", 503);
     const data: unknown = JSON.parse(new TextDecoder().decode(bytes));

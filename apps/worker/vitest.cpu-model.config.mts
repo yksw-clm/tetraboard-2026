@@ -1,3 +1,4 @@
+import AiCpuModelReporter from "./scripts/aiCpuModelReporter";
 import { workerTestConfig } from "./vitest.config.mts";
 const bindings: Record<string, string> = {};
 for (const key of [
@@ -11,6 +12,7 @@ for (const key of [
   bindings[key] = value;
 }
 const config = workerTestConfig(bindings);
+config.test = { ...config.test, reporters: ["default", new AiCpuModelReporter()] };
 config.test = {
   ...config.test,
   include: ["test/fourShogiAiCpu.test.ts"],

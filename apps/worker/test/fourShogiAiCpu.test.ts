@@ -596,7 +596,7 @@ const smoke = env as typeof env & {
 if (smoke.AI_CPU_SMOKE_URL)
   for (const prohibited of [false, true])
     for (const profile of ["trial-100ms", "trial-500ms"] as const) {
-      test(`実モデルCPU ${profile} 禁止${prohibited}: Linux応答を通常着手へ確定する`, async () => {
+      test(`実モデルCPU ${profile} 禁止${prohibited}: Linux応答を通常着手へ確定する`, async (context) => {
         const p = await setup(prohibited, profile);
         const configured = {
           ...p.configured,
@@ -609,16 +609,27 @@ if (smoke.AI_CPU_SMOKE_URL)
           Object.assign((instance as unknown as { env: Env }).env, configured),
         );
         Object.assign(p.configured, configured);
-        await p.alarm();
-        await awaitAction(p);
-        await apply(p);
-        expect((await p.room()).positionRevision).toBe(1);
+        const wallStart = performance.now(),
+          baseTime = Date.now();
+        vi.spyOn(Date, "now").mockImplementation(() =>
+          Math.floor(baseTime + performance.now() - wallStart),
+        );
+        await vi.waitFor(
+          async () => {
+            await p.alarm();
+            expect((await p.room()).positionRevision).toBe(1);
+          },
+          { interval: 25, timeout: 5000 },
+        );
         const diagnostics = await p.diagnostics();
+        await context.annotate(
+          JSON.stringify({ prohibited, profile, diagnostics }),
+          "ai-cpu-model",
+        );
         expect(diagnostics).toMatchObject([
           { source: "model", outcome: "applied", usedModelId: configured.FOUR_SHOGI_AI_MODEL_ID },
         ]);
         expect(Number(diagnostics[0].inferenceCount)).toBeGreaterThan(0);
-        console.info("AI_CPU_MODEL_SMOKE " + JSON.stringify({ prohibited, profile, diagnostics }));
       }, 10000);
     }
 

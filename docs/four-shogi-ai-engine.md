@@ -157,7 +157,7 @@ stateHashは `analysisStateVersion`・プロフィールと、参加者IDを除�
 
 ### 共通AI・解析API（#187）
 
-公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTPジョブは下記#193、対局への着手確定は#194で接続する。
+公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTPジョブは下記#193、対局への着手確定は下記#194を使う。
 
 ```ts
 import { analyzePosition } from "@tetraboard/four-shogi/ai";
@@ -316,6 +316,8 @@ D01/D03/D04/D05に基づき、Worker/DOから同じVPSジョブへ接続しま�
 
 これらは公開レベルや棋力順を意味しません。VPSの時間は復元を含む計算予算で、通信やDO確定までの応答保証ではありません。開始＋2秒以降に思考を依頼し、最低待機を維持します。依頼から最大2秒、または時計期限の100ms前の早い方で代替へ移ります。100msは試用の余裕値で、同期Lv2の終了上限ではありません。余裕が100msを超える間は既存Lv2を実行し、足りない場合/選択失敗は要求時に確保した合法手を使います。予備手も次のAlarmで現在の正本へ再検証し、期限到達時は通常の時間切れを優先します。送信・待ち行列・推論・探索・受信・代替・確定待ちのすべてを時計へ含めます。
 
+Worker→VPSのfetchはCloudflare対応の `redirect: "manual"` とし、3xxを本文読取前に拒否します。別の宛先へ共有秘密を転送しません。
+
 `POST /api/four-shogi-ai/rooms/:roomId/cpu` は既存セッションCookie・同じOrigin・許可アカウントを必要とし、本文は `{ instanceId, token, playerId, profile }`（2KiBまで）。`token` はその部屋のホストの既存参加token、`profile` は上表または `null`（解除）です。DOが部屋世代・ホスト資格と本人アカウントの一致・待機中・シングルス・対象Lv2・全人間席の許可を再検査します。モデルパス・任意予算・着手は受け付けません。試用設定はDO内で部屋世代/対象CPU IDにひも付き、同じ席の再戦へ引き継ぎます。削除した席/レベル変更したCPUを設定から除き、別世代/本人の退室/試用資格喪失では設定を解除します。設定辞書を過去CPU IDで増やし続けません。通常画面のCPUレベル選択は変更せず、試用者が明示的にこのAPIを使います。
 
 ```ts
@@ -340,7 +342,7 @@ await fetch(`/api/four-shogi-ai/rooms/${room.id}/cpu`, {
 
 新AIの試用CPUは代替時も人間全員の引分提案へ自動同意せず、自発提案もしません。既存Lv1/Lv2の同意動作は維持します。`GET /api/four-shogi-ai/rooms/:roomId/cpu-diagnostics?instanceId=...` は許可された在室アカウントだけに直近32件を返します。プロファイル/予算/版、採用または破棄、理由、モデル実使用ID/推論件数、待ち/復元/探索/推論/計算時間とDO経過を区別します。`source` は `model` / 正本でも終局を確認した `terminal` / `lv2` / 確保手 `legal`。`terminal` や代替をモデル実使用と表示しません。部屋内の有限診断で、棋譜/戦績の正本や長期監査台帳へ追加しません。正式な保持方針はT05のままです。
 
-実モデルの専用確認は、既に起動したLinuxサービスのloopback URL・サーバー秘密・要求モデルID・サービスのソースSHAを明示して行います。通常checkは個人設定/プロセス環境変数からAI接続設定を取り込みません。専用 `vitest.cpu-model.config.mts` だけが下記4値を読み、ON/OFF×両プロファイルで実DO→実サービス→実モデル→通常確定と診断を検査します。秘密は追跡外の環境にだけ設定し、コマンド本文やログへ書きません。
+実モデルの専用確認は、既に起動したLinuxサービスのloopback URL・サーバー秘密・要求モデルID・サービスのソースSHAを明示して行います。通常checkは個人設定/プロセス環境変数からAI接続設定を取り込みません。専用 `vitest.cpu-model.config.mts` だけが下記4値を読み、ON/OFF×両プロファイルで実DO→実サービス→実モデル→通常確定と診断を検査します。秘密は追跡外の環境にだけ設定し、コマンド本文やログへ書きません。専用reporterはテスト注釈の有限診断だけを `AI_CPU_MODEL_SMOKE` JSON行へ出力します。
 
 ```sh
 # AI_CPU_SMOKE_URL / AI_CPU_SMOKE_SECRET / AI_CPU_SMOKE_MODEL_ID /
