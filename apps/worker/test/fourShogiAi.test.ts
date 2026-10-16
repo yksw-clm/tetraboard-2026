@@ -81,7 +81,7 @@ test("許可ユーザーだけがhealthを読め、Cookie・本人ID・共有秘
   const headers = new Headers(options.headers);
   expect(headers.get("authorization")).toBe("Bearer " + secret);
   expect(headers.get("cookie")).toBeNull();
-  expect(options.redirect).toBe("error");
+  expect(options.redirect).toBe("manual");
   expect(await aiPrincipal(configured, user.id)).toMatch(/^[0-9a-f]{64}$/);
   expect(await aiPrincipal(configured, user.id)).not.toBe(
     await aiPrincipal(configured, "another-account"),
@@ -245,4 +245,21 @@ test("利用者向け取消は用途を先に検査し、CPUジョブへ取消�
     ).status,
   ).toBe(404);
   expect(spy.mock.calls.map((c) => c[1]?.method)).toEqual(["GET"]);
+});
+
+test("VPSのリダイレクトは追従せず共有秘密を別の宛先へ転送しない", async () => {
+  const user = await accountFixture(),
+    configured = settings(user.id);
+  const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(null, {
+      status: 302,
+      headers: { Location: "https://another-origin.test/private" },
+    }),
+  );
+  const response = await call(configured, "/health", { headers: { Cookie: user.cookie } });
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({ error: "ai_redirect" });
+  expect(spy).toHaveBeenCalledTimes(1);
+  expect(spy.mock.calls[0][0]).toBe("https://ai.test/v1/health");
+  expect(spy.mock.calls[0][1]?.redirect).toBe("manual");
 });

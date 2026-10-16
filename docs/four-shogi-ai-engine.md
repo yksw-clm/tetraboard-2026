@@ -1,6 +1,6 @@
 # 四人将棋シングルスAI・解析エンジンの実装計画と契約
 
-> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-16。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開とLinux CPU推論/Mac出力照合も実装。共通MaxⁿのPolicy/Value実使用・従来/fallback比較・モデル教師生成も実装。モデルは実験用で、VPS接続・公開CPU・解析画面は後続。
+> 状態: Issue #184のD01〜D05は2026-10-14に開発者がすべて推奨案で承認。承認済みの設計契約、現行仕様、後続の未決事項を区別する。最終確認日: 2026-10-16。完全状態復元・静的評価の共通AI・再開可能な自己対戦/探索教師生成を実装。軽量Policy/Valueの学習・保存・再開とLinux CPU推論/Mac出力照合も実装。共通MaxⁿのPolicy/Value実使用・従来/fallback比較・モデル教師生成も実装。VPS向けサービスと対局CPUの限定試用接続も実装。モデルは実験用で、実VPS配置・公開CPUへの採用・解析画面は後続。
 
 [親Issue #183](https://github.com/yksw-clm/tetraboard-2026/issues/183) の計画を実装へ渡すための文書。現在の合法手・手番・勝敗と現行Lv1/Lv2は [四人将棋ルール正本](rules/four-shogi.md)、共通の時計・参加・棋譜公開は [README](../README.md) を参照する。D01〜D05の推奨案を採用する。具体的なAPI型・推論形式・設定値は後続Issueで検証し、未決事項を推測で確定しない。利用者向け変更とCPU採用仕様は、実装時に対応する正本へ反映する。
 
@@ -45,7 +45,7 @@
 
 Valueの初期案は「南・西・北・東の単独勝ち＋単独勝者なし」の5分類。4人の単独1位確率の和は100%以下となり得る。順位は必要なら別の補助出力にし、勝利ラベルと混ぜない。初期の出力形式・損失・特徴量は [#190の学習契約](#軽量policyvalueの学習とチェックポイント190)で実装しました。棋力と校正の達成は別に検証します。
 
-現行Lv2は同率1位も即勝利として優先し、終局の1位へ同じ評価を与える。現行仕様に沿う動作であり、今回の目的との差として扱う。新AIの即勝利判定と教師ラベルは単独勝者を区別する。また現行Workerの `cpuDraw` は生存する人間全員の引分提案へCPUが同意する。現行Lv1/Lv2の同意は維持し、新AIの同意は承認済みD01に従って#194で実装する。
+現行Lv2は同率1位も即勝利として優先し、終局の1位へ同じ評価を与える。現行仕様に沿う動作であり、今回の目的との差として扱う。新AIの即勝利判定と教師ラベルは単独勝者を区別する。また現行Workerの `cpuDraw` は生存する人間全員の引分提案へCPUが同意する。現行Lv1/Lv2の同意は維持し、新AIの試用接続は承認済みD01に従い、自動同意・自発提案を行わない。
 
 ## ルールの境界と連盟との照合
 
@@ -157,7 +157,7 @@ stateHashは `analysisStateVersion`・プロフィールと、参加者IDを除�
 
 ### 共通AI・解析API（#187）
 
-公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTPジョブは下記#193、対局への着手確定は#194で接続する。
+公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTPジョブは下記#193、対局への着手確定は下記#194を使う。
 
 ```ts
 import { analyzePosition } from "@tetraboard/four-shogi/ai";
@@ -304,6 +304,53 @@ bun run --cwd apps/four-shogi-ai bench:service --python=/path/to/python3.12 \
 ```
 
 配布前は候補コードと旧配布物を別の場所に保ち、候補manifest/hash・同梱probeとhealthのmodel/code版・枠数・上限を検査します。受付を止めて正常停止してから切り替え、失敗時は旧コード/モデル/環境設定へ戻して再起動・healthを再確認します。秘密をコマンド引数・Issue・ログへ貼らず、認証付きhealthの確認は管理用クライアント/上記smokeで行います。一般公開・実VPS/HTTPS・x86_64・長時間/最大履歴/多数同時実行・OS強制OOM/親SIGKILLとsystemd実運用、正式な上限/保持期間は未確認です。T02/T03/T05はそのまま残し、[測定記録](four-shogi-ai.md#vps向けジョブサービスの検証193)へ実際に試した条件と限界を記します。
+
+### 対局CPUの試用接続（#194）
+
+D01/D03/D04/D05に基づき、Worker/DOから同じVPSジョブへ接続します。公開の `CpuLevel = 1 | 2`、CPU数、名前、部屋/棋譜/保存JSONは維持します。新AIは通常のLv2を自動置換せず、開発・ローカル環境の許可アカウントが、待機中のシングルスでLv2 CPUごとに試用を設定します。全人間席が許可アカウントであることもDOで検査します。ゲスト/許可外の人間が加わった場合は試用設定を解除し、通常CPUに戻ります。
+
+| 内部プロファイル | 探索時間予算 | maxWork | 用途              |
+| ---------------- | -----------: | ------: | ----------------- |
+| `trial-100ms`    |        100ms |   8,192 | 速度/品質の比較用 |
+| `trial-500ms`    |        500ms |  32,768 | 速度/品質の比較用 |
+
+これらは公開レベルや棋力順を意味しません。VPSの時間は復元を含む計算予算で、通信やDO確定までの応答保証ではありません。開始＋2秒以降に思考を依頼し、最低待機を維持します。依頼から最大2秒、または時計期限の100ms前の早い方で代替へ移ります。100msは試用の余裕値で、同期Lv2の終了上限ではありません。余裕が100msを超える間は既存Lv2を実行し、足りない場合/選択失敗は要求時に確保した合法手を使います。予備手も次のAlarmで現在の正本へ再検証し、期限到達時は通常の時間切れを優先します。送信・待ち行列・推論・探索・受信・代替・確定待ちのすべてを時計へ含めます。
+
+Worker→VPSのfetchはCloudflare対応の `redirect: "manual"` とし、3xxを本文読取前に拒否します。別の宛先へ共有秘密を転送しません。
+
+`POST /api/four-shogi-ai/rooms/:roomId/cpu` は既存セッションCookie・同じOrigin・許可アカウントを必要とし、本文は `{ instanceId, token, playerId, profile }`（2KiBまで）。`token` はその部屋のホストの既存参加token、`profile` は上表または `null`（解除）です。DOが部屋世代・ホスト資格と本人アカウントの一致・待機中・シングルス・対象Lv2・全人間席の許可を再検査します。モデルパス・任意予算・着手は受け付けません。試用設定はDO内で部屋世代/対象CPU IDにひも付き、同じ席の再戦へ引き継ぎます。削除した席/レベル変更したCPUを設定から除き、別世代/本人の退室/試用資格喪失では設定を解除します。設定辞書を過去CPU IDで増やし続けません。通常画面のCPUレベル選択は変更せず、試用者が明示的にこのAPIを使います。
+
+```ts
+// 開発環境にログインし、自分の部屋のroom/membershipと対象CPUのplayerIdを使います。
+await fetch(`/api/four-shogi-ai/rooms/${room.id}/cpu`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    instanceId: room.instanceId,
+    token: membership.token,
+    playerId,
+    profile: "trial-500ms",
+  }),
+});
+```
+
+`fourShogiAi/cpu.ts` はDOのKVへ要求を保存してから、transaction外の `waitUntil` でhealth/受付/取得を行います。通信中のAlarmをfallback期限へ待機させ、queued/runningは100msごとに取得します。DO復元時は保存済みrequestId/入力を再利用し、受付済みのjobIdがあればGETだけを行います。送信直後の応答喪失でjobIdが不明の場合、同じ要求IDの再受付はサービス側で重複排除します。無制限の新規要求を作りません。
+
+入力はSQLiteの完全反復辞書を含む正本状態の `getAnalysisStateHash` と、同じ局の連番棋譜です。ハッシュ生成は既存解析APIと同じ形式を共有し、任意の状態に探索の信頼性を与えるAPIではありません。VPSへ渡す初期参加者は方向IDへ置換します。HMAC利用者識別を使い、氏名/本人ID/Cookie/参加tokenを計算入力へ送りません。履歴2,048件/サービス容量の上限を超えた場合も代替理由として扱います。
+
+応答のrequest/job/起動ID・全要求inputHash・stateHash・code/engine/model版・方向/イベント位置/ルール設定を照合します。現在の局ID・部屋世代・revision・CPU本人/レベル/プロファイル・実手番/脱落・時計開始/期限・公開ルール状態/イベント件数も照合し、モデル候補の保存前に完全状態hashを再計算します。次のAlarmで再照合後、`FourShogiProgress.cpuAction` の正本合法性と通常 `accept` →時計/棋譜/終局保存へ渡します。候補を受けただけでは着手しません。取消済み/前局/再戦/脱落後/期限後の応答は破棄し、既知のVPSジョブは期限付き取消を送ります。遅い取得応答で保存済み候補を上書きしません。
+
+新AIの試用CPUは代替時も人間全員の引分提案へ自動同意せず、自発提案もしません。既存Lv1/Lv2の同意動作は維持します。`GET /api/four-shogi-ai/rooms/:roomId/cpu-diagnostics?instanceId=...` は許可された在室アカウントだけに直近32件を返します。プロファイル/予算/版、採用または破棄、理由、モデル実使用ID/推論件数、待ち/復元/探索/推論/計算時間とDO経過を区別します。`source` は `model` / 正本でも終局を確認した `terminal` / `lv2` / 確保手 `legal`。`terminal` や代替をモデル実使用と表示しません。部屋内の有限診断で、棋譜/戦績の正本や長期監査台帳へ追加しません。正式な保持方針はT05のままです。
+
+実モデルの専用確認は、既に起動したLinuxサービスのloopback URL・サーバー秘密・要求モデルID・サービスのソースSHAを明示して行います。通常checkは個人設定/プロセス環境変数からAI接続設定を取り込みません。専用 `vitest.cpu-model.config.mts` だけが下記4値を読み、ON/OFF×両プロファイルで実DO→実サービス→実モデル→通常確定と診断を検査します。秘密は追跡外の環境にだけ設定し、コマンド本文やログへ書きません。専用reporterはテスト注釈の有限診断だけを `AI_CPU_MODEL_SMOKE` JSON行へ出力します。
+
+```sh
+# AI_CPU_SMOKE_URL / AI_CPU_SMOKE_SECRET / AI_CPU_SMOKE_MODEL_ID /
+# AI_CPU_SMOKE_CODE_VERSION を専用の追跡外環境で設定済みの場合だけ実行します。
+bun run --cwd apps/worker test:ai-cpu-model
+```
+
+実VPS/HTTPSの配置、長時間・多数部屋・最大履歴の性能、モデルの正式棋力、T02/T03/T05はこの接続の実装で確定しません。速度/モデル使用の測定と棋力の限界は[測定記録](four-shogi-ai.md#対局cpu接続の検証194)へ残します。
 
 ### 自己対戦と探索教師データ（#189）
 

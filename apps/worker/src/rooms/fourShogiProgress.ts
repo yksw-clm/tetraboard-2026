@@ -401,6 +401,18 @@ export class FourShogiProgress {
     );
   }
 
+  cpuAction(room: Playing, action: FourShogiAction, at: number, requireTerminal = false): Result {
+    if (isClockExpired(room.clock, at)) return { kind: "rejected", error: "time_expired" };
+    const cpu = room.players.find((p) => p.side === room.game.turn);
+    if (cpu?.kind !== "cpu" || this.isEliminated(room, cpu.id))
+      return { kind: "rejected", error: "not_your_turn" };
+    const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
+    const result = applyShogiAction(state, cpu.side, action, repetitionLookup);
+    if (!result.ok || (requireTerminal && result.state.status !== "finished"))
+      return { kind: "rejected", error: "invalid_move" };
+    return this.accept(room, result.state, { type: "action", side: cpu.side, action }, at, true);
+  }
+
   cpu(room: Playing, now: number): Result {
     const cpu = room.players.find((p) => p.side === room.game.turn);
     if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "four-shogi", room };

@@ -138,3 +138,15 @@ export function createAiRequestId(requestWindow: number) {
     throw new RangeError("Invalid AI request window");
   return `${requestWindow}:${crypto.randomUUID()}`;
 }
+
+export const aiCpuProfiles = {
+  "trial-100ms": { timeBudgetMs: 100, maxWork: 8192 },
+  "trial-500ms": { timeBudgetMs: 500, maxWork: 32768 },
+} as const;
+export const aiTrialCpuSchema = z.strictObject({
+  instanceId: z.uuid(),
+  token: z.string().regex(/^[0-9a-f]{64}$/),
+  playerId: z.string().min(1).max(200),
+  profile: z.enum(["trial-100ms", "trial-500ms"]).nullable(),
+});
+export type AiCpuProfile = keyof typeof aiCpuProfiles;

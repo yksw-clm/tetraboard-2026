@@ -3,6 +3,7 @@ import {
   aiJobLookupSchema,
   aiJobRequestSchema,
   aiTrialAnalysisSchema,
+  aiTrialCpuSchema,
 } from "@tetraboard/protocol/four-shogi-ai";
 import { accountIdentity, type StoredProfile } from "../accounts/auth";
 import { readStoredMatch } from "../accounts/matchDataContracts";
@@ -139,4 +140,44 @@ fourShogiAiRoutes.on(["GET", "DELETE"], "/four-shogi-ai/jobs/:jobId", async (c) 
     return c.json(snapshot);
   }
   return c.json(result);
+});
+
+fourShogiAiRoutes.post("/four-shogi-ai/rooms/:roomId/cpu", async (c) => {
+  const bytes = await readLimitedBody(c.req.raw, 2048);
+  if (!bytes) throw new AiGatewayError("request_size_limit", 413);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new AiGatewayError("invalid_request", 400);
+  }
+  const parsed = aiTrialCpuSchema.safeParse(raw);
+  if (!parsed.success || !/^\d{5}$/.test(c.req.param("roomId")))
+    throw new AiGatewayError("invalid_request", 400);
+  const input = parsed.data;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input.token));
+  const hash = [...new Uint8Array(digest)].map((n) => n.toString(16).padStart(2, "0")).join("");
+  const result = await (c.env as Env).GAME_ROOM.getByName(c.req.param("roomId")).configureTrialCpu(
+    c.get("aiUser").id,
+    hash,
+    input.instanceId,
+    input.playerId,
+    input.profile,
+  );
+  if ("error" in result)
+    throw new AiGatewayError(
+      result.error!,
+      result.error === "room_not_found" ? 404 : result.error === "trial_forbidden" ? 403 : 409,
+    );
+  return c.json(result);
+});
+fourShogiAiRoutes.get("/four-shogi-ai/rooms/:roomId/cpu-diagnostics", async (c) => {
+  const instance = aiTrialCpuSchema.shape.instanceId.safeParse(c.req.query("instanceId"));
+  if (!instance.success || !/^\d{5}$/.test(c.req.param("roomId")))
+    throw new AiGatewayError("invalid_request", 400);
+  const result = await (c.env as Env).GAME_ROOM.getByName(
+    c.req.param("roomId"),
+  ).trialCpuDiagnostics(c.get("aiUser").id, instance.data);
+  if (!result) throw new AiGatewayError("room_not_found", 404);
+  return c.json({ diagnostics: result });
 });
