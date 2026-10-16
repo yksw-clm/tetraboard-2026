@@ -49,7 +49,12 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
         },
       })),
     ],
-    test: { include: ["test/**/*.test.ts"], setupFiles: ["./test/setup.ts"] },
+    test: {
+      include: ["test/**/*.test.ts"],
+      setupFiles: ["./test/setup.ts"],
+      // 別のI/OコンテキストからのログでVitestのRPCが停止する上流不具合を回避します。
+      disableConsoleIntercept: true,
+    },
   });
 }
 export default workerTestConfig();

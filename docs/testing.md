@@ -286,6 +286,10 @@ bun run --cwd apps/worker deploy:dry-run:development
 
 部分実行では `bun test --cwd apps/web ./test/matchReplayLoader.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSession.test.tsx`、`bun run --cwd apps/admin test:dom` を使います。`test` は単体とDOMの両プロセスを実行します。共有DOMは `test-support/dom.ts`、React操作と偽時計・保留可能なfetchは `apps/web/test-dom/support.tsx` に置きます。タイマーは直接進め、実時間のsleepと外部通信を使いません。WebSocketも状態と送受信内容だけを確認します。画像は入出力・処理中・失敗・古い完了の破棄を確認し、実デコードや画素の描画を行いません。効果音も音声API・取得・時刻の境界を制御し、実音声デコード・ネイティブ入力・他アプリとの同時再生は実機で確認します。
 
+WorkerのVitestは `disableConsoleIntercept: true` を設定し、console出力をworkerdの標準出力・標準エラーへ残します。Durable ObjectのAlarm・WebSocket切断・`waitUntil` など、別のI/OコンテキストからのログをVitestのRPCへ転送すると、終了通知の待ち合わせが停止する[上流の既知障害](https://github.com/cloudflare/workers-sdk/issues/15719)を回避するためです。検証対象と失敗判定は維持し、全Workerスイートの集計と終了コードを確認します。
+
+アカウント更新のmultipart fixtureは、Workerへ渡す前に `Request.arrayBuffer()` で符号化済みbodyと境界を含むheadersを確定します。テスト内の `FormData` が作る遅延streamを別のリクエストのI/Oコンテキストへ持ち越さず、実HTTPと同じ入力を使うためです。ID取得の競合は `Promise.all` による同時要求を維持して確認します。
+
 将棋画像は `shogiComponents.test.tsx` で盤・全18駒の準備とURL別の共有状態を確認します。準備済み画像の再マウント直後に非同期処理を進める前から画像が表示されることを回帰条件とし、捕獲・成り・打ち駒・持ち駒・ドラッグ・回転・再表示と、準備中・失敗・古い完了・購読解除を検証します。iOS Safariの実画像のちらつきは参加・観戦で手動確認し、機種・OS・ビルド・確認結果をPRに記載します。
 
 純粋なfixtureは `apps/web/test/fixtures/` に置き、通信モックから分離します。`test-fixtures/matches/` の固定棋譜・固定期待値は維持し、実行時に期待値を再生成しません。
