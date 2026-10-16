@@ -624,7 +624,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 承認済みのロビー入口・大会詳細を実データへ接続し、管理者が大会名・開催日時・詳細・大会ごとの説明文を設定して公開し、登録者がエントリー・ランダムマッチ・対局・成績確認まで進める状態を作ります。終了時刻後も対象局の終了と保存を待って結果を確定し、管理者が全エントリー者と現在の参加状態を確認できる、develop向けのレビュー可能な実装PRを完成させます。
 
-今回の作業完了は仕様・計画の文書化であり、大会本体の実装完了ではありません。本番公開は開発環境の確認と開発者の承認後です。対人戦・登録・継続の改善は公開後の成果指標とし、実装PRの合格条件に人数や転換率の改善を要求しません。モックの日時・人数を実測値や開催予定に転記しません。
+承認済みモック・仕様に続き、大会本体と管理画面を実装しました。本番公開は開発環境の確認と開発者の承認後です。対人戦・登録・継続の改善は公開後の成果指標とし、実装PRの合格条件に人数や転換率の改善を要求しません。モックの日時・人数を実測値や開催予定に転記しません。
 
 **ContextProviders**
 
@@ -690,9 +690,19 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 テストを最後のコミットへ先送りせず、公開される機能の途中で認証・運営・保存・退会を欠いた状態にしません。分割粒度は実装都合で調整できますが、承認範囲や受入条件は無断で縮めません。新たな矛盾・未決定事項が見つかった場合は根拠を示し、推測で仕様を増やさず開発者へ確認します。
 
+### 大会機能の実装の入口
+
+- 公開APIとAdmin APIは `apps/worker/src/tournaments/routes.ts`、定義・名簿・順位と確定は `store.ts`、待機・抽選・確認・席移譲・補償は `coordinator.ts` です。定義は内部UUID、公開URLは公開時の数字連番です。Adminは `/admin/tournaments` から一覧・新規・編集・名簿へ進みます。
+- 固定条件・通信契約・整数点数と順位比較は `packages/protocol/src/tournaments.ts`。`0018_tournaments.sql` と各環境の `TOURNAMENT_COORDINATOR` bindingを追加します。新しいSecretsや外部サービスの設定はありません。環境への適用は既存のdb:migrateコマンドとデプロイ手順に従い、開発・本番への適用を区別します。
+- 対局側は `rooms/tournamentRoom.ts` とGameRoomの専用RPCを使い、通常のホスト開始を維持します。大会contextは `ActiveShogiMatch`・`PendingShogiMatch` の外側へ保持し、既存の厳密な棋譜JSONを変えません。将棋の最終保存batchで得点イベントと保存済み台帳を一緒に確定します。
+- Webの実画面は `features/tournaments`、入口は `features/lobby/LobbyView.tsx`。`registrationReturn.ts` がエントリー意図付きの認証復帰を許可し、ルームの次局操作は旧席の退室成功後に大会へ戻ります。専用mock HTMLは開発時の参照として残し、実画面へは読み込みません。
+- Adminの画面は `apps/admin/src/Tournaments.tsx`、追加ページ取得は `useAdminPages.ts`。権限喪失時に取得中の一覧と編集状態を破棄し、version競合時は入力を保持します。大会ごとの自由文は改行付きテキストとして表示し、機械条件は編集させません。
+
+実装ブランチは最新developの `54803b7` を基点に、承認済みモック `83f1482` と仕様 `0eddc91` を先行依存として含みます。公開される途中状態で受付・対局・保存・退会の保護を欠かさないよう、上記計画のWorker受付・待機・対局保存・配信／退会部分は一体の変更として扱います。protocol／保存契約、Worker本体と統合検証、Admin、Web、最終文書を分けてレビューできます。
+
 ## 四人将棋大会のUIモック
 
-2026-10-16に開発者が本モックを合格としました。承認された仕様と未実装範囲は[README](../README.md#四人将棋大会の確定仕様)、本実装の順序は[実装計画](#四人将棋大会の実装計画)を参照します。専用入口は `apps/web/tournamentMock.html`、画面は `apps/web/src/mocks/tournaments/TournamentMock.tsx`、例示データは同ディレクトリの `tournamentSamples.ts` です。既存のヘッダー・ナビゲーション・盤面図・テーマ・共通UIを使います。
+2026-10-16に開発者が本モックを合格としました。承認された仕様と本実装の案内は[README](../README.md#四人将棋大会の確定仕様)、本実装の順序は[実装計画](#四人将棋大会の実装計画)を参照します。専用入口は `apps/web/tournamentMock.html`、画面は `apps/web/src/mocks/tournaments/TournamentMock.tsx`、例示データは同ディレクトリの `tournamentSamples.ts` です。既存のヘッダー・ナビゲーション・盤面図・テーマ・共通UIを使います。
 
 `bun run --cwd apps/web dev` を実行し、以下を開きます。Workerの起動やログインは不要です。
 
