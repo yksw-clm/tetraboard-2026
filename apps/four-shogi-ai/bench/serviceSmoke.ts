@@ -132,12 +132,19 @@ async function launch() {
   return { child, exited, phase, stderr: () => stderrBytes };
 }
 async function verifyStopped(phase: (typeof phases)[number]) {
-  const entry = phase.logs.find((v) => (v as { event?: string }).event === "service_ready") as {
-    workerPids: number[];
-  };
-  assert(entry.workerPids.length === 4);
+  const pids = [
+    ...new Set(
+      phase.logs
+        .filter((v) => (v as { event?: string }).event === "compute_ready")
+        .flatMap((v) => {
+          const row = v as { pid: number; modelPid: number };
+          return [row.pid, row.modelPid];
+        }),
+    ),
+  ];
+  assert(pids.length >= 4);
   const remaining = () =>
-    entry.workerPids.filter((pid) => {
+    pids.filter((pid) => {
       try {
         process.kill(pid, 0);
         return true;
@@ -452,6 +459,45 @@ try {
     ).status,
     410,
   );
+  const initialWorker = service.phase.logs.find((v) => {
+    const e = v as { event?: string; slot?: number };
+    return e.event === "compute_ready" && e.slot === 0;
+  }) as { modelPid: number };
+  const recoveryStarted = performance.now();
+  process.kill(initialWorker.modelPid, "SIGKILL");
+  const replacements = () =>
+    service.phase.logs.filter((v) => {
+      const e = v as { event?: string; slot?: number };
+      return e.event === "compute_ready" && e.slot === 0;
+    });
+  let unavailableResponses = 0;
+  while (replacements().length < 2 && performance.now() - recoveryStarted < 15000) {
+    const response = await call(
+      "model_failure_health",
+      "/v1/health",
+      "GET",
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
+    if (response.status === 503) unavailableResponses++;
+    await Bun.sleep(10);
+  }
+  assert.equal(replacements().length, 2);
+  observations.push({
+    label: "model_failure_recovery",
+    wallMs: performance.now() - recoveryStarted,
+    unavailableResponses,
+  });
+  assert.equal((await call("recovered_health", "/v1/health")).status, 200);
+  const recoveredRequest = {
+    ...(await make("cpu", true, "2".repeat(64))),
+    serviceInstanceId: restarted.serviceInstanceId,
+    requestId: createAiRequestId(restarted.requestWindow),
+  };
+  const recoveredJob = await submit("recovered_cpu_accept", recoveredRequest);
+  await finish("recovered_cpu_complete", recoveredJob.jobId, recoveredRequest);
   const stopAgain = performance.now();
   await call("restart_shutdown", "/v1/shutdown", "POST");
   service.phase.exitCode = await timeout(service.exited, 5000);

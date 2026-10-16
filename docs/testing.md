@@ -226,7 +226,7 @@ PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネ
 
 Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設定/本番/未認証/許可外/Origin不一致の拒否、公開保存済み終局シングルス棋譜のprefix/方向ID、任意CPU/パス/予算の拒否、HMAC利用者識別、共有秘密とCookie/本人情報の非転送、入力hashと版の照合、VPSの利用制限/Retry-Afterの伝達を確認します。外部fetchだけを境界で制御します。部分実行は `bun run --cwd apps/worker test test/fourShogiAi.test.ts`。
 
-[bench:service](four-shogi-ai-engine.md#vpsサービスの実装と運用193)はLinuxの実モデルで0.5秒CPU/30秒解析の単一/同時実行、health/受付/取得の遅延、待ち/復元/純探索/推論の時間、使用IDと件数、認証/容量/過負荷/利用量・重複/衝突/取消/失効/再起動をcheck外で測ります。外部HTTPSや実VPSの性能・最大履歴/長時間/多数同時実行・OS強制OOMはこの試験で認定しません。
+[bench:service](four-shogi-ai-engine.md#vpsサービスの実装と運用193)はLinuxの実モデルで0.5秒CPU/30秒解析の単一/同時実行、health/受付/取得の遅延、待ち/復元/純探索/推論の時間、使用IDと件数、認証/容量/過負荷/利用量・重複/衝突/取消/失効/再起動、推論Pythonだけの強制終了後のhealth/交換/モデル実使用をcheck外で測ります。外部HTTPSや実VPSの性能・最大履歴/長時間/多数同時実行・OS強制OOMはこの試験で認定しません。
 
 ## 実行環境
 

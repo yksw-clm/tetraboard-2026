@@ -908,51 +908,56 @@ test("受付後はセッション・編集・画像の再作成を拒否し、�
     player = crypto.randomUUID(),
     instance = crypto.randomUUID(),
     key = `avatars/${crypto.randomUUID()}.webp`,
-    roomId = "99778";
-  await env.OBJECT_STORAGE.put(key, "private");
-  await env.APP_DB.prepare("UPDATE user SET avatarKey=? WHERE id=?").bind(key, user.id).run();
-  await env.APP_DB.prepare("INSERT INTO privacy_room_players VALUES (?,?,?,?,?)")
-    .bind(user.id, roomId, instance, player, key)
-    .run();
-  expect(await tombstone(user.id)).toBe(true);
-  expect((await request(`/avatars/${key.slice(8, -5)}`)).status).toBe(404);
-  await env.APP_DB.prepare("UPDATE user SET name='復活する旧名',profileCompleted=1 WHERE id=?")
-    .bind(user.id)
-    .run();
-  expect(
-    await env.APP_DB.prepare("SELECT name,profileCompleted FROM user WHERE id=?")
+    roomId = `privacy-fixture:${crypto.randomUUID()}`;
+  // DBトリガーだけの識別子を使い、他テストの実ルームと衝突させません。
+  try {
+    await env.OBJECT_STORAGE.put(key, "private");
+    await env.APP_DB.prepare("UPDATE user SET avatarKey=? WHERE id=?").bind(key, user.id).run();
+    await env.APP_DB.prepare("INSERT INTO privacy_room_players VALUES (?,?,?,?,?)")
+      .bind(user.id, roomId, instance, player, key)
+      .run();
+    expect(await tombstone(user.id)).toBe(true);
+    expect((await request(`/avatars/${key.slice(8, -5)}`)).status).toBe(404);
+    await env.APP_DB.prepare("UPDATE user SET name='復活する旧名',profileCompleted=1 WHERE id=?")
       .bind(user.id)
-      .first(),
-  ).toEqual({ name: "退会したプレイヤー", profileCompleted: 0 });
-  await env.APP_DB.prepare(
-    "INSERT INTO session(id,userId,token,expiresAt,createdAt,updatedAt) VALUES (?,?,?,?,?,?)",
-  )
-    .bind(
-      crypto.randomUUID(),
-      user.id,
-      crypto.randomUUID(),
-      Date.now() + 100000,
-      Date.now(),
-      Date.now(),
-    )
-    .run();
-  expect(
-    await env.APP_DB.prepare("SELECT 1 FROM session WHERE userId=?").bind(user.id).first(),
-  ).toBeNull();
-  await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-  await processFixtureDeletion(user.id);
-  await env.APP_DB.prepare(
-    "INSERT INTO room_index(room_id,game,mode,main_time_ms,byoyomi_ms,status,host_name,human_count,cpu_count,capacity,open_seats,updated_at_ms,revision,closed,instance_id,host_player_id,host_avatar_url) VALUES (?,'four-reversi','singles',300000,30000,'waiting','復活する旧名',1,0,4,3,?,1,0,?,?,?)",
-  )
-    .bind(roomId, Date.now(), instance, player, `/api/avatars/${key.slice(8, -5)}`)
-    .run();
-  expect(
+      .run();
+    expect(
+      await env.APP_DB.prepare("SELECT name,profileCompleted FROM user WHERE id=?")
+        .bind(user.id)
+        .first(),
+    ).toEqual({ name: "退会したプレイヤー", profileCompleted: 0 });
     await env.APP_DB.prepare(
-      "SELECT host_name,host_avatar_url,host_player_id FROM room_index WHERE room_id=?",
+      "INSERT INTO session(id,userId,token,expiresAt,createdAt,updatedAt) VALUES (?,?,?,?,?,?)",
     )
-      .bind(roomId)
-      .first(),
-  ).toEqual({ host_name: "退会したプレイヤー", host_avatar_url: null, host_player_id: null });
+      .bind(
+        crypto.randomUUID(),
+        user.id,
+        crypto.randomUUID(),
+        Date.now() + 100000,
+        Date.now(),
+        Date.now(),
+      )
+      .run();
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM session WHERE userId=?").bind(user.id).first(),
+    ).toBeNull();
+    await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
+    await processFixtureDeletion(user.id);
+    await env.APP_DB.prepare(
+      "INSERT INTO room_index(room_id,game,mode,main_time_ms,byoyomi_ms,status,host_name,human_count,cpu_count,capacity,open_seats,updated_at_ms,revision,closed,instance_id,host_player_id,host_avatar_url) VALUES (?,'four-reversi','singles',300000,30000,'waiting','復活する旧名',1,0,4,3,?,1,0,?,?,?)",
+    )
+      .bind(roomId, Date.now(), instance, player, `/api/avatars/${key.slice(8, -5)}`)
+      .run();
+    expect(
+      await env.APP_DB.prepare(
+        "SELECT host_name,host_avatar_url,host_player_id FROM room_index WHERE room_id=?",
+      )
+        .bind(roomId)
+        .first(),
+    ).toEqual({ host_name: "退会したプレイヤー", host_avatar_url: null, host_player_id: null });
+  } finally {
+    await env.APP_DB.prepare("DELETE FROM room_index WHERE room_id=?").bind(roomId).run();
+  }
 });
 
 test("本人の新旧フィードバック・画像・編集履歴・計測・投稿制限を消し、他者の投稿を残す", async () => {

@@ -18,6 +18,7 @@ export class ProcessPool implements JobExecutor {
   constructor(
     private config: ServiceConfig,
     private entry = new URL("./compute.ts", import.meta.url).pathname,
+    private log: (entry: object) => void = () => {},
   ) {
     this.slots = Array(config.workers).fill(null);
     this.failures = Array(config.workers).fill(0);
@@ -66,6 +67,13 @@ export class ProcessPool implements JobExecutor {
           initialized = true;
           slot.ready = true;
           slot.modelPid = message.modelPid;
+          this.log({
+            event: "compute_ready",
+            slot: index,
+            pid: child.pid,
+            modelPid: slot.modelPid,
+            modelId: message.modelId,
+          });
           clearTimeout(timer);
           resolve();
         } else if (message.type === "startup_failed") {
@@ -89,6 +97,12 @@ export class ProcessPool implements JobExecutor {
         } catch {}
         clearTimeout(timer);
         slot.ready = false;
+        this.log({
+          event: "compute_exited",
+          slot: index,
+          pid: child.pid,
+          expected: this.stopped || slot.expectedExit,
+        });
         const active = slot.active;
         slot.active = null;
         if (this.slots[index] === slot) this.slots[index] = null;

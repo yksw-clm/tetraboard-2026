@@ -20,6 +20,17 @@ function close() {
 }
 process.on("disconnect", close);
 process.on("SIGTERM", close);
+// 推論だけが故障したときも、親に枠の終了を通知して正常なプロセスへ交換します。
+setInterval(() => {
+  if (model) {
+    try {
+      void model.loadedModel;
+    } catch {
+      model.close();
+      process.exit(1);
+    }
+  }
+}, 100);
 process.on("message", (value: unknown) => {
   const message = value as {
     type: string;

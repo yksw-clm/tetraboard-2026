@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --parallel --filter './apps/*' dev",
+    "dev": "bun run --parallel --filter '@tetraboard/web' --filter '@tetraboard/worker' --filter '@tetraboard/admin' dev",
     "typecheck": "bun run --workspaces typecheck",
     "lint": "oxlint .",
     "format": "oxfmt .",

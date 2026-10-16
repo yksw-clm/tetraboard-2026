@@ -265,7 +265,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## Local Development
 
-リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWebとWorkerの開発サーバーが同時に起動します。
+リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWeb・Worker・Adminの開発サーバーが同時に起動します。AIサービスはモデル/秘密を別に設定する独立プロセスのため、この一括起動に含めず、`bun run --cwd apps/four-shogi-ai start` で明示的に起動します。
 どちらもLANから接続できます。
 
 スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。ポートは `/5173` ではなく `:5173` とし、例は `http://192.168.68.52:5173/` です。LANのHTTPでは `crypto.randomUUID()` が利用できないため、WebのUUID生成は `shared/createUuid.ts` の `crypto.getRandomValues()` によるUUID v4を使います。フィードバック送信ID、アクセス解析ID、スタンプのrequestIdで共用します。HTTPS限定APIを使う機能は、個別に対応可否を判定します。

@@ -11,8 +11,8 @@ config.modelDirectory = resolve(config.modelDirectory);
 const manifestFile = Bun.file(resolve(config.modelDirectory, "manifest.json"));
 if (manifestFile.size > 262144) throw new Error("model_manifest_size");
 config.modelId = aiModelIdSchema.parse((await manifestFile.json()).modelId);
-const pool = new ProcessPool(config);
 const log = (entry: object) => process.stdout.write(JSON.stringify(entry) + "\n");
+const pool = new ProcessPool(config, undefined, log);
 const manager = new JobManager(
   config,
   pool,
