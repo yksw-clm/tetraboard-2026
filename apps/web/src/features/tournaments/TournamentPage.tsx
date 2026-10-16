@@ -118,7 +118,23 @@ function TournamentPlay({ state }: { state: TournamentState }) {
   return (
     <AppCard className="gap-4">
       <h2 className="text-lg font-bold">大会対局</h2>
-      {closed ? (
+      {participation.controller === "other" ||
+      (participation.status !== "idle" && !state.canControl) ? (
+        <>
+          <p role="status" className="text-sm text-muted">
+            {participation.controller === "other"
+              ? "別のタブでマッチング中"
+              : "操作を再開するには、このタブへ引き継いでください。"}
+          </p>
+          <AppButton
+            onPress={state.takeOver}
+            isDisabled={state.pending !== null || account.loading || Boolean(account.error)}
+            isPending={state.pending === "controller"}
+          >
+            このタブで続ける
+          </AppButton>
+        </>
+      ) : closed && participation.status !== "playing" ? (
         <>
           <p className="text-sm text-muted">
             新しい対局の受付は終了しました。進行中の対局と結果保存の完了を待っています。
@@ -136,16 +152,7 @@ function TournamentPlay({ state }: { state: TournamentState }) {
           </p>
           {participation.status === "playing" && state.canEnterRoom ? (
             <AppButton onPress={state.enterRoom}>参加中の対局へ</AppButton>
-          ) : (
-            !state.canEnterRoom &&
-            participation.roomId && (
-              <AppButtonLink
-                to={`/rooms/${participation.roomId}?invite=${participation.instanceId}`}
-              >
-                参加中の対局へ
-              </AppButtonLink>
-            )
-          )}
+          ) : null}
         </>
       ) : (
         <>
@@ -223,10 +230,24 @@ function TournamentContent({ id }: { id: number }) {
   }, [tournament]);
   return (
     <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 max-sm:gap-4`}>
-      <AppButtonLink to="/games/four-shogi" appearance="quiet" className="self-start px-0">
+      <AppButton
+        onPress={() => void state.returnToLobby()}
+        appearance="quiet"
+        className="self-start px-0"
+      >
         <AppIcon name="arrow" className="rotate-180" />
         四人将棋ロビーへ
-      </AppButtonLink>
+      </AppButton>
+      {state.returnReason === "unavailable" && (
+        <p role="status" className="text-sm text-muted">
+          接続がそろわず対局が成立しませんでした。待機状況を確認し、もう一度対局できます。
+        </p>
+      )}
+      {state.returnReason === "transferred" && (
+        <p role="status" className="text-sm text-muted">
+          別のタブへ操作を引き継ぎました。
+        </p>
+      )}
       {account.error && (
         <p role="alert" className="text-sm text-danger">
           {account.error}

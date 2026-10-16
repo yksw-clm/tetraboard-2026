@@ -142,3 +142,46 @@ test("大会開始のカウントダウン中は既存dialogを隠し、予告�
   expect(view.querySelector('[aria-label="大会対局の開始カウントダウン"]')).toBeNull();
   expect(document.querySelector('[role="dialog"]')).not.toBeNull();
 });
+
+test.each(["unavailable", "left", "transferred"] as const)(
+  "大会ルームの本人への%s通知は大会ページへ戻す",
+  async (reason) => {
+    const room = { ...waitingShogiRoom(), tournamentId: 1 };
+    const { view, socket } = await setup(room);
+    socket.receive({
+      type: "room.tournament.return",
+      tournamentId: 1,
+      matchId: "00000000-0000-4000-8000-000000000031",
+      instanceId: room.instanceId,
+      reason,
+    });
+    await flush();
+    expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe("/tournaments/1");
+  },
+);
+
+test("別instanceの復帰通知と観戦者への復帰通知は現在のページを移動させない", async () => {
+  const room = { ...waitingShogiRoom(), tournamentId: 1 };
+  const { view, socket } = await setup(room);
+  socket.receive({
+    type: "room.tournament.return",
+    tournamentId: 1,
+    matchId: "00000000-0000-4000-8000-000000000031",
+    instanceId: "00000000-0000-4000-8000-000000000032",
+    reason: "unavailable",
+  });
+  await flush();
+  expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe("/rooms/12345");
+  const spectator = await setup(room, true);
+  spectator.socket.receive({
+    type: "room.tournament.return",
+    tournamentId: 1,
+    matchId: "00000000-0000-4000-8000-000000000031",
+    instanceId: room.instanceId,
+    reason: "transferred",
+  });
+  await flush();
+  expect(spectator.view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe(
+    "/rooms/12345",
+  );
+});

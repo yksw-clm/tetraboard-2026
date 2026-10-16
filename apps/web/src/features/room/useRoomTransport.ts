@@ -130,6 +130,7 @@ export function useRoomTransport<T extends Room>({
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
+  const initialTournamentId = isFourShogiRoom(initialRoom) ? initialRoom.tournamentId : undefined;
   const [room, setRoom] = useState(initialRoom);
   const [eliminatedHands, setEliminatedHands] = useState(initialEliminatedHands ?? null);
   const profileStore = usePlayerProfiles()?.store;
@@ -413,6 +414,12 @@ export function useRoomTransport<T extends Room>({
     }
 
     function stopUnavailable(message: string): void {
+      if (initialTournamentId !== undefined && initialMembership) {
+        void navigate(`/tournaments/${initialTournamentId}`, {
+          replace: true,
+          state: { tournamentReturn: { reason: "unavailable" } },
+        });
+      }
       active = false;
       stopTransport();
       setUnavailable(message);
@@ -681,6 +688,22 @@ export function useRoomTransport<T extends Room>({
           return;
         }
 
+        if (message.data.type === "room.tournament.return") {
+          const notification = message.data;
+          if (
+            initialMembership &&
+            initialTournamentId === notification.tournamentId &&
+            initialRoom.instanceId === notification.instanceId
+          ) {
+            active = false;
+            stopTransport();
+            void navigate(`/tournaments/${notification.tournamentId}`, {
+              replace: true,
+              state: { tournamentReturn: { reason: notification.reason } },
+            });
+          }
+          return;
+        }
         if (message.data.type === "room.snapshot") {
           try {
             assertRoomIdentity(message.data.room, initialRoom.id, initialRoom.instanceId);
@@ -898,6 +921,8 @@ export function useRoomTransport<T extends Room>({
       releaseSounds();
     };
   }, [
+    initialTournamentId,
+    navigate,
     initialFormationAnalysisSupported,
     initialEliminatedHands,
     initialStampsSupported,

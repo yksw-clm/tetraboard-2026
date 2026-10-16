@@ -1,4 +1,5 @@
 import {
+  tournamentControllerResponseSchema,
   tournamentDetailSchema,
   tournamentLobbySchema,
   tournamentParticipationSchema,
@@ -31,10 +32,17 @@ export async function readLobbyTournament(signal?: AbortSignal) {
     await accountRequest("/api/tournaments/lobby", { signal: requestSignal(signal) }),
   );
 }
-export async function readTournamentParticipation(id: number, signal?: AbortSignal) {
+export async function readTournamentParticipation(
+  id: number,
+  signal?: AbortSignal,
+  controllerId?: string,
+) {
   return parseTournamentData(
     tournamentParticipationSchema,
-    await accountRequest(`${tournamentPath(id)}/participation`, { signal: requestSignal(signal) }),
+    await accountRequest(`${tournamentPath(id)}/participation`, {
+      signal: requestSignal(signal),
+      ...(controllerId ? { headers: { "X-Tournament-Controller": controllerId } } : {}),
+    }),
   );
 }
 export async function readTournamentStandings(id: number, cursor?: string, signal?: AbortSignal) {
@@ -64,4 +72,19 @@ export async function tournamentOperation(
     keepalive,
     ...(keepalive ? {} : { signal: requestSignal() }),
   });
+}
+
+export async function claimTournamentController(
+  id: number,
+  body: {
+    operationId: string;
+    controllerId: string;
+    takeover: boolean;
+    expectedControllerVersion: number;
+  },
+) {
+  return parseTournamentData(
+    tournamentControllerResponseSchema,
+    await tournamentOperation(id, "controller", "POST", body),
+  );
 }

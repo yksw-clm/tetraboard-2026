@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { TournamentParticipation } from "@tetraboard/protocol";
 import { useAccount } from "../account/useAccount";
@@ -8,16 +8,30 @@ import {
   clearTournamentQueue,
   createTournamentQueue,
   readTournamentQueue,
+  saveTournamentQueue,
+  saveTournamentRoom,
 } from "./tournamentQueueStorage";
-import { readTournament, readTournamentParticipation, tournamentOperation } from "./tournamentApi";
+import {
+  claimTournamentController,
+  readTournament,
+  readTournamentParticipation,
+  tournamentOperation,
+} from "./tournamentApi";
+import { useTournamentController } from "./tournamentController";
 
 type Detail = Awaited<ReturnType<typeof readTournament>>;
-const idle: TournamentParticipation = { entered: false, status: "idle" };
+const idle: TournamentParticipation = {
+  entered: false,
+  status: "idle",
+  controller: "none",
+  controllerVersion: 0,
+};
 
 export function useTournament(id: number) {
   const account = useAccount();
   const navigate = useNavigate();
   const location = useLocation();
+  const { controller: documentController, controllerId } = useTournamentController();
   const identity = account.user?.profileCompleted
     ? (account.user.profileId ?? account.user.username)
     : null;
@@ -33,6 +47,11 @@ export function useTournament(id: number) {
     canEnterRoom: boolean;
     error: string | null;
   }>({ key, data: null, participation: idle, canEnterRoom: false, error: null });
+  const [heartbeatWarning, setHeartbeatWarning] = useState<{
+    key: string;
+    operationId: string;
+    value: string;
+  } | null>(null);
   const [entryDialog, setEntryDialog] = useState<{ key: string; open: boolean }>({
     key,
     open: false,
@@ -46,31 +65,59 @@ export function useTournament(id: number) {
     value: null,
   });
   const requests = useRef<AbortController | null>(null);
-  const current = useRef({ key, disposed: false, participation: idle, movingToRoom: false });
+  const claimGeneration = useRef(0);
+  const current = useRef({
+    key,
+    controllerId,
+    disposed: false,
+    participation: idle,
+    movingToRoom: false,
+  });
+  const resumeAttempt = useRef<string | null>(null);
   const action = useRef<string | null>(null);
+  const authUnavailable = useRef(false);
+  useLayoutEffect(() => {
+    authUnavailable.current = account.loading || Boolean(account.error);
+  }, [account.loading, account.error]);
   const entryReturn = registrationReturnFromState(location.state, `/tournaments/${id}`);
   const resumedEntry = useRef<string | null>(null);
   const requestedEntry = location.state?.tournamentEntryRequested === true;
   const refresh = useCallback(async () => {
+    const requestControllerId = documentController.getIdentity();
+    const requestClaimGeneration = claimGeneration.current;
     requests.current?.abort();
     const controller = new AbortController();
     requests.current = controller;
     try {
       const [data, participation] = await Promise.all([
         readTournament(id, controller.signal),
-        identity ? readTournamentParticipation(id, controller.signal) : Promise.resolve(idle),
+        identity
+          ? readTournamentParticipation(id, controller.signal, requestControllerId)
+          : Promise.resolve(idle),
       ]);
       if (controller.signal.aborted || current.current.key !== key || current.current.disposed)
         return;
+      if (
+        documentController.getIdentity() !== requestControllerId ||
+        requestClaimGeneration !== claimGeneration.current
+      )
+        return;
       current.current.participation = participation;
-      if (identity && participation.status === "idle" && action.current !== key)
+      setHeartbeatWarning(null);
+      if (participation.controller === "other") documentController.forget(key);
+      if (identity && participation.status === "idle" && action.current !== key) {
         clearTournamentQueue(id, identity, legacyIdentity.current);
+        documentController.forget(key);
+      }
       const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
       const canEnterRoom = Boolean(
         credential &&
         credential.operationId === participation.operationId &&
         participation.roomId &&
-        participation.instanceId,
+        participation.instanceId &&
+        participation.controller === "self" &&
+        documentController.version(key, participation.operationId) ===
+          participation.controllerVersion,
       );
       setState({ key, data, participation, canEnterRoom, error: null });
     } catch (error) {
@@ -85,8 +132,8 @@ export function useTournament(id: number) {
     } finally {
       if (requests.current === controller) requests.current = null;
     }
-  }, [id, identity, key]);
-  const enterRoom = useCallback(() => {
+  }, [id, identity, key, documentController]);
+  const enterRoom = useCallback(async () => {
     const participation = current.current.participation;
     if (
       current.current.disposed ||
@@ -100,45 +147,115 @@ export function useTournament(id: number) {
       !["matched", "playing"].includes(participation.status)
     )
       return;
-    const credential = readTournamentQueue(id, identity, legacyIdentity.current);
-    if (!credential || credential.operationId !== participation.operationId) return;
-    if (!saveRoomMembershipToken(participation.roomId, credential.token)) {
-      setMessage({
-        key,
-        value: "ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。",
-      });
+    const version = documentController.version(key, participation.operationId);
+    if (
+      !participation.operationId ||
+      participation.controller !== "self" ||
+      version !== participation.controllerVersion ||
+      action.current === key
+    )
       return;
+    action.current = key;
+    claimGeneration.current++;
+    requests.current?.abort();
+    requests.current = null;
+    setPending({ key, value: "room" });
+    try {
+      const result = await claimTournamentController(id, {
+        operationId: participation.operationId,
+        controllerId,
+        takeover: false,
+        expectedControllerVersion: version,
+      });
+      if (
+        current.current.disposed ||
+        current.current.key !== key ||
+        documentController.getIdentity() !== controllerId ||
+        authUnavailable.current ||
+        documentController.version(key, participation.operationId) !== version ||
+        current.current.participation.controller !== "self"
+      )
+        return;
+      const latest = result.participation;
+      if (
+        latest.controller !== "self" ||
+        latest.controllerVersion !== version ||
+        latest.operationId !== participation.operationId ||
+        !latest.roomId ||
+        !latest.instanceId ||
+        !["matched", "playing"].includes(latest.status)
+      ) {
+        await refresh();
+        return;
+      }
+      saveTournamentQueue(id, identity, {
+        operationId: latest.operationId,
+        token: result.token,
+        controllerVersion: latest.controllerVersion,
+      });
+      if (
+        !saveRoomMembershipToken(latest.roomId, result.token) ||
+        !saveTournamentRoom({
+          tournamentId: id,
+          identity,
+          operationId: latest.operationId,
+          roomId: latest.roomId,
+          instanceId: latest.instanceId,
+          controllerVersion: latest.controllerVersion,
+        })
+      )
+        throw new Error("ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。");
+      documentController.remember(key, latest.operationId, latest.controllerVersion);
+      current.current.movingToRoom = true;
+      void navigate(`/rooms/${latest.roomId}?invite=${latest.instanceId}`);
+    } catch (error) {
+      if (
+        !current.current.disposed &&
+        current.current.key === key &&
+        documentController.getIdentity() === controllerId
+      ) {
+        setMessage({
+          key,
+          value:
+            error instanceof Error
+              ? error.message
+              : "入室できませんでした。状態を再確認してください。",
+        });
+        await refresh();
+      }
+    } finally {
+      if (action.current === key) action.current = null;
+      if (!current.current.disposed && current.current.key === key)
+        setPending({ key, value: null });
     }
-    current.current.movingToRoom = true;
-    // 接続不成立で同じ待機へ戻る場合に備え、待機資格はルーム移動時に破棄しません。
-    void navigate(`/rooms/${participation.roomId}?invite=${participation.instanceId}`);
-  }, [id, identity, key, navigate, account.loading, account.error]);
+  }, [
+    id,
+    identity,
+    key,
+    navigate,
+    account.loading,
+    account.error,
+    documentController,
+    controllerId,
+    refresh,
+  ]);
   useEffect(() => {
-    current.current = { key, disposed: false, participation: idle, movingToRoom: false };
+    current.current = {
+      key,
+      controllerId: documentController.getIdentity(),
+      disposed: false,
+      participation: idle,
+      movingToRoom: false,
+    };
     const timeout = window.setTimeout(() => void refresh(), 0);
     const visibleRefresh = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible" && action.current !== key) void refresh();
     };
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !requests.current) void refresh();
+      if (document.visibilityState === "visible" && !requests.current && action.current !== key)
+        void refresh();
     }, 5000);
     document.addEventListener("visibilitychange", visibleRefresh);
-    const cancel = () => {
-      const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
-      if (
-        credential &&
-        !current.current.movingToRoom &&
-        current.current.participation.status !== "playing"
-      )
-        void tournamentOperation(
-          id,
-          "queue",
-          "DELETE",
-          { operationId: credential.operationId },
-          true,
-        ).catch(() => {});
-    };
-    window.addEventListener("pagehide", cancel);
     return () => {
       current.current.disposed = true;
       requests.current?.abort();
@@ -146,27 +263,194 @@ export function useTournament(id: number) {
       window.clearTimeout(timeout);
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", visibleRefresh);
-      window.removeEventListener("pagehide", cancel);
-      cancel();
     };
-  }, [key, id, identity, refresh]);
+  }, [key, refresh, documentController]);
   useEffect(() => {
     const interval = window.setInterval(() => {
-      const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
+      const participation = current.current.participation;
+      const operationId = participation.operationId;
+      const version = documentController.version(key, operationId);
       if (
-        credential &&
+        !current.current.disposed &&
         current.current.key === key &&
-        current.current.participation.status === "waiting"
-      )
+        documentController.getIdentity() === controllerId &&
+        participation.status === "waiting" &&
+        participation.controller === "self" &&
+        operationId &&
+        version === participation.controllerVersion
+      ) {
         void tournamentOperation(id, "queue", "PATCH", {
-          operationId: credential.operationId,
-        }).catch(() => {
-          if (!current.current.disposed && current.current.key === key)
-            setMessage({ key, value: "待機を継続できませんでした。状態を再確認してください。" });
-        });
+          operationId,
+          controllerId,
+          controllerVersion: version,
+        })
+          .then(() => {
+            if (current.current.key === key && documentController.getIdentity() === controllerId)
+              setHeartbeatWarning((previous) =>
+                previous?.operationId === operationId ? null : previous,
+              );
+          })
+          .catch(() => {
+            const latest = current.current.participation;
+            if (
+              !current.current.disposed &&
+              current.current.key === key &&
+              documentController.getIdentity() === controllerId &&
+              latest.status === "waiting" &&
+              latest.operationId === operationId &&
+              latest.controller === "self"
+            ) {
+              setHeartbeatWarning({
+                key,
+                operationId,
+                value: "待機を継続できませんでした。状態を再確認してください。",
+              });
+              void refresh();
+            }
+          });
+      }
     }, 10_000);
     return () => window.clearInterval(interval);
-  }, [id, identity, key]);
+  }, [id, key, controllerId, documentController, refresh]);
+  useEffect(() => {
+    if (current.current.controllerId !== controllerId) {
+      current.current.controllerId = controllerId;
+      if (action.current !== key) void refresh();
+    }
+  }, [controllerId, key, refresh]);
+  const takeOver = useCallback(
+    async (automatic = false) => {
+      const participation = current.current.participation;
+      if (
+        !identity ||
+        !participation.operationId ||
+        account.loading ||
+        account.error ||
+        action.current === key
+      )
+        return;
+      if (
+        automatic &&
+        (!documentController.isReload() ||
+          location.state?.tournamentReturn ||
+          new URLSearchParams(location.search).has("return"))
+      )
+        return;
+      const saved = readTournamentQueue(id, identity, legacyIdentity.current);
+      if (
+        automatic &&
+        (saved?.operationId !== participation.operationId ||
+          saved.controllerVersion !== participation.controllerVersion)
+      )
+        return;
+      if (automatic && !(await documentController.acquire(key))) return;
+      if (current.current.disposed || current.current.key !== key) return;
+      action.current = key;
+      claimGeneration.current++;
+      requests.current?.abort();
+      requests.current = null;
+      setPending({ key, value: "controller" });
+      const nextControllerId = automatic
+        ? documentController.getIdentity()
+        : documentController.rotate();
+      try {
+        const result = await claimTournamentController(id, {
+          operationId: participation.operationId,
+          controllerId: nextControllerId,
+          takeover: true,
+          expectedControllerVersion: participation.controllerVersion,
+        });
+        if (
+          current.current.disposed ||
+          current.current.key !== key ||
+          documentController.getIdentity() !== nextControllerId
+        )
+          return;
+        const latest = result.participation;
+        if (latest.controller !== "self" || latest.operationId !== participation.operationId)
+          return;
+        saveTournamentQueue(id, identity, {
+          operationId: latest.operationId,
+          token: result.token,
+          controllerVersion: latest.controllerVersion,
+        });
+        documentController.remember(key, latest.operationId, latest.controllerVersion);
+        await documentController.acquire(key, !automatic);
+        if (
+          current.current.disposed ||
+          current.current.key !== key ||
+          documentController.getIdentity() !== nextControllerId
+        )
+          return;
+        documentController.announce(key);
+        current.current.participation = latest;
+        setHeartbeatWarning(null);
+        if (latest.roomId && latest.instanceId && ["matched", "playing"].includes(latest.status)) {
+          if (
+            !saveRoomMembershipToken(latest.roomId, result.token) ||
+            !saveTournamentRoom({
+              tournamentId: id,
+              identity,
+              operationId: latest.operationId,
+              roomId: latest.roomId,
+              instanceId: latest.instanceId,
+              controllerVersion: latest.controllerVersion,
+            })
+          )
+            throw new Error(
+              "ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。",
+            );
+          current.current.movingToRoom = true;
+          void navigate(`/rooms/${latest.roomId}?invite=${latest.instanceId}`);
+        } else await refresh();
+      } catch (error) {
+        if (
+          !current.current.disposed &&
+          current.current.key === key &&
+          documentController.getIdentity() === nextControllerId
+        ) {
+          setMessage({
+            key,
+            value:
+              error instanceof Error
+                ? error.message
+                : "引継ぎできませんでした。状態を再確認してください。",
+          });
+          await refresh();
+        }
+      } finally {
+        if (action.current === key) action.current = null;
+        if (!current.current.disposed && current.current.key === key)
+          setPending({ key, value: null });
+      }
+    },
+    [
+      identity,
+      account.loading,
+      account.error,
+      key,
+      documentController,
+      id,
+      location.state,
+      location.search,
+      navigate,
+      refresh,
+    ],
+  );
+  useEffect(() => {
+    const participation = state.key === key ? state.participation : idle;
+    const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
+    const scope = `${key}:${participation.operationId}`;
+    if (
+      participation.controller !== "other" ||
+      !credential ||
+      credential.operationId !== participation.operationId ||
+      resumeAttempt.current === scope
+    )
+      return;
+    resumeAttempt.current = scope;
+    void takeOver(true);
+  }, [state, key, identity, id, takeOver]);
   const perform = useCallback(
     async (label: string, run: () => Promise<unknown>) => {
       if (action.current === key || account.loading || account.error) return;
@@ -243,8 +527,57 @@ export function useTournament(id: number) {
       : { key, data: null, participation: idle, canEnterRoom: false, error: null };
   return {
     ...visible,
+    canControl:
+      visible.participation.controller === "self" &&
+      documentController.version(key, visible.participation.operationId) ===
+        visible.participation.controllerVersion,
     pending: pending.key === key ? pending.value : null,
-    message: message.key === key ? message.value : null,
+    message:
+      (message.key === key ? message.value : null) ??
+      (heartbeatWarning?.key === key &&
+      heartbeatWarning.operationId === visible.participation.operationId &&
+      visible.participation.status === "waiting"
+        ? heartbeatWarning.value
+        : null),
+    takeOver: () => void takeOver(),
+    async returnToLobby() {
+      if (action.current === key) return;
+      const participation = current.current.participation;
+      const version = documentController.version(key, participation.operationId);
+      if (
+        participation.status !== "playing" &&
+        participation.controller === "self" &&
+        participation.operationId &&
+        version === participation.controllerVersion
+      ) {
+        action.current = key;
+        setPending({ key, value: "cancel" });
+        try {
+          await tournamentOperation(id, "queue", "DELETE", {
+            operationId: participation.operationId,
+            controllerId,
+            controllerVersion: version,
+          });
+          if (identity) clearTournamentQueue(id, identity, legacyIdentity.current);
+          documentController.forget(key);
+        } catch (error) {
+          setMessage({
+            key,
+            value: error instanceof Error ? error.message : "待機を取り消せませんでした。",
+          });
+          await refresh();
+          return;
+        } finally {
+          if (action.current === key) action.current = null;
+          if (!current.current.disposed && current.current.key === key)
+            setPending({ key, value: null });
+        }
+      }
+      if (!current.current.disposed && current.current.key === key)
+        void navigate("/games/four-shogi");
+    },
+    returnReason: (location.state?.tournamentReturn?.reason ??
+      new URLSearchParams(location.search).get("return")) as string | undefined,
     refresh,
     enter,
     entryDialog: entryDialog.key === key && entryDialog.open,
@@ -274,23 +607,45 @@ export function useTournament(id: number) {
         const credential =
           readTournamentQueue(id, identity, legacyIdentity.current) ??
           createTournamentQueue(id, identity);
-        await tournamentOperation(id, "queue", "POST", credential);
-        if (current.current.disposed || current.current.key !== key)
-          await tournamentOperation(
-            id,
-            "queue",
-            "DELETE",
-            { operationId: credential.operationId },
-            true,
-          );
+        await tournamentOperation(id, "queue", "POST", {
+          operationId: credential.operationId,
+          token: credential.token,
+          controllerId,
+        });
+        if (
+          !current.current.disposed &&
+          current.current.key === key &&
+          documentController.getIdentity() === controllerId
+        ) {
+          documentController.remember(key, credential.operationId, 1);
+          saveTournamentQueue(id, identity, { ...credential, controllerVersion: 1 });
+          await documentController.acquire(key, true);
+          if (
+            !current.current.disposed &&
+            current.current.key === key &&
+            documentController.getIdentity() === controllerId
+          )
+            documentController.announce(key);
+        }
       });
     },
     cancel() {
       if (!identity) return;
       const operationId = visible.participation.operationId;
-      if (!operationId) return;
+      const version = documentController.version(key, operationId);
+      if (
+        !operationId ||
+        visible.participation.controller !== "self" ||
+        version !== visible.participation.controllerVersion
+      )
+        return;
       void perform("cancel", async () => {
-        await tournamentOperation(id, "queue", "DELETE", { operationId });
+        await tournamentOperation(id, "queue", "DELETE", {
+          operationId,
+          controllerId,
+          controllerVersion: version,
+        });
+        documentController.forget(key);
         clearTournamentQueue(id, identity, legacyIdentity.current);
       });
     },

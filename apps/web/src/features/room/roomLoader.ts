@@ -13,7 +13,9 @@ import {
   type RoomPresence,
   type FourShogiEliminatedHands,
 } from "@tetraboard/protocol";
-import type { LoaderFunctionArgs } from "react-router";
+import { redirect, type LoaderFunctionArgs } from "react-router";
+import { recoverTournamentRoom } from "../tournaments/tournamentRoomRecovery";
+import { readTournamentRoom } from "../tournaments/tournamentQueueStorage";
 import { fetchRoomMembership } from "../../shared/roomMembership";
 import { fetchRoom, invitationInstance } from "../../shared/roomAccess";
 
@@ -38,8 +40,19 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
   }
   const url = new URL(request.url);
   const instanceId = invitationInstance(url);
+  const tournamentReference =
+    url.searchParams.get("watch") === "1" ? null : readTournamentRoom(id!, instanceId);
+  if (tournamentReference && instanceId)
+    await recoverTournamentRoom(id!, instanceId, request.signal);
   const { room, presence, serverNowMs, formationAnalysis, stampsSupported, eliminatedHands } =
-    await fetchRoom(id!, request.signal, instanceId);
+    await fetchRoom(id!, request.signal, instanceId).catch((error: unknown) => {
+      const reference = tournamentReference;
+      if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
+        throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
+      throw error;
+    });
+  if (tournamentReference && !instanceId && room.instanceId === tournamentReference.instanceId)
+    await recoverTournamentRoom(id!, room.instanceId, request.signal);
   const membership = await fetchRoomMembership(room.id, request.signal);
   if (membership !== null && !room.players.some((player) => player.id === membership.playerId)) {
     throw new Response("本人確認の結果がルーム情報と一致しません。", { status: 503 });
