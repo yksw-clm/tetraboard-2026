@@ -5,6 +5,8 @@ export default class AiCpuModelReporter implements Reporter {
     for (const annotation of test.annotations()) {
       if (annotation.type === "ai-cpu-model")
         console.log("AI_CPU_MODEL_SMOKE " + annotation.message);
+      if (annotation.type === "ai-analysis-model")
+        console.log("AI_ANALYSIS_MODEL_SMOKE " + annotation.message);
     }
   }
 }

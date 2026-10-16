@@ -13,13 +13,13 @@ export type AnalysisInputErrorCode =
   | "untrusted_position";
 
 export class AnalysisInputError extends Error {
-  constructor(
-    readonly code: AnalysisInputErrorCode,
-    message: string,
-    readonly eventIndex?: number,
-  ) {
+  readonly code: AnalysisInputErrorCode;
+  readonly eventIndex?: number;
+  constructor(code: AnalysisInputErrorCode, message: string, eventIndex?: number) {
     super(message);
     this.name = "AnalysisInputError";
+    this.code = code;
+    this.eventIndex = eventIndex;
   }
 }
 export type AnalysisReplayInput = Readonly<{

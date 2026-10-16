@@ -700,7 +700,7 @@ if (result.ok) {
 
 成功時は新状態・捕獲駒・今回の脱落一覧を、失敗時は理由を返し、入力状態を変更しません。詰み・合法手なしは着手や外部脱落に伴って自動処理し、同時脱落の群と理由・順位を保持します。持ち時間、接続期限、プロフィール、ネットワークはエンジンへ持ち込みません。担当方向の抽選は呼び出し側で行います。保存した状態はJSONで復元して同じAPIへ渡せます。外部入力の検証と認証は、将来のルーム接続側で行います。
 
-`@tetraboard/four-shogi/analysis` の [analysis.ts](../packages/four-shogi/src/analysis.ts) は版付き棋譜から完全なシングルス解析状態を復元し、合法手・仮遷移・状態/解析識別を提供します。[入力と識別の契約](four-shogi-ai-engine.md#完全解析状態の復元api186)に従い、表示frameを直接入力しません。[analysisInput.ts](../packages/four-shogi/src/analysisInput.ts) は外部JSONの形状と版を検証し、[replay.ts](../packages/four-shogi/src/replay.ts) は既存エンジンへイベントを渡す裁定をWebと共有します。ランタイム依存・DB/通信・ルール本体を追加せず、HTTPとWorker内部状態の接続は後続Issueで行います。
+`@tetraboard/four-shogi/analysis` の [analysis.ts](../packages/four-shogi/src/analysis.ts) は版付き棋譜から完全なシングルス解析状態を復元し、合法手・仮遷移・状態/解析識別を提供します。[入力と識別の契約](four-shogi-ai-engine.md#完全解析状態の復元api186)に従い、表示frameを直接入力しません。[analysisInput.ts](../packages/four-shogi/src/analysisInput.ts) は外部JSONの形状と版を検証し、[replay.ts](../packages/four-shogi/src/replay.ts) は既存エンジンへイベントを渡す裁定をWebと共有します。ランタイム依存・DB/通信・ルール本体を追加せず、HTTPとWorker内部状態への接続は下記のジョブサービス／CPU接続／棋譜解析から利用します。
 
 ### 四人将棋の引分提案
 
@@ -765,9 +765,15 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ### 四人将棋AIのジョブサービス
 
-[契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)に従い、[protocol](../packages/protocol/src/fourShogiAi.ts)が通信の厳密な入力・起動/入力識別を、[jobs.ts](../apps/four-shogi-ai/src/jobs.ts)がCPU優先/予約枠・重複・期限・利用量・TTLを管理します。[processPool.ts](../apps/four-shogi-ai/src/processPool.ts)は独立プロセスと強制終了、[compute.ts](../apps/four-shogi-ai/src/compute.ts)は完全復元と同じモデル/共通探索を担当します。受付を重い計算から分離し、[http.ts](../apps/four-shogi-ai/src/http.ts)で認証後に有限の本文を読みます。Workerの[fourShogiAi](../apps/worker/src/fourShogiAi/routes.ts)は開発用の許可アカウント/Originと公開保存済み終局棋譜を検査し、本人ID・Cookieを転送しません。使用量の回数/予約time予算はVPSのメモリ内で原子的に判定し、Workerでも要求プロファイルと結果の版/入力を照合します。未設定と本番は拒否し、対局CPU/解析UIへは#194/#195で接続します。
+[契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)に従い、[protocol](../packages/protocol/src/fourShogiAi.ts)が通信の厳密な入力・起動/入力識別を、[jobs.ts](../apps/four-shogi-ai/src/jobs.ts)がCPU優先/予約枠・重複・期限・利用量・TTLを管理します。[processPool.ts](../apps/four-shogi-ai/src/processPool.ts)は独立プロセスと強制終了、[compute.ts](../apps/four-shogi-ai/src/compute.ts)は完全復元と同じモデル/共通探索を担当します。受付を重い計算から分離し、[http.ts](../apps/four-shogi-ai/src/http.ts)で認証後に有限の本文を読みます。Workerの[fourShogiAi](../apps/worker/src/fourShogiAi/routes.ts)は開発用の許可アカウント/Originと公開保存済み終局棋譜を検査し、本人ID・Cookieを転送しません。使用量の回数/予約time予算はVPSのメモリ内で原子的に判定し、Workerでも要求プロファイルと結果の版/入力を照合します。未設定と本番は拒否し、対局CPUは#194、保存済み終局棋譜の解析UIは#195の契約で接続しています。
 
 `bun run --cwd apps/four-shogi-ai test` とWorkerの `test/fourShogiAi.test.ts` は通常checkに含め、実PyTorch/30秒解析は `bench:service` で分離します。実行方法・全環境変数・配布/health/切り戻しは上記契約と[設定例](../apps/four-shogi-ai/.env.example)を参照します。数値は設定可能な試用値で、実VPS/正式な利用上限/保持期間を確定しません。秘密は追跡対象外とし、Docker contextからも除外します。
+
+### 四人将棋の終局棋譜解析
+
+[仕様と取消／予算の契約](four-shogi-ai-engine.md#終局棋譜の解析画面195)と[README](../README.md#保存済み棋譜の閲覧)を読みます。`FourShogiMatchReplayView` だけが `SavedMatchReplayView.actions` へ限定試用の入口を渡し、他ゲーム・ライブルームへは接続しません。[FourShogiReplayAnalysis.tsx](../apps/web/src/features/room/FourShogiReplayAnalysis.tsx)が共通ダイアログと4人評価・候補・実戦比較・読み筋を、[useReplayAnalysis.ts](../apps/web/src/features/room/useReplayAnalysis.ts)が手動開始と認証世代／局面別の通信・取消を担当します。[fourShogiAnalysis.ts](../apps/web/src/features/room/fourShogiAnalysis.ts)は全イベントから独立復元し、応答の版／条件と正本でPVを検査します。新しい結果の版を扱う際はこの照合とprotocolの表示スキーマを同時に更新します。初期復元APIの例外はWebのerasableSyntaxOnlyとも互換な通常フィールドを使います。
+
+Workerの解析POSTは保存済みprefixと直後の着手を取得し、`includeAction` をサーバーで指定します。実戦手・表示された終局結果をクライアントが指定して比較を作る設計にしません。読み筋は既存の棋譜表記・実手番と同じ再生境界を使い、現在の王手と進行例の危険を分けます。保存データのschemaVersion・結果・戦績集計は変更しません。検証はBunの純粋境界テスト、Bun＋happy-domの画面統合、実D1のWorkerテストを主とし、実モデルは専用 `test:ai-analysis-model` で分離します。
 
 ## 軽量テスト
 

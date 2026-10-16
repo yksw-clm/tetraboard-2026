@@ -18,6 +18,7 @@ export function SavedMatchReplayView({
   result,
   theme = "default",
   onRotate,
+  actions,
 }: {
   match: ReplayMatch;
   board: ReactNode;
@@ -29,6 +30,7 @@ export function SavedMatchReplayView({
   result: ReactNode;
   theme?: AppTheme;
   onRotate: () => void;
+  actions?: ReactNode;
 }) {
   const desktop = useRoomDesktop();
   const location = useLocation();
@@ -58,14 +60,17 @@ export function SavedMatchReplayView({
           対局終了
         </strong>
         {desktop ? <span /> : replayCard}
-        <AppButton
-          size="compact"
-          appearance="quiet"
-          className={`text-brand ${theme === "gomoku" ? "bg-surface-muted" : theme === "four-shogi" ? "bg-[#fff0c9]" : "bg-[#e9f4ec]"} h-7 min-h-7 px-[6px] text-xs`}
-          onPress={() => setResults(true)}
-        >
-          結果
-        </AppButton>
+        <div className="flex items-center gap-1">
+          {actions}
+          <AppButton
+            size="compact"
+            appearance="quiet"
+            className={`text-brand ${theme === "gomoku" ? "bg-surface-muted" : theme === "four-shogi" ? "bg-[#fff0c9]" : "bg-[#e9f4ec]"} h-7 min-h-7 px-[6px] text-xs`}
+            onPress={() => setResults(true)}
+          >
+            結果
+          </AppButton>
+        </div>
       </div>
       <ViewerControls
         label="棋譜閲覧中"

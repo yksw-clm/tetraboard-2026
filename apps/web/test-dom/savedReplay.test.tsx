@@ -92,6 +92,33 @@ test("固定棋譜5種を表示し、局面・回転操作は通信せず参加�
   expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBe(token);
 });
 
+test("ログイン済みの終局シングルス棋譜から解析を明示的に開ける", async () => {
+  const fixture = shogiArchives.find((f) => f.name === "shogi-singles-draw")!;
+  const match = fourShogiMatchDetailSchema.parse(fixture.detail);
+  const loaded = fetchFourShogiMatchReplay(match, new AbortController().signal);
+  requests
+    .at(-1)!
+    .respond({ matchId: match.id, ...match.replay, events: fixture.events, nextCursor: null });
+  const frames = await loaded;
+  const user: import("@tetraboard/protocol").AccountProfile = {
+    profileCompleted: true,
+    username: "tester",
+    name: "試用者",
+    avatarUrl: null,
+    profileId: "test",
+  };
+  const previousUrl = location.href;
+  location.href = "https://tetraboard-dev.chaossi-lab.workers.dev/";
+  const view = render(wrap(user)(<FourShogiMatchReplayView match={match} frames={frames} />));
+  await flush();
+  // 未実装時はこのassertionで失敗し、棋譜自体の読み込み成功と区別します。
+  expect([...view.querySelectorAll("button")].some((b) => b.textContent === "解析（試用）")).toBe(
+    true,
+  );
+  expect(requests).toHaveLength(1);
+  location.href = previousUrl;
+});
+
 test("棋譜エラーは400・404の案内と503の再試行を分け、再試行をロックして成功へ戻る", async () => {
   const fixture = reversiArchives[0];
   for (const status of [400, 404, 503]) {

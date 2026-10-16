@@ -8,6 +8,7 @@
     "./**/*.ts",
     "../vitest.config.mts",
     "../vitest.cpu-model.config.mts",
+    "../vitest.analysis-model.config.mts",
     "../worker-configuration.d.ts"
   ]
 }

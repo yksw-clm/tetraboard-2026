@@ -14,6 +14,7 @@ import {
   shogiMatchViewerSide,
 } from "./fourShogiRoomPresentation";
 import type { FourShogiReplayFrame } from "./fourShogiReplay";
+import { FourShogiReplayAnalysis } from "./FourShogiReplayAnalysis";
 import { SavedMatchReplayView } from "./SavedMatchReplayView";
 export default function FourShogiMatchReplayView({
   match,
@@ -98,6 +99,14 @@ export default function FourShogiMatchReplayView({
       onRotate={rotate}
       replay={replay}
       theme="four-shogi"
+      actions={
+        <FourShogiReplayAnalysis
+          match={match}
+          frames={frames}
+          index={index}
+          select={replay.select}
+        />
+      }
       result={
         <FourShogiGameResultView
           lastRound={lastRound}

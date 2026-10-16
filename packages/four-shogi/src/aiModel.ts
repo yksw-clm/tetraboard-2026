@@ -25,11 +25,10 @@ export type AiModelEvaluator = Readonly<{
   ) => Promise<{ modelId: string; rows: AiModelOutput[] }>;
 }>;
 export class AiModelFailure extends Error {
-  constructor(
-    readonly reason: string,
-    message: string,
-  ) {
+  readonly reason: string;
+  constructor(reason: string, message: string) {
     super(message);
+    this.reason = reason;
   }
 }
 

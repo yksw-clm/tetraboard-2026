@@ -232,6 +232,10 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 実モデルは[専用設定・コマンド](four-shogi-ai-engine.md#対局cpuの試用接続194)でだけ4つのSMOKE環境値を明示します。LinuxのPyTorchを実使用して、ON/OFF×両予算の着手と採用診断を確認します。通常 `vitest.config.mts` はこれらを読み込まず、個人設定分離の契約を維持します。専用4試行は棋力の判定や実VPS/HTTPS/長時間性能の保証に使いません。
 
+#195は `apps/web/test/fourShogiAnalysis.test.ts` で、共通探索へ制御した評価器を注入し、ON/OFFの完全復元・上位候補外の実戦着手・同一深さと4人評価・実手番PV・終局／非着手イベント・入力不変を確認します。ルール／モデル／版／予算／比較手／深さ／捕獲根拠／確率の破損は表示前に拒否します。`test-dom/fourShogiAnalysis.test.tsx` は保存棋譜と共通ダイアログを実際に操作し、待機→計算→完了、局面切替／遅い受付／取消後の完了、認証世代変更、401／403／429／503／更新／計算失敗、条件と4人評価の表示、勝率非表示を統合検証します。HTTPと時計だけを境界で制御します。Web Cryptoの完了は固定sleepで推測せず、要求が現れるまでイベントループを譲ります。`savedReplay.test.tsx` と既存の棋譜互換・引分・脱落の検証も維持します。
+
+Workerの `fourShogiAi.test.ts` は0／99／100／終端イベントでprefixと直後の比較手を確認します。部分実行は `bun test --cwd apps/web test/fourShogiAnalysis.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/fourShogiAnalysis.test.tsx test-dom/savedReplay.test.tsx`、上記Worker経路です。実Linuxモデルは[専用手順](four-shogi-ai-engine.md#終局棋譜の解析画面195)でON/OFF×両予算を実行し、正本による全PV再生と保存JSON不変まで確認します。ブラウザの寸法・画像デコード・ネイティブ入力は自動テストへ追加せず、手動確認の有無をPRへ記録します。
+
 ## 実行環境
 
 | 対象                           | 実行環境                     | 境界の扱い                                                   |

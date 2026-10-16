@@ -24,7 +24,7 @@ export const fourShogiFormationAnalysisSchema = z.strictObject({
   ),
 });
 export type FourShogiFormationAnalysis = z.infer<typeof fourShogiFormationAnalysisSchema>;
-const piece = z.strictObject({
+export const fourShogiPieceSchema = z.strictObject({
   id: z.int().nonnegative(),
   side: fourShogiSideSchema,
   kind: z.enum(["king", "rook", "gold", "silver", "pawn"]),
@@ -45,7 +45,7 @@ export const fourShogiEliminationSchema = z.strictObject({
   rank: z.int().min(1).max(4).nullable(),
   group: z.int().nonnegative(),
 });
-const result = z.discriminatedUnion("mode", [
+export const fourShogiGameResultSchema = z.discriminatedUnion("mode", [
   z.strictObject({
     mode: z.literal("singles"),
     reason: z.enum(["last_player", "no_survivors", "repetition", "agreement"]),
@@ -62,7 +62,7 @@ const base = z.strictObject({
   mode: z.enum(["singles", "doubles"]),
   players: sideRecord(z.string()),
   threePlayerAttackProhibited: z.boolean(),
-  board: z.array(z.array(piece.nullable()).length(9)).length(9),
+  board: z.array(z.array(fourShogiPieceSchema.nullable()).length(9)).length(9),
   hands: sideRecord(
     z.strictObject({
       rook: z.int().nonnegative(),
@@ -93,8 +93,8 @@ const base = z.strictObject({
     .strictObject({
       side: fourShogiSideSchema,
       action: fourShogiActionSchema,
-      piece,
-      captured: piece.nullable(),
+      piece: fourShogiPieceSchema,
+      captured: fourShogiPieceSchema.nullable(),
     })
     .nullable(),
 });
@@ -106,7 +106,7 @@ export const playingFourShogiStateSchema = base.extend({
 export const finishedFourShogiStateSchema = base.extend({
   status: z.literal("finished"),
   turn: z.null(),
-  result,
+  result: fourShogiGameResultSchema,
 });
 /** Public state deliberately excludes the server's repetition index. */
 export const fourShogiPublicStateSchema = z.discriminatedUnion("status", [

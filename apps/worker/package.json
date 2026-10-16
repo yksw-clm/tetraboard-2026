@@ -14,6 +14,7 @@
     "typecheck": "bun run cf-typegen && tsc --noEmit && tsc -p test/tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "lint": "oxlint .",
     "test": "vitest run --max-workers=1 --no-isolate",
+    "test:ai-analysis-model": "vitest run --config vitest.analysis-model.config.mts --max-workers=1 --no-isolate",
     "test:ai-cpu-model": "vitest run --config vitest.cpu-model.config.mts --max-workers=1 --no-isolate",
     "deploy:development": "bun ../../scripts/verifyDevelopmentConfig.ts && wrangler deploy --env development",
     "deploy:dry-run:development": "wrangler deploy --env development --dry-run",

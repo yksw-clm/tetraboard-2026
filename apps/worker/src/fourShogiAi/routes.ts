@@ -69,12 +69,15 @@ fourShogiAiRoutes.post("/four-shogi-ai/jobs", async (c) => {
   if (input.eventOffset > match.record.replay.eventCount)
     throw new AiGatewayError("invalid_offset", 400);
   const events = [];
-  for (let cursor = 0; cursor < input.eventOffset;) {
+  // 比較対象は保存棋譜の直後のイベントだけから取得します。
+  const end = Math.min(input.eventOffset + 1, match.record.replay.eventCount);
+  for (let cursor = 0; cursor < end;) {
     const page = await readShogiMatchReplayPage(c.env.APP_DB, input.matchId, cursor, "four-shogi");
     if (!page || page.events.length === 0) throw new AiGatewayError("invalid_replay", 503);
-    events.push(...page.events.slice(0, input.eventOffset - cursor));
+    events.push(...page.events.slice(0, end - cursor));
     cursor += page.events.length;
   }
+  const next = events[input.eventOffset]?.event;
   const config = gatewayConfig(c.env);
   const request = aiJobRequestSchema.parse({
     schemaVersion: 1,
@@ -88,6 +91,7 @@ fourShogiAiRoutes.post("/four-shogi-ai/jobs", async (c) => {
     context: { kind: "analysis", matchId: input.matchId, eventOffset: input.eventOffset },
     lifetimeMs: 45000,
     budget: { timeBudgetMs: input.profile === "trial-500ms" ? 500 : 30000, maxWork: 1000000 },
+    includeAction: next?.type === "action" ? next.action : null,
     position: {
       schemaVersion: 1,
       rulesVersion: 1,
@@ -97,7 +101,7 @@ fourShogiAiRoutes.post("/four-shogi-ai/jobs", async (c) => {
         players: { south: "south", west: "west", north: "north", east: "east" },
         threePlayerAttackProhibited: match.record.replay.initial.threePlayerAttackProhibited,
       },
-      events,
+      events: events.slice(0, input.eventOffset),
       eventOffset: input.eventOffset,
     },
   });

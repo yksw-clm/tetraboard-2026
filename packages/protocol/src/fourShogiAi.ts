@@ -150,3 +150,10 @@ export const aiTrialCpuSchema = z.strictObject({
   profile: z.enum(["trial-100ms", "trial-500ms"]).nullable(),
 });
 export type AiCpuProfile = keyof typeof aiCpuProfiles;
+
+export {
+  aiAnalysisResultSchema,
+  type AiAnalysisResult,
+  type AiAnalysisCandidate,
+  type AiAnalysisEvaluation,
+} from "./fourShogiAiAnalysis";

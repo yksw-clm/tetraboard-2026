@@ -108,12 +108,14 @@ test("保存済みシングルス棋譜だけを方向IDへ置換し、固定予
       JSON.stringify(record),
     )
     .run();
-  const first = fixture.events.slice(0, 100).map((e) => e.event);
-  await env.APP_DB.prepare(
-    "INSERT INTO shogi_match_chunks (match_id,chunk_index,start_index,event_count,events_json) VALUES (?,0,0,?,?)",
-  )
-    .bind(matchId, first.length, JSON.stringify(first))
-    .run();
+  for (let cursor = 0; cursor < fixture.events.length; cursor += 100) {
+    const chunk = fixture.events.slice(cursor, cursor + 100).map((e) => e.event);
+    await env.APP_DB.prepare(
+      "INSERT INTO shogi_match_chunks (match_id,chunk_index,start_index,event_count,events_json) VALUES (?,?,?,?,?)",
+    )
+      .bind(matchId, cursor / 100, cursor, chunk.length, JSON.stringify(chunk))
+      .run();
+  }
   let forwarded: AiJobRequest | null = null;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
     const r = JSON.parse(String(init!.body)) as AiJobRequest;
@@ -155,6 +157,8 @@ test("保存済みシングルス棋譜だけを方向IDへ置換し、固定予
   expect(response.status).toBe(202);
   expect(forwarded).toMatchObject({
     budget: { timeBudgetMs: 500, maxWork: 1000000 },
+    includeAction:
+      fixture.events[1].event.type === "action" ? fixture.events[1].event.action : null,
     modelId: model,
     position: {
       initial: { players: { south: "south", west: "west", north: "north", east: "east" } },
@@ -162,6 +166,21 @@ test("保存済みシングルス棋譜だけを方向IDへ置換し、固定予
       events: [fixture.events[0]],
     },
   });
+  for (const eventOffset of [0, 99, 100, 103]) {
+    const pageResponse = await call(configured, "/jobs", {
+      method: "POST",
+      headers: user.headers,
+      body: JSON.stringify({ ...input, requestId: "0:" + crypto.randomUUID(), eventOffset }),
+    });
+    expect(pageResponse.status).toBe(202);
+    expect(forwarded).toMatchObject({
+      includeAction:
+        fixture.events[eventOffset]?.event.type === "action"
+          ? fixture.events[eventOffset].event.action
+          : null,
+      position: { eventOffset, events: fixture.events.slice(0, eventOffset) },
+    });
+  }
   const wire = JSON.stringify(forwarded);
   for (const value of [secret, user.id, user.cookie, "accountId", "fixture-self"])
     expect(wire).not.toContain(value);
@@ -263,3 +282,120 @@ test("VPSのリダイレクトは追従せず共有秘密を別の宛先へ転�
   expect(spy.mock.calls[0][0]).toBe("https://ai.test/v1/health");
   expect(spy.mock.calls[0][1]?.redirect).toBe("manual");
 });
+
+for (const prohibited of [true, false])
+  for (const profile of ["trial-500ms", "trial-30000ms"] as const)
+    test.skipIf(!(env as unknown as Record<string, string>).AI_CPU_SMOKE_URL)(
+      `実モデル解析 ON/OFF=${prohibited} ${profile}: 保存終局棋譜→Worker→Linux探索→画面用PV照合`,
+      async (context) => {
+        const { analysisFixture } = await import("../../web/test/fixtures/fourShogiAnalysis");
+        const { replayAnalysisRoot, readReplayAnalysis } =
+          await import("../../web/src/features/room/fourShogiAnalysis");
+        const fixture = analysisFixture(prohibited);
+        const user = await accountFixture();
+        const vars = env as unknown as Record<string, string>;
+        const configured = {
+          ...settings(user.id),
+          FOUR_SHOGI_AI_URL: vars.AI_CPU_SMOKE_URL,
+          FOUR_SHOGI_AI_SHARED_SECRET: vars.AI_CPU_SMOKE_SECRET,
+          FOUR_SHOGI_AI_CODE_VERSION: vars.AI_CPU_SMOKE_CODE_VERSION,
+          FOUR_SHOGI_AI_MODEL_ID: vars.AI_CPU_SMOKE_MODEL_ID,
+        };
+        const record = JSON.parse(
+          shogiArchives.find((f) => f.name === "shogi-singles-draw")!.recordJson,
+        );
+        const matchId = crypto.randomUUID();
+        matches.push(matchId);
+        fixture.match.id = matchId;
+        record.id = matchId;
+        record.game = fixture.match.game;
+        record.replay = fixture.match.replay;
+        record.settings = fixture.match.settings;
+        await env.APP_DB.prepare(
+          "INSERT INTO matches (id,game,mode,started_at_ms,ended_at_ms,record_json) VALUES (?,?,?,?,?,?)",
+        )
+          .bind(
+            matchId,
+            "four-shogi",
+            "singles",
+            record.startedAtMs,
+            record.endedAtMs,
+            JSON.stringify(record),
+          )
+          .run();
+        await env.APP_DB.prepare(
+          "INSERT INTO shogi_match_chunks (match_id,chunk_index,start_index,event_count,events_json) VALUES (?,0,0,?,?)",
+        )
+          .bind(matchId, fixture.events.length, JSON.stringify(fixture.events))
+          .run();
+        const before = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+          .bind(matchId)
+          .first();
+        const healthResponse = await call(configured, "/health", {
+          headers: { Cookie: user.cookie },
+        });
+        expect(healthResponse.status).toBe(200);
+        const current = (await healthResponse.json()) as typeof health;
+        const root = await replayAnalysisRoot(fixture.match, fixture.frames, 0);
+        const submitted = await call(configured, "/jobs", {
+          method: "POST",
+          headers: user.headers,
+          body: JSON.stringify({
+            schemaVersion: 1,
+            serviceInstanceId: current.serviceInstanceId,
+            requestId: current.requestWindow + ":" + crypto.randomUUID(),
+            matchId,
+            eventOffset: 0,
+            stateHash: root.position.stateHash,
+            profile,
+          }),
+        });
+        expect(submitted.status).toBe(202);
+        let job =
+          (await submitted.json()) as import("@tetraboard/protocol/four-shogi-ai").AiJobSnapshot;
+        await vi.waitFor(
+          async () => {
+            const response = await call(
+              configured,
+              `/jobs/${job.jobId}?serviceInstanceId=${job.serviceInstanceId}`,
+              { headers: { Cookie: user.cookie } },
+            );
+            expect(response.status).toBe(200);
+            job = (await response.json()) as typeof job;
+            expect(["completed", "failed", "expired"]).toContain(job.status);
+          },
+          { interval: 50, timeout: 45000 },
+        );
+        expect(job.status).toBe("completed");
+        const view = readReplayAnalysis(job.result, root, {
+          modelId: configured.FOUR_SHOGI_AI_MODEL_ID,
+          codeVersion: configured.FOUR_SHOGI_AI_CODE_VERSION,
+          profile,
+        });
+        expect(view.actual?.candidate.action).toEqual(root.actual);
+        expect(view.candidates.length).toBeGreaterThanOrEqual(2);
+        expect(view.result.model.usedModelId).toBe(configured.FOUR_SHOGI_AI_MODEL_ID);
+        expect(view.result.model.inferenceCount).toBeGreaterThan(0);
+        expect(
+          await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+            .bind(matchId)
+            .first(),
+        ).toEqual(before);
+        await context.annotate(
+          JSON.stringify({
+            prohibited,
+            profile,
+            eventOffset: 0,
+            actualCompared: !!view.actual,
+            candidateCount: view.candidates.length,
+            completedDepth: view.result.diagnostics.completedDepth,
+            model: view.result.model,
+            timing: job.timing,
+            stopReason: view.result.diagnostics.stopReason,
+            work: view.result.diagnostics.work,
+          }),
+          "ai-analysis-model",
+        );
+      },
+      60000,
+    );
