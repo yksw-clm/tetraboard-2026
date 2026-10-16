@@ -5,6 +5,7 @@ import {
   tournamentStandingsSchema,
 } from "@tetraboard/protocol";
 import { accountRequest } from "../account/accountApi";
+import { legalVersion } from "@tetraboard/protocol/privacy";
 
 export const tournamentPath = (id: number) => `/api/tournaments/${id}`;
 function parseTournamentData<T>(schema: { parse: (body: unknown) => T }, body: unknown): T {
@@ -55,7 +56,10 @@ export async function tournamentOperation(
 ) {
   return accountRequest(`${tournamentPath(id)}/${operation}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(method === "POST" ? { "X-Legal-Consent": legalVersion } : {}),
+    },
     body: JSON.stringify(body),
     keepalive,
     ...(keepalive ? {} : { signal: requestSignal() }),

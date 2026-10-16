@@ -15,28 +15,32 @@ import { TournamentRules } from "./TournamentRules";
 import { TournamentPlayer, TournamentStandings } from "./TournamentStandings";
 import { tournamentDate, tournamentPoints, tournamentRemaining } from "./tournamentPresentation";
 import { useTournament } from "./useTournament";
+import { TournamentConsent } from "./TournamentConsent";
 
 type TournamentState = ReturnType<typeof useTournament>;
 function EntryAction({ state }: { state: TournamentState }) {
   const account = useAccount();
   const entered = state.participation.entered;
   return (
-    <AppButton
-      isDisabled={entered || state.pending !== null || account.loading || Boolean(account.error)}
-      isPending={state.pending === "entry"}
-      appearance={entered ? "secondary" : "primary"}
-      className="min-h-11 whitespace-normal text-center"
-      onPress={state.enter}
-    >
-      {!entered && <AppIcon name="join" className="size-4" />}
-      {entered
-        ? "エントリー済み"
-        : !account.user
-          ? "ログインまたは登録してエントリー"
-          : state.data?.tournament.status === "active"
-            ? "エントリーして参加"
-            : "エントリー"}
-    </AppButton>
+    <div className="flex max-w-[360px] flex-col items-end gap-2">
+      {!entered && <TournamentConsent />}
+      <AppButton
+        isDisabled={entered || state.pending !== null || account.loading || Boolean(account.error)}
+        isPending={state.pending === "entry"}
+        appearance={entered ? "secondary" : "primary"}
+        className="min-h-11 whitespace-normal text-center"
+        onPress={state.enter}
+      >
+        {!entered && <AppIcon name="join" className="size-4" />}
+        {entered
+          ? "エントリー済み"
+          : !account.user
+            ? "ログインまたは登録してエントリー"
+            : state.data?.tournament.status === "active"
+              ? "エントリーして参加"
+              : "エントリー"}
+      </AppButton>
+    </div>
   );
 }
 function PersonalStanding({
@@ -127,6 +131,7 @@ function TournamentPlay({ state }: { state: TournamentState }) {
             {participation.expiresAtMs &&
               `確認期限 ${new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(participation.expiresAtMs)}（日本時間）`}
           </p>
+          {!participation.confirmed && <TournamentConsent />}
           <AppButton
             className="w-full"
             isDisabled={Boolean(participation.confirmed) || state.pending !== null}
@@ -174,16 +179,19 @@ function TournamentPlay({ state }: { state: TournamentState }) {
             )}
           </div>
           {participation.entered ? (
-            <AppButton
-              onPress={waiting ? state.cancel : state.queue}
-              appearance={waiting ? "secondary" : "primary"}
-              isDisabled={state.pending !== null || account.loading || Boolean(account.error)}
-              isPending={state.pending === "queue" || state.pending === "cancel"}
-              className="min-h-12 w-full"
-            >
-              <AppIcon name={waiting ? "close" : "join"} />
-              {waiting ? "取り消す" : "対局する"}
-            </AppButton>
+            <>
+              {!waiting && <TournamentConsent />}
+              <AppButton
+                onPress={waiting ? state.cancel : state.queue}
+                appearance={waiting ? "secondary" : "primary"}
+                isDisabled={state.pending !== null || account.loading || Boolean(account.error)}
+                isPending={state.pending === "queue" || state.pending === "cancel"}
+                className="min-h-12 w-full"
+              >
+                <AppIcon name={waiting ? "close" : "join"} />
+                {waiting ? "取り消す" : "対局する"}
+              </AppButton>
+            </>
           ) : (
             <EntryAction state={state} />
           )}

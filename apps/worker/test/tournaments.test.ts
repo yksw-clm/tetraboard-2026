@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, expect, test } from "vitest";
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import {
   tournamentAdminEntriesSchema,
   tournamentAdminListSchema,
@@ -58,7 +59,10 @@ async function read(a: Admin, key: string) {
   return tournamentRecordSchema.parse(await response.json());
 }
 const entry = (id: number, headers: Record<string, string>) =>
-  fetchWith(`/api/tournaments/${id}/entries`, { method: "POST", headers });
+  fetchWith(`/api/tournaments/${id}/entries`, {
+    method: "POST",
+    headers: { ...headers, "X-Legal-Consent": legalVersion },
+  });
 const editInput = (record: TournamentRecord): TournamentInput => ({
   name: record.name,
   description: record.description,
@@ -393,6 +397,47 @@ test("開催前の公開APIは名簿・本人戦績を返さず、公開情報�
     ])
       expect(json).not.toContain(secret);
   }
+});
+
+test("大会エントリーは規約と年齢条件の現行版確認を要求し、同意と本人のエントリーを記録する", async () => {
+  const a = await admin(),
+    published = await publish(a, await create(a));
+  const participant = await accountFixture();
+  await env.APP_DB.prepare("DELETE FROM legal_consents WHERE account_id=?")
+    .bind(participant.id)
+    .run();
+  for (const version of [null, "2026-01-01"]) {
+    const response = await fetchWith("/api/tournaments/1/entries", {
+      method: "POST",
+      headers: { ...participant.headers, ...(version ? { "X-Legal-Consent": version } : {}) },
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      message: "利用規約と年齢条件を確認してください。",
+    });
+    expect((await read(a, published.key)).entryCount).toBe(0);
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM legal_consents WHERE account_id=?")
+        .bind(participant.id)
+        .first(),
+    ).toBeNull();
+  }
+  const before = Date.now();
+  expect((await entry(1, participant.headers)).status).toBe(200);
+  const consent = await env.APP_DB.prepare(
+    "SELECT version,accepted_at_ms FROM legal_consents WHERE account_id=?",
+  )
+    .bind(participant.id)
+    .first<{ version: string; accepted_at_ms: number }>();
+  expect(consent?.version).toBe(legalVersion);
+  expect(consent!.accepted_at_ms).toBeGreaterThanOrEqual(before);
+  expect(consent!.accepted_at_ms).toBeLessThanOrEqual(Date.now());
+  expect((await read(a, published.key)).entryCount).toBe(1);
+  const status = await fetchWith("/api/tournaments/1/participation", {
+    headers: participant.headers,
+  });
+  expect(status.status).toBe(200);
+  expect(await status.json()).toMatchObject({ entered: true, status: "idle" });
 });
 
 test("管理大会一覧を50件ずつ重複なく取得し、不正カーソルを拒否する", async () => {

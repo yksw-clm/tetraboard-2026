@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { Link, Route, Routes, useLocation } from "react-router";
 import type { TournamentDetail, TournamentParticipation } from "@tetraboard/protocol";
+import {
+  legalAcknowledgement,
+  legalVersion,
+  publicRecordNotice,
+} from "@tetraboard/protocol/privacy";
 import { TournamentPage } from "../src/features/tournaments/TournamentPage";
 import { TournamentEntrance } from "../src/features/tournaments/TournamentEntrance";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
@@ -90,6 +95,33 @@ async function respond(
   }
   await flush();
 }
+function expectConsent(note: Element) {
+  expect(note.getAttribute("role")).toBe("note");
+  expect(note.textContent).toContain(legalAcknowledgement);
+  expect(note.textContent).toContain(publicRecordNotice);
+  for (const path of ["/terms", "/privacy"])
+    expect(note.querySelector(`a[href="${path}"]`)?.getAttribute("target")).toBe("_blank");
+  expect(note.querySelector('input[type="checkbox"]')).toBeNull();
+}
+function expectConsentBefore(button: Element) {
+  expectConsent(button.previousElementSibling!);
+}
+
+test("エントリー直前に既存の規約・年齢・棋譜公開説明と文書リンクを出し、現行同意版を送る", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail(), { entered: false, status: "idle" });
+  const button = [...view.querySelectorAll("button")].find(
+    (element) => element.textContent?.trim() === "エントリー",
+  )!;
+  expectConsentBefore(button);
+  press(view, "エントリー");
+  await flush();
+  const entry = requests.find(
+    (request) => request.url.endsWith("/entries") && request.init.method === "POST",
+  )!;
+  expect(new Headers(entry.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
+});
 
 test("開催前は人数を大きく右側へ置き、名簿・本人の成績・順位表を表示しない", async () => {
   const view = page();
@@ -127,12 +159,18 @@ test("対局するは保存した資格で待機へ入り、待機中は取り�
   const view = page();
   clock.advance(0);
   await respond(detail("active"));
+  expectConsentBefore(
+    [...view.querySelectorAll("button")].find(
+      (element) => element.textContent?.trim() === "対局する",
+    )!,
+  );
   press(view, "対局する");
   await flush();
   const queue = requests.find(
     (request) => request.url.endsWith("/queue") && request.init.method === "POST",
   )!;
   const credential = JSON.parse(queue.init.body as string);
+  expect(new Headers(queue.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
   expect(credential.token).toMatch(/^[0-9a-f]{64}$/);
   expect(readTournamentQueue(1, profile.username!)?.token).toBe(credential.token);
   queue.respond({ entered: true, status: "waiting" });
@@ -191,9 +229,15 @@ test("参加確認を経て、保管した資格をルームへ移して遷移�
     confirmedCount: 2,
     expiresAtMs: Date.now() + 30000,
   });
+  expectConsentBefore(
+    [...view.querySelectorAll("button")].find(
+      (element) => element.textContent?.trim() === "参加する",
+    )!,
+  );
   press(view, "参加する");
   await flush();
   const confirmation = requests.find((request) => request.url.endsWith("/confirmation"))!;
+  expect(new Headers(confirmation.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
   expect(JSON.parse(confirmation.init.body as string)).toEqual({
     operationId: credential.operationId,
     matchId,
@@ -364,6 +408,7 @@ test("ロビー入口は公開情報を取得し、開催中の案内と実人�
   expect(view.textContent).toContain("現在8人がエントリー中");
   expect(view.textContent).toContain("ログインまたは登録してエントリー");
   expect(view.querySelector('a[href="/tournaments/1"]')).not.toBeNull();
+  expectConsent(view.querySelector('[aria-label="四人将棋大会"]')!.firstElementChild!);
 });
 
 test("表示は5秒ごとに更新し、非表示では停止、再表示で取得する", async () => {

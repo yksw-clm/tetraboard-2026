@@ -7,6 +7,7 @@ import { useAccount } from "../account/useAccount";
 import { readLobbyTournament, readTournamentParticipation } from "./tournamentApi";
 import { TournamentStatus } from "./TournamentStatus";
 import { tournamentDate, tournamentRemaining } from "./tournamentPresentation";
+import { TournamentConsent } from "./TournamentConsent";
 export function TournamentEntrance() {
   const account = useAccount();
   const identity = account.user?.profileCompleted ? account.user.username : null;
@@ -66,7 +67,8 @@ export function TournamentEntrance() {
   const ended = tournament.status === "settling" || tournament.status === "finished";
   const entered = state.identity === identity && state.entered;
   return (
-    <section aria-label="四人将棋大会">
+    <section aria-label="四人将棋大会" className="space-y-2">
+      {!ended && !entered && <TournamentConsent />}
       <AppCard
         density="compact"
         className="flex flex-row flex-wrap items-center justify-between gap-x-5 gap-y-3"

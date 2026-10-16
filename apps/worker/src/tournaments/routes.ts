@@ -10,6 +10,8 @@ import {
   tournamentConfirmationSchema,
 } from "@tetraboard/protocol";
 import { accountIdentity, profileAvatarUrl, type StoredProfile } from "../accounts/auth";
+import { legalVersion } from "@tetraboard/protocol/privacy";
+import { consentStatement } from "../privacy/consent";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "../feedback/images";
 import {
@@ -213,6 +215,11 @@ const member: MiddlewareHandler<{ Bindings: Env; Variables: Variables }> = async
   if (!user) return c.json({ message: "ログインしてください。" }, 401);
   if (!user.profileCompleted || !profileInputSchema.safeParse(user).success)
     return c.json({ message: "プロフィール登録を完了してください。" }, 403);
+  if (c.req.method === "POST") {
+    if (c.req.header("X-Legal-Consent") !== legalVersion)
+      return c.json({ message: "利用規約と年齢条件を確認してください。" }, 403);
+    await consentStatement(c.env.APP_DB, user.id).run();
+  }
   c.set("user", user);
   await next();
 };
