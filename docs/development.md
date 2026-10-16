@@ -763,6 +763,12 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 #188では [aiSearchContext.ts](../packages/four-shogi/src/aiSearchContext.ts) に実行内の参照キャッシュと合法手/遷移/評価/並べ替えを共有し、[aiBudget.ts](../packages/four-shogi/src/aiBudget.ts) を共通APIと局面実験の同じ時計/取消/処理量運転に使います。[aiMcts.ts](../packages/four-shogi/src/aiMcts.ts) は4方向のUCT試行と平均/合法PV、[aiTactics.ts](../packages/four-shogi/src/aiTactics.ts) は次の実自手番までの別応手の証拠です。通常の `getCheckState` も駒一覧を一度の走査で共有し、旧単独判定と照合します。[searchExperimentCli.ts](../packages/four-shogi/bench/searchExperimentCli.ts) と [searchExperiment.ts](../packages/four-shogi/bench/searchExperiment.ts) が一要因の設定・同時間/処理量・固定Lv2との対戦を記録し、[searchTactics.ts](../packages/four-shogi/bench/searchTactics.ts) を新しい調整構図として使います。[契約](four-shogi-ai-engine.md#探索の戦術速度とmcts比較188)と[測定・採否](four-shogi-ai.md#シングルス専用aiの限定探索実験188)を参照し、旧基準と最終評価を調整へ流用しません。
 
+### 四人将棋AIのジョブサービス
+
+[契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)に従い、[protocol](../packages/protocol/src/fourShogiAi.ts)が通信の厳密な入力・起動/入力識別を、[jobs.ts](../apps/four-shogi-ai/src/jobs.ts)がCPU優先/予約枠・重複・期限・利用量・TTLを管理します。[processPool.ts](../apps/four-shogi-ai/src/processPool.ts)は独立プロセスと強制終了、[compute.ts](../apps/four-shogi-ai/src/compute.ts)は完全復元と同じモデル/共通探索を担当します。受付を重い計算から分離し、[http.ts](../apps/four-shogi-ai/src/http.ts)で認証後に有限の本文を読みます。Workerの[fourShogiAi](../apps/worker/src/fourShogiAi/routes.ts)は開発用の許可アカウント/Originと公開保存済み終局棋譜を検査し、本人ID・Cookieを転送しません。使用量の回数/予約time予算はVPSのメモリ内で原子的に判定し、Workerでも要求プロファイルと結果の版/入力を照合します。未設定と本番は拒否し、対局CPU/解析UIへは#194/#195で接続します。
+
+`bun run --cwd apps/four-shogi-ai test` とWorkerの `test/fourShogiAi.test.ts` は通常checkに含め、実PyTorch/30秒解析は `bench:service` で分離します。実行方法・全環境変数・配布/health/切り戻しは上記契約と[設定例](../apps/four-shogi-ai/.env.example)を参照します。数値は設定可能な試用値で、実VPS/正式な利用上限/保持期間を確定しません。秘密は追跡対象外とし、Docker contextからも除外します。
+
 ## 軽量テスト
 
 純粋関数は既存のBunプロセス、React部品・hookはBun＋happy-domの別プロセスで実行します。Workerは従来のCloudflare環境で実HTTP・WebSocket・D1・R2を検証します。全195定義の論理検証は [移管対応表](testing.md#移管対応表) を参照してください。
