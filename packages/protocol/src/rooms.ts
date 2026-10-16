@@ -657,6 +657,7 @@ const shogiCheckStateSchema = z.strictObject({
 });
 const shogiWaitingSchema = z.strictObject({
   id: roomCodeSchema,
+  tournamentId: z.int().positive().optional(),
   instanceId: z.uuid(),
   status: z.literal("waiting"),
   settings: fourShogiRoomSettingsSchema,
@@ -681,6 +682,7 @@ const shogiWaitingSchema = z.strictObject({
 const shogiPlayingSchema = z
   .strictObject({
     id: roomCodeSchema,
+    tournamentId: z.int().positive().optional(),
     instanceId: z.uuid(),
     status: z.literal("playing"),
     settings: fourShogiRoomSettingsSchema,
@@ -815,6 +817,7 @@ export function isFourReversiRoom(room: Room): room is FourReversiRoom {
 export const roomPublicMetadataSchema = z
   .strictObject({
     id: roomCodeSchema,
+    tournamentId: z.int().positive().optional(),
     game: roomGameSchema,
     mode: roomModeSchema.optional(),
     timeControl: fourReversiRoomSettingsSchema.shape.timeControl,
@@ -833,6 +836,7 @@ export const roomPublicMetadataSchema = z
   })
   .refine(
     (metadata) =>
+      (metadata.tournamentId === undefined || metadata.game === "four-shogi") &&
       metadata.capacity === gameCatalog[metadata.game].capacity &&
       (gameCatalog[metadata.game].hasModes
         ? metadata.mode !== undefined
@@ -902,6 +906,8 @@ const roomErrorSchema = z.strictObject({
     "code_unavailable",
     "room_full",
     "account_seated",
+    "account_busy",
+    "tournament_required",
     "profile_required",
     "consent_required",
     "room_started",
