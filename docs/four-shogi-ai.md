@@ -328,4 +328,37 @@ Apple M5/24GiB上のOrbStack Linux aarch64（kernel7.2.9、Debian12、2CPU/1GiB�
 
 ## 対局CPU接続の検証（#194）
 
-D01/D03/D04/D05に基づく実装・試用条件は[契約](four-shogi-ai-engine.md#対局cpuの試用接続194)を参照します。100ms/8,192workと500ms/32,768workは内部予算で、公開Lv1/Lv2の強弱や単調な棋力向上を表しません。通信/時計/再戦/脱落のWorker統合検証と、実Linuxサービスのモデル実使用を分けて記録します。実測結果は最終ソースでの検証後に追記します。小規模な機能確認用モデルで、正式な棋力は未判定です。
+対象コード `707250c5629da92c37a57cffae7e80d9309fc240`、2026-10-16。Apple M5/24GiB・Bun1.4.2/Node22.23.3の実Worker（workerd/SQLite/D1/セッション/ソケット）と、OrbStack Linux aarch64・2CPU/1GiB（追加swapなし）/64pids/init/read-only/非rootの実サービスをloopback HTTPで接続しました。Python3.12.14/Torch2.14.1+cpu、#191の機能確認用モデル `four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5` を再学習せず使用しました。実VPS/HTTPSの配置ではありません。[契約・再現手順](four-shogi-ai-engine.md#対局cpuの試用接続194)、[測定JSONと比較ドライバー](four-shogi-ai-cpu-results.json)を参照してください。
+
+| プロファイル / 三人攻撃禁止 | DO要求〜確定 |  VPS計算 | モデル待ち | 実推論局面数 |
+| --------------------------- | -----------: | -------: | ---------: | -----------: |
+| trial-100ms / OFF           |        163ms | 111.89ms |    52.70ms |           32 |
+| trial-500ms / OFF           |        570ms | 501.32ms |   286.43ms |          204 |
+| trial-100ms / ON            |        137ms | 101.17ms |    58.15ms |           45 |
+| trial-500ms / ON            |        564ms | 501.77ms |   299.76ms |          244 |
+
+各条件1試行、4/4件で要求/使用モデルID一致・推論件数が正で、通常の正本処理へ1回だけ着手しました。DO時刻は実時間より先へずらして実経過に合わせて進め、Alarmを明示的に実行しました。表のDO経過は要求開始から確定までで、最低2秒待機を含む手番全体ではありません。最低2秒・送信/待ち/計算/受信を時計に含めることは別の偽時計統合検査でも確認しています。サービス観測RSS最大は 773,644,288bytes（親/計算Bun/Python合算・共有ページ重複を含む）、正常終了0でした。実時間保証や最小VPSスペックを認定しません。
+
+固定現行Lv2の3体との上限付き比較は、ON/OFFそれぞれ調整seed19410の12手開始1系列・全4席、各局追加16手まで、両予算で計16局です。候補は同じVPSサービス・同じ100ms/8,192workまたは500ms/32,768work、相手と代替はMac上の固定基準Lv2（2048work）。Workerの最低待機/対局時計を含めず、GET間隔20ms、health後から選択までを測り、試験の要求有効時間は4秒です。CPU本体の2秒代替期限とは区別します。
+
+| プロファイル | 要求数 | モデル実使用 | model_not_usedによるLv2代替 | 選択時間 平均 / p95 / 最大 |
+| ------------ | -----: | -----------: | --------------------------: | -------------------------- |
+| trial-100ms  |     29 |           22 |                           7 | 156.16 / 365.53 / 421.11ms |
+| trial-500ms  |     30 |           30 |                           0 | 517.41 / 521.47 / 523.87ms |
+
+16局すべて手数上限で未終局で、各4局群に候補の詰み脱落が1回ずつありました。未終局は引き分け/単独勝者なしへ置換していません。勝率を0%と解釈せず、平均順位/信頼区間も未確定です。この少数・同系列/同相手の結果では500msの棋力優位・固定Lv2超え・優勝者級を判定できません。短い予算ではモデル探索を完成できず代替になる場合があり、時間増だけの単調な棋力向上は保証しません。失敗ジョブの内訳0は未取得で、計算を消費しなかったという意味ではありません。
+
+比較ドライバーはJSONの `comparison.driver.sourceText` へ内容/hashごと保存しています。Linuxサービスを上記SHA/モデルで起動し、契約の4つのSMOKE環境値を追跡外で設定した後に再実行できます。
+
+```sh
+python3 - <<'PYDRIVER'
+import json, pathlib
+report = json.loads(pathlib.Path("docs/four-shogi-ai-cpu-results.json").read_text())
+pathlib.Path("/tmp/four-shogi-cpu-profiles.ts").write_text(report["comparison"]["driver"]["sourceText"])
+PYDRIVER
+REPO_PATH="$PWD" PROFILE_OUTPUT=/tmp/four-shogi-cpu-profiles.json bun /tmp/four-shogi-cpu-profiles.ts
+```
+
+通常Worker883件（新規CPU24件・redirect1件）・四人将棋473件・サービス13件を含むcheckが成功しました。ON/OFF・予算・完全状態hash/本人情報非転送、同じ手の1回確定、期限前後/代替、順序逆転・旧局/世代/revision/時計/CPUレベル/ルール状態/手番外脱落、正常終局からの再戦、引分非同意を確認しています。実接続で見つかったCloudflareのredirect:error未対応は、manualで3xxを本文読取前に拒否して解消し、秘密を別宛先へ送らない回帰を追加しました。通常テストの外部fetch模擬だけではこの実行環境の差を検出できなかったため、実モデル専用検証を分けて残しました。
+
+必須5コマンドは上記コードで成功（checkは通常pre-commit、コミット全体88.26秒、本番build15.81秒/dry-run0.81秒、開発build13.59秒/dry-run0.75秒）。後続差分は測定文書/JSONだけとし、実行ファイル/設定のhash一致を確認します。最終PRのGitHub CIも独立して確認します。実VPS/HTTPS/x86_64・長時間/多数部屋/最大履歴・一般公開/正式棋力/確率校正・解析画面は未確認または後続、T02/T03/T05とM1全体は未完了です。
