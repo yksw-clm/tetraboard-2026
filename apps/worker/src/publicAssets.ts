@@ -60,6 +60,7 @@ export async function servePublicAssets(
       "/updates",
     ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
+    /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
     if (env && /^\/rooms\/[^/]+\/?$/.test(path)) return serveRoomShareHtml(request, env, assets);

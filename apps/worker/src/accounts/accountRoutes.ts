@@ -54,6 +54,21 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     return c.json(error("見つかりません。"), 404);
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)
     return c.json(error("操作元を確認できません。ページを開き直してください。"), 403);
+  if (path === "/auth/sign-out") {
+    const user = await accountIdentity(c.req.raw, c.env);
+    if (user) {
+      const tournaments = await c.env.APP_DB.prepare(`SELECT DISTINCT e.tournament_key
+        FROM tournament_entries e JOIN tournaments t ON t.key=e.tournament_key
+        WHERE e.account_id=? AND t.published=1 AND t.finalized_at_ms IS NULL`)
+        .bind(user.id)
+        .all<{ tournament_key: string }>();
+      // 認証を失効させる前に解除し、別タブの参加確認でも開始できないようにします。
+      for (const tournament of tournaments.results)
+        await c.env.TOURNAMENT_COORDINATOR.getByName(tournament.tournament_key).cancelForAccount(
+          user.id,
+        );
+    }
+  }
   let provider: "google" | "discord" = "google";
   let adminLogin = false;
   let registration: RegistrationFlow | undefined;

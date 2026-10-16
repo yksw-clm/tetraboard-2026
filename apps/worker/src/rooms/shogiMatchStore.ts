@@ -2,6 +2,8 @@ import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
+import { tournamentMatchStatements } from "../tournaments/store";
+import type { TournamentRoomContext } from "./tournamentRoom";
 import {
   fourShogiReplayEventSchema,
   type FourShogiMatchDetail,
@@ -42,12 +44,14 @@ export type ShogiMatchRecord = ShogiMatchStart & {
 export type ShogiSaveProgress = { phase: "upload" | "verify"; cursor: number };
 export type PendingShogiMatch = {
   record: ShogiMatchRecord;
+  tournament?: TournamentRoomContext;
   formationUsage?: ShogiFormationUsage;
   progress: ShogiSaveProgress;
   retryAtMs: number;
 };
 export type ActiveShogiMatch = {
   start: ShogiMatchStart;
+  tournament?: TournamentRoomContext;
   knockouts: Record<Side, number>;
   formationUsage?: ShogiFormationUsage;
 };
@@ -122,6 +126,7 @@ export async function advanceShogiMatchSave(
   progress: ShogiSaveProgress,
   readEvents: (cursor: number) => StoredEvent[],
   formationUsage?: ShogiFormationUsage,
+  tournament?: TournamentRoomContext,
 ): Promise<ShogiSaveProgress | null> {
   record = await redactParticipants(db, record);
   const game = record.settings.game;
@@ -137,11 +142,23 @@ export async function advanceShogiMatchSave(
       throw new Error("Ineligible Shogi formation match");
   }
   const existing = await db
-    .prepare("SELECT game FROM matches WHERE id = ?")
+    .prepare("SELECT game, record_json FROM matches WHERE id = ?")
     .bind(record.id)
-    .first<{ game: string }>();
+    .first<{ game: string; record_json: string }>();
   if (existing) {
     if (existing.game !== game) throw new Error("Match ID belongs to another game");
+    if (tournament && game === "four-shogi") {
+      await db.batch(
+        tournamentMatchStatements(db, tournament, readShogiMatchRecord(existing.record_json)),
+      );
+      const saved = await db
+        .prepare(
+          "SELECT 1 FROM tournament_matches WHERE id=? AND tournament_key=? AND phase='saved'",
+        )
+        .bind(record.id, tournament.tournamentKey)
+        .first();
+      if (!saved) throw new Error("Tournament result publication was incomplete");
+    }
     await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
     await applyMatchClaims(db, record.id);
     return null;
@@ -231,9 +248,20 @@ export async function advanceShogiMatchSave(
         ]
       : []),
     ...badgeAwardStatements(db, game, record.id),
+    ...(tournament && game === "four-shogi"
+      ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)
+      : []),
   ]);
   if (!(await db.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first()))
     throw new Error("Shogi match publication was incomplete");
+  if (
+    tournament &&
+    !(await db
+      .prepare("SELECT 1 FROM tournament_matches WHERE id=? AND tournament_key=? AND phase='saved'")
+      .bind(record.id, tournament.tournamentKey)
+      .first())
+  )
+    throw new Error("Tournament result publication was incomplete");
   await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
   await applyMatchClaims(db, record.id);
   return null;

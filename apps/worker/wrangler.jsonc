@@ -22,6 +22,10 @@
       {
         "name": "GAME_ROOM",
         "class_name": "GameRoom"
+      },
+      {
+        "name": "TOURNAMENT_COORDINATOR",
+        "class_name": "TournamentCoordinator"
       }
     ]
   },
@@ -35,6 +39,10 @@
   ],
   "exports": {
     "GameRoom": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "TournamentCoordinator": {
       "type": "durable-object",
       "storage": "sqlite"
     }
@@ -78,6 +86,10 @@
           {
             "name": "GAME_ROOM",
             "class_name": "GameRoom"
+          },
+          {
+            "name": "TOURNAMENT_COORDINATOR",
+            "class_name": "TournamentCoordinator"
           }
         ]
       },
@@ -92,6 +104,10 @@
       ],
       "exports": {
         "GameRoom": {
+          "type": "durable-object",
+          "storage": "sqlite"
+        },
+        "TournamentCoordinator": {
           "type": "durable-object",
           "storage": "sqlite"
         }
@@ -130,6 +146,10 @@
           {
             "name": "GAME_ROOM",
             "class_name": "GameRoom"
+          },
+          {
+            "name": "TOURNAMENT_COORDINATOR",
+            "class_name": "TournamentCoordinator"
           }
         ]
       },
@@ -144,6 +164,10 @@
       ],
       "exports": {
         "GameRoom": {
+          "type": "durable-object",
+          "storage": "sqlite"
+        },
+        "TournamentCoordinator": {
           "type": "durable-object",
           "storage": "sqlite"
         }

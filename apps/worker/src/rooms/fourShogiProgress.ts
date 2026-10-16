@@ -25,6 +25,7 @@ import {
   type ExternalEliminationReason,
 } from "@tetraboard/four-shogi";
 import { ShogiStore } from "./shogiStore";
+import type { TournamentRoomContext } from "./tournamentRoom";
 import {
   emptyKnockouts,
   pendingShogiMatchPrefix,
@@ -146,6 +147,7 @@ export class FourShogiProgress {
     tokenHash: string,
     command: Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>,
   ): Result {
+    if (room.tournamentId !== undefined) return { kind: "rejected", error: "forbidden" };
     if (room.status !== "playing")
       return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
     const membership = this.membership(tokenHash);
@@ -172,7 +174,10 @@ export class FourShogiProgress {
     );
   }
 
-  start(room: Extract<FourShogiRoom, { status: "waiting" }>): {
+  start(
+    room: Extract<FourShogiRoom, { status: "waiting" }>,
+    tournament?: TournamentRoomContext,
+  ): {
     room: Playing;
     roundId: string;
     at: number;
@@ -199,7 +204,7 @@ export class FourShogiProgress {
       },
     };
     const state = createShogiState(initial);
-    const roundId = crypto.randomUUID();
+    const roundId = tournament?.matchId ?? crypto.randomUUID();
     const at = Date.now();
     this.store().startReplay(roundId, initial);
     this.storage.kv.put(shogiEliminatedHandsKey, { roundId, hands: {} });
@@ -223,6 +228,7 @@ export class FourShogiProgress {
       throw new Error("Shogi game did not start");
     this.storage.kv.put(roomStorageKey, started);
     this.storage.kv.put(shogiMatchStartKey, {
+      ...(tournament ? { tournament } : {}),
       start: {
         id: roundId,
         roomId: room.id,
@@ -317,6 +323,7 @@ export class FourShogiProgress {
     if (active?.start.id === room.roundId) {
       this.store().protectArchive(room.roundId);
       this.storage.kv.put(pendingShogiMatchPrefix + room.roundId, {
+        ...(active.tournament ? { tournament: active.tournament } : {}),
         record: {
           ...active.start,
           endedAtMs: at,
