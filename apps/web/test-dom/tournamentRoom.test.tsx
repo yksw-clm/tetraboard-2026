@@ -185,3 +185,18 @@ test("別instanceの復帰通知と観戦者への復帰通知は現在のペー
     "/rooms/12345",
   );
 });
+
+test("サーバー時刻が短く古くても開始予告は最大5を表示し、元の開始期限で0になる", async () => {
+  const room = { ...waitingShogiRoom(), tournamentId: 1, tournamentStartsAtMs: now + 5250 };
+  const { view } = await setup(room);
+  const overlay = () => view.querySelector('[aria-label="大会対局の開始カウントダウン"]');
+  expect(overlay()?.querySelector("strong")?.textContent).toBe("5");
+  clock.advance(1250);
+  await flush();
+  expect(overlay()?.querySelector("strong")?.textContent).toBe("4");
+  clock.advance(4000);
+  await flush();
+  expect(overlay()?.querySelector("strong")).toBeNull();
+  expect(overlay()?.textContent).toContain("対局を開始しています…");
+  expect(view.textContent).not.toContain("大会対局中");
+});

@@ -1,3 +1,5 @@
+import { tournamentRules } from "@tetraboard/protocol";
+
 export function TournamentRoomCountdown({
   startsAtMs,
   serverNowMs,
@@ -5,7 +7,13 @@ export function TournamentRoomCountdown({
   startsAtMs: number;
   serverNowMs: number;
 }) {
-  const seconds = Math.max(0, Math.ceil((startsAtMs - serverNowMs) / 1000));
+  const seconds = Math.max(
+    0,
+    Math.min(
+      Math.ceil(tournamentRules.startCountdownMs / 1000),
+      Math.ceil((startsAtMs - serverNowMs) / 1000),
+    ),
+  );
   return (
     <div
       role="status"
