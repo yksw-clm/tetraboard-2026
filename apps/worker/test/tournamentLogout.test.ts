@@ -1,14 +1,40 @@
 import { env, exports } from "cloudflare:workers";
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
+import { runInDurableObject } from "cloudflare:test";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { accountRoutes } from "../src/accounts/accountRoutes";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
+const fixtures: { key: string; accountIds: string[] }[] = [];
+afterEach(async () => {
+  for (const fixture of fixtures.splice(0)) {
+    const coordinator = env.TOURNAMENT_COORDINATOR.getByName(fixture.key);
+    for (const accountId of fixture.accountIds) await coordinator.cancelForAccount(accountId);
+    await runInDurableObject(coordinator, async (_instance, state) => state.storage.deleteAlarm());
+    await env.APP_DB.batch([
+      env.APP_DB.prepare(
+        "DELETE FROM tournament_point_events WHERE match_id IN (SELECT id FROM tournament_matches WHERE tournament_key=?)",
+      ).bind(fixture.key),
+      env.APP_DB.prepare("DELETE FROM tournament_scores WHERE tournament_key=?").bind(fixture.key),
+      env.APP_DB.prepare(
+        "DELETE FROM tournament_match_players WHERE match_id IN (SELECT id FROM tournament_matches WHERE tournament_key=?)",
+      ).bind(fixture.key),
+      env.APP_DB.prepare("DELETE FROM tournament_matches WHERE tournament_key=?").bind(fixture.key),
+      env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE tournament_key=?").bind(
+        fixture.key,
+      ),
+      env.APP_DB.prepare("DELETE FROM tournament_entries WHERE tournament_key=?").bind(fixture.key),
+      env.APP_DB.prepare("DELETE FROM tournaments WHERE key=?").bind(fixture.key),
+    ]);
+  }
+});
 async function fixture(players: number) {
   const key = crypto.randomUUID(),
     now = Date.now();
+  const cleanup = { key, accountIds: [] as string[] };
+  fixtures.push(cleanup);
   await env.APP_DB.prepare(`INSERT INTO tournaments(key,public_id,name,starts_at_ms,ends_at_ms,published,created_at_ms,updated_at_ms)
     VALUES(?,(SELECT COALESCE(MAX(public_id),0)+1 FROM tournaments),'大会',?,?,1,?,?)`)
     .bind(key, now - 60_000, now + 3_600_000, now, now)
@@ -18,6 +44,7 @@ async function fixture(players: number) {
   for (let index = 0; index < players; index++) {
     const account = await accountFixture(),
       operationId = crypto.randomUUID();
+    cleanup.accountIds.push(account.id);
     accounts.push({ ...account, operationId });
     expect(await coordinator.enroll(key, account.id)).toEqual({ ok: true });
     expect(
