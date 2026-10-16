@@ -34,6 +34,8 @@ import { useAutoGameResult } from "./useAutoGameResult";
 import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
 import { FeedbackForm } from "../feedback/FeedbackForm";
 import { RoomShareDialog } from "./RoomShareDialog";
+import { TournamentRoomCountdown } from "./TournamentRoomCountdown";
+import { usePlayerProfiles } from "../players/usePlayerProfiles";
 
 export function RoomViewShell({
   session,
@@ -88,6 +90,20 @@ export function RoomViewShell({
   >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
   const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
+  const tournamentStartsAtMs =
+    tournamentId !== undefined &&
+    room.status === "waiting" &&
+    "tournamentStartsAtMs" in room &&
+    typeof room.tournamentStartsAtMs === "number"
+      ? room.tournamentStartsAtMs
+      : undefined;
+  const profiles = usePlayerProfiles();
+  const activeProfileId = profiles?.active?.id;
+  const closeProfile = profiles?.close;
+  useEffect(() => {
+    if (tournamentStartsAtMs !== undefined && activeProfileId)
+      closeProfile?.(activeProfileId, true);
+  }, [tournamentStartsAtMs, activeProfileId, closeProfile]);
   useEffect(() => {
     if (
       !unfinishedRegistration?.returning ||
@@ -280,11 +296,12 @@ export function RoomViewShell({
               session.leaving ||
               dialog !== null ||
               invitation.dialog !== null ||
-              autoResult.visible
+              autoResult.visible ||
+              tournamentStartsAtMs !== undefined
             }
             pending={session.pendingStamp}
             sendDisabled={session.pendingStamp || chat.pending || !session.interactionReady}
-            closeSignal={`${room.instanceId}:${room.status}:${session.canPlay}:${dialog}:${invitation.dialog}:${autoResult.visible}:${session.connection}:${session.leaving}`}
+            closeSignal={`${room.instanceId}:${room.status}:${session.canPlay}:${dialog}:${invitation.dialog}:${autoResult.visible}:${session.connection}:${session.leaving}:${tournamentStartsAtMs}`}
             onSend={session.sendStamp}
           />
         )
@@ -316,175 +333,188 @@ export function RoomViewShell({
           {pendingNotice}
         </div>
       )}
-      <RoomStampContext.Provider value={stamps}>
-        <RoomLayout
-          statusBelowBoard
-          desktop={desktop}
-          tab={tab}
-          onTabChange={setTab}
-          board={board}
-          info={info}
-          status={status}
-          chat={chatPanel}
-          replay={replayCard}
-        />
-      </RoomStampContext.Provider>
-      {!chat.toastManagedGlobally && <AppToastRegion queue={chat.toastQueue} theme={theme} />}
-      {invitation.dialog === "share" && (
-        <RoomShareDialog
-          game={room.settings.game}
-          invitation={invitation}
-          theme={theme}
-          onCopied={onCopied}
-        />
-      )}
-      <RoomInvitationDialogs invitation={invitation} roomId={room.id} theme={theme} />
-      {dialog === "room-settings" && (
-        <RoomSettingsDialog
-          session={session}
-          onClose={() => {
-            setDialog(null);
-            requestAnimationFrame(() =>
-              requestAnimationFrame(() => {
-                const button = roomSettingsButtonRef.current;
-                if (button && !button.disabled) button.focus();
-                if (!button || document.activeElement !== button) fallbackFocusRef.current?.focus();
-              }),
-            );
-          }}
+      <div className="contents" inert={tournamentStartsAtMs !== undefined}>
+        <RoomStampContext.Provider value={stamps}>
+          <RoomLayout
+            statusBelowBoard
+            desktop={desktop}
+            tab={tab}
+            onTabChange={setTab}
+            board={board}
+            info={info}
+            status={status}
+            chat={chatPanel}
+            replay={replayCard}
+          />
+        </RoomStampContext.Provider>
+      </div>
+      {tournamentStartsAtMs !== undefined && (
+        <TournamentRoomCountdown
+          startsAtMs={tournamentStartsAtMs}
+          serverNowMs={session.serverNowMs}
         />
       )}
-      {(dialog === "result" || autoResult.visible) && room.lastRound && (
-        <AppDialog
-          size="compact"
-          title="対局結果"
-          onClose={closeResult}
-          theme={theme}
-          busy={signIn.busy}
-        >
-          {result}
-          {tournamentId !== undefined && membership && (
-            <AppButton
-              className="mt-4 w-full"
-              isDisabled={session.leaving}
-              isPending={session.leaving}
-              onPress={() => {
-                void session.handleLeaveClick();
+      {tournamentStartsAtMs === undefined && (
+        <>
+          {!chat.toastManagedGlobally && <AppToastRegion queue={chat.toastQueue} theme={theme} />}
+          {invitation.dialog === "share" && (
+            <RoomShareDialog
+              game={room.settings.game}
+              invitation={invitation}
+              theme={theme}
+              onCopied={onCopied}
+            />
+          )}
+          <RoomInvitationDialogs invitation={invitation} roomId={room.id} theme={theme} />
+          {dialog === "room-settings" && (
+            <RoomSettingsDialog
+              session={session}
+              onClose={() => {
+                setDialog(null);
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() => {
+                    const button = roomSettingsButtonRef.current;
+                    if (button && !button.disabled) button.focus();
+                    if (!button || document.activeElement !== button)
+                      fallbackFocusRef.current?.focus();
+                  }),
+                );
               }}
+            />
+          )}
+          {(dialog === "result" || autoResult.visible) && room.lastRound && (
+            <AppDialog
+              size="compact"
+              title="対局結果"
+              onClose={closeResult}
+              theme={theme}
+              busy={signIn.busy}
             >
-              次の対局
-            </AppButton>
-          )}
-          {registrationCancelled && (
-            <p role="status" className="mt-4 text-sm">
-              登録手続きを中止しました。
-            </p>
-          )}
-          {registrationResult && (
-            <p role="status" className="mt-4 text-sm">
-              {registrationResult.record === "complete"
-                ? "この対局をマイページに追加しました。"
-                : "この対局の引継ぎを受け付けました。棋譜の保存を待っています。"}
-              このアカウントでそのまま再戦できます。
-            </p>
-          )}
-          {accountAvailable &&
-            membership &&
-            !membership.accountLinked &&
-            registrationMatchId(room) &&
-            room.lastRound.players.some((player) => player.id === membership.playerId) && (
-              <div className="mt-5">
-                <RegistrationPrompt
-                  game={room.settings.game}
-                  humanOnly={room.lastRound.players.every(
-                    (p) =>
-                      (p.appearance?.kind ??
-                        room.players.find((current) => current.id === p.id)?.kind) === "human",
-                  )}
-                  busy={signIn.busy}
-                  pendingProvider={signIn.pendingProvider}
-                  onRegister={(provider) => void signIn.start(provider)}
-                  onDismiss={closeResult}
-                />
-                {signIn.message && (
-                  <p role="alert" className="mt-3 text-sm text-danger">
-                    {signIn.message}
-                  </p>
+              {result}
+              {tournamentId !== undefined && membership && (
+                <AppButton
+                  className="mt-4 w-full"
+                  isDisabled={session.leaving}
+                  isPending={session.leaving}
+                  onPress={() => {
+                    void session.handleLeaveClick();
+                  }}
+                >
+                  次の対局
+                </AppButton>
+              )}
+              {registrationCancelled && (
+                <p role="status" className="mt-4 text-sm">
+                  登録手続きを中止しました。
+                </p>
+              )}
+              {registrationResult && (
+                <p role="status" className="mt-4 text-sm">
+                  {registrationResult.record === "complete"
+                    ? "この対局をマイページに追加しました。"
+                    : "この対局の引継ぎを受け付けました。棋譜の保存を待っています。"}
+                  このアカウントでそのまま再戦できます。
+                </p>
+              )}
+              {accountAvailable &&
+                membership &&
+                !membership.accountLinked &&
+                registrationMatchId(room) &&
+                room.lastRound.players.some((player) => player.id === membership.playerId) && (
+                  <div className="mt-5">
+                    <RegistrationPrompt
+                      game={room.settings.game}
+                      humanOnly={room.lastRound.players.every(
+                        (p) =>
+                          (p.appearance?.kind ??
+                            room.players.find((current) => current.id === p.id)?.kind) === "human",
+                      )}
+                      busy={signIn.busy}
+                      pendingProvider={signIn.pendingProvider}
+                      onRegister={(provider) => void signIn.start(provider)}
+                      onDismiss={closeResult}
+                    />
+                    {signIn.message && (
+                      <p role="alert" className="mt-3 text-sm text-danger">
+                        {signIn.message}
+                      </p>
+                    )}
+                    {(unfinishedRegistration || signIn.message) && (
+                      <AppButtonLink to="/login" appearance="quiet">
+                        登録手続きを確認・中止する
+                      </AppButtonLink>
+                    )}
+                  </div>
                 )}
-                {(unfinishedRegistration || signIn.message) && (
-                  <AppButtonLink to="/login" appearance="quiet">
-                    登録手続きを確認・中止する
-                  </AppButtonLink>
-                )}
+            </AppDialog>
+          )}
+          {(dialog === "leave" || dialog === "resign") && (
+            <AppDialog
+              size="compact"
+              title={dialog === "leave" ? "ルームから退室しますか？" : "投了しますか？"}
+              busy={busy}
+              theme={theme}
+              onClose={() => setDialog(null)}
+            >
+              <p>
+                {dialog === "leave" && room.settings.game === "four-gomoku" && selfEliminated
+                  ? "確定した順位は変わりません。"
+                  : dialog === "leave"
+                    ? !gameCatalog[room.settings.game].hasModes
+                      ? "対局中に退室すると敗北になります。"
+                      : "対局中に退室すると脱落になります。"
+                    : !gameCatalog[room.settings.game].hasModes
+                      ? "投了すると敗北になります。"
+                      : "投了すると脱落になります。"}
+              </p>
+              {session.socketError && (
+                <p className="text-danger text-xs" role="alert">
+                  {session.socketError}
+                </p>
+              )}
+              <div className="flex justify-end gap-[10px] mt-[22px]">
+                <AppButton
+                  size="compact"
+                  isDisabled={busy}
+                  appearance="secondary"
+                  onPress={() => setDialog(null)}
+                >
+                  キャンセル
+                </AppButton>
+                <AppButton
+                  size="compact"
+                  isDisabled={busy || (dialog === "resign" && !session.canPlay)}
+                  isPending={busy}
+                  appearance="danger"
+                  onPress={() => {
+                    if (dialog === "leave") void session.handleLeaveClick();
+                    else session.handleResignClick();
+                  }}
+                >
+                  {dialog === "leave" ? "退室する" : "投了する"}
+                </AppButton>
               </div>
-            )}
-        </AppDialog>
-      )}
-      {(dialog === "leave" || dialog === "resign") && (
-        <AppDialog
-          size="compact"
-          title={dialog === "leave" ? "ルームから退室しますか？" : "投了しますか？"}
-          busy={busy}
-          theme={theme}
-          onClose={() => setDialog(null)}
-        >
-          <p>
-            {dialog === "leave" && room.settings.game === "four-gomoku" && selfEliminated
-              ? "確定した順位は変わりません。"
-              : dialog === "leave"
-                ? !gameCatalog[room.settings.game].hasModes
-                  ? "対局中に退室すると敗北になります。"
-                  : "対局中に退室すると脱落になります。"
-                : !gameCatalog[room.settings.game].hasModes
-                  ? "投了すると敗北になります。"
-                  : "投了すると脱落になります。"}
-          </p>
-          {session.socketError && (
-            <p className="text-danger text-xs" role="alert">
-              {session.socketError}
-            </p>
+            </AppDialog>
           )}
-          <div className="flex justify-end gap-[10px] mt-[22px]">
-            <AppButton
-              size="compact"
-              isDisabled={busy}
-              appearance="secondary"
-              onPress={() => setDialog(null)}
-            >
-              キャンセル
-            </AppButton>
-            <AppButton
-              size="compact"
-              isDisabled={busy || (dialog === "resign" && !session.canPlay)}
-              isPending={busy}
-              appearance="danger"
-              onPress={() => {
-                if (dialog === "leave") void session.handleLeaveClick();
-                else session.handleResignClick();
+          {dialog === "feedback" && (
+            <AppDialog
+              title="不具合・ご意見"
+              theme={theme}
+              busy={feedback.busy}
+              onClose={() => {
+                if (feedback.busy) return;
+                setDialog(null);
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() =>
+                    (feedbackButtonRef.current ?? fallbackFocusRef.current)?.focus(),
+                  ),
+                );
               }}
             >
-              {dialog === "leave" ? "退室する" : "投了する"}
-            </AppButton>
-          </div>
-        </AppDialog>
-      )}
-      {dialog === "feedback" && (
-        <AppDialog
-          title="不具合・ご意見"
-          theme={theme}
-          busy={feedback.busy}
-          onClose={() => {
-            if (feedback.busy) return;
-            setDialog(null);
-            requestAnimationFrame(() =>
-              requestAnimationFrame(() =>
-                (feedbackButtonRef.current ?? fallbackFocusRef.current)?.focus(),
-              ),
-            );
-          }}
-        >
-          <FeedbackForm feedback={feedback} context={feedbackContext} />
-        </AppDialog>
+              <FeedbackForm feedback={feedback} context={feedbackContext} />
+            </AppDialog>
+          )}
+        </>
       )}
     </main>
   );

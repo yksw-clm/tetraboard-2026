@@ -10,7 +10,9 @@ export const tournamentRules = {
   agreementDrawAllowed: false,
   pointsUnits: [48, 24, 12, 0],
   pointUnit: 12,
-  confirmationMs: 30_000,
+  entryDelayMs: 5_000,
+  startCountdownMs: 5_000,
+  connectionGraceMs: 30_000,
   heartbeatMs: 10_000,
   leaseMs: 30_000,
 } as const;
@@ -100,12 +102,10 @@ export const tournamentLobbySchema = z.strictObject({
 });
 export const tournamentParticipationSchema = z.strictObject({
   entered: z.boolean(),
-  status: z.enum(["idle", "waiting", "confirming", "matched", "playing"]),
+  status: z.enum(["idle", "waiting", "matched", "playing"]),
   operationId: z.uuid().optional(),
   matchId: z.uuid().optional(),
   expiresAtMs: timestamp.optional(),
-  confirmed: z.boolean().optional(),
-  confirmedCount: count.optional(),
   roomId: z.string().optional(),
   instanceId: z.uuid().optional(),
 });
@@ -142,7 +142,7 @@ export const tournamentAdminEntrySchema = z.strictObject({
   username: z.string(),
   avatarUrl: z.string().nullable(),
   enteredAtMs: timestamp,
-  status: z.enum(["idle", "waiting", "confirming", "playing"]),
+  status: z.enum(["idle", "waiting", "matched", "playing"]),
   games: count,
   pointsUnits: count,
   knockouts: count,

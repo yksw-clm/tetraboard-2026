@@ -12,7 +12,7 @@ import {
 } from "../test/fixtures/fourShogiFixtures";
 import { membership, now, playerIds, token } from "../test/fixtures/rooms";
 import { profile } from "../test/fixtures/account";
-import { act, flush, press, render, requests, wrap } from "./harness";
+import { act, clock, flush, press, render, requests, wrap } from "./harness";
 import { installSocket, Socket } from "./socket";
 
 let restore: () => void;
@@ -22,11 +22,12 @@ beforeEach(() => {
 afterEach(() => restore());
 async function setup(room: FourShogiRoom, spectator = false) {
   if (!spectator) saveRoomMembershipToken(room.id, token);
+  const initialMembership = spectator ? null : { ...membership, accountLinked: true };
   function View() {
     const location = useLocation();
     const session = useFourShogiRoomSession({
       initialRoom: room,
-      initialMembership: spectator ? null : { ...membership, accountLinked: true },
+      initialMembership,
       initialServerNowMs: now,
       initialPresence: { hostPlayerId: playerIds[0]!, connectedPlayerIds: playerIds },
     });
@@ -43,6 +44,8 @@ async function setup(room: FourShogiRoom, spectator = false) {
     return (
       <>
         <output aria-label="現在のパス">{location.pathname}</output>
+        <output aria-label="サーバー時刻">{session.serverNowMs}</output>
+        <output aria-label="接続状態">{session.connection}</output>
         <FourShogiRoomView session={session} chat={chat} invited={false} />
       </>
     );
@@ -97,4 +100,45 @@ test("次の対局は旧席の退室成功後だけ大会ページへ進み、�
   await flush();
   expect(view.querySelector('[aria-label="現在のパス"]')?.textContent).toBe("/tournaments/2");
   expect(readRoomMembershipToken(room.id)).toBeNull();
+});
+
+test("大会の開始予告は同期したサーバー時刻で5秒を数え、実開始snapshotまで手を進めない", async () => {
+  const room = { ...waitingShogiRoom(), tournamentId: 1, tournamentStartsAtMs: now + 5000 };
+  const { view, socket } = await setup(room);
+  const overlay = () => view.querySelector('[aria-label="大会対局の開始カウントダウン"]');
+  expect(overlay()?.querySelector("strong")?.textContent).toBe("5");
+  expect(overlay()?.className).toContain("absolute");
+  expect(overlay()?.className).toContain("inset-0");
+  expect(view.querySelector<HTMLElement>("main > div.contents")?.inert).toBe(true);
+  clock.advance(1000);
+  await flush();
+  expect(overlay()?.querySelector("strong")?.textContent).toBe("4");
+  socket.snapshot(room, now + 3500);
+  await flush();
+  expect(overlay()?.querySelector("strong")?.textContent).toBe("2");
+  expect(view.querySelector('[aria-label="サーバー時刻"]')?.textContent).toBe(String(now + 3500));
+  clock.advance(1500);
+  await flush();
+  expect(overlay()?.textContent).toContain("対局を開始しています");
+  expect(socket.sent.some((message) => message.type === "room.start")).toBe(false);
+  socket.snapshot({ ...playingShogiRoom(), tournamentId: 1 }, now + 5000);
+  await flush();
+  expect(Boolean(overlay())).toBe(false);
+  expect(view.querySelector<HTMLElement>("main > div.contents")?.inert).toBe(false);
+});
+
+test("大会開始のカウントダウン中は既存dialogを隠し、予告が解除されたら暗い画面も解除する", async () => {
+  const room = { ...waitingShogiRoom(), tournamentId: 1 };
+  const { view, socket } = await setup(room);
+  press(view, "不具合・ご意見");
+  await flush();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  socket.snapshot({ ...room, tournamentStartsAtMs: now + 5000 });
+  await flush();
+  expect(document.querySelectorAll('[role="dialog"]').length).toBe(0);
+  expect(view.querySelector('[aria-label="大会対局の開始カウントダウン"]')).not.toBeNull();
+  socket.snapshot(room, now + 1000);
+  await flush();
+  expect(view.querySelector('[aria-label="大会対局の開始カウントダウン"]')).toBeNull();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
 });

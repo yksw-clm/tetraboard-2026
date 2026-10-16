@@ -18,14 +18,25 @@ export function useTournament(id: number) {
   const account = useAccount();
   const navigate = useNavigate();
   const location = useLocation();
-  const identity = account.user?.profileCompleted ? account.user.username : null;
+  const identity = account.user?.profileCompleted
+    ? (account.user.profileId ?? account.user.username)
+    : null;
+  const legacyIdentity = useRef(account.user?.username ?? undefined);
+  useEffect(() => {
+    legacyIdentity.current = account.user?.username ?? undefined;
+  }, [account.user?.username]);
   const key = `${id}:${identity ?? "guest"}`;
   const [state, setState] = useState<{
     key: string;
     data: Detail | null;
     participation: TournamentParticipation;
+    canEnterRoom: boolean;
     error: string | null;
-  }>({ key, data: null, participation: idle, error: null });
+  }>({ key, data: null, participation: idle, canEnterRoom: false, error: null });
+  const [entryDialog, setEntryDialog] = useState<{ key: string; open: boolean }>({
+    key,
+    open: false,
+  });
   const [pending, setPending] = useState<{ key: string; value: string | null }>({
     key,
     value: null,
@@ -38,7 +49,7 @@ export function useTournament(id: number) {
   const current = useRef({ key, disposed: false, participation: idle, movingToRoom: false });
   const action = useRef<string | null>(null);
   const entryReturn = registrationReturnFromState(location.state, `/tournaments/${id}`);
-  const resumedEntry = useRef(false);
+  const resumedEntry = useRef<string | null>(null);
   const requestedEntry = location.state?.tournamentEntryRequested === true;
   const refresh = useCallback(async () => {
     requests.current?.abort();
@@ -53,39 +64,55 @@ export function useTournament(id: number) {
         return;
       current.current.participation = participation;
       if (identity && participation.status === "idle" && action.current !== key)
-        clearTournamentQueue(id, identity);
-      setState({ key, data, participation, error: null });
-      if (
-        (participation.status === "matched" || participation.status === "playing") &&
+        clearTournamentQueue(id, identity, legacyIdentity.current);
+      const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
+      const canEnterRoom = Boolean(
+        credential &&
+        credential.operationId === participation.operationId &&
         participation.roomId &&
-        participation.instanceId &&
-        identity
-      ) {
-        const credential = readTournamentQueue(id, identity);
-        if (credential && credential.operationId === participation.operationId) {
-          if (!saveRoomMembershipToken(participation.roomId, credential.token)) {
-            setMessage({
-              key,
-              value: "ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。",
-            });
-            return;
-          }
-          current.current.movingToRoom = true;
-          // 接続不成立で同じ待機へ戻る場合に備え、待機資格はルーム移動時に破棄しません。
-          void navigate(`/rooms/${participation.roomId}?invite=${participation.instanceId}`);
-        }
-      }
+        participation.instanceId,
+      );
+      setState({ key, data, participation, canEnterRoom, error: null });
     } catch (error) {
       if (!controller.signal.aborted && current.current.key === key && !current.current.disposed)
         setState((previous) => ({
-          ...(previous.key === key ? previous : { data: null, participation: idle }),
+          ...(previous.key === key
+            ? previous
+            : { data: null, participation: idle, canEnterRoom: false }),
           key,
           error: error instanceof Error ? error.message : "大会を取得できませんでした。",
         }));
     } finally {
       if (requests.current === controller) requests.current = null;
     }
-  }, [id, identity, key, navigate]);
+  }, [id, identity, key]);
+  const enterRoom = useCallback(() => {
+    const participation = current.current.participation;
+    if (
+      current.current.disposed ||
+      current.current.key !== key ||
+      current.current.movingToRoom ||
+      account.loading ||
+      account.error ||
+      !identity ||
+      !participation.roomId ||
+      !participation.instanceId ||
+      !["matched", "playing"].includes(participation.status)
+    )
+      return;
+    const credential = readTournamentQueue(id, identity, legacyIdentity.current);
+    if (!credential || credential.operationId !== participation.operationId) return;
+    if (!saveRoomMembershipToken(participation.roomId, credential.token)) {
+      setMessage({
+        key,
+        value: "ルームの参加資格を保存できません。ブラウザの保存領域を確認してください。",
+      });
+      return;
+    }
+    current.current.movingToRoom = true;
+    // 接続不成立で同じ待機へ戻る場合に備え、待機資格はルーム移動時に破棄しません。
+    void navigate(`/rooms/${participation.roomId}?invite=${participation.instanceId}`);
+  }, [id, identity, key, navigate, account.loading, account.error]);
   useEffect(() => {
     current.current = { key, disposed: false, participation: idle, movingToRoom: false };
     const timeout = window.setTimeout(() => void refresh(), 0);
@@ -97,11 +124,11 @@ export function useTournament(id: number) {
     }, 5000);
     document.addEventListener("visibilitychange", visibleRefresh);
     const cancel = () => {
-      const credential = identity && readTournamentQueue(id, identity);
+      const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
       if (
         credential &&
         !current.current.movingToRoom &&
-        !["matched", "playing"].includes(current.current.participation.status)
+        current.current.participation.status !== "playing"
       )
         void tournamentOperation(
           id,
@@ -125,7 +152,7 @@ export function useTournament(id: number) {
   }, [key, id, identity, refresh]);
   useEffect(() => {
     const interval = window.setInterval(() => {
-      const credential = identity && readTournamentQueue(id, identity);
+      const credential = identity && readTournamentQueue(id, identity, legacyIdentity.current);
       if (
         credential &&
         current.current.key === key &&
@@ -175,13 +202,13 @@ export function useTournament(id: number) {
       void navigate(account.user ? "/account/setup" : "/login");
       return;
     }
-    void perform("entry", () => tournamentOperation(id, "entries", "POST", {}));
-  }, [account.loading, account.error, account.user, identity, id, navigate, perform]);
+    setEntryDialog({ key, open: true });
+  }, [account.loading, account.error, account.user, identity, id, key, navigate]);
   useEffect(() => {
     const returning = entryReturn?.oauthStarted && entryReturn.tournamentEntry === id && identity;
     if (
       (!returning && !requestedEntry) ||
-      resumedEntry.current ||
+      resumedEntry.current === key ||
       !state.data ||
       state.key !== key ||
       account.loading ||
@@ -190,8 +217,8 @@ export function useTournament(id: number) {
       return;
     const status = state.data.tournament.status;
     const timeout = window.setTimeout(() => {
-      if (resumedEntry.current) return;
-      resumedEntry.current = true;
+      if (resumedEntry.current === key) return;
+      resumedEntry.current = key;
       void navigate(location.pathname, { replace: true, state: null });
       if (["upcoming", "active"].includes(status)) enter();
       else setMessage({ key, value: "大会のエントリー受付は終了しました。" });
@@ -210,17 +237,43 @@ export function useTournament(id: number) {
     account.loading,
     account.error,
   ]);
-  const visible = state.key === key ? state : { key, data: null, participation: idle, error: null };
+  const visible =
+    state.key === key
+      ? state
+      : { key, data: null, participation: idle, canEnterRoom: false, error: null };
   return {
     ...visible,
     pending: pending.key === key ? pending.value : null,
     message: message.key === key ? message.value : null,
     refresh,
     enter,
+    entryDialog: entryDialog.key === key && entryDialog.open,
+    closeEntryDialog() {
+      if (action.current !== key) setEntryDialog({ key, open: false });
+    },
+    confirmEntry() {
+      if (!identity || visible.participation.entered) return;
+      if (
+        !visible.data ||
+        !["upcoming", "active"].includes(visible.data.tournament.status) ||
+        Date.now() >= visible.data.tournament.endsAtMs
+      ) {
+        setMessage({ key, value: "大会のエントリー受付は終了しました。" });
+        return;
+      }
+      void perform("entry", async () => {
+        await tournamentOperation(id, "entries", "POST", {});
+        if (!current.current.disposed && current.current.key === key)
+          setEntryDialog({ key, open: false });
+      });
+    },
+    enterRoom,
     queue() {
       if (!identity) return;
       void perform("queue", async () => {
-        const credential = readTournamentQueue(id, identity) ?? createTournamentQueue(id, identity);
+        const credential =
+          readTournamentQueue(id, identity, legacyIdentity.current) ??
+          createTournamentQueue(id, identity);
         await tournamentOperation(id, "queue", "POST", credential);
         if (current.current.disposed || current.current.key !== key)
           await tournamentOperation(
@@ -238,15 +291,8 @@ export function useTournament(id: number) {
       if (!operationId) return;
       void perform("cancel", async () => {
         await tournamentOperation(id, "queue", "DELETE", { operationId });
-        clearTournamentQueue(id, identity);
+        clearTournamentQueue(id, identity, legacyIdentity.current);
       });
-    },
-    confirm(accept: boolean) {
-      const { operationId, matchId } = visible.participation;
-      if (!operationId || !matchId) return;
-      void perform("confirm", () =>
-        tournamentOperation(id, "confirmation", "POST", { operationId, matchId, accept }),
-      );
     },
   };
 }

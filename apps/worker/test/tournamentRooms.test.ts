@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import {
   fourShogiRoomSchema,
   isFourShogiRoom,
+  tournamentRules,
   roomSocketContract,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
@@ -84,12 +85,12 @@ async function token() {
   ).join("");
   return { raw, hash };
 }
-async function fixture(): Promise<PreparedFixture> {
+async function fixture(endsAfterMs = 3_600_000): Promise<PreparedFixture> {
   const now = Date.now();
   const tournamentKey = crypto.randomUUID();
   await env.APP_DB.prepare(`INSERT INTO tournaments(key,public_id,name,starts_at_ms,ends_at_ms,published,created_at_ms,updated_at_ms)
     VALUES (?,(SELECT COALESCE(MAX(public_id),0)+1 FROM tournaments),'大会',?,?,1,?,?)`)
-    .bind(tournamentKey, now - 60_000, now + 3_600_000, now, now)
+    .bind(tournamentKey, now - 60_000, now + endsAfterMs, now, now)
     .run();
   const row = await env.APP_DB.prepare("SELECT public_id FROM tournaments WHERE key=?")
     .bind(tournamentKey)
@@ -106,7 +107,7 @@ async function fixture(): Promise<PreparedFixture> {
       tournamentKey,
       matchId,
       startsAtMs: now - 60_000,
-      endsAtMs: now + 3_600_000,
+      endsAtMs: now + endsAfterMs,
       ruleVersion: 1,
     },
     roomId,
@@ -195,18 +196,213 @@ async function connect(roomId: string, credential: string) {
   const send = (message: RoomSocketClientMessage) => socket.send(JSON.stringify(message));
   send({ type: "room.auth", token: credential });
   await until((message) => message.type === "room.authenticated");
-  return { send, until };
+  return { send, until, socket };
 }
-async function playing() {
-  const prepared = await fixture();
+async function connected(endsAfterMs?: number) {
+  const prepared = await fixture(endsAfterMs);
   expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({ status: "prepared" });
   const clients = [];
   for (const credential of prepared.tokens)
     clients.push(await connect(prepared.input.roomId, credential));
-  await clients[0].until(
+  const countdown = await clients[0]!.until(
+    (message) =>
+      message.type === "room.snapshot" &&
+      isFourShogiRoom(message.room) &&
+      message.room.status === "waiting" &&
+      message.room.tournamentStartsAtMs !== undefined,
+  );
+  if (
+    countdown.type !== "room.snapshot" ||
+    !isFourShogiRoom(countdown.room) ||
+    countdown.room.status !== "waiting"
+  )
+    throw new Error("Missing tournament countdown");
+  return { ...prepared, clients, startsAtMs: countdown.room.tournamentStartsAtMs! };
+}
+
+test("4人目の認証済み接続までは開始期限を作らず、認証前の接続を人数に含めない", async () => {
+  const prepared = await fixture();
+  expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({ status: "prepared" });
+  for (const credential of prepared.tokens.slice(0, 3))
+    await connect(prepared.input.roomId, credential);
+  expect(await prepared.stub.getRoom()).not.toHaveProperty("tournamentStartsAtMs");
+  const response = await request(`/api/rooms/${prepared.input.roomId}/ws`, {
+    headers: { Upgrade: "websocket" },
+  });
+  expect(response.status).toBe(101);
+  response.webSocket!.accept();
+  sockets.push(response.webSocket!);
+  expect(await prepared.stub.getRoom()).not.toHaveProperty("tournamentStartsAtMs");
+  await connect(prepared.input.roomId, prepared.tokens[3]!);
+  await vi.waitFor(async () =>
+    expect(await prepared.stub.getRoom()).toHaveProperty("tournamentStartsAtMs"),
+  );
+});
+
+test("全員接続後も開始期限の直前までは待機し、永続化した期限のAlarmで一度だけ開始する", async () => {
+  const prepared = await connected();
+  const room = fourShogiRoomSchema.parse(await prepared.stub.getRoom());
+  expect(room.status).toBe("waiting");
+  expect(room).toHaveProperty("tournamentStartsAtMs", prepared.startsAtMs);
+  expect(prepared.startsAtMs - room.lastActivityAtMs).toBeGreaterThanOrEqual(
+    tournamentRules.startCountdownMs,
+  );
+  expect(
+    await runInDurableObject(prepared.stub, (_instance, state) => state.storage.getAlarm()),
+  ).toBe(prepared.startsAtMs);
+  await alarmAt(prepared, prepared.startsAtMs - 1);
+  expect(
+    (await prepared.stub.getTournamentReservationState(prepared.input.context.matchId)).status,
+  ).toBe("waiting");
+  await alarmAt(prepared, prepared.startsAtMs);
+  expect(
+    await prepared.stub.getTournamentReservationState(prepared.input.context.matchId),
+  ).toMatchObject({
+    status: "playing",
+    startedAtMs: prepared.startsAtMs,
+  });
+  const started = fourShogiRoomSchema.parse(await prepared.stub.getRoom());
+  expect(started.status).toBe("playing");
+  expect(started).not.toHaveProperty("tournamentStartsAtMs");
+  await alarmAt(prepared, prepared.startsAtMs + 1);
+  expect(fourShogiRoomSchema.parse(await prepared.stub.getRoom()).roundId).toBe(
+    prepared.input.context.matchId,
+  );
+});
+
+test("一人の最後の接続が切れると開始期限を解除し、全員の再接続から5秒を数え直す", async () => {
+  const prepared = await connected();
+  prepared.clients[3]!.socket.close();
+  await prepared.clients[0]!.until(
+    (message) =>
+      message.type === "room.snapshot" &&
+      isFourShogiRoom(message.room) &&
+      message.room.status === "waiting" &&
+      message.room.tournamentStartsAtMs === undefined &&
+      !message.presence.connectedPlayerIds.includes(prepared.input.players[3]!.admission.playerId),
+  );
+  expect(
+    await prepared.stub.getTournamentReservationState(prepared.input.context.matchId),
+  ).toMatchObject({ status: "waiting" });
+  await alarmAt(prepared, prepared.startsAtMs);
+  expect((await prepared.stub.getRoom())?.status).toBe("waiting");
+  const clock = vi.spyOn(Date, "now").mockReturnValue(prepared.startsAtMs + 1000);
+  let reconnectAt: number;
+  try {
+    await connect(prepared.input.roomId, prepared.tokens[3]!);
+    const snapshot = await prepared.clients[0]!.until(
+      (message) =>
+        message.type === "room.snapshot" &&
+        isFourShogiRoom(message.room) &&
+        message.room.status === "waiting" &&
+        message.room.tournamentStartsAtMs !== undefined,
+    );
+    if (
+      snapshot.type !== "room.snapshot" ||
+      !isFourShogiRoom(snapshot.room) ||
+      snapshot.room.status !== "waiting"
+    )
+      throw new Error("Missing reconnect countdown");
+    reconnectAt = snapshot.room.tournamentStartsAtMs!;
+    expect(reconnectAt).toBe(prepared.startsAtMs + 1000 + tournamentRules.startCountdownMs);
+  } finally {
+    clock.mockRestore();
+  }
+  await alarmAt(prepared, reconnectAt - 1);
+  expect((await prepared.stub.getRoom())?.status).toBe("waiting");
+  await alarmAt(prepared, reconnectAt);
+  expect((await prepared.stub.getRoom())?.status).toBe("playing");
+});
+
+test("同じ参加資格の別接続が残っている間は開始期限を解除しない", async () => {
+  const prepared = await connected();
+  const duplicate = await connect(prepared.input.roomId, prepared.tokens[0]!);
+  prepared.clients[0]!.socket.close();
+  await vi.waitFor(async () => {
+    const connections = await runInDurableObject(
+      prepared.stub,
+      (_instance, state) =>
+        state.getWebSockets().filter((socket) => socket.readyState === WebSocket.OPEN).length,
+    );
+    expect(connections).toBe(4);
+  });
+  expect(await prepared.stub.getRoom()).toHaveProperty("tournamentStartsAtMs", prepared.startsAtMs);
+  await alarmAt(prepared, prepared.startsAtMs);
+  await duplicate.until(
     (message) => message.type === "room.snapshot" && message.room.status === "playing",
   );
-  return { ...prepared, clients };
+});
+
+test("開始カウントダウンより大会締切が先なら、未開始で閉鎖して得点を付けない", async () => {
+  const prepared = await connected(4000);
+  expect(prepared.startsAtMs).toBeGreaterThan(prepared.input.context.endsAtMs);
+  await alarmAt(prepared, prepared.input.context.endsAtMs);
+  expect(
+    await prepared.stub.getTournamentReservationState(prepared.input.context.matchId),
+  ).toMatchObject({ status: "closed" });
+  expect(
+    await env.APP_DB.prepare("SELECT phase,started_at_ms FROM tournament_matches WHERE id=?")
+      .bind(prepared.input.context.matchId)
+      .first(),
+  ).toEqual({ phase: "aborted", started_at_ms: null });
+});
+
+test("全員の接続が遅れても準備から30秒の期限を延長しない", async () => {
+  const prepared = await fixture();
+  expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({ status: "prepared" });
+  const reservation = await runInDurableObject(prepared.stub, (_instance, state) =>
+    state.storage.kv.get<{ preparedAtMs: number }>(
+      `tournament-reservation:${prepared.input.context.matchId}`,
+    )!,
+  );
+  const clock = vi.spyOn(Date, "now").mockReturnValue(reservation.preparedAtMs + 27000);
+  try {
+    for (const credential of prepared.tokens) await connect(prepared.input.roomId, credential);
+    expect(await prepared.stub.getRoom()).toHaveProperty(
+      "tournamentStartsAtMs",
+      reservation.preparedAtMs + 32000,
+    );
+  } finally {
+    clock.mockRestore();
+  }
+  await alarmAt(prepared, reservation.preparedAtMs + tournamentRules.connectionGraceMs);
+  expect(
+    await prepared.stub.getTournamentReservationState(prepared.input.context.matchId),
+  ).toMatchObject({ status: "closed" });
+});
+
+test("5秒待機中に参加資格が失われると、期限の再検証で開始を拒否する", async () => {
+  const prepared = await connected();
+  await env.APP_DB.prepare(
+    "UPDATE tournament_entries SET deleted=1 WHERE tournament_key=? AND account_id=?",
+  )
+    .bind(prepared.input.context.tournamentKey, prepared.accounts[0]!.id)
+    .run();
+  await alarmAt(prepared, prepared.startsAtMs);
+  expect(
+    await prepared.stub.getTournamentReservationState(prepared.input.context.matchId),
+  ).toMatchObject({ status: "closed" });
+  expect(
+    await env.APP_DB.prepare("SELECT phase,started_at_ms FROM tournament_matches WHERE id=?")
+      .bind(prepared.input.context.matchId)
+      .first(),
+  ).toEqual({ phase: "aborted", started_at_ms: null });
+});
+async function alarmAt(prepared: PreparedFixture, at: number) {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(at);
+  try {
+    await runDurableObjectAlarm(prepared.stub);
+  } finally {
+    clock.mockRestore();
+  }
+}
+async function playing() {
+  const prepared = await connected();
+  await alarmAt(prepared, prepared.startsAtMs);
+  await prepared.clients[0]!.until(
+    (message) => message.type === "room.snapshot" && message.room.status === "playing",
+  );
+  return prepared;
 }
 async function flushSaves(prepared: Awaited<ReturnType<typeof fixture>>) {
   for (let index = 0; index < 4; index++) {
@@ -221,7 +417,7 @@ async function flushSaves(prepared: Awaited<ReturnType<typeof fixture>>) {
   }
 }
 
-test("大会は4人の接続で固定IDの対局を一度だけ開始し、通常参加・設定・引分・再戦を拒否する", async () => {
+test("大会は4人接続後の5秒で固定IDの対局を一度だけ開始し、通常参加・設定・引分・再戦を拒否する", async () => {
   const prepared = await playing();
   const room = fourShogiRoomSchema.parse(await prepared.stub.getRoom());
   expect(room.tournamentId).toBe(prepared.input.context.tournamentId);

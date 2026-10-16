@@ -245,9 +245,14 @@ test("管理名簿は未対局者も追加表示し、名前・公開ID検索で
   expect(requests[3]!.url).toContain("search=%40tetra");
   expect(view.textContent).not.toContain("未対局の人");
   expect(view.textContent).not.toContain("検索結果 0人");
-  requests[3]!.respond({ entries: [entry], total: 1, nextCursor: "restricted" });
+  requests[3]!.respond({
+    entries: [{ ...entry, status: "matched" }],
+    total: 1,
+    nextCursor: "restricted",
+  });
   await flush();
   expect(view.textContent).toContain("検索結果 1人");
+  expect(view.textContent).toContain("入室待ち");
   enter(input(view, "大会名"), "破棄する入力");
   press(view, "次の50人");
   requests[4]!.respond({ message: "権限がありません" }, 403);

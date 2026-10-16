@@ -29,7 +29,7 @@ const statusLabels = {
 const entryStatusLabels = {
   idle: "待機していません",
   waiting: "対戦相手を待機中",
-  confirming: "参加確認中",
+  matched: "入室待ち",
   playing: "対局中",
 };
 const dateTime = (value: number | null) =>

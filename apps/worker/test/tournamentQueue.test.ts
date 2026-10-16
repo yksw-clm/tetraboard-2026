@@ -109,22 +109,9 @@ afterEach(async () => {
   }
 });
 
-test("4人の参加確認後に固定ルールの専用ルームへ移譲し、秘密の生トークンは保存しない", async () => {
+test("4人の抽選で固定ルールの専用ルームへ直ちに移譲し、秘密の生トークンは保存しない", async () => {
   const f = await fixture();
   for (let i = 0; i < 4; i++) expect((await f.queue(i)).status).toBe(200);
-  const confirmation = await f.status(0);
-  expect(confirmation.status).toBe("confirming");
-  expect(confirmation.confirmedCount).toBe(0);
-  for (let i = 0; i < 4; i++)
-    expect(
-      (
-        await f.invoke(i, "confirmation", "POST", {
-          operationId: f.operations[i]!.operationId,
-          matchId: confirmation.matchId,
-          accept: true,
-        })
-      ).status,
-    ).toBe(200);
   const matched = await f.status(0);
   expect(matched.status).toBe("matched");
   expect(matched.roomId).toMatch(/^\d{5}$/);
@@ -163,7 +150,7 @@ test("4人の参加確認後に固定ルールの専用ルームへ移譲し、�
   await f.invoke(0, "queue", "DELETE", { operationId: f.operations[0]!.operationId });
 });
 
-test("確認拒否は本人だけを外し、他3人を待機へ戻し、古い再送・確認は復活させない", async () => {
+test("旧画面の承諾・拒否は成立した予約を変更せず、明示取消だけが本人を外す", async () => {
   const f = await fixture();
   for (let i = 0; i < 4; i++) await f.queue(i);
   const group = await f.status(0);
@@ -176,6 +163,18 @@ test("確認拒否は本人だけを外し、他3人を待機へ戻し、古い�
       })
     ).status,
   ).toBe(200);
+  expect((await f.status(0)).status).toBe("matched");
+  expect(
+    (
+      await f.invoke(1, "confirmation", "POST", {
+        operationId: f.operations[1]!.operationId,
+        matchId: group.matchId,
+        accept: true,
+      })
+    ).status,
+  ).toBe(200);
+  expect((await f.status(1)).matchId).toBe(group.matchId);
+  await f.invoke(0, "queue", "DELETE", { operationId: f.operations[0]!.operationId });
   expect((await f.status(0)).status).toBe("idle");
   for (let i = 1; i < 4; i++) expect((await f.status(i)).status).toBe("waiting");
   expect((await f.queue(0)).status).toBe(409);
@@ -228,26 +227,11 @@ test("取消の先着と世代違いを区別し、heartbeatは失効した待�
 
 test("4席移譲の保存失敗は全件rollbackし、同じ予約を取り消して全席を解放できる", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const group = await f.status(0);
-  for (let i = 0; i < 3; i++)
-    await f.invoke(i, "confirmation", "POST", {
-      operationId: f.operations[i]!.operationId,
-      matchId: group.matchId,
-      accept: true,
-    });
+  for (let i = 0; i < 3; i++) await f.queue(i);
   await env.APP_DB.exec(
     "CREATE TRIGGER fail_tournament_transfer BEFORE INSERT ON account_room_seats BEGIN SELECT RAISE(ABORT,'test transfer fault'); END",
   );
-  expect(
-    (
-      await f.invoke(3, "confirmation", "POST", {
-        operationId: f.operations[3]!.operationId,
-        matchId: group.matchId,
-        accept: true,
-      })
-    ).status,
-  ).toBe(503);
+  expect((await f.queue(3)).status).toBe(503);
   expect(
     (
       await env.APP_DB.prepare("SELECT 1 FROM account_room_seats WHERE account_id IN (?,?,?,?)")
@@ -302,30 +286,68 @@ test("終了時刻以降の未開始予約を解放して不成立を確定し�
   expect(pending.tournament.finalizedAtMs).toBeNull();
 });
 
-test("確認期限切れは未確認者を外し、確認済みの参加者を新しい期限で待機へ戻す", async () => {
+test("旧版の確認待ちを休止後に復元し、全員未承諾でも同じ対局を自動準備する", async () => {
   const f = await fixture();
-  for (let i = 0; i < 4; i++) await f.queue(i);
-  const group = await f.status(0);
-  await f.invoke(0, "confirmation", "POST", {
-    operationId: f.operations[0]!.operationId,
-    matchId: group.matchId,
-    accept: true,
-  });
+  const matchId = crypto.randomUUID(),
+    instanceId = crypto.randomUUID();
+  const roomId = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 100000).padStart(5, "0");
+  const expiresAtMs = Date.now() + 30000;
+  const players = await Promise.all(
+    f.users.map(async (user, index) => {
+      const entry = (await env.APP_DB.prepare(
+        "SELECT id FROM tournament_entries WHERE account_id=? AND tournament_key=?",
+      )
+        .bind(user.id, f.key)
+        .first<{ id: string }>())!;
+      const tokenHash = Array.from(
+        new Uint8Array(
+          await crypto.subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode(f.operations[index]!.token),
+          ),
+        ),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+      return {
+        accountId: user.id,
+        operationId: f.operations[index]!.operationId,
+        tokenHash,
+        expiresAtMs,
+        entryId: entry.id,
+        confirmed: false,
+        admission: {
+          accountId: user.id,
+          operationId: crypto.randomUUID(),
+          roomId,
+          instanceId,
+          playerId: crypto.randomUUID(),
+          name: "登録名",
+          avatarKey: null,
+        },
+      };
+    }),
+  );
+  await env.APP_DB.batch(
+    players.map((player) =>
+      env.APP_DB.prepare("INSERT INTO tournament_wait_reservations VALUES(?,?,?,?,NULL)").bind(
+        player.accountId,
+        f.key,
+        player.operationId,
+        expiresAtMs,
+      ),
+    ),
+  );
   await runInDurableObject(f.stub, async (_instance, state) => {
-    const current = state.storage.kv.get<{
-      key: string;
-      waiting: unknown[];
-      groups: { expiresAtMs: number }[];
-    }>("state")!;
-    current.groups[0]!.expiresAtMs = Date.now() - 1;
-    state.storage.kv.put("state", current);
-    await state.storage.setAlarm(Date.now() + 60000);
+    state.storage.kv.put("state", {
+      key: f.key,
+      waiting: [],
+      groups: [{ id: matchId, roomId, instanceId, expiresAtMs, phase: "confirming", players }],
+    });
+    await state.storage.setAlarm(expiresAtMs);
   });
   await evictDurableObject(f.stub);
-  expect((await f.status(0)).status).toBe("waiting");
-  expect((await f.status(0)).expiresAtMs).toBeGreaterThan(Date.now());
-  for (let i = 1; i < 4; i++) expect((await f.status(i)).status).toBe("idle");
-  await f.invoke(0, "queue", "DELETE", { operationId: f.operations[0]!.operationId });
+  for (let i = 0; i < 4; i++)
+    expect(await f.status(i)).toMatchObject({ status: "matched", matchId });
 });
 
 test("通常ルーム参加と大会待機が同時に来ても、一方だけがアカウントを確保する", async () => {
@@ -369,12 +391,6 @@ test("ルーム接続が成立しなかった場合、接続済み3人の同じ�
   const f = await fixture();
   for (let i = 0; i < 4; i++) await f.queue(i);
   const group = await f.status(0);
-  for (let i = 0; i < 4; i++)
-    await f.invoke(i, "confirmation", "POST", {
-      operationId: f.operations[i]!.operationId,
-      matchId: group.matchId,
-      accept: true,
-    });
   const first = await f.status(0);
   for (let i = 0; i < 3; i++) await connect(first.roomId!, f.operations[i]!.token);
   await runInDurableObject(f.stub, async (_instance, state) => {
@@ -391,12 +407,6 @@ test("ルーム接続が成立しなかった場合、接続済み3人の同じ�
   await f.queue(3);
   const secondGroup = await f.status(0);
   expect(secondGroup.matchId).not.toBe(group.matchId);
-  for (let i = 0; i < 4; i++)
-    await f.invoke(i, "confirmation", "POST", {
-      operationId: f.operations[i]!.operationId,
-      matchId: secondGroup.matchId,
-      accept: true,
-    });
   const second = await f.status(0);
   expect(second.status).toBe("matched");
   expect(second.roomId).not.toBe(first.roomId);

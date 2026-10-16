@@ -1802,10 +1802,12 @@ export class GameRoom extends DurableObject<Env> {
     if (tournament?.status === "waiting")
       deadlines.push(
         Math.min(
-          tournament.preparedAtMs + tournamentRules.confirmationMs,
+          tournament.preparedAtMs + tournamentRules.connectionGraceMs,
           tournament.context.endsAtMs,
         ),
       );
+    if (room && isFourShogiRoom(room) && room.status === "waiting" && room.tournamentStartsAtMs)
+      deadlines.push(room.tournamentStartsAtMs);
     const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -1966,7 +1968,7 @@ export class GameRoom extends DurableObject<Env> {
           avatarUrl: profileAvatarUrl(admission.avatarKey),
           ready: true,
           side: null,
-          reconnectDeadline: Math.min(now + tournamentRules.confirmationMs, context.endsAtMs),
+          reconnectDeadline: Math.min(now + tournamentRules.connectionGraceMs, context.endsAtMs),
         })),
       });
       const reservation: TournamentRoomReservation = {
@@ -2053,7 +2055,17 @@ export class GameRoom extends DurableObject<Env> {
     return { status: "cancelled" as const };
   }
 
-  private async startTournamentGame() {
+  private tournamentPlayersConnected(room: FourShogiRoom): boolean {
+    return (
+      room.players.length === 4 &&
+      room.players.every((player) => {
+        const hash = this.playerTokenHash(player.id);
+        return player.kind === "human" && !!hash && this.hasOpenConnection(hash);
+      })
+    );
+  }
+
+  private async advanceTournamentStart() {
     const initial = this.readRoom();
     const reservation = this.tournamentReservation(initial);
     if (
@@ -2064,12 +2076,33 @@ export class GameRoom extends DurableObject<Env> {
       initial.status !== "waiting"
     )
       return;
+    let countdownChanged = false;
+    const countdown = this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (!room || !isFourShogiRoom(room) || room.status !== "waiting") return null;
+      const connected = this.tournamentPlayersConnected(room);
+      if (connected && room.tournamentStartsAtMs !== undefined) return room;
+      if (!connected && room.tournamentStartsAtMs === undefined) return null;
+      const { tournamentStartsAtMs: _deadline, ...waiting } = room;
+      const next = fourShogiRoomSchema.parse({
+        ...waiting,
+        ...(connected
+          ? { tournamentStartsAtMs: Date.now() + tournamentRules.startCountdownMs }
+          : {}),
+        publicUpdatedAtMs: nextPublicUpdateAt(room),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, next);
+      countdownChanged = true;
+      return next.status === "waiting" && connected ? next : null;
+    });
+    if (countdownChanged) {
+      const room = this.readRoom();
+      await this.syncAlarm(room);
+      if (room) this.broadcastRoom(room);
+    }
     if (
-      initial.players.length !== 4 ||
-      initial.players.some((player) => {
-        const hash = this.playerTokenHash(player.id);
-        return player.kind !== "human" || !hash || !this.hasOpenConnection(hash);
-      })
+      countdown?.tournamentStartsAtMs === undefined ||
+      countdown.tournamentStartsAtMs > Date.now()
     )
       return;
     await this.ctx.blockConcurrencyWhile(async () => {
@@ -2101,10 +2134,16 @@ export class GameRoom extends DurableObject<Env> {
       if (
         active?.count !== 4 ||
         now < reservation.context.startsAtMs ||
-        now >= reservation.context.endsAtMs
+        now >= reservation.context.endsAtMs ||
+        now >= reservation.preparedAtMs + tournamentRules.connectionGraceMs
       ) {
-        this.withIndexTransaction(() => this.closeRoom());
-        this.closeSockets();
+        const closed = this.withIndexTransaction(() => {
+          const room = this.readRoom();
+          if (!room || room.instanceId !== reservation.instanceId) return false;
+          this.closeRoom();
+          return true;
+        });
+        if (closed) this.closeSockets();
         return;
       }
       this.withIndexTransaction(() => {
@@ -2116,15 +2155,24 @@ export class GameRoom extends DurableObject<Env> {
           room.instanceId !== reservation.instanceId
         )
           return;
+        if (!this.tournamentPlayersConnected(room)) {
+          const { tournamentStartsAtMs: _deadline, ...waiting } = room;
+          this.ctx.storage.kv.put(roomStorageKey, {
+            ...waiting,
+            publicUpdatedAtMs: nextPublicUpdateAt(room),
+          });
+          return;
+        }
         if (
-          room.players.length !== 4 ||
-          room.players.some((player) => {
-            const hash = this.playerTokenHash(player.id);
-            return !hash || !this.hasOpenConnection(hash);
-          })
+          room.tournamentStartsAtMs === undefined ||
+          room.tournamentStartsAtMs !== countdown.tournamentStartsAtMs ||
+          room.tournamentStartsAtMs > Date.now()
         )
           return;
-        if (Date.now() >= reservation.context.endsAtMs) {
+        if (
+          Date.now() >= reservation.context.endsAtMs ||
+          Date.now() >= reservation.preparedAtMs + tournamentRules.connectionGraceMs
+        ) {
           this.closeRoom();
           return;
         }
@@ -2498,9 +2546,24 @@ export class GameRoom extends DurableObject<Env> {
       const tournament = this.tournamentReservation(room);
       if (
         tournament?.status === "waiting" &&
+        isFourShogiRoom(room) &&
+        room.status === "waiting" &&
+        room.tournamentStartsAtMs !== undefined &&
+        !this.tournamentPlayersConnected(room)
+      ) {
+        const { tournamentStartsAtMs: _deadline, ...waiting } = room;
+        room = fourShogiRoomSchema.parse({
+          ...waiting,
+          publicUpdatedAtMs: nextPublicUpdateAt(room),
+        });
+        this.ctx.storage.kv.put(roomStorageKey, room);
+        changed = true;
+      }
+      if (
+        tournament?.status === "waiting" &&
         (now >=
           Math.min(
-            tournament.preparedAtMs + tournamentRules.confirmationMs,
+            tournament.preparedAtMs + tournamentRules.connectionGraceMs,
             tournament.context.endsAtMs,
           ) ||
           room.players.length !== 4)
@@ -2775,7 +2838,7 @@ export class GameRoom extends DurableObject<Env> {
       else this.closeSockets();
     }
     for (const hash of promoted) this.sendCurrentMembership(hash);
-    await this.startTournamentGame();
+    await this.advanceTournamentStart();
   }
 
   async alarm(): Promise<void> {
@@ -3577,7 +3640,7 @@ export class GameRoom extends DurableObject<Env> {
         const connectedRoom = this.readRoom();
         if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
         socket.send(JSON.stringify(this.authenticationMessage(socket, result.membership)));
-        await this.startTournamentGame();
+        await this.advanceTournamentStart();
         return;
       }
 

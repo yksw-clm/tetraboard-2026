@@ -1,9 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router";
-import type { TournamentDetail, TournamentStanding } from "@tetraboard/protocol";
+import {
+  tournamentRules,
+  type TournamentDetail,
+  type TournamentStanding,
+} from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
+import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
@@ -23,7 +28,6 @@ function EntryAction({ state }: { state: TournamentState }) {
   const entered = state.participation.entered;
   return (
     <div className="flex max-w-[360px] flex-col items-end gap-2">
-      {!entered && <TournamentConsent />}
       <AppButton
         isDisabled={entered || state.pending !== null || account.loading || Boolean(account.error)}
         isPending={state.pending === "entry"}
@@ -110,7 +114,7 @@ function TournamentPlay({ state }: { state: TournamentState }) {
   const participation = state.participation;
   const closed = state.data!.tournament.status !== "active";
   const waiting = participation.status === "waiting";
-  const confirming = participation.status === "confirming";
+  const matched = participation.status === "matched" || participation.status === "playing";
   return (
     <AppCard className="gap-4">
       <h2 className="text-lg font-bold">大会対局</h2>
@@ -123,75 +127,46 @@ function TournamentPlay({ state }: { state: TournamentState }) {
             対局受付終了
           </AppButton>
         </>
-      ) : confirming ? (
-        <div role="status" className="space-y-3">
-          <p className="font-bold text-brand">4人そろいました。参加を確認してください。</p>
-          <p className="text-xs text-muted">
-            {participation.confirmedCount ?? 0}/4人が確認済みです。
-            {participation.expiresAtMs &&
-              `確認期限 ${new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(participation.expiresAtMs)}（日本時間）`}
-          </p>
-          {!participation.confirmed && <TournamentConsent />}
-          <AppButton
-            className="w-full"
-            isDisabled={Boolean(participation.confirmed) || state.pending !== null}
-            isPending={state.pending === "confirm"}
-            onPress={() => state.confirm(true)}
-          >
-            {participation.confirmed ? "確認済み・ほかの参加者を待っています" : "参加する"}
-          </AppButton>
-          <AppButton
-            appearance="secondary"
-            className="w-full"
-            isDisabled={state.pending !== null}
-            onPress={() => state.confirm(false)}
-          >
-            参加を取り消す
-          </AppButton>
-        </div>
-      ) : participation.status === "matched" || participation.status === "playing" ? (
+      ) : matched ? (
         <>
           <p role="status" className="text-sm text-muted">
-            参加中の対局があります。参加資格を保存したタブから戻れます。
+            {state.canEnterRoom
+              ? "対戦相手が集まりました。ルームへの入室を準備しています。"
+              : "参加中の対局があります。参加資格を保存したタブから戻れます。"}
           </p>
-          {participation.roomId && (
-            <AppButtonLink to={`/rooms/${participation.roomId}?invite=${participation.instanceId}`}>
-              参加中の対局へ
-            </AppButtonLink>
+          {participation.status === "playing" && state.canEnterRoom ? (
+            <AppButton onPress={state.enterRoom}>参加中の対局へ</AppButton>
+          ) : (
+            !state.canEnterRoom &&
+            participation.roomId && (
+              <AppButtonLink
+                to={`/rooms/${participation.roomId}?invite=${participation.instanceId}`}
+              >
+                参加中の対局へ
+              </AppButtonLink>
+            )
           )}
         </>
       ) : (
         <>
           <div role="status" className="text-sm leading-relaxed">
-            {waiting ? (
-              <>
-                <p className="font-bold text-brand">対戦相手を探しています...</p>
-                <p className="mt-1 text-xs text-muted">
-                  現在{state.data!.tournament.waitingCount}
-                  人が待機中です。4人そろったら参加確認に進みます。
-                </p>
-              </>
-            ) : (
-              <p className="text-muted">
-                現在{state.data!.tournament.waitingCount}
-                人が待機中です。4人そろったら参加確認に進みます。
-              </p>
-            )}
+            {waiting && <p className="font-bold text-brand">対戦相手を探しています...</p>}
+            <p className={waiting ? "mt-1 text-xs text-muted" : "text-muted"}>
+              現在{state.data!.tournament.waitingCount}
+              人が待機中です。4人そろったら入室のご案内が表示されます。
+            </p>
           </div>
           {participation.entered ? (
-            <>
-              {!waiting && <TournamentConsent />}
-              <AppButton
-                onPress={waiting ? state.cancel : state.queue}
-                appearance={waiting ? "secondary" : "primary"}
-                isDisabled={state.pending !== null || account.loading || Boolean(account.error)}
-                isPending={state.pending === "queue" || state.pending === "cancel"}
-                className="min-h-12 w-full"
-              >
-                <AppIcon name={waiting ? "close" : "join"} />
-                {waiting ? "取り消す" : "対局する"}
-              </AppButton>
-            </>
+            <AppButton
+              onPress={waiting ? state.cancel : state.queue}
+              appearance={waiting ? "secondary" : "primary"}
+              isDisabled={state.pending !== null || account.loading || Boolean(account.error)}
+              isPending={state.pending === "queue" || state.pending === "cancel"}
+              className="min-h-12 w-full"
+            >
+              <AppIcon name={waiting ? "close" : "join"} />
+              {waiting ? "取り消す" : "対局する"}
+            </AppButton>
           ) : (
             <EntryAction state={state} />
           )}
@@ -201,6 +176,41 @@ function TournamentPlay({ state }: { state: TournamentState }) {
         </>
       )}
     </AppCard>
+  );
+}
+function TournamentMatchedDialog({
+  onEnter,
+  message,
+  unavailable,
+}: {
+  onEnter: () => void;
+  message: string | null;
+  unavailable: boolean;
+}) {
+  const [readyAt] = useState(() => performance.now() + tournamentRules.entryDelayMs);
+  useEffect(() => {
+    if (unavailable) return;
+    const timeout = window.setTimeout(onEnter, Math.max(0, readyAt - performance.now()));
+    return () => window.clearTimeout(timeout);
+  }, [onEnter, readyAt, unavailable]);
+  return (
+    <AppDialog
+      title="対戦相手が集まりました"
+      size="compact"
+      theme="four-shogi"
+      dismissible={false}
+      onClose={() => {}}
+    >
+      <p className="text-sm text-muted">5秒後に自動で入室します。</p>
+      {message && (
+        <p role="alert" className="mt-3 text-sm text-danger">
+          {message}
+        </p>
+      )}
+      <AppButton className="mt-5 w-full" isDisabled={unavailable} onPress={onEnter}>
+        入室する
+      </AppButton>
+    </AppDialog>
   );
 }
 function TournamentContent({ id }: { id: number }) {
@@ -356,6 +366,45 @@ function TournamentContent({ id }: { id: number }) {
             </AppCard>
           )}
         </>
+      )}
+      {state.entryDialog && (
+        <AppDialog
+          title="大会にエントリー"
+          size="compact"
+          theme="four-shogi"
+          busy={state.pending === "entry"}
+          onClose={state.closeEntryDialog}
+        >
+          <p className="mb-3 text-sm font-bold">{tournament?.name}</p>
+          <TournamentConsent />
+          {(state.message || state.error || account.error) && (
+            <p role="alert" className="mt-3 text-sm text-danger">
+              {state.message ?? state.error ?? account.error}
+            </p>
+          )}
+          <AppButton
+            className="mt-5 w-full"
+            isPending={state.pending === "entry"}
+            isDisabled={
+              state.pending !== null ||
+              account.loading ||
+              Boolean(account.error) ||
+              !tournament ||
+              !["upcoming", "active"].includes(tournament.status)
+            }
+            onPress={state.confirmEntry}
+          >
+            エントリーする
+          </AppButton>
+        </AppDialog>
+      )}
+      {state.participation.status === "matched" && state.canEnterRoom && (
+        <TournamentMatchedDialog
+          key={`${account.user?.profileId ?? account.user?.username}:${state.participation.operationId}:${state.participation.matchId}:${state.participation.roomId}`}
+          onEnter={state.enterRoom}
+          message={state.message}
+          unavailable={account.loading || Boolean(account.error)}
+        />
       )}
       <LobbyFooter>{null}</LobbyFooter>
     </main>

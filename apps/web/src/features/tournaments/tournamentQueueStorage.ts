@@ -5,9 +5,18 @@ const keyFor = (id: number, identity: string) => `tetraboard:tournament:${id}:${
 export function readTournamentQueue(
   id: number,
   identity: string,
+  legacyIdentity?: string,
 ): TournamentQueueCredential | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(keyFor(id, identity)) ?? "null");
+    if (!value && legacyIdentity && legacyIdentity !== identity) {
+      const legacy = readTournamentQueue(id, legacyIdentity);
+      if (legacy) {
+        sessionStorage.setItem(keyFor(id, identity), JSON.stringify(legacy));
+        sessionStorage.removeItem(keyFor(id, legacyIdentity));
+      }
+      return legacy;
+    }
     return value &&
       typeof value.operationId === "string" &&
       /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i.test(value.operationId) &&
@@ -32,9 +41,11 @@ export function createTournamentQueue(id: number, identity: string): TournamentQ
   }
   return credential;
 }
-export function clearTournamentQueue(id: number, identity: string) {
+export function clearTournamentQueue(id: number, identity: string, legacyIdentity?: string) {
   try {
     sessionStorage.removeItem(keyFor(id, identity));
+    if (legacyIdentity && legacyIdentity !== identity)
+      sessionStorage.removeItem(keyFor(id, legacyIdentity));
   } catch {
     /* サーバー側の待機期限でも回収します。 */
   }

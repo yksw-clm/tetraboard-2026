@@ -209,8 +209,9 @@ export class FourShogiProgress {
     this.store().startReplay(roundId, initial);
     this.storage.kv.put(shogiEliminatedHandsKey, { roundId, hands: {} });
     this.storage.kv.delete(shogiCpuJobKey);
+    const { tournamentStartsAtMs: _tournamentStartsAtMs, ...waiting } = room;
     const started = fourShogiRoomSchema.parse({
-      ...room,
+      ...waiting,
       status: "playing",
       lastRound: null,
       players,

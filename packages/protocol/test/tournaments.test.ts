@@ -7,6 +7,7 @@ import {
   tournamentConfirmationSchema,
   tournamentInputSchema,
   tournamentOperationSchema,
+  tournamentParticipationSchema,
   tournamentPatchSchema,
   tournamentPublicSchema,
   tournamentPublishSchema,
@@ -15,6 +16,7 @@ import {
   tournamentRules,
   type TournamentStanding,
 } from "../src/tournaments";
+import { fourShogiRoomSchema, roomTimeControl } from "../src/rooms";
 
 const operationId = "00000000-0000-4000-8000-000000000001";
 const matchId = "00000000-0000-4000-8000-000000000002";
@@ -196,7 +198,7 @@ test("管理編集は許可された自由文と日時だけを受け付け、�
   }
 });
 
-test("待機・取消・参加確認は有効な操作IDを要求し、tokenや別の対局への混入を拒否する", () => {
+test("待機・取消と旧参加確認の互換窓口は操作IDを要求し、秘密の混入を拒否する", () => {
   const queue = { operationId, token: "ab".repeat(32) };
   expect(tournamentQueueInputSchema.safeParse(queue).success).toBe(true);
   for (const token of [
@@ -236,6 +238,79 @@ test("待機・取消・参加確認は有効な操作IDを要求し、tokenや�
       token: queue.token,
     }).success,
   ).toBe(false);
+});
+
+test("参加状態は確認待ちを配信せず、入室待ちに対局とルームの世代を持つ", () => {
+  const matched = {
+    entered: true,
+    status: "matched",
+    operationId,
+    matchId,
+    roomId: "12345",
+    instanceId: operationId,
+  };
+  expect(tournamentParticipationSchema.safeParse(matched).success).toBe(true);
+  expect(
+    tournamentParticipationSchema.safeParse({ ...matched, status: "confirming" }).success,
+  ).toBe(false);
+  expect(tournamentParticipationSchema.safeParse({ ...matched, confirmed: false }).success).toBe(
+    false,
+  );
+  expect(
+    tournamentAdminEntrySchema.safeParse({
+      name: "てとら",
+      username: "tetra",
+      avatarUrl: null,
+      enteredAtMs: 1000,
+      status: "matched",
+      games: 0,
+      pointsUnits: 0,
+      knockouts: 0,
+      rank: null,
+    }).success,
+  ).toBe(true);
+  expect(tournamentRules.entryDelayMs).toBe(5000);
+  expect(tournamentRules.startCountdownMs).toBe(5000);
+  expect(tournamentRules.connectionGraceMs).toBe(30000);
+});
+
+test("大会の開始期限は待機中の四人将棋だけで任意に配信し、通常待機と旧データも読める", () => {
+  const waiting = {
+    id: "12345",
+    instanceId: operationId,
+    status: "waiting",
+    settings: {
+      game: "four-shogi",
+      mode: "singles",
+      timeControl: roomTimeControl,
+      threePlayerAttackProhibited: true,
+    },
+    publicUpdatedAtMs: 1000,
+    lastActivityAtMs: 1000,
+    players: [],
+    eliminations: [],
+    game: null,
+    clock: null,
+    lastRound: null,
+    roundId: null,
+    positionRevision: 0,
+    legalActions: [],
+    checkState: { south: false, west: false, north: false, east: false },
+  };
+  expect(fourShogiRoomSchema.safeParse(waiting).success).toBe(true);
+  expect(fourShogiRoomSchema.safeParse({ ...waiting, tournamentId: 1 }).success).toBe(true);
+  expect(
+    fourShogiRoomSchema.safeParse({ ...waiting, tournamentId: 1, tournamentStartsAtMs: 6000 })
+      .success,
+  ).toBe(true);
+  expect(fourShogiRoomSchema.safeParse({ ...waiting, tournamentStartsAtMs: 6000 }).success).toBe(
+    false,
+  );
+  for (const value of [-1, 0.5, "6000", null])
+    expect(
+      fourShogiRoomSchema.safeParse({ ...waiting, tournamentId: 1, tournamentStartsAtMs: value })
+        .success,
+    ).toBe(false);
 });
 
 test("公開詳細と管理名簿の契約へメール・内部アカウントID・資格を混入させない", () => {

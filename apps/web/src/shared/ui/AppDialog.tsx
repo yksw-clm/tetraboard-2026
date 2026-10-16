@@ -6,6 +6,7 @@ import { appThemeClasses, type AppTheme } from "./appTheme";
 export type AppDialogProps = {
   title: string;
   busy?: boolean;
+  dismissible?: boolean;
   onClose: () => void;
   children: ReactNode;
   size?: "default" | "compact";
@@ -15,6 +16,7 @@ export type AppDialogProps = {
 export function AppDialog({
   title,
   busy = false,
+  dismissible = true,
   onClose,
   children,
   size = "default",
@@ -41,10 +43,10 @@ export function AppDialog({
         appThemeClasses[theme],
       )}
       isOpen
-      isDismissable={!busy}
-      isKeyboardDismissDisabled={busy}
+      isDismissable={dismissible && !busy}
+      isKeyboardDismissDisabled={!dismissible || busy}
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open && dismissible && !busy) onClose();
       }}
     >
       <Modal.Container
@@ -70,13 +72,15 @@ export function AppDialog({
               <Modal.Heading className="m-0 text-[22px] leading-normal [@media(max-width:650px)]:text-xl">
                 {title}
               </Modal.Heading>
-              <Modal.CloseTrigger
-                className="absolute top-3 right-3 grid size-11 min-h-11 min-w-11 place-items-center rounded-control border-0 bg-surface-muted p-0 text-muted enabled:hover:bg-surface-hover focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-50"
-                aria-label="閉じる"
-                isDisabled={busy}
-              >
-                <AppIcon name="close" />
-              </Modal.CloseTrigger>
+              {dismissible && (
+                <Modal.CloseTrigger
+                  className="absolute top-3 right-3 grid size-11 min-h-11 min-w-11 place-items-center rounded-control border-0 bg-surface-muted p-0 text-muted enabled:hover:bg-surface-hover focus-visible:outline-[3px] focus-visible:outline-focus focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-50"
+                  aria-label="閉じる"
+                  isDisabled={busy}
+                >
+                  <AppIcon name="close" />
+                </Modal.CloseTrigger>
+              )}
             </Modal.Header>
             <Modal.Body className="shrink-0">{children}</Modal.Body>
           </Modal.Dialog>

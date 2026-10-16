@@ -10,7 +10,10 @@ import { TournamentPage } from "../src/features/tournaments/TournamentPage";
 import { TournamentEntrance } from "../src/features/tournaments/TournamentEntrance";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { readRoomMembershipToken } from "../src/shared/roomMembership";
-import { readTournamentQueue } from "../src/features/tournaments/tournamentQueueStorage";
+import {
+  createTournamentQueue,
+  readTournamentQueue,
+} from "../src/features/tournaments/tournamentQueueStorage";
 import { profile } from "../test/fixtures/account";
 import { act, clock, denyStorage, flush, press, render, rerender, requests, wrap } from "./harness";
 
@@ -95,6 +98,20 @@ async function respond(
   }
   await flush();
 }
+async function startQueue(view: HTMLElement) {
+  press(view, "対局する");
+  await flush();
+  const request = requests
+    .filter((request) => request.url.endsWith("/queue") && request.init.method === "POST")
+    .at(-1)!;
+  const credential = JSON.parse(request.init.body as string) as {
+    operationId: string;
+    token: string;
+  };
+  request.respond({});
+  await flush();
+  return credential;
+}
 function expectConsent(note: Element) {
   expect(note.getAttribute("role")).toBe("note");
   expect(note.textContent).toContain(legalAcknowledgement);
@@ -103,24 +120,47 @@ function expectConsent(note: Element) {
     expect(note.querySelector(`a[href="${path}"]`)?.getAttribute("target")).toBe("_blank");
   expect(note.querySelector('input[type="checkbox"]')).toBeNull();
 }
-function expectConsentBefore(button: Element) {
-  expectConsent(button.previousElementSibling!);
-}
-
-test("エントリー直前に既存の規約・年齢・棋譜公開説明と文書リンクを出し、現行同意版を送る", async () => {
+test("エントリーはdialogの説明を確認して最終操作した時だけ現行同意版で送る", async () => {
   const view = page();
   clock.advance(0);
   await respond(detail(), { entered: false, status: "idle" });
-  const button = [...view.querySelectorAll("button")].find(
-    (element) => element.textContent?.trim() === "エントリー",
-  )!;
-  expectConsentBefore(button);
+  expect(view.querySelector('[role="note"]')).toBeNull();
   press(view, "エントリー");
+  await flush();
+  const dialog = document.querySelector('[role="dialog"]')!;
+  expectConsent(dialog.querySelector('[role="note"]')!);
+  expect(requests.some((request) => request.url.endsWith("/entries"))).toBe(false);
+  press(document.body, "エントリーする");
   await flush();
   const entry = requests.find(
     (request) => request.url.endsWith("/entries") && request.init.method === "POST",
   )!;
   expect(new Headers(entry.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
+});
+
+test("エントリーdialogを閉じても登録せず、同じ復帰意図で再表示しない", async () => {
+  const view = page(profile, {
+    pathname: "/tournaments/1",
+    state: { tournamentEntryRequested: true },
+  });
+  clock.advance(0);
+  await respond(detail(), { entered: false, status: "idle" });
+  clock.advance(0);
+  await flush();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  act(() =>
+    document.querySelector<HTMLButtonElement>('[role="dialog"] [aria-label="閉じる"]')!.click(),
+  );
+  await flush();
+  clock.advance(5000);
+  await respond(detail(), { entered: false, status: "idle" });
+  clock.advance(0);
+  await flush();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(requests.some((request) => request.url.endsWith("/entries"))).toBe(false);
+  press(view, "エントリー");
+  await flush();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
 });
 
 test("開催前は人数を大きく右側へ置き、名簿・本人の成績・順位表を表示しない", async () => {
@@ -159,11 +199,7 @@ test("対局するは保存した資格で待機へ入り、待機中は取り�
   const view = page();
   clock.advance(0);
   await respond(detail("active"));
-  expectConsentBefore(
-    [...view.querySelectorAll("button")].find(
-      (element) => element.textContent?.trim() === "対局する",
-    )!,
-  );
+  expect(view.querySelector('[role="note"]')).toBeNull();
   press(view, "対局する");
   await flush();
   const queue = requests.find(
@@ -207,7 +243,7 @@ test("保存不可なら対局資格を送信せず説明する", async () => {
     denied.mockRestore();
   }
 });
-test("参加確認を経て、保管した資格をルームへ移して遷移する", async () => {
+test("対戦成立dialogを表示し、同じmatchedの再取得で遅延せず5秒後に資格を保存して入室する", async () => {
   const view = page();
   clock.advance(0);
   await respond(detail("active"));
@@ -217,44 +253,35 @@ test("参加確認を経て、保管した資格をルームへ移して遷移�
     (request) => request.url.endsWith("/queue") && request.init.method === "POST",
   )!;
   const credential = JSON.parse(queue.init.body as string);
-  queue.respond({ entered: true, status: "waiting" });
+  queue.respond({});
   await flush();
-  const matchId = "00000000-0000-4000-8000-000000000011";
-  await respond(detail("active"), {
-    entered: true,
-    status: "confirming",
-    operationId: credential.operationId,
-    matchId,
-    confirmed: false,
-    confirmedCount: 2,
-    expiresAtMs: Date.now() + 30000,
-  });
-  expectConsentBefore(
-    [...view.querySelectorAll("button")].find(
-      (element) => element.textContent?.trim() === "参加する",
-    )!,
-  );
-  press(view, "参加する");
-  await flush();
-  const confirmation = requests.find((request) => request.url.endsWith("/confirmation"))!;
-  expect(new Headers(confirmation.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
-  expect(JSON.parse(confirmation.init.body as string)).toEqual({
-    operationId: credential.operationId,
-    matchId,
-    accept: true,
-  });
-  confirmation.respond({});
-  await flush();
-  await respond(detail("active"), {
+  clock.advance(1000);
+  const participation: TournamentParticipation = {
     entered: true,
     status: "matched",
     operationId: credential.operationId,
+    matchId: "00000000-0000-4000-8000-000000000011",
     roomId: "12345",
-    instanceId: matchId,
-  });
+    instanceId: "00000000-0000-4000-8000-000000000012",
+  };
+  await respond(detail("active"), participation);
+  const dialog = document.querySelector('[role="dialog"]')!;
+  expect(dialog.textContent).toContain("対戦相手が集まりました");
+  expect(
+    [...dialog.querySelectorAll("button")].map((button) => button.textContent?.trim()),
+  ).toEqual(["入室する"]);
+  expect(readRoomMembershipToken("12345")).toBeNull();
+  clock.advance(4000);
+  await respond(detail("active"), participation);
+  clock.advance(999);
+  await flush();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  clock.advance(1);
+  await flush();
   expect(readRoomMembershipToken("12345")).toBe(credential.token);
   expect(readTournamentQueue(1, profile.username!)).toEqual(credential);
   expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
+  expect(requests.some((request) => request.url.endsWith("/confirmation"))).toBe(false);
 });
 
 test("接続不成立で待機へ戻っても同じ操作・資格で継続し、再配信されたルームへ入れる", async () => {
@@ -276,6 +303,8 @@ test("接続不成立で待機へ戻っても同じ操作・資格で継続し�
     roomId: "12345",
     instanceId: "00000000-0000-4000-8000-000000000011",
   });
+  press(document.body, "入室する");
+  await flush();
   expect(readRoomMembershipToken("12345")).toBe(credential.token);
   expect(readTournamentQueue(1, profile.username!)).toEqual(credential);
   act(() => view.querySelector<HTMLAnchorElement>('a[href="/tournaments/1"]')!.click());
@@ -302,6 +331,8 @@ test("接続不成立で待機へ戻っても同じ操作・資格で継続し�
     roomId: "23456",
     instanceId: "00000000-0000-4000-8000-000000000012",
   });
+  press(document.body, "入室する");
+  await flush();
   expect(readRoomMembershipToken("23456")).toBe(credential.token);
   expect(readTournamentQueue(1, profile.username!)).toEqual(credential);
   expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/23456");
@@ -408,7 +439,7 @@ test("ロビー入口は公開情報を取得し、開催中の案内と実人�
   expect(view.textContent).toContain("現在8人がエントリー中");
   expect(view.textContent).toContain("ログインまたは登録してエントリー");
   expect(view.querySelector('a[href="/tournaments/1"]')).not.toBeNull();
-  expectConsent(view.querySelector('[aria-label="四人将棋大会"]')!.firstElementChild!);
+  expect(view.querySelector('[role="note"]')).toBeNull();
 });
 
 test("表示は5秒ごとに更新し、非表示では停止、再表示で取得する", async () => {
@@ -525,4 +556,148 @@ test("アカウント切替後の取得失敗では前の本人の成績と参�
   expect(view.textContent).toContain("切替後の取得失敗");
   expect(view.textContent).not.toContain(`${profile.name}さんの大会成績`);
   expect(view.textContent).not.toContain("対局する");
+});
+
+test("OAuth復帰は期限を再確認してエントリーdialogを開くだけとし、最終操作まで登録しない", async () => {
+  page(profile, {
+    pathname: "/tournaments/1",
+    state: {
+      registrationReturn: {
+        path: "/tournaments/1",
+        createdAt: Date.now(),
+        oauthStarted: true,
+        tournamentEntry: 1,
+      },
+    },
+  });
+  clock.advance(0);
+  await respond(detail("active"), { entered: false, status: "idle" });
+  clock.advance(0);
+  await flush();
+  expect(document.querySelectorAll('[role="dialog"]').length).toBe(1);
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("エントリーする");
+  expect(requests.some((request) => request.url.endsWith("/entries"))).toBe(false);
+  press(document.body, "エントリーする");
+  await flush();
+  expect(requests.filter((request) => request.url.endsWith("/entries"))).toHaveLength(1);
+});
+
+test("エントリーdialogを開いた後に締切を過ぎたら正式POSTを送らない", async () => {
+  const view = page();
+  clock.advance(0);
+  const event = detail("active");
+  event.tournament.endsAtMs = Date.now() + 1000;
+  await respond(event, { entered: false, status: "idle" });
+  press(view, "エントリーして参加");
+  await flush();
+  clock.advance(1001);
+  press(document.body, "エントリーする");
+  await flush();
+  expect(requests.some((request) => request.url.endsWith("/entries"))).toBe(false);
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    "エントリー受付は終了しました",
+  );
+});
+
+test("成立dialogから別ページへ移動したら待機を解除し、5秒後の旧入室を実行しない", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "matched",
+    operationId: credential.operationId,
+    matchId: "00000000-0000-4000-8000-000000000011",
+    roomId: "12345",
+    instanceId: "00000000-0000-4000-8000-000000000012",
+  });
+  act(() => view.querySelector<HTMLAnchorElement>('main a[href="/games/four-shogi"]')!.click());
+  await flush();
+  const cancel = requests.find(
+    (request) => request.url.endsWith("/queue") && request.init.method === "DELETE",
+  )!;
+  expect(JSON.parse(cancel.init.body as string)).toEqual({ operationId: credential.operationId });
+  clock.advance(5000);
+  await flush();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/games/four-shogi");
+  expect(readRoomMembershipToken("12345")).toBeNull();
+});
+
+test("成立取消から再抽選された場合は旧timerを止め、新しい対局の表示から5秒で入室する", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  const matched: TournamentParticipation = {
+    entered: true,
+    status: "matched",
+    operationId: credential.operationId,
+    matchId: "00000000-0000-4000-8000-000000000011",
+    roomId: "12345",
+    instanceId: "00000000-0000-4000-8000-000000000012",
+  };
+  await respond(detail("active"), matched);
+  clock.advance(2000);
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  expect(document.querySelectorAll('[role="dialog"]').length).toBe(0);
+  clock.advance(2000);
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+  await respond(detail("active"), {
+    ...matched,
+    roomId: "23456",
+    matchId: "00000000-0000-4000-8000-000000000013",
+    instanceId: "00000000-0000-4000-8000-000000000014",
+  });
+  clock.advance(1000);
+  await flush();
+  expect(readRoomMembershipToken("12345")).toBeNull();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  clock.advance(4000);
+  await flush();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/23456");
+});
+
+test("旧公開IDの待機資格をプロフィールIDへ移し、同じ本人の公開ID変更で入室timerを延長しない", async () => {
+  const profileId = "00000000-0000-4000-8000-000000000021";
+  const credential = createTournamentQueue(1, profile.username!);
+  const tree = (user: typeof profile) =>
+    wrap(
+      user,
+      "/tournaments/1",
+    )(
+      <>
+        <Routes>
+          <Route path="/tournaments/:id" element={<TournamentPage />} />
+          <Route path="*" element={<Path />} />
+        </Routes>
+        <Path />
+      </>,
+    );
+  const view = render(tree({ ...profile, profileId }));
+  clock.advance(0);
+  const matched: TournamentParticipation = {
+    entered: true,
+    status: "matched",
+    operationId: credential.operationId,
+    matchId: "00000000-0000-4000-8000-000000000011",
+    roomId: "12345",
+    instanceId: "00000000-0000-4000-8000-000000000012",
+  };
+  await respond(detail("active"), matched);
+  expect(readTournamentQueue(1, profileId)).toEqual(credential);
+  expect(readTournamentQueue(1, profile.username!)).toBeNull();
+  clock.advance(2000);
+  rerender(view, tree({ ...profile, profileId, username: "renamedplayer" }));
+  await flush();
+  expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
+  clock.advance(3000);
+  await flush();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
+  expect(readRoomMembershipToken("12345")).toBe(credential.token);
 });

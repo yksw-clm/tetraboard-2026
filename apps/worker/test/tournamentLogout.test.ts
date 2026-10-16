@@ -76,10 +76,10 @@ test("ログアウトは本人の大会待機を解除してから認証を失�
     user: null,
   });
 });
-test("参加確認中のログアウトは本人を外し、残り3人の確認では開始せず待機へ戻す", async () => {
+test("入室待ちのログアウトは専用ルームを取り消し、残り3人を待機へ戻す", async () => {
   const { key, coordinator, accounts } = await fixture(4);
   const before = await coordinator.status(key, accounts[0]!.id);
-  expect(before.status).toBe("confirming");
+  expect(before.status).toBe("matched");
   const response = await request("/auth/sign-out", {
     method: "POST",
     headers: accounts[0]!.headers,

@@ -220,8 +220,12 @@ export function useRoomTransport<T extends Room>({
     PendingActionFor<T["settings"]["game"]>
   > | null>(null);
 
+  const tournamentCountdown =
+    room.status === "waiting" &&
+    "tournamentStartsAtMs" in room &&
+    typeof room.tournamentStartsAtMs === "number";
   useEffect(() => {
-    if (room.status !== "playing") return;
+    if (room.status !== "playing" && !tournamentCountdown) return;
     const update = () => {
       setServerNowMs(clockSync.serverNowMs + performance.now() - clockSync.receivedAt);
       clockSoundRef.current?.tick();
@@ -229,7 +233,7 @@ export function useRoomTransport<T extends Room>({
     update();
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
-  }, [room.status, clockSync]);
+  }, [room.status, clockSync, tournamentCountdown]);
 
   useEffect(() => {
     serverOffsetRef.current = initialServerNowMs - Date.now();

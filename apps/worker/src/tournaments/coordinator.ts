@@ -5,7 +5,7 @@ import { avatarKeyPattern } from "../accounts/auth";
 import { finalizeTournament, readTournament, stage, type TournamentRow } from "./store";
 
 type Waiting = { accountId: string; operationId: string; tokenHash: string; expiresAtMs: number };
-type Player = Waiting & { entryId: string; admission: AccountAdmission; confirmed: boolean };
+type Player = Waiting & { entryId: string; admission: AccountAdmission };
 type Group = {
   id: string;
   roomId: string;
@@ -191,7 +191,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
       return;
     }
     group.phase = "matched";
-    group.expiresAtMs = Math.min(Date.now() + tournamentRules.confirmationMs, row.ends_at_ms!);
+    group.expiresAtMs = Math.min(Date.now() + tournamentRules.connectionGraceMs, row.ends_at_ms!);
     // Retain the queue fence until preparation is known to have succeeded. The account seat now owns exclusion.
     await this.env.APP_DB.batch(
       group.players.map((p) =>
@@ -229,9 +229,8 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (!profile || !(await this.leaseValid(wait, state.key))) return;
       players.push({
         ...wait,
-        expiresAtMs: Math.min(Date.now() + tournamentRules.confirmationMs, row.ends_at_ms!),
+        expiresAtMs: Math.min(Date.now() + tournamentRules.connectionGraceMs, row.ends_at_ms!),
         entryId: profile.entryId,
-        confirmed: false,
         admission: {
           accountId: wait.accountId,
           operationId: crypto.randomUUID(),
@@ -250,14 +249,15 @@ export class TournamentCoordinator extends DurableObject<Env> {
       id,
       roomId,
       instanceId,
-      expiresAtMs: Math.min(Date.now() + tournamentRules.confirmationMs, row.ends_at_ms!),
-      phase: "confirming",
+      expiresAtMs: Math.min(Date.now() + tournamentRules.connectionGraceMs, row.ends_at_ms!),
+      phase: "preparing",
       players,
     };
     state.waiting = state.waiting.filter((w) => !selected.some((s) => s.accountId === w.accountId));
     state.groups.push(group);
     this.save(state);
     await this.ensureGroup(state, group);
+    await this.transfer(state, group, row);
   }
   private async ensureGroup(state: State, group: Group) {
     await this.env.APP_DB.batch([
@@ -292,13 +292,14 @@ export class TournamentCoordinator extends DurableObject<Env> {
         await this.rollback(state, group, group.remove ?? []);
         continue;
       }
-      if (group.phase === "confirming") {
+      // 旧版で保存された参加確認待ちも、確認操作なしでルーム準備へ移します。
+      if (group.phase === "confirming" || group.phase === "preparing") {
         await this.ensureGroup(state, group);
         if (!active || group.expiresAtMs <= Date.now()) {
           await this.rollback(
             state,
             group,
-            group.players.filter((p) => !p.confirmed).map((p) => p.accountId),
+            group.players.map((p) => p.accountId),
           );
           continue;
         }
@@ -309,10 +310,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           await this.rollback(state, group, invalid);
           continue;
         }
-        if (group.players.every((p) => p.confirmed)) await this.transfer(state, group, row);
-      } else if (group.phase === "preparing") {
-        if (!active) await this.rollback(state, group, []);
-        else await this.transfer(state, group, row);
+        await this.transfer(state, group, row);
       } else {
         const room =
           group.phase === "playing"
@@ -381,7 +379,11 @@ export class TournamentCoordinator extends DurableObject<Env> {
     const now = Date.now();
     const next = [
       ...state.waiting.map((w) => w.expiresAtMs),
-      ...state.groups.map((g) => (g.phase === "confirming" ? g.expiresAtMs : now + 5000)),
+      ...state.groups.map((g) =>
+        g.phase === "playing" || g.phase === "cancelling"
+          ? now + 5000
+          : Math.min(g.expiresAtMs, now + 5000),
+      ),
       ...(row.finalized_at_ms === null ? [row.ends_at_ms!] : []),
     ].filter((n) => n > now);
     if (row.ends_at_ms! <= now && row.finalized_at_ms === null) {
@@ -430,12 +432,9 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (g.phase === "confirming" || g.phase === "preparing")
         return {
           entered,
-          status: "confirming",
+          status: "waiting",
           operationId: p.operationId,
-          matchId: g.id,
           expiresAtMs: g.expiresAtMs,
-          confirmed: p.confirmed,
-          confirmedCount: g.players.filter((p) => p.confirmed).length,
         };
       if (g.phase === "cancelling") continue;
       const seat = await this.env.APP_DB.prepare(
@@ -466,13 +465,12 @@ export class TournamentCoordinator extends DurableObject<Env> {
     return this.serial(async () => {
       const state = this.load(key);
       await this.tick(state);
-      const statuses: Record<string, "waiting" | "confirming" | "playing"> = {};
+      const statuses: Record<string, "waiting" | "matched" | "playing"> = {};
       for (const w of state.waiting) statuses[w.accountId] = "waiting";
       for (const g of state.groups)
         for (const p of g.players) {
           const current = await this.participation(state, p.accountId);
-          if (current.status !== "idle" && current.status !== "waiting")
-            statuses[p.accountId] = current.status === "confirming" ? "confirming" : "playing";
+          if (current.status !== "idle") statuses[p.accountId] = current.status;
         }
       return statuses;
     });
@@ -564,7 +562,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
     accountId: string,
     operationId: string,
     matchId: string,
-    accept: boolean,
+    _accept: boolean,
   ): Promise<Result> {
     return this.serial(async () => {
       const state = this.load(key);
@@ -573,18 +571,8 @@ export class TournamentCoordinator extends DurableObject<Env> {
         player = group?.players.find(
           (p) => p.accountId === accountId && p.operationId === operationId,
         );
-      if (!group || !player) return fail("参加確認の受付は終了しました。");
-      if (group.phase !== "confirming")
-        return player.confirmed && accept ? ok : fail("参加確認は完了しています。");
-      if (!accept) {
-        await this.rollback(state, group, [accountId]);
-        await this.tick(state);
-        return ok;
-      }
-      player.confirmed = true;
-      this.save(state);
-      await this.tick(state);
-      return ok;
+      // 旧画面から遅れて届く承諾・拒否では、新方式の成立済み予約を変更しません。
+      return group && player ? ok : fail("参加確認の受付は終了しました。");
     });
   }
   async purgeAccount(accountId: string) {
