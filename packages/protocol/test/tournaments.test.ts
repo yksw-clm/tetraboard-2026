@@ -5,6 +5,8 @@ import {
   rankTournamentStandings,
   tournamentAdminEntrySchema,
   tournamentConfirmationSchema,
+  tournamentControllerInputSchema,
+  tournamentControllerResponseSchema,
   tournamentInputSchema,
   tournamentOperationSchema,
   tournamentParticipationSchema,
@@ -199,7 +201,7 @@ test("管理編集は許可された自由文と日時だけを受け付け、�
 });
 
 test("待機・取消と旧参加確認の互換窓口は操作IDを要求し、秘密の混入を拒否する", () => {
-  const queue = { operationId, token: "ab".repeat(32) };
+  const queue = { operationId, token: "ab".repeat(32), controllerId: matchId };
   expect(tournamentQueueInputSchema.safeParse(queue).success).toBe(true);
   for (const token of [
     "a".repeat(63),
@@ -216,7 +218,14 @@ test("待機・取消と旧参加確認の互換窓口は操作IDを要求し、
   expect(tournamentQueueInputSchema.safeParse({ ...queue, accountId: "other" }).success).toBe(
     false,
   );
-  expect(tournamentOperationSchema.safeParse({ operationId }).success).toBe(true);
+  expect(
+    tournamentOperationSchema.safeParse({
+      operationId,
+      controllerId: matchId,
+      controllerVersion: 1,
+    }).success,
+  ).toBe(true);
+  expect(tournamentOperationSchema.safeParse({ operationId }).success).toBe(false);
   expect(tournamentOperationSchema.safeParse({ operationId, token: queue.token }).success).toBe(
     false,
   );
@@ -244,6 +253,8 @@ test("参加状態は確認待ちを配信せず、入室待ちに対局とル�
   const matched = {
     entered: true,
     status: "matched",
+    controller: "self",
+    controllerVersion: 1,
     operationId,
     matchId,
     roomId: "12345",
@@ -272,6 +283,40 @@ test("参加状態は確認待ちを配信せず、入室待ちに対局とル�
   expect(tournamentRules.entryDelayMs).toBe(5000);
   expect(tournamentRules.startCountdownMs).toBe(5000);
   expect(tournamentRules.connectionGraceMs).toBe(30000);
+});
+
+test("操作元の引継ぎと入室資格復旧は操作元・期待世代を必須にし、秘密は専用応答だけに含める", () => {
+  const input = {
+    operationId,
+    controllerId: matchId,
+    takeover: true,
+    expectedControllerVersion: 1,
+  };
+  for (const takeover of [true, false]) {
+    expect(tournamentControllerInputSchema.safeParse({ ...input, takeover }).success).toBe(true);
+    const { expectedControllerVersion: _version, ...missing } = input;
+    expect(tournamentControllerInputSchema.safeParse({ ...missing, takeover }).success).toBe(false);
+  }
+  for (const expectedControllerVersion of [-1, 0.5, "1", null])
+    expect(
+      tournamentControllerInputSchema.safeParse({ ...input, expectedControllerVersion }).success,
+    ).toBe(false);
+  const participation = {
+    entered: true,
+    status: "waiting",
+    controller: "self",
+    controllerVersion: 2,
+    operationId,
+  };
+  expect(
+    tournamentControllerResponseSchema.safeParse({ participation, token: "ab".repeat(32) }).success,
+  ).toBe(true);
+  expect(
+    tournamentParticipationSchema.safeParse({ ...participation, token: "ab".repeat(32) }).success,
+  ).toBe(false);
+  expect(
+    tournamentParticipationSchema.safeParse({ ...participation, controllerId: matchId }).success,
+  ).toBe(false);
 });
 
 test("大会の開始期限は待機中の四人将棋だけで任意に配信し、通常待機と旧データも読める", () => {

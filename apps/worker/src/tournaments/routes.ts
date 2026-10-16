@@ -8,6 +8,7 @@ import {
   tournamentQueueInputSchema,
   tournamentOperationSchema,
   tournamentConfirmationSchema,
+  tournamentControllerInputSchema,
 } from "@tetraboard/protocol";
 import { accountIdentity, profileAvatarUrl, type StoredProfile } from "../accounts/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
@@ -225,8 +226,14 @@ const member: MiddlewareHandler<{ Bindings: Env; Variables: Variables }> = async
 };
 tournamentRoutes.get("/tournaments/:id/participation", member, async (c) => {
   const row = c.get("tournament");
+  const header = c.req.header("X-Tournament-Controller");
+  if (
+    header !== undefined &&
+    !tournamentOperationSchema.shape.controllerId.safeParse(header).success
+  )
+    return c.json({ message: "操作元を確認できません。" }, 400);
   return c.json(
-    await c.env.TOURNAMENT_COORDINATOR.getByName(row.key).status(row.key, c.get("user").id),
+    await c.env.TOURNAMENT_COORDINATOR.getByName(row.key).status(row.key, c.get("user").id, header),
   );
 });
 tournamentRoutes.post("/tournaments/:id/entries", member, async (c) => {
@@ -248,6 +255,7 @@ tournamentRoutes.post("/tournaments/:id/queue", member, async (c) => {
       c.get("user").id,
       input.data.operationId,
       hash,
+      input.data.controllerId,
     );
   return result.ok ? c.json({ ok: true }) : c.json({ message: result.message }, result.status);
 });
@@ -259,10 +267,38 @@ for (const method of ["patch", "delete"] as const)
       coordinator = c.env.TOURNAMENT_COORDINATOR.getByName(row.key);
     const result =
       method === "patch"
-        ? await coordinator.heartbeat(row.key, c.get("user").id, input.data.operationId)
-        : await coordinator.cancel(row.key, c.get("user").id, input.data.operationId);
+        ? await coordinator.heartbeat(
+            row.key,
+            c.get("user").id,
+            input.data.operationId,
+            input.data.controllerId,
+            input.data.controllerVersion,
+          )
+        : await coordinator.cancel(
+            row.key,
+            c.get("user").id,
+            input.data.operationId,
+            input.data.controllerId,
+            input.data.controllerVersion,
+          );
     return result.ok ? c.json({ ok: true }) : c.json({ message: result.message }, result.status);
   });
+tournamentRoutes.post("/tournaments/:id/controller", member, async (c) => {
+  c.header("Cache-Control", "private, no-store");
+  const input = tournamentControllerInputSchema.safeParse(await json(c.req.raw));
+  if (!input.success) return c.json({ message: "入力内容を確認してください。" }, 400);
+  const row = c.get("tournament");
+  const result = await c.env.TOURNAMENT_COORDINATOR.getByName(row.key).claimController(
+    row.key,
+    c.get("user").id,
+    input.data,
+  );
+  return result.ok && "token" in result
+    ? c.json({ participation: result.participation, token: result.token })
+    : !result.ok
+      ? c.json({ message: result.message }, result.status)
+      : c.json({ message: "参加資格を復旧できませんでした。" }, 409);
+});
 tournamentRoutes.post("/tournaments/:id/confirmation", member, async (c) => {
   const input = tournamentConfirmationSchema.safeParse(await json(c.req.raw));
   if (!input.success) return c.json({ message: "入力内容を確認してください。" }, 400);

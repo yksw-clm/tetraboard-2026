@@ -5,6 +5,7 @@ import {
   tournamentParticipationSchema,
   fourShogiRoomSchema,
   tournamentDetailSchema,
+  tournamentControllerResponseSchema,
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
@@ -33,6 +34,20 @@ async function connect(roomId: string, token: string) {
   sockets.push(socket);
   socket.send(JSON.stringify({ type: "room.auth", token }));
   await authenticated;
+  return socket;
+}
+
+function returnNotice(socket: WebSocket) {
+  return new Promise<{ type: string; reason: string; tournamentId: number }>((resolve) => {
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {
+        type: string;
+        reason: string;
+        tournamentId: number;
+      };
+      if (message.type === "room.tournament.return") resolve(message);
+    });
+  });
 }
 async function fixture(count = 4) {
   const key = crypto.randomUUID(),
@@ -47,7 +62,7 @@ async function fixture(count = 4) {
     .bind(key)
     .first<{ public_id: number }>())!;
   const users: Account[] = [],
-    operations: { operationId: string; token: string }[] = [];
+    operations: { operationId: string; token: string; controllerId: string }[] = [];
   for (let i = 0; i < count; i++) {
     const u = await accountFixture();
     users.push(u);
@@ -63,18 +78,32 @@ async function fixture(count = 4) {
     operations.push({
       operationId: crypto.randomUUID(),
       token: crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""),
+      controllerId: crypto.randomUUID(),
     });
   }
   const invoke = (index: number, path: string, method: string, body: unknown) =>
     request(`/tournaments/${id}/${path}`, {
       method,
       headers: users[index]!.headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify(
+        path === "queue" && ["PATCH", "DELETE"].includes(method)
+          ? {
+              controllerId: operations[index]!.controllerId,
+              controllerVersion: 1,
+              ...(body as object),
+            }
+          : body,
+      ),
     });
   const status = async (index: number) =>
     tournamentParticipationSchema.parse(
       await (
-        await request(`/tournaments/${id}/participation`, { headers: users[index]!.headers })
+        await request(`/tournaments/${id}/participation`, {
+          headers: {
+            ...users[index]!.headers,
+            "X-Tournament-Controller": operations[index]!.controllerId,
+          },
+        })
       ).json(),
     );
   const queue = async (index: number) => invoke(index, "queue", "POST", operations[index]);
@@ -107,6 +136,388 @@ afterEach(async () => {
     await f.stub.refresh(f.key);
     await runInDurableObject(f.stub, async (_instance, state) => state.storage.deleteAlarm());
   }
+});
+
+test("本人の参加状態に操作元と引継ぎ世代を返し、未待機では所有者を持たない", async () => {
+  const f = await fixture(1);
+  expect(await f.status(0)).toMatchObject({
+    status: "idle",
+    controller: "none",
+    controllerVersion: 0,
+  });
+});
+
+test("待機の操作元をCASで引き継ぎ、旧タブの継続・取消・入室前確認を世代で拒否する", async () => {
+  const f = await fixture(1),
+    op = f.operations[0]!;
+  expect((await f.queue(0)).status).toBe(200);
+  const before = await f.status(0);
+  expect(before).toMatchObject({ controller: "self", controllerVersion: 1, status: "waiting" });
+  const nextId = crypto.randomUUID();
+  const claim = {
+    operationId: op.operationId,
+    controllerId: nextId,
+    takeover: true,
+    expectedControllerVersion: 1,
+  };
+  const response = await f.invoke(0, "controller", "POST", claim);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  const recovered = tournamentControllerResponseSchema.parse(await response.json());
+  expect(recovered.participation).toMatchObject({
+    status: "waiting",
+    operationId: op.operationId,
+    controller: "self",
+    controllerVersion: 2,
+    expiresAtMs: before.expiresAtMs,
+  });
+  expect(recovered.token).toMatch(/^[0-9a-f]{64}$/);
+  expect(recovered.token).not.toBe(op.token);
+  expect(await (await f.invoke(0, "controller", "POST", claim)).json()).toEqual(recovered);
+  for (const method of ["PATCH", "DELETE"])
+    expect((await f.invoke(0, "queue", method, { operationId: op.operationId })).status).toBe(409);
+  expect(
+    (
+      await f.invoke(0, "controller", "POST", {
+        ...claim,
+        controllerId: op.controllerId,
+        takeover: false,
+      })
+    ).status,
+  ).toBe(409);
+  expect((await f.status(0)).controller).toBe("other");
+  expect(
+    (
+      await f.invoke(0, "queue", "PATCH", {
+        operationId: op.operationId,
+        controllerId: nextId,
+        controllerVersion: 2,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    await runInDurableObject(f.stub, (_instance, state) =>
+      state.storage.kv.get(`cancel:${op.operationId}`),
+    ),
+  ).toBeUndefined();
+  const stored = await runInDurableObject(f.stub, (_instance, state) =>
+    JSON.stringify([...state.storage.kv.list()]),
+  );
+  expect(stored).not.toContain(recovered.token);
+  expect(JSON.stringify(await f.status(0))).not.toContain(nextId);
+});
+
+test("同じ世代への同時引継ぎは1件だけ成立し、同じIDでも旧世代操作を拒否する", async () => {
+  const f = await fixture(1),
+    op = f.operations[0]!;
+  await f.queue(0);
+  const claims = [crypto.randomUUID(), crypto.randomUUID()].map((controllerId) => ({
+    operationId: op.operationId,
+    controllerId,
+    takeover: true,
+    expectedControllerVersion: 1,
+  }));
+  const responses = await Promise.all(
+    claims.map((claim) => f.invoke(0, "controller", "POST", claim)),
+  );
+  expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+  const current = tournamentControllerResponseSchema.parse(
+    await responses.find((response) => response.status === 200)!.json(),
+  );
+  const back = await f.invoke(0, "controller", "POST", {
+    operationId: op.operationId,
+    controllerId: op.controllerId,
+    takeover: true,
+    expectedControllerVersion: current.participation.controllerVersion,
+  });
+  expect(back.status).toBe(200);
+  const restored = tournamentControllerResponseSchema.parse(await back.json());
+  expect(restored.participation.controllerVersion).toBe(3);
+  expect(
+    (
+      await f.invoke(0, "controller", "POST", {
+        operationId: op.operationId,
+        controllerId: op.controllerId,
+        takeover: true,
+        expectedControllerVersion: 1,
+      })
+    ).status,
+  ).toBe(409);
+  expect(
+    (
+      await f.invoke(0, "queue", "DELETE", {
+        operationId: op.operationId,
+        controllerId: op.controllerId,
+        controllerVersion: 1,
+      })
+    ).status,
+  ).toBe(409);
+  expect(
+    (
+      await f.invoke(0, "controller", "POST", {
+        operationId: op.operationId,
+        controllerId: op.controllerId,
+        takeover: false,
+        expectedControllerVersion: 1,
+      })
+    ).status,
+  ).toBe(409);
+  expect((await f.status(0)).status).toBe("waiting");
+});
+
+test("成立と競合した同じ操作元のheartbeatを成功とし、入室猶予は延長しない", async () => {
+  const f = await fixture();
+  for (let i = 0; i < 4; i++) await f.queue(i);
+  const before = await runInDurableObject(
+    f.stub,
+    (_instance, state) =>
+      state.storage.kv.get<{ groups: { expiresAtMs: number }[] }>("state")!.groups[0]!.expiresAtMs,
+  );
+  expect(
+    (await f.invoke(0, "queue", "PATCH", { operationId: f.operations[0]!.operationId })).status,
+  ).toBe(200);
+  expect(
+    await runInDurableObject(
+      f.stub,
+      (_instance, state) =>
+        state.storage.kv.get<{ groups: { expiresAtMs: number }[] }>("state")!.groups[0]!
+          .expiresAtMs,
+    ),
+  ).toBe(before);
+});
+
+test("旧owner無しの永続待機も本人だけが復旧でき、別ユーザー・Origin・旧payloadでは引き継げない", async () => {
+  const f = await fixture(2),
+    op = f.operations[0]!;
+  await f.stub.enqueue(f.key, f.users[0]!.id, op.operationId, "ab".repeat(32));
+  expect(await f.status(0)).toMatchObject({ controller: "other", controllerVersion: 0 });
+  const claim = {
+    operationId: op.operationId,
+    controllerId: op.controllerId,
+    takeover: true,
+    expectedControllerVersion: 0,
+  };
+  expect((await f.invoke(1, "controller", "POST", claim)).status).toBe(409);
+  expect(
+    (
+      await request(`/tournaments/${f.id}/controller`, {
+        method: "POST",
+        headers: { ...f.users[0]!.headers, Origin: "https://external.example" },
+        body: JSON.stringify(claim),
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await request(`/tournaments/${f.id}/queue`, {
+        method: "DELETE",
+        headers: f.users[0]!.headers,
+        body: JSON.stringify({ operationId: op.operationId }),
+      })
+    ).status,
+  ).toBe(400);
+  expect((await f.invoke(0, "controller", "POST", claim)).status).toBe(200);
+  expect(await f.status(0)).toMatchObject({ controller: "self", controllerVersion: 1 });
+});
+
+test("成立後の資格引継ぎは同じルームのまま旧tokenとsocketを失効し、猶予を延長しない", async () => {
+  const f = await fixture(),
+    op = f.operations[0]!;
+  for (let i = 0; i < 4; i++) await f.queue(i);
+  const first = tournamentControllerResponseSchema.parse(
+    await (
+      await f.invoke(0, "controller", "POST", {
+        operationId: op.operationId,
+        controllerId: op.controllerId,
+        takeover: false,
+        expectedControllerVersion: 1,
+      })
+    ).json(),
+  );
+  const roomId = first.participation.roomId!;
+  const socket = await connect(roomId, first.token);
+  const notice = returnNotice(socket);
+  const expiresAtMs = await runInDurableObject(
+    f.stub,
+    (_instance, state) =>
+      state.storage.kv.get<{ groups: { expiresAtMs: number }[] }>("state")!.groups[0]!.expiresAtMs,
+  );
+  const claim = {
+    operationId: op.operationId,
+    controllerId: crypto.randomUUID(),
+    takeover: true,
+    expectedControllerVersion: 1,
+  };
+  const response = await f.invoke(0, "controller", "POST", claim);
+  expect(response.status).toBe(200);
+  const second = tournamentControllerResponseSchema.parse(await response.json());
+  expect(second.participation).toMatchObject({
+    status: "matched",
+    roomId,
+    instanceId: first.participation.instanceId,
+    matchId: first.participation.matchId,
+    controllerVersion: 2,
+  });
+  expect(await notice).toMatchObject({ reason: "transferred", tournamentId: f.id });
+  expect(
+    (
+      await request(`/rooms/${roomId}/me`, {
+        headers: { Authorization: `Bearer ${first.token}` },
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await request(`/rooms/${roomId}/leave`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${first.token}` },
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await request(`/rooms/${roomId}/me`, {
+        headers: { Authorization: `Bearer ${second.token}` },
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    await runInDurableObject(
+      f.stub,
+      (_instance, state) =>
+        state.storage.kv.get<{ groups: { expiresAtMs: number }[] }>("state")!.groups[0]!
+          .expiresAtMs,
+    ),
+  ).toBe(expiresAtMs);
+  for (const method of ["PATCH", "DELETE"])
+    expect((await f.invoke(0, "queue", method, { operationId: op.operationId })).status).toBe(409);
+});
+
+test("再鍵RPCの失敗を永続化してAlarmで回復し、古い世代の再送で新資格を戻さない", async () => {
+  const f = await fixture(),
+    op = f.operations[0]!;
+  for (let i = 0; i < 4; i++) await f.queue(i);
+  const original = tournamentControllerResponseSchema.parse(
+    await (
+      await f.invoke(0, "controller", "POST", {
+        operationId: op.operationId,
+        controllerId: op.controllerId,
+        takeover: false,
+        expectedControllerVersion: 1,
+      })
+    ).json(),
+  );
+  await connect(original.participation.roomId!, original.token);
+  await connect(original.participation.roomId!, f.operations[1]!.token);
+  const claim = {
+    operationId: op.operationId,
+    controllerId: crypto.randomUUID(),
+    takeover: true,
+    expectedControllerVersion: 1,
+  };
+  await env.APP_DB.exec(
+    "ALTER TABLE tournament_match_players RENAME TO tournament_players_unavailable",
+  );
+  try {
+    const response = await f.invoke(0, "controller", "POST", claim);
+    expect(response.status).toBe(503);
+    expect(JSON.stringify(await response.json())).not.toContain("token");
+    expect(
+      (
+        await env.GAME_ROOM.getByName(original.participation.roomId!).getTournamentReservationState(
+          original.participation.matchId!,
+        )
+      ).connectedPlayerIds,
+    ).toHaveLength(2);
+    expect(
+      await runInDurableObject(f.stub, (_instance, state) =>
+        state.storage.kv
+          .get<{
+            groups: { players: { credentialPending: boolean; controllerVersion: number }[] }[];
+          }>("state")!
+          .groups[0]!.players.find((player) => player.controllerVersion === 2),
+      ),
+    ).toMatchObject({ credentialPending: true, controllerVersion: 2 });
+  } finally {
+    await env.APP_DB.exec(
+      "ALTER TABLE tournament_players_unavailable RENAME TO tournament_match_players",
+    );
+  }
+  await runDurableObjectAlarm(f.stub);
+  const recoveredResponse = await f.invoke(0, "controller", "POST", claim);
+  expect(recoveredResponse.status).toBe(200);
+  const recovered = tournamentControllerResponseSchema.parse(await recoveredResponse.json());
+  const group = await runInDurableObject(
+    f.stub,
+    (_instance, state) =>
+      state.storage.kv.get<{
+        groups: {
+          id: string;
+          roomId: string;
+          instanceId: string;
+          players: {
+            accountId: string;
+            tokenHash: string;
+            admission: { accountId: string; operationId: string; playerId: string };
+          }[];
+        }[];
+      }>("state")!.groups[0]!,
+  );
+  const player = group.players.find((player) => player.accountId === f.users[0]!.id)!;
+  expect(
+    await env.GAME_ROOM.getByName(group.roomId).rekeyTournamentPlayer({
+      matchId: group.id,
+      instanceId: group.instanceId,
+      accountId: player.accountId,
+      operationId: player.admission.operationId,
+      playerId: player.admission.playerId,
+      version: 1,
+      tokenHash: "ab".repeat(32),
+    }),
+  ).toEqual({ status: "stale" });
+  expect(
+    (
+      await request(`/rooms/${group.roomId}/me`, {
+        headers: { Authorization: `Bearer ${original.token}` },
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await request(`/rooms/${group.roomId}/me`, {
+        headers: { Authorization: `Bearer ${recovered.token}` },
+      })
+    ).status,
+  ).toBe(200);
+});
+
+test("開始前の明示退室者を再待機させず、他の接続者に復帰を通知して待機へ戻す", async () => {
+  const f = await fixture();
+  for (let i = 0; i < 4; i++) await f.queue(i);
+  const matched = await f.status(0);
+  const clients = [];
+  for (let i = 0; i < 3; i++) clients.push(await connect(matched.roomId!, f.operations[i]!.token));
+  const actorNotice = returnNotice(clients[0]!),
+    otherNotice = returnNotice(clients[1]!);
+  expect(
+    (
+      await request(`/rooms/${matched.roomId}/leave`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${f.operations[0]!.token}` },
+      })
+    ).status,
+  ).toBe(204);
+  expect(await actorNotice).toMatchObject({ reason: "left", tournamentId: f.id });
+  expect(await otherNotice).toMatchObject({ reason: "unavailable", tournamentId: f.id });
+  expect((await f.status(0)).status).toBe("idle");
+  for (const i of [1, 2])
+    expect(await f.status(i)).toMatchObject({
+      status: "waiting",
+      operationId: f.operations[i]!.operationId,
+      controller: "self",
+      controllerVersion: 1,
+    });
+  expect((await f.status(3)).status).toBe("idle");
 });
 
 test("4人の抽選で固定ルールの専用ルームへ直ちに移譲し、秘密の生トークンは保存しない", async () => {
@@ -403,6 +814,7 @@ test("ルーム接続が成立しなかった場合、接続済み3人の同じ�
   f.operations[3] = {
     operationId: crypto.randomUUID(),
     token: crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""),
+    controllerId: crypto.randomUUID(),
   };
   await f.queue(3);
   const secondGroup = await f.status(0);

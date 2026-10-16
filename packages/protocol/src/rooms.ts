@@ -1162,6 +1162,13 @@ export const roomSocketContract = {
       membership: roomMembershipSchema,
       interactionAvailableAtMs: z.int().nonnegative().optional(),
     }),
+    z.strictObject({
+      type: z.literal("room.tournament.return"),
+      tournamentId: z.int().positive(),
+      matchId: z.uuid(),
+      instanceId: z.uuid(),
+      reason: z.enum(["unavailable", "left", "transferred"]),
+    }),
     roomStampReceivedSchema,
     roomStampErrorSchema,
     z.strictObject({

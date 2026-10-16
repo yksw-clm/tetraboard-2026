@@ -3,8 +3,18 @@ import { tournamentRules, type TournamentParticipation } from "@tetraboard/proto
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { avatarKeyPattern } from "../accounts/auth";
 import { finalizeTournament, readTournament, stage, type TournamentRow } from "./store";
+import { tournamentCredential } from "./credentials";
 
-type Waiting = { accountId: string; operationId: string; tokenHash: string; expiresAtMs: number };
+type Waiting = {
+  accountId: string;
+  operationId: string;
+  tokenHash: string;
+  expiresAtMs: number;
+  controllerId?: string;
+  controllerVersion?: number;
+  credentialDerived?: boolean;
+  credentialPending?: boolean;
+};
 type Player = Waiting & { entryId: string; admission: AccountAdmission };
 type Group = {
   id: string;
@@ -24,6 +34,8 @@ const fail = (message: string, status: 400 | 403 | 409 = 409): Result => ({
   message,
 });
 const tokenKey = (_account: string, operation: string) => `cancel:${operation}`;
+const controllerCancelKey = (operation: string, controllerId: string, version: number) =>
+  `cancel-controller:${operation}:${controllerId}:${version}`;
 const roomCode = () =>
   String(crypto.getRandomValues(new Uint32Array(1))[0]! % 100000).padStart(5, "0");
 
@@ -85,7 +97,12 @@ export class TournamentCoordinator extends DurableObject<Env> {
     group.phase = "cancelling";
     group.remove = remove;
     this.save(state);
-    const result = await this.env.GAME_ROOM.getByName(group.roomId).abortTournamentRoom(group.id);
+    const result = await this.env.GAME_ROOM.getByName(group.roomId).abortTournamentRoom(
+      group.id,
+      group.players
+        .filter((player) => remove.includes(player.accountId))
+        .map((player) => player.admission.playerId),
+    );
     if (result.status === "already_started") {
       group.phase = "playing";
       delete group.remove;
@@ -117,7 +134,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
         .bind(player.accountId, state.key, player.operationId, player.expiresAtMs)
         .run();
       if (!state.waiting.some((w) => w.accountId === player.accountId))
-        state.waiting.push({ ...player });
+        state.waiting.push({ ...player, credentialPending: false });
     }
     state.groups = state.groups.filter((g) => g.id !== group.id);
     this.save(state);
@@ -184,12 +201,18 @@ export class TournamentCoordinator extends DurableObject<Env> {
       },
       roomId: group.roomId,
       instanceId: group.instanceId,
-      players: group.players.map((p) => ({ admission: p.admission, tokenHash: p.tokenHash })),
+      players: group.players.map((p) => ({
+        admission: p.admission,
+        tokenHash: p.tokenHash,
+        credentialVersion: p.credentialDerived ? (p.controllerVersion ?? 0) : 0,
+      })),
     });
     if (prepared.status !== "prepared" && prepared.status !== "already_prepared") {
       await this.rollback(state, group, []);
       return;
     }
+    for (const player of group.players)
+      if (player.credentialPending) await this.syncCredential(state, group, player);
     group.phase = "matched";
     group.expiresAtMs = Math.min(Date.now() + tournamentRules.connectionGraceMs, row.ends_at_ms!);
     // Retain the queue fence until preparation is known to have succeeded. The account seat now owns exclusion.
@@ -274,6 +297,22 @@ export class TournamentCoordinator extends DurableObject<Env> {
       ]),
     ]);
   }
+  private async syncCredential(state: State, group: Group, player: Player) {
+    if (!player.credentialPending) return;
+    const result = await this.env.GAME_ROOM.getByName(group.roomId).rekeyTournamentPlayer({
+      matchId: group.id,
+      instanceId: group.instanceId,
+      accountId: player.accountId,
+      operationId: player.admission.operationId,
+      playerId: player.admission.playerId,
+      version: player.controllerVersion ?? 0,
+      tokenHash: player.tokenHash,
+    });
+    if (result.status === "stale") throw new Error("Tournament credential version mismatch");
+    if (result.status === "not_found") return;
+    player.credentialPending = false;
+    this.save(state);
+  }
   private async tick(state: State) {
     const row = await readTournament(this.env.APP_DB, state.key);
     if (!row || !row.published) {
@@ -312,6 +351,8 @@ export class TournamentCoordinator extends DurableObject<Env> {
         }
         await this.transfer(state, group, row);
       } else {
+        for (const player of group.players)
+          if (player.credentialPending) await this.syncCredential(state, group, player);
         const room =
           group.phase === "playing"
             ? null
@@ -360,6 +401,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
             .bind(group.instanceId)
             .first();
           if (!occupied && (ledger?.phase === "saved" || ledger?.phase === "aborted")) {
+            for (const player of group.players) await this.forget(player);
             state.groups = state.groups.filter((g) => g.id !== group.id);
             this.save(state);
           }
@@ -416,12 +458,17 @@ export class TournamentCoordinator extends DurableObject<Env> {
         : fail("プロフィール登録を完了してください。", 403);
     });
   }
-  private async participation(state: State, accountId: string): Promise<TournamentParticipation> {
+  private async participation(
+    state: State,
+    accountId: string,
+    controllerId?: string,
+  ): Promise<TournamentParticipation> {
     const entered = !!(await this.valid(accountId, state.key));
     const wait = state.waiting.find((w) => w.accountId === accountId);
     if (wait)
       return {
         entered,
+        ...this.controller(wait, controllerId),
         status: "waiting",
         operationId: wait.operationId,
         expiresAtMs: wait.expiresAtMs,
@@ -432,6 +479,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (g.phase === "confirming" || g.phase === "preparing")
         return {
           entered,
+          ...this.controller(p, controllerId),
           status: "waiting",
           operationId: p.operationId,
           expiresAtMs: g.expiresAtMs,
@@ -445,6 +493,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (seat)
         return {
           entered,
+          ...this.controller(p, controllerId),
           status: g.phase === "playing" ? "playing" : "matched",
           operationId: p.operationId,
           matchId: g.id,
@@ -452,13 +501,32 @@ export class TournamentCoordinator extends DurableObject<Env> {
           instanceId: g.instanceId,
         };
     }
-    return { entered, status: "idle" };
+    return { entered, status: "idle", controller: "none", controllerVersion: 0 };
   }
-  async status(key: string, accountId: string) {
+  private controller(wait: Waiting, controllerId?: string) {
+    return {
+      controller:
+        controllerId !== undefined && wait.controllerId === controllerId
+          ? ("self" as const)
+          : ("other" as const),
+      controllerVersion: wait.controllerVersion ?? 0,
+    };
+  }
+  private holder(state: State, accountId: string, operationId: string) {
+    return (
+      state.waiting.find(
+        (player) => player.accountId === accountId && player.operationId === operationId,
+      ) ??
+      state.groups
+        .flatMap((group) => group.players)
+        .find((player) => player.accountId === accountId && player.operationId === operationId)
+    );
+  }
+  async status(key: string, accountId: string, controllerId?: string) {
     return this.serial(async () => {
       const state = this.load(key);
       await this.tick(state);
-      return this.participation(state, accountId);
+      return this.participation(state, accountId, controllerId);
     });
   }
   async entryStatuses(key: string) {
@@ -480,6 +548,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
     accountId: string,
     operationId: string,
     tokenHash: string,
+    controllerId?: string,
   ): Promise<Result> {
     return this.serial(async () => {
       const state = this.load(key);
@@ -488,16 +557,25 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (!row || stage(row) !== "active") return fail("現在は大会の対局を受け付けていません。");
       if (!(await this.valid(accountId, key)))
         return fail("先に大会へエントリーしてください。", 403);
-      if (this.ctx.storage.kv.get(tokenKey(accountId, operationId)))
+      if (
+        this.ctx.storage.kv.get(tokenKey(accountId, operationId)) ||
+        (controllerId && this.ctx.storage.kv.get(controllerCancelKey(operationId, controllerId, 1)))
+      )
         return fail("この待機は取り消されています。もう一度操作してください。");
       const existing = await this.participation(state, accountId);
+      if (existing.status === "idle" && this.holder(state, accountId, operationId))
+        return fail("この待機は終了しています。もう一度操作してください。");
       if (existing.status !== "idle")
-        return existing.operationId === operationId ? ok : fail("すでに対局または待機中です。");
+        return existing.operationId === operationId &&
+          this.holder(state, accountId, operationId)?.controllerId === controllerId
+          ? ok
+          : fail("別の操作元で対局または待機中です。");
       const wait: Waiting = {
         accountId,
         operationId,
         tokenHash,
         expiresAtMs: Date.now() + tournamentRules.leaseMs,
+        ...(controllerId ? { controllerId, controllerVersion: 1 } : {}),
       };
       try {
         await this.env.APP_DB.batch([
@@ -517,14 +595,33 @@ export class TournamentCoordinator extends DurableObject<Env> {
       return ok;
     });
   }
-  async heartbeat(key: string, accountId: string, operationId: string): Promise<Result> {
+  async heartbeat(
+    key: string,
+    accountId: string,
+    operationId: string,
+    controllerId?: string,
+    controllerVersion?: number,
+  ): Promise<Result> {
     return this.serial(async () => {
       const state = this.load(key);
       await this.tick(state);
+      const holder = this.holder(state, accountId, operationId);
+      if (
+        holder &&
+        (holder.controllerId !== controllerId || holder.controllerVersion !== controllerVersion)
+      )
+        return fail("操作元が別のタブに移りました。");
       const wait = state.waiting.find(
         (w) => w.accountId === accountId && w.operationId === operationId,
       );
-      if (!wait) return fail("待機は終了しました。状態を再確認してください。");
+      if (!wait) {
+        const current = await this.participation(state, accountId, controllerId);
+        return holder &&
+          current.operationId === operationId &&
+          ["matched", "playing"].includes(current.status)
+          ? ok
+          : fail("待機は終了しました。状態を再確認してください。");
+      }
       wait.expiresAtMs = Date.now() + tournamentRules.leaseMs;
       const updated = await this.env.APP_DB.prepare(
         "UPDATE tournament_wait_reservations SET lease_until_ms=? WHERE account_id=? AND operation_id=?",
@@ -537,9 +634,30 @@ export class TournamentCoordinator extends DurableObject<Env> {
       return ok;
     });
   }
-  async cancel(key: string, accountId: string, operationId: string): Promise<Result> {
+  async cancel(
+    key: string,
+    accountId: string,
+    operationId: string,
+    controllerId?: string,
+    controllerVersion?: number,
+  ): Promise<Result> {
     return this.serial(async () => {
       const state = this.load(key);
+      const holder = this.holder(state, accountId, operationId);
+      if (
+        holder &&
+        (holder.controllerId !== controllerId || holder.controllerVersion !== controllerVersion)
+      )
+        return fail("操作元が別のタブに移りました。");
+      if (!holder) {
+        // 待機POSTより先に届く取消は、その操作元の初期世代だけを失効させます。
+        if (controllerId && controllerVersion !== undefined)
+          this.ctx.storage.kv.put(
+            controllerCancelKey(operationId, controllerId, controllerVersion),
+            true,
+          );
+        return ok;
+      }
       this.ctx.storage.kv.put(tokenKey(accountId, operationId), true);
       const wait = state.waiting.find(
         (w) => w.accountId === accountId && w.operationId === operationId,
@@ -555,6 +673,70 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (group && group.phase !== "playing") await this.rollback(state, group, [accountId]);
       await this.tick(state);
       return ok;
+    });
+  }
+  async claimController(
+    key: string,
+    accountId: string,
+    input: {
+      operationId: string;
+      controllerId: string;
+      takeover: boolean;
+      expectedControllerVersion: number;
+    },
+  ) {
+    return this.serial(async () => {
+      const state = this.load(key);
+      await this.tick(state);
+      const holder = this.holder(state, accountId, input.operationId);
+      const current = await this.participation(state, accountId, input.controllerId);
+      if (
+        !holder ||
+        current.operationId !== input.operationId ||
+        !(await this.valid(accountId, key))
+      )
+        return fail("参加中の待機や対局がありません。");
+      if (!input.takeover && input.expectedControllerVersion !== (holder.controllerVersion ?? 0))
+        return fail("操作元が更新されました。状態を再確認してください。");
+      if (
+        input.takeover &&
+        holder.controllerId === input.controllerId &&
+        input.expectedControllerVersion !== (holder.controllerVersion ?? 0) &&
+        input.expectedControllerVersion !== (holder.controllerVersion ?? 0) - 1
+      )
+        return fail("操作元が更新されました。状態を再確認してください。");
+      if (holder.controllerId !== input.controllerId) {
+        if (!input.takeover || input.expectedControllerVersion !== (holder.controllerVersion ?? 0))
+          return fail("操作元が更新されました。状態を再確認してください。");
+        holder.controllerId = input.controllerId;
+        holder.controllerVersion = (holder.controllerVersion ?? 0) + 1;
+      }
+      const credential = await tournamentCredential(this.env, {
+        accountId,
+        tournamentKey: key,
+        operationId: holder.operationId,
+        controllerId: input.controllerId,
+        controllerVersion: holder.controllerVersion ?? 0,
+      });
+      if (holder.tokenHash !== credential.tokenHash || holder.credentialPending) {
+        holder.tokenHash = credential.tokenHash;
+        holder.credentialDerived = true;
+        holder.credentialPending = true;
+        this.save(state);
+        const group = state.groups.find((group) => group.players.includes(holder as Player));
+        if (group) await this.syncCredential(state, group, holder as Player);
+        else {
+          holder.credentialPending = false;
+          this.save(state);
+        }
+      }
+      await this.tick(state);
+      const participation = await this.participation(state, accountId, input.controllerId);
+      return participation.operationId === input.operationId &&
+        participation.controller === "self" &&
+        !this.holder(state, accountId, input.operationId)?.credentialPending
+        ? { ok: true as const, participation, token: credential.token }
+        : fail("参加中の待機や対局がありません。");
     });
   }
   async confirm(

@@ -15,7 +15,7 @@ export type PrepareTournamentRoomInput = {
   context: TournamentRoomContext;
   roomId: string;
   instanceId: string;
-  players: { admission: AccountAdmission; tokenHash: string }[];
+  players: { admission: AccountAdmission; tokenHash: string; credentialVersion?: number }[];
 };
 
 export type TournamentRoomReservation = {
@@ -26,6 +26,7 @@ export type TournamentRoomReservation = {
   preparedAtMs: number;
   startedAtMs?: number;
   connectedPlayerIds?: string[];
+  excludedPlayerIds?: string[];
 };
 
 export type PendingTournamentState = {
@@ -38,6 +39,22 @@ export const tournamentRoomKey = "tournament-room";
 export const tournamentReservationKey = (matchId: string) => `tournament-reservation:${matchId}`;
 export const pendingTournamentStatePrefix = "tournament-state-pending:";
 export const cancelledTournamentKey = (matchId: string) => `tournament-cancelled:${matchId}`;
+export const tournamentCredentialVersionKey = (playerId: string) =>
+  `tournament-credential-version:${playerId}`;
+export const tournamentReturnKey = "tournament-return";
+export type TournamentReturn = Extract<
+  import("@tetraboard/protocol").RoomSocketMessage,
+  { type: "room.tournament.return" }
+>;
+export type RekeyTournamentPlayerInput = {
+  matchId: string;
+  instanceId: string;
+  accountId: string;
+  operationId: string;
+  playerId: string;
+  version: number;
+  tokenHash: string;
+};
 
 export const prepareTournamentRoomSchema = z.strictObject({
   context: z.strictObject({
@@ -54,6 +71,7 @@ export const prepareTournamentRoomSchema = z.strictObject({
     .array(
       z.strictObject({
         tokenHash: z.string().regex(/^[0-9a-f]{64}$/),
+        credentialVersion: z.int().nonnegative().optional(),
         admission: z.strictObject({
           accountId: z.string().min(1),
           operationId: z.string().min(1),

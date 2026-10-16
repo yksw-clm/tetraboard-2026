@@ -5,6 +5,7 @@ import {
   fourShogiRoomSchema,
   isFourShogiRoom,
   tournamentRules,
+  tournamentControllerResponseSchema,
   roomSocketContract,
   type RoomSocketClientMessage,
   type RoomSocketMessage,
@@ -27,6 +28,7 @@ type PreparedFixture = {
   tokens: string[];
   accounts: Awaited<ReturnType<typeof accountFixture>>[];
   stub: DurableObjectStub<GameRoom>;
+  coordinator?: DurableObjectStub<import("../src/tournaments/coordinator").TournamentCoordinator>;
 };
 
 const sockets: WebSocket[] = [];
@@ -47,6 +49,13 @@ afterEach(async () => {
     await runInDurableObject(prepared.stub, async (_instance, state) =>
       state.storage.deleteAlarm(),
     );
+    if (prepared.coordinator) {
+      for (const account of prepared.accounts)
+        await prepared.coordinator.cancelForAccount(account.id);
+      await runInDurableObject(prepared.coordinator, async (_instance, state) =>
+        state.storage.deleteAlarm(),
+      );
+    }
     await env.APP_DB.batch([
       env.APP_DB.prepare("DELETE FROM tournament_point_events WHERE match_id=?").bind(
         prepared.input.context.matchId,
@@ -333,6 +342,46 @@ test("同じ参加資格の別接続が残っている間は開始期限を解�
   );
 });
 
+test("操作元の引継ぎは旧接続を失効し開始期限を解除するが、同じ対局の新接続で再開できる", async () => {
+  const prepared = await connected();
+  const credential = await token();
+  const player = prepared.input.players[0]!.admission;
+  const rekey = {
+    matchId: prepared.input.context.matchId,
+    instanceId: prepared.input.instanceId,
+    accountId: player.accountId,
+    operationId: player.operationId,
+    playerId: player.playerId,
+    version: 1,
+    tokenHash: credential.hash,
+  };
+  expect(await prepared.stub.rekeyTournamentPlayer(rekey)).toEqual({ status: "updated" });
+  expect(
+    await prepared.clients[0]!.until((message) => message.type === "room.tournament.return"),
+  ).toMatchObject({ reason: "transferred", tournamentId: prepared.input.context.tournamentId });
+  expect(await prepared.stub.getRoom()).not.toHaveProperty("tournamentStartsAtMs");
+  expect(
+    await prepared.stub.rekeyTournamentPlayer({
+      ...rekey,
+      tokenHash: prepared.input.players[0]!.tokenHash,
+    }),
+  ).toEqual({ status: "stale" });
+  expect(await prepared.stub.rekeyTournamentPlayer(rekey)).toEqual({ status: "updated" });
+  const now = prepared.startsAtMs + 1000;
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  try {
+    await connect(prepared.input.roomId, credential.raw);
+    expect(await prepared.stub.getRoom()).toMatchObject({
+      status: "waiting",
+      instanceId: prepared.input.instanceId,
+      tournamentStartsAtMs: now + tournamentRules.startCountdownMs,
+    });
+  } finally {
+    clock.mockRestore();
+  }
+  prepared.input.players[0]!.tokenHash = credential.hash;
+});
+
 test("開始カウントダウンより大会締切が先なら、未開始で閉鎖して得点を付けない", async () => {
   const prepared = await connected(4000);
   expect(prepared.startsAtMs).toBeGreaterThan(prepared.input.context.endsAtMs);
@@ -553,16 +602,86 @@ test("終局保存と大会得点を一括確定し、保存再送・閉鎖後�
       .bind(prepared.input.context.matchId)
       .first(),
   ).toEqual({ n: 4, points: 84 });
-  prepared.clients[0].send({ type: "room.game.start" });
-  expect(await prepared.clients[0].until((message) => message.type === "room.error")).toEqual({
+  prepared.coordinator = env.TOURNAMENT_COORDINATOR.getByName(prepared.input.context.tournamentKey);
+  const entryIds = (
+    await env.APP_DB.prepare("SELECT id,account_id FROM tournament_entries WHERE tournament_key=?")
+      .bind(prepared.input.context.tournamentKey)
+      .all<{ id: string; account_id: string }>()
+  ).results;
+  await runInDurableObject(prepared.coordinator, (_instance, state) => {
+    state.storage.kv.put("state", {
+      key: prepared.input.context.tournamentKey,
+      waiting: [],
+      groups: [
+        {
+          id: prepared.input.context.matchId,
+          roomId: prepared.input.roomId,
+          instanceId: prepared.input.instanceId,
+          phase: "playing",
+          expiresAtMs: Date.now() + 30000,
+          players: prepared.input.players.map((player) => ({
+            accountId: player.admission.accountId,
+            operationId: player.admission.operationId,
+            tokenHash: player.tokenHash,
+            expiresAtMs: Date.now() + 30000,
+            controllerId: crypto.randomUUID(),
+            controllerVersion: 1,
+            entryId: entryIds.find((entry) => entry.account_id === player.admission.accountId)!.id,
+            admission: player.admission,
+          })),
+        },
+      ],
+    });
+  });
+  const recoveredResponse = await request(
+    `/api/tournaments/${prepared.input.context.tournamentId}/controller`,
+    {
+      method: "POST",
+      headers: prepared.accounts[0]!.headers,
+      body: JSON.stringify({
+        operationId: prepared.input.players[0]!.admission.operationId,
+        controllerId: crypto.randomUUID(),
+        takeover: true,
+        expectedControllerVersion: 1,
+      }),
+    },
+  );
+  expect(recoveredResponse.status).toBe(200);
+  const recovered = tournamentControllerResponseSchema.parse(await recoveredResponse.json());
+  expect(recovered.participation.status).toBe("playing");
+  expect(
+    (
+      await request(`/api/rooms/${room.id}/me`, {
+        headers: { Authorization: `Bearer ${recovered.token}` },
+      })
+    ).status,
+  ).toBe(200);
+  prepared.tokens[0] = recovered.token;
+  prepared.input.players[0]!.tokenHash = Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(recovered.token)),
+    ),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+  prepared.clients[1].send({ type: "room.game.start" });
+  expect(await prepared.clients[1].until((message) => message.type === "room.error")).toEqual({
     type: "room.error",
     error: "forbidden",
   });
   for (const credential of prepared.tokens)
-    await request(`/api/rooms/${room.id}/leave`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${credential}` },
-    });
+    expect(
+      (
+        await request(`/api/rooms/${room.id}/leave`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${credential}` },
+        })
+      ).status,
+    ).toBe(204);
+  expect(
+    await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM account_room_seats WHERE instance_id=?")
+      .bind(prepared.input.instanceId)
+      .first(),
+  ).toEqual({ n: 0 });
   await flushSaves(prepared);
   expect(
     await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM tournament_point_events WHERE match_id=?")

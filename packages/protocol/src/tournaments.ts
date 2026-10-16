@@ -103,6 +103,8 @@ export const tournamentLobbySchema = z.strictObject({
 export const tournamentParticipationSchema = z.strictObject({
   entered: z.boolean(),
   status: z.enum(["idle", "waiting", "matched", "playing"]),
+  controller: z.enum(["self", "other", "none"]),
+  controllerVersion: count,
   operationId: z.uuid().optional(),
   matchId: z.uuid().optional(),
   expiresAtMs: timestamp.optional(),
@@ -113,8 +115,23 @@ export type TournamentParticipation = z.infer<typeof tournamentParticipationSche
 export const tournamentQueueInputSchema = z.strictObject({
   operationId: z.uuid(),
   token: z.string().regex(/^[0-9a-f]{64}$/),
+  controllerId: z.uuid(),
 });
-export const tournamentOperationSchema = z.strictObject({ operationId: z.uuid() });
+export const tournamentOperationSchema = z.strictObject({
+  operationId: z.uuid(),
+  controllerId: z.uuid(),
+  controllerVersion: count,
+});
+export const tournamentControllerInputSchema = z.strictObject({
+  operationId: z.uuid(),
+  controllerId: z.uuid(),
+  takeover: z.boolean(),
+  expectedControllerVersion: count,
+});
+export const tournamentControllerResponseSchema = z.strictObject({
+  participation: tournamentParticipationSchema,
+  token: z.string().regex(/^[0-9a-f]{64}$/),
+});
 export const tournamentConfirmationSchema = z.strictObject({
   operationId: z.uuid(),
   matchId: z.uuid(),
