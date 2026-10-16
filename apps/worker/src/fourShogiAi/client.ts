@@ -163,12 +163,13 @@ export async function fetchAiService(
     throw new AiGatewayError("ai_unavailable", 503);
   }
 }
-export async function aiHealth(env: AiGatewayEnv) {
+export async function aiHealth(env: AiGatewayEnv, signal?: AbortSignal) {
   const config = gatewayConfig(env),
-    { data } = await fetchAiService(env, "/v1/health");
+    { data } = await fetchAiService(env, "/v1/health", { signal });
   const health = aiServiceHealthSchema.safeParse(data);
   if (
     !health.success ||
+    health.data.status !== "ready" ||
     health.data.modelId !== config.modelId ||
     health.data.codeVersion !== config.codeVersion
   )

@@ -491,7 +491,7 @@ Workerは既存の期限処理後に世代・人間の在室資格・種類・�
 
 ## Workerの時計計算と期限選択
 
-CPUの最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs = 2_000` を全ゲームで共用し、サーバーの `clock.turnStartedAt` を基準に確定を制御します。保存済みCPU選択のAlarmは選択の `applyAt` と手番開始＋2秒の遅い方を使い、早い旧予定でも待機中のAlarmを繰り返しません。時計・復帰期限を先に処理し、再接続や手番を変えない更新では開始時刻を保持します。思考計算は既存の同期選択・2段階適用を維持し、時間を固定するsleepを追加しません。
+CPUの最低待ち時間は `progressHelpers.ts` の `cpuMoveDelayMs = 2_000` を全ゲームで共用し、サーバーの `clock.turnStartedAt` を基準に確定を制御します。保存済みCPU選択のAlarmは選択の `applyAt` と手番開始＋2秒の遅い方を使い、早い旧予定でも待機中のAlarmを繰り返しません。時計・復帰期限を先に処理し、再接続や手番を変えない更新では開始時刻を保持します。既存CPUの思考計算は同期選択・2段階適用を維持し、時間を固定するsleepを追加しません。
 
 CPU付き作成の `POST /rooms` は任意の `cpuLevel: 1 | 2` を受け、未指定はLv1です。不正値は400で拒否します。`waitingRoomFactories` が全CPUへ適用し、Webの共有 `RoomEntryDialog`・`useRoomEntry` はquick作成にだけ選択を表示・送信します。OAuth復帰情報の任意 `cpuLevel` も1／2だけを復元し、旧復帰データはLv1にします。
 
@@ -708,7 +708,7 @@ if (result.ok) {
 
 WebSocketの `room.game.draw.set` は `proposed`・`roundId`・`positionRevision` を必須にし、本人・局ID・revision・期限・生存・手番を検証します。変更時だけrevisionを進め、`drawProposal { side, proposed }` イベントと状態を同じトランザクションで保存・配信します。変更なしは送信者へ最新スナップショットを返します。`advanceShogiClock` の `turnEnded: false` を使い、現在の時計と期限を維持します。更新前のCPUジョブは破棄します。
 
-CPUの同意判断は人間／CPUを識別できるルーム側で行い、CPU着手の公開APIは維持します。各CPUの手番で人間全員の提案状態に合わせて提案・取消し、終局しなければ通常の思考・着手を続けます。人間が0人の場合は提案しません。
+CPUの同意判断は人間／CPUを識別できるルーム側で行い、CPU着手の公開APIは維持します。現行Lv1/Lv2の各CPUの手番で人間全員の提案状態に合わせて提案・取消し、終局しなければ通常の思考・着手を続けます。人間が0人の場合は提案しません。D01に従う専用AIの限定試用は代替時も自動同意・自発提案を行いません。
 
 ルームと保存済み棋譜の再生は同じイベント適用関数で提案・取消を処理し、「南 引分提案」「南 引分取消」の形式で表示します。保存済み棋譜のカードは選択局面の提案状態を表示し、再戦待機のカードは準備表示を維持します。`rulesVersion: 1` を維持し、旧保存状態に `drawProposals` がない場合は空配列へ正規化します。最終状態比較にも正規化を適用し、D1／DOのテーブル移行は不要です。
 
@@ -1557,3 +1557,9 @@ D1 migration `0013_badge_notifications.sql` は `account_badge_awards` と `acco
 `AppToastRegion` は既存のHeroUI外観・位置・幅と既定の積み重ねを共有します。バッジは既存toastが終わってから取得し、同じ対局の全種類を1つにまとめ、別対局は順に取得します。バッジのタイトル・ゲーム名・画像列は中央揃えとし、折り返した行も中央に並べます。バッジは5秒、既存チャット・コピーは3秒です。HeroUIが非表示・ホバー・フォーカスを独立した停止理由として残り時間を管理します。バッジ内容のrole=status・aria-live=politeを指定し、画像は装飾として扱い、文字でゲーム名・種類・星・累計を伝えます。アカウント切替時は退出アニメーション中も本人内容を隠し、取得を中止して古い応答を無視します。新しい依存・外部サービス・通知音は追加しません。
 
 Workerの `badgeNotifications.test.ts` は全段階、ゲーム別集計、同時4種類、過去基準、保存ロールバック・再送、取得競合・失効・解放、Cookie・Origin・入力・本人制限を確認します。Webの同名DOMテストは画像と順序、初獲得・昇格文言、表示後の記録、5秒境界、非表示・表示復帰・フォーカス停止、別対局の順次表示、認証確認待ち、遷移、通信失敗、失効からの復旧、ログアウト・切替・StrictModeの古い応答、既存通知との共用を確認します。
+
+### 四人将棋シングルスAIの対局CPU接続
+
+[試用契約](four-shogi-ai-engine.md#対局cpuの試用接続194)のAPIは `fourShogiAi/routes.ts` とGameRoomの資格検査へ接続します。`fourShogiAi/cpu.ts` が部屋内の有限設定/ジョブ/診断、非同期通信、現在文脈の照合、代替を担当します。GameRoomは既存の期限処理を先に行い、試用の場合だけ同期CPUの選択/引分同意を置き換え、外部通信をtransactionへ入れません。候補適用は `FourShogiProgress.cpuAction` →既存accept/保存です。要求時の完全状態hashは `/analysis` の照合用関数を共用し、Workerで棋譜全体を毎回再生しません。既存CPU、入力/保存スキーマ、時計/配信/保存再試行の正本は維持します。
+
+通常の部分確認は `bun run --cwd apps/worker test test/fourShogiAiCpu.test.ts test/fourShogiAi.test.ts test/fourShogiRoom.test.ts test/timeControl.test.ts test/cpuRoom.test.ts test/matchCompatibility.test.ts`。実Linuxモデルは契約の `test:ai-cpu-model` を明示して別実行します。通常設定はプロセス環境変数を取り込まず、専用設定だけが4つのSMOKE値を読みます。UIの公開レベル追加や本番/VPSの有効化は行いません。
