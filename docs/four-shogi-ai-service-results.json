@@ -1,0 +1,2513 @@
+{
+  "format": "four-shogi-ai-service-validation-v1",
+  "date": "2026-10-16",
+  "sourceCommit": "07a8b84824507312530e930931c6f3241e5e95cc",
+  "baseMergeCommit": "5f513f5f4226889416ca1bd5508b175583200a56",
+  "sourceDirty": false,
+  "artifactsDirectory": "/private/tmp/tetraboard-ai193/verified",
+  "host": {
+    "cpu": "Apple M5",
+    "memoryBytes": 25769803776,
+    "platform": "Darwin27 arm64",
+    "bun": "1.4.2",
+    "node": "22.23.3"
+  },
+  "linux": {
+    "platform": "Linux-7.2.9-orbstack-00391-g2b298d05fbd4-aarch64-with-glibc2.36",
+    "python": "3.12.14 (main, Sep 19 2026, 01:11:39) [GCC 12.2.0]",
+    "torch": "2.14.1+cpu",
+    "cpuMax": "200000 100000\n",
+    "memoryMax": "1073741824\n",
+    "swapMax": "0\n",
+    "pidsMax": "64\n"
+  },
+  "containerImage": {
+    "Id": "sha256:e1f181f2738b467c511eff63e2c0bee397c3318b5b33020f4e83c87b0c43c3ab",
+    "Architecture": "arm64",
+    "Os": "linux",
+    "Size": 1346968976,
+    "RepoDigests": [
+      "tetraboard-four-shogi-service@sha256:e1f181f2738b467c511eff63e2c0bee397c3318b5b33020f4e83c87b0c43c3ab"
+    ]
+  },
+  "source": {
+    "sourceCommit": "07a8b84824507312530e930931c6f3241e5e95cc",
+    "files": [
+      {
+        "path": ".dockerignore",
+        "sha256": "f412482dbcac470d39636d073a434d3e5729d9b822757eb7089c0f9624a9b6ef"
+      },
+      {
+        "path": "apps/four-shogi-ai/.env.example",
+        "sha256": "95f2515c0fd82c7d81a625085c1ba8e5dc29e0d5b6f1e7379262ee3d7de576a1"
+      },
+      {
+        "path": "apps/four-shogi-ai/.gitignore",
+        "sha256": "bfc70df0a5a52d08512cb68fedf1fbe721908981af7e965f13f9000b8465c576"
+      },
+      {
+        "path": "apps/four-shogi-ai/bench/serviceSmoke.ts",
+        "sha256": "c84eb6825c241ca5e339b93fb85a9702cb941781ea456ee93ad33ad5f8345662"
+      },
+      {
+        "path": "apps/four-shogi-ai/deploy/Dockerfile",
+        "sha256": "6944f8010709d99f7ae359ec3200d28ead0b5009fda43ed525604f021f7acba5"
+      },
+      {
+        "path": "apps/four-shogi-ai/deploy/tetraboard-ai.service",
+        "sha256": "3806af7aa2eedff18448f47d5c2a937f3e5a12b91cf05fde982bbdc4e9419b20"
+      },
+      {
+        "path": "apps/four-shogi-ai/package.json",
+        "sha256": "f498d6f46bedec2f9b917506a92266ec16510ec8b695dee8a1b5ba54a61beb36"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/compute.ts",
+        "sha256": "6f598100e136274821c32ffa5d83fa9596e3ff05336f703cedab072c70ec3e2d"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/config.ts",
+        "sha256": "feb2336f221690b06332ab2e2538cbd94babd987a34248174db5ed36b4b6c440"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/http.ts",
+        "sha256": "04035c2f3d24dbeeafd1256c597b7f235556e25443b936de7309f1fd31189ca6"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/jobs.ts",
+        "sha256": "d4481f8a7384e69552507e5adf40b6d9cdc5bb26f87bcef03ff0d7f8f8647394"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/main.ts",
+        "sha256": "f42fdbd4239ca895f110d68fbca1c13f4ae633103706ae5212e802147c5396c0"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/processPool.ts",
+        "sha256": "7e991e32ef376ee3e1e7bc03e82999886dda42239fdccfde044fd6b204d0bddf"
+      },
+      {
+        "path": "apps/four-shogi-ai/src/resources.ts",
+        "sha256": "9c6aff45fd710771265263f556adad7faada9c723dbac86f867cc1415526a145"
+      },
+      {
+        "path": "apps/four-shogi-ai/test/fixtures.ts",
+        "sha256": "2b7d6764416efee27e9bd0e8c8da9c83b8b0d6348710ab770c6049a39f5d1916"
+      },
+      {
+        "path": "apps/four-shogi-ai/test/http.test.ts",
+        "sha256": "a00e608a09c83c4e821f2919edf4a22e8311c0451f9587468aacfd1f56436d49"
+      },
+      {
+        "path": "apps/four-shogi-ai/test/jobs.test.ts",
+        "sha256": "96eec6f6bdb938170a28bb27a61f7a53bcaf32c3f2d523d77fd4b65740019ad4"
+      },
+      {
+        "path": "apps/four-shogi-ai/test/processPool.test.ts",
+        "sha256": "4dfe635efb16e6d6440439af48432c4c0a9b139f2c587f680eeba9ec245a91ef"
+      },
+      {
+        "path": "apps/four-shogi-ai/tsconfig.json",
+        "sha256": "9895a2160362ff58cfa80f2fd08bc6cf9dabd9bcdc08749dcca4e5e4cdb799d1"
+      },
+      {
+        "path": "apps/worker/src/feedback/images.ts",
+        "sha256": "2ce26f5b870fec372c3df31a530efd077283d5d9c6b1b5ee0a8f395b1d349ec1"
+      },
+      {
+        "path": "apps/worker/src/fourShogiAi/client.ts",
+        "sha256": "414623fe6f8e6ec07aa8b51119630d42fe68d94e9fc848b6b1f8ca365f3a2638"
+      },
+      {
+        "path": "apps/worker/src/fourShogiAi/routes.ts",
+        "sha256": "cda761290239584a1d0c5edbb59d949d1c6b79f12b0662dd810bc6d3c0616a36"
+      },
+      {
+        "path": "apps/worker/src/worker.ts",
+        "sha256": "1a534b205a3ba88abf6f2abdd6fdce3a204eaf9ae47ccfdc419862acf7f777df"
+      },
+      {
+        "path": "apps/worker/test/privacy.test.ts",
+        "sha256": "333fe5488da247d45f9aef9aa2bb43b5511bf7efdee046bbede7b884cf3327ea"
+      },
+      {
+        "path": "bun.lock",
+        "sha256": "2e5f06841abad537dbd94bdef760ccc550793d36b544ac1c9bf64cf8b4e12cc9"
+      },
+      {
+        "path": "package.json",
+        "sha256": "3d34623e827add223df3000f138d965881235f68b85cc9624b41a74e7c8bbbd5"
+      },
+      {
+        "path": "packages/four-shogi/src/actionEncoding.ts",
+        "sha256": "d1345b35ae2abc7bd4fc40087285f06b533e00c3bb33d9cdaeb35db6250132a8"
+      },
+      {
+        "path": "packages/four-shogi/src/ai.ts",
+        "sha256": "aba60b746f193187743c022c271265cdd863c190e0ff3104f13d6f995ca9cb40"
+      },
+      {
+        "path": "packages/four-shogi/src/aiBudget.ts",
+        "sha256": "009bd6c7795a3b16f475f7e6990d993e4f17d5642643544fc7442d53e6063070"
+      },
+      {
+        "path": "packages/four-shogi/src/aiEvaluation.ts",
+        "sha256": "fdbbf672449c7e7ee46f2806f12be1791acfe780a0b2a6ee41c323161774e9f4"
+      },
+      {
+        "path": "packages/four-shogi/src/aiMcts.ts",
+        "sha256": "3e8dd98bd44b328dbb0dd83b30175c8a1ef040c4b91dc57716e09d00c5ec7bfa"
+      },
+      {
+        "path": "packages/four-shogi/src/aiModel.ts",
+        "sha256": "07a41420c2b796362f4a6c654907f87a90326853bfda977c3843811364b5992e"
+      },
+      {
+        "path": "packages/four-shogi/src/aiSearch.ts",
+        "sha256": "fb3638cf94eb3afeb1a068d611fb6f8bc8fd6481a4ef5330d5bb05eec46f46b0"
+      },
+      {
+        "path": "packages/four-shogi/src/aiSearchContext.ts",
+        "sha256": "b482ab93fd6c9e8fd611c11fbb043f8c4b9702adf71cb0522627b66b40a3ce15"
+      },
+      {
+        "path": "packages/four-shogi/src/aiTactics.ts",
+        "sha256": "5fbd883ad794d49d38122b888445a4aa439885b7c73245396323db1924060d8a"
+      },
+      {
+        "path": "packages/four-shogi/src/aiTypes.ts",
+        "sha256": "a4a3ed04c5692a4721526c0715a49762a528a9cca6d91c433b9eed853edca4bb"
+      },
+      {
+        "path": "packages/four-shogi/src/analysis.ts",
+        "sha256": "536540fbb8d599ce0a623e635b1a738da8ae18adf661061cec0142e144802991"
+      },
+      {
+        "path": "packages/four-shogi/src/analysisInput.ts",
+        "sha256": "fb04ee143d4c695fb2b178d8fe183d20811f3099205b480c5ba1398f86caa174"
+      },
+      {
+        "path": "packages/four-shogi/src/attacks.ts",
+        "sha256": "0545eca33929112fecfce9802d8b872f41276b8ba8d58dae63136775e8491001"
+      },
+      {
+        "path": "packages/four-shogi/src/board.ts",
+        "sha256": "a6ee423665228883863bbbe6a31951dffea95d7a28874164e3f12938da445cc8"
+      },
+      {
+        "path": "packages/four-shogi/src/cpu.ts",
+        "sha256": "28e9aee0ad2236eea326568b233dc8a936420b6143f6ad23fa3ead25e72c7b38"
+      },
+      {
+        "path": "packages/four-shogi/src/cpuEvaluation.ts",
+        "sha256": "5d619c278b99789a53c5b81971423b15b741d841e50eb53b9ad0bc34fadb8479"
+      },
+      {
+        "path": "packages/four-shogi/src/cpuOpenings.ts",
+        "sha256": "d5b78c35ab12478d45f817722a6317b555f1564e5b7acb7827eec8a5b6a8b898"
+      },
+      {
+        "path": "packages/four-shogi/src/cpuSearch.ts",
+        "sha256": "34a56dce9b49299d407b762888fe7ff8432d38b012cb625383a08c908ee24109"
+      },
+      {
+        "path": "packages/four-shogi/src/eliminatedHands.ts",
+        "sha256": "e0dc94738e21a8a8d56e91ff84bab81a30d8d2a11e298afa94cbc486da4a41f8"
+      },
+      {
+        "path": "packages/four-shogi/src/formationCatalog.ts",
+        "sha256": "588bdaca64c946bc6b7d0342da3eba3e159614fb228590fbc08f989ae96fb59b"
+      },
+      {
+        "path": "packages/four-shogi/src/formations.ts",
+        "sha256": "cd4db99496953553b037f62b409bb0e7328aaa2a3f66191ca459563793b43ba0"
+      },
+      {
+        "path": "packages/four-shogi/src/index.ts",
+        "sha256": "ca004164c8fe8f4c0a1007ad24443ccfc29cff4bdfb77bdd1495bc53f1924772"
+      },
+      {
+        "path": "packages/four-shogi/src/modelFeatureEncoding.ts",
+        "sha256": "e456a268202221e1280ae9d1bb87d04d44a158852543d7033dca17ab745b08fa"
+      },
+      {
+        "path": "packages/four-shogi/src/modelFeatures.ts",
+        "sha256": "3d9be9c5b9e20e9015cdc588eab3e1a8c6af481927daaf4b5b11caacf9c0987f"
+      },
+      {
+        "path": "packages/four-shogi/src/modelInference.ts",
+        "sha256": "acd0c002d3e6306cd88a19ca4ef0a20984837048f0a059986ec37744334d9eea"
+      },
+      {
+        "path": "packages/four-shogi/src/moves.ts",
+        "sha256": "f0cb2a408e13c4b1b052b5930e335e327531b16fec3d94083cfb994e23b9ba64"
+      },
+      {
+        "path": "packages/four-shogi/src/progression.ts",
+        "sha256": "d1fc4431bb54d25102ab8df27f73ecf701271cf42ea6d524040b3587bb71bee4"
+      },
+      {
+        "path": "packages/four-shogi/src/repetition.ts",
+        "sha256": "a83740eb9c5356130f833d6bf4076c02497ec690c9740bf5f2ff198d4d2391b0"
+      },
+      {
+        "path": "packages/four-shogi/src/replay.ts",
+        "sha256": "8c17c1827bdd6a445c531deee19b190d00b0f371c14016728871fdbe87ec5c4c"
+      },
+      {
+        "path": "packages/four-shogi/src/transition.ts",
+        "sha256": "69d3f6bf19b4cf5af163af3cd80eaa149d86322c14252bf73977d7787cb0743f"
+      },
+      {
+        "path": "packages/four-shogi/src/types.ts",
+        "sha256": "3b6f9abf067cd53223b7dc698d809bd3731c14d10bfe70a1b40d10e469ea5e57"
+      },
+      {
+        "path": "packages/protocol/package.json",
+        "sha256": "a12f8fa42b0f26096c500a8eccc2b134770112e078cfd62769957590dbf58230"
+      },
+      {
+        "path": "packages/protocol/src/fourShogiAi.ts",
+        "sha256": "a6da8c21b3af147e0b746b3e194723d7ec7db0eef46bcf5172c99435b26a4fb5"
+      },
+      {
+        "path": "training/four-shogi-ai/.dockerignore",
+        "sha256": "21c0cd52a2c86a1b1774a64a6d4edff7a5612e16b3d46d67fe589d8c47153649"
+      },
+      {
+        "path": "training/four-shogi-ai/.gitignore",
+        "sha256": "fb63897c860377fb717fc9f106582f0b6ab93fce5f780cdd4967fa2c8dce7a96"
+      },
+      {
+        "path": "training/four-shogi-ai/Dockerfile",
+        "sha256": "e8240b64b6d267bbe515eb7a9b4924995fa07daf0a81e4de5db655e900e17fe0"
+      },
+      {
+        "path": "training/four-shogi-ai/Dockerfile.search",
+        "sha256": "ba6308c4893d5bd4c9663c7c7641553131dc1cfadb34a34d6dc07af151589e84"
+      },
+      {
+        "path": "training/four-shogi-ai/checkpoint.py",
+        "sha256": "cc4f225b840fb7b4fea5e2b873241bb8f5177b0870cd49d0cc9741061dd70bd8"
+      },
+      {
+        "path": "training/four-shogi-ai/dataset.py",
+        "sha256": "5150ffa4d952ebf7ea5179be1ba65b64ecc8fb847b95579f211b8ba8ef566822"
+      },
+      {
+        "path": "training/four-shogi-ai/inference.py",
+        "sha256": "edbefdc5896dbf020eeb385943a0f0906138d9d3197a653e0f4b06837ce6b3f7"
+      },
+      {
+        "path": "training/four-shogi-ai/inferenceSmoke.py",
+        "sha256": "195f261d865037acf98a67e078412f553ad67379938bc84d647d95175b064428"
+      },
+      {
+        "path": "training/four-shogi-ai/inferenceTest.py",
+        "sha256": "88713db43155e715010b8b4d9df99298301a7caa2668718f78955fa738249798"
+      },
+      {
+        "path": "training/four-shogi-ai/model.py",
+        "sha256": "3179805be0691023c39f24c8f33ae59139f58b36772656a48a4110d3f7d76ec6"
+      },
+      {
+        "path": "training/four-shogi-ai/requirements.txt",
+        "sha256": "cb4c768c4b63fc20b154157c1985323973f5d1a5fc45a134beec628e0d803b97"
+      },
+      {
+        "path": "training/four-shogi-ai/train.py",
+        "sha256": "0c72eae4f1adb884ed8b7a150cadda6e67c638e0009824f7eb0688fb2639e8e4"
+      },
+      {
+        "path": "training/four-shogi-ai/trainingTest.py",
+        "sha256": "c4c79cadfa5396e633ad8a07d6993a289639aec5b80ed9734ec3d45cd1a7d9b7"
+      }
+    ],
+    "sha256": "2a851f86f97de6b0a9c824adf7dba68dc61390e552ed7ac743ce46f657c21cb4"
+  },
+  "localValidation": {
+    "sourceCheck": {
+      "command": "bun run check",
+      "exitCode": 0,
+      "method": "normal Husky pre-commit",
+      "commitWallSeconds": 80.61303587499424,
+      "fourShogiTests": 473,
+      "serviceTests": 13,
+      "newWorkerTests": 5,
+      "allWorkerTests": 858
+    },
+    "commands": [
+      {
+        "name": "required-build",
+        "command": ["bun", "run", "build"],
+        "exitCode": 0,
+        "elapsedSeconds": 10.01
+      },
+      {
+        "name": "required-dry-production",
+        "command": ["bun", "run", "--cwd", "apps/worker", "deploy:dry-run"],
+        "exitCode": 0,
+        "elapsedSeconds": 0.713
+      },
+      {
+        "name": "required-build-development",
+        "command": ["bun", "run", "build:development"],
+        "exitCode": 0,
+        "elapsedSeconds": 9.701
+      },
+      {
+        "name": "required-dry-development",
+        "command": ["bun", "run", "--cwd", "apps/worker", "deploy:dry-run:development"],
+        "exitCode": 0,
+        "elapsedSeconds": 0.688
+      }
+    ],
+    "documents": {
+      "files": 7,
+      "relativeLinks": 1668,
+      "anchors": 320,
+      "decisions": 5,
+      "deferred": 7
+    },
+    "note": "Subsequent measurement changes are documents/JSON only, with identical code/configuration. Final PR CI is verified independently. A prior full check exposed a preexisting fixed-room-ID collision in privacy.test.ts; the DB-only fixture now uses its own namespace and cleanup without changing product deletion logic."
+  },
+  "commands": [
+    {
+      "name": "required-build",
+      "command": ["bun", "run", "build"],
+      "exitCode": 0,
+      "elapsedSeconds": 10.01
+    },
+    {
+      "name": "required-dry-production",
+      "command": ["bun", "run", "--cwd", "apps/worker", "deploy:dry-run"],
+      "exitCode": 0,
+      "elapsedSeconds": 0.713
+    },
+    {
+      "name": "required-build-development",
+      "command": ["bun", "run", "build:development"],
+      "exitCode": 0,
+      "elapsedSeconds": 9.701
+    },
+    {
+      "name": "required-dry-development",
+      "command": ["bun", "run", "--cwd", "apps/worker", "deploy:dry-run:development"],
+      "exitCode": 0,
+      "elapsedSeconds": 0.688
+    },
+    {
+      "name": "final-image-build",
+      "command": [
+        "docker",
+        "build",
+        "--build-arg",
+        "SEARCH_IMAGE=tetraboard-four-shogi-search:issue192",
+        "-f",
+        "apps/four-shogi-ai/deploy/Dockerfile",
+        "-t",
+        "tetraboard-four-shogi-service:issue193",
+        "."
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 1.047
+    },
+    {
+      "name": "final-linux-service",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--init",
+        "--cpus=2",
+        "--memory=1g",
+        "--memory-swap=1g",
+        "--pids-limit=64",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--tmpfs",
+        "/tmp:rw,size=128m",
+        "--user",
+        "501:20",
+        "-v",
+        "/private/tmp/tetraboard-ai191/cpu-model-final:/models:ro",
+        "-v",
+        "/private/tmp/tetraboard-ai193/verified:/output",
+        "--entrypoint",
+        "bun",
+        "tetraboard-four-shogi-service:issue193",
+        "apps/four-shogi-ai/bench/serviceSmoke.ts",
+        "--python=/usr/local/bin/python",
+        "--model-dir=/models",
+        "--code-version=07a8b84824507312530e930931c6f3241e5e95cc",
+        "--output=/output/final-linux-service.json"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 63.384
+    }
+  ],
+  "rawReport": {
+    "path": "/private/tmp/tetraboard-ai193/verified/final-linux-service.json",
+    "bytes": 71196,
+    "sha256": "e73f62fc7a9149b672a6e48b71ff652354bd1f598d87c8dd3e19a638fbef99c8"
+  },
+  "report": {
+    "format": "four-shogi-ai-service-smoke-v1",
+    "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+    "model": {
+      "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+      "artifactSha256": "b328dcc9bf1ef6989c0b88b328a677cb6f359b1ff065402954def73ee9011890",
+      "codeHash": "2685687fb33ebbb9c3c59068a547ff256215c3371a08cc8b14220d744a4953ac"
+    },
+    "environment": {
+      "bun": "1.4.2",
+      "platform": "linux",
+      "arch": "arm64"
+    },
+    "trialOverrides": {
+      "maxQueueAnalysis": 1,
+      "analysisRequests": 2
+    },
+    "recordScope": "Job summaries include common AI identities, model usage, evaluations and timing; per-candidate/PV output and authentication headers are omitted. Loopback HTTP, not public HTTPS or an actual VPS.",
+    "complete": true,
+    "phases": [
+      {
+        "startupMs": 746.659305,
+        "logs": [
+          {
+            "event": "compute_ready",
+            "slot": 0,
+            "pid": 21,
+            "modelPid": 38,
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5"
+          },
+          {
+            "event": "compute_ready",
+            "slot": 1,
+            "pid": 22,
+            "modelPid": 36,
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5"
+          },
+          {
+            "event": "service_ready",
+            "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+            "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+            "workers": 2,
+            "workerPids": [21, 38, 22, 36]
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "4491a157-9271-45e9-9f72-458a32e80f87",
+            "requestId": "0:2ae8dbd0-64f5-4df2-ac75-9af35cc5e867",
+            "purpose": "cpu"
+          },
+          {
+            "event": "job_finished",
+            "jobId": "4491a157-9271-45e9-9f72-458a32e80f87",
+            "requestId": "0:2ae8dbd0-64f5-4df2-ac75-9af35cc5e867",
+            "purpose": "cpu",
+            "status": "completed",
+            "error": null,
+            "timing": {
+              "queueMs": 0.06062499999995907,
+              "computeMs": 504.126752,
+              "restoreMs": 0.7848320000000513,
+              "searchMs": 218.99812199999747,
+              "inferenceMs": 281.81909200000257
+            }
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "912b8a8a-202f-47c9-98c5-5f0bb730e7f2",
+            "requestId": "0:648b1c80-15c6-45dc-a653-b1f3b757d115",
+            "purpose": "analysis"
+          },
+          {
+            "event": "job_finished",
+            "jobId": "912b8a8a-202f-47c9-98c5-5f0bb730e7f2",
+            "requestId": "0:648b1c80-15c6-45dc-a653-b1f3b757d115",
+            "purpose": "analysis",
+            "status": "completed",
+            "error": null,
+            "timing": {
+              "queueMs": 0.03866599999992104,
+              "computeMs": 30004.45419,
+              "restoreMs": 0.7905410000000757,
+              "searchMs": 11581.658568000108,
+              "inferenceMs": 18418.968290999892
+            }
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "4a8040cb-2ecc-455f-8a06-34b84afd33b2",
+            "requestId": "0:b20c515f-a26a-4e97-a6f2-58680f2d022f",
+            "purpose": "analysis"
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "e156c3df-32c3-4c3f-ad52-2aef3739bc30",
+            "requestId": "0:ea82778e-1da8-4b0e-a92e-2fe96de19009",
+            "purpose": "analysis"
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "7c7982f8-40df-47a3-83b0-a11db3e24995",
+            "requestId": "0:ecc16fee-6be6-4773-a754-d8527b61dded",
+            "purpose": "cpu"
+          },
+          {
+            "event": "job_finished",
+            "jobId": "7c7982f8-40df-47a3-83b0-a11db3e24995",
+            "requestId": "0:ecc16fee-6be6-4773-a754-d8527b61dded",
+            "purpose": "cpu",
+            "status": "completed",
+            "error": null,
+            "timing": {
+              "queueMs": 0.05075000000215368,
+              "computeMs": 501.5122539999975,
+              "restoreMs": 0.4986239999998361,
+              "searchMs": 220.83210699996562,
+              "inferenceMs": 279.77985600003376
+            }
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "d5a69f01-346b-426a-93be-ff6fecb444df",
+            "requestId": "0:9d864c8e-a761-4479-94cb-3fe84ee44c3e",
+            "purpose": "analysis"
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "2554c4da-26dd-4f74-b9a8-4af0953f560f",
+            "requestId": "0:f9d7c109-3fb1-419e-b93b-023fbc49968b",
+            "purpose": "cpu"
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "274ce6c9-6c86-4e7a-bd2f-b8cc83e17878",
+            "requestId": "0:f9a97366-0835-44b4-9267-cc0a6315eeb8",
+            "purpose": "cpu"
+          },
+          {
+            "event": "job_finished",
+            "jobId": "2554c4da-26dd-4f74-b9a8-4af0953f560f",
+            "requestId": "0:f9d7c109-3fb1-419e-b93b-023fbc49968b",
+            "purpose": "cpu",
+            "status": "cancelled",
+            "error": "cancelled",
+            "timing": {
+              "queueMs": 0.04616600000008475,
+              "computeMs": 1.7801649999964866,
+              "restoreMs": 0,
+              "searchMs": 0,
+              "inferenceMs": 0
+            }
+          },
+          {
+            "event": "job_finished",
+            "jobId": "274ce6c9-6c86-4e7a-bd2f-b8cc83e17878",
+            "requestId": "0:f9a97366-0835-44b4-9267-cc0a6315eeb8",
+            "purpose": "cpu",
+            "status": "failed",
+            "error": "state_mismatch",
+            "timing": {
+              "queueMs": 0.3092499999984284,
+              "computeMs": 0.29004100000020117,
+              "restoreMs": 0,
+              "searchMs": 0,
+              "inferenceMs": 0
+            }
+          },
+          {
+            "event": "job_finished",
+            "jobId": "4a8040cb-2ecc-455f-8a06-34b84afd33b2",
+            "requestId": "0:b20c515f-a26a-4e97-a6f2-58680f2d022f",
+            "purpose": "analysis",
+            "status": "completed",
+            "error": null,
+            "timing": {
+              "queueMs": 0.030791999997745734,
+              "computeMs": 30001.991536,
+              "restoreMs": 0.3702919999996084,
+              "searchMs": 12334.198332000731,
+              "inferenceMs": 17667.00824599927
+            }
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "5f2598cc-4445-4ec2-994d-d791c146a613",
+            "requestId": "0:9574ff41-cc52-4f3e-b09b-d838f802fefb",
+            "purpose": "analysis"
+          },
+          {
+            "event": "compute_exited",
+            "slot": 0,
+            "pid": 21,
+            "expected": true
+          },
+          {
+            "event": "compute_exited",
+            "slot": 1,
+            "pid": 22,
+            "expected": true
+          },
+          {
+            "event": "job_finished",
+            "jobId": "5f2598cc-4445-4ec2-994d-d791c146a613",
+            "requestId": "0:9574ff41-cc52-4f3e-b09b-d838f802fefb",
+            "purpose": "analysis",
+            "status": "cancelled",
+            "error": "shutdown",
+            "timing": {
+              "queueMs": 0.05883299999550218,
+              "computeMs": 7.880701000001864,
+              "restoreMs": 0,
+              "searchMs": 0,
+              "inferenceMs": 0
+            }
+          },
+          {
+            "event": "service_stopped"
+          },
+          {
+            "event": "service_resources",
+            "maxRssBytes": 790294528
+          }
+        ],
+        "stopMs": 9.66415699999925,
+        "exitCode": 0,
+        "afterStopProcesses": 0
+      },
+      {
+        "startupMs": 669.2195879999999,
+        "logs": [
+          {
+            "event": "compute_ready",
+            "slot": 0,
+            "pid": 65,
+            "modelPid": 80,
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5"
+          },
+          {
+            "event": "compute_ready",
+            "slot": 1,
+            "pid": 66,
+            "modelPid": 82,
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5"
+          },
+          {
+            "event": "service_ready",
+            "serviceInstanceId": "f6e16c92-c467-46de-90fb-134bc6d4860d",
+            "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+            "workers": 2,
+            "workerPids": [65, 80, 66, 82]
+          },
+          {
+            "event": "compute_exited",
+            "slot": 0,
+            "pid": 65,
+            "expected": false
+          },
+          {
+            "event": "compute_ready",
+            "slot": 0,
+            "pid": 83,
+            "modelPid": 91,
+            "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5"
+          },
+          {
+            "event": "job_accepted",
+            "jobId": "32d67624-24d0-4abc-b36c-8cd06d164e76",
+            "requestId": "0:6a3ff640-b47d-4668-9051-2988fb85580e",
+            "purpose": "cpu"
+          },
+          {
+            "event": "job_finished",
+            "jobId": "32d67624-24d0-4abc-b36c-8cd06d164e76",
+            "requestId": "0:6a3ff640-b47d-4668-9051-2988fb85580e",
+            "purpose": "cpu",
+            "status": "completed",
+            "error": null,
+            "timing": {
+              "queueMs": 0.09024999999996908,
+              "computeMs": 504.326043,
+              "restoreMs": 0.7779160000000047,
+              "searchMs": 237.6343949999997,
+              "inferenceMs": 263.3861090000004
+            }
+          },
+          {
+            "event": "compute_exited",
+            "slot": 1,
+            "pid": 66,
+            "expected": true
+          },
+          {
+            "event": "compute_exited",
+            "slot": 0,
+            "pid": 83,
+            "expected": true
+          },
+          {
+            "event": "service_stopped"
+          },
+          {
+            "event": "service_resources",
+            "maxRssBytes": 717385728
+          }
+        ],
+        "stopMs": 4.842744999994466,
+        "exitCode": 0,
+        "afterStopProcesses": 0
+      }
+    ],
+    "observations": [
+      {
+        "label": "initial_health",
+        "status": 200,
+        "wallMs": 1.4522909999999456,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 0,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 144076800,
+            "peakBytes": 149929984,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "unauthenticated",
+        "status": 401,
+        "wallMs": 0.5233749999999873,
+        "data": {
+          "error": "unauthenticated",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "invalid_input",
+        "status": 400,
+        "wallMs": 1.4742489999999862,
+        "data": {
+          "error": "invalid_request",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "oversize",
+        "status": 413,
+        "wallMs": 0.34220799999991414,
+        "data": null
+      },
+      {
+        "label": "single_cpu_accept",
+        "status": 202,
+        "wallMs": 1.2454989999999952,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "4491a157-9271-45e9-9f72-458a32e80f87",
+          "requestId": "0:2ae8dbd0-64f5-4df2-ac75-9af35cc5e867",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "1d9d9549eb24b30c0d8e231abe36d5d6ff586cde46384c333077fd3918ea114c",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "c71af050-49e0-4ffc-966f-89eee644f4a4",
+            "matchId": "a1dfa6be-4da2-413d-bfe1-a0ead68520f0",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112260390
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.06062499999995907,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "single_cpu_complete",
+        "status": 200,
+        "wallMs": 0.3867079999999987,
+        "pollElapsedMs": 522.9388170000001,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "4491a157-9271-45e9-9f72-458a32e80f87",
+          "requestId": "0:2ae8dbd0-64f5-4df2-ac75-9af35cc5e867",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "1d9d9549eb24b30c0d8e231abe36d5d6ff586cde46384c333077fd3918ea114c",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "c71af050-49e0-4ffc-966f-89eee644f4a4",
+            "matchId": "a1dfa6be-4da2-413d-bfe1-a0ead68520f0",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112260390
+          },
+          "status": "completed",
+          "error": null,
+          "timing": {
+            "queueMs": 0.06062499999995907,
+            "computeMs": 504.126752,
+            "restoreMs": 0.7848320000000513,
+            "searchMs": 218.99812199999747,
+            "inferenceMs": 281.81909200000257
+          },
+          "result": {
+            "input": {
+              "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+              "eventOffset": 0,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "threePlayerAttackProhibited": false,
+              "rootSide": "south"
+            },
+            "versions": {
+              "analysisVersion": "singles-analysis-model-v1",
+              "engineVersion": "tetraboard-four-shogi-rules-v1",
+              "searchVersion": "selective-maxn-policy-value-v1",
+              "evaluationVersion": "uncalibrated-sole-first-model-v1",
+              "featureVersion": "four-shogi-features-v1",
+              "actionVersion": "four-shogi-policy-index-v1",
+              "opponentModelId": "selfish-maxn-v1",
+              "tieBreak": "legal-order",
+              "seed": null,
+              "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc"
+            },
+            "model": {
+              "requestedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "loadedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "usedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "inferenceCount": 248,
+              "attemptedInferenceCount": 248,
+              "inferenceCalls": 240,
+              "policyUses": 81,
+              "valueUses": 246,
+              "inferenceMs": 281.81909200000257,
+              "discardedWork": 0,
+              "fallbackReason": null,
+              "fallbackDetail": null
+            },
+            "diagnostics": {
+              "work": 1445,
+              "nodes": 341,
+              "generatedMoves": 2850,
+              "evaluations": 247,
+              "completedDepth": 4,
+              "extendedNodes": 0,
+              "cacheEntries": 248,
+              "legalCacheHits": 113,
+              "transitionCacheHits": 94,
+              "evaluationCacheHits": 0,
+              "orderingCacheHits": 33,
+              "simulations": 0,
+              "maxVisitedPly": 0,
+              "elapsedMs": 500.18788099999995,
+              "stopReason": "deadline",
+              "fallbackReason": null,
+              "legalPreparationMs": 2.164914999999951,
+              "deadlineOverrunMs": 0.9727129999999988,
+              "yields": 41,
+              "algorithm": "maxn"
+            },
+            "evaluation": {
+              "evaluationKind": "model",
+              "probabilities": null,
+              "ranks": [
+                {
+                  "side": "south",
+                  "rank": 3,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "west",
+                  "rank": 1,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "north",
+                  "rank": 4,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "east",
+                  "rank": 2,
+                  "kind": "provisional"
+                }
+              ],
+              "values": {
+                "south": {
+                  "primary": 0.05950792506337166,
+                  "secondaryRank": 3,
+                  "heuristicScore": null
+                },
+                "west": {
+                  "primary": 0.0833074226975441,
+                  "secondaryRank": 1,
+                  "heuristicScore": null
+                },
+                "north": {
+                  "primary": 0.05634135752916336,
+                  "secondaryRank": 4,
+                  "heuristicScore": null
+                },
+                "east": {
+                  "primary": 0.060552988201379776,
+                  "secondaryRank": 2,
+                  "heuristicScore": null
+                }
+              }
+            },
+            "recommendedAction": {
+              "type": "movePiece",
+              "from": {
+                "x": 3,
+                "y": 8
+              },
+              "to": {
+                "x": 2,
+                "y": 7
+              },
+              "promote": false
+            }
+          }
+        }
+      },
+      {
+        "label": "single_analysis_accept",
+        "status": 202,
+        "wallMs": 0.485541000000012,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "912b8a8a-202f-47c9-98c5-5f0bb730e7f2",
+          "requestId": "0:648b1c80-15c6-45dc-a653-b1f3b757d115",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "a87bc7f61d497be8ec3256d18054026adda8bbfea13b90a06111ed80dfcd1b8f",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "d5f236f2-66c9-484f-91c1-35212066343f",
+            "eventOffset": 0
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.03866599999992104,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "single_analysis_complete",
+        "status": 200,
+        "wallMs": 0.3224999999983993,
+        "pollElapsedMs": 30012.408973,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "912b8a8a-202f-47c9-98c5-5f0bb730e7f2",
+          "requestId": "0:648b1c80-15c6-45dc-a653-b1f3b757d115",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "a87bc7f61d497be8ec3256d18054026adda8bbfea13b90a06111ed80dfcd1b8f",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "d5f236f2-66c9-484f-91c1-35212066343f",
+            "eventOffset": 0
+          },
+          "status": "completed",
+          "error": null,
+          "timing": {
+            "queueMs": 0.03866599999992104,
+            "computeMs": 30004.45419,
+            "restoreMs": 0.7905410000000757,
+            "searchMs": 11581.658568000108,
+            "inferenceMs": 18418.968290999892
+          },
+          "result": {
+            "input": {
+              "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+              "eventOffset": 0,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "threePlayerAttackProhibited": false,
+              "rootSide": "south"
+            },
+            "versions": {
+              "analysisVersion": "singles-analysis-model-v1",
+              "engineVersion": "tetraboard-four-shogi-rules-v1",
+              "searchVersion": "selective-maxn-policy-value-v1",
+              "evaluationVersion": "uncalibrated-sole-first-model-v1",
+              "featureVersion": "four-shogi-features-v1",
+              "actionVersion": "four-shogi-policy-index-v1",
+              "opponentModelId": "selfish-maxn-v1",
+              "tieBreak": "legal-order",
+              "seed": null,
+              "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc"
+            },
+            "model": {
+              "requestedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "loadedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "usedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "inferenceCount": 14602,
+              "attemptedInferenceCount": 14602,
+              "inferenceCalls": 14594,
+              "policyUses": 4483,
+              "valueUses": 10370,
+              "inferenceMs": 18418.968290999892,
+              "discardedWork": 0,
+              "fallbackReason": null,
+              "fallbackDetail": null
+            },
+            "diagnostics": {
+              "work": 73870,
+              "nodes": 15499,
+              "generatedMoves": 225182,
+              "evaluations": 10371,
+              "completedDepth": 7,
+              "extendedNodes": 0,
+              "cacheEntries": 256,
+              "legalCacheHits": 936,
+              "transitionCacheHits": 2048,
+              "evaluationCacheHits": 0,
+              "orderingCacheHits": 684,
+              "simulations": 0,
+              "maxVisitedPly": 0,
+              "elapsedMs": 29999.841527,
+              "stopReason": "deadline",
+              "fallbackReason": null,
+              "legalPreparationMs": 1.54128999999989,
+              "deadlineOverrunMs": 0.6320679999989807,
+              "yields": 2555,
+              "algorithm": "maxn"
+            },
+            "evaluation": {
+              "evaluationKind": "model",
+              "probabilities": null,
+              "ranks": [
+                {
+                  "side": "south",
+                  "rank": 3,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "west",
+                  "rank": 1,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "north",
+                  "rank": 4,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "east",
+                  "rank": 2,
+                  "kind": "provisional"
+                }
+              ],
+              "values": {
+                "south": {
+                  "primary": 0.05588119477033615,
+                  "secondaryRank": 3,
+                  "heuristicScore": null
+                },
+                "west": {
+                  "primary": 0.07914486527442932,
+                  "secondaryRank": 1,
+                  "heuristicScore": null
+                },
+                "north": {
+                  "primary": 0.05170578882098198,
+                  "secondaryRank": 4,
+                  "heuristicScore": null
+                },
+                "east": {
+                  "primary": 0.05608368664979935,
+                  "secondaryRank": 2,
+                  "heuristicScore": null
+                }
+              }
+            },
+            "recommendedAction": {
+              "type": "movePiece",
+              "from": {
+                "x": 3,
+                "y": 8
+              },
+              "to": {
+                "x": 2,
+                "y": 7
+              },
+              "promote": false
+            }
+          }
+        }
+      },
+      {
+        "label": "parallel_analysis_accept",
+        "status": 202,
+        "wallMs": 0.304707999999664,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "4a8040cb-2ecc-455f-8a06-34b84afd33b2",
+          "requestId": "0:b20c515f-a26a-4e97-a6f2-58680f2d022f",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "ad886619135de526839b954e0a586682bb3e5c81d27b27050a53c4080f98123f",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "beac089c-6207-4d4d-a0f1-a27eeef498b7",
+            "eventOffset": 0
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.030791999997745734,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "queued_accept",
+        "status": 202,
+        "wallMs": 0.18466600000101607,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "e156c3df-32c3-4c3f-ad52-2aef3739bc30",
+          "requestId": "0:ea82778e-1da8-4b0e-a92e-2fe96de19009",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "5ef41bc7175180739df762713b6e69ebd1b1c50fe62e5772466a9350364f6f71",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "449f64e1-8f23-408d-a76b-a8c7cc5e61dd",
+            "eventOffset": 0
+          },
+          "status": "queued",
+          "error": null,
+          "timing": {
+            "queueMs": 0,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "queue_overload",
+        "status": 503,
+        "wallMs": 0.16033299999980954,
+        "data": {
+          "error": "queue_full",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "duplicate",
+        "status": 202,
+        "wallMs": 0.09450000000288128,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "4a8040cb-2ecc-455f-8a06-34b84afd33b2",
+          "requestId": "0:b20c515f-a26a-4e97-a6f2-58680f2d022f",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "ad886619135de526839b954e0a586682bb3e5c81d27b27050a53c4080f98123f",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "beac089c-6207-4d4d-a0f1-a27eeef498b7",
+            "eventOffset": 0
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.030791999997745734,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "conflicting_duplicate",
+        "status": 409,
+        "wallMs": 0.146708000000217,
+        "data": {
+          "error": "request_conflict",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "usage_limit",
+        "status": 429,
+        "wallMs": 0.1160829999971611,
+        "data": {
+          "error": "usage_limit",
+          "retryAfterMs": 29460.531296999998
+        }
+      },
+      {
+        "label": "parallel_cpu_accept",
+        "status": 202,
+        "wallMs": 0.17533299999922747,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "7c7982f8-40df-47a3-83b0-a11db3e24995",
+          "requestId": "0:ecc16fee-6be6-4773-a754-d8527b61dded",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "27920b0644b368f3a2e5bf728da4f7e2c2eb12b205b6a55d91b577350a24013d",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "155f756e-6352-4507-b7f1-e5b8ab9a6e17",
+            "matchId": "d654b868-b08d-4573-b8be-35e567419753",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112290932
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.05075000000215368,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "parallel_cpu_complete",
+        "status": 200,
+        "wallMs": 0.5177079999994021,
+        "pollElapsedMs": 527.0173539999996,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "7c7982f8-40df-47a3-83b0-a11db3e24995",
+          "requestId": "0:ecc16fee-6be6-4773-a754-d8527b61dded",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "27920b0644b368f3a2e5bf728da4f7e2c2eb12b205b6a55d91b577350a24013d",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "155f756e-6352-4507-b7f1-e5b8ab9a6e17",
+            "matchId": "d654b868-b08d-4573-b8be-35e567419753",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112290932
+          },
+          "status": "completed",
+          "error": null,
+          "timing": {
+            "queueMs": 0.05075000000215368,
+            "computeMs": 501.5122539999975,
+            "restoreMs": 0.4986239999998361,
+            "searchMs": 220.83210699996562,
+            "inferenceMs": 279.77985600003376
+          },
+          "result": {
+            "input": {
+              "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+              "eventOffset": 0,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "threePlayerAttackProhibited": true,
+              "rootSide": "south"
+            },
+            "versions": {
+              "analysisVersion": "singles-analysis-model-v1",
+              "engineVersion": "tetraboard-four-shogi-rules-v1",
+              "searchVersion": "selective-maxn-policy-value-v1",
+              "evaluationVersion": "uncalibrated-sole-first-model-v1",
+              "featureVersion": "four-shogi-features-v1",
+              "actionVersion": "four-shogi-policy-index-v1",
+              "opponentModelId": "selfish-maxn-v1",
+              "tieBreak": "legal-order",
+              "seed": null,
+              "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc"
+            },
+            "model": {
+              "requestedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "loadedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "usedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "inferenceCount": 240,
+              "attemptedInferenceCount": 240,
+              "inferenceCalls": 232,
+              "policyUses": 78,
+              "valueUses": 238,
+              "inferenceMs": 279.77985600003376,
+              "discardedWork": 0,
+              "fallbackReason": null,
+              "fallbackDetail": null
+            },
+            "diagnostics": {
+              "work": 1394,
+              "nodes": 328,
+              "generatedMoves": 2750,
+              "evaluations": 239,
+              "completedDepth": 3,
+              "extendedNodes": 0,
+              "cacheEntries": 240,
+              "legalCacheHits": 107,
+              "transitionCacheHits": 89,
+              "evaluationCacheHits": 0,
+              "orderingCacheHits": 30,
+              "simulations": 0,
+              "maxVisitedPly": 0,
+              "elapsedMs": 500.3662970000005,
+              "stopReason": "deadline",
+              "fallbackReason": null,
+              "legalPreparationMs": 0.29666700000234414,
+              "deadlineOverrunMs": 0.8649210000003222,
+              "yields": 40,
+              "algorithm": "maxn"
+            },
+            "evaluation": {
+              "evaluationKind": "model",
+              "probabilities": null,
+              "ranks": [
+                {
+                  "side": "south",
+                  "rank": 3,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "west",
+                  "rank": 1,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "north",
+                  "rank": 4,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "east",
+                  "rank": 2,
+                  "kind": "provisional"
+                }
+              ],
+              "values": {
+                "south": {
+                  "primary": 0.06287437677383423,
+                  "secondaryRank": 3,
+                  "heuristicScore": null
+                },
+                "west": {
+                  "primary": 0.08747412264347076,
+                  "secondaryRank": 1,
+                  "heuristicScore": null
+                },
+                "north": {
+                  "primary": 0.05991943180561066,
+                  "secondaryRank": 4,
+                  "heuristicScore": null
+                },
+                "east": {
+                  "primary": 0.06453973054885864,
+                  "secondaryRank": 2,
+                  "heuristicScore": null
+                }
+              }
+            },
+            "recommendedAction": {
+              "type": "movePiece",
+              "from": {
+                "x": 3,
+                "y": 8
+              },
+              "to": {
+                "x": 2,
+                "y": 7
+              },
+              "promote": false
+            }
+          }
+        }
+      },
+      {
+        "label": "analysis_during_cpu",
+        "status": 200,
+        "wallMs": 0.061291000001801876,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "4a8040cb-2ecc-455f-8a06-34b84afd33b2",
+          "requestId": "0:b20c515f-a26a-4e97-a6f2-58680f2d022f",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "ad886619135de526839b954e0a586682bb3e5c81d27b27050a53c4080f98123f",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "beac089c-6207-4d4d-a0f1-a27eeef498b7",
+            "eventOffset": 0
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.030791999997745734,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "queued_expiry",
+        "status": 200,
+        "wallMs": 0.1611239999983809,
+        "pollElapsedMs": 1555.124254000002,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "e156c3df-32c3-4c3f-ad52-2aef3739bc30",
+          "requestId": "0:ea82778e-1da8-4b0e-a92e-2fe96de19009",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "5ef41bc7175180739df762713b6e69ebd1b1c50fe62e5772466a9350364f6f71",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "449f64e1-8f23-408d-a76b-a8c7cc5e61dd",
+            "eventOffset": 0
+          },
+          "status": "expired",
+          "error": "queue_deadline",
+          "timing": {
+            "queueMs": 2077.2440289999977,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "cancel_queue_accept",
+        "status": 202,
+        "wallMs": 0.25700000000506407,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "d5a69f01-346b-426a-93be-ff6fecb444df",
+          "requestId": "0:9d864c8e-a761-4479-94cb-3fe84ee44c3e",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "6500463e2170250f0b3a4642a411e1c5a5c3af87ea7eedbb045a1f4ba8d9e243",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "053e0e8e-ca8c-425d-a82a-ca8c9858c4af",
+            "eventOffset": 0
+          },
+          "status": "queued",
+          "error": null,
+          "timing": {
+            "queueMs": 0,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "cancel_queued",
+        "status": 200,
+        "wallMs": 0.08795800000370946,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "d5a69f01-346b-426a-93be-ff6fecb444df",
+          "requestId": "0:9d864c8e-a761-4479-94cb-3fe84ee44c3e",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "6500463e2170250f0b3a4642a411e1c5a5c3af87ea7eedbb045a1f4ba8d9e243",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "053e0e8e-ca8c-425d-a82a-ca8c9858c4af",
+            "eventOffset": 0
+          },
+          "status": "cancelled",
+          "error": "cancelled",
+          "timing": {
+            "queueMs": 0.22566599999845494,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "cancel_running_accept",
+        "status": 202,
+        "wallMs": 0.17250000000058208,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "2554c4da-26dd-4f74-b9a8-4af0953f560f",
+          "requestId": "0:f9d7c109-3fb1-419e-b93b-023fbc49968b",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "143fd482bd34b350a245b57e9cb62ea9a0fb6b3c4f7a679ce37a8c871b08225d",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "861247ea-36ac-4374-8915-34fa65f0b9ee",
+            "matchId": "932d837d-6939-4665-98c2-e219dae6ab6f",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112293016
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.04616600000008475,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "cancel_running",
+        "status": 200,
+        "wallMs": 0.11375000000407454,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "2554c4da-26dd-4f74-b9a8-4af0953f560f",
+          "requestId": "0:f9d7c109-3fb1-419e-b93b-023fbc49968b",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "143fd482bd34b350a245b57e9cb62ea9a0fb6b3c4f7a679ce37a8c871b08225d",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "861247ea-36ac-4374-8915-34fa65f0b9ee",
+            "matchId": "932d837d-6939-4665-98c2-e219dae6ab6f",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112293016
+          },
+          "status": "cancelled",
+          "error": "cancelled",
+          "timing": {
+            "queueMs": 0.04616600000008475,
+            "computeMs": 0.12012499999400461,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "cancelled_retry",
+        "status": 200,
+        "wallMs": 0.09570800000074087,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "2554c4da-26dd-4f74-b9a8-4af0953f560f",
+          "requestId": "0:f9d7c109-3fb1-419e-b93b-023fbc49968b",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "143fd482bd34b350a245b57e9cb62ea9a0fb6b3c4f7a679ce37a8c871b08225d",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "861247ea-36ac-4374-8915-34fa65f0b9ee",
+            "matchId": "932d837d-6939-4665-98c2-e219dae6ab6f",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112293016
+          },
+          "status": "cancelled",
+          "error": "cancelled",
+          "timing": {
+            "queueMs": 0.04616600000008475,
+            "computeMs": 0.12012499999400461,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "state_mismatch_accept",
+        "status": 202,
+        "wallMs": 1.1358739999996033,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "274ce6c9-6c86-4e7a-bd2f-b8cc83e17878",
+          "requestId": "0:f9a97366-0835-44b4-9267-cc0a6315eeb8",
+          "stateHash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "inputHash": "330dfe25de7f37a0619039baa832fdad8174ad12af3672268532f563798aed44",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "8caa8728-1a2d-4c3f-a610-bd5a3e603180",
+            "matchId": "f86431d7-5ef4-4d6d-8f10-91fcc71ccf8f",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112293016
+          },
+          "status": "queued",
+          "error": null,
+          "timing": {
+            "queueMs": 0,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "state_mismatch",
+        "status": 200,
+        "wallMs": 0.13870799999858718,
+        "pollElapsedMs": 25.42476699999679,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "274ce6c9-6c86-4e7a-bd2f-b8cc83e17878",
+          "requestId": "0:f9a97366-0835-44b4-9267-cc0a6315eeb8",
+          "stateHash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "inputHash": "330dfe25de7f37a0619039baa832fdad8174ad12af3672268532f563798aed44",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "8caa8728-1a2d-4c3f-a610-bd5a3e603180",
+            "matchId": "f86431d7-5ef4-4d6d-8f10-91fcc71ccf8f",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112293016
+          },
+          "status": "failed",
+          "error": "state_mismatch",
+          "timing": {
+            "queueMs": 0.3092499999984284,
+            "computeMs": 0.29004100000020117,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "foreign_owner",
+        "status": 404,
+        "wallMs": 0.07266600000002654,
+        "data": {
+          "error": "job_not_found",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "model_mismatch",
+        "status": 409,
+        "wallMs": 0.15841699999873526,
+        "data": {
+          "error": "model_mismatch",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "expired_request",
+        "status": 410,
+        "wallMs": 0.07474999999976717,
+        "data": {
+          "error": "expired",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.04966699999931734,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 779165696,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.09070800000336021,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 779165696,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.16012499999487773,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 779165696,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.1062919999967562,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 780296192,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.12508299999899464,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 780296192,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.11833399999886751,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 780296192,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.11287499999889405,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 780296192,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.0803749999977299,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 780296192,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.08404200000222772,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 781406208,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "health_during_analysis",
+        "status": 200,
+        "wallMs": 0.09670800000458257,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 1,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 781406208,
+            "peakBytes": 782098432,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "parallel_analysis_complete",
+        "status": 200,
+        "wallMs": 0.29833299999882,
+        "pollElapsedMs": 27697.910106000003,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "4a8040cb-2ecc-455f-8a06-34b84afd33b2",
+          "requestId": "0:b20c515f-a26a-4e97-a6f2-58680f2d022f",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "ad886619135de526839b954e0a586682bb3e5c81d27b27050a53c4080f98123f",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "beac089c-6207-4d4d-a0f1-a27eeef498b7",
+            "eventOffset": 0
+          },
+          "status": "completed",
+          "error": null,
+          "timing": {
+            "queueMs": 0.030791999997745734,
+            "computeMs": 30001.991536,
+            "restoreMs": 0.3702919999996084,
+            "searchMs": 12334.198332000731,
+            "inferenceMs": 17667.00824599927
+          },
+          "result": {
+            "input": {
+              "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+              "eventOffset": 0,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "threePlayerAttackProhibited": true,
+              "rootSide": "south"
+            },
+            "versions": {
+              "analysisVersion": "singles-analysis-model-v1",
+              "engineVersion": "tetraboard-four-shogi-rules-v1",
+              "searchVersion": "selective-maxn-policy-value-v1",
+              "evaluationVersion": "uncalibrated-sole-first-model-v1",
+              "featureVersion": "four-shogi-features-v1",
+              "actionVersion": "four-shogi-policy-index-v1",
+              "opponentModelId": "selfish-maxn-v1",
+              "tieBreak": "legal-order",
+              "seed": null,
+              "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc"
+            },
+            "model": {
+              "requestedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "loadedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "usedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "inferenceCount": 13493,
+              "attemptedInferenceCount": 13493,
+              "inferenceCalls": 13486,
+              "policyUses": 4123,
+              "valueUses": 9622,
+              "inferenceMs": 17667.00824599927,
+              "discardedWork": 0,
+              "fallbackReason": null,
+              "fallbackDetail": null
+            },
+            "diagnostics": {
+              "work": 67591,
+              "nodes": 14377,
+              "generatedMoves": 198195,
+              "evaluations": 9623,
+              "completedDepth": 7,
+              "extendedNodes": 0,
+              "cacheEntries": 256,
+              "legalCacheHits": 922,
+              "transitionCacheHits": 2006,
+              "evaluationCacheHits": 0,
+              "orderingCacheHits": 670,
+              "simulations": 0,
+              "maxVisitedPly": 0,
+              "elapsedMs": 30000.874454,
+              "stopReason": "deadline",
+              "fallbackReason": null,
+              "legalPreparationMs": 0.6888330000001588,
+              "deadlineOverrunMs": 1.2447460000003048,
+              "yields": 2518,
+              "algorithm": "maxn"
+            },
+            "evaluation": {
+              "evaluationKind": "model",
+              "probabilities": null,
+              "ranks": [
+                {
+                  "side": "south",
+                  "rank": 2,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "west",
+                  "rank": 1,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "north",
+                  "rank": 4,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "east",
+                  "rank": 3,
+                  "kind": "provisional"
+                }
+              ],
+              "values": {
+                "south": {
+                  "primary": 0.054764002561569214,
+                  "secondaryRank": 2,
+                  "heuristicScore": null
+                },
+                "west": {
+                  "primary": 0.0774473324418068,
+                  "secondaryRank": 1,
+                  "heuristicScore": null
+                },
+                "north": {
+                  "primary": 0.05064883455634117,
+                  "secondaryRank": 4,
+                  "heuristicScore": null
+                },
+                "east": {
+                  "primary": 0.05471957474946976,
+                  "secondaryRank": 3,
+                  "heuristicScore": null
+                }
+              }
+            },
+            "recommendedAction": {
+              "type": "movePiece",
+              "from": {
+                "x": 3,
+                "y": 8
+              },
+              "to": {
+                "x": 2,
+                "y": 7
+              },
+              "promote": false
+            }
+          }
+        }
+      },
+      {
+        "label": "shutdown_active_accept",
+        "status": 202,
+        "wallMs": 0.293416000000434,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "cfb52731-071b-43c4-ad32-781f49e41ca3",
+          "jobId": "5f2598cc-4445-4ec2-994d-d791c146a613",
+          "requestId": "0:9574ff41-cc52-4f3e-b09b-d838f802fefb",
+          "stateHash": "dae157c504cf6f1e7c10b79f8333b101f7d314c64e53b023b23acd480ae394e6",
+          "inputHash": "ba009d1adc460277d163587089a2e6548e7b00a61ff19fc63c83d2ddda88df5d",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "analysis",
+            "matchId": "f78e66ed-940d-4080-b1e6-0cf464fa1295",
+            "eventOffset": 0
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.05883299999550218,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "shutdown_active",
+        "status": 202,
+        "wallMs": 0.08924999999726424,
+        "data": {
+          "status": "stopping"
+        }
+      },
+      {
+        "label": "restart_health",
+        "status": 200,
+        "wallMs": 0.8990829999966081,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "f6e16c92-c467-46de-90fb-134bc6d4860d",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 0,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 143642624,
+            "peakBytes": 148463616,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "old_instance_submit",
+        "status": 410,
+        "wallMs": 2.051038999998127,
+        "data": {
+          "error": "service_restarted",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "old_instance_lookup",
+        "status": 410,
+        "wallMs": 0.17104200000176206,
+        "data": {
+          "error": "service_restarted",
+          "retryAfterMs": 0
+        }
+      },
+      {
+        "label": "model_failure_recovery",
+        "wallMs": 670.2572530000034,
+        "unavailableResponses": 53
+      },
+      {
+        "label": "recovered_health",
+        "status": 200,
+        "wallMs": 0.0884169999990263,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "f6e16c92-c467-46de-90fb-134bc6d4860d",
+          "requestWindow": 0,
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "status": "ready",
+          "workers": 2,
+          "running": 0,
+          "queued": 0,
+          "cpuReserved": 1,
+          "memory": {
+            "observedBytes": 413327360,
+            "peakBytes": 415072256,
+            "limitBytes": 939524096
+          }
+        }
+      },
+      {
+        "label": "recovered_cpu_accept",
+        "status": 202,
+        "wallMs": 1.1862069999988307,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "f6e16c92-c467-46de-90fb-134bc6d4860d",
+          "jobId": "32d67624-24d0-4abc-b36c-8cd06d164e76",
+          "requestId": "0:6a3ff640-b47d-4668-9051-2988fb85580e",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "066d516eb7463a21c0223efc3c21c1247eb8153bde75639d2fb9e670831ff3f4",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "5a1fc821-783e-4280-b483-f682f9b10021",
+            "matchId": "d47f2ef4-f09f-466f-acf9-e9d74398117c",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112322307
+          },
+          "status": "running",
+          "error": null,
+          "timing": {
+            "queueMs": 0.09024999999996908,
+            "computeMs": 0,
+            "restoreMs": 0,
+            "searchMs": 0,
+            "inferenceMs": 0
+          },
+          "result": null
+        }
+      },
+      {
+        "label": "recovered_cpu_complete",
+        "status": 200,
+        "wallMs": 0.35995799999363953,
+        "pollElapsedMs": 515.7294480000055,
+        "data": {
+          "schemaVersion": 1,
+          "serviceInstanceId": "f6e16c92-c467-46de-90fb-134bc6d4860d",
+          "jobId": "32d67624-24d0-4abc-b36c-8cd06d164e76",
+          "requestId": "0:6a3ff640-b47d-4668-9051-2988fb85580e",
+          "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+          "inputHash": "066d516eb7463a21c0223efc3c21c1247eb8153bde75639d2fb9e670831ff3f4",
+          "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc",
+          "engineVersion": "tetraboard-four-shogi-rules-v1",
+          "modelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+          "context": {
+            "kind": "cpu",
+            "roomId": "trial",
+            "instanceId": "5a1fc821-783e-4280-b483-f682f9b10021",
+            "matchId": "d47f2ef4-f09f-466f-acf9-e9d74398117c",
+            "revision": 1,
+            "side": "south",
+            "deadlineAtMs": 1792112322307
+          },
+          "status": "completed",
+          "error": null,
+          "timing": {
+            "queueMs": 0.09024999999996908,
+            "computeMs": 504.326043,
+            "restoreMs": 0.7779160000000047,
+            "searchMs": 237.6343949999997,
+            "inferenceMs": 263.3861090000004
+          },
+          "result": {
+            "input": {
+              "stateHash": "7061a8ff86be5ecae851bbc7c89453dab38e1dd9de84bcb0107b82125a801d2c",
+              "eventOffset": 0,
+              "ruleProfileId": "tetraboard-four-shogi-singles-v1",
+              "rulesVersion": 1,
+              "threePlayerAttackProhibited": true,
+              "rootSide": "south"
+            },
+            "versions": {
+              "analysisVersion": "singles-analysis-model-v1",
+              "engineVersion": "tetraboard-four-shogi-rules-v1",
+              "searchVersion": "selective-maxn-policy-value-v1",
+              "evaluationVersion": "uncalibrated-sole-first-model-v1",
+              "featureVersion": "four-shogi-features-v1",
+              "actionVersion": "four-shogi-policy-index-v1",
+              "opponentModelId": "selfish-maxn-v1",
+              "tieBreak": "legal-order",
+              "seed": null,
+              "codeVersion": "07a8b84824507312530e930931c6f3241e5e95cc"
+            },
+            "model": {
+              "requestedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "loadedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "usedModelId": "four-shogi-tiny-policy-value-v1:28a86d3fdea2bc89ca2aa41be3a29934a758e3961608111dfa4d510c659627c5",
+              "inferenceCount": 231,
+              "attemptedInferenceCount": 231,
+              "inferenceCalls": 223,
+              "policyUses": 75,
+              "valueUses": 229,
+              "inferenceMs": 263.3861090000004,
+              "discardedWork": 0,
+              "fallbackReason": null,
+              "fallbackDetail": null
+            },
+            "diagnostics": {
+              "work": 1341,
+              "nodes": 315,
+              "generatedMoves": 2660,
+              "evaluations": 230,
+              "completedDepth": 3,
+              "extendedNodes": 0,
+              "cacheEntries": 231,
+              "legalCacheHits": 103,
+              "transitionCacheHits": 85,
+              "evaluationCacheHits": 0,
+              "orderingCacheHits": 29,
+              "simulations": 0,
+              "maxVisitedPly": 0,
+              "elapsedMs": 500.37129700000014,
+              "stopReason": "deadline",
+              "fallbackReason": null,
+              "legalPreparationMs": 1.459748999999988,
+              "deadlineOverrunMs": 1.1492130000001453,
+              "yields": 40,
+              "algorithm": "maxn"
+            },
+            "evaluation": {
+              "evaluationKind": "model",
+              "probabilities": null,
+              "ranks": [
+                {
+                  "side": "south",
+                  "rank": 3,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "west",
+                  "rank": 1,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "north",
+                  "rank": 4,
+                  "kind": "provisional"
+                },
+                {
+                  "side": "east",
+                  "rank": 2,
+                  "kind": "provisional"
+                }
+              ],
+              "values": {
+                "south": {
+                  "primary": 0.06287437677383423,
+                  "secondaryRank": 3,
+                  "heuristicScore": null
+                },
+                "west": {
+                  "primary": 0.08747412264347076,
+                  "secondaryRank": 1,
+                  "heuristicScore": null
+                },
+                "north": {
+                  "primary": 0.05991943180561066,
+                  "secondaryRank": 4,
+                  "heuristicScore": null
+                },
+                "east": {
+                  "primary": 0.06453973054885864,
+                  "secondaryRank": 2,
+                  "heuristicScore": null
+                }
+              }
+            },
+            "recommendedAction": {
+              "type": "movePiece",
+              "from": {
+                "x": 3,
+                "y": 8
+              },
+              "to": {
+                "x": 2,
+                "y": 7
+              },
+              "promote": false
+            }
+          }
+        }
+      },
+      {
+        "label": "restart_shutdown",
+        "status": 202,
+        "wallMs": 0.06612499999755528,
+        "data": {
+          "status": "stopping"
+        }
+      }
+    ]
+  },
+  "limitations": [
+    "Local OrbStack Linux aarch64 with 2CPU/1GiB, no extra swap, 64 pids, init, non-root, no network and read-only code/model. No actual VPS, public HTTPS, x86_64, systemd or deployed rollback test.",
+    "One sample each for single/parallel CPU500ms and analysis30s on initial OFF/ON positions, plus one CPU after inference-process failure; health during analysis sampled 10 times. Not formal capacity, latency, or strength evidence.",
+    "queueMs is scheduler wait; restoreMs is native replay; searchMs excludes model wait; inferenceMs is model wait; computeMs includes IPC/finalization. Final GET wallMs is loopback response time. pollElapsedMs starts when polling begins, which is later than submission for the parallel analysis.",
+    "RSS sums HTTP/compute Bun and Python and double-counts shared pages; external smoke Bun excluded from RSS but included in cgroup hard limit. 100ms sampling is not an instantaneous allocation limit.",
+    "Smoke uses configurable trial overrides maxQueueAnalysis=1 and analysisRequests=2. Other defaults include 2 workers/1 CPU-reserved, RSS896MiB, CPU500ms/work32768, analysis30000ms/work1000000.",
+    "Job/usage state is memory-only, not a billing ledger. Request IDs bind a new UUID to the service monotonic minute window, and result/idempotency TTL>=120s prevents purged old IDs from re-executing. Fake-clock tests cover TTL/forced-kill decisions; Linux smoke covers live expiry/cancel/restart and SIGKILL of only the inference Python followed by replacement and actual model use.",
+    "Model is unchanged #190/#191 CPU functional checkpoint with no-sole-winner-only Value labels. Public CPU and probabilities unchanged; no strength/calibration inference.",
+    "Cold OS cache, max history/replay, prolonged/many-user load, actual OOM and abrupt parent SIGKILL remain unverified. T02/T03/T05 unresolved."
+  ]
+}

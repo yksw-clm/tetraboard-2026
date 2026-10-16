@@ -10,3 +10,10 @@ DISCORD_CLIENT_SECRET=replace-with-discord-client-secret
 
 # 管理画面の利用を許可する本人の内部 user.id（公開 @ID とは異なります）
 ADMIN_ACCOUNT_IDS='["replace-with-owner-internal-account-id","replace-with-second-internal-account-id"]'
+
+# 四人将棋AI試用（必要時だけGit外の .dev.vars / development secretsへ設定します）
+# FOUR_SHOGI_AI_ACCOUNT_IDS='["replace-with-approved-internal-account-id"]'
+# FOUR_SHOGI_AI_URL=https://replace-with-approved-ai-service-origin
+# FOUR_SHOGI_AI_SHARED_SECRET=replace-with-at-least-32-random-characters
+# FOUR_SHOGI_AI_MODEL_ID=four-shogi-tiny-policy-value-v1:replace-with-64-character-checkpoint-hash
+# FOUR_SHOGI_AI_CODE_VERSION=replace-with-40-character-source-commit

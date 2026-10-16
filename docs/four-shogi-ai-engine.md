@@ -98,7 +98,7 @@ PyTorchの配布はモデル定義を版付きコードで固定し、重み `st
 
 ### 完全解析状態の復元API（#186）
 
-`@tetraboard/four-shogi/analysis` は通信・保存から独立したシングルス専用の関数API。ルール版1を既存エンジンで再実行する。`@tetraboard/four-shogi/replay` のイベント裁定はWebの版1再生も共用し、公開frame・保存JSON・ゲームルールは維持する。HTTP経路・認証・VPS配置は#193以降で接続する。
+`@tetraboard/four-shogi/analysis` は通信・保存から独立したシングルス専用の関数API。ルール版1を既存エンジンで再実行する。`@tetraboard/four-shogi/replay` のイベント裁定はWebの版1再生も共用し、公開frame・保存JSON・ゲームルールは維持する。HTTPジョブ/認証は下記#193で接続し、実VPS配置はT02の判断後に行う。
 
 | 関数                                         | 契約                                                                                                        |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -157,7 +157,7 @@ stateHashは `analysisStateVersion`・プロフィールと、参加者IDを除�
 
 ### 共通AI・解析API（#187）
 
-公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTP・対局への着手確定は後続Issueで実装する。
+公開入口は `@tetraboard/four-shogi/ai` の `analyzePosition(position, options, control?)`。#186で復元した同一実行内の `AnalysisPosition` を使い、CPU・解析・教師生成が同じ `recommendedAction` を利用する。学習済みモデルの接続は下記#192を使う。HTTPジョブは下記#193、対局への着手確定は#194で接続する。
 
 ```ts
 import { analyzePosition } from "@tetraboard/four-shogi/ai";
@@ -254,6 +254,56 @@ VPSの予算は単調時計で計測する案とし、異なるホストの時�
 - 初期のジョブ再起動復旧は期限付きの再要求とfallbackを基本案にし、永続ジョブ基盤・新しいDB/キューサービスは測定前に追加しない。TTL/ログ保持/解析結果の永続保存はT05へ分離する。
 
 CPUの障害時の動作はD05の判断対象。推奨案は、現時点で有効な同じ手番・期限内に限ってローカルの現行Lv2を使うこと。fallbackの予算を残す期限/余裕を計測し、足りなければ既に確保した合法手を使う。VPSの故障を理由に時計を停止・巻き戻ししない。実際の時計期限に達した場合は通常の時間切れを先に扱う。解析失敗は失敗/再試行として表示し、予備の浅い評価を「30秒解析完了」と表示しない。
+
+### VPSサービスの実装と運用（#193）
+
+`apps/four-shogi-ai` はBunのHTTP受付・メモリ内ジョブ/利用量管理と、常駐する独立Bun計算プロセスを持ちます。各計算プロセスが#191のPython/PyTorch CPUを1つ起動し、複数ジョブで再利用します。推論プロセスの故障は100ms周期で検知し、計算枠をunavailableにしてプロセス群を交換します。正常処理を挟まない予期しない終了が3回を超えた枠は停止し、無限に起動し直しません。取消のための予定した交換は別に扱います。実行中だった要求を自動で再実行せず、同じモデルで後続の新規要求を受けます。重い棋譜復元・合法手・探索・モデル待機をHTTPプロセスから分離しました。通信スキーマは `@tetraboard/protocol/four-shogi-ai`、探索は同じ `/analysis`・`/ai`・`/model-inference` です。新しい外部DB/キュー/推論依存は追加しません。
+
+| 経路                     | 認証と結果                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/health`         | サーバー専用Bearer認証。起動ID・requestWindow・code/engine/model版、ready/unavailable/stopping、枠数/CPU予約数、実行/待ち件数、観測/最大/制限RSSを返す。未準備は503 |
+| `POST /v1/jobs`          | 同じ認証後に容量・厳密なschemaVersion 1の形状を検査し、202で受付。既存の同内容要求は同じジョブ、完了済みなら200                                                     |
+| `GET /v1/jobs/:jobId`    | 同じ認証＋`X-AI-Principal`・`X-AI-Instance`。所有者と起動IDを検査し状態/結果を取得                                                                                  |
+| `DELETE /v1/jobs/:jobId` | 同じ検査で取消。終状態は復活させず、遅い完了を無視する                                                                                                              |
+| `POST /v1/shutdown`      | サーバー専用認証。202後に新規受付を止め、保留/実行を取り消してプロセス群を停止する。利用者向けWorker経路へ公開しない                                                |
+
+入力はrequestId・サービス起動ID・不透明な利用者識別・期待code/engine/model版・stateHash・用途文脈・有効時間・time/work予算と完全棋譜prefixです。初期playersは絶対方向名4つへ正規化し、mode singles・rulesVersion 1・ON/OFFを明示します。名前・内部アカウントID・Cookie・モデルパス/URL/コマンドを受けません。CPU文脈は部屋/世代/局ID/revision/方向/Workerの時計期限、解析文脈は保存局ID/イベント位置を保持します。型検査後のrequest全体のSHA-256を `inputHash`、正本の全履歴を含む局面識別を `stateHash` として分けます。復元とstateHash・CPUの実手番照合は計算プロセスで行います。
+
+計算結果は共通AIの版付き結果をそのまま返し、job/request/起動ID・入力識別・用途文脈を添えます。要求modelIdはロード済みIDまたは明示的な従来探索のnullだけです。モデルを要求して非終局で実使用できなかった場合は `failed/model_not_used` とし、静的fallbackだけの解析をモデル解析完了にしません。終局はモデル不要で確定値を返します。Workerの利用者向け経路は設定されたモデルだけを要求します。サービスは着手・棋譜・勝敗の確定を行いません。
+
+待ち行列はCPUを先に取り、CPU専用枠へ解析を入れません。既定は計算2枠/CPU予約1枠で、長い解析が走っていてもCPU枠を残します。時刻はVPSの単調時計で、有効時間は初回受付から計測し、重複再送で延長しません。送信元の絶対時計期限をVPS時刻へ置き換えず、Worker/DOが通信・待機・復元・推論・探索・応答/再検証を含めた実期限を最終確認します。復元時間は探索のtime予算から引きます。計算には取消猶予を含む親側の強制停止境界もあり、完了通知で期限を再照合します。
+
+取消/期限後は状態を終状態へ固定し、協調取消を送り、猶予を超えたら独立プロセス群をSIGKILLします。古いjob IDの完了で再利用した枠を解放しません。起動IDを要求へ固定するため、再起動後の古いPOST/結果取得は410 `service_restarted` となります。CPU呼出側はD05の期限内fallbackへ進み、再開したサービスで同じ要求を自動的に指し直しません。起動IDを取得し直した新しい処理には新requestIdを使います。突然の親SIGKILLやメモリ急増への最終保護には、OS側のプロセス群/メモリ制限も必要です。
+
+認証失敗401、不正/非互換要求400、JSON形式415、容量413、モデル/code不一致・同じIDで別内容409、失効/古い要求窓/別起動410、所有者違い/未知ジョブ404、利用回数/予算/同時保留の超過429（Retry-After）、待ち行列/保存件数/未準備/停止中503を区別します。状態はqueued/running/completed/cancelled/expired/failedです。結果の本文はcompletedだけに付き、失敗を完了として返しません。認証前に本文を読みません。任意の例外文・棋譜・秘密・本人IDをログやエラーへ出さず、ログはjob/request ID・用途・状態/固定エラーコード・性能値と起動版だけにします。計算プロセスには共有秘密やWorkerの設定を渡さず、Bunの自動.env読込も無効にします。
+
+利用量は不透明な識別ごとに、用途別の固定窓の受付回数と予約time予算を初回受付時に原子的に計上します。重複要求を再課金せず、取消で予算を払い戻しません。maxWorkは1要求と用途別の上限/受付件数で制限します。状態・利用量・結果はメモリ内だけで、再起動時には消えます。課金台帳や永続的な利用量保証ではありません。結果/取消済みの重複識別はTTLまで保持します。要求IDは `<healthのrequestWindow>:<新しいUUID>` で、共通の `createAiRequestId` を使います。requestWindowはVPS単調時計の60秒区切りで、新規受付は現在/直前の窓だけです。両ホストの時計同期を使わず、healthの値をコピーします。TTLを120秒以上にすることで、保存を除去した後の古いIDは410 `request_expired` となり、再送だけで復活しません。保存中の同内容要求は古い窓でも同じ終状態を返し、別内容は409です。窓を変更するとID自体が変わるため、同じ処理の再試行ではID/入力を保持します。新しい処理ではhealthの起動/窓を確認して新IDを作ります。
+
+`apps/worker/src/fourShogiAi` は、開発環境の許可アカウント・本人セッション/プロフィール・操作Origin・要求プロファイルと保存済み終局シングルス棋譜を検査します。未設定は拒否し、本番originでは設定があっても拒否します。ブラウザは `/api/four-shogi-ai/health` と `/api/four-shogi-ai/jobs`（POST/GET/DELETE）だけを使い、モデル・計算予算の任意指定やCPU要求・shutdownを送れません。POSTはmatchId/eventOffset/stateHash・起動ID/requestId・`trial-500ms`/`trial-30000ms` を受け、公開保存棋譜のprefixを取得して方向IDへ置換します。利用者識別は共有秘密による用途付きHMACで作り、サーバー専用Bearerを付けてVPSへ送り、使用量の原子的な判定はVPSで行います。Workerでもプロファイルのtime/work上限と応答の起動/入力hash/モデル/版を検査します。実CPUのDO連携は#194、画面/実戦手比較は#195です。
+
+設定はサービスの[環境変数一覧](../apps/four-shogi-ai/.env.example)とWorkerの[設定例](../apps/worker/.dev.vars.example)を参照します。秘密はGit外の権限600のEnvironmentFile/Worker development secretsへ保存します。AI_CODE_VERSIONは40桁の検証コードSHA、AI_MODEL_DIRECTORYは#191のmanifest/重み/probe一式を含む管理者指定の場所です。各枠でPythonの実ロード・ON/OFF双方への対応・数値基準照合が成功するまでreadyにしません。実際の許可アカウントIDや秘密の入力は配置準備時に行い、このIssueの実装をその入力待ちにはしません。
+
+既定の試用値は、CPU500ms/work32768、解析30000ms/work1000000、待ちCPU16/解析4・最大待ち10000ms、1識別の保留2、保存128/識別128、要求512KiB/2048イベント、結果1MiBです。60秒窓にCPU120件/60000ms、解析6件/90000ms、終状態TTL120秒、RSS観測制限896MiB、取消猶予250ms、起動待ち15秒です。各値は環境変数で許容範囲内に設定でき、VPSの正式収容数・公開上限・本番の保持期間を確定する値ではありません。RSSは親Bun＋計算Bun＋Pythonの合算を100msごとに監視し、超過/取得失敗で新規受付を止めて計算群を終了します。共有ページの重複を含む観測値で、瞬間的割当のhard limitではありません。
+
+Linuxの配布例は[Dockerfile](../apps/four-shogi-ai/deploy/Dockerfile)と[systemd unit](../apps/four-shogi-ai/deploy/tetraboard-ai.service)。既存#191/#192イメージを作った後、リポジトリrootで次を実行できます。Dockerの例とunitは試用用の2CPU/1GiB/64tasksのhard limitを示すもので、VPSプラン/起動管理方式の最終採用・実配置を行う指示ではありません。外部との通信は承認済みのHTTPS終端を経由し、loopback HTTPや共有秘密をブラウザへ公開しません。
+
+```sh
+docker build --build-arg SEARCH_IMAGE=tetraboard-four-shogi-search:local \
+  -f apps/four-shogi-ai/deploy/Dockerfile -t tetraboard-four-shogi-service:local .
+
+# EnvironmentFileとmodel pathは管理者がGit外に準備します。
+docker run --init --read-only --cpus=2 --memory=1g --memory-swap=1g --pids-limit=64 \
+  --cap-drop=ALL --tmpfs /tmp:rw,size=128m --user 1000:1000 \
+  --env-file /etc/tetraboard-ai.env -e AI_HOST=0.0.0.0 -e AI_MODEL_DIRECTORY=/models \
+  -v /var/lib/tetraboard-ai/models/current:/models:ro -p 127.0.0.1:8790:8790 \
+  tetraboard-four-shogi-service:local
+
+# 通常check外の実モデル試験。内部で一時秘密を作り、サービス起動/停止/再起動まで行います。
+bun run --cwd apps/four-shogi-ai bench:service --python=/path/to/python3.12 \
+  --model-dir=/path/to/model --code-version=<40-character-code-sha> --output=/tmp/service-report.json
+```
+
+配布前は候補コードと旧配布物を別の場所に保ち、候補manifest/hash・同梱probeとhealthのmodel/code版・枠数・上限を検査します。受付を止めて正常停止してから切り替え、失敗時は旧コード/モデル/環境設定へ戻して再起動・healthを再確認します。秘密をコマンド引数・Issue・ログへ貼らず、認証付きhealthの確認は管理用クライアント/上記smokeで行います。一般公開・実VPS/HTTPS・x86_64・長時間/最大履歴/多数同時実行・OS強制OOM/親SIGKILLとsystemd実運用、正式な上限/保持期間は未確認です。T02/T03/T05はそのまま残し、[測定記録](four-shogi-ai.md#vps向けジョブサービスの検証193)へ実際に試した条件と限界を記します。
 
 ### 自己対戦と探索教師データ（#189）
 
