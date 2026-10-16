@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type MouseEventHandler, type ReactNode } from "react";
 import { Link } from "react-router";
 import { cn } from "@heroui/react";
 import { appPageWidthClasses } from "./pageLayout";
@@ -9,11 +9,13 @@ import type { AppTheme } from "./appTheme";
 export function AppHeader({
   homeTo,
   homeLabel,
+  onLogoClick,
   children,
   theme,
 }: {
   homeTo: string;
   homeLabel: string;
+  onLogoClick?: MouseEventHandler<HTMLAnchorElement>;
   children?: ReactNode;
   theme?: AppTheme;
 }) {
@@ -29,6 +31,7 @@ export function AppHeader({
           className="inline-flex items-center gap-3 text-[25px] font-[750] tracking-[-0.9px] text-ink no-underline [@media(max-width:650px)]:gap-2 [@media(max-width:650px)]:text-[19px]"
           to={homeTo}
           aria-label={homeLabel}
+          onClick={onLogoClick}
         >
           <span className="grid size-[42px] [@media(max-width:650px)]:size-8 place-items-center rounded-[12px] border border-solid border-[#e6ebe8] bg-white shadow-[0_3px_8px_#193c2310]">
             <img

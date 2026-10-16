@@ -1133,3 +1133,73 @@ test("引継ぎ応答喪失後のselfも明示引継ぎを再試行して再開�
   await flush();
   expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
 });
+
+test.each([true, false])(
+  "大会ヘッダーロゴは取消成功%sを確認し、成功後だけロビーへ移動する",
+  async (success) => {
+    const view = page();
+    clock.advance(0);
+    await respond(detail("active"));
+    const credential = await startQueue(view);
+    await respond(detail("active"), {
+      entered: true,
+      status: "waiting",
+      operationId: credential.operationId,
+    });
+    act(() =>
+      view
+        .querySelector<HTMLAnchorElement>('header a[aria-label="TetraBoard 四人将棋のロビー"]')!
+        .click(),
+    );
+    await flush();
+    expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+    const cancel = requests.find((request) => request.init.method === "DELETE")!;
+    expect(JSON.parse(cancel.init.body as string)).toEqual({
+      operationId: credential.operationId,
+      controllerId: credential.controllerId,
+      controllerVersion: 1,
+    });
+    cancel.respond(
+      success ? { ok: true } : { message: "取消できませんでした。" },
+      success ? 200 : 503,
+    );
+    await flush();
+    if (success) expect(view.querySelector("[data-path]")?.textContent).toBe("/games/four-shogi");
+    else {
+      await respond(detail("active"), {
+        entered: true,
+        status: "waiting",
+        operationId: credential.operationId,
+      });
+      expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+      expect(view.textContent).toContain("取消できませんでした。");
+    }
+  },
+);
+
+test("大会ロゴの修飾クリックは通常リンクの新規タブ動作を妨げず待機を取消しない", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  const event = new MouseEvent("click", {
+    button: 0,
+    metaKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  act(() =>
+    view
+      .querySelector<HTMLAnchorElement>('header a[aria-label="TetraBoard 四人将棋のロビー"]')!
+      .dispatchEvent(event),
+  );
+  await flush();
+  expect(event.defaultPrevented).toBe(false);
+  expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+});
