@@ -108,6 +108,9 @@ export async function joinRoom(
     if (error === "room_changed") throw new Response(roomChangedMessage, { status: 410 });
     if (error === "not_found") throw new Response(null, { status: 404 });
     const messages = {
+      account_busy:
+        "大会で対局相手を探しています。大会ページで待機を取り消してから参加してください。",
+      tournament_required: "大会の対局には大会詳細ページからエントリーして参加してください。",
       account_seated:
         "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。",
       consent_required: "利用規約と年齢条件を確認してください。",

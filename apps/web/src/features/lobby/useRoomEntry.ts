@@ -27,6 +27,10 @@ export type RoomEntryIntent = "create" | "quick" | "join";
 
 function entryErrorMessage(error: RoomError, intent: RoomEntryIntent): string {
   switch (error.error) {
+    case "account_busy":
+      return "大会で対局相手を探しています。大会ページで待機を取り消してから参加してください。";
+    case "tournament_required":
+      return "大会の対局には大会詳細ページからエントリーして参加してください。";
     case "account_seated":
       return "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。";
     case "consent_required":

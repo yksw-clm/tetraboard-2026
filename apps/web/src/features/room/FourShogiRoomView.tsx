@@ -127,6 +127,7 @@ export function FourShogiRoomView({
       session={session}
       operationNotice={session.moveNotice}
       turnActions={
+        room.tournamentId === undefined &&
         room.status === "playing" &&
         session.self !== undefined &&
         room.players.find((player) => player.side === room.game.turn)?.id === session.self?.id && (

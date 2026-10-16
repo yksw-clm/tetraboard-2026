@@ -87,6 +87,7 @@ export function RoomViewShell({
     "result" | "leave" | "resign" | "feedback" | "settings" | "room-settings" | null
   >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
+  const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
   useEffect(() => {
     if (
       !unfinishedRegistration?.returning ||
@@ -159,7 +160,7 @@ export function RoomViewShell({
   const invitation = useRoomInvitation(
     room,
     membership,
-    invited,
+    invited && tournamentId === undefined,
     () => (joinButtonRef.current ?? fallbackFocusRef.current)?.focus(),
     () => {
       const button = shareButtonRef.current;
@@ -244,7 +245,20 @@ export function RoomViewShell({
       session={session}
       onRotate={onRotate}
       replay={desktop ? undefined : replayCard}
-      onJoin={invitation.openJoin}
+      onJoin={
+        tournamentId !== undefined
+          ? () => {
+              void navigate(`/tournaments/${tournamentId}`);
+            }
+          : invitation.openJoin
+      }
+      onTournamentNext={
+        tournamentId !== undefined
+          ? () => {
+              void session.handleLeaveClick();
+            }
+          : undefined
+      }
       joinButtonRef={joinButtonRef}
       resultButtonRef={resultButtonRef}
       joinUnavailable={invitation.unavailableReason}
@@ -349,6 +363,18 @@ export function RoomViewShell({
           busy={signIn.busy}
         >
           {result}
+          {tournamentId !== undefined && membership && (
+            <AppButton
+              className="mt-4 w-full"
+              isDisabled={session.leaving}
+              isPending={session.leaving}
+              onPress={() => {
+                void session.handleLeaveClick();
+              }}
+            >
+              次の対局
+            </AppButton>
+          )}
           {registrationCancelled && (
             <p role="status" className="mt-4 text-sm">
               登録手続きを中止しました。

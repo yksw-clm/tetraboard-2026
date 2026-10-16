@@ -1068,7 +1068,11 @@ export function useRoomTransport<T extends Room>({
     try {
       await leaveRoom(room.id, token);
       clearRoomMembershipToken(room.id);
-      void navigate(gameCatalog[room.settings.game].lobbyPath);
+      void navigate(
+        isFourShogiRoom(room) && room.tournamentId !== undefined
+          ? `/tournaments/${room.tournamentId}`
+          : gameCatalog[room.settings.game].lobbyPath,
+      );
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);

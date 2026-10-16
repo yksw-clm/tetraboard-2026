@@ -156,7 +156,7 @@ test("ロビーのアカウントメニューでも初回設定への遷移に�
 });
 
 test("未完了プロフィールは初回設定へ誘導し、受付・公開棋譜は妨げない", async () => {
-  for (const path of ["/games/four-shogi", "/feedback", "/matches/example"]) {
+  for (const path of ["/games/four-shogi", "/feedback", "/matches/example", "/tournaments/1"]) {
     let location!: ReturnType<typeof useLocation>;
     function Probe() {
       location = useLocation();
