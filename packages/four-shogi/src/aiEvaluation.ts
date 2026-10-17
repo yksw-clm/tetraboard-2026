@@ -1,4 +1,8 @@
-import { evaluatePosition, defaultEvaluationWeights } from "./cpuEvaluation";
+import {
+  evaluatePosition,
+  defaultEvaluationWeights,
+  type EvaluationWeights,
+} from "./cpuEvaluation";
 import { getActiveSides, sides, type FourShogiState, type Side } from "./types";
 import type { AiEvaluation, AiValue } from "./aiTypes";
 
@@ -7,7 +11,10 @@ export function compareAiValue(left: AiValue, right: AiValue): number {
   return left.primary - right.primary || right.secondaryRank - left.secondaryRank;
 }
 
-export function evaluateAiPosition(state: FourShogiState): AiEvaluation {
+export function evaluateAiPosition(
+  state: FourShogiState,
+  weights: EvaluationWeights = { ...defaultEvaluationWeights, survival: 0 },
+): AiEvaluation {
   if (state.mode !== "singles") throw new TypeError("新AIはシングルス専用です");
   const active = getActiveSides(state);
   const terminal = state.status === "finished";
@@ -15,9 +22,9 @@ export function evaluateAiPosition(state: FourShogiState): AiEvaluation {
   const standings = terminal && state.result.mode === "singles" ? state.result.standings : [];
   const first = standings.filter((standing) => standing.rank === 1);
   // 生存人数による旧Lv2の順位報酬を除き、駒・配置・安全の評価を再利用します。
-  const scores = terminal
-    ? null
-    : evaluatePosition(state, { ...defaultEvaluationWeights, survival: 0 });
+  const scores = terminal ? null : evaluatePosition(state, weights);
+  if (scores && active.some((side) => !Number.isFinite(scores[side])))
+    throw new TypeError("静的評価が有限数の範囲を超えました。評価係数を小さくしてください");
   const values = Object.fromEntries(
     sides.map((side) => {
       const confirmedRank = terminal
@@ -31,7 +38,10 @@ export function evaluateAiPosition(state: FourShogiState): AiEvaluation {
           primary: terminal
             ? Number(first.length === 1 && first[0].side === side)
             : active.includes(side)
-              ? 0.5 + Math.atan(scores![side] / 10_000) / Math.PI
+              ? Math.max(
+                  Number.EPSILON,
+                  Math.min(1 - Number.EPSILON, 0.5 + Math.atan(scores![side] / 10_000) / Math.PI),
+                )
               : 0,
           secondaryRank: rank,
           heuristicScore: !terminal && active.includes(side) ? scores![side] : null,

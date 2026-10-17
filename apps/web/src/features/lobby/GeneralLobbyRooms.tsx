@@ -89,15 +89,21 @@ export function GeneralLobbyRooms({
                 return (
                   <li key={room.id}>
                     <LobbyRoomCard room={room} gameLink>
-                      {room.status === "waiting" && (
-                        <AppButton
-                          size="compact"
-                          isDisabled={!canJoin}
-                          aria-label={`ルーム ${room.id} に参加`}
-                          onPress={() => onRoomAction(room, "join")}
-                        >
-                          参加
-                        </AppButton>
+                      {room.tournamentId ? (
+                        <AppButtonLink size="compact" to={`/tournaments/${room.tournamentId}`}>
+                          大会へ
+                        </AppButtonLink>
+                      ) : (
+                        room.status === "waiting" && (
+                          <AppButton
+                            size="compact"
+                            isDisabled={!canJoin}
+                            aria-label={`ルーム ${room.id} に参加`}
+                            onPress={() => onRoomAction(room, "join")}
+                          >
+                            参加
+                          </AppButton>
+                        )
                       )}
                       <AppButton
                         size="compact"

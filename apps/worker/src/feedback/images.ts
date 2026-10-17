@@ -1,5 +1,5 @@
 // 本文の読み取り中にも上限を適用し、Content-Lengthの省略を許しても無制限に読みません。
-export async function readLimitedBody(request: Request, limit: number) {
+export async function readLimitedBody(request: Pick<Request, "body">, limit: number) {
   const reader = request.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];

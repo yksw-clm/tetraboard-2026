@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminApiError, adminRequest } from "./api";
 export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
   const [revision, setRevision] = useState(0);
@@ -9,8 +9,14 @@ export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
     error: string | null;
     status?: number;
   }>({ url, data: null, loading: true, error: null });
+  const activeRequest = useRef<AbortController | null>(null);
+  const discard = useCallback(() => {
+    activeRequest.current?.abort();
+    setState((old) => ({ ...old, data: null, loading: false }));
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
+    activeRequest.current = controller;
     // リクエスト先が変わった際は、以前の条件のデータを表示しません。
     // eslint-disable-next-line react/set-state-in-effect
     setState((old) => ({
@@ -42,5 +48,6 @@ export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
       ? state
       : { url, data: null, loading: true, error: null, status: undefined }),
     refresh: () => setRevision((old) => old + 1),
+    discard,
   };
 }

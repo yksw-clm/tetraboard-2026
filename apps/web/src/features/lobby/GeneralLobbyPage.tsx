@@ -25,6 +25,10 @@ export function GeneralLobbyPage() {
       void navigate(`/rooms/${room.id}?invite=${room.instanceId}&watch=1`);
       return;
     }
+    if (room.tournamentId) {
+      void navigate(`/tournaments/${room.tournamentId}`);
+      return;
+    }
     entry.clearMessage();
     setSelected(room);
   }

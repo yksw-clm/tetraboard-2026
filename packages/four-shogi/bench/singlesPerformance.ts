@@ -115,13 +115,7 @@ export function measurePerformance(
   };
 }
 
-/** #185と同じ初期・seed301の開始系列を、公開復元/共通AIの入口で測ります。 */
-export async function measureAnalysisPerformance(
-  options: AiOptions,
-  repeats: number,
-  restrictions: readonly boolean[] = [false, true],
-) {
-  if (!Number.isSafeInteger(repeats) || repeats < 1) throw new Error("測定回数は正の整数です");
+export async function analysisPerformanceCorpus(restrictions: readonly boolean[] = [false, true]) {
   const corpus = performanceCorpus(restrictions).filter((entry) => !entry.name.endsWith("-hands"));
   const positions = await Promise.all(
     corpus.map(async ({ name, state }) => {
@@ -154,6 +148,17 @@ export async function measureAnalysisPerformance(
       return { name, position };
     }),
   );
+  return { corpus, positions };
+}
+
+/** #185と同じ初期・seed301の開始系列を、公開復元/共通AIの入口で測ります。 */
+export async function measureAnalysisPerformance(
+  options: AiOptions,
+  repeats: number,
+  restrictions: readonly boolean[] = [false, true],
+) {
+  if (!Number.isSafeInteger(repeats) || repeats < 1) throw new Error("測定回数は正の整数です");
+  const { corpus, positions } = await analysisPerformanceCorpus(restrictions);
   const timeline: {
     round: number;
     name: string;

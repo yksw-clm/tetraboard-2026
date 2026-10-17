@@ -204,6 +204,47 @@ test("robots・sitemap・資産のContent-Typeを保持し、画面のPOST・Web
   expect(admin.status).not.toBe(200);
 });
 
+test("大会詳細の直接URLと再読込はnoindexのSPAをGET・HEAD・304で配信する", async () => {
+  const assets = assetFixture();
+  for (const path of ["/tournaments/1", "/tournaments/12/"]) {
+    const response = await assets.fetch(`${path}?source=lobby`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+    expect(response.headers.get("Location")).toBeNull();
+    expect(await response.text()).toContain('content="noindex,follow"');
+    const head = await assets.fetch(path, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(head.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+    expect(await head.text()).toBe("");
+    const conditional = await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } });
+    expect(conditional.status).toBe(304);
+    expect(conditional.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+    expect(conditional.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+  }
+  expect(assets.calls.every((request) => new URL(request.url).pathname === "/app.html")).toBe(true);
+  for (const path of [
+    "/tournaments",
+    "/tournaments/0",
+    "/tournaments/-1",
+    "/tournaments/01",
+    "/tournaments/draft",
+    "/tournaments/1/extra",
+  ]) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await assets.fetch(path, {
+        method,
+        headers: { "If-None-Match": '"fixture"' },
+      });
+      expect(response.status).toBe(404);
+      expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      if (method === "HEAD") expect(await response.text()).toBe("");
+      else expect(await response.text()).toContain("ページが見つかりません");
+    }
+  }
+});
+
 test("共有画像7枚のPNG配信・HEAD・304と欠落画像の404を維持する", async () => {
   const assets = assetFixture();
   for (const game of [...gameIds, "tetraboard"]) {

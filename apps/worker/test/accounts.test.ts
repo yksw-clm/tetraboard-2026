@@ -28,12 +28,18 @@ const form = (name: string, username: string, avatarAction = "keep", bytes?: Uin
   if (bytes) data.set("avatar", new File([bytes], "avatar.webp", { type: "image/webp" }));
   return data;
 };
-const write = (cookie: string, data: FormData, setup = false, from = origin) =>
-  request(setup ? "/account/setup" : "/account/profile", {
-    method: setup ? "POST" : "PATCH",
+const write = async (cookie: string, data: FormData, setup = false, from = origin) => {
+  const path = setup ? "/account/setup" : "/account/profile";
+  const method = setup ? "POST" : "PATCH";
+  const encoded = new Request(`${origin}/api${path}`, {
+    method,
     headers: { Cookie: cookie, Origin: from },
     body: data,
   });
+  // multipartの遅延streamを別リクエストへ渡さず、実HTTPと同様に符号化済みbodyを送ります。
+  const body = await encoded.arrayBuffer();
+  return request(path, { method, headers: encoded.headers, body });
+};
 test("未認証・期限切れ・改ざんCookieを拒否し、Googleログアウトで失効する", async () => {
   expect(await (await request("/account/session")).json()).toEqual({ user: null });
   expect((await write("", form("名前", "valid_id"))).status).toBe(401);

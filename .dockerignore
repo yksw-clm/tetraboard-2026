@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/.env
+**/.env.*
+**/.dev.vars*
+**/.wrangler
+**/.codex
+**/.aws
+**/dist
+**/__pycache__
+**/*.pt
+local

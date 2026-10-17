@@ -8,13 +8,15 @@
     "./general-lobby": "./src/generalLobby.ts",
     "./games": "./src/games.ts",
     "./room-sharing": "./src/roomSharing.ts",
-    "./privacy": "./src/privacy.ts"
+    "./privacy": "./src/privacy.ts",
+    "./four-shogi-ai": "./src/fourShogiAi.ts"
   },
   "scripts": {
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit",
-    "check": "bun run format:check && bun run lint && bun run typecheck"
+    "test": "bun test ./test",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test"
   },
   "dependencies": {
     "zod": "^4.0.0"

@@ -130,6 +130,7 @@ export function useRoomTransport<T extends Room>({
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
+  const initialTournamentId = isFourShogiRoom(initialRoom) ? initialRoom.tournamentId : undefined;
   const [room, setRoom] = useState(initialRoom);
   const [eliminatedHands, setEliminatedHands] = useState(initialEliminatedHands ?? null);
   const profileStore = usePlayerProfiles()?.store;
@@ -220,8 +221,12 @@ export function useRoomTransport<T extends Room>({
     PendingActionFor<T["settings"]["game"]>
   > | null>(null);
 
+  const tournamentCountdown =
+    room.status === "waiting" &&
+    "tournamentStartsAtMs" in room &&
+    typeof room.tournamentStartsAtMs === "number";
   useEffect(() => {
-    if (room.status !== "playing") return;
+    if (room.status !== "playing" && !tournamentCountdown) return;
     const update = () => {
       setServerNowMs(clockSync.serverNowMs + performance.now() - clockSync.receivedAt);
       clockSoundRef.current?.tick();
@@ -229,7 +234,7 @@ export function useRoomTransport<T extends Room>({
     update();
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
-  }, [room.status, clockSync]);
+  }, [room.status, clockSync, tournamentCountdown]);
 
   useEffect(() => {
     serverOffsetRef.current = initialServerNowMs - Date.now();
@@ -409,6 +414,12 @@ export function useRoomTransport<T extends Room>({
     }
 
     function stopUnavailable(message: string): void {
+      if (initialTournamentId !== undefined && initialMembership) {
+        void navigate(`/tournaments/${initialTournamentId}`, {
+          replace: true,
+          state: { tournamentReturn: { reason: "unavailable" } },
+        });
+      }
       active = false;
       stopTransport();
       setUnavailable(message);
@@ -677,6 +688,22 @@ export function useRoomTransport<T extends Room>({
           return;
         }
 
+        if (message.data.type === "room.tournament.return") {
+          const notification = message.data;
+          if (
+            initialMembership &&
+            initialTournamentId === notification.tournamentId &&
+            initialRoom.instanceId === notification.instanceId
+          ) {
+            active = false;
+            stopTransport();
+            void navigate(`/tournaments/${notification.tournamentId}`, {
+              replace: true,
+              state: { tournamentReturn: { reason: notification.reason } },
+            });
+          }
+          return;
+        }
         if (message.data.type === "room.snapshot") {
           try {
             assertRoomIdentity(message.data.room, initialRoom.id, initialRoom.instanceId);
@@ -894,6 +921,8 @@ export function useRoomTransport<T extends Room>({
       releaseSounds();
     };
   }, [
+    initialTournamentId,
+    navigate,
     initialFormationAnalysisSupported,
     initialEliminatedHands,
     initialStampsSupported,
@@ -1068,7 +1097,11 @@ export function useRoomTransport<T extends Room>({
     try {
       await leaveRoom(room.id, token);
       clearRoomMembershipToken(room.id);
-      void navigate(gameCatalog[room.settings.game].lobbyPath);
+      void navigate(
+        isFourShogiRoom(room) && room.tournamentId !== undefined
+          ? `/tournaments/${room.tournamentId}`
+          : gameCatalog[room.settings.game].lobbyPath,
+      );
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);

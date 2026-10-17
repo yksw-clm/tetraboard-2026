@@ -11,6 +11,7 @@ import { LobbyChat } from "./LobbyChat";
 import { Users } from "./Users";
 import { Announcements, AnnouncementCreatePage, AnnouncementEditPage } from "./Announcements";
 import { Feedback, FeedbackDetailPage } from "./Feedback";
+import { Tournaments, TournamentCreatePage, TournamentEditPage } from "./Tournaments";
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 function App() {
   const session = useAdminData("/api/admin/session", parseSession);
@@ -50,6 +51,7 @@ function App() {
             ["/lobby-chat", "公開チャット"],
             ["/feedback", "フィードバック"],
             ["/announcements", "お知らせ"],
+            ["/tournaments", "大会"],
           ].map(([to, label]) => (
             <NavLink
               key={to}
@@ -85,6 +87,9 @@ function App() {
           <Route path="/announcements" element={<Announcements />} />
           <Route path="/announcements/new" element={<AnnouncementCreatePage />} />
           <Route path="/announcements/:id" element={<AnnouncementEditPage />} />
+          <Route path="/tournaments" element={<Tournaments />} />
+          <Route path="/tournaments/new" element={<TournamentCreatePage />} />
+          <Route path="/tournaments/:key" element={<TournamentEditPage />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

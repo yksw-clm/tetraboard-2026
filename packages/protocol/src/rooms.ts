@@ -655,32 +655,37 @@ const shogiCheckStateSchema = z.strictObject({
   north: z.boolean(),
   east: z.boolean(),
 });
-const shogiWaitingSchema = z.strictObject({
-  id: roomCodeSchema,
-  instanceId: z.uuid(),
-  status: z.literal("waiting"),
-  settings: fourShogiRoomSettingsSchema,
-  publicUpdatedAtMs: serverNowMsSchema,
-  lastActivityAtMs: serverNowMsSchema,
-  players: z.array(
-    z.union([
-      cpuPlayerSchema.extend({ side: z.null() }),
-      humanPlayerSchema.extend({ side: z.null() }),
-    ]),
-  ),
-  eliminations: z.array(fourShogiEliminationSchema).length(0),
-  game: z.null(),
-  clock: z.null(),
-  lastRound: fourShogiLastRoundSchema.nullable(),
-  checkState: shogiCheckStateSchema,
-  roundId: z.null(),
-  positionRevision: z.literal(0),
-  legalActions: z.array(fourShogiActionSchema).length(0),
-  threePlayerAttackForbiddenActions: z.array(fourShogiActionSchema).length(0).default([]),
-});
+const shogiWaitingSchema = z
+  .strictObject({
+    id: roomCodeSchema,
+    tournamentId: z.int().positive().optional(),
+    tournamentStartsAtMs: serverNowMsSchema.optional(),
+    instanceId: z.uuid(),
+    status: z.literal("waiting"),
+    settings: fourShogiRoomSettingsSchema,
+    publicUpdatedAtMs: serverNowMsSchema,
+    lastActivityAtMs: serverNowMsSchema,
+    players: z.array(
+      z.union([
+        cpuPlayerSchema.extend({ side: z.null() }),
+        humanPlayerSchema.extend({ side: z.null() }),
+      ]),
+    ),
+    eliminations: z.array(fourShogiEliminationSchema).length(0),
+    game: z.null(),
+    clock: z.null(),
+    lastRound: fourShogiLastRoundSchema.nullable(),
+    checkState: shogiCheckStateSchema,
+    roundId: z.null(),
+    positionRevision: z.literal(0),
+    legalActions: z.array(fourShogiActionSchema).length(0),
+    threePlayerAttackForbiddenActions: z.array(fourShogiActionSchema).length(0).default([]),
+  })
+  .refine((room) => room.tournamentStartsAtMs === undefined || room.tournamentId !== undefined);
 const shogiPlayingSchema = z
   .strictObject({
     id: roomCodeSchema,
+    tournamentId: z.int().positive().optional(),
     instanceId: z.uuid(),
     status: z.literal("playing"),
     settings: fourShogiRoomSettingsSchema,
@@ -815,6 +820,7 @@ export function isFourReversiRoom(room: Room): room is FourReversiRoom {
 export const roomPublicMetadataSchema = z
   .strictObject({
     id: roomCodeSchema,
+    tournamentId: z.int().positive().optional(),
     game: roomGameSchema,
     mode: roomModeSchema.optional(),
     timeControl: fourReversiRoomSettingsSchema.shape.timeControl,
@@ -833,6 +839,7 @@ export const roomPublicMetadataSchema = z
   })
   .refine(
     (metadata) =>
+      (metadata.tournamentId === undefined || metadata.game === "four-shogi") &&
       metadata.capacity === gameCatalog[metadata.game].capacity &&
       (gameCatalog[metadata.game].hasModes
         ? metadata.mode !== undefined
@@ -902,6 +909,8 @@ const roomErrorSchema = z.strictObject({
     "code_unavailable",
     "room_full",
     "account_seated",
+    "account_busy",
+    "tournament_required",
     "profile_required",
     "consent_required",
     "room_started",
@@ -1152,6 +1161,13 @@ export const roomSocketContract = {
       type: z.literal("room.authenticated"),
       membership: roomMembershipSchema,
       interactionAvailableAtMs: z.int().nonnegative().optional(),
+    }),
+    z.strictObject({
+      type: z.literal("room.tournament.return"),
+      tournamentId: z.int().positive(),
+      matchId: z.uuid(),
+      instanceId: z.uuid(),
+      reason: z.enum(["unavailable", "left", "transferred"]),
     }),
     roomStampReceivedSchema,
     roomStampErrorSchema,

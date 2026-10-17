@@ -1,3 +1,4 @@
+import { TournamentEntrance } from "../tournaments/TournamentEntrance";
 import { LobbyFooter } from "./LobbyFooter";
 import { RecentMatches } from "../matches/RecentMatches";
 import { ReversiLobbyBoardPreview } from "./ReversiLobbyBoardPreview";
@@ -227,6 +228,7 @@ export function LobbyView(props: Props) {
             </div>
           </div>
 
+          {props.game === "four-shogi" && <TournamentEntrance />}
           <LobbyAnnouncement game={props.game} />
           <div className="grid grid-cols-2 gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
             {order.map((section) => sections[section])}

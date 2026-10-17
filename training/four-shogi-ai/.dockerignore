@@ -1,0 +1,10 @@
+*
+!Dockerfile
+!Dockerfile.search
+!requirements.txt
+!dataset.py
+!model.py
+!checkpoint.py
+!inference.py
+!inferenceSmoke.py
+!inferenceTest.py

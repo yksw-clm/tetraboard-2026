@@ -7,6 +7,27 @@ import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { renderGeneralLobby, renderPublicLobby } from "../build/renderPublicLobby";
 import { render, flush } from "./support";
 
+test("大会の実URLはnoindexと自身のcanonicalを持ち、ロビー移動で取り替える", () => {
+  const previousHead = document.head.innerHTML;
+  try {
+    updatePageMetadata("/tournaments/12");
+    expect(document.title).toBe("四人将棋大会 | TetraBoard");
+    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+      "noindex,follow",
+    );
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://tetraboard.net/tournaments/12",
+    );
+    updatePageMetadata("/games/four-shogi");
+    expect(document.head.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
+      "https://tetraboard.net/games/four-shogi",
+    );
+  } finally {
+    document.head.innerHTML = previousHead;
+  }
+});
+
 test("紹介はダイアログを開かず読め、両ゲームのモードと固有ルールを表示する", () => {
   for (const game of ["four-shogi", "four-reversi"] as const) {
     const view = render(<GameIntroduction game={game} />);

@@ -78,15 +78,15 @@ function requirePosition(position: AnalysisPosition) {
       "解析APIで復元した局面が必要です。表示frameやJSON状態を代用できません",
     );
 }
+/** 正本の完全状態の照合用です。ハッシュだけでは解析局面の信頼性を付与しません。 */
+export async function getAnalysisStateHash(state: FourShogiState): Promise<string> {
+  const { players: _players, ...ruleState } = state;
+  return sha256({ analysisStateVersion: 1, ruleProfileId: analysisRuleProfileId, ruleState });
+}
 async function makePosition(state: FourShogiState, eventOffset: number): Promise<AnalysisPosition> {
   freeze(state);
   // 参加者の紐付けは要求文脈で管理し、ルール状態の識別へ混ぜません。
-  const { players: _players, ...ruleState } = state;
-  const stateHash = await sha256({
-    analysisStateVersion: 1,
-    ruleProfileId: analysisRuleProfileId,
-    ruleState,
-  });
+  const stateHash = await getAnalysisStateHash(state);
   const position = freeze<AnalysisPosition>({
     analysisStateVersion: 1 as const,
     ruleProfileId: analysisRuleProfileId,

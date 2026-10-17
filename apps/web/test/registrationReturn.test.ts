@@ -42,6 +42,34 @@ describe("登録後の復帰情報", () => {
     ])
       expect(registrationPath(target)).toBeNull();
   });
+  test("大会の復帰先と参加意図は同じ正の大会番号だけを受け入れる", () => {
+    expect(registrationPath("/tournaments/1")).toBe("/tournaments/1");
+    expect(
+      parseRegistrationReturn(
+        { path: "/tournaments/1", tournamentEntry: 1, createdAt: now, oauthStarted: true },
+        now,
+      )?.tournamentEntry,
+    ).toBe(1);
+    for (const path of [
+      "/tournaments/0",
+      "/tournaments/01",
+      "/tournaments/-1",
+      "/tournaments/1?entry=1",
+      "/tournaments/9007199254740992",
+    ])
+      expect(registrationPath(path)).toBeNull();
+    for (const tournamentEntry of [0, -1, 2, "1", null])
+      expect(
+        parseRegistrationReturn(
+          { path: "/tournaments/1", tournamentEntry, createdAt: now, oauthStarted: true },
+          now,
+        ),
+      ).toBeNull();
+    expect(
+      parseRegistrationReturn({ path: "/tournaments/1", createdAt: now, oauthStarted: true }, now)
+        ?.tournamentEntry,
+    ).toBeUndefined();
+  });
   test("未来・期限切れ・破損した情報を適用しない", () => {
     expect(parseRegistrationReturn(value, now + 3_599_999)).not.toBeNull();
     for (const record of [

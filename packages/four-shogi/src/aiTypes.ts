@@ -1,10 +1,24 @@
 import type { FourShogiAction, Side, Piece, Elimination, GameResult } from "./types";
+import type { EvaluationWeights } from "./cpuEvaluation";
+import type { AiModelEvaluator } from "./aiModel";
 
-export const aiVersions = Object.freeze({
-  analysisVersion: "singles-analysis-v1",
+export type AiVersions = Readonly<{
+  analysisVersion: string;
+  engineVersion: string;
+  searchVersion: string;
+  evaluationVersion: string;
+  featureVersion: string | null;
+  actionVersion: string;
+  opponentModelId: string;
+  tieBreak: string;
+  seed: number | null;
+}>;
+
+export const aiVersions: AiVersions = Object.freeze({
+  analysisVersion: "singles-analysis-v2",
   engineVersion: "tetraboard-four-shogi-rules-v1",
-  searchVersion: "selective-maxn-v1",
-  evaluationVersion: "sole-first-heuristic-v1",
+  searchVersion: "selective-maxn-v2",
+  evaluationVersion: "sole-first-heuristic-v2",
   featureVersion: null,
   actionVersion: "four-shogi-action-v1",
   opponentModelId: "selfish-maxn-v1",
@@ -20,26 +34,32 @@ export type AiSearchSettings = Readonly<{
   extensions: number;
   candidateCount: number;
   includeAction: FourShogiAction | null;
+  algorithm: "maxn" | "mcts";
+  cacheSize: number;
+  moveOrdering: "tactical" | "previous";
+  evaluationWeights: EvaluationWeights;
+  exploration: number;
+  rolloutPlies: number;
+  maxSimulations: number;
+  seed: number;
+  dangerWork: number;
+  dangerPlies: number;
+  modelTimeoutMs?: number;
 }>;
-export type AiOptions = Readonly<{
-  codeVersion: string;
-  modelId?: null;
-  timeBudgetMs?: number | null;
-  maxWork?: number;
-  maxDepth?: number;
-  width?: number;
-  rootWidth?: number;
-  extensions?: number;
-  candidateCount?: number;
-  includeAction?: FourShogiAction | null;
-}>;
+export type AiOptions = Readonly<
+  Partial<Omit<AiSearchSettings, "evaluationWeights">> & {
+    codeVersion: string;
+    modelId?: string | null;
+    evaluationWeights?: Partial<EvaluationWeights>;
+  }
+>;
 export type AiValue = Readonly<{
   primary: number;
   secondaryRank: number;
   heuristicScore: number | null;
 }>;
 export type AiEvaluation = Readonly<{
-  evaluationKind: "heuristic" | "terminal";
+  evaluationKind: "heuristic" | "terminal" | "sample_mean" | "model";
   values: Readonly<Record<Side, AiValue>>;
   ranks: readonly Readonly<{ side: Side; rank: number; kind: "provisional" | "confirmed" }>[];
   probabilities: null;
@@ -62,14 +82,27 @@ export type AiCandidate = Readonly<{
   iterationWork: number;
   selective: boolean;
   cutoff: boolean;
+  comparisonKind: "uniform_depth" | "sample_mean";
+  visits: number;
+  lineEvaluation: AiEvaluation | null;
   line: readonly AiLineStep[];
   danger: Readonly<{
     kind: "pv_example";
     forced: false;
     untilNextOwnTurn: "returned" | "terminal" | "eliminated" | "horizon";
     evidence: readonly AiLineStep[];
+    alternatives: Readonly<AiAlternativeRisk> | null;
   }>;
 }>;
+export type AiAlternativeRisk = {
+  kind: "possible_legal_replies";
+  complete: boolean;
+  limit: "work_limit" | "ply_limit" | "interrupted" | null;
+  work: number;
+  nodes: number;
+  eliminationWitness: readonly AiLineStep[] | null;
+  rookLossWitness: readonly AiLineStep[] | null;
+};
 export type AiStopReason =
   | "terminal"
   | "no_legal_actions"
@@ -77,17 +110,29 @@ export type AiStopReason =
   | "deadline"
   | "work_limit"
   | "max_depth"
+  | "simulation_limit"
   | "sole_win";
-export type AiProgress = Readonly<{
+export type AiSearchStats = {
   work: number;
   nodes: number;
   generatedMoves: number;
   evaluations: number;
   completedDepth: number;
   extendedNodes: number;
-  elapsedMs: number;
-  candidates: readonly AiCandidate[];
-}>;
+  cacheEntries: number;
+  legalCacheHits: number;
+  transitionCacheHits: number;
+  evaluationCacheHits: number;
+  orderingCacheHits: number;
+  simulations: number;
+  maxVisitedPly: number;
+};
+export type AiProgress = Readonly<
+  AiSearchStats & {
+    elapsedMs: number;
+    candidates: readonly AiCandidate[];
+  }
+>;
 export type AiResult = Readonly<{
   schemaVersion: 1;
   status: "completed" | "limited" | "cancelled" | "terminal" | "no_legal_actions";
@@ -100,13 +145,21 @@ export type AiResult = Readonly<{
     rootSide: Side | null;
   }>;
   cacheKey: string;
-  versions: typeof aiVersions & Readonly<{ codeVersion: string }>;
+  versions: AiVersions & Readonly<{ codeVersion: string }>;
   settings: AiSearchSettings;
   model: Readonly<{
-    requestedModelId: null;
-    loadedModelId: null;
-    usedModelId: null;
-    inferenceCount: 0;
+    requestedModelId: string | null;
+    loadedModelId: string | null;
+    usedModelId: string | null;
+    inferenceCount: number;
+    inferenceCalls?: number;
+    attemptedInferenceCount?: number;
+    policyUses?: number;
+    valueUses?: number;
+    inferenceMs?: number;
+    discardedWork?: number;
+    fallbackReason?: string | null;
+    fallbackDetail?: string | null;
   }>;
   recommendedAction: FourShogiAction | null;
   staticEvaluation: AiEvaluation;
@@ -121,10 +174,12 @@ export type AiResult = Readonly<{
       legalPreparationMs: number;
       deadlineOverrunMs: number;
       yields: number;
-      algorithm: "maxn";
+      algorithm: "maxn" | "mcts";
     }>;
 }>;
 export type AiControl = Readonly<{
+  modelEvaluator?: AiModelEvaluator;
+  modelLoadError?: string;
   signal?: AbortSignal;
   isCancelled?: () => boolean;
   now?: () => number;

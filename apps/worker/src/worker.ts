@@ -30,8 +30,11 @@ import { deleteExpiredReports } from "./rooms/reportStore";
 import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
 import { cleanupFeedback } from "./feedback/store";
 import { servePublicAssets } from "./publicAssets";
+import { fourShogiAiRoutes } from "./fourShogiAi/routes";
+import { tournamentRoutes, tournamentAdminRoutes, recoverTournaments } from "./tournaments/routes";
 
 export { GameRoom } from "./rooms/gameRoom";
+export { TournamentCoordinator } from "./tournaments/coordinator";
 
 const api = new Hono<{ Bindings: Env }>();
 
@@ -42,6 +45,8 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 });
 
 api.route("/", generalLobbyRoutes);
+api.route("/", tournamentRoutes);
+api.route("/", tournamentAdminRoutes);
 api.route("/", lobbyChatRoutes);
 api.route("/", adminRoutes);
 api.route("/", announcementRoutes);
@@ -50,6 +55,7 @@ api.route("/", feedbackAdminRoutes);
 api.route("/", feedbackRoutes);
 api.route("/", analyticsRoutes);
 api.route("/", matchRoutes);
+api.route("/", fourShogiAiRoutes);
 api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);
 api.route("/", badgeNotificationRoutes);
@@ -131,6 +137,7 @@ const worker = {
     await cleanupFeedback(env);
     await deleteExpiredReports(env.APP_DB);
     await recoverAccountReservations(env);
+    await recoverTournaments(env);
     await retryPendingMatchClaims(env.APP_DB);
     await deleteUnusedAvatars(env);
     await env.APP_DB.batch([

@@ -78,6 +78,15 @@ export const router = createBrowserRouter([
       { path: "/feedback", Component: FeedbackPage },
       { path: "/updates", Component: UpdatesPage },
       { path: "/updates/:id", Component: UpdateDetailPage },
+      {
+        path: "/tournaments/:id",
+        lazy: async () => ({
+          Component: (await import("../features/tournaments/TournamentPage")).TournamentPage,
+        }),
+        hydrateFallbackElement: (
+          <AppPageLoading message="大会を読み込んでいます…" theme="four-shogi" />
+        ),
+      },
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },

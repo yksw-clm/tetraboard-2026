@@ -286,6 +286,8 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
       if (!current) return context.json(roomError("not_found"), 404);
       if (request.data.instanceId && request.data.instanceId !== current.instanceId)
         return context.json(roomError("room_changed"), 410);
+      if ("tournamentId" in current && current.tournamentId !== undefined)
+        return context.json(roomError("tournament_required"), 409);
       admission = await reserveAccountSeat(
         context.req.raw,
         context.env,
@@ -322,6 +324,8 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     if (result.status === "room_started") {
       return context.json(roomError("room_started"), 409);
     }
+    if (result.status === "tournament_required")
+      return context.json(roomError("tournament_required"), 409);
     context.header("Cache-Control", "no-store");
     return context.json(
       joinRoomContract.response.parse({

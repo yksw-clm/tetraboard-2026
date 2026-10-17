@@ -29,6 +29,7 @@ export function RoomStatus({
   joinUnavailable,
   replay,
   onRotate,
+  onTournamentNext,
 }: {
   session: SharedRoomSession & { canPlay: boolean };
   onResults: () => void;
@@ -41,9 +42,19 @@ export function RoomStatus({
   joinUnavailable: string | null;
   replay?: ReactNode;
   onRotate: () => void;
+  onTournamentNext?: () => void;
 }) {
   const { room, self, membership, presence, authenticated, connection } = session;
   const waiting = room.status === "waiting";
+  const tournamentId = isFourShogiRoom(room) ? room.tournamentId : undefined;
+  const nextTournamentRound =
+    tournamentId !== undefined &&
+    isFourShogiRoom(room) &&
+    ((room.status === "waiting" && room.lastRound !== null) ||
+      (room.status === "playing" &&
+        self &&
+        "side" in self &&
+        room.game.eliminations.some((entry) => entry.side === self.side)));
   const turn =
     room.status === "playing"
       ? isFourShogiRoom(room) || isShogiRoom(room)
@@ -95,7 +106,11 @@ export function RoomStatus({
           {waiting
             ? registering.length > 0
               ? "登録手続きの完了を待っています。"
-              : "待機中です。"
+              : tournamentId !== undefined
+                ? room.lastRound
+                  ? "大会の対局が終了しました。"
+                  : "参加者の接続を待っています。"
+                : "待機中です。"
             : myTurn
               ? "あなたの番です。"
               : `${turn ? playerName(turn) : ""}の番です。`}
@@ -130,14 +145,14 @@ export function RoomStatus({
             onRotate={onRotate}
             rotationDegrees={!gameCatalog[room.settings.game].hasModes ? 180 : 90}
           >
-            {!joinUnavailable && (
+            {(tournamentId !== undefined || !joinUnavailable) && (
               <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
-                参加する
+                {tournamentId !== undefined ? "大会へ" : "参加する"}
               </AppButton>
             )}
           </ViewerControls>
         )}
-        {waiting && self && membership && (
+        {tournamentId === undefined && waiting && self && membership && (
           <AppButton
             size="compact"
             appearance={self.ready ? "secondary" : "primary"}
@@ -148,7 +163,7 @@ export function RoomStatus({
             {ownRegistration ? "登録手続中" : self.ready ? "準備取消" : "準備完了"}
           </AppButton>
         )}
-        {waiting && membership?.role === "host" && (
+        {tournamentId === undefined && waiting && membership?.role === "host" && (
           <AppButton
             size="compact"
             isDisabled={!canStart}
@@ -166,6 +181,16 @@ export function RoomStatus({
             appearance="danger"
           >
             投了
+          </AppButton>
+        )}
+        {nextTournamentRound && membership && onTournamentNext && (
+          <AppButton
+            size="compact"
+            isDisabled={session.leaving}
+            isPending={session.leaving}
+            onPress={onTournamentNext}
+          >
+            次の対局
           </AppButton>
         )}
         {turnActions}
