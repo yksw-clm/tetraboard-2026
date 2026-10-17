@@ -1,20 +1,28 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { ComponentType } from "react";
 import { createInitialState } from "@tetraboard/reversi";
+import { createInitialState as initialGomoku } from "@tetraboard/gomoku";
+import { createInitialState as initialFourGomoku } from "@tetraboard/four-gomoku";
 import {
   publicReversiMatchDetailSchema,
   reversiRoomSchema,
   shogiRoomSchema,
+  gomokuRoomSchema,
+  fourGomokuRoomSchema,
   type Room,
   type RoomMembership,
   type RoomPresence,
 } from "@tetraboard/protocol";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
+import gomokuArchive from "../../../test-fixtures/matches/gomoku-on-five.json";
+import fourGomokuArchive from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
 import { useAutoGameResult } from "../src/features/room/useAutoGameResult";
 import RoomDetail from "../src/features/room/FourReversiRoomDetail";
 import FourShogiRoomDetail from "../src/features/room/FourShogiRoomDetail";
 import ReversiRoomDetail from "../src/features/room/ReversiRoomDetail";
 import ShogiRoomDetail from "../src/features/room/ShogiRoomDetail";
+import GomokuRoomDetail from "../src/features/room/GomokuRoomDetail";
+import FourGomokuRoomDetail from "../src/features/room/FourGomokuRoomDetail";
 import {
   playingRoom,
   waitingRoom,
@@ -115,11 +123,79 @@ function rounds() {
       eventCount: shogi.replay.eventCount,
     },
   });
+  const gomoku = gomokuRoomSchema.parse({
+    ...waitingRoom(),
+    settings: gomokuArchive.detail.settings,
+    players: waitingRoom().players.slice(0, 2),
+    roundId: null,
+    positionRevision: 0,
+  });
+  const fourGomoku = fourGomokuRoomSchema.parse({
+    ...waitingRoom(),
+    settings: fourGomokuArchive.detail.settings,
+    roundId: null,
+    positionRevision: 0,
+  });
+  const gomokuPlaying = gomokuRoomSchema.parse({
+    ...gomoku,
+    status: "playing",
+    roundId: gomokuArchive.detail.id,
+    players: gomoku.players.map((p, i) => ({ ...p, color: i === 0 ? "black" : "white" })),
+    game: initialGomoku(),
+    clock: {
+      remainingMainMs: { black: 300000, white: 300000 },
+      turnStartedAt: now,
+      turnExpiresAt: now + 330000,
+    },
+  });
+  const fourGomokuPlaying = fourGomokuRoomSchema.parse({
+    ...fourGomoku,
+    status: "playing",
+    roundId: fourGomokuArchive.detail.id,
+    players: fourGomoku.players.map((p, i) => ({
+      ...p,
+      color: ["black", "white", "red", "blue"][i],
+    })),
+    game: initialFourGomoku(),
+    clock: {
+      remainingMainMs: { black: 300000, white: 300000, red: 300000, blue: 300000 },
+      turnStartedAt: now,
+      turnExpiresAt: now + 330000,
+    },
+  });
+  const gomokuEnded = gomokuRoomSchema.parse({
+    ...gomoku,
+    lastRound: {
+      settings: gomokuArchive.detail.settings,
+      game: gomokuArchive.detail.game,
+      replay: gomokuArchive.detail.replay,
+      players: gomokuArchive.detail.participants.map(({ name, color }, i) => ({
+        id: playerIds[i],
+        name,
+        color,
+      })),
+    },
+  });
+  const fourGomokuEnded = fourGomokuRoomSchema.parse({
+    ...fourGomoku,
+    lastRound: {
+      settings: fourGomokuArchive.detail.settings,
+      game: fourGomokuArchive.detail.game,
+      replay: fourGomokuArchive.detail.replay,
+      players: fourGomokuArchive.detail.participants.map(({ name, color }, i) => ({
+        id: playerIds[i],
+        name,
+        color,
+      })),
+    },
+  });
   return [
     pair(playingRoom(), fourEnded, RoomDetail),
     pair(playingShogiRoom(), finishedShogiRound().room, FourShogiRoomDetail),
     pair(reversiPlaying, reversiEnded, ReversiRoomDetail),
     pair(standardPlayingRoom(), shogiEnded, ShogiRoomDetail),
+    pair(gomokuPlaying, gomokuEnded, GomokuRoomDetail),
+    pair(fourGomokuPlaying, fourGomokuEnded, FourGomokuRoomDetail),
   ];
 }
 type Input = { room: Room; blocked: boolean; unavailable: boolean };
@@ -234,6 +310,13 @@ for (const { playing, ended, renderDetail } of rounds()) {
         if (!close) throw Error("Missing result close button");
         act(() => close.click());
         await flush();
+        if (!spectator) {
+          expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+            "遊んでみていかがでしたか？",
+          );
+          await press(document.body, "スキップ");
+          await flush();
+        }
         clock.advance(1000);
         await flush();
         expect(document.querySelector('[role="dialog"]')).toBeNull();

@@ -1510,6 +1510,16 @@ Workerテストで未ログインアクセス・全色・同率優勝・両チ�
 
 ## フィードバックの受付・運営
 
+### 終局後の評価（#132）
+
+利用者向けの正本は [終局後の星評価](../README.md#終局後の星評価) です。`RoomViewShell` の結果を閉じる操作から `usePostGameFeedback` を呼び、本人の参加資格と前局の参加者を確認して `PostGameFeedbackDialog` を開きます。表示記録は `tetraboard:post-game-feedback-shown` のlocalStorageキーで全ゲーム共通です。表示する時点で保存し、未回答・送信失敗でも消しません。保存不能時は表示を省略します。既存結果・登録案内の表示条件と1秒の遅延は維持します。
+
+`POST /api/feedback` の既存入力へ任意の `rating`（整数1〜5）と `opponent`（cpu／human）を対で追加します。評価ありの場合だけ本文を任意にし、opinion・個別ゲームに限定します。投稿者区分は従来のサーバー認証で確認し、対戦区分は前局のappearance（旧形式は対局中の参加構成）から求めます。送信内容は最初の試行で固定し、再送は同じsubmissionIdを使い、編集時に新しいIDへ切り替えます。`0019_feedback_ratings.sql` は既存feedback表へnullable列を追加し、既存行はnullのままです。管理一覧の `author`・`opponent`・`rating` 条件と詳細へ反映し、管理者認証・期限・退会削除の経路を共用します。
+
+`postGameFeedback.test.tsx` と `autoGameResult.test.tsx` は結果を閉じた後の表示、観戦の除外、保存・再表示抑止、星と任意コメント、失敗・再送・変更を確認します。Workerの `feedback.test.ts` は保存・認証・入力境界・管理APIの絞り込み、Adminの `feedbackEditor.test.tsx` は一覧と詳細・区分・評価の表示を確認します。画面寸法と実機の星選択・フォーカスは手動確認です。
+
+### 共通の受付
+
 共通仕様はREADMEの「フィードバック受付とお知らせ」を参照します。`packages/protocol/src/feedback.ts` のスキーマをWeb・Worker・Adminで共有し、`0008_feedback.sql` は投稿・テーマ・編集履歴・送信上限・アップロード予約を追加します。既存ゲーム・通報のデータ形式は変更せず、過去データの移行は不要です。プロフィール未完了でも `/feedback` と `/updates` を開けるよう、通常の設定画面への転送から除外します。
 
 ### 受付と非公開画像

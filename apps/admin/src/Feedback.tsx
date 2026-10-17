@@ -32,6 +32,9 @@ const statuses = {
   spam: "迷惑投稿",
 };
 const priorities = { high: "高", normal: "通常", low: "低" };
+const authors = { guest: "ゲスト", account: "ユーザー" };
+const opponents = { cpu: "CPU戦", human: "対人戦" };
+const ratings = { "1": "★1", "2": "★2", "3": "★3", "4": "★4", "5": "★5" };
 const field = "w-full rounded-lg border border-gray-300 bg-white p-3 text-sm disabled:opacity-60";
 const date = (ms: number) => new Date(ms).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 const duration = (ms: number | null) =>
@@ -168,6 +171,9 @@ export function Feedback() {
               ["game", "対象", games],
               ["status", "対応状況", statuses],
               ["priority", "優先度", priorities],
+              ["author", "投稿者", authors],
+              ["opponent", "対戦区分", opponents],
+              ["rating", "評価", ratings],
             ] as const
           ).map(([key, label, values]) => (
             <label key={key} className="text-sm">
@@ -232,11 +238,13 @@ export function Feedback() {
                     to={`/feedback/${r.id}`}
                     className="block min-h-11 py-2 text-brand underline whitespace-pre-wrap break-words"
                   >
-                    {Array.from(r.body).slice(0, 120).join("")}
+                    {r.rating !== null && `★${r.rating} / 5　`}
+                    {Array.from(r.body).slice(0, 120).join("") || "コメントなし"}
                     {Array.from(r.body).length > 120 ? "…" : ""}
                   </Link>
                   <p className="text-xs text-gray-600">
-                    {r.author === "account" ? "登録者" : "ゲスト"}
+                    {authors[r.author]}
+                    {r.opponent !== null ? ` ／ ${opponents[r.opponent]}` : ""}
                     {r.hasAttachment ? " ／ 画像あり" : ""}
                   </p>
                 </Card>
@@ -435,7 +443,8 @@ function FeedbackEditor({
       <Card className="gap-4 p-5 sm:p-7">
         <p className="break-all text-xs text-gray-600">受付番号：{r.id}</p>
         <p className="text-sm">
-          {kinds[r.kind]} ／ {games[r.game]} ／ {r.author === "account" ? "登録者" : "ゲスト"}
+          {kinds[r.kind]} ／ {games[r.game]} ／ {authors[r.author]}
+          {r.opponent !== null ? ` ／ ${opponents[r.opponent]}` : ""}
           {r.internal ? "（運営・テスト）" : ""}
         </p>
         <p className="text-xs text-gray-600">
@@ -443,9 +452,10 @@ function FeedbackEditor({
           <br />
           初回確認：{r.firstReviewedAtMs === null ? "未確認" : date(r.firstReviewedAtMs)}
         </p>
+        {r.rating !== null && <p className="text-lg font-bold">評価：★{r.rating} / 5</p>}
         <section>
           <h2 className="mb-2 font-bold">内容</h2>
-          <p className="whitespace-pre-wrap break-words text-sm">{r.body}</p>
+          <p className="whitespace-pre-wrap break-words text-sm">{r.body || "コメントなし"}</p>
         </section>
         {r.expectation && (
           <section>

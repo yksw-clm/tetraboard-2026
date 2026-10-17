@@ -17,6 +17,8 @@ export type FeedbackRow = {
   kind: FeedbackRecord["kind"];
   game: FeedbackRecord["game"];
   body: string;
+  rating: number | null;
+  opponent: "cpu" | "human" | null;
   expectation: string;
   steps: string;
   technical: string | null;
@@ -39,6 +41,8 @@ export function toFeedback(row: FeedbackRow): FeedbackRecord {
     kind: row.kind,
     game: row.game,
     body: row.body,
+    rating: row.rating,
+    opponent: row.opponent,
     expectation: row.expectation,
     steps: row.steps,
     technical: row.technical ? JSON.parse(row.technical) : null,
@@ -108,8 +112,8 @@ export async function reserveFeedback(
     .join(" AND ");
   const insert = db
     .prepare(`INSERT OR IGNORE INTO feedback
-    (id, submission_id, payload_hash, author, reporter_hash, internal, kind, game, body, expectation, steps, technical, received_at_ms, expires_at_ms, attachment_key,account_id)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,? WHERE ${checks}`)
+    (id, submission_id, payload_hash, author, reporter_hash, internal, kind, game, body, expectation, steps, technical, received_at_ms, expires_at_ms, attachment_key,account_id,rating,opponent)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${checks}`)
     .bind(
       id,
       input.submissionId,
@@ -127,6 +131,8 @@ export async function reserveFeedback(
       now + feedbackRetentionMs,
       key,
       identity.accountId ?? null,
+      input.rating ?? null,
+      input.opponent ?? null,
       ...limits.flatMap((v) => [v.key, v.start, v.max]),
     );
   const statements = [
@@ -158,6 +164,9 @@ export async function listFeedback(db: D1Database, query: FeedbackQuery) {
     ["game", "game"],
     ["status", "status"],
     ["priority", "priority"],
+    ["author", "author"],
+    ["opponent", "opponent"],
+    ["rating", "rating"],
   ] as const) {
     if (query[field]) {
       where.push(`${column} = ?`);

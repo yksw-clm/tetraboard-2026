@@ -14,6 +14,8 @@ export const feedbackStatusSchema = z.enum([
   "spam",
 ]);
 export const feedbackPrioritySchema = z.enum(["high", "normal", "low"]);
+const feedbackRatingSchema = z.number().int().min(1).max(5);
+const feedbackOpponentSchema = z.enum(["cpu", "human"]);
 const text = (max: number, required = false) =>
   z
     .string()
@@ -43,13 +45,23 @@ export const feedbackInputSchema = z
     accountRequired: z.boolean().default(false),
     kind: feedbackKindSchema,
     game: feedbackGameSchema,
-    body: text(2000, true),
+    body: text(2000),
+    rating: feedbackRatingSchema.optional(),
+    opponent: feedbackOpponentSchema.optional(),
     expectation: text(500).default(""),
     steps: text(1000).default(""),
     technical: feedbackTechnicalSchema.nullable().default(null),
   })
   .strict()
-  .refine((input) => input.kind === "bug" || (!input.steps && input.technical === null));
+  .refine((input) => input.kind === "bug" || (!input.steps && input.technical === null))
+  .refine((input) =>
+    input.rating === undefined
+      ? input.opponent === undefined && input.body.length > 0
+      : input.opponent !== undefined &&
+        input.kind === "opinion" &&
+        input.game !== "all" &&
+        !input.expectation,
+  );
 export const feedbackReceiptSchema = z.object({ id: z.uuid() });
 export const feedbackTopicSchema = z.object({
   id: z.uuid(),
@@ -67,6 +79,8 @@ export const feedbackRecordSchema = z.object({
   kind: feedbackKindSchema,
   game: feedbackGameSchema,
   body: z.string(),
+  rating: feedbackRatingSchema.nullable().default(null),
+  opponent: feedbackOpponentSchema.nullable().default(null),
   expectation: z.string(),
   steps: z.string(),
   technical: feedbackTechnicalSchema.nullable(),
@@ -94,6 +108,9 @@ export const feedbackDetailSchema = z.object({
   ),
 });
 export const feedbackQuerySchema = z.object({
+  author: z.enum(["account", "guest"]).optional(),
+  opponent: feedbackOpponentSchema.optional(),
+  rating: z.coerce.number().int().min(1).max(5).optional(),
   kind: feedbackKindSchema.optional(),
   game: feedbackGameSchema.optional(),
   status: feedbackStatusSchema.optional(),
