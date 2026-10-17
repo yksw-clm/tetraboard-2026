@@ -668,6 +668,11 @@ test("終了時刻以降の未開始予約を解放して不成立を確定し�
   await env.APP_DB.prepare("UPDATE tournaments SET ends_at_ms=? WHERE key=?")
     .bind(Date.now() - 1, f.key)
     .run();
+  const initial = tournamentDetailSchema.parse(
+    await (await request(`/tournaments/${f.id}`)).json(),
+  );
+  expect(initial.tournament.status).toBe("settling");
+  await f.stub.refresh(f.key);
   const detail = tournamentDetailSchema.parse(await (await request(`/tournaments/${f.id}`)).json());
   expect(detail.tournament.status).toBe("finished");
   expect(detail.tournament.completedCount).toBe(0);
