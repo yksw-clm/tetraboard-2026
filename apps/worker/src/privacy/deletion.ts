@@ -65,6 +65,12 @@ export async function requestDeletion(env: AuthEnv, id: string, receipt: string)
     env.APP_DB.prepare(
       "DELETE FROM deletion_challenges WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
     ).bind(id, id, tokenHash),
+    env.APP_DB.prepare(
+      "DELETE FROM tournament_wait_reservations WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
+    ).bind(id, id, tokenHash),
+    env.APP_DB.prepare(
+      "UPDATE tournament_entries SET deleted=1 WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
+    ).bind(id, id, tokenHash),
   ]);
   return results[0].results.length === 1;
 }
@@ -136,6 +142,24 @@ export async function processDeletions(env: AuthEnv) {
           .first()
       )
         continue;
+      const tournaments = await env.APP_DB.prepare(
+        "SELECT DISTINCT tournament_key FROM tournament_entries WHERE account_id=?",
+      )
+        .bind(job.id)
+        .all<{ tournament_key: string }>();
+      for (const tournament of tournaments.results)
+        await env.TOURNAMENT_COORDINATOR.getByName(tournament.tournament_key).purgeAccount(job.id);
+      await env.APP_DB.batch([
+        env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE account_id=?").bind(
+          job.id,
+        ),
+        env.APP_DB.prepare(
+          "UPDATE tournament_entries SET account_id=NULL,deleted=1 WHERE account_id=?",
+        ).bind(job.id),
+        env.APP_DB.prepare(
+          "UPDATE tournament_match_players SET account_id=NULL WHERE account_id=?",
+        ).bind(job.id),
+      ]);
       // 受付の表示抑止と別に、本人の投稿本文・画像を物理削除します。
       const feedback = await env.APP_DB.prepare(
         "SELECT id,attachment_key FROM feedback WHERE reporter_hash=? OR account_id=?",

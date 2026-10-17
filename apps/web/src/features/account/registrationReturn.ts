@@ -26,6 +26,7 @@ export type RegistrationDestination = {
   path: string;
   entry?: RegistrationEntryDraft;
   joinName?: string;
+  tournamentEntry?: number;
 };
 export type RegistrationReturn = RegistrationDestination & {
   createdAt: number;
@@ -36,6 +37,10 @@ export type RegistrationReturn = RegistrationDestination & {
 export function registrationPath(path: unknown): string | null {
   if (typeof path !== "string") return null;
   if (path === "/") return path;
+  if (/^\/tournaments\/[1-9]\d*$/.test(path)) {
+    const id = Number(path.split("/").at(-1));
+    if (Number.isSafeInteger(id)) return path;
+  }
   if (gameIds.some((id) => gameCatalog[id].lobbyPath === path)) return path;
   const match = /^\/rooms\/(\d{5})\?invite=([^&?#]+)$/.exec(path);
   if (!match || !roomSocketContract.query.safeParse({ instanceId: match[2] }).success) return null;
@@ -106,6 +111,16 @@ export function parseRegistrationReturn(
         ? {}
         : { threePlayerAttackProhibited: entry.threePlayerAttackProhibited as boolean }),
     };
+  }
+  if (record.tournamentEntry !== undefined) {
+    if (
+      typeof record.tournamentEntry !== "number" ||
+      !Number.isSafeInteger(record.tournamentEntry) ||
+      record.tournamentEntry < 1 ||
+      path !== `/tournaments/${record.tournamentEntry}`
+    )
+      return null;
+    result.tournamentEntry = record.tournamentEntry;
   }
   if (record.joinName !== undefined) {
     if (

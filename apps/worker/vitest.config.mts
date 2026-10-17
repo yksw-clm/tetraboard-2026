@@ -18,7 +18,10 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
         miniflare: {
           compatibilityDate: config.compatibility_date,
           compatibilityFlags: config.compatibility_flags,
-          durableObjects: { GAME_ROOM: { className: "GameRoom", useSQLite: true } },
+          durableObjects: {
+            GAME_ROOM: { className: "GameRoom", useSQLite: true },
+            TOURNAMENT_COORDINATOR: { className: "TournamentCoordinator", useSQLite: true },
+          },
           r2Buckets: ["OBJECT_STORAGE"],
           d1Databases: {
             APP_DB: "app-tests",
@@ -27,6 +30,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
             PUBLIC_MATCH_TEST_DB: "public-match-tests",
             BADGE_MIGRATION_TEST_DB: "badge-migration-tests",
             ROOM_INDEX_TEST_DB: "room-index-tests",
+            TOURNAMENT_PRIVACY_TEST_DB: "tournament-privacy-tests",
           },
           bindings: {
             APP_ORIGIN: "http://localhost:5173",
@@ -45,7 +49,12 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
         },
       })),
     ],
-    test: { include: ["test/**/*.test.ts"], setupFiles: ["./test/setup.ts"] },
+    test: {
+      include: ["test/**/*.test.ts"],
+      setupFiles: ["./test/setup.ts"],
+      // 別のI/OコンテキストからのログでVitestのRPCが停止する上流不具合を回避します。
+      disableConsoleIntercept: true,
+    },
   });
 }
 export default workerTestConfig();

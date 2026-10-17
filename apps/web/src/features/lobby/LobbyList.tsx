@@ -1,6 +1,6 @@
 import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppCard } from "../../shared/ui/AppCard";
-import { AppButton } from "../../shared/ui/AppButton";
+import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { type PreviewRoomMetadata } from "@tetraboard/protocol";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { LobbyRoomCard, LobbyRoomLegend } from "./LobbyRoomCard";
@@ -97,15 +97,22 @@ export function LobbyList({
               {rooms.map((room) => (
                 <li key={room.id} className="min-w-0">
                   <LobbyRoomCard room={room} showGame={false}>
-                    {room.status === "waiting" && room.openSeats > 0 && (
-                      <AppButton
-                        size="compact"
-                        type="button"
-                        aria-label={`ルーム ${room.id} に参加`}
-                        onPress={() => onJoin(room.id, room.cpuCount === 0)}
-                      >
-                        参加
-                      </AppButton>
+                    {room.tournamentId ? (
+                      <AppButtonLink size="compact" to={`/tournaments/${room.tournamentId}`}>
+                        大会へ
+                      </AppButtonLink>
+                    ) : (
+                      room.status === "waiting" &&
+                      room.openSeats > 0 && (
+                        <AppButton
+                          size="compact"
+                          type="button"
+                          aria-label={`ルーム ${room.id} に参加`}
+                          onPress={() => onJoin(room.id, room.cpuCount === 0)}
+                        >
+                          参加
+                        </AppButton>
+                      )
                     )}
                     <AppButton
                       size="compact"

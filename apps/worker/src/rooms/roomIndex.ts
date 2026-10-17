@@ -11,6 +11,7 @@ export type PendingRoomIndex = {
 
 type IndexRow = {
   room_id: string;
+  tournament_id: number | null;
   instance_id: string | null;
   host_player_id: string | null;
   game: string;
@@ -33,8 +34,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .prepare(
       `INSERT INTO room_index (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -52,6 +53,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         closed = excluded.closed,
         instance_id = excluded.instance_id,
         host_player_id = excluded.host_player_id
+        , tournament_id = excluded.tournament_id
       WHERE excluded.revision > room_index.revision`,
     )
     .bind(
@@ -72,6 +74,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
       pending.closed ? 1 : 0,
       room.instanceId ?? null,
       room.hostPlayerId ?? null,
+      room.tournamentId ?? null,
     )
     .run();
 }
@@ -92,6 +95,7 @@ export function parseRow(row: IndexRow, preview: boolean) {
       : {}),
     ...roomPublicMetadataSchema.parse({
       id: row.room_id,
+      ...(row.tournament_id ? { tournamentId: row.tournament_id } : {}),
       game: row.game,
       mode: gameCatalog[roomPublicMetadataSchema.shape.game.parse(row.game)].hasModes
         ? row.mode
@@ -116,7 +120,7 @@ export async function listRoomIndex(
   preview = false,
 ) {
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
-      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms, instance_id, host_player_id
+      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms, instance_id, host_player_id, tournament_id
     FROM room_index
     WHERE closed = 0 AND status IN ('waiting', 'playing') AND game = ?`;
   const statement = cursor

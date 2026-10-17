@@ -44,6 +44,18 @@ test("検索・条件変更は旧データを消去し、遅い応答をabort/un
   requests[3]!.respond({ value: "after unmount" });
   await flush();
 });
+test("別の管理APIでの権限喪失を通知されたら、取得中の応答を含めてデータを破棄する", async () => {
+  const h = renderHook(() => useAdminData("/api/admin/tournaments/id", parse), undefined);
+  requests[0]!.respond({ value: "管理者だけのデータ" });
+  await flush();
+  act(() => h.current.refresh());
+  act(() => h.current.discard());
+  expect(h.current.data).toBeNull();
+  expect(requests[1]!.init.signal?.aborted).toBe(true);
+  requests[1]!.respond({ value: "権限喪失後の遅い応答" });
+  await flush();
+  expect(h.current.data).toBeNull();
+});
 test("Adminの分類・削除はversionを送り、競合と権限エラーをstatus付きで返す", async () => {
   const pending = adminMutation("/api/admin/feedback/id", "PATCH", {
     version: 2,

@@ -178,6 +178,7 @@ export function AccountLayout() {
         location.pathname !== "/" &&
         !["/privacy", "/terms", "/account/deletion"].includes(location.pathname) &&
         location.pathname !== "/feedback" &&
+        !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
         !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
         !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
         !(

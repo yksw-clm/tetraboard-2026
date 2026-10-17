@@ -42,6 +42,14 @@ export function updatePageMetadata(path: string, room?: ShareRoom): void {
   siteName.setAttribute("property", "og:site_name");
   siteName.content = "TetraBoard";
   document.head.append(siteName);
+  if (/^\/tournaments\/[1-9]\d*\/?$/.test(path)) {
+    document.title = "四人将棋大会 | TetraBoard";
+    const canonical = document.createElement("link");
+    canonical.rel = "canonical";
+    canonical.href = `${publicOrigin}${path.replace(/\/$/, "")}`;
+    document.head.append(canonical);
+    return;
+  }
   if (!metadata) return;
   const description = document.createElement("meta");
   description.name = "description";

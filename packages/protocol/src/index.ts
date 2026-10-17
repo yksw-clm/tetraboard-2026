@@ -290,3 +290,4 @@ export {
 export { fourShogiEliminatedHandsSchema, type FourShogiEliminatedHands } from "./fourShogi";
 
 export * from "./registration";
+export * from "./tournaments";

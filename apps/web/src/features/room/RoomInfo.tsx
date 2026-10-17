@@ -37,6 +37,7 @@ export function RoomInfo({
   feedbackButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { room, membership } = session;
+  const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
   return (
     <RoomInfoCard
       roomId={room.id}
@@ -71,7 +72,7 @@ export function RoomInfo({
         ルームを共有
       </AppButton>
       {membership === null && <p className="text-muted text-xs">観戦中です</p>}
-      {room.status === "waiting" && membership?.role === "host" && (
+      {tournamentId === undefined && room.status === "waiting" && membership?.role === "host" && (
         <AppButton
           appearance="secondary"
           size="compact"
@@ -101,9 +102,13 @@ export function RoomInfo({
         <AppButtonLink
           size="compact"
           className="w-full"
-          to={gameCatalog[room.settings.game].lobbyPath}
+          to={
+            tournamentId !== undefined
+              ? `/tournaments/${tournamentId}`
+              : gameCatalog[room.settings.game].lobbyPath
+          }
         >
-          ロビーへ戻る
+          {tournamentId !== undefined ? "大会へ戻る" : "ロビーへ戻る"}
         </AppButtonLink>
       )}
     </RoomInfoCard>
