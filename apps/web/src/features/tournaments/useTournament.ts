@@ -45,8 +45,16 @@ export function useTournament(id: number) {
     data: Detail | null;
     participation: TournamentParticipation;
     canEnterRoom: boolean;
+    participationReady: boolean;
     error: string | null;
-  }>({ key, data: null, participation: idle, canEnterRoom: false, error: null });
+  }>({
+    key,
+    data: null,
+    participation: idle,
+    canEnterRoom: false,
+    participationReady: false,
+    error: null,
+  });
   const [heartbeatWarning, setHeartbeatWarning] = useState<{
     key: string;
     operationId: string;
@@ -89,14 +97,39 @@ export function useTournament(id: number) {
     const controller = new AbortController();
     requests.current = controller;
     try {
-      const [data, participation] = await Promise.all([
-        readTournament(id, controller.signal),
+      const [detailResult, participationResult] = await Promise.allSettled([
+        readTournament(id, controller.signal).then((data) => {
+          if (
+            !controller.signal.aborted &&
+            current.current.key === key &&
+            !current.current.disposed &&
+            documentController.getIdentity() === requestControllerId &&
+            requestClaimGeneration === claimGeneration.current
+          )
+            setState((previous) => ({
+              ...(previous.key === key
+                ? previous
+                : {
+                    key,
+                    participation: idle,
+                    canEnterRoom: false,
+                    participationReady: false,
+                    error: null,
+                  }),
+              data,
+            }));
+          return data;
+        }),
         identity
           ? readTournamentParticipation(id, controller.signal, requestControllerId)
           : Promise.resolve(idle),
       ]);
       if (controller.signal.aborted || current.current.key !== key || current.current.disposed)
         return;
+      if (detailResult.status === "rejected") throw detailResult.reason;
+      if (participationResult.status === "rejected") throw participationResult.reason;
+      const data = detailResult.value;
+      const participation = participationResult.value;
       if (
         documentController.getIdentity() !== requestControllerId ||
         requestClaimGeneration !== claimGeneration.current
@@ -119,14 +152,15 @@ export function useTournament(id: number) {
         documentController.version(key, participation.operationId) ===
           participation.controllerVersion,
       );
-      setState({ key, data, participation, canEnterRoom, error: null });
+      setState({ key, data, participation, canEnterRoom, participationReady: true, error: null });
     } catch (error) {
       if (!controller.signal.aborted && current.current.key === key && !current.current.disposed)
         setState((previous) => ({
           ...(previous.key === key
             ? previous
-            : { data: null, participation: idle, canEnterRoom: false }),
+            : { data: null, participation: idle, canEnterRoom: false, participationReady: false }),
           key,
+          participationReady: false,
           error: error instanceof Error ? error.message : "大会を取得できませんでした。",
         }));
     } finally {
@@ -496,7 +530,8 @@ export function useTournament(id: number) {
       !state.data ||
       state.key !== key ||
       account.loading ||
-      account.error
+      account.error ||
+      !state.participationReady
     )
       return;
     const status = state.data.tournament.status;
@@ -524,10 +559,20 @@ export function useTournament(id: number) {
   const visible =
     state.key === key
       ? state
-      : { key, data: null, participation: idle, canEnterRoom: false, error: null };
+      : {
+          key,
+          data: null,
+          participation: idle,
+          canEnterRoom: false,
+          participationReady: false,
+          error: null,
+        };
   return {
     ...visible,
+    participationLoading: Boolean(identity) && !visible.participationReady,
+    canEnterRoom: visible.participationReady && visible.canEnterRoom,
     canControl:
+      visible.participationReady &&
       visible.participation.controller === "self" &&
       documentController.version(key, visible.participation.operationId) ===
         visible.participation.controllerVersion,

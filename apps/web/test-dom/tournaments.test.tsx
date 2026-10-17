@@ -611,7 +611,8 @@ test("アカウント切替後の取得失敗では前の本人の成績と参�
   clock.advance(0);
   for (const request of requests.filter((request) => !request.init.signal?.aborted)) {
     if (request.url === "/api/tournaments/1") request.respond({ message: "切替後の取得失敗" }, 503);
-    if (request.url.endsWith("/participation")) request.respond({ entered: false, status: "idle" });
+    if (request.url.endsWith("/participation"))
+      request.respond({ entered: false, status: "idle", controller: "none", controllerVersion: 0 });
   }
   await flush();
   expect(view.textContent).toContain("切替後の取得失敗");
@@ -1202,4 +1203,66 @@ test("大会ロゴの修飾クリックは通常リンクの新規タブ動作�
   expect(event.defaultPrevented).toBe(false);
   expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
   expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+});
+
+test("本人状態が未応答でも大会概要・順位を表示し、確認前には参加操作を出さない", async () => {
+  const view = page();
+  clock.advance(0);
+  await flush();
+  const publicRead = requests.find((request) => request.url === "/api/tournaments/1")!;
+  const personalRead = requests.find((request) => request.url.endsWith("/participation"))!;
+  publicRead.respond(detail("active"));
+  await flush();
+  expect(view.textContent).toContain("四人将棋大会");
+  expect(view.textContent).toContain("今回のご案内");
+  expect(view.textContent).toContain("順位表");
+  expect(view.textContent).toContain("参加状態を確認しています…");
+  expect(
+    [...view.querySelectorAll("button")].some((button) => button.textContent?.includes("対局する")),
+  ).toBe(false);
+  personalRead.respond({ entered: true, status: "idle", controller: "none", controllerVersion: 0 });
+  await flush();
+  expect(view.textContent).not.toContain("参加状態を確認しています…");
+  expect(
+    [...view.querySelectorAll("button")].some((button) => button.textContent?.includes("対局する")),
+  ).toBe(true);
+});
+
+test("本人状態の取得失敗でも公開済みの大会概要と順位を保持する", async () => {
+  const view = page();
+  clock.advance(0);
+  await flush();
+  requests.find((request) => request.url === "/api/tournaments/1")!.respond(detail("active"));
+  await flush();
+  requests
+    .find((request) => request.url.endsWith("/participation"))!
+    .respond({ message: "本人状態の取得に失敗しました" }, 503);
+  await flush();
+  expect(view.textContent).toContain("本人状態の取得に失敗しました");
+  expect(view.textContent).toContain("今回のご案内");
+  expect(view.textContent).toContain("順位表");
+  expect(
+    [...view.querySelectorAll("button")].some((button) => button.textContent?.includes("対局する")),
+  ).toBe(false);
+});
+
+test("本人状態の失敗が先に届いても後続の公開情報を表示し、前の取得を新しい応答へ混ぜない", async () => {
+  const view = page();
+  clock.advance(0);
+  await flush();
+  const personal = requests.find((request) => request.url.endsWith("/participation"))!;
+  const publicRead = requests.find((request) => request.url === "/api/tournaments/1")!;
+  personal.respond({ message: "本人状態の取得失敗" }, 503);
+  await flush();
+  clock.advance(5000);
+  expect(requests.filter((request) => request.url === "/api/tournaments/1")).toHaveLength(1);
+  publicRead.respond(detail("active"));
+  await flush();
+  expect(view.textContent).toContain("今回のご案内");
+  expect(view.textContent).toContain("本人状態の取得失敗");
+  clock.advance(5000);
+  const newest = requests.filter((request) => request.url === "/api/tournaments/1").at(-1)!;
+  expect(newest).not.toBe(publicRead);
+  await respond(detail("active"));
+  expect(view.textContent).not.toContain("本人状態の取得失敗");
 });

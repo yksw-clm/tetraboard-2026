@@ -29,7 +29,13 @@ function EntryAction({ state }: { state: TournamentState }) {
   return (
     <div className="flex max-w-[360px] flex-col items-end gap-2">
       <AppButton
-        isDisabled={entered || state.pending !== null || account.loading || Boolean(account.error)}
+        isDisabled={
+          entered ||
+          state.participationLoading ||
+          state.pending !== null ||
+          account.loading ||
+          Boolean(account.error)
+        }
         isPending={state.pending === "entry"}
         appearance={entered ? "secondary" : "primary"}
         className="min-h-11 whitespace-normal text-center"
@@ -118,8 +124,12 @@ function TournamentPlay({ state }: { state: TournamentState }) {
   return (
     <AppCard className="gap-4">
       <h2 className="text-lg font-bold">大会対局</h2>
-      {participation.controller === "other" ||
-      (participation.status !== "idle" && !state.canControl) ? (
+      {state.participationLoading ? (
+        <p role="status" className="text-sm text-muted">
+          参加状態を確認しています…
+        </p>
+      ) : participation.controller === "other" ||
+        (participation.status !== "idle" && !state.canControl) ? (
         <>
           <p role="status" className="text-sm text-muted">
             {participation.controller === "other"
