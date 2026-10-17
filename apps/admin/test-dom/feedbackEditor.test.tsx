@@ -4,6 +4,58 @@ import { FeedbackDetailPage, Feedback } from "../src/Feedback";
 import { id, record } from "../test/fixtures";
 import { act, enter, flush, press, render, requests } from "../../web/test-dom/support";
 
+test("星評価・任意コメント・ゲスト/ユーザー・対戦区分を一覧と詳細で表示し、絞り込める", async () => {
+  const rated = { ...record, rating: 5, opponent: "cpu", author: "guest", body: "" };
+  const view = render(
+    <MemoryRouter>
+      <Feedback />
+    </MemoryRouter>,
+  );
+  requests
+    .find((r) => r.url.includes("feedback?"))!
+    .respond({ feedback: [rated], nextCursor: null });
+  requests.find((r) => r.url.includes("topics"))!.respond({ topics: [] });
+  requests
+    .find((r) => r.url.includes("summary"))!
+    .respond({ asOfMs: 0, unreviewed: 1, oldestUnreviewedMs: 0, medianReviewMs: null, topics: [] });
+  await flush();
+  expect(view.textContent).toContain("★5 / 5");
+  expect(view.textContent).toContain("コメントなし");
+  expect(view.textContent).toContain("ゲスト ／ CPU戦");
+  for (const [label, value] of [
+    ["投稿者", "account"],
+    ["対戦区分", "human"],
+    ["評価", "4"],
+  ]) {
+    const select = [...view.querySelectorAll("label")]
+      .find((el) => el.textContent?.startsWith(label!))!
+      .querySelector("select")!;
+    act(() => {
+      select.value = value!;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+  const query = new URL(requests.at(-1)!.url, "https://tetraboard.test").searchParams;
+  expect(query.get("author")).toBe("account");
+  expect(query.get("opponent")).toBe("human");
+  expect(query.get("rating")).toBe("4");
+  const detail = render(
+    <MemoryRouter initialEntries={[`/feedback/${id}`]}>
+      <Routes>
+        <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  requests
+    .findLast((r) => r.url.endsWith(id))!
+    .respond({ feedback: { ...rated, author: "account", opponent: "human" }, history: [] });
+  requests.findLast((r) => r.url.endsWith("topics"))!.respond({ topics: [] });
+  await flush();
+  expect(detail.textContent).toContain("評価：★5 / 5");
+  expect(detail.textContent).toContain("ユーザー ／ 対人戦");
+  expect(detail.textContent).toContain("コメントなし");
+});
+
 test("分類のversion・競合時入力保持・公開確認・再取得・削除確認・処理中ロック", async () => {
   const view = render(
     <MemoryRouter initialEntries={[`/feedback/${id}`]}>

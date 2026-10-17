@@ -33,6 +33,8 @@ import { readRoomMembershipToken } from "../../shared/roomMembership";
 import { useAutoGameResult } from "./useAutoGameResult";
 import { useFeedback, type FeedbackContext } from "../feedback/useFeedback";
 import { FeedbackForm } from "../feedback/FeedbackForm";
+import { usePostGameFeedback } from "../feedback/usePostGameFeedback";
+import { PostGameFeedbackDialog } from "../feedback/PostGameFeedbackDialog";
 import { RoomShareDialog } from "./RoomShareDialog";
 import { TournamentRoomCountdown } from "./TournamentRoomCountdown";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
@@ -195,14 +197,22 @@ export function RoomViewShell({
       { timeout: 3000 },
     );
   const accountAvailable = !account.loading && !account.error;
+  const postGameFeedback = usePostGameFeedback(
+    room,
+    membership,
+    session.authenticated,
+    accountAvailable,
+    Boolean(account.user),
+  );
   const autoResult = useAutoGameResult(
     room,
-    dialog !== null || invitation.dialog !== null,
+    dialog !== null || invitation.dialog !== null || postGameFeedback.context !== null,
     Boolean(session.unavailable) || session.leaving,
   );
   const closeResult = () => {
     autoResult.dismiss();
     setDialog(null);
+    if (postGameFeedback.open()) return;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         (resultButtonRef.current ?? fallbackFocusRef.current)?.focus();
@@ -366,6 +376,20 @@ export function RoomViewShell({
             />
           )}
           <RoomInvitationDialogs invitation={invitation} roomId={room.id} theme={theme} />
+          {postGameFeedback.context && (
+            <PostGameFeedbackDialog
+              context={postGameFeedback.context}
+              theme={theme}
+              onClose={() => {
+                postGameFeedback.close();
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() =>
+                    (resultButtonRef.current ?? fallbackFocusRef.current)?.focus(),
+                  ),
+                );
+              }}
+            />
+          )}
           {dialog === "room-settings" && (
             <RoomSettingsDialog
               session={session}

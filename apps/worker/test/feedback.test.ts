@@ -42,7 +42,7 @@ function form(data: unknown, image?: Uint8Array) {
   return body;
 }
 const post = (
-  data = input(),
+  data: unknown = input(),
   cookie = "",
   image?: Uint8Array,
   bindings: FeedbackEnv = env,
@@ -93,6 +93,83 @@ beforeEach(async () => {
   );
 });
 afterEach(() => vi.restoreAllMocks());
+
+test("終局評価は任意コメントと星1〜5・CPU戦/対人戦を保存し、投稿者はサーバー認証で区別する", async () => {
+  const a = await admin();
+  const user = await accountFixture();
+  for (const [opponent, cookie, rating] of [
+    ["cpu", "", 1],
+    ["human", user.cookie, 5],
+  ] as const) {
+    const data = input({ kind: "opinion", body: "", expectation: "", steps: "", rating, opponent });
+    const response = await post(data, cookie);
+    expect(response.status).toBe(201);
+    const { id } = (await response.json()) as { id: string };
+    const detail = feedbackDetailSchema.parse(await (await getAdmin(`/${id}`, a)).json()).feedback;
+    expect(detail).toMatchObject({
+      rating,
+      opponent,
+      body: "",
+      author: cookie ? "account" : "guest",
+    });
+    expect((await post(data, cookie)).status).toBe(201);
+    expect((await post({ ...data, rating: 3 }, cookie)).status).toBe(409);
+  }
+  for (const query of [
+    "?author=guest&opponent=cpu&rating=1",
+    "?author=account&opponent=human&rating=5",
+  ]) {
+    expect(feedbackListSchema.parse(await (await getAdmin(query, a)).json()).feedback).toHaveLength(
+      1,
+    );
+  }
+  expect(
+    feedbackListSchema.parse(await (await getAdmin("?author=guest&opponent=human", a)).json())
+      .feedback,
+  ).toHaveLength(0);
+  for (const query of [
+    "?rating=0",
+    "?rating=6",
+    "?rating=1.5",
+    "?opponent=invalid",
+    "?author=invalid",
+  ]) {
+    expect((await getAdmin(query, a)).status).toBe(400);
+  }
+});
+
+test("星評価の範囲・整数・対戦区分・任意コメントの上限を検証し、従来投稿の本文必須を維持する", async () => {
+  const base = {
+    kind: "opinion",
+    expectation: "",
+    steps: "",
+    body: "",
+    rating: 3,
+    opponent: "cpu",
+  };
+  for (const change of [
+    { rating: 0 },
+    { rating: 6 },
+    { rating: 2.5 },
+    { rating: "3" },
+    { rating: undefined },
+    { opponent: undefined },
+    { opponent: "other" },
+    { kind: "bug" },
+    { game: "all" },
+    { body: "a".repeat(2001) },
+  ]) {
+    expect((await post(input({ ...base, ...change }))).status).toBe(400);
+  }
+  expect((await post(input({ body: "" }))).status).toBe(400);
+  expect((await post(input({ ...base, body: "よかったです" }))).status).toBe(201);
+  const legacy = await post();
+  const { id } = (await legacy.json()) as { id: string };
+  const a = await admin();
+  expect(
+    feedbackDetailSchema.parse(await (await getAdmin(`/${id}`, a)).json()).feedback,
+  ).toMatchObject({ rating: null, opponent: null });
+});
 
 test("ゲスト受付は本文と画像を非公開に保存し、応答には受付番号だけを返す", async () => {
   const a = await admin();
