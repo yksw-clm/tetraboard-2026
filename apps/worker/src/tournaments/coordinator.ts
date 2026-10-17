@@ -71,6 +71,29 @@ export class TournamentCoordinator extends DurableObject<Env> {
       .bind(key, accountId)
       .first<{ id: string; name: string; avatarKey: string | null; entryId: string }>();
   }
+  private async waitingProfiles(key: string) {
+    const rows = await this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,e.id AS entryId,
+      w.operation_id AS operationId FROM tournament_wait_reservations w
+      JOIN tournament_entries e ON e.account_id=w.account_id AND e.tournament_key=w.tournament_key AND e.deleted=0
+      JOIN user u ON u.id=w.account_id AND u.profileCompleted=1
+      WHERE w.tournament_key=? AND w.lease_until_ms>?
+      AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`)
+      .bind(key, Date.now())
+      .all<{
+        id: string;
+        name: string;
+        avatarKey: string | null;
+        entryId: string;
+        operationId: string;
+      }>();
+    return new Map(rows.results.map((row) => [row.operationId, row]));
+  }
+  private locallyValid(wait: Waiting) {
+    return (
+      wait.expiresAtMs > Date.now() &&
+      !this.ctx.storage.kv.get(tokenKey(wait.accountId, wait.operationId))
+    );
+  }
   private async leaseValid(wait: Waiting, key: string) {
     if (
       wait.expiresAtMs <= Date.now() ||
@@ -143,9 +166,10 @@ export class TournamentCoordinator extends DurableObject<Env> {
     group.phase = "preparing";
     this.save(state);
     const statements: D1PreparedStatement[] = [];
+    const profiles = await this.waitingProfiles(state.key);
     for (const player of group.players) {
-      const profile = await this.valid(player.accountId, state.key);
-      if (!profile || !(await this.leaseValid(player, state.key))) {
+      const profile = profiles.get(player.operationId);
+      if (!profile || !this.locallyValid(player)) {
         await this.rollback(state, group, [player.accountId]);
         return;
       }
@@ -247,9 +271,10 @@ export class TournamentCoordinator extends DurableObject<Env> {
       if (i === 19) return;
     }
     const players: Player[] = [];
+    const profiles = await this.waitingProfiles(state.key);
     for (const wait of selected) {
-      const profile = await this.valid(wait.accountId, state.key);
-      if (!profile || !(await this.leaseValid(wait, state.key))) return;
+      const profile = profiles.get(wait.operationId);
+      if (!profile || !this.locallyValid(wait)) return;
       players.push({
         ...wait,
         expiresAtMs: Math.min(Date.now() + tournamentRules.connectionGraceMs, row.ends_at_ms!),
@@ -320,8 +345,9 @@ export class TournamentCoordinator extends DurableObject<Env> {
       return;
     }
     const active = stage(row) === "active";
+    const profiles = state.waiting.length ? await this.waitingProfiles(state.key) : new Map();
     for (const wait of [...state.waiting])
-      if (!active || !(await this.leaseValid(wait, state.key))) {
+      if (!active || !this.locallyValid(wait) || !profiles.has(wait.operationId)) {
         await this.forget(wait);
         state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
         this.save(state);
@@ -444,8 +470,6 @@ export class TournamentCoordinator extends DurableObject<Env> {
   }
   async enroll(key: string, accountId: string): Promise<Result> {
     return this.serial(async () => {
-      const state = this.load(key);
-      await this.tick(state);
       const row = await readTournament(this.env.APP_DB, key);
       if (!row || !["upcoming", "active"].includes(stage(row)))
         return fail("エントリー受付は終了しました。");
@@ -463,9 +487,32 @@ export class TournamentCoordinator extends DurableObject<Env> {
     accountId: string,
     controllerId?: string,
   ): Promise<TournamentParticipation> {
-    const entered = !!(await this.valid(accountId, state.key));
+    const profile = await this.env.APP_DB.prepare(`SELECT w.operation_id AS waitingOperation,
+      w.lease_until_ms AS leaseUntilMs,s.operation_id AS seatOperation,t.ends_at_ms AS endsAtMs
+      FROM tournament_entries e JOIN user u ON u.id=e.account_id AND u.profileCompleted=1
+      JOIN tournaments t ON t.key=e.tournament_key AND t.published=1
+      LEFT JOIN tournament_wait_reservations w ON w.account_id=u.id AND w.tournament_key=e.tournament_key
+      LEFT JOIN account_room_seats s ON s.account_id=u.id
+      WHERE e.tournament_key=? AND e.account_id=? AND e.deleted=0
+      AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`)
+      .bind(state.key, accountId)
+      .first<{
+        waitingOperation: string | null;
+        leaseUntilMs: number | null;
+        seatOperation: string | null;
+        endsAtMs: number;
+      }>();
+    const entered = !!profile;
+    if (!profile)
+      return { entered: false, status: "idle", controller: "none", controllerVersion: 0 };
     const wait = state.waiting.find((w) => w.accountId === accountId);
-    if (wait)
+    if (
+      wait &&
+      this.locallyValid(wait) &&
+      profile.waitingOperation === wait.operationId &&
+      (profile.leaseUntilMs ?? 0) > Date.now() &&
+      profile.endsAtMs > Date.now()
+    )
       return {
         entered,
         ...this.controller(wait, controllerId),
@@ -485,12 +532,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           expiresAtMs: g.expiresAtMs,
         };
       if (g.phase === "cancelling") continue;
-      const seat = await this.env.APP_DB.prepare(
-        "SELECT 1 FROM account_room_seats WHERE account_id=? AND operation_id=?",
-      )
-        .bind(accountId, p.admission.operationId)
-        .first();
-      if (seat)
+      if (profile.seatOperation === p.admission.operationId)
         return {
           entered,
           ...this.controller(p, controllerId),
@@ -523,11 +565,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
     );
   }
   async status(key: string, accountId: string, controllerId?: string) {
-    return this.serial(async () => {
-      const state = this.load(key);
-      await this.tick(state);
-      return this.participation(state, accountId, controllerId);
-    });
+    return this.participation(this.load(key), accountId, controllerId);
   }
   async entryStatuses(key: string) {
     return this.serial(async () => {
@@ -552,7 +590,6 @@ export class TournamentCoordinator extends DurableObject<Env> {
   ): Promise<Result> {
     return this.serial(async () => {
       const state = this.load(key);
-      await this.tick(state);
       const row = await readTournament(this.env.APP_DB, key);
       if (!row || stage(row) !== "active") return fail("現在は大会の対局を受け付けていません。");
       if (!(await this.valid(accountId, key)))
@@ -604,7 +641,6 @@ export class TournamentCoordinator extends DurableObject<Env> {
   ): Promise<Result> {
     return this.serial(async () => {
       const state = this.load(key);
-      await this.tick(state);
       const holder = this.holder(state, accountId, operationId);
       if (
         holder &&
@@ -622,15 +658,21 @@ export class TournamentCoordinator extends DurableObject<Env> {
           ? ok
           : fail("待機は終了しました。状態を再確認してください。");
       }
-      wait.expiresAtMs = Date.now() + tournamentRules.leaseMs;
+      if (!this.locallyValid(wait)) return fail("待機は終了しました。状態を再確認してください。");
+      const expiresAtMs = Date.now() + tournamentRules.leaseMs;
       const updated = await this.env.APP_DB.prepare(
-        "UPDATE tournament_wait_reservations SET lease_until_ms=? WHERE account_id=? AND operation_id=?",
+        `UPDATE tournament_wait_reservations SET lease_until_ms=? WHERE account_id=? AND operation_id=?
+          AND lease_until_ms>? AND EXISTS(SELECT 1 FROM tournaments t JOIN tournament_entries e ON e.tournament_key=t.key
+            JOIN user u ON u.id=e.account_id AND u.profileCompleted=1
+            WHERE t.key=tournament_wait_reservations.tournament_key AND e.account_id=tournament_wait_reservations.account_id
+            AND e.deleted=0 AND t.published=1 AND t.starts_at_ms<=? AND t.ends_at_ms>?
+            AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id))`,
       )
-        .bind(wait.expiresAtMs, accountId, operationId)
+        .bind(expiresAtMs, accountId, operationId, Date.now(), Date.now(), Date.now())
         .run();
       if (!updated.meta.changes) return fail("待機は終了しました。");
+      wait.expiresAtMs = expiresAtMs;
       this.save(state);
-      await this.tick(state);
       return ok;
     });
   }
@@ -671,7 +713,6 @@ export class TournamentCoordinator extends DurableObject<Env> {
         g.players.some((p) => p.accountId === accountId && p.operationId === operationId),
       );
       if (group && group.phase !== "playing") await this.rollback(state, group, [accountId]);
-      await this.tick(state);
       return ok;
     });
   }
@@ -687,7 +728,6 @@ export class TournamentCoordinator extends DurableObject<Env> {
   ) {
     return this.serial(async () => {
       const state = this.load(key);
-      await this.tick(state);
       const holder = this.holder(state, accountId, input.operationId);
       const current = await this.participation(state, accountId, input.controllerId);
       if (
@@ -730,7 +770,6 @@ export class TournamentCoordinator extends DurableObject<Env> {
           this.save(state);
         }
       }
-      await this.tick(state);
       const participation = await this.participation(state, accountId, input.controllerId);
       return participation.operationId === input.operationId &&
         participation.controller === "self" &&

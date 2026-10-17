@@ -509,6 +509,7 @@ test("開始前の明示退室者を再待機させず、他の接続者に復�
   ).toBe(204);
   expect(await actorNotice).toMatchObject({ reason: "left", tournamentId: f.id });
   expect(await otherNotice).toMatchObject({ reason: "unavailable", tournamentId: f.id });
+  await runDurableObjectAlarm(f.stub);
   expect((await f.status(0)).status).toBe("idle");
   for (const i of [1, 2])
     expect(await f.status(i)).toMatchObject({
@@ -762,6 +763,7 @@ test("旧版の確認待ちを休止後に復元し、全員未承諾でも同�
     await state.storage.setAlarm(expiresAtMs);
   });
   await evictDurableObject(f.stub);
+  await runDurableObjectAlarm(f.stub);
   for (let i = 0; i < 4; i++)
     expect(await f.status(i)).toMatchObject({ status: "matched", matchId });
 });
@@ -814,6 +816,7 @@ test("ルーム接続が成立しなかった場合、接続済み3人の同じ�
     current.groups[0]!.expiresAtMs = Date.now() - 1;
     state.storage.kv.put("state", current);
   });
+  await runDurableObjectAlarm(f.stub);
   for (let i = 0; i < 3; i++) expect((await f.status(i)).status).toBe("waiting");
   expect((await f.status(3)).status).toBe("idle");
   f.operations[3] = {
@@ -829,4 +832,42 @@ test("ルーム接続が成立しなかった場合、接続済み3人の同じ�
   expect(second.roomId).not.toBe(first.roomId);
   for (let i = 0; i < 3; i++) await connect(second.roomId!, f.operations[i]!.token);
   await f.invoke(3, "queue", "DELETE", { operationId: f.operations[3]!.operationId });
+});
+
+test("本人状態の確認は他人の期限回収やAlarmの更新を行わない", async () => {
+  const f = await fixture(2);
+  await f.queue(0);
+  await f.queue(1);
+  const alarm = await runInDurableObject(f.stub, async (_instance, state) => {
+    const stored = state.storage.kv.get<{
+      waiting: { operationId: string; expiresAtMs: number }[];
+    }>("state")!;
+    stored.waiting.find((wait) => wait.operationId === f.operations[1]!.operationId)!.expiresAtMs =
+      Date.now() - 1;
+    state.storage.kv.put("state", stored);
+    return state.storage.getAlarm();
+  });
+  const results = await Promise.all(Array.from({ length: 5 }, () => f.status(0)));
+  for (const result of results) expect(result.status).toBe("waiting");
+  expect((await f.status(1)).status).toBe("idle");
+  await runInDurableObject(f.stub, async (_instance, state) => {
+    expect(state.storage.kv.get<{ waiting: unknown[] }>("state")!.waiting).toHaveLength(2);
+    expect(await state.storage.getAlarm()).toBe(alarm);
+  });
+  await runDurableObjectAlarm(f.stub);
+  expect((await f.status(0)).status).toBe("waiting");
+  expect((await f.status(1)).status).toBe("idle");
+});
+
+test("ルーム準備が失敗していても本人状態の確認と待機継続は再試行に巻き込まれない", async () => {
+  const f = await fixture();
+  for (let i = 0; i < 3; i++) await f.queue(i);
+  await env.APP_DB.exec(
+    "CREATE TRIGGER fail_tournament_transfer BEFORE INSERT ON account_room_seats BEGIN SELECT RAISE(ABORT,'test transfer fault'); END",
+  );
+  expect((await f.queue(3)).status).toBe(503);
+  for (let i = 0; i < 4; i++) expect((await f.status(i)).status).toBe("waiting");
+  await env.APP_DB.exec("DROP TRIGGER fail_tournament_transfer");
+  await f.stub.refresh(f.key);
+  for (let i = 0; i < 4; i++) expect((await f.status(i)).status).toBe("matched");
 });
