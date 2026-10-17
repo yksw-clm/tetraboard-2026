@@ -154,15 +154,23 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
     nextCursor: rows.results.length > 50 ? nextOffset(offset + 50) : null,
   });
 });
+function recoverAfterRead(env: Env, context: Pick<ExecutionContext, "waitUntil">, key: string) {
+  context.waitUntil(
+    env.TOURNAMENT_COORDINATOR.getByName(key)
+      .refresh(key)
+      .catch(() => {
+        console.error("Tournament recovery will be retried");
+      }),
+  );
+}
 tournamentRoutes.get("/tournaments/lobby", async (c) => {
-  // Recover a missed end alarm before choosing the current public event.
+  // 終了時の復旧が遅れていても、公開情報の取得を待たせません。
   const overdue = await c.env.APP_DB.prepare(
     "SELECT key FROM tournaments WHERE published=1 AND finalized_at_ms IS NULL AND ends_at_ms<=? ORDER BY public_id LIMIT 20",
   )
     .bind(Date.now())
     .all<{ key: string }>();
-  for (const t of overdue.results)
-    await c.env.TOURNAMENT_COORDINATOR.getByName(t.key).refresh(t.key);
+  for (const t of overdue.results) recoverAfterRead(c.env, c.executionCtx, t.key);
   const now = Date.now();
   const row = await c.env.APP_DB.prepare(`SELECT * FROM tournaments WHERE published=1 ORDER BY
     CASE WHEN finalized_at_ms IS NULL AND starts_at_ms<=? AND ends_at_ms>? THEN 0
@@ -184,10 +192,10 @@ tournamentRoutes.use("/tournaments/:id/*", async (c, next) => {
 tournamentRoutes.get("/tournaments/:id", async (c) => {
   const id = tournamentIdSchema.safeParse(c.req.param("id"));
   if (!id.success) return c.notFound();
-  let row = await publicTournament(c.env.APP_DB, id.data);
+  const row = await publicTournament(c.env.APP_DB, id.data);
   if (!row) return c.notFound();
-  await c.env.TOURNAMENT_COORDINATOR.getByName(row.key).refresh(row.key);
-  row = (await readTournament(c.env.APP_DB, row.key))!;
+  if (row.finalized_at_ms === null && row.ends_at_ms! <= Date.now())
+    recoverAfterRead(c.env, c.executionCtx, row.key);
   const user = await accountIdentity(c.req.raw, c.env);
   const next = await c.env.APP_DB.prepare(
     "SELECT * FROM tournaments WHERE published=1 AND public_id>? AND starts_at_ms>=? ORDER BY public_id LIMIT 1",

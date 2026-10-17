@@ -26,6 +26,8 @@
 | 退会・公開情報       | Worker統合とWeb／AdminのDOM。受付直後の待機／名簿／本人集計の除外、匿名化と旧プロフィールへのフォールバック禁止、遅延保存での復活防止、他者の確定結果維持、no-storeと管理者／Origin検査                                 |
 | 画面・配信           | Web／AdminのDOMとWorker統合。4状態、開催前の名簿／成績非表示、参加・取消、5秒更新・非表示／復帰・失敗・古い応答、全成績列、10文字名の非省略／非折返しの属性、実URLのGET／HEADとnoindex、既存ロビー／Admin配信           |
 
+公開詳細はマッチングDOが利用できない場合でもD1から取得できること、終了後の背景復旧が失敗しても詳細・ロビーが成功することをWorker統合で確認します。Web DOMでは本人状態の応答を保留・失敗させ、概要・順位の先行表示、未確認時の参加操作抑止、応答後の操作復帰と公開情報保持を確認します。公開確認スクリプトは大会ロビーと掲載大会の詳細も取得し、所要時間を表示します。
+
 時刻・通信・乱数・保存失敗は入力と観測可能な境界で制御し、固定sleepや私有メソッドのmockを使いません。新しいテストは純粋関数のBun、Bun＋happy-dom、既存のWorker統合へ置き、各実装コミットに対応するものを含めます。
 
 検証の入口は、protocolの `test/tournaments.test.ts`（整数配点・同順位・比較・文字数／契約）、Workerの `tournaments.test.ts`（公開と管理・エントリー・名簿）、`tournamentQueue.test.ts`（期限・再作成・取消・4席の原子的移譲・接続失敗後の再配信）、`tournamentRooms.test.ts`（実4人接続・専用認可・保存失敗と再送・席解放・退会）、`tournamentResults.test.ts`（集計・確定前競合・最終順位・匿名表示）、`tournamentLogout.test.ts`（認証失効前の解除）です。WebとAdminの `test-dom/tournaments.test.tsx`、Webの `tournamentRoom.test.tsx`、Workerの `publicAssets.test.ts` で画面・操作・配信を確認します。

@@ -1,4 +1,9 @@
-import { healthzContract, listRoomsContract } from "../packages/protocol/src/index";
+import {
+  healthzContract,
+  listRoomsContract,
+  tournamentLobbySchema,
+  tournamentDetailSchema,
+} from "../packages/protocol/src/index";
 import { gameCatalog, gameIds } from "../packages/protocol/src/games";
 import { lobbyMetadata, generalLobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
@@ -143,3 +148,15 @@ for (const { id } of formationCatalog) {
 await check("/api/rooms", async (response) => {
   listRoomsContract.response.parse(await response.json());
 });
+
+let tournamentId: number | undefined;
+await check("/api/tournaments/lobby", async (response) => {
+  tournamentId = tournamentLobbySchema.parse(await response.json()).tournament?.id;
+});
+if (tournamentId !== undefined) {
+  const started = performance.now();
+  await check(`/api/tournaments/${tournamentId}`, async (response) => {
+    tournamentDetailSchema.parse(await response.json());
+  });
+  console.log(`Tournament detail: ${Math.round(performance.now() - started)}ms`);
+}
