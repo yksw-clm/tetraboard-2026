@@ -1,6 +1,6 @@
 import { badgeAwardStatements } from "./badgeAwards";
 import { readStoredMatch, type DecodedMatch } from "./matchDataContracts";
-import { isDeleted, redactParticipants } from "../privacy/identity";
+import { isDeleted, redactRetiredParticipants } from "../privacy/identity";
 
 export type MatchClaimInput = {
   matchId: string;
@@ -214,22 +214,69 @@ export async function resolveMatchParticipants(
   db: D1Database,
   record: DecodedMatch,
 ): Promise<void> {
+  await resolveMatchParticipantList(db, [record]);
+}
+
+/** 一覧の最大20局をまとめて解決し、参加者IDは対局IDと組にして扱います。 */
+export async function resolveMatchParticipantList(
+  db: D1Database,
+  records: DecodedMatch[],
+): Promise<void> {
+  const matchIds = [...new Set(records.map((record) => record.record.id))];
+  if (!matchIds.length) return;
   const rows = await db
     .prepare(
-      "SELECT player_id,account_id FROM match_participant_accounts WHERE match_id=? AND state='applied'",
+      `SELECT match_id,player_id,account_id,state FROM match_participant_accounts
+      WHERE match_id IN (${matchIds.map(() => "?").join(",")}) AND state IN ('applied','retired')`,
     )
-    .bind(record.record.id)
-    .all<Pick<ClaimRow, "player_id" | "account_id">>();
-  const claims = new Map(rows.results.map((row) => [row.player_id, row.account_id]));
-  record.record = {
-    ...record.record,
-    participants: record.record.participants.map((player) => {
-      if (player.kind !== "human" || player.retired || !claims.has(player.id)) return player;
-      const claimedId = claims.get(player.id)!;
-      if (player.accountId !== null && player.accountId !== claimedId)
-        throw new Error("Conflicting match participant identity");
-      return { ...player, accountId: claimedId };
-    }),
-  } as DecodedMatch["record"];
-  record.record = await redactParticipants(db, record.record);
+    .bind(...matchIds)
+    .all<Pick<ClaimRow, "match_id" | "player_id" | "account_id" | "state">>();
+  const claims = new Map<string, Map<string, string | null>>();
+  const retiredPlayers = new Map<string, Set<string>>();
+  for (const row of rows.results) {
+    if (row.state === "applied") {
+      if (!claims.has(row.match_id)) claims.set(row.match_id, new Map());
+      claims.get(row.match_id)!.set(row.player_id, row.account_id);
+    } else if (row.state === "retired") {
+      if (!retiredPlayers.has(row.match_id)) retiredPlayers.set(row.match_id, new Set());
+      retiredPlayers.get(row.match_id)!.add(row.player_id);
+    }
+  }
+  for (const record of records) {
+    const applied = claims.get(record.record.id);
+    record.record = {
+      ...record.record,
+      participants: record.record.participants.map((player) => {
+        if (player.kind !== "human" || player.retired || !applied?.has(player.id)) return player;
+        const claimedId = applied.get(player.id)!;
+        if (player.accountId !== null && player.accountId !== claimedId)
+          throw new Error("Conflicting match participant identity");
+        return { ...player, accountId: claimedId };
+      }),
+    } as DecodedMatch["record"];
+  }
+  const accountIds = [
+    ...new Set(
+      records.flatMap((record) =>
+        record.record.participants.flatMap((player) =>
+          player.kind === "human" && player.accountId ? [player.accountId] : [],
+        ),
+      ),
+    ),
+  ];
+  const deletedRows = accountIds.length
+    ? await db
+        .prepare(
+          `SELECT id FROM deleted_accounts WHERE id IN (${accountIds.map(() => "?").join(",")})`,
+        )
+        .bind(...accountIds)
+        .all<{ id: string }>()
+    : { results: [] };
+  const deleted = new Set(deletedRows.results.map((row) => row.id));
+  for (const record of records)
+    record.record = redactRetiredParticipants(
+      record.record,
+      retiredPlayers.get(record.record.id) ?? new Set(),
+      deleted,
+    );
 }

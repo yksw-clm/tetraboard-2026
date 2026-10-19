@@ -3,7 +3,6 @@ import { useNavigate, useNavigation } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
 import { LobbyRankings } from "./LobbyRankings";
-import { FourShogiLobbyBoardPreview } from "./FourShogiLobbyBoardPreview";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
@@ -16,7 +15,6 @@ export function FourShogiLobbyPage() {
     <LobbyView
       game="four-shogi"
       registrationDraft={entry.registrationDraft}
-      boardPreview={<FourShogiLobbyBoardPreview />}
       name={entry.name}
       roomCode={entry.roomCode}
       mode={entry.mode}

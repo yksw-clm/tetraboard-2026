@@ -1,4 +1,3 @@
-import { ShogiLobbyBoardPreview } from "./ShogiLobbyBoardPreview";
 import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate, useNavigation } from "react-router";
 import { LobbyView } from "./LobbyView";
@@ -16,7 +15,6 @@ export function ShogiLobbyPage() {
   return (
     <LobbyView
       game="shogi"
-      boardPreview={<ShogiLobbyBoardPreview />}
       registrationDraft={entry.registrationDraft}
       name={entry.name}
       roomCode={entry.roomCode}

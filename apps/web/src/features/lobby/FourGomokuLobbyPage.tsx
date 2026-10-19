@@ -1,5 +1,3 @@
-import { createInitialState } from "@tetraboard/four-gomoku";
-import { GomokuBoard } from "../room/GomokuBoard";
 import { getRoomContract } from "@tetraboard/protocol";
 import { useNavigate, useNavigation } from "react-router";
 import { LobbyView } from "./LobbyView";
@@ -16,11 +14,6 @@ export function FourGomokuLobbyPage() {
 
   return (
     <LobbyView
-      boardPreview={
-        <div aria-hidden="true" className="pointer-events-none w-14 shrink-0 -rotate-6 md:w-[88px]">
-          <GomokuBoard game={createInitialState()} canPlay={false} onPlaceStone={() => {}} />
-        </div>
-      }
       game="four-gomoku"
       registrationDraft={entry.registrationDraft}
       name={entry.name}

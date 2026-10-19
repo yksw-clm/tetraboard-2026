@@ -63,6 +63,8 @@ PC／スマートフォンの左右配置・名前10文字と列の収まり・�
 
 主な追加テストはWorkerの `guestRegistrationRooms.test.ts`・`registrationApi.test.ts`・`matchClaims.test.ts`、Webの `guestRegistration.test.tsx` です。実Google／Discord認証とPC・スマートフォン表示・ネイティブ操作は手動確認とし、HTTPモックの成功とは区別します。PRには検証対象コミット、実行環境、必須5コマンドとGitHub CI、未確認事項を記載します。開発環境で追加migrationと既存データの互換性を確認し、マージ・公開は承認後に行います。
 
+対局一覧の参加者解決はWorkerの `matchProfiles.test.ts` で実D1を使い、1件と20件の参照が4回以内の問い合わせに収まること、空の一覧で問い合わせないこと、最大80人の内部IDを一括取得できることを確認します。実時間の閾値を使わず、D1境界の問い合わせ回数で件数に比例する往復の再発を検知します。同じ参加者IDを持つ別対局のapplied・retired・pending・rejectedの分離、現在名・画像、元ゲスト名と退会前の名前の非公開、参照先なしの保存名、矛盾した本人関係の拒否も確認します。公開・総合・本人一覧の応答・順序・件数・手数・認可と全6ゲームの引き継ぎ・退会は既存の `publicMatches.test.ts`・`generalLobby.test.ts`・`matchHistory.test.ts`・`matchClaims.test.ts` と合わせて確認します。
+
 ## 総合ロビーの確認
 
 UI改修の回帰では `generalLobby.test.tsx` で自動更新中の空表示・カード保持と手動更新だけの一覧スピナー、定員別ボタンと作成意図の受渡しを確認します。`lobbyComponents.test.tsx` で全6ロビーの作成ダイアログ表示・意図の消費・自動POSTなし、`presentation.test.tsx` で手数の表示・省略、Workerの `publicMatches.test.ts` で3種類の一覧APIの手数・旧応答互換・不正条件を確認します。矢印ボタンの出現位置と移動量、710pxでの遷移、長い名前の折り返し、スマホのチャット600pxと入力・送信の高さは手動確認対象です。
@@ -115,6 +117,8 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 | 公開・検索向け配信・設定           | Workerの[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)・[testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、Web部品の[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx)、[個人設定からの分離](#個人設定からの分離)、ビルドとWorker dry-run                                                                                                                                                                                                                        |
 
 ## ロビーのルームカードとランキングの切替
+
+`lobbyComponents.test.tsx` は全6ゲームのタイトル横と総合ロビーのリンクで、ゲームに合う専用画像を1枚表示し、縦横比の指定と装飾の読み上げ除外を維持することを確認します。`shogiComponents.test.tsx` はロビーでルームの画像準備を始めず、入室時に全19画像を準備することを確認します。Viteの `gameChunks` は初期入口と遅延読み込みされる各ロビーの静的依存を調べ、対局用の `GomokuBoard`・`ShogiPiece`・`shogiPieceImages` が混入するとビルドを失敗させます。初期配置・駒の向き・画像品質・767px／768px境界の実表示は手動確認します。
 
 `lobbyLoading.test.tsx` と `generalLobby.test.tsx` で共通カードのホスト・席数・状態、参加／観戦の条件、取得中・失敗時の保持を確認します。ゲーム別の2列配置（1件だけのときも半幅）や狭い幅での折返し、総合ロビーの一覧枠、更新アイコンは手動確認します。
 
