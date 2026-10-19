@@ -61,6 +61,10 @@ export function gameChunks(): Plugin {
       const main = chunks.find((chunk) => chunk.isEntry);
       if (!main) this.error("Missing Web entry chunk");
       const initialModules = modulesFor(main.fileName);
+      for (const component of ["GomokuBoard", "ShogiPiece", "shogiPieceImages"]) {
+        if (initialModules.some((id) => id.includes(`/features/room/${component}.`)))
+          this.error(`Lobby must not statically load room board assets: ${component}`);
+      }
       for (const entry of entries) {
         const suffix = `/features/room/${entry}.${entry.endsWith("MatchReplay") ? "ts" : "tsx"}`;
         const chunk = chunks.find((output) =>

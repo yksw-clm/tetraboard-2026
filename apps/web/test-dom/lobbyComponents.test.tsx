@@ -70,6 +70,15 @@ test("全6ロビーの作成導線はダイアログだけを開き、再訪時�
       ),
     );
     await flush();
+    const preview = view.querySelector('[data-testid="lobby-board-preview"]')!;
+    expect(preview.tagName).toBe("IMG");
+    expect(preview.getAttribute("src")).toEndWith(
+      `/lobby/${game === "four-gomoku" ? "gomoku" : game}.webp`,
+    );
+    expect(preview.getAttribute("alt")).toBe("");
+    expect(preview.getAttribute("aria-hidden")).toBe("true");
+    expect(Number(preview.getAttribute("width"))).toBeGreaterThan(0);
+    expect(Number(preview.getAttribute("height"))).toBeGreaterThan(0);
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain("ルームを作る");
     expect(JSON.parse(view.querySelector("output")!.textContent!)).toEqual({ preserved: true });
@@ -117,6 +126,14 @@ test("ロビーの入れ替えと戻る操作で、総合ロビーと6ゲーム�
     expect(view.querySelector('a[aria-current="page"]')!.textContent).toBe("総合ロビー");
     expect(view.textContent).toContain("ゲーム一覧");
     expect(view.querySelectorAll("a")).toHaveLength(7);
+    for (const game of gameIds) {
+      const link = view.querySelector(`a[href="${gameCatalog[game].lobbyPath}"]`)!;
+      expect(link.querySelectorAll("img")).toHaveLength(1);
+      expect(link.querySelector("img")!.getAttribute("src")).toEndWith(
+        `/lobby/${game === "four-gomoku" ? "gomoku" : game}.webp`,
+      );
+      expect(link.querySelector("button, svg")).toBeNull();
+    }
     act(() => void router.navigate(-1));
     await flush();
     expect(view.querySelector('a[aria-current="page"]')!.textContent).toBe(

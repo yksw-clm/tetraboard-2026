@@ -18,18 +18,6 @@
     var(--lobby-quick-end) 100%
   );
 }
-.preview-stone-black {
-  background: radial-gradient(circle at 30% 25%, #516158, #17261e 75%);
-}
-.preview-stone-white {
-  background: radial-gradient(circle at 30% 25%, #fff, #e0e7e2 85%);
-}
-.preview-stone-red {
-  background: radial-gradient(circle at 30% 25%, #f9887b, #d34e44 85%);
-}
-.preview-stone-blue {
-  background: radial-gradient(circle at 30% 25%, #8dbdef, #397fc8 85%);
-}
 
 .room-background {
   background: radial-gradient(ellipse at 48% 24%, #f7fce9, #eaf4e1);
