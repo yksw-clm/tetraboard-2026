@@ -7,7 +7,7 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
-import { FourShogiLobbyBoardPreview } from "../../features/lobby/FourShogiLobbyBoardPreview";
+import { LobbyBoardPreview } from "../../features/lobby/LobbyBoardPreview";
 import { GameLobbyNavigation } from "../../features/lobby/GameLobbyNavigation";
 import {
   sampleStandings,
@@ -159,7 +159,7 @@ function MockLobby({ state, onOtherAction }: { state: MockState; onOtherAction: 
       >
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-5 max-sm:gap-3">
-            <FourShogiLobbyBoardPreview />
+            <LobbyBoardPreview game="four-shogi" />
             <div>
               <h1 className="text-[36px] leading-[1.35] tracking-[0.02em] max-sm:text-[27px]">
                 四人将棋

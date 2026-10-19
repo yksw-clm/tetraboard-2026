@@ -1,6 +1,5 @@
 import { beforeEach, afterEach, expect, test } from "bun:test";
 import { applyAction } from "@tetraboard/shogi";
-import { ShogiLobbyBoardPreview } from "../src/features/lobby/ShogiLobbyBoardPreview";
 import { ProfilePage } from "../src/features/account/AccountPages";
 import { RoomEntryDialog } from "../src/features/lobby/RoomEntryDialog";
 import { LobbyRankings } from "../src/features/lobby/LobbyRankings";
@@ -42,7 +41,7 @@ function connect(room: ReturnType<typeof standardWaitingRoom>) {
   socket.receive({ type: "room.authenticated", membership });
   return socket;
 }
-test("通常将棋の作成はCPU1人・モードなしで、ロビー初期図は40駒", async () => {
+test("通常将棋の作成はCPU1人・モードなし", async () => {
   const room = standardWaitingRoom();
   render(
     wrap()(
@@ -71,8 +70,6 @@ test("通常将棋の作成はCPU1人・モードなしで、ロビー初期図�
   expect(dialog.textContent).toContain("CPUと対戦");
   expect(dialog.textContent).not.toContain("シングルス");
   expect(dialog.querySelectorAll('input[type="radio"][name="mode"]')).toHaveLength(0);
-  const preview = render(<ShogiLobbyBoardPreview />);
-  expect(preview.querySelectorAll('[data-testid="shogi-piece"]')).toHaveLength(40);
 });
 test("通常将棋のマイページは5項目と引き分けを含む率、モード・バッジなし", async () => {
   const state = {

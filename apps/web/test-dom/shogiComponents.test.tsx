@@ -12,7 +12,7 @@ import {
   FourShogiBoardLayout,
   type FourShogiBoardLayoutProps,
 } from "../src/features/room/FourShogiBoardLayout";
-import { FourShogiLobbyBoardPreview } from "../src/features/lobby/FourShogiLobbyBoardPreview";
+import { LobbyBoardPreview } from "../src/features/lobby/LobbyBoardPreview";
 import {
   playingShogiRoom,
   publicShogiState,
@@ -214,11 +214,11 @@ test("購読解除後は通知せず、表示を閉じても準備結果は次�
   expect(pieceVisible(view)).toBe(true);
 });
 
-test("ロビーは表示する10URLだけを準備し、ルームは盤を含む19URLへ広げる", async () => {
-  const lobby = render(<FourShogiLobbyBoardPreview />);
+test("ロビーの専用画像はルームの画像準備を始めず、入室時に全19URLを準備する", async () => {
+  const lobby = render(<LobbyBoardPreview game="four-shogi" />);
   await flush();
-  expect(lobby.querySelectorAll('[data-testid="shogi-piece"]')).toHaveLength(36);
-  expect(pendingImages).toHaveLength(10);
+  expect(lobby.querySelectorAll("img")).toHaveLength(1);
+  expect(pendingImages).toHaveLength(0);
   render(<FourShogiBoardLayout {...boardProps(() => true)} />);
   await flush();
   expect(pendingImages).toHaveLength(19);
@@ -400,7 +400,7 @@ test("成りメニューは先読み済み画像を表示し、選択まで送�
     rerender(view, null);
   }
 });
-test("禁止候補だけの駒は選択・解除できるが送信せず、ロビー初期図の36駒を表示", () => {
+test("禁止候補だけの駒は選択・解除できるが送信しない", () => {
   const sent: FourShogiAction[] = [],
     props = boardProps((action) => {
       sent.push(action);
@@ -422,10 +422,6 @@ test("禁止候補だけの駒は選択・解除できるが送信せず、ロ�
   expect(sent).toHaveLength(0);
   act(() => square(view, 4, 6).click());
   expect(square(view, 4, 6).getAttribute("aria-pressed")).toBe("false");
-  rerender(view, <FourShogiLobbyBoardPreview />);
-  expect(view.querySelectorAll('[data-testid="shogi-piece"]')).toHaveLength(36);
-  for (const direction of ["up", "down", "left", "right"])
-    expect(view.querySelectorAll(`[data-piece-direction="${direction}"]`)).toHaveLength(9);
 });
 
 test("盤上と持ち駒のdragは先読み済み画像を表示し、取消・revision変更で解除する", async () => {
