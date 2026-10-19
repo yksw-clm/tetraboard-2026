@@ -1,5 +1,6 @@
 import { gameIdSchema, gameScopeSchema } from "./gameSchemas";
 import { z } from "zod";
+import { acquisitionInputSchema, acquisitionReportSchema } from "./acquisition";
 
 export const analyticsGameSchema = gameIdSchema;
 export const analyticsPageSchema = z.enum([
@@ -24,6 +25,7 @@ export const pageViewInputSchema = z
     id: z.uuid(),
     page: analyticsPageSchema,
     game: analyticsGameSchema.nullable(),
+    acquisition: acquisitionInputSchema.optional(),
   })
   .strict()
   .refine((value) => !["lobby", "room", "replay"].includes(value.page) || value.game !== null)
@@ -97,6 +99,7 @@ export const adminAnalyticsSchema = z.object({
   totalUsers: count,
   summary: analyticsMetricsSchema,
   buckets: z.array(z.object({ period: z.string(), metrics: analyticsMetricsSchema })),
+  acquisition: acquisitionReportSchema.optional(),
 });
 export const adminUsersQuerySchema = z.object({
   search: z.string().trim().max(100).default(""),

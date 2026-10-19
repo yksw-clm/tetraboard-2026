@@ -207,6 +207,13 @@ export async function processDeletions(env: AuthEnv) {
 
       await env.APP_DB.batch([
         ...registrations,
+        env.APP_DB.prepare(`DELETE FROM analytics_sessions WHERE account_id=?
+          OR id IN (SELECT session_id FROM analytics_pageviews WHERE account_id=?)
+          OR id IN (SELECT session_id FROM analytics_participants WHERE account_id=?)`).bind(
+          job.id,
+          job.id,
+          job.id,
+        ),
         env.APP_DB.prepare("DELETE FROM feedback_limits WHERE key IN (?,?)").bind(
           `${reporterHash}:600000`,
           `${reporterHash}:86400000`,

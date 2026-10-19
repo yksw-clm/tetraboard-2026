@@ -1,5 +1,6 @@
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { adminAccountIds, type AdminEnv } from "../admin/auth";
+import { acquisitionArchiveStatements } from "./acquisition";
 export async function archiveAnalytics(env: Env, now = Date.now()) {
   const db = env.APP_DB,
     cutoff = now - analyticsRetentionMs;
@@ -40,6 +41,7 @@ export async function archiveAnalytics(env: Env, now = Date.now()) {
     );
   }
   statements.push(
+    ...acquisitionArchiveStatements(env, cutoff),
     db
       .prepare(
         "DELETE FROM analytics_dwell WHERE view_id IN (SELECT id FROM analytics_pageviews WHERE started_at_ms<=?)",
