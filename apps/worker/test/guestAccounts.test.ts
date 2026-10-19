@@ -115,6 +115,22 @@ test("閲覧・観戦ではゲストを作らず、名前・Origin・同意を�
   expect(g.user).toMatchObject({ name: "👨‍👩‍👧‍👦", username: null, isGuest: true, nameCustomized: true });
   expect(await count()).toBe(before + 1);
 });
+test("ゲストのログアウトを拒否して、本人認証と記録へのアクセスを維持する", async () => {
+  const g = await guest();
+  const response = await request("/auth/sign-out", {
+    method: "POST",
+    headers: g.headers,
+    body: "{}",
+  });
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ message: "ゲストはログアウトできません。" });
+  expect(response.headers.getSetCookie().some((cookie) => cookie.includes("Max-Age=0"))).toBe(
+    false,
+  );
+  expect(await (await request("/account/session", { headers: g.headers })).json()).toEqual({
+    user: g.user,
+  });
+});
 test("自動名と名前設定済みを区別し、180日Cookieで同じゲストを復元・更新する", async () => {
   const req = new AcceptedGameRequest(origin, { headers: { Origin: origin } });
   let identity: Awaited<ReturnType<typeof createGuestAccount>>;

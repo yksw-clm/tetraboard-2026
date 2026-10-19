@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { RoomIdentityFields } from "../src/features/account/RoomIdentityFields";
+import { AccountMenu } from "../src/features/account/AccountMenu";
 import {
   GuestAccountControls,
   GuestMergeConfirmation,
@@ -21,6 +22,15 @@ test("名前設定済みのゲストは再入力せず、未設定フラグな�
     ),
   );
   expect(document.querySelector<HTMLInputElement>("input")?.value).toBe("候補");
+  expect(requests).toHaveLength(0);
+});
+test("ゲストのアカウントメニューにはログアウト操作を表示しない", async () => {
+  const view = render(wrap(guestProfile())(<AccountMenu />));
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label$="のアカウントメニュー"]')!.click());
+  await flush();
+  const menu = document.querySelector('[role="menu"]')!;
+  expect(menu.textContent).toContain("マイページ");
+  expect(menu.textContent).not.toContain("ログアウト");
   expect(requests).toHaveLength(0);
 });
 test("ゲスト作成は同じ画面の並行操作で共有し、認証Cookieの読戻し後だけ参加可能にする", async () => {

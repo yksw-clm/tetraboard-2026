@@ -673,4 +673,4 @@ PCの盤面と状況カードは全6ゲームで画面の高さを変えて手�
 
 `apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。
 
-WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・既存ゲストの入力省略・大会エントリー・統合確認を検証します。実OAuth・Cookie保存と別タブのWeb Locks・画面寸法・ネイティブ入力は手動確認事項であり、未実施の項目をPRに明記します。必須のcheck・本番／開発buildとWorker dry-runを実行し、GitHub CIの成功も確認します。
+WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・既存ゲストの入力省略・大会エントリー・統合確認を検証します。ゲストのログアウト操作が非表示で、APIへ直接要求しても拒否され本人認証を維持することをWeb・Workerの境界で確認します。実OAuth・Cookie保存と別タブのWeb Locks・画面寸法・ネイティブ入力は手動確認事項であり、未実施の項目をPRに明記します。必須のcheck・本番／開発buildとWorker dry-runを実行し、GitHub CIの成功も確認します。

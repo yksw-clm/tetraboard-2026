@@ -4,7 +4,6 @@ import {
   completeGuestLink,
   GuestLinkError,
 } from "./guestLinking";
-import { clearGuestSession } from "./guestAccounts";
 import { reserveAvatarUpload, finishAvatarUpload } from "../privacy/avatarUploads";
 import { isDeleted } from "../privacy/identity";
 import { completeLegalAuthentication } from "../privacy/oauthConsent";
@@ -65,6 +64,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     return c.json(error("操作元を確認できません。ページを開き直してください。"), 403);
   if (path === "/auth/sign-out") {
     const user = await accountIdentity(c.req.raw, c.env);
+    if (user?.isAnonymous) return c.json(error("ゲストはログアウトできません。"), 403);
     if (user) {
       const tournaments = await c.env.APP_DB.prepare(`SELECT DISTINCT e.tournament_key
         FROM tournament_entries e JOIN tournaments t ON t.key=e.tournament_key
@@ -78,8 +78,6 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
         );
     }
   }
-  if (path === "/auth/sign-out" && (await accountIdentity(c.req.raw, c.env))?.isAnonymous)
-    await clearGuestSession(c.req.raw, c.env);
   let provider: "google" | "discord" = "google";
   let adminLogin = false;
   let registration: RegistrationFlow | undefined;

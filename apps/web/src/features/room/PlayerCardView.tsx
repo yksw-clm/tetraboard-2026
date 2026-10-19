@@ -194,9 +194,6 @@ export function PlayerCardView({
           ) : (
             name
           )}
-          {player && "isGuest" in player && player.isGuest && (
-            <span className="ml-1 text-[9px] font-normal text-muted">ゲスト</span>
-          )}
           {host && (
             <span className="inline-flex ml-[0.28em] text-[#b58a28]" title="ホスト">
               <AppIcon name="crown" className="size-[1em]" />
