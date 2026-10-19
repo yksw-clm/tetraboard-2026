@@ -538,7 +538,10 @@ function EntryResults({
             </thead>
             <tbody>
               {entries.map((entry) => (
-                <tr key={entry.username} className="border-t border-gray-200">
+                <tr
+                  key={`${entry.username}:${entry.enteredAtMs}`}
+                  className="border-t border-gray-200"
+                >
                   <td className="p-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-9 shrink-0">
@@ -548,7 +551,9 @@ function EntryResults({
                       <span className="whitespace-nowrap">{entry.name}</span>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap p-3">@{entry.username}</td>
+                  <td className="whitespace-nowrap p-3">
+                    {entry.isGuest ? "ゲスト" : `@${entry.username}`}
+                  </td>
                   <td className="whitespace-nowrap p-3">{dateTime(entry.enteredAtMs)}</td>
                   <td className="whitespace-nowrap p-3">{entryStatusLabels[entry.status]}</td>
                   <td className="p-3">{entry.games}</td>

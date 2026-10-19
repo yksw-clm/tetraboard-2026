@@ -54,8 +54,8 @@ adminRoutes.get("/admin/users", async (c) => {
   }
   const search = `%${query.data.search.replace(/^@/, "").replace(/[\\%_]/g, "\\$&")}%`;
   const rows = await c.env.APP_DB.prepare(`WITH registered_users AS (
-      SELECT id, name, username, avatarKey, ${accountCreatedAtMsSql("createdAt")} AS createdAtMs, profileCompleted
-      FROM user WHERE COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id))
+      SELECT id, name, username, avatarKey, ${accountCreatedAtMsSql("createdAt")} AS createdAtMs, profileCompleted,isAnonymous
+      FROM user WHERE NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id))
     SELECT * FROM registered_users WHERE (name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')
     ${cursor ? "AND (createdAtMs < ? OR (createdAtMs = ? AND id < ?))" : ""}
     ORDER BY createdAtMs DESC, id DESC LIMIT 51`)
@@ -67,6 +67,7 @@ adminRoutes.get("/admin/users", async (c) => {
       avatarKey: string | null;
       createdAtMs: number;
       profileCompleted: number;
+      isAnonymous: number | null;
     }>();
   const page = rows.results.slice(0, 50);
   const last = page.at(-1);
@@ -78,6 +79,7 @@ adminRoutes.get("/admin/users", async (c) => {
         avatarUrl: profileAvatarUrl(user.avatarKey),
         createdAtMs: user.createdAtMs,
         profileCompleted: Boolean(user.profileCompleted),
+        ...(user.isAnonymous ? { isGuest: true } : {}),
       })),
       nextCursor:
         rows.results.length > 50 && last

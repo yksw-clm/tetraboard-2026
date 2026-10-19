@@ -178,6 +178,7 @@ type ScoreRow = {
   deleted: number;
   name: string | null;
   username: string | null;
+  isAnonymous: number | null;
   avatarKey: string | null;
   pointsUnits: number;
   games: number;
@@ -195,7 +196,7 @@ export async function allStandings(
   row: TournamentRow,
 ): Promise<InternalStanding[]> {
   const values = await db
-    .prepare(`SELECT e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,
+    .prepare(`SELECT e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,u.isAnonymous,
     COALESCE(s.points_units,0) AS pointsUnits,COALESCE(s.games,0) AS games,
     COALESCE(s.first,0) AS first,COALESCE(s.second,0) AS second,COALESCE(s.third,0) AS third,COALESCE(s.fourth,0) AS fourth,
     COALESCE(s.knockouts,0) AS knockouts,COALESCE(s.rank_sum,0) AS rankSum,s.final_rank AS finalRank
@@ -210,6 +211,7 @@ export async function allStandings(
     rank: v.finalRank,
     name: v.name ?? "退会したプレイヤー",
     username: v.username,
+    ...(v.isAnonymous ? { isGuest: true } : {}),
     avatarUrl: profileAvatarUrl(v.avatarKey),
     pointsUnits: v.pointsUnits,
     games: v.games,

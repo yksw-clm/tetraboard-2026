@@ -1,3 +1,10 @@
+import {
+  prepareGuestLink,
+  rememberGuestLink,
+  completeGuestLink,
+  GuestLinkError,
+} from "./guestLinking";
+import { clearGuestSession } from "./guestAccounts";
 import { reserveAvatarUpload, finishAvatarUpload } from "../privacy/avatarUploads";
 import { isDeleted } from "../privacy/identity";
 import { completeLegalAuthentication } from "../privacy/oauthConsent";
@@ -31,6 +38,7 @@ accountRoutes.use("*", async (c, next) => {
   await next();
 });
 accountRoutes.onError((err, c) => {
+  if (err instanceof GuestLinkError) return c.json(error(err.message), 409);
   if (err instanceof RegistrationError)
     return c.json({ error: err.code, message: err.message }, err.status);
   console.error("Account request failed", err.name);
@@ -45,6 +53,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     const response = await createAuth(c.env).handler(
       new Request(`${c.env.APP_ORIGIN}/api${path}${new URL(c.req.url).search}`, c.req.raw),
     );
+    await completeGuestLink(c.req.raw, response, c.env);
     await completeReauthentication(c.req.raw, response, c.env);
     await completeLegalAuthentication(c.req.raw, response, c.env);
     await completeRegistrationOAuth(c.req.raw, response, c.env);
@@ -69,9 +78,12 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
         );
     }
   }
+  if (path === "/auth/sign-out" && (await accountIdentity(c.req.raw, c.env))?.isAnonymous)
+    await clearGuestSession(c.req.raw, c.env);
   let provider: "google" | "discord" = "google";
   let adminLogin = false;
   let registration: RegistrationFlow | undefined;
+  let guest: StoredProfile | null = null;
   if (path === "/auth/sign-in/social") {
     let input: unknown;
     try {
@@ -93,6 +105,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     )
       return c.json(error("規約と年齢条件を確認してください。"), 403);
     adminLogin = data.destination === "admin";
+    if (!adminLogin) guest = await prepareGuestLink(c.req.raw, c.env);
     if (data.registration !== undefined) {
       if (adminLogin) return c.json(error("管理画面のログインでは対局を引き継げません。"), 400);
       registration = await prepareRegistrationOAuth(c.env, data.registration);
@@ -133,6 +146,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       await c.env.APP_DB.prepare("INSERT INTO oauth_legal_consents VALUES (?,?,?,?,?)")
         .bind(state, provider, legalVersion, Date.now(), Date.now() + 600000)
         .run();
+      if (guest) await rememberGuestLink(c.req.raw, c.env, guest, state, provider);
       if (registration) await rememberRegistrationOAuth(c.env, registration, state, provider);
     }
   }
@@ -214,6 +228,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   )
     return c.notFound();
   const user = c.get("user");
+  if (user.isAnonymous) return c.json(error("ゲストは名前の変更画面を利用してください。"), 403);
   const registration =
     action === "setup" ? await validateRegistrationSetup(c.req.raw, c.env) : undefined;
   const expectedCompleted = action === "setup" ? 0 : 1;

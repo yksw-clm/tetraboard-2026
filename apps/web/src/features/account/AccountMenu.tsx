@@ -23,6 +23,13 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
   const [message, setMessage] = useState<string | null>(null);
   async function logout() {
     if (busy) return;
+    if (
+      user?.isGuest &&
+      !window.confirm(
+        "ゲストからログアウトすると、この記録へ戻れません。先にGoogle・Discordへ連携することをおすすめします。ログアウトしますか？",
+      )
+    )
+      return;
     setBusy(true);
     setMessage(null);
     try {
@@ -90,7 +97,11 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
               {user.name || "プロフィール未設定"}
             </span>
             <span className="mt-1 block truncate text-xs text-muted leading-tight">
-              {user.username ? `@${user.username}` : "初回設定をしてください"}
+              {user.isGuest
+                ? "ゲスト"
+                : user.username
+                  ? `@${user.username}`
+                  : "初回設定をしてください"}
             </span>
           </span>
           <AppIcon name="chevronDown" className="size-4 text-muted" />

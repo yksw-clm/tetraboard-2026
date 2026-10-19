@@ -24,5 +24,9 @@ export function playerAppearance(
 ): PlayerAppearance {
   return player.kind === "cpu"
     ? { kind: "cpu", level: player.level }
-    : { kind: "human", avatarUrl: player.avatarUrl };
+    : {
+        kind: "human",
+        avatarUrl: player.avatarUrl,
+        ...("isGuest" in player && player.isGuest ? { isGuest: true } : {}),
+      };
 }

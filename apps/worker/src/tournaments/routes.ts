@@ -123,7 +123,7 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
     AND (?='' OR instr(lower(u.name),lower(?))>0 OR instr(lower(u.username),lower(?))>0)`;
   const [rows, total] = await Promise.all([
     c.env.APP_DB.prepare(
-      `SELECT e.id,e.account_id,e.entered_at_ms,u.name,u.username,u.avatarKey ${query} ORDER BY e.entered_at_ms,e.id LIMIT 51 OFFSET ?`,
+      `SELECT e.id,e.account_id,e.entered_at_ms,u.name,u.username,u.avatarKey,u.isAnonymous ${query} ORDER BY e.entered_at_ms,e.id LIMIT 51 OFFSET ?`,
     )
       .bind(row.key, search, search, search, offset)
       .all<{
@@ -131,7 +131,8 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
         account_id: string;
         entered_at_ms: number;
         name: string;
-        username: string;
+        username: string | null;
+        isAnonymous: number | null;
         avatarKey: string | null;
       }>(),
     c.env.APP_DB.prepare(`SELECT COUNT(*) AS n ${query}`)
@@ -141,6 +142,7 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
   return c.json({
     entries: rows.results.slice(0, 50).map((e) => ({
       name: e.name,
+      ...(e.isAnonymous ? { isGuest: true } : {}),
       username: e.username,
       avatarUrl: profileAvatarUrl(e.avatarKey),
       enteredAtMs: e.entered_at_ms,
@@ -222,7 +224,10 @@ const member: MiddlewareHandler<{ Bindings: Env; Variables: Variables }> = async
     return c.json({ message: "操作元を確認できません。" }, 403);
   const user = await accountIdentity(c.req.raw, c.env);
   if (!user) return c.json({ message: "ログインしてください。" }, 401);
-  if (!user.profileCompleted || !profileInputSchema.safeParse(user).success)
+  if (
+    !user.profileCompleted ||
+    !(user.isAnonymous ? user.guestNameCustomized : profileInputSchema.safeParse(user).success)
+  )
     return c.json({ message: "プロフィール登録を完了してください。" }, 403);
   if (c.req.method === "POST") {
     if (c.req.header("X-Legal-Consent") !== legalVersion)

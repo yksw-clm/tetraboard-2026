@@ -8,7 +8,7 @@ import {
   lobbyModerationSchema,
   lobbyAdminSchema,
 } from "@tetraboard/protocol/general-lobby";
-import { accountIdentity, type StoredProfile } from "../accounts/auth";
+import { registeredIdentity as accountIdentity, type StoredProfile } from "../accounts/auth";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "../feedback/images";
 import { digest } from "../privacy/deletion";

@@ -31,7 +31,7 @@ export async function ensurePublicProfileId(
 ): Promise<string | null> {
   const row = await db
     .prepare(
-      "UPDATE user SET publicProfileId = COALESCE(publicProfileId, ?) WHERE id = ? AND profileCompleted = 1 AND COALESCE(isAnonymous, 0) = 0 RETURNING publicProfileId",
+      "UPDATE user SET publicProfileId = COALESCE(publicProfileId, ?) WHERE id = ? AND profileCompleted = 1 AND (COALESCE(isAnonymous,0)=0 OR guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING publicProfileId",
     )
     .bind(crypto.randomUUID(), accountId)
     .first<{ publicProfileId: string }>();

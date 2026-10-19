@@ -1,3 +1,4 @@
+import { GuestAccountControls } from "./GuestAccountControls";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
@@ -49,6 +50,7 @@ export function AccountPageShell({
   navigation?: ReactNode;
   modeTabs?: ReactNode;
 }) {
+  const { user } = useAccount();
   const profileLayout = layout === "profile";
   const loginLayout = layout === "login";
   const lobbyLink = (
@@ -114,7 +116,7 @@ export function AccountPageShell({
           )}
           {children}
           <PrivacyLinks />
-          {profileLayout && (
+          {profileLayout && !user?.isGuest && (
             <AppButtonLink to="/account/deletion" appearance="quiet">
               アカウントを削除
             </AppButtonLink>
@@ -199,12 +201,12 @@ export function LoginPage() {
       saveRegistrationReturn(destination, false);
   }, [params, destination, adminDestination]);
   useEffect(() => {
-    if (!loading && !error && user && adminDestination && !params.has("error"))
+    if (!loading && !error && user && !user.isGuest && adminDestination && !params.has("error"))
       window.location.replace("/admin");
   }, [loading, error, user, adminDestination, params]);
   if (handoff && !adminDestination && (!user || params.has("error")))
     return <GuestRegistrationCompletion flow={handoff} />;
-  if (!loading && !error && user && !params.has("error")) {
+  if (!loading && !error && user && !user.isGuest && !params.has("error")) {
     if (adminDestination) return <p role="status">管理画面へ移動しています…</p>;
     return <Navigate to={user.profileCompleted ? "/account" : "/account/setup"} replace />;
   }
@@ -404,6 +406,7 @@ function AccountProfileView({
             <AppButton
               appearance="secondary"
               className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
+              isDisabled={user.isGuest}
               onPress={() => {
                 setNotice(null);
                 setEditing(true);
@@ -418,7 +421,9 @@ function AccountProfileView({
             />
             <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
               <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
-              <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">@{user.username}</p>
+              <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
+                {user.isGuest ? "ゲスト" : `@${user.username}`}
+              </p>
             </div>
           </div>
           {notice && (
@@ -426,6 +431,7 @@ function AccountProfileView({
               {notice}
             </p>
           )}
+          {user.isGuest && <GuestAccountControls />}
           <AccountStats game={game} mode={mode} />
         </AppCard>
         <MatchHistory game={game} mode={mode} />

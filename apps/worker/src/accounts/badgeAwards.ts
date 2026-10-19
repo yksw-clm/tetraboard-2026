@@ -4,11 +4,11 @@ import { matchOutcomesCte } from "./matchOutcomes";
 type BadgeGame = "four-reversi" | "four-shogi";
 
 /** 保存済み戦績の集計条件を共用し、閾値の正本からSQLを組み立てます。 */
-export function badgeAwardsSql(game: BadgeGame, baseline = false): string {
+export function badgeAwardsSql(game: BadgeGame, baseline = false, personal = false): string {
   const thresholds = getBadgeIds(game).flatMap((id) =>
     badgeDefinitions[id].thresholds.map((value, index) => `('${id}', ${index + 1}, ${value})`),
   );
-  return `${matchOutcomesCte(game, false, !baseline)}, totals AS (
+  return `${matchOutcomesCte(game, personal, !baseline)}, totals AS (
     SELECT account_id, COUNT(*) AS games, SUM(rank = 1) AS wins,
       SUM(knockouts) AS knockouts,
       SUM(CASE WHEN rank = 1 AND knockouts = 3
