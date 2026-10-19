@@ -1,9 +1,25 @@
 import { env } from "cloudflare:workers";
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { participantProfiles } from "../src/accounts/matchProfiles";
 import { matchSummary, readStoredMatch } from "../src/accounts/matchDataContracts";
 import { accountFixture } from "./accountFixtures";
 import { fixtureRecord, humanFixtureRecord } from "./matchFixtures";
+
+const claimMatchIds: string[] = [];
+const deletedAccountIds: string[] = [];
+afterEach(async () => {
+  const statements = [
+    ...claimMatchIds
+      .splice(0)
+      .map((id) =>
+        env.APP_DB.prepare("DELETE FROM match_participant_accounts WHERE match_id=?").bind(id),
+      ),
+    ...deletedAccountIds
+      .splice(0)
+      .map((id) => env.APP_DB.prepare("DELETE FROM deleted_accounts WHERE id=?").bind(id)),
+  ];
+  if (statements.length) await env.APP_DB.batch(statements);
+});
 
 function countQueries(db: D1Database) {
   let count = 0;
@@ -85,6 +101,8 @@ test("対局ごとの登録引き継ぎ・退会を重ね、未確定の受付�
     record.participants[1].id = playerId;
     return record;
   });
+  claimMatchIds.push(...snapshots.map((record) => record.id));
+  deletedAccountIds.push(deleted.id);
   const native = snapshots[0].participants[2];
   const missing = snapshots[0].participants[3];
   const retired = snapshots[3].participants[2];
@@ -163,6 +181,7 @@ test("保存された本人と引き継ぎ先が矛盾する対局の一覧を�
   const owner = await accountFixture();
   const other = await accountFixture();
   const record = fixtureRecord(owner.id, 1);
+  claimMatchIds.push(record.id);
   await env.APP_DB.prepare(`INSERT INTO match_participant_accounts
     (match_id,player_id,account_id,room_id,instance_id,state,accepted_at_ms,retry_at_ms)
     VALUES(?,?,?,?,?,'applied',0,0)`)
