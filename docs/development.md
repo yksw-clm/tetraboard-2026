@@ -1441,6 +1441,8 @@ Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過�
 
 `participantProfiles` は保存参加者から内部IDを重複排除する入口として維持し、`readCurrentProfiles` に現在の名前・公開ID・画像・設定状態の一括読取を集約します。保存棋譜の公開変換は従来の名前・画像だけを使い、公開カードの可否判定とは分けます。保存JSON・参加者スキーマ・本人索引・将棋イベントを変更しません。
 
+公開・総合・本人の対局一覧と棋譜詳細では、`resolveMatchParticipantList` が最大20局の登録引き継ぎ（applied）と退会済みの参加関係（retired）を1回で取得し、引き継ぎ後の内部IDを重複排除して退会状態も1回で取得します。現在プロフィールの取得と合わせて最大3回とし、対局ごとのD1往復を行いません。20局・各4人でも1クエリのバインド数は最大80個です。空の一覧は問い合わせません。参加者IDは対局IDごとに解決し、pending・rejectedは反映せず、保存参加者と引き継ぎ先が矛盾する場合は取得を失敗させます。保存時と読取り時の退会者表示は `redactRetiredParticipants` の共通変換を使い、既に退会した参加者・退会済みの引き継ぎ先を旧名や現在プロフィールで復活させません。単独の公開プレイヤー参照も同じ解決処理を使います。
+
 `0010_player_profiles.sql` は `user.publicProfileId` の一意UUIDと `room_index` の部屋世代・ホストID列を追加します。内部アカウントIDと変更可能な公開IDから独立した参照キーを既存ユーザーへ付与し、プロフィール保存では未設定の場合だけ生成します。デプロイの間に未付与の登録者が生じても、参照の返却時に条件付きUPDATEで補完します。旧Workerの動作は追加migration後も維持できます。
 
 `GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId` を渡します。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
