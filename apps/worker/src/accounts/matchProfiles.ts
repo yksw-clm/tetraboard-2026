@@ -1,4 +1,4 @@
-import { resolveMatchParticipants } from "./matchClaims";
+import { resolveMatchParticipantList } from "./matchClaims";
 import type { DecodedMatch } from "./matchDataContracts";
 import { readCurrentProfiles } from "./currentProfiles";
 
@@ -6,7 +6,7 @@ export type ParticipantProfile = { name: string; avatarUrl: string | null };
 export type ParticipantProfiles = ReadonlyMap<string, ParticipantProfile>;
 
 export async function participantProfiles(db: D1Database, records: DecodedMatch[]) {
-  for (const record of records) await resolveMatchParticipants(db, record);
+  await resolveMatchParticipantList(db, records);
   const accountIds = [
     ...new Set(
       records.flatMap((record) =>

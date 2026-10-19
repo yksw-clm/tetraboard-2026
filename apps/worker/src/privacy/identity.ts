@@ -27,6 +27,14 @@ export async function redactParticipants<
         .all<{ id: string }>()
     : { results: [] };
   const deleted = new Set(rows.results.map((r) => r.id));
+  return redactRetiredParticipants(record, retiredPlayers, deleted);
+}
+
+export function redactRetiredParticipants<
+  T extends {
+    participants: { id?: string; name: string; accountId?: string | null }[];
+  },
+>(record: T, retiredPlayers: ReadonlySet<string>, deleted: ReadonlySet<string>): T {
   if (!deleted.size && !retiredPlayers.size) return record;
   return {
     ...record,
