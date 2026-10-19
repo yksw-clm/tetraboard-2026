@@ -33,6 +33,8 @@ test("参照元はHTTPのホストだけを残し、IP・全文・不正値を�
     ["google.co.jp", "search"],
     ["www.bing.com", "search"],
     ["yahoo.co.jp", "search"],
+    ["search.yahoo.co.jp", "search"],
+    ["search.yahoo.com", "search"],
     ["t.co", "social"],
     ["x.com", "social"],
     ["youtu.be", "social"],

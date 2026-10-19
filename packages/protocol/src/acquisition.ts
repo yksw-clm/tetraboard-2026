@@ -45,6 +45,8 @@ export function classifyReferrer(value: string | null, ownHostname: string) {
     "google.co.jp",
     "bing.com",
     "yahoo.co.jp",
+    "search.yahoo.co.jp",
+    "yahoo.com",
     "search.yahoo.com",
     "duckduckgo.com",
     "search.brave.com",
