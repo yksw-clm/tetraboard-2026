@@ -8,6 +8,17 @@
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
+## 流入元・端末別の計測
+
+Issue #214の[確定仕様](../README.md#流入元端末別の計測)と[実装](development.md#流入元端末別の計測)を、既存のBun・happy-dom・Worker統合へ追加します。
+
+- protocolの `test/acquisition.test.ts` はホスト名のみの抽出、IP・パス・検索語・不正入力の除外、明示的なドメイン分類、UTM除去後の64文字・大小文字・空、端末3分類と不明、旧入力の互換性を確認します。
+- Webの `test/pageAnalytics.test.ts` と `test-dom/analytics.test.tsx` は3種類以外のクエリ非送信、SPAでの参照元切替、Cookie再利用と追加storageなし、旧Workerの400に同じIDで一度だけ再送、既存の滞在・失敗時の非阻害を確認します。
+- Workerの `test/acquisition.test.ts` は専用の実D1で、同時到達、30分の直前／一致、閲覧・累積時間の再送、取得項目の制限、旧画面の欠測、開始対局の区分内重複排除と再訪後の帰属固定、本人・テスト混在、90日の訪問／対局の別々の期限・二重集約防止、退会受付・遅延保存、保存失敗の一括ロールバックを検証します。既存 `adminAnalytics.test.ts`・`privacy.test.ts`・`generalLobby.test.ts` の集計も維持します。
+- Adminの `test-dom/acquisition.test.tsx` は3表・UTMの各列・期間合計、未計測／不明／実測0、初日・当日・月別の途中集計、旧応答を確認します。取得・条件変更・権限・再試行は既存Dashboardと `adminViews.test.tsx`・`adminData.test.tsx` を共用します。
+
+部分確認は `bun test --cwd packages/protocol test/acquisition.test.ts`、`bun run --cwd apps/worker test test/acquisition.test.ts test/adminAnalytics.test.ts test/privacy.test.ts test/generalLobby.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/analytics.test.tsx`、`bun test --cwd apps/admin --preload ../../test-support/dom.ts test-dom/acquisition.test.tsx test-dom/adminViews.test.tsx` を使います。ブラウザを起動する自動テストは追加しません。PC／スマートフォンの表の収まり・スクロール・ネイティブ日付入力、実環境の端末分類とmigration適用は手動確認または未確認事項としてPRへ記載します。ポリシー本文・文書版を変更していないことも最終差分で確認します。
+
 ## 四人将棋大会の確認
 
 2026-10-16に合格したモックと[確定仕様](../README.md#四人将棋大会の確定仕様)、[実装計画のDone When](development.md#四人将棋大会の実装計画)に対応する実装の受入検証です。以下をBun・happy-dom・Worker統合で検証します。モックの表示確認と実サービスの認証・マッチング・永続化の確認は区別します。

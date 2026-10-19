@@ -1,6 +1,7 @@
 import { gameIds } from "@tetraboard/protocol/games";
 import type { router as appRouter } from "../app/router";
 import { createUuid } from "../shared/createUuid";
+import { referrerHostname, sanitizeUtm, type AcquisitionInput } from "@tetraboard/protocol";
 export { createUuid as randomAnalyticsId } from "../shared/createUuid";
 export const analyticsCookie = "tetraboard-2026.analytics";
 export function ensureAnalyticsCookie() {
@@ -24,7 +25,20 @@ export function splitVisibleTime(days: Map<string, number>, from: number, to: nu
     at = end;
   }
 }
-function trackPage(page: string, game: string | null) {
+export function pageAcquisition(
+  referrer: string,
+  search: string,
+  ownHostname: string,
+): AcquisitionInput {
+  const params = new URLSearchParams(search);
+  return {
+    referrer: referrerHostname(referrer, ownHostname),
+    source: sanitizeUtm(params.get("utm_source")),
+    medium: sanitizeUtm(params.get("utm_medium")),
+    campaign: sanitizeUtm(params.get("utm_campaign")),
+  };
+}
+function trackPage(page: string, game: string | null, acquisition: AcquisitionInput) {
   const id = createUuid();
   const days = new Map<string, number>();
   let alive = true;
@@ -39,12 +53,16 @@ function trackPage(page: string, game: string | null) {
       ?.trim();
   const visitor = visitorAtStart();
   const permitted = () => visitor === visitorAtStart();
-  const created = fetch("/api/analytics/pageviews", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, page, game }),
-    keepalive: true,
-  })
+  const register = (includeAcquisition: boolean) =>
+    fetch("/api/analytics/pageviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, page, game, ...(includeAcquisition ? { acquisition } : {}) }),
+      keepalive: true,
+    });
+  const created = register(true)
+    // ロールバック先の旧Workerが追加項目を受け付けない場合も、従来の閲覧を残します。
+    .then((r) => (r.status === 400 ? register(false) : r))
     .then((r) => {
       registered = r.ok;
       return registered;
@@ -145,6 +163,7 @@ function trackPage(page: string, game: string | null) {
 }
 export function startWebAnalytics(router: typeof appRouter) {
   let previous = "";
+  let initial = true;
   let stop: (() => void) | undefined;
   function changed(state: typeof router.state) {
     if (!state.initialized || state.navigation.state !== "idle" || state.location.key === previous)
@@ -189,7 +208,13 @@ export function startWebAnalytics(router: typeof appRouter) {
                     : "other";
     // 取得失敗時には、ゲームが不明なルームや棋譜をゲーム別の訪問に混ぜません。
     if (["room", "replay"].includes(page) && !game) return;
-    stop = trackPage(page, game);
+    const acquisition = pageAcquisition(
+      initial ? document.referrer : `${location.origin}/`,
+      state.location.search,
+      location.hostname,
+    );
+    initial = false;
+    stop = trackPage(page, game, acquisition);
   }
   window.addEventListener("analytics-identity-changed", () => {
     previous = "";

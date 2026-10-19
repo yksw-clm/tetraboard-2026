@@ -405,7 +405,9 @@ test("総合ロビー計測は全体だけに入り、ゲーム開始率の分�
     day = japanDay(now),
     view = crypto.randomUUID();
   await db
-    .prepare("INSERT INTO analytics_pageviews VALUES(?,?,NULL,0,'general-lobby',NULL,?)")
+    .prepare(
+      "INSERT INTO analytics_pageviews(id,visitor_id,account_id,is_test,page,game,started_at_ms) VALUES(?,?,NULL,0,'general-lobby',NULL,?)",
+    )
     .bind(view, "visitor", now - 1000)
     .run();
   await db.prepare("INSERT INTO analytics_dwell VALUES(?,?,?)").bind(view, day, 500).run();

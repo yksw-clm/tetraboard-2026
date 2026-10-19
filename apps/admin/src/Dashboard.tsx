@@ -5,6 +5,7 @@ import { adminAnalyticsSchema, type AnalyticsMetrics } from "@tetraboard/protoco
 import { useAdminData } from "./useAdminData";
 import { defaultPeriod, duration, metricCards, percent, quantity } from "./presentation";
 import { BreakdownChart, TrendChart } from "./Charts";
+import { Acquisition } from "./Acquisition";
 const parseAnalytics = (body: unknown) => adminAnalyticsSchema.parse(body);
 const columns: {
   label: string;
@@ -217,6 +218,7 @@ export function Dashboard({ game }: { game: GameScope }) {
               </table>
             </div>
           </Card>
+          <Acquisition report={result.data.acquisition} asOf={result.data.asOfMs} />
           <Card className="gap-3 p-5 text-sm text-gray-600">
             <h2 className="font-bold text-gray-900">指標の読み方</h2>
             <p>

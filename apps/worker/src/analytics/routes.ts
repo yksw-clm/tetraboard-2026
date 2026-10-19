@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { pageViewInputSchema, dwellInputSchema } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { analyticsVisitor, coverageStatement } from "./store";
+import { sessionActivityStatement, sessionStatements } from "./sessions";
 
 export const analyticsRoutes = new Hono<{ Bindings: Env }>();
 analyticsRoutes.use("/analytics/*", async (c, next) => {
@@ -66,6 +67,17 @@ analyticsRoutes.post("/analytics/pageviews", async (c) => {
       input.data.game,
       now,
     ),
+    ...sessionStatements(c.env.APP_DB, {
+      id: input.data.id,
+      visitor,
+      account: user?.id ?? null,
+      isTest: Boolean(user?.isTestUser),
+      game: input.data.game,
+      now,
+      origin: c.env.APP_ORIGIN,
+      userAgent: c.req.header("User-Agent") ?? null,
+      acquisition: input.data.acquisition,
+    }),
   ]);
   return c.body(null, 204);
 });
@@ -90,8 +102,9 @@ analyticsRoutes.post("/analytics/dwell", async (c) => {
     );
     if (entry.milliseconds > maximum + 2000) return c.body(null, 400);
   }
-  await c.env.APP_DB.batch(
-    entries.map((entry) =>
+  await c.env.APP_DB.batch([
+    sessionActivityStatement(c.env.APP_DB, visitor, input.data.id, entries, now),
+    ...entries.map((entry) =>
       c.env.APP_DB.prepare(`INSERT INTO analytics_dwell (view_id, day, milliseconds) VALUES (?, ?, ?)
     ON CONFLICT(view_id, day) DO UPDATE SET milliseconds = MAX(milliseconds, excluded.milliseconds)`).bind(
         input.data.id,
@@ -99,6 +112,6 @@ analyticsRoutes.post("/analytics/dwell", async (c) => {
         entry.milliseconds,
       ),
     ),
-  );
+  ]);
   return c.body(null, 204);
 });

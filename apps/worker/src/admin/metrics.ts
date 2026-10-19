@@ -1,5 +1,6 @@
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { archiveAnalytics } from "../analytics/retention";
+import { readAcquisition } from "../analytics/acquisition";
 import {
   analyticsMetricsSchema,
   type AdminAnalyticsQuery,
@@ -241,6 +242,7 @@ export async function readAnalytics(
     }
   }
   return {
+    acquisition: await readAcquisition(env, query, now),
     individualDataFromMs: cutoff,
     collectedFromMs: coverage?.value ?? null,
     asOfMs: now,
