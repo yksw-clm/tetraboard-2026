@@ -12,7 +12,11 @@ export function playerLabel(player: Room["players"][number]): string {
 export function playerAppearance(player: Room["players"][number]): PlayerAppearance {
   return player.kind === "cpu"
     ? { kind: "cpu", level: player.level }
-    : { kind: "human", avatarUrl: player.avatarUrl };
+    : {
+        kind: "human",
+        avatarUrl: player.avatarUrl,
+        ...("isGuest" in player && player.isGuest ? { isGuest: true } : {}),
+      };
 }
 function randomIndex(length: number): number {
   const range = 2 ** 32;

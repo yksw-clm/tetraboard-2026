@@ -1,3 +1,5 @@
+import { guestLinkRoutes } from "./accounts/guestLinking";
+import { guestRoutes } from "./accounts/guestAccounts";
 import { generalLobbyRoutes } from "./lobby/routes";
 import { lobbyChatRoutes } from "./lobby/chatRoutes";
 import { cleanupLobbyChat } from "./lobby/chatStore";
@@ -65,6 +67,8 @@ api.route("/", rankingRoutes);
 api.route("/", deletionRoutes);
 api.route("/", legalRoutes);
 api.route("/", registrationRoutes);
+api.route("/", guestRoutes);
+api.route("/", guestLinkRoutes);
 api.route("/", accountRoutes);
 api.route("/", roomRoutes);
 
@@ -141,6 +145,8 @@ const worker = {
     await retryPendingMatchClaims(env.APP_DB);
     await deleteUnusedAvatars(env);
     await env.APP_DB.batch([
+      env.APP_DB.prepare("DELETE FROM guest_sessions WHERE expires_at_ms<=?").bind(Date.now()),
+      env.APP_DB.prepare("DELETE FROM guest_oauth_flows WHERE expires_at_ms<=?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM session WHERE expiresAt < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM verification WHERE expiresAt < ?").bind(Date.now()),
       env.APP_DB.prepare("DELETE FROM deletion_flows WHERE expires_at_ms < ?").bind(Date.now()),

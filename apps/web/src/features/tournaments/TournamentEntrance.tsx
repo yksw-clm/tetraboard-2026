@@ -9,7 +9,9 @@ import { TournamentStatus } from "./TournamentStatus";
 import { tournamentDate, tournamentRemaining } from "./tournamentPresentation";
 export function TournamentEntrance() {
   const account = useAccount();
-  const identity = account.user?.profileCompleted ? account.user.username : null;
+  const identity = account.user?.profileCompleted
+    ? (account.user.profileId ?? account.user.username)
+    : null;
   const [state, setState] = useState<{
     tournament: TournamentPublic | null;
     entered: boolean;
@@ -113,11 +115,7 @@ export function TournamentEntrance() {
                 size="compact"
                 className="min-h-11 whitespace-normal text-center"
               >
-                {entered
-                  ? "大会に参加"
-                  : !account.user
-                    ? "ログインまたは登録してエントリー"
-                    : "エントリー"}
+                {entered ? "大会に参加" : !account.user ? "ゲストでエントリー" : "エントリー"}
               </AppButtonLink>
             ))}
         </div>

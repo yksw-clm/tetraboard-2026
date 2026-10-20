@@ -282,6 +282,7 @@ export class GameRoom extends DurableObject<Env> {
               ? identity.accountId
               : (this.storedAccount(p.id)?.accountId ?? null),
             isTest: identity?.isTest ?? false,
+            isGuest: identity?.isGuest ?? this.storedAccount(p.id)?.isGuest ?? false,
           };
         }),
     };
@@ -434,8 +435,32 @@ export class GameRoom extends DurableObject<Env> {
     return this.matchFlush;
   }
 
+  async guestMergeConflict(guestId: string, accountId: string): Promise<boolean> {
+    const includesBoth = (value: unknown): boolean => {
+      if (!value || typeof value !== "object") return false;
+      if (Array.isArray(value)) return value.some(includesBoth);
+      const row = value as Record<string, unknown>;
+      if (Array.isArray(row.participants)) {
+        const ids = new Set(
+          row.participants.map((player: { accountId?: string }) => player?.accountId),
+        );
+        if (ids.has(guestId) && ids.has(accountId)) return true;
+      }
+      return Object.values(row).some(includesBoth);
+    };
+    // 保存待ちの記録も確認し、D1へまだ届いていない同局の複数席取得を防ぎます。
+    for (const [, value] of this.ctx.storage.kv.list()) if (includesBoth(value)) return true;
+    return false;
+  }
+
   async purgeAccount(accountId: string) {
     await this.ctx.blockConcurrencyWhile(async () => {
+      const aliases = await this.env.APP_DB.prepare(
+        "SELECT guest_id FROM guest_account_merges WHERE account_id=?",
+      )
+        .bind(accountId)
+        .all<{ guest_id: string }>();
+      const accountIds = new Set([accountId, ...aliases.results.map((row) => row.guest_id)]);
       const entries = [...this.ctx.storage.kv.list<unknown>()];
       const ids = new Set<string>();
       const names = new Set<string>();
@@ -481,7 +506,7 @@ export class GameRoom extends DurableObject<Env> {
         const row = value as Record<string, unknown>;
         if (typeof row.id === "string" && Array.isArray(row.participants)) {
           for (const participant of row.participants) {
-            if (participant?.accountId === accountId && typeof participant.id === "string")
+            if (accountIds.has(participant?.accountId) && typeof participant.id === "string")
               rememberMatchPlayer(row.id, participant.id);
           }
         }
@@ -498,7 +523,7 @@ export class GameRoom extends DurableObject<Env> {
           }[];
           const own = new Set(
             participants
-              .filter((p) => p.accountId === accountId)
+              .filter((p) => accountIds.has(p.accountId ?? ""))
               .flatMap((p) => p.id ?? p.playerId ?? []),
           );
           if (!participants.some((p) => "visitorId" in p) && typeof row.id === "string")
@@ -519,7 +544,7 @@ export class GameRoom extends DurableObject<Env> {
           value &&
           typeof value === "object" &&
           "accountId" in value &&
-          value.accountId === accountId
+          accountIds.has(String(value.accountId))
         ) {
           const seat = value as StoredAccountSeat;
           if (seat.occupying) throw new Error("Account still seated");
@@ -546,7 +571,7 @@ export class GameRoom extends DurableObject<Env> {
             const scope = identityScope(row, inheritedScope);
             const matchingIds = scope ?? ids;
             if (
-              row.accountId === accountId ||
+              accountIds.has(String(row.accountId)) ||
               matchingIds.has(String(row.id)) ||
               matchingIds.has(String(row.playerId)) ||
               matchingIds.has(String(row.senderId)) ||
@@ -596,7 +621,7 @@ export class GameRoom extends DurableObject<Env> {
         const matchingIds = scope ?? ids;
         const own =
           inherited ||
-          row.accountId === accountId ||
+          accountIds.has(String(row.accountId)) ||
           matchingIds.has(String(row.id)) ||
           matchingIds.has(String(row.playerId)) ||
           matchingIds.has(String(row.senderId)) ||
@@ -636,13 +661,13 @@ export class GameRoom extends DurableObject<Env> {
           value &&
           typeof value === "object" &&
           "accountId" in value &&
-          value.accountId === accountId
+          accountIds.has(String(value.accountId))
         )
           continue;
         if (key === accountCleanupKey) {
           this.ctx.storage.kv.put(
             key,
-            (value as AccountCleanup[]).filter((v) => v.reservation.accountId !== accountId),
+            (value as AccountCleanup[]).filter((v) => !accountIds.has(v.reservation.accountId)),
           );
           continue;
         }
@@ -1987,6 +2012,7 @@ export class GameRoom extends DurableObject<Env> {
           kind: "human",
           name: admission.name,
           avatarUrl: profileAvatarUrl(admission.avatarKey),
+          ...(admission.isGuest ? { isGuest: true } : {}),
           ready: true,
           side: null,
           reconnectDeadline: Math.min(now + tournamentRules.connectionGraceMs, context.endsAtMs),
@@ -2573,6 +2599,7 @@ export class GameRoom extends DurableObject<Env> {
               name: playerName,
               kind: "human",
               avatarUrl: admission ? profileAvatarUrl(admission.avatarKey) : null,
+              ...(admission?.isGuest ? { isGuest: true } : {}),
               ready: false,
               ...(isFourShogiRoom(room) || isShogiRoom(room) ? { side: null } : { color: null }),
               reconnectDeadline: Date.now() + reconnectGraceMs,

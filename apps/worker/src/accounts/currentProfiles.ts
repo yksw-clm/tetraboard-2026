@@ -1,4 +1,5 @@
 import { profileAvatarUrl } from "./auth";
+import { ensureGuestUsername } from "./guestUsernames";
 export type CurrentProfile = {
   name: string;
   username: string | null;
@@ -20,8 +21,11 @@ export async function readCurrentProfiles(
     )
     .bind(...unique)
     .all<Omit<CurrentProfile, "avatarUrl"> & { id: string; avatarKey: string | null }>();
-  for (const { id, avatarKey, ...row } of rows.results)
+  for (const { id, avatarKey, ...row } of rows.results) {
+    if (row.isAnonymous && row.profileCompleted && !row.username)
+      row.username = await ensureGuestUsername(db, id);
     profiles.set(id, { ...row, avatarUrl: profileAvatarUrl(avatarKey) });
+  }
   return profiles;
 }
 // Handles accounts completed by the previous Worker between migration and deployment.
@@ -31,7 +35,7 @@ export async function ensurePublicProfileId(
 ): Promise<string | null> {
   const row = await db
     .prepare(
-      "UPDATE user SET publicProfileId = COALESCE(publicProfileId, ?) WHERE id = ? AND profileCompleted = 1 AND COALESCE(isAnonymous, 0) = 0 RETURNING publicProfileId",
+      "UPDATE user SET publicProfileId = COALESCE(publicProfileId, ?) WHERE id = ? AND profileCompleted = 1 AND (COALESCE(isAnonymous,0)=0 OR guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING publicProfileId",
     )
     .bind(crypto.randomUUID(), accountId)
     .first<{ publicProfileId: string }>();

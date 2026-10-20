@@ -41,6 +41,7 @@ const playerAppearanceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("human"),
     avatarUrl: avatarUrlSchema,
     retired: z.literal(true).optional(),
+    isGuest: z.boolean().optional(),
   }),
   z.strictObject({ kind: z.literal("cpu"), level: cpuLevelSchema }),
 ]);
@@ -182,6 +183,7 @@ const playerBaseSchema = z.strictObject({
 const humanPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("human"),
   retired: z.literal(true).optional(),
+  isGuest: z.boolean().optional(),
   avatarUrl: avatarUrlSchema.default(null),
   ready: z.boolean(),
   reconnectDeadline: z.int().nonnegative().nullable(),

@@ -1,5 +1,5 @@
 import { adminAccountIds } from "../admin/auth";
-import { accountCreatedAtMsSql } from "../accounts/timestamps";
+import { accountRegisteredAtMsSql } from "../accounts/timestamps";
 import { unsealToken } from "./tokens";
 import type { AuthEnv } from "../accounts/auth";
 import { avatarKeyPattern } from "../accounts/auth";
@@ -193,10 +193,10 @@ export async function processDeletions(env: AuthEnv) {
         .run();
       const reporterHash = await feedbackAccountHash(env, job.id);
       const owners = adminAccountIds(env) ?? [];
-      const registeredAt = accountCreatedAtMsSql("u.createdAt");
+      const registeredAt = accountRegisteredAtMsSql();
       const registrations = [false, true].map((include) =>
         env.APP_DB.prepare(`INSERT INTO analytics_deleted_registrations(day,internal,count)
-        SELECT strftime('%Y-%m-%d',(${registeredAt})/1000+32400,'unixepoch'),?,COUNT(*) FROM user u WHERE u.id=? AND (${registeredAt})>=COALESCE((SELECT value FROM analytics_metadata WHERE key='collected_from'),?) ${include ? "" : `AND COALESCE(u.isTestUser,0)=0 ${owners.length ? `AND u.id NOT IN (${owners.map(() => "?").join(",")})` : ""}`} GROUP BY 1,2
+        SELECT strftime('%Y-%m-%d',(${registeredAt})/1000+32400,'unixepoch'),?,COUNT(*) FROM user u WHERE u.id=? AND COALESCE(u.isAnonymous,0)=0 AND (${registeredAt})>=COALESCE((SELECT value FROM analytics_metadata WHERE key='collected_from'),?) ${include ? "" : `AND COALESCE(u.isTestUser,0)=0 ${owners.length ? `AND u.id NOT IN (${owners.map(() => "?").join(",")})` : ""}`} GROUP BY 1,2
         ON CONFLICT(day,internal) DO UPDATE SET count=count+excluded.count`).bind(
           Number(include),
           job.id,
@@ -245,7 +245,9 @@ export async function processDeletions(env: AuthEnv) {
         env.APP_DB.prepare(
           "UPDATE lobby_chat_reports SET reporter_account_id=NULL WHERE reporter_account_id=?",
         ).bind(job.id),
-        env.APP_DB.prepare("DELETE FROM lobby_chat_senders WHERE account_id=?").bind(job.id),
+        env.APP_DB.prepare(
+          "DELETE FROM lobby_chat_senders WHERE account_id=? OR account_id IN(SELECT guest_id FROM guest_account_merges WHERE account_id=?)",
+        ).bind(job.id, job.id),
         env.APP_DB.prepare("DELETE FROM user WHERE id=?").bind(job.id),
       ]);
 

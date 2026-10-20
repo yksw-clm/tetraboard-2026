@@ -5,7 +5,7 @@ import {
   aiTrialAnalysisSchema,
   aiTrialCpuSchema,
 } from "@tetraboard/protocol/four-shogi-ai";
-import { accountIdentity, type StoredProfile } from "../accounts/auth";
+import { registeredIdentity as accountIdentity, type StoredProfile } from "../accounts/auth";
 import { readStoredMatch } from "../accounts/matchDataContracts";
 import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
 import { readLimitedBody } from "../feedback/images";

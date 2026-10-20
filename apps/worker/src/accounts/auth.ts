@@ -1,3 +1,4 @@
+import { guestIdentity, suspendGuestSession } from "./guestAccounts";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
@@ -14,6 +15,9 @@ export type AuthEnv = Env & {
 // 認証する経路だけでCookieを集め、最終HTTP応答にまとめて引き継ぎます。
 // Requestをキーにすることで、並行リクエストや別アカウントのCookieを混ぜません。
 const sessionCookies = new WeakMap<Request, string[]>();
+export function appendSessionCookie(request: Request, cookie: string) {
+  sessionCookies.get(request)?.push(cookie);
+}
 export async function withAccountSessionCookies(
   request: Request,
   respond: () => Promise<Response>,
@@ -94,7 +98,13 @@ export function createAuth(env: AuthEnv) {
           before: async (account) => ({ data: { ...account, refreshToken: null, idToken: null } }),
         },
       },
-      user: { create: { before: async (user) => ({ data: { ...user, name: "", image: null } }) } },
+      user: {
+        create: {
+          before: async (user) => ({
+            data: { ...user, name: "", image: null },
+          }),
+        },
+      },
     },
   });
 }
@@ -108,14 +118,26 @@ export async function accountSessionIdentity(request: Request, env: AuthEnv) {
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
   const user = await env.APP_DB.prepare(
-    'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser, publicProfileId FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
+    'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser, publicProfileId, isAnonymous, guestNameCustomized FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
   )
     .bind(session.user.id)
     .first<StoredProfile>();
   return user ? { user, sessionId: session.session.id } : null;
 }
 export async function accountIdentity(request: Request, env: AuthEnv) {
-  return (await accountSessionIdentity(request, env))?.user ?? null;
+  const identity = await accountSessionIdentity(request, env);
+  if (identity) {
+    await suspendGuestSession(request, env);
+    return identity.user;
+  }
+  // 登録セッションの失効時に、別のゲストへ自動で切り替えません。
+  if (
+    /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(
+      request.headers.get("Cookie") ?? "",
+    )
+  )
+    return null;
+  return guestIdentity(request, env);
 }
 export type StoredProfile = {
   id: string;
@@ -126,6 +148,8 @@ export type StoredProfile = {
   avatarKey: string | null;
   isTestUser?: number | null;
   publicProfileId?: string | null;
+  isAnonymous?: number | null;
+  guestNameCustomized?: number | null;
 };
 export function publicProfile(user: StoredProfile): AccountProfile {
   return {
@@ -134,6 +158,9 @@ export function publicProfile(user: StoredProfile): AccountProfile {
     username: user.username,
     avatarUrl: profileAvatarUrl(user.avatarKey),
     profileCompleted: Boolean(user.profileCompleted),
+    ...(user.isAnonymous
+      ? { isGuest: true, nameCustomized: Boolean(user.guestNameCustomized) }
+      : {}),
   };
 }
 
@@ -141,4 +168,8 @@ export const avatarKeyPattern =
   /^avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 export function profileAvatarUrl(key: string | null): string | null {
   return key && avatarKeyPattern.test(key) ? `/api/avatars/${key.slice(8, -5)}` : null;
+}
+
+export async function registeredIdentity(request: Request, env: AuthEnv) {
+  return (await accountSessionIdentity(request, env))?.user ?? null;
 }

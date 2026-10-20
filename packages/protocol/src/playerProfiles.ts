@@ -40,7 +40,8 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
     kind: z.literal("account"),
     profileId: z.uuid(),
     name: z.string(),
-    username: usernameSchema,
+    username: usernameSchema.nullable(),
+    isGuest: z.boolean().optional(),
     avatarUrl: z
       .string()
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)

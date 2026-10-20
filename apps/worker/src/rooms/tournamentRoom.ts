@@ -78,6 +78,7 @@ export const prepareTournamentRoomSchema = z.strictObject({
           roomId: z.string().regex(/^\d{5}$/),
           instanceId: z.uuid(),
           playerId: z.uuid(),
+          isGuest: z.boolean().optional(),
           name: z.string().min(1),
           avatarKey: z.string().nullable(),
         }),

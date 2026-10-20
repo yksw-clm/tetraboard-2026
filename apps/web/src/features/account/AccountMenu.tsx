@@ -22,7 +22,7 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   async function logout() {
-    if (busy) return;
+    if (busy || user?.isGuest) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -90,7 +90,11 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
               {user.name || "プロフィール未設定"}
             </span>
             <span className="mt-1 block truncate text-xs text-muted leading-tight">
-              {user.username ? `@${user.username}` : "初回設定をしてください"}
+              {user.username
+                ? `@${user.username}`
+                : user.isGuest
+                  ? "ゲスト"
+                  : "初回設定をしてください"}
             </span>
           </span>
           <AppIcon name="chevronDown" className="size-4 text-muted" />
@@ -122,20 +126,22 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
               <AppIcon name="user" />
               マイページ
             </Dropdown.Item>
-            <Dropdown.Item
-              id="logout"
-              textValue="ログアウト"
-              aria-label="ログアウト"
-              shouldCloseOnSelect={false}
-              isDisabled={busy}
-              data-pending={busy || undefined}
-              aria-busy={busy || undefined}
-              className={`${pendingButtonClasses} flex min-h-11 items-center gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover`}
-            >
-              <AppIcon name="leave" />
-              ログアウト
-              {busy && <AppPendingIndicator className="text-ink-secondary" />}
-            </Dropdown.Item>
+            {!user.isGuest && (
+              <Dropdown.Item
+                id="logout"
+                textValue="ログアウト"
+                aria-label="ログアウト"
+                shouldCloseOnSelect={false}
+                isDisabled={busy}
+                data-pending={busy || undefined}
+                aria-busy={busy || undefined}
+                className={`${pendingButtonClasses} flex min-h-11 items-center gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover`}
+              >
+                <AppIcon name="leave" />
+                ログアウト
+                {busy && <AppPendingIndicator className="text-ink-secondary" />}
+              </Dropdown.Item>
+            )}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>

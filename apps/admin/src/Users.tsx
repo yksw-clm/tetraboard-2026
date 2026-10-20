@@ -116,7 +116,9 @@ function UserResults({ search }: { search: string }) {
                       <span className="break-all">{user.name || "未設定"}</span>
                     </div>
                   </td>
-                  <td className="p-3">{user.username ? `@${user.username}` : "未設定"}</td>
+                  <td className="p-3">
+                    {user.isGuest ? "ゲスト" : user.username ? `@${user.username}` : "未設定"}
+                  </td>
                   <td className="whitespace-nowrap p-3">
                     {new Date(user.createdAtMs).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
                   </td>

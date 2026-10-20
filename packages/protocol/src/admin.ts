@@ -111,6 +111,7 @@ export const adminUserSchema = z.object({
   avatarUrl: z.string().nullable(),
   createdAtMs: z.number(),
   profileCompleted: z.boolean(),
+  isGuest: z.boolean().optional(),
 });
 export const adminUsersSchema = z.object({
   users: z.array(adminUserSchema),

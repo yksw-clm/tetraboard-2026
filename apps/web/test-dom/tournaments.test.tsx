@@ -459,7 +459,7 @@ test("表示取得の失敗は0人に置き換えず、再取得できる", asyn
   await respond(detail("active"));
   expect(view.textContent).toContain("あいうえおかきくけこ");
 });
-test("入口のエントリー操作からだけ参加意図を保存し、ログインへ進む", async () => {
+test("入口のエントリー操作ではゲストの名前入力を開き、確定前に認証や登録を行わない", async () => {
   const view = page(null, {
     pathname: "/tournaments/1",
     state: { tournamentEntryRequested: true },
@@ -468,8 +468,10 @@ test("入口のエントリー操作からだけ参加意図を保存し、ロ�
   await respond();
   clock.advance(0);
   await flush();
-  expect(readRegistrationReturn()?.tournamentEntry).toBe(1);
-  expect(view.querySelector("[data-path]")?.textContent).toBe("/login");
+  expect(readRegistrationReturn()).toBeNull();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  expect(document.querySelector('[role="dialog"] input')).not.toBeNull();
+  expect(requests.some((r) => r.url.includes("/account/guest"))).toBe(false);
 });
 test("OAuth復帰時に受付終了なら自動エントリーしない", async () => {
   const view = page(profile, {
@@ -498,7 +500,7 @@ test("ロビー入口は公開情報を取得し、開催中の案内と実人�
     .respond({ tournament: detail("active").tournament });
   await flush();
   expect(view.textContent).toContain("現在8人がエントリー中");
-  expect(view.textContent).toContain("ログインまたは登録してエントリー");
+  expect(view.textContent).toContain("ゲストでエントリー");
   expect(view.querySelector('a[href="/tournaments/1"]')).not.toBeNull();
   expect(view.querySelector('[role="note"]')).toBeNull();
 });

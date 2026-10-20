@@ -74,7 +74,10 @@ function RankingList({
   return entries.length ? (
     <ol aria-label={`${label}ランキング`} className="m-0 flex flex-col gap-3 p-0 list-none">
       {entries.map((entry) => (
-        <li key={entry.username} className="flex min-w-0 items-center gap-2 text-sm">
+        <li
+          key={entry.profileId ?? entry.username ?? `${entry.rank}:${entry.name}`}
+          className="flex min-w-0 items-center gap-2 text-sm"
+        >
           <span className="w-8 shrink-0 text-muted text-xs tabular-nums">{entry.rank}位</span>
           <PlayerProfileTrigger
             target={entry.profileId ? { source: "profile", profileId: entry.profileId } : undefined}
@@ -96,6 +99,7 @@ function RankingList({
               label={entry.name}
             >
               {entry.name}
+              {entry.isGuest && <span className="ml-1 text-xs font-normal text-muted">ゲスト</span>}
             </PlayerProfileTrigger>
           </span>
           <span className="shrink-0 font-semibold tabular-nums">
@@ -199,7 +203,7 @@ function RankingsDialog({
   return (
     <AppDialog title="ランキング" onClose={onClose} theme={theme}>
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-muted">対人戦・登録済ユーザーのみ集計</p>
+        <p className="text-xs text-muted">対人戦のみ集計</p>
         <p className="text-xs text-muted">
           CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。対戦相手にゲストがいても対象です。
         </p>
@@ -308,7 +312,7 @@ function LobbyRankingsView({
             <h2 id="lobby-rankings-title" className="text-lg font-bold">
               ランキング
             </h2>
-            <p className="text-[11px] text-muted">対人戦・登録済ユーザーのみ集計</p>
+            <p className="text-[11px] text-muted">対人戦のみ集計</p>
           </div>
           <AppButton
             appearance="quiet"
