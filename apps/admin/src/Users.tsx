@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { Avatar, Button, Card } from "@heroui/react";
-import { adminUsersSchema, type AdminUser } from "@tetraboard/protocol";
+import { Avatar, Button, Card, Tabs } from "@heroui/react";
+import { adminUsersSchema, type AdminUser, type AdminUsersQuery } from "@tetraboard/protocol";
 import { useAdminData } from "./useAdminData";
 import { adminRequest, AdminApiError } from "./api";
 const parseUsers = (body: unknown) => adminUsersSchema.parse(body);
+const userKinds = [
+  { id: "registered", label: "連携済みユーザー" },
+  { id: "guest", label: "ゲストユーザー" },
+] as const;
 export function Users() {
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<AdminUsersQuery["kind"]>("registered");
   return (
     <div className="flex flex-col gap-6">
       <div>
         <p className="text-sm text-brand">ACCOUNTS</p>
-        <h1 className="mt-1 text-3xl font-bold">登録ユーザー</h1>
+        <h1 className="mt-1 text-3xl font-bold">ユーザー</h1>
         <p className="mt-2 text-sm text-gray-600">
-          現在のプロフィールを表示します。設定未完了の登録者も含みます。
+          Google・Discord連携済みのユーザーとゲストを分けて表示します。プロフィール設定未完了のユーザーも含みます。
         </p>
       </div>
       <Card className="p-5">
@@ -37,12 +42,26 @@ export function Users() {
           <Button type="submit">検索</Button>
         </form>
       </Card>
-      <UserResults key={search} search={search} />
+      <Tabs selectedKey={kind} onSelectionChange={(key) => setKind(key as AdminUsersQuery["kind"])}>
+        <Tabs.List aria-label="ユーザー種別">
+          {userKinds.map(({ id, label }) => (
+            <Tabs.Tab key={id} id={id}>
+              {label}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+        {userKinds.map(({ id }) => (
+          <Tabs.Panel key={id} id={id} className="pt-4">
+            {kind === id && <UserResults key={search} search={search} kind={id} />}
+          </Tabs.Panel>
+        ))}
+      </Tabs>
     </div>
   );
 }
-function UserResults({ search }: { search: string }) {
-  const url = `/api/admin/users?${new URLSearchParams({ search })}`;
+function UserResults({ search, kind }: { search: string; kind: AdminUsersQuery["kind"] }) {
+  const url = `/api/admin/users?${new URLSearchParams({ search, kind })}`;
   const result = useAdminData(url, parseUsers);
   const [extra, setExtra] = useState<AdminUser[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
@@ -89,7 +108,12 @@ function UserResults({ search }: { search: string }) {
           )}
         </div>
       )}
-      {result.data && !users.length && <p role="status">該当する登録ユーザーはいません。</p>}
+      {result.data && !users.length && (
+        <p role="status">
+          該当する{kind === "guest" ? "ゲストユーザー" : "連携済みユーザー"}
+          はいません。
+        </p>
+      )}
       {!!users.length && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -97,7 +121,7 @@ function UserResults({ search }: { search: string }) {
               <tr>
                 <th className="p-3">ユーザー</th>
                 <th className="p-3">ID</th>
-                <th className="p-3">登録日時（日本時間）</th>
+                <th className="p-3">{kind === "guest" ? "作成日時" : "登録日時"}（日本時間）</th>
                 <th className="p-3">プロフィール</th>
               </tr>
             </thead>

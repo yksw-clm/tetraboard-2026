@@ -11,6 +11,7 @@ export type AccountAdmission = {
   playerId: string;
   name: string;
   avatarKey: string | null;
+  isGuest?: boolean;
 };
 export type AccountReservation = AccountAdmission & { createdAtMs: number };
 export class RoomAccountError extends Error {
@@ -30,7 +31,10 @@ export async function roomEntryProfile(request: Request, env: Env, name?: string
   if (user) {
     if (request.headers.get("Origin") !== env.APP_ORIGIN)
       throw new RoomAccountError("unauthorized", 403);
-    if (!user.profileCompleted || !profileInputSchema.safeParse(user).success)
+    if (
+      !user.profileCompleted ||
+      !(user.isAnonymous ? user.guestNameCustomized : profileInputSchema.safeParse(user).success)
+    )
       throw new RoomAccountError("profile_required", 403);
     await consentStatement(env.APP_DB, user.id).run();
     return { name: user.name, user };
@@ -101,6 +105,7 @@ export async function reserveAccountSeat(
       instanceId: room.instanceId,
       playerId,
       name: user.name,
+      ...(user.isAnonymous ? { isGuest: true } : {}),
       avatarKey: user.avatarKey && avatarKeyPattern.test(user.avatarKey) ? user.avatarKey : null,
     };
     // Both the identity snapshot and image retention are registered atomically.

@@ -82,6 +82,7 @@ export async function joinRoom(
   id: string,
   name: string | undefined,
   instanceId?: string,
+  beforeJoin?: () => Promise<void>,
 ): Promise<{ joined: false } | { joined: true; room: Room; membership: RoomMembership }> {
   if (!canStoreRoomMembership()) {
     throw new RoomEntryError(
@@ -94,6 +95,7 @@ export async function joinRoom(
   if (membership !== null) return { joined: false };
   const request = joinRoomContract.request.safeParse({ name, instanceId });
   if (!request.success) throw new RoomEntryError("ニックネームを1〜10文字で入力してください。");
+  await beforeJoin?.();
   const response = await fetch(`/api${joinRoomContract.pathFor(id)}`, {
     method: joinRoomContract.method,
     headers: {

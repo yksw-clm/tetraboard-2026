@@ -53,7 +53,12 @@ export function PlayerProfileCard({
         <div className="min-w-0">
           <p className="m-0 font-bold wrap-anywhere">{name}</p>
           {profile.kind === "account" && (
-            <p className="m-0 text-sm text-muted wrap-anywhere">@{profile.username}</p>
+            <p className="m-0 text-sm text-muted wrap-anywhere">
+              {profile.username && `@${profile.username}`}
+              {profile.isGuest && (
+                <span className={profile.username ? "ml-2" : undefined}>ゲスト</span>
+              )}
+            </p>
           )}
         </div>
       </div>

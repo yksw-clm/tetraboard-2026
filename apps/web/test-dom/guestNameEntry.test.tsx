@@ -1,3 +1,4 @@
+import { completeGuestAccount } from "./guestAccountFixtures";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { expect, test } from "bun:test";
 import { useLocation } from "react-router";
@@ -139,11 +140,12 @@ test("ゲストの作成・すぐ遊ぶ・番号／一覧参加の成功後だ�
       });
       requests[0]!.respond({ user: null });
       await flush();
-      expect(JSON.parse(String(requests[1]!.init.body)).name).toBe("新しい名前");
+      const submitted = await completeGuestAccount("新しい名前");
+      expect(JSON.parse(String(submitted.init.body)).name).toBe("新しい名前");
       expect(localStorage.getItem(storageKey)).toBe("前の名前");
       // 送信後に下書きが変わっても、実際に送った名前を記録する。
       act(() => h.current.setName("送信後の入力"));
-      requests[1]!.respond(
+      submitted.respond(
         {
           room: roomFor(game),
           membership: { ...membership, role: entry.intent === "join" ? "player" : "host", token },
@@ -187,13 +189,14 @@ test("招待・ルーム内参加の成功後も正規化したゲスト名を�
       await flush();
       requests[1]!.respond(snapshot(room));
       await flush();
-      expect(new Headers(requests[2]!.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
-      expect(JSON.parse(String(requests[2]!.init.body))).toEqual({
+      const submitted = await completeGuestAccount("招待の名前", 2);
+      expect(new Headers(submitted.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
+      expect(JSON.parse(String(submitted.init.body))).toEqual({
         name: "招待の名前",
         instanceId: room.instanceId,
       });
       expect(localStorage.getItem(storageKey)).toBe("前の名前");
-      requests[2]!.respond({ room, membership: { ...membership, role: "player", token } });
+      submitted.respond({ room, membership: { ...membership, role: "player", token } });
       await flush();
       expect(h.current.location.pathname).toBe("/rooms/12345");
       expect(localStorage.getItem(storageKey)).toBe("招待の名前");
@@ -301,13 +304,14 @@ test("作成・参加の通信失敗・拒否・不正応答・資格保存失�
       });
       requests[0]!.respond({ user: null });
       await flush();
+      const submitted = await completeGuestAccount("変更した名前");
       const blocked = failure === "storage" ? denyStorage() : null;
       try {
-        if (failure === "network") requests[1]!.reject(new Error("offline"));
-        else if (failure === "full") requests[1]!.respond({ error: "room_full" }, 409);
-        else if (failure === "invalid") requests[1]!.respond({}, intent === "create" ? 201 : 200);
+        if (failure === "network") submitted.reject(new Error("offline"));
+        else if (failure === "full") submitted.respond({ error: "room_full" }, 409);
+        else if (failure === "invalid") submitted.respond({}, intent === "create" ? 201 : 200);
         else
-          requests[1]!.respond(
+          submitted.respond(
             {
               room: waitingRoom(),
               membership: {
@@ -411,8 +415,9 @@ test("名前の保存領域が読取り／書込み不能でもゲストの作�
       });
       requests[0]!.respond({ user: null });
       await flush();
-      expect(new Headers(requests[1]!.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
-      requests[1]!.respond(
+      const submitted = await completeGuestAccount("使う名前");
+      expect(new Headers(submitted.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
+      submitted.respond(
         {
           room: waitingRoom(),
           membership: {

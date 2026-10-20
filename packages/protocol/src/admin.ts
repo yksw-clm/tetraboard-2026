@@ -1,5 +1,6 @@
 import { gameIdSchema, gameScopeSchema } from "./gameSchemas";
 import { z } from "zod";
+import { acquisitionInputSchema, acquisitionReportSchema } from "./acquisition";
 
 export const analyticsGameSchema = gameIdSchema;
 export const analyticsPageSchema = z.enum([
@@ -24,6 +25,7 @@ export const pageViewInputSchema = z
     id: z.uuid(),
     page: analyticsPageSchema,
     game: analyticsGameSchema.nullable(),
+    acquisition: acquisitionInputSchema.optional(),
   })
   .strict()
   .refine((value) => !["lobby", "room", "replay"].includes(value.page) || value.game !== null)
@@ -97,8 +99,10 @@ export const adminAnalyticsSchema = z.object({
   totalUsers: count,
   summary: analyticsMetricsSchema,
   buckets: z.array(z.object({ period: z.string(), metrics: analyticsMetricsSchema })),
+  acquisition: acquisitionReportSchema.optional(),
 });
 export const adminUsersQuerySchema = z.object({
+  kind: z.enum(["registered", "guest"]).default("registered"),
   search: z.string().trim().max(100).default(""),
   cursor: z.string().max(512).optional(),
 });
@@ -108,6 +112,7 @@ export const adminUserSchema = z.object({
   avatarUrl: z.string().nullable(),
   createdAtMs: z.number(),
   profileCompleted: z.boolean(),
+  isGuest: z.boolean().optional(),
 });
 export const adminUsersSchema = z.object({
   users: z.array(adminUserSchema),
@@ -145,4 +150,5 @@ export type AnalyticsMetrics = z.infer<typeof analyticsMetricsSchema>;
 export type AdminAnalytics = z.infer<typeof adminAnalyticsSchema>;
 export type AdminAnalyticsQuery = z.infer<typeof adminAnalyticsQuerySchema>;
 export type AdminUsers = z.infer<typeof adminUsersSchema>;
+export type AdminUsersQuery = z.infer<typeof adminUsersQuerySchema>;
 export type AdminUser = z.infer<typeof adminUserSchema>;

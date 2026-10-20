@@ -65,27 +65,29 @@ export class TournamentCoordinator extends DurableObject<Env> {
     this.ctx.storage.kv.put("state", state);
   }
   private async valid(accountId: string, key: string) {
-    return this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,e.id AS entryId FROM user u
+    return this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.isAnonymous,e.id AS entryId FROM user u
       JOIN tournament_entries e ON e.account_id=u.id AND e.tournament_key=? AND e.deleted=0
       WHERE u.id=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`)
       .bind(key, accountId)
       .first<{ id: string; name: string; avatarKey: string | null; entryId: string }>();
   }
   private async waitingProfiles(key: string) {
-    const rows = await this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,e.id AS entryId,
+    const rows =
+      await this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.isAnonymous,e.id AS entryId,
       w.operation_id AS operationId FROM tournament_wait_reservations w
       JOIN tournament_entries e ON e.account_id=w.account_id AND e.tournament_key=w.tournament_key AND e.deleted=0
       JOIN user u ON u.id=w.account_id AND u.profileCompleted=1
       WHERE w.tournament_key=? AND w.lease_until_ms>?
       AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`)
-      .bind(key, Date.now())
-      .all<{
-        id: string;
-        name: string;
-        avatarKey: string | null;
-        entryId: string;
-        operationId: string;
-      }>();
+        .bind(key, Date.now())
+        .all<{
+          id: string;
+          name: string;
+          isAnonymous: number | null;
+          avatarKey: string | null;
+          entryId: string;
+          operationId: string;
+        }>();
     return new Map(rows.results.map((row) => [row.operationId, row]));
   }
   private locallyValid(wait: Waiting) {
@@ -286,6 +288,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           instanceId,
           playerId: crypto.randomUUID(),
           name: profile.name,
+          ...(profile.isAnonymous ? { isGuest: true } : {}),
           avatarKey:
             profile.avatarKey && avatarKeyPattern.test(profile.avatarKey)
               ? profile.avatarKey

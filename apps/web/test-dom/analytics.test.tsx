@@ -36,7 +36,7 @@ function foreground() {
   visibility("visible");
   Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true });
 }
-test("計測はpage/gameだけを送りCookieを再利用し、同一履歴keyは重複せず遷移でview IDを変える", async () => {
+test("計測は許可した付加情報とpage/gameを送りCookieを再利用し、同一履歴keyは重複しない", async () => {
   foreground();
   const r = router("/rooms/12345");
   expect(JSON.parse(String(requests[0]!.init.body))).toMatchObject({
@@ -59,6 +59,48 @@ test("計測はpage/gameだけを送りCookieを再利用し、同一履歴key�
   });
   expect(JSON.parse(String(requests.at(-1)!.init.body)).id).not.toBe(first.id);
   expect(document.cookie).toBe(cookie);
+});
+test("旧Workerへのロールバック時は同じ閲覧IDの旧形式で一度だけ再試行する", async () => {
+  foreground();
+  const r = router("/games/four-shogi");
+  const first = JSON.parse(String(requests[0]!.init.body));
+  expect(first.acquisition).toBeDefined();
+  requests[0]!.respond({}, 400);
+  await flush();
+  expect(requests).toHaveLength(2);
+  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({
+    id: first.id,
+    page: first.page,
+    game: first.game,
+  });
+  requests[1]!.respond(null, 204);
+  await flush();
+  clock.advance(30000);
+  expect(requests.at(-1)!.url).toContain("dwell");
+  r.navigate("/privacy");
+});
+test("documentの外部参照元をSPA内の次の閲覧へ持ち越さず、ストレージへ識別子を追加しない", async () => {
+  foreground();
+  const descriptor = Object.getOwnPropertyDescriptor(document, "referrer");
+  Object.defineProperty(document, "referrer", {
+    configurable: true,
+    value: "https://www.google.com/search?q=SECRET",
+  });
+  const localKeys = Object.keys(localStorage),
+    sessionKeys = Object.keys(sessionStorage);
+  try {
+    const r = router("/games/four-shogi");
+    expect(JSON.parse(String(requests[0]!.init.body)).acquisition.referrer).toBe("www.google.com");
+    requests[0]!.respond(null, 204);
+    await flush();
+    r.navigate("/games/four-reversi");
+    expect(JSON.parse(String(requests.at(-1)!.init.body)).acquisition.referrer).toBe("internal");
+    expect(Object.keys(localStorage)).toEqual(localKeys);
+    expect(Object.keys(sessionStorage)).toEqual(sessionKeys);
+  } finally {
+    if (descriptor) Object.defineProperty(document, "referrer", descriptor);
+    else Reflect.deleteProperty(document, "referrer");
+  }
 });
 test("30秒heartbeatと離脱時keepaliveを送り、非表示中の時間を加算しない", async () => {
   foreground();

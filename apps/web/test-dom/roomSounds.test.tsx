@@ -1,3 +1,4 @@
+import { completeGuestAccount } from "./guestAccountFixtures";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { applyAction as placeStone, getLegalMoves } from "@tetraboard/four-reversi";
 import { applyAction } from "@tetraboard/four-shogi";
@@ -238,6 +239,7 @@ test("両ゲームのすぐ遊ぶ成功はjoinだけ、作成失敗・既存席�
     requests.at(-1)!.respond({ user: null });
     await flush();
     const room = game === "four-reversi" ? waitingRoom() : waitingShogiRoom();
+    await completeGuestAccount("参加者", requests.length - 1);
     requests.at(-1)!.respond({ room, membership: { ...membership, token } }, 201);
     await flush();
     expect(join).toHaveBeenLastCalledWith(room.instanceId, membership.playerId);
@@ -260,6 +262,7 @@ test("両ゲームのすぐ遊ぶ成功はjoinだけ、作成失敗・既存席�
   });
   requests.at(-1)!.respond({ user: null });
   await flush();
+  await completeGuestAccount("参加者", requests.length - 1);
   requests.at(-1)!.respond({ error: "rate_limited" }, 429);
   await flush();
   expect(join).not.toHaveBeenCalled();
@@ -281,6 +284,7 @@ test("観戦からの参加成功もjoinを要求し、招待の自動表示だ�
     .at(-1)!
     .respond({ room, presence: options(room, true).initialPresence, serverNowMs: now });
   await flush();
+  await completeGuestAccount("参加者", requests.length - 1);
   requests.at(-1)!.respond({ room, membership: { ...membership, role: "player", token } });
   await flush();
   expect(join).toHaveBeenCalledTimes(1);

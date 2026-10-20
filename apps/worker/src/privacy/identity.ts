@@ -8,6 +8,26 @@ export async function redactParticipants<
     participants: { id?: string; kind: string; name: string; accountId?: string | null }[];
   },
 >(db: D1Database, record: T): Promise<T> {
+  const originalIds = record.participants.flatMap((p) => (p.accountId ? [p.accountId] : []));
+  if (originalIds.length) {
+    const links = await db
+      .prepare(
+        `SELECT guest_id,account_id FROM guest_account_merges WHERE guest_id IN (${originalIds.map(() => "?").join(",")})`,
+      )
+      .bind(...originalIds)
+      .all<{ guest_id: string; account_id: string }>();
+    if (links.results.length) {
+      const canonical = new Map(links.results.map((link) => [link.guest_id, link.account_id]));
+      record = {
+        ...record,
+        participants: record.participants.map((p) =>
+          p.accountId && canonical.has(p.accountId)
+            ? { ...p, accountId: canonical.get(p.accountId)! }
+            : p,
+        ),
+      };
+    }
+  }
   const ids = record.participants.flatMap((p) =>
     p.kind === "human" && p.accountId ? [p.accountId] : [],
   );

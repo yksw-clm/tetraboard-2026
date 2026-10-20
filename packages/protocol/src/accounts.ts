@@ -19,6 +19,8 @@ export const accountProfileSchema = z.object({
   username: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   profileCompleted: z.boolean(),
+  isGuest: z.boolean().optional(),
+  nameCustomized: z.boolean().optional(),
 });
 export const accountSessionSchema = z.object({ user: accountProfileSchema.nullable() });
 export type AccountProfile = z.infer<typeof accountProfileSchema>;

@@ -1,3 +1,5 @@
+import { ensureGuestAccount } from "../account/guestAccount";
+import { readGuestName } from "../../shared/guestName";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import type { TournamentParticipation } from "@tetraboard/protocol";
@@ -29,6 +31,7 @@ const idle: TournamentParticipation = {
 
 export function useTournament(id: number) {
   const account = useAccount();
+  const [guestName, setGuestName] = useState(readGuestName);
   const navigate = useNavigate();
   const location = useLocation();
   const { controller: documentController, controllerId } = useTournamentController();
@@ -512,7 +515,7 @@ export function useTournament(id: number) {
   );
   const enter = useCallback(() => {
     if (account.loading || account.error) return;
-    if (!identity) {
+    if (account.user && !account.user.profileCompleted && !account.user.isGuest) {
       saveRegistrationReturn(
         { path: `/tournaments/${id}`, tournamentEntry: id },
         Boolean(account.user),
@@ -521,7 +524,7 @@ export function useTournament(id: number) {
       return;
     }
     setEntryDialog({ key, open: true });
-  }, [account.loading, account.error, account.user, identity, id, key, navigate]);
+  }, [account.loading, account.error, account.user, id, key, navigate]);
   useEffect(() => {
     const returning = entryReturn?.oauthStarted && entryReturn.tournamentEntry === id && identity;
     if (
@@ -625,12 +628,14 @@ export function useTournament(id: number) {
       new URLSearchParams(location.search).get("return")) as string | undefined,
     refresh,
     enter,
+    guestName,
+    setGuestName,
     entryDialog: entryDialog.key === key && entryDialog.open,
     closeEntryDialog() {
       if (action.current !== key) setEntryDialog({ key, open: false });
     },
     confirmEntry() {
-      if (!identity || visible.participation.entered) return;
+      if (visible.participation.entered) return;
       if (
         !visible.data ||
         !["upcoming", "active"].includes(visible.data.tournament.status) ||
@@ -640,7 +645,9 @@ export function useTournament(id: number) {
         return;
       }
       void perform("entry", async () => {
+        const user = await ensureGuestAccount(guestName, account.user);
         await tournamentOperation(id, "entries", "POST", {});
+        account.update(user);
         if (!current.current.disposed && current.current.key === key)
           setEntryDialog({ key, open: false });
       });

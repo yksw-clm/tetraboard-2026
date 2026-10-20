@@ -1,3 +1,4 @@
+import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useEffect, useState, type MouseEventHandler, type ReactNode } from "react";
 import { useParams } from "react-router";
 import {
@@ -45,7 +46,7 @@ function EntryAction({ state }: { state: TournamentState }) {
         {entered
           ? "エントリー済み"
           : !account.user
-            ? "ログインまたは登録してエントリー"
+            ? "ゲストでエントリー"
             : state.data?.tournament.status === "active"
               ? "エントリーして参加"
               : "エントリー"}
@@ -422,6 +423,11 @@ function TournamentContent({ id }: { id: number }) {
             onClose={state.closeEntryDialog}
           >
             <p className="mb-3 text-sm font-bold">{tournament?.name}</p>
+            <RoomIdentityFields
+              name={state.guestName}
+              onChange={state.setGuestName}
+              busy={state.pending === "entry"}
+            />
             <TournamentConsent />
             {(state.message || state.error || account.error) && (
               <p role="alert" className="mt-3 text-sm text-danger">

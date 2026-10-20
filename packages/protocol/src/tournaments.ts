@@ -74,6 +74,7 @@ export type TournamentPublic = z.infer<typeof tournamentPublicSchema>;
 export const tournamentStandingSchema = z.strictObject({
   rank: z.number().int().positive().nullable(),
   username: z.string().nullable(),
+  isGuest: z.boolean().optional(),
   name: z.string(),
   avatarUrl: z.string().nullable(),
   pointsUnits: count,
@@ -156,7 +157,8 @@ export const tournamentAdminListSchema = z.strictObject({
 });
 export const tournamentAdminEntrySchema = z.strictObject({
   name: z.string(),
-  username: z.string(),
+  username: z.string().nullable(),
+  isGuest: z.boolean().optional(),
   avatarUrl: z.string().nullable(),
   enteredAtMs: timestamp,
   status: z.enum(["idle", "waiting", "matched", "playing"]),

@@ -1,3 +1,4 @@
+import { ensureGuestAccount } from "../account/guestAccount";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { createRoomRequests } from "./createRoomRequests";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
@@ -98,7 +99,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     setIsSubmitting(intent);
 
     try {
-      const user = await readAccount();
+      let user = await readAccount();
       const wasAccount = Boolean(account.user);
       account.update(user);
       if (wasAccount && !user)
@@ -108,7 +109,16 @@ export function useRoomEntry(game: GameId = defaultGameId) {
       if (user && !user.profileCompleted) return;
       const entryName = user ? undefined : name;
       if (intent === "join") {
-        const result = await joinRoom(selectedRoomCode, entryName, instanceId);
+        const result = await joinRoom(selectedRoomCode, entryName, instanceId, async () => {
+          try {
+            user = await ensureGuestAccount(name, user);
+          } catch (error) {
+            throw new RoomEntryError(
+              error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
+            );
+          }
+          account.update(user);
+        });
         if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         await navigate(getRoomContract.pathFor(selectedRoomCode));
         return;
@@ -129,6 +139,15 @@ export function useRoomEntry(game: GameId = defaultGameId) {
         setMessage("ニックネームを1〜10文字で入力してください。");
         return;
       }
+
+      try {
+        user = await ensureGuestAccount(name, user);
+      } catch (error) {
+        throw new RoomEntryError(
+          error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
+        );
+      }
+      account.update(user);
 
       const path = createRoomContract.path;
       const response = await fetch(`/api${path}`, {

@@ -1,5 +1,6 @@
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { archiveAnalytics } from "../analytics/retention";
+import { readAcquisition } from "../analytics/acquisition";
 import {
   analyticsMetricsSchema,
   type AdminAnalyticsQuery,
@@ -7,7 +8,7 @@ import {
   type AdminAnalytics,
 } from "@tetraboard/protocol";
 import { adminAccountIds, type AdminEnv } from "./auth";
-import { accountCreatedAtMsSql } from "../accounts/timestamps";
+import { accountRegisteredAtMsSql } from "../accounts/timestamps";
 export const japanDay = (at: number) => new Date(at + 9 * 3600000).toISOString().slice(0, 10);
 const metricKeys = Object.keys(analyticsMetricsSchema.shape) as (keyof AnalyticsMetrics)[];
 export function emptyMetrics(): AnalyticsMetrics {
@@ -37,7 +38,7 @@ export async function readAnalytics(
   const to = Date.parse(`${query.to}T00:00:00+09:00`) + 86400000;
   const include = query.includeInternal === "true";
   const game = query.game;
-  const registeredAt = accountCreatedAtMsSql("u.createdAt");
+  const registeredAt = accountRegisteredAtMsSql();
   const owners = adminAccountIds(env) ?? [];
   const excludeOwners = (column: string) =>
     owners.length
@@ -52,7 +53,7 @@ export async function readAnalytics(
     `strftime('${query.bucket === "day" ? "%Y-%m-%d" : "%Y-%m"}', ${column} / 1000 + 32400, 'unixepoch')`;
   const cte = `WITH eligible_participants AS (SELECT p.*,
       CASE WHEN p.account_id IS NOT NULL THEN 'account:' || p.account_id ELSE 'guest:' || p.visitor_id END AS actor,
-      CASE WHEN p.account_id IS NOT NULL THEN 'registered' ELSE 'guest' END AS kind
+      CASE WHEN p.account_id IS NOT NULL AND p.is_guest=0 THEN 'registered' ELSE 'guest' END AS kind
       FROM analytics_participants p WHERE ${actorFilter("p")}),
     eligible_matches AS (SELECT m.* FROM analytics_matches m WHERE ${gameFilter("m")}
       AND EXISTS (SELECT 1 FROM eligible_participants p WHERE p.match_id = m.id))`;
@@ -241,6 +242,7 @@ export async function readAnalytics(
     }
   }
   return {
+    acquisition: await readAcquisition(env, query, now),
     individualDataFromMs: cutoff,
     collectedFromMs: coverage?.value ?? null,
     asOfMs: now,

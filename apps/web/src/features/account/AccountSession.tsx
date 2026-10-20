@@ -1,3 +1,4 @@
+import { GuestMergeConfirmation } from "./GuestAccountControls";
 import { accountPrivacyEvent } from "./accountPrivacy";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
@@ -171,6 +172,7 @@ export function AccountLayout() {
   }, [refresh]);
   return (
     <AccountContext.Provider value={{ ...state, refresh, update, recoverUnauthorized }}>
+      <GuestMergeConfirmation />
       <BadgeNotificationProvider>
         {state.user &&
         !state.user.profileCompleted &&
@@ -185,10 +187,23 @@ export function AccountLayout() {
           location.pathname === "/login" &&
           new URLSearchParams(location.search).get("destination") === "admin"
         ) ? (
-          <Navigate to="/account/setup" replace />
+          <Navigate
+            to={
+              new URLSearchParams(location.search).has("guestMerge")
+                ? "/account/setup?guestMerge=1"
+                : "/account/setup"
+            }
+            replace
+          />
         ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
           <RegistrationCompletion
-            enabled={Boolean(state.user?.profileCompleted && !state.loading && !state.error)}
+            enabled={Boolean(
+              state.user?.profileCompleted &&
+              !state.user.isGuest &&
+              !new URLSearchParams(location.search).has("guestMerge") &&
+              !state.loading &&
+              !state.error,
+            )}
           >
             <Outlet />
           </RegistrationCompletion>

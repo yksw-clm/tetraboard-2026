@@ -140,7 +140,7 @@ feedbackRoutes.post("/feedback", async (c) => {
         reporterHash,
         browserHash,
         ipHash,
-        author: user ? "account" : "guest",
+        author: user && !user.isAnonymous ? "account" : "guest",
         accountId: user?.id ?? null,
         internal: Boolean(user && (user.isTestUser || adminAccountIds(c.env)?.includes(user.id))),
       },

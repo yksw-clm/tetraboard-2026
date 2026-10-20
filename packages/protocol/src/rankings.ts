@@ -5,7 +5,8 @@ import { countCharacters } from "./rooms";
 
 export const rankingEntrySchema = z.strictObject({
   rank: z.int().positive(),
-  username: usernameSchema,
+  username: usernameSchema.nullable(),
+  isGuest: z.boolean().optional(),
   name: z.string().refine((name) => countCharacters(name) >= 1 && countCharacters(name) <= 10),
   avatarUrl: z
     .string()

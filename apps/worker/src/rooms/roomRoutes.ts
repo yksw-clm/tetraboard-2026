@@ -126,8 +126,10 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
           initialRoom.players[0].id,
         );
         initialRoom.players[0].name = admission.name;
-        if (initialRoom.players[0].kind === "human")
+        if (initialRoom.players[0].kind === "human") {
           initialRoom.players[0].avatarUrl = profileAvatarUrl(admission.avatarKey);
+          if (admission.isGuest) initialRoom.players[0].isGuest = true;
+        }
       }
       const room = await context.env.GAME_ROOM.getByName(code).createRoom(
         initialRoom,
@@ -136,6 +138,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         {
           visitorId: analyticsVisitor(context.req.raw),
           accountId: profile.user?.id ?? null,
+          isGuest: Boolean(profile.user?.isAnonymous),
           isTest: Boolean(profile.user?.isTestUser),
         },
       );
@@ -306,6 +309,7 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
       {
         visitorId: analyticsVisitor(context.req.raw),
         accountId: profile.user?.id ?? null,
+        isGuest: Boolean(profile.user?.isAnonymous),
         isTest: Boolean(profile.user?.isTestUser),
       },
     );

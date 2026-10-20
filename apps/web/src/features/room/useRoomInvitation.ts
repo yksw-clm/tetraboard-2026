@@ -1,3 +1,4 @@
+import { ensureGuestAccount } from "../account/guestAccount";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
@@ -112,7 +113,7 @@ export function useRoomInvitation(
     setBusy(true);
     setMessage(null);
     try {
-      const user = await readAccount();
+      let user = await readAccount();
       const wasAccount = Boolean(account.user);
       account.update(user);
       if (wasAccount && !user)
@@ -120,7 +121,16 @@ export function useRoomInvitation(
           "ログインの有効期限が切れました。ログインするか、ニックネームを入力して参加してください。",
         );
       if (user && !user.profileCompleted) return;
-      const result = await joinRoom(room.id, user ? undefined : name, room.instanceId);
+      const result = await joinRoom(room.id, user ? undefined : name, room.instanceId, async () => {
+        try {
+          user = await ensureGuestAccount(name, user);
+        } catch (error) {
+          throw new RoomEntryError(
+            error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
+          );
+        }
+        account.update(user);
+      });
       if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
       // 同じURLでもloaderを再実行し、観戦用の接続を本人の接続へ切り替えます。
       await navigate(roomInvitationPath(room), { replace: true });

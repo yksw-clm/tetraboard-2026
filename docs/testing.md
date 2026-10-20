@@ -8,6 +8,17 @@
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
+## 流入元・端末別の計測
+
+Issue #214の[確定仕様](../README.md#流入元端末別の計測)と[実装](development.md#流入元端末別の計測)を、既存のBun・happy-dom・Worker統合へ追加します。
+
+- protocolの `test/acquisition.test.ts` はホスト名のみの抽出、IP・パス・検索語・不正入力の除外、明示的なドメイン分類、UTM除去後の64文字・大小文字・空、端末3分類と不明、旧入力の互換性を確認します。
+- Webの `test/pageAnalytics.test.ts` と `test-dom/analytics.test.tsx` は3種類以外のクエリ非送信、SPAでの参照元切替、Cookie再利用と追加storageなし、旧Workerの400に同じIDで一度だけ再送、既存の滞在・失敗時の非阻害を確認します。
+- Workerの `test/acquisition.test.ts` は専用の実D1で、同時到達、30分の直前／一致、閲覧・累積時間の再送、取得項目の制限、旧画面の欠測、開始対局の区分内重複排除と再訪後の帰属固定、本人・テスト混在、90日の訪問／対局の別々の期限・二重集約防止、退会受付・遅延保存、保存失敗の一括ロールバックを検証します。既存 `adminAnalytics.test.ts`・`privacy.test.ts`・`generalLobby.test.ts` の集計も維持します。
+- Adminの `test-dom/acquisition.test.tsx` は3表・UTMの各列・期間合計、未計測／不明／実測0、初日・当日・月別の途中集計、旧応答を確認します。取得・条件変更・権限・再試行は既存Dashboardと `adminViews.test.tsx`・`adminData.test.tsx` を共用します。
+
+部分確認は `bun test --cwd packages/protocol test/acquisition.test.ts`、`bun run --cwd apps/worker test test/acquisition.test.ts test/adminAnalytics.test.ts test/privacy.test.ts test/generalLobby.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/analytics.test.tsx`、`bun test --cwd apps/admin --preload ../../test-support/dom.ts test-dom/acquisition.test.tsx test-dom/adminViews.test.tsx` を使います。ブラウザを起動する自動テストは追加しません。PC／スマートフォンの表の収まり・スクロール・ネイティブ日付入力、実環境の端末分類とmigration適用は手動確認または未確認事項としてPRへ記載します。ポリシー本文・文書版を変更していないことも最終差分で確認します。
+
 ## 四人将棋大会の確認
 
 2026-10-16に合格したモックと[確定仕様](../README.md#四人将棋大会の確定仕様)、[実装計画のDone When](development.md#四人将棋大会の実装計画)に対応する実装の受入検証です。以下をBun・happy-dom・Worker統合で検証します。モックの表示確認と実サービスの認証・マッチング・永続化の確認は区別します。
@@ -657,3 +668,11 @@ PCの盤面と状況カードは全6ゲームで画面の高さを変えて手�
 `horizontalScroll.test.tsx` はスクロールAPIの境界値と幅通知を制御し、左右ボタンの出し分け・移動量・動きを減らす場合の即時移動・observerの破棄を確認します。実際の画面寸法は検証しません。棋譜のゲームバッジは総合ロビーだけに表示することと、更新失敗時の表示保持を確認します。ゲームタブと全ロビーの棋譜一覧の実スクロールは手動確認対象です。
 
 2026-10-13のロビー追加調整では、ローカル開発画面を実ブラウザで確認しました。四人将棋の集計タブはPC幅1211pxと1499pxで163px、各タブ49pxに収まり、710px・390pxでは操作行のscrollWidthとclientWidthが一致します。390pxでは「もっと見る」を次の行の右へ折り返し、710px以上では集計タブ・自動切替・詳細ボタンを同じ行に表示します。タブの手動切替・表示内容、詳細ダイアログの開閉、棋譜一覧の右矢印での移動と左右ボタンの表示も確認しました。この確認は手動の一時的なブラウザ操作で、自動テストやworkflowへ追加しません。
+
+## ゲストアカウントの確認（#234）
+
+管理画面のユーザー一覧は `apps/worker/test/adminAnalytics.test.ts` で、連携済み・ゲストそれぞれの種別絞り込みと退会済みの除外を50件制限より前に適用し、名前／ID検索・同時刻のページ送り・未設定プロフィール・旧日時形式に対応することを確認します。種別省略は連携済み、未知の種別は400です。Adminの `adminViews.test.tsx` は連携済みの初期選択、ゲストID表示、両種別の検索と追加取得、切り替え時の検索語保持・旧結果とカーソルの破棄・通信中止・遅延応答の無視をBun＋happy-domで確認します。
+
+`apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。公開チャットではゲストの投稿・再送・送信間隔・通報上限・運営停止を検証し、統合後も非表示用ID・再送・投稿停止・通報と退会時の削除を維持することを確認します。本人確認後の本文読取を制御して統合を挟み、遅延した通報が元ゲストの参照で保存されないことも検証します。表示用IDの一意性、登録者IDとの衝突・再生成、既存ゲストの並行割当、ゲスト中の編集拒否、新規連携後の保持・変更を確認します。既存登録者へ引き継がない場合は0局・対局済みの両方で、記録を維持しつつ元ゲストへ復帰しないこと、確認未完了のログアウト・登録セッション失効・OAuth取消・別アカウント・Origin違反を検証します。
+
+WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・既存ゲストの入力省略・大会エントリー・統合確認を検証します。公開チャットの名前入力では確定前にゲストを作成せず、Cookie保存不能時に投稿を送らないこと、名前確定後の下書き保持とゲスト投稿を確認します。ゲストのログアウト操作が非表示で、APIへ直接要求しても拒否され本人認証を維持することをWeb・Workerの境界で確認します。実OAuth・Cookie保存と別タブのWeb Locks・画面寸法・ネイティブ入力は手動確認事項であり、未実施の項目をPRに明記します。必須のcheck・本番／開発buildとWorker dry-runを実行し、GitHub CIの成功も確認します。

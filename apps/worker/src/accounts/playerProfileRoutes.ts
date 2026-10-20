@@ -66,6 +66,13 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
           }),
         );
     }
+    if (accountId)
+      accountId =
+        (
+          await c.env.APP_DB.prepare("SELECT account_id FROM guest_account_merges WHERE guest_id=?")
+            .bind(accountId)
+            .first<{ account_id: string }>()
+        )?.account_id ?? accountId;
     const profile = accountId
       ? (await readCurrentProfiles(c.env.APP_DB, [accountId])).get(accountId)
       : undefined;
@@ -73,8 +80,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
       !accountId ||
       !profile ||
       !profile.profileCompleted ||
-      profile.isAnonymous ||
-      !profileInputSchema.safeParse(profile).success
+      (!profile.isAnonymous && !profileInputSchema.safeParse(profile).success)
     )
       return c.json({ message: "プロフィールを表示できません。" }, 404);
     const profileId =
@@ -83,6 +89,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
     return c.json(
       getPlayerProfileContract.response.parse({
         kind: "account",
+        ...(profile.isAnonymous ? { isGuest: true } : {}),
         profileId,
         name: profile.name,
         username: profile.username,

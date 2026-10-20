@@ -1061,7 +1061,9 @@ test("長期集計は期限前に未完了だった対局の率・時間を推�
   )
     .bind(id, at)
     .run();
-  await env.APP_DB.prepare("INSERT INTO analytics_participants VALUES (?,?,NULL,?,0)")
+  await env.APP_DB.prepare(
+    "INSERT INTO analytics_participants(match_id,player_id,account_id,visitor_id,is_test) VALUES (?,?,NULL,?,0)",
+  )
     .bind(id, crypto.randomUUID(), crypto.randomUUID())
     .run();
   const data = await readAnalytics(env, query);

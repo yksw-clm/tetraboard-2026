@@ -10,6 +10,7 @@ import {
   previewRankingsSchema,
 } from "@tetraboard/protocol";
 import { ensurePublicProfileId } from "../accounts/currentProfiles";
+import { ensureGuestUsername } from "../accounts/guestUsernames";
 import { profileAvatarUrl } from "../accounts/auth";
 import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
@@ -36,16 +37,16 @@ async function queryGameRankings(
       victories AS value FROM totals
     ${includeKnockouts && game === "four-shogi" ? "UNION ALL SELECT account_id, mode, 'knockouts' AS metric, knockouts AS value FROM totals WHERE mode = 'singles'" : ""}
   ), ranked AS (
-    SELECT u.id AS accountId, u.publicProfileId, m.mode, m.metric, m.value, u.username, u.name, u.avatarKey,
+    SELECT u.id AS accountId, u.publicProfileId, m.mode, m.metric, m.value, u.username, u.name, u.avatarKey, u.isAnonymous,
       RANK() OVER (PARTITION BY m.mode, m.metric ORDER BY m.value DESC) AS rank,
       ROW_NUMBER() OVER (
         PARTITION BY m.mode, m.metric ORDER BY m.value DESC, u.username ASC
       ) AS position
     FROM metrics m JOIN user u ON u.id = m.account_id
-    WHERE m.value > 0 AND u.profileCompleted = 1 AND u.username IS NOT NULL
-      AND COALESCE(u.isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
+    WHERE m.value > 0 AND u.profileCompleted = 1
+      AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id) AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
   )
-  SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, rank
+  SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, isAnonymous, rank
   FROM ranked WHERE position <= 10 ORDER BY mode, metric, position`)
     .bind(game)
     .all<{
@@ -54,7 +55,8 @@ async function queryGameRankings(
       mode: RoomMode;
       metric: "first" | "wins" | "total" | "knockouts";
       value: number;
-      username: string;
+      username: string | null;
+      isAnonymous: number | null;
       name: string;
       avatarKey: string | null;
       rank: number;
@@ -75,7 +77,9 @@ async function queryGameRankings(
     const entry = {
       ...(preview ? { profileId: ids.get(row.accountId) } : {}),
       rank: row.rank,
-      username: row.username,
+      username:
+        row.username ?? (row.isAnonymous ? await ensureGuestUsername(db, row.accountId) : null),
+      ...(row.isAnonymous ? { isGuest: true } : {}),
       name: row.name,
       avatarUrl: profileAvatarUrl(row.avatarKey),
       value: row.value,
@@ -98,16 +102,17 @@ async function queryTwoPlayerRankings(
     .prepare(`${matchOutcomesCte(game, false)}, totals AS (
  SELECT account_id,COUNT(*) AS total,COALESCE(SUM(winner=direction),0) AS wins FROM outcomes GROUP BY account_id
  ),metrics AS (SELECT account_id,'total' AS metric,total AS value FROM totals UNION ALL SELECT account_id,'wins' AS metric,wins AS value FROM totals),ranked AS (
- SELECT u.id AS accountId,u.publicProfileId,u.username,u.name,u.avatarKey,m.metric,m.value,
+ SELECT u.id AS accountId,u.publicProfileId,u.username,u.name,u.avatarKey,u.isAnonymous,m.metric,m.value,
  RANK() OVER(PARTITION BY m.metric ORDER BY m.value DESC) AS rank,
  ROW_NUMBER() OVER(PARTITION BY m.metric ORDER BY m.value DESC,u.username ASC) AS position
- FROM metrics m JOIN user u ON u.id=m.account_id WHERE m.value>0 AND u.profileCompleted=1 AND u.username IS NOT NULL AND COALESCE(u.isAnonymous,0)=0
+ FROM metrics m JOIN user u ON u.id=m.account_id WHERE m.value>0 AND u.profileCompleted=1  AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id)
  ) SELECT * FROM ranked WHERE position<=10 ORDER BY metric,position`)
     .bind(game)
     .all<{
       accountId: string;
       publicProfileId: string | null;
-      username: string;
+      username: string | null;
+      isAnonymous: number | null;
       name: string;
       avatarKey: string | null;
       metric: "wins" | "total";
@@ -121,7 +126,9 @@ async function queryTwoPlayerRankings(
       : undefined;
     result[row.metric].push({
       rank: row.rank,
-      username: row.username,
+      username:
+        row.username ?? (row.isAnonymous ? await ensureGuestUsername(db, row.accountId) : null),
+      ...(row.isAnonymous ? { isGuest: true } : {}),
       name: row.name,
       avatarUrl: profileAvatarUrl(row.avatarKey),
       value: row.value,

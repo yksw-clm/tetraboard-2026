@@ -11,6 +11,7 @@ import { useAccount } from "../account/useAccount";
 import { useNavigate } from "react-router";
 import { saveRegistrationReturn } from "../account/registrationReturn";
 import { AppDialog } from "../../shared/ui/AppDialog";
+import { LobbyChatGuestDialog } from "./LobbyChatGuestDialog";
 const draftKey = "tetraboard:lobby-chat:draft";
 const hiddenKey = "tetraboard:lobby-chat:hidden";
 function readDraft() {
@@ -32,9 +33,11 @@ function readHidden(): string[] {
 export function GeneralLobbyChat() {
   const account = useAccount(),
     navigate = useNavigate();
-  const page = useLobbyChat(account.user?.username ?? null);
+  const page = useLobbyChat(account.user?.profileId ?? account.user?.username ?? null);
   const messages = page.messages;
-  const signedIn = Boolean(account.user?.profileCompleted);
+  const needsGuest = !account.user || Boolean(account.user.isGuest && !account.user.nameCustomized);
+  const hasPostingIdentity = Boolean(account.user?.profileCompleted) && !needsGuest;
+  const [guestDialog, setGuestDialog] = useState(false);
   const [input, setInput] = useState(readDraft);
   const [reportId, setReportId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -298,7 +301,7 @@ export function GeneralLobbyChat() {
             現在、公開チャットへの投稿は停止されています。
           </p>
         )}
-        {signedIn ? (
+        {hasPostingIdentity ? (
           <form
             className="flex shrink-0 flex-col gap-2"
             onSubmit={(event) => {
@@ -364,16 +367,35 @@ export function GeneralLobbyChat() {
         ) : (
           <div className="flex shrink-0 flex-col items-center gap-2 rounded-control bg-surface-muted px-3 py-4">
             <p className="text-xs text-muted">
-              {account.user
-                ? "投稿にはプロフィール設定が必要です。"
-                : "投稿にはログインが必要です。"}
+              {account.loading
+                ? "アカウントを確認しています…"
+                : needsGuest
+                  ? "ゲストでも名前を設定すると投稿できます。"
+                  : "投稿にはプロフィール設定が必要です。"}
             </p>
-            <AppButton size="compact" onPress={onSignIn}>
-              {account.user ? "プロフィールを設定" : "ログインして投稿"}
+            {account.error && (
+              <p role="alert" className="text-xs text-danger">
+                {account.error}
+              </p>
+            )}
+            <AppButton
+              size="compact"
+              isDisabled={
+                account.loading ||
+                (!account.error && (page.loading || !page.acceptingPosts || page.postingStopped))
+              }
+              onPress={() => {
+                if (account.error) void account.refresh("chat-identity");
+                else if (needsGuest) setGuestDialog(true);
+                else onSignIn();
+              }}
+            >
+              {account.error ? "再試行" : needsGuest ? "名前を設定して投稿" : "プロフィールを設定"}
             </AppButton>
           </div>
         )}
       </AppCard>
+      {guestDialog && needsGuest && <LobbyChatGuestDialog onClose={() => setGuestDialog(false)} />}
       {reportId && (
         <AppDialog
           title="メッセージを通報"

@@ -1,3 +1,4 @@
+import { completeGuestAccount } from "./guestAccountFixtures";
 import { expect, spyOn, test } from "bun:test";
 import { StrictMode } from "react";
 import { useLocation } from "react-router";
@@ -57,7 +58,8 @@ test("全6ゲームの通常作成だけが作成者・世代を照合する共�
       requests[0]!.respond({ user: null });
       await flush();
       const room = fixture(game);
-      requests[1]!.respond({ room, membership: { ...membership, token } }, 201);
+      const submitted = await completeGuestAccount("ホスト");
+      submitted.respond({ room, membership: { ...membership, token } }, 201);
       await flush();
       expect(h.current.location.pathname).toBe(`/rooms/${room.id}`);
       expect(canOpenCreatedRoomShare(h.current.location.state, room, membership)).toBe(

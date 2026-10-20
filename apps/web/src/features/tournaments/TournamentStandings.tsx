@@ -19,6 +19,7 @@ export function TournamentPlayer({
         <AppAvatar src={row.avatarUrl} className={large ? "size-11" : "size-6"} />
         <span className="inline-block min-w-[10em] shrink-0 font-semibold whitespace-nowrap">
           {row.name}
+          {row.isGuest && <span className="ml-1 text-xs font-normal text-muted">ゲスト</span>}
         </span>
       </span>
     </span>
