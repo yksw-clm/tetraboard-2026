@@ -310,28 +310,37 @@ test("ブラウザ計測はOriginと形式を検証し、他ブラウザの更�
   expect((await update(86400000)).status).toBe(400);
 });
 
-test("ユーザー一覧はISO日時と整数日時の混在・未完了・検索・同時刻のページングに対応する", async () => {
+test("ユーザー一覧は種別ごとに日時形式の混在・未完了・検索・同時刻のページングに対応する", async () => {
   const owner = await accountFixture();
   const bindings = { ...env, ADMIN_ACCOUNT_ID: owner.id };
   const marker = visitor().replace(/-/g, "").slice(0, 10);
-  const accounts = Array.from({ length: 51 }, (_, i) => ({
-    id: `${marker}_${i}`,
-    name: `一覧_${marker}_${i}`,
-    at: Date.parse("2001-01-01T23:59:59.354+09:00") + Math.floor(i / 2),
-    i,
-  }));
+  const accounts = (["registered", "guest"] as const).flatMap((kind) =>
+    Array.from({ length: 51 }, (_, i) => ({
+      id: `${marker}_${kind}_${i}`,
+      name: `一覧_${marker}_${kind}_${i}`,
+      username: i
+        ? kind === "guest"
+          ? `guest_${marker}${String(i).padStart(4, "0")}`
+          : `a_${marker}_${i}`
+        : null,
+      at: Date.parse("2001-01-01T23:59:59.354+09:00") + Math.floor(i / 2),
+      i,
+      kind,
+    })),
+  );
   await env.APP_DB.batch(
-    accounts.map(({ id, name, at, i }) =>
+    accounts.map(({ id, name, username, at, i, kind }) =>
       env.APP_DB.prepare(
-        `INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, username, profileCompleted) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+        `INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, username, profileCompleted, isAnonymous) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         name,
-        `${marker}${i}@example.test`,
+        `${marker}${kind}${i}@example.test`,
         i % 2 ? new Date(at).toISOString() : at,
         at,
-        i ? `a_${marker}_${i}` : null,
+        username,
         i ? 1 : 0,
+        kind === "guest" ? 1 : i % 2 ? 0 : null,
       ),
     ),
   );
@@ -339,34 +348,54 @@ test("ユーザー一覧はISO日時と整数日時の混在・未完了・検�
     fetchWith(bindings, `/api/admin/users?search=${marker}${suffix}`, {
       headers: { Cookie: owner.cookie },
     });
-  const response = await request("");
-  expect(response.status).toBe(200);
-  const first = adminUsersSchema.parse(await response.json());
-  expect(first.users).toHaveLength(50);
-  expect(first.nextCursor).not.toBeNull();
-  const next = adminUsersSchema.parse(
-    await (await request(`&cursor=${encodeURIComponent(first.nextCursor!)}`)).json(),
-  );
-  expect(next.users).toHaveLength(1);
-  expect(next.nextCursor).toBeNull();
-  expect([...first.users, ...next.users].map((user) => [user.name, user.createdAtMs])).toEqual(
-    accounts
-      .sort((a, b) => b.at - a.at || b.id.localeCompare(a.id))
-      .map((user) => [user.name, user.at]),
-  );
-  expect([...first.users, ...next.users].filter((u) => !u.profileCompleted)).toHaveLength(1);
-  expect(JSON.stringify(first.users)).not.toContain("email");
+  for (const kind of ["registered", "guest"] as const) {
+    const response = await request(`&kind=${kind}`);
+    expect(response.status).toBe(200);
+    const first = adminUsersSchema.parse(await response.json());
+    expect(first.users).toHaveLength(50);
+    expect(first.nextCursor).not.toBeNull();
+    const next = adminUsersSchema.parse(
+      await (await request(`&kind=${kind}&cursor=${encodeURIComponent(first.nextCursor!)}`)).json(),
+    );
+    expect(next.users).toHaveLength(1);
+    expect(next.nextCursor).toBeNull();
+    const users = [...first.users, ...next.users];
+    expect(users.map((user) => [user.name, user.createdAtMs])).toEqual(
+      accounts
+        .filter((user) => user.kind === kind)
+        .sort((a, b) => b.at - a.at || b.id.localeCompare(a.id))
+        .map((user) => [user.name, user.at]),
+    );
+    expect(users.filter((u) => !u.profileCompleted)).toHaveLength(1);
+    expect(users.every((user) => Boolean(user.isGuest) === (kind === "guest"))).toBe(true);
+    expect(JSON.stringify(users)).not.toContain("email");
+    const match = accounts.find((user) => user.kind === kind && user.i === 1)!;
+    const searchResponse = await fetchWith(
+      bindings,
+      `/api/admin/users?kind=${kind}&search=${encodeURIComponent(`@${match.username}`)}`,
+      { headers: { Cookie: owner.cookie } },
+    );
+    const found = adminUsersSchema.parse(await searchResponse.json()).users;
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.every((user) => user.username?.includes(match.username!))).toBe(true);
+  }
+  const defaultPage = adminUsersSchema.parse(await (await request("")).json());
+  expect(defaultPage.users).toHaveLength(50);
+  expect(defaultPage.users.every((user) => !user.isGuest)).toBe(true);
+  for (const kind of ["registered", "guest"] as const) {
+    const deleted = accounts.find((user) => user.kind === kind && user.i === 50)!;
+    await env.APP_DB.prepare(
+      "INSERT INTO deleted_accounts(id, requested_at_ms, receipt_hash) VALUES (?, ?, ?)",
+    )
+      .bind(deleted.id, Date.now(), visitor())
+      .run();
+    const remaining = adminUsersSchema.parse(await (await request(`&kind=${kind}`)).json());
+    expect(remaining.users).toHaveLength(50);
+    expect(remaining.nextCursor).toBeNull();
+    expect(remaining.users.some((user) => user.name === deleted.name)).toBe(false);
+  }
   expect((await request("&cursor=bad")).status).toBe(400);
-  const exact = await fetchWith(
-    bindings,
-    `/api/admin/users?search=${encodeURIComponent(`@a_${marker}_1`)}`,
-    { headers: { Cookie: owner.cookie } },
-  );
-  expect(
-    adminUsersSchema
-      .parse(await exact.json())
-      .users.every((u) => u.username?.includes(`a_${marker}_1`)),
-  ).toBe(true);
+  expect((await request("&kind=unknown")).status).toBe(400);
 });
 
 test("新規登録は両日時形式を日本時間で集計し、計測開始前・期間外・本人・テストを除外する", async () => {
