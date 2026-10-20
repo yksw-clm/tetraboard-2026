@@ -8,6 +8,7 @@ import {
 } from "./guestAccounts";
 import { responseCookies } from "../privacy/deletion";
 import { badgeAwardsSql } from "./badgeAwards";
+import { guestChatMergeStatements } from "../lobby/mergeGuestChat";
 
 export class GuestLinkError extends Error {}
 export async function requireGuestIdle(env: Env, id: string) {
@@ -210,6 +211,7 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
     );
   }
   statements.push(
+    ...guestChatMergeStatements(db, g, a),
     db.prepare("UPDATE account_match_history SET account_id=? WHERE account_id=?").bind(a, g),
     db.prepare("UPDATE match_participant_accounts SET account_id=? WHERE account_id=?").bind(a, g),
     db.prepare("UPDATE tournament_entries SET account_id=? WHERE account_id=?").bind(a, g),

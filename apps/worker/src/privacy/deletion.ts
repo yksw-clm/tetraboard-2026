@@ -245,7 +245,9 @@ export async function processDeletions(env: AuthEnv) {
         env.APP_DB.prepare(
           "UPDATE lobby_chat_reports SET reporter_account_id=NULL WHERE reporter_account_id=?",
         ).bind(job.id),
-        env.APP_DB.prepare("DELETE FROM lobby_chat_senders WHERE account_id=?").bind(job.id),
+        env.APP_DB.prepare(
+          "DELETE FROM lobby_chat_senders WHERE account_id=? OR account_id IN(SELECT guest_id FROM guest_account_merges WHERE account_id=?)",
+        ).bind(job.id, job.id),
         env.APP_DB.prepare("DELETE FROM user WHERE id=?").bind(job.id),
       ]);
 

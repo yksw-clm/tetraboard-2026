@@ -54,7 +54,7 @@ export function GuestAccountControls() {
         名前を保存
       </AppButton>
       <p className="text-sm text-muted">
-        連携すると、これまでの全ゲームの記録を引き継げます。参加中のルームを退室し、大会の待機を取り消してから進んでください。
+        連携すると、これまでの全ゲームの記録と公開チャットの投稿を引き継げます。参加中のルームを退室し、大会の待機を取り消してから進んでください。
       </p>
       <SocialSignInButtons
         onSignIn={(provider) => void signIn.start(provider)}
@@ -138,7 +138,7 @@ export function GuestMergeConfirmation() {
       <p className="text-sm">
         {pending.isNewTarget
           ? `ゲスト「${pending.guestName}」の名前と全記録を保って連携を完了します。参加中のルームを退室し、大会の待機を取り消してから進んでください。`
-          : `ゲスト「${pending.guestName}」の全ゲームの棋譜・戦績・バッジ・大会成績を「${account.user?.name}」へ引き継ぎますか？プロフィールはログイン先の設定を使います。引き継がずにログインすると、元ゲストの記録には戻れなくなります。記録は自動削除されません。`}
+          : `ゲスト「${pending.guestName}」の全ゲームの棋譜・戦績・バッジ・大会成績と公開チャットの投稿・通報を「${account.user?.name}」へ引き継ぎますか？プロフィールはログイン先の設定を使い、公開チャットの投稿停止・送信制限も引き継ぎます。引き継がずにログインすると、元ゲストの記録には戻れなくなります。記録は自動削除されません。`}
       </p>
       {pending.isNewTarget && (
         <p className="mt-2 text-sm">

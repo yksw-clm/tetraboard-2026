@@ -15,6 +15,8 @@ import { cleanupLobbyChat, lobbyRetentionMs } from "../src/lobby/chatStore";
 import { requestDeletion, processDeletions } from "../src/privacy/deletion";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import { gameIds, gameCatalog } from "@tetraboard/protocol/games";
+import { legalVersion } from "@tetraboard/protocol/privacy";
+import { accountProfileSchema } from "@tetraboard/protocol";
 const db = (env as typeof env & { LOBBY_TEST_DB: D1Database }).LOBBY_TEST_DB;
 beforeAll(async () => {
   await applyD1Migrations(
@@ -60,18 +62,33 @@ const request = (path: string, init?: RequestInit, owner?: string) =>
 async function fixture(complete = true) {
   return accountFixture(complete, crypto.randomUUID(), db);
 }
-async function post(
-  user: Awaited<ReturnType<typeof fixture>>,
-  text = "募集しています",
-  requestId = crypto.randomUUID(),
-) {
+async function guestFixture() {
+  const response = await request("/account/guest", {
+    method: "POST",
+    headers: { Origin: origin, "X-Legal-Consent": legalVersion },
+    body: JSON.stringify({ name: "ゲスト投稿者" }),
+  });
+  expect(response.status).toBe(201);
+  const user = accountProfileSchema.parse(await response.json());
+  const cookie = response.headers
+    .getSetCookie()
+    .find((value) => value.startsWith("tetraboard-2026.guest="))!
+    .split(";")[0]!;
+  const row = await db
+    .prepare("SELECT id FROM user WHERE publicProfileId=?")
+    .bind(user.profileId)
+    .first<{ id: string }>();
+  return { id: row!.id, headers: { Cookie: cookie, Origin: origin } };
+}
+type ChatUser = { id: string; headers: { Cookie: string; Origin: string } };
+async function post(user: ChatUser, text = "募集しています", requestId = crypto.randomUUID()) {
   return request("/lobby/chat", {
     method: "POST",
     headers: user.headers,
     body: JSON.stringify({ text, requestId }),
   });
 }
-async function read(user?: Awaited<ReturnType<typeof fixture>>, suffix = "") {
+async function read(user?: ChatUser, suffix = "") {
   const response = await request(
     `/lobby/chat${suffix}`,
     user ? { headers: user.headers } : undefined,
@@ -79,7 +96,7 @@ async function read(user?: Awaited<ReturnType<typeof fixture>>, suffix = "") {
   expect(response.status).toBe(200);
   return lobbyChatSchema.parse(await response.json());
 }
-test("閲覧は公開、投稿はログイン・プロフィール完成・同一Originが必要", async () => {
+test("閲覧は公開、投稿は本人認証・プロフィール完成・同一Originが必要", async () => {
   expect((await read()).messages).toHaveLength(0);
   expect(
     (await request("/lobby/chat", { method: "POST", headers: { Origin: origin } })).status,
@@ -101,6 +118,44 @@ test("閲覧は公開、投稿はログイン・プロフィール完成・同�
   expect(publicPage.messages[0].own).toBe(false);
   expect(JSON.stringify(publicPage)).not.toContain(user.id);
   expect((await read(user)).messages[0].own).toBe(true);
+});
+test("名前設定済みゲストも投稿・再送・通報でき、間隔・回数制限と運営停止を受ける", async () => {
+  const user = await guestFixture(),
+    owner = await fixture(),
+    id = crypto.randomUUID();
+  expect((await post(user, "ゲストの募集", id)).status).toBe(200);
+  expect((await post(user, "ゲストの募集", id)).status).toBe(200);
+  expect((await post(user, "別の募集")).status).toBe(429);
+  expect((await read(user)).messages[0]).toMatchObject({ own: true, senderName: "ゲスト投稿者" });
+  expect(JSON.stringify(await read())).not.toContain(user.id);
+  await seedMessages(owner, 6);
+  const messages = (await read()).messages.filter((m) => m.senderName !== "ゲスト投稿者");
+  const report = (messageId: string) =>
+    request("/lobby/chat/reports", {
+      method: "POST",
+      headers: user.headers,
+      body: JSON.stringify({ messageId }),
+    });
+  expect((await report(messages[0]!.id)).status).toBe(201);
+  expect((await report(messages[0]!.id)).status).toBe(200);
+  for (const message of messages.slice(1, 5)) expect((await report(message.id)).status).toBe(201);
+  expect((await report(messages[5]!.id)).status).toBe(429);
+  const senderId = (await read(user)).messages.find((m) => m.own)!.senderId;
+  const moderate = (body: unknown) =>
+    request(
+      "/admin/lobby-chat",
+      { method: "POST", headers: owner.headers, body: JSON.stringify(body) },
+      owner.id,
+    );
+  expect((await moderate({ action: "stop", senderId, stopped: true })).status).toBe(200);
+  expect((await post(user, "停止中")).status).toBe(403);
+  expect((await read(user)).postingStopped).toBe(true);
+  await moderate({ action: "stop", senderId, stopped: false });
+  await moderate({ action: "accepting", accepting: false });
+  expect((await post(user, "全体停止中")).status).toBe(403);
+  await moderate({ action: "accepting", accepting: true });
+  await db.prepare("UPDATE user SET guestNameCustomized=0 WHERE id=?").bind(user.id).run();
+  expect((await post(user, "未設定名")).status).toBe(403);
 });
 test("100文字の境界と絵文字・空欄・URL禁止をサーバーで検証する", async () => {
   const user = await fixture();
@@ -165,7 +220,9 @@ async function seedMessages(
     await db.batch(
       Array.from({ length: Math.min(80, count - from) }, (_, i) =>
         db
-          .prepare("INSERT INTO lobby_chat_messages VALUES(?,?,?,?,?,?)")
+          .prepare(
+            "INSERT INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash) VALUES(?,?,?,?,?,?)",
+          )
           .bind(
             crypto.randomUUID(),
             user.id,

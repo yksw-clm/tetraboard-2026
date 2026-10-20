@@ -8,7 +8,7 @@ import {
   lobbyModerationSchema,
   lobbyAdminSchema,
 } from "@tetraboard/protocol/general-lobby";
-import { registeredIdentity as accountIdentity, type StoredProfile } from "../accounts/auth";
+import { accountIdentity, type StoredProfile } from "../accounts/auth";
 import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "../feedback/images";
 import { digest } from "../privacy/deletion";
@@ -70,6 +70,8 @@ lobbyChatRoutes.post("/lobby/chat", async (c) => {
   if (!user) return c.json({ message: "ログインしてください。" }, 401);
   if (!user.profileCompleted)
     return c.json({ message: "プロフィールの初回設定を完了してください。" }, 403);
+  if (user.isAnonymous && !user.guestNameCustomized)
+    return c.json({ message: "投稿する名前を設定してください。" }, 403);
   const input = lobbyPostSchema.safeParse(await body(c.req.raw));
   if (!input.success)
     return c.json({ message: "本文は100文字以内で入力してください。URLは投稿できません。" }, 400);
@@ -78,7 +80,7 @@ lobbyChatRoutes.post("/lobby/chat", async (c) => {
     hash = await digest(input.data.text);
   await db
     .prepare(
-      "INSERT OR IGNORE INTO lobby_chat_senders(account_id,public_id) SELECT id,? FROM user WHERE id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)",
+      "INSERT OR IGNORE INTO lobby_chat_senders(account_id,public_id) SELECT id,? FROM user WHERE id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)",
     )
     .bind(crypto.randomUUID(), user.id)
     .run();
@@ -87,6 +89,8 @@ lobbyChatRoutes.post("/lobby/chat", async (c) => {
     .prepare(`INSERT OR IGNORE INTO lobby_chat_messages(id,account_id,body,sent_at_ms,request_id,body_hash)
  SELECT ?,u.id,?,?,?,? FROM user u JOIN lobby_chat_senders s ON s.account_id=u.id
  WHERE u.id=? AND u.profileCompleted=1 AND s.stopped=0 AND s.last_sent_at_ms<=?
+ AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1)
+ AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id)
  AND (SELECT accepting FROM lobby_chat_settings WHERE id=1)=1
  AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
  AND NOT EXISTS(SELECT 1 FROM lobby_chat_requests r WHERE r.account_id=u.id AND r.request_id=?)`)
@@ -141,9 +145,10 @@ lobbyChatRoutes.post("/lobby/chat/reports", async (c) => {
     now = Date.now();
   const result = await db
     .prepare(`INSERT OR IGNORE INTO lobby_chat_reports(id,message_id,sender_account_id,sender_public_id,sender_name,body,sent_at_ms,reporter_account_id,reported_at_ms)
- SELECT ?,m.id,m.account_id,s.public_id,u.name,m.body,m.sent_at_ms,?,?
+ SELECT ?,m.id,m.account_id,COALESCE(m.sender_public_id,s.public_id),u.name,m.body,m.sent_at_ms,?,?
  FROM lobby_chat_messages m JOIN user u ON u.id=m.account_id JOIN lobby_chat_senders s ON s.account_id=u.id
  WHERE m.id=? AND m.sent_at_ms>? AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id IN(m.account_id,?))
+ AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=?)
  AND (SELECT COUNT(*) FROM lobby_chat_reports WHERE reporter_account_id=? AND reported_at_ms>?)<5`)
     .bind(
       crypto.randomUUID(),
@@ -151,6 +156,7 @@ lobbyChatRoutes.post("/lobby/chat/reports", async (c) => {
       now,
       input.data.messageId,
       now - lobbyRetentionMs,
+      user.id,
       user.id,
       user.id,
       now - 3600000,
@@ -181,7 +187,7 @@ lobbyChatRoutes.get("/admin/lobby-chat", async (c) => {
     .all();
   const stopped = await db
     .prepare(
-      "SELECT s.public_id AS senderId,u.name AS senderName FROM lobby_chat_senders s JOIN user u ON u.id=s.account_id WHERE s.stopped=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)",
+      "SELECT s.public_id AS senderId,u.name AS senderName FROM lobby_chat_senders s JOIN user u ON u.id=s.account_id WHERE s.stopped=1 AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id) AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)",
     )
     .all();
   return c.json(
@@ -204,8 +210,14 @@ lobbyChatRoutes.post("/admin/lobby-chat", async (c) => {
       .run();
   else if (value.action === "stop")
     await db
-      .prepare("UPDATE lobby_chat_senders SET stopped=? WHERE public_id=?")
-      .bind(Number(value.stopped), value.senderId)
+      .prepare(`UPDATE lobby_chat_senders SET stopped=? WHERE account_id IN (
+        SELECT account_id FROM lobby_chat_senders WHERE public_id=?
+        UNION SELECT COALESCE(g.account_id,s.account_id) FROM lobby_chat_senders s
+          LEFT JOIN guest_account_merges g ON g.guest_id=s.account_id WHERE s.public_id=?
+        UNION SELECT g.guest_id FROM guest_account_merges g WHERE g.account_id IN (
+          SELECT COALESCE(a.account_id,s.account_id) FROM lobby_chat_senders s
+          LEFT JOIN guest_account_merges a ON a.guest_id=s.account_id WHERE s.public_id=?))`)
+      .bind(Number(value.stopped), value.senderId, value.senderId, value.senderId)
       .run();
   else if (value.action === "delete")
     await db.prepare("DELETE FROM lobby_chat_messages WHERE id=?").bind(value.messageId).run();

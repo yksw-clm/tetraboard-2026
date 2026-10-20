@@ -21,6 +21,9 @@ import { writeMatch } from "../src/rooms/matchStore";
 import { writeAnalyticsMatch } from "../src/analytics/store";
 import { readAnalytics, japanDay } from "../src/admin/metrics";
 import { requestDeletion } from "../src/privacy/deletion";
+import worker from "../src/worker";
+import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
+import { cleanupLobbyChat } from "../src/lobby/chatStore";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
@@ -333,10 +336,10 @@ test("ゲストの対人戦績・ランキング・公開カードを表示し�
       await request("/lobby/chat", {
         method: "POST",
         headers: g.headers,
-        body: JSON.stringify({ text: "投稿" }),
+        body: JSON.stringify({ text: "投稿", requestId: crypto.randomUUID() }),
       })
     ).status,
-  ).toBe(401);
+  ).toBe(200);
 });
 for (const provider of ["google", "discord"])
   test(`${provider}: 新規連携は内部ID・名前・棋譜を保持して登録者へ切り替える`, async () => {
@@ -567,6 +570,133 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
   expect(
     await (await request("/account/stats?game=four-reversi", { headers: target.headers })).json(),
   ).toMatchObject({ singles: { total: 2 } });
+});
+test("ゲストの公開チャットは統合後も非表示用ID・再送・投稿停止・通報を保ち、退会で削除する", async () => {
+  const g = await guest(),
+    other = await accountFixture();
+  const post = (headers: HeadersInit, text: string, requestId = crypto.randomUUID()) =>
+    request("/lobby/chat", { method: "POST", headers, body: JSON.stringify({ text, requestId }) });
+  const report = (headers: HeadersInit, messageId: string) =>
+    request("/lobby/chat/reports", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ messageId }),
+    });
+  const subject = lobbyPostResultSchema.parse(
+    await (await post(other.headers, "通報対象")).json(),
+  ).message!;
+  const requestId = crypto.randomUUID();
+  const before = lobbyPostResultSchema.parse(
+    await (await post(g.headers, "元ゲストの投稿", requestId)).json(),
+  ).message!;
+  expect((await report(g.headers, subject.id)).status).toBe(201);
+  let reading!: () => void, releaseReport!: () => void;
+  const bodyRead = new Promise<void>((resolve) => {
+    reading = resolve;
+  });
+  const delayedBody = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        reading();
+        return new Promise<void>((resolve) => {
+          let released = false;
+          releaseReport = () => {
+            if (released) return;
+            released = true;
+            controller.enqueue(new TextEncoder().encode(JSON.stringify({ messageId: subject.id })));
+            controller.close();
+            resolve();
+          };
+        });
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  // 本人確認の後で本文を待たせ、統合より遅れてSQLが実行される要求を再現します。
+  const delayedReport = worker.fetch(
+    new Request(`${origin}/api/lobby/chat/reports`, {
+      method: "POST",
+      headers: g.headers,
+      body: delayedBody,
+    }),
+    env,
+    {} as ExecutionContext,
+  );
+  await bodyRead;
+  try {
+    const linked = await link(g);
+    expect((await post(linked.target.headers, "登録者の投稿")).status).toBe(200);
+    expect((await report(linked.target.headers, subject.id)).status).toBe(201);
+    expect((await report(linked.target.headers, before.id)).status).toBe(201);
+    await env.APP_DB.prepare("UPDATE lobby_chat_senders SET stopped=1 WHERE account_id=?")
+      .bind(g.id)
+      .run();
+    expect(
+      (await request("/account/guest-merge", { method: "POST", headers: linked.headers })).status,
+    ).toBe(200);
+    releaseReport();
+    expect((await delayedReport).status).toBe(429);
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM lobby_chat_reports WHERE reporter_account_id=?")
+        .bind(g.id)
+        .first(),
+    ).toBeNull();
+    const page = lobbyChatSchema.parse(
+      await (await request("/lobby/chat", { headers: linked.target.headers })).json(),
+    );
+    expect(page.messages.find((message) => message.id === before.id)).toMatchObject({
+      own: true,
+      senderId: before.senderId,
+      senderName: "登録名",
+    });
+    expect(page.postingStopped).toBe(true);
+    expect((await post(linked.target.headers, "停止を回避")).status).toBe(403);
+    const retry = await post(linked.target.headers, "元ゲストの投稿", requestId);
+    expect(retry.status).toBe(200);
+    expect(lobbyPostResultSchema.parse(await retry.json()).message?.id).toBe(before.id);
+    expect(
+      (
+        await env.APP_DB.prepare(
+          "SELECT id FROM lobby_chat_reports WHERE message_id=? AND reporter_account_id=?",
+        )
+          .bind(subject.id, linked.target.id)
+          .all()
+      ).results,
+    ).toHaveLength(1);
+    const moderation = await worker.fetch(
+      new Request(`${origin}/api/admin/lobby-chat`, {
+        method: "POST",
+        headers: linked.target.headers,
+        body: JSON.stringify({ action: "stop", senderId: before.senderId, stopped: false }),
+      }),
+      { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([linked.target.id]) },
+      {} as ExecutionContext,
+    );
+    expect(moderation.status).toBe(200);
+    expect((await post(linked.target.headers, "送信間隔を回避")).status).toBe(429);
+    expect(await requestDeletion(env, linked.target.id, crypto.randomUUID())).toBe(true);
+    await cleanupLobbyChat(env.APP_DB);
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM lobby_chat_messages WHERE id=?")
+        .bind(before.id)
+        .first(),
+    ).toBeNull();
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM lobby_chat_senders WHERE account_id IN (?,?)")
+        .bind(g.id, linked.target.id)
+        .first(),
+    ).toBeNull();
+    expect(
+      await env.APP_DB.prepare(
+        "SELECT sender_name,sender_public_id FROM lobby_chat_reports WHERE message_id=?",
+      )
+        .bind(before.id)
+        .first(),
+    ).toEqual({ sender_name: "退会したプレイヤー", sender_public_id: null });
+  } finally {
+    releaseReport();
+    await delayedReport;
+  }
 });
 test("同じ対局の複数席を統合せず、失敗時に記録と統合確認の資格を残す", async () => {
   const g = await guest();
