@@ -26,6 +26,7 @@ test("名前設定済みのゲストは再入力せず、未設定フラグな�
 });
 test("ゲストのアカウントメニューにはログアウト操作を表示しない", async () => {
   const view = render(wrap(guestProfile())(<AccountMenu />));
+  expect(view.textContent).toContain(`@${guestProfile().username}`);
   act(() => view.querySelector<HTMLButtonElement>('[aria-label$="のアカウントメニュー"]')!.click());
   await flush();
   const menu = document.querySelector('[role="menu"]')!;
@@ -98,7 +99,10 @@ test("既存登録者への引き継ぎは確認するまで送信せず、失�
   requests[1]!.respond({ message: "同じ大会に参加しています" }, 409);
   await flush();
   expect(document.querySelector('[role="alert"]')?.textContent).toContain("同じ大会");
-  press(document.body, "今はしない");
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+    "記録は自動削除されません",
+  );
+  press(document.body, "引き継がずにログインする");
   await flush();
   expect(requests[2]!.init.method).toBe("DELETE");
   requests[2]!.respond({ cancelled: true });

@@ -40,6 +40,9 @@ export function GuestAccountControls() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">{guestStorageNotice}</p>
+      <p className="text-sm text-muted">
+        IDは自動発行です。Google・Discordへの新規連携後に変更できます。
+      </p>
       <AppTextField value={name} onChange={setName} isDisabled={busy}>
         <AppTextField.Label>名前</AppTextField.Label>
         <AppTextField.Input autoComplete="nickname" />
@@ -135,15 +138,20 @@ export function GuestMergeConfirmation() {
       <p className="text-sm">
         {pending.isNewTarget
           ? `ゲスト「${pending.guestName}」の名前と全記録を保って連携を完了します。参加中のルームを退室し、大会の待機を取り消してから進んでください。`
-          : `ゲスト「${pending.guestName}」の全ゲームの棋譜・戦績・バッジ・大会成績を「${account.user?.name}」へ引き継ぎますか？プロフィールはログイン先の設定を使い、完了後は元のゲストを使えなくなります。`}
+          : `ゲスト「${pending.guestName}」の全ゲームの棋譜・戦績・バッジ・大会成績を「${account.user?.name}」へ引き継ぎますか？プロフィールはログイン先の設定を使います。引き継がずにログインすると、元ゲストの記録には戻れなくなります。記録は自動削除されません。`}
       </p>
+      {pending.isNewTarget && (
+        <p className="mt-2 text-sm">
+          連携をやめてログインすると、元ゲストの記録には戻れなくなります。記録は自動削除されません。
+        </p>
+      )}
       {message && <p role="alert">{message}</p>}
       <div className="mt-4 flex gap-3">
         <AppButton onPress={() => void respond(true)} isPending={busy} isDisabled={busy}>
           {pending.isNewTarget ? "連携を完了" : "引き継ぐ"}
         </AppButton>
         <AppButton appearance="secondary" onPress={() => void respond(false)} isDisabled={busy}>
-          今はしない
+          {pending.isNewTarget ? "連携をやめてログインする" : "引き継がずにログインする"}
         </AppButton>
       </div>
     </AppDialog>

@@ -1,4 +1,4 @@
-import { guestIdentity } from "./guestAccounts";
+import { guestIdentity, suspendGuestSession } from "./guestAccounts";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
@@ -126,7 +126,10 @@ export async function accountSessionIdentity(request: Request, env: AuthEnv) {
 }
 export async function accountIdentity(request: Request, env: AuthEnv) {
   const identity = await accountSessionIdentity(request, env);
-  if (identity) return identity.user;
+  if (identity) {
+    await suspendGuestSession(request, env);
+    return identity.user;
+  }
   // 登録セッションの失効時に、別のゲストへ自動で切り替えません。
   if (
     /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(

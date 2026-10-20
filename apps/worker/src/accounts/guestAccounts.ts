@@ -1,4 +1,5 @@
 import { authSecret } from "../privacy/tokens";
+import { ensureGuestUsername } from "./guestUsernames";
 import { readLimitedBody } from "../feedback/images";
 import { Hono } from "hono";
 import { profileInputSchema } from "@tetraboard/protocol";
@@ -24,12 +25,13 @@ export async function guestIdentity(request: Request, env: Env): Promise<StoredP
   if (!hash) return null;
   const user =
     await env.APP_DB.prepare(`SELECT u.* FROM guest_sessions s JOIN user u ON u.id=s.account_id
-    WHERE s.token_hash=? AND s.expires_at_ms>? AND u.isAnonymous=1
+    WHERE s.token_hash=? AND s.expires_at_ms>? AND s.registered_at_ms IS NULL AND u.isAnonymous=1
     AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)
     AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id)`)
       .bind(hash, Date.now())
       .first<StoredProfile>();
   if (!user) return null;
+  if (!user.username) user.username = await ensureGuestUsername(env.APP_DB, user.id);
   await env.APP_DB.prepare("UPDATE guest_sessions SET expires_at_ms=? WHERE token_hash=?")
     .bind(Date.now() + guestLifetimeMs, hash)
     .run();
@@ -80,21 +82,32 @@ export async function createGuestAccount(
       user.guestNameCustomized,
       user.publicProfileId,
     ),
-    env.APP_DB.prepare("INSERT INTO guest_sessions VALUES(?,?,?)").bind(
-      hash,
-      id,
-      now + guestLifetimeMs,
-    ),
+    env.APP_DB.prepare(
+      "INSERT INTO guest_sessions(token_hash,account_id,expires_at_ms) VALUES(?,?,?)",
+    ).bind(hash, id, now + guestLifetimeMs),
     consentStatement(env.APP_DB, id),
   ]);
+  user.username = await ensureGuestUsername(env.APP_DB, id);
   appendSessionCookie(request, guestCookie(token, env));
   return user;
 }
 export async function clearGuestSession(request: Request, env: Env) {
   const hash = await guestTokenHash(request);
   if (hash)
-    await env.APP_DB.prepare("DELETE FROM guest_sessions WHERE token_hash=?").bind(hash).run();
+    await env.APP_DB.batch([
+      env.APP_DB.prepare("DELETE FROM guest_oauth_flows WHERE guest_token_hash=?").bind(hash),
+      env.APP_DB.prepare("DELETE FROM guest_sessions WHERE token_hash=?").bind(hash),
+    ]);
   appendSessionCookie(request, guestCookie("", env, 0));
+}
+export async function suspendGuestSession(request: Request, env: Env) {
+  const hash = await guestTokenHash(request);
+  if (hash)
+    await env.APP_DB.prepare(
+      "UPDATE guest_sessions SET registered_at_ms=? WHERE token_hash=? AND registered_at_ms IS NULL",
+    )
+      .bind(Date.now(), hash)
+      .run();
 }
 async function guestInput(request: Request): Promise<{ name?: unknown } | null> {
   const bytes = await readLimitedBody(request, 4096);

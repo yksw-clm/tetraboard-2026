@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { accountSessionIdentity, type AuthEnv, type StoredProfile } from "./auth";
-import { guestIdentity, guestTokenHash, clearGuestSession } from "./guestAccounts";
+import {
+  guestIdentity,
+  guestTokenHash,
+  clearGuestSession,
+  suspendGuestSession,
+} from "./guestAccounts";
 import { responseCookies } from "../privacy/deletion";
 import { badgeAwardsSql } from "./badgeAwards";
 
@@ -85,6 +90,7 @@ async function promoteGuestLink(request: Request, env: AuthEnv, flow: MergeFlow)
 
 export async function completeGuestLink(request: Request, response: Response, env: AuthEnv) {
   if (
+    new URL(request.url).searchParams.has("error") ||
     response.status >= 400 ||
     !response.headers
       .getSetCookie()
@@ -93,18 +99,25 @@ export async function completeGuestLink(request: Request, response: Response, en
     return;
   const state = new URL(request.url).searchParams.get("state"),
     hash = await guestTokenHash(request);
-  if (!state || !hash) return;
-  const flow = await env.APP_DB.prepare(
-    "SELECT * FROM guest_oauth_flows WHERE state=? AND guest_token_hash=? AND expires_at_ms>? AND target_id IS NULL",
-  )
-    .bind(state, hash, Date.now())
-    .first<{ guest_id: string; provider: string; started_at_ms: number }>();
-  if (!flow || !new URL(request.url).pathname.endsWith(`/callback/${flow.provider}`)) return;
+  if (!hash) return;
   const identity = await accountSessionIdentity(
     new Request(request.url, { headers: responseCookies(request, response) }),
     env,
   );
   if (!identity) return;
+  if (!state) {
+    await suspendGuestSession(request, env);
+    return;
+  }
+  const flow = await env.APP_DB.prepare(
+    "SELECT * FROM guest_oauth_flows WHERE state=? AND guest_token_hash=? AND expires_at_ms>? AND target_id IS NULL",
+  )
+    .bind(state, hash, Date.now())
+    .first<{ guest_id: string; provider: string; started_at_ms: number }>();
+  if (!flow || !new URL(request.url).pathname.endsWith(`/callback/${flow.provider}`)) {
+    await suspendGuestSession(request, env);
+    return;
+  }
   await env.APP_DB.prepare("UPDATE user SET publicProfileId=COALESCE(publicProfileId,?) WHERE id=?")
     .bind(crypto.randomUUID(), identity.user.id)
     .run();
@@ -121,6 +134,8 @@ export async function completeGuestLink(request: Request, response: Response, en
   )
     .bind(identity.user.id, identity.sessionId, Number(isNew), Date.now() + 3600000, state)
     .run();
+  // 対応の保存後に確認専用へ切り替え、一時障害で元ゲストだけが先に失効することを防ぎます。
+  await suspendGuestSession(request, env);
   // 初回登録でのみプロバイダーを元のゲストへ移し、内部IDを維持します。
   if (isNew) {
     try {
@@ -229,7 +244,9 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
     db.prepare("DELETE FROM session WHERE userId=?").bind(g),
     db.prepare("DELETE FROM guest_oauth_flows WHERE guest_id=?").bind(g),
     db
-      .prepare("UPDATE user SET name='',profileCompleted=0,guestNameCustomized=0 WHERE id=?")
+      .prepare(
+        "UPDATE user SET name='',username=NULL,profileCompleted=0,guestNameCustomized=0 WHERE id=?",
+      )
       .bind(g),
   );
   await db.batch(statements);
@@ -275,9 +292,6 @@ guestLinkRoutes.delete("/account/guest-merge", async (c) => {
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)
     return c.json({ message: "操作元を確認できません。" }, 403);
   const flow = await mergeFlow(c.req.raw, c.env);
-  if (flow)
-    await c.env.APP_DB.prepare("DELETE FROM guest_oauth_flows WHERE state=?")
-      .bind(flow.state)
-      .run();
+  if (flow) await clearGuestSession(c.req.raw, c.env);
   return c.json({ cancelled: true });
 });

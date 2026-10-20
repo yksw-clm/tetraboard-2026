@@ -90,10 +90,10 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
               {user.name || "プロフィール未設定"}
             </span>
             <span className="mt-1 block truncate text-xs text-muted leading-tight">
-              {user.isGuest
-                ? "ゲスト"
-                : user.username
-                  ? `@${user.username}`
+              {user.username
+                ? `@${user.username}`
+                : user.isGuest
+                  ? "ゲスト"
                   : "初回設定をしてください"}
             </span>
           </span>

@@ -4,7 +4,7 @@ import { flush, requests } from "./harness";
 export const guestProfile = (name = "ゲスト本人") => ({
   profileId: "e1df3e74-a0a5-4dc1-98b3-5bac6f433a01",
   name,
-  username: null,
+  username: "guest_e1df3e74a0a54d",
   avatarUrl: null,
   profileCompleted: true,
   isGuest: true,

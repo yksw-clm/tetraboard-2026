@@ -1,7 +1,8 @@
 import { adminIdentity } from "../src/admin/auth";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, evictDurableObject } from "cloudflare:test";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import { ensureGuestUsername } from "../src/accounts/guestUsernames";
 import {
   accountProfileSchema,
   createRoomContract,
@@ -112,8 +113,57 @@ test("閲覧・観戦ではゲストを作らず、名前・Origin・同意を�
   ).toBe(403);
   expect(await count()).toBe(before);
   const g = await guest(" 👨‍👩‍👧‍👦 ");
-  expect(g.user).toMatchObject({ name: "👨‍👩‍👧‍👦", username: null, isGuest: true, nameCustomized: true });
+  expect(g.user).toMatchObject({
+    name: "👨‍👩‍👧‍👦",
+    username: expect.stringMatching(/^guest_[a-f0-9]{14}$/),
+    isGuest: true,
+    nameCustomized: true,
+  });
   expect(await count()).toBe(before + 1);
+});
+test("ゲストIDは同名でも一意で、旧ゲストの並行取得・登録者IDとの衝突・名前変更でも安定する", async () => {
+  const g = await guest("同名"),
+    other = await guest("同名"),
+    registered = await accountFixture();
+  expect(g.user.username).not.toBe(other.user.username);
+  const collision = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const reserved = `guest_${collision.replaceAll("-", "").slice(0, 14)}`;
+  await env.APP_DB.prepare("UPDATE user SET username=? WHERE id=?")
+    .bind(reserved, registered.id)
+    .run();
+  await env.APP_DB.prepare("UPDATE user SET username=NULL WHERE id=?").bind(g.id).run();
+  const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(collision);
+  let assigned: string;
+  try {
+    assigned = await ensureGuestUsername(env.APP_DB, g.id);
+    expect(assigned).not.toBe(reserved);
+  } finally {
+    uuid.mockRestore();
+  }
+  expect(
+    await Promise.all([
+      ensureGuestUsername(env.APP_DB, g.id),
+      ensureGuestUsername(env.APP_DB, g.id),
+    ]),
+  ).toEqual([assigned!, assigned!]);
+  const renamed = await request("/account/guest/name", {
+    method: "PATCH",
+    headers: g.headers,
+    body: JSON.stringify({ name: "変更名", username: "changed" }),
+  });
+  expect(await renamed.json()).toMatchObject({ name: "変更名", username: assigned! });
+  expect((await request("/account/profile", { method: "PATCH", headers: g.headers })).status).toBe(
+    403,
+  );
+  await env.APP_DB.prepare("UPDATE user SET username=NULL WHERE id=?").bind(other.id).run();
+  const card = await request(
+    `${getPlayerProfileContract.path}?source=profile&profileId=${other.user.profileId}&game=four-reversi`,
+  );
+  const publicUser = (await card.json()) as { username: string };
+  expect(publicUser.username).toMatch(/^guest_[a-f0-9]{14}$/);
+  expect(
+    await (await request("/account/session", { headers: other.headers })).json(),
+  ).toMatchObject({ user: { username: publicUser.username } });
 });
 test("ゲストのログアウトを拒否して、本人認証と記録へのアクセスを維持する", async () => {
   const g = await guest();
@@ -267,7 +317,7 @@ test("ゲストの対人戦績・ランキング・公開カードを表示し�
   expect(await card.json()).toMatchObject({
     kind: "account",
     isGuest: true,
-    username: null,
+    username: g.user.username,
     name: g.user.name,
   });
   expect(
@@ -298,6 +348,7 @@ for (const provider of ["google", "discord"])
     expect(user).toMatchObject({
       id: g.id,
       name: g.user.name,
+      username: g.user.username,
       isAnonymous: 0,
       profileCompleted: 0,
     });
@@ -314,7 +365,156 @@ for (const provider of ["google", "discord"])
         .bind(record.id)
         .first<{ account_id: string }>())!.account_id,
     ).toBe(g.id);
+    const form = new FormData();
+    form.set("name", g.user.name);
+    form.set("username", g.user.username!);
+    form.set("avatarAction", "keep");
+    form.set("consentVersion", legalVersion);
+    const headers = { Cookie: target.cookie, Origin: origin };
+    expect((await request("/account/setup", { method: "POST", headers, body: form })).status).toBe(
+      200,
+    );
+    const changed = `member_${g.id.replaceAll("-", "").slice(0, 12)}`;
+    form.set("username", changed);
+    const edited = await request("/account/profile", { method: "PATCH", headers, body: form });
+    expect(edited.status).toBe(200);
+    expect(await edited.json()).toMatchObject({ username: changed });
   });
+for (const played of [false, true])
+  test(`既存アカウントへ引き継がずにログインしてログアウトしても元ゲストへ戻らない（対局${played ? "あり" : "なし"}）`, async () => {
+    const g = await guest();
+    const record = played ? humanFixtureRecord(g.id, 1) : null;
+    if (record) await writeMatch(env.APP_DB, record);
+    const { target, headers } = await link(g);
+    expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).toBeNull();
+    const wrong = await accountFixture();
+    await request("/account/guest-merge", {
+      method: "DELETE",
+      headers: { ...wrong.headers, Cookie: `${wrong.cookie}; ${g.cookie}` },
+    });
+    expect(await (await request("/account/guest-merge", { headers })).json()).toMatchObject({
+      pending: { guestName: g.user.name },
+    });
+    expect(
+      (
+        await request("/account/guest-merge", {
+          method: "DELETE",
+          headers: { ...headers, Origin: "https://wrong.test" },
+        })
+      ).status,
+    ).toBe(403);
+    const discarded = await request("/account/guest-merge", { method: "DELETE", headers });
+    expect(discarded.status).toBe(200);
+    expect(
+      discarded.headers
+        .getSetCookie()
+        .some(
+          (cookie) => cookie.startsWith("tetraboard-2026.guest=") && cookie.includes("Max-Age=0"),
+        ),
+    ).toBe(true);
+    expect(
+      await (await request("/account/session", { headers: target.headers })).json(),
+    ).toMatchObject({ user: { username: target.username } });
+    expect((await request("/auth/sign-out", { method: "POST", headers, body: "{}" })).status).toBe(
+      200,
+    );
+    expect(await (await request("/account/session", { headers: g.headers })).json()).toEqual({
+      user: null,
+    });
+    expect(
+      await env.APP_DB.prepare("SELECT name,username FROM user WHERE id=?").bind(g.id).first(),
+    ).toEqual({ name: g.user.name, username: g.user.username });
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM guest_account_merges WHERE guest_id=?")
+        .bind(g.id)
+        .first(),
+    ).toBeNull();
+    if (record)
+      expect(
+        await env.APP_DB.prepare("SELECT account_id FROM account_match_history WHERE match_id=?")
+          .bind(record.id)
+          .first(),
+      ).toEqual({ account_id: g.id });
+  });
+test("引き継ぎ確認を終えずログアウトした場合も、ゲスト資格と保留中の手続きを失効させる", async () => {
+  const g = await guest(),
+    linked = await link(g);
+  const response = await request("/auth/sign-out", {
+    method: "POST",
+    headers: linked.headers,
+    body: "{}",
+  });
+  expect(response.status).toBe(200);
+  expect(await (await request("/account/session", { headers: g.headers })).json()).toEqual({
+    user: null,
+  });
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM guest_oauth_flows WHERE guest_id=?").bind(g.id).first(),
+  ).toBeNull();
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM user WHERE id=?").bind(g.id).first(),
+  ).not.toBeNull();
+});
+test("旧Cookieの並存と統合フローを持たない認証でも、登録者から元ゲストへ自動復帰しない", async () => {
+  const g = await guest(),
+    registered = await accountFixture();
+  const headers = { ...registered.headers, Cookie: `${registered.cookie}; ${g.cookie}` };
+  expect(await (await request("/account/session", { headers })).json()).toMatchObject({
+    user: { username: registered.username },
+  });
+  expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).toBeNull();
+  const adminGuest = await guest(),
+    admin = await accountFixture();
+  const callback = new Request(`${origin}/api/auth/callback/google?state=admin-login`, {
+    headers: adminGuest.headers,
+  });
+  await completeGuestLink(
+    callback,
+    new Response(null, {
+      status: 302,
+      headers: { "Set-Cookie": `${admin.cookie}; Path=/; HttpOnly`, Location: "/admin" },
+    }),
+    env,
+  );
+  expect(
+    await accountIdentity(new Request(origin, { headers: adminGuest.headers }), env),
+  ).toBeNull();
+  expect(
+    await env.APP_DB.prepare("SELECT 1 FROM user WHERE id=?").bind(adminGuest.id).first(),
+  ).not.toBeNull();
+});
+test("登録者のセッション期限切れ・OAuth取消でも意図しないゲストへの復帰や失効を起こさない", async () => {
+  const g = await guest(),
+    linked = await link(g);
+  await env.APP_DB.prepare("UPDATE session SET expiresAt=0 WHERE userId=?")
+    .bind(linked.target.id)
+    .run();
+  expect(await (await request("/account/session", { headers: linked.headers })).json()).toEqual({
+    user: null,
+  });
+  // ブラウザが期限切れの登録Cookieを除去した後も、ゲストCookieで本人に戻りません。
+  expect(await (await request("/account/session", { headers: g.headers })).json()).toEqual({
+    user: null,
+  });
+  const cancelled = await guest();
+  const callback = new Request(`${origin}/api/auth/callback/google?error=access_denied`, {
+    headers: cancelled.headers,
+  });
+  await completeGuestLink(
+    callback,
+    new Response(null, {
+      status: 302,
+      headers: {
+        Location: "/login?error=access_denied",
+        "Set-Cookie": `${linked.target.cookie}; Path=/; HttpOnly`,
+      },
+    }),
+    env,
+  );
+  expect(
+    await accountIdentity(new Request(origin, { headers: cancelled.headers }), env),
+  ).toMatchObject({ id: cancelled.id });
+});
 test("既存アカウントへの統合は認証後の確認まで変更せず、本人だけが全記録を一度引き継ぐ", async () => {
   const g = await guest(),
     record = humanFixtureRecord(g.id, 1);
@@ -323,7 +523,7 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
   expect(await (await request("/account/guest-merge", { headers })).json()).toEqual({
     pending: { guestName: g.user.name },
   });
-  expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).not.toBeNull();
+  expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).toBeNull();
   expect(
     (await request("/account/guest-merge", { method: "POST", headers: g.headers })).status,
   ).toBe(401);
@@ -368,7 +568,7 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     await (await request("/account/stats?game=four-reversi", { headers: target.headers })).json(),
   ).toMatchObject({ singles: { total: 2 } });
 });
-test("同じ対局の複数席を統合せず、失敗時にゲストの記録と認証を残す", async () => {
+test("同じ対局の複数席を統合せず、失敗時に記録と統合確認の資格を残す", async () => {
   const g = await guest();
   const { target, headers } = await link(g);
   const record = humanFixtureRecord(g.id, 1);
@@ -377,7 +577,10 @@ test("同じ対局の複数席を統合せず、失敗時にゲストの記録�
   other.accountId = target.id;
   await writeMatch(env.APP_DB, record);
   expect((await request("/account/guest-merge", { method: "POST", headers })).status).toBe(409);
-  expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).not.toBeNull();
+  expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).toBeNull();
+  expect(await (await request("/account/guest-merge", { headers })).json()).toMatchObject({
+    pending: { guestName: g.user.name },
+  });
   expect(
     await env.APP_DB.prepare("SELECT guest_id FROM guest_account_merges WHERE guest_id=?")
       .bind(g.id)
@@ -500,8 +703,11 @@ test("大会エントリーと得点の同一性を保って統合し、同じ�
       .first(),
   ).toEqual({ points_units: 10, games: 1 });
   const other = await guest();
+  expect(
+    (await request(`/tournaments/${t.id}/entries`, { method: "POST", headers: other.headers }))
+      .status,
+  ).toBe(200);
   const conflict = await link(other);
-  await request(`/tournaments/${t.id}/entries`, { method: "POST", headers: other.headers });
   await request(`/tournaments/${t.id}/entries`, {
     method: "POST",
     headers: conflict.target.headers,
@@ -509,9 +715,10 @@ test("大会エントリーと得点の同一性を保って統合し、同じ�
   expect(
     (await request("/account/guest-merge", { method: "POST", headers: conflict.headers })).status,
   ).toBe(409);
+  expect(await accountIdentity(new Request(origin, { headers: other.headers }), env)).toBeNull();
   expect(
-    await accountIdentity(new Request(origin, { headers: other.headers }), env),
-  ).not.toBeNull();
+    await (await request("/account/guest-merge", { headers: conflict.headers })).json(),
+  ).toMatchObject({ pending: { guestName: other.user.name } });
 });
 test("管理の参加者計測は、アカウントIDのあるゲストも開始時のゲスト区分で集計する", async () => {
   const g = await guest(),

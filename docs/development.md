@@ -273,7 +273,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 通信の確認にはWorkerの `/healthz` を使います。ロビー画面にはAPIステータスや生のAPI応答を表示しません。
 開発機からは `http://127.0.0.1:8787/healthz` でWorkerを直接、Viteの `Network` URLに `/api/healthz` を付けてWeb経由の通信を確認できます。
 
-規約・年齢条件の確認後、作成と入室のHTTPリクエストに `X-Legal-Consent: 2026-10-12` を付けます。版は `packages/protocol/src/privacy.ts` の `legalVersion` と一致させます。
+規約・年齢条件の確認後、作成と入室のHTTPリクエストに `X-Legal-Consent: 2026-10-20` を付けます。版は `packages/protocol/src/privacy.ts` の `legalVersion` と一致させます。
 
 ルーム作成は `POST http://127.0.0.1:8787/rooms` に `{"name":"てとら","quickPlay":false,"mode":"singles"}` をJSONで送ります。`mode` は `singles` または `doubles` の必須項目です。成功応答の `room.id` に含まれる5桁のIDを使い、`GET http://127.0.0.1:8787/rooms/<ID>` で保存した部屋を確認できます。Workerを再起動した後も同じIDで取得できます。開発時のDurable ObjectとD1の状態は `apps/worker/.wrangler/state` に保存されます。D1だけを準備する場合は `bun run --cwd apps/worker db:migrate:local` を実行します。
 既存ルームへの入室は `POST http://127.0.0.1:8787/rooms/<ID>/players` に `{"name":"二人目"}` をJSONで送ります。作成・入室の成功応答は `{ "room": ..., "membership": { "playerId": ..., "role": ..., "token": ... } }` です。満室なら409を返します。本人確認は `GET http://127.0.0.1:8787/rooms/<ID>/me` に `Authorization: Bearer <token>` を付けて行います。トークンは公開GETやWebSocketの応答には含めません。
@@ -1289,9 +1289,11 @@ Googleの要求は `openid email profile`、`access_type=online`、Discordは `i
 
 ## ゲストアカウント（#234）
 
-利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。`guestAccounts.ts` は入力確定後の作成・名前変更と専用HttpOnly Cookieを担当し、閲覧では作成しません。`guestNameCustomized` と `isAnonymous` を使い、ゲストの公開IDはnullです。公開カード参照用UUIDと内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
+利用者向けの正本はREADMEの「ゲストアカウントの確定仕様」です。`guestAccounts.ts` は入力確定後の作成・名前変更と専用HttpOnly Cookieを担当し、閲覧では作成しません。`guestNameCustomized` と `isAnonymous` を使います。`guestUsernames.ts` はゲストの表示用IDを `username` へ自動割当し、一意制約への衝突だけを再生成して処理します。既存ゲストの未設定IDは本人・現在プロフィール・ランキングの取得時にも補います。同時取得では先に確定したIDを保ちます。表示用ID、公開カード参照用UUID、内部IDは区別します。Webの `ensureGuestAccount` はCookieの読戻しと同一ブラウザの作成直列化を行い、保存不能・認証障害で参加を続行しません。旧クライアントのアカウントなし参加と終局後の1局取得は互換経路として維持します。
 
-`guestLinking.ts` は既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部IDと記録を保って公開IDの初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。参加中の席（待機室を含む）は退室し、大会待機を取り消してから連携します。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
+`guestLinking.ts` は既存のOAuth stateとゲストCookie・認証後のsessionを結び付けます。新規連携では一時登録者のprovider・sessionを元ゲストへ移し、内部ID・表示用ID・記録を保って初回設定へ進みます。既存登録者への統合は本人の確認後にD1の単一batchで行い、プロフィールは統合先を優先します。参加中の席（待機室を含む）は退室し、大会待機を取り消してから連携します。対局・大会の競合と別タブの再参加はDBのfenceで拒否します。
+
+migration 0022は `guest_sessions.registered_at_ms` を追加します。登録者への認証成功後は、ゲスト資格を統合確認専用へ切り替え、登録セッションや引き継ぎ確認の期限切れでも本人認証に戻しません。既存のCookieが並存する場合も、登録者本人の取得時にこの状態へ移します。確認の辞退と登録者のログアウトではCookie・ゲストセッション・対応する全OAuth手続きを失効させ、元アカウント・記録は削除しません。OAuthの取消・失敗では切り替えません。辞退操作は認証した本人と元ゲスト資格の対応・同一Originを検査します。
 
 migration 0021はゲストセッション、OAuth対応、統合済み内部IDの対応とfenceを追加します。統合は棋譜の本人参照・履歴索引・バッジ・大会参加者・プライバシー対応を一括で移し、ゲーム手順・日時・結果を変更しません。統合済みゲストの認証を失効させ、再送のため最小限の内部ID対応を保持します。遅延した棋譜保存・本人索引にもDB triggerで統合先を適用し、同じ参加の二重計上を防ぎます。大会のentry IDと得点イベントは保持します。計測の開始時ゲスト区分は `analytics_participants.is_guest` に保持し、登録者への連携後も過去の参加区分を登録者にしません。統合時の計測・フィードバックの本人参照は統合先へ移し、退会時の対象に含めます。登録者へ切り替わった日時は `guestRegisteredAt` とし、ゲストの作成日とは区別します。
 

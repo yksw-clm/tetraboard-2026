@@ -4,6 +4,7 @@ import {
   completeGuestLink,
   GuestLinkError,
 } from "./guestLinking";
+import { clearGuestSession } from "./guestAccounts";
 import { reserveAvatarUpload, finishAvatarUpload } from "../privacy/avatarUploads";
 import { isDeleted } from "../privacy/identity";
 import { completeLegalAuthentication } from "../privacy/oauthConsent";
@@ -137,6 +138,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       ),
     }),
   );
+  if (path === "/auth/sign-out" && response.ok) await clearGuestSession(c.req.raw, c.env);
   if (path === "/auth/sign-in/social" && !adminLogin && response.ok) {
     const data = (await response.clone().json()) as { url?: string };
     const state = data.url ? new URL(data.url).searchParams.get("state") : null;

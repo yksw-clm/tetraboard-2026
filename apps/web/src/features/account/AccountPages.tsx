@@ -422,7 +422,8 @@ function AccountProfileView({
             <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
               <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
               <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
-                {user.isGuest ? "ゲスト" : `@${user.username}`}
+                {user.username && `@${user.username}`}
+                {user.isGuest && <span className="ml-2">ゲスト</span>}
               </p>
             </div>
           </div>

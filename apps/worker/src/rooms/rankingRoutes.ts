@@ -10,6 +10,7 @@ import {
   previewRankingsSchema,
 } from "@tetraboard/protocol";
 import { ensurePublicProfileId } from "../accounts/currentProfiles";
+import { ensureGuestUsername } from "../accounts/guestUsernames";
 import { profileAvatarUrl } from "../accounts/auth";
 import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
@@ -76,7 +77,8 @@ async function queryGameRankings(
     const entry = {
       ...(preview ? { profileId: ids.get(row.accountId) } : {}),
       rank: row.rank,
-      username: row.username,
+      username:
+        row.username ?? (row.isAnonymous ? await ensureGuestUsername(db, row.accountId) : null),
       ...(row.isAnonymous ? { isGuest: true } : {}),
       name: row.name,
       avatarUrl: profileAvatarUrl(row.avatarKey),
@@ -124,7 +126,8 @@ async function queryTwoPlayerRankings(
       : undefined;
     result[row.metric].push({
       rank: row.rank,
-      username: row.username,
+      username:
+        row.username ?? (row.isAnonymous ? await ensureGuestUsername(db, row.accountId) : null),
       ...(row.isAnonymous ? { isGuest: true } : {}),
       name: row.name,
       avatarUrl: profileAvatarUrl(row.avatarKey),
