@@ -102,6 +102,7 @@ export const adminAnalyticsSchema = z.object({
   acquisition: acquisitionReportSchema.optional(),
 });
 export const adminUsersQuerySchema = z.object({
+  kind: z.enum(["registered", "guest"]).default("registered"),
   search: z.string().trim().max(100).default(""),
   cursor: z.string().max(512).optional(),
 });
@@ -149,4 +150,5 @@ export type AnalyticsMetrics = z.infer<typeof analyticsMetricsSchema>;
 export type AdminAnalytics = z.infer<typeof adminAnalyticsSchema>;
 export type AdminAnalyticsQuery = z.infer<typeof adminAnalyticsQuerySchema>;
 export type AdminUsers = z.infer<typeof adminUsersSchema>;
+export type AdminUsersQuery = z.infer<typeof adminUsersQuerySchema>;
 export type AdminUser = z.infer<typeof adminUserSchema>;

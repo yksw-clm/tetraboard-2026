@@ -1518,7 +1518,7 @@ Workerテストで未ログインアクセス・全色・同率優勝・両チ�
 
 - `POST /api/analytics/pageviews` はUUID・画面種別・ゲームと任意のランディング候補情報（参照元ホストとUTM3項目）、`POST /api/analytics/dwell` はビューUUIDと日本時間の日別累積ミリ秒を受け取ります。Origin、容量、形式、所有ブラウザ、実経過時間による上限を検査し、閲覧の重複送信・古い時間更新で増加させません。
 - `GET /api/admin/session` は本人確認、`GET /api/admin/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD&game=all|four-reversi|four-shogi&bucket=day|month&includeInternal=false|true` は期間全体と各期間の集計を返します。開始・終局はブラウザから受け付けません。ゲストのブラウザIDや内部アカウントIDは集計レスポンスに含めません。
-- `GET /api/admin/users?search=名前またはID&cursor=...` は50件と次カーソルを返します。現在のR2アイコンを参照し、未設定・取得失敗時は仮アバターにします。同時刻は内部IDを使った安定した順でページングします。
+- `GET /api/admin/users?kind=registered|guest&search=名前またはID&cursor=...` は、`isAnonymous` で種別を絞り込んだ後に50件と次カーソルを返します。`kind` 省略時は `registered`、未知値は400です。統合済みの元ゲスト・退会済みの除外は両種別へ適用します。Adminの `Users.tsx` は種別タブを提供し、タブ切り替え時に検索語を維持しながら結果を再取得し、旧結果とカーソルを破棄して通信中の取得を中止します。両種別で公開IDを表示します。現在のR2アイコンを参照し、未設定・取得失敗時は仮アバターにします。同時刻は内部IDを使った安定した順でページングします。
 
 登録日時はBetter Authが保存するISO文字列と既存のUNIXミリ秒整数を読み取り時にミリ秒へそろえ、一覧の応答・並び順・カーソルと新規登録数の日別／月別集計に使います。DBの日時を一括で書き換えません。Workerテストは両形式の混在と同時刻の追加取得、日本時間の月境界、計測開始前と期間外の除外を検証します。
 

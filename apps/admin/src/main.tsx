@@ -47,7 +47,7 @@ function App() {
           {[
             ["/", "全体概要"],
             ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
-            ["/users", "登録ユーザー"],
+            ["/users", "ユーザー"],
             ["/lobby-chat", "公開チャット"],
             ["/feedback", "フィードバック"],
             ["/announcements", "お知らせ"],
