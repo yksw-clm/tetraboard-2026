@@ -135,6 +135,17 @@ async function respond(
         controllerVersion: participation.status === "idle" ? 0 : 1,
         ...participation,
       });
+    if (request.url === "/api/tournaments/1/chat?limit=50")
+      request.respond({
+        messages: [],
+        nextCursor: null,
+        acceptingPosts: true,
+        postingStopped: false,
+        availableAtMs: 0,
+        serverTimeMs: Date.now(),
+        entered: participation.entered,
+        closesAtMs: null,
+      });
   }
   await flush();
 }
@@ -214,6 +225,18 @@ test("開催前は人数を大きく右側へ置き、名簿・本人の成績�
   expect(view.querySelector("strong.text-\\[36px\\]")?.textContent).toBe("8");
   expect(view.textContent).toContain("今回のご案内");
   expect(view.textContent).toContain("持ち時間なし・秒読み30秒");
+});
+test("大会チャットは開催前・開催中・結果待機・結果で大会ルールの直前に配置する", async () => {
+  const view = page();
+  clock.advance(0);
+  for (const status of ["upcoming", "active", "settling", "finished"] as const) {
+    if (status !== "upcoming") clock.advance(5000);
+    await respond(detail(status));
+    const headings = [...view.querySelectorAll("h2")].map((h) => h.textContent);
+    const chat = headings.indexOf("大会チャット");
+    expect(chat).toBeGreaterThanOrEqual(0);
+    expect(headings[chat + 1]).toBe("大会ルール");
+  }
 });
 test("開催中は対局操作と本人の成績を左、全成績列を右に置き、10文字の名前を省略しない", async () => {
   const view = page();

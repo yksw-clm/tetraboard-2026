@@ -4,9 +4,11 @@ import {
   lobbyOperationResultSchema,
   lobbyChatSchema,
   lobbyPostResultSchema,
+  tournamentChatSchema,
   type LobbyChat,
 } from "@tetraboard/protocol/general-lobby";
 import { lobbyRequest } from "./generalLobbyApi";
+import { createUuid } from "../../shared/createUuid";
 const empty: LobbyChat = {
   messages: [],
   nextCursor: null,
@@ -15,9 +17,13 @@ const empty: LobbyChat = {
   availableAtMs: 0,
   serverTimeMs: 0,
 };
-export function useLobbyChat(identity: string | null) {
+export function useLobbyChat(identity: string | null, tournamentId?: number) {
+  const path = tournamentId === undefined ? "/lobby/chat" : `/tournaments/${tournamentId}/chat`;
   const [state, setState] = useState({
     ...empty,
+    entered: false,
+    closesAtMs: null as number | null,
+    ready: false,
     loading: true,
     error: null as string | null,
     sending: false,
@@ -30,37 +36,44 @@ export function useLobbyChat(identity: string | null) {
     sending = useRef(false),
     reporting = useRef(false),
     generation = useRef(0);
-  const refresh = useCallback(async (more = false) => {
-    if (request.current) return;
-    const controller = new AbortController();
-    request.current = controller;
-    try {
-      let count = more ? Math.min(500, limit.current + 50) : limit.current;
-      let page = await lobbyRequest(
-        `/lobby/chat?limit=${count}`,
-        lobbyChatSchema,
-        controller.signal,
-      );
-      const additions = page.messages.filter((m) => !known.current.has(m.id)).length;
-      if (known.current.size && additions && !more && count < 500) {
-        count = Math.min(500, count + additions);
-        page = await lobbyRequest(`/lobby/chat?limit=${count}`, lobbyChatSchema, controller.signal);
+  const refresh = useCallback(
+    async (more = false) => {
+      if (request.current) return;
+      const controller = new AbortController();
+      request.current = controller;
+      try {
+        let count = more ? Math.min(500, limit.current + 50) : limit.current;
+        let page = await lobbyRequest(
+          `${path}?limit=${count}`,
+          tournamentId === undefined ? lobbyChatSchema : tournamentChatSchema,
+          controller.signal,
+        );
+        const additions = page.messages.filter((m) => !known.current.has(m.id)).length;
+        if (known.current.size && additions && !more && count < 500) {
+          count = Math.min(500, count + additions);
+          page = await lobbyRequest(
+            `${path}?limit=${count}`,
+            tournamentId === undefined ? lobbyChatSchema : tournamentChatSchema,
+            controller.signal,
+          );
+        }
+        if (controller.signal.aborted) return;
+        known.current = new Set(page.messages.map((m) => m.id));
+        limit.current = count;
+        setState((s) => ({ ...s, ...page, ready: true, loading: false, error: null }));
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setState((s) => ({
+            ...s,
+            loading: false,
+            error: error instanceof Error ? error.message : "チャットを取得できませんでした。",
+          }));
+      } finally {
+        if (request.current === controller) request.current = null;
       }
-      if (controller.signal.aborted) return;
-      known.current = new Set(page.messages.map((m) => m.id));
-      limit.current = count;
-      setState((s) => ({ ...s, ...page, loading: false, error: null }));
-    } catch (error) {
-      if (!controller.signal.aborted)
-        setState((s) => ({
-          ...s,
-          loading: false,
-          error: error instanceof Error ? error.message : "チャットを取得できませんでした。",
-        }));
-    } finally {
-      if (request.current === controller) request.current = null;
-    }
-  }, []);
+    },
+    [path, tournamentId],
+  );
   useEffect(() => {
     generation.current++;
     sending.current = false;
@@ -69,15 +82,25 @@ export function useLobbyChat(identity: string | null) {
     limit.current = 50;
     retry.current = null;
     const timer = setTimeout(() => {
-      setState({ ...empty, loading: true, error: null, sending: false, reporting: false });
+      setState({
+        ...empty,
+        entered: false,
+        closesAtMs: null,
+        ready: false,
+        loading: true,
+        error: null,
+        sending: false,
+        reporting: false,
+      });
       void refresh();
     }, 0);
+    const abortRequest = () => {
+      request.current?.abort();
+      request.current = null;
+    };
     const visible = () => {
       if (document.visibilityState === "visible") void refresh();
-      else {
-        request.current?.abort();
-        request.current = null;
-      }
+      else abortRequest();
     };
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
@@ -88,8 +111,7 @@ export function useLobbyChat(identity: string | null) {
       clearTimeout(timer);
       clearInterval(interval);
       document.removeEventListener("visibilitychange", visible);
-      request.current?.abort();
-      request.current = null;
+      abortRequest();
     };
   }, [identity, refresh]);
   async function send(text: string) {
@@ -100,10 +122,10 @@ export function useLobbyChat(identity: string | null) {
     const operation =
       retry.current?.text === text && retry.current.identity === identity
         ? retry.current
-        : { id: crypto.randomUUID(), text, identity };
+        : { id: createUuid(), text, identity };
     retry.current = operation;
     try {
-      const result = await lobbyRequest("/lobby/chat", lobbyPostResultSchema, undefined, {
+      const result = await lobbyRequest(path, lobbyPostResultSchema, undefined, {
         requestId: operation.id,
         text,
       });
@@ -132,7 +154,7 @@ export function useLobbyChat(identity: string | null) {
     reporting.current = true;
     setState((s) => ({ ...s, reporting: true }));
     try {
-      await lobbyRequest("/lobby/chat/reports", lobbyOperationResultSchema, undefined, {
+      await lobbyRequest(`${path}/reports`, lobbyOperationResultSchema, undefined, {
         messageId: id,
       });
       return current === generation.current;

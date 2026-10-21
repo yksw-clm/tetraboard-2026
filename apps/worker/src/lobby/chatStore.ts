@@ -18,21 +18,33 @@ export function publicMessage(row: Row, viewer?: string): LobbyMessage {
   const { avatarKey, account_id, ...message } = row;
   return { ...message, avatarUrl: profileAvatarUrl(avatarKey), own: account_id === viewer };
 }
-export async function messageById(db: D1Database, id: string, viewer?: string) {
+export async function messageById(
+  db: D1Database,
+  id: string,
+  viewer?: string,
+  tournamentId: number | null = null,
+) {
   const row = await db
-    .prepare(`SELECT ${lobbyMessageColumns} ${lobbyVisible} AND m.id=?`)
-    .bind(Date.now() - lobbyRetentionMs, id)
+    .prepare(`SELECT ${lobbyMessageColumns} ${lobbyVisible} AND m.id=? AND m.tournament_id IS ?`)
+    .bind(Date.now() - lobbyRetentionMs, id, tournamentId)
     .first<Row>();
   return row ? publicMessage(row, viewer) : null;
 }
-export async function chatPage(db: D1Database, viewer?: string, before?: string, limit = 50) {
+export async function chatPage(
+  db: D1Database,
+  viewer?: string,
+  before?: string,
+  limit = 50,
+  tournamentId: number | null = null,
+) {
   const position = before?.split(":");
   const rows = await db
-    .prepare(`SELECT ${lobbyMessageColumns} ${lobbyVisible}
+    .prepare(`SELECT ${lobbyMessageColumns} ${lobbyVisible} AND m.tournament_id IS ?
  ${position ? "AND (m.sent_at_ms<? OR (m.sent_at_ms=? AND m.id<?))" : ""}
  ORDER BY m.sent_at_ms DESC,m.id DESC LIMIT ?`)
     .bind(
       Date.now() - lobbyRetentionMs,
+      tournamentId,
       ...(position ? [Number(position[0]), Number(position[0]), position[1]] : []),
       limit + 1,
     )
@@ -48,13 +60,30 @@ export async function chatPage(db: D1Database, viewer?: string, before?: string,
         .bind(viewer)
         .first<{ stopped: number; last_sent_at_ms: number }>()
     : null;
+  const tournament =
+    tournamentId === null
+      ? null
+      : await db
+          .prepare(
+            `SELECT t.chat_accepting,t.finalized_at_ms,
+     EXISTS(SELECT 1 FROM tournament_entries e WHERE e.tournament_key=t.key AND e.account_id=? AND e.deleted=0) AS entered
+     FROM tournaments t WHERE t.public_id=? AND t.published=1`,
+          )
+          .bind(viewer ?? null, tournamentId)
+          .first<{ chat_accepting: number; finalized_at_ms: number | null; entered: number }>();
+  const closesAtMs =
+    tournament?.finalized_at_ms == null ? null : tournament.finalized_at_ms + 86400000;
   return {
     messages: page.reverse().map((row) => publicMessage(row, viewer)),
     nextCursor: rows.results.length > limit && last ? `${last.sentAtMs}:${last.id}` : null,
-    acceptingPosts: Boolean(settings?.accepting),
+    acceptingPosts:
+      Boolean(settings?.accepting) &&
+      (tournamentId === null || Boolean(tournament?.chat_accepting)) &&
+      (closesAtMs === null || Date.now() < closesAtMs),
     postingStopped: Boolean(sender?.stopped),
     availableAtMs: sender ? sender.last_sent_at_ms + 10000 : 0,
     serverTimeMs: Date.now(),
+    ...(tournamentId === null ? {} : { entered: Boolean(tournament?.entered), closesAtMs }),
   };
 }
 export async function cleanupLobbyChat(db: D1Database) {
