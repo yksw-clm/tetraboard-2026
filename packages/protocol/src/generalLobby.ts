@@ -34,6 +34,10 @@ export const lobbyChatSchema = z.object({
   availableAtMs: z.number().int(),
   serverTimeMs: z.number().int(),
 });
+export const tournamentChatSchema = lobbyChatSchema.extend({
+  entered: z.boolean(),
+  closesAtMs: z.number().int().nullable(),
+});
 export const lobbyTextSchema = chatTextSchema;
 export const lobbyPostSchema = z.object({ requestId: z.uuid(), text: lobbyTextSchema }).strict();
 export const lobbyPostResultSchema = z.object({
@@ -50,7 +54,13 @@ export const lobbyModerationSchema = z.discriminatedUnion("action", [
       stopped: z.boolean(),
     })
     .strict(),
-  z.object({ action: z.literal("accepting"), accepting: z.boolean() }).strict(),
+  z
+    .object({
+      action: z.literal("accepting"),
+      accepting: z.boolean(),
+      tournamentId: z.number().int().positive().optional(),
+    })
+    .strict(),
   z.object({ action: z.literal("resolve"), reportId: z.uuid() }).strict(),
 ]);
 export const lobbyAdminSchema = z.object({
@@ -65,6 +75,7 @@ export const lobbyAdminSchema = z.object({
       sentAtMs: z.number(),
       reportedAtMs: z.number(),
       status: z.enum(["pending", "resolved"]),
+      tournamentId: z.number().int().positive().nullable().optional(),
     }),
   ),
   stoppedSenders: z.array(z.object({ senderId: z.string(), senderName: z.string() })),
