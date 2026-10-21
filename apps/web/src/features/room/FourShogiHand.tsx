@@ -11,6 +11,7 @@ export function FourShogiHand({
   hand,
   label,
   direction,
+  reverseOrder = direction === "down" || direction === "left",
   vertical = false,
   standard = false,
   selectedKind,
@@ -26,6 +27,7 @@ export function FourShogiHand({
   hand: Hand;
   label: string;
   direction: ShogiPieceDirection;
+  reverseOrder?: boolean;
   vertical?: boolean;
   standard?: boolean;
   selectedKind: HandPieceKind | null;
@@ -38,22 +40,9 @@ export function FourShogiHand({
   onPointerCancel: () => void;
   onLostPointerCapture: () => void;
 }) {
-  const standardOrder: HandPieceKind[] = [
-    "pawn",
-    "lance",
-    "knight",
-    "silver",
-    "gold",
-    "bishop",
-    "rook",
-  ];
   const order: readonly HandPieceKind[] = standard
-    ? direction === "up"
-      ? standardOrder
-      : standardOrder.toReversed()
-    : direction === "up" || direction === "right"
-      ? ["pawn", "silver", "gold", "rook"]
-      : ["rook", "gold", "silver", "pawn"];
+    ? ["pawn", "lance", "knight", "silver", "gold", "bishop", "rook"]
+    : ["pawn", "silver", "gold", "rook"];
   const layoutClasses = vertical
     ? "flex-col min-w-[calc(var(--shogi-piece-width)_+_14px)] min-h-[calc(4_*_var(--shogi-piece-width)_*_148_/_140_+_38px)]"
     : `flex-row min-h-[calc(var(--shogi-piece-width)_*_148_/_140_+_14px)] ${standard ? `w-[var(--shogi-board-width)] ${direction === "up" ? "justify-start" : "justify-end"}` : "justify-center min-w-[calc(4_*_var(--shogi-piece-width)_+_38px)]"}`;
@@ -65,7 +54,7 @@ export function FourShogiHand({
       data-hand-direction={direction}
       className={`flex ${layoutClasses} [@media(max-width:767px)]:w-full [@media(max-width:767px)]:min-h-[calc(var(--shogi-piece-width)_*_148_/_140_+_6px)] gap-[2px] rounded-[6px] border border-solid border-[#a77b37] bg-[#d9b676] p-[3px] [@media(max-width:767px)]:py-px shadow-[inset_0_1px_3px_#72451020] bg-[repeating-linear-gradient(95deg,#8c582915_0px,#8c582915_1px,transparent_1px,transparent_7px)]`}
     >
-      {order.map((kind) => {
+      {(reverseOrder ? order.toReversed() : order).map((kind) => {
         const count = hand[kind];
         if (!count) return null;
         const available = availableKinds.includes(kind);

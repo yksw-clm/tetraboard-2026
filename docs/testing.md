@@ -232,6 +232,8 @@ bun run --cwd packages/shogi test
 
 ## 四人将棋の脱落後の持ち駒表示
 
+持ち駒の向きは `shogiComponents.test.tsx` で閲覧方向4通り×陣営4通りを検証します。PC用・スマートフォン用の両方で盤上駒との方向一致、既存の駒種順と枚数を確認し、脱落後も同じ向きと操作禁止を保つことを確認します。実画面の767px／768px境界、横向き画像のはみ出しと枚数バッジの重なり、観戦・棋譜の回転は手動確認対象です。
+
 エンジンの `eliminatedHands.test.ts` は全6脱落原因・両モード、0枚・1枚・複数枚・全種類、同時詰み・後続脱落、成駒捕獲と打ち駒後の枚数、入力不変と既存表示の保持を確認します。Workerの `fourShogiRoom.test.ts` はHTTP・WebSocketの要求有無、戦型解析との混在、同時詰み、再取得・インスタンス再作成、終局・次局・閉鎖、保存ロールバック、旧局・別局・他ゲームの分離を確認します。
 
 Webの `shogiComponents.test.tsx` は種類・枚数・4方向と選択・pointer操作・着手禁止を、`roomLoader.test.ts` と `roomTransportLifecycle.test.tsx` は初回・更新・古い応答・局ID・旧Worker復帰を確認します。`fourShogiReplay.test.ts` と `matchCompatibility.test.ts` はページ境界と旧棋譜の各局面に表示用枚数を導出し、固定fixtureのルール状態を維持することを確認します。固定fixtureは書き換えません。

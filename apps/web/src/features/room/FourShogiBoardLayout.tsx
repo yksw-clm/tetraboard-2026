@@ -322,7 +322,12 @@ export function FourShogiBoardLayout({
     if (trace.current) cancelPointer();
   }
 
-  function hand(side: Side, direction: ShogiPieceDirection, vertical = false) {
+  function hand(
+    side: Side,
+    direction: ShogiPieceDirection,
+    vertical = false,
+    reverseOrder?: boolean,
+  ) {
     const availableKinds =
       enabled && side === viewerSide
         ? selectableActions.flatMap((action) =>
@@ -339,6 +344,7 @@ export function FourShogiBoardLayout({
         standard={standard}
         label={`${standard ? (side === "south" ? "先手" : "後手") : shogiSideNames[side]}の持ち駒`}
         direction={direction}
+        reverseOrder={reverseOrder}
         vertical={vertical}
         selectedKind={
           side === viewerSide && selection?.type === "dropPiece" ? selection.pieceKind : null
@@ -386,8 +392,9 @@ export function FourShogiBoardLayout({
     >
       {(standard ? (["south", "north"] as const) : shogiSides).map((side) => {
         const placement = shogiSidePlacement(side, viewerSide);
+        const direction = shogiPieceDirection(side, viewerSide);
         const vertical = placement === "left" || placement === "right";
-        const above = placement === "left" || placement === "top";
+        const reverseMobileHandOrder = placement === "left" || placement === "top";
         return (
           <div
             key={side}
@@ -403,11 +410,11 @@ export function FourShogiBoardLayout({
                   : "hidden shrink-0 min-w-0 [@media(min-width:768px)]:flex justify-center"
               }
             >
-              {hand(side, shogiPieceDirection(side, viewerSide), vertical)}
+              {hand(side, direction, vertical)}
             </div>
             {!standard && (
               <div className="flex w-full justify-center [@media(min-width:768px)]:hidden">
-                {hand(side, above ? "down" : "up")}
+                {hand(side, direction, false, reverseMobileHandOrder)}
               </div>
             )}
           </div>
