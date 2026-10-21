@@ -249,6 +249,51 @@ function boardProps(onAction: (action: FourShogiAction) => boolean): FourShogiBo
 const square = (view: HTMLElement, x: number, y: number) =>
   view.querySelector<HTMLButtonElement>(`[data-square="${"ABCDEFGHI"[x]}${y + 1}"]`)!;
 
+test("PC・スマホの持ち駒は全閲覧方向で盤上駒と向きをそろえ、既存の並び順と枚数を保つ", () => {
+  const props = boardProps(() => true);
+  const view = render(<FourShogiBoardLayout {...props} canPlay={false} />);
+  const sides = ["south", "west", "north", "east"] as const;
+  const names = ["南", "西", "北", "東"];
+  const cases = [
+    ["south", ["up", "right", "down", "left"]],
+    ["west", ["left", "up", "right", "down"]],
+    ["north", ["down", "left", "up", "right"]],
+    ["east", ["right", "down", "left", "up"]],
+  ] as const;
+  const forward = ["pawn", "silver", "gold", "rook"];
+  const backward = ["rook", "gold", "silver", "pawn"];
+  for (const [viewerSide, directions] of cases) {
+    rerender(view, <FourShogiBoardLayout {...props} viewerSide={viewerSide} canPlay={false} />);
+    for (const [index, side] of sides.entries()) {
+      const direction = directions[index];
+      const boardKing = view.querySelector(
+        `[data-testid="shogi-board"] button[aria-label*="${names[index]}の王"] img`,
+      )!;
+      expect(boardKing.getAttribute("data-piece-direction")).toBe(direction);
+      const hands = view.querySelectorAll(`[data-side="${side}"] [data-testid="shogi-hand"]`);
+      expect(hands).toHaveLength(2);
+      for (const [handIndex, hand] of [...hands].entries()) {
+        expect(hand.getAttribute("data-hand-direction")).toBe(direction);
+        const buttons = [...hand.querySelectorAll<HTMLButtonElement>("button")];
+        const reversed =
+          handIndex === 0
+            ? direction === "down" || direction === "left"
+            : direction === "down" || direction === "right";
+        expect(buttons.map((button) => button.getAttribute("data-hand-kind"))).toEqual(
+          reversed ? backward : forward,
+        );
+        for (const button of buttons) {
+          expect(button.querySelector("img")!.getAttribute("data-piece-direction")).toBe(direction);
+          expect(button.disabled).toBe(true);
+        }
+        const pawn = hand.querySelector('[data-hand-kind="pawn"]')!;
+        expect(pawn.getAttribute("aria-label")).toBe(`${names[index]}の持ち駒、歩3枚`);
+        expect(pawn.lastElementChild!.textContent).toBe("3");
+      }
+    }
+  }
+});
+
 test("捕獲・打ち駒・成り後の盤面と持ち駒、観戦回転・再表示でも画像準備を再利用する", async () => {
   const initial = tacticalShogiState();
   const state = {
@@ -569,7 +614,12 @@ test("脱落者の持ち駒を向き変更後も保持し、選択・pointer操�
   };
   const retained = { south: { rook: 1, gold: 2, silver: 3, pawn: 12 } };
   const view = render(<FourShogiBoardLayout {...props} game={game} eliminatedHands={retained} />);
-  for (const viewerSide of ["south", "west", "north", "east"] as const) {
+  for (const [viewerSide, direction] of [
+    ["south", "up"],
+    ["west", "left"],
+    ["north", "down"],
+    ["east", "right"],
+  ] as const) {
     rerender(
       view,
       <FourShogiBoardLayout
@@ -584,6 +634,7 @@ test("脱落者の持ち駒を向き変更後も保持し、選択・pointer操�
     ];
     expect(buttons).toHaveLength(8);
     for (const button of buttons) {
+      expect(button.querySelector("img")!.getAttribute("data-piece-direction")).toBe(direction);
       expect(button.disabled).toBe(true);
       expect(button.getAttribute("aria-pressed")).toBe("false");
       expect(button.getAttribute("aria-label")).not.toContain("選択できます");
