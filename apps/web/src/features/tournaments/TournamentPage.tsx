@@ -16,6 +16,7 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "../account/AccountMenu";
 import { useAccount } from "../account/useAccount";
 import { LobbyFooter } from "../lobby/LobbyFooter";
+import { LobbyChat } from "../lobby/LobbyChat";
 import { TournamentStatus } from "./TournamentStatus";
 import { TournamentRules } from "./TournamentRules";
 import { TournamentPlayer, TournamentStandings } from "./TournamentStandings";
@@ -392,6 +393,19 @@ function TournamentContent({ id }: { id: number }) {
                 />
               </>
             )}
+            <LobbyChat
+              key={id}
+              tournament={{
+                id: tournament.id,
+                onEnter: state.enter,
+                entryAvailable: tournament.status === "upcoming" || tournament.status === "active",
+                entryDisabled:
+                  state.participationLoading ||
+                  state.pending !== null ||
+                  account.loading ||
+                  Boolean(account.error),
+              }}
+            />
             <TournamentRules description={tournament.rulesDescription} />
             {tournament.status === "finished" && (
               <AppCard className="items-start gap-2">

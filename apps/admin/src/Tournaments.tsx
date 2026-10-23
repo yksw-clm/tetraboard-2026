@@ -14,6 +14,7 @@ import {
 import { AdminApiError, adminMutation } from "./api";
 import { useAdminData } from "./useAdminData";
 import { useAdminPages } from "./useAdminPages";
+import { LobbyChat } from "./LobbyChat";
 
 const parseList = (body: unknown) => tournamentAdminListSchema.parse(body);
 const parseRecord = (body: unknown) => tournamentRecordSchema.parse(body);
@@ -141,6 +142,9 @@ function TournamentDetail({ tournamentKey }: { tournamentKey: string }) {
             onDenied={loseAccess}
           />
           <TournamentEntries tournamentKey={tournamentKey} onDenied={loseAccess} />
+          {data.data.published && data.data.id !== null && (
+            <LobbyChat key={data.data.id} tournamentId={data.data.id} />
+          )}
         </>
       )}
     </div>

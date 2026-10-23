@@ -11,7 +11,8 @@ export function guestChatMergeStatements(db: D1Database, guestId: string, accoun
       (SELECT public_id FROM lobby_chat_senders WHERE account_id=?)),account_id=? WHERE account_id=?`)
       .bind(guestId, accountId, guestId),
     db
-      .prepare(`INSERT OR IGNORE INTO lobby_chat_requests SELECT ?,request_id,message_id,body_hash,sent_at_ms
+      .prepare(`INSERT OR IGNORE INTO lobby_chat_requests(account_id,request_id,message_id,body_hash,sent_at_ms,tournament_id)
+      SELECT ?,request_id,message_id,body_hash,sent_at_ms,tournament_id
       FROM lobby_chat_requests WHERE account_id=?`)
       .bind(accountId, guestId),
     db.prepare("DELETE FROM lobby_chat_requests WHERE account_id=?").bind(guestId),
