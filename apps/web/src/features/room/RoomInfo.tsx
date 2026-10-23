@@ -1,7 +1,7 @@
 import { gameThemes } from "../../shared/ui/appTheme";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import type { ReactNode, RefObject } from "react";
-import type { Room, ReplayMatch } from "@tetraboard/protocol";
+import type { Room } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { Chip } from "@heroui/react";
@@ -122,7 +122,7 @@ export function RoomInfoCard({
   settingsAction,
 }: {
   roomId: string;
-  settings: Room["settings"] | ReplayMatch["settings"];
+  settings: Room["settings"];
   children: ReactNode;
   settingsAction?: ReactNode;
 }) {
@@ -167,11 +167,9 @@ export function RoomInfoCard({
           <div>
             <dt>持ち時間</dt>
             <dd>
-              {settings.timeControl === null
-                ? "不明"
-                : settings.timeControl.mainTimeMs === 0
-                  ? "なし"
-                  : formatClock(settings.timeControl.mainTimeMs)}
+              {settings.timeControl.mainTimeMs === 0
+                ? "なし"
+                : formatClock(settings.timeControl.mainTimeMs)}
             </dd>
           </div>
         </div>
@@ -180,11 +178,9 @@ export function RoomInfoCard({
           <div>
             <dt>秒読み</dt>
             <dd>
-              {settings.timeControl === null
-                ? "不明"
-                : settings.timeControl.byoyomiMs === 0
-                  ? "なし"
-                  : formatClock(settings.timeControl.byoyomiMs)}
+              {settings.timeControl.byoyomiMs === 0
+                ? "なし"
+                : formatClock(settings.timeControl.byoyomiMs)}
             </dd>
           </div>
         </div>

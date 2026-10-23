@@ -2,7 +2,6 @@ import { adminIdentity } from "../src/admin/auth";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, evictDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import { ensureGuestUsername } from "../src/accounts/guestUsernames";
 import {
   accountProfileSchema,
   createRoomContract,
@@ -124,7 +123,7 @@ test("閲覧・観戦ではゲストを作らず、名前・Origin・同意を�
   });
   expect(await count()).toBe(before + 1);
 });
-test("ゲストIDは同名でも一意で、旧ゲストの並行取得・登録者IDとの衝突・名前変更でも安定する", async () => {
+test("ゲストIDは同名でも一意で、登録者IDとの衝突を再試行し、名前変更でも安定する", async () => {
   const g = await guest("同名"),
     other = await guest("同名"),
     registered = await accountFixture();
@@ -132,41 +131,137 @@ test("ゲストIDは同名でも一意で、旧ゲストの並行取得・登録
   const collision = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const reserved = `guest_${collision.replaceAll("-", "").slice(0, 14)}`;
   await env.APP_DB.prepare("UPDATE user SET username=? WHERE id=?")
-    .bind(reserved, registered.id)
+    .bind(reserved.toUpperCase(), registered.id)
     .run();
-  await env.APP_DB.prepare("UPDATE user SET username=NULL WHERE id=?").bind(g.id).run();
-  const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(collision);
-  let assigned: string;
+  const id = crypto.randomUUID(),
+    profileId = crypto.randomUUID();
+  const uuid = vi
+    .spyOn(crypto, "randomUUID")
+    .mockReturnValueOnce(id)
+    .mockReturnValueOnce(profileId)
+    .mockReturnValueOnce(collision);
+  let created: Awaited<ReturnType<typeof createGuestAccount>>;
   try {
-    assigned = await ensureGuestUsername(env.APP_DB, g.id);
-    expect(assigned).not.toBe(reserved);
+    created = await createGuestAccount(
+      new AcceptedGameRequest(origin, { headers: { Origin: origin } }),
+      env,
+      "衝突後の名前",
+    );
   } finally {
     uuid.mockRestore();
   }
+  expect(created!.username).toMatch(/^guest_[a-f0-9]{14}$/);
+  expect(created!.username).not.toBe(reserved);
+  expect(await env.APP_DB.prepare("SELECT username FROM user WHERE id=?").bind(id).first()).toEqual(
+    { username: created!.username },
+  );
   expect(
-    await Promise.all([
-      ensureGuestUsername(env.APP_DB, g.id),
-      ensureGuestUsername(env.APP_DB, g.id),
-    ]),
-  ).toEqual([assigned!, assigned!]);
+    await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM guest_sessions WHERE account_id=?")
+      .bind(id)
+      .first(),
+  ).toEqual({ n: 1 });
+  expect(
+    await env.APP_DB.prepare("SELECT version FROM legal_consents WHERE account_id=?")
+      .bind(id)
+      .first(),
+  ).toEqual({ version: legalVersion });
   const renamed = await request("/account/guest/name", {
     method: "PATCH",
     headers: g.headers,
     body: JSON.stringify({ name: "変更名", username: "changed" }),
   });
-  expect(await renamed.json()).toMatchObject({ name: "変更名", username: assigned! });
+  expect(await renamed.json()).toMatchObject({ name: "変更名", username: g.user.username });
   expect((await request("/account/profile", { method: "PATCH", headers: g.headers })).status).toBe(
     403,
   );
-  await env.APP_DB.prepare("UPDATE user SET username=NULL WHERE id=?").bind(other.id).run();
+});
+test("ゲスト作成の同意保存に失敗しても利用者・ID・本人資格を部分保存しない", async () => {
+  const id = crypto.randomUUID();
+  const req = new AcceptedGameRequest(origin, { headers: { Origin: origin } });
+  await env.APP_DB.prepare(
+    `CREATE TRIGGER fail_guest_creation_consent BEFORE INSERT ON legal_consents
+    WHEN NEW.account_id='${id}' BEGIN SELECT RAISE(ABORT,'Test guest consent failure'); END`,
+  ).run();
+  const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(id);
+  try {
+    const response = await withAccountSessionCookies(req, async () => {
+      await expect(createGuestAccount(req, env, "作成失敗")).rejects.toThrow(
+        "Test guest consent failure",
+      );
+      return new Response(null, { status: 503 });
+    });
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(await env.APP_DB.prepare("SELECT id FROM user WHERE id=?").bind(id).first()).toBeNull();
+    expect(
+      await env.APP_DB.prepare("SELECT account_id FROM guest_sessions WHERE account_id=?")
+        .bind(id)
+        .first(),
+    ).toBeNull();
+    expect(
+      await env.APP_DB.prepare("SELECT account_id FROM legal_consents WHERE account_id=?")
+        .bind(id)
+        .first(),
+    ).toBeNull();
+  } finally {
+    uuid.mockRestore();
+    await env.APP_DB.exec("DROP TRIGGER fail_guest_creation_consent");
+  }
+});
+test("ゲストIDの衝突が続いても未設定IDや本人資格を残さない", async () => {
+  const registered = await accountFixture();
+  const collision = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const reserved = `guest_${collision.replaceAll("-", "").slice(0, 14)}`;
+  await env.APP_DB.prepare("UPDATE user SET username=? WHERE id=?")
+    .bind(reserved, registered.id)
+    .run();
+  const id = crypto.randomUUID(),
+    profileId = crypto.randomUUID();
+  const uuid = vi
+    .spyOn(crypto, "randomUUID")
+    .mockReturnValue(collision)
+    .mockReturnValueOnce(id)
+    .mockReturnValueOnce(profileId);
+  try {
+    await expect(
+      createGuestAccount(
+        new AcceptedGameRequest(origin, { headers: { Origin: origin } }),
+        env,
+        "衝突が続く",
+      ),
+    ).rejects.toThrow("Guest username allocation failed");
+    expect(await env.APP_DB.prepare("SELECT id FROM user WHERE id=?").bind(id).first()).toBeNull();
+    expect(
+      await env.APP_DB.prepare("SELECT account_id FROM guest_sessions WHERE account_id=?")
+        .bind(id)
+        .first(),
+    ).toBeNull();
+  } finally {
+    uuid.mockRestore();
+  }
+});
+test("既存ゲストのID未設定を本人・公開プロフィール・ランキング取得時に補完しない", async () => {
+  const g = await guest("未設定のゲスト");
+  await writeMatch(env.APP_DB, humanFixtureRecord(g.id, 1));
+  await env.APP_DB.prepare("UPDATE user SET username=NULL WHERE id=?").bind(g.id).run();
   const card = await request(
-    `${getPlayerProfileContract.path}?source=profile&profileId=${other.user.profileId}&game=four-reversi`,
+    `${getPlayerProfileContract.path}?source=profile&profileId=${g.user.profileId}&game=four-reversi`,
   );
-  const publicUser = (await card.json()) as { username: string };
-  expect(publicUser.username).toMatch(/^guest_[a-f0-9]{14}$/);
+  expect(card.status).toBe(200);
+  expect(await card.json()).toMatchObject({ username: null });
+  const session = await request("/account/session", { headers: g.headers });
+  expect(session.status).toBe(200);
+  expect(await session.json()).toMatchObject({ user: { username: null } });
+  const rankings = await request("/games/four-reversi/rankings?profilePreview=1");
+  expect(rankings.status).toBe(200);
+  const body = (await rankings.json()) as {
+    singles: { total: { name: string; username: string | null }[] };
+  };
+  expect(body.singles.total.find((entry) => entry.name === g.user.name)).toMatchObject({
+    username: null,
+  });
   expect(
-    await (await request("/account/session", { headers: other.headers })).json(),
-  ).toMatchObject({ user: { username: publicUser.username } });
+    await env.APP_DB.prepare("SELECT username FROM user WHERE id=?").bind(g.id).first(),
+  ).toEqual({ username: null });
 });
 test("ゲストのログアウトを拒否して、本人認証と記録へのアクセスを維持する", async () => {
   const g = await guest();

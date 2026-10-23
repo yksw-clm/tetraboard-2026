@@ -1,5 +1,5 @@
 import { authSecret } from "../privacy/tokens";
-import { ensureGuestUsername } from "./guestUsernames";
+import { createGuestUsername, isGuestUsernameCollision } from "./guestUsernames";
 import { readLimitedBody } from "../feedback/images";
 import { Hono } from "hono";
 import { profileInputSchema } from "@tetraboard/protocol";
@@ -31,7 +31,6 @@ export async function guestIdentity(request: Request, env: Env): Promise<StoredP
       .bind(hash, Date.now())
       .first<StoredProfile>();
   if (!user) return null;
-  if (!user.username) user.username = await ensureGuestUsername(env.APP_DB, user.id);
   await env.APP_DB.prepare("UPDATE guest_sessions SET expires_at_ms=? WHERE token_hash=?")
     .bind(Date.now() + guestLifetimeMs, hash)
     .run();
@@ -71,25 +70,35 @@ export async function createGuestAccount(
   const hash = await guestTokenHash(
     new Request(request.url, { headers: { Cookie: `${cookieName}=${token}` } }),
   );
-  await env.APP_DB.batch([
-    env.APP_DB.prepare(`INSERT INTO user(id,name,email,emailVerified,createdAt,updatedAt,isAnonymous,username,profileCompleted,guestNameCustomized,publicProfileId)
-      VALUES(?,?,?,0,?,?,1,NULL,1,?,?)`).bind(
-      id,
-      user.name,
-      `${id}@guest.invalid`,
-      now,
-      now,
-      user.guestNameCustomized,
-      user.publicProfileId,
-    ),
-    env.APP_DB.prepare(
-      "INSERT INTO guest_sessions(token_hash,account_id,expires_at_ms) VALUES(?,?,?)",
-    ).bind(hash, id, now + guestLifetimeMs),
-    consentStatement(env.APP_DB, id),
-  ]);
-  user.username = await ensureGuestUsername(env.APP_DB, id);
-  appendSessionCookie(request, guestCookie(token, env));
-  return user;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const username = createGuestUsername();
+    try {
+      // ID・本人資格・同意を同時に確定し、中断時にもID未設定のゲストを残しません。
+      await env.APP_DB.batch([
+        env.APP_DB.prepare(`INSERT INTO user(id,name,email,emailVerified,createdAt,updatedAt,isAnonymous,username,profileCompleted,guestNameCustomized,publicProfileId)
+          VALUES(?,?,?,0,?,?,1,?,1,?,?)`).bind(
+          id,
+          user.name,
+          `${id}@guest.invalid`,
+          now,
+          now,
+          username,
+          user.guestNameCustomized,
+          user.publicProfileId,
+        ),
+        env.APP_DB.prepare(
+          "INSERT INTO guest_sessions(token_hash,account_id,expires_at_ms) VALUES(?,?,?)",
+        ).bind(hash, id, now + guestLifetimeMs),
+        consentStatement(env.APP_DB, id),
+      ]);
+      user.username = username;
+      appendSessionCookie(request, guestCookie(token, env));
+      return user;
+    } catch (error) {
+      if (!isGuestUsernameCollision(error)) throw error;
+    }
+  }
+  throw new Error("Guest username allocation failed");
 }
 export async function clearGuestSession(request: Request, env: Env) {
   const hash = await guestTokenHash(request);

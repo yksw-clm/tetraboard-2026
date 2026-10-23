@@ -1,5 +1,4 @@
 import { profileAvatarUrl } from "./auth";
-import { ensureGuestUsername } from "./guestUsernames";
 export type CurrentProfile = {
   name: string;
   username: string | null;
@@ -22,8 +21,6 @@ export async function readCurrentProfiles(
     .bind(...unique)
     .all<Omit<CurrentProfile, "avatarUrl"> & { id: string; avatarKey: string | null }>();
   for (const { id, avatarKey, ...row } of rows.results) {
-    if (row.isAnonymous && row.profileCompleted && !row.username)
-      row.username = await ensureGuestUsername(db, id);
     profiles.set(id, { ...row, avatarUrl: profileAvatarUrl(avatarKey) });
   }
   return profiles;
