@@ -7,7 +7,8 @@
   ],
   "scripts": {
     "dev": "bun run --parallel --filter '@tetraboard/web' --filter '@tetraboard/worker' --filter '@tetraboard/admin' dev",
-    "typecheck": "bun run --workspaces typecheck",
+    "typecheck": "bun scripts/checkBunVersion.ts && bun run --workspaces --sequential typecheck",
+    "typecheck:tsc": "bun run --workspaces typecheck:tsc",
     "lint": "oxlint .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",

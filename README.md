@@ -803,6 +803,8 @@ developは `https://tetraboard-dev.chaossi-lab.workers.dev` へCI成功後に自
 
 WorkerテストはローカルのD1・R2・SQLite対応Durable Objectとテスト専用の設定を明示し、開発用 `.dev.vars`・`.env` や個人の管理者設定を読み込みません。Workerの型生成は追跡済み `.dev.vars.example` を入力に固定します。設定の退避・一時コピーなしで通常の作業ディレクトリから検証し、CIでも設定なし・競合設定ありの結果と生成型の一致を確認します。
 
+型チェックはmiseとCIで固定したBunの内蔵チェッカーを使い、全workspaceの本体・テスト・型検査専用fixture・ビルド用コードを検査します。通常は `bun run typecheck`、従来のTypeScriptとの診断比較は `bun run typecheck:tsc` を使います。検査対象と互換性の注意点は[開発手順](docs/development.md#checks)を参照してください。
+
 自動検証はBunの単体テスト、Bun＋happy-domの部品・hookテスト、Worker統合テストを使います。format確認・lint・型チェック・全テストを含む `bun run check` の目標は180秒以内です。ブラウザテストとレポート保存は廃止し、画面寸法・ブラウザ固有の入力・実画像デコードを自動検証対象から外します。ゲーム・画面の仕様は維持します。リバーシ・将棋の少数E2Eの再構築は次の作業で行い、今回は追加しません。既存のPlaywright依存は維持します。[テスト方針と移管対応表](docs/testing.md)を参照してください。
 
 本番URLは `https://tetraboard.net`、Worker名は `tetraboard-2026`、D1名は `tetraboard-2026-prod-db` です。Worker 1つでWeb画面・管理画面・HTTP API・WebSocketを配信します。GitHub ActionsはmainのCI成功後にD1マイグレーションとデプロイを行います。CloudflareのGit連携による別の自動公開は設定しません。

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "bun --no-env-file src/main.ts",
     "bench:service": "bun bench/serviceSmoke.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
+    "typecheck:tsc": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
