@@ -9,7 +9,8 @@
   "scripts": {
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
+    "typecheck:tsc": "tsc --noEmit",
     "test": "bun test",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test"
   },

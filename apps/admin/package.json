@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5174 --strictPort",
-    "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit",
+    "build": "bun run typecheck && vite build",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
+    "typecheck:tsc": "tsc --noEmit",
     "test": "bun run test:unit && bun run test:dom",
     "preview": "vite preview",
     "test:unit": "bun test ./test",

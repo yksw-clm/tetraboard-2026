@@ -321,6 +321,84 @@ WorkerのVitestは `disableConsoleIntercept: true` を設定し、console出力�
 
 Workerの公開ルーム索引のページングfixtureは、テスト専用の実D1 `ROOM_INDEX_TEST_DB` に保存し、一覧HTTPリクエストの `APP_DB` だけをそのDBに差し替えます。通常の `APP_DB` には以前のルームのrevisionとGameRoomの非同期更新が残るため、固定の部屋番号と衝突するとfixtureの古いrevisionが無視されます。部屋のライフサイクル・索引反映の検証は通常の `APP_DB` を使い続けます。
 
+### 型チェックの方式と範囲
+
+通常の `bun run typecheck` とCIのcheckはBun内蔵チェッカーを使います。ルートから全workspaceの `typecheck` を順次呼び、Webの5設定・Workerの3設定と、ほかの9workspaceの各設定を検査します。Web・Workerの `tsconfig.check.json` は参照をまとめるためだけの設定で、各対象のコンパイラオプションを維持します。protocolのBun型定義は明示します。Workerの型生成は従来どおり固定した設定例から先に行います。Web・Adminのビルド前の型検査も内蔵チェックです。
+
+`bun check` という名前だけでは既存のcheckスクリプトと区別できないため、内蔵チェッカーの呼出しには常に `--no-script` を付けます。miseより古いBunは共有スクリプトで拒否し、旧Bunでの再帰実行を防ぎます。`bun run typecheck:tsc` は従来のTypeScriptによる比較用で、通常CIには重複して加えません。エディタとCIの診断差はこのコマンドでも確認します。Bun更新時には型検査専用fixture、未使用の `@ts-expect-error`、全対象のエラー検出、固定設定からの型生成と必須5コマンドを再確認します。
+
+### Bun 1.4.4での型チェック比較（2026-10-24）
+
+対象コードは `c1a3812`、実行環境はmacOS 27.0.1 / arm64 / 論理10 CPU、mise管理のBun 1.4.4・Node.js 22.23.3です。Web・AdminのTypeScriptは6.0.3、ほかのworkspaceは5.9.3、Bun内蔵チェッカーの `process.versions.typescript` は7.0.2でした。以下は内蔵チェッカーの採用前に、mise設定とCIのBunだけを1.4.4へそろえた測定です。表中の `bun run typecheck` は当時のtscによるコマンドを指します。
+
+各方式を3回ずつ、同時に別の測定を動かさず実行しました。通常実行と `--bun` は順序を入れ替え、Webの2つの `.tsbuildinfo` を各回の前に削除しています。OSのファイルキャッシュは消していません。内蔵チェッカーは `.tsbuildinfo` を生成しません。以下はプロセス起動から終了までの実時間で、いずれもWorkerの `cf-typegen` を含みます。CIのLinux実行時間や、将来のコードでの速度・互換性を保証する測定ではありません。
+
+| 方式 | 3回の実時間 | 中央値 | 結果 |
+| --- | --- | --- | --- |
+| `bun run typecheck` | 13.645 / 14.598 / 14.928秒 | 14.598秒 | 全workspace成功 |
+| `bun run --bun typecheck` | 13.473 / 12.995 / 13.183秒 | 13.183秒 | 全workspace成功 |
+| 内蔵チェッカー・現行設定 | 0.871 / 0.881 / 0.875秒 | 0.875秒 | protocolの5ファイルで10エラー。成功結果の速度比較には使わない |
+| 内蔵チェッカー・protocolの型定義を明示した一時設定 | 0.861 / 1.102 / 0.872秒 | 0.872秒 | 17対象すべて成功 |
+| 同一時設定・`--threads 2` | 1.771 / 1.775 / 1.502秒 | 1.771秒 | 17対象すべて成功 |
+| 同一時設定・`--threads 1` | 2.496 / 2.487 / 2.490秒 | 2.490秒 | 17対象すべて成功 |
+
+測定コマンドは `mise exec -- bun run typecheck`、`mise exec -- bun run --bun typecheck` と、`mise exec -- bun run --cwd apps/worker cf-typegen` に続く `mise exec -- bun check --no-script --all -b <一時参照設定>` です。一時参照設定は `files: []` と `references` で既存17対象を列挙しました。対象はWebのapp・node・test・type-tests・buildの5設定、Workerの本体・test・scriptsの3設定、Admin・AIと7パッケージの各設定です。参照する設定ごとの `include` とコンパイラオプションを維持し、Webの型検査専用fixtureやビルド用コードを省略していません。
+
+互換性には次の差があります。
+
+- このリポジトリの `bun check` は既存の `check` スクリプトを実行します。内蔵チェッカーには `--no-script` が必要です。さらにルートにtsconfigがないため、無引数の内蔵チェックも停止します。`bun check .` は各ファイルの最寄り設定を使うため、複数のtsconfigで同じファイルを検査する現行方式と同一視しません。
+- Bun 1.4.4の `-b` は一度に一つの参照元設定を受け付けます。複数の設定ファイルを直接渡して検査前に停止した結果は、上の測定から除外しています。
+- 測定時のprotocol設定は暗黙に読み込まれるBunの型定義に依存していました。内蔵チェッカーでは `URL`・`TextEncoder`・`crypto`・`bun:test` が見つからず10エラーになりました。protocolだけに `types: ["bun"]` を明示する一時的な継承設定では全17対象・1,951ファイルが成功しました。この一時設定は測定後に削除し、採用時は正本のtsconfigへ明示しています。
+- 意図的な `string` への数値代入（TS2322）と、未使用の `@ts-expect-error`（TS2578）を17対象すべてに一時追加しました。各対象を個別に起動したNode版tsc・Bun版tscと、参照設定を使った内蔵チェックの3方式すべてが、全17対象で両方を検出しました。確認後に元ファイルをバイト単位で復元し、一時ソースを削除しました。既存スクリプトは最初の失敗で後続のtscを実行しないため、検査範囲の確認には個別起動を使っています。
+- 内蔵チェッカーはインストール済みTypeScriptとは別の版・標準ライブラリを持ち、宣言ファイルや `.tsbuildinfo` の出力も行いません。この比較と既存の否定fixtureの成功は、すべてのTypeScriptコードに対する100%互換の証明ではありません。
+
+内蔵チェッカーの契約と意図的な差は[Bunの公式文書](https://bun.sh/docs/runtime/check#differences-from-tsc)、1.4.4の変更は[リリース記事](https://bun.sh/blog/bun-v1.4.4)を参照してください。この比較後に開発者の採用指示を受け、上記の方式へ移行しています。全体を一つにまとめた測定用設定は採用せず、workspaceの自動検出と各workspaceでの部分実行を維持しています。
+
+更新後のローカル検証は次のとおりです。対象は上記コミットにmise・CIのBun指定更新を加えたコード・設定です。
+
+| 確認 | 結果 |
+| --- | --- |
+| `bun install --frozen-lockfile` | 成功、0.34秒。lockfile変更なし |
+| `bun run check` | 再実行で成功、76.46秒。全2,381テスト、Worker 66ファイル995件を含む |
+| `bun run build` | 成功、9.67秒 |
+| `bun run --cwd apps/worker deploy:dry-run` | 成功、0.67秒 |
+| `bun run build:development` | 成功、9.67秒 |
+| `bun run --cwd apps/worker deploy:dry-run:development` | 成功、0.65秒 |
+
+最初の全体checkでは `accounts.test.ts` のID同時取得でCloudflareテスト基盤のcross-request I/Oエラーが発生し、エラー通知RPCも失敗しました。終了通知が返らない実行を149.06秒で終了しています。この症状はBun 1.4.2での[既存の調査記録](communication-performance.md#今回の確認結果)にもあります。関連するaccounts・guestAccountsの独立実行は36件成功し、コードを変更せず再実行した全体checkも成功しました。原因は今回確定していません。buildには既存の500kB超chunkの警告があります。GitHub CIとLinuxでの比較は未実施で、マージ・デプロイは行っていません。
+
+### 内蔵チェッカー採用後の確認（2026-10-24）
+
+対象は `c1a3812` に内蔵チェックへの移行差分を加えたコード・設定です。実行環境は上の比較と同じです。通常の `bun run typecheck` は11workspaceを順番に検査し、17対象と共有のBun版確認スクリプトを含みます。実時間は1.239 / 1.216 / 1.231秒、中央値1.231秒で3回とも成功しました。比較用 `bun run typecheck:tsc` も13.83秒で成功しました。
+
+実際の各workspaceの `typecheck` コマンドに対し、17対象すべてへ一時追加した代入エラー（TS2322）と未使用の `@ts-expect-error`（TS2578）を検出できました。Webの5設定・Workerの3設定も、それぞれ採用した参照設定から検査されています。一時ソースと変更は確認後に復元しています。Bun 1.4.4では版確認が成功し、1.4.2では実際のルート `typecheck` が再帰せず終了コード1とmise経由の案内で停止しました。
+
+| 確認 | 結果 |
+| --- | --- |
+| `bun install --frozen-lockfile` | 成功、0.04秒。lockfile変更なし |
+| `bun run check` | 未完了。型チェックまでは成功したが、下記のWorker基盤障害で停止 |
+| `bun run build` | 成功、4.33秒 |
+| `bun run --cwd apps/worker deploy:dry-run` | 成功、0.63秒 |
+| `bun run build:development` | 成功、4.36秒 |
+| `bun run --cwd apps/worker deploy:dry-run:development` | 成功、0.66秒 |
+
+全体checkでは `accounts.test.ts` のID同時取得でcross-request I/Oエラー（`RefcountedFulfiller`）が出て、テスト基盤のエラー通知RPC（`SpanParent`）も失敗し、完了通知が返りませんでした。最初の実行を136.41秒で終了し、コード変更なしの再確認も180秒で終了しています。本文の準備をすべて済ませてから同時送信する切り分けでも再現したため、この試行変更は戻しています。アカウントのテストとアプリ実装は変更していません。上流の[終了待ち問題](https://github.com/cloudflare/workers-sdk/issues/15719)は参照していますが、今回のID同時取得の失敗まで同じ原因とは断定していません。
+
+停止箇所を分離した確認では、Workerの残り65ファイル989件が成功（50.96秒）、accounts・guestAccountsの独立実行も36件成功（4.54秒）しました。Webの751件（5.15秒）、Adminの26件（0.32秒）と、全体check内で先行するエンジン・protocol・AIの609件も成功しています。分割実行では全2,381件を確認できましたが、全体checkの成功を置き換える結果ではありません。通常CIやテストスクリプトに除外・分割を加えてはいません。
+
+PR提出前にコード・設定を変更せず再確認したところ、全体checkは63.59秒で成功しました。Workerの66ファイル995件を含む全2,381件が成功し、除外・分割による代替はしていません。上記の間欠的なエラーの原因は未確定であり、再実行の成功を恒久対策とは扱いません。
+
+| PR提出前の再確認 | 結果 |
+| --- | --- |
+| `bun install --frozen-lockfile` | 成功、0.06秒。lockfile変更なし |
+| `bun run check` | 成功、63.59秒。全2,381件 |
+| `bun run build` | 成功、4.44秒 |
+| `bun run --cwd apps/worker deploy:dry-run` | 成功、0.70秒 |
+| `bun run build:development` | 成功、4.15秒 |
+| `bun run --cwd apps/worker deploy:dry-run:development` | 成功、0.66秒 |
+
+GitHub CIとLinuxでの採用後の実測は未実施です。マージ・デプロイは行っていません。buildの既存500kB超chunk警告も残っています。
+
 ## 個人設定からの分離
 
 Workerテストは `apps/worker/vitest.config.mts` で `main` とMiniflare設定を直接指定します。追跡済み `wrangler.jsonc` はJSONCとして解析し、入口・互換日・互換フラグだけを使います。Wranglerの開発用設定ローダーを通さず、`.dev.vars`・`.env`・プロセス環境変数からbindingsを追加しません。
@@ -555,8 +633,8 @@ Web・AdminのブラウザテストとWorker E2E、全Playwright設定、専用S
 | 96  | [interaction.spec.ts:96](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/interaction.spec.ts#L96) 秒読みのアニメーションは動きを減らす設定に従う                                                              | 残り時間から秒読み強調が必要かを判定する部分は既存単体で確認                                        | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)、[roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx)、[roomPresentation.test.ts](../apps/web/test/roomPresentation.test.ts)、[timeControl.test.ts](../apps/web/test/timeControl.test.ts)、[timeControl.test.ts](../apps/worker/test/timeControl.test.ts)                                                                                                                          | prefers-reduced-motionで実CSSアニメーションが無効になること                 |
 | 97  | [layout.spec.ts:7](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/layout.spec.ts#L7) ロビーと4席の配置を維持する 320px                                                                                       | 4席・名前・接続表示と準備変更は既存の表示ロジック検証へ統合                                         | [presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)、[roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx)、[roomPresentation.test.ts](../apps/web/test/roomPresentation.test.ts)、[reversiSeats.test.ts](../apps/web/test/reversiSeats.test.ts)                                                                                                                                                                                                                                                                     | 12画面幅の横はみ出し・4席の等幅と高さ・文字の収まり・寸法不変               |
 | 98  | [layout.spec.ts:63](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/layout.spec.ts#L63) 320pxで高さ不足のリバーシ盤だけを中央で縮小し、4席の寸法を維持する                                                    | 合法手の送信と自動パス内容は既存のロジック・Worker検証へ統合                                        | [presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)、[roomSession.test.tsx](../apps/web/test-dom/roomSession.test.tsx)、[roomPresentation.test.ts](../apps/web/test/roomPresentation.test.ts)、[reversiSeats.test.ts](../apps/web/test/reversiSeats.test.ts)                                                                                                                                                                                                                                                                     | 低い画面での盤だけの縮小・中央配置・4席寸法不変・画面内表示                 |
-| 99  | [match-compatibility.spec.ts:5](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-compatibility.spec.ts#L5) Firebase棋譜の時間設定は不明で、旧初期局面から最終手まで再生できる                            | Firebase旧棋譜の時間不明・旧初期局面から最終手までの再生                                            | [savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx)、[matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts)、[matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[firebaseMatches.test.ts](../apps/worker/test/firebaseMatches.test.ts)、[matchReplayLoader.test.ts](../apps/web/test/matchReplayLoader.test.ts)                                                                                                                                                                      | なし（実ブラウザ／本番バンドル全体の結合保証は共通して外れる）              |
-| 100 | [match-compatibility.spec.ts:30](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-compatibility.spec.ts#L30) reversi-singles-normal: 固定棋譜を直接開き、再読込・局面移動・取得失敗から復帰する          | 5種の固定棋譜の開始・途中・最終結果、再ロード・失敗・再試行・通信不要（全フレームは既存単体へ統合） | [savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx)、[matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts)、[matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[firebaseMatches.test.ts](../apps/worker/test/firebaseMatches.test.ts)、[matchReplayLoader.test.ts](../apps/web/test/matchReplayLoader.test.ts)                                                                                                                                                                      | なし（実ブラウザ／本番バンドル全体の結合保証は共通して外れる）              |
+| 99  | [match-compatibility.spec.ts:5](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-compatibility.spec.ts#L5) Firebase棋譜の時間設定は不明で、旧初期局面から最終手まで再生できる                            | 2026-10-24の時間不明棋譜廃止で対象外。現在はnull・欠落の時間設定を拒否する | [matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts) | 旧Firebase棋譜の取込・再生保証を廃止 |
+| 100 | [match-compatibility.spec.ts:30](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-compatibility.spec.ts#L30) reversi-singles-normal: 固定棋譜を直接開き、再読込・局面移動・取得失敗から復帰する          | 5種の固定棋譜の開始・途中・最終結果、再ロード・失敗・再試行・通信不要（全フレームは既存単体へ統合） | [savedReplay.test.tsx](../apps/web/test-dom/savedReplay.test.tsx)、[matchCompatibility.test.ts](../apps/web/test/matchCompatibility.test.ts)、[matchCompatibility.test.ts](../apps/worker/test/matchCompatibility.test.ts)、[matchReplayLoader.test.ts](../apps/web/test/matchReplayLoader.test.ts)                                                                                                                                                                      | なし（実ブラウザ／本番バンドル全体の結合保証は共通して外れる）              |
 | 101 | [match-history.spec.ts:126](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-history.spec.ts#L126) 棋譜カードと順位・チームを320pxでコンパクトに表示する                                                 | 履歴カードの順位・チーム・日時・ラベル・棋譜リンクとdisabled条件                                    | [presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)、[dataLoading.test.tsx](../apps/web/test-dom/dataLoading.test.tsx)、[fourShogiMatchReplay.test.ts](../apps/web/test/fourShogiMatchReplay.test.ts)、[matchHistory.test.ts](../apps/worker/test/matchHistory.test.ts)                                                                                                                                                                                                                                                          | 各画面幅でのコンパクトなカードと横はみ出し                                  |
 | 102 | [match-history.spec.ts:178](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-history.spec.ts#L178) 失敗時の再試行・追加読み込み・タブ保持・更新と遅延応答を操作できる                                    | 失敗・再試行・追加読込・独立タブ・更新・遅延応答の状態                                              | [presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)、[dataLoading.test.tsx](../apps/web/test-dom/dataLoading.test.tsx)、[fourShogiMatchReplay.test.ts](../apps/web/test/fourShogiMatchReplay.test.ts)、[matchHistory.test.ts](../apps/worker/test/matchHistory.test.ts)                                                                                                                                                                                                                                                          | なし（実ブラウザ／本番バンドル全体の結合保証は共通して外れる）              |
 | 103 | [match-history.spec.ts:215](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/web/browser-tests/match-history.spec.ts#L215) 両タブの空履歴とキーボード操作を表示する                                                              | 両モードの空履歴とタブ選択状態                                                                      | [presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)、[dataLoading.test.tsx](../apps/web/test-dom/dataLoading.test.tsx)、[fourShogiMatchReplay.test.ts](../apps/web/test/fourShogiMatchReplay.test.ts)、[matchHistory.test.ts](../apps/worker/test/matchHistory.test.ts)                                                                                                                                                                                                                                                          | 実キーボードからのタブ選択                                                  |
@@ -677,6 +755,6 @@ PCの盤面と状況カードは全6ゲームで画面の高さを変えて手�
 
 管理画面のユーザー一覧は `apps/worker/test/adminAnalytics.test.ts` で、連携済み・ゲストそれぞれの種別絞り込みと退会済みの除外を50件制限より前に適用し、名前／ID検索・同時刻のページ送り・未設定プロフィール・旧日時形式に対応することを確認します。種別省略は連携済み、未知の種別は400です。Adminの `adminViews.test.tsx` は連携済みの初期選択、ゲストID表示、両種別の検索と追加取得、切り替え時の検索語保持・旧結果とカーソルの破棄・通信中止・遅延応答の無視をBun＋happy-domで確認します。
 
-`apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。公開チャットではゲストの投稿・再送・送信間隔・通報上限・運営停止を検証し、統合後も非表示用ID・再送・投稿停止・通報と退会時の削除を維持することを確認します。本人確認後の本文読取を制御して統合を挟み、遅延した通報が元ゲストの参照で保存されないことも検証します。表示用IDの一意性、登録者IDとの衝突・再生成、既存ゲストの並行割当、ゲスト中の編集拒否、新規連携後の保持・変更を確認します。既存登録者へ引き継がない場合は0局・対局済みの両方で、記録を維持しつつ元ゲストへ復帰しないこと、確認未完了のログアウト・登録セッション失効・OAuth取消・別アカウント・Origin違反を検証します。
+`apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。公開チャットではゲストの投稿・再送・送信間隔・通報上限・運営停止を検証し、統合後も非表示用ID・再送・投稿停止・通報と退会時の削除を維持することを確認します。本人確認後の本文読取を制御して統合を挟み、遅延した通報が元ゲストの参照で保存されないことも検証します。表示用IDの一意性、登録者IDとの衝突・再生成、作成batchの失敗時にアカウント・本人資格・同意を残さないこと、取得時にIDを補完しないこと、ゲスト中の編集拒否、新規連携後の保持・変更を確認します。既存登録者へ引き継がない場合は0局・対局済みの両方で、記録を維持しつつ元ゲストへ復帰しないこと、確認未完了のログアウト・登録セッション失効・OAuth取消・別アカウント・Origin違反を検証します。
 
 WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・既存ゲストの入力省略・大会エントリー・統合確認を検証します。公開チャットの名前入力では確定前にゲストを作成せず、Cookie保存不能時に投稿を送らないこと、名前確定後の下書き保持とゲスト投稿を確認します。ゲストのログアウト操作が非表示で、APIへ直接要求しても拒否され本人認証を維持することをWeb・Workerの境界で確認します。実OAuth・Cookie保存と別タブのWeb Locks・画面寸法・ネイティブ入力は手動確認事項であり、未実施の項目をPRに明記します。必須のcheck・本番／開発buildとWorker dry-runを実行し、GitHub CIの成功も確認します。
