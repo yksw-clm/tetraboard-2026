@@ -121,7 +121,7 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
   }
 });
 
-test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局の順と詳細の選択を保持", async () => {
+test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局・大会一覧の順と詳細の選択を保持", async () => {
   const media = new window.EventTarget();
   let mobile = false;
   const matchMedia = spyOn(window, "matchMedia").mockImplementation(
@@ -164,8 +164,18 @@ test("ロビーは幅に関わらず公開ルーム・ランキング・最近�
     )!;
     const roomSection = view.querySelector('section[aria-label="公開部屋"]')!.parentElement!;
     const recentSection = view.querySelector('section[aria-labelledby="recent-matches-title"]')!;
+    const tournamentSection = view.querySelector(
+      'section[aria-labelledby="tournament-list-four-shogi-title"]',
+    )!.parentElement!;
     const sectionOrder = () => [...ranking.parentElement!.children];
-    expect(sectionOrder()).toEqual([roomSection, ranking, recentSection]);
+    function expectSectionOrder() {
+      const sections = sectionOrder();
+      expect(sections).toHaveLength(4);
+      [roomSection, ranking, recentSection, tournamentSection].forEach((section, index) => {
+        expect(sections[index]).toBe(section);
+      });
+    }
+    expectSectionOrder();
     press(ranking, "もっと見る");
     await flush();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
@@ -180,7 +190,7 @@ test("ロビーは幅に関わらず公開ルーム・ランキング・最近�
     expect(dialog.querySelector('[role="tab"][id$="doubles"]')!.getAttribute("aria-selected")).toBe(
       "true",
     );
-    expect(sectionOrder()).toEqual([roomSection, ranking, recentSection]);
+    expectSectionOrder();
   } finally {
     matchMedia.mockRestore();
   }

@@ -1,4 +1,5 @@
 import { TournamentEntrance } from "../tournaments/TournamentEntrance";
+import { TournamentList } from "../tournaments/TournamentList";
 import { LobbyFooter } from "./LobbyFooter";
 import { RecentMatches } from "../matches/RecentMatches";
 import { LobbyBoardPreview } from "./LobbyBoardPreview";
@@ -122,8 +123,16 @@ export function LobbyView(props: Props) {
     ),
     matches: <RecentMatches key={`matches:${props.game}`} game={props.game} />,
     rankings: props.rankings && <Fragment key="rankings">{props.rankings}</Fragment>,
+    tournaments: (
+      <div
+        key={`tournaments:${props.game}`}
+        className="min-w-0 [@media(min-width:768px)]:col-span-2 [@media(min-width:768px)]:col-start-1 [@media(min-width:768px)]:row-start-3"
+      >
+        <TournamentList game={props.game} />
+      </div>
+    ),
   };
-  const order = ["rooms", "rankings", "matches"] as const;
+  const order = ["rooms", "rankings", "matches", "tournaments"] as const;
 
   return (
     <div className="app-theme min-h-dvh text-ink text-[15px] leading-[1.6]">
@@ -166,8 +175,8 @@ export function LobbyView(props: Props) {
             </div>
           </div>
 
-          {props.game === "four-shogi" && <TournamentEntrance />}
           <LobbyAnnouncement game={props.game} />
+          <TournamentEntrance game={props.game} />
           <section
             aria-label="対局を始める"
             className="grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(max-width:400px)]:grid-cols-1"
