@@ -3,6 +3,7 @@ import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { generalLobbyMetadata, lobbyMetadata } from "../src/seo/lobbyMetadata";
 import { lobbyBoardSources } from "./fixtures/lobbyBoardSources";
 import { lobbyBoardSourcesFromManifest } from "../build/lobbyBoardAssets";
+import { validateDeploymentLobbyHtml } from "../../../scripts/deploymentLobbyHtml";
 import {
   renderPublicLobby,
   renderGeneralLobby,
@@ -14,6 +15,65 @@ import {
 
 const template =
   '<!doctype html><html lang="ja"><head><title>TetraBoard</title><meta property="og:site_name" content="TetraBoard" /><script src="/assets/app-123.js"></script><link rel="stylesheet" href="/assets/app-123.css"></head><body><div id="root"></div></body></html>';
+
+test.each([...gameIds])("公開後のHTML検証は%sの生成済みナビゲーションを受け付ける", (game) => {
+  const html = renderPublicLobby(template, game, lobbyBoardSources);
+  expect(() =>
+    validateDeploymentLobbyHtml(html, game, {
+      publicOrigin: "https://tetraboard.net",
+      searchIndexable: true,
+    }),
+  ).not.toThrow();
+});
+
+test.each(["/", "/how-to-play", "/games/gomoku"])(
+  "公開後のHTML検証はナビ内の%sリンク欠落を本文のリンクで代用しない",
+  (path) => {
+    const html = renderPublicLobby(template, "gomoku", lobbyBoardSources);
+    const navigation = html.match(
+      /<nav\b[^>]*aria-label="メインナビゲーション"[^>]*>[\s\S]*?<\/nav>/,
+    )![0];
+    const incomplete = html.replace(navigation, navigation.replace(`href="${path}"`, ""));
+    expect(incomplete).toContain("data-startup-reload");
+    expect(incomplete).toContain('href="/games/gomoku"');
+    expect(() =>
+      validateDeploymentLobbyHtml(incomplete, "gomoku", {
+        publicOrigin: "https://tetraboard.net",
+        searchIndexable: true,
+      }),
+    ).toThrow(`Missing lobby navigation: href="${path}"`);
+  },
+);
+
+test("公開後のHTML検証はメインナビ全体の欠落を拒否する", () => {
+  const html = renderPublicLobby(template, "gomoku", lobbyBoardSources).replace(
+    /<nav\b[^>]*aria-label="メインナビゲーション"[^>]*>[\s\S]*?<\/nav>/,
+    "",
+  );
+  expect(() =>
+    validateDeploymentLobbyHtml(html, "gomoku", {
+      publicOrigin: "https://tetraboard.net",
+      searchIndexable: true,
+    }),
+  ).toThrow("Missing lobby navigation");
+});
+
+test.each([
+  `<title>${lobbyMetadata.gomoku.title}</title>`,
+  'href="https://tetraboard.net/games/gomoku"',
+  'content="index,follow"',
+  'name="description"',
+  'data-public-lobby="gomoku"',
+  lobbyMetadata.gomoku.overview,
+])("公開後のHTML検証は既存のメタ情報・本文の欠落を拒否する: %s", (expected) => {
+  const html = renderPublicLobby(template, "gomoku", lobbyBoardSources).replace(expected, "");
+  expect(() =>
+    validateDeploymentLobbyHtml(html, "gomoku", {
+      publicOrigin: "https://tetraboard.net",
+      searchIndexable: true,
+    }),
+  ).toThrow(`Missing lobby content: ${expected}`);
+});
 
 test("初期HTMLはViteの盤画像URLをタイトルとナビで共用し、五目盤を共有する", () => {
   const manifest = Object.fromEntries(
