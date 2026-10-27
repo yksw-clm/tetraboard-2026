@@ -13,6 +13,7 @@ import { TournamentPage } from "../src/features/tournaments/TournamentPage";
 import { TournamentEntrance } from "../src/features/tournaments/TournamentEntrance";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { readRoomMembershipToken } from "../src/shared/roomMembership";
+import { lastLobbyGame } from "../src/shared/lastLobbyGame";
 import {
   createTournamentQueue,
   readTournamentQueue,
@@ -70,7 +71,12 @@ function detail(status: TournamentDetail["tournament"]["status"] = "upcoming"): 
   };
 }
 function Path() {
-  return <p data-path>{useLocation().pathname}</p>;
+  const location = useLocation();
+  return (
+    <p data-path data-state={JSON.stringify(location.state)}>
+      {location.pathname}
+    </p>
+  );
 }
 function page(
   user: typeof profile | null = profile,
@@ -1228,6 +1234,114 @@ test("大会ロゴの修飾クリックは通常リンクの新規タブ動作�
   expect(event.defaultPrevented).toBe(false);
   expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
   expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+});
+
+test.each(["/", "/how-to-play", "/games/gomoku", "/account"])(
+  "大会の新ナビ%sは待機取消を確認してから指定先と履歴stateへ移動する",
+  async (destination) => {
+    lastLobbyGame.visit("/games/gomoku");
+    const view = page();
+    try {
+      clock.advance(0);
+      await respond(detail("active"));
+      const credential = await startQueue(view);
+      await respond(detail("active"), {
+        entered: true,
+        status: "waiting",
+        operationId: credential.operationId,
+      });
+      const nav = destination === "/account" ? "下部ナビゲーション" : "メインナビゲーション";
+      act(() =>
+        view
+          .querySelector<HTMLAnchorElement>(`nav[aria-label="${nav}"] a[href="${destination}"]`)!
+          .click(),
+      );
+      await flush();
+      expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+      const cancellation = requests.find((request) => request.init.method === "DELETE")!;
+      expect(JSON.parse(cancellation.init.body as string)).toEqual({
+        operationId: credential.operationId,
+        controllerId: credential.controllerId,
+        controllerVersion: 1,
+      });
+      cancellation.respond({ ok: true });
+      await flush();
+      expect(view.querySelector("[data-path]")?.textContent).toBe(destination);
+      if (destination === "/account") {
+        expect(
+          JSON.parse(view.querySelector("[data-path]")!.getAttribute("data-state")!)
+            .accountSelection.game,
+        ).toBe("gomoku");
+      }
+    } finally {
+      lastLobbyGame.sync(null);
+    }
+  },
+);
+
+test("大会の新ナビは待機取消に失敗すると移動せず、エラーと待機状態を残す", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  act(() =>
+    view
+      .querySelector<HTMLAnchorElement>(
+        'nav[aria-label="下部ナビゲーション"] a[href="/how-to-play"]',
+      )!
+      .click(),
+  );
+  await flush();
+  const cancellation = requests.find((request) => request.init.method === "DELETE")!;
+  cancellation.respond({ message: "待機を取り消せませんでした。" }, 503);
+  await flush();
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  expect(view.textContent).toContain("待機を取り消せませんでした。");
+  expect(view.textContent).toContain("対戦相手を探しています...");
+});
+
+test("大会の新ナビでも修飾クリックと中クリックは待機を取消さない", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  const link = view.querySelector<HTMLAnchorElement>(
+    'nav[aria-label="メインナビゲーション"] a[href="/"]',
+  )!;
+  for (const options of [
+    { metaKey: true },
+    { ctrlKey: true },
+    { shiftKey: true },
+    { altKey: true },
+    { button: 1 },
+  ]) {
+    const event = new MouseEvent("click", {
+      button: 0,
+      ...options,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => link.dispatchEvent(event));
+    await flush();
+    expect(event.defaultPrevented).toBe(false);
+    expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
+    expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  }
 });
 
 test("本人状態が未応答でも大会概要・順位を表示し、確認前には参加操作を出さない", async () => {

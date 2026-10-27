@@ -30,15 +30,16 @@ export function FourShogiLobbyPage() {
       onTimeControlChange={entry.setTimeControl}
       onThreePlayerAttackChange={entry.setThreePlayerAttackProhibited}
       onClearMessage={entry.clearMessage}
-      onSubmitRoom={(intent, roomId) => void entry.submitRoom(intent, roomId)}
+      onSubmitRoom={(intent, roomId, instanceId) =>
+        void entry.submitRoom(intent, roomId, instanceId)
+      }
       renderRooms={(onJoin) => (
         <LobbyList
+          {...lobby}
           rooms={lobby.rooms}
-          nextCursor={lobby.nextCursor}
           error={lobby.error}
           loading={lobby.loading}
           isInitialLoading={lobby.isInitialLoading}
-          moreLoading={lobby.moreLoading}
           pendingSource={lobby.pendingSource}
           pendingWatchRoomId={
             navigation.state === "loading"
@@ -46,9 +47,10 @@ export function FourShogiLobbyPage() {
               : undefined
           }
           onRefresh={() => void lobby.refresh("refresh")}
-          onLoadMore={() => void lobby.loadMore()}
           onJoin={onJoin}
-          onWatch={(roomId) => void navigate(getRoomContract.pathFor(roomId))}
+          onWatch={(roomId, instanceId) =>
+            void navigate(`${getRoomContract.pathFor(roomId)}?invite=${instanceId}&watch=1`)
+          }
         />
       )}
       rankings={<LobbyRankings game="four-shogi" theme="four-shogi" />}

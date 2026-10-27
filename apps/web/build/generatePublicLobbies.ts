@@ -1,4 +1,6 @@
-import { mkdir, readFile, writeFile, access } from "node:fs/promises";
+import { mkdir, readFile, writeFile, access, rm } from "node:fs/promises";
+import type { Manifest } from "vite";
+import { lobbyBoardSourcesFromManifest } from "./lobbyBoardAssets";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import {
   renderGeneralLobby,
@@ -10,22 +12,33 @@ import {
 
 const dist = new URL("../dist/", import.meta.url);
 const template = await readFile(new URL("index.html", dist), "utf8");
+const manifestPath = new URL(".vite/manifest.json", dist);
+const boardSources = lobbyBoardSourcesFromManifest(
+  JSON.parse(await readFile(manifestPath, "utf8")) as Manifest,
+);
+for (const source of new Set(Object.values(boardSources)))
+  await access(new URL(source.slice(1), dist));
 // 元のVite出力を使い、ハッシュ付きのJS・CSS参照を保持する。
 for (const match of template.matchAll(/(?:src|href)="(\/assets\/[^"?#]+)"/g))
   await access(new URL(match[1]!.slice(1), dist));
 for (const game of gameIds) {
   const directory = new URL(`${gameCatalog[game].lobbyPath.slice(1)}/`, dist);
   await mkdir(directory, { recursive: true });
-  await writeFile(new URL("index.html", directory), renderPublicLobby(template, game));
+  await writeFile(
+    new URL("index.html", directory),
+    renderPublicLobby(template, game, boardSources),
+  );
 }
 await writeFile(new URL("404.html", dist), renderNotFound(template));
 await writeFile(
   new URL("app.html", dist),
   template.replace("</head>", '<meta name="robots" content="noindex,follow" /></head>'),
 );
-await writeFile(new URL("index.html", dist), renderGeneralLobby(template));
+await writeFile(new URL("index.html", dist), renderGeneralLobby(template, boardSources));
 await writeFile(new URL("robots.txt", dist), robotsText);
 await writeFile(new URL("sitemap.xml", dist), renderSitemap());
+// URLの解決にだけ使い、配信資産にはビルド情報を含めません。
+await rm(manifestPath);
 console.info(
   `Generated general lobby and ${gameIds.length} game lobbies, robots.txt, sitemap.xml and 404.html`,
 );

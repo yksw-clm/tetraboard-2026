@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.app.json",
-  "compilerOptions": { "incremental": false, "types": ["node", "bun"] },
+  "compilerOptions": { "incremental": false, "types": ["node", "bun", "vite/client"] },
   "include": ["build", "test/publicLobbies.test.ts", "../../scripts/checkBunVersion.ts"]
 }

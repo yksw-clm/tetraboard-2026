@@ -96,18 +96,23 @@ test("最近の対局は総合ロビーだけゲームバッジを表示し、�
     clock.advance(0);
     requests.at(-1)!.respond({ matches: [match(1)] });
     await flush();
-    const card = view.querySelector("article")!;
+    if (game !== "all") {
+      press(view, "もっと見る");
+      await flush();
+    }
+    const scope = game === "all" ? view : document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const card = scope.querySelector("article")!;
     expect(card).not.toBeNull();
     const gameBadge = [...card.querySelectorAll("span")].find(
       (element) => element.textContent === "四人リバーシ",
     );
     expect(Boolean(gameBadge)).toBe(game === "all");
     expect(card.getAttribute("aria-label")).toContain("四人リバーシ");
-    press(view, "更新");
+    press(scope, "更新");
     requests.at(-1)!.respond({}, 503);
     await flush();
-    expect(view.querySelector("article")).toBe(card);
-    expect(view.querySelector('[role="alert"]')).not.toBeNull();
+    expect(scope.querySelector("article")).toBe(card);
+    expect(scope.querySelector('[role="alert"]')).not.toBeNull();
     rerender(view, null);
     router.dispose();
   }

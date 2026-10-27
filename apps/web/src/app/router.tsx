@@ -11,13 +11,13 @@ import { roomLoader } from "../features/room/roomLoader";
 
 import { FeedbackPage } from "../features/feedback/FeedbackPage";
 import { UpdatesPage, UpdateDetailPage } from "../features/updates/UpdatesPage";
+import { HowToPlayPage } from "../features/help/HowToPlayPage";
 
 import { AppPageLoading } from "../shared/ui/AppPageState";
 import { AppRouteErrorPage } from "../shared/ui/AppErrorPage";
 import { gameThemes } from "../shared/ui/appTheme";
 import { gameIds, gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import type { ComponentType } from "react";
-import { LayoutGroup } from "motion/react";
 export const lobbyRoutes = {
   "four-gomoku": {
     path: gameCatalog["four-gomoku"].lobbyPath,
@@ -65,14 +65,12 @@ export const router = createBrowserRouter([
   {
     ErrorBoundary: AppRouteErrorPage,
     Component: () => (
-      // ロビーページが入れ替わっても、選択背景の移動を同じグループで引き継ぎます。
-      <LayoutGroup id="lobby-navigation">
-        <PlayerProfileProvider>
-          <AccountLayout />
-        </PlayerProfileProvider>
-      </LayoutGroup>
+      <PlayerProfileProvider>
+        <AccountLayout />
+      </PlayerProfileProvider>
     ),
     children: [
+      { path: "/how-to-play", Component: HowToPlayPage },
       { path: "/privacy", element: <LegalPage kind="privacy" /> },
       { path: "/terms", element: <LegalPage kind="terms" /> },
       { path: "/feedback", Component: FeedbackPage },

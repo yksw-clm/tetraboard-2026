@@ -12,13 +12,8 @@ const rankings = {
   },
   doubles: { wins: [entry], total: [{ ...entry, value: 30 }] },
 };
-function heading(view: HTMLElement) {
-  return view.querySelector('[aria-label="ランキングのスライド"] [aria-hidden="false"] h3')!
-    .textContent;
-}
-
 for (const game of gameIds) {
-  test(`${game}: 10秒で項目を循環し、表示切替だけでは再取得しない`, async () => {
+  test(`${game}: 固定プレビューは指標を自動変更せず、切替操作は詳細だけに表示する`, async () => {
     const view = render(wrap()(<LobbyRankings game={game} />));
     clock.advance(0);
     requests
@@ -29,125 +24,45 @@ for (const game of gameIds) {
           : { wins: rankings.singles.first, total: rankings.singles.total },
       );
     await flush();
-    const first = gameCatalog[game].hasModes ? "優勝数" : "勝利数";
-    expect(heading(view)).toBe(first);
-    clock.advance(9999);
-    expect(heading(view)).toBe(first);
-    clock.advance(1);
+    const initial = view.textContent;
+    expect(initial).toContain(gameCatalog[game].hasModes ? "シングルス・優勝数" : "勝利数");
+    expect(view.querySelector('[role="tablist"]')).toBeNull();
+    expect(view.querySelector('input[type="checkbox"]')).toBeNull();
+    clock.advance(30_000);
     await flush();
-    expect(heading(view)).toBe("対局数");
-    clock.advance(10000);
-    await flush();
-    expect(heading(view)).toBe(game === "four-shogi" ? "撃破数" : first);
-    const tabs = view.querySelector('[role="tablist"][aria-label="ランキングの集計項目"]')!;
-    const selected = tabs.querySelector('[role="tab"][aria-selected="true"]')!;
-    expect(selected.textContent).toBe(heading(view));
-    const panel = document.getElementById(selected.getAttribute("aria-controls")!);
-    expect(panel?.getAttribute("role")).toBe("tabpanel");
-    expect(panel?.getAttribute("aria-labelledby")).toBe(selected.id);
-    if (game === "four-shogi") {
-      expect(view.querySelector('[aria-hidden="false"] ol')!.textContent).toContain("25人");
-      clock.advance(10000);
-      await flush();
-      expect(heading(view)).toBe(first);
-    }
+    expect(view.textContent).toBe(initial);
     expect(requests).toHaveLength(1);
+    press(view, "もっと見る");
+    await flush();
+    expect(document.querySelector('[role="dialog"] [role="tablist"]')).not.toBeNull();
   });
 }
-
-test("自動切り替えのチェック・手動選択・非表示・フォーカス中の停止を扱う", async () => {
+test("四人将棋は詳細で撃破数を表示し、ダブルスでは撃破項目を出さない", async () => {
   const view = render(wrap()(<LobbyRankings game="four-shogi" />));
   clock.advance(0);
   requests[0]!.respond(rankings);
-  await flush();
-  const automatic = view.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
-  expect(automatic.checked).toBe(true);
-  expect(automatic.labels?.[0]?.textContent).toContain("自動切り替え");
-  act(() => automatic.click());
-  expect(automatic.checked).toBe(false);
-  clock.advance(30000);
-  await flush();
-  expect(heading(view)).toBe("優勝数");
-  act(() => view.querySelector<HTMLElement>('[role="tab"][id$="knockouts"]')!.click());
-  await flush();
-  expect(heading(view)).toBe("撃破数");
-  act(() => automatic.click());
-  expect(automatic.checked).toBe(true);
-  clock.advance(10000);
-  await flush();
-  expect(heading(view)).toBe("優勝数");
-  const visibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
-  Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
-  try {
-    act(() => document.dispatchEvent(new Event("visibilitychange")));
-    clock.advance(30000);
-    await flush();
-    expect(heading(view)).toBe("優勝数");
-    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
-    act(() => document.dispatchEvent(new Event("visibilitychange")));
-    clock.advance(10000);
-    await flush();
-    expect(heading(view)).toBe("対局数");
-    const controls = view.querySelector('[aria-label="ランキングのスライド"]')!;
-    const button = controls.querySelector<HTMLButtonElement>("button")!;
-    act(() => button.focus());
-    clock.advance(30000);
-    await flush();
-    expect(heading(view)).toBe("対局数");
-    act(() => button.blur());
-    clock.advance(10000);
-    await flush();
-    expect(heading(view)).toBe("撃破数");
-  } finally {
-    if (visibility) Object.defineProperty(document, "visibilityState", visibility);
-    else Reflect.deleteProperty(document, "visibilityState");
-  }
-});
-
-test("四人将棋の詳細へ撃破数を引き継ぎ、ダブルスでは撃破項目を出さない", async () => {
-  const view = render(wrap()(<LobbyRankings game="four-shogi" />));
-  clock.advance(0);
-  requests[0]!.respond(rankings);
-  await flush();
-  act(() => view.querySelector<HTMLElement>('[role="tab"][id$="knockouts"]')!.click());
   await flush();
   press(view, "もっと見る");
   await flush();
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.querySelector("h3")!.textContent).toBe("撃破数");
-  clock.advance(30000);
+  act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="knockouts"]')!.click());
   await flush();
-  expect(heading(view)).toBe("撃破数");
+  expect(dialog.querySelector("h3")!.textContent).toBe("撃破数");
+  expect(dialog.textContent).toContain("25人");
   act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
   await flush();
   expect(dialog.querySelector("h3")!.textContent).toBe("勝利数");
   expect(dialog.querySelector('[role="tab"][id$="knockouts"]')).toBeNull();
-  act(() => dialog.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
-  act(() => view.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
-  await flush();
-  expect(heading(view)).toBe("勝利数");
-  clock.advance(10000);
-  await flush();
-  expect(heading(view)).toBe("対局数");
-  clock.advance(10000);
-  await flush();
-  expect(heading(view)).toBe("勝利数");
-  expect(
-    view.querySelector('[role="tablist"][aria-label="ランキングの集計項目"]')!.textContent,
-  ).not.toContain("撃破数");
 });
-
-test("旧応答の撃破数欠落は0件として表示せず、表示できない旨を案内する", async () => {
-  const view = render(<LobbyRankings game="four-shogi" />);
+test("旧応答の撃破数欠落は0件として表示せず詳細に取得不能を案内する", async () => {
+  const view = render(wrap()(<LobbyRankings game="four-shogi" />));
   clock.advance(0);
-  requests[0]!.respond({
-    singles: { first: [], total: [] },
-    doubles: { wins: [], total: [] },
-  });
+  requests[0]!.respond({ singles: { first: [], total: [] }, doubles: { wins: [], total: [] } });
   await flush();
-  act(() => view.querySelector<HTMLElement>('[role="tab"][id$="knockouts"]')!.click());
+  press(view, "もっと見る");
   await flush();
-  expect(view.querySelector('[aria-hidden="false"]')!.textContent).toContain(
-    "撃破数ランキングは現在表示できません。",
-  );
+  const dialog = document.querySelector('[role="dialog"]')!;
+  act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="knockouts"]')!.click());
+  await flush();
+  expect(dialog.textContent).toContain("撃破数ランキングは現在表示できません。");
 });

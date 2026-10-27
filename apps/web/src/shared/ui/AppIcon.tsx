@@ -2,6 +2,11 @@ import { cn } from "@heroui/react";
 import { type ComponentPropsWithRef } from "react";
 
 const paths = {
+  eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+  trophy:
+    "M8 3h8v6a4 4 0 0 1-8 0V3Zm8 2h4v2a4 4 0 0 1-4 4M8 5H4v2a4 4 0 0 0 4 4m4 2v5m-5 3h10m-8 0v-3h6v3",
+  home: "m3 10 9-7 9 7v11h-7v-8h-4v8H3V10Z",
+  book: "M12 5c-3-2-7-2-10-1v15c3-1 7-1 10 1m0-15c3-2 7-2 10-1v15c-3-1-7-1-10 1V5Z",
   camera:
     "M4 6h4l2-3h4l2 3h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm12 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
   chevronDown: "m6 9 6 6 6-6",

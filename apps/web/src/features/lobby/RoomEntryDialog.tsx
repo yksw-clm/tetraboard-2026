@@ -73,7 +73,7 @@ export function RoomEntryDialog({
   const blocked = unavailable || busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
-      ? "すぐ遊ぶ"
+      ? "CPUと遊ぶ"
       : intent === "create"
         ? "ルームを作る"
         : selectedRoomId
@@ -90,7 +90,7 @@ export function RoomEntryDialog({
               ? "CPUと対戦。待機室で「対局開始」を押すと始まります。"
               : "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
             : intent === "create"
-              ? "ルームを作って、URLやルーム番号で友達を招待しましょう。"
+              ? "ルームを作って、招待URLを友達に共有しましょう。公開ルーム一覧からも参加できます。"
               : account.user
                 ? "アカウントのプロフィールで参加します。"
                 : "対局で使うニックネームを入力してください。"}

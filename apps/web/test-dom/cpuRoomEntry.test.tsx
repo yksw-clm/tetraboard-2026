@@ -7,7 +7,7 @@ import { profile } from "../test/fixtures/account";
 
 function open(view: HTMLElement, title: string) {
   const button = [...view.querySelectorAll("button")].find(
-    (button) => button.querySelector("strong")?.textContent === title,
+    (button) => button.textContent?.trim() === title,
   );
   if (!button) throw new Error(`Missing entry: ${title}`);
   act(() => button.click());
@@ -40,7 +40,7 @@ for (const game of gameIds) {
     }
     const view = render(wrap(profile)(<Probe />));
     await flush();
-    open(view, "すぐ遊ぶ");
+    open(view, "CPUと遊ぶ");
     await flush();
     const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')!;
     const radio = (level: number) =>
@@ -50,7 +50,7 @@ for (const game of gameIds) {
     await flush();
     expect(radio(2).checked).toBe(true);
     act(() => dialog().querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
-    open(view, "すぐ遊ぶ");
+    open(view, "CPUと遊ぶ");
     await flush();
     expect(radio(2).checked).toBe(true);
     press(dialog(), "CPUとの待機室へ");
@@ -64,7 +64,7 @@ for (const game of gameIds) {
     expect(radio(2).checked).toBe(true);
     expect(radio(2).disabled).toBe(false);
     act(() => dialog().querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
-    open(view, "ルームを作る");
+    open(view, "公開ルームを作る");
     await flush();
     expect(dialog().textContent).not.toContain("CPUレベル");
     press(dialog(), "ルームを作る");
