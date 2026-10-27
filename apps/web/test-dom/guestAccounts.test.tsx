@@ -15,7 +15,7 @@ test("名前設定済みのゲストは再入力せず、未設定フラグな�
   const user = guestProfile("ゲスト12345");
   render(wrap(user)(<RoomIdentityFields name="" onChange={() => {}} busy={false} />));
   expect(document.querySelector("input")).toBeNull();
-  expect(document.body.textContent).toContain("ゲストとして参加します");
+  expect(document.querySelector('[aria-label="参加するアカウント"] p')?.textContent).toBe("ゲスト");
   render(
     wrap({ ...user, nameCustomized: false })(
       <RoomIdentityFields name="候補" onChange={() => {}} busy={false} />,

@@ -9,7 +9,7 @@ import { updatePageMetadata } from "../src/seo/pageMetadata";
 import { profile } from "../test/fixtures/account";
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { guestProfile } from "./guestAccountFixtures";
-import { act, flush, render, requests, wrap } from "./harness";
+import { act, flush, render, requests, rerender, wrap } from "./harness";
 
 test("ヘッダーと下タブは共通の移動先・現在地・直近ゲームを遷移と戻る操作で保つ", async () => {
   lastLobbyGame.sync(null);
@@ -81,6 +81,102 @@ test("下タブのアカウントは登録者・ゲスト・設定前・未認�
       await flush();
       expect(readRegistrationReturn()?.path).toBe("/games/shogi");
     }
+  }
+});
+
+test("下タブは未認証・画像なし登録者・ゲストに従来の仮アイコンを表示する", () => {
+  const images: HTMLImageElement[] = [];
+  const NativeImage = window.Image;
+  window.Image = class extends NativeImage {
+    constructor(width?: number, height?: number) {
+      super(width, height);
+      images.push(this);
+    }
+  };
+  try {
+    for (const user of [
+      null,
+      profile,
+      guestProfile(),
+      { ...guestProfile(), avatarUrl: "/api/avatars/guest-image" },
+    ]) {
+      const view = render(wrap(user)(<AppNavigation mobile />));
+      const link = [...view.querySelectorAll<HTMLAnchorElement>("a")].find(
+        (item) => item.textContent === "アカウント",
+      )!;
+      expect(link.querySelector("img")).toBeNull();
+      expect(link.querySelector("svg")).not.toBeNull();
+      expect(link.getAttribute("href")).toBe(user ? "/account" : "/login");
+    }
+    expect(images).toHaveLength(0);
+  } finally {
+    window.Image = NativeImage;
+  }
+});
+
+test("下タブの本人画像は画像変更とアカウント切替に追従し、ラベル・現在地・PCを保つ", async () => {
+  const images: HTMLImageElement[] = [];
+  const NativeImage = window.Image;
+  window.Image = class extends NativeImage {
+    constructor(width?: number, height?: number) {
+      super(width, height);
+      images.push(this);
+    }
+  };
+  const navigation = (
+    <>
+      <AppNavigation />
+      <AppNavigation mobile />
+    </>
+  );
+  const first = { ...profile, avatarUrl: "/api/avatars/first-image" };
+  const changed = { ...first, avatarUrl: "/api/avatars/changed-image" };
+  const other = { ...first, username: "another_member", avatarUrl: "/api/avatars/other-image" };
+  try {
+    const view = render(wrap(first, "/account")(navigation));
+    const accountLink = () =>
+      view.querySelector<HTMLAnchorElement>(
+        '[aria-label="下部ナビゲーション"] a[href="/account"]',
+      )!;
+    const originalLink = accountLink();
+    let previousUrl: string | undefined;
+    for (const user of [first, changed, other]) {
+      rerender(view, wrap(user, "/account")(navigation));
+      if (previousUrl) expect(accountLink().querySelector(`img[src="${previousUrl}"]`)).toBeNull();
+      const pending = images.at(-1)!;
+      expect(pending.src).toBe(new URL(user.avatarUrl, window.location.href).href);
+      Object.defineProperties(pending, {
+        complete: { value: true },
+        naturalWidth: { value: 32 },
+      });
+      act(() => pending.dispatchEvent(new Event("load")));
+      await flush();
+      const image = accountLink().querySelector("img")!;
+      expect(image.getAttribute("src")).toBe(user.avatarUrl);
+      expect(image.getAttribute("alt")).toBe("");
+      expect(accountLink()).toBe(originalLink);
+      expect(accountLink().textContent).toBe("アカウント");
+      expect(accountLink().getAttribute("aria-current")).toBe("page");
+      expect(
+        view.querySelector('[aria-label="メインナビゲーション"] img[src^="/api/avatars/"]'),
+      ).toBeNull();
+      previousUrl = user.avatarUrl;
+    }
+    for (const user of [{ ...guestProfile(), avatarUrl: first.avatarUrl }, null, profile]) {
+      const count = images.length;
+      rerender(view, wrap(user, "/account")(navigation));
+      const link = view.querySelector<HTMLAnchorElement>(
+        '[aria-label="下部ナビゲーション"] a:last-child',
+      )!;
+      expect(link.querySelector("img")).toBeNull();
+      expect(link.querySelector("svg")).not.toBeNull();
+      expect(link.textContent).toBe("アカウント");
+      expect(link.getAttribute("aria-current")).toBe("page");
+      expect(link.getAttribute("href")).toBe(user ? "/account" : "/login");
+      expect(images).toHaveLength(count);
+    }
+  } finally {
+    window.Image = NativeImage;
   }
 });
 

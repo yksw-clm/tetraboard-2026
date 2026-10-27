@@ -12,6 +12,7 @@ import {
 import { LobbyBoardPreview } from "../../features/lobby/LobbyBoardPreview";
 import { lastLobbyGame, lobbyGameForNavigation } from "../lastLobbyGame";
 import { isGameViewPath } from "../siteNavigation";
+import { AppAvatar } from "./AppAvatar";
 import { AppIcon } from "./AppIcon";
 
 export function LastLobbyGameTracker() {
@@ -37,6 +38,7 @@ export function AppNavigation({
   );
   const account = useContext(AccountContext);
   const user = account?.user;
+  const accountAvatar = user && !user.isGuest ? user.avatarUrl : null;
   const accountTo = user
     ? user.profileCompleted
       ? "/account"
@@ -139,9 +141,13 @@ export function AppNavigation({
               : "text-muted hover:bg-surface-hover",
           )}
         >
-          <span className="grid size-6 place-items-center rounded-full bg-surface-hover">
-            <AppIcon name="user" className="size-4" />
-          </span>
+          {accountAvatar ? (
+            <AppAvatar src={accountAvatar} className="size-6 [&_svg]:size-4" />
+          ) : (
+            <span className="grid size-6 place-items-center rounded-full bg-surface-hover">
+              <AppIcon name="user" className="size-4" />
+            </span>
+          )}
           <span>アカウント</span>
         </Link>
       )}
