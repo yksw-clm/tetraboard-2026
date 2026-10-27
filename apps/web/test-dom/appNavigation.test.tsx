@@ -192,11 +192,13 @@ test("対局・観戦・公開棋譜・本人棋譜では固定下タブを表�
   }
 });
 
-test("遊び方ページは空の本文とナビを持ち、検索対象外のタイトルへ切り替わる", () => {
+test("遊び方ページはサイトガイドとナビを持ち、検索対象外のタイトルへ切り替わる", () => {
   const previousHead = document.head.innerHTML;
   try {
     const view = render(wrap(null, "/how-to-play/")(<HowToPlayPage />));
-    expect(view.querySelector('main[aria-label="遊び方"]')!.childNodes).toHaveLength(0);
+    expect(view.querySelector('main[aria-label="遊び方"] h1')!.textContent).toBe(
+      "TetraBoardの使い方",
+    );
     expect(view.querySelector('[aria-label="下部ナビゲーション"]')).not.toBeNull();
     expect(
       view.querySelector('[aria-label="メインナビゲーション"] a[aria-current="page"]')!.textContent,
