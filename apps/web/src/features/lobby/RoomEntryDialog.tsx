@@ -1,4 +1,3 @@
-import { publicRecordNotice } from "@tetraboard/protocol/privacy";
 import { LegalNotice } from "../privacy/LegalNotice";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import { GomokuForbiddenControl } from "./GomokuForbiddenControl";
@@ -87,8 +86,8 @@ export function RoomEntryDialog({
           ? "四人将棋のオンライン対局は準備中です。入力項目は確認できますが、まだルームの作成・参加はできません。"
           : intent === "quick"
             ? !gameCatalog[game].hasModes
-              ? "CPUと対戦。待機室で「対局開始」を押すと始まります。"
-              : "CPU3人と対戦。待機室で「対局開始」を押すと始まります。"
+              ? "CPUと対戦します。"
+              : "CPU3人と対戦します。"
             : intent === "create"
               ? "ルームを作って、招待URLを友達に共有しましょう。公開ルーム一覧からも参加できます。"
               : account.user
@@ -108,9 +107,7 @@ export function RoomEntryDialog({
           if (!blocked) onSubmit();
         }}
       >
-        <p className="text-sm text-muted">
-          {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
-        </p>
+        <p className="text-sm text-muted">対局の棋譜・結果は公開されます。</p>
         <RoomIdentityFields name={name} onChange={onNameChange} busy={busy} id="nickname" />
 
         {intent === "join" ? (

@@ -78,7 +78,7 @@ test("全6ゲーム・ゲストと登録者の参加ダイアログで公開説�
           ),
         );
         await flush();
-        expect(document.body.textContent).toContain(publicRecordNotice);
+        expect(document.body.textContent).toContain("対局の棋譜・結果は公開されます。");
         expect(document.body.textContent).not.toContain("ユーザー登録のご案内");
         expect(document.body.textContent).not.toContain("Googleで続ける");
         expect(document.querySelector('a[href="/privacy"]')).not.toBeNull();
