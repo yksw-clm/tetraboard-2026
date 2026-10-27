@@ -10,9 +10,15 @@ test("開発ビルドのHTML・サイトマップ・画面内遷移は開発URL�
     import { renderPublicLobby, renderSitemap, robotsText } from "./build/renderPublicLobby";
     import { lobbyBoardSources } from "./test/fixtures/lobbyBoardSources";
     import { updatePageMetadata } from "./src/seo/pageMetadata";
+    import { validateDeploymentLobbyHtml } from "../../scripts/deploymentLobbyHtml";
     const window = new Window();
     globalThis.document = window.document;
-    const html = renderPublicLobby('<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>', "four-reversi", lobbyBoardSources);
+    const template = '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
+    const html = renderPublicLobby(template, "four-reversi", lobbyBoardSources);
+    validateDeploymentLobbyHtml(html, "four-reversi", {
+      publicOrigin: "https://tetraboard-dev.chaossi-lab.workers.dev",
+      searchIndexable: false,
+    });
     const pages = [];
     for (const path of ["/games/four-reversi", "/matches/example", "/games/shogi"]) {
       updatePageMetadata(path);
