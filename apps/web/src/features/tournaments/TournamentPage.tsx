@@ -20,17 +20,17 @@ import { LobbyFooter } from "../lobby/LobbyFooter";
 import { LobbyChat } from "../lobby/LobbyChat";
 import { TournamentStatus } from "./TournamentStatus";
 import { TournamentRules } from "./TournamentRules";
+import { TournamentRooms } from "./TournamentRooms";
 import { TournamentPlayer, TournamentStandings } from "./TournamentStandings";
 import { tournamentDate, tournamentPoints, tournamentRemaining } from "./tournamentPresentation";
 import { useTournament } from "./useTournament";
-import { TournamentConsent } from "./TournamentConsent";
 
 type TournamentState = ReturnType<typeof useTournament>;
 function EntryAction({ state }: { state: TournamentState }) {
   const account = useAccount();
   const entered = state.participation.entered;
   return (
-    <div className="flex max-w-[360px] flex-col items-end gap-2">
+    <div className="flex w-full flex-col items-start gap-2 md:w-auto md:max-w-[360px] md:items-end">
       <AppButton
         isDisabled={
           entered ||
@@ -41,7 +41,7 @@ function EntryAction({ state }: { state: TournamentState }) {
         }
         isPending={state.pending === "entry"}
         appearance={entered ? "secondary" : "primary"}
-        className="min-h-11 whitespace-normal text-center"
+        className="w-full min-h-11 whitespace-normal text-center md:w-auto"
         onPress={state.enter}
       >
         {!entered && <AppIcon name="join" className="size-4" />}
@@ -83,11 +83,6 @@ function PersonalStanding({
           </div>
         ))}
       </dl>
-      {!finished && (
-        <p className="text-xs text-muted">
-          途中参加でも、自分のペースで。大会期間中は何局でも挑戦できます。
-        </p>
-      )}
     </AppCard>
   );
 }
@@ -189,9 +184,6 @@ function TournamentPlay({ state }: { state: TournamentState }) {
             </AppButton>
           ) : (
             <EntryAction state={state} />
-          )}
-          {!participation.entered && (
-            <p className="text-xs text-muted">エントリーすると、大会の対局に参加できます。</p>
           )}
         </>
       )}
@@ -313,11 +305,15 @@ function TournamentContent({ id }: { id: number }) {
                   </h1>
                   <p className="mt-2 flex items-center gap-2 text-sm text-muted">
                     <AppIcon name="clock" className="size-4" />
-                    <span>{tournamentDate(tournament.startsAtMs, tournament.endsAtMs)}</span>
+                    <span>
+                      {tournamentDate(tournament.startsAtMs, tournament.endsAtMs, {
+                        showTimeZone: false,
+                      })}
+                    </span>
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-3 text-right">
-                  <p className="flex flex-wrap items-baseline justify-end gap-x-1 text-sm text-muted">
+                <div className="flex flex-col items-start gap-3 text-left md:items-end md:text-right">
+                  <p className="flex flex-wrap items-baseline justify-start gap-x-1 text-sm text-muted md:justify-end">
                     {(tournament.status === "active" || tournament.status === "upcoming") && (
                       <span>現在</span>
                     )}
@@ -325,8 +321,11 @@ function TournamentContent({ id }: { id: number }) {
                       {tournament.entryCount}
                     </strong>
                     <span>
-                      人がエントリー
-                      {(tournament.status === "active" || tournament.status === "upcoming") && "中"}
+                      {tournament.status === "active"
+                        ? "人が参加中"
+                        : tournament.status === "upcoming"
+                          ? "人がエントリー中"
+                          : "人がエントリー"}
                     </span>
                   </p>
                   {tournament.status === "upcoming" && <EntryAction state={state} />}
@@ -335,7 +334,7 @@ function TournamentContent({ id }: { id: number }) {
               <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-solid border-line pt-4 text-xs text-muted">
                 <span className="flex items-center gap-1.5">
                   <AppIcon name="users" className="size-4" />
-                  人間4人・ランダムマッチ
+                  ランダムマッチ
                 </span>
                 <span>持ち時間なし・秒読み30秒</span>
                 <span>途中参加OK</span>
@@ -363,9 +362,9 @@ function TournamentContent({ id }: { id: number }) {
               </p>
               <p className="mt-1 text-sm leading-relaxed text-ink-secondary">
                 {tournament.status === "upcoming"
-                  ? "エントリーは参加予約です。開始後、このページから対局できます。途中からでも参加できます。"
+                  ? "開催前です。エントリーは参加予約です。開始後、このページから対局できます。途中からでも参加できます。"
                   : tournament.status === "active"
-                    ? `現在${tournament.playingCount}局が対局中です。途中参加でも、自分のペースで大会を楽しめます。`
+                    ? `現在${tournament.playingCount}局が対局中です。`
                     : tournament.status === "settling"
                       ? "大会の対局開始受付は終了しました。すべての結果がそろうまで順位は暫定です。"
                       : tournament.completedCount
@@ -385,6 +384,9 @@ function TournamentContent({ id }: { id: number }) {
                 />
               </div>
             )}
+            {(tournament.status === "active" || tournament.status === "settling") && (
+              <TournamentRooms key={`rooms:${id}`} tournamentId={tournament.id} />
+            )}
             {tournament.status === "finished" && (
               <>
                 <Awards detail={detail} />
@@ -395,6 +397,7 @@ function TournamentContent({ id }: { id: number }) {
                 />
               </>
             )}
+            <TournamentRules description={tournament.rulesDescription} />
             <LobbyChat
               key={id}
               tournament={{
@@ -408,7 +411,6 @@ function TournamentContent({ id }: { id: number }) {
                   Boolean(account.error),
               }}
             />
-            <TournamentRules description={tournament.rulesDescription} />
             {tournament.status === "finished" && (
               <AppCard className="items-start gap-2">
                 <h2 className="text-base font-bold">また、四人将棋で会いましょう。</h2>
@@ -444,7 +446,6 @@ function TournamentContent({ id }: { id: number }) {
               onChange={state.setGuestName}
               busy={state.pending === "entry"}
             />
-            <TournamentConsent />
             {(state.message || state.error || account.error) && (
               <p role="alert" className="mt-3 text-sm text-danger">
                 {state.message ?? state.error ?? account.error}

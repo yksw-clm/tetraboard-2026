@@ -152,11 +152,9 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-bold">{finished ? "最終順位" : "順位表"}</h2>
-          <p className="mt-1 text-xs text-muted">
-            {finished
-              ? "すべての対象対局の結果が確定しました。"
-              : "終了・保存済みの大会対局を集計しています。順位は暫定です。"}
-          </p>
+          {finished && (
+            <p className="mt-1 text-xs text-muted">すべての対象対局の結果が確定しました。</p>
+          )}
         </div>
         <span className="text-xs text-muted">{showAll ? "全参加者" : "上位5位とあなたの成績"}</span>
       </div>
@@ -177,14 +175,7 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
           全順位を読み込んでいます…
         </p>
       )}
-      {!hasGames && (!showAll || all) && (
-        <p className="rounded-control bg-surface-muted p-5 text-center text-sm text-muted">
-          {finished
-            ? "有効対局がなかったため、今回は対局不成立となりました。表彰はありません。"
-            : "まだ対局結果はありません。最初の対局が終了すると、順位が表示されます。"}
-        </p>
-      )}
-      {(rows.length > 0 || separateSelf) && (
+      <div className={`flex flex-col gap-3 ${showAll ? "" : "min-h-60"}`}>
         <div
           className="overflow-x-auto"
           role="region"
@@ -227,6 +218,19 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
               </tr>
             </thead>
             <tbody>
+              {!hasGames && (!showAll || all) && (
+                <tr>
+                  <td colSpan={10} className="p-0">
+                    <p
+                      className={`sticky left-0 flex w-[100cqw] max-w-full items-center justify-center rounded-control bg-surface-muted p-5 text-center text-sm text-muted ${showAll ? "" : "min-h-60"}`}
+                    >
+                      {finished
+                        ? "有効対局がなかったため、今回は対局不成立となりました。表彰はありません。"
+                        : "まだ対局結果はありません。最初の対局が終了すると、順位が表示されます。"}
+                    </p>
+                  </td>
+                </tr>
+              )}
               {rows.map((row, index) => (
                 <StandingRow key={row.username ?? `deleted-${index}`} row={row} />
               ))}
@@ -243,7 +247,7 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
             </tbody>
           </table>
         </div>
-      )}
+      </div>
       <div className="flex justify-center gap-2">
         <AppButton appearance="quiet" size="compact" onPress={() => setShowAll((value) => !value)}>
           {showAll ? "上位5位に戻る" : "全員を見る"}

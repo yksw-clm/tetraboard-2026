@@ -145,7 +145,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
       )}
       <AppCard
         className={
-          tournament ? "h-[400px] min-h-0 gap-3 p-4 md:h-[480px]" : "h-[600px] min-h-0 gap-3 p-4"
+          tournament ? "h-[480px] min-h-0 gap-3 p-4 md:h-[560px]" : "h-[600px] min-h-0 gap-3 p-4"
         }
       >
         {tournament && (
@@ -153,9 +153,6 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
             <h2 id={titleId} className="text-lg font-bold">
               {title}
             </h2>
-            <p className="mt-1 text-xs text-muted">
-              この大会の参加者が交流できる公開チャットです。
-            </p>
           </div>
         )}
         <ul

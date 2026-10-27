@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Link, useNavigate } from "react-router";
 import type { LobbyRoomCard } from "@tetraboard/protocol/general-lobby";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -14,7 +14,18 @@ import { useGeneralLobbyRooms } from "./useGeneralLobbyRooms";
 import { useRoomEntry } from "./useRoomEntry";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { RecentMatches } from "../matches/RecentMatches";
+import { TournamentList } from "../tournaments/TournamentList";
 import { gameThemes } from "../../shared/ui/appTheme";
+
+const mobileQuery = "(max-width: 767px)";
+function subscribeToMobile(onChange: () => void) {
+  const media = window.matchMedia(mobileQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+const isMobile = () => window.matchMedia(mobileQuery).matches;
+const isServerMobile = () => false;
+
 export function GeneralLobbyPage() {
   const rooms = useGeneralLobbyRooms(),
     account = useAccount(),
@@ -22,6 +33,15 @@ export function GeneralLobbyPage() {
   const [selected, setSelected] = useState<LobbyRoomCard | null>(null);
   const entry = useRoomEntry(selected?.game);
   const [selectingGame, setSelectingGame] = useState(false);
+  const mobile = useSyncExternalStore(subscribeToMobile, isMobile, isServerMobile);
+  const sections = {
+    tournaments: <TournamentList key="tournaments" game="all" />,
+    chat: <GeneralLobbyChat key="chat" />,
+    matches: <RecentMatches key="matches" game="all" />,
+  };
+  const order = mobile
+    ? (["chat", "matches", "tournaments"] as const)
+    : (["tournaments", "chat", "matches"] as const);
   function roomAction(room: LobbyRoomCard, intent: "join" | "watch") {
     if (intent === "watch") {
       void navigate(`/rooms/${room.id}?invite=${room.instanceId}&watch=1`);
@@ -74,8 +94,7 @@ export function GeneralLobbyPage() {
             onRoomAction={roomAction}
             onCreate={() => setSelectingGame(true)}
           />
-          <GeneralLobbyChat />
-          <RecentMatches game="all" />
+          {order.map((section) => sections[section])}
           <LobbyFooter>
             <Link to="/feedback" className="inline-flex min-h-11 items-center text-brand underline">
               不具合・ご意見

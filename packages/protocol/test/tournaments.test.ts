@@ -8,6 +8,11 @@ import {
   tournamentControllerInputSchema,
   tournamentControllerResponseSchema,
   tournamentInputSchema,
+  tournamentLobbySchema,
+  tournamentLobbySectionsSchema,
+  tournamentLobbySectionsQuerySchema,
+  tournamentListQuerySchema,
+  tournamentListSchema,
   tournamentOperationSchema,
   tournamentParticipationSchema,
   tournamentPatchSchema,
@@ -18,6 +23,7 @@ import {
   tournamentRules,
   type TournamentStanding,
 } from "../src/tournaments";
+import { gameIds } from "../src/games";
 import { fourShogiRoomSchema, roomTimeControl } from "../src/rooms";
 
 const operationId = "00000000-0000-4000-8000-000000000001";
@@ -394,4 +400,99 @@ test("公開詳細と管理名簿の契約へメール・内部アカウントID
     expect(tournamentAdminEntrySchema.safeParse({ ...adminEntry, ...extra }).success).toBe(false);
   }
   expect(tournamentPublicSchema.safeParse({ ...published, status: "draft" }).success).toBe(false);
+});
+
+test("ロビーの区分別取得はゲーム指定のオプトインと全件配列を使い、旧応答は変更しない", () => {
+  for (const game of gameIds)
+    expect(tournamentLobbySectionsQuerySchema.parse({ view: "sections", game })).toEqual({
+      view: "sections",
+      game,
+    });
+  for (const query of [
+    {},
+    { view: "sections" },
+    { game: "four-shogi" },
+    { view: "sections", game: "all" },
+    { view: "sections", game: "four-shogi", private: true },
+  ])
+    expect(tournamentLobbySectionsQuerySchema.safeParse(query).success).toBe(false);
+  const tournament = {
+    id: 1,
+    ...input,
+    status: "upcoming" as const,
+    entryCount: 0,
+    waitingCount: 0,
+    playingCount: 0,
+    pendingCount: 0,
+    completedCount: 0,
+    ruleVersion: 1 as const,
+    finalizedAtMs: null,
+  };
+  const sections = {
+    current: [{ ...tournament, status: "active" }],
+    upcoming: Array.from({ length: 30 }, (_, index) => ({ ...tournament, id: index + 2 })),
+    serverTimeMs: 1000,
+  };
+  expect(tournamentLobbySectionsSchema.parse(sections).upcoming).toHaveLength(30);
+  expect(tournamentLobbySchema.parse({ tournament })).toEqual({ tournament });
+  expect(tournamentLobbySchema.safeParse(sections).success).toBe(false);
+  expect(tournamentLobbySectionsSchema.safeParse({ tournament }).success).toBe(false);
+  expect(tournamentLobbySectionsSchema.safeParse({ ...sections, serverTimeMs: -1 }).success).toBe(
+    false,
+  );
+  expect(tournamentLobbySectionsSchema.safeParse({ ...sections, key: operationId }).success).toBe(
+    false,
+  );
+  expect(tournamentInputSchema.safeParse({ ...input, game: "reversi" }).success).toBe(false);
+});
+
+test("公開大会一覧はallと各ゲームの20件ページを扱い、優勝者へ内部識別子を混ぜない", () => {
+  expect(tournamentListQuerySchema.parse({})).toEqual({ game: "all" });
+  for (const game of ["all", ...gameIds])
+    expect(tournamentListQuerySchema.safeParse({ game, cursor: "1000:1" }).success).toBe(true);
+  for (const cursor of ["bad", "1000:0", "-1:1", "9007199254740992:1", "1:9007199254740992"])
+    expect(tournamentListQuerySchema.safeParse({ cursor }).success).toBe(false);
+  const item = {
+    id: 1,
+    game: "four-shogi",
+    name: "大会",
+    startsAtMs: 1000,
+    endsAtMs: 2000,
+    status: "finished",
+    entryCount: 0,
+    winners: [{ name: "優勝者", avatarUrl: null }],
+  };
+  const page = {
+    tournaments: Array.from({ length: 20 }, (_, index) => ({ ...item, id: index + 1 })),
+    nextCursor: "1000:20",
+    serverTimeMs: 3000,
+  };
+  expect(tournamentListSchema.parse(page).tournaments).toHaveLength(20);
+  const { entryCount: _count, ...missingCount } = item;
+  expect(tournamentListSchema.safeParse({ ...page, tournaments: [missingCount] }).success).toBe(
+    false,
+  );
+  for (const entryCount of [-1, 0.5, "2", null])
+    expect(
+      tournamentListSchema.safeParse({ ...page, tournaments: [{ ...item, entryCount }] }).success,
+    ).toBe(false);
+  expect(
+    tournamentListSchema.parse({ ...page, tournaments: [{ ...item, entryCount: 3 }] })
+      .tournaments[0]!.entryCount,
+  ).toBe(3);
+  expect(
+    tournamentListSchema.safeParse({ ...page, tournaments: [...page.tournaments, item] }).success,
+  ).toBe(false);
+  for (const extra of [
+    { accountId: operationId },
+    { entryId: matchId },
+    { token: "ab".repeat(32) },
+    { username: "private" },
+  ])
+    expect(
+      tournamentListSchema.safeParse({
+        ...page,
+        tournaments: [{ ...item, winners: [{ ...item.winners[0], ...extra }] }],
+      }).success,
+    ).toBe(false);
 });
