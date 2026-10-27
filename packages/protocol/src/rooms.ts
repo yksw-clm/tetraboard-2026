@@ -36,7 +36,7 @@ const avatarUrlSchema = z
   .string()
   .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
   .nullable();
-const playerAppearanceSchema = z.discriminatedUnion("kind", [
+export const playerAppearanceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("human"),
     avatarUrl: avatarUrlSchema,

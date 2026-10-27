@@ -526,18 +526,19 @@ for (const game of ["four-reversi", "four-shogi"] as const)
         },
       ],
     });
-    await runInDurableObject(stub, (_, state) => {
-      state.storage.kv.put(analyticsActiveKey, match);
-      state.storage.kv.put(analyticsPendingPrefix + match.id, {
-        record: match,
-        revision: 1,
-        retryAtMs: Date.now(),
-      } satisfies AnalyticsJob);
-    });
     await env.APP_DB.prepare(
       `CREATE TRIGGER reject_analytics BEFORE INSERT ON analytics_matches WHEN NEW.id = '${match.id}' BEGIN SELECT RAISE(ABORT, 'unavailable'); END`,
     ).run();
     try {
+      await runInDurableObject(stub, (_, state) => {
+        state.storage.kv.put(analyticsActiveKey, match);
+        state.storage.kv.put(analyticsPendingPrefix + match.id, {
+          record: match,
+          revision: 1,
+          // 自動Alarmにrev1を拾わせず、閉鎖で作るrev2の保存失敗から検証します。
+          retryAtMs: Date.now() + 60000,
+        } satisfies AnalyticsJob);
+      });
       expect(
         (
           await fetchWith(env, `/api/rooms/${created.room.id}/leave`, {
@@ -548,12 +549,10 @@ for (const game of ["four-reversi", "four-shogi"] as const)
       ).toBe(204);
       await vi.waitFor(async () =>
         expect(
-          await runInDurableObject(
-            stub,
-            (_, state) =>
-              state.storage.kv.get<AnalyticsJob>(analyticsPendingPrefix + match.id)?.record.status,
+          await runInDurableObject(stub, (_, state) =>
+            state.storage.kv.get<AnalyticsJob>(analyticsPendingPrefix + match.id),
           ),
-        ).toBe("abandoned"),
+        ).toMatchObject({ revision: 2, record: { status: "abandoned" } }),
       );
       await vi.waitFor(async () =>
         expect(

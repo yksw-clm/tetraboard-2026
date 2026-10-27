@@ -12,6 +12,8 @@ import { AccountContext } from "./useAccount";
 import { readAccount } from "./accountApi";
 import { RegistrationCompletion } from "./RegistrationCompletion";
 import { BadgeNotificationProvider } from "../badges/BadgeNotificationProvider";
+import { LastLobbyGameTracker } from "../../shared/ui/AppNavigation";
+import { isGameViewPath } from "../../shared/siteNavigation";
 function accountIdentity(user: AccountProfile | null) {
   return user?.profileId ?? user?.username ?? null;
 }
@@ -172,44 +174,55 @@ export function AccountLayout() {
   }, [refresh]);
   return (
     <AccountContext.Provider value={{ ...state, refresh, update, recoverUnauthorized }}>
+      <LastLobbyGameTracker />
       <GuestMergeConfirmation />
       <BadgeNotificationProvider>
-        {state.user &&
-        !state.user.profileCompleted &&
-        location.pathname !== "/account/setup" &&
-        location.pathname !== "/" &&
-        !["/privacy", "/terms", "/account/deletion"].includes(location.pathname) &&
-        location.pathname !== "/feedback" &&
-        !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
-        !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
-        !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
-        !(
-          location.pathname === "/login" &&
-          new URLSearchParams(location.search).get("destination") === "admin"
-        ) ? (
-          <Navigate
-            to={
-              new URLSearchParams(location.search).has("guestMerge")
-                ? "/account/setup?guestMerge=1"
-                : "/account/setup"
-            }
-            replace
-          />
-        ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
-          <RegistrationCompletion
-            enabled={Boolean(
-              state.user?.profileCompleted &&
-              !state.user.isGuest &&
-              !new URLSearchParams(location.search).has("guestMerge") &&
-              !state.loading &&
-              !state.error,
-            )}
-          >
+        <div
+          className={
+            isGameViewPath(location.pathname)
+              ? "contents"
+              : "[@media(max-width:767px)]:pb-[calc(64px+env(safe-area-inset-bottom))]"
+          }
+        >
+          {state.user &&
+          !state.user.profileCompleted &&
+          location.pathname !== "/account/setup" &&
+          location.pathname !== "/" &&
+          !["/privacy", "/terms", "/account/deletion", "/how-to-play", "/how-to-play/"].includes(
+            location.pathname,
+          ) &&
+          location.pathname !== "/feedback" &&
+          !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
+          !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
+          !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
+          !(
+            location.pathname === "/login" &&
+            new URLSearchParams(location.search).get("destination") === "admin"
+          ) ? (
+            <Navigate
+              to={
+                new URLSearchParams(location.search).has("guestMerge")
+                  ? "/account/setup?guestMerge=1"
+                  : "/account/setup"
+              }
+              replace
+            />
+          ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
+            <RegistrationCompletion
+              enabled={Boolean(
+                state.user?.profileCompleted &&
+                !state.user.isGuest &&
+                !new URLSearchParams(location.search).has("guestMerge") &&
+                !state.loading &&
+                !state.error,
+              )}
+            >
+              <Outlet />
+            </RegistrationCompletion>
+          ) : (
             <Outlet />
-          </RegistrationCompletion>
-        ) : (
-          <Outlet />
-        )}
+          )}
+        </div>
       </BadgeNotificationProvider>
     </AccountContext.Provider>
   );

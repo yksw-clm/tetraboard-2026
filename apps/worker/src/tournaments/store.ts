@@ -1,11 +1,16 @@
 import {
   rankTournamentStandings,
   tournamentRankPointsUnits,
+  tournamentRules,
   type TournamentInput,
   type TournamentPublic,
   type TournamentRecord,
   type TournamentStanding,
+  type TournamentLobbySections,
+  type TournamentList,
+  type TournamentListItem,
 } from "@tetraboard/protocol";
+import type { GameId, GameScope } from "@tetraboard/protocol/games";
 import { profileAvatarUrl } from "../accounts/auth";
 import type { ShogiMatchRecord } from "../rooms/shogiMatchStore";
 import type { TournamentRoomContext } from "../rooms/tournamentRoom";
@@ -64,7 +69,30 @@ export async function record(db: D1Database, row: TournamentRow): Promise<Tourna
     status: stage(row),
   };
 }
-export async function publicSummary(db: D1Database, row: TournamentRow): Promise<TournamentPublic> {
+type PublicCounts = Pick<
+  TournamentPublic,
+  "entryCount" | "waitingCount" | "playingCount" | "pendingCount" | "completedCount"
+>;
+function summarize(row: TournamentRow, counts: PublicCounts, now: number): TournamentPublic {
+  if (!row.published || !row.public_id) throw new Error("Unpublished tournament");
+  return {
+    id: row.public_id,
+    name: row.name,
+    description: row.description,
+    rulesDescription: row.rules_description,
+    startsAtMs: row.starts_at_ms!,
+    endsAtMs: row.ends_at_ms!,
+    status: stage(row, now) as TournamentPublic["status"],
+    ...counts,
+    ruleVersion: 1,
+    finalizedAtMs: row.finalized_at_ms,
+  };
+}
+export async function publicSummary(
+  db: D1Database,
+  row: TournamentRow,
+  now = Date.now(),
+): Promise<TournamentPublic> {
   if (!row.published || !row.public_id) throw new Error("Unpublished tournament");
   const counts = await db
     .prepare(`SELECT
@@ -78,23 +106,129 @@ export async function publicSummary(db: D1Database, row: TournamentRow): Promise
         AND NOT EXISTS(SELECT 1 FROM tournament_match_players p JOIN tournament_matches m ON m.id=p.match_id
           WHERE p.account_id=w.account_id AND m.tournament_key=w.tournament_key AND m.phase='reserved')`,
     )
-    .bind(row.key, Date.now())
+    .bind(row.key, now)
     .first<{ n: number }>();
-  return {
-    id: row.public_id,
+  return summarize(
+    row,
+    {
+      entryCount: await entryCount(db, row.key),
+      waitingCount: waiting!.n,
+      playingCount: counts?.playing ?? 0,
+      pendingCount: counts?.pending ?? 0,
+      completedCount: counts?.completed ?? 0,
+    },
+    now,
+  );
+}
+export async function lobbySections(
+  db: D1Database,
+  game: GameId,
+  now: number,
+): Promise<TournamentLobbySections> {
+  if (game !== tournamentRules.game) return { current: [], upcoming: [], serverTimeMs: now };
+  const cutoff = now - 86_400_000;
+  // 全件掲載でも、大会ごとの人数取得でD1との往復を増やしません。
+  const rows = await db
+    .prepare(`SELECT t.*,
+    (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_key=t.key AND e.deleted=0) AS entryCount,
+    (SELECT COUNT(*) FROM tournament_wait_reservations w WHERE w.tournament_key=t.key AND w.lease_until_ms>?
+      AND w.match_operation_id IS NULL
+      AND NOT EXISTS(SELECT 1 FROM tournament_match_players p JOIN tournament_matches m ON m.id=p.match_id
+        WHERE p.account_id=w.account_id AND m.tournament_key=w.tournament_key AND m.phase='reserved')) AS waitingCount,
+    (SELECT COUNT(*) FROM tournament_matches m WHERE m.tournament_key=t.key AND m.phase='playing') AS playingCount,
+    (SELECT COUNT(*) FROM tournament_matches m WHERE m.tournament_key=t.key AND m.phase IN ('reserved','saving')) AS pendingCount,
+    (SELECT COUNT(*) FROM tournament_matches m WHERE m.tournament_key=t.key AND m.phase='saved') AS completedCount
+    FROM tournaments t WHERE t.published=1 AND t.ends_at_ms>?
+    ORDER BY t.starts_at_ms,t.public_id`)
+    .bind(now, cutoff)
+    .all<TournamentRow & PublicCounts>();
+  const current: TournamentPublic[] = [],
+    upcoming: TournamentPublic[] = [];
+  for (const row of rows.results) {
+    const summary = summarize(
+      row,
+      {
+        entryCount: row.entryCount,
+        waitingCount: row.waitingCount,
+        playingCount: row.playingCount,
+        pendingCount: row.pendingCount,
+        completedCount: row.completedCount,
+      },
+      now,
+    );
+    if (summary.status === "upcoming") upcoming.push(summary);
+    else if (summary.status === "active" || summary.endsAtMs <= now) current.push(summary);
+  }
+  current.sort(
+    (a, b) =>
+      Number(b.status === "active") - Number(a.status === "active") ||
+      b.endsAtMs - a.endsAtMs ||
+      b.id - a.id,
+  );
+  upcoming.sort((a, b) => a.startsAtMs - b.startsAtMs || a.id - b.id);
+  return { current, upcoming, serverTimeMs: now };
+}
+export async function publicTournamentList(
+  db: D1Database,
+  game: GameScope,
+  cursor: string | undefined,
+  now: number,
+): Promise<TournamentList> {
+  if (game !== "all" && game !== tournamentRules.game)
+    return { tournaments: [], nextCursor: null, serverTimeMs: now };
+  const [at, id] = cursor?.split(":") ?? [];
+  const result = await db
+    .prepare(`SELECT t.*,
+      (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_key=t.key AND e.deleted=0) AS entryCount
+    FROM tournaments t WHERE t.published=1
+    ${cursor ? "AND (t.starts_at_ms<? OR (t.starts_at_ms=? AND t.public_id<?))" : ""}
+    ORDER BY t.starts_at_ms DESC,t.public_id DESC LIMIT 21`)
+    .bind(...(cursor ? [Number(at), Number(at), Number(id)] : []))
+    .all<TournamentRow & { entryCount: number }>();
+  const rows = result.results.slice(0, 20);
+  const finalized = rows.filter((row) => row.finalized_at_ms !== null).map((row) => row.key);
+  const winners = new Map<string, InternalStanding[]>();
+  if (finalized.length) {
+    const scores = await db
+      .prepare(`SELECT e.tournament_key AS tournamentKey,
+      e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,u.isAnonymous,
+      s.points_units AS pointsUnits,s.games,s.first,s.second,s.third,s.fourth,s.knockouts,s.rank_sum AS rankSum,s.final_rank AS finalRank
+      FROM tournament_entries e JOIN tournament_scores s ON s.entry_id=e.id AND s.tournament_key=e.tournament_key
+      LEFT JOIN user u ON u.id=e.account_id AND e.deleted=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
+      WHERE e.tournament_key IN (${finalized.map(() => "?").join(",")}) AND s.final_rank=1 AND s.games>0
+      ORDER BY e.tournament_key,e.id`)
+      .bind(...finalized)
+      .all<ScoreRow & { tournamentKey: string }>();
+    for (const score of scores.results) {
+      const group = winners.get(score.tournamentKey) ?? [];
+      group.push(standingFromRow(score));
+      winners.set(score.tournamentKey, group);
+    }
+  }
+  const tournaments: TournamentListItem[] = rows.map((row) => ({
+    id: row.public_id!,
+    game: tournamentRules.game,
     name: row.name,
-    description: row.description,
-    rulesDescription: row.rules_description,
+    entryCount: row.entryCount,
     startsAtMs: row.starts_at_ms!,
     endsAtMs: row.ends_at_ms!,
-    status: stage(row) as TournamentPublic["status"],
-    entryCount: await entryCount(db, row.key),
-    waitingCount: waiting!.n,
-    playingCount: counts?.playing ?? 0,
-    pendingCount: counts?.pending ?? 0,
-    completedCount: counts?.completed ?? 0,
-    ruleVersion: 1,
-    finalizedAtMs: row.finalized_at_ms,
+    status: stage(row, now) as TournamentPublic["status"],
+    winners: (winners.get(row.key) ?? [])
+      .sort(
+        (a, b) =>
+          (a.username ?? "").localeCompare(b.username ?? "") || a.entryId.localeCompare(b.entryId),
+      )
+      .map((standing) => {
+        const { name, avatarUrl, isGuest } = visibleStanding(standing);
+        return { name, avatarUrl, ...(isGuest ? { isGuest: true } : {}) };
+      }),
+  }));
+  const last = rows.at(-1);
+  return {
+    tournaments,
+    nextCursor:
+      result.results.length > 20 && last ? `${last.starts_at_ms}:${last.public_id}` : null,
+    serverTimeMs: now,
   };
 }
 export async function createDraft(db: D1Database, input: TournamentInput) {
@@ -191,21 +325,8 @@ type ScoreRow = {
   finalRank: number | null;
 };
 export type InternalStanding = TournamentStanding & { entryId: string; accountId: string | null };
-export async function allStandings(
-  db: D1Database,
-  row: TournamentRow,
-): Promise<InternalStanding[]> {
-  const values = await db
-    .prepare(`SELECT e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,u.isAnonymous,
-    COALESCE(s.points_units,0) AS pointsUnits,COALESCE(s.games,0) AS games,
-    COALESCE(s.first,0) AS first,COALESCE(s.second,0) AS second,COALESCE(s.third,0) AS third,COALESCE(s.fourth,0) AS fourth,
-    COALESCE(s.knockouts,0) AS knockouts,COALESCE(s.rank_sum,0) AS rankSum,s.final_rank AS finalRank
-    FROM tournament_entries e LEFT JOIN tournament_scores s ON s.entry_id=e.id
-    LEFT JOIN user u ON u.id=e.account_id AND e.deleted=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
-    WHERE e.tournament_key=? AND (e.deleted=0 OR (? IS NOT NULL AND s.final_rank IS NOT NULL))`)
-    .bind(row.key, row.finalized_at_ms)
-    .all<ScoreRow>();
-  const standings = values.results.map((v) => ({
+function standingFromRow(v: ScoreRow): InternalStanding {
+  return {
     entryId: v.entryId,
     accountId: v.deleted ? null : v.accountId,
     rank: v.finalRank,
@@ -221,7 +342,23 @@ export async function allStandings(
     fourth: v.fourth,
     knockouts: v.knockouts,
     rankSum: v.rankSum,
-  }));
+  };
+}
+export async function allStandings(
+  db: D1Database,
+  row: TournamentRow,
+): Promise<InternalStanding[]> {
+  const values = await db
+    .prepare(`SELECT e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,u.isAnonymous,
+    COALESCE(s.points_units,0) AS pointsUnits,COALESCE(s.games,0) AS games,
+    COALESCE(s.first,0) AS first,COALESCE(s.second,0) AS second,COALESCE(s.third,0) AS third,COALESCE(s.fourth,0) AS fourth,
+    COALESCE(s.knockouts,0) AS knockouts,COALESCE(s.rank_sum,0) AS rankSum,s.final_rank AS finalRank
+    FROM tournament_entries e LEFT JOIN tournament_scores s ON s.entry_id=e.id
+    LEFT JOIN user u ON u.id=e.account_id AND e.deleted=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
+    WHERE e.tournament_key=? AND (e.deleted=0 OR (? IS NOT NULL AND s.final_rank IS NOT NULL))`)
+    .bind(row.key, row.finalized_at_ms)
+    .all<ScoreRow>();
+  const standings = values.results.map(standingFromRow);
   return row.finalized_at_ms === null
     ? rankTournamentStandings(standings)
     : standings.sort(

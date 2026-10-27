@@ -1,12 +1,8 @@
 import { expect, spyOn, test } from "bun:test";
-import { LayoutGroup } from "motion/react";
-import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
 import { LobbyRankings } from "../src/features/lobby/LobbyRankings";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import { RoomEntryDialog } from "../src/features/lobby/RoomEntryDialog";
 import { useRoomInvitation } from "../src/features/room/useRoomInvitation";
-import { GameLobbyNavigation } from "../src/features/lobby/GameLobbyNavigation";
-import { GeneralLobbyGameNavigation } from "../src/features/lobby/GeneralLobbyGameNavigation";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { useLocation } from "react-router";
 import { profile } from "../test/fixtures/account";
@@ -70,7 +66,7 @@ test("全6ロビーの作成導線はダイアログだけを開き、再訪時�
       ),
     );
     await flush();
-    const preview = view.querySelector('[data-testid="lobby-board-preview"]')!;
+    const preview = view.querySelector('main [data-testid="lobby-board-preview"]')!;
     expect(preview.tagName).toBe("IMG");
     expect(preview.getAttribute("src")).toEndWith(
       `/lobby/${game === "four-gomoku" ? "gomoku" : game}.webp`,
@@ -79,73 +75,13 @@ test("全6ロビーの作成導線はダイアログだけを開き、再訪時�
     expect(preview.getAttribute("aria-hidden")).toBe("true");
     expect(Number(preview.getAttribute("width"))).toBeGreaterThan(0);
     expect(Number(preview.getAttribute("height"))).toBeGreaterThan(0);
-    const dialog = document.querySelector('[role="dialog"]')!;
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain("ルームを作る");
     expect(JSON.parse(view.querySelector("output")!.textContent!)).toEqual({ preserved: true });
     expect(requests.some((request) => request.init.method === "POST")).toBe(false);
     rerender(view, null);
   }
 });
-test("ロビーの入れ替えと戻る操作で、総合ロビーと6ゲームのリンク・現在地を維持", async () => {
-  const router = createMemoryRouter(
-    [
-      {
-        element: (
-          <LayoutGroup id="lobby-navigation-test">
-            <Outlet />
-          </LayoutGroup>
-        ),
-        children: [
-          { path: "/", element: <GeneralLobbyGameNavigation /> },
-          ...gameIds.map((game) => ({
-            path: gameCatalog[game].lobbyPath,
-            element: <GameLobbyNavigation key={game} />,
-          })),
-        ],
-      },
-    ],
-    { initialEntries: [gameCatalog["four-reversi"].lobbyPath] },
-  );
-  const view = render(<RouterProvider router={router} />);
-  try {
-    for (const game of gameIds) {
-      const link = view.querySelector<HTMLAnchorElement>(
-        `a[href="${gameCatalog[game].lobbyPath}"]`,
-      )!;
-      act(() => link.click());
-      await flush();
-      expect(router.state.location.pathname).toBe(gameCatalog[game].lobbyPath);
-      const selected = view.querySelectorAll('a[aria-current="page"]');
-      expect(selected).toHaveLength(1);
-      expect(selected[0]!.textContent).toBe(gameCatalog[game].name);
-      expect(view.querySelectorAll("a")).toHaveLength(7);
-      expect(view.textContent).not.toContain("ゲーム一覧");
-    }
-    act(() => view.querySelector<HTMLAnchorElement>('a[href="/"]')!.click());
-    await flush();
-    expect(view.querySelector('a[aria-current="page"]')!.textContent).toBe("総合ロビー");
-    expect(view.textContent).toContain("ゲーム一覧");
-    expect(view.querySelectorAll("a")).toHaveLength(7);
-    for (const game of gameIds) {
-      const link = view.querySelector(`a[href="${gameCatalog[game].lobbyPath}"]`)!;
-      expect(link.querySelectorAll("img")).toHaveLength(1);
-      expect(link.querySelector("img")!.getAttribute("src")).toEndWith(
-        `/lobby/${game === "four-gomoku" ? "gomoku" : game}.webp`,
-      );
-      expect(link.querySelector("button, svg")).toBeNull();
-    }
-    act(() => void router.navigate(-1));
-    await flush();
-    expect(view.querySelector('a[aria-current="page"]')!.textContent).toBe(
-      gameCatalog[gameIds.at(-1)!].name,
-    );
-    expect(view.textContent).not.toContain("ゲーム一覧");
-  } finally {
-    rerender(view, null);
-    router.dispose();
-  }
-});
-
 test("両ゲームのランキングは上位3人・詳細10人・集計選択、失敗時保持・空一覧を表示", async () => {
   for (const game of ["four-reversi", "four-shogi"] as const) {
     const view = render(<LobbyRankings game={game} />);
@@ -185,7 +121,7 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
   }
 });
 
-test("ロビーの幅通知はセクションのDOM順だけを変え、ランキングの取得と選択を保持", async () => {
+test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局・大会一覧の順と詳細の選択を保持", async () => {
   const media = new window.EventTarget();
   let mobile = false;
   const matchMedia = spyOn(window, "matchMedia").mockImplementation(
@@ -223,8 +159,27 @@ test("ロビーの幅通知はセクションのDOM順だけを変え、ラン�
     const request = requests.find((r) => r.url.includes("/rankings?profilePreview=1"))!;
     request.respond(rankings);
     await flush();
-    const ranking = view.querySelector('section[aria-labelledby="lobby-rankings-title"]')!;
-    act(() => ranking.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
+    const ranking = view.querySelector<HTMLElement>(
+      'section[aria-labelledby="lobby-rankings-title"]',
+    )!;
+    const roomSection = view.querySelector('section[aria-label="公開部屋"]')!.parentElement!;
+    const recentSection = view.querySelector('section[aria-labelledby="recent-matches-title"]')!;
+    const tournamentSection = view.querySelector(
+      'section[aria-labelledby="tournament-list-four-shogi-title"]',
+    )!.parentElement!;
+    const sectionOrder = () => [...ranking.parentElement!.children];
+    function expectSectionOrder() {
+      const sections = sectionOrder();
+      expect(sections).toHaveLength(4);
+      [roomSection, ranking, recentSection, tournamentSection].forEach((section, index) => {
+        expect(sections[index]).toBe(section);
+      });
+    }
+    expectSectionOrder();
+    press(ranking, "もっと見る");
+    await flush();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
     await flush();
     const count = requests.length;
     mobile = true;
@@ -232,16 +187,10 @@ test("ロビーの幅通知はセクションのDOM順だけを変え、ラン�
     await flush();
     expect(requests).toHaveLength(count);
     expect(view.querySelector('section[aria-labelledby="lobby-rankings-title"]')).toBe(ranking);
-    expect(
-      ranking.querySelector('[role="tab"][id$="doubles"]')!.getAttribute("aria-selected"),
-    ).toBe("true");
-    expect([...ranking.parentElement!.children].findIndex((n) => n === ranking)).toBeGreaterThan(
-      [...ranking.parentElement!.children].findIndex(
-        (n) => n.getAttribute("aria-label") === "公開部屋",
-      ),
+    expect(dialog.querySelector('[role="tab"][id$="doubles"]')!.getAttribute("aria-selected")).toBe(
+      "true",
     );
-    rerender(view, wrap()(<GameLobbyNavigation />));
-    expect(view.querySelectorAll('a[href^="/games/"]')).toHaveLength(6);
+    expectSectionOrder();
   } finally {
     matchMedia.mockRestore();
   }
@@ -344,5 +293,89 @@ test("共有コピーは世代付きURLと連打防止、失敗時の案内、�
   } finally {
     write.mockRestore();
     failure.mockRestore();
+  }
+});
+
+test("公開ルームは実アバター・CPU・空席と総数を示し、3件から全件へ展開できる", async () => {
+  const { LobbyList } = await import("../src/features/lobby/LobbyList");
+  const requestedImages: HTMLImageElement[] = [];
+  const NativeImage = window.Image;
+  const descriptor = Object.getOwnPropertyDescriptor(window, "Image")!;
+  Object.defineProperty(window, "Image", {
+    configurable: true,
+    value: function () {
+      const image = new NativeImage();
+      requestedImages.push(image);
+      return image;
+    },
+  });
+  try {
+    const rooms = Array.from({ length: 25 }, (_, index) => ({
+      id: String(12345 + index),
+      instanceId: "11111111-1111-4111-8111-111111111111",
+      game: "four-reversi" as const,
+      mode: "singles" as const,
+      timeControl: { mainTimeMs: 300000, byoyomiMs: 30000 } as const,
+      status: "waiting" as const,
+      hostName: `ホスト${index}`,
+      hostAvatarUrl: null,
+      humanCount: 1,
+      cpuCount: 1,
+      capacity: 4 as const,
+      openSeats: 2,
+      updatedAtMs: 1,
+      participants: [
+        {
+          kind: "human" as const,
+          avatarUrl: "/api/avatars/11111111-1111-4111-8111-111111111111",
+          profileTarget: null,
+        },
+        { kind: "cpu" as const, level: 2 as const },
+      ],
+    }));
+    const view = render(
+      wrap()(
+        <LobbyList
+          game="four-reversi"
+          rooms={rooms}
+          totalCount={25}
+          error={null}
+          loading={false}
+          isInitialLoading={false}
+          onRefresh={() => {}}
+          onJoin={() => {}}
+          onWatch={() => {}}
+        />,
+      ),
+    );
+    await flush();
+    const list = view.querySelector('ul[aria-label="公開ルーム一覧"]')!;
+    expect(list.children).toHaveLength(3);
+    const first = list.firstElementChild!;
+    expect(first.querySelector('[role="group"]')!.getAttribute("aria-label")).toBe(
+      "人間1人、CPU1人、空席2席",
+    );
+    expect(first.querySelectorAll('[data-testid="player-avatar"]')).toHaveLength(2);
+    expect(
+      requestedImages.some((image) =>
+        image.src.endsWith("/api/avatars/11111111-1111-4111-8111-111111111111"),
+      ),
+    ).toBe(true);
+    expect(first.textContent).toContain("ホスト0の部屋");
+    expect(first.textContent).toContain("05:00 / 00:30");
+    press(view, "すべてのルームを見る（25部屋）");
+    expect(list.children).toHaveLength(25);
+    list.parentElement!.scrollTop = 100;
+    press(view, "シングルス");
+    expect(list.children).toHaveLength(3);
+    expect(list.parentElement!.scrollTop).toBe(0);
+    press(view, "すべてのルームを見る（25部屋）");
+    expect(
+      [...view.querySelectorAll("button")].some((button) => button.textContent === "もっと見る"),
+    ).toBe(false);
+    press(view, "ルームを折りたたむ");
+    expect(list.children).toHaveLength(3);
+  } finally {
+    Object.defineProperty(window, "Image", descriptor);
   }
 });

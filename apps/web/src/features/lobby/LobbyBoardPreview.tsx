@@ -21,13 +21,23 @@ const boardStyles = {
   gomoku: "rounded-md shadow-md -rotate-6",
 };
 
-export function LobbyBoardPreview({ game, compact = false }: { game: GameId; compact?: boolean }) {
+export function LobbyBoardPreview({
+  game,
+  compact = false,
+  className,
+  src,
+}: {
+  game: GameId;
+  compact?: boolean;
+  className?: string;
+  src?: string;
+}) {
   const board = boards[game];
   return (
     <img
       aria-hidden="true"
       data-testid="lobby-board-preview"
-      src={board.src}
+      src={src ?? board.src}
       alt=""
       width={board.width}
       height={board.height}
@@ -37,6 +47,7 @@ export function LobbyBoardPreview({ game, compact = false }: { game: GameId; com
         "block h-auto shrink-0 pointer-events-none select-none",
         compact ? "w-16" : "w-[88px] [@media(max-width:767px)]:w-[56px]",
         boardStyles[board.style],
+        className,
       )}
     />
   );

@@ -5,8 +5,9 @@ import {
   tournamentDetailSchema,
 } from "../packages/protocol/src/index";
 import { gameCatalog, gameIds } from "../packages/protocol/src/games";
-import { lobbyMetadata, generalLobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
+import { generalLobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
+import { validateDeploymentLobbyHtml } from "./deploymentLobbyHtml";
 
 const origin = process.argv[2];
 if (!origin) throw new Error("Usage: bun scripts/checkDeployment.ts <origin>");
@@ -86,18 +87,7 @@ for (const game of gameIds) {
     if (Boolean(response.headers.get("X-Robots-Tag")?.includes("noindex")) === searchIndexable)
       throw new Error("Unexpected lobby indexing policy");
     const html = await response.text();
-    for (const expected of [
-      `<title>${lobbyMetadata[game].title}</title>`,
-      `href="${lobbyCanonical(game)}"`,
-      `content="${searchIndexable ? "index,follow" : "noindex,follow"}"`,
-      'name="description"',
-      `data-public-lobby="${game}"`,
-      lobbyMetadata[game].overview,
-      'href="/games/four-reversi"',
-      'href="/games/four-shogi"',
-      'href="/games/reversi"',
-    ])
-      if (!html.includes(expected)) throw new Error(`Missing lobby content: ${expected}`);
+    validateDeploymentLobbyHtml(html, game, { publicOrigin, searchIndexable });
   });
 }
 await check("/robots.txt", async (response) => {

@@ -4,8 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && tsc -p tsconfig.build.json && vite build && bun build/generatePublicLobbies.ts",
-    "typecheck": "tsc -b && tsc -p tsconfig.test.json && tsc -p tsconfig.type-tests.json && tsc -p tsconfig.build.json",
+    "build": "bun run typecheck:build && vite build && bun build/generatePublicLobbies.ts",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all -b tsconfig.check.json",
+    "typecheck:build": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all -b tsconfig.json && bun check --no-script --all -p tsconfig.build.json",
+    "typecheck:tsc": "tsc -b && tsc -p tsconfig.test.json && tsc -p tsconfig.type-tests.json && tsc -p tsconfig.build.json",
     "lint": "oxlint .",
     "preview": "vite preview",
     "test": "bun run test:unit && bun run test:dom",

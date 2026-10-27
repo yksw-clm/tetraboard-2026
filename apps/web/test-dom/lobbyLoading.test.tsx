@@ -14,7 +14,6 @@ for (const game of gameIds) {
       <LobbyList
         {...lobby}
         onRefresh={() => void lobby.refresh("refresh")}
-        onLoadMore={() => void lobby.loadMore()}
         onJoin={() => {}}
         onWatch={() => {}}
       />
@@ -25,22 +24,26 @@ for (const game of gameIds) {
     test(`${game}: ${count}件の一覧を自動更新中に保持し、手動更新だけ案内する`, async () => {
       const rooms = count
         ? [
-            roomPublicMetadataSchema.parse({
-              id: "12345",
-              game,
-              mode: gameCatalog[game].hasModes ? "singles" : undefined,
-              timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
-              status: "waiting",
-              hostName: "ホスト",
-              humanCount: 1,
-              cpuCount: 0,
-              capacity: gameCapacity(game),
-              openSeats: gameCapacity(game) - 1,
-              updatedAtMs: 1,
-            }),
+            {
+              ...roomPublicMetadataSchema.parse({
+                id: "12345",
+                game,
+                mode: gameCatalog[game].hasModes ? "singles" : undefined,
+                timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+                status: "waiting",
+                hostName: "ホスト",
+                humanCount: 1,
+                cpuCount: 0,
+                capacity: gameCapacity(game),
+                openSeats: gameCapacity(game) - 1,
+                updatedAtMs: 1,
+              }),
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              participants: [{ kind: "human" as const, avatarUrl: null, profileTarget: null }],
+            },
           ]
         : [];
-      const page = { rooms, nextCursor: null };
+      const page = { rooms, nextCursor: null, totalCount: rooms.length };
       const view = render(<Lobby />);
       expect(view.textContent).toContain(loadingText);
       clock.advance(0);
@@ -74,13 +77,13 @@ for (const game of gameIds) {
       manual.respond({}, 503);
       await flush();
       expect(view.textContent).not.toContain(loadingText);
-      expect(view.textContent).toContain("ロビーの一覧を取得できませんでした。");
+      expect(view.textContent).toContain("処理できませんでした。再試行してください。");
       if (count) expect(view.textContent).toContain(retainedText);
       clock.advance(10_000);
       requests.at(-1)!.respond(page);
       await flush();
       expect(view.textContent).toContain(retainedText);
-      expect(view.textContent).not.toContain("ロビーの一覧を取得できませんでした。");
+      expect(view.textContent).not.toContain("処理できませんでした。再試行してください。");
     });
   }
 
@@ -90,10 +93,10 @@ for (const game of gameIds) {
     requests.at(-1)!.respond({}, 503);
     await flush();
     expect(view.textContent).not.toContain(loadingText);
-    expect(view.textContent).toContain("ロビーの一覧を取得できませんでした。");
+    expect(view.textContent).toContain("処理できませんでした。再試行してください。");
     clock.advance(10_000);
     expect(view.textContent).not.toContain(loadingText);
-    requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+    requests.at(-1)!.respond({ rooms: [], nextCursor: null, totalCount: 0 });
     await flush();
     expect(view.textContent).toContain("公開ルームはまだありません");
   });

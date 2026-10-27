@@ -9,6 +9,11 @@ import {
   tournamentOperationSchema,
   tournamentConfirmationSchema,
   tournamentControllerInputSchema,
+  tournamentLobbySectionsQuerySchema,
+  tournamentLobbySectionsSchema,
+  tournamentRules,
+  tournamentListQuerySchema,
+  tournamentListSchema,
 } from "@tetraboard/protocol";
 import { accountIdentity, profileAvatarUrl, type StoredProfile } from "../accounts/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
@@ -17,6 +22,8 @@ import { adminIdentity } from "../admin/auth";
 import { readLimitedBody } from "../feedback/images";
 import {
   adminList,
+  lobbySections,
+  publicTournamentList,
   allStandings,
   createDraft,
   cursorOffset,
@@ -165,22 +172,47 @@ function recoverAfterRead(env: Env, context: Pick<ExecutionContext, "waitUntil">
       }),
   );
 }
-tournamentRoutes.get("/tournaments/lobby", async (c) => {
-  // 終了時の復旧が遅れていても、公開情報の取得を待たせません。
-  const overdue = await c.env.APP_DB.prepare(
+async function recoverLobbyOverdue(
+  env: Env,
+  context: Pick<ExecutionContext, "waitUntil">,
+  now: number,
+) {
+  const overdue = await env.APP_DB.prepare(
     "SELECT key FROM tournaments WHERE published=1 AND finalized_at_ms IS NULL AND ends_at_ms<=? ORDER BY public_id LIMIT 20",
   )
-    .bind(Date.now())
+    .bind(now)
     .all<{ key: string }>();
-  for (const t of overdue.results) recoverAfterRead(c.env, c.executionCtx, t.key);
+  for (const tournament of overdue.results) recoverAfterRead(env, context, tournament.key);
+}
+tournamentRoutes.get("/tournaments", async (c) => {
+  const query = tournamentListQuerySchema.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
+  return c.json(
+    tournamentListSchema.parse(
+      await publicTournamentList(c.env.APP_DB, query.data.game, query.data.cursor, Date.now()),
+    ),
+  );
+});
+tournamentRoutes.get("/tournaments/lobby", async (c) => {
   const now = Date.now();
+  if (c.req.query("view") !== undefined || c.req.query("game") !== undefined) {
+    const query = tournamentLobbySectionsQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
+    if (query.data.game === tournamentRules.game)
+      await recoverLobbyOverdue(c.env, c.executionCtx, now);
+    return c.json(
+      tournamentLobbySectionsSchema.parse(await lobbySections(c.env.APP_DB, query.data.game, now)),
+    );
+  }
+  // 終了時の復旧が遅れていても、公開情報の取得を待たせません。
+  await recoverLobbyOverdue(c.env, c.executionCtx, now);
   const row = await c.env.APP_DB.prepare(`SELECT * FROM tournaments WHERE published=1 ORDER BY
     CASE WHEN finalized_at_ms IS NULL AND starts_at_ms<=? AND ends_at_ms>? THEN 0
       WHEN finalized_at_ms IS NULL AND ends_at_ms<=? THEN 1 WHEN starts_at_ms>? THEN 2 ELSE 3 END,
     CASE WHEN starts_at_ms>? THEN starts_at_ms END ASC,public_id DESC LIMIT 1`)
     .bind(now, now, now, now, now)
     .first<TournamentRow>();
-  return c.json({ tournament: row ? await publicSummary(c.env.APP_DB, row) : null });
+  return c.json({ tournament: row ? await publicSummary(c.env.APP_DB, row, now) : null });
 });
 tournamentRoutes.use("/tournaments/:id/*", async (c, next) => {
   const id = tournamentIdSchema.safeParse(c.req.param("id"));

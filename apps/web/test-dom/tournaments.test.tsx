@@ -4,15 +4,12 @@ import type {
   TournamentDetail,
   TournamentParticipation as FullParticipation,
 } from "@tetraboard/protocol";
-import {
-  legalAcknowledgement,
-  legalVersion,
-  publicRecordNotice,
-} from "@tetraboard/protocol/privacy";
+import { legalVersion } from "@tetraboard/protocol/privacy";
 import { TournamentPage } from "../src/features/tournaments/TournamentPage";
 import { TournamentEntrance } from "../src/features/tournaments/TournamentEntrance";
 import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { readRoomMembershipToken } from "../src/shared/roomMembership";
+import { lastLobbyGame } from "../src/shared/lastLobbyGame";
 import {
   createTournamentQueue,
   readTournamentQueue,
@@ -70,7 +67,12 @@ function detail(status: TournamentDetail["tournament"]["status"] = "upcoming"): 
   };
 }
 function Path() {
-  return <p data-path>{useLocation().pathname}</p>;
+  const location = useLocation();
+  return (
+    <p data-path data-state={JSON.stringify(location.state)}>
+      {location.pathname}
+    </p>
+  );
 }
 function page(
   user: typeof profile | null = profile,
@@ -129,6 +131,8 @@ async function respond(
   latestParticipation = participation;
   for (const request of requests.filter((request) => !request.init.signal?.aborted)) {
     if (request.url === "/api/tournaments/1") request.respond(state);
+    if (request.url === "/api/lobby/rooms?view=cards&game=four-shogi")
+      request.respond({ rooms: [], nextCursor: null, totalCount: 0 });
     if (request.url === "/api/tournaments/1/participation")
       request.respond({
         controller: participation.status === "idle" ? "none" : "self",
@@ -164,15 +168,7 @@ async function startQueue(view: HTMLElement) {
   await flush();
   return credential;
 }
-function expectConsent(note: Element) {
-  expect(note.getAttribute("role")).toBe("note");
-  expect(note.textContent).toContain(legalAcknowledgement);
-  expect(note.textContent).toContain(publicRecordNotice);
-  for (const path of ["/terms", "/privacy"])
-    expect(note.querySelector(`a[href="${path}"]`)?.getAttribute("target")).toBe("_blank");
-  expect(note.querySelector('input[type="checkbox"]')).toBeNull();
-}
-test("エントリーはdialogの説明を確認して最終操作した時だけ現行同意版で送る", async () => {
+test("エントリーは注記のないdialogの最終操作でだけ現行同意版を送る", async () => {
   const view = page();
   clock.advance(0);
   await respond(detail(), { entered: false, status: "idle" });
@@ -180,7 +176,9 @@ test("エントリーはdialogの説明を確認して最終操作した時だ�
   press(view, "エントリー");
   await flush();
   const dialog = document.querySelector('[role="dialog"]')!;
-  expectConsent(dialog.querySelector('[role="note"]')!);
+  expect(dialog.querySelector('[role="note"]')).toBeNull();
+  expect(dialog.querySelector('a[href="/terms"]')).toBeNull();
+  expect(dialog.querySelector('a[href="/privacy"]')).toBeNull();
   expect(requests.some((request) => request.url.endsWith("/entries"))).toBe(false);
   press(document.body, "エントリーする");
   await flush();
@@ -215,7 +213,7 @@ test("エントリーdialogを閉じても登録せず、同じ復帰意図で�
   expect(document.querySelector('[role="dialog"]')).not.toBeNull();
 });
 
-test("開催前は人数を大きく右側へ置き、名簿・本人の成績・順位表を表示しない", async () => {
+test("開催前は人数と開始案内を表示し、名簿・本人の成績・順位表を表示しない", async () => {
   const view = page();
   clock.advance(0);
   await respond();
@@ -223,20 +221,87 @@ test("開催前は人数を大きく右側へ置き、名簿・本人の成績�
   expect(view.textContent).not.toContain("大会成績");
   expect(view.textContent).not.toContain("順位表");
   expect(view.querySelector("strong.text-\\[36px\\]")?.textContent).toBe("8");
+  expect(view.querySelector("strong.text-\\[36px\\]")?.parentElement?.textContent).toBe(
+    "現在8人がエントリー中",
+  );
   expect(view.textContent).toContain("今回のご案内");
   expect(view.textContent).toContain("持ち時間なし・秒読み30秒");
+  expect(view.textContent).toContain("開催前です。");
+  expect(view.textContent).not.toContain("〈日本時間〉");
+  expect(view.textContent).not.toContain("人間4人・");
 });
-test("大会チャットは開催前・開催中・結果待機・結果で大会ルールの直前に配置する", async () => {
+test("大会ルールは開催前・開催中・結果待機・結果で大会チャットの直前に配置する", async () => {
   const view = page();
   clock.advance(0);
   for (const status of ["upcoming", "active", "settling", "finished"] as const) {
     if (status !== "upcoming") clock.advance(5000);
     await respond(detail(status));
+    expect(view.querySelector("strong.text-\\[36px\\]")?.parentElement?.textContent).toBe(
+      status === "active"
+        ? "現在8人が参加中"
+        : status === "upcoming"
+          ? "現在8人がエントリー中"
+          : "8人がエントリー",
+    );
     const headings = [...view.querySelectorAll("h2")].map((h) => h.textContent);
     const chat = headings.indexOf("大会チャット");
-    expect(chat).toBeGreaterThanOrEqual(0);
-    expect(headings[chat + 1]).toBe("大会ルール");
+    expect(chat).toBeGreaterThan(0);
+    expect(headings[chat - 1]).toBe("大会ルール");
+    if (status === "active" || status === "settling") {
+      expect(headings[chat - 2]).toBe("進行中の部屋");
+      expect(headings[chat - 3]).toBe("順位表");
+    } else expect(headings).not.toContain("進行中の部屋");
   }
+});
+test("対局結果がなくても列見出しを空表示の上に置き、本人行とは分けて表示する", async () => {
+  const view = page();
+  const empty = detail("active");
+  empty.standings = [];
+  empty.self = null;
+  clock.advance(0);
+  await respond(empty);
+  const table = view.querySelector("table")!;
+  const headers = [...table.querySelectorAll("thead th")].map((cell) => cell.textContent);
+  expect(headers).toEqual([
+    "順位",
+    "プレイヤー",
+    "勝ち点",
+    "対局数",
+    "優勝数",
+    "2位数",
+    "3位数",
+    "4位数",
+    "撃破数",
+    "平均順位",
+  ]);
+  const message = table.querySelector<HTMLTableCellElement>('tbody td[colspan="10"]')!;
+  expect(message.textContent).toContain("まだ対局結果はありません。");
+  expect(
+    table.querySelector("thead")!.compareDocumentPosition(message) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(table.querySelectorAll('tbody th[scope="row"]')).toHaveLength(0);
+  empty.self = {
+    ...player,
+    username: profile.username,
+    name: profile.name,
+    rank: null,
+    games: 0,
+    pointsUnits: 0,
+    first: 0,
+    knockouts: 0,
+    rankSum: 0,
+    self: true,
+  };
+  clock.advance(5000);
+  await respond(empty);
+  expect(table.querySelectorAll('tbody th[scope="row"]')).toHaveLength(1);
+  expect(table.querySelector('tbody th[scope="row"]')?.textContent).toBe(profile.name);
+  expect(message.textContent).toContain("まだ対局結果はありません。");
+  clock.advance(5000);
+  await respond(detail("active"));
+  expect(table.textContent).not.toContain("まだ対局結果はありません。");
+  expect(table.querySelectorAll('tbody th[scope="row"]')).toHaveLength(2);
 });
 test("開催中は対局操作と本人の成績を左、全成績列を右に置き、10文字の名前を省略しない", async () => {
   const view = page();
@@ -519,10 +584,11 @@ test("ロビー入口は公開情報を取得し、開催中の案内と実人�
   const view = render(wrap(null)(<TournamentEntrance />));
   clock.advance(0);
   requests
-    .find((request) => request.url === "/api/tournaments/lobby")!
-    .respond({ tournament: detail("active").tournament });
+    .find((request) => request.url === "/api/tournaments/lobby?view=sections&game=four-shogi")!
+    .respond({ current: [detail("active").tournament], upcoming: [], serverTimeMs: Date.now() });
   await flush();
-  expect(view.textContent).toContain("現在8人がエントリー中");
+  expect(view.textContent).toContain("8人が参加中");
+  expect(view.textContent).not.toContain("現在8人");
   expect(view.textContent).toContain("ゲストでエントリー");
   expect(view.querySelector('a[href="/tournaments/1"]')).not.toBeNull();
   expect(view.querySelector('[role="note"]')).toBeNull();
@@ -1228,6 +1294,114 @@ test("大会ロゴの修飾クリックは通常リンクの新規タブ動作�
   expect(event.defaultPrevented).toBe(false);
   expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
   expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+});
+
+test.each(["/", "/how-to-play", "/games/gomoku", "/account"])(
+  "大会の新ナビ%sは待機取消を確認してから指定先と履歴stateへ移動する",
+  async (destination) => {
+    lastLobbyGame.visit("/games/gomoku");
+    const view = page();
+    try {
+      clock.advance(0);
+      await respond(detail("active"));
+      const credential = await startQueue(view);
+      await respond(detail("active"), {
+        entered: true,
+        status: "waiting",
+        operationId: credential.operationId,
+      });
+      const nav = destination === "/account" ? "下部ナビゲーション" : "メインナビゲーション";
+      act(() =>
+        view
+          .querySelector<HTMLAnchorElement>(`nav[aria-label="${nav}"] a[href="${destination}"]`)!
+          .click(),
+      );
+      await flush();
+      expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+      const cancellation = requests.find((request) => request.init.method === "DELETE")!;
+      expect(JSON.parse(cancellation.init.body as string)).toEqual({
+        operationId: credential.operationId,
+        controllerId: credential.controllerId,
+        controllerVersion: 1,
+      });
+      cancellation.respond({ ok: true });
+      await flush();
+      expect(view.querySelector("[data-path]")?.textContent).toBe(destination);
+      if (destination === "/account") {
+        expect(
+          JSON.parse(view.querySelector("[data-path]")!.getAttribute("data-state")!)
+            .accountSelection.game,
+        ).toBe("gomoku");
+      }
+    } finally {
+      lastLobbyGame.sync(null);
+    }
+  },
+);
+
+test("大会の新ナビは待機取消に失敗すると移動せず、エラーと待機状態を残す", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  act(() =>
+    view
+      .querySelector<HTMLAnchorElement>(
+        'nav[aria-label="下部ナビゲーション"] a[href="/how-to-play"]',
+      )!
+      .click(),
+  );
+  await flush();
+  const cancellation = requests.find((request) => request.init.method === "DELETE")!;
+  cancellation.respond({ message: "待機を取り消せませんでした。" }, 503);
+  await flush();
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  expect(view.textContent).toContain("待機を取り消せませんでした。");
+  expect(view.textContent).toContain("対戦相手を探しています...");
+});
+
+test("大会の新ナビでも修飾クリックと中クリックは待機を取消さない", async () => {
+  const view = page();
+  clock.advance(0);
+  await respond(detail("active"));
+  const credential = await startQueue(view);
+  await respond(detail("active"), {
+    entered: true,
+    status: "waiting",
+    operationId: credential.operationId,
+  });
+  const link = view.querySelector<HTMLAnchorElement>(
+    'nav[aria-label="メインナビゲーション"] a[href="/"]',
+  )!;
+  for (const options of [
+    { metaKey: true },
+    { ctrlKey: true },
+    { shiftKey: true },
+    { altKey: true },
+    { button: 1 },
+  ]) {
+    const event = new MouseEvent("click", {
+      button: 0,
+      ...options,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => link.dispatchEvent(event));
+    await flush();
+    expect(event.defaultPrevented).toBe(false);
+    expect(requests.some((request) => request.init.method === "DELETE")).toBe(false);
+    expect(view.querySelector("[data-path]")?.textContent).toBe("/tournaments/1");
+  }
 });
 
 test("本人状態が未応答でも大会概要・順位を表示し、確認前には参加操作を出さない", async () => {

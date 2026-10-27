@@ -1,10 +1,12 @@
 import {
   tournamentControllerResponseSchema,
   tournamentDetailSchema,
-  tournamentLobbySchema,
+  tournamentLobbySectionsSchema,
+  tournamentListSchema,
   tournamentParticipationSchema,
   tournamentStandingsSchema,
 } from "@tetraboard/protocol";
+import type { GameId } from "@tetraboard/protocol/games";
 import { accountRequest } from "../account/accountApi";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 
@@ -26,10 +28,23 @@ export async function readTournament(id: number, signal?: AbortSignal) {
     await accountRequest(tournamentPath(id), { signal: requestSignal(signal) }),
   );
 }
-export async function readLobbyTournament(signal?: AbortSignal) {
+export async function readLobbyTournaments(game: GameId, signal?: AbortSignal) {
+  const query = new URLSearchParams({ view: "sections", game });
   return parseTournamentData(
-    tournamentLobbySchema,
-    await accountRequest("/api/tournaments/lobby", { signal: requestSignal(signal) }),
+    tournamentLobbySectionsSchema,
+    await accountRequest(`/api/tournaments/lobby?${query}`, { signal: requestSignal(signal) }),
+  );
+}
+export async function readTournamentList(
+  game: GameId | "all",
+  cursor?: string,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ game });
+  if (cursor) query.set("cursor", cursor);
+  return parseTournamentData(
+    tournamentListSchema,
+    await accountRequest(`/api/tournaments?${query}`, { signal: requestSignal(signal) }),
   );
 }
 export async function readTournamentParticipation(

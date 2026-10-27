@@ -16,7 +16,9 @@ export function updatePageMetadata(path: string, room?: ShareRoom): void {
     path === "/terms" ? legalDocuments.terms : path === "/privacy" ? legalDocuments.privacy : null;
   document.title = legalDocument
     ? `${legalDocument.title} | TetraBoard`
-    : (metadata?.title ?? "TetraBoard");
+    : path.replace(/\/$/, "") === "/how-to-play"
+      ? "遊び方 | TetraBoard"
+      : (metadata?.title ?? "TetraBoard");
   // 管理対象だけを取り替え、faviconやviewportなどには触れない。
   for (const element of document.head.querySelectorAll(
     'meta[name="description"], meta[name="robots"], link[rel="canonical"], meta[property^="og:"], meta[name^="twitter:"]',

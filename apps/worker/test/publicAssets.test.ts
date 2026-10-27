@@ -152,11 +152,17 @@ test("既知SPA画面はnoindexで配信し、未知画面と欠落資産は本�
     "/updates/",
     "/updates/feedback",
     "/updates/feedback/",
+    "/how-to-play",
+    "/how-to-play/",
   ]) {
     const response = await assets.fetch(path);
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex, follow");
     expect(await response.text()).toContain('content="noindex,follow"');
+    const head = await assets.fetch(path, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(head.headers.get("X-Robots-Tag")).toBe("noindex, follow");
+    expect(await head.text()).toBe("");
     const conditional = await assets.fetch(path, { headers: { "If-None-Match": '"fixture"' } });
     expect(conditional.status).toBe(path.startsWith("/rooms/") ? 200 : 304);
     expect(conditional.headers.get("X-Robots-Tag")).toBe("noindex, follow");

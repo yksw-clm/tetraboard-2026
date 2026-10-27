@@ -46,7 +46,7 @@ export function RoomIdentityFields({
         <div className="min-w-0">
           <strong className="block wrap-anywhere">{account.user.name}</strong>
           <p className="text-muted text-xs">
-            {account.user.isGuest ? "ゲストとして参加します。" : "このアカウントで参加します。"}
+            {account.user.isGuest ? "ゲスト" : "このアカウントで参加します。"}
           </p>
         </div>
       </div>
@@ -56,9 +56,7 @@ export function RoomIdentityFields({
       <AppTextField value={name} onChange={onChange} isDisabled={busy}>
         <AppTextField.Label>ニックネーム</AppTextField.Label>
         <AppTextField.Input id={id} autoFocus autoComplete="nickname" placeholder="例：てとら" />
-        <AppTextField.Description>
-          1〜10文字。ユーザー登録は必要ありません。
-        </AppTextField.Description>
+        <AppTextField.Description>1〜10文字</AppTextField.Description>
       </AppTextField>
       <p className="text-xs text-muted">{guestStorageNotice}</p>
     </div>

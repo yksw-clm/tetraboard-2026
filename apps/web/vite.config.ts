@@ -21,6 +21,12 @@ export default defineConfig({
     webpAssets(),
   ],
   optimizeDeps: { exclude: ["@jsquash/webp"] },
+  build: {
+    manifest: true,
+    assetsInlineLimit(filePath) {
+      if (/\/src\/assets\/lobby\/[^/]+\.webp$/.test(filePath)) return false;
+    },
+  },
   server: {
     host: "0.0.0.0",
     proxy: {

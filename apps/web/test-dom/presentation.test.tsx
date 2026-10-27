@@ -148,7 +148,30 @@ test("ロビーは人数と4席を表示し、満室の参加を無効にし末�
   const joined: string[] = [],
     watched: string[] = [];
   const props = {
-    rooms: [metadata, { ...metadata, id: "23456", humanCount: 4, cpuCount: 0, openSeats: 0 }],
+    game: "four-reversi" as const,
+    rooms: [
+      {
+        ...metadata,
+        instanceId: "11111111-1111-4111-8111-111111111111",
+        participants: [
+          { kind: "human" as const, avatarUrl: null, profileTarget: null },
+          { kind: "cpu" as const, level: 1 as const },
+        ],
+      },
+      {
+        ...metadata,
+        instanceId: "11111111-1111-4111-8111-111111111111",
+        participants: Array.from({ length: 4 }, () => ({
+          kind: "human" as const,
+          avatarUrl: null,
+          profileTarget: null,
+        })),
+        id: "23456",
+        humanCount: 4,
+        cpuCount: 0,
+        openSeats: 0,
+      },
+    ],
     nextCursor: null,
     error: null,
     loading: false,
@@ -163,9 +186,11 @@ test("ロビーは人数と4席を表示し、満室の参加を無効にし末�
   const rows = view.querySelectorAll("li");
   expect(rows).toHaveLength(2);
   expect(view.textContent).toContain("ホスト");
-  expect(view.textContent).not.toContain("四人リバーシ");
-  press(rows[0]!, "参加");
-  expect(rows[1]!.querySelector('[aria-label="ルーム 23456 に参加"]')).toBeNull();
+  expect(view.textContent).toContain("四人リバーシ");
+  press(rows[0]!, "参加する");
+  expect(
+    rows[1]!.querySelector<HTMLButtonElement>('[aria-label="ルーム 23456 に参加"]')!.disabled,
+  ).toBe(true);
   expect(joined).toEqual(["12345"]);
   press(rows[1]!, "観戦");
   expect(watched).toEqual(["23456"]);

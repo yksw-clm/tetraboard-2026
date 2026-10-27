@@ -588,7 +588,7 @@ export function useTournament(id: number) {
         ? heartbeatWarning.value
         : null),
     takeOver: () => void takeOver(),
-    async returnToLobby() {
+    async returnToLobby(to = "/games/four-shogi", navigationState?: unknown) {
       if (action.current === key) return;
       const participation = current.current.participation;
       const version = documentController.version(key, participation.operationId);
@@ -622,7 +622,7 @@ export function useTournament(id: number) {
         }
       }
       if (!current.current.disposed && current.current.key === key)
-        void navigate("/games/four-shogi");
+        void navigate(to, { state: navigationState });
     },
     returnReason: (location.state?.tournamentReturn?.reason ??
       new URLSearchParams(location.search).get("return")) as string | undefined,

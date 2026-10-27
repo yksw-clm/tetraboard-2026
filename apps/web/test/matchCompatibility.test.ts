@@ -3,7 +3,6 @@ import { fourReversiMatchDetailSchema, fourShogiMatchDetailSchema } from "@tetra
 import { reversiArchives, shogiArchives } from "../../../test-fixtures/matches";
 import { replayFrames } from "../src/features/room/replayFrames";
 import { fetchFourShogiMatchReplay } from "../src/features/room/fourShogiMatchReplay";
-import firebaseReversi from "../../../test-fixtures/matches/firebase-four-reversi.json";
 const fetchSpies: ReturnType<typeof spyOn>[] = [];
 const singlesLabels = [
   "開始局面",
@@ -40,16 +39,20 @@ const notationLabels: Record<string, readonly string[]> = {
   "shogi-singles-draw": drawLabels,
   "shogi-doubles-draw": drawLabels,
 };
-test("Firebase版の初期配置と各手を保存局面から復元する", () => {
-  const match = fourReversiMatchDetailSchema.parse(firebaseReversi.detail);
-  const frames = replayFrames({ game: match.game, players: [], replay: match.replay });
-  expect(match.settings.timeControl).toBeNull();
-  expect(frames).toHaveLength(59);
-  for (const point of firebaseReversi.checkpoints)
-    expect(frames.findLast((frame) => frame.game.moveNumber === point.index)?.game.board).toEqual(
-      point.board,
-    );
-});
+for (const { game, schema, fixture } of [
+  { game: "四人リバーシ", schema: fourReversiMatchDetailSchema, fixture: reversiArchives[0] },
+  { game: "四人将棋", schema: fourShogiMatchDetailSchema, fixture: shogiArchives[0] },
+]) {
+  test(`${game}の保存棋譜は時間設定の不明値と欠落を受け付けない`, () => {
+    for (const timeControl of [null, undefined])
+      expect(
+        schema.safeParse({
+          ...fixture.detail,
+          settings: { ...fixture.detail.settings, timeControl },
+        }).success,
+      ).toBe(false);
+  });
+}
 afterEach(() => {
   for (const spy of fetchSpies.splice(0)) spy.mockRestore();
 });

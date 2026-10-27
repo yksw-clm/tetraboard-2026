@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gameIdSchema, gameScopeSchema } from "./gameSchemas";
 
 export const tournamentRules = {
   version: 1,
@@ -101,6 +102,42 @@ export type TournamentDetail = z.infer<typeof tournamentDetailSchema>;
 export const tournamentLobbySchema = z.strictObject({
   tournament: tournamentPublicSchema.nullable(),
 });
+export const tournamentLobbySectionsQuerySchema = z.strictObject({
+  view: z.literal("sections"),
+  game: gameIdSchema,
+});
+export const tournamentLobbySectionsSchema = z.strictObject({
+  current: z.array(tournamentPublicSchema),
+  upcoming: z.array(tournamentPublicSchema),
+  serverTimeMs: timestamp,
+});
+export type TournamentLobbySections = z.infer<typeof tournamentLobbySectionsSchema>;
+export const tournamentListQuerySchema = z.strictObject({
+  game: gameScopeSchema.default("all"),
+  cursor: z
+    .string()
+    .regex(/^\d{1,16}:[1-9]\d{0,15}$/)
+    .refine((cursor) => cursor.split(":").every((part) => Number.isSafeInteger(Number(part))))
+    .optional(),
+});
+export const tournamentWinnerSchema = tournamentStandingSchema.pick({
+  name: true,
+  avatarUrl: true,
+  isGuest: true,
+});
+export const tournamentListItemSchema = tournamentPublicSchema
+  .pick({ id: true, name: true, startsAtMs: true, endsAtMs: true, status: true, entryCount: true })
+  .extend({
+    game: gameIdSchema,
+    winners: z.array(tournamentWinnerSchema),
+  });
+export const tournamentListSchema = z.strictObject({
+  tournaments: z.array(tournamentListItemSchema).max(20),
+  nextCursor: z.string().nullable(),
+  serverTimeMs: timestamp,
+});
+export type TournamentListItem = z.infer<typeof tournamentListItemSchema>;
+export type TournamentList = z.infer<typeof tournamentListSchema>;
 export const tournamentParticipationSchema = z.strictObject({
   entered: z.boolean(),
   status: z.enum(["idle", "waiting", "matched", "playing"]),

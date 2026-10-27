@@ -85,7 +85,7 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
           className="flex min-h-12 max-w-[290px] items-center gap-3 rounded-full border border-solid border-line bg-white p-1.5 pr-3 text-ink cursor-pointer [@media(max-width:650px)]:gap-1.5 [@media(max-width:650px)]:pr-2"
         >
           <AppAvatar src={user.avatarUrl} />
-          <span className="min-w-0 text-left [@media(max-width:650px)]:hidden">
+          <span className="min-w-0 text-left [@media(max-width:1023px)]:hidden">
             <span className="block truncate text-[15px] font-bold leading-tight">
               {user.name || "プロフィール未設定"}
             </span>

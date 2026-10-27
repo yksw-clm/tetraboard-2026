@@ -6,6 +6,7 @@ import { createRoomContract } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { createAuth } from "../src/accounts/auth";
 import { deleteUnusedAvatars, validAvatar } from "../src/accounts/accountRoutes";
+import { dispatchInTestContext } from "./dispatchInTestContext";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 const webp = () => {
@@ -102,9 +103,22 @@ test("初回設定、名前とIDの境界、正規化、重複、更新状態、
 test("IDの同時取得は片方だけ成功し、汎用更新・別プロバイダーのAPIを公開しない", async () => {
   const users = await Promise.all([accountFixture(false), accountFixture(false)]);
   const id = `same_${crypto.randomUUID().slice(0, 8)}`;
-  const responses = await Promise.all(
-    users.map((user) => write(user.cookie, form("名前", id), true)),
+  const requests = await Promise.all(
+    users.map(async (user) => {
+      const request = new AcceptedGameRequest(`${origin}/api/account/setup`, {
+        method: "POST",
+        headers: { Cookie: user.cookie, Origin: origin },
+        body: form("名前", id),
+      });
+      const body = await request.arrayBuffer();
+      return new AcceptedGameRequest(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body,
+      });
+    }),
   );
+  const responses = await Promise.all(requests.map(dispatchInTestContext));
   expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
   for (const path of ["/auth/update-user", "/auth/link-social", "/auth/sign-up/email"])
     expect(
