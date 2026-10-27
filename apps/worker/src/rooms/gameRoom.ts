@@ -104,7 +104,7 @@ import {
   type TournamentReturn,
 } from "./tournamentRoom";
 import { isClockExpired } from "./clock";
-import { writeRoomIndex, type PendingRoomIndex } from "./roomIndex";
+import { writeRoomIndex, type IndexedRoomParticipant, type PendingRoomIndex } from "./roomIndex";
 import { matchStartKey, pendingMatchPrefix, writeMatch, type PendingMatch } from "./matchStore";
 import {
   activeRegistrationKey,
@@ -1678,9 +1678,11 @@ export class GameRoom extends DurableObject<Env> {
     return page ? { status: "found", page } : { status: "not_found" };
   }
 
-  private publicMetadata(
-    room: Room,
-  ): RoomPublicMetadata & { instanceId: string; hostPlayerId: string | null } {
+  private publicMetadata(room: Room): RoomPublicMetadata & {
+    instanceId: string;
+    hostPlayerId: string | null;
+    participantPreviews: IndexedRoomParticipant[];
+  } {
     const host = room.players.find((player) => {
       if (player.kind !== "human" || player.retired) return false;
       const tokenHash = this.playerTokenHash(player.id);
@@ -1690,6 +1692,17 @@ export class GameRoom extends DurableObject<Env> {
     return {
       instanceId: room.instanceId,
       hostPlayerId: host?.id ?? null,
+      participantPreviews: room.players.map((player) => ({
+        playerId: player.id,
+        appearance:
+          player.kind === "cpu"
+            ? { kind: "cpu", level: player.level }
+            : {
+                kind: "human",
+                avatarUrl: player.retired ? null : player.avatarUrl,
+                ...(player.retired ? { retired: true as const } : {}),
+              },
+      })),
       ...roomPublicMetadataSchema.parse({
         id: room.id,
         ...(isFourShogiRoom(room) && room.tournamentId !== undefined
@@ -2511,11 +2524,42 @@ export class GameRoom extends DurableObject<Env> {
     };
   }
 
+  async refreshLobbyIndex(expectedInstanceId: string | null, expectedRevision: number) {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (room === null) {
+      // 番号が再利用された後の行や、新しいrevisionは閉じません。
+      await this.env.APP_DB.prepare(
+        "UPDATE room_index SET closed=1 WHERE room_id=? AND instance_id IS ? AND revision=?",
+      )
+        .bind(this.ctx.id.name, expectedInstanceId, expectedRevision)
+        .run();
+      return;
+    }
+    this.ctx.storage.transactionSync(() => {
+      const revision =
+        Math.max(this.ctx.storage.kv.get<number>(indexRevisionKey) ?? 0, expectedRevision) + 1;
+      this.ctx.storage.kv.put(indexRevisionKey, revision);
+      this.ctx.storage.kv.put(pendingIndexKey, {
+        revision,
+        closed: false,
+        metadata: this.publicMetadata(room),
+        retryAtMs: Date.now(),
+      } satisfies PendingRoomIndex);
+    });
+    await this.flushRoomIndex();
+  }
+
   async getPublicMetadata(profilePreview = false) {
     await this.reconcileDeadlines();
     const room = this.readRoom();
     if (room === null) return null;
-    const { instanceId, hostPlayerId, ...metadata } = this.publicMetadata(room);
+    const {
+      instanceId,
+      hostPlayerId,
+      participantPreviews: _previews,
+      ...metadata
+    } = this.publicMetadata(room);
     return { ...metadata, ...(profilePreview ? { instanceId, hostPlayerId } : {}) };
   }
 

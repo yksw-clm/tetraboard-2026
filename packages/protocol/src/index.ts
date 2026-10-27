@@ -102,6 +102,7 @@ export {
   roomListCursorSchema,
   roomModeSchema,
   roomPublicMetadataSchema,
+  playerAppearanceSchema,
   roomSchema,
   roundReplaySchema,
   roomSettingsSchema,

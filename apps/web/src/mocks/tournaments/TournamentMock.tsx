@@ -8,7 +8,6 @@ import { AppHeader } from "../../shared/ui/AppHeader";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { LobbyBoardPreview } from "../../features/lobby/LobbyBoardPreview";
-import { GameLobbyNavigation } from "../../features/lobby/GameLobbyNavigation";
 import {
   sampleStandings,
   stageLabels,
@@ -153,7 +152,6 @@ function SampleAnnouncement({ onRead }: { onRead: () => void }) {
 function MockLobby({ state, onOtherAction }: { state: MockState; onOtherAction: () => void }) {
   return (
     <>
-      <GameLobbyNavigation />
       <main
         className={`${appPageWidthClasses} flex flex-col gap-[22px] pt-6 pb-6 max-sm:gap-[18px]`}
       >

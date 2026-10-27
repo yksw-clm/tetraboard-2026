@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { lobbyRoomCardSchema } from "@tetraboard/protocol/general-lobby";
 import { useAccountStats } from "../src/features/account/useAccountStats";
 import { useMatchHistory } from "../src/features/account/useMatchHistory";
 import { useAccountSelection } from "../src/features/account/useAccountSelection";
@@ -19,13 +20,16 @@ const stats = {
   doubles: { total: 6, wins: 3, losses: 2, draws: 1 },
 };
 const rankings = { singles: { first: [], total: [] }, doubles: { wins: [], total: [] } };
-test("旧Workerがpreview指定を拒否したら通常一覧へ戻り、参照情報なしを保持する", async () => {
+test("cards取得の失敗は同条件で再試行し、ランキングの旧Worker互換を維持する", async () => {
   const lobby = renderHook(useLobby, "four-reversi" as const);
   clock.advance(0);
+  expect(requests.at(-1)!.url).toBe("/api/lobby/rooms?view=cards&game=four-reversi");
   requests.at(-1)!.respond({}, 400);
   await flush();
-  expect(requests.at(-1)!.url).toBe("/api/rooms");
-  requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+  expect(lobby.current.error).not.toBeNull();
+  expect(requests).toHaveLength(1);
+  act(() => void lobby.current.refresh());
+  requests.at(-1)!.respond({ rooms: [], nextCursor: null, totalCount: 0 });
   await flush();
   expect(lobby.current.error).toBeNull();
   const ranking = renderHook(useRankings, "four-shogi" as const);
@@ -37,37 +41,55 @@ test("旧Workerがpreview指定を拒否したら通常一覧へ戻り、参照�
   await flush();
   expect(ranking.current.error).toBeNull();
 });
-test("取得の操作元は初回・自動更新と区別し、古い応答で新しい処理中表示を解除しない", async () => {
+test("一覧の重複更新を防ぎ、ローカル条件切替は取得中の通信と操作元を維持する", async () => {
   const lobby = renderHook(useLobby, "four-reversi" as const);
   clock.advance(0);
-  expect(lobby.current.pendingSource).toBeNull();
-  requests.at(-1)!.respond({ rooms: [], nextCursor: null });
+  requests.at(-1)!.respond({ rooms: [], nextCursor: null, totalCount: 0 });
   await flush();
-  act(() => {
-    void lobby.current.refresh("refresh");
-  });
-  const old = requests.at(-1)!;
+  act(() => void lobby.current.refresh("refresh"));
+  const pending = requests.at(-1)!;
+  const count = requests.length;
   expect(lobby.current.pendingSource).toBe("refresh");
   act(() => {
     void lobby.current.refresh("refresh");
+    lobby.current.changeMode("doubles");
+    lobby.current.changeJoinable(true);
   });
-  old.respond({ rooms: [], nextCursor: null });
-  await flush();
+  expect(requests).toHaveLength(count);
+  expect(pending.init.signal?.aborted).toBe(false);
   expect(lobby.current.pendingSource).toBe("refresh");
-  requests.at(-1)!.respond({}, 503);
+  expect(pending.url).not.toContain("mode=");
+  expect(pending.url).not.toContain("joinable=");
+  const double = lobbyCard("12345", { mode: "doubles" });
+  const playing = lobbyCard("12346", { mode: "doubles", status: "playing", openSeats: 0 });
+  pending.respond({
+    rooms: [double, playing, lobbyCard("12347")],
+    nextCursor: null,
+    totalCount: 999,
+  });
   await flush();
+  expect(lobby.current.rooms.map((room) => room.id)).toEqual(["12345"]);
+  expect(lobby.current.totalCount).toBe(1);
+  expect(lobby.current.loading).toBe(false);
   expect(lobby.current.pendingSource).toBeNull();
   clock.advance(10_000);
-  expect(lobby.current.loading).toBe(true);
   expect(lobby.current.pendingSource).toBeNull();
+  requests.at(-1)!.respond({}, 503);
+  await flush();
+  expect(lobby.current.error).not.toBeNull();
+  const afterRefresh = requests.length;
+  act(() => lobby.current.changeJoinable(false));
+  expect(lobby.current.rooms.map((room) => room.id)).toEqual(["12345", "12346"]);
+  expect(lobby.current.totalCount).toBe(2);
+  expect(lobby.current.loading).toBe(false);
+  expect(lobby.current.error).not.toBeNull();
+  expect(requests).toHaveLength(afterRefresh);
 
   const ranking = renderHook(useRankings, "four-reversi" as const);
   clock.advance(0);
   requests.at(-1)!.respond({}, 503);
   await flush();
-  act(() => {
-    void ranking.current.refresh("dialog-retry");
-  });
+  act(() => void ranking.current.refresh("dialog-retry"));
   expect(ranking.current.pendingSource).toBe("dialog-retry");
   expect(ranking.current.error).not.toBeNull();
   requests.at(-1)!.respond(rankings);
@@ -233,32 +255,115 @@ test("ランキングはゲーム別API、失敗時保持、更新によるabort
   expect(h.current.error).toBeNull();
   expect(h.current.loading).toBe(false);
 });
-test("ロビーは初回失敗・追加失敗・末尾を区別し、追加後の自動更新を抑止", async () => {
-  const h = renderHook(useLobby, "four-shogi" as const);
+function lobbyCard(id: string, values: Record<string, unknown> = {}) {
+  return lobbyRoomCardSchema.parse({
+    id,
+    instanceId: "00000000-0000-4000-8000-000000000001",
+    game: "four-reversi",
+    mode: "singles",
+    timeControl: { mainTimeMs: 300000, byoyomiMs: 30000 },
+    status: "waiting",
+    hostName: "ホスト",
+    humanCount: 1,
+    cpuCount: 0,
+    capacity: 4,
+    openSeats: 3,
+    updatedAtMs: 1,
+    participants: [{ kind: "human", avatarUrl: null, profileTarget: null }],
+    ...values,
+  });
+}
+test("20件目より後の対象も全取得して一括表示し、更新途中の失敗は以前の全件を保つ", async () => {
+  const first = {
+    rooms: Array.from({ length: 20 }, (_, index) => lobbyCard(String(12345 + index))),
+    nextCursor: "0:1:12345",
+    totalCount: 22,
+  };
+  const doubles = [
+    lobbyCard("23456", { mode: "doubles" }),
+    lobbyCard("23457", { mode: "doubles", status: "playing", openSeats: 0 }),
+  ];
+  const h = renderHook(useLobby, "four-reversi" as const);
   clock.advance(0);
-  expect(requests[0]!.url).toContain("game=four-shogi");
-  requests[0]!.respond({}, 503);
+  requests[0]!.respond(first);
   await flush();
+  expect(requests).toHaveLength(2);
+  expect(requests[1]!.url).toContain("cursor=0%3A1%3A12345");
+  expect(h.current.rooms).toHaveLength(0);
+  expect(h.current.totalCount).toBe(0);
+  expect(h.current.loading).toBe(true);
+  expect(h.current.hasData).toBe(false);
+  requests[1]!.respond({ rooms: doubles, nextCursor: null, totalCount: 24 });
+  await flush();
+  expect(h.current.rooms).toHaveLength(22);
+  expect(h.current.totalCount).toBe(22);
+  expect(h.current.hasData).toBe(true);
+  const count = requests.length;
+  act(() => {
+    h.current.changeMode("doubles");
+    h.current.changeJoinable(true);
+  });
+  expect(h.current.rooms.map((room) => room.id)).toEqual(["23456"]);
+  expect(h.current.totalCount).toBe(1);
+  expect(h.current.loading).toBe(false);
+  expect(requests).toHaveLength(count);
+
+  act(() => void h.current.refresh());
+  requests[2]!.respond({
+    ...first,
+    rooms: [lobbyCard("23456", { mode: "doubles", hostName: "途中の更新" })],
+  });
+  await flush();
+  expect(h.current.rooms[0]!.hostName).toBe("ホスト");
+  requests[3]!.respond({ message: "更新できませんでした" }, 503);
+  await flush();
+  expect(h.current.rooms[0]!.hostName).toBe("ホスト");
+  expect(h.current.totalCount).toBe(1);
+  expect(h.current.hasData).toBe(true);
+  expect(h.current.error).toBe("更新できませんでした");
+  clock.advance(10_000);
+  expect(requests[4]!.url).not.toContain("cursor=");
+  requests[4]!.respond({ rooms: [lobbyCard("12345")], nextCursor: null, totalCount: 1 });
+  await flush();
+  expect(h.current.rooms).toHaveLength(0);
+  expect(h.current.totalCount).toBe(0);
+  expect(h.current.hasData).toBe(true);
+  expect(h.current.error).toBeNull();
+  act(() => h.current.changeMode("all"));
+  expect(h.current.rooms).toHaveLength(1);
+});
+test("初回途中失敗では部分一覧を出さず、重複cursorを停止して再試行は先頭から行う", async () => {
+  const h = renderHook(useLobby, "four-reversi" as const);
+  clock.advance(0);
+  requests[0]!.respond({ rooms: [lobbyCard("12345")], nextCursor: "0:1:12345", totalCount: 2 });
+  await flush();
+  requests[1]!.respond({}, 503);
+  await flush();
+  expect(h.current.rooms).toHaveLength(0);
+  expect(h.current.isInitialLoading).toBe(false);
+  expect(h.current.hasData).toBe(false);
   expect(h.current.error).not.toBeNull();
-  act(() => {
-    void h.current.refresh();
-  });
-  requests[1]!.respond({ rooms: [], nextCursor: "1:12345" });
+  act(() => void h.current.refresh());
+  expect(requests[2]!.url).not.toContain("cursor=");
+  requests[2]!.respond({ rooms: [lobbyCard("12345")], nextCursor: "0:1:12345", totalCount: 2 });
   await flush();
-  act(() => {
-    void h.current.loadMore();
-  });
-  requests[2]!.respond({}, 503);
+  requests[3]!.respond({ rooms: [lobbyCard("12346")], nextCursor: "0:1:12345", totalCount: 2 });
   await flush();
-  expect(h.current.nextCursor).toBe("1:12345");
-  act(() => {
-    void h.current.loadMore();
-  });
-  requests[3]!.respond({ rooms: [], nextCursor: null });
-  await flush();
-  clock.advance(10000);
   expect(requests).toHaveLength(4);
-  expect(h.current.nextCursor).toBeNull();
+  expect(h.current.error).toBe("一覧を最後まで取得できませんでした。もう一度お試しください。");
+  expect(h.current.rooms).toHaveLength(0);
+  act(() => void h.current.refresh());
+  requests[4]!.respond({ rooms: [lobbyCard("12345")], nextCursor: "0:1:12345", totalCount: 5 });
+  await flush();
+  requests[5]!.respond({
+    rooms: [lobbyCard("12345", { hostName: "新しいホスト", updatedAtMs: 2 }), lobbyCard("12346")],
+    nextCursor: null,
+    totalCount: 2,
+  });
+  await flush();
+  expect(h.current.rooms.map((room) => room.hostName)).toEqual(["新しいホスト", "ホスト"]);
+  expect(h.current.totalCount).toBe(2);
+  expect(h.current.error).toBeNull();
 });
 test("公開履歴の集計条件を変更すると旧結果を消去し、遅延応答をabortして破棄", async () => {
   const h = renderHook(useRecentMatches, "four-reversi" as const);

@@ -11,6 +11,7 @@ import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppHeader } from "../../shared/ui/AppHeader";
+import type { AppNavigationHandler } from "../../shared/ui/AppNavigation";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "../account/AccountMenu";
@@ -242,6 +243,7 @@ function TournamentContent({ id }: { id: number }) {
   }, [tournament]);
   return (
     <TournamentPageLayout
+      onNavigate={(to, navigationState) => void state.returnToLobby(to, navigationState)}
       onLogoClick={(event) => {
         if (
           event.button !== 0 ||
@@ -480,9 +482,11 @@ function TournamentContent({ id }: { id: number }) {
 function TournamentPageLayout({
   children,
   onLogoClick,
+  onNavigate,
 }: {
   children: ReactNode;
   onLogoClick?: MouseEventHandler<HTMLAnchorElement>;
+  onNavigate?: AppNavigationHandler;
 }) {
   return (
     <div className="app-theme min-h-dvh text-[15px] leading-[1.6] text-ink">
@@ -491,6 +495,7 @@ function TournamentPageLayout({
         homeLabel="TetraBoard 四人将棋のロビー"
         theme="four-shogi"
         onLogoClick={onLogoClick}
+        onNavigate={onNavigate}
       >
         <AccountMenu lobbyGame="four-shogi" />
       </AppHeader>

@@ -1,11 +1,31 @@
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
-import { roomPublicMetadataSchema, type RoomPublicMetadata } from "@tetraboard/protocol";
+import {
+  playerAppearanceSchema,
+  roomPublicMetadataSchema,
+  type RoomPublicMetadata,
+} from "@tetraboard/protocol";
+import { lobbyRoomCardSchema, type LobbyRoomsQuery } from "@tetraboard/protocol/general-lobby";
+import { z } from "zod";
+
+const indexedParticipantsSchema = z
+  .array(
+    z.strictObject({
+      playerId: z.uuid(),
+      appearance: playerAppearanceSchema,
+    }),
+  )
+  .max(4);
+export type IndexedRoomParticipant = z.infer<typeof indexedParticipantsSchema>[number];
 
 export type PendingRoomIndex = {
   revision: number;
   closed: boolean;
-  metadata: RoomPublicMetadata & { instanceId?: string; hostPlayerId?: string | null };
+  metadata: RoomPublicMetadata & {
+    instanceId?: string;
+    hostPlayerId?: string | null;
+    participantPreviews?: IndexedRoomParticipant[];
+  };
   retryAtMs: number;
 };
 
@@ -26,6 +46,8 @@ type IndexRow = {
   capacity: number;
   open_seats: number;
   updated_at_ms: number;
+  revision: number;
+  participants_json: string | null;
 };
 
 export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex): Promise<void> {
@@ -34,8 +56,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .prepare(
       `INSERT INTO room_index (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id, participants_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -53,7 +75,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         closed = excluded.closed,
         instance_id = excluded.instance_id,
         host_player_id = excluded.host_player_id
-        , tournament_id = excluded.tournament_id
+        , tournament_id = excluded.tournament_id,
+        participants_json = excluded.participants_json
       WHERE excluded.revision > room_index.revision`,
     )
     .bind(
@@ -75,8 +98,105 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
       room.instanceId ?? null,
       room.hostPlayerId ?? null,
       room.tournamentId ?? null,
+      room.participantPreviews === undefined
+        ? null
+        : JSON.stringify(indexedParticipantsSchema.parse(room.participantPreviews)),
     )
     .run();
+}
+
+const lobbyRoomPriority =
+  "CASE WHEN status='waiting' AND open_seats>0 THEN 0 WHEN status='waiting' THEN 1 ELSE 2 END";
+
+async function readLobbyRoomCards(db: D1Database, query: LobbyRoomsQuery) {
+  const conditions = ["closed=0", "status IN ('waiting','playing')"];
+  const values: (string | number)[] = [];
+  for (const [column, value] of [
+    ["game", query.game],
+    ["capacity", query.capacity],
+    ["mode", query.mode],
+  ] as const) {
+    if (value !== undefined) {
+      conditions.push(`${column}=?`);
+      values.push(column === "capacity" ? Number(value) : value);
+    }
+  }
+  if (query.joinable === "true") conditions.push("status='waiting' AND open_seats>0");
+  const where = conditions.join(" AND ");
+  const [rank, at, id] = query.cursor?.split(":") ?? [];
+  const cursorWhere = query.cursor
+    ? `AND (${lobbyRoomPriority}>? OR (${lobbyRoomPriority}=? AND (updated_at_ms<? OR (updated_at_ms=? AND room_id<?))))`
+    : "";
+  const [count, page] = await db.batch<{ total_count: number } | (IndexRow & { priority: number })>(
+    [
+      db.prepare(`SELECT COUNT(*) AS total_count FROM room_index WHERE ${where}`).bind(...values),
+      db
+        .prepare(`SELECT *, ${lobbyRoomPriority} AS priority FROM room_index WHERE ${where}
+      ${cursorWhere} ORDER BY priority,updated_at_ms DESC,room_id DESC LIMIT 21`)
+        .bind(
+          ...values,
+          ...(query.cursor ? [Number(rank), Number(rank), Number(at), Number(at), id] : []),
+        ),
+    ],
+  );
+  return {
+    totalCount: (count.results[0] as { total_count: number }).total_count,
+    rows: page.results as (IndexRow & { priority: number })[],
+  };
+}
+
+export async function listLobbyRoomCards(
+  env: Pick<Env, "APP_DB" | "GAME_ROOM">,
+  query: LobbyRoomsQuery,
+) {
+  // 旧索引だけをDOから再発行し、退会処理を経たD1の値を読み直します。
+  for (let attempt = 0; attempt <= 3; attempt++) {
+    const page = await readLobbyRoomCards(env.APP_DB, query);
+    const rows = page.rows.slice(0, 20);
+    const incomplete = rows.filter(
+      (row) => row.participants_json === null || row.instance_id === null,
+    );
+    if (incomplete.length === 0) {
+      const last = rows.at(-1);
+      return {
+        rooms: rows.map((row) =>
+          lobbyRoomCardSchema.parse({
+            ...parseRow(row, true),
+            instanceId: row.instance_id,
+            participants: indexedParticipantsSchema
+              .parse(JSON.parse(row.participants_json!))
+              .map(({ playerId, appearance }) =>
+                appearance.kind === "cpu"
+                  ? appearance
+                  : {
+                      ...appearance,
+                      profileTarget: appearance.retired
+                        ? null
+                        : {
+                            source: "room" as const,
+                            roomId: row.room_id,
+                            instanceId: row.instance_id,
+                            playerId,
+                          },
+                    },
+              ),
+          }),
+        ),
+        totalCount: page.totalCount,
+        nextCursor:
+          page.rows.length > 20 && last
+            ? `${last.priority}:${last.updated_at_ms}:${last.room_id}`
+            : null,
+      };
+    }
+    if (attempt === 3) break;
+    await Promise.all(
+      incomplete.map((row) =>
+        env.GAME_ROOM.getByName(row.room_id).refreshLobbyIndex(row.instance_id, row.revision),
+      ),
+    );
+  }
+  throw new Error("Participant previews could not be refreshed");
 }
 
 export function parseRow(row: IndexRow, preview: boolean) {

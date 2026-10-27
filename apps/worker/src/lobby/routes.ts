@@ -3,9 +3,10 @@ import { z } from "zod";
 import {
   lobbyRoomsQuerySchema,
   lobbyRoomsSchema,
+  lobbyRoomCardsSchema,
   lobbyMatchesSchema,
 } from "@tetraboard/protocol/general-lobby";
-import { listGeneralRooms } from "../rooms/roomIndex";
+import { listGeneralRooms, listLobbyRoomCards } from "../rooms/roomIndex";
 import { participantProfiles } from "../accounts/matchProfiles";
 import { readStoredMatch, matchSummary } from "../accounts/matchDataContracts";
 export const generalLobbyRoutes = new Hono<{ Bindings: Env }>();
@@ -19,6 +20,9 @@ generalLobbyRoutes.onError((_error, c) =>
 generalLobbyRoutes.get("/lobby/rooms", async (c) => {
   const query = lobbyRoomsQuerySchema.safeParse(c.req.query());
   if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
+  if (query.data.view === "cards") {
+    return c.json(lobbyRoomCardsSchema.parse(await listLobbyRoomCards(c.env, query.data)));
+  }
   return c.json(
     lobbyRoomsSchema.parse(
       await listGeneralRooms(c.env.APP_DB, query.data.capacity, query.data.cursor),

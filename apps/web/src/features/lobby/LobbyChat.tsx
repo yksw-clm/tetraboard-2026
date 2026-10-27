@@ -124,14 +124,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
   const valid = count > 0 && count <= chatCharacterLimit;
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className={
-        tournament
-          ? "min-w-0"
-          : "min-w-0 [@media(min-width:768px)]:row-span-3 [@media(min-width:768px)]:grid [@media(min-width:768px)]:grid-rows-subgrid"
-      }
-    >
+    <section aria-labelledby={titleId} className={tournament ? "min-w-0" : "min-w-0"}>
       {!tournament && (
         <div className="flex min-w-0 flex-col justify-between">
           <AppSectionHeading
@@ -152,9 +145,7 @@ export function LobbyChat({ tournament }: { tournament?: TournamentChatOptions }
       )}
       <AppCard
         className={
-          tournament
-            ? "h-[400px] min-h-0 gap-3 p-4 md:h-[480px]"
-            : "h-[600px] min-h-0 gap-3 p-4 [@media(min-width:768px)]:h-full"
+          tournament ? "h-[400px] min-h-0 gap-3 p-4 md:h-[480px]" : "h-[600px] min-h-0 gap-3 p-4"
         }
       >
         {tournament && (

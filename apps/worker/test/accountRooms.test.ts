@@ -15,6 +15,7 @@ import { accountIdentity, publicProfile } from "../src/accounts/auth";
 import { reserveAccountSeat, recoverAccountReservations } from "../src/accounts/roomAccounts";
 import { deleteUnusedAvatars } from "../src/accounts/accountRoutes";
 import { prepareLegacyAccounts } from "../scripts/legacyAccountPlan";
+import { dispatchInTestContext } from "./dispatchInTestContext";
 
 const sockets: WebSocket[] = [];
 afterEach(() => {
@@ -184,7 +185,22 @@ test("同時の複数ルーム作成・参加では1席だけを確定する", a
   const user = await accountFixture();
   const a = await created();
   const b = await created();
-  const responses = await Promise.all([create(user), join(a.room.id, user), join(b.room.id, user)]);
+  const requests = [
+    new AcceptedGameRequest(`${origin}/api/rooms`, {
+      method: "POST",
+      headers: user.headers,
+      body: JSON.stringify({ quickPlay: false, mode: "singles" }),
+    }),
+    ...[a, b].map(
+      (entry) =>
+        new AcceptedGameRequest(`${origin}/api/rooms/${entry.room.id}/players`, {
+          method: "POST",
+          headers: user.headers,
+          body: "{}",
+        }),
+    ),
+  ];
+  const responses = await Promise.all(requests.map(dispatchInTestContext));
   expect(responses.filter((r) => r.status === 200 || r.status === 201)).toHaveLength(1);
   expect(responses.filter((r) => r.status === 409)).toHaveLength(2);
   expect(

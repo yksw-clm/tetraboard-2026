@@ -4,8 +4,10 @@ import { AppHeader } from "../src/shared/ui/AppHeader";
 import { AccountMenu } from "../src/features/account/AccountMenu";
 import { AccountLayout } from "../src/features/account/AccountSession";
 import { LobbyAnnouncement } from "../src/features/lobby/LobbyAnnouncement";
+import { LobbyFooter } from "../src/features/lobby/LobbyFooter";
 import { UpdatesPage, UpdateDetailPage } from "../src/features/updates/UpdatesPage";
 import { profile } from "../test/fixtures/account";
+import { guestProfile } from "./guestAccountFixtures";
 import { act, flush, press, render, rerender, requests, wrap } from "./harness";
 const summary = {
   id: "feedback",
@@ -15,21 +17,36 @@ const summary = {
   kind: "improvement",
 };
 
-test("共通ヘッダーでゲスト・登録者がお知らせへ移動できる", () => {
-  for (const user of [null, profile]) {
+test("共通ヘッダーは新ナビを表示し、お知らせはフッターから未認証・ゲスト・登録者が開ける", async () => {
+  for (const user of [null, guestProfile(), profile]) {
     const view = render(
       wrap(user)(
-        <AppHeader homeTo="/" homeLabel="ロビーへ">
-          <AccountMenu />
-        </AppHeader>,
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <AppHeader homeTo="/" homeLabel="ロビーへ">
+                  <AccountMenu />
+                </AppHeader>
+                <LobbyFooter>{null}</LobbyFooter>
+              </>
+            }
+          />
+          <Route path="/updates" element={<h1>お知らせ一覧</h1>} />
+        </Routes>,
       ),
     );
+    expect(view.querySelector('header a[href="/updates"]')).toBeNull();
     expect(
-      [...view.querySelectorAll("a")]
-        .find((a) => a.textContent === "お知らせ")!
-        .getAttribute("href"),
-    ).toBe("/updates");
-    expect(view.textContent).toContain(user ? profile.name : "登録・ログイン");
+      view.querySelector('[aria-label="メインナビゲーション"] a[href="/how-to-play"]'),
+    ).not.toBeNull();
+    expect(view.textContent).toContain(user?.name ?? "登録・ログイン");
+    const updates = view.querySelector<HTMLAnchorElement>('footer a[href="/updates"]')!;
+    expect(updates.textContent).toBe("お知らせ");
+    act(() => updates.click());
+    await flush();
+    expect(view.querySelector("h1")!.textContent).toBe("お知らせ一覧");
   }
 });
 test("ロビーは取得中・空・失敗で枠を出さず、ゲーム切替後の旧応答を捨てる", async () => {

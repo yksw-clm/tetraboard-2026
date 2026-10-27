@@ -4,6 +4,7 @@ import { publicReversiMatchDetailSchema } from "@tetraboard/protocol";
 import archive from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import { reversiReplayFrames } from "../src/features/room/reversiReplay";
 import { renderPublicLobby } from "../build/renderPublicLobby";
+import { lobbyBoardSources } from "./fixtures/lobbyBoardSources";
 test("固定棋譜の全着手・自動パス・最終引き分けが将来のエンジンでも再現できる", () => {
   const match = publicReversiMatchDetailSchema.parse(archive.detail);
   let game = match.replay.initial;
@@ -31,7 +32,7 @@ test("固定棋譜の全着手・自動パス・最終引き分けが将来の�
 test("通常リバーシの初期HTMLはCPU1人と2人ルール、検索メタ情報と3ゲームのリンクを持つ", () => {
   const template =
     '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
-  const html = renderPublicLobby(template, "reversi");
+  const html = renderPublicLobby(template, "reversi", lobbyBoardSources);
   expect(html).toContain("<title>リバーシをブラウザで無料対戦 | TetraBoard</title>");
   expect(html).toContain("https://tetraboard.net/games/reversi");
   expect(html).toContain("CPU1人との待機室");

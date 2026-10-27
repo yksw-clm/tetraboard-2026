@@ -5,6 +5,7 @@ import { updatePageMetadata } from "../src/seo/pageMetadata";
 import { startPublicLobby } from "../src/seo/startPublicLobby";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { renderGeneralLobby, renderPublicLobby } from "../build/renderPublicLobby";
+import { lobbyBoardSources } from "../test/fixtures/lobbyBoardSources";
 import { render, flush } from "./support";
 
 test("大会の実URLはnoindexと自身のcanonicalを持ち、ロビー移動で取り替える", () => {
@@ -44,10 +45,10 @@ test("全公開ロビーの初期HTMLと画面内遷移は同じtitle・descript
   const template = await Bun.file(new URL("../index.html", import.meta.url)).text();
   try {
     const pages = [
-      { path: "/", html: renderGeneralLobby(template) },
+      { path: "/", html: renderGeneralLobby(template, lobbyBoardSources) },
       ...gameIds.map((game) => ({
         path: gameCatalog[game].lobbyPath,
-        html: renderPublicLobby(template, game),
+        html: renderPublicLobby(template, game, lobbyBoardSources),
       })),
     ];
     for (const { path, html } of pages) {
