@@ -28,7 +28,8 @@
     "motion": "^14.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router": "^8.4.0"
+    "react-router": "^8.4.0",
+    "@tetraboard/shogi-ui": "workspace:*"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

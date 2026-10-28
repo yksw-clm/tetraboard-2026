@@ -1,0 +1,38 @@
+{
+  "name": "@tetraboard/shogi-ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/FourShogiBoardLayout.tsx",
+    "./board": "./src/FourShogiBoardLayout.tsx",
+    "./notation": "./src/shogiNotation.ts",
+    "./presentation": "./src/shogiBoardPresentation.ts",
+    "./types": "./src/shogiUiTypes.ts",
+    "./piece": "./src/ShogiPiece.tsx",
+    "./images": "./src/shogiPieceImages.ts",
+    "./image-store": "./src/shogiImageStore.ts",
+    "./hand": "./src/FourShogiHand.tsx",
+    "./promotion": "./src/ShogiPromotionChoice.tsx",
+    "./layout": "./src/RoomBoardGroup.tsx",
+    "./assets/*": "./assets/*"
+  },
+  "scripts": {
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
+    "typecheck:tsc": "tsc --noEmit",
+    "test": "bun test --preload ../../test-support/dom.ts ./test-dom"
+  },
+  "dependencies": {
+    "@tetraboard/four-shogi": "workspace:*",
+    "@tetraboard/shogi": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~6.0.2"
+  }
+}

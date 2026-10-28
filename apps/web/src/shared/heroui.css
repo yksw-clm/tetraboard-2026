@@ -1,4 +1,5 @@
 @layer theme, base, components, utilities;
+@source "../../../../packages/shogi-ui/src";
 
 /* 全体のリセットは読み込まず、共通テーマと各部品のクラスで見た目を定義します。 */
 @import "tailwindcss/theme.css" layer(theme);
