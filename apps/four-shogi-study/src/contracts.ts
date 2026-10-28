@@ -3,11 +3,15 @@ import type { AnalysisPosition, FourShogiReplayEvent } from "@tetraboard/four-sh
 import type { AiCandidate, AiEvaluation } from "@tetraboard/four-shogi/ai";
 import type { AnalysisSetupInput } from "@tetraboard/four-shogi/analysis";
 import type { StudyDocument, StudySettings } from "./shared/model";
+import type { StudyFocusMetadata } from "./search/runtime";
+export type { StudyFocusMetadata } from "./search/runtime";
 
 export type StudyAnalysisView = {
   id: string;
   nodeId: string;
   stateHash: string;
+  analysisStateHash?: string | null;
+  focus?: StudyFocusMetadata | null;
   generation: number;
   status: "running" | "paused" | "completed" | "cancelled" | "error";
   reason: string | null;
@@ -18,6 +22,7 @@ export type StudyAnalysisView = {
   memoryBytes: number;
   candidates: readonly AiCandidate[];
   recommendedAction: FourShogiAction | null;
+  analysisRecommendedAction?: FourShogiAction | null;
   evaluation: AiEvaluation | null;
   saved?: {
     savedAt: string;

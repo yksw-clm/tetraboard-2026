@@ -168,6 +168,8 @@ describe("ローカル検討アプリのHTTPと保存", () => {
         const progress: StudySearchSnapshot = {
           id: "test-search",
           stateHash: position.stateHash,
+          analysisStateHash: position.stateHash,
+          focus: null,
           rootSide: position.state.turn,
           status: "running",
           reason: null,
@@ -178,6 +180,7 @@ describe("ローカル検討アプリのHTTPと保存", () => {
           memoryBytes: 0,
           candidates: [],
           recommendedAction: null,
+          analysisRecommendedAction: null,
           evaluation,
           staticEvaluation: evaluation,
           workers: 1,
@@ -464,6 +467,8 @@ function controlledEngine() {
       let progress: StudySearchSnapshot = {
         id: crypto.randomUUID(),
         stateHash: position.stateHash,
+        analysisStateHash: position.stateHash,
+        focus: null,
         rootSide: position.state.turn,
         status: "running",
         reason: null,
@@ -474,6 +479,7 @@ function controlledEngine() {
         memoryBytes: 0,
         candidates: lane.candidates.slice(0, 3),
         recommendedAction: lane.candidates[0]?.action ?? null,
+        analysisRecommendedAction: lane.candidates[0]?.action ?? null,
         evaluation: lane.candidates[0]?.evaluation ?? null,
         staticEvaluation: lane.staticEvaluation,
         workers: 1,

@@ -9,16 +9,32 @@ import {
   type StudyLaneSnapshot,
   type StudyProfile,
 } from "@tetraboard/four-shogi/study-search";
-import type { AiCandidate, AiEvaluation } from "@tetraboard/four-shogi/ai";
+import type { AiCandidate, AiEvaluation, AiLineStep } from "@tetraboard/four-shogi/ai";
 import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
-import { getAnalysisLegalActions } from "@tetraboard/four-shogi/analysis";
+import { getAnalysisLegalActions, type AnalysisPosition } from "@tetraboard/four-shogi/analysis";
 import { restoreStudyPosition } from "../domain/study";
 import type { StudyPositionInput } from "../shared/model";
 import type { SearchCommand, SearchMessage } from "./messages";
+import { projectFocusPosition, type FocusProjection } from "./focus";
+
+export type StudyFocusMetadata = {
+  side: Side;
+  status: FocusProjection["status"] | "preparing" | "error";
+  reason: string | null;
+  sourceStateHash: string;
+  analysisStateHash: string | null;
+  prefix: readonly AiLineStep[];
+  conditional: boolean;
+  projectionElapsedMs: number;
+  model: FocusProjection["model"] | null;
+  result: FocusProjection["result"];
+};
 
 export type StudySearchSnapshot = {
   id: string;
   stateHash: string;
+  analysisStateHash: string | null;
+  focus: StudyFocusMetadata | null;
   rootSide: Side | null;
   status: "running" | "paused" | "completed" | "cancelled" | "error";
   reason: string | null;
@@ -29,6 +45,7 @@ export type StudySearchSnapshot = {
   memoryBytes: number;
   candidates: readonly AiCandidate[];
   recommendedAction: FourShogiAction | null;
+  analysisRecommendedAction: FourShogiAction | null;
   evaluation: AiEvaluation | null;
   staticEvaluation: AiEvaluation;
   workers: number;
@@ -42,6 +59,7 @@ export type StudySearchSnapshot = {
 };
 export type StudySearchOptions = {
   timeBudgetMs: number | null;
+  focusSide?: Side | null;
   maxDepth?: number;
   profile?: StudyProfile;
   width?: number;
@@ -68,6 +86,11 @@ type Job = {
   started: number;
   consumed: number;
   timer: ReturnType<typeof setTimeout> | null;
+  input: StudyPositionInput;
+  position: AnalysisPosition;
+  options: StudySearchOptions;
+  prepared: boolean;
+  preparation: number;
 };
 export interface StudySearchRuntime {
   start(
@@ -172,6 +195,12 @@ export function createStudySearchRuntime(
     freezeTime(job);
     job.snapshot.status = status;
     job.snapshot.reason = reason;
+    job.preparation++;
+    if (!job.prepared && job.snapshot.focus) {
+      job.snapshot.focus.status = reason === "deadline" ? "unreached" : "cancelled";
+      job.snapshot.focus.reason = reason === "deadline" ? "deadline" : "cancelled";
+      job.snapshot.focus.projectionElapsedMs = elapsed(job);
+    }
     if (discard) void terminateWorkers();
     else command({ type: "pause", id: job.snapshot.id });
     emit(job);
@@ -196,10 +225,126 @@ export function createStudySearchRuntime(
         })
         .sort((a, b) => compareStudyCandidates(a, b, root));
       value.snapshot.candidates = merged.slice(0, 5);
-      value.snapshot.recommendedAction = merged[0]?.action ?? value.snapshot.recommendedAction;
+      value.snapshot.analysisRecommendedAction =
+        merged[0]?.action ?? value.snapshot.analysisRecommendedAction;
+      value.snapshot.recommendedAction =
+        value.snapshot.analysisStateHash === value.snapshot.stateHash
+          ? value.snapshot.analysisRecommendedAction
+          : null;
       value.snapshot.evaluation = merged[0]?.evaluation ?? null;
       value.snapshot.diagnostics.safetyComplete =
         merged.length > 0 && merged.every((entry) => entry.study.immediateRepliesComplete);
+    }
+  }
+  function startChildren(value: Job, input: StudyPositionInput) {
+    if (job !== value || value.snapshot.status !== "running") return;
+    const { timeBudgetMs: _time, focusSide: _focus, ...rootOptions } = value.options;
+    value.prepared = true;
+    children.forEach((child, lane) =>
+      child.send(
+        {
+          type: "start",
+          id: value.snapshot.id,
+          input,
+          options: { ...rootOptions, lane, lanes: threads },
+        } satisfies SearchCommand,
+        (error) => {
+          if (error && job === value) stop("error", "探索を開始できませんでした", true);
+        },
+      ),
+    );
+  }
+  async function prepareFocus(value: Job) {
+    const focus = value.snapshot.focus;
+    if (!focus || job !== value || value.snapshot.status !== "running") return;
+    const revision = ++value.preparation;
+    focus.status = "preparing";
+    focus.reason = null;
+    const cancelled = () =>
+      job !== value || value.preparation !== revision || value.snapshot.status !== "running";
+    const remaining =
+      value.options.timeBudgetMs === null
+        ? 250
+        : Math.max(1, value.options.timeBudgetMs - elapsed(value));
+    try {
+      const projected = await projectFocusPosition(
+        value.position,
+        focus.side,
+        { timeBudgetMs: Math.min(250, remaining) },
+        { isCancelled: cancelled },
+      );
+      if (cancelled()) return;
+      if (
+        projected.sourceStateHash !== value.snapshot.stateHash ||
+        (projected.status === "ready" &&
+          (!projected.position ||
+            projected.position.state.turn !== focus.side ||
+            projected.analysisStateHash !== projected.position.stateHash))
+      )
+        throw new Error("フォーカス予測の元局面・対象手番が一致しません");
+      value.snapshot.focus = {
+        side: focus.side,
+        status: projected.status,
+        reason: projected.reason,
+        sourceStateHash: projected.sourceStateHash,
+        analysisStateHash: projected.analysisStateHash,
+        prefix: projected.prefix,
+        conditional: projected.prefix.length > 0,
+        projectionElapsedMs: projected.elapsedMs,
+        model: projected.model,
+        result: projected.result,
+      };
+      value.snapshot.analysisStateHash = projected.analysisStateHash;
+      if (projected.status !== "ready" || !projected.position) {
+        if (
+          projected.reason === "deadline" &&
+          value.options.timeBudgetMs !== null &&
+          elapsed(value) >= value.options.timeBudgetMs
+        ) {
+          stop("completed", "deadline", false);
+          return;
+        }
+        // 未到達の条件付き局面へ、現在の手番を差し替えて探索を続けません。
+        value.prepared = true;
+        stop(
+          "completed",
+          projected.status === "focus_eliminated"
+            ? "focus_eliminated"
+            : `focus_${projected.status}`,
+          true,
+        );
+        return;
+      }
+      const fallback = getAnalysisLegalActions(projected.position)[0] ?? null;
+      value.snapshot.analysisRecommendedAction = fallback;
+      value.snapshot.recommendedAction =
+        projected.analysisStateHash === value.snapshot.stateHash ? fallback : null;
+      if (value.options.timeBudgetMs !== null && elapsed(value) >= value.options.timeBudgetMs) {
+        value.snapshot.analysisStateHash = null;
+        value.snapshot.analysisRecommendedAction = null;
+        value.snapshot.recommendedAction = null;
+        value.snapshot.focus.analysisStateHash = null;
+        stop("completed", "deadline", false);
+        return;
+      }
+      startChildren(value, {
+        ...value.input,
+        events: [
+          ...value.input.events,
+          ...projected.prefix.map((step) => ({
+            type: "action" as const,
+            side: step.side,
+            action: step.action,
+          })),
+        ],
+      });
+      emit(value);
+    } catch (error) {
+      if (cancelled()) return;
+      value.prepared = true;
+      value.snapshot.focus!.status = "error";
+      value.snapshot.focus!.reason = String(error);
+      stop("error", `フォーカス局面の予測に失敗しました: ${String(error)}`, true);
     }
   }
   function advanceBarrier(value: Job) {
@@ -367,12 +512,28 @@ export function createStudySearchRuntime(
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       const staticEvaluation = evaluateStudyPosition(position);
       const fallback = getAnalysisLegalActions(position)[0] ?? null;
+      const focusSide = options.focusSide ?? null;
       const id = crypto.randomUUID();
       job = {
         snapshot: {
           id,
           stateHash: position.stateHash,
-          rootSide: position.state.turn,
+          analysisStateHash: focusSide ? null : position.stateHash,
+          focus: focusSide
+            ? {
+                side: focusSide,
+                status: "preparing",
+                reason: null,
+                sourceStateHash: position.stateHash,
+                analysisStateHash: null,
+                prefix: [],
+                conditional: false,
+                projectionElapsedMs: 0,
+                model: null,
+                result: null,
+              }
+            : null,
+          rootSide: focusSide ?? position.state.turn,
           status: "running",
           reason: null,
           elapsedMs: 0,
@@ -381,8 +542,9 @@ export function createStudySearchRuntime(
           nodes: 0,
           memoryBytes: 0,
           candidates: [],
-          recommendedAction: fallback,
-          evaluation: position.state.status === "finished" ? staticEvaluation : null,
+          recommendedAction: focusSide ? null : fallback,
+          analysisRecommendedAction: focusSide ? null : fallback,
+          evaluation: !focusSide && position.state.status === "finished" ? staticEvaluation : null,
           staticEvaluation,
           workers: threads,
           diagnostics: {
@@ -402,21 +564,13 @@ export function createStudySearchRuntime(
         started: performance.now(),
         consumed: 0,
         timer: null,
+        input,
+        position,
+        options: { ...options },
+        prepared: false,
+        preparation: 0,
       };
-      const { timeBudgetMs, ...rootOptions } = options;
-      children.forEach((child, lane) =>
-        child.send(
-          {
-            type: "start",
-            id,
-            input,
-            options: { ...rootOptions, lane, lanes: threads },
-          } satisfies SearchCommand,
-          (error) => {
-            if (error && job?.snapshot.id === id) stop("error", "探索を開始できませんでした", true);
-          },
-        ),
-      );
+      const { timeBudgetMs } = options;
       if (timeBudgetMs !== null) {
         const value = job;
         value.timer = setTimeout(() => {
@@ -424,6 +578,8 @@ export function createStudySearchRuntime(
         }, timeBudgetMs);
       }
       emit(job);
+      if (focusSide) void prepareFocus(job);
+      else startChildren(job, input);
       return id;
     },
     get(id) {
@@ -438,14 +594,17 @@ export function createStudySearchRuntime(
         !job ||
         job.snapshot.id !== id ||
         !["paused", "completed"].includes(job.snapshot.status) ||
-        ["memory_limit", "terminal", "max_depth", "sole_win"].includes(job.snapshot.reason ?? "")
+        ["memory_limit", "terminal", "max_depth", "sole_win"].includes(job.snapshot.reason ?? "") ||
+        job.snapshot.reason?.startsWith("focus_")
       )
         return;
       job.snapshot.status = "running";
       job.snapshot.reason = null;
       job.started = performance.now();
       // 継続は既存の読みを保つ無制限解析です。時間を指定し直す場合は新しく開始します。
-      command({ type: "resume", id });
+      job.options = { ...job.options, timeBudgetMs: null };
+      if (!job.prepared && job.snapshot.focus) void prepareFocus(job);
+      else command({ type: "resume", id });
       advanceBarrier(job);
       if (job.snapshot.status === "running") emit(job);
     },
@@ -469,6 +628,11 @@ export function createStudySearchRuntime(
         freezeTime(job);
         job.snapshot.status = "cancelled";
         job.snapshot.reason = "closed";
+        job.preparation++;
+        if (!job.prepared && job.snapshot.focus) {
+          job.snapshot.focus.status = "cancelled";
+          job.snapshot.focus.reason = "cancelled";
+        }
         emit(job);
       }
       await terminateWorkers(true);

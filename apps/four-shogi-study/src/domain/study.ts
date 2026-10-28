@@ -68,10 +68,13 @@ function timestamp(value: unknown): string {
 export function readStudySettings(value: unknown, legacyCpuSide?: Side): StudySettings {
   const item = object(
     value,
-    ["mode", "thinkTimeMs", "threads", "memoryMb", "analysisTimeMs", "seats"],
+    ["mode", "thinkTimeMs", "threads", "memoryMb", "analysisTimeMs", "focusSide", "seats"],
     ["mode", "thinkTimeMs", "threads", "memoryMb"],
   );
   if (item.mode !== "auto" && item.mode !== "analysis") fail("CPUの動作モードが不正です");
+  const focusSide = item.focusSide ?? null;
+  if (focusSide !== null && !sides.some((entry) => entry === focusSide))
+    fail("フォーカスする席が不正です");
   for (const [key, minimum, maximum] of [
     ["thinkTimeMs", 100, 3_600_000],
     ["threads", 1, 32],
@@ -125,6 +128,7 @@ export function readStudySettings(value: unknown, legacyCpuSide?: Side): StudySe
     threads: item.threads as number,
     memoryMb: item.memoryMb as number,
     analysisTimeMs,
+    focusSide: focusSide as Side | null,
     seats,
   };
 }

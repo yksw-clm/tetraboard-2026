@@ -12,6 +12,7 @@ export type StudySettings = Readonly<{
   threads: number;
   memoryMb: number;
   analysisTimeMs: number | null;
+  focusSide: Side | null;
   seats: Readonly<Record<Side, StudySeat>>;
 }>;
 export type StudySeat = Readonly<{ controller: "human" | "cpu"; thinkTimeMs: number }>;
@@ -71,6 +72,7 @@ export const defaultStudySettings: StudySettings = {
   threads: 4,
   memoryMb: 8192,
   analysisTimeMs: 5000,
+  focusSide: null,
   seats: {
     south: { controller: "human", thinkTimeMs: 5000 },
     west: { controller: "cpu", thinkTimeMs: 5000 },

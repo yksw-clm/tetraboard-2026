@@ -383,6 +383,32 @@ test("局面のコメントを保存し、ライブ観戦の追従/固定を切�
   expect(view.textContent?.includes("最新局面に追従")).toBe(true);
 });
 
+test("ライブ観戦の席フォーカスを保存し、最新局面への追従を維持する", async () => {
+  const original = await initial();
+  const current: StudySnapshot = {
+    ...original,
+    live: {
+      sourceUrl: "https://tetraboard.net/rooms/12345?instanceId=test",
+      instanceId: "test",
+      roundId: "round-1",
+      eventCount: 0,
+      latestNodeId: original.study.currentNodeId,
+      follow: true,
+      status: "live",
+      message: null,
+    },
+  };
+  const view = await boot(current);
+  select("フォーカスする席", "north");
+  const setting = request(`/api/studies/${current.study.id}/commands`, "POST");
+  expect(body(setting)).toMatchObject({ type: "settings", settings: { focusSide: "north" } });
+  const next = await snapshot(updateStudySettings(current.study, { focusSide: "north" }));
+  await finish(setting, { ...next, live: current.live });
+  expect((field("フォーカスする席") as HTMLSelectElement).value).toBe("north");
+  expect(view.textContent).toContain("北にフォーカス");
+  expect(view.textContent).toContain("最新局面に追従");
+});
+
 for (const eventType of ["snapshot", "analysis"] as const) {
   test(`同じ局面の検討AからBへ切り替える描画前に届く旧Aの${eventType}を除外する`, async () => {
     const original = await initial();

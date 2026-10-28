@@ -16,7 +16,11 @@ import { StudyStore } from "../src/domain/store";
 import { restoreStudyPosition } from "../src/domain/study";
 import { LocalStudyApplication } from "../src/server/application";
 import { createLiveRoomSession, type VerifiedLiveUpdate } from "../src/server/liveRoom";
-import { createStudySearchRuntime, type StudySearchSnapshot } from "../src/search/runtime";
+import {
+  createStudySearchRuntime,
+  type StudySearchOptions,
+  type StudySearchSnapshot,
+} from "../src/search/runtime";
 
 const resources: { app: LocalStudyApplication; directory: string }[] = [];
 afterEach(async () => {
@@ -99,14 +103,31 @@ async function harness() {
     };
   };
   const searches: StudySearchSnapshot[] = [];
+  const searchOptions: StudySearchOptions[] = [];
   const cancelled: string[] = [];
   const runtime: typeof createStudySearchRuntime = () => ({
-    async start(input, _options, notify = () => {}) {
+    async start(input, options, notify = () => {}) {
+      searchOptions.push(options);
       const position = await restoreStudyPosition(input);
       const evaluation = evaluateStudyPosition(position);
       const progress: StudySearchSnapshot = {
         id: crypto.randomUUID(),
         stateHash: position.stateHash,
+        analysisStateHash: position.stateHash,
+        focus: options.focusSide
+          ? {
+              side: options.focusSide,
+              status: "preparing",
+              sourceStateHash: position.stateHash,
+              analysisStateHash: null,
+              prefix: [],
+              conditional: false,
+              projectionElapsedMs: 0,
+              model: null,
+              result: null,
+              reason: null,
+            }
+          : null,
         rootSide: position.state.turn,
         status: "running",
         reason: null,
@@ -117,6 +138,7 @@ async function harness() {
         memoryBytes: 0,
         candidates: [],
         recommendedAction: null,
+        analysisRecommendedAction: null,
         evaluation,
         staticEvaluation: evaluation,
         workers: 1,
@@ -163,6 +185,7 @@ async function harness() {
     app,
     store,
     searches,
+    searchOptions,
     cancelled,
     sessions,
     notices,
@@ -204,6 +227,72 @@ async function branch(app: LocalStudyApplication, current: StudySnapshot) {
 }
 
 describe("ライブ対局と検討文書の統合", () => {
+  test("フォーカス席を変えても追従し、他席の着手と次の対局でも同じ席を解析する", async () => {
+    const h = await harness();
+    const initial = await h.watch();
+    const focused = await h.app.command(initial.study.id, {
+      type: "settings",
+      expectedRevision: initial.study.revision,
+      settings: { focusSide: "west" },
+    });
+    expect(focused.live?.follow).toBe(true);
+    expect(focused.analysis?.focus?.side).toBe("west");
+    expect(h.searchOptions.at(-1)?.focusSide).toBe("west");
+    await h.send(await h.update(3));
+    const moved = await h.app.get(initial.study.id);
+    expect(moved.live?.follow).toBe(true);
+    expect(moved.analysis?.focus?.side).toBe("west");
+    expect(moved.analysis?.stateHash).toBe(moved.position.stateHash);
+    const roundId = crypto.randomUUID();
+    await h.send(await h.update(1, { roundId }));
+    const prior = await h.app.get(initial.study.id);
+    const next = await h.app.get(prior.live!.nextStudyId!);
+    expect(prior.study.settings.focusSide).toBe("west");
+    expect(prior.live?.follow).toBe(false);
+    expect(next.study.settings.focusSide).toBe("west");
+    expect(next.live?.roundId).toBe(roundId);
+    expect(next.live?.follow).toBe(true);
+    expect(next.analysis?.focus?.side).toBe("west");
+    expect(h.searchOptions.at(-1)?.focusSide).toBe("west");
+  });
+
+  test("接続復旧は同じprefixでもフォーカス解析を戻し、旧接続のstatusは新解析を止めない", async () => {
+    const h = await harness();
+    const initial = await h.watch();
+    const focused = await h.app.command(initial.study.id, {
+      type: "settings",
+      expectedRevision: initial.study.revision,
+      settings: { focusSide: "east" },
+    });
+    const count = h.searches.length;
+    h.status({ state: "reconnecting", message: "再接続します" });
+    await h.send(await h.update(2));
+    const recovered = await h.app.get(focused.study.id);
+    expect(h.searches).toHaveLength(count + 1);
+    expect(recovered.live?.follow).toBe(true);
+    expect(recovered.analysis?.status).toBe("running");
+    expect(recovered.analysis?.focus?.side).toBe("east");
+    const disconnected = await h.app.command(recovered.study.id, {
+      type: "liveDisconnect",
+      expectedRevision: recovered.study.revision,
+    });
+    const reconnected = await h.app.command(disconnected.study.id, {
+      type: "liveReconnect",
+      expectedRevision: disconnected.study.revision,
+    });
+    const followed = await h.app.command(reconnected.study.id, {
+      type: "liveFollow",
+      enabled: true,
+      expectedRevision: reconnected.study.revision,
+    });
+    h.status({ state: "error", message: "以前の接続だけのエラー" }, 0);
+    await h.send(await h.update(2), 1);
+    const latest = await h.app.get(followed.study.id);
+    expect(latest.live?.status).toBe("live");
+    expect(latest.analysis?.id).toBe(followed.analysis!.id);
+    expect(latest.analysis?.status).toBe("running");
+  });
+
   test("追従中は実戦と解析が進み、局面固定中は分岐とコメントを保って最新へ戻れる", async () => {
     const h = await harness();
     const first = await h.watch();

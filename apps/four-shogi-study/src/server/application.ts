@@ -78,6 +78,7 @@ type ActiveSearch = {
   runtime: StudySearchRuntime;
   view: StudyAnalysisView | null;
   auto: boolean;
+  focusSide: Side | null;
   conditions: { timeBudgetMs: number | null; threads: number; memoryMb: number };
   lastSavedElapsedMs: number;
 };
@@ -93,6 +94,7 @@ export class LocalStudyApplication implements StudyApplication {
   private generation = 0;
   private readonly analyses = new Map<string, StudyAnalysisView>();
   private readonly liveViews = new Map<string, StudyLiveView>();
+  private readonly focusReconnect = new Set<string>();
   private watching: { session: LiveRoomSession; studyId: string | null } | null = null;
 
   constructor(
@@ -175,11 +177,20 @@ export class LocalStudyApplication implements StudyApplication {
     });
     const availability = getActionAvailability(position.state);
     let analysis = this.analyses.get(id) ?? null;
+    const focusSide =
+      this.active?.studyId === id &&
+      this.active.nodeId === study.currentNodeId &&
+      this.active.stateHash === position.stateHash
+        ? this.active.focusSide
+        : study.settings.focusSide;
+    const matchesFocus = (view: StudyAnalysisView) => (view.focus?.side ?? null) === focusSide;
     const record = study.analysisRecords?.[study.currentNodeId];
     if (
       (!analysis ||
         analysis.nodeId !== study.currentNodeId ||
-        analysis.stateHash !== position.stateHash) &&
+        analysis.stateHash !== position.stateHash ||
+        !matchesFocus(analysis)) &&
+      focusSide === null &&
       record?.stateHash === position.stateHash
     ) {
       const candidates = await restoreRecordedCandidates(record, position);
@@ -187,6 +198,8 @@ export class LocalStudyApplication implements StudyApplication {
         id: `saved-${study.currentNodeId}`,
         nodeId: study.currentNodeId,
         stateHash: position.stateHash,
+        analysisStateHash: position.stateHash,
+        focus: null,
         generation: 0,
         status: "completed",
         reason: "保存済みの解析結果",
@@ -197,6 +210,7 @@ export class LocalStudyApplication implements StudyApplication {
         memoryBytes: 0,
         candidates,
         recommendedAction: candidates[0]?.action ?? null,
+        analysisRecommendedAction: candidates[0]?.action ?? null,
         evaluation: record.evaluation,
         saved: {
           savedAt: record.savedAt,
@@ -218,7 +232,9 @@ export class LocalStudyApplication implements StudyApplication {
       forbiddenActions: availability.threePlayerAttackForbiddenActions,
       staticEvaluation: evaluateStudyPosition(position),
       analysis:
-        analysis?.nodeId === study.currentNodeId && analysis.stateHash === position.stateHash
+        analysis?.nodeId === study.currentNodeId &&
+        analysis.stateHash === position.stateHash &&
+        matchesFocus(analysis)
           ? analysis
           : null,
       ...(this.liveViews.has(id) ? { live: this.liveViews.get(id) } : {}),
@@ -256,6 +272,7 @@ export class LocalStudyApplication implements StudyApplication {
       await this.holdOtherLive(study.id);
       await this.stopSearch();
       await this.save(study, null);
+      await this.maybeFocus(study);
       return this.publish(study.id);
     });
   }
@@ -306,10 +323,22 @@ export class LocalStudyApplication implements StudyApplication {
             throw new HttpError(409, "現在の解析結果の読み筋を選んでください");
           if (typeof input.lineSignature !== "string" || input.lineSignature.length > 100000)
             throw new HttpError(400, "読み筋の識別情報がありません");
+          const prefix = view.focus?.prefix ?? [];
+          if (
+            view.focus &&
+            (view.focus.status !== "ready" ||
+              view.focus.sourceStateHash !== position.stateHash ||
+              !view.analysisStateHash ||
+              view.focus.analysisStateHash !== view.analysisStateHash)
+          )
+            throw new HttpError(409, "フォーカスする席の手番に到達した読み筋を選んでください");
           const candidate = view.candidates.find(
             (entry) =>
               JSON.stringify(
-                entry.line.slice(0, input.plies).map(({ side, action }) => ({ side, action })),
+                [...prefix, ...entry.line.slice(0, input.plies)].map(({ side, action }) => ({
+                  side,
+                  action,
+                })),
               ) === input.lineSignature,
           );
           if (input.plies < 1 || input.plies > 264)
@@ -317,6 +346,20 @@ export class LocalStudyApplication implements StudyApplication {
           if (!candidate || input.plies > candidate.line.length)
             throw new HttpError(409, "読み筋が更新されました。表示された候補を選び直してください");
           next = setStudyPlayEnabled(study, false);
+          for (const step of prefix)
+            next = await appendStudyEvent(next, {
+              type: "action",
+              side: step.side,
+              action: step.action,
+            });
+          if (view.focus) {
+            const projected = (await resolveStudyPositions(next)).get(next.currentNodeId)!;
+            if (
+              projected.stateHash !== view.analysisStateHash ||
+              projected.state.turn !== view.focus.side
+            )
+              throw new HttpError(409, "予測局面が更新されました。解析をやり直してください");
+          }
           for (const step of candidate.line.slice(0, input.plies))
             next = await appendStudyEvent(next, {
               type: "action",
@@ -371,6 +414,7 @@ export class LocalStudyApplication implements StudyApplication {
           await this.holdOtherLive(edited.id);
           await this.stopSearch();
           await this.save(edited, null);
+          await this.maybeFocus(edited);
           return this.publish(edited.id);
         }
         default:
@@ -382,7 +426,11 @@ export class LocalStudyApplication implements StudyApplication {
       if (input.type === "liveFollow" && input.enabled) {
         if ((await resolveStudyPositions(next)).get(next.currentNodeId)!.state.status === "playing")
           await this.startSearch(next, false);
-      } else await this.maybeAuto(next);
+      } else {
+        await this.maybeAuto(next);
+        if (["action", "event", "select", "settings", "variation"].includes(input.type))
+          await this.maybeFocus(next);
+      }
       return this.publish(id);
     });
   }
@@ -405,13 +453,23 @@ export class LocalStudyApplication implements StudyApplication {
     )
       await this.startSearch(study, true);
   }
+  private async maybeFocus(study: StudyDocument) {
+    if (
+      study.settings.focusSide !== null &&
+      !study.playEnabled &&
+      (await resolveStudyPositions(study)).get(study.currentNodeId)!.state.status === "playing"
+    )
+      await this.startSearch(study, false);
+  }
   private holdLive(id: string) {
+    this.focusReconnect.delete(id);
     const live = this.liveViews.get(id);
     if (live) this.liveViews.set(id, { ...live, follow: false });
   }
   private async holdOtherLive(studyId: string) {
     for (const [id, live] of this.liveViews)
       if (id !== studyId && live.follow) {
+        this.focusReconnect.delete(id);
         this.liveViews.set(id, { ...live, follow: false });
         await this.publish(id);
       }
@@ -421,6 +479,8 @@ export class LocalStudyApplication implements StudyApplication {
     view: StudyAnalysisView,
     current: StudyDocument,
   ): Promise<StudyDocument> {
+    // 予測付き解析は通常局面の保存形式へ混ぜず、対象席を変えた結果の再利用を防ぎます。
+    if (active.focusSide !== null) return current;
     if (view.elapsedMs <= active.lastSavedElapsedMs) return current;
     if (
       !view.evaluation ||
@@ -509,6 +569,7 @@ export class LocalStudyApplication implements StudyApplication {
       memoryMb: study.settings.memoryMb,
     };
     const runtime = this.pool.runtime;
+    this.focusReconnect.delete(study.id);
     const active: ActiveSearch = {
       studyId: study.id,
       nodeId: study.currentNodeId,
@@ -518,6 +579,7 @@ export class LocalStudyApplication implements StudyApplication {
       runtime,
       view: null,
       auto,
+      focusSide: auto ? null : study.settings.focusSide,
       conditions: {
         timeBudgetMs: auto
           ? study.settings.seats[position.state.turn].thinkTimeMs
@@ -531,6 +593,7 @@ export class LocalStudyApplication implements StudyApplication {
     await runtime.start(
       studyPositionInput(study),
       {
+        focusSide: active.focusSide,
         timeBudgetMs: auto
           ? study.settings.seats[position.state.turn].thinkTimeMs
           : study.settings.analysisTimeMs,
@@ -541,6 +604,9 @@ export class LocalStudyApplication implements StudyApplication {
           id: progress.id,
           nodeId: active.nodeId,
           stateHash: active.stateHash,
+          analysisStateHash: progress.analysisStateHash,
+          analysisRecommendedAction: progress.analysisRecommendedAction,
+          focus: progress.focus,
           generation: active.generation,
           status: progress.status,
           reason: progress.reason,
@@ -644,6 +710,19 @@ export class LocalStudyApplication implements StudyApplication {
           const position = (await resolveStudyPositions(study)).get(study.currentNodeId)!;
           if (position.stateHash !== view.stateHash)
             throw new HttpError(409, "解析中に局面が変わりました");
+          if (
+            view.focus &&
+            (view.focus.status !== "ready" ||
+              position.state.turn !== view.focus.side ||
+              view.focus.prefix.length !== 0 ||
+              view.focus.sourceStateHash !== position.stateHash ||
+              view.analysisStateHash !== position.stateHash ||
+              view.focus.analysisStateHash !== position.stateHash)
+          )
+            throw new HttpError(
+              409,
+              "他の席の予測を含む推奨手は読み筋の分岐として追加してください",
+            );
           const next = await appendStudyEvent(study, {
             type: "action",
             side: position.state.turn,
@@ -653,6 +732,7 @@ export class LocalStudyApplication implements StudyApplication {
           await this.stopSearch();
           await this.save(next, study.revision);
           await this.maybeAuto(next);
+          await this.maybeFocus(next);
         } else throw new HttpError(400, "未対応の解析操作です");
       }
       return this.publish(id);
@@ -690,6 +770,7 @@ export class LocalStudyApplication implements StudyApplication {
       await this.holdOtherLive(study.id);
       await this.stopSearch();
       await this.save(study, null);
+      await this.maybeFocus(study);
       return this.publish(study.id);
     });
   }
@@ -711,17 +792,25 @@ export class LocalStudyApplication implements StudyApplication {
     const session = this.liveFactory(value.url, {
       onUpdate: (update) => this.serial(() => this.acceptLive(binding, update)),
       onStatus: (status) => {
-        if (!binding.studyId) return;
+        if (this.watching !== binding || !binding.studyId) return;
         const id = binding.studyId;
         void this.serial(async () => {
+          if (this.watching !== binding) return;
           const live = this.liveViews.get(id);
           if (!live) return;
           this.liveViews.set(id, { ...live, status: status.state, message: status.message });
           if (
             ["error", "closed", "reconnecting"].includes(status.state) &&
             this.active?.studyId === id
-          )
+          ) {
+            if (
+              live.follow &&
+              this.active.focusSide !== null &&
+              this.active.view?.status !== "paused"
+            )
+              this.focusReconnect.add(id);
             await this.stopSearch();
+          }
           await this.publish(id);
         }).catch((error: unknown) =>
           this.emit({ type: "error", studyId: id, message: String(error) }),
@@ -753,10 +842,13 @@ export class LocalStudyApplication implements StudyApplication {
       previous.instanceId !== update.instanceId ||
       previous.roundId !== update.roundId
     ) {
+      const priorStudy = priorId ? await this.document(priorId) : null;
+      const follow = !priorId || !!(previous?.follow && priorStudy?.settings.focusSide);
       const study = await importReplayStudy(update.replay, {
         sourceUrl: update.sourceUrl,
         title: "ライブ対局の検討",
         settings: {
+          ...priorStudy?.settings,
           mode: "analysis",
           threads: this.config.defaultThreads,
           memoryMb: this.config.defaultMemoryMb,
@@ -772,7 +864,7 @@ export class LocalStudyApplication implements StudyApplication {
         roundId: update.roundId,
         eventCount: update.eventCount,
         latestNodeId: study.currentNodeId,
-        follow: !priorId,
+        follow,
         status: update.finished ? "finished" : "live",
         message: null,
       });
@@ -787,7 +879,7 @@ export class LocalStudyApplication implements StudyApplication {
         await this.publish(priorId);
       }
       await this.publish(study.id);
-      if (!priorId && update.position.state.status === "playing")
+      if (follow && update.position.state.status === "playing")
         await this.startSearch(study, false);
       return;
     }
@@ -829,7 +921,8 @@ export class LocalStudyApplication implements StudyApplication {
     await this.publish(priorId);
     if (
       previous.follow &&
-      update.eventCount > previous.eventCount &&
+      (update.eventCount > previous.eventCount ||
+        (this.focusReconnect.has(priorId) && next.settings.focusSide !== null && !this.active)) &&
       update.position.state.status === "playing"
     )
       await this.startSearch(next, false);

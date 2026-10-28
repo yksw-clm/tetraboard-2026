@@ -5,6 +5,7 @@ import type { ShogiBoardView } from "@tetraboard/shogi-ui/presentation";
 import { useStudySession } from "./useStudySession";
 import { Button, Panel } from "./ui";
 import { EvaluationPanel } from "./EvaluationPanel";
+import { FocusSelector } from "./FocusSelector";
 import { NewStudyDialog, ImportDialog, SettingsDialog, LiveDialog } from "./StudyDialogs";
 import { PositionEditor, createEditor, editSquare, type EditorState } from "./PositionEditor";
 import {
@@ -694,6 +695,21 @@ function LivePanel({ snapshot, session }: { snapshot: StudySnapshot; session: St
   };
   return (
     <Panel title="ライブ対局" action={<span className="text-xs">{labels[live.status]}</span>}>
+      <div className="mb-4">
+        <FocusSelector
+          side={snapshot.study.settings.focusSide ?? null}
+          pending={session.pending}
+          onChange={(focusSide) =>
+            void session.command({ type: "settings", settings: { focusSide } })
+          }
+        />
+        {snapshot.study.settings.focusSide ? (
+          <p className="mt-2 text-xs text-[#52734c]">
+            {sideNames[snapshot.study.settings.focusSide]}にフォーカス ·
+            他の人の着手後もこの席の次手番を検討します
+          </p>
+        ) : null}
+      </div>
       <p className="text-xs">
         取得済み {live.eventCount}イベント · {live.follow ? "最新局面に追従" : "局面を固定して検討"}
       </p>

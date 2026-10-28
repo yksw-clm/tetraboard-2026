@@ -1,5 +1,6 @@
 import type { StudySnapshot } from "../contracts";
 import { Button, Panel } from "./ui";
+import { FocusSelector } from "./FocusSelector";
 import {
   actionLabel,
   ancestorIds,
@@ -40,9 +41,66 @@ export function EvaluationPanel({
   );
   const searching = analysis?.status === "running";
   const manual = study.settings.mode === "analysis";
-  const rootSide = snapshot.position.state.turn ?? study.cpuSide;
+  const focus = analysis?.focus;
+  const prefix = focus?.prefix ?? [];
+  const rootSide = focus?.side ?? snapshot.position.state.turn ?? study.cpuSide;
+  const future = prefix.length > 0;
+  const signature = (
+    candidate: NonNullable<typeof analysis>["candidates"][number],
+    plies: number,
+  ) =>
+    JSON.stringify(
+      [...prefix, ...candidate.line.slice(0, plies)].map(({ side, action }) => ({ side, action })),
+    );
   return (
     <aside className="flex min-w-0 flex-col gap-4">
+      {!snapshot.live ? (
+        <Panel title="検討のフォーカス">
+          <FocusSelector
+            side={study.settings.focusSide ?? null}
+            pending={pending || study.playEnabled}
+            onChange={(focusSide) => void command({ type: "settings", settings: { focusSide } })}
+          />
+        </Panel>
+      ) : null}
+      {study.settings.focusSide && !study.playEnabled ? (
+        <Panel title={`${sideNames[study.settings.focusSide]}の次手番を検討`}>
+          <p role="status" className="text-xs leading-relaxed text-[#52734c]">
+            {focus?.status === "ready"
+              ? future
+                ? `相手の予測${prefix.length}手を前提に、${sideNames[focus.side]}の次手番を検討しています。実際の着手が変わると再計算します。`
+                : "現在がフォーカスした席の手番です。"
+              : focus?.status === "focus_eliminated"
+                ? future
+                  ? "予測手順の途中でフォーカスした席が脱落し、次手番に到達しませんでした。"
+                  : "フォーカスした席はすでに脱落しているため、次手番を検討できません。"
+                : focus?.status === "terminal"
+                  ? future
+                    ? "予測手順が終局に至り、フォーカスした席の次手番には到達しませんでした。"
+                    : "対局は終局しています。フォーカスした席の次手番はありません。"
+                  : focus?.status === "unreached"
+                    ? "読んだ範囲では次手番に到達していません。予測手順を確認し、再解析できます。"
+                    : focus?.status === "cancelled"
+                      ? "フォーカスの検討を停止しています。"
+                      : focus?.status === "error"
+                        ? "次手番までの予測に失敗しました。再解析してください。"
+                        : analysis?.status === "running"
+                          ? "フォーカスした席までの手順を予測しています。"
+                          : "検討を開始すると、指定した席の次手番の候補を表示します。"}
+          </p>
+          {prefix.length ? (
+            <details className="mt-3 text-xs text-[#758469]">
+              <summary className="cursor-pointer">次手番までの相手の予測</summary>
+              <ol className="mt-2 list-decimal space-y-1 pl-5">
+                {prefix.map((step, index) => (
+                  <li key={index}>{lineLabel(step)}</li>
+                ))}
+              </ol>
+              <p className="mt-2">この手順は予測です。相手の着手を確定したものではありません。</p>
+            </details>
+          ) : null}
+        </Panel>
+      ) : null}
       <Panel
         title="局面の評価"
         eyebrow="POSITION EVALUATION"
@@ -59,6 +117,11 @@ export function EvaluationPanel({
                 <span className="flex items-center gap-2">
                   <span className="size-2 rounded-full" style={{ background: sideColors[side] }} />
                   {sideNames[side]}{" "}
+                  {study.settings.focusSide === side ? (
+                    <span className="rounded bg-[#e6eee7] px-1.5 py-0.5 text-[9px]">
+                      フォーカス
+                    </span>
+                  ) : null}
                   {!snapshot.live && study.settings.seats[side].controller === "cpu" ? (
                     <span className="rounded bg-[#e8eee3] px-1.5 py-0.5 text-[9px] font-bold text-[#4a6541]">
                       CPU
@@ -204,7 +267,9 @@ export function EvaluationPanel({
                       {index + 1}
                     </span>
                     <strong className="text-sm">
-                      {actionLabel(candidate.action, snapshot.position.state)}
+                      {future && candidate.line[0]
+                        ? lineLabel(candidate.line[0])
+                        : actionLabel(candidate.action, snapshot.position.state)}
                     </strong>
                   </span>
                   <span className="font-mono text-xs">
@@ -216,6 +281,7 @@ export function EvaluationPanel({
                 </div>
                 <p className="mt-2 text-[10px] text-[#85917c]">
                   深さ {candidate.completedDepth} · {sideNames[rootSide]}視点
+                  {future ? " · 次手番の条件付き候補" : ""}
                   {candidate.selective ? " · 選択探索" : ""}
                 </p>
                 <details className="mt-2 text-[11px]">
@@ -233,11 +299,7 @@ export function EvaluationPanel({
                               stateHash: analysis.stateHash,
                               candidateIndex: index,
                               plies: ply + 1,
-                              lineSignature: JSON.stringify(
-                                candidate.line
-                                  .slice(0, ply + 1)
-                                  .map(({ side, action }) => ({ side, action })),
-                              ),
+                              lineSignature: signature(candidate, ply + 1),
                             })
                           }
                         >
@@ -271,15 +333,24 @@ export function EvaluationPanel({
                   className="mt-2 w-full !min-h-7 !py-1 text-[10px]"
                   isDisabled={pending}
                   onPress={() =>
-                    void analyze({
-                      command: "adopt",
-                      analysisId: analysis.id,
-                      stateHash: analysis.stateHash,
-                      action: candidate.action,
-                    })
+                    future
+                      ? void command({
+                          type: "variation",
+                          analysisId: analysis.id,
+                          stateHash: analysis.stateHash,
+                          candidateIndex: index,
+                          plies: 1,
+                          lineSignature: signature(candidate, 1),
+                        })
+                      : void analyze({
+                          command: "adopt",
+                          analysisId: analysis.id,
+                          stateHash: analysis.stateHash,
+                          action: candidate.action,
+                        })
                   }
                 >
-                  この手を試す →
+                  {future ? "予測手順とこの手を分岐で確認 →" : "この手を試す →"}
                 </Button>
               </li>
             ))}
@@ -292,13 +363,13 @@ export function EvaluationPanel({
         </p>
         <ul className="space-y-2 text-xs">
           {sideOrder.map((side) => {
-            const line = analysis?.candidates[0]?.line ?? [];
+            const line = [...prefix, ...(analysis?.candidates[0]?.line ?? [])];
             const step = line.find((entry) => entry.side === side);
             return (
               <li key={side}>
                 <strong>{sideNames[side]}：</strong>
                 {step
-                  ? `${side === rootSide ? "現在の推奨" : `${step.afterPly}手目に手番が来る想定`} · ${lineLabel(step)}`
+                  ? `${!future && side === snapshot.position.state.turn ? "現在の推奨" : `${line.indexOf(step) + 1}手目に手番が来る想定`} · ${lineLabel(step)}`
                   : "読んだ範囲では手番なし／未解析"}
               </li>
             );
@@ -325,6 +396,7 @@ function EvaluationGraph({
   select(id: string): void;
 }) {
   const ids = ancestorIds(snapshot.study.nodes, snapshot.study.currentNodeId);
+  const targetSide = snapshot.study.settings.focusSide ?? snapshot.study.cpuSide;
   const history = new Map(snapshot.history.map((entry) => [entry.id, entry]));
   const entries = ids.map((id) => history.get(id)).filter((entry) => entry !== undefined);
   const width = 260,
@@ -358,8 +430,8 @@ function EvaluationGraph({
             key={side}
             fill="none"
             stroke={sideColors[side]}
-            strokeWidth={side === snapshot.study.cpuSide ? 2.5 : 1.2}
-            opacity={side === snapshot.study.cpuSide ? 1 : 0.55}
+            strokeWidth={side === targetSide ? 2.5 : 1.2}
+            opacity={side === targetSide ? 1 : 0.55}
             points={entries
               .map(
                 (entry, index) =>
@@ -372,16 +444,15 @@ function EvaluationGraph({
           <circle
             key={entry.id}
             cx={x(index)}
-            cy={y(scoreValue(entry.evaluation, snapshot.study.cpuSide) ?? 0)}
+            cy={y(scoreValue(entry.evaluation, targetSide) ?? 0)}
             r="5"
-            fill={sideColors[snapshot.study.cpuSide]}
+            fill={sideColors[targetSide]}
             fillOpacity="0.5"
             className="cursor-pointer"
             onClick={() => select(entry.id)}
           >
             <title>
-              {entry.label}：
-              {scoreLabel(entry.evaluation, snapshot.study.cpuSide, { source: "position" })}
+              {entry.label}：{scoreLabel(entry.evaluation, targetSide, { source: "position" })}
             </title>
           </circle>
         ))}
@@ -399,6 +470,10 @@ function stopLabel(reason: string) {
     sole_win:
       "単独勝ちに至る予想進行が見つかったため停止しました。相手の応手により結果は変わります。",
     cancelled: "探索を中止しました",
+    focus_eliminated: "指定した席の次手番には到達しませんでした。脱落の状況を確認してください。",
+    focus_terminal: "終局のため、指定した席の次手番はありません。",
+    focus_unreached: "読んだ範囲では指定した席の次手番に到達しませんでした。",
+    focus_cancelled: "指定した席への手順の予測を停止しました。",
   };
   return labels[reason] ?? reason;
 }
