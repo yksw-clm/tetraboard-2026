@@ -2,7 +2,7 @@ import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import "./styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { Button, Card } from "@heroui/react";
 import { adminSessionSchema } from "@tetraboard/protocol";
 import { useAdminData } from "./useAdminData";
@@ -12,6 +12,7 @@ import { Users } from "./Users";
 import { Announcements, AnnouncementCreatePage, AnnouncementEditPage } from "./Announcements";
 import { Feedback, FeedbackDetailPage } from "./Feedback";
 import { Tournaments, TournamentCreatePage, TournamentEditPage } from "./Tournaments";
+import { AdminNavigation } from "./AdminNavigation";
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 function App() {
   const session = useAdminData("/api/admin/session", parseSession);
@@ -38,41 +39,8 @@ function App() {
     );
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
-      <aside className="flex flex-col gap-8 border-r border-gray-200 bg-white p-6 lg:sticky lg:top-0 lg:h-dvh">
-        <div>
-          <p className="text-xl font-bold text-brand">TetraBoard</p>
-          <p className="mt-1 text-sm text-gray-500">管理画面</p>
-        </div>
-        <nav aria-label="管理画面" className="flex flex-wrap gap-2 lg:flex-col">
-          {[
-            ["/", "全体概要"],
-            ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
-            ["/users", "ユーザー"],
-            ["/lobby-chat", "公開チャット"],
-            ["/feedback", "フィードバック"],
-            ["/announcements", "お知らせ"],
-            ["/tournaments", "大会"],
-          ].map(([to, label]) => (
-            <NavLink
-              key={to}
-              to={to}
-              end
-              className={({ isActive }) =>
-                `rounded-lg px-4 py-3 text-sm font-medium ${isActive ? "bg-brand text-white" : "text-gray-600 hover:bg-gray-100"}`
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="mt-auto text-sm text-gray-600">
-          <p>{session.data.name}</p>
-          <a className="mt-3 inline-block text-brand" href="/">
-            サービスへ戻る ↗
-          </a>
-        </div>
-      </aside>
-      <main className="min-w-0 p-5 sm:p-8 lg:p-10">
+      <AdminNavigation name={session.data.name} />
+      <main className="min-w-0 p-3 sm:p-4 lg:p-6">
         <Routes>
           <Route path="/" element={<Dashboard game="all" />} />
           {gameIds.map((id) => (
