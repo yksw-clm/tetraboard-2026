@@ -4,6 +4,8 @@
 
 公開後のロビーHTML検証は `scripts/deploymentLobbyHtml.ts` を共用し、`publicLobbies.test.ts` で本番の全6ゲーム、`developmentSeo.test.ts` で開発環境の実生成HTMLを確認します。ホーム・遊び方・当該ゲームのリンクはメインナビ内にあることを検査し、ナビや各リンクの欠落を本文のリンクで代用しないこと、既存のtitle・canonical URL・robots・description・対象ゲーム・紹介本文の欠落も検出することをBunで確認します。HTTPの状態・ヘッダー、転送、再試行は既存の公開確認スクリプトが担当します。
 
+`scripts/checkDeployment.ts` 自体もWebの `tsconfig.build.json` で型検査し、サイトマップの本番分岐を含む未定義参照を通常のcheck・buildで検出します。公開先に対するHTTP確認は既存の公開確認スクリプトを実行します。
+
 `apps/web/test/publicLobbies.test.ts` と `test-dom/publicLobbies.test.tsx` は、全6ロビーのtitleの語順と長さ、descriptionの120字以内、「4人将棋」「4人オセロ」がtitle・description・紹介文に含まれること、既定HTML・初期HTMLと遷移後のブランド表記・メタ情報の一致を確認します。サイトマップは全7URLにページごとの有効な日付の `lastmod` があること、開発環境ではURLと `lastmod` が出力されないことを確認します。`test-dom/roomSharing.test.tsx` でルーム共有の画像・titleがロビーへ残らず、`og:site_name` が重複しないことも確認します。
 
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。

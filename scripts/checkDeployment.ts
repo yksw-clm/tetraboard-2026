@@ -5,7 +5,7 @@ import {
   tournamentDetailSchema,
 } from "../packages/protocol/src/index";
 import { gameCatalog, gameIds } from "../packages/protocol/src/games";
-import { generalLobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
+import { generalLobbyMetadata, lobbyMetadata } from "../apps/web/src/seo/lobbyMetadata";
 import { formationCatalog } from "../packages/four-shogi/src/formationCatalog";
 import { validateDeploymentLobbyHtml } from "./deploymentLobbyHtml";
 

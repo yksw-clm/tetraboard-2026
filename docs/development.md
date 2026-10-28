@@ -964,6 +964,8 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 main・develop向けPRと両ブランチのpushでは、checksジョブで `bun install --frozen-lockfile` → `bun run check` → 本番ビルド・dry-run → 開発ビルド・dry-runを実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
 
+公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
+
 main・developのpushでは同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
