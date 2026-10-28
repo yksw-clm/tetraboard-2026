@@ -1,4 +1,4 @@
-import { mkdir, rename } from "node:fs/promises";
+import { mkdir, open, rename, unlink } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { cpus, totalmem, release } from "node:os";
@@ -41,8 +41,12 @@ import {
 import type { StudyPositionInput } from "../src/shared/model";
 
 type Budget = { work: number } | { timeMs: number };
+export const strengthRunnerVersion = "local-strength-two-lanes-v2";
+export const strengthScheduleVersion = "balanced-pair-shuffle-v1";
 export const formalStrengthPlan = Object.freeze({
-  id: "local-study-holdout-v1",
+  id: "local-study-holdout-two-lanes-v2",
+  seed: 9420000,
+  concurrency: 2,
   series: 16,
   seats: 4,
   gamesPerProfileAndRule: 64,
@@ -59,6 +63,7 @@ export type StrengthOptions = {
   budget: Budget;
   threads: number;
   memoryMb: number;
+  concurrency: number;
   seed: number;
   seeds: number;
   restrictions: boolean[];
@@ -69,6 +74,7 @@ export type StrengthOptions = {
   positionsFile?: string;
   samplesOnly: boolean;
   formal?: boolean;
+  resume?: boolean;
 };
 type Opening = {
   replay: AnalysisReplayInput;
@@ -85,8 +91,12 @@ type Choice = {
   elapsedMs: number;
   reason: string;
   safetyComplete: boolean | null;
+  evaluationComputed: boolean;
+  principalVariationComputed: boolean;
 };
 export type RecordedGame = {
+  jobId: string;
+  lane: number;
   profile: StudyProfile;
   restricted: boolean;
   sample: SinglesSample;
@@ -96,6 +106,32 @@ export type RecordedGame = {
   candidateReasons: Record<string, number>;
   interrupted: boolean;
 };
+export type StrengthJob = Readonly<{
+  id: string;
+  seed: number;
+  restricted: boolean;
+  seat: Side;
+  profile: StudyProfile;
+}>;
+type MeasuredPosition = {
+  label: string;
+  provenance: string;
+  profile: StudyProfile;
+  stateHash: string;
+  choice: Choice;
+  legal: boolean;
+  immediatelyEliminated: boolean;
+  replyCanEliminate: boolean;
+};
+export type StrengthResumeContract = Readonly<{
+  runnerVersion: string;
+  scheduleVersion: string;
+  code: unknown;
+  environment: unknown;
+  options: unknown;
+  opponent: unknown;
+  jobIds: readonly string[];
+}>;
 type PositionSpec = {
   label: string;
   replay: AnalysisReplayInput;
@@ -107,12 +143,99 @@ function positionInput(replay: AnalysisReplayInput): StudyPositionInput {
   return { origin: { kind: "replay", replay }, events: [] };
 }
 
+/** 唯一の合法手には選択の余地がないため、対局計測だけ探索を省きます。 */
+export function forcedLegalChoice(position: AnalysisPosition): Choice | null {
+  const before = performance.now();
+  const actions = getAnalysisLegalActions(position);
+  if (actions.length !== 1) return null;
+  return {
+    action: actions[0],
+    work: 0,
+    depth: 0,
+    cutoff: false,
+    elapsedMs: performance.now() - before,
+    reason: "forced_legal_action",
+    safetyComplete: null,
+    evaluationComputed: false,
+    principalVariationComputed: false,
+  };
+}
+
+/** 両profileを同じ開始条件のペアにし、席や固定slotへの割当ての偏りを避けます。 */
+export function createStrengthJobs(options: StrengthOptions): StrengthJob[] {
+  const pairs: StrengthJob[][] = [];
+  for (let offset = 0; offset < options.seeds; offset++)
+    for (const restricted of options.restrictions)
+      for (const seat of options.seats)
+        pairs.push(
+          options.profiles.map((profile) => {
+            const identity = {
+              runnerVersion: strengthRunnerVersion,
+              seed: options.seed + offset,
+              restricted,
+              seat,
+              profile,
+              budget: options.budget,
+              threads: options.threads,
+              memoryMb: options.memoryMb,
+              concurrency: options.concurrency,
+              maxPlies: options.maxPlies,
+            };
+            return {
+              id: hashJson(identity),
+              seed: options.seed + offset,
+              restricted,
+              seat,
+              profile,
+            };
+          }),
+        );
+  const random = seededRandom(options.seed ^ 0x6d2b79f5);
+  for (let index = pairs.length - 1; index > 0; index--) {
+    const other = Math.floor(random() * (index + 1));
+    [pairs[index], pairs[other]] = [pairs[other], pairs[index]];
+  }
+  const flip = Math.floor(random() * 2);
+  return pairs.flatMap((pair, index) => ((index + flip) % 2 === 0 ? pair : [...pair].reverse()));
+}
+
+/** 各laneは一度に一局だけを処理し、空いたlaneが固定順の次の仕事を受け取ります。 */
+export async function runStrengthQueue(
+  jobs: readonly StrengthJob[],
+  concurrency: number,
+  completed: ReadonlySet<string>,
+  execute: (job: StrengthJob, lane: number) => Promise<void>,
+  stopped: () => boolean = () => false,
+) {
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 2)
+    throw new Error("対局並列数は1〜2です");
+  let cursor = 0;
+  const failures: unknown[] = [];
+  await Promise.all(
+    Array.from({ length: concurrency }, async (_, lane) => {
+      while (!failures.length && !stopped()) {
+        const job = jobs[cursor++];
+        if (!job) break;
+        if (completed.has(job.id)) continue;
+        try {
+          await execute(job, lane);
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+    }),
+  );
+  if (failures.length) throw failures[0];
+}
+
 /** 固定workは再現性確認用です。同じworkが旧Lv2や異なる評価器の同じ実時間を意味しません。 */
 export function fixedWorkChoice(
   position: AnalysisPosition,
   work: number,
   profile: StudyProfile,
 ): Choice {
+  const forced = forcedLegalChoice(position);
+  if (forced) return forced;
   const before = performance.now();
   const session = createStudyRootSearch(position, { profile, maxDepth: 64 });
   let selected = false;
@@ -147,6 +270,8 @@ export function fixedWorkChoice(
       safetyComplete:
         candidates.length > 0 &&
         candidates.every((candidate) => candidate.study.immediateRepliesComplete),
+      evaluationComputed: snapshot.depth > 0,
+      principalVariationComputed: snapshot.depth > 0,
     };
   } finally {
     session.dispose();
@@ -158,7 +283,10 @@ async function timedChoice(
   replay: AnalysisReplayInput,
   timeMs: number,
   profile: StudyProfile,
+  position: AnalysisPosition,
 ): Promise<Choice> {
+  const forced = forcedLegalChoice(position);
+  if (forced) return forced;
   const before = performance.now();
   const snapshot = await new Promise<StudySearchSnapshot>((resolve, reject) => {
     const watchdog = setTimeout(
@@ -188,6 +316,8 @@ async function timedChoice(
     elapsedMs: performance.now() - before,
     reason: snapshot.reason ?? "unknown",
     safetyComplete: snapshot.diagnostics.safetyComplete,
+    evaluationComputed: snapshot.completedDepth > 0,
+    principalVariationComputed: snapshot.completedDepth > 0,
   };
 }
 
@@ -232,13 +362,14 @@ async function opening(seed: number, restricted: boolean): Promise<Opening> {
 
 async function play(
   opening: Opening,
-  seat: Side,
-  profile: StudyProfile,
+  job: StrengthJob,
+  lane: number,
   options: StrengthOptions,
   opponent: Player,
   runtime: StudySearchRuntime | null,
   stopped: () => boolean,
 ): Promise<RecordedGame> {
+  const { seat, profile } = job;
   let position = opening.position;
   const events = [...opening.replay.events];
   const decisions: SinglesSample["decisions"] = [];
@@ -258,7 +389,7 @@ async function play(
       const choice =
         "work" in options.budget
           ? fixedWorkChoice(position, options.budget.work, profile)
-          : await timedChoice(runtime!, replay, options.budget.timeMs, profile);
+          : await timedChoice(runtime!, replay, options.budget.timeMs, profile, position);
       action = choice.action;
       stats = { work: choice.work, completedDepth: choice.depth, cutoff: choice.cutoff };
       elapsed.push(choice.elapsedMs);
@@ -285,7 +416,7 @@ async function play(
   }
   const interrupted = stopped();
   const sample: SinglesSample = {
-    matchId: hashJson({ start: opening.position.stateHash, seat, profile, budget: options.budget }),
+    matchId: job.id,
     seriesId: opening.seriesId,
     startKind: "opening",
     seed: opening.seed,
@@ -306,6 +437,8 @@ async function play(
     decisions,
   };
   return {
+    jobId: job.id,
+    lane,
     profile,
     restricted: opening.restricted,
     sample,
@@ -338,6 +471,8 @@ export function validateFormalStrengthOptions(options: StrengthOptions) {
     options.seeds !== formalStrengthPlan.series ||
     options.threads !== formalStrengthPlan.threads ||
     options.memoryMb !== formalStrengthPlan.memoryMb ||
+    options.concurrency !== formalStrengthPlan.concurrency ||
+    options.seed !== formalStrengthPlan.seed ||
     options.maxPlies !== formalStrengthPlan.maxPlies ||
     !sameSet(options.restrictions, [false, true]) ||
     !sameSet(options.seats, sides) ||
@@ -346,7 +481,7 @@ export function validateFormalStrengthOptions(options: StrengthOptions) {
     options.positionsFile
   )
     throw new Error(
-      "正式測定は16開始系列・4席・ON/OFF・両profile・1秒・4プロセス・8GiB・512手に固定します",
+      "正式測定はseed9420000から16系列・4席・ON/OFF・両profile・各局1秒/4プロセス/8GiB・2局並列・512手に固定します",
     );
 }
 
@@ -373,12 +508,17 @@ export function assessFormalStrength(
       return (
         values.length === formalStrengthPlan.gamesPerProfileAndRule &&
         series.size === formalStrengthPlan.series &&
+        Array.from(
+          { length: formalStrengthPlan.series },
+          (_, index) => formalStrengthPlan.seed + index,
+        ).every((seed) => series.has(seed)) &&
         [...series.values()].every((seats) => seats.size === sides.length)
       );
     };
     const complete =
       balanced(studySamples) &&
       balanced(baselineSamples) &&
+      !group.some((entry) => entry.sample.termination === "interrupted") &&
       studyIds.size === studySamples.length &&
       baselineIds.size === baselineSamples.length &&
       [...studyIds].every((id) => baselineIds.has(id));
@@ -413,127 +553,340 @@ export function assessFormalStrength(
     byRule,
   };
 }
-async function writeReport(path: string, report: unknown) {
+export function strengthRecordsHash(
+  games: readonly RecordedGame[],
+  attempts: readonly RecordedGame[],
+  positions: readonly unknown[],
+) {
+  return hashJson({ games, attempts, positions });
+}
+
+/** 再開は同じ実行条件・コード・環境と、一意な完了jobだけを受け入れます。 */
+export function validateStrengthResume(
+  input: unknown,
+  contract: StrengthResumeContract,
+  jobs: readonly StrengthJob[],
+): {
+  games: RecordedGame[];
+  attempts: RecordedGame[];
+  positions: MeasuredPosition[];
+  startedAt: string;
+  resumeCount: number;
+} {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new Error("再開する測定記録が不正です");
+  const saved = input as Record<string, unknown>;
+  if (
+    saved.schemaVersion !== 2 ||
+    saved.runnerVersion !== strengthRunnerVersion ||
+    !saved.code ||
+    typeof saved.code !== "object" ||
+    !("sourceUnchanged" in saved.code) ||
+    saved.code.sourceUnchanged !== true ||
+    saved.contractHash !== hashJson(contract) ||
+    hashJson(saved.contract) !== hashJson(contract)
+  )
+    throw new Error("再開する測定のコード・環境・設定・seed・並列方式が一致しません");
+  if (
+    !Array.isArray(saved.games) ||
+    !Array.isArray(saved.attempts) ||
+    !Array.isArray(saved.positions) ||
+    typeof saved.startedAt !== "string" ||
+    !Number.isFinite(Date.parse(saved.startedAt)) ||
+    !Number.isSafeInteger(saved.resumeCount) ||
+    (saved.resumeCount as number) < 0
+  )
+    throw new Error("再開する測定の保存形式が不正です");
+  const games = saved.games as RecordedGame[];
+  const attempts = saved.attempts as RecordedGame[];
+  if (saved.recordsHash !== strengthRecordsHash(games, attempts, saved.positions))
+    throw new Error("再開する測定結果のハッシュが一致しません");
+  const expected = new Map(jobs.map((job) => [job.id, job]));
+  const seen = new Set<string>();
+  for (const game of [...games, ...attempts]) {
+    const job = expected.get(game?.jobId);
+    if (
+      !job ||
+      game.profile !== job.profile ||
+      game.restricted !== job.restricted ||
+      game.sample?.matchId !== job.id ||
+      game.sample.seed !== job.seed ||
+      game.sample.seat !== job.seat ||
+      !Number.isSafeInteger(game.lane) ||
+      game.lane < 0 ||
+      game.lane >= 2 ||
+      !game.replay ||
+      game.replay.initial.threePlayerAttackProhibited !== job.restricted
+    )
+      throw new Error("再開する対局のjob ID・seed・席・profileが一致しません");
+  }
+  for (const game of games) {
+    if (game.interrupted || game.sample.termination === "interrupted" || seen.has(game.jobId))
+      throw new Error("再開する完了対局に中断・重複jobがあります");
+    seen.add(game.jobId);
+  }
+  if (attempts.some((game) => !game.interrupted))
+    throw new Error("再開する中断記録の区分が不正です");
+  return {
+    games,
+    attempts,
+    positions: saved.positions as MeasuredPosition[],
+    startedAt: saved.startedAt,
+    resumeCount: (saved.resumeCount as number) + 1,
+  };
+}
+
+async function writeReport(path: string, contents: string, exclusive = false) {
   await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.tmp`;
-  await Bun.write(temporary, `${JSON.stringify(report, null, 2)}\n`);
-  await rename(temporary, path);
+  if (exclusive) {
+    const file = await open(path, "wx", 0o600);
+    try {
+      await file.writeFile(contents, "utf8");
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    return;
+  }
+  const temporary = `${path}.${crypto.randomUUID()}.tmp`;
+  try {
+    await Bun.write(temporary, contents);
+    await rename(temporary, path);
+  } finally {
+    await unlink(temporary).catch((error: unknown) => {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    });
+  }
+}
+
+/** 2laneの完了が重なっても、呼出し時点の記録を保存順に確定します。 */
+export function createStrengthReportWriter(path: string) {
+  let queue = Promise.resolve();
+  return {
+    write(report: unknown, exclusive = false) {
+      const contents = `${JSON.stringify(report, null, 2)}\n`;
+      const operation = queue.then(() => writeReport(path, contents, exclusive));
+      queue = operation.catch(() => {});
+      return operation;
+    },
+    idle() {
+      return queue;
+    },
+  };
 }
 
 export async function runStrength(options: StrengthOptions) {
   if (options.formal) validateFormalStrengthOptions(options);
+  if (options.resume && (options.samplesOnly || options.positionsFile))
+    throw new Error("resumeは対局測定だけに指定できます");
+  const existing = await Bun.file(options.output).exists();
+  if (existing && !options.resume)
+    throw new Error("測定の出力先は新しいファイルを指定してください。既存結果を上書きしません");
+  if (!existing && options.resume) throw new Error("再開する測定記録がありません");
   const source = sourceIdentity(resolve(repoRoot, "packages/four-shogi/src"));
   const runtimeSource = sourceIdentity(resolve(import.meta.dir, "../src/search"));
+  const domainSource = sourceIdentity(resolve(import.meta.dir, "../src/domain"));
+  const measurementSource = sourceIdentity(resolve(repoRoot, "packages/four-shogi/bench"));
   const runnerSourceHash = hashJson(await Bun.file(import.meta.path).text());
+  const commit = git("rev-parse", "HEAD");
+  const dirty = git("status", "--porcelain").length > 0;
   const sourceUnchanged = () =>
+    git("rev-parse", "HEAD") === commit &&
     sourceIdentity(resolve(repoRoot, "packages/four-shogi/src")).sha256 === source.sha256 &&
     sourceIdentity(resolve(import.meta.dir, "../src/search")).sha256 === runtimeSource.sha256 &&
+    sourceIdentity(resolve(import.meta.dir, "../src/domain")).sha256 === domainSource.sha256 &&
+    sourceIdentity(resolve(repoRoot, "packages/four-shogi/bench")).sha256 ===
+      measurementSource.sha256 &&
     hashJson(readFileSync(import.meta.path, "utf8")) === runnerSourceHash;
   const opponent = await loadPlayer("frozen");
-  const runtime =
-    "timeMs" in options.budget
-      ? createStudySearchRuntime({ threads: options.threads, memoryMb: options.memoryMb })
-      : null;
+  const runtimes: (StudySearchRuntime | null)[] = [];
   const games: RecordedGame[] = [];
-  const positions: {
-    label: string;
-    provenance: string;
-    profile: StudyProfile;
-    stateHash: string;
-    choice: Choice;
-    legal: boolean;
-    immediatelyEliminated: boolean;
-    replyCanEliminate: boolean;
-  }[] = [];
+  const attempts: RecordedGame[] = [];
+  const positions: MeasuredPosition[] = [];
+  const jobs = options.samplesOnly ? [] : createStrengthJobs(options);
+  const environment = {
+    platform: process.platform,
+    architecture: process.arch,
+    os: release(),
+    cpu: cpus()[0]?.model,
+    cpuCount: cpus().length,
+    memoryBytes: totalmem(),
+    bun: Bun.version,
+  };
+  const contract: StrengthResumeContract = {
+    runnerVersion: strengthRunnerVersion,
+    scheduleVersion: strengthScheduleVersion,
+    code: {
+      commit,
+      source: source.sha256,
+      runtimeSource: runtimeSource.sha256,
+      domainSource: domainSource.sha256,
+      measurementSource: measurementSource.sha256,
+      runnerSourceHash,
+    },
+    environment,
+    options: {
+      budget: options.budget,
+      threads: options.threads,
+      memoryMb: options.memoryMb,
+      concurrency: options.concurrency,
+      seed: options.seed,
+      seeds: options.seeds,
+      restrictions: options.restrictions,
+      seats: options.seats,
+      profiles: options.profiles,
+      maxPlies: options.maxPlies,
+      positionsFile: options.positionsFile ?? null,
+      samplesOnly: options.samplesOnly,
+      formal: options.formal ?? false,
+    },
+    opponent: opponent.metadata,
+    jobIds: jobs.map((job) => job.id),
+  };
   let interrupted = false;
+  let failure: string | null = null;
+  let startedAt = new Date().toISOString();
+  let resumeCount = 0;
+  const writer = createStrengthReportWriter(options.output);
+  const activeJobs: (string | null)[] = Array(options.concurrency).fill(null);
   const stop = () => {
     interrupted = true;
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
-  const startedAt = new Date().toISOString();
-  const report = () => ({
-    schemaVersion: 1,
-    startedAt,
-    updatedAt: new Date().toISOString(),
-    environment: {
-      platform: process.platform,
-      architecture: process.arch,
-      os: release(),
-      cpu: cpus()[0]?.model,
-      cpuCount: cpus().length,
-      memoryBytes: totalmem(),
-      bun: Bun.version,
-    },
-    code: {
-      commit: git("rev-parse", "HEAD"),
-      dirty: git("status", "--porcelain").length > 0,
-      source,
-      runtimeSource,
-      runnerSourceHash,
-      sourceUnchanged: sourceUnchanged(),
-    },
-    options,
-    opponent: opponent.metadata,
-    interpretation:
-      "単独1位と同率1位を区別し、手数上限・中断は未終局です。ON/OFFと席替えは同一開始seedの反復です。固定workは等時間比較ではありません。少数測定は棋力保証に使いません。",
-    interrupted,
-    summary: summary(games),
-    formalAssessment: options.formal ? assessFormalStrength(games, sourceUnchanged()) : null,
-    games,
-    positions,
-  });
+  const report = () => {
+    const unchanged = sourceUnchanged();
+    const completed = [...games];
+    const incomplete = [...attempts];
+    const measuredPositions = [...positions];
+    return {
+      schemaVersion: 2,
+      runnerVersion: strengthRunnerVersion,
+      startedAt,
+      updatedAt: new Date().toISOString(),
+      resumeCount,
+      environment,
+      code: {
+        commit,
+        dirty,
+        source,
+        runtimeSource,
+        domainSource,
+        measurementSource,
+        runnerSourceHash,
+        sourceUnchanged: unchanged,
+      },
+      contract,
+      contractHash: hashJson(contract),
+      options,
+      opponent: opponent.metadata,
+      execution: {
+        concurrency: options.concurrency,
+        scheduler: strengthScheduleVersion,
+        maximumSearchProcesses: options.concurrency * options.threads,
+        maximumSearchMemoryMb: options.concurrency * options.memoryMb,
+        perGame: { threads: options.threads, memoryMb: options.memoryMb, budget: options.budget },
+        plannedJobs: jobs.length,
+        completedJobs: completed.length,
+        activeJobIds: [...activeJobs],
+        laneProfiles: Array.from({ length: options.concurrency }, (_, lane) => ({
+          lane,
+          study: completed.filter((game) => game.lane === lane && game.profile === "study").length,
+          baseline: completed.filter((game) => game.lane === lane && game.profile === "baseline")
+            .length,
+        })),
+      },
+      interpretation:
+        "単独1位と同率1位を区別し、手数上限は未終局です。中断局はattemptsへ残し、正式サンプルに含めず再開時に再実行します。ON/OFFと席替えは同一開始seedの反復です。固定workは等時間比較ではありません。forced_legal_actionは唯一の合法手を即確定し、評価/PVは未計算（depth/work=0）です。少数測定は棋力保証に使いません。",
+      interrupted,
+      failure,
+      summary: summary(completed),
+      formalAssessment: options.formal ? assessFormalStrength(completed, unchanged) : null,
+      games: completed,
+      attempts: incomplete,
+      positions: measuredPositions,
+      recordsHash: strengthRecordsHash(completed, incomplete, measuredPositions),
+    };
+  };
+  const persist = () => {
+    return writer.write(report());
+  };
   try {
-    // 採否条件とholdout範囲を、結果が出る前に保存します。
-    if (options.formal) {
-      if (await Bun.file(options.output).exists())
-        throw new Error(
-          "正式測定の出力先は新しいファイルを指定してください。既存結果を上書きしません",
-        );
-      await writeReport(options.output, report());
+    if (options.resume) {
+      const saved = validateStrengthResume(await Bun.file(options.output).json(), contract, jobs);
+      games.push(...saved.games);
+      attempts.push(...saved.attempts);
+      positions.push(...saved.positions);
+      startedAt = saved.startedAt;
+      resumeCount = saved.resumeCount;
+      await persist();
+    } else {
+      // 採否条件・全job・実行環境を、結果が出る前に排他的に保存します。
+      await writer.write(report(), true);
     }
-    if (!options.samplesOnly) {
-      for (let offset = 0; offset < options.seeds && !interrupted; offset++) {
-        for (const restricted of options.restrictions) {
-          if (interrupted) break;
-          const start = await opening(options.seed + offset, restricted);
-          for (const seat of options.seats) {
-            if (interrupted) break;
-            const profiles =
-              (offset + sides.indexOf(seat)) % 2 === 0
-                ? options.profiles
-                : [...options.profiles].reverse();
-            for (const profile of profiles) {
-              if (interrupted) break;
-              const game = await play(
-                start,
-                seat,
-                profile,
-                options,
-                opponent,
-                runtime,
-                () => interrupted,
-              );
-              games.push(game);
-              await writeReport(options.output, report());
-              console.info(
-                JSON.stringify({
-                  game: games.length,
-                  profile,
-                  restricted,
-                  seed: start.seed,
-                  seat,
-                  status: game.sample.status,
-                  moves: game.sample.moves,
-                  soleFirst: game.sample.soleFirst,
-                  termination: game.sample.termination,
-                }),
-              );
-            }
+    for (let lane = 0; lane < options.concurrency; lane++)
+      runtimes.push(
+        "timeMs" in options.budget
+          ? createStudySearchRuntime({ threads: options.threads, memoryMb: options.memoryMb })
+          : null,
+      );
+    const completed = new Set(games.map((game) => game.jobId));
+    const openings = new Map<string, Promise<Opening>>();
+    await runStrengthQueue(
+      jobs,
+      options.concurrency,
+      completed,
+      async (job, lane) => {
+        activeJobs[lane] = job.id;
+        try {
+          if (!sourceUnchanged()) throw new Error("測定中にソースまたはHEADが変更されました");
+          const key = `${job.seed}:${job.restricted}`;
+          let start = openings.get(key);
+          if (!start) {
+            start = opening(job.seed, job.restricted);
+            openings.set(key, start);
           }
+          const game = await play(
+            await start,
+            job,
+            lane,
+            options,
+            opponent,
+            runtimes[lane],
+            () => interrupted,
+          );
+          activeJobs[lane] = null;
+          if (game.interrupted) attempts.push(game);
+          else {
+            games.push(game);
+            completed.add(job.id);
+          }
+          await persist();
+          console.info(
+            JSON.stringify({
+              game: games.length,
+              jobId: job.id,
+              lane,
+              profile: job.profile,
+              restricted: job.restricted,
+              seed: job.seed,
+              seat: job.seat,
+              status: game.sample.status,
+              moves: game.sample.moves,
+              soleFirst: game.sample.soleFirst,
+              termination: game.sample.termination,
+            }),
+          );
+        } catch (error) {
+          interrupted = true;
+          failure ??= error instanceof Error ? error.message : String(error);
+          throw error;
+        } finally {
+          activeJobs[lane] = null;
         }
-      }
-    }
+      },
+      () => interrupted,
+    );
     if (options.positionsFile && !interrupted) {
       const specs = (await Bun.file(options.positionsFile).json()) as PositionSpec[];
       if (!Array.isArray(specs) || specs.length > 100)
@@ -548,7 +901,7 @@ export async function runStrength(options: StrengthOptions) {
           const choice =
             "work" in options.budget
               ? fixedWorkChoice(position, options.budget.work, profile)
-              : await timedChoice(runtime!, replay, options.budget.timeMs, profile);
+              : await timedChoice(runtimes[0]!, replay, options.budget.timeMs, profile, position);
           if (!choice.action) throw new Error("局面サンプルで合法手を返しませんでした");
           const after = await advanceAnalysisPosition(position, {
             type: "action",
@@ -579,7 +932,7 @@ export async function runStrength(options: StrengthOptions) {
             immediatelyEliminated: !getActiveSides(after.state).includes(root),
             replyCanEliminate,
           });
-          await writeReport(options.output, report());
+          await persist();
           console.info(
             JSON.stringify({
               position: spec.label,
@@ -593,12 +946,22 @@ export async function runStrength(options: StrengthOptions) {
         }
       }
     }
-    await writeReport(options.output, report());
+    await persist();
+  } catch (error) {
+    failure ??= error instanceof Error ? error.message : String(error);
+    interrupted = true;
+    // 条件不一致のresumeでは、元の記録を変更しません。
+    if (runtimes.length) await persist().catch(() => {});
+    throw error;
   } finally {
-    await runtime?.close();
-    opponent.dispose();
-    process.off("SIGINT", stop);
-    process.off("SIGTERM", stop);
+    await writer.idle();
+    try {
+      await Promise.all(runtimes.map((runtime) => runtime?.close()));
+    } finally {
+      opponent.dispose();
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
+    }
   }
   return report();
 }
@@ -625,6 +988,8 @@ export function argumentsFor(args: string[]): StrengthOptions {
     "positions",
     "samples-only",
     "formal",
+    "concurrency",
+    "resume",
   ];
   if (
     [...values.keys()].some((key) => !allowed.includes(key)) ||
@@ -645,7 +1010,7 @@ export function argumentsFor(args: string[]): StrengthOptions {
     seats.some((value) => !sides.includes(value as Side)) ||
     profiles.some((value) => !["study", "baseline"].includes(value)) ||
     [restrictions, seats, profiles].some((items) => new Set(items).size !== items.length) ||
-    ["samples-only", "formal"].some(
+    ["samples-only", "formal", "resume"].some(
       (key) => values.has(key) && !["true", "false"].includes(values.get(key)!),
     )
   )
@@ -657,7 +1022,8 @@ export function argumentsFor(args: string[]): StrengthOptions {
       : { timeMs: integer("time-ms", formal ? formalStrengthPlan.timeMs : 5000, 1, 3600000) },
     threads: integer("threads", 4, 1, 32),
     memoryMb: integer("memory-mb", 8192, 256, 65536),
-    seed: integer("seed", formal ? 9410000 : 8360000, 1000000, 0xffffffff - 1000),
+    concurrency: integer("concurrency", formal ? formalStrengthPlan.concurrency : 1, 1, 2),
+    seed: integer("seed", formal ? formalStrengthPlan.seed : 8360000, 1000000, 0xffffffff - 1000),
     seeds: integer("seeds", formal ? formalStrengthPlan.series : 2, 1, 1000),
     restrictions: restrictions.map((value) => value === "on"),
     seats: seats as Side[],
@@ -667,6 +1033,7 @@ export function argumentsFor(args: string[]): StrengthOptions {
     positionsFile: values.get("positions"),
     samplesOnly: values.get("samples-only") === "true",
     formal,
+    resume: values.get("resume") === "true",
   };
   if (formal) validateFormalStrengthOptions(options);
   return options;

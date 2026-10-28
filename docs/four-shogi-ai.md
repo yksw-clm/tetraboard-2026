@@ -371,21 +371,23 @@ REPO_PATH="$PWD" PROFILE_OUTPUT=/tmp/four-shogi-cpu-profiles.json bun /tmp/four-
 
 | 項目 | 固定する条件 |
 | --- | --- |
-| 計画ID | `local-study-holdout-v1` |
+| 計画ID | `local-study-holdout-two-lanes-v2` |
 | 対象 | rulesVersion 1・シングルス、三人攻撃禁止ON/OFFを別集計。候補1体対固定現行Lv2 3体。 |
 | 候補の比較 | ローカルの `study` と、同じ探索基盤で追加の戦術検査/評価を除いた `baseline`。公開Lv2の既定値を変更しません。 |
-| holdout | 未使用の開始seed9410000〜9410015の16系列。12手の開始系列を用い、各系列で全4席へ候補を配置します。回転/同系列の4局は独立4標本とは数えません。 |
+| holdout | 未使用の開始seed9420000〜9420015の16系列。12手の開始系列を用い、各系列で全4席へ候補を配置します。回転/同系列の4局は独立4標本とは数えません。 |
 | 局数 | 各ON/OFF・各profileで64局。各profileは128局、両profileの合計256局。 |
-| 資源/予算 | 候補1手につき実時間1000ms・4プロセス・8192MiB。512手の上限で停止し、上限到達は未終局とします。 |
+| 資源/予算 | 2局並列、各局の候補1手につき実時間1000ms・4プロセス・8192MiB（合計8探索プロセス・最大16384MiB枠）。512手の上限で停止し、上限到達は未終局とします。 |
 | 主指標 | 単独1位率。同率1位/引分を単独勝ちへ数えず、未終局も全64局の分母に残します。下位順位、未終局率、脱落・合法性、停止理由も報告します。 |
 | 合格 | 各ON/OFFでstudyの単独1位率40%以上、開始系列を単位とするbootstrap1000回の95%区間下限が25%を超え、studyの単独1位率が同時間baseline以上。すべてを満たすこと。 |
 | 識別 | commit/dirty状態、ルール/探索/評価版、ルールエンジン・runtimeのsourceIdentityとrunner hash、seed・席・相手・実行環境・各局の予算/結果を保存します。 |
 | 無効/未完了 | 実行中に対象コード識別が変われば `invalid_source_changed`。局数不足は `pending`。閾値未達は `failed` とし、手動で合格へ変更しません。 |
 
-実行CLIは条件を新規の出力ファイルへ先に保存し、正式モードで異なる予算・局数・席・設定のoverrideと既存ファイルへの上書きを拒否します。重い処理を並行させず、コードと測定環境を固定して実行します。
+実行CLIは条件を新規の出力ファイルへ先に保存し、正式モードで異なる予算・局数・席・設定のoverrideと既存ファイルへの上書きを拒否します。本比較以外の重い処理を併走させず、コードと測定環境を固定して実行します。
 
 ```sh
-bun apps/four-shogi-study/bench/strength.ts --formal true --seed 9410000 --output /private/tmp/tetraboard-study-formal-20261028/results.json
+bun --no-env-file apps/four-shogi-study/bench/strength.ts --formal true --concurrency 2 --seed 9420000 --output /private/tmp/tetraboard-study-formal-20261028/results.json
+# 同じコミット・条件・環境で中断した測定を再開します
+bun --no-env-file apps/four-shogi-study/bench/strength.ts --formal true --concurrency 2 --seed 9420000 --output /private/tmp/tetraboard-study-formal-20261028/results.json --resume true
 ```
 
 JSONの `formalAssessment` は `pending/passed/failed/invalid_source_changed`、`byRule` は各設定の両profileの統計です。途中のスコア・未終局だけの試行から棋力改善を認定しません。未達時は原因を調整用で調べ、閾値を下げず新しいholdoutを確保して測り直します。ここでの合格も優勝者級・校正済み勝率・公開Lv2置換の承認ではありません。
@@ -394,7 +396,7 @@ JSONの `formalAssessment` は `pending/passed/failed/invalid_source_changed`、
 
 重要戦術は全問正解を必須にし、マジックとその不成立、右への王手と逆王手、全方向/4・3・2人生存、ON/OFF、王手による手番飛ばし、別応手の駒損/即脱落の証拠と未確認表示を含めます。戦術用に編集した局面は、初期局面からの完全棋譜による対局測定の代用にしません。調整とholdoutの開始系列/同型局面を分離します。
 
-性能は同じMacで候補の完成深さ・探索量・RSS合計・期限超過と停止理由を1/2/4/8プロセスで比較し、予算を5/15/30/60秒と変えた観測を記録します。1〜8プロセスの比較は通常の対局設定とは別の実験で、ハードウェアが許す場合にだけ行います。スレッド数・時間増加に比例する速度/棋力を仮定しません。代表コマンドは次です。
+性能は同じMacで候補の完成深さ・探索量・RSS合計・期限超過と停止理由を1/2/4/8プロセスで比較し、予算を1/5/30秒と変えた観測を記録します。1〜8プロセスの比較は通常の対局設定とは別の実験で、ハードウェアが許す場合にだけ行います。スレッド数・時間増加に比例する速度/棋力を仮定しません。代表コマンドは次です。
 
 ```sh
 bun apps/four-shogi-study/bench/search.ts --kind=performance --time-ms=5000 --threads=1,2,4,8 --output=/private/tmp/four-shogi-study-performance.json
@@ -402,3 +404,10 @@ bun apps/four-shogi-study/bench/search.ts --kind=tactics --time-ms=5000 --thread
 ```
 
 文書追加時点の確認済みは軽量な実プロセスruntime試験など個別の開発確認に限ります。正式棋力、全重要戦術の最終採点、長時間性能/資源、Mac手動操作、公開先のライブAPI配信と実対局での閲覧は未実施または未確認です。最終の必須検証とGitHub CIも対象コミットが確定した後に記録します。
+
+2026-10-28の追加指示により、正式比較を2局並列へ変更します。各局は1秒/手・4プロセス・8GiB枠のまま、合計8プロセス・最大16GiB枠です。合法手が1件しかない局面は両profileで探索を省き、`forced_legal_action` と未評価を記録します。比較する開始系列・席・ON/OFF・局数・単独勝ちの合格基準は維持します。中断後の再開ではコード・条件・実行環境と完了済み対局の識別を照合し、別条件の記録を合算しません。
+
+単一局実行の旧探索版による予備測定は、対象コード `f2cd7d3`、エンジンソースhash `e529e2d22bf36bc1d475cc45c992f65e2aa063035decd0eeddba229ba54079ca` で22局を記録したところで中断しました。studyは11局中5回単独1位（うち1局は中断による未終局）、baselineは11局中1回単独1位です。開始系列は9,410,000帯、1局ずつの実行であり、修正版・2局並列の正式判定へ流用しません。これは機能と傾向の予備記録で、棋力合格の認定ではありません。
+
+
+修正版（探索版v3）の短い速度確認では、同じ非正式開始系列・2局・各1秒/手・各4プロセス・16手打切りが、1局ずつ12.09秒、2局並列8.29秒でした（約31%短縮）。これは短い動作確認であり、正式対局全体の短縮率や棋力を保証するものではありません。1秒予算の戦術確認は88件中74件採点合格、重要問題40件は全件合格、旧fixtureで自由編集の状態検証を満たさない非重要8件を除外しました。非重要の未合格14件は主に即時成りを要求する旧基準に対して別の手や不成を選んだもので、全問合格とは扱いません。
