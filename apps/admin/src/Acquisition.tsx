@@ -91,7 +91,7 @@ export function Acquisition({
 }) {
   if (!report)
     return (
-      <Card className="p-5">
+      <Card className="rounded-lg border border-gray-200 p-3 text-xs shadow-none">
         <h2>流入・端末</h2>
         <p>未計測（対応する計測情報がありません）</p>
       </Card>
@@ -106,15 +106,15 @@ export function Acquisition({
         ? "途中集計"
         : "";
   return (
-    <Card className="gap-5 p-5">
-      <h2 className="text-xl font-semibold">流入・端末</h2>
-      <p className="text-sm text-gray-600">
+    <Card className="gap-3 rounded-lg border border-gray-200 p-3 shadow-none">
+      <h2 className="text-sm font-bold">流入・端末</h2>
+      <p className="text-xs leading-relaxed text-gray-600">
         訪問セッション数は30分間、閲覧・前面滞在の更新が途絶えた後の閲覧で区切ります。既存の訪問ブラウザ数とは異なります。流入情報は最初の閲覧で固定します。ゲーム別の訪問は、その訪問で最初に対象ゲームを閲覧した日に数えます。
       </p>
-      <p className="text-sm text-gray-600">
+      <p className="text-xs leading-relaxed text-gray-600">
         開始対局は開始日の参加者に対応する各区分で対局IDを重複排除します。異なる流入元・端末の人が同じ対局に参加した場合は各区分に数えるため、行の合計は全体の開始対局数と一致しません。UTMは参照元分類を変更しません。未指定・不明には欠測を含み、端末分類は推定です。
       </p>
-      <p className="text-sm">
+      <p className="text-xs">
         計測開始：
         {report.collectedFromMs === null
           ? "未計測"
@@ -128,9 +128,9 @@ export function Acquisition({
         ] as const
       ).map(([dimension, title]) => (
         <section key={dimension} className="flex flex-col gap-2">
-          <h3 className="font-semibold">{title}別の訪問・開始対局</h3>
+          <h3 className="text-xs font-semibold">{title}別の訪問・開始対局</h3>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-sm [&_th]:p-3 [&_th]:text-left [&_td]:p-3 [&_td]:align-top [&_tbody_tr]:border-t [&_tbody_tr]:border-gray-200">
+            <table className="w-full min-w-[600px] text-xs [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_tbody_tr]:border-t [&_tbody_tr]:border-gray-200">
               <thead>
                 <tr>
                   <th>期間（日本時間）</th>
