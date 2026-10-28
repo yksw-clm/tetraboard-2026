@@ -17,6 +17,11 @@ import type {
 
 export type AiBranch = { evaluation: AiEvaluation; line: AiLineStep[]; selective: boolean };
 export type AiAdvance = { state: FourShogiState; step: AiLineStep };
+/** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
+export type AiContextProfile = {
+  evaluate: (state: FourShogiState) => AiEvaluation;
+  orderingBonus?: (state: FourShogiState, move: OrdinaryMove) => number;
+};
 type CachedNode = {
   moves?: OrdinaryMove[];
   evaluation?: AiEvaluation;
@@ -78,6 +83,7 @@ export function createAiContext(
   input: FourShogiState,
   settings: AiSearchSettings,
   model?: AiModelDriver,
+  profile?: AiContextProfile,
 ) {
   if (input.mode !== "singles") throw new TypeError("新AIはシングルス専用です");
   const stats: AiSearchStats = {
@@ -111,7 +117,8 @@ export function createAiContext(
   stats.generatedMoves = legal.length;
   const initialNode = node(start);
   if (initialNode) initialNode.moves = legal;
-  const staticEvaluation = evaluateAiPosition(input, settings.evaluationWeights);
+  const staticEvaluation =
+    profile?.evaluate(input) ?? evaluateAiPosition(input, settings.evaluationWeights);
   const includeIndex =
     settings.includeAction === null
       ? -1
@@ -147,7 +154,7 @@ export function createAiContext(
     const prediction = model && state.status === "playing" ? yield* predict(state) : null;
     const value = prediction
       ? modelEvaluation(state, prediction)
-      : evaluateAiPosition(state, settings.evaluationWeights);
+      : (profile?.evaluate(state) ?? evaluateAiPosition(state, settings.evaluationWeights));
     if (prediction) model!.stats.valueUses++;
     stats.evaluations++;
     if (record) record.evaluation = value;
@@ -276,7 +283,7 @@ export function createAiContext(
       const entries = legalMoves.map((move, index) => ({
         move,
         index,
-        score: priority(move, state.turn!),
+        score: priority(move, state.turn!) + (profile?.orderingBonus?.(state, move) ?? 0),
       }));
       if (model) {
         const prediction = yield* predict(state, legalMoves);
