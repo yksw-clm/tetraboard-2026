@@ -1,8 +1,6 @@
 import { createInitialState } from "../src/index";
 import type {
-  ApplyActionResult,
   AttackRelation,
-  EliminateSideResult,
   Elimination,
   FourShogiAction,
   FourShogiState,
@@ -12,7 +10,6 @@ import type {
   PieceKind,
   Position,
   Side,
-  TransitionSuccess,
 } from "../src/index";
 
 export function position(square: string): Position {

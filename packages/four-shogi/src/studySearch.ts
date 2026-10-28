@@ -14,7 +14,7 @@ import type {
   AiSearchStats,
 } from "./aiTypes";
 
-export const studySearchVersion = "local-root-maxn-v3";
+export const studySearchVersion = "local-root-maxn-v4";
 export const studyEvaluationVersion = "local-sole-first-pressure-v1";
 export type StudyProfile = "study" | "baseline";
 export type StudyEngagement = { attacker: Side; target: Side; pressure: number };
@@ -367,6 +367,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
   let depth = 0;
   let done = false;
   let selected: Set<number> | null = null;
+  let materialRootIndices: Set<number> | null = null;
   function make(entry: Entry): StudyCandidate {
     const candidate = makeAiCandidate(
       entry.move.action,
@@ -481,7 +482,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     }
     return best ?? { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
   }
-  function* inspect(entry: Entry): Generator<number, void> {
+  function* inspectImmediate(entry: Entry): Generator<number, void> {
     const proof = { loss: null as readonly AiLineStep[] | null, complete: false };
     immediate.set(entry.index, proof);
     let exhausted = true;
@@ -498,6 +499,8 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       }
     }
     proof.complete = exhausted;
+  }
+  function* inspectMaterial(entry: Entry): Generator<number, void> {
     const probe = probeMaterialReplies(
       ctx,
       entry.state,
@@ -541,7 +544,17 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     // この境界で全プロセスに共通する根候補集合を受け取ります。
     yield* ctx.spend(0);
     const active = roots.filter((entry) => selected === null || selected.has(entry.index));
-    if (profile === "study") for (const entry of active) yield* inspect(entry);
+    // 浅い全体評価の先頭5件を固定し、後の反復で順位が変わっても検査範囲を偽りません。
+    const materialIndices =
+      profile !== "study"
+        ? new Set<number>()
+        : (materialRootIndices ??
+          new Set(
+            lanes === 1
+              ? selectStudyRootIndices(roots.map(make), root!, settings.rootWidth).slice(0, 5)
+              : [],
+          ));
+    if (profile === "study") for (const entry of active) yield* inspectImmediate(entry);
     for (let nextDepth = 2; nextDepth <= settings.maxDepth; nextDepth++) {
       const completed: Entry[] = [];
       for (const entry of active) {
@@ -557,6 +570,10 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       published = completed;
       depth = stats.completedDepth = nextDepth;
       yield* ctx.spend(0);
+      // 深さ2の完成結果を全レーンで公開してから、表示用の詳細検査へ残り予算を使います。
+      if (profile === "study" && nextDepth === 2)
+        for (const entry of completed)
+          if (materialIndices.has(entry.index)) yield* inspectMaterial(entry);
     }
   }
   const steps = run();
@@ -572,6 +589,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     },
     setRootIndices(indices: readonly number[]) {
       selected = new Set(indices);
+      materialRootIndices = new Set(indices.slice(0, 5));
     },
     snapshot(): StudyLaneSnapshot {
       return {

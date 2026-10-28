@@ -207,7 +207,16 @@ test("飛車以外の駒損も実際の次自手番までの証拠に含める",
       )!;
     expect(waiting).toBeDefined();
     session.setRootIndices([waiting.rootIndex]);
-    while (session.depth < 2 && !session.step()) {}
+    while (session.depth < 2 && !session.step()) {
+      expect(
+        session.snapshot().candidates.every((candidate) => candidate.danger.alternatives === null),
+      ).toBe(true);
+    }
+    expect(session.snapshot().candidates[0].study).toMatchObject({
+      immediateRepliesComplete: true,
+      material: { complete: false, lossWitness: null, limit: "interrupted" },
+    });
+    while (!session.step()) {}
     const candidate = session.snapshot().candidates[0];
     expect(candidate.study).toMatchObject({ material: { initialAssets: 100 } });
     const material = candidate.study.material;
@@ -276,15 +285,101 @@ test("四方向とON/OFFでマジック候補の実手番復帰と駒得を読�
     }
 });
 
-test("右攻めの加点より自王の即脱落回避と確定単独勝ちを優先する", async () => {
-  const cases = tacticalCases().filter(
-    (entry) =>
-      entry.state.mode === "singles" && entry.critical && ["safe", "win"].includes(entry.criterion),
-  );
-  expect(cases.length).toBeGreaterThan(0);
+test("重要戦術32局面で即脱落回避・確定単独勝ち・合駒・強制成りを維持する", async () => {
+  const cases = tacticalCases().filter((entry) => entry.state.mode === "singles" && entry.critical);
+  expect(cases).toHaveLength(32);
   for (const entry of cases) {
     const position = await createAnalysisSetupPosition(setup(entry.state));
     expect(acceptsTactic(entry, run(position, 1, 2)[0]?.action ?? null)).toBe(true);
+  }
+});
+
+test("資産probeは深さ2公開後に浅い全体上位5へ限定し、1/4レーンで同じ証拠を返す", async () => {
+  const position = await initial();
+  const completed: StudyCandidate[][] = [];
+  for (const lanes of [1, 4]) {
+    const sessions = Array.from({ length: lanes }, (_, lane) =>
+      createStudyRootSearch(position, {
+        lane,
+        lanes,
+        maxDepth: 2,
+        extensions: 0,
+        width: 3,
+        rootWidth: 6,
+        dangerWork: 0,
+      }),
+    );
+    try {
+      for (const session of sessions) while (session.depth < 1) session.step();
+      const indices = selectStudyRootIndices(
+        sessions.flatMap((session) => session.snapshot().candidates),
+        "south",
+        6,
+      );
+      expect(indices.length).toBeGreaterThan(5);
+      for (const session of sessions) session.setRootIndices(indices);
+      for (const session of sessions) while (session.depth < 2 && !session.step()) {}
+      const published = sessions.flatMap((session) => session.snapshot().candidates);
+      expect(
+        published.every(
+          (candidate) =>
+            candidate.danger.alternatives === null && !candidate.study.material.complete,
+        ),
+      ).toBe(true);
+      const before = published.map((candidate) => ({
+        action: candidate.action,
+        evaluation: candidate.evaluation,
+        line: candidate.line,
+      }));
+      for (const session of sessions) while (!session.step()) {}
+      const final = sessions.flatMap((session) => session.snapshot().candidates);
+      expect(
+        final
+          .filter((candidate) => candidate.danger.alternatives !== null)
+          .map((candidate) => candidate.rootIndex)
+          .sort((a, b) => a - b),
+      ).toEqual(indices.slice(0, 5).sort((a, b) => a - b));
+      expect(
+        final.map((candidate) => ({
+          action: candidate.action,
+          evaluation: candidate.evaluation,
+          line: candidate.line,
+        })),
+      ).toEqual(before);
+      completed.push(final.sort((a, b) => compareStudyCandidates(a, b, "south")));
+    } finally {
+      sessions.forEach((session) => session.dispose());
+    }
+  }
+  expect(completed[1]).toEqual(completed[0]);
+});
+
+test("単一レーンは全体選定の指定なしでも浅い上位5だけを診断し、baselineは診断しない", async () => {
+  const position = await initial();
+  for (const profile of ["study", "baseline"] as const) {
+    const session = createStudyRootSearch(position, {
+      profile,
+      maxDepth: 2,
+      extensions: 0,
+      width: 3,
+      rootWidth: 6,
+      dangerWork: 0,
+    });
+    try {
+      while (session.depth < 1) session.step();
+      const expected = selectStudyRootIndices(session.snapshot().candidates, "south", 6)
+        .slice(0, 5)
+        .sort((a, b) => a - b);
+      while (!session.step()) {}
+      const diagnosed = session
+        .snapshot()
+        .candidates.filter((candidate) => candidate.danger.alternatives !== null)
+        .map((candidate) => candidate.rootIndex)
+        .sort((a, b) => a - b);
+      expect(diagnosed).toEqual(profile === "study" ? expected : []);
+    } finally {
+      session.dispose();
+    }
   }
 });
 
