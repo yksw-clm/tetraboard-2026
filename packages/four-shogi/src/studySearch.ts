@@ -14,7 +14,7 @@ import type {
   AiSearchStats,
 } from "./aiTypes";
 
-export const studySearchVersion = "local-root-maxn-v2";
+export const studySearchVersion = "local-root-maxn-v3";
 export const studyEvaluationVersion = "local-sole-first-pressure-v1";
 export type StudyProfile = "study" | "baseline";
 export type StudyEngagement = { attacker: Side; target: Side; pressure: number };
@@ -31,6 +31,7 @@ export type StudyCandidate = AiCandidate & {
     immediateLoss: readonly AiLineStep[] | null;
     immediateRepliesComplete: boolean;
     rightSide: Side | null;
+    rightCheckPriority: boolean;
     magic: boolean;
     magicEvidence: {
       status: "candidate" | "line_confirmed";
@@ -289,6 +290,9 @@ export function compareStudyCandidates(a: StudyCandidate, b: StudyCandidate, roo
     (a.evaluation && b.evaluation
       ? compareAiValue(b.evaluation.values[root], a.evaluation.values[root])
       : 0) ||
+    (a.evaluation && b.evaluation
+      ? Number(b.study.rightCheckPriority) - Number(a.study.rightCheckPriority)
+      : 0) ||
     a.rootIndex - b.rootIndex
   );
 }
@@ -345,6 +349,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
   const rootEngagements = engagements(position.state);
   type Entry = {
     index: number;
+    rightCheckPriority: boolean;
     move: OrdinaryMove;
     state: FourShogiState;
     branch: AiBranch;
@@ -415,6 +420,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
         immediateLoss: proof?.loss ?? null,
         immediateRepliesComplete: proof?.complete ?? false,
         rightSide: right,
+        rightCheckPriority: entry.rightCheckPriority,
         magic,
         magicEvidence,
         material,
@@ -505,13 +511,24 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
   }
   function* run(): Generator<number, void> {
     if (position.state.status === "finished" || !ctx.legal.length) return;
-    for (const [index, move] of ctx.legal.entries()) {
+    // 元の番号でレーンを固定したまま、各レーン内では右への新規王手を先に調べます。
+    const orderedRoots = ctx.legal
+      .map((move, index) => ({
+        move,
+        index,
+        rightCheckPriority: profile === "study" && rightCheckBonus(position.state, move) > 0,
+      }))
+      .sort(
+        (a, b) => Number(b.rightCheckPriority) - Number(a.rightCheckPriority) || a.index - b.index,
+      );
+    for (const { index, move, rightCheckPriority } of orderedRoots) {
       if (index % lanes !== lane) continue;
       const before = { ...stats };
       const next = yield* ctx.advance(ctx.start, move, 0);
       const evaluation = yield* ctx.evaluate(next.state);
       roots.push({
         index,
+        rightCheckPriority,
         move,
         state: next.state,
         branch: { evaluation, line: [next.step], selective: false },

@@ -12,6 +12,7 @@ import {
   evaluateStudyPosition,
   studyRightSide,
   type StudyCandidate,
+  type StudyProfile,
 } from "../src/studySearch";
 import { applyAction, getLegalActions } from "../src/index";
 import type { FourShogiState } from "../src/types";
@@ -50,7 +51,12 @@ function setup(state: FourShogiState): AnalysisSetupInput {
     })),
   };
 }
-function run(position: AnalysisPosition, lanes: number, depth: number): StudyCandidate[] {
+function run(
+  position: AnalysisPosition,
+  lanes: number,
+  depth: number,
+  profile: StudyProfile = "study",
+): StudyCandidate[] {
   const sessions = Array.from({ length: lanes }, (_, lane) =>
     createStudyRootSearch(position, {
       lane,
@@ -60,6 +66,7 @@ function run(position: AnalysisPosition, lanes: number, depth: number): StudyCan
       width: 3,
       rootWidth: 6,
       dangerWork: 16,
+      profile,
     }),
   );
   try {
@@ -279,4 +286,132 @@ test("右攻めの加点より自王の即脱落回避と確定単独勝ちを�
     const position = await createAnalysisSetupPosition(setup(entry.state));
     expect(acceptsTactic(entry, run(position, 1, 2)[0]?.action ?? null)).toBe(true);
   }
+});
+
+function rightPriorityFixture(promoted = true, eliminateRight = false): FourShogiState {
+  return positionFixture({
+    kings: { south: "E9", west: "A1", north: "E1", east: "I1" },
+    eliminations: [
+      { side: "north", reason: "left", rank: 4, group: 1 },
+      ...(eliminateRight
+        ? [{ side: "east" as const, reason: "left" as const, rank: 3, group: 2 }]
+        : []),
+    ],
+    pieces: [{ side: "south", kind: "rook", at: "E5", promoted }],
+  });
+}
+
+function rotateFixture(
+  state: FourShogiState,
+  orientation: (typeof sides)[number],
+  restricted: boolean,
+): FourShogiState {
+  const offset = sides.indexOf(orientation);
+  const rotateSide = (side: (typeof sides)[number]) =>
+    sides[(sides.indexOf(side) + offset) % sides.length];
+  const board = state.board.map((row) =>
+    row.map(() => null),
+  ) as FourShogiState["board"][number][number][][];
+  for (let y = 0; y < 9; y++)
+    for (let x = 0; x < 9; x++) {
+      const piece = state.board[y][x];
+      const to = positionForSide({ x, y }, orientation);
+      board[to.y][to.x] = piece ? { ...piece, side: rotateSide(piece.side) } : null;
+    }
+  return {
+    ...state,
+    status: "playing",
+    result: null,
+    turn: orientation,
+    board,
+    hands: Object.fromEntries(
+      sides.map((side) => [rotateSide(side), state.hands[side]]),
+    ) as FourShogiState["hands"],
+    eliminations: state.eliminations.map((entry) => ({ ...entry, side: rotateSide(entry.side) })),
+    threePlayerAttackProhibited: restricted,
+  };
+}
+
+test("根で安全と評価が同じ王手なら四方向・ON/OFFで右を選び、baselineは元順序を保つ", async () => {
+  const rightSides = { south: "east", west: "south", north: "west", east: "north" } as const;
+  for (const restricted of [false, true])
+    for (const side of sides) {
+      const position = await createAnalysisSetupPosition(
+        setup(rotateFixture(rightPriorityFixture(), side, restricted)),
+      );
+      const candidates = run(position, 1, 1);
+      const right = candidates.find((candidate) =>
+        candidate.line[0].checkedSides.includes(rightSides[side]),
+      )!;
+      const other = candidates.find(
+        (candidate) =>
+          candidate.line[0].checkedSides.length &&
+          !candidate.line[0].checkedSides.includes(rightSides[side]),
+      )!;
+      expect(right.evaluation!.values[side]).toEqual(other.evaluation!.values[side]);
+      expect(candidates[0].action).toEqual(right.action);
+      expect(run(position, 4, 1)).toEqual(candidates);
+      const baseline = run(position, 1, 1, "baseline");
+      expect(baseline.every((candidate) => !candidate.study.rightCheckPriority)).toBe(true);
+      const tied = baseline.filter((candidate) => candidate.line[0].checkedSides.length > 0);
+      expect(baseline[0].rootIndex).toBe(Math.min(...tied.map((candidate) => candidate.rootIndex)));
+    }
+});
+
+test("根の調査順は右王手を先にし、元rootIndexとレーン分配を保つ", async () => {
+  const position = await createAnalysisSetupPosition(setup(rightPriorityFixture()));
+  const legal = getLegalActions(position.state);
+  for (const profile of ["study", "baseline"] as const) {
+    const sessions = [0, 1, 2, 3].map((lane) =>
+      createStudyRootSearch(position, { profile, lane, lanes: 4, maxDepth: 1, extensions: 0 }),
+    );
+    try {
+      const combined: StudyCandidate[] = [];
+      for (const [lane, session] of sessions.entries()) {
+        while (session.depth < 1) session.step();
+        const candidates = session.snapshot().candidates;
+        for (const candidate of candidates) {
+          expect(candidate.rootIndex % 4).toBe(lane);
+          expect(candidate.action).toEqual(legal[candidate.rootIndex]);
+        }
+        const firstRight = candidates.findIndex((candidate) =>
+          candidate.line[0].checkedSides.includes("east"),
+        );
+        if (profile === "study" && firstRight >= 0) expect(firstRight).toBe(0);
+        if (profile === "baseline")
+          expect(candidates.map((candidate) => candidate.rootIndex)).toEqual(
+            candidates.map((candidate) => candidate.rootIndex).sort((a, b) => a - b),
+          );
+        combined.push(...candidates);
+      }
+      expect(combined).toHaveLength(legal.length);
+    } finally {
+      sessions.forEach((session) => session.dispose());
+    }
+  }
+});
+
+test("根の右優先を脱落後は解除し、右王手より高い評価の手を選ぶ", async () => {
+  for (const restricted of [false, true])
+    for (const side of sides) {
+      const eliminated = await createAnalysisSetupPosition(
+        setup(rotateFixture(rightPriorityFixture(true, true), side, restricted)),
+      );
+      expect(
+        run(eliminated, 1, 1).every(
+          (candidate) => candidate.study.rightSide === null && !candidate.study.rightCheckPriority,
+        ),
+      ).toBe(true);
+      const position = await createAnalysisSetupPosition(
+        setup(rotateFixture(rightPriorityFixture(false), side, restricted)),
+      );
+      const candidates = run(position, 1, 1);
+      const right = candidates.find((candidate) =>
+        candidate.line[0].checkedSides.includes(candidate.study.rightSide!),
+      )!;
+      expect(candidates[0].evaluation!.values[side].primary).toBeGreaterThan(
+        right.evaluation!.values[side].primary,
+      );
+      expect(candidates[0].line[0].checkedSides.includes(right.study.rightSide!)).toBe(false);
+    }
 });
