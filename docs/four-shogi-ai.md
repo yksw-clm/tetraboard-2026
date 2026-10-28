@@ -362,3 +362,43 @@ REPO_PATH="$PWD" PROFILE_OUTPUT=/tmp/four-shogi-cpu-profiles.json bun /tmp/four-
 通常Worker883件（新規CPU24件・redirect1件）・四人将棋473件・サービス13件を含むcheckが成功しました。ON/OFF・予算・完全状態hash/本人情報非転送、同じ手の1回確定、期限前後/代替、順序逆転・旧局/世代/revision/時計/CPUレベル/ルール状態/手番外脱落、正常終局からの再戦、引分非同意を確認しています。実接続で見つかったCloudflareのredirect:error未対応は、manualで3xxを本文読取前に拒否して解消し、秘密を別宛先へ送らない回帰を追加しました。通常テストの外部fetch模擬だけではこの実行環境の差を検出できなかったため、実モデル専用検証を分けて残しました。
 
 必須5コマンドは上記コードで成功（checkは通常pre-commit、コミット全体88.26秒、本番build15.81秒/dry-run0.81秒、開発build13.59秒/dry-run0.75秒）。後続差分は測定文書/JSONだけとし、実行ファイル/設定のhash一致を確認します。最終PRのGitHub CIも独立して確認します。実VPS/HTTPS/x86_64・長時間/多数部屋/最大履歴・一般公開/正式棋力/確率校正・解析画面は未確認または後続、T02/T03/T05とM1全体は未完了です。
+
+## ローカル検討CPUの測定と採否
+
+2026-10-28承認の[ローカル検討計画](development.md#四人将棋のローカル検討アプリ)に対する新しい測定です。上の公開Lv2やVPSの過去条件・結果は変更しません。機能/重要戦術の合格、正式棋力の合格、Mac実機操作、一般公開の判断を分けます。本節の条件は結果を見る前に固定し、文書追加時点では正式測定・Macの手動操作確認は未実施です。採否は実行後の版付きJSON・対象ソースと確認結果を根拠に更新します。
+
+### 正式棋力の事前条件
+
+| 項目 | 固定する条件 |
+| --- | --- |
+| 計画ID | `local-study-holdout-v1` |
+| 対象 | rulesVersion 1・シングルス、三人攻撃禁止ON/OFFを別集計。候補1体対固定現行Lv2 3体。 |
+| 候補の比較 | ローカルの `study` と、同じ探索基盤で追加の戦術検査/評価を除いた `baseline`。公開Lv2の既定値を変更しません。 |
+| holdout | 未使用の開始seed9410000〜9410015の16系列。12手の開始系列を用い、各系列で全4席へ候補を配置します。回転/同系列の4局は独立4標本とは数えません。 |
+| 局数 | 各ON/OFF・各profileで64局。各profileは128局、両profileの合計256局。 |
+| 資源/予算 | 候補1手につき実時間1000ms・4プロセス・8192MiB。512手の上限で停止し、上限到達は未終局とします。 |
+| 主指標 | 単独1位率。同率1位/引分を単独勝ちへ数えず、未終局も全64局の分母に残します。下位順位、未終局率、脱落・合法性、停止理由も報告します。 |
+| 合格 | 各ON/OFFでstudyの単独1位率40%以上、開始系列を単位とするbootstrap1000回の95%区間下限が25%を超え、studyの単独1位率が同時間baseline以上。すべてを満たすこと。 |
+| 識別 | commit/dirty状態、ルール/探索/評価版、ルールエンジン・runtimeのsourceIdentityとrunner hash、seed・席・相手・実行環境・各局の予算/結果を保存します。 |
+| 無効/未完了 | 実行中に対象コード識別が変われば `invalid_source_changed`。局数不足は `pending`。閾値未達は `failed` とし、手動で合格へ変更しません。 |
+
+実行CLIは条件を新規の出力ファイルへ先に保存し、正式モードで異なる予算・局数・席・設定のoverrideと既存ファイルへの上書きを拒否します。重い処理を並行させず、コードと測定環境を固定して実行します。
+
+```sh
+bun apps/four-shogi-study/bench/strength.ts --formal true --seed 9410000 --output /private/tmp/tetraboard-study-formal-20261028/results.json
+```
+
+JSONの `formalAssessment` は `pending/passed/failed/invalid_source_changed`、`byRule` は各設定の両profileの統計です。途中のスコア・未終局だけの試行から棋力改善を認定しません。未達時は原因を調整用で調べ、閾値を下げず新しいholdoutを確保して測り直します。ここでの合格も優勝者級・校正済み勝率・公開Lv2置換の承認ではありません。
+
+### 戦術・性能・未確認事項
+
+重要戦術は全問正解を必須にし、マジックとその不成立、右への王手と逆王手、全方向/4・3・2人生存、ON/OFF、王手による手番飛ばし、別応手の駒損/即脱落の証拠と未確認表示を含めます。戦術用に編集した局面は、初期局面からの完全棋譜による対局測定の代用にしません。調整とholdoutの開始系列/同型局面を分離します。
+
+性能は同じMacで候補の完成深さ・探索量・RSS合計・期限超過と停止理由を1/2/4/8プロセスで比較し、予算を5/15/30/60秒と変えた観測を記録します。1〜8プロセスの比較は通常の対局設定とは別の実験で、ハードウェアが許す場合にだけ行います。スレッド数・時間増加に比例する速度/棋力を仮定しません。代表コマンドは次です。
+
+```sh
+bun apps/four-shogi-study/bench/search.ts --kind=performance --time-ms=5000 --threads=1,2,4,8 --output=/private/tmp/four-shogi-study-performance.json
+bun apps/four-shogi-study/bench/search.ts --kind=tactics --time-ms=5000 --threads=4 --output=/private/tmp/four-shogi-study-tactics.json
+```
+
+文書追加時点の確認済みは軽量な実プロセスruntime試験など個別の開発確認に限ります。正式棋力、全重要戦術の最終採点、長時間性能/資源、Mac手動操作、公開先のライブAPI配信と実対局での閲覧は未実施または未確認です。最終の必須検証とGitHub CIも対象コミットが確定した後に記録します。
