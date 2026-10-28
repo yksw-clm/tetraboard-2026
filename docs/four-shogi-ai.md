@@ -393,7 +393,34 @@ bun --no-env-file apps/four-shogi-study/bench/strength.ts --formal true --concur
 bun --no-env-file apps/four-shogi-study/bench/strength.ts --formal true --concurrency 2 --seed 9440000 --output /private/tmp/tetraboard-study-formal-v4-isolated/results.json --resume true
 ```
 
-### 探索v4で変更する検査の段階
+### 探索v5の効率改善（2026-10-29）
+
+開発者が探索アルゴリズムの改善を承認しました。現在の仕様は[ルール正本](rules/four-shogi.md#ローカル検討用cpu)です。比較は `strategy=legacy/adaptive` で指定し、追加評価の有無を表す `profile=study/baseline` と区別します。速度・戦術・短い対局を別々に記録し、正式holdoutやLv2超えの認定を代替しません。
+
+Mac実機の保存棋譜4件から、現在選択中の経路の約1/4・1/2・3/4地点を完全な履歴付きで復元し、12局面を工程確認に使いました。元の検討JSONは変更していません。入力は `/private/tmp/study-efficiency-inputs.json` に固定し、局面選定後の結果を独立holdoutと呼びません。初期工程の5秒比較はソース変更と重なったため、採用を判定する最終速度測定として使いません。
+
+中盤1局面・1プロセス・3秒のBun CPU profileは `/private/tmp/study-profiles/CPU.20261029.003234.18688.0.001.md`、対応reportは `/private/tmp/study-v5-profile.json` です。`sourceUnchanged=true`。native `some` の自己時間23.9%、`pieces` の自己時間9.5%と3.4%、盤の利き/王手判定や合法手検査の呼出しが目立ちました。この短いサンプルは局面全体の代表値ではありません。今回Rustへ移植せず、ルール処理の配列走査・利き判定のコストを次の候補として記録します。ジョブ内キャッシュ・候補配分・動的分配はTypeScriptで実装します。
+
+最終の速度比較は上記12局面から6局面を選び、各20秒・8探索プロセス・8192MiB・Apple M5/10論理CPU/24GiB・macOS 27.0.0・Bun1.4.4で実行しました。入力は `/private/tmp/study-efficiency-20s-inputs.json`、旧方式は `/private/tmp/study-efficiency-20s.json` 内の `strategy=legacy` の6件、新方式は `/private/tmp/study-efficiency-20s-accepted.json` です。どちらのreportも `sourceUnchanged=true`。調査中の新方式を含む旧reportのadaptive行は最終値に使いません。対象HEADは `2c736a737b1b9b360c7cdc50638d90790d50c59f`・dirty=trueで、report内のエンジン/runtimeのソース集約SHA-256と入力SHA-256で実際の対象を識別します。測定中は別の対局/重い検証を併走させていません。
+
+| 固定局面 | v4の比較深さ | v5の比較深さ |
+| --- | --- | --- |
+| local-1-ply40 | 5 | 5 |
+| local-2-ply81 | 4 | 4 |
+| local-4-ply18 | 5 | 6 |
+| local-5-ply37 | 3 | 4 |
+| local-7-ply8 | 5 | 6 |
+| local-12-ply60 | 3 | 3 |
+
+3/6局面で1段深く、残りは同じでした。ただし候補・延長・静かな枝の選択範囲も変更しており、同じ木の単純な速度倍率とは扱いません。各reportの最上位手に対する直後の合法応手による脱落は全6件でありませんでした。深さ9を全局面で達成した結果ではなく、v5の最上位PVで次々回の自手まで到達したのは2/6件です。PVの到達は全応手への証明ではありません。
+
+非正式の席交代対局はseed9560100・開始12手・候補100ms/手・2探索プロセス・各禁止設定/各席・追加48手上限で旧新各8局を確認しました。旧 `/private/tmp/study-v5-short-legacy-final.json`、新 `/private/tmp/study-v5-short-adaptive-accepted.json` です。全件が48手で未終局、途中の候補側脱落は各3件で、実行失敗は0件でした。単独勝率・順位・棋力改善を認定せず、未終局を勝利/引分へ変換しません。調査中にソース変更を検出して停止した別reportはこの8局へ合算しません。
+
+任意の成りを含む全戦術の工程確認は88件中82件が期待と一致し、重要40件は全件一致しました。未達6件は `poisoned-gold` の南/北/東・禁止ON/OFFで、駒損罠の金を避けて安全な歩取りを選ぶものの、初手は不成でした。末尾の評価が成り候補と異なり、同値の列挙順だけが原因ではありません。期待条件を緩和せず、飛車不成の解消や全戦術合格とは扱いません。この工程reportは測定中の整形変更により `sourceUnchanged=false` で、最終ソースの検証は別に記録します。
+
+最終ソースでも同じfixture v2・1秒/手・4プロセス・studyで全88件を再確認し、82/88件一致・重要40/40件一致・非重要の入力除外8件・重要除外0件でした。reportは `/private/tmp/study-v5-tactics-accepted.json`、`sourceUnchanged=true`。非重要8件の除外理由は従来同様、王手を受けている人が手番になっていないsetupを完全状態として受理できないためです。未達6件は上記と同じで、成功へ繰り上げていません。
+
+### 探索v4で変更した検査の段階（当時の条件）
 
 全選択根候補の直後の即脱落検査は深さ2前に維持します。表示用の資産危険probeは、通常深さ2の全候補評価/PVを完成・公開し、全レーンのbarrierを解除してから行います。対象は深さ1の浅い全体評価の先頭5候補で固定し、1/4レーンで同じ全体の5候補を選びます。各対象は既定128work・地平8手以内です。深さ2未完成、対象外、deadline/取消や単独勝ちの予想進行による早期終了では `material.complete=false` 等の未確認を保ちます。表示用の検査を終えても完成した評価/PVは変えません。評価係数・効用・ゲームルールは変えず、改善の有無は新しい測定で判断します。
 
