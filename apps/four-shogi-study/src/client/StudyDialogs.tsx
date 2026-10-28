@@ -253,14 +253,17 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
           />
           停止するまで検討する
         </label>
-        <Field label="探索方式" help="主要候補の深掘りは、広く比較した深さと分けて表示します。">
+        <Field
+          label="探索方式"
+          help="v6は実験機能です。広い比較と主要候補の深さを分けて表示します。"
+        >
           <select
             className={fieldClass}
             value={searchStrategy}
             onChange={(event) => setSearchStrategy(event.target.value as "adaptive" | "dual")}
           >
             <option value="adaptive">幅広く検討する（v5）</option>
-            <option value="dual">主要候補を深掘りする（v6）</option>
+            <option value="dual">主要候補を深掘りする（v6・実験）</option>
           </select>
         </Field>
         <Field label="1回の検討時間（秒）" help="再解析は新しい時間予算で開始します。">
