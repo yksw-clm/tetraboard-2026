@@ -1247,6 +1247,12 @@ export const getFourShogiReplayContract = {
       .transform(Number)
       .pipe(z.int().nonnegative())
       .optional(),
+    throughEventCount: z
+      .string()
+      .regex(/^\d{1,10}$/)
+      .transform(Number)
+      .pipe(z.int().nonnegative())
+      .optional(),
   }),
   response: fourShogiReplayPageSchema,
   error: roomErrorSchema,

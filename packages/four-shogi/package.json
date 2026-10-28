@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./analysis": "./src/analysis.ts",
     "./ai": "./src/ai.ts",
+    "./study-search": "./src/studySearch.ts",
     "./replay": "./src/replay.ts",
     "./action-encoding": "./src/actionEncoding.ts",
     "./model-features": "./src/modelFeatures.ts",

@@ -321,6 +321,52 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 実モデルは[専用設定・コマンド](four-shogi-ai-engine.md#対局cpuの試用接続194)でだけ4つのSMOKE環境値を明示します。LinuxのPyTorchを実使用して、ON/OFF×両予算の着手と採用診断を確認します。通常 `vitest.config.mts` はこれらを読み込まず、個人設定分離の契約を維持します。専用4試行は棋力の判定や実VPS/HTTPS/長時間性能の保証に使いません。
 
+## 四人将棋のローカル検討アプリの確認
+
+[利用仕様](../README.md#四人将棋のローカル検討アプリ)・[承認済み実装計画](development.md#四人将棋のローカル検討アプリ)・[CPU正本](rules/four-shogi.md#ローカル検討用cpu)に対する検証です。Bunの純粋関数、happy-domの部品/hook、Worker統合を使い、ブラウザを起動するテスト・設定・workflowは追加しません。公開環境へデプロイしない条件と、ローカルWorkerで読取りAPIを確認する条件を分けます。
+
+| 層 | 検証する観測可能な振る舞い |
+| --- | --- |
+| ルール/局面 | 完全棋譜の全/途中復元、ON/OFF・全方向・4/3/2人生存、同時詰み・千日手・引分提案・手番外脱落、局面編集での履歴リセット/元検討保持。 |
+| 戦術/評価 | 深さ2公開前に資産probeをしないこと、浅い全体上位5だけの検査と対象外の未確認、1/4レーンの結果一致と検査後の評価/PV不変。マジック候補と読み筋での成立の区別、固定した元の右と脱落後の優先解除、逆王手・複数王手・手番飛ばし、次自手番までの駒損/飛車損/即脱落の合法手証拠、他者間圧力と自王安全、未確認の範囲表示。PVを正本で再生し4人の尺度と確定/暫定順位を照合します。 |
+| 並列runtime | 実Bunの1/4プロセスで同深さの候補/PV一致、時間切れの一度通知、停止・継続・新予算の再解析、並行start/起動中の置換、古い通知の破棄、起動timeout/異常終了、メモリ超過時の解放、無応答子プロセスの強制終了。 |
+| 席のフォーカス | 実手番に従う予測と手番飛ばし・4方向/ON/OFF・本人手番・対象脱落・反復終局。元局面/解析対象hashとprefixの再生、1/4並列の候補一致、未来手の直接採用拒否、投射中の停止/取消/期限/置換、ライブ確定着手での再解析。 |
+| 保存/HTTP | revision競合、原子的保存/バックアップ回復と旧版保持、分岐/コメント/席設定/版・条件付き評価の往復、不正JSON・容量・不正Origin/Hostの拒否。同一局面の保存結果を保存時の版・時間・資源条件とともに再表示します。 |
+| 操作/UI | 駒移動・持ち駒・成り・回転、時間/席別設定、新規・前後・分岐・候補採用・コメント、解析未完成と静的/探索評価の区別、4人評価と実方向PV・手番外の次回想定手、停止/再解析・通信失敗・再接続の状態。 |
+| 観戦/Worker | 既存GETの省略互換、固定throughEventCount・100件prefix/101件以上・取得中の進行・連番、WSrevisionとeventCount、局ID/世代照合、攻撃/反復/提案を含む復元、再接続/再戦/終局保存への移行、未配信APIの対応待ち表示。 |
+| 共用UI/配信 | 既存四人将棋・通常将棋の盤/駒/持ち駒/成り/回転の部品回帰。ロビーの画像遅延読込み、ゲーム別チャンク、Web/Worker配布物へのstudy探索・子プロセス・モデル推論の非混入を維持します。 |
+
+ローカルアプリの通常検証と公開経路の回帰は次を使います。テスト個別の入口はアプリの `test/`・`test-dom/`、四人将棋の `test/studySearch.test.ts`・`analysisSetup.test.ts`、既存Worker/protocolのreplay検証です。
+
+通常checkに含む `strengthProcessPool.test.ts` の小さい実プロセス試験は、`packages/four-shogi/bench/lv2Baseline.json` が指定する固定Lv2のコミットを `git archive` で一時展開します。Gitとtar、およびそのコミットを含む履歴が必要です。CIのchecksジョブは `actions/checkout` の `fetch-depth: 0` で履歴を取得します。ローカルのshallow cloneでは、検証前に `git fetch --unshallow origin` で履歴を取得してください。テスト自体は履歴をfetchせず、固定コミットとソースハッシュの照合を維持します。この小さい試験は対局親の動作確認であり、保留中の正式棋力測定は実行しません。
+
+戦術fixtureは `four-shogi-tactics-v2` で識別します。`packages/four-shogi/test/tacticalFixtures.test.ts` は強制成りの重要問題が、4方向×三人攻撃禁止ON/OFFの全8局面で王手中となり、成りだけが合法で、不成が拒否され、正本への復元後も王手を解くことを検証します。旧fixtureの「歩を最終段へ進めるなら成り必須」を「根で必ず歩を選ぶ」と採点した不整合を修正したもので、重要指定・成りの期待条件・探索/評価は緩和しません。[旧39/40と新fixtureの測定条件](four-shogi-ai.md#ローカル検討cpuの測定と採否)を分け、旧結果を再採点しません。戦術reportにはfixture版・HEAD/dirty・対象ソースのSHA-256・ソース不変性と、未達時の全候補評価/PVを残します。
+
+```sh
+bun run study:check
+bun run study:build
+bun test --cwd packages/four-shogi test/studySearch.test.ts test/analysisSetup.test.ts test/tacticalFixtures.test.ts
+# 重要戦術を長めの予算で別確認します。正式対局と併走させません。
+bun apps/four-shogi-study/bench/search.ts --kind=tactics --time-ms=15000 --threads=4 --profiles=study,baseline --critical-only=true --output=/private/tmp/four-shogi-study-critical-15s.json
+bun run --cwd apps/web test
+bun run --cwd apps/web test:dom
+```
+
+コード・設定を変更した提出対象では、上の部分確認だけで必須検証を代替しません。
+
+```sh
+bun run check
+bun run build
+bun run --cwd apps/worker deploy:dry-run
+bun run build:development
+bun run --cwd apps/worker deploy:dry-run:development
+bun run study:build
+```
+
+dry-runはアップロードしない構成確認です。GitHub CIの成功は独立して必要で、検証対象コミット・Bun/OS・各結果・check所要時間をPRへ記載します。checkの180秒目標のため、正式棋力・長時間の性能/資源測定は[別の測定CLI](four-shogi-ai.md#ローカル検討cpuの測定と採否)で行います。棋力向上と正式再計測・合格判定は追加指示により別作業へ保留し、今回の機能実装の完了条件には含めません。保留した正式測定のrunnerは独立した対局親2つによる2局並列で、各局の1秒/手・4探索プロセス・8GiB枠を維持します。対局親の起動・正常/異常終了・中断/子孫終了、IPCの対局/実行識別、再開時の全ソース/条件の照合も軽量な実プロセス試験で検証します。集計親で同期Lv2計算を走らせず、相手の選択が他局の候補期限処理を塞がない構成を確認します。旧runnerと旧seedの途中記録は新しい正式サンプルへ移しません。合法手が1件の局面は選択が一意なので、その手を未評価の確定着手として直ちに進めます。正式測定の一部・調整用局面だけの成功を合格へ繰り上げません。未終局を勝率の分母から除外しません。
+
+Mac実機での盤面寸法・クリック/ドラッグ・成り・実画像デコード、長時間時の操作/停止応答・発熱/他アプリとの共存は手動で確認し、未実施ならその項目を記載します。ライブの公開API未配信、実サイトを観戦した確認、OSが強制OOMする厳密なメモリ上限も未確認事項として分けます。RSS観測値と子プロセス停止の自動試験で実機全体の資源制限を保証しません。
+
 ## 実行環境
 
 終局後の星評価（#132）は、Webの `postGameFeedback.test.tsx` と `autoGameResult.test.tsx`、Workerの `feedback.test.ts`、Adminの `feedbackEditor.test.tsx` で確認します。ゲスト・ユーザー、観戦、CPU戦・対人戦、結果を閉じた後の表示、表示時の記録、再読み込み相当の再マウント・ログイン後の抑止、保存領域エラー、星1〜5・任意コメントの入力、送信失敗と同じIDの再送、管理画面の表示と条件絞り込みを対象にします。スマートフォンの収まり・ネイティブの星選択・実フォーカスと、開発環境へのmigration適用は手動確認として記録します。

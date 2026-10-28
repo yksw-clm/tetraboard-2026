@@ -362,3 +362,112 @@ REPO_PATH="$PWD" PROFILE_OUTPUT=/tmp/four-shogi-cpu-profiles.json bun /tmp/four-
 通常Worker883件（新規CPU24件・redirect1件）・四人将棋473件・サービス13件を含むcheckが成功しました。ON/OFF・予算・完全状態hash/本人情報非転送、同じ手の1回確定、期限前後/代替、順序逆転・旧局/世代/revision/時計/CPUレベル/ルール状態/手番外脱落、正常終局からの再戦、引分非同意を確認しています。実接続で見つかったCloudflareのredirect:error未対応は、manualで3xxを本文読取前に拒否して解消し、秘密を別宛先へ送らない回帰を追加しました。通常テストの外部fetch模擬だけではこの実行環境の差を検出できなかったため、実モデル専用検証を分けて残しました。
 
 必須5コマンドは上記コードで成功（checkは通常pre-commit、コミット全体88.26秒、本番build15.81秒/dry-run0.81秒、開発build13.59秒/dry-run0.75秒）。後続差分は測定文書/JSONだけとし、実行ファイル/設定のhash一致を確認します。最終PRのGitHub CIも独立して確認します。実VPS/HTTPS/x86_64・長時間/多数部屋/最大履歴・一般公開/正式棋力/確率校正・解析画面は未確認または後続、T02/T03/T05とM1全体は未完了です。
+
+## ローカル検討CPUの測定と採否
+
+2026-10-28承認の[ローカル検討計画](development.md#四人将棋のローカル検討アプリ)に対する測定です。公開Lv2やVPSの過去条件・結果は変更しません。探索v2の単一局実行と、探索v3を共通の親で2局進めた旧比較は中断して保全し、採否へ使いません。追加指示により棋力向上・正式再計測・合格判定は別作業へ保留し、今回の機能実装の完了条件から外します。探索v4と独立対局親の正式比較は未実施のままとし、機能/重要戦術、正式棋力、Mac実機操作、一般公開の判断を分けます。以下の事前条件と過去記録は、保留時点の計画・証拠として保持します。
+
+### 新しい正式棋力の事前条件（別作業へ保留）
+
+| 項目 | 固定する条件 |
+| --- | --- |
+| 計画/runner | `local-study-holdout-isolated-parents-v3` / `local-strength-isolated-parents-v3`、report schemaVersion 3。並べ方は `balanced-pair-shuffle-v1`。 |
+| 対象/目的 | rulesVersion 1・シングルス、三人攻撃禁止ON/OFFを別集計。候補1体対固定現行Lv2 3体。単独1位1・ほか0の効用とルールは変更しません。 |
+| 候補の比較 | 探索 `local-root-maxn-v4` の `study` と、同じ探索基盤で追加の戦術検査/評価を除いた `baseline`。study評価版は `local-sole-first-pressure-v1`。公開Lv2の既定値を変更しません。 |
+| holdout | 未使用の開始seed9440000〜9440015の16系列。12手の開始系列を用い、各系列で全4席へ候補を配置します。同系列の4席を独立4標本とは数えません。9410000帯・9420000帯の旧途中記録を再利用しません。 |
+| 局数 | 各ON/OFF・各profileで64局。各profileは128局、合計256局。 |
+| 資源/予算 | 独立対局親2つで2局並列。各局の候補1手は予算設定1000ms・4探索プロセス・8192MiB。最大は集計親1＋対局親2＋探索8の11プロセス、探索枠合計16384MiB。開始12手後の追加512手を上限とし、上限到達は未終局。 |
+| 期限の意味 | 復元/起動/IPC・OS待ち・分割できない1操作を含む応答の厳密な1秒上限ではありません。相手の同期Lv2選択は各対局親へ分離し、別局の候補期限のイベントループを塞がないようにします。経過と停止理由も保存します。 |
+| 主指標 | 単独1位率。同率1位/引分を単独勝ちへ数えず、手数上限による未終局も全64局の分母に残します。中断した局はattemptsへ分離し、同じ条件で再実行します。 |
+| 合格 | 各ON/OFFでstudyの単独1位率40%以上、開始系列単位のbootstrap1000回の95%区間下限が25%を超え、study単独1位率が同条件baseline以上。すべてを満たすこと。 |
+| 識別 | commit/dirty、ルール/探索/評価版、エンジン/runtime/domain/測定/runnerと独立対局親・IPC関連のsource hash、seed・席・相手・環境・各局の条件と結果を保存します。 |
+| 無効/未完了 | 実行中の対象ソース/HEAD変更は `invalid_source_changed`、未解決の対局親/IPC/終了処理の障害は `invalid_execution`、正常な中断や局数不足は `pending`、閾値未達は `failed`。内容の違う重複結果は `invalidatedGames` へ隔離し、再開時に再実行します。手動で合格へ繰り上げません。 |
+
+合法手が1件しかない局面は両profileで探索を省き、`forced_legal_action`、depth/work=0、評価/PV未計算としてその手を即確定します。これは評価済みの探索結果とは区別します。
+
+再開を承認した別作業では、採否条件と全jobを新規の出力へ先に保存します。本比較以外の重い処理を併走させず、コード・コミット・環境を固定します。再開は同じ版・条件・環境・保存済みjobに限り、旧schema/runnerの途中結果を新方式へ合算しません。今回この正式比較は実行せず、棋力の合格を主張しません。機能実装に必要な必須検証・対象GitHub CIは通常どおり確認します。
+
+```sh
+bun --no-env-file apps/four-shogi-study/bench/strength.ts --formal true --concurrency 2 --seed 9440000 --output /private/tmp/tetraboard-study-formal-v4-isolated/results.json
+# 同じコミット・条件・環境で中断した新方式の測定を再開します
+bun --no-env-file apps/four-shogi-study/bench/strength.ts --formal true --concurrency 2 --seed 9440000 --output /private/tmp/tetraboard-study-formal-v4-isolated/results.json --resume true
+```
+
+### 探索v4で変更する検査の段階
+
+全選択根候補の直後の即脱落検査は深さ2前に維持します。表示用の資産危険probeは、通常深さ2の全候補評価/PVを完成・公開し、全レーンのbarrierを解除してから行います。対象は深さ1の浅い全体評価の先頭5候補で固定し、1/4レーンで同じ全体の5候補を選びます。各対象は既定128work・地平8手以内です。深さ2未完成、対象外、deadline/取消や単独勝ちの予想進行による早期終了では `material.complete=false` 等の未確認を保ちます。表示用の検査を終えても完成した評価/PVは変えません。評価係数・効用・ゲームルールは変えず、改善の有無は新しい測定で判断します。
+
+### 探索v2・単一局実行の中断記録
+
+対象HEADは `f2cd7d3fd319f8d6340ffcf1d2de8d8800a418ea`、dirty=trueです。schemaVersion 1、開始seed9410000から16系列・全4席・ON/OFF・study/baseline、1局ずつ・候補1秒/手・4探索プロセス・8192MiB・開始12手後の追加512手上限という当時の条件を保持します。記録期間は2026-10-28 19:15:14〜19:36:32 JST、SIGINTによる中断で `interrupted=true/failure=null`、終了時の `sourceUnchanged=true` です。
+
+22局の記録で、studyは11局中単独1位5回（45.45%）、baselineは11局中1回（9.09%）。当時のschemaではstudyの中断1局をgames内の未終局として含み、11局の分母から除外していません。完全な16系列・4席を終えていないため合否・棋力改善の証明に使いません。元JSONは `/private/tmp/tetraboard-study-verify.SSjiRS/strength-formal.json`（3,540,067 bytes）、SHA-256 `7c5c7db9d7b8bcd3f6798f9e4c0650805f362930295a651d23d8f55826e57de0` です。
+
+| 当時の識別対象 | SHA-256 |
+| --- | --- |
+| エンジンsource | `e529e2d22bf36bc1d475cc45c992f65e2aa063035decd0eeddba229ba54079ca` |
+| runtimeSource | `dd7fd3c52d1b8d84ff9269b7077840762dcd35109c0673d3deb3a7e63151fe38` |
+| runnerSourceHash | `8792049daab9b0e11d571ef7e6c42dd85ca02860f2421e4e79578d3a77603ad5` |
+
+### 探索v3・共通親2局比較の中断記録
+
+当時の計画は `local-study-holdout-two-lanes-v2`、runner `local-strength-two-lanes-v2`、schemaVersion 2でした。対象HEAD `a8a0a7fe523c17f3e7367e770295c1289f49eb0c`、dirty=false、開始seed9420000〜9420015・各4席・ON/OFF・両profile・予定256局、各局予算設定1000ms/4探索プロセス/8192MiB、共通の親で2局並列、開始12手後の追加512手上限です。scheduleは `balanced-pair-shuffle-v1`、固定相手はcommit `913a09d4edce5e44c96d190a60757ef184a4738d`、ソースhash `38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3` の現行Lv2三体（maxWork2048・maxDepth6・width6・rootWidth24・extensions2）です。
+
+記録期間は2026-10-28 19:57:36〜21:21:40 JST。SIGINTで正常に中断し、`interrupted=true/failure=null`、終了時の `sourceUnchanged=true`、formalAssessmentは `pending` です。134完了局に加え、進行中だったstudy/baseline各1局をattemptsへ分離しました。両attemptはON・seed9420008・東席で、studyは追加47手、baselineは追加23手の未終局です。新方式の正式比較へ再利用・合算せず、途中スコアから合格/不合格を認定しません。
+
+| 三人攻撃禁止 | studyの単独1位 / 完了局数 | baselineの単独1位 / 完了局数 |
+| --- | --- | --- |
+| OFF | 10 / 34（29.41%） | 13 / 34（38.24%） |
+| ON | 10 / 33（30.30%） | 10 / 33（30.30%） |
+| 合計 | 20 / 67（29.85%） | 23 / 67（34.33%） |
+
+studyの同率1位は6、baselineは2。完了局の手数上限による未終局は両者0で、中断した2局は上表の分母に入れていません。席数は両profileとも南14・西16・北18・東19で未完了のため均等ではありません。rawの全体summaryには参考区間もありますが、正式なON/OFF別区間はpendingのままであり、合格閾値との比較には使用しません。
+
+| 当時の識別対象 | SHA-256 |
+| --- | --- |
+| エンジンsource | `7baef9109990936b9d00347ec849b969d4fa14acdac346948b9fb28f6ecd3686` |
+| runtimeSource | `dd7fd3c52d1b8d84ff9269b7077840762dcd35109c0673d3deb3a7e63151fe38` |
+| domainSource | `b9750be58cf54cf4a53c2c788dd9f1bd36cc0a0c900932feab760c4e5d209fbc` |
+| measurementSource | `c55cd6628781355adf541423776a102173dfe7578eaf29a1f36abe7b15c466bb` |
+| runnerSourceHash | `408e2dc8b8822ca03f3c570d33f3da5fac5596748a1e5cc7728e93bd7aba5ff5` |
+| contractHash | `1a2677a925d8b758626dec514af17492e5d1c89092140ed4a9997929d435c343` |
+| recordsHash | `a8c0161cce0b0d28acc6b5ebeeebcea9047f0b27cbab4a0991b78a0854154f7e` |
+| 元JSON全体 | `2e2bb34b1f0654c65739b43cf750d9bbbfcce1e388ce47da976873fa96026b68` |
+
+元JSONは `/private/tmp/tetraboard-study-verify.SSjiRS/strength-formal-v3-parallel.json`（21,511,864 bytes）として保全しました。sourceUnchangedは当時の実行中に変化しなかった意味であり、修正後の現行コードと同一とは扱いません。
+
+完了134局からの壁時計の再集計は次です。候補側は復元・起動・IPC・親の通知待ちを含む `candidateElapsedMs`、相手側は `decisions.elapsedMs` のうち相手席の選択・適用等を含む値です。候補の純粋な計算時間と解釈しません。中央値は中央2点平均、p95はnearest-rankです。
+
+| profile | 候補手数 | 候補の平均 / 中央値 / p95 / 最大（ms） | 相手手数 | 相手の平均 / p95 / 最大（ms） |
+| --- | ---: | --- | ---: | --- |
+| study | 2281 | 1211.84 / 1223.84 / 1556.69 / 3480.46 | 8751 | 191.18 / 390.42 / 1641.84 |
+| baseline | 2710 | 1246.56 / 1245.18 / 1616.84 / 3714.83 | 9595 | 199.78 / 409.10 / 2463.89 |
+
+共通親の同期Lv2計算が別局の候補期限処理を遅らせ得る構造と、studyの資産probeが深さ2前に全選択候補へ費用を使う構造を確認しました。これらを切り分けるため旧比較をここで止め、即脱落検査を保った探索v4と独立対局親へ変更します。観測値だけで改善を保証せず、旧holdoutを調整後の正式サンプルとして再利用しません。
+
+### 戦術・性能・未確認事項
+
+重要戦術は全問正解を必須にし、マジックとその不成立、右への王手と逆王手、全方向/4・3・2人生存、ON/OFF、手番飛ばし、別応手の駒損/即脱落の証拠と未確認表示を含めます。戦術用の編集局面を初期局面からの対局測定へ代用せず、調整とholdoutを分離します。新方式での正式棋力と全重要戦術の最終採点は、対象コミットの結果を記録するまで未完了です。
+
+性能は同じMac・同じ局面・同じ時間で `study/baseline` の完成深さ・探索量・RSS・停止理由を比較します。1/2/4/8プロセスと1/5/30秒の観測は通常checkの外に分け、CPU数や時間に比例する速度/棋力を仮定しません。長めの重要戦術確認は `--critical-only=true` で対象を限定し、正式対局と併走させません。
+
+```sh
+bun apps/four-shogi-study/bench/search.ts --kind=performance --time-ms=5000 --threads=1,2,4,8 --profiles=study,baseline --output=/private/tmp/four-shogi-study-performance-v4.json
+bun apps/four-shogi-study/bench/search.ts --kind=tactics --time-ms=15000 --threads=4 --profiles=study,baseline --critical-only=true --output=/private/tmp/four-shogi-study-critical-v4-15s.json
+```
+
+`search.ts` のreport schemaVersion 2はfixture版、HEAD/dirty・対象ソースのSHA-256・実行中のソース不変性、各行のprofile/critical、performanceの評価・PV計算有無、資産危険検査・マジック証拠を区別します。戦術の期待と一致しなかった行には、全候補の評価とPVを残します。資産検査が未完了でも、完成した深さ2の評価とPVは比較結果として保ちます。Macの実表示/ネイティブ入力・長時間発熱、OSの厳密なメモリ制限、公開先ライブAPI配信と実サイト観戦は別の手動確認または未確認事項です。
+
+探索v4の旧fixture（v1）の1秒戦術確認は `study`・実Bun4探索プロセスで88件を採点し、74件が期待手に一致、重要40件はすべて合格しました。別の非重要setup8件は、王手を受けている人が手番になっていないため入力検証で除外し、重要問題の除外は0件です。非重要の未達14件は、poisoned-goldの6件が危険な金ではなく安全な歩取りを選んだものの不成で `pawn-capture-promotion` の期待を満たさず、残る8件が `pawn-promotion` の期待との不一致でした。14件を合格へ繰り上げず、「駒損罠に6回失敗」とも解釈しません。元reportは `/private/tmp/tetraboard-study-verify.SSjiRS/tactics-v4.json`、schemaVersion 2・探索版 `local-root-maxn-v4`、42,914 bytes、SHA-256 `bab947eaf18e85d0de35c4b12f2bae10247b60de5665d960ddaa02ed1630460b` です。Apple M5/10論理CPU/24GiB・macOS 27.0.0・Bun1.4.4で実行しました。
+
+同じ旧fixtureで15秒・`study`・4探索プロセス・重要問題だけを確認した結果は39/40件一致、除外0件でした。`forced-promotion-false-north` は深さ8で合法な王移動を選び、直後の脱落はありませんでした。元report `/private/tmp/tetraboard-study-verify.SSjiRS/tactics-v4-15sec.json`（19,031 bytes、SHA-256 `fb901ff49a2aa7d139f666a5d1b378ccd77a994da28aa331fbb211b2362a5be2`）と同名の `.log` を保全します。この旧reportにはfixture版・HEAD・ソース識別の欄がなく、後から新しい識別値を埋めません。39/40という旧採点も変更しません。
+
+診断では、旧forced-promotionの説明は「歩を最終段へ進めるなら成りが必要」を示す一方、王の移動3手も合法で、根で必ずその歩を選ぶ根拠がありませんでした。深さ8では即時成りと王移動の候補評価が完全に同じになり、読み筋末尾も同じ局面へ合流しました。診断原本は `/private/tmp/four-shogi-promotion-diagnosis.jsonl`（111,050 bytes、SHA-256 `84722751092340dbc8bfba1cc6f5b8e6b5f9fa7d7a904d26328c2ca60a9c0eaa`）に残します。これは旧fixtureと期待手の不整合の診断であり、長い思考時間で棋力が下がったという判定には使いません。
+
+開発者の承認により、fixtureを `four-shogi-tactics-v2` へ改版しました。南の基準図はF1玉へD1の敵飛車が王手し、自分のE2/F2/G2歩とG1金が退路を塞ぎ、E2→E1の成りによる合駒だけを合法な応手にします。4方向×三人攻撃禁止ON/OFFの8局面で、正本への復元、唯一合法手、王手解除、不成の拒否を `tacticalFixtures.test.ts` で確認します。`criterion="promotion"` と `critical=true` は維持し、探索v4・評価・同値時の手選択は変えていません。旧結果を新fixtureの結果へ置き換えません。
+
+fixture v2・探索v4の15秒・`study`・4探索プロセス・重要40件の再確認は40/40件一致、除外0件、`code.sourceUnchanged=true` で完了しました。開始は2026-10-28 21:45:28 JST、対象HEADは `a8a0a7fe523c17f3e7367e770295c1289f49eb0c`・dirty=trueです。元report `/private/tmp/tetraboard-study-verify.SSjiRS/tactics-v4-fixture-v2-15sec.json`（25,508 bytes、SHA-256 `12e2b7cf5f731bda5fd31173c7ebd329b6c582d7b314f13daec46b405b7247f7`）と同名の `.log` を保全します。エンジン集約SHAは `aa578649c5470a45823edd2402e7485409185d98360bbd197b792c252f63f772`、runtime集約SHAは `dd7fd3c52d1b8d84ff9269b7077840762dcd35109c0673d3deb3a7e63151fe38`、fixtureソース `tactics.ts` のSHAは `1885ebb83b84960f9ede55aee3a876d32013e74fde79575a6cb0ad23987b286e` です。これはフォーカス追加前の当該ソースに対する戦術の動作確認です。正式256局の棋力比較や、その後変更したruntimeの再検証を代替しません。
+
+席のフォーカス追加は、相手予測を前提に対象の最初の実手番を検討する機能です。元局面のhash・解析対象のhash・予測prefixと候補PVを別にし、全応手への証明や棋力強化の測定として扱いません。手番飛ばしを含む正本再生、未到達/脱落/終局、並列結果、停止/取消/期限とライブ更新を軽量な機能テストで確認します。追加指示に従い、長時間の性能・正式棋力測定は実行しません。
+
+修正版（探索版v3）の短い速度確認では、同じ非正式開始系列・2局・各1秒/手・各4プロセス・16手打切りが、1局ずつ12.09秒、2局並列8.29秒でした（約31%短縮）。これは短い動作確認であり、正式対局全体の短縮率や棋力を保証するものではありません。1秒予算の戦術確認は88件中74件採点合格、重要問題40件は全件合格、旧fixtureで自由編集の状態検証を満たさない非重要8件を除外しました。非重要の未合格14件は主に即時成りを要求する旧基準に対して別の手や不成を選んだもので、全問合格とは扱いません。
