@@ -346,6 +346,132 @@ async function resignCurrent(setup: Awaited<ReturnType<typeof start>>, room: Fou
   );
 }
 
+test("観戦用の固定prefixは進行中の提案・着手・脱落を含み、終局後も同じ境界を返す", async () => {
+  const prepared = await start();
+  let room: FourShogiRoom = prepared.room;
+  const path = `${getFourShogiReplayContract.pathFor(prepared.id, room.roundId)}?instanceId=${room.instanceId}`;
+  expect((await request(path)).status).toBe(404);
+  const empty = getFourShogiReplayContract.response.parse(
+    await (await request(`${path}&throughEventCount=0`)).json(),
+  );
+  expect(empty.events).toEqual([]);
+  expect(empty.eventCount).toBe(0);
+  const actor = prepared.clients[sideIndex(prepared, room.game.turn)];
+  actor.send({
+    type: "room.game.draw.set",
+    roundId: room.roundId,
+    positionRevision: 0,
+    proposed: true,
+  });
+  room = await prepared.clients[0].room(
+    (next) => next.status === "playing" && next.positionRevision === 1,
+  );
+  if (room.status !== "playing") throw new Error("Not playing");
+  actor.send({
+    type: "room.game.action",
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
+    action: getLegalActions({ ...room.game, repetitions: {} })[0],
+  });
+  room = await prepared.clients[0].room(
+    (next) => next.status === "playing" && next.positionRevision === 2,
+  );
+  const pinned = getFourShogiReplayContract.response.parse(
+    await (await request(`${path}&throughEventCount=1`)).json(),
+  );
+  expect(pinned.events).toHaveLength(1);
+  expect(pinned.events[0].event.type).toBe("drawProposal");
+  room = await resignCurrent(prepared, room);
+  if (room.status !== "playing") throw new Error("Not playing");
+  const all = getFourShogiReplayContract.response.parse(
+    await (await request(`${path}&throughEventCount=${room.positionRevision}`)).json(),
+  );
+  expect(all.events.map((entry) => entry.event.type)).toEqual([
+    "drawProposal",
+    "action",
+    "eliminate",
+  ]);
+  expect(all.eventCount).toBe(room.positionRevision);
+  expect((await request(`${path}&throughEventCount=${room.positionRevision + 1}`)).status).toBe(
+    400,
+  );
+  expect((await request(`${path}&throughEventCount=1&cursor=2`)).status).toBe(400);
+  expect(
+    (await request(`${path.replace(room.instanceId, crypto.randomUUID())}&throughEventCount=1`))
+      .status,
+  ).toBe(410);
+  while (room.status === "playing") room = await resignCurrent(prepared, room);
+  const finalPinned = await request(`${path}&throughEventCount=1`);
+  expect(finalPinned.headers.get("Cache-Control")).toBe("no-store");
+  expect(getFourShogiReplayContract.response.parse(await finalPinned.json())).toEqual(pinned);
+  const final = getFourShogiReplayContract.response.parse(await (await request(path)).json());
+  expect(final.eventCount).toBe(room.lastRound?.eventCount);
+  const serialized = JSON.stringify(final);
+  expect(serialized).not.toContain(prepared.memberships[0].token);
+  expect(serialized).not.toContain("accountId");
+  expect(serialized).not.toContain("chat");
+});
+
+test("進行中にイベントが増えても100件のページ境界と空prefixを固定する", async () => {
+  const prepared = await start();
+  await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, ctx) => {
+    const room = fourShogiRoomSchema.parse(ctx.storage.kv.get("room"));
+    if (room.status !== "playing") throw new Error("Not playing");
+    const store = new ShogiStore(ctx.storage.sql);
+    let state = store.loadState(room.roundId, room.game);
+    for (let index = 0; index < 105; index++) {
+      const event = { type: "drawProposal" as const, side: state.turn!, proposed: index % 2 === 0 };
+      const next = setDrawProposal(state, event.side, event.proposed);
+      if (!next.ok) throw new Error(next.reason);
+      state = next.state;
+      store.appendEvent(room.roundId, event);
+    }
+    ctx.storage.kv.put(
+      "room",
+      fourShogiRoomSchema.parse({
+        ...room,
+        game: store.saveState(room.roundId, state),
+        positionRevision: 105,
+      }),
+    );
+  });
+  const path = `${getFourShogiReplayContract.pathFor(prepared.id, prepared.room.roundId)}?instanceId=${prepared.room.instanceId}&throughEventCount=101`;
+  const first = getFourShogiReplayContract.response.parse(await (await request(path)).json());
+  expect(first.events).toHaveLength(100);
+  expect(first.nextCursor).toBe(100);
+  await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, ctx) => {
+    const room = fourShogiRoomSchema.parse(ctx.storage.kv.get("room"));
+    if (room.status !== "playing") throw new Error("Not playing");
+    const store = new ShogiStore(ctx.storage.sql);
+    const next = setDrawProposal(store.loadState(room.roundId, room.game), room.game.turn, false);
+    if (!next.ok) throw new Error(next.reason);
+    store.appendEvent(room.roundId, {
+      type: "drawProposal",
+      side: room.game.turn,
+      proposed: false,
+    });
+    ctx.storage.kv.put(
+      "room",
+      fourShogiRoomSchema.parse({
+        ...room,
+        game: store.saveState(room.roundId, next.state),
+        positionRevision: 106,
+      }),
+    );
+  });
+  const last = getFourShogiReplayContract.response.parse(
+    await (await request(`${path}&cursor=100`)).json(),
+  );
+  expect(last.eventCount).toBe(101);
+  expect(last.events.map((entry) => entry.index)).toEqual([100]);
+  expect(last.nextCursor).toBeNull();
+  const empty = getFourShogiReplayContract.response.parse(
+    await (await request(`${path}&cursor=101`)).json(),
+  );
+  expect(empty.events).toEqual([]);
+  expect(empty.eventCount).toBe(101);
+});
+
 test("戦法履歴導入前の進行局は確定着手後も印を追加せず、通常の終局記録だけを保存する", async () => {
   const prepared = await start();
   const stub = env.GAME_ROOM.getByName(prepared.id);

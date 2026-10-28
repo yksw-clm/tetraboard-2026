@@ -98,6 +98,7 @@ export class EventGameStore<Initial, Event> {
     instanceId: string,
     roundId: string,
     cursor: number,
+    throughEventCount?: number,
   ): EventReplayPage<Initial, Event> | null {
     const row = this.sql
       .exec<{ initial_json: string; event_count: number }>(
@@ -105,12 +106,23 @@ export class EventGameStore<Initial, Event> {
         roundId,
       )
       .toArray()[0];
-    if (!row || cursor > row.event_count) return null;
+    const eventCount = throughEventCount ?? row?.event_count;
+    if (
+      !row ||
+      eventCount === undefined ||
+      !Number.isSafeInteger(cursor) ||
+      !Number.isSafeInteger(eventCount) ||
+      cursor < 0 ||
+      eventCount < cursor ||
+      eventCount > row.event_count
+    )
+      return null;
     const events = this.sql
       .exec<{ event_index: number; event_json: string }>(
-        `SELECT event_index, event_json FROM ${this.prefix}_events WHERE round_id = ? AND event_index >= ? ORDER BY event_index LIMIT 100`,
+        `SELECT event_index, event_json FROM ${this.prefix}_events WHERE round_id = ? AND event_index >= ? AND event_index < ? ORDER BY event_index LIMIT 100`,
         roundId,
         cursor,
+        eventCount,
       )
       .toArray()
       .map((row) => ({
@@ -122,9 +134,9 @@ export class EventGameStore<Initial, Event> {
       roundId,
       rulesVersion: 1,
       initial: this.initialSchema.parse(JSON.parse(row.initial_json)),
-      eventCount: row.event_count,
+      eventCount,
       events,
-      nextCursor: cursor + events.length < row.event_count ? cursor + events.length : null,
+      nextCursor: cursor + events.length < eventCount ? cursor + events.length : null,
     };
   }
   eventCount(roundId: string): number {
