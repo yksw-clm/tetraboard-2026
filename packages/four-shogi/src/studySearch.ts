@@ -1,7 +1,13 @@
 import { getAnalysisLegalActions, type AnalysisPosition } from "./analysis";
 import { compareAiValue, evaluateAiPosition } from "./aiEvaluation";
 import { resolveAiOptions } from "./ai";
-import { createAiContext, makeAiCandidate, type AiBranch, type AiContext } from "./aiSearchContext";
+import {
+  createAiContext,
+  makeAiCandidate,
+  type AiBranch,
+  type AiContext,
+  type AiContextMetrics,
+} from "./aiSearchContext";
 import { getCheckState, pieces, attacksSquare } from "./board";
 import { pieceValue } from "./cpuEvaluation";
 import type { OrdinaryMove } from "./moves";
@@ -14,7 +20,8 @@ import type {
   AiSearchStats,
 } from "./aiTypes";
 
-export const studySearchVersion = "local-root-maxn-v4";
+export const studySearchVersion = "local-root-maxn-v5";
+export const legacyStudySearchVersion = "local-root-maxn-v4";
 export const studyEvaluationVersion = "local-sole-first-pressure-v1";
 export type StudyProfile = "study" | "baseline";
 export type StudyEngagement = { attacker: Side; target: Side; pressure: number };
@@ -28,6 +35,7 @@ export type StudyMaterialEvidence = {
 export type StudyCandidate = AiCandidate & {
   rootIndex: number;
   study: {
+    initialScore?: number;
     immediateLoss: readonly AiLineStep[] | null;
     immediateRepliesComplete: boolean;
     rightSide: Side | null;
@@ -50,8 +58,19 @@ export type StudyLaneSnapshot = {
   candidates: StudyCandidate[];
   staticEvaluation: AiEvaluation;
   stats: AiSearchStats;
+  performance?: StudySearchPerformance;
+};
+export type StudySearchPerformance = AiContextMetrics & {
+  branchCacheHits: number;
+  branchCacheEntries: number;
+  keyMs: number;
+  immediateWork: number;
+  materialWork: number;
+  reducedNodes: number;
+  researches: number;
 };
 export type StudyRootOptions = {
+  strategy?: "legacy" | "adaptive";
   lane?: number;
   lanes?: number;
   maxDepth?: number;
@@ -293,8 +312,39 @@ export function compareStudyCandidates(a: StudyCandidate, b: StudyCandidate, roo
     (a.evaluation && b.evaluation
       ? Number(b.study.rightCheckPriority) - Number(a.study.rightCheckPriority)
       : 0) ||
+    (b.study.initialScore ?? 0) - (a.study.initialScore ?? 0) ||
     a.rootIndex - b.rootIndex
   );
+}
+
+/** 評価深さは割当の優先度にだけ使い、異なる深さを完成比較として公開しません。 */
+export function selectStudyIterationRoots(
+  candidates: readonly StudyCandidate[],
+  root: Side,
+  depth: number,
+  width = 24,
+): number[] {
+  const ordered = [...candidates].sort((a, b) => compareStudyCandidates(a, b, root));
+  const quiet = ordered.filter(
+    (entry) =>
+      !entry.line[0]?.captured &&
+      !entry.line[0]?.checkedSides.length &&
+      !(entry.action.type === "movePiece" && entry.action.promote),
+  );
+  const count = Math.max(5, Math.ceil(width / Math.max(1, depth - 1)));
+  const selected = new Set(
+    ordered.filter((entry) => !quiet.includes(entry)).map((entry) => entry.rootIndex),
+  );
+  quiet.slice(0, count).forEach((entry) => selected.add(entry.rootIndex));
+  const reserve = quiet.slice(count);
+  // 下位候補も毎反復で巡回し、最初の静的評価だけで永久に除外しません。
+  for (let offset = 0; offset < Math.min(2, reserve.length); offset++)
+    selected.add(reserve[((depth - 2) * 2 + offset) % reserve.length].rootIndex);
+  return ordered.filter((entry) => selected.has(entry.rootIndex)).map((entry) => entry.rootIndex);
+}
+
+export function studyBranchKey(state: FourShogiState, remaining: number, extra: number): string {
+  return `${remaining}:${extra}:${JSON.stringify(state)}`;
 }
 export function selectStudyRootIndices(
   candidates: readonly StudyCandidate[],
@@ -326,23 +376,48 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     lane >= lanes
   )
     throw new TypeError("探索レーンが不正です");
-  const settings = resolveAiOptions({
-    codeVersion: studySearchVersion,
-    maxWork: Number.MAX_SAFE_INTEGER,
-    maxDepth: options.maxDepth ?? 256,
-    width: options.width ?? 6,
-    rootWidth: options.rootWidth ?? 24,
-    extensions: options.extensions ?? 2,
-    cacheSize: options.cacheSize ?? 1024,
-    candidateCount: 5,
-    dangerWork: 0,
-  }).settings;
+  const optimized = options.strategy !== "legacy";
+  const cacheSize = options.cacheSize ?? (optimized ? 4096 : 1024);
+  if (!Number.isSafeInteger(cacheSize) || cacheSize < 0 || cacheSize > 65536)
+    throw new TypeError("検討用キャッシュは0〜65536状態です");
+  const settings = {
+    ...resolveAiOptions({
+      codeVersion: studySearchVersion,
+      maxWork: Number.MAX_SAFE_INTEGER,
+      maxDepth: options.maxDepth ?? 256,
+      width: options.width ?? 6,
+      rootWidth: options.rootWidth ?? 24,
+      extensions: options.extensions ?? 2,
+      cacheSize: Math.min(cacheSize, 1024),
+      moveOrdering: optimized ? "previous" : "tactical",
+      candidateCount: 5,
+      dangerWork: 0,
+    }).settings,
+    cacheSize,
+  };
   const profile = options.profile ?? "study";
   const ctx = createAiContext(
     position.state,
     settings,
     undefined,
-    profile === "study" ? { evaluate: studyEvaluation, orderingBonus: rightCheckBonus } : undefined,
+    profile === "study"
+      ? {
+          evaluate: studyEvaluation,
+          orderingBonus: rightCheckBonus,
+          replaceCache: optimized,
+          preservePromotions: optimized,
+          measure: true,
+          cacheLeafEvaluations: !optimized,
+        }
+      : optimized
+        ? {
+            evaluate: evaluateAiPosition,
+            replaceCache: true,
+            preservePromotions: true,
+            measure: true,
+            cacheLeafEvaluations: false,
+          }
+        : undefined,
   );
   const { stats, root } = ctx;
   const initialAssets = root ? assets(position.state, root) : 0;
@@ -355,8 +430,16 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     branch: AiBranch;
     nodes: number;
     work: number;
+    initialScore?: number;
   };
   const roots: Entry[] = [];
+  const branchCache = new Map<string, AiBranch>();
+  let branchCacheHits = 0;
+  let keyMs = 0;
+  let immediateWork = 0;
+  let materialWork = 0;
+  let reducedNodes = 0;
+  let researches = 0;
   const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
   const materialProofs = new Map<
     number,
@@ -418,6 +501,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       rootIndex: entry.index,
       danger: { ...candidate.danger, alternatives: risks.get(entry.index) ?? null },
       study: {
+        ...(entry.initialScore === undefined ? {} : { initialScore: entry.initialScore }),
         immediateLoss: proof?.loss ?? null,
         immediateRepliesComplete: proof?.complete ?? false,
         rightSide: right,
@@ -450,24 +534,82 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     if (state.status === "finished" || !getActiveSides(state).includes(root!))
       return { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
     const checked = getCheckState(state)[state.turn];
+    let tacticalOnly = false;
     if (
       remaining <= 0 &&
       extra > 0 &&
-      (checked || state.lastMove?.captured || state.turn === root)
+      (checked ||
+        state.lastMove?.captured ||
+        state.turn === root ||
+        (optimized && state.lastMove?.action.type === "movePiece" && state.lastMove.action.promote))
     ) {
+      tacticalOnly = optimized && !checked && state.turn !== root;
       remaining = 1;
       extra--;
       stats.extendedNodes++;
     }
     if (remaining <= 0)
       return { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
+    const started = performance.now();
+    // 完全状態を使います。攻撃/反復履歴やlastMoveを省略した同一視は行いません。
+    const key =
+      optimized && remaining > 1 && settings.cacheSize > 0
+        ? studyBranchKey(state, remaining, extra)
+        : null;
+    keyMs += performance.now() - started;
+    const cached = key === null ? undefined : branchCache.get(key);
+    if (cached) {
+      branchCacheHits++;
+      return {
+        ...cached,
+        line: cached.line.map((step) => ({ ...step, afterPly: step.afterPly + ply })),
+      };
+    }
     const legal = yield* ctx.moves(state);
-    const moves = yield* ctx.ordered(state, legal);
+    let moves = yield* ctx.ordered(state, legal);
+    if (tacticalOnly) {
+      // 仮のパスは作らず、実際の静かな合法手も最低一つ残します。
+      let quiet = false;
+      moves = moves.filter((entry) => {
+        if (
+          entry.score >= 10000 ||
+          entry.move.captured ||
+          (entry.move.action.type === "movePiece" && entry.move.action.promote)
+        )
+          return true;
+        if (quiet) return false;
+        quiet = true;
+        return true;
+      });
+    }
     let best: AiBranch | null = null;
     let bestIndex = Infinity;
-    for (const { move, index } of moves) {
+    let bestMove: OrdinaryMove | null = null;
+    let selective = moves.length < legal.length;
+    for (const [order, { move, index, score }] of moves.entries()) {
       const next = yield* ctx.advance(state, move, ply);
-      const child = yield* explore(next.state, remaining - 1, extra, ply + 1);
+      const reduce =
+        optimized &&
+        remaining >= 3 &&
+        order >= 2 &&
+        !checked &&
+        score < 10000 &&
+        !move.captured &&
+        !(move.action.type === "movePiece" && move.action.promote);
+      let child = yield* explore(next.state, remaining - 1 - Number(reduce), extra, ply + 1);
+      if (reduce) {
+        reducedNodes++;
+        selective = true;
+        if (
+          !best ||
+          compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn]) >=
+            0
+        ) {
+          researches++;
+          child = yield* explore(next.state, remaining - 1, extra, ply + 1);
+        }
+      }
+      selective ||= child.selective;
       const comparison = best
         ? compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn])
         : 1;
@@ -478,11 +620,25 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           selective: moves.length < legal.length || child.selective,
         };
         bestIndex = index;
+        bestMove = move;
       }
     }
-    return best ?? { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
+    if (optimized && bestMove) ctx.remember(state, bestMove.action);
+    const result = best
+      ? { ...best, selective }
+      : { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
+    if (key !== null) {
+      if (branchCache.size >= settings.cacheSize)
+        branchCache.delete(branchCache.keys().next().value!);
+      branchCache.set(key, {
+        ...result,
+        line: result.line.map((step) => ({ ...step, afterPly: step.afterPly - ply })),
+      });
+    }
+    return result;
   }
   function* inspectImmediate(entry: Entry): Generator<number, void> {
+    const started = stats.work;
     const proof = { loss: null as readonly AiLineStep[] | null, complete: false };
     immediate.set(entry.index, proof);
     let exhausted = true;
@@ -499,8 +655,10 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       }
     }
     proof.complete = exhausted;
+    immediateWork += stats.work - started;
   }
   function* inspectMaterial(entry: Entry): Generator<number, void> {
+    const started = stats.work;
     const probe = probeMaterialReplies(
       ctx,
       entry.state,
@@ -511,6 +669,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     risks.set(entry.index, probe.result);
     materialProofs.set(entry.index, probe.material);
     yield* probe.steps;
+    materialWork += stats.work - started;
   }
   function* run(): Generator<number, void> {
     if (position.state.status === "finished" || !ctx.legal.length) return;
@@ -537,6 +696,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
         branch: { evaluation, line: [next.step], selective: false },
         nodes: stats.nodes - before.nodes,
         work: stats.work - before.work,
+        ...(optimized ? { initialScore: evaluation.values[root!].heuristicScore ?? 0 } : {}),
       });
     }
     published = roots;
@@ -576,7 +736,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           if (materialIndices.has(entry.index)) yield* inspectMaterial(entry);
     }
   }
-  const steps = run();
+  let steps = run();
   return {
     get depth() {
       return depth;
@@ -591,6 +751,54 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       selected = new Set(indices);
       materialRootIndices = new Set(indices.slice(0, 5));
     },
+    /** 根一手を任意のプロセスで調べ、共通深さの公開は親に委ねます。 */
+    startTask(index: number, targetDepth: number, inspectMaterialProof = false) {
+      if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= ctx.legal.length ||
+        !Number.isSafeInteger(targetDepth) ||
+        targetDepth < 2 ||
+        targetDepth > settings.maxDepth
+      )
+        throw new TypeError("探索タスクの根または深さが不正です");
+      steps.return();
+      done = false;
+      published = [];
+      depth = targetDepth - 1;
+      steps = (function* (): Generator<number, void> {
+        let entry = roots.find((entry) => entry.index === index);
+        if (!entry) {
+          const move = ctx.legal[index];
+          const next = yield* ctx.advance(ctx.start, move, 0);
+          const evaluation = yield* ctx.evaluate(next.state);
+          entry = {
+            index,
+            move,
+            state: next.state,
+            rightCheckPriority: profile === "study" && rightCheckBonus(position.state, move) > 0,
+            branch: { evaluation, line: [next.step], selective: false },
+            nodes: 0,
+            work: 0,
+            ...(optimized ? { initialScore: evaluation.values[root!].heuristicScore ?? 0 } : {}),
+          };
+          roots.push(entry);
+        }
+        if (profile === "study" && !immediate.has(index)) yield* inspectImmediate(entry);
+        const before = { ...stats };
+        const branch = yield* explore(entry.state, targetDepth - 1, settings.extensions, 1);
+        const completed = {
+          ...entry,
+          branch: { ...branch, line: [entry.branch.line[0], ...branch.line] },
+          nodes: stats.nodes - before.nodes,
+          work: stats.work - before.work,
+        };
+        if (inspectMaterialProof && profile === "study" && !materialProofs.has(index))
+          yield* inspectMaterial(completed);
+        published = [completed];
+        depth = stats.completedDepth = targetDepth;
+      })();
+    },
     snapshot(): StudyLaneSnapshot {
       return {
         lane,
@@ -599,6 +807,16 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
         candidates: published.map(make),
         staticEvaluation: ctx.staticEvaluation,
         stats: { ...stats },
+        performance: {
+          ...ctx.metrics,
+          branchCacheHits,
+          branchCacheEntries: branchCache.size,
+          keyMs,
+          immediateWork,
+          materialWork,
+          reducedNodes,
+          researches,
+        },
       };
     },
     dispose() {

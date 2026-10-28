@@ -21,6 +21,17 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 export type AiContextProfile = {
   evaluate: (state: FourShogiState) => AiEvaluation;
   orderingBonus?: (state: FourShogiState, move: OrdinaryMove) => number;
+  replaceCache?: boolean;
+  preservePromotions?: boolean;
+  measure?: boolean;
+  cacheLeafEvaluations?: boolean;
+};
+export type AiContextMetrics = {
+  legalMs: number;
+  transitionMs: number;
+  evaluationMs: number;
+  orderingMs: number;
+  cacheEvictions: number;
 };
 type CachedNode = {
   moves?: OrdinaryMove[];
@@ -104,16 +115,37 @@ export function createAiContext(
   const start: FourShogiState = { ...input, repetitions: {} };
   const lookup = (key: string) => input.repetitions[key] ?? 0;
   const cache = new WeakMap<FourShogiState, CachedNode>();
+  const leafEvaluations = new WeakMap<FourShogiState, AiEvaluation>();
+  const retained = new Map<FourShogiState, true>();
+  const metrics: AiContextMetrics = {
+    legalMs: 0,
+    transitionMs: 0,
+    evaluationMs: 0,
+    orderingMs: 0,
+    cacheEvictions: 0,
+  };
+  const clock = () => (profile?.measure ? performance.now() : 0);
   function node(state: FourShogiState) {
     const existing = cache.get(state);
     if (existing) return existing;
-    if (stats.cacheEntries >= settings.cacheSize) return undefined;
+    if (settings.cacheSize === 0) return undefined;
+    if (stats.cacheEntries >= settings.cacheSize) {
+      if (!profile?.replaceCache) return undefined;
+      const oldest = retained.keys().next().value!;
+      retained.delete(oldest);
+      cache.delete(oldest);
+      stats.cacheEntries--;
+      metrics.cacheEvictions++;
+    }
     const created: CachedNode = { transitions: new Map() };
     cache.set(state, created);
+    if (profile?.replaceCache) retained.set(state, true);
     stats.cacheEntries++;
     return created;
   }
+  const started = clock();
   const legal = getLegalMoves(start);
+  metrics.legalMs += clock() - started;
   stats.generatedMoves = legal.length;
   const initialNode = node(start);
   if (initialNode) initialNode.moves = legal;
@@ -138,7 +170,9 @@ export function createAiContext(
       stats.legalCacheHits++;
       return record.moves;
     }
+    const started = clock();
     const result = getLegalMoves(state);
+    metrics.legalMs += clock() - started;
     stats.generatedMoves += result.length;
     yield* spend(Math.ceil(result.length / 16));
     if (record) record.moves = result;
@@ -146,18 +180,25 @@ export function createAiContext(
   }
   function* evaluate(state: FourShogiState): Generator<number, AiEvaluation> {
     yield* spend();
-    const record = node(state);
-    if (record?.evaluation) {
+    // 一度しか訪れない葉で、繰り返し使う内部節点を追い出さないようにします。
+    const record = profile?.cacheLeafEvaluations === false ? cache.get(state) : node(state);
+    const cached =
+      record?.evaluation ??
+      (profile?.cacheLeafEvaluations === false ? leafEvaluations.get(state) : undefined);
+    if (cached) {
       stats.evaluationCacheHits++;
-      return record.evaluation;
+      return cached;
     }
     const prediction = model && state.status === "playing" ? yield* predict(state) : null;
+    const started = clock();
     const value = prediction
       ? modelEvaluation(state, prediction)
       : (profile?.evaluate(state) ?? evaluateAiPosition(state, settings.evaluationWeights));
+    metrics.evaluationMs += clock() - started;
     if (prediction) model!.stats.valueUses++;
     stats.evaluations++;
     if (record) record.evaluation = value;
+    if (profile?.cacheLeafEvaluations === false) leafEvaluations.set(state, value);
     return value;
   }
   function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
@@ -253,7 +294,9 @@ export function createAiContext(
       stats.transitionCacheHits++;
       return { state: cached.state, step: { ...cached.step, afterPly: ply + 1 } };
     }
+    const started = clock();
     const transition = applyLegalMove(state, state.turn!, move, lookup);
+    metrics.transitionMs += clock() - started;
     const next = transition.state;
     const result = {
       state: next,
@@ -279,6 +322,7 @@ export function createAiContext(
     let selected = record?.ordered;
     if (selected) stats.orderingCacheHits++;
     else {
+      const started = clock();
       const checked = getCheckState(state)[state.turn!];
       const entries = legalMoves.map((move, index) => ({
         move,
@@ -292,8 +336,15 @@ export function createAiContext(
       } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
       selected = selected.filter(
         (entry, index) =>
-          index < settings.width || checked || entry.score >= 10000 || entry.move.captured !== null,
+          index < settings.width ||
+          checked ||
+          entry.score >= 10000 ||
+          entry.move.captured !== null ||
+          (profile?.preservePromotions &&
+            entry.move.action.type === "movePiece" &&
+            entry.move.action.promote),
       );
+      metrics.orderingMs += clock() - started;
       if (record) record.ordered = selected;
     }
     const preferred =
@@ -336,6 +387,7 @@ export function createAiContext(
     input,
     settings,
     stats,
+    metrics,
     start,
     root: input.turn,
     legal,
