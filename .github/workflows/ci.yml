@@ -78,6 +78,8 @@ jobs:
       - name: Verify generated types with conflicting development settings
         run: diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
       - run: bun run build
+      - name: Build local study app (not deployed)
+        run: bun run study:build
       - run: bun run --cwd apps/worker deploy:dry-run
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
