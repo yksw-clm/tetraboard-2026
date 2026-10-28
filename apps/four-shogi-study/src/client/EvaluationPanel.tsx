@@ -5,10 +5,12 @@ import {
   ancestorIds,
   lineLabel,
   scoreLabel,
+  rankLabel,
   scoreValue,
   sideColors,
   sideNames,
   sideOrder,
+  type EvaluationContext,
 } from "./presentation";
 import type { AnalysisInput, CommandInput } from "./api";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
@@ -29,6 +31,9 @@ export function EvaluationPanel({
 }) {
   const { study, analysis, staticEvaluation } = snapshot;
   const evaluation = analysis?.evaluation ?? staticEvaluation;
+  const evaluationContext: EvaluationContext = analysis?.evaluation
+    ? { source: "line", position: snapshot.position.state }
+    : { source: "position" };
   const maximum = Math.max(
     500,
     ...sideOrder.map((side) => Math.abs(scoreValue(evaluation, side) ?? 0)),
@@ -43,7 +48,7 @@ export function EvaluationPanel({
         eyebrow="POSITION EVALUATION"
         action={
           <span className="rounded-full bg-[#edf2e9] px-2 py-1 text-[10px] text-[#6d7d61]">
-            {analysis?.evaluation ? "探索結果" : "静的評価"}
+            {analysis?.evaluation ? "読み筋末尾の予想" : "元局面の静的評価"}
           </span>
         }
       >
@@ -63,14 +68,11 @@ export function EvaluationPanel({
                   )}
                 </span>
                 <strong className="font-mono text-base tabular-nums">
-                  {scoreLabel(evaluation, side)}
+                  {scoreLabel(evaluation, side, evaluationContext)}
                 </strong>
               </div>
               <p className="mb-1 text-[10px] text-[#8a9482]">
-                {evaluation.ranks.find((entry) => entry.side === side)?.kind === "confirmed"
-                  ? "確定"
-                  : "暫定"}
-                {evaluation.ranks.find((entry) => entry.side === side)?.rank ?? "—"}位
+                {rankLabel(evaluation, side, evaluationContext)}
               </p>
               <div className="relative h-1.5 overflow-hidden rounded bg-[#eef1e9]">
                 <span className="absolute left-1/2 h-full w-px bg-[#cdd6c4]" />
@@ -87,7 +89,7 @@ export function EvaluationPanel({
           ))}
         </div>
         <p className="mt-4 text-[10px] leading-relaxed text-[#8a9481]">
-          各陣営の有利さを同じ尺度で表示。点数は勝率ではなく、探索の深さで変化します。
+          点数は勝率ではありません。表示中の盤面で決まった順位を「確定」、元局面の静的順位を「暫定」、読み筋末尾の順位を「予想」と表示します。
         </p>
       </Panel>
       <Panel
@@ -206,7 +208,10 @@ export function EvaluationPanel({
                     </strong>
                   </span>
                   <span className="font-mono text-xs">
-                    {scoreLabel(candidate.evaluation, rootSide)}
+                    {scoreLabel(candidate.evaluation, rootSide, {
+                      source: "line",
+                      position: snapshot.position.state,
+                    })}
                   </span>
                 </div>
                 <p className="mt-2 text-[10px] text-[#85917c]">
@@ -375,7 +380,8 @@ function EvaluationGraph({
             onClick={() => select(entry.id)}
           >
             <title>
-              {entry.label}：{scoreLabel(entry.evaluation, snapshot.study.cpuSide)}
+              {entry.label}：
+              {scoreLabel(entry.evaluation, snapshot.study.cpuSide, { source: "position" })}
             </title>
           </circle>
         ))}
@@ -390,7 +396,8 @@ function stopLabel(reason: string) {
     deadline: "指定時間に到達しました",
     memory_limit: "探索メモリの上限に到達したため停止しました",
     max_depth: "探索深さの上限に到達しました",
-    sole_win: "単独勝ちとなる手が見つかりました",
+    sole_win:
+      "単独勝ちに至る予想進行が見つかったため停止しました。相手の応手により結果は変わります。",
     cancelled: "探索を中止しました",
   };
   return labels[reason] ?? reason;

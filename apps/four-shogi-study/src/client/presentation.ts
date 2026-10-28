@@ -11,19 +11,55 @@ export const sideColors: Record<Side, string> = {
   east: "#b16878",
 };
 export const sideOrder: readonly Side[] = ["south", "west", "north", "east"];
+export type EvaluationContext =
+  | { source: "position" }
+  | { source: "line"; position: FourShogiState };
+
+function confirmedRank(
+  evaluation: AiEvaluation | null,
+  side: Side,
+  context: EvaluationContext,
+): number | null {
+  if (context.source === "position")
+    return (
+      evaluation?.ranks.find((entry) => entry.side === side && entry.kind === "confirmed")?.rank ??
+      null
+    );
+  const state = context.position;
+  if (state.status === "finished" && state.result.mode === "singles")
+    return state.result.standings.find((entry) => entry.side === side)?.rank ?? null;
+  return state.eliminations.find((entry) => entry.side === side)?.rank ?? null;
+}
+
+export function rankLabel(
+  evaluation: AiEvaluation | null,
+  side: Side,
+  context: EvaluationContext,
+): string {
+  const confirmed = confirmedRank(evaluation, side, context);
+  if (confirmed !== null) return `確定${confirmed}位`;
+  const rank = evaluation?.ranks.find((entry) => entry.side === side)?.rank;
+  if (rank === undefined) return "順位未評価";
+  return context.source === "line" ? `予想${rank}位（読み筋末尾）` : `暫定${rank}位`;
+}
+
 export function scoreValue(evaluation: AiEvaluation | null, side: Side): number | null {
   return evaluation?.values[side].heuristicScore ?? null;
 }
-export function scoreLabel(evaluation: AiEvaluation | null, side: Side): string {
+export function scoreLabel(
+  evaluation: AiEvaluation | null,
+  side: Side,
+  context: EvaluationContext,
+): string {
+  const confirmed = confirmedRank(evaluation, side, context);
+  if (confirmed !== null) return `確定${confirmed}位`;
   if (!evaluation) return "—";
-  if (evaluation.evaluationKind === "terminal") {
-    const rank = evaluation.ranks.find((entry) => entry.side === side)?.rank;
-    return rank ? `${rank}位` : "終局";
-  }
   const value = scoreValue(evaluation, side);
-  return value === null
-    ? "—"
-    : `${value >= 0 ? "+" : ""}${Math.round(value).toLocaleString("ja-JP")}`;
+  if (evaluation.evaluationKind === "terminal" || value === null) {
+    const rank = evaluation.ranks.find((entry) => entry.side === side)?.rank;
+    return rank === undefined ? "—" : `${context.source === "line" ? "予想" : "暫定"}${rank}位`;
+  }
+  return `${value >= 0 ? "+" : ""}${Math.round(value).toLocaleString("ja-JP")}`;
 }
 export function actionLabel(action: FourShogiAction, state: FourShogiState): string {
   const piece =

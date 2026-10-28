@@ -14,6 +14,7 @@ import {
   sideColors,
   sideNames,
   sideOrder,
+  type EvaluationContext,
 } from "./presentation";
 import type { StudySnapshot } from "../contracts";
 import type { StudySession } from "./useStudySession";
@@ -81,6 +82,9 @@ export function StudyApp() {
   const state = snapshot?.position.state;
   const checks = useMemo(() => (state ? getCheckState(state) : undefined), [state]);
   const evaluation = snapshot?.analysis?.evaluation ?? snapshot?.staticEvaluation ?? null;
+  const evaluationContext: EvaluationContext = snapshot?.analysis?.evaluation
+    ? { source: "line", position: snapshot.position.state }
+    : { source: "position" };
   const board: ShogiBoardView | null =
     editor && state
       ? {
@@ -398,7 +402,7 @@ export function StudyApp() {
                             </p>
                           </div>
                           <span className="font-mono text-xs font-semibold tabular-nums">
-                            {editor ? "—" : scoreLabel(evaluation, side)}
+                            {editor ? "—" : scoreLabel(evaluation, side, evaluationContext)}
                           </span>
                         </div>,
                       ]),
