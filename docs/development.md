@@ -964,6 +964,8 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 main・develop向けPRと両ブランチのpushでは、checksジョブで `bun install --frozen-lockfile` → `bun run check` → 本番ビルド・dry-run → 開発ビルド・dry-runを実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
 
+公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
+
 main・developのpushでは同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
@@ -1495,6 +1497,8 @@ Workerテストで未ログインアクセス・全色・同率優勝・両チ�
 ## 計測用管理画面の開発と公開
 
 `apps/admin` はWebと同じReact・HeroUI・Tailwindを使い、SVGでグラフを描きます。`bun run dev` はWorker・Web・Adminを起動します。AdminのViteは5174で起動し、Webの `/admin` をプロキシするため、ブラウザでは `http://localhost:5173/admin` を開きます。Google認証は既存の同一オリジン設定を使い、専用のOAuthクライアントや別の本番Workerは不要です。開発用Vite自体のHTMLは認証前も取得できますが、管理データは常にWorkerの本人確認を通します。本番はHTMLとアセットも本人限定です。
+
+管理メニューは `AdminNavigation.tsx` に集約し、1024px以上は左側リンク、1024px未満はネイティブの画面選択欄を使います。現在地はURLから導出し、詳細・新規作成・編集画面でも親メニューを選択します。`Dashboard.tsx` は主要指標を `dl` の区切り線付きグリッドにまとめ、360px未満は2列、360px以上は3列、640px以上は4列、1280px以上は6列にします。個別カードの角丸・影・間隔をなくし、各指標の縦余白を8px、数字を18px／640px以上は20pxに抑えます。ヘッダー・グラフ・集計表・流入表の余白と行の高さも詰めます。開始日・終了日を狭幅でも2列にし、入力欄と更新・画面選択の操作領域は44px以上を確保します。レイアウトは部品内のTailwindクラスで調整します。
 
 ### 管理者設定
 

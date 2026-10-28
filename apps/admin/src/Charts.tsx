@@ -68,7 +68,7 @@ export function TrendChart({ buckets }: Pick<AdminAnalytics, "buckets">) {
             </text>
           ))}
       </svg>
-      <figcaption className="flex flex-wrap gap-4 text-sm">
+      <figcaption className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
         {series.map((s) => (
           <span key={s.key} className="flex items-center gap-2">
             <span className="h-2 w-5 rounded" style={{ background: s.color }} />

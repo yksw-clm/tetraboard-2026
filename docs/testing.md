@@ -4,11 +4,17 @@
 
 公開後のロビーHTML検証は `scripts/deploymentLobbyHtml.ts` を共用し、`publicLobbies.test.ts` で本番の全6ゲーム、`developmentSeo.test.ts` で開発環境の実生成HTMLを確認します。ホーム・遊び方・当該ゲームのリンクはメインナビ内にあることを検査し、ナビや各リンクの欠落を本文のリンクで代用しないこと、既存のtitle・canonical URL・robots・description・対象ゲーム・紹介本文の欠落も検出することをBunで確認します。HTTPの状態・ヘッダー、転送、再試行は既存の公開確認スクリプトが担当します。
 
+`scripts/checkDeployment.ts` 自体もWebの `tsconfig.build.json` で型検査し、サイトマップの本番分岐を含む未定義参照を通常のcheck・buildで検出します。公開先に対するHTTP確認は既存の公開確認スクリプトを実行します。
+
 `apps/web/test/publicLobbies.test.ts` と `test-dom/publicLobbies.test.tsx` は、全6ロビーのtitleの語順と長さ、descriptionの120字以内、「4人将棋」「4人オセロ」がtitle・description・紹介文に含まれること、既定HTML・初期HTMLと遷移後のブランド表記・メタ情報の一致を確認します。サイトマップは全7URLにページごとの有効な日付の `lastmod` があること、開発環境ではURLと `lastmod` が出力されないことを確認します。`test-dom/roomSharing.test.tsx` でルーム共有の画像・titleがロビーへ残らず、`og:site_name` が重複しないことも確認します。
 
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
+
+## 管理画面の表示と画面選択
+
+管理メニューの画面選択は `apps/admin/test-dom/adminNavigation.test.tsx` で全ゲームと運営画面への `/admin` 配下の移動、詳細・新規作成・編集への直接アクセス時の親メニュー表示、戻る操作による選択値とPCリンクの現在地の同期を確認します。指標一覧の密度と長い名称・数値の収まり、320pxの2列／360px以上の3列／640px以上の4列／1280px以上の6列、ネイティブ日付入力・画面選択、1024px境界のメニュー切り替えは手動確認対象です。寸法だけを検査するDOMテストやブラウザ起動型テストは追加しません。
 
 ## 流入元・端末別の計測
 

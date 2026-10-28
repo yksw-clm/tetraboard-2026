@@ -73,59 +73,65 @@ export function Dashboard({ game }: { game: GameScope }) {
   const result = useAdminData(`/api/admin/analytics?${params}`, parseAnalytics);
   const title = game === "all" ? "全体概要" : gameCatalog[game].name;
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-sm font-medium text-brand">ANALYTICS</p>
-        <h1 className="mt-1 text-3xl font-bold">{title}</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          利用量と継続性を、日本時間の集計で確認できます。個別計測は90日以内です。古い期間の人数・継続率、終了を確認できなかった対局の進行状態・率・参加時間など、算出できない値は「—」で表示します。
-        </p>
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">{title}</h1>
+          <p className="mt-1 hidden text-xs text-gray-600 sm:block">
+            利用量と継続性を、日本時間の集計で確認できます。
+          </p>
+        </div>
+        <Button onPress={result.refresh} isDisabled={result.loading} className="min-h-11 shrink-0">
+          更新
+        </Button>
       </div>
-      <Card className="flex flex-row flex-wrap items-end gap-4 p-5">
-        <label className="flex flex-col gap-2">
-          集計単位
-          <select
-            aria-label="集計単位"
-            value={bucket}
-            onChange={(event) => {
-              const next = event.target.value as "day" | "month";
-              setBucket(next);
-              setPeriod(defaultPeriod(next));
-            }}
-          >
-            <option value="day">日別</option>
-            <option value="month">月別</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
+      <Card className="grid min-w-0 grid-cols-2 items-end gap-2 rounded-lg border border-gray-200 p-3 shadow-none sm:flex sm:flex-row sm:flex-wrap sm:gap-3">
+        <label className="flex min-w-0 flex-col gap-1 text-xs">
           開始日
           <input
             aria-label="開始日"
+            className="min-h-11 min-w-0 w-full px-2 text-base"
             type="date"
             value={period.from}
             onChange={(event) => setPeriod((old) => ({ ...old, from: event.target.value }))}
           />
         </label>
-        <label className="flex flex-col gap-2">
+        <label className="flex min-w-0 flex-col gap-1 text-xs">
           終了日
           <input
             aria-label="終了日"
+            className="min-h-11 min-w-0 w-full px-2 text-base"
             type="date"
             value={period.to}
             onChange={(event) => setPeriod((old) => ({ ...old, to: event.target.value }))}
           />
         </label>
-        <label className="flex items-center gap-2 pb-2">
-          <input
-            type="checkbox"
-            checked={includeInternal}
-            onChange={(event) => setIncludeInternal(event.target.checked)}
-          />
-          本人・テストを含める
-        </label>
-        <Button onPress={result.refresh} isDisabled={result.loading} className="ml-auto">
-          更新
-        </Button>
+        <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label>
+            <span className="sr-only">集計単位</span>
+            <select
+              aria-label="集計単位"
+              className="min-h-11 text-base"
+              value={bucket}
+              onChange={(event) => {
+                const next = event.target.value as "day" | "month";
+                setBucket(next);
+                setPeriod(defaultPeriod(next));
+              }}
+            >
+              <option value="day">日別</option>
+              <option value="month">月別</option>
+            </select>
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-xs sm:text-sm">
+            <input
+              type="checkbox"
+              checked={includeInternal}
+              onChange={(event) => setIncludeInternal(event.target.checked)}
+            />
+            本人・テストを含める
+          </label>
+        </div>
       </Card>
       {result.error && (
         <Card className="gap-3 p-5">
@@ -145,7 +151,7 @@ export function Dashboard({ game }: { game: GameScope }) {
       )}
       {result.data && (
         <>
-          <p className="text-sm text-gray-600">
+          <p className="text-[11px] leading-4 text-gray-600">
             計測開始：
             {result.data.collectedFromMs === null
               ? "まだ計測データがありません"
@@ -160,37 +166,44 @@ export function Dashboard({ game }: { game: GameScope }) {
           )}
           <section
             aria-label="主要指標"
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+            className="overflow-hidden rounded-lg border border-gray-200 bg-white"
           >
-            {metricCards(result.data.summary, result.data.totalUsers).map(([label, value]) => (
-              <Card key={label} className="gap-3 p-5">
-                <h2 className="text-sm text-gray-600">{label}</h2>
-                <p className="text-3xl font-semibold tabular-nums">{value}</p>
-              </Card>
-            ))}
+            <dl className="grid grid-cols-2 min-[360px]:grid-cols-3 sm:grid-cols-4 xl:grid-cols-6">
+              {metricCards(result.data.summary, result.data.totalUsers).map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex min-h-16 min-w-0 flex-col justify-between gap-0.5 border-r border-b border-gray-100 px-2.5 py-2 sm:px-3"
+                >
+                  <dt className="text-[11px] leading-4 text-gray-600">{label}</dt>
+                  <dd className="text-lg leading-6 font-semibold break-words tabular-nums sm:text-xl">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </section>
-          <div className="grid gap-5 xl:grid-cols-[2fr_1fr]">
-            <Card className="gap-4 p-5">
-              <h2 className="text-lg font-bold">訪問・対局の推移</h2>
+          <div className="grid gap-3 xl:grid-cols-[2fr_1fr]">
+            <Card className="gap-2 rounded-lg border border-gray-200 p-3 shadow-none">
+              <h2 className="text-sm font-bold">訪問・対局の推移</h2>
               <TrendChart buckets={result.data.buckets} />
             </Card>
-            <Card className="gap-4 p-5">
-              <h2 className="text-lg font-bold">対局の内訳</h2>
+            <Card className="gap-2 rounded-lg border border-gray-200 p-3 shadow-none">
+              <h2 className="text-sm font-bold">対局の内訳</h2>
               <BreakdownChart metrics={result.data.summary} />
             </Card>
           </div>
-          <Card className="gap-4 p-5">
-            <h2 className="text-lg font-bold">集計表</h2>
+          <Card className="gap-2 rounded-lg border border-gray-200 p-3 shadow-none">
+            <h2 className="text-sm font-bold">集計表</h2>
             <div className="overflow-x-auto">
-              <table className="w-full whitespace-nowrap text-right text-sm">
+              <table className="w-full whitespace-nowrap text-right text-xs">
                 <caption className="sr-only">
                   {title}の{bucket === "day" ? "日別" : "月別"}計測データ
                 </caption>
                 <thead>
                   <tr>
-                    <th className="p-3 text-left">期間</th>
+                    <th className="px-3 py-2 text-left">期間</th>
                     {columns.map((col) => (
-                      <th key={col.key} className="p-3">
+                      <th key={col.label} className="px-3 py-2">
                         {col.label}
                       </th>
                     ))}
@@ -199,11 +212,11 @@ export function Dashboard({ game }: { game: GameScope }) {
                 <tbody>
                   {result.data.buckets.map(({ period: label, metrics }) => (
                     <tr key={label} className="border-t border-gray-200">
-                      <th className="p-3 text-left font-normal">{label}</th>
+                      <th className="px-3 py-2 text-left font-normal">{label}</th>
                       {columns.map((col) => {
                         const value = col.value ? col.value(metrics) : metrics[col.key];
                         return (
-                          <td key={col.key} className="p-3 tabular-nums">
+                          <td key={col.label} className="px-3 py-2 tabular-nums">
                             {col.format
                               ? col.format(value)
                               : value === null
@@ -219,8 +232,11 @@ export function Dashboard({ game }: { game: GameScope }) {
             </div>
           </Card>
           <Acquisition report={result.data.acquisition} asOf={result.data.asOfMs} />
-          <Card className="gap-3 p-5 text-sm text-gray-600">
+          <Card className="gap-2 rounded-lg border border-gray-200 p-3 text-xs leading-relaxed text-gray-600 shadow-none">
             <h2 className="font-bold text-gray-900">指標の読み方</h2>
+            <p>
+              個別計測は90日以内です。古い期間の人数・継続率、終了を確認できなかった対局の進行状態・率・参加時間など、算出できない値は「—」で表示します。
+            </p>
             <p>
               CPU戦も含みます。登録利用者はアカウント単位、ゲストはブラウザ単位です。ログイン前後を同一人物として統合せず、端末変更・Cookie削除・保存拒否・通信失敗で計測に差が生じます。
             </p>

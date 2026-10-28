@@ -4,25 +4,27 @@
 @theme {
   --color-brand: #246b50;
 }
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #f4f7f5;
-  color: #21352d;
-}
-button,
-input,
-select {
-  font: inherit;
-}
-input,
-select {
-  border: 1px solid #b8c7bf;
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: white;
-  color: #21352d;
-}
-label {
-  font-size: 14px;
+@layer base {
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: #f4f7f5;
+    color: #21352d;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+  input,
+  select {
+    border: 1px solid #b8c7bf;
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: white;
+    color: #21352d;
+  }
+  label {
+    font-size: 14px;
+  }
 }
