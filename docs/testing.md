@@ -338,6 +338,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ローカルアプリの通常検証と公開経路の回帰は次を使います。テスト個別の入口はアプリの `test/`・`test-dom/`、四人将棋の `test/studySearch.test.ts`・`analysisSetup.test.ts`、既存Worker/protocolのreplay検証です。
 
+通常checkに含む `strengthProcessPool.test.ts` の小さい実プロセス試験は、`packages/four-shogi/bench/lv2Baseline.json` が指定する固定Lv2のコミットを `git archive` で一時展開します。Gitとtar、およびそのコミットを含む履歴が必要です。CIのchecksジョブは `actions/checkout` の `fetch-depth: 0` で履歴を取得します。ローカルのshallow cloneでは、検証前に `git fetch --unshallow origin` で履歴を取得してください。テスト自体は履歴をfetchせず、固定コミットとソースハッシュの照合を維持します。この小さい試験は対局親の動作確認であり、保留中の正式棋力測定は実行しません。
+
 戦術fixtureは `four-shogi-tactics-v2` で識別します。`packages/four-shogi/test/tacticalFixtures.test.ts` は強制成りの重要問題が、4方向×三人攻撃禁止ON/OFFの全8局面で王手中となり、成りだけが合法で、不成が拒否され、正本への復元後も王手を解くことを検証します。旧fixtureの「歩を最終段へ進めるなら成り必須」を「根で必ず歩を選ぶ」と採点した不整合を修正したもので、重要指定・成りの期待条件・探索/評価は緩和しません。[旧39/40と新fixtureの測定条件](four-shogi-ai.md#ローカル検討cpuの測定と採否)を分け、旧結果を再採点しません。戦術reportにはfixture版・HEAD/dirty・対象ソースのSHA-256・ソース不変性と、未達時の全候補評価/PVを残します。
 
 ```sh
