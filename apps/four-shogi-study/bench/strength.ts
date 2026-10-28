@@ -17,6 +17,7 @@ import {
   createStudyRootSearch,
   selectStudyRootIndices,
   type StudyProfile,
+  type StudySearchStrategy,
 } from "@tetraboard/four-shogi/study-search";
 import {
   git,
@@ -43,7 +44,7 @@ import { createStrengthProcessPool, StrengthProcessStoppedError } from "./streng
 import type { StrengthParentFailure } from "./strengthProcessProtocol";
 
 type Budget = { work: number } | { timeMs: number };
-export const strengthRunnerVersion = "local-strength-isolated-parents-v3";
+export const strengthRunnerVersion = "local-strength-isolated-parents-v4";
 export const strengthScheduleVersion = "balanced-pair-shuffle-v1";
 export const formalStrengthPlan = Object.freeze({
   id: "local-study-holdout-isolated-parents-v3",
@@ -77,7 +78,8 @@ export type StrengthOptions = {
   samplesOnly: boolean;
   formal?: boolean;
   resume?: boolean;
-  searchStrategy?: "legacy" | "adaptive";
+  searchStrategy?: StudySearchStrategy;
+  compareStrategies?: StudySearchStrategy[];
 };
 type Opening = {
   replay: AnalysisReplayInput;
@@ -99,6 +101,7 @@ type Choice = {
 };
 export type RecordedGame = {
   jobId: string;
+  searchStrategy?: StudySearchStrategy;
   lane: number;
   profile: StudyProfile;
   restricted: boolean;
@@ -111,6 +114,7 @@ export type RecordedGame = {
 };
 export type StrengthJob = Readonly<{
   id: string;
+  searchStrategy?: StudySearchStrategy;
   seed: number;
   restricted: boolean;
   seat: Side;
@@ -171,28 +175,31 @@ export function createStrengthJobs(options: StrengthOptions): StrengthJob[] {
     for (const restricted of options.restrictions)
       for (const seat of options.seats)
         pairs.push(
-          options.profiles.map((profile) => {
-            const identity = {
-              runnerVersion: strengthRunnerVersion,
-              seed: options.seed + offset,
-              restricted,
-              seat,
-              profile,
-              ...(options.searchStrategy ? { searchStrategy: options.searchStrategy } : {}),
-              budget: options.budget,
-              threads: options.threads,
-              memoryMb: options.memoryMb,
-              concurrency: options.concurrency,
-              maxPlies: options.maxPlies,
-            };
-            return {
-              id: hashJson(identity),
-              seed: options.seed + offset,
-              restricted,
-              seat,
-              profile,
-            };
-          }),
+          options.profiles.flatMap((profile) =>
+            (options.compareStrategies ?? [options.searchStrategy]).map((searchStrategy) => {
+              const identity = {
+                runnerVersion: strengthRunnerVersion,
+                seed: options.seed + offset,
+                restricted,
+                seat,
+                profile,
+                ...(searchStrategy ? { searchStrategy } : {}),
+                budget: options.budget,
+                threads: options.threads,
+                memoryMb: options.memoryMb,
+                concurrency: options.concurrency,
+                maxPlies: options.maxPlies,
+              };
+              return {
+                id: hashJson(identity),
+                seed: options.seed + offset,
+                restricted,
+                seat,
+                profile,
+                ...(searchStrategy ? { searchStrategy } : {}),
+              };
+            }),
+          ),
         );
   const random = seededRandom(options.seed ^ 0x6d2b79f5);
   for (let index = pairs.length - 1; index > 0; index--) {
@@ -237,7 +244,7 @@ export function fixedWorkChoice(
   position: AnalysisPosition,
   work: number,
   profile: StudyProfile,
-  strategy?: "legacy" | "adaptive",
+  strategy?: StudySearchStrategy,
 ): Choice {
   const forced = forcedLegalChoice(position);
   if (forced) return forced;
@@ -289,7 +296,7 @@ async function timedChoice(
   timeMs: number,
   profile: StudyProfile,
   position: AnalysisPosition,
-  strategy?: "legacy" | "adaptive",
+  strategy?: StudySearchStrategy,
 ): Promise<Choice> {
   const forced = forcedLegalChoice(position);
   if (forced) return forced;
@@ -382,7 +389,7 @@ async function play(
   const elapsed: number[] = [];
   const depths: number[] = [];
   const reasons: Record<string, number> = {};
-  const candidateId = `${profile}/${hashJson(options.budget).slice(0, 10)}`;
+  const candidateId = `${profile}/${job.searchStrategy ?? options.searchStrategy ?? "adaptive"}/${hashJson(options.budget).slice(0, 10)}`;
   const lineup = seatLineup(seat, candidateId, Array(3).fill(opponent.id));
   while (position.state.status === "playing" && decisions.length < options.maxPlies && !stopped()) {
     const side = position.state.turn;
@@ -396,14 +403,19 @@ async function play(
       try {
         choice =
           "work" in options.budget
-            ? fixedWorkChoice(position, options.budget.work, profile, options.searchStrategy)
+            ? fixedWorkChoice(
+                position,
+                options.budget.work,
+                profile,
+                job.searchStrategy ?? options.searchStrategy,
+              )
             : await timedChoice(
                 runtime!,
                 replay,
                 options.budget.timeMs,
                 profile,
                 position,
-                options.searchStrategy,
+                job.searchStrategy ?? options.searchStrategy,
               );
       } catch (error) {
         if (stopped()) break;
@@ -458,6 +470,7 @@ async function play(
   };
   return {
     jobId: job.id,
+    searchStrategy: job.searchStrategy ?? options.searchStrategy,
     lane,
     profile,
     restricted: opening.restricted,
@@ -745,6 +758,7 @@ export function validateStrengthResume(
     if (
       !job ||
       game.profile !== job.profile ||
+      game.searchStrategy !== job.searchStrategy ||
       game.restricted !== job.restricted ||
       game.sample?.matchId !== job.id ||
       game.sample.seed !== job.seed ||
@@ -877,6 +891,7 @@ export async function runStrength(options: StrengthOptions) {
       seats: options.seats,
       profiles: options.profiles,
       searchStrategy: options.searchStrategy ?? "adaptive",
+      compareStrategies: options.compareStrategies ?? null,
       maxPlies: options.maxPlies,
       positionsFile: options.positionsFile ?? null,
       samplesOnly: options.samplesOnly,
@@ -960,6 +975,16 @@ export async function runStrength(options: StrengthOptions) {
       interrupted,
       failure: effectiveFailure,
       summary: summary(completed),
+      byStrategy: Object.fromEntries(
+        (options.compareStrategies ?? [options.searchStrategy ?? "adaptive"]).map((strategy) => [
+          strategy,
+          summary(
+            completed.filter(
+              (game) => (game.searchStrategy ?? options.searchStrategy ?? "adaptive") === strategy,
+            ),
+          ),
+        ]),
+      ),
       formalAssessment: options.formal
         ? assessFormalStrength(completed, unchanged, {
             interrupted,
@@ -1164,6 +1189,7 @@ export function argumentsFor(args: string[]): StrengthOptions {
     "seats",
     "profiles",
     "search-strategy",
+    "compare-strategies",
     "max-plies",
     "output",
     "positions",
@@ -1198,10 +1224,26 @@ export function argumentsFor(args: string[]): StrengthOptions {
     throw new Error("ルール・席・比較方式が不正です");
   const formal = values.get("formal") === "true";
   const strategy = values.get("search-strategy");
-  if (strategy !== undefined && !["legacy", "adaptive"].includes(strategy))
-    throw new Error("search-strategy must be legacy or adaptive");
-  if (formal && strategy !== undefined)
+  if (strategy !== undefined && !["legacy", "adaptive", "dual"].includes(strategy))
+    throw new Error("search-strategy must be legacy, adaptive or dual");
+  const compareStrategies = values.get("compare-strategies")?.split(",");
+  if (
+    compareStrategies &&
+    (strategy !== undefined ||
+      compareStrategies.length !== 2 ||
+      new Set(compareStrategies).size !== 2 ||
+      compareStrategies.some((entry) => !["legacy", "adaptive", "dual"].includes(entry)))
+  )
+    throw new Error("compare-strategiesには異なる2方式を指定してください");
+  if (formal && (strategy !== undefined || compareStrategies !== undefined))
     throw new Error("正式条件への探索方式の追加は別の測定計画にしてください");
+  if ((strategy === "dual" || compareStrategies) && values.has("work"))
+    throw new Error("二段階探索の対局比較は実時間予算で指定してください");
+  if (
+    compareStrategies &&
+    (profiles.length !== 1 || values.has("positions") || values.get("samples-only") === "true")
+  )
+    throw new Error("方式比較は単一profileの対局で行ってください");
   const options: StrengthOptions = {
     budget: values.has("work")
       ? { work: integer("work", 8192, 1, 100000000) }
@@ -1219,7 +1261,8 @@ export function argumentsFor(args: string[]): StrengthOptions {
     positionsFile: values.get("positions"),
     samplesOnly: values.get("samples-only") === "true",
     formal,
-    ...(strategy ? { searchStrategy: strategy as "legacy" | "adaptive" } : {}),
+    ...(strategy ? { searchStrategy: strategy as StudySearchStrategy } : {}),
+    ...(compareStrategies ? { compareStrategies: compareStrategies as StudySearchStrategy[] } : {}),
     resume: values.get("resume") === "true",
   };
   if (formal) validateFormalStrengthOptions(options);

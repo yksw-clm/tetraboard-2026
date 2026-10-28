@@ -212,6 +212,7 @@ export class LocalStudyApplication implements StudyApplication {
         recommendedAction: candidates[0]?.action ?? null,
         analysisRecommendedAction: candidates[0]?.action ?? null,
         evaluation: record.evaluation,
+        coverage: record.coverage,
         saved: {
           savedAt: record.savedAt,
           searchVersion: record.searchVersion,
@@ -493,7 +494,8 @@ export class LocalStudyApplication implements StudyApplication {
     const record: StudyRecordedAnalysis = {
       stateHash: view.stateHash,
       savedAt: new Date().toISOString(),
-      searchVersion: studySearchVersion,
+      searchVersion: view.searchVersion ?? studySearchVersion,
+      ...(view.coverage ? { coverage: view.coverage } : {}),
       evaluationVersion: studyEvaluationVersion,
       engineVersion: aiVersions.engineVersion,
       ...active.conditions,
@@ -593,6 +595,7 @@ export class LocalStudyApplication implements StudyApplication {
     await runtime.start(
       studyPositionInput(study),
       {
+        strategy: study.settings.searchStrategy ?? "adaptive",
         focusSide: active.focusSide,
         timeBudgetMs: auto
           ? study.settings.seats[position.state.turn].thinkTimeMs
@@ -601,6 +604,9 @@ export class LocalStudyApplication implements StudyApplication {
       (progress) => {
         if (this.active !== active || progress.stateHash !== active.stateHash) return;
         const view: StudyAnalysisView = {
+          coverage: progress.coverage,
+          broadCandidates: progress.broadCandidates,
+          searchVersion: progress.diagnostics.searchVersion,
           id: progress.id,
           nodeId: active.nodeId,
           stateHash: active.stateHash,

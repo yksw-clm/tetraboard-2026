@@ -7,6 +7,7 @@ import type {
 } from "@tetraboard/four-shogi/analysis";
 
 export type StudySettings = Readonly<{
+  searchStrategy?: "adaptive" | "dual";
   mode: "auto" | "analysis";
   thinkTimeMs: number;
   threads: number;
@@ -15,8 +16,18 @@ export type StudySettings = Readonly<{
   focusSide: Side | null;
   seats: Readonly<Record<Side, StudySeat>>;
 }>;
+export type StudySearchCoverage = Readonly<{
+  phase: "broad" | "deep";
+  broadDepth: number;
+  broadRoots: number;
+  deepRoots: number;
+  pass: number;
+  opponentWidth: number;
+  ownWidth: number;
+}>;
 export type StudySeat = Readonly<{ controller: "human" | "cpu"; thinkTimeMs: number }>;
 export type StudyRecordedAnalysis = Readonly<{
+  coverage?: StudySearchCoverage;
   stateHash: string;
   savedAt: string;
   searchVersion: string;
@@ -67,6 +78,7 @@ export type StudyDocument = Readonly<{
 }>;
 
 export const defaultStudySettings: StudySettings = {
+  searchStrategy: "adaptive",
   mode: "auto",
   thinkTimeMs: 5000,
   threads: 4,

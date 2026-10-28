@@ -2,11 +2,14 @@ import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
 import type { AnalysisPosition, FourShogiReplayEvent } from "@tetraboard/four-shogi/analysis";
 import type { AiCandidate, AiEvaluation } from "@tetraboard/four-shogi/ai";
 import type { AnalysisSetupInput } from "@tetraboard/four-shogi/analysis";
-import type { StudyDocument, StudySettings } from "./shared/model";
+import type { StudyDocument, StudySettings, StudySearchCoverage } from "./shared/model";
 import type { StudyFocusMetadata, StudySearchSnapshot } from "./search/runtime";
 export type { StudyFocusMetadata } from "./search/runtime";
 
 export type StudyAnalysisView = {
+  coverage?: StudySearchCoverage;
+  broadCandidates?: readonly AiCandidate[];
+  searchVersion?: string;
   id: string;
   nodeId: string;
   stateHash: string;

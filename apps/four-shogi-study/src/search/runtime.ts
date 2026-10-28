@@ -6,17 +6,19 @@ import {
   selectStudyRootIndices,
   selectStudyIterationRoots,
   studySearchVersion,
+  adaptiveStudySearchVersion,
   legacyStudySearchVersion,
   type StudyCandidate,
   type StudyLaneSnapshot,
   type StudyProfile,
   type StudySearchPerformance,
+  type StudySearchStrategy,
 } from "@tetraboard/four-shogi/study-search";
 import type { AiCandidate, AiEvaluation, AiLineStep } from "@tetraboard/four-shogi/ai";
 import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
 import { getAnalysisLegalActions, type AnalysisPosition } from "@tetraboard/four-shogi/analysis";
 import { restoreStudyPosition } from "../domain/study";
-import type { StudyPositionInput } from "../shared/model";
+import type { StudyPositionInput, StudySearchCoverage } from "../shared/model";
 import type { SearchCommand, SearchMessage } from "./messages";
 import { projectFocusPosition, type FocusProjection } from "./focus";
 
@@ -34,6 +36,8 @@ export type StudyFocusMetadata = {
 };
 
 export type StudySearchSnapshot = {
+  coverage?: StudySearchCoverage;
+  broadCandidates?: readonly AiCandidate[];
   id: string;
   stateHash: string;
   analysisStateHash: string | null;
@@ -72,7 +76,8 @@ export type StudySearchSnapshot = {
   };
 };
 export type StudySearchOptions = {
-  strategy?: "legacy" | "adaptive";
+  strategy?: StudySearchStrategy;
+  broadDepth?: number;
   timeBudgetMs: number | null;
   focusSide?: Side | null;
   maxDepth?: number;
@@ -95,6 +100,15 @@ export type StudySearchRuntimeConfig = {
 type Lane = { snapshot: StudyLaneSnapshot; memoryBytes: number; barrier: boolean };
 type Job = {
   dynamic: {
+    dual?: {
+      phase: "broad" | "deep";
+      broadDepth: number;
+      pool: StudyCandidate[];
+      roots: number[];
+      pass: number;
+      cursor: number;
+      challenged: Set<number>;
+    };
     depth: number;
     nextTaskId: number;
     queue: number[];
@@ -369,7 +383,12 @@ export function createStudySearchRuntime(
   }
   function startChildren(value: Job, input: StudyPositionInput) {
     if (job !== value || value.snapshot.status !== "running") return;
-    const { timeBudgetMs: _time, focusSide: _focus, ...rootOptions } = value.options;
+    const {
+      timeBudgetMs: _time,
+      focusSide: _focus,
+      broadDepth: _broad,
+      ...rootOptions
+    } = value.options;
     value.prepared = true;
     children.forEach((child, lane) =>
       child.send(
@@ -379,7 +398,7 @@ export function createStudySearchRuntime(
           input,
           options: {
             ...rootOptions,
-            strategy: value.dynamic ? "adaptive" : "legacy",
+            strategy: value.dynamic ? (value.options.strategy ?? "adaptive") : "legacy",
             cacheSize:
               rootOptions.cacheSize ??
               (value.dynamic
@@ -414,6 +433,18 @@ export function createStudySearchRuntime(
           index,
           depth: dynamic.depth,
           material: dynamic.depth === 2 && dynamic.material.has(index),
+          ...(dynamic.dual
+            ? {
+                policy: {
+                  phase: dynamic.dual.phase,
+                  width:
+                    dynamic.dual.phase === "deep"
+                      ? Math.min(8, 2 + dynamic.dual.pass)
+                      : (value.options.width ?? 6),
+                  ownWidth: Math.min(10, 3 + dynamic.dual.pass),
+                },
+              }
+            : {}),
         } satisfies SearchCommand,
         (error) => {
           if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
@@ -423,12 +454,22 @@ export function createStudySearchRuntime(
   }
   function beginIteration(value: Job) {
     const dynamic = value.dynamic!;
-    dynamic.queue = selectStudyIterationRoots(
-      [...dynamic.all.values()],
-      value.snapshot.rootSide!,
-      dynamic.depth,
-      value.options.rootWidth ?? 24,
-    );
+    const dual = dynamic.dual;
+    dynamic.queue =
+      dual?.phase === "deep"
+        ? [...dual.roots]
+        : dual
+          ? selectStudyRootIndices(
+              [...dynamic.all.values()],
+              value.snapshot.rootSide!,
+              value.options.rootWidth ?? 24,
+            )
+          : selectStudyIterationRoots(
+              [...dynamic.all.values()],
+              value.snapshot.rootSide!,
+              dynamic.depth,
+              value.options.rootWidth ?? 24,
+            );
     dynamic.total = dynamic.queue.length;
     dynamic.results.clear();
     value.snapshot.diagnostics.selectedRoots = dynamic.total;
@@ -439,6 +480,19 @@ export function createStudySearchRuntime(
     }
     dispatchTasks(value);
   }
+  function rotateDeep(value: Job) {
+    const dynamic = value.dynamic!;
+    const dual = dynamic.dual!;
+    const best = [...value.published].sort((a, b) =>
+      compareStudyCandidates(a, b, value.snapshot.rootSide!),
+    )[0];
+    const reserve = dual.pool.filter((entry) => entry.rootIndex !== best?.rootIndex);
+    dual.roots = best ? [best.rootIndex] : [];
+    for (let offset = 0; offset < Math.min(2, reserve.length); offset++)
+      dual.roots.push(reserve[(dual.cursor + offset) % reserve.length].rootIndex);
+    dual.cursor += 2;
+    if (!dual.roots.length) dual.roots = dual.pool.slice(0, 3).map((entry) => entry.rootIndex);
+  }
   function finishIteration(value: Job) {
     const dynamic = value.dynamic!;
     if (
@@ -448,8 +502,39 @@ export function createStudySearchRuntime(
       dynamic.results.size !== dynamic.total
     )
       return;
-    value.published = [...dynamic.results.values()];
-    value.snapshot.completedDepth = dynamic.depth;
+    const dual = dynamic.dual;
+    const completed = [...dynamic.results.values()];
+    const publish = !dual || dynamic.depth >= value.snapshot.completedDepth;
+    if (publish) {
+      value.published = completed;
+      value.snapshot.completedDepth = dynamic.depth;
+    }
+    if (dual?.phase === "broad") {
+      value.snapshot.broadCandidates = [...completed]
+        .sort((a, b) => compareStudyCandidates(a, b, value.snapshot.rootSide!))
+        .slice(0, 5);
+      dual.pool = [...completed].sort((a, b) =>
+        compareStudyCandidates(a, b, value.snapshot.rootSide!),
+      );
+      value.snapshot.coverage = {
+        phase: "broad",
+        broadDepth: dynamic.depth,
+        broadRoots: completed.length,
+        deepRoots: 0,
+        pass: 0,
+        opponentWidth: value.options.width ?? 6,
+        ownWidth: value.options.width ?? 6,
+      };
+    } else if (dual && publish) {
+      value.snapshot.coverage = {
+        ...value.snapshot.coverage!,
+        phase: "deep",
+        deepRoots: completed.length,
+        pass: dual.pass,
+        opponentWidth: Math.min(8, 2 + dual.pass),
+        ownWidth: Math.min(10, 3 + dual.pass),
+      };
+    }
     dynamic.depths.push({ depth: dynamic.depth, elapsedMs: elapsed(value), roots: dynamic.total });
     merge(value);
     const best = value.snapshot.candidates[0];
@@ -464,6 +549,39 @@ export function createStudySearchRuntime(
         true,
       );
       return;
+    }
+    if (dual) {
+      if (dual.phase === "broad" && dynamic.depth >= dual.broadDepth) {
+        dual.phase = "deep";
+        dual.roots = dual.pool.slice(0, 3).map((entry) => entry.rootIndex);
+      } else if (
+        dual.phase === "deep" &&
+        dynamic.depth >= Math.min(value.options.maxDepth ?? 256, 9 + Math.floor(dual.pass / 3))
+      ) {
+        dual.pass++;
+        rotateDeep(value);
+        dynamic.depth = dual.broadDepth;
+      } else if (
+        dual.phase === "deep" &&
+        !dual.challenged.has(dynamic.depth) &&
+        dual.pool.length > 3
+      ) {
+        const winner = [...completed].sort((a, b) =>
+          compareStudyCandidates(a, b, value.snapshot.rootSide!),
+        )[0];
+        const original = dual.pool.find((entry) => entry.rootIndex === winner?.rootIndex);
+        if (
+          winner?.evaluation &&
+          original?.evaluation &&
+          (winner.evaluation.values[value.snapshot.rootSide!].heuristicScore ?? 0) <
+            (original.evaluation.values[value.snapshot.rootSide!].heuristicScore ?? 0) - 200
+        ) {
+          dual.challenged.add(dynamic.depth);
+          rotateDeep(value);
+          beginIteration(value);
+          return;
+        }
+      }
     }
     dynamic.depth++;
     beginIteration(value);
@@ -586,6 +704,18 @@ export function createStudySearchRuntime(
         value.snapshot.diagnostics.selectedRoots = value.selected.length;
       }
       merge(value);
+      if (value.dynamic?.dual && depth === 1) {
+        value.snapshot.coverage = {
+          phase: "broad",
+          broadDepth: 1,
+          broadRoots: value.published.length,
+          deepRoots: 0,
+          pass: 0,
+          opponentWidth: value.options.width ?? 6,
+          ownWidth: value.options.width ?? 6,
+        };
+        value.snapshot.broadCandidates = value.snapshot.candidates;
+      }
     }
     const soleWin =
       value.snapshot.candidates[0]?.evaluation?.evaluationKind === "terminal" &&
@@ -782,6 +912,13 @@ export function createStudySearchRuntime(
       const fallback = getAnalysisLegalActions(position)[0] ?? null;
       const focusSide = options.focusSide ?? null;
       const id = crypto.randomUUID();
+      if (
+        options.broadDepth !== undefined &&
+        (!Number.isSafeInteger(options.broadDepth) ||
+          options.broadDepth < 2 ||
+          options.broadDepth > 4)
+      )
+        throw new TypeError("広い比較の深さは2〜4です");
       job = {
         dynamic:
           options.strategy === "legacy" ||
@@ -801,6 +938,21 @@ export function createStudySearchRuntime(
                 waitMs: Array(threads).fill(0),
                 depths: [],
                 total: 0,
+                ...(options.strategy === "dual"
+                  ? {
+                      dual: {
+                        phase: "broad" as const,
+                        broadDepth:
+                          options.broadDepth ??
+                          (options.timeBudgetMs !== null && options.timeBudgetMs < 2000 ? 2 : 3),
+                        pool: [],
+                        roots: [],
+                        pass: 0,
+                        cursor: 0,
+                        challenged: new Set<number>(),
+                      },
+                    }
+                  : {}),
               },
         snapshot: {
           id,
@@ -840,7 +992,9 @@ export function createStudySearchRuntime(
               config.scheduling === "fixed" ||
               (config.workerScript && config.scheduling !== "dynamic")
                 ? legacyStudySearchVersion
-                : studySearchVersion,
+                : options.strategy === "dual"
+                  ? studySearchVersion
+                  : adaptiveStudySearchVersion,
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,

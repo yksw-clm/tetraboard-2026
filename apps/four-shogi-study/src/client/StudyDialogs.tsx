@@ -188,6 +188,7 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
   const [title, setTitle] = useState(study.title);
   const [seconds, setSeconds] = useState((study.settings.analysisTimeMs ?? 5000) / 1000);
   const [continuous, setContinuous] = useState(study.settings.analysisTimeMs === null);
+  const [searchStrategy, setSearchStrategy] = useState(study.settings.searchStrategy ?? "adaptive");
   const [threads, setThreads] = useState(study.settings.threads);
   const [memoryMb, setMemoryMb] = useState(study.settings.memoryMb);
   const [seats, setSeats] = useState(study.settings.seats);
@@ -200,6 +201,7 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
     setTitle(study.title);
     setSeconds((study.settings.analysisTimeMs ?? 5000) / 1000);
     setContinuous(study.settings.analysisTimeMs === null);
+    setSearchStrategy(study.settings.searchStrategy ?? "adaptive");
     setThreads(study.settings.threads);
     setMemoryMb(study.settings.memoryMb);
     setSeats(study.settings.seats);
@@ -217,6 +219,7 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
               type: "settings",
               title: title.trim(),
               settings: {
+                searchStrategy,
                 analysisTimeMs: continuous ? null : Math.round(seconds * 1000),
                 seats,
                 threads,
@@ -250,6 +253,16 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
           />
           停止するまで検討する
         </label>
+        <Field label="探索方式" help="主要候補の深掘りは、広く比較した深さと分けて表示します。">
+          <select
+            className={fieldClass}
+            value={searchStrategy}
+            onChange={(event) => setSearchStrategy(event.target.value as "adaptive" | "dual")}
+          >
+            <option value="adaptive">幅広く検討する（v5）</option>
+            <option value="dual">主要候補を深掘りする（v6）</option>
+          </select>
+        </Field>
         <Field label="1回の検討時間（秒）" help="再解析は新しい時間予算で開始します。">
           <input
             className={fieldClass}

@@ -136,6 +136,8 @@ process.on("message", (raw: unknown) => {
     job.seed >= options.seed + options.seeds ||
     !options.seats.includes(job.seat) ||
     !options.profiles.includes(job.profile) ||
+    (job.searchStrategy !== undefined &&
+      !(options.compareStrategies ?? [options.searchStrategy]).includes(job.searchStrategy)) ||
     !options.restrictions.includes(job.restricted)
   ) {
     error("対局jobの開始条件が一致しません", job.id);

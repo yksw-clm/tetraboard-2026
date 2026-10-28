@@ -340,6 +340,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 通常checkに含む `strengthProcessPool.test.ts` の小さい実プロセス試験は、`packages/four-shogi/bench/lv2Baseline.json` が指定する固定Lv2のコミットを `git archive` で一時展開します。Gitとtar、およびそのコミットを含む履歴が必要です。CIのchecksジョブは `actions/checkout` の `fetch-depth: 0` で履歴を取得します。ローカルのshallow cloneでは、検証前に `git fetch --unshallow origin` で履歴を取得してください。テスト自体は履歴をfetchせず、固定コミットとソースハッシュの照合を維持します。この小さい試験は対局親の動作確認であり、保留中の正式棋力測定は実行しません。
 
+`dualSearch.test.ts` はv6の広い比較を保持した深掘り、同深さの主要組の公開、保存した選別範囲の復元と偽装拒否を確認します。DOMは探索方式の設定送信と、広い比較深さ/主要候補深さの区別を確認します。対局CLIの `--compare-strategies adaptive,dual --profiles study` は方式をjob IDと結果・再開/IPC照合へ含め、同じ開始条件をペアにし、方式別に集計します。正式256局の契約へこの追加条件を混ぜません。
+
 探索v5では `studyEfficiency.test.ts` で満杯後のキャッシュ入替、完全状態/深さ/延長を区別するキー、完成枝の再利用と合法PV、下位の静かな根の巡回を確認します。実プロセスのruntime試験は、重い根を担当する子を待つ間に空いた子が複数根を引き受け、タスク結果の重複を無視し、途中の異なる深さを完成比較へ混ぜないことを確認します。DOM試験では比較深さと進行中の深さ、選択探索、並列時間の意味を区別します。
 
 旧新探索は `bench/search.ts --strategies=legacy,adaptive` で同一入力へ適用します。`--kind=efficiency --inputs=/private/tmp/inputs.json` は `{id,input:StudyPositionInput}` の固定配列を読み、完全状態hash・入力ファイルSHA-256・ソース識別・深さ別時刻・処理内訳を記録します。`--cpu-profile-dir=/private/tmp/study-profiles` は探索子のBun CPU profileを終了時に保存します。速度計測中は別の対局/重い検証を併走させません。`strength.ts --search-strategy legacy|adaptive` は非正式の短い席交代対局用で、正式条件へこの追加引数を混ぜません。未終局は勝利や引分へ変換しません。

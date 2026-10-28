@@ -1,9 +1,21 @@
 import type { StudyPositionInput } from "../shared/model";
-import type { StudyLaneSnapshot, StudyRootOptions } from "@tetraboard/four-shogi/study-search";
+import type {
+  StudyLaneSnapshot,
+  StudyRootOptions,
+  StudyTaskPolicy,
+} from "@tetraboard/four-shogi/study-search";
 export type SearchCommand =
   | { type: "start"; id: string; input: StudyPositionInput; options: StudyRootOptions }
   | { type: "continue"; id: string; depth: number; indices?: number[] }
-  | { type: "task"; id: string; taskId: number; index: number; depth: number; material: boolean }
+  | {
+      type: "task";
+      id: string;
+      taskId: number;
+      index: number;
+      depth: number;
+      material: boolean;
+      policy?: StudyTaskPolicy;
+    }
   | { type: "pause" | "resume" | "cancel"; id: string }
   | { type: "close" };
 export type SearchMessage =

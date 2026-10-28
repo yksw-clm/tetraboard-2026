@@ -97,7 +97,7 @@ process.on("message", async (raw: unknown) => {
   if (message.type === "task") {
     try {
       if (!current.barrier) throw new Error("実行中の探索へタスクを重ねられません");
-      current.search.startTask(message.index, message.depth, message.material);
+      current.search.startTask(message.index, message.depth, message.material, message.policy);
       current.taskId = message.taskId;
       current.depth = current.search.depth;
       current.barrier = false;

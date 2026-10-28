@@ -7,6 +7,7 @@ import {
   type AiBranch,
   type AiContext,
   type AiContextMetrics,
+  type AiAdvance,
 } from "./aiSearchContext";
 import { getCheckState, pieces, attacksSquare } from "./board";
 import { pieceValue } from "./cpuEvaluation";
@@ -20,8 +21,11 @@ import type {
   AiSearchStats,
 } from "./aiTypes";
 
-export const studySearchVersion = "local-root-maxn-v5";
+export const studySearchVersion = "local-root-maxn-v6";
+export const adaptiveStudySearchVersion = "local-root-maxn-v5";
 export const legacyStudySearchVersion = "local-root-maxn-v4";
+export type StudySearchStrategy = "legacy" | "adaptive" | "dual";
+export type StudyTaskPolicy = { phase: "broad" | "deep"; width: number; ownWidth: number };
 export const studyEvaluationVersion = "local-sole-first-pressure-v1";
 export type StudyProfile = "study" | "baseline";
 export type StudyEngagement = { attacker: Side; target: Side; pressure: number };
@@ -70,7 +74,7 @@ export type StudySearchPerformance = AiContextMetrics & {
   researches: number;
 };
 export type StudyRootOptions = {
-  strategy?: "legacy" | "adaptive";
+  strategy?: StudySearchStrategy;
   lane?: number;
   lanes?: number;
   maxDepth?: number;
@@ -408,6 +412,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           preservePromotions: optimized,
           measure: true,
           cacheLeafEvaluations: !optimized,
+          allMoves: options.strategy === "dual",
         }
       : optimized
         ? {
@@ -416,6 +421,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
             preservePromotions: true,
             measure: true,
             cacheLeafEvaluations: false,
+            allMoves: options.strategy === "dual",
           }
         : undefined,
   );
@@ -440,6 +446,8 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
   let materialWork = 0;
   let reducedNodes = 0;
   let researches = 0;
+  let taskPolicy: StudyTaskPolicy | null = null;
+  let taskPolicyKey = "";
   const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
   const materialProofs = new Map<
     number,
@@ -554,7 +562,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     // 完全状態を使います。攻撃/反復履歴やlastMoveを省略した同一視は行いません。
     const key =
       optimized && remaining > 1 && settings.cacheSize > 0
-        ? studyBranchKey(state, remaining, extra)
+        ? taskPolicyKey + studyBranchKey(state, remaining, extra)
         : null;
     keyMs += performance.now() - started;
     const cached = key === null ? undefined : branchCache.get(key);
@@ -567,6 +575,16 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     }
     const legal = yield* ctx.moves(state);
     let moves = yield* ctx.ordered(state, legal);
+    if (options.strategy === "dual" && taskPolicy?.phase !== "deep") {
+      moves = moves.filter(
+        (entry, order) =>
+          order < settings.width ||
+          checked ||
+          entry.score >= 10000 ||
+          entry.move.captured ||
+          (entry.move.action.type === "movePiece" && entry.move.action.promote),
+      );
+    }
     if (tacticalOnly) {
       // 仮のパスは作らず、実際の静かな合法手も最低一つ残します。
       let quiet = false;
@@ -586,41 +604,80 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     let bestIndex = Infinity;
     let bestMove: OrdinaryMove | null = null;
     let selective = moves.length < legal.length;
-    for (const [order, { move, index, score }] of moves.entries()) {
-      const next = yield* ctx.advance(state, move, ply);
-      const reduce =
-        optimized &&
-        remaining >= 3 &&
-        order >= 2 &&
-        !checked &&
-        score < 10000 &&
-        !move.captured &&
-        !(move.action.type === "movePiece" && move.action.promote);
-      let child = yield* explore(next.state, remaining - 1 - Number(reduce), extra, ply + 1);
-      if (reduce) {
-        reducedNodes++;
-        selective = true;
-        if (
-          !best ||
-          compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn]) >=
-            0
-        ) {
-          researches++;
-          child = yield* explore(next.state, remaining - 1, extra, ply + 1);
+    if (taskPolicy?.phase === "deep") {
+      const ranked: {
+        move: OrdinaryMove;
+        index: number;
+        next: AiAdvance;
+        evaluation: AiEvaluation;
+      }[] = [];
+      // 全合法応手を一手は確定して評価し、仮のパスや未確定盤面の値を使いません。
+      for (const { move, index } of moves) {
+        const next = yield* ctx.advance(state, move, ply);
+        ranked.push({ move, index, next, evaluation: yield* ctx.evaluate(next.state) });
+      }
+      ranked.sort(
+        (a, b) =>
+          compareAiValue(b.evaluation.values[state.turn], a.evaluation.values[state.turn]) ||
+          a.index - b.index,
+      );
+      const width = state.turn === root ? taskPolicy.ownWidth : taskPolicy.width;
+      const selected = remaining === 1 ? ranked : ranked.slice(0, Math.max(checked ? 4 : 1, width));
+      selective ||= selected.length < ranked.length;
+      for (const entry of selected) {
+        const child =
+          remaining === 1 || entry.next.state.status === "finished"
+            ? { evaluation: entry.evaluation, line: [], selective: false }
+            : yield* explore(entry.next.state, remaining - 1, extra, ply + 1);
+        selective ||= child.selective;
+        const comparison = best
+          ? compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn])
+          : 1;
+        if (comparison > 0 || (comparison === 0 && entry.index < bestIndex)) {
+          best = { ...child, line: [entry.next.step, ...child.line] };
+          bestIndex = entry.index;
+          bestMove = entry.move;
         }
       }
-      selective ||= child.selective;
-      const comparison = best
-        ? compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn])
-        : 1;
-      if (comparison > 0 || (comparison === 0 && index < bestIndex)) {
-        best = {
-          ...child,
-          line: [next.step, ...child.line],
-          selective: moves.length < legal.length || child.selective,
-        };
-        bestIndex = index;
-        bestMove = move;
+    } else {
+      for (const [order, { move, index, score }] of moves.entries()) {
+        const next = yield* ctx.advance(state, move, ply);
+        const reduce =
+          optimized &&
+          remaining >= 3 &&
+          order >= 2 &&
+          !checked &&
+          score < 10000 &&
+          !move.captured &&
+          !(move.action.type === "movePiece" && move.action.promote);
+        let child = yield* explore(next.state, remaining - 1 - Number(reduce), extra, ply + 1);
+        if (reduce) {
+          reducedNodes++;
+          selective = true;
+          if (
+            !best ||
+            compareAiValue(
+              child.evaluation.values[state.turn],
+              best.evaluation.values[state.turn],
+            ) >= 0
+          ) {
+            researches++;
+            child = yield* explore(next.state, remaining - 1, extra, ply + 1);
+          }
+        }
+        selective ||= child.selective;
+        const comparison = best
+          ? compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn])
+          : 1;
+        if (comparison > 0 || (comparison === 0 && index < bestIndex)) {
+          best = {
+            ...child,
+            line: [next.step, ...child.line],
+            selective: moves.length < legal.length || child.selective,
+          };
+          bestIndex = index;
+          bestMove = move;
+        }
       }
     }
     if (optimized && bestMove) ctx.remember(state, bestMove.action);
@@ -752,7 +809,12 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       materialRootIndices = new Set(indices.slice(0, 5));
     },
     /** 根一手を任意のプロセスで調べ、共通深さの公開は親に委ねます。 */
-    startTask(index: number, targetDepth: number, inspectMaterialProof = false) {
+    startTask(
+      index: number,
+      targetDepth: number,
+      inspectMaterialProof = false,
+      policy?: StudyTaskPolicy,
+    ) {
       if (
         !Number.isInteger(index) ||
         index < 0 ||
@@ -763,6 +825,18 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       )
         throw new TypeError("探索タスクの根または深さが不正です");
       steps.return();
+      if (
+        policy &&
+        (!Number.isSafeInteger(policy.width) ||
+          policy.width < 1 ||
+          policy.width > 32 ||
+          !Number.isSafeInteger(policy.ownWidth) ||
+          policy.ownWidth < 1 ||
+          policy.ownWidth > 32)
+      )
+        throw new TypeError("段階拡張の幅が不正です");
+      taskPolicy = policy ?? null;
+      taskPolicyKey = policy ? JSON.stringify(policy) : "";
       done = false;
       published = [];
       depth = targetDepth - 1;

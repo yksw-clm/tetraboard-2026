@@ -41,8 +41,11 @@ const threads = (args.get("threads") ?? (kind === "performance" ? "1,2,4,8" : "4
 const productionDir = args.get("production-dir");
 const profiles = (args.get("profiles") ?? "study").split(",");
 const strategies = (args.get("strategies") ?? "adaptive").split(",");
-if (!strategies.length || strategies.some((entry) => !["legacy", "adaptive"].includes(entry)))
-  throw new Error("strategies must be legacy and/or adaptive");
+if (
+  !strategies.length ||
+  strategies.some((entry) => !["legacy", "adaptive", "dual"].includes(entry))
+)
+  throw new Error("strategies must be legacy, adaptive and/or dual");
 if (!profiles.length || profiles.some((profile) => !["study", "baseline"].includes(profile)))
   throw new Error("profiles must be study and/or baseline");
 const criticalOnly = args.get("critical-only") === "true";
@@ -181,7 +184,7 @@ for (const count of threads)
           {
             timeBudgetMs,
             profile: profile as StudyProfile,
-            strategy: strategy as "legacy" | "adaptive",
+            strategy: strategy as "legacy" | "adaptive" | "dual",
           },
           (value) => {
             if (value.status === "completed" || value.status === "error") finish(value);
@@ -236,6 +239,8 @@ for (const count of threads)
                 reason: analysis.reason,
                 diagnostics: analysis.diagnostics,
                 performance: analysis.performance,
+                coverage: analysis.coverage,
+                broadCandidates: analysis.broadCandidates,
                 evaluation: analysis.evaluation,
                 principalVariation: analysis.candidates[0]?.line ?? [],
                 material: candidate?.study?.material ?? null,

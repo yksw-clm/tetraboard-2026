@@ -25,6 +25,7 @@ export type AiContextProfile = {
   preservePromotions?: boolean;
   measure?: boolean;
   cacheLeafEvaluations?: boolean;
+  allMoves?: boolean;
 };
 export type AiContextMetrics = {
   legalMs: number;
@@ -336,6 +337,7 @@ export function createAiContext(
       } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
       selected = selected.filter(
         (entry, index) =>
+          profile?.allMoves ||
           index < settings.width ||
           checked ||
           entry.score >= 10000 ||

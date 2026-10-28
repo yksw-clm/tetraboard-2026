@@ -31,6 +31,40 @@ import {
 
 const directories: string[] = [];
 
+test("方式比較は同じ開始条件をペアにし、v5とv6を各32局へ割り当てる", () => {
+  const options = argumentsFor([
+    "--compare-strategies",
+    "adaptive,dual",
+    "--profiles",
+    "study",
+    "--seed",
+    "9680000",
+    "--seeds",
+    "4",
+    "--time-ms",
+    "500",
+    "--concurrency",
+    "2",
+    "--max-plies",
+    "1024",
+  ]);
+  const jobs = createStrengthJobs(options);
+  expect(jobs).toHaveLength(64);
+  expect(new Set(jobs.map((job) => job.id)).size).toBe(64);
+  for (let index = 0; index < jobs.length; index += 2) {
+    expect(jobs[index].seed).toBe(jobs[index + 1].seed);
+    expect(jobs[index].seat).toBe(jobs[index + 1].seat);
+    expect(jobs[index].restricted).toBe(jobs[index + 1].restricted);
+    expect(new Set([jobs[index].searchStrategy, jobs[index + 1].searchStrategy])).toEqual(
+      new Set(["adaptive", "dual"]),
+    );
+  }
+  expect(jobs.filter((job) => job.searchStrategy === "dual")).toHaveLength(32);
+  expect(() =>
+    argumentsFor(["--compare-strategies", "adaptive,dual", "--profiles", "study", "--work", "10"]),
+  ).toThrow("実時間");
+});
+
 test("旧新探索の短期比較は方式をjob識別へ含め、正式条件へ混ぜない", () => {
   const legacy = argumentsFor(["--search-strategy", "legacy"]);
   const adaptive = argumentsFor(["--search-strategy", "adaptive"]);

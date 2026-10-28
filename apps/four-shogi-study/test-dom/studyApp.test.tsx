@@ -242,6 +242,11 @@ test("検討時間をプリセットと無制限に変更し、探索の停止/�
   press(view, "設定");
   await flush();
   press(document.body, "15秒");
+  const strategy = field("探索方式") as HTMLSelectElement;
+  act(() => {
+    strategy.value = "dual";
+    strategy.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   expect((field("1回の検討時間（秒）") as HTMLInputElement).value).toBe("15");
   const continuous = [
     ...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
@@ -257,7 +262,7 @@ test("検討時間をプリセットと無制限に変更し、探索の停止/�
   expect(body(settings)).toMatchObject({
     type: "settings",
     expectedRevision: 0,
-    settings: { analysisTimeMs: null },
+    settings: { analysisTimeMs: null, searchStrategy: "dual" },
   });
   current = await snapshot(
     updateStudySettings(current.study, body(settings).settings as Partial<StudySettings>),

@@ -176,10 +176,42 @@ export function EvaluationPanel({
         }
       >
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Metric label="比較深さ" value={String(analysis?.completedDepth ?? 0)} />
+          <Metric
+            label={analysis?.coverage?.phase === "deep" ? "主要候補の深さ" : "比較深さ"}
+            value={String(analysis?.completedDepth ?? 0)}
+          />
           <Metric label="探索局面" value={(analysis?.nodes ?? 0).toLocaleString("ja-JP")} />
           <Metric label="経過" value={`${((analysis?.elapsedMs ?? 0) / 1000).toFixed(1)}秒`} />
         </div>
+        {analysis?.coverage ? (
+          <div className="mt-3 text-[11px] leading-relaxed text-[#607252]">
+            <p>
+              広い比較：深さ{analysis.coverage.broadDepth}・{analysis.coverage.broadRoots}候補
+            </p>
+            {analysis.coverage.phase === "deep" ? (
+              <p>
+                主要{analysis.coverage.deepRoots}候補を深掘り · 相手の深掘り幅
+                {analysis.coverage.opponentWidth} · 段階{analysis.coverage.pass + 1}
+              </p>
+            ) : (
+              <p>広い比較が完成した後、主要候補を深掘りします。</p>
+            )}
+            <p>深い検討も相手の応手を選んだ予想です。</p>
+            {analysis.broadCandidates?.length ? (
+              <details className="mt-2">
+                <summary className="cursor-pointer">浅い比較の候補（参考）</summary>
+                <ol className="list-inside list-decimal">
+                  {analysis.broadCandidates.map((candidate, index) => (
+                    <li key={index}>
+                      {candidate.line[0] ? lineLabel(candidate.line[0]) : "候補"} · 深さ
+                      {candidate.completedDepth}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
         {analysis?.performance ? (
           <div className="mt-3 text-[10px] leading-relaxed text-[#758469]">
             <p>
@@ -211,8 +243,8 @@ export function EvaluationPanel({
                 {analysis.performance.researches.toLocaleString()}回
               </p>
               <ol className="list-inside list-decimal">
-                {analysis.performance.depths.map((entry) => (
-                  <li key={entry.depth}>
+                {analysis.performance.depths.map((entry, index) => (
+                  <li key={`${entry.depth}-${index}`}>
                     深さ{entry.depth} · {(entry.elapsedMs / 1000).toFixed(2)}秒 · {entry.roots}候補
                   </li>
                 ))}

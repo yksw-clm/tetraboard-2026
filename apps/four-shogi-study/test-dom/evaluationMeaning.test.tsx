@@ -65,6 +65,26 @@ function panel(current: StudySnapshot) {
   );
 }
 
+test("広い比較と主要候補の深さを分けて表示する", async () => {
+  const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
+  const analysis = projection(current, current.staticEvaluation);
+  analysis.completedDepth = 9;
+  analysis.coverage = {
+    phase: "deep",
+    broadDepth: 3,
+    broadRoots: 24,
+    deepRoots: 3,
+    pass: 0,
+    opponentWidth: 2,
+    ownWidth: 3,
+  };
+  const view = panel({ ...current, analysis });
+  expect(view.textContent).toContain("主要候補の深さ");
+  expect(view.textContent).toContain("広い比較：深さ3・24候補");
+  expect(view.textContent).toContain("主要3候補を深掘り");
+  expect(view.textContent).not.toContain("全候補を深さ9");
+});
+
 test("完成比較と進行中の深さを分け、並列計測を経過時間と混同しない", async () => {
   const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
   const analysis = projection(current, current.staticEvaluation);
