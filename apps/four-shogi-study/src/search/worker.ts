@@ -7,6 +7,7 @@ let current: {
   paused: boolean;
   barrier: boolean;
   depth: number;
+  taskId?: number;
 } | null = null;
 let generation = 0;
 let requestedId: string | null = null;
@@ -23,6 +24,7 @@ function progress(barrier: boolean) {
     snapshot: current.search.snapshot(),
     memoryBytes: process.memoryUsage.rss(),
     barrier,
+    ...(current.taskId === undefined ? {} : { taskId: current.taskId }),
   });
 }
 function schedule() {
@@ -92,6 +94,19 @@ process.on("message", async (raw: unknown) => {
   if (message.type === "pause") requestedPaused = true;
   if (message.type === "resume") requestedPaused = false;
   if (!current || current.id !== message.id) return;
+  if (message.type === "task") {
+    try {
+      if (!current.barrier) throw new Error("実行中の探索へタスクを重ねられません");
+      current.search.startTask(message.index, message.depth, message.material);
+      current.taskId = message.taskId;
+      current.depth = current.search.depth;
+      current.barrier = false;
+      schedule();
+    } catch (error) {
+      send({ type: "error", id: message.id, error: String(error) });
+    }
+    return;
+  }
   if (message.type === "pause") {
     current.paused = true;
     progress(false);

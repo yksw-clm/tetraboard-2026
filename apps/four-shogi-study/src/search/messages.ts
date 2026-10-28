@@ -3,6 +3,7 @@ import type { StudyLaneSnapshot, StudyRootOptions } from "@tetraboard/four-shogi
 export type SearchCommand =
   | { type: "start"; id: string; input: StudyPositionInput; options: StudyRootOptions }
   | { type: "continue"; id: string; depth: number; indices?: number[] }
+  | { type: "task"; id: string; taskId: number; index: number; depth: number; material: boolean }
   | { type: "pause" | "resume" | "cancel"; id: string }
   | { type: "close" };
 export type SearchMessage =
@@ -13,5 +14,6 @@ export type SearchMessage =
       snapshot: StudyLaneSnapshot;
       memoryBytes: number;
       barrier: boolean;
+      taskId?: number;
     }
   | { type: "error"; id: string; error: string };

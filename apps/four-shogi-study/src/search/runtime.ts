@@ -4,10 +4,13 @@ import {
   compareStudyCandidates,
   evaluateStudyPosition,
   selectStudyRootIndices,
+  selectStudyIterationRoots,
   studySearchVersion,
+  legacyStudySearchVersion,
   type StudyCandidate,
   type StudyLaneSnapshot,
   type StudyProfile,
+  type StudySearchPerformance,
 } from "@tetraboard/four-shogi/study-search";
 import type { AiCandidate, AiEvaluation, AiLineStep } from "@tetraboard/four-shogi/ai";
 import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
@@ -49,6 +52,17 @@ export type StudySearchSnapshot = {
   evaluation: AiEvaluation | null;
   staticEvaluation: AiEvaluation;
   workers: number;
+  performance?: StudySearchPerformance & {
+    legalCacheHits: number;
+    transitionCacheHits: number;
+    evaluationCacheHits: number;
+    iterationDepth: number;
+    completedTasks: number;
+    totalTasks: number;
+    workerNodes: number[];
+    workerWaitMs: number[];
+    depths: { depth: number; elapsedMs: number; roots: number }[];
+  };
   diagnostics: {
     searchVersion: string;
     profile: StudyProfile;
@@ -58,6 +72,7 @@ export type StudySearchSnapshot = {
   };
 };
 export type StudySearchOptions = {
+  strategy?: "legacy" | "adaptive";
   timeBudgetMs: number | null;
   focusSide?: Side | null;
   maxDepth?: number;
@@ -66,16 +81,33 @@ export type StudySearchOptions = {
   rootWidth?: number;
   extensions?: number;
   dangerWork?: number;
+  cacheSize?: number;
 };
 export type StudySearchRuntimeConfig = {
+  scheduling?: "fixed" | "dynamic";
   threads?: number;
   memoryMb?: number;
   workerScript?: URL;
   startupTimeoutMs?: number;
   shutdownTimeoutMs?: number;
+  cpuProfileDirectory?: string;
 };
 type Lane = { snapshot: StudyLaneSnapshot; memoryBytes: number; barrier: boolean };
 type Job = {
+  dynamic: {
+    depth: number;
+    nextTaskId: number;
+    queue: number[];
+    inflight: Map<number, { index: number; taskId: number }>;
+    results: Map<number, StudyCandidate>;
+    all: Map<number, StudyCandidate>;
+    material: Set<number>;
+    owners: Map<number, number>;
+    waiting: number[];
+    waitMs: number[];
+    depths: { depth: number; elapsedMs: number; roots: number }[];
+    total: number;
+  } | null;
   snapshot: StudySearchSnapshot;
   lanes: (Lane | null)[];
   proofs: Map<number, Pick<StudyCandidate, "study" | "danger">>;
@@ -210,6 +242,46 @@ export function createStudySearchRuntime(
     value.snapshot.work = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.work, 0);
     value.snapshot.nodes = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.nodes, 0);
     value.snapshot.memoryBytes = lanes.reduce((sum, entry) => sum + entry.memoryBytes, 0);
+    if (lanes.some((entry) => entry.snapshot.performance)) {
+      const sum = (key: keyof StudySearchPerformance) =>
+        lanes.reduce((n, entry) => n + (entry.snapshot.performance?.[key] ?? 0), 0);
+      value.snapshot.performance = {
+        legalMs: sum("legalMs"),
+        transitionMs: sum("transitionMs"),
+        evaluationMs: sum("evaluationMs"),
+        orderingMs: sum("orderingMs"),
+        cacheEvictions: sum("cacheEvictions"),
+        branchCacheHits: sum("branchCacheHits"),
+        branchCacheEntries: sum("branchCacheEntries"),
+        keyMs: sum("keyMs"),
+        immediateWork: sum("immediateWork"),
+        materialWork: sum("materialWork"),
+        reducedNodes: sum("reducedNodes"),
+        researches: sum("researches"),
+        legalCacheHits: lanes.reduce((n, entry) => n + entry.snapshot.stats.legalCacheHits, 0),
+        transitionCacheHits: lanes.reduce(
+          (n, entry) => n + entry.snapshot.stats.transitionCacheHits,
+          0,
+        ),
+        evaluationCacheHits: lanes.reduce(
+          (n, entry) => n + entry.snapshot.stats.evaluationCacheHits,
+          0,
+        ),
+        iterationDepth: value.dynamic?.depth ?? value.snapshot.completedDepth + 1,
+        completedTasks: value.dynamic?.results.size ?? 0,
+        totalTasks: value.dynamic?.total ?? 0,
+        workerNodes: value.lanes.map((entry) => entry?.snapshot.stats.nodes ?? 0),
+        workerWaitMs:
+          value.dynamic?.waitMs.map(
+            (wait, worker) =>
+              wait +
+              (value.dynamic!.inflight.has(worker)
+                ? 0
+                : Math.max(0, elapsed(value) - value.dynamic!.waiting[worker])),
+          ) ?? [],
+        depths: value.dynamic?.depths ?? [],
+      };
+    }
     const root = value.snapshot.rootSide;
     if (root) {
       const merged = value.published
@@ -218,7 +290,28 @@ export function createStudySearchRuntime(
           return proof
             ? {
                 ...candidate,
-                study: proof.study,
+                study: {
+                  ...candidate.study,
+                  immediateLoss: proof.study.immediateLoss,
+                  immediateRepliesComplete: proof.study.immediateRepliesComplete,
+                  material: {
+                    ...candidate.study.material,
+                    lossWitness: proof.study.material.lossWitness,
+                    complete: proof.study.material.complete,
+                    limit: proof.study.material.limit,
+                  },
+                  explanations: [
+                    ...new Set([
+                      ...candidate.study.explanations,
+                      ...(proof.study.immediateLoss
+                        ? ["次の相手手番で自分が脱落する合法手があります。"]
+                        : []),
+                      ...(proof.study.material.lossWitness
+                        ? ["次の実自手番までに資産が減る合法な応手列があります。"]
+                        : []),
+                    ]),
+                  ],
+                },
                 danger: { ...candidate.danger, alternatives: proof.danger.alternatives },
               }
             : candidate;
@@ -236,6 +329,44 @@ export function createStudySearchRuntime(
         merged.length > 0 && merged.every((entry) => entry.study.immediateRepliesComplete);
     }
   }
+  function recordProof(value: Job, candidate: StudyCandidate) {
+    const previous = value.proofs.get(candidate.rootIndex);
+    const material = candidate.study.material;
+    const oldMaterial = previous?.study.material;
+    const complete = material.complete || oldMaterial?.complete === true;
+    const alternatives = candidate.danger.alternatives;
+    const oldAlternatives = previous?.danger.alternatives;
+    const base = alternatives ?? oldAlternatives;
+    value.proofs.set(candidate.rootIndex, {
+      study: {
+        ...candidate.study,
+        immediateLoss: candidate.study.immediateLoss ?? previous?.study.immediateLoss ?? null,
+        immediateRepliesComplete:
+          candidate.study.immediateRepliesComplete ||
+          previous?.study.immediateRepliesComplete === true,
+        material: {
+          ...material,
+          complete,
+          limit: complete ? null : material.limit,
+          lossWitness: material.lossWitness ?? oldMaterial?.lossWitness ?? null,
+        },
+      },
+      danger: {
+        ...candidate.danger,
+        alternatives: base
+          ? {
+              ...base,
+              complete: alternatives?.complete === true || oldAlternatives?.complete === true,
+              limit: alternatives?.complete || oldAlternatives?.complete ? null : base.limit,
+              eliminationWitness:
+                alternatives?.eliminationWitness ?? oldAlternatives?.eliminationWitness ?? null,
+              rookLossWitness:
+                alternatives?.rookLossWitness ?? oldAlternatives?.rookLossWitness ?? null,
+            }
+          : null,
+      },
+    });
+  }
   function startChildren(value: Job, input: StudyPositionInput) {
     if (job !== value || value.snapshot.status !== "running") return;
     const { timeBudgetMs: _time, focusSide: _focus, ...rootOptions } = value.options;
@@ -246,13 +377,96 @@ export function createStudySearchRuntime(
           type: "start",
           id: value.snapshot.id,
           input,
-          options: { ...rootOptions, lane, lanes: threads },
+          options: {
+            ...rootOptions,
+            strategy: value.dynamic ? "adaptive" : "legacy",
+            cacheSize:
+              rootOptions.cacheSize ??
+              (value.dynamic
+                ? Math.min(8192, Math.max(256, Math.floor((memoryMb / threads) * 4)))
+                : 1024),
+            lane,
+            lanes: threads,
+          },
         } satisfies SearchCommand,
         (error) => {
           if (error && job === value) stop("error", "探索を開始できませんでした", true);
         },
       ),
     );
+  }
+  function dispatchTasks(value: Job) {
+    const dynamic = value.dynamic;
+    if (!dynamic || value.snapshot.status !== "running") return;
+    children.forEach((child, worker) => {
+      if (dynamic.inflight.has(worker) || !dynamic.queue.length) return;
+      const preferred = dynamic.queue.findIndex((index) => dynamic.owners.get(index) === worker);
+      const [index] = dynamic.queue.splice(preferred < 0 ? 0 : preferred, 1);
+      dynamic.waitMs[worker] += Math.max(0, elapsed(value) - dynamic.waiting[worker]);
+      const taskId = ++dynamic.nextTaskId;
+      dynamic.inflight.set(worker, { index, taskId });
+      dynamic.owners.set(index, worker);
+      child.send(
+        {
+          type: "task",
+          id: value.snapshot.id,
+          taskId,
+          index,
+          depth: dynamic.depth,
+          material: dynamic.depth === 2 && dynamic.material.has(index),
+        } satisfies SearchCommand,
+        (error) => {
+          if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
+        },
+      );
+    });
+  }
+  function beginIteration(value: Job) {
+    const dynamic = value.dynamic!;
+    dynamic.queue = selectStudyIterationRoots(
+      [...dynamic.all.values()],
+      value.snapshot.rootSide!,
+      dynamic.depth,
+      value.options.rootWidth ?? 24,
+    );
+    dynamic.total = dynamic.queue.length;
+    dynamic.results.clear();
+    value.snapshot.diagnostics.selectedRoots = dynamic.total;
+    if (value.snapshot.performance) {
+      value.snapshot.performance.iterationDepth = dynamic.depth;
+      value.snapshot.performance.completedTasks = 0;
+      value.snapshot.performance.totalTasks = dynamic.total;
+    }
+    dispatchTasks(value);
+  }
+  function finishIteration(value: Job) {
+    const dynamic = value.dynamic!;
+    if (
+      value.snapshot.status !== "running" ||
+      dynamic.inflight.size ||
+      dynamic.queue.length ||
+      dynamic.results.size !== dynamic.total
+    )
+      return;
+    value.published = [...dynamic.results.values()];
+    value.snapshot.completedDepth = dynamic.depth;
+    dynamic.depths.push({ depth: dynamic.depth, elapsedMs: elapsed(value), roots: dynamic.total });
+    merge(value);
+    const best = value.snapshot.candidates[0];
+    if (
+      (best?.evaluation?.evaluationKind === "terminal" &&
+        best.evaluation.values[value.snapshot.rootSide!].primary === 1) ||
+      dynamic.depth >= (value.options.maxDepth ?? 256)
+    ) {
+      stop(
+        "completed",
+        dynamic.depth >= (value.options.maxDepth ?? 256) ? "max_depth" : "sole_win",
+        true,
+      );
+      return;
+    }
+    dynamic.depth++;
+    beginIteration(value);
   }
   async function prepareFocus(value: Job) {
     const focus = value.snapshot.focus;
@@ -377,8 +591,18 @@ export function createStudySearchRuntime(
       value.snapshot.candidates[0]?.evaluation?.evaluationKind === "terminal" &&
       value.snapshot.rootSide !== null &&
       value.snapshot.candidates[0].evaluation.values[value.snapshot.rootSide].primary === 1;
-    if (allDone || soleWin) {
+    if (allDone || soleWin || depth >= (value.options.maxDepth ?? 256)) {
       stop("completed", soleWin ? "sole_win" : depth === 0 ? "terminal" : "max_depth", true);
+      return;
+    }
+    if (value.dynamic) {
+      value.releasedDepth = depth;
+      const dynamic = value.dynamic;
+      value.published.forEach((entry) => dynamic.all.set(entry.rootIndex, entry));
+      dynamic.material = new Set(value.selected!.slice(0, 5));
+      dynamic.depths.push({ depth: 1, elapsedMs: elapsed(value), roots: value.published.length });
+      dynamic.waiting.fill(elapsed(value));
+      beginIteration(value);
       return;
     }
     // 同じ深さを全レーンで比較してから、次の反復を一つだけ開始します。
@@ -404,6 +628,41 @@ export function createStudySearchRuntime(
       return;
     }
     const value = job;
+    if (message.taskId !== undefined && value.dynamic) {
+      const dynamic = value.dynamic;
+      const assignment = dynamic.inflight.get(index);
+      if (!assignment || assignment.taskId !== message.taskId) return;
+      value.lanes[index] = {
+        snapshot: message.snapshot,
+        memoryBytes: message.memoryBytes,
+        barrier: message.barrier,
+      };
+      if (message.barrier) {
+        const candidate = message.snapshot.candidates[0];
+        if (
+          message.snapshot.depth !== dynamic.depth ||
+          message.snapshot.candidates.length !== 1 ||
+          candidate?.rootIndex !== assignment.index
+        ) {
+          stop("error", "探索タスクの根または深さが一致しません", true);
+          return;
+        }
+        dynamic.results.set(candidate.rootIndex, candidate);
+        dynamic.all.set(candidate.rootIndex, candidate);
+        recordProof(value, candidate);
+        dynamic.inflight.delete(index);
+        dynamic.waiting[index] = elapsed(value);
+      }
+      merge(value);
+      if (value.snapshot.memoryBytes > memoryMb * 1024 * 1024) {
+        stop("completed", "memory_limit", true);
+        return;
+      }
+      dispatchTasks(value);
+      finishIteration(value);
+      if (["running", "paused"].includes(value.snapshot.status)) emit(value);
+      return;
+    }
     const previous = value.lanes[index];
     if (previous && message.snapshot.depth < previous.snapshot.depth) return;
     if (message.barrier && !message.snapshot.done && message.snapshot.depth <= value.releasedDepth)
@@ -413,8 +672,7 @@ export function createStudySearchRuntime(
       memoryBytes: message.memoryBytes,
       barrier: message.barrier,
     };
-    for (const candidate of message.snapshot.candidates)
-      value.proofs.set(candidate.rootIndex, { study: candidate.study, danger: candidate.danger });
+    for (const candidate of message.snapshot.candidates) recordProof(value, candidate);
     merge(value);
     if (value.snapshot.memoryBytes > memoryMb * 1024 * 1024) {
       stop("completed", "memory_limit", true);
@@ -443,9 +701,19 @@ export function createStudySearchRuntime(
                 const workerPath = fileURLToPath(
                   config.workerScript ?? new URL("./worker.ts", import.meta.url),
                 );
-                const child = spawn(process.execPath, ["--no-env-file", workerPath], {
-                  stdio: ["ignore", "ignore", "pipe", "ipc"],
-                });
+                const child = spawn(
+                  process.execPath,
+                  [
+                    "--no-env-file",
+                    ...(config.cpuProfileDirectory
+                      ? ["--cpu-prof-md", `--cpu-prof-dir=${config.cpuProfileDirectory}`]
+                      : []),
+                    workerPath,
+                  ],
+                  {
+                    stdio: ["ignore", "ignore", "pipe", "ipc"],
+                  },
+                );
                 pool[index] = child;
                 let errors = "";
                 child.stderr?.on("data", (chunk) => {
@@ -515,6 +783,25 @@ export function createStudySearchRuntime(
       const focusSide = options.focusSide ?? null;
       const id = crypto.randomUUID();
       job = {
+        dynamic:
+          options.strategy === "legacy" ||
+          config.scheduling === "fixed" ||
+          (config.workerScript && config.scheduling !== "dynamic")
+            ? null
+            : {
+                depth: 2,
+                nextTaskId: 0,
+                queue: [],
+                inflight: new Map(),
+                results: new Map(),
+                all: new Map(),
+                material: new Set(),
+                owners: new Map(),
+                waiting: Array(threads).fill(0),
+                waitMs: Array(threads).fill(0),
+                depths: [],
+                total: 0,
+              },
         snapshot: {
           id,
           stateHash: position.stateHash,
@@ -548,7 +835,12 @@ export function createStudySearchRuntime(
           staticEvaluation,
           workers: threads,
           diagnostics: {
-            searchVersion: studySearchVersion,
+            searchVersion:
+              options.strategy === "legacy" ||
+              config.scheduling === "fixed" ||
+              (config.workerScript && config.scheduling !== "dynamic")
+                ? legacyStudySearchVersion
+                : studySearchVersion,
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,
@@ -605,7 +897,10 @@ export function createStudySearchRuntime(
       job.options = { ...job.options, timeBudgetMs: null };
       if (!job.prepared && job.snapshot.focus) void prepareFocus(job);
       else command({ type: "resume", id });
-      advanceBarrier(job);
+      if (job.dynamic && job.dynamic.all.size) {
+        dispatchTasks(job);
+        finishIteration(job);
+      } else advanceBarrier(job);
       if (job.snapshot.status === "running") emit(job);
     },
     async cancel(id) {

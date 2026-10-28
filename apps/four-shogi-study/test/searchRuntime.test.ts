@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createStudySearchRuntime, type StudySearchSnapshot } from "../src/search/runtime";
 import type { StudyPositionInput } from "../src/shared/model";
+import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 
 const input: StudyPositionInput = {
   origin: {
@@ -103,6 +104,85 @@ test("実Bunプロセスを並列化しても同じ深さの候補と4人分の�
   expect(results[1].stateHash).toBe(results[0].stateHash);
   expect(results[1].recommendedAction).toEqual(results[0].recommendedAction);
 }, 20000);
+
+test("動的割当は空いたプロセスへ次の根を渡し、途中の深さを完成比較へ混ぜない", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "study-dynamic-"));
+  directories.push(directory);
+  const trace = join(directory, "tasks.jsonl");
+  const workerPath = join(directory, "worker.ts");
+  const engine = new URL("../../../packages/four-shogi/src/studySearch.ts", import.meta.url).href;
+  const restore = new URL("../src/domain/study.ts", import.meta.url).href;
+  await writeFile(
+    workerPath,
+    `
+    import { appendFileSync } from "node:fs";
+    import { createStudyRootSearch } from ${JSON.stringify(engine)};
+    import { restoreStudyPosition } from ${JSON.stringify(restore)};
+    let search, id, lane;
+    const send = (taskId) => {
+      const snapshot = search.snapshot();
+      if (taskId !== undefined) for (const candidate of snapshot.candidates) candidate.study.material.lineDelta = 999;
+      process.send({ type: "progress", id, snapshot, memoryBytes: 1, barrier: true, ...(taskId === undefined ? {} : { taskId }) });
+    };
+    process.on("message", async (message) => {
+      if (message.type === "close") process.exit(0);
+      if (message.type === "start") {
+        id = message.id; lane = message.options.lane;
+        search = createStudyRootSearch(await restoreStudyPosition(message.input), message.options);
+        while (search.depth < 1) search.step(); send();
+      } else if (message.type === "task") {
+        appendFileSync(${JSON.stringify(trace)}, JSON.stringify({ lane, index: message.index }) + "\\n");
+        search.startTask(message.index, message.depth, false);
+        while (!search.step()) {}
+        setTimeout(() => { send(message.taskId); setTimeout(() => send(message.taskId), 1); }, lane === 0 ? 180 : 2);
+      }
+    });
+    process.send({ type: "ready" });
+  `,
+  );
+  const runtime = createStudySearchRuntime({
+    threads: 2,
+    workerScript: pathToFileURL(workerPath),
+    scheduling: "dynamic",
+  });
+  const snapshots: StudySearchSnapshot[] = [];
+  try {
+    const id = await runtime.start(
+      input,
+      { timeBudgetMs: null, maxDepth: 2, extensions: 0, dangerWork: 0 },
+      (value) => snapshots.push(value),
+    );
+    const result = await until(
+      () => runtime.get(id),
+      (value) => value.status === "completed",
+    );
+    expect(result.completedDepth).toBe(2);
+    expect(
+      snapshots.every((value) =>
+        value.candidates.every((candidate) => candidate.completedDepth === value.completedDepth),
+      ),
+    ).toBe(true);
+    expect(
+      snapshots
+        .filter((value) => value.completedDepth === 1)
+        .every((value) =>
+          value.candidates.every(
+            (candidate) => (candidate as StudyCandidate).study.material.lineDelta === 0,
+          ),
+        ),
+    ).toBe(true);
+    const tasks = (await readFile(trace, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { lane: number; index: number });
+    expect(new Set(tasks.map((entry) => entry.index)).size).toBe(tasks.length);
+    expect(tasks.filter((entry) => entry.lane === 1).length).toBeGreaterThan(
+      tasks.filter((entry) => entry.lane === 0).length,
+    );
+  } finally {
+    await runtime.close();
+  }
+});
 
 test("期限結果は一度だけ通知し、継続・一時停止・取消と再解析を行える", async () => {
   const runtime = createStudySearchRuntime({ threads: 2 });
