@@ -438,16 +438,18 @@ test("6ゲームのルームは状態分類・更新日時をサーバーで並�
 
 test("最近の対局はゲーム横断の開始順で最新20件、人間限定は先に絞る", async () => {
   const user = await fixture();
+  // D1への書込み時間にかかわらず、検証する開始順を固定します。
+  const startedAt = Date.now();
   for (let i = 0; i < 22; i++) {
     const record = fixtureRecord(user.id, i);
-    record.startedAtMs = Date.now() + i;
+    record.startedAtMs = startedAt + i;
     await writeMatch(db, record);
   }
   const human = humanFixtureRecord(user.id, 100);
-  human.startedAtMs = Date.now() - 1000;
+  human.startedAtMs = startedAt - 1000;
   await writeMatch(db, human);
   const shogi = humanShogiRecord(user.id);
-  shogi.record.startedAtMs = Date.now() - 2000;
+  shogi.record.startedAtMs = startedAt - 2000;
   await saveShogiFixture(shogi, db);
   const all = (await (await request("/lobby/matches")).json()) as { matches: { id: string }[] };
   expect(all.matches).toHaveLength(20);
