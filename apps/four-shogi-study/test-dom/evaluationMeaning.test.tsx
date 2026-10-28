@@ -65,6 +65,42 @@ function panel(current: StudySnapshot) {
   );
 }
 
+test("完成比較と進行中の深さを分け、並列計測を経過時間と混同しない", async () => {
+  const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
+  const analysis = projection(current, current.staticEvaluation);
+  analysis.status = "running";
+  analysis.completedDepth = 3;
+  analysis.performance = {
+    legalMs: 1000,
+    transitionMs: 2000,
+    evaluationMs: 3000,
+    orderingMs: 400,
+    cacheEvictions: 5,
+    branchCacheHits: 6,
+    branchCacheEntries: 7,
+    keyMs: 8,
+    immediateWork: 9,
+    materialWork: 10,
+    reducedNodes: 11,
+    researches: 12,
+    legalCacheHits: 13,
+    transitionCacheHits: 14,
+    evaluationCacheHits: 15,
+    iterationDepth: 4,
+    completedTasks: 2,
+    totalTasks: 8,
+    workerNodes: [10, 20],
+    workerWaitMs: [0, 1],
+    depths: [{ depth: 3, elapsedMs: 1000, roots: 8 }],
+  };
+  const view = panel({ ...current, analysis });
+  expect(view.textContent).toContain("比較深さ");
+  expect(view.textContent).toContain("深さ4を検討中");
+  expect(view.textContent).toContain("2/8候補完了");
+  expect(view.textContent).toContain("全合法手を網羅した深さではありません");
+  expect(view.textContent).toContain("並列実行のため経過時間とは異なります");
+});
+
 test("現在は対局中でも読み筋末尾が終局なら、確定順位ではなく予想順位を表示する", async () => {
   const study = await createStudy({ settings: { mode: "analysis" } });
   const current = await snapshot(study);

@@ -176,10 +176,50 @@ export function EvaluationPanel({
         }
       >
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Metric label="深さ" value={String(analysis?.completedDepth ?? 0)} />
+          <Metric label="比較深さ" value={String(analysis?.completedDepth ?? 0)} />
           <Metric label="探索局面" value={(analysis?.nodes ?? 0).toLocaleString("ja-JP")} />
           <Metric label="経過" value={`${((analysis?.elapsedMs ?? 0) / 1000).toFixed(1)}秒`} />
         </div>
+        {analysis?.performance ? (
+          <div className="mt-3 text-[10px] leading-relaxed text-[#758469]">
+            <p>
+              {searching
+                ? `深さ${analysis.performance.iterationDepth}を検討中`
+                : "最後に完成した候補比較を表示"}
+              {analysis.performance.totalTasks > 0
+                ? ` · ${analysis.performance.completedTasks}/${analysis.performance.totalTasks}候補完了`
+                : ""}
+            </p>
+            <p>候補・静かな枝を絞る選択探索です。全合法手を網羅した深さではありません。</p>
+            <details className="mt-2">
+              <summary className="cursor-pointer">探索の処理内訳</summary>
+              <p>
+                合法手生成 {(analysis.performance.legalMs / 1000).toFixed(2)}秒 · 局面確定{" "}
+                {(analysis.performance.transitionMs / 1000).toFixed(2)}秒
+              </p>
+              <p>
+                評価 {(analysis.performance.evaluationMs / 1000).toFixed(2)}秒 · 手の並べ替え{" "}
+                {(analysis.performance.orderingMs / 1000).toFixed(2)}秒
+              </p>
+              <p>各プロセスの計測合計です。並列実行のため経過時間とは異なります。</p>
+              <p>
+                探索結果の再利用 {analysis.performance.branchCacheHits.toLocaleString()}回 ·
+                キャッシュ入替 {analysis.performance.cacheEvictions.toLocaleString()}回
+              </p>
+              <p>
+                静かな枝の浅い確認 {analysis.performance.reducedNodes.toLocaleString()}回 · 再探索{" "}
+                {analysis.performance.researches.toLocaleString()}回
+              </p>
+              <ol className="list-inside list-decimal">
+                {analysis.performance.depths.map((entry) => (
+                  <li key={entry.depth}>
+                    深さ{entry.depth} · {(entry.elapsedMs / 1000).toFixed(2)}秒 · {entry.roots}候補
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </div>
+        ) : null}
         <div className="mt-3 flex items-center justify-between text-[10px] text-[#8c9685]">
           <span>
             {study.settings.threads}プロセス · {study.settings.memoryMb.toLocaleString()} MBまで
@@ -283,6 +323,7 @@ export function EvaluationPanel({
                   深さ {candidate.completedDepth} · {sideNames[rootSide]}視点
                   {future ? " · 次手番の条件付き候補" : ""}
                   {candidate.selective ? " · 選択探索" : ""}
+                  {` · この予想手順では次の自手${Math.max(0, candidate.line.filter((step) => step.side === rootSide).length - 1)}回まで到達`}
                 </p>
                 <details className="mt-2 text-[11px]">
                   <summary className="cursor-pointer text-[#607252]">予想手順・危険の確認</summary>

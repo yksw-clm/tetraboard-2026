@@ -615,6 +615,7 @@ export class LocalStudyApplication implements StudyApplication {
           work: progress.work,
           nodes: progress.nodes,
           memoryBytes: progress.memoryBytes,
+          performance: progress.performance,
           candidates: progress.candidates,
           recommendedAction: progress.recommendedAction,
           evaluation: progress.evaluation,

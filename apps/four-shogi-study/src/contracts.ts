@@ -3,7 +3,7 @@ import type { AnalysisPosition, FourShogiReplayEvent } from "@tetraboard/four-sh
 import type { AiCandidate, AiEvaluation } from "@tetraboard/four-shogi/ai";
 import type { AnalysisSetupInput } from "@tetraboard/four-shogi/analysis";
 import type { StudyDocument, StudySettings } from "./shared/model";
-import type { StudyFocusMetadata } from "./search/runtime";
+import type { StudyFocusMetadata, StudySearchSnapshot } from "./search/runtime";
 export type { StudyFocusMetadata } from "./search/runtime";
 
 export type StudyAnalysisView = {
@@ -20,6 +20,7 @@ export type StudyAnalysisView = {
   work: number;
   nodes: number;
   memoryBytes: number;
+  performance?: StudySearchSnapshot["performance"];
   candidates: readonly AiCandidate[];
   recommendedAction: FourShogiAction | null;
   analysisRecommendedAction?: FourShogiAction | null;
