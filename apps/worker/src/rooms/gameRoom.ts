@@ -1653,6 +1653,7 @@ export class GameRoom extends DurableObject<Env> {
     instanceId: string,
     roundId: string,
     cursor: number,
+    throughEventCount?: number,
   ): Promise<
     | {
         status: "found";
@@ -1660,21 +1661,40 @@ export class GameRoom extends DurableObject<Env> {
           | import("@tetraboard/protocol").FourShogiReplayPage
           | import("@tetraboard/protocol").ShogiReplayPage;
       }
-    | { status: "not_found" | "room_changed" }
+    | { status: "not_found" | "room_changed" | "invalid_request" }
   > {
     await this.reconcileDeadlines();
     const room = this.readRoom();
     if (!room) return { status: "not_found" };
     if (room.instanceId !== instanceId) return { status: "room_changed" };
+    if (!isFourShogiRoom(room) && !isShogiRoom(room)) return { status: "not_found" };
+    const live = throughEventCount !== undefined;
+    if (live && !isFourShogiRoom(room)) return { status: "invalid_request" };
+    const currentRound = room.status === "playing" ? room.roundId : room.lastRound?.roundId;
     if (
-      (!isFourShogiRoom(room) && !isShogiRoom(room)) ||
-      room.status !== "waiting" ||
-      room.lastRound?.roundId !== roundId
+      live
+        ? currentRound !== roundId
+        : room.status !== "waiting" || room.lastRound?.roundId !== roundId
     )
       return { status: "not_found" };
-    const page = (
-      isShogiRoom(room) ? this.standardShogiProgress.store() : this.shogiProgress.store()
-    ).getPage(instanceId, roundId, cursor);
+    const store = isShogiRoom(room)
+      ? this.standardShogiProgress.store()
+      : this.shogiProgress.store();
+    if (live) {
+      const count = store.eventCount(roundId);
+      // 観戦snapshotのrevisionを、そのまま欠落のないイベントprefixへ対応させます。
+      if (room.status === "playing" && count !== room.positionRevision)
+        throw new Error("Shogi revision and replay event count disagree");
+      if (
+        !Number.isSafeInteger(throughEventCount) ||
+        !Number.isSafeInteger(cursor) ||
+        cursor < 0 ||
+        throughEventCount < cursor ||
+        throughEventCount > count
+      )
+        return { status: "invalid_request" };
+    }
+    const page = store.getPage(instanceId, roundId, cursor, throughEventCount);
     return page ? { status: "found", page } : { status: "not_found" };
   }
 

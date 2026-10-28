@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { applyAction, type FourShogiAction } from "@tetraboard/four-shogi";
 import { ShogiPiece } from "../src/features/room/ShogiPiece";
-import boardImage from "../src/assets/shogi/board.png";
+import boardImage from "@tetraboard/shogi-ui/assets/board.png";
 import { createShogiImageStore } from "../src/features/room/shogiImageStore";
 import {
   prepareShogiAssets,

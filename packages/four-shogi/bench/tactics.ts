@@ -9,6 +9,8 @@ import {
 } from "../src/types";
 import { fixture, type FixtureOptions } from "./positionFixture";
 
+export const tacticalFixtureVersion = "four-shogi-tactics-v2";
+
 type Criterion =
   | "rook"
   | "promotion"
@@ -174,8 +176,18 @@ const families: Family[] = [
     id: "forced-promotion",
     criterion: "promotion",
     critical: true,
-    setup: { pieces: [{ side: "south", kind: "pawn", at: "E2" }] },
-    proof: "E1への歩の前進は成り必須。周辺に捕獲できる敵駒はない。",
+    setup: {
+      kings: { south: "F1" },
+      pieces: [
+        { side: "west", kind: "rook", at: "D1" },
+        { side: "south", kind: "pawn", at: "E2" },
+        { side: "south", kind: "pawn", at: "F2" },
+        { side: "south", kind: "pawn", at: "G2" },
+        { side: "south", kind: "gold", at: "G1" },
+      ],
+    },
+    proof:
+      "D1飛車がF1玉へ王手。玉の退路は自駒で塞がり、E2歩をE1へ成って合駒する手だけが合法な応手。",
   },
   {
     id: "magic-recapture",

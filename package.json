@@ -6,13 +6,16 @@
     "packages/*"
   ],
   "scripts": {
+    "study": "bun run study:build && bun run --cwd apps/four-shogi-study start",
+    "study:build": "bun run --cwd apps/four-shogi-study build",
+    "study:check": "bun run --cwd apps/four-shogi-study typecheck && bun run --cwd apps/four-shogi-study test",
     "dev": "bun run --parallel --filter '@tetraboard/web' --filter '@tetraboard/worker' --filter '@tetraboard/admin' dev",
     "typecheck": "bun scripts/checkBunVersion.ts && bun run --workspaces --sequential typecheck",
     "typecheck:tsc": "bun run --workspaces typecheck:tsc",
     "lint": "oxlint .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "bun run --cwd packages/protocol test && bun run --cwd packages/four-gomoku test && bun run --cwd packages/gomoku test && bun run --cwd packages/shogi test && bun run --cwd packages/reversi test && bun run --cwd packages/four-reversi test && bun run --cwd packages/four-shogi test && bun run --cwd apps/four-shogi-ai test && bun run --cwd apps/worker test && bun run --cwd apps/web test && bun run --cwd apps/admin test",
+    "test": "bun run --cwd packages/shogi-ui test && bun run --cwd packages/protocol test && bun run --cwd packages/four-gomoku test && bun run --cwd packages/gomoku test && bun run --cwd packages/shogi test && bun run --cwd packages/reversi test && bun run --cwd packages/four-reversi test && bun run --cwd packages/four-shogi test && bun run --cwd apps/four-shogi-ai test && bun run --cwd apps/four-shogi-study test && bun run --cwd apps/worker test && bun run --cwd apps/web test && bun run --cwd apps/admin test",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
     "prepare": "husky",
     "build": "bun run --cwd apps/web build && bun run --cwd apps/admin build && bun scripts/buildAssets.ts",

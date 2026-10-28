@@ -45,6 +45,7 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 | 画面・ロビー・共通部品                   | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル)                                                                                                         | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/)                                                    | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)                                                         |
 | ルーム共有                               | [確定した共有仕様](../README.md#ルーム共有の確定仕様)                                                                                                             | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)                 | [ルーム共有の確認](testing.md#ルーム共有の確認)                                                                                                                                                        |
 | ゲーム・CPU                              | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md)         | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts)                  | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                   |
+| 四人将棋ローカル検討 | [利用仕様](../README.md#四人将棋のローカル検討アプリ)、[CPU正本](rules/four-shogi.md#ローカル検討用cpu) | [計画・入口](#四人将棋のローカル検討アプリ)、[構成](architecture.md#四人将棋のローカル検討)、`apps/four-shogi-study`・`packages/shogi-ui` | [受入検証](testing.md#四人将棋のローカル検討アプリの確認)、[測定](four-shogi-ai.md#ローカル検討cpuの測定と採否) |
 | 表示・サウンド設定                       | [設定](../README.md#表示サウンド設定)、[効果音](../README.md#効果音)、[時計通知](../README.md#時間切れ5秒前の通知)                                                | [表示・サウンド設定](#表示サウンド設定)、[共通効果音](#ルームの共通効果音)、[browserSettings.ts](../apps/web/src/shared/browserSettings.ts)、[soundPlayer.ts](../apps/web/src/shared/soundPlayer.ts)                                                                                          | [設定の確認](testing.md#表示サウンド設定の確認)、[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)                                                                             |
 | チャット・スタンプ                       | [チャット](../README.md#チャット)、[保存とモデレーション](../README.md#チャットの保存期間とモデレーション)、[スタンプ](../README.md#ルームのスタンプ)             | [スタンプ](#ルームのスタンプ)、[gameRoom.ts](../apps/worker/src/rooms/gameRoom.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts)                                                                  | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                                                      |
 | 戦績・ランキング・戦型・バッジ           | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[accounts](../apps/worker/src/accounts/)                                                                                                                | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
@@ -879,6 +880,82 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 [契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)に従い、[protocol](../packages/protocol/src/fourShogiAi.ts)が通信の厳密な入力・起動/入力識別を、[jobs.ts](../apps/four-shogi-ai/src/jobs.ts)がCPU優先/予約枠・重複・期限・利用量・TTLを管理します。[processPool.ts](../apps/four-shogi-ai/src/processPool.ts)は独立プロセスと強制終了、[compute.ts](../apps/four-shogi-ai/src/compute.ts)は完全復元と同じモデル/共通探索を担当します。受付を重い計算から分離し、[http.ts](../apps/four-shogi-ai/src/http.ts)で認証後に有限の本文を読みます。Workerの[fourShogiAi](../apps/worker/src/fourShogiAi/routes.ts)は開発用の許可アカウント/Originと公開保存済み終局棋譜を検査し、本人ID・Cookieを転送しません。使用量の回数/予約time予算はVPSのメモリ内で原子的に判定し、Workerでも要求プロファイルと結果の版/入力を照合します。未設定と本番は拒否し、対局CPU/解析UIへは#194/#195で接続します。
 
 `bun run --cwd apps/four-shogi-ai test` とWorkerの `test/fourShogiAi.test.ts` は通常checkに含め、実PyTorch/30秒解析は `bench:service` で分離します。実行方法・全環境変数・配布/health/切り戻しは上記契約と[設定例](../apps/four-shogi-ai/.env.example)を参照します。数値は設定可能な試用値で、実VPS/正式な利用上限/保持期間を確定しません。秘密は追跡対象外とし、Docker contextからも除外します。
+
+## 四人将棋のローカル検討アプリ
+
+2026-10-28に開発者がローカル専用の実装計画を承認し、実装を指示しました。既存の試作を保全して最新developへ追従し、`feat/four-shogi-study` で以下を実装します。利用者向けの正本は[README](../README.md#四人将棋のローカル検討アプリ)、CPUの採用仕様は[ルール正本](rules/four-shogi.md#ローカル検討用cpu)、責務は[構成](architecture.md#四人将棋のローカル検討)、確認範囲は[テスト方針](testing.md#四人将棋のローカル検討アプリの確認)です。
+
+### Goal
+
+Macで四人将棋シングルス・三人攻撃禁止ON/OFFを検討できるローカルアプリを完成させます。時間可変の並列CPU、4人分の評価と読み筋・推奨手、マジック・右攻め・駒損と他者間の争いを踏まえた単独1位の追求、公開棋譜・分岐・コメント・席別CPU・自己対戦・ライブ観戦を統合します。追加指示により、他者の手番でも特定席の次の実手番を予測して解析するフォーカスを加えます。既存試作の局面編集も、履歴をリセットする別の検討として保ちます。
+
+機能・戦術・既存画面の回帰と必須検証を確認し、下記のDone Whenを満たした差分・結果・未確認事項をレビューできる状態にします。2026-10-28の追加指示により、棋力向上・正式再計測・棋力合格は別作業へ保留し、今回の機能実装の完了条件から外します。過去の未完了/中断記録や採否条件は測定記録に保ち、機能完成を棋力の合格と扱いません。アプリのデプロイ、PRマージ、読取りAPIの公開は実施しません。提出する場合はdevelop向けPRとし、GitHub CIの成功をローカル結果で代替しません。
+
+### ContextProviders
+
+1. 本会話の開発者の指示と承認済み計画。ローカル専用、対象機能、右の定義、フォーカス追加、棋力作業の保留、非デプロイを優先します。
+2. [AGENTS.md](../AGENTS.md)と[README](../README.md#四人将棋のローカル検討アプリ)。作業・承認・保存と利用者向けの契約です。
+3. [四人将棋のルール正本](rules/four-shogi.md)。三人攻撃・実手番・脱落・反復・順位と公開CPUの現在仕様を確認します。
+4. [シングルスAIの契約](four-shogi-ai-engine.md)。完全状態の復元、4人効用、未校正評価、単独勝ち目的と既存APIを確認します。オンラインVPSの配置契約と今回のローカル配置は分けます。
+5. この開発文書、[構成](architecture.md)、[テスト方針](testing.md)、[AIの測定記録](four-shogi-ai.md)。責務と測定の再現条件を確認します。
+6. 最新developのAPI・コード・固定棋譜・テスト・Git履歴と保全した試作。試作にだけ存在する機能を採用済み仕様と推測しません。
+
+### Constraints
+
+- アプリはBun/TypeScript・React・HeroUIと既存ルール/解析APIを使い、Cloudflareの配布物へ含めません。新規学習、GPU最適化、新しい主要依存・外部サービスは追加しません。公開Lv1/Lv2、対局ルール、戦績/保存棋譜互換を維持します。
+- `bun run study` でビルドして `127.0.0.1:5198` だけへbindし、同一Originの操作だけを受けます。既定保存先は `~/Library/Application Support/Tetraboard Study`。ポート・保存先は専用環境変数で変更でき、通常のオンライン開発設定を読み込みません。
+- 初期5秒、1/5/15/30/60秒・任意・無制限の予算を扱います。手動検討と各CPU席の思考予算を分離し、初期の席は南が人間、他3席がCPUです。取消は旧結果を適用せず、停止は最後に完成した比較を保持します。新予算の再解析は新しい探索IDで開始します。
+- プロセス数の既定は `min(4, max(1, logicalCpu - 2))`、メモリの既定は搭載量の1/3・最大8GiBです。上限は `max(1, logicalCpu - 2)` と搭載メモリの75%以下にします。観測RSSの合計とOSの厳密なメモリ制限を混同しません。異常・メモリ超過では子プロセスを終了します。
+- 探索v4では、全選択根候補の即脱落検査は深さ2前に維持し、表示用の資産危険検査を通常深さ2の完成・公開後へ移します。対象は深さ1の浅い全体評価で決めた先頭5候補に固定し、未検査は未確認のまま表示します。評価・効用・ゲームルールは変更しません。
+- 右は南→東、西→南、北→西、東→北の元の席に固定し、右の相手の脱落後は優先を解除します。全員が自分の効用を選ぶMaxⁿとし、協力する敵3人や仮の手番を既定にしません。評価の勝率表示・棋力の自動認定を行いません。手番外の人の推奨は同じPV中の次の実手番の想定手として示します。
+- 完成した結果には局面hash・版・予算・資源条件を残し、元棋譜・分岐・コメントとともに保存します。破損や保存失敗時は旧版を保ちます。局面編集で失う攻撃/反復履歴を推測で補わず、新しい検討の初期履歴にします。
+- ライブのための変更は既存Workerの読取りAPI拡張に限ります。GET replayの `throughEventCount` で100件ずつ固定prefixを取り、引数を省略した既存取得を維持します。観戦WSのrevisionと確定イベント数、世代・対局ID・復元状態を照合し、再接続と同じ対局の終局保存棋譜への引継ぎを扱います。接続先へのAPI配信は別途承認後で、未対応時は解析失敗を隠しません。
+- フォーカスは現在の完全状態から小予算の相手予測を正本で進め、対象の最初の実手番だけを解析します。元局面と解析対象のhash、予測prefixと候補PV、直接採用できる推奨と未来の想定手を分けます。投射を全体の時間枠に含め、取消/置換で古い結果を捨て、脱落・終局・予測上限で未到達なら未解析を明示します。
+- 共有UI抽出では既存オンライン画面の盤・持ち駒・成り・回転・画像と操作を回帰確認し、ロビーの軽量読込みとCPU/モデル/ローカル探索の配布物への混入防止を維持します。アプリが非デプロイでも、develop/mainのマージは既存オンラインCIのデプロイを起動するため、マージしません。
+- 自動確認はBunの純粋関数・happy-domの部品/hook・Worker統合へ集約し、ブラウザ自動テストを追加しません。重い戦術/性能/正式棋力測定は通常checkから分離し、画面寸法・実画像・ネイティブ入力・Mac実機操作は手動結果または未確認事項を記録します。
+- 正式測定は未使用holdoutを事前固定し、時間/資源・席・相手・途中打切り・コード識別を残します。未終局は分母から落とさず、引き分けへ置換しません。未達時は原因を調整用で調べ、新しいholdoutで再判定します。過去結果を新しい条件へ書き換えません。
+
+### Done When
+
+- 新規検討、公開棋譜/JSONの入出力、前後移動・分岐・コメント・保存/再読込み・破損回復、元棋譜を保つ局面編集、各席CPU/人間・自己対戦、時間設定・開始/停止/再解析・候補採用が機能します。
+- 全方向と4/3/2人生存・三人攻撃ON/OFF、右への王手/逆王手/複数王手・同時詰み・千日手・引分提案・手番外脱落、マジック/駒損/自王安全の重要戦術が正本と一致し、重要戦術の全問に合格します。評価・候補/PVは同じ局面と尺度を保ち、未完了と証拠の地平を表示します。
+- 戦術fixtureの説明と合法手・期待手の整合を確認します。強制成りは `four-shogi-tactics-v2` の唯一合法な王手応手で検証し、重要指定と成りの期待条件を維持します。旧fixtureの39/40という15秒結果と診断を保全し、新fixtureの結果と混同しません。測定reportへfixture版・ソース識別・未達時の全候補評価/PVを残します。
+- 独立プロセスの並列/逐次が同じ完成深さで一致し、取消・起動失敗・異常終了・メモリ/時間・無応答時の強制停止、保存障害、古い局面/revision/世代の結果破棄を検証します。
+- 公開棋譜とライブのローカルWorker統合で固定prefix・101件以上のページ・対局進行中の取得・再接続・局/世代切替・終局保存への移行・未配信APIを確認し、実対局の状態へ書き込みません。
+- ライブで席を選び、他者の手番でも対象の次実手番を継続解析します。正本の手番飛ばしと予測後の脱落/終局を保ち、確定イベント到着で再解析し、未到達/条件付き評価を表示します。現在と未来の手を混用せず、元局面・解析対象・予測手順を照合した場合だけ分岐へ反映します。
+- 棋力向上・正式再計測・合格判定は別作業へ保留し、今回のDone Whenには含めません。[事前固定の正式条件と過去記録](four-shogi-ai.md#ローカル検討cpuの測定と採否)は変更せず保管し、未達・未完了の棋力を合格とは記載しません。
+- 共有UIの既存画面回帰、通常Webへの探索コード非混入、必須5コマンドと `bun run study:build`、文書整形・`git diff --check` が成功します。PR提出時はGitHub CIも成功し、検証対象コミット・実行環境・各結果・所要時間・未確認事項を記録します。Macの実表示/入力と公開先ライブAPIの未配信は独立して報告します。
+
+### コミット計画
+
+初回承認時の10コミット計画です。追加指示で棋力向上と正式再計測を別作業へ保留したため、9番の棋力検証を今回の完了条件には含めません。フォーカスの実装・回帰と保留した確認を最終報告で区別します。
+
+1. `docs: ローカル検討アプリの仕様と完了条件を定める`
+2. `refactor: 将棋盤面の表示部品を検討アプリと共有する`
+3. `feat: ローカル検討アプリの起動と棋譜保存を追加する`
+4. `feat: 思考時間と資源制限付きの並列探索を追加する`
+5. `feat: 実手番に基づくマジックと駒損対策を強化する`
+6. `feat: 四人の形勢と読み筋およびCPU対局を表示する`
+7. `feat: 進行中の四人将棋の確定棋譜を取得できるようにする`
+8. `feat: 公開棋譜とライブ対局をローカル検討へ接続する`
+9. `test: ローカルCPUの戦術と棋力および資源使用を検証する`
+10. `docs: ローカル検討アプリの利用手順と検証結果を記録する`
+
+### 実装の入口
+
+| 対象 | 主なファイル |
+| --- | --- |
+| 盤・駒と既存画面の共有 | `packages/shogi-ui/src/`、Webの `features/room` の互換ラッパー |
+| 起動・ローカルHTTP・操作 | `apps/four-shogi-study/src/server/main.ts`・`http.ts`・`application.ts` |
+| 検討ツリー・完全状態・保存 | 同 `domain/study.ts`・`store.ts`、`shared/model.ts`、`packages/four-shogi/src/analysisSetup.ts` |
+| 並列・時間・資源・停止 | 同 `search/runtime.ts`・`worker.ts`・`messages.ts` |
+| 席のフォーカスと予測手順 | 同 `search/focus.ts`、runtimeの元局面/解析対象と条件付き推奨の管理 |
+| 戦術・4人効用と右の扱い | `packages/four-shogi/src/studySearch.ts`、既存 `aiSearchContext.ts` |
+| 指標・読み筋・設定・入力 | 同アプリの `client/StudyApp.tsx`・`EvaluationPanel.tsx`・`StudyDialogs.tsx`・`useStudySession.ts` |
+| 公開棋譜とライブ | 同 `server/publicImport.ts`・`liveRoom.ts`、`domain/publicReplay.ts`・`liveReplay.ts`、既存protocol/Worker replay経路 |
+| 戦術・性能・正式棋力 | 同 `bench/search.ts`・`strength.ts` と独立対局親のIPC制御。[測定記録](four-shogi-ai.md#ローカル検討cpuの測定と採否)へ条件と結果を残します。 |
+
+部分確認は `bun run study:check`、ビルドは `bun run study:build`。rootの `check` に通常テスト・型確認を含め、rootの公開 `build` には検討アプリを含めません。CIでも検討ビルドは別の確認ステップです。
 
 ## 軽量テスト
 

@@ -33,6 +33,13 @@ export function gameChunks(): Plugin {
       for (const chunk of chunks) {
         for (const [id, info] of Object.entries(chunk.modules)) {
           if (
+            hasImplementation(info.code) &&
+            /\/(?:apps\/four-shogi-study|packages\/four-shogi\/src\/(?:study|aiSearch|modelInference))/.test(
+              id,
+            )
+          )
+            this.error(`Local study implementation emitted in ${chunk.fileName}: ${id}`);
+          if (
             /\/packages\/(four-reversi|four-shogi|reversi|shogi|gomoku|four-gomoku)\/src\/cpu[^/]*\.ts$/.test(
               id,
             ) &&
@@ -69,8 +76,10 @@ export function gameChunks(): Plugin {
         .flatMap((chunk) => modulesFor(chunk.fileName));
       for (const component of ["GomokuBoard", "ShogiPiece", "shogiPieceImages"]) {
         if (
-          [...initialModules, ...lobbyModules].some((id) =>
-            id.includes(`/features/room/${component}.`),
+          [...initialModules, ...lobbyModules].some(
+            (id) =>
+              id.includes(`/features/room/${component}.`) ||
+              id.includes(`/packages/shogi-ui/src/${component}.`),
           )
         )
           this.error(`Lobby must not statically load room board assets: ${component}`);

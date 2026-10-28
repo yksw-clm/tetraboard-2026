@@ -1,16 +1,41 @@
 import { createInitialState, getLegalActions } from "./index";
 import type { FourShogiState, FourShogiAction } from "./types";
 import { applyReplayEvent } from "./replay";
+import { readAnalysisSetup } from "./analysisSetup";
 import {
   analysisRuleProfileId,
   AnalysisInputError,
   readAnalysisReplay,
   readReplayEvent,
+  type AnalysisReplayInput,
 } from "./analysisInput";
 
 export { analysisRuleProfileId, AnalysisInputError } from "./analysisInput";
 export type { AnalysisReplayInput, AnalysisInputErrorCode } from "./analysisInput";
 export type { FourShogiReplayEvent } from "./replay";
+export type { AnalysisSetupInput } from "./analysisSetup";
+
+/** 自由編集を、履歴をリセットした検証済みの新しい起点へ変換します。 */
+export async function createAnalysisSetupPosition(input: unknown): Promise<AnalysisPosition> {
+  return makePosition(readAnalysisSetup(input).state, 0);
+}
+
+export function validateAnalysisSetup(input: unknown) {
+  return readAnalysisSetup(input).setup;
+}
+
+export function validateAnalysisReplay(
+  input: unknown,
+): AnalysisReplayInput & { eventOffset: number } {
+  return {
+    schemaVersion: 1 as const,
+    ruleProfileId: analysisRuleProfileId,
+    rulesVersion: 1 as const,
+    ...readAnalysisReplay(input),
+  };
+}
+
+export { readReplayEvent as validateAnalysisReplayEvent } from "./analysisInput";
 export type AnalysisPosition = Readonly<{
   analysisStateVersion: 1;
   ruleProfileId: typeof analysisRuleProfileId;
