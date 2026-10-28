@@ -30,6 +30,17 @@ import {
 } from "@tetraboard/four-shogi/analysis";
 
 const directories: string[] = [];
+
+test("旧新探索の短期比較は方式をjob識別へ含め、正式条件へ混ぜない", () => {
+  const legacy = argumentsFor(["--search-strategy", "legacy"]);
+  const adaptive = argumentsFor(["--search-strategy", "adaptive"]);
+  expect(legacy.searchStrategy).toBe("legacy");
+  expect(createStrengthJobs(legacy)[0].id).not.toBe(createStrengthJobs(adaptive)[0].id);
+  expect(() => argumentsFor(["--search-strategy", "unknown"])).toThrow("search-strategy");
+  expect(() => argumentsFor(["--formal", "true", "--search-strategy", "legacy"])).toThrow(
+    "正式条件",
+  );
+});
 afterEach(async () => {
   await Promise.all(
     directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),

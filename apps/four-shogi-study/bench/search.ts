@@ -40,6 +40,9 @@ const threads = (args.get("threads") ?? (kind === "performance" ? "1,2,4,8" : "4
   .map(Number);
 const productionDir = args.get("production-dir");
 const profiles = (args.get("profiles") ?? "study").split(",");
+const strategies = (args.get("strategies") ?? "adaptive").split(",");
+if (!strategies.length || strategies.some((entry) => !["legacy", "adaptive"].includes(entry)))
+  throw new Error("strategies must be legacy and/or adaptive");
 if (!profiles.length || profiles.some((profile) => !["study", "baseline"].includes(profile)))
   throw new Error("profiles must be study and/or baseline");
 const criticalOnly = args.get("critical-only") === "true";
@@ -161,147 +164,164 @@ function safe(state: FourShogiState, action: FourShogiAction | null) {
 const results: unknown[] = [];
 const skipped: unknown[] = [];
 for (const count of threads)
-  for (const profile of profiles) {
-    const runtime = createStudySearchRuntime({ threads: count });
-    async function analyze(input: StudyPositionInput) {
-      let finish!: (value: StudySearchSnapshot) => void;
-      const completed = new Promise<StudySearchSnapshot>((resolve) => {
-        finish = resolve;
+  for (const strategy of strategies)
+    for (const profile of profiles) {
+      const runtime = createStudySearchRuntime({
+        threads: count,
+        cpuProfileDirectory: args.get("cpu-profile-dir"),
       });
-      const started = performance.now();
-      await runtime.start(input, { timeBudgetMs, profile: profile as StudyProfile }, (value) => {
-        if (value.status === "completed" || value.status === "error") finish(value);
-      });
-      const value = await completed;
-      return {
-        ...value,
-        wallMs: performance.now() - started,
-        nodesPerSecond: value.nodes / (value.elapsedMs / 1000),
-      };
-    }
-    try {
-      if (kind === "performance" || kind === "production") {
-        const examples = await production();
-        const cases =
-          kind === "production"
-            ? examples
-            : [
-                { id: "initial-on", input: initial },
-                ...(examples.length ? [{ ...examples[0], id: "production-middle" }] : []),
-              ];
-        if (!cases.length)
-          throw new Error("production-dir is required and must contain singles regressions");
-        for (const entry of cases) {
-          const position = await restoreStudyPosition(entry.input);
-          const baseline = chooseCpuActionWithDiagnostics(position.state);
-          const analysis = await analyze(entry.input);
-          const candidate = analysis.candidates[0] as Partial<StudyCandidate> | undefined;
-          const result = {
-            id: entry.id,
-            threads: count,
-            profile,
-            baseline: {
-              action: baseline.action,
-              safeImmediateReply: safe(position.state, baseline.action),
-              work: baseline.stats.work,
-            },
-            search: {
-              action: analysis.recommendedAction,
-              safeImmediateReply: safe(position.state, analysis.recommendedAction),
+      async function analyze(input: StudyPositionInput) {
+        let finish!: (value: StudySearchSnapshot) => void;
+        const completed = new Promise<StudySearchSnapshot>((resolve) => {
+          finish = resolve;
+        });
+        const started = performance.now();
+        await runtime.start(
+          input,
+          {
+            timeBudgetMs,
+            profile: profile as StudyProfile,
+            strategy: strategy as "legacy" | "adaptive",
+          },
+          (value) => {
+            if (value.status === "completed" || value.status === "error") finish(value);
+          },
+        );
+        const value = await completed;
+        return {
+          ...value,
+          wallMs: performance.now() - started,
+          nodesPerSecond: value.nodes / (value.elapsedMs / 1000),
+        };
+      }
+      try {
+        if (kind === "performance" || kind === "production" || kind === "efficiency") {
+          const examples = await production();
+          const cases: { id: string; input: StudyPositionInput }[] = args.has("inputs")
+            ? await Bun.file(args.get("inputs")!).json()
+            : kind === "production"
+              ? examples
+              : [
+                  { id: "initial-on", input: initial },
+                  ...(examples.length ? [{ ...examples[0], id: "production-middle" }] : []),
+                ];
+          if (!cases.length)
+            throw new Error("production-dir is required and must contain singles regressions");
+          for (const entry of cases) {
+            const position = await restoreStudyPosition(entry.input);
+            const baseline = chooseCpuActionWithDiagnostics(position.state);
+            const analysis = await analyze(entry.input);
+            const candidate = analysis.candidates[0] as Partial<StudyCandidate> | undefined;
+            const result = {
+              id: entry.id,
+              stateHash: position.stateHash,
+              strategy,
+              threads: count,
+              profile,
+              baseline: {
+                action: baseline.action,
+                safeImmediateReply: safe(position.state, baseline.action),
+                work: baseline.stats.work,
+              },
+              search: {
+                action: analysis.recommendedAction,
+                safeImmediateReply: safe(position.state, analysis.recommendedAction),
+                completedDepth: analysis.completedDepth,
+                elapsedMs: analysis.elapsedMs,
+                wallMs: analysis.wallMs,
+                nodes: analysis.nodes,
+                work: analysis.work,
+                memoryBytes: analysis.memoryBytes,
+                nodesPerSecond: analysis.nodesPerSecond,
+                reason: analysis.reason,
+                diagnostics: analysis.diagnostics,
+                performance: analysis.performance,
+                evaluation: analysis.evaluation,
+                principalVariation: analysis.candidates[0]?.line ?? [],
+                material: candidate?.study?.material ?? null,
+                magicEvidence: candidate?.study?.magicEvidence ?? null,
+              },
+            };
+            results.push(result);
+            console.log(JSON.stringify(result));
+          }
+        } else if (kind === "tactics") {
+          const cases = tacticalCases().filter((entry) => entry.state.mode === "singles");
+          for (const restricted of [false, true])
+            for (const [offset, orientation] of sides.entries()) {
+              const state = fixture({
+                threePlayerAttackProhibited: restricted,
+                kings: { south: "A8", east: "C8" },
+                pieces: [
+                  { side: "south", kind: "rook", at: "E3" },
+                  { side: "west", kind: "gold", at: "C3" },
+                  { side: "north", kind: "silver", at: "B4" },
+                ],
+              });
+              const board = state.board.map((row) =>
+                row.map(() => null),
+              ) as FourShogiState["board"][number][number][][];
+              for (let y = 0; y < 9; y++)
+                for (let x = 0; x < 9; x++) {
+                  const piece = state.board[y][x];
+                  const to = positionForSide({ x, y }, orientation);
+                  board[to.y][to.x] = piece
+                    ? { ...piece, side: sides[(sides.indexOf(piece.side) + offset) % 4] }
+                    : null;
+                }
+              cases.push({
+                id: `valid-magic-${restricted}-${orientation}`,
+                family: "valid-magic",
+                split: "validation",
+                criterion: "magic",
+                critical: true,
+                proof: "西の金を取り東王へ王手し、北銀の取り返しより先に南へ戻る",
+                state: { ...state, status: "playing", result: null, board, turn: orientation },
+              });
+            }
+          for (const entry of cases.filter((entry) => !criticalOnly || entry.critical)) {
+            const input = fromState(entry.state);
+            try {
+              await restoreStudyPosition(input);
+            } catch (error) {
+              if (entry.critical)
+                throw new Error(`重要戦術局面を復元できません: ${entry.id}: ${String(error)}`);
+              skipped.push({ id: entry.id, reason: String(error) });
+              continue;
+            }
+            const analysis = await analyze(input);
+            const action = analysis.recommendedAction;
+            const best = analysis.candidates[0] as StudyCandidate | undefined;
+            const accepted =
+              entry.family === "valid-magic"
+                ? Boolean(
+                    analysis.candidates[0]?.line[0]?.captured?.kind === "gold" &&
+                    best?.study.magicEvidence?.status === "line_confirmed" &&
+                    best.study.material.lineDelta >= 500,
+                  )
+                : acceptsTactic(entry, action);
+            const result = {
+              id: entry.id,
+              strategy,
+              threads: count,
+              profile,
+              critical: entry.critical,
+              accepted,
+              safeImmediateReply: safe(entry.state, action),
+              action,
               completedDepth: analysis.completedDepth,
-              elapsedMs: analysis.elapsedMs,
-              wallMs: analysis.wallMs,
-              nodes: analysis.nodes,
               work: analysis.work,
-              memoryBytes: analysis.memoryBytes,
-              nodesPerSecond: analysis.nodesPerSecond,
-              reason: analysis.reason,
-              diagnostics: analysis.diagnostics,
-              evaluation: analysis.evaluation,
-              principalVariation: analysis.candidates[0]?.line ?? [],
-              material: candidate?.study?.material ?? null,
-              magicEvidence: candidate?.study?.magicEvidence ?? null,
-            },
-          };
-          results.push(result);
-          console.log(JSON.stringify(result));
-        }
-      } else if (kind === "tactics") {
-        const cases = tacticalCases().filter((entry) => entry.state.mode === "singles");
-        for (const restricted of [false, true])
-          for (const [offset, orientation] of sides.entries()) {
-            const state = fixture({
-              threePlayerAttackProhibited: restricted,
-              kings: { south: "A8", east: "C8" },
-              pieces: [
-                { side: "south", kind: "rook", at: "E3" },
-                { side: "west", kind: "gold", at: "C3" },
-                { side: "north", kind: "silver", at: "B4" },
-              ],
-            });
-            const board = state.board.map((row) =>
-              row.map(() => null),
-            ) as FourShogiState["board"][number][number][][];
-            for (let y = 0; y < 9; y++)
-              for (let x = 0; x < 9; x++) {
-                const piece = state.board[y][x];
-                const to = positionForSide({ x, y }, orientation);
-                board[to.y][to.x] = piece
-                  ? { ...piece, side: sides[(sides.indexOf(piece.side) + offset) % 4] }
-                  : null;
-              }
-            cases.push({
-              id: `valid-magic-${restricted}-${orientation}`,
-              family: "valid-magic",
-              split: "validation",
-              criterion: "magic",
-              critical: true,
-              proof: "西の金を取り東王へ王手し、北銀の取り返しより先に南へ戻る",
-              state: { ...state, status: "playing", result: null, board, turn: orientation },
-            });
+              elapsedMs: analysis.elapsedMs,
+              ...(accepted ? {} : { candidates: analysis.candidates }),
+            };
+            results.push(result);
+            console.log(JSON.stringify(result));
           }
-        for (const entry of cases.filter((entry) => !criticalOnly || entry.critical)) {
-          const input = fromState(entry.state);
-          try {
-            await restoreStudyPosition(input);
-          } catch (error) {
-            if (entry.critical)
-              throw new Error(`重要戦術局面を復元できません: ${entry.id}: ${String(error)}`);
-            skipped.push({ id: entry.id, reason: String(error) });
-            continue;
-          }
-          const analysis = await analyze(input);
-          const action = analysis.recommendedAction;
-          const best = analysis.candidates[0] as StudyCandidate | undefined;
-          const accepted =
-            entry.family === "valid-magic"
-              ? Boolean(
-                  analysis.candidates[0]?.line[0]?.captured?.kind === "gold" &&
-                  best?.study.magicEvidence?.status === "line_confirmed" &&
-                  best.study.material.lineDelta >= 500,
-                )
-              : acceptsTactic(entry, action);
-          const result = {
-            id: entry.id,
-            threads: count,
-            profile,
-            critical: entry.critical,
-            accepted,
-            safeImmediateReply: safe(entry.state, action),
-            action,
-            completedDepth: analysis.completedDepth,
-            work: analysis.work,
-            elapsedMs: analysis.elapsedMs,
-            ...(accepted ? {} : { candidates: analysis.candidates }),
-          };
-          results.push(result);
-          console.log(JSON.stringify(result));
-        }
-      } else throw new Error("kind must be performance, production or tactics");
-    } finally {
-      await runtime.close();
+        } else throw new Error("kind must be performance, efficiency, production or tactics");
+      } finally {
+        await runtime.close();
+      }
     }
-  }
 const report = {
   schemaVersion: 2,
   startedAt,
@@ -315,7 +335,12 @@ const report = {
   },
   kind,
   claim: "limited engineering/tactical measurement; not strength certification",
-  settings: { timeBudgetMs, threads, profiles, criticalOnly },
+  settings: { timeBudgetMs, threads, profiles, strategies, criticalOnly },
+  inputsSha256: args.has("inputs")
+    ? new Bun.CryptoHasher("sha256")
+        .update(await Bun.file(args.get("inputs")!).arrayBuffer())
+        .digest("hex")
+    : null,
   environment: {
     bun: Bun.version,
     platform: process.platform,

@@ -77,6 +77,7 @@ export type StrengthOptions = {
   samplesOnly: boolean;
   formal?: boolean;
   resume?: boolean;
+  searchStrategy?: "legacy" | "adaptive";
 };
 type Opening = {
   replay: AnalysisReplayInput;
@@ -177,6 +178,7 @@ export function createStrengthJobs(options: StrengthOptions): StrengthJob[] {
               restricted,
               seat,
               profile,
+              ...(options.searchStrategy ? { searchStrategy: options.searchStrategy } : {}),
               budget: options.budget,
               threads: options.threads,
               memoryMb: options.memoryMb,
@@ -235,11 +237,12 @@ export function fixedWorkChoice(
   position: AnalysisPosition,
   work: number,
   profile: StudyProfile,
+  strategy?: "legacy" | "adaptive",
 ): Choice {
   const forced = forcedLegalChoice(position);
   if (forced) return forced;
   const before = performance.now();
-  const session = createStudyRootSearch(position, { profile, maxDepth: 64 });
+  const session = createStudyRootSearch(position, { profile, maxDepth: 64, strategy });
   let selected = false;
   let done = false;
   try {
@@ -286,6 +289,7 @@ async function timedChoice(
   timeMs: number,
   profile: StudyProfile,
   position: AnalysisPosition,
+  strategy?: "legacy" | "adaptive",
 ): Promise<Choice> {
   const forced = forcedLegalChoice(position);
   if (forced) return forced;
@@ -296,7 +300,7 @@ async function timedChoice(
       timeMs + 15000,
     );
     void runtime
-      .start(positionInput(replay), { timeBudgetMs: timeMs, profile }, (value) => {
+      .start(positionInput(replay), { timeBudgetMs: timeMs, profile, strategy }, (value) => {
         if (value.status === "error" || value.status === "cancelled") {
           clearTimeout(watchdog);
           reject(new Error(value.reason ?? value.status));
@@ -392,8 +396,15 @@ async function play(
       try {
         choice =
           "work" in options.budget
-            ? fixedWorkChoice(position, options.budget.work, profile)
-            : await timedChoice(runtime!, replay, options.budget.timeMs, profile, position);
+            ? fixedWorkChoice(position, options.budget.work, profile, options.searchStrategy)
+            : await timedChoice(
+                runtime!,
+                replay,
+                options.budget.timeMs,
+                profile,
+                position,
+                options.searchStrategy,
+              );
       } catch (error) {
         if (stopped()) break;
         throw error;
@@ -865,6 +876,7 @@ export async function runStrength(options: StrengthOptions) {
       restrictions: options.restrictions,
       seats: options.seats,
       profiles: options.profiles,
+      searchStrategy: options.searchStrategy ?? "adaptive",
       maxPlies: options.maxPlies,
       positionsFile: options.positionsFile ?? null,
       samplesOnly: options.samplesOnly,
@@ -1061,8 +1073,15 @@ export async function runStrength(options: StrengthOptions) {
         for (const profile of options.profiles) {
           const choice =
             "work" in options.budget
-              ? fixedWorkChoice(position, options.budget.work, profile)
-              : await timedChoice(sampleRuntime!, replay, options.budget.timeMs, profile, position);
+              ? fixedWorkChoice(position, options.budget.work, profile, options.searchStrategy)
+              : await timedChoice(
+                  sampleRuntime!,
+                  replay,
+                  options.budget.timeMs,
+                  profile,
+                  position,
+                  options.searchStrategy,
+                );
           if (!choice.action) throw new Error("局面サンプルで合法手を返しませんでした");
           const after = await advanceAnalysisPosition(position, {
             type: "action",
@@ -1144,6 +1163,7 @@ export function argumentsFor(args: string[]): StrengthOptions {
     "restrictions",
     "seats",
     "profiles",
+    "search-strategy",
     "max-plies",
     "output",
     "positions",
@@ -1177,6 +1197,11 @@ export function argumentsFor(args: string[]): StrengthOptions {
   )
     throw new Error("ルール・席・比較方式が不正です");
   const formal = values.get("formal") === "true";
+  const strategy = values.get("search-strategy");
+  if (strategy !== undefined && !["legacy", "adaptive"].includes(strategy))
+    throw new Error("search-strategy must be legacy or adaptive");
+  if (formal && strategy !== undefined)
+    throw new Error("正式条件への探索方式の追加は別の測定計画にしてください");
   const options: StrengthOptions = {
     budget: values.has("work")
       ? { work: integer("work", 8192, 1, 100000000) }
@@ -1194,6 +1219,7 @@ export function argumentsFor(args: string[]): StrengthOptions {
     positionsFile: values.get("positions"),
     samplesOnly: values.get("samples-only") === "true",
     formal,
+    ...(strategy ? { searchStrategy: strategy as "legacy" | "adaptive" } : {}),
     resume: values.get("resume") === "true",
   };
   if (formal) validateFormalStrengthOptions(options);
