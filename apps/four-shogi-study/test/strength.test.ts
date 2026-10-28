@@ -11,6 +11,8 @@ import {
   forcedLegalChoice,
   runStrength,
   runStrengthQueue,
+  resolveStrengthExecution,
+  strengthProcessSourceIdentity,
   strengthRecordsHash,
   strengthRunnerVersion,
   strengthScheduleVersion,
@@ -21,6 +23,7 @@ import {
 } from "../bench/strength";
 import type { SinglesSample } from "../../../packages/four-shogi/bench/singlesMeasurement";
 import { sides } from "@tetraboard/four-shogi";
+import type { StrengthParentFailure } from "../bench/strengthProcessProtocol";
 import {
   createAnalysisSetupPosition,
   getAnalysisLegalActions,
@@ -58,7 +61,7 @@ function samples(wins: (profile: "study" | "baseline", series: number, seat: num
             matchId: `${profile}:${restricted}:${series}:${seat}`,
             seriesId: `series:${series}`,
             startKind: "opening",
-            seed: 9_420_000 + series,
+            seed: 9_440_000 + series,
             seat,
             lineup: { south: "cpu", west: "cpu", north: "cpu", east: "cpu" },
             status: "finished",
@@ -85,7 +88,7 @@ test("正式測定の予算と局数を結果取得前に固定する", () => {
     threads: 4,
     memoryMb: 8192,
     concurrency: 2,
-    seed: 9420000,
+    seed: 9440000,
     seeds: 16,
     maxPlies: 512,
   });
@@ -161,7 +164,7 @@ function resumeContract(jobs: readonly StrengthJob[]): StrengthResumeContract {
       memoryBytes: 24 * 1024 ** 3,
       bun: Bun.version,
     },
-    options: { concurrency: 2, seed: 9420000 },
+    options: { concurrency: 2, seed: 9440000 },
     opponent: { selector: "frozen" },
     jobIds: jobs.map((job) => job.id),
   };
@@ -172,7 +175,7 @@ function resumeReport(
   attempts: RecordedGame[] = [],
 ) {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     runnerVersion: strengthRunnerVersion,
     code: { sourceUnchanged: true },
     contract,
@@ -182,6 +185,8 @@ function resumeReport(
     games,
     attempts,
     positions: [],
+    workerFailures: [],
+    invalidatedGames: [],
     recordsHash: strengthRecordsHash(games, attempts, []),
   };
 }
@@ -350,6 +355,118 @@ test("席とON/OFFがそろうまで正式棋力を判定しない", () => {
   expect(assessFormalStrength(games).status).toBe("passed");
   expect(assessFormalStrength(games.slice(0, -1)).status).toBe("pending");
   expect(assessFormalStrength(games, false).status).toBe("invalid_source_changed");
+});
+
+test("全256件が勝率条件を満たしても停止・fatal・未解決の親障害があれば合格にしない", () => {
+  const games = samples((profile, _series, seat) => seat < (profile === "study" ? 3 : 2));
+  expect(assessFormalStrength(games).status).toBe("passed");
+  expect(
+    assessFormalStrength(games, true, {
+      interrupted: true,
+      failure: null,
+      unresolvedWorkerFailures: 0,
+    }).status,
+  ).toBe("pending");
+  expect(
+    assessFormalStrength(games, true, {
+      interrupted: true,
+      failure: "cleanup failed",
+      unresolvedWorkerFailures: 0,
+    }).status,
+  ).toBe("invalid_execution");
+  expect(
+    assessFormalStrength(games, true, {
+      interrupted: false,
+      failure: null,
+      unresolvedWorkerFailures: 1,
+    }).status,
+  ).toBe("invalid_execution");
+});
+
+test("矛盾した結果を隔離してresumeでそのjobを再実行し、再完了した障害だけを解決済みにする", async () => {
+  const jobs = createStrengthJobs(argumentsFor(["--formal", "true"])).slice(0, 1);
+  const game = recorded(jobs[0]);
+  const issue: StrengthParentFailure = {
+    lane: 0,
+    jobId: game.jobId,
+    kind: "result_conflict",
+    message: "conflicting result",
+    resolved: false,
+  };
+  const isolated = resolveStrengthExecution({
+    games: [game],
+    invalidatedGames: [],
+    workerFailures: [],
+    currentWorkerFailures: [issue],
+    sourceUnchanged: true,
+    failure: null,
+  });
+  expect(isolated.games).toEqual([]);
+  expect(isolated.invalidatedGames).toEqual([game]);
+  expect(isolated.unresolvedWorkerFailures).toBe(1);
+  const contract = resumeContract(jobs);
+  const base = resumeReport(contract, isolated.games);
+  const report = {
+    ...base,
+    workerFailures: isolated.workerFailures,
+    invalidatedGames: isolated.invalidatedGames,
+    recordsHash: strengthRecordsHash(
+      isolated.games,
+      [],
+      [],
+      isolated.workerFailures,
+      isolated.invalidatedGames,
+    ),
+  };
+  const saved = validateStrengthResume(report, contract, jobs);
+  const rerun: string[] = [];
+  await runStrengthQueue(jobs, 2, new Set(saved.games.map((entry) => entry.jobId)), async (job) => {
+    rerun.push(job.id);
+  });
+  expect(rerun).toEqual([game.jobId]);
+  const corrupt = {
+    ...report,
+    games: [game],
+    recordsHash: strengthRecordsHash(
+      [game],
+      [],
+      [],
+      isolated.workerFailures,
+      isolated.invalidatedGames,
+    ),
+  };
+  expect(() => validateStrengthResume(corrupt, contract, jobs)).toThrow("未解決");
+  const recovered = resolveStrengthExecution({
+    games: [recorded(jobs[0], 1)],
+    invalidatedGames: saved.invalidatedGames,
+    workerFailures: saved.workerFailures,
+    currentWorkerFailures: [],
+    sourceUnchanged: true,
+    failure: null,
+  });
+  expect(recovered.workerFailures[0].resolved).toBe(true);
+  expect(recovered.unresolvedWorkerFailures).toBe(0);
+  expect(recovered.failure).toBeNull();
+  const infrastructure = resolveStrengthExecution({
+    games: [game],
+    invalidatedGames: [],
+    workerFailures: [{ ...issue, jobId: null, kind: "cleanup" }],
+    currentWorkerFailures: [],
+    sourceUnchanged: true,
+    failure: null,
+  });
+  expect(infrastructure.unresolvedWorkerFailures).toBe(1);
+});
+
+test("runnerのソース識別は結果JSONを含めず、対局親とIPCも含める", () => {
+  const source = strengthProcessSourceIdentity();
+  expect(source.files.map((entry) => entry.path)).toEqual([
+    "strength.ts",
+    "strengthGameWorker.ts",
+    "strengthProcessPool.ts",
+    "strengthProcessProtocol.ts",
+  ]);
+  expect(source.files.every((entry) => entry.sha256.length === 64)).toBe(true);
 });
 
 test("単独率40%と系列区間下限と同時間baselineを独立に検査する", () => {
