@@ -294,7 +294,7 @@ export function createStudySearchRuntime(
 ): StudySearchRuntime {
   const threads = config.threads ?? 4;
   const memoryMb = config.memoryMb ?? 8192;
-  const replyCacheBudget = config.replyCacheBudget ?? "roots";
+  const replyCacheBudget = config.replyCacheBudget ?? "workers";
   const startupTimeoutMs = config.startupTimeoutMs ?? 10000;
   const shutdownTimeoutMs = config.shutdownTimeoutMs ?? 500;
   const reuseWorkers = config.reuseWorkers ?? config.workerScript === undefined;

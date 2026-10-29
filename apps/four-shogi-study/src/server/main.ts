@@ -38,7 +38,7 @@ if (process.env.STUDY_LOCAL_WORKER_ORIGIN) {
 const taskPartition = process.env.STUDY_TASK_PARTITION ?? "root";
 if (taskPartition !== "root" && taskPartition !== "replies")
   throw new Error("STUDY_TASK_PARTITIONはrootまたはrepliesです");
-const replyCacheBudget = process.env.STUDY_REPLY_CACHE_BUDGET ?? "roots";
+const replyCacheBudget = process.env.STUDY_REPLY_CACHE_BUDGET ?? "workers";
 if (replyCacheBudget !== "roots" && replyCacheBudget !== "workers")
   throw new Error("STUDY_REPLY_CACHE_BUDGETはrootsまたはworkersです");
 const app = new LocalStudyApplication(

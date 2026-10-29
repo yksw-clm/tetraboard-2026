@@ -357,6 +357,7 @@ test("保持枠を実workerへ渡し、通常の根分配と既定v5には縮小
   for (const [strategy, taskPartition, replyCacheBudget, bounded] of [
     ["dual-continuations", "replies", "roots", true],
     ["dual-continuations", "replies", "workers", false],
+    ["dual-continuations", "replies", undefined, false],
     ["dual-continuations", "root", "roots", false],
     ["adaptive", "replies", "roots", false],
   ] as const) {

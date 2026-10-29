@@ -57,7 +57,7 @@ const taskPartition = args.get("task-partition") ?? "root";
 if (taskPartition !== "root" && taskPartition !== "replies")
   throw new Error("task-partitionはrootまたはrepliesです");
 const criticalOnly = args.get("critical-only") === "true";
-const replyCacheBudget = args.get("reply-cache-budget") ?? "roots";
+const replyCacheBudget = args.get("reply-cache-budget") ?? "workers";
 if (replyCacheBudget !== "roots" && replyCacheBudget !== "workers")
   throw new Error("reply-cache-budgetはrootsまたはworkersです");
 if (args.has("critical-only") && !["true", "false"].includes(args.get("critical-only")!))
