@@ -89,6 +89,7 @@ export type StudySearchSnapshot = {
     transitionCacheHits: number;
     evaluationCacheHits: number;
     iterationDepth: number;
+    completedIterationWork?: number;
     completedTasks: number;
     totalTasks: number;
     workerNodes: number[];
@@ -256,6 +257,7 @@ type Job = {
     waitMs: number[];
     depths: { depth: number; elapsedMs: number; roots: number }[];
     total: number;
+    completedIterationWork: number;
   } | null;
   snapshot: StudySearchSnapshot;
   lanes: (Lane | null)[];
@@ -497,6 +499,9 @@ export function createStudySearchRuntime(
         keyMs: sum("keyMs"),
         immediateWork: sum("immediateWork"),
         materialWork: sum("materialWork"),
+        preparationWork: sum("preparationWork"),
+        rootSetupWork: sum("rootSetupWork"),
+        completedIterationWork: value.dynamic?.completedIterationWork ?? 0,
         reducedNodes: sum("reducedNodes"),
         researches: sum("researches"),
         promotionExtraMoves: sum("promotionExtraMoves"),
@@ -662,21 +667,15 @@ export function createStudySearchRuntime(
     const workers = children.map((_, worker) => worker);
     if (dynamic.parts) {
       const parts = dynamic.parts;
-      const priority = (worker: number) =>
-        [...parts.pending.values()].some(
-          (pending) =>
-            pending.owner === worker &&
-            !pending.finishing &&
-            pending.results.size === pending.plan.tasks.length,
-        )
-          ? 2
-          : parts.queue.some(
-                (entry) =>
-                  parts.owners.get(`${entry.task.rootIndex}:${entry.task.slot}`) === worker,
-              )
-            ? 1
-            : 0;
-      workers.sort((a, b) => priority(b) - priority(a) || a - b);
+      const priority = Array(threads).fill(0) as number[];
+      for (const entry of parts.queue) {
+        const owner = parts.owners.get(`${entry.task.rootIndex}:${entry.task.slot}`);
+        if (owner !== undefined) priority[owner] = 1;
+      }
+      for (const pending of parts.pending.values())
+        if (!pending.finishing && pending.results.size === pending.plan.tasks.length)
+          priority[pending.owner] = 2;
+      workers.sort((a, b) => priority[b] - priority[a] || a - b);
     }
     workers.forEach((worker) => {
       if (dynamic.inflight.has(worker)) return;
@@ -712,7 +711,10 @@ export function createStudySearchRuntime(
         });
         if (finish) pending.finishing = true;
         else {
-          parts!.owners.set(`${part!.task.rootIndex}:${part!.task.slot}`, worker);
+          const affinityKey = `${part!.task.rootIndex}:${part!.task.slot}`;
+          if (parts!.owners.size >= 256 && !parts!.owners.has(affinityKey))
+            parts!.owners.delete(parts!.owners.keys().next().value!);
+          parts!.owners.set(affinityKey, worker);
           if (value.snapshot.timing)
             value.snapshot.timing.subtreeTasksAssigned =
               (value.snapshot.timing.subtreeTasksAssigned ?? 0) + 1;
@@ -886,6 +888,7 @@ export function createStudySearchRuntime(
       roots: dynamic.total,
     });
     const completed = [...dynamic.results.values()];
+    dynamic.completedIterationWork += completed.reduce((n, c) => n + c.iterationWork, 0);
     const publish = !dual || dynamic.depth >= value.snapshot.completedDepth;
     if (publish) {
       value.published = completed;
@@ -1489,6 +1492,7 @@ export function createStudySearchRuntime(
                 waitMs: Array(threads).fill(0),
                 depths: [],
                 total: 0,
+                completedIterationWork: 0,
                 ...(isDualStudyStrategy(options.strategy)
                   ? {
                       dual: {

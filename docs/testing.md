@@ -323,7 +323,7 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
-P1-3は `packages/four-shogi/test/studySplitTasks.test.ts` で逆順完成、四人評価・PV・work、同じ文脈で複数根を退避した仕事量、異なる入力文脈・未完成・重複の拒否、三人攻撃禁止ON/OFFと4/3/2人生存を確認します。`apps/four-shogi-study/test/parallelTasks.test.ts` は実Bunプロセスで旧新一致と、停止・期限からの再開、取消・新IDの再試行、重複・古いtaskId、worker異常終了・RSS上限を検証します。遅延や異常はプロセス通信境界のfixtureで与え、内部MaxNをモックしません。`parallelTelemetry.test.ts` は物理タスクの同時実行数と根全体の待ち時間を分けます。長い固定仕事・戦術・実時間比較は通常checkから分離し、固定ソース・資源上限・PVの正本再生を記録します。
+P1-3は `packages/four-shogi/test/studySplitTasks.test.ts` で逆順完成、四人評価・PV・work、同じ文脈で複数根を退避した仕事量、異なる入力文脈・未完成・重複の拒否、三人攻撃禁止ON/OFFと4/3/2人生存を確認します。`apps/four-shogi-study/test/parallelTasks.test.ts` は実Bunプロセスで旧新一致と、停止・期限からの再開、取消・新IDの再試行、重複・古いtaskId、worker異常終了・RSS上限を検証します。遅延や異常はプロセス通信境界のfixtureで与え、内部MaxNをモックしません。`parallelTelemetry.test.ts` は物理タスクの同時実行数と根全体の待ち時間を分けます。長い固定仕事・戦術・実時間比較は通常checkから分離し、固定ソース・資源上限・PVの正本再生を記録します。`bench/parallelSearch.ts --mode=fixed --directory=<固定済み入力の保存先>` が同深さの候補・評価・PV・探索本体workと物理work内訳、`--mode=known` が既知8展開・深さ9、`--mode=matrix` が全予算/workerの旧新比較を記録します。`--mode=verify --file=<JSONL>` は公開候補と広い比較候補のPVを再生し、実手番・afterPly・評価・捕獲・脱落・王手・終局を照合します。`bench/search.ts --kind=tactics --time-ms=1000 --threads=4 --strategies=adaptive,dual,dual-continuations --task-partition=root` と、P0-5だけの `--task-partition=replies` を同じソースで比較します。work上限は既定2000万で、上限取消を戦術の合格に含めません。
 
 P0診断は`studyDiagnostics.test.ts`と`test/tacticsDiagnostics.test.ts`で、固定タスクのobserver有効/無効による候補・評価・PV・workの一致、一節点介入で元候補を維持すること、observerが受け取った値の変更による入力汚染の防止、評価内訳の合計、実Bun workerのタスク再生、記録の容量超過を確認します。長い16展開の調査は通常checkから分離し、`bun apps/four-shogi-study/bench/tacticsDiagnostics.ts --output-dir=/private/tmp/study-p0-run`で実行します。元測定と新しい再測定、通常の1秒探索と観測実行、runtime再生と新規固定深さ比較を別に記録します。
 

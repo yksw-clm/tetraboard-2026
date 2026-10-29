@@ -7,6 +7,7 @@ import {
   createInitialState,
   applyAction,
   getLegalActions,
+  getActiveSides,
 } from "../../../packages/four-shogi/src/index";
 import {
   createStudySearchRuntime,
@@ -15,6 +16,7 @@ import {
 } from "../src/search/runtime";
 import { restoreStudyPosition } from "../src/domain/study";
 import { advanceAnalysisPosition } from "../../../packages/four-shogi/src/analysis";
+import { getCheckState } from "../../../packages/four-shogi/src/board";
 import { explainStudyEvaluation } from "../../../packages/four-shogi/src/studySearch";
 import type { StudyPositionInput } from "../src/shared/model";
 
@@ -165,12 +167,28 @@ export async function verifyEfficiencyRows(
       for (const [index, step] of candidate.line.entries()) {
         if (current.state.turn !== step.side || step.afterPly !== index + 1)
           throw new Error("PV手番が一致しません");
+        const eliminatedBefore = current.state.eliminations.length;
         current = await advanceAnalysisPosition(current, {
           type: "action",
           side: step.side,
           action: step.action,
         });
         if (current.state.turn !== step.nextTurn) throw new Error("次手番が一致しません");
+        const checks = getCheckState(current.state);
+        const actual = {
+          captured: current.state.lastMove?.captured ?? null,
+          eliminations: current.state.eliminations.slice(eliminatedBefore),
+          checkedSides: getActiveSides(current.state).filter((side) => checks[side]),
+          result: current.state.result,
+        };
+        const recorded = {
+          captured: step.captured,
+          eliminations: step.eliminations,
+          checkedSides: step.checkedSides,
+          result: step.result,
+        };
+        if (sha(JSON.stringify(actual)) !== sha(JSON.stringify(recorded)))
+          throw new Error("PVメタデータが一致しません");
       }
       if (
         sha(JSON.stringify(explainStudyEvaluation(current).evaluation)) !==

@@ -157,6 +157,8 @@ export type StudySearchPerformance = AiContextMetrics & {
   subtreeStateCacheHits?: number;
   subtreeStateCacheEntries?: number;
   subtreeStateKeyMs?: number;
+  preparationWork?: number;
+  rootSetupWork?: number;
 };
 export type StudyRootOptions = {
   reuseChecks?: boolean;
@@ -606,6 +608,8 @@ export function createStudyRootSearch(
   let keyMs = 0;
   let immediateWork = 0;
   let materialWork = 0;
+  let preparationWork = 0;
+  let rootSetupWork = 0;
   let reducedNodes = 0;
   let researches = 0;
   let promotionExtraMoves = 0;
@@ -1235,6 +1239,7 @@ export function createStudyRootSearch(
       const before = { ...stats };
       const next = yield* ctx.advance(ctx.start, move, 0);
       const evaluation = yield* ctx.evaluate(next.state);
+      preparationWork += stats.work - before.work;
       roots.push({
         index,
         rightCheckPriority,
@@ -1353,6 +1358,7 @@ export function createStudyRootSearch(
       steps = (function* (): Generator<number, void> {
         let entry = roots.find((entry) => entry.index === index);
         if (!entry) {
+          const setupWork = stats.work;
           const move = ctx.legal[index];
           const next = yield* ctx.advance(ctx.start, move, 0);
           const evaluation = yield* ctx.evaluate(next.state);
@@ -1368,6 +1374,7 @@ export function createStudyRootSearch(
             ...(optimized ? { initialScore: evaluation.values[root!].heuristicScore ?? 0 } : {}),
           };
           roots.push(entry);
+          rootSetupWork += stats.work - setupWork;
         }
         if (profile === "study" && !immediate.has(index)) yield* inspectImmediate(entry);
         const before = { ...stats };
@@ -1524,6 +1531,8 @@ export function createStudyRootSearch(
           keyMs,
           immediateWork,
           materialWork,
+          preparationWork,
+          rootSetupWork,
           reducedNodes,
           researches,
           promotionExtraMoves,

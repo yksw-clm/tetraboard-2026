@@ -1,7 +1,8 @@
 import { cpus, totalmem, release } from "node:os";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createStudySearchRuntime, type StudySearchSnapshot } from "../src/search/runtime";
+import { createStudySearchRuntime } from "../src/search/runtime";
+import { parallelTrial } from "./parallelSearch";
 import { restoreStudyPosition } from "../src/domain/study";
 import type { StudyPositionInput } from "../src/shared/model";
 import {
@@ -37,6 +38,8 @@ const args = new Map(
 );
 const kind = args.get("kind") ?? "performance";
 const timeBudgetMs = Number(args.get("time-ms") ?? 5000);
+const maxWork = Number(args.get("max-work") ?? 20000000);
+if (!Number.isSafeInteger(maxWork) || maxWork < 1) throw new Error("max-workは正の整数です");
 const threads = (args.get("threads") ?? (kind === "performance" ? "1,2,4,8" : "4"))
   .split(",")
   .map(Number);
@@ -50,6 +53,9 @@ if (
   throw new Error("strategies must be legacy, adaptive and/or dual");
 if (!profiles.length || profiles.some((profile) => !["study", "baseline"].includes(profile)))
   throw new Error("profiles must be study and/or baseline");
+const taskPartition = args.get("task-partition") ?? "root";
+if (taskPartition !== "root" && taskPartition !== "replies")
+  throw new Error("task-partitionはrootまたはrepliesです");
 const criticalOnly = args.get("critical-only") === "true";
 if (args.has("critical-only") && !["true", "false"].includes(args.get("critical-only")!))
   throw new Error("critical-only must be true or false");
@@ -58,6 +64,9 @@ const sourceFingerprint = () => ({
   runtime: sourceIdentity(resolve(repoRoot, "apps/four-shogi-study/src/search")),
   measurement: [
     "apps/four-shogi-study/bench/search.ts",
+    "apps/four-shogi-study/bench/parallelSearch.ts",
+    "apps/four-shogi-study/bench/searchEfficiency.ts",
+    "apps/four-shogi-study/bench/parallelTelemetry.ts",
     "packages/four-shogi/bench/tactics.ts",
     "packages/four-shogi/bench/positionFixture.ts",
   ].map((path) => ({
@@ -173,30 +182,26 @@ for (const count of threads)
     for (const profile of profiles) {
       const runtime = createStudySearchRuntime({
         threads: count,
+        taskPartition,
         cpuProfileDirectory: args.get("cpu-profile-dir"),
       });
       async function analyze(input: StudyPositionInput) {
-        let finish!: (value: StudySearchSnapshot) => void;
-        const completed = new Promise<StudySearchSnapshot>((resolve) => {
-          finish = resolve;
-        });
-        const started = performance.now();
-        await runtime.start(
+        const result = await parallelTrial(
+          runtime,
           input,
           {
             timeBudgetMs,
             profile: profile as StudyProfile,
             strategy: strategy as StudySearchStrategy,
           },
-          (value) => {
-            if (value.status === "completed" || value.status === "error") finish(value);
-          },
+          maxWork,
         );
-        const value = await completed;
+        const value = result.snapshot;
         return {
           ...value,
-          wallMs: performance.now() - started,
+          wallMs: result.responseMs,
           nodesPerSecond: value.nodes / (value.elapsedMs / 1000),
+          limitReason: result.limitReason,
         };
       }
       try {
@@ -301,13 +306,16 @@ for (const count of threads)
             const action = analysis.recommendedAction;
             const best = analysis.candidates[0] as StudyCandidate | undefined;
             const accepted =
-              entry.family === "valid-magic"
+              analysis.status === "completed" &&
+              ["deadline", "max_depth", "sole_win", "terminal"].includes(analysis.reason ?? "") &&
+              analysis.limitReason === null &&
+              (entry.family === "valid-magic"
                 ? Boolean(
                     analysis.candidates[0]?.line[0]?.captured?.kind === "gold" &&
                     best?.study.magicEvidence?.status === "line_confirmed" &&
                     best.study.material.lineDelta >= 500,
                   )
-                : acceptsTactic(entry, action);
+                : acceptsTactic(entry, action));
             const result = {
               id: entry.id,
               input,
@@ -317,6 +325,9 @@ for (const count of threads)
               profile,
               critical: entry.critical,
               accepted,
+              status: analysis.status,
+              reason: analysis.reason,
+              limitReason: analysis.limitReason,
               safeImmediateReply: safe(entry.state, action),
               action,
               completedDepth: analysis.completedDepth,
@@ -349,7 +360,7 @@ const report = {
   },
   kind,
   claim: "limited engineering/tactical measurement; not strength certification",
-  settings: { timeBudgetMs, threads, profiles, strategies, criticalOnly },
+  settings: { timeBudgetMs, maxWork, threads, profiles, strategies, criticalOnly, taskPartition },
   inputsSha256: args.has("inputs")
     ? new Bun.CryptoHasher("sha256")
         .update(await Bun.file(args.get("inputs")!).arrayBuffer())

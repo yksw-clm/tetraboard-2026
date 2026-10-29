@@ -54,6 +54,17 @@ test("実workerへ応手を分配し、完成根だけを同深さで公開す�
   expect(commands.has("subtree")).toBe(true);
   expect(commands.has("finish")).toBe(true);
   expect(results[1].completedDepth).toBe(6);
+  expect(results[1].performance?.completedIterationWork ?? 0).toBeGreaterThan(0);
+  for (const s of results) {
+    const p = s.performance!;
+    expect(s.work).toBe(
+      (p.preparationWork ?? 0) +
+        (p.rootSetupWork ?? 0) +
+        p.immediateWork +
+        p.materialWork +
+        (p.completedIterationWork ?? 0),
+    );
+  }
   expect(results[1].recommendedAction).toEqual(results[0].recommendedAction);
   expect(results[1].candidates).toEqual(results[0].candidates);
   expect(results[1].work).toBe(results[0].work);
@@ -269,3 +280,40 @@ for (const mode of ["memory", "exit"] as const)
       },
     );
   }, 20000);
+
+test("フォーカスで投射した局面の文脈を応手分配にも渡す", async () => {
+  const runtime = createStudySearchRuntime({
+    threads: 4,
+    taskPartition: "replies",
+    measureStages: true,
+  });
+  try {
+    const result = await parallelTrial(runtime, input, {
+      ...options,
+      timeBudgetMs: 10000,
+      maxDepth: 5,
+      focusSide: "west",
+    });
+    const s = result.snapshot;
+    expect(s.reason).toBe("max_depth");
+    expect(s.focus?.status).toBe("ready");
+    expect(s.analysisStateHash).not.toBe(s.stateHash);
+    expect(s.recommendedAction).toBeNull();
+    expect(s.timing!.splitPlans).toBeGreaterThan(0);
+    expect(s.candidates[0].line[0].side).toBe("west");
+  } finally {
+    await runtime.close();
+  }
+}, 20000);
+
+test("測定のwork上限は取消として記録し、未完成探索を合格扱いしない", async () => {
+  const runtime = createStudySearchRuntime({ threads: 2, taskPartition: "replies" });
+  try {
+    const result = await parallelTrial(runtime, input, { ...options, timeBudgetMs: 5000 }, 1);
+    expect(result.limitReason).toBe("work_limit");
+    expect(result.snapshot.status).toBe("cancelled");
+    expect(result.snapshot.completedDepth).toBeLessThan(6);
+  } finally {
+    await runtime.close();
+  }
+});
