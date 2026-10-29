@@ -18,12 +18,13 @@ import { tacticInput, explainLine } from "./tacticsDiagnostics";
 const digest = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
 const semantic = (c: readonly StudyCandidate[]) =>
   c.map((value) => ({ ...value, iterationWork: 0, iterationNodes: 0 }));
-export async function runParallelFixed(directory: string) {
+export async function runParallelFixed(directory: string, outputStem = "fixed-runtime") {
+  if (!/^[a-z0-9-]{1,64}$/.test(outputStem)) throw new Error("固定検証の出力名が不正です");
   const source = efficiencySource(),
     fingerprint = digest(source),
     begin = performance.now();
   const inputs = await Bun.file(join(directory, "private-inputs/inputs.json")).json(),
-    file = join(directory, "validation/fixed-runtime.jsonl");
+    file = join(directory, `validation/${outputStem}.jsonl`);
   if (await Bun.file(file).exists()) throw Error("既存の測定を上書きしません");
   const guard = () => {
     if (digest(efficiencySource()) !== fingerprint) throw Error("ソース変更です");
@@ -215,7 +216,7 @@ export async function runParallelFixed(directory: string) {
       "cache=0 requires complete candidate including iteration work/nodes equality. Physical worker totals include root setup and differ with task ownership; never rewrite them. Normal cache compares semantic candidate and separately records real work.",
   };
   await Bun.write(
-    join(directory, "validation/fixed-runtime-summary.json"),
+    join(directory, `validation/${outputStem}-summary.json`),
     JSON.stringify(report) + "\n",
   );
   await appendFile(

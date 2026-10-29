@@ -399,7 +399,7 @@ if (import.meta.main) {
   else if (args.get("mode") === "matrix") await runParallelMatrix(directory);
   else if (args.get("mode") === "fixed") {
     const { runParallelFixed } = await import("./parallelFixed");
-    const result = await runParallelFixed(directory);
+    const result = await runParallelFixed(directory, args.get("tag") ?? "fixed-runtime");
     console.log(
       JSON.stringify({
         complete: result.complete,

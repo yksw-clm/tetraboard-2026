@@ -602,7 +602,12 @@ export function createStudySearchRuntime(
         material: {
           ...material,
           complete,
-          limit: complete ? null : material.limit,
+          // 別担当の未検査通知は、既に行った検査の具体的な打切り理由を消しません。
+          limit: complete
+            ? null
+            : material.limit === "interrupted" || material.limit === null
+              ? (oldMaterial?.limit ?? material.limit)
+              : material.limit,
           lossWitness: material.lossWitness ?? oldMaterial?.lossWitness ?? null,
         },
       },

@@ -317,3 +317,38 @@ test("測定のwork上限は取消として記録し、未完成探索を合格�
     await runtime.close();
   }
 });
+
+test("担当変更後の未検査通知で、実施済み資産検査の打切り理由を上書きしない", async () => {
+  await wrapper(
+    `process.send=(m)=>{if(m.type==="progress"&&m.barrier&&m.snapshot.depth>=3)for(const c of m.snapshot.candidates)c.study.material={...c.study.material,complete:false,limit:"interrupted"};return original(m);};`,
+    async (workerScript) => {
+      const runtime = createStudySearchRuntime({
+        threads: 4,
+        workerScript,
+        scheduling: "dynamic",
+        taskPartition: "replies",
+      });
+      try {
+        const result = await parallelTrial(runtime, input, { ...options, timeBudgetMs: 5000 });
+        expect(result.snapshot.reason).toBe("max_depth");
+        expect(result.snapshot.candidates.length).toBeGreaterThan(0);
+        expect(
+          result.snapshot.candidates.every(
+            (c) =>
+              (c as import("@tetraboard/four-shogi/study-search").StudyCandidate).study.material
+                .limit === "work_limit",
+          ),
+        ).toBe(true);
+        expect(
+          result.snapshot.candidates.every(
+            (c) =>
+              !(c as import("@tetraboard/four-shogi/study-search").StudyCandidate).study.material
+                .complete,
+          ),
+        ).toBe(true);
+      } finally {
+        await runtime.close();
+      }
+    },
+  );
+}, 20000);
