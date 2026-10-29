@@ -25,6 +25,7 @@ export async function comparePreprocessing(options: {
   output: string;
   mode: "semantic" | "speed";
   maxMs: number;
+  toggleChecks?: boolean;
 }) {
   const root = resolve(options.reference),
     source = efficiencySource(),
@@ -40,6 +41,9 @@ export async function comparePreprocessing(options: {
     source,
     referenceDirectory: root,
     mode: options.mode,
+    comparison: options.toggleChecks
+      ? "same-source checks disabled/enabled"
+      : "frozen reference/current",
     complete: false,
     failure: null as string | null,
     sourceUnchanged: true,
@@ -204,13 +208,18 @@ export async function comparePreprocessing(options: {
             for (const variant of repeat % 2 ? [1, 0] : [0, 1]) {
               guard();
               const before = performance.now();
-              const factory = variant ? createStudyRootSearch : oldSearch.createStudyRootSearch;
-              const search = factory(positions[variant], {
+              const factory = options.toggleChecks
+                ? createStudyRootSearch
+                : variant
+                  ? createStudyRootSearch
+                  : oldSearch.createStudyRootSearch;
+              const search = factory(positions[options.toggleChecks ? 1 : variant], {
                 strategy,
                 width: 2,
                 extensions: 2,
                 cacheSize: 8192,
                 dangerWork: 0,
+                ...(options.toggleChecks ? { reuseChecks: variant === 1 } : {}),
               });
               try {
                 if (!drainTask(search, performance.now() + 5000, true).complete)
@@ -278,6 +287,7 @@ if (import.meta.main) {
     output,
     mode: args.get("mode") === "speed" ? "speed" : "semantic",
     maxMs: Number(args.get("max-ms") ?? 180000),
+    toggleChecks: args.get("toggle-checks") === "true",
   });
   console.log(
     JSON.stringify({

@@ -96,6 +96,7 @@ export type StudySearchSnapshot = {
   };
 };
 export type StudySearchOptions = {
+  reuseChecks?: boolean;
   strategy?: StudySearchStrategy;
   broadDepth?: number;
   timeBudgetMs: number | null;
@@ -335,6 +336,7 @@ export function createStudySearchRuntime(
         legalCalls: sum("legalCalls"),
         checkCalls: sum("checkCalls"),
         checkMs: sum("checkMs"),
+        checkCacheHits: sum("checkCacheHits"),
         generatedMoves: lanes.reduce((n, entry) => n + entry.snapshot.stats.generatedMoves, 0),
         cacheEvictions: sum("cacheEvictions"),
         branchCacheHits: sum("branchCacheHits"),

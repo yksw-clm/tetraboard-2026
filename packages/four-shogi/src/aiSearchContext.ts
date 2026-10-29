@@ -31,6 +31,7 @@ export type AiContextProfile = {
   cacheLeafEvaluations?: boolean;
   allMoves?: boolean;
   measureDetails?: boolean;
+  sharedChecks?: boolean;
 };
 export type AiContextMetrics = {
   legalMs: number;
@@ -46,6 +47,7 @@ export type AiContextMetrics = {
   legalCalls?: number;
   checkCalls?: number;
   checkMs?: number;
+  checkCacheHits?: number;
 };
 type CachedNode = {
   moves?: OrdinaryMove[];
@@ -129,6 +131,10 @@ export function createAiContext(
   const start: FourShogiState = { ...input, repetitions: {} };
   const lookup = (key: string) => input.repetitions[key] ?? 0;
   const cache = new WeakMap<FourShogiState, CachedNode>();
+  // 純粋遷移で作った探索内の状態参照だけを使い、盤面だけの同一視を避けます。
+  const checkCache = profile?.sharedChecks
+    ? new WeakMap<FourShogiState, ReturnType<typeof getCheckState>>()
+    : null;
   const leafEvaluations = new WeakMap<FourShogiState, AiEvaluation>();
   const retained = new Map<FourShogiState, true>();
   const metrics: AiContextMetrics = {
@@ -142,9 +148,18 @@ export function createAiContext(
   const detailClock = () => (profile?.measureDetails ? performance.now() : 0);
   function checks(state: FourShogiState) {
     const started = detailClock();
-    const value = getCheckState(state);
+    let value = checkCache?.get(state);
+    if (value) {
+      if (profile?.measureDetails) metrics.checkCacheHits = (metrics.checkCacheHits ?? 0) + 1;
+    } else {
+      value = getCheckState(state);
+      if (checkCache) {
+        Object.freeze(value);
+        checkCache.set(state, value);
+      }
+      if (profile?.measureDetails) metrics.checkCalls = (metrics.checkCalls ?? 0) + 1;
+    }
     if (profile?.measureDetails) {
-      metrics.checkCalls = (metrics.checkCalls ?? 0) + 1;
       metrics.checkMs = (metrics.checkMs ?? 0) + detailClock() - started;
     }
     return value;

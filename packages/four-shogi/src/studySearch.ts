@@ -142,6 +142,7 @@ export type StudySearchPerformance = AiContextMetrics & {
   quiescenceMoves?: number;
 };
 export type StudyRootOptions = {
+  reuseChecks?: boolean;
   measureDetails?: boolean;
   strategy?: StudySearchStrategy;
   lane?: number;
@@ -523,6 +524,7 @@ export function createStudyRootSearch(
           cacheLeafEvaluations: !optimized,
           allMoves: isDualStudyStrategy(options.strategy),
           measureDetails: options.measureDetails,
+          sharedChecks: optimized && options.reuseChecks !== false,
         }
       : optimized
         ? {
@@ -533,6 +535,7 @@ export function createStudyRootSearch(
             cacheLeafEvaluations: false,
             allMoves: isDualStudyStrategy(options.strategy),
             measureDetails: options.measureDetails,
+            sharedChecks: options.reuseChecks !== false,
           }
         : undefined,
   );
