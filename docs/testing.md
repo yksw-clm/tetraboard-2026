@@ -323,6 +323,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
+P0診断は`studyDiagnostics.test.ts`と`test/tacticsDiagnostics.test.ts`で、固定タスクのobserver有効/無効による候補・評価・PV・workの一致、一節点介入で元候補を維持すること、observerが受け取った値の変更による入力汚染の防止、評価内訳の合計、実Bun workerのタスク再生、記録の容量超過を確認します。長い16展開の調査は通常checkから分離し、`bun apps/four-shogi-study/bench/tacticsDiagnostics.ts --output-dir=/private/tmp/study-p0-run`で実行します。元測定と新しい再測定、通常の1秒探索と観測実行、runtime再生と新規固定深さ比較を別に記録します。
+
 [利用仕様](../README.md#四人将棋のローカル検討アプリ)・[承認済み実装計画](development.md#四人将棋のローカル検討アプリ)・[CPU正本](rules/four-shogi.md#ローカル検討用cpu)に対する検証です。Bunの純粋関数、happy-domの部品/hook、Worker統合を使い、ブラウザを起動するテスト・設定・workflowは追加しません。公開環境へデプロイしない条件と、ローカルWorkerで読取りAPIを確認する条件を分けます。
 
 | 層 | 検証する観測可能な振る舞い |
