@@ -290,6 +290,7 @@ export function createStudySearchRuntime(
         reducedNodes: sum("reducedNodes"),
         researches: sum("researches"),
         promotionExtraMoves: sum("promotionExtraMoves"),
+        checkingExtraMoves: sum("checkingExtraMoves"),
         legalCacheHits: lanes.reduce((n, entry) => n + entry.snapshot.stats.legalCacheHits, 0),
         transitionCacheHits: lanes.reduce(
           (n, entry) => n + entry.snapshot.stats.transitionCacheHits,

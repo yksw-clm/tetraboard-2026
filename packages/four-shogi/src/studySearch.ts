@@ -11,6 +11,7 @@ import {
 } from "./aiSearchContext";
 import { getCheckState, pieces, attacksSquare } from "./board";
 import { priority } from "./cpuSearch";
+import { studyCheckingRays } from "./studyTacticalSelection";
 import {
   studyTraceAction,
   type StudySearchDiagnostics,
@@ -49,15 +50,19 @@ export const studySearchStrategies = [
   "dual-promotions",
   "dual-extensions",
   "dual-combined",
+  "dual-continuations",
 ] as const;
 export type StudySearchStrategy = (typeof studySearchStrategies)[number];
 export function isDualStudyStrategy(strategy?: string): boolean {
   return (
     strategy !== undefined &&
-    ["dual", "dual-promotions", "dual-extensions", "dual-combined"].includes(strategy)
+    ["dual", "dual-promotions", "dual-extensions", "dual-combined", "dual-continuations"].includes(
+      strategy,
+    )
   );
 }
 export function studyStrategyVersion(strategy?: StudySearchStrategy): string {
+  if (strategy === "dual-continuations") return "local-root-maxn-v6-p0-5";
   if (strategy === "dual-extensions") return "local-root-maxn-v6-p0-3";
   if (strategy === "dual-combined") return "local-root-maxn-v6-p0-23";
   return strategy === "dual-promotions"
@@ -116,6 +121,7 @@ export type StudySearchPerformance = AiContextMetrics & {
   reducedNodes: number;
   researches: number;
   promotionExtraMoves: number;
+  checkingExtraMoves?: number;
 };
 export type StudyRootOptions = {
   strategy?: StudySearchStrategy;
@@ -448,7 +454,10 @@ export function createStudyRootSearch(
     throw new TypeError("探索レーンが不正です");
   const optimized = options.strategy !== "legacy";
   const preserveOwnPromotion =
-    options.strategy === "dual-promotions" || options.strategy === "dual-combined";
+    options.strategy === "dual-promotions" ||
+    options.strategy === "dual-combined" ||
+    options.strategy === "dual-continuations";
+  const preserveCheckingDiversity = options.strategy === "dual-continuations";
   const extendDeepLeaves =
     options.strategy === "dual-extensions" ||
     options.strategy === "dual-combined" ||
@@ -548,6 +557,7 @@ export function createStudyRootSearch(
   let reducedNodes = 0;
   let researches = 0;
   let promotionExtraMoves = 0;
+  let checkingExtraMoves = 0;
   let taskPolicy: StudyTaskPolicy | null = null;
   let taskPolicyKey = "";
   const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
@@ -780,6 +790,21 @@ export function createStudyRootSearch(
         selected.push(promotion);
         promotionExtraMoves++;
       }
+      const checking = (() => {
+        if (!preserveCheckingDiversity || remaining <= 1 || state.turn !== root) return undefined;
+        const rays = (entry: (typeof ranked)[number]) =>
+          entry.next.step.checkedSides.length
+            ? studyCheckingRays(entry.next.state, state.turn!)
+            : [];
+        const covered = new Set(selected.flatMap(rays));
+        return ranked.find(
+          (entry) => !selected.includes(entry) && rays(entry).some((ray) => !covered.has(ray)),
+        );
+      })();
+      if (checking) {
+        selected.push(checking);
+        checkingExtraMoves++;
+      }
       const include = diagnostics?.includeAt;
       const intervention =
         include &&
@@ -816,7 +841,9 @@ export function createStudyRootSearch(
                 ? "diagnostic_include"
                 : index === promotion?.index
                   ? "promotion_reserve"
-                  : "selected"
+                  : index === checking?.index
+                    ? "checking_reserve"
+                    : "selected"
               : orderedIndex < 0
                 ? "ordering_filter"
                 : !afterBroad.some((entry) => entry.index === index)
@@ -1205,6 +1232,7 @@ export function createStudyRootSearch(
           reducedNodes,
           researches,
           promotionExtraMoves,
+          checkingExtraMoves,
         },
       };
     },
