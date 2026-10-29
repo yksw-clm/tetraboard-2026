@@ -392,7 +392,8 @@ export function createStudySearchRuntime(
   }
   function emit(value: Job) {
     const result = snapshot(value);
-    history.set(result.id, structuredClone(result));
+    // 実行中の履歴は非公開の元状態を参照し、停止後の履歴だけ独立して固定する。
+    history.set(result.id, result.status === "running" ? value.snapshot : structuredClone(result));
     while (history.size > 16) history.delete(history.keys().next().value!);
     value.callback(result);
   }

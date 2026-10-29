@@ -394,3 +394,49 @@ test("保持枠を実workerへ渡し、通常の根分配と既定v5には縮小
     }
   }
 }, 20000);
+
+// Invariance test: progress callbacks and history reads may be mutated by consumers.
+// The performance hypothesis is tested by paired benchmarks, not clone-count assertions.
+test("進捗と過去結果の改変を現在局面と保存履歴へ持ち込まない", async () => {
+  let pauseOnce = true;
+  let completed: StudySearchSnapshot | null = null;
+  const runtime = createStudySearchRuntime({ threads: 4, taskPartition: "replies" });
+  try {
+    const first = await runtime.start(input, { ...options, timeBudgetMs: null }, (s) => {
+      if (s.status === "completed") completed = structuredClone(s);
+      if (s.status === "running" && s.completedDepth >= 2 && pauseOnce) {
+        pauseOnce = false;
+        void runtime.pause(s.id);
+      }
+      s.candidates = [];
+      s.recommendedAction = null;
+      s.evaluation = null;
+    });
+    const paused = await until(
+      () => runtime.get(first),
+      (s) => s.status === "paused",
+    );
+    expect(paused.candidates.length).toBeGreaterThan(0);
+    expect(paused.recommendedAction).not.toBeNull();
+    paused.candidates = [];
+    paused.recommendedAction = null;
+    expect(runtime.get(first)!.candidates.length).toBeGreaterThan(0);
+    expect(runtime.get(first)!.recommendedAction).not.toBeNull();
+    await runtime.resume(first);
+    await until(
+      () => runtime.get(first),
+      (s) => s.status === "completed",
+    );
+    expect(completed).not.toBeNull();
+    expect(runtime.get(first)).toEqual(completed);
+    const second = await runtime.start(input, { ...options, maxDepth: 2, timeBudgetMs: 5000 });
+    expect(runtime.get(first)).toEqual(completed);
+    const historical = runtime.get(first)!;
+    historical.candidates = [];
+    historical.recommendedAction = null;
+    expect(runtime.get(first)).toEqual(completed);
+    await runtime.cancel(second);
+  } finally {
+    await runtime.close();
+  }
+});
