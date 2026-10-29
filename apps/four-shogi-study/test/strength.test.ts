@@ -31,6 +31,25 @@ import {
 
 const directories: string[] = [];
 
+test("各改善方式を旧v6と独立に席替え比較でき、work方式へ混ぜない", () => {
+  for (const strategy of ["dual-promotions", "dual-extensions", "dual-combined"]) {
+    const options = argumentsFor([
+      "--compare-strategies",
+      `dual,${strategy}`,
+      "--profiles",
+      "study",
+      "--seeds",
+      "4",
+      "--time-ms",
+      "500",
+    ]);
+    const jobs = createStrengthJobs(options);
+    expect(jobs.filter((job) => job.searchStrategy === strategy)).toHaveLength(32);
+    expect(jobs.filter((job) => job.searchStrategy === "dual")).toHaveLength(32);
+    expect(() => argumentsFor(["--search-strategy", strategy, "--work", "10"])).toThrow("実時間");
+  }
+});
+
 test("方式比較は同じ開始条件をペアにし、v5とv6を各32局へ割り当てる", () => {
   const options = argumentsFor([
     "--compare-strategies",

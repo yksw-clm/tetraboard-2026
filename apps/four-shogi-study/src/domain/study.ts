@@ -83,7 +83,12 @@ export function readStudySettings(value: unknown, legacyCpuSide?: Side): StudySe
   if (item.mode !== "auto" && item.mode !== "analysis") fail("CPUの動作モードが不正です");
   const focusSide = item.focusSide ?? null;
   const searchStrategy = item.searchStrategy ?? "adaptive";
-  if (searchStrategy !== "adaptive" && searchStrategy !== "dual") fail("探索方式が不正です");
+  if (
+    searchStrategy !== "adaptive" &&
+    searchStrategy !== "dual" &&
+    searchStrategy !== "dual-combined"
+  )
+    fail("探索方式が不正です");
   if (focusSide !== null && !sides.some((entry) => entry === focusSide))
     fail("フォーカスする席が不正です");
   for (const [key, minimum, maximum] of [

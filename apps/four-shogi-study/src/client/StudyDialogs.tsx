@@ -260,10 +260,13 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
           <select
             className={fieldClass}
             value={searchStrategy}
-            onChange={(event) => setSearchStrategy(event.target.value as "adaptive" | "dual")}
+            onChange={(event) =>
+              setSearchStrategy(event.target.value as NonNullable<StudySettings["searchStrategy"]>)
+            }
           >
             <option value="adaptive">幅広く検討する（v5）</option>
-            <option value="dual">主要候補を深掘りする（v6・実験）</option>
+            <option value="dual">主要候補を深掘りする（旧v6・実験）</option>
+            <option value="dual-combined">成りと末端延長を改善する（v6・実験）</option>
           </select>
         </Field>
         <Field label="1回の検討時間（秒）" help="再解析は新しい時間予算で開始します。">

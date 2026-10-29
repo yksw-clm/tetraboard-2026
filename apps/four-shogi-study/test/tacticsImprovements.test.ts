@@ -8,6 +8,22 @@ import {
 } from "../../../packages/four-shogi/src/studySearch";
 import { restoreStudyPosition } from "../src/domain/study";
 import { tacticInput, drainTask } from "../bench/tacticsDiagnostics";
+import { fixedRootComparison } from "../bench/tacticsImprovements";
+
+test("比較のwork予算が足りなければ完成推奨手を作らない", async () => {
+  const tactic = tacticalCases().find((t) => t.id === "inactive-rook-false-south")!;
+  const position = await restoreStudyPosition(tacticInput(tactic.state));
+  const result = await fixedRootComparison(
+    position,
+    getAnalysisLegalActions(position).slice(0, 2),
+    "dual-combined",
+    9,
+    { phase: "deep", width: 2, ownWidth: 3 },
+    { deadline: performance.now() + 5000, taskMs: 5000, maxWork: 1 },
+  );
+  expect(result.complete).toBe(false);
+  expect(result.selected).toBeNull();
+});
 
 test("自手番の成りを最大1手補い、静的上位K手を保持する", async () => {
   const tactic = tacticalCases().find((t) => t.id === "inactive-rook-false-south")!;

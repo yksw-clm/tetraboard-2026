@@ -244,7 +244,7 @@ test("検討時間をプリセットと無制限に変更し、探索の停止/�
   press(document.body, "15秒");
   const strategy = field("探索方式") as HTMLSelectElement;
   act(() => {
-    strategy.value = "dual";
+    strategy.value = "dual-combined";
     strategy.dispatchEvent(new Event("change", { bubbles: true }));
   });
   expect((field("1回の検討時間（秒）") as HTMLInputElement).value).toBe("15");
@@ -262,7 +262,7 @@ test("検討時間をプリセットと無制限に変更し、探索の停止/�
   expect(body(settings)).toMatchObject({
     type: "settings",
     expectedRevision: 0,
-    settings: { analysisTimeMs: null, searchStrategy: "dual" },
+    settings: { analysisTimeMs: null, searchStrategy: "dual-combined" },
   });
   current = await snapshot(
     updateStudySettings(current.study, body(settings).settings as Partial<StudySettings>),

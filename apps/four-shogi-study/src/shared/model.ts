@@ -7,7 +7,7 @@ import type {
 } from "@tetraboard/four-shogi/analysis";
 
 export type StudySettings = Readonly<{
-  searchStrategy?: "adaptive" | "dual";
+  searchStrategy?: "adaptive" | "dual" | "dual-combined";
   mode: "auto" | "analysis";
   thinkTimeMs: number;
   threads: number;

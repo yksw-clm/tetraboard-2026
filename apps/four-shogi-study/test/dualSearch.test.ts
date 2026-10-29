@@ -3,6 +3,39 @@ import { createStudySearchRuntime, type StudySearchSnapshot } from "../src/searc
 import type { StudyPositionInput } from "../src/shared/model";
 import { createStudy, resolveStudyPositions, studyPositionInput } from "../src/domain/study";
 import { parseRecordedAnalyses } from "../src/domain/recordedAnalysis";
+import { studyStrategyVersion } from "../../../packages/four-shogi/src/studySearch";
+
+for (const strategy of ["dual-promotions", "dual-extensions", "dual-combined"] as const)
+  test(`改善版も二段階分配と固有の保存版を使う: ${strategy}`, async () => {
+    const runtime = createStudySearchRuntime({ threads: 2 });
+    try {
+      let finish!: (value: StudySearchSnapshot) => void;
+      const done = new Promise<StudySearchSnapshot>((resolve) => {
+        finish = resolve;
+      });
+      await runtime.start(
+        input,
+        { strategy, broadDepth: 2, maxDepth: 3, extensions: 1, timeBudgetMs: null },
+        (value) => {
+          if (value.status === "completed" || value.status === "error") finish(value);
+        },
+      );
+      const result = await done;
+      expect(result.status).toBe("completed");
+      expect(result.coverage?.phase).toBe("deep");
+      expect(result.completedDepth).toBe(3);
+      expect(result.diagnostics?.searchVersion).toBe(studyStrategyVersion(strategy));
+    } finally {
+      await runtime.close();
+    }
+  }, 20_000);
+
+test("改善版設定を保存でき、旧設定の既定はv5を保つ", async () => {
+  expect((await createStudy()).settings.searchStrategy).toBe("adaptive");
+  expect(
+    (await createStudy({ settings: { searchStrategy: "dual-combined" } })).settings.searchStrategy,
+  ).toBe("dual-combined");
+});
 
 const input: StudyPositionInput = {
   origin: {
