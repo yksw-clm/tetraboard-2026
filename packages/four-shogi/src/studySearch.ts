@@ -42,12 +42,24 @@ function keepBranch(branch: AiBranch, _reason?: string) {
 export const studySearchVersion = "local-root-maxn-v6";
 export const adaptiveStudySearchVersion = "local-root-maxn-v5";
 export const legacyStudySearchVersion = "local-root-maxn-v4";
-export const studySearchStrategies = ["legacy", "adaptive", "dual", "dual-promotions"] as const;
+export const studySearchStrategies = [
+  "legacy",
+  "adaptive",
+  "dual",
+  "dual-promotions",
+  "dual-extensions",
+  "dual-combined",
+] as const;
 export type StudySearchStrategy = (typeof studySearchStrategies)[number];
 export function isDualStudyStrategy(strategy?: string): boolean {
-  return strategy === "dual" || strategy === "dual-promotions";
+  return (
+    strategy !== undefined &&
+    ["dual", "dual-promotions", "dual-extensions", "dual-combined"].includes(strategy)
+  );
 }
 export function studyStrategyVersion(strategy?: StudySearchStrategy): string {
+  if (strategy === "dual-extensions") return "local-root-maxn-v6-p0-3";
+  if (strategy === "dual-combined") return "local-root-maxn-v6-p0-23";
   return strategy === "dual-promotions"
     ? "local-root-maxn-v6-p0-2"
     : strategy === "dual"
@@ -435,7 +447,12 @@ export function createStudyRootSearch(
   )
     throw new TypeError("探索レーンが不正です");
   const optimized = options.strategy !== "legacy";
-  const preserveOwnPromotion = options.strategy === "dual-promotions";
+  const preserveOwnPromotion =
+    options.strategy === "dual-promotions" || options.strategy === "dual-combined";
+  const extendDeepLeaves =
+    options.strategy === "dual-extensions" ||
+    options.strategy === "dual-combined" ||
+    diagnostics?.extendDeepLeaves;
   const cacheSize = options.cacheSize ?? (optimized ? 4096 : 1024);
   if (!Number.isSafeInteger(cacheSize) || cacheSize < 0 || cacheSize > 65536)
     throw new TypeError("検討用キャッシュは0〜65536状態です");
@@ -821,8 +838,7 @@ export function createStudyRootSearch(
       selective ||= selected.length < ranked.length;
       for (const entry of selected) {
         const child =
-          (remaining === 1 && !diagnostics?.extendDeepLeaves) ||
-          entry.next.state.status === "finished"
+          (remaining === 1 && !extendDeepLeaves) || entry.next.state.status === "finished"
             ? { evaluation: entry.evaluation, line: [], selective: false }
             : yield* explore(
                 entry.next.state,

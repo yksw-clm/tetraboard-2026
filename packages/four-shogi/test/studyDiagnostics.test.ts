@@ -9,6 +9,42 @@ import {
 } from "../src/studySearch";
 import { sides } from "../src/types";
 
+test("末端延長版は通常深さに残延長だけを加え、既存の診断条件と一致する", async () => {
+  const position = await restoreAnalysisPosition({
+    schemaVersion: 1,
+    rulesVersion: 1,
+    ruleProfileId: "tetraboard-four-shogi-singles-v1",
+    initial: {
+      mode: "singles",
+      players: { south: "s", west: "w", north: "n", east: "e" },
+      threePlayerAttackProhibited: false,
+    },
+    events: [],
+  });
+  for (const extensions of [0, 1, 2]) {
+    const baseline = createStudyRootSearch(
+      position,
+      { strategy: "dual", extensions },
+      { extendDeepLeaves: true },
+    );
+    const improved = createStudyRootSearch(position, { strategy: "dual-extensions", extensions });
+    try {
+      for (const search of [baseline, improved]) {
+        while (search.depth < 1 && !search.step()) {}
+        search.startTask(0, 4, false, { phase: "deep", width: 2, ownWidth: 3 });
+        while (!search.step()) {}
+      }
+      expect(improved.snapshot().candidates).toEqual(baseline.snapshot().candidates);
+      expect(improved.snapshot().stats.extendedNodes).toBe(baseline.snapshot().stats.extendedNodes);
+      expect(improved.snapshot().candidates[0].line.length).toBeLessThanOrEqual(4 + extensions);
+      expect(improved.snapshot().candidates[0].line.length).toBeGreaterThanOrEqual(4);
+    } finally {
+      baseline.dispose();
+      improved.dispose();
+    }
+  }
+});
+
 test("診断observerは固定タスクの候補・PV・評価・workを変えず、節点の選別を観測する", async () => {
   const position = await restoreAnalysisPosition({
     schemaVersion: 1,
