@@ -187,6 +187,7 @@ export async function runEfficiencyMatrix(options: {
   profile?: boolean;
   limit?: number;
   budgets?: number[];
+  reuseWorkers?: boolean;
 }) {
   const directory = resolve(options.directory),
     source = efficiencySource(),
@@ -251,6 +252,7 @@ export async function runEfficiencyMatrix(options: {
               threads,
               memoryMb: 8192,
               measureStages: true,
+              reuseWorkers: options.reuseWorkers,
               ...(options.profile
                 ? {
                     cpuProfileDirectory: join(
@@ -343,5 +345,6 @@ if (import.meta.main) {
       maxMinutes: Number(args.get("max-minutes") ?? 70),
       limit: args.has("limit") ? Number(args.get("limit")) : undefined,
       budgets: args.get("budgets")?.split(",").map(Number),
+      reuseWorkers: args.has("reuse-workers") ? args.get("reuse-workers") === "true" : undefined,
     });
 }

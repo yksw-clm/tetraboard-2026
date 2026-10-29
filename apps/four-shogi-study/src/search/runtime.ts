@@ -122,6 +122,7 @@ export type StudyRuntimeTraceEvent =
     };
 
 export type StudySearchRuntimeConfig = {
+  reuseWorkers?: boolean;
   measureStages?: boolean;
   observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
   scheduling?: "fixed" | "dynamic";
@@ -198,6 +199,7 @@ export function createStudySearchRuntime(
   const memoryMb = config.memoryMb ?? 8192;
   const startupTimeoutMs = config.startupTimeoutMs ?? 10000;
   const shutdownTimeoutMs = config.shutdownTimeoutMs ?? 500;
+  const reuseWorkers = config.reuseWorkers ?? config.workerScript === undefined;
   if (
     !Number.isSafeInteger(threads) ||
     threads < 1 ||
@@ -306,8 +308,15 @@ export function createStudySearchRuntime(
       job.snapshot.focus.reason = reason === "deadline" ? "deadline" : "cancelled";
       job.snapshot.focus.projectionElapsedMs = elapsed(job);
     }
-    if (discard) void terminateWorkers();
-    else command({ type: "pause", id: job.snapshot.id });
+    const reusableCompletion =
+      reuseWorkers &&
+      status === "completed" &&
+      ["max_depth", "sole_win", "terminal"].includes(reason);
+    if (discard && !reusableCompletion) void terminateWorkers();
+    else if (reusableCompletion) {
+      // 続行しない終端では探索状態を解放し、プロセスだけを次の入力へ残します。
+      command({ type: "cancel", id: job.snapshot.id });
+    } else command({ type: "pause", id: job.snapshot.id });
     emit(job);
   }
   function merge(value: Job) {
@@ -1030,7 +1039,7 @@ export function createStudySearchRuntime(
       const token = ++generation;
       if (job && ["running", "paused"].includes(job.snapshot.status))
         stop("cancelled", "replaced", true);
-      else await terminateWorkers();
+      else if (!reuseWorkers) await terminateWorkers();
       const restoring = performance.now();
       const position = await restoreStudyPosition(input);
       const restored = performance.now();

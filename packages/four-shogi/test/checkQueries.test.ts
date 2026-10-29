@@ -21,7 +21,7 @@ function referenceChecks(state: FourShogiState) {
           ),
       ];
     }),
-  );
+  ) as ReturnType<typeof getCheckState>;
 }
 
 test("王手判定は全駒の幾何判定と一致し、死駒の遮蔽・成飛車・味方を保つ", () => {
