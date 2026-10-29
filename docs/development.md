@@ -1040,11 +1040,11 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-main・develop向けPRと両ブランチのpushでは、checksジョブで `bun install --frozen-lockfile` → `bun run check` → 本番ビルド・dry-run → 開発ビルド・dry-runを実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
+checksジョブは `bun install --frozen-lockfile` 後に[Fast／Fullの選択](testing.md#fast-ciとfull-ci)を行います。低リスクのdevelop向けPRは依存する利用側までの型・テスト・資産ビルド、高リスク・不明な変更とmain向けPRは全体検証・本番／開発ビルド・dry-runを実行します。両ブランチのpushは必ずFullです。範囲・未実行workspace・commit・工程別の秒数をsummaryへ記録し、Fullのcheck相当は180秒、通常PRのFastは60〜90秒以内を目標とします。CIは型検査後の `build:assets` で重複検査を避け、ローカルの `bun run check` と必須5コマンドは維持します。PRジョブはCloudflareの認証情報を使いません。
 
 公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
 
-main・developのpushでは同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
+main・developのpushではFullの全検証とupload成功後だけ `full-validated` を出力し、同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
 
