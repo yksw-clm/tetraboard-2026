@@ -288,8 +288,9 @@ for (const count of threads)
             }
           for (const entry of cases.filter((entry) => !criticalOnly || entry.critical)) {
             const input = fromState(entry.state);
+            let stateHash: string;
             try {
-              await restoreStudyPosition(input);
+              stateHash = (await restoreStudyPosition(input)).stateHash;
             } catch (error) {
               if (entry.critical)
                 throw new Error(`重要戦術局面を復元できません: ${entry.id}: ${String(error)}`);
@@ -309,6 +310,8 @@ for (const count of threads)
                 : acceptsTactic(entry, action);
             const result = {
               id: entry.id,
+              input,
+              stateHash,
               strategy,
               threads: count,
               profile,
@@ -319,6 +322,10 @@ for (const count of threads)
               completedDepth: analysis.completedDepth,
               work: analysis.work,
               elapsedMs: analysis.elapsedMs,
+              evaluation: analysis.evaluation,
+              principalVariation: best?.line ?? [],
+              coverage: analysis.coverage,
+              performance: analysis.performance,
               ...(accepted ? {} : { candidates: analysis.candidates }),
             };
             results.push(result);

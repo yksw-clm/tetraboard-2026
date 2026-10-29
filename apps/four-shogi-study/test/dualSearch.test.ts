@@ -39,6 +39,10 @@ for (const strategy of [
 
 test("改善版設定を保存でき、旧設定の既定はv5を保つ", async () => {
   expect((await createStudy()).settings.searchStrategy).toBe("adaptive");
+  for (const searchStrategy of ["dual-continuations", "dual-quiescent", "dual-refined"] as const)
+    expect((await createStudy({ settings: { searchStrategy } })).settings.searchStrategy).toBe(
+      searchStrategy,
+    );
   expect(
     (await createStudy({ settings: { searchStrategy: "dual-combined" } })).settings.searchStrategy,
   ).toBe("dual-combined");

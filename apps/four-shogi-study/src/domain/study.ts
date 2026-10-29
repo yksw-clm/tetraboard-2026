@@ -86,7 +86,10 @@ export function readStudySettings(value: unknown, legacyCpuSide?: Side): StudySe
   if (
     searchStrategy !== "adaptive" &&
     searchStrategy !== "dual" &&
-    searchStrategy !== "dual-combined"
+    searchStrategy !== "dual-combined" &&
+    searchStrategy !== "dual-continuations" &&
+    searchStrategy !== "dual-quiescent" &&
+    searchStrategy !== "dual-refined"
   )
     fail("探索方式が不正です");
   if (focusSide !== null && !sides.some((entry) => entry === focusSide))

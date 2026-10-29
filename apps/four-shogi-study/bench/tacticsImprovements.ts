@@ -56,6 +56,8 @@ export async function fixedRootComparison(
     nodes: number;
     extendedNodes: number;
     promotionExtraMoves: number;
+    stats?: ReturnType<typeof search.snapshot>["stats"];
+    performance?: ReturnType<typeof search.snapshot>["performance"];
     candidate: StudyCandidate | null;
   }[] = [];
   try {
@@ -88,6 +90,8 @@ export async function fixedRootComparison(
         extendedNodes: after.stats.extendedNodes - before.stats.extendedNodes,
         promotionExtraMoves:
           after.performance!.promotionExtraMoves - before.performance!.promotionExtraMoves,
+        stats: after.stats,
+        performance: after.performance,
         candidate,
       });
       if (performance.now() >= limits.deadline) break;

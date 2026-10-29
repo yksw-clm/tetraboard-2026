@@ -5,6 +5,7 @@ import {
   advanceAnalysisPosition,
 } from "../../../packages/four-shogi/src/analysis";
 import { fixedRootComparison } from "../bench/tacticsImprovements";
+import { refinementVarianceIds } from "../bench/tacticalRefinements";
 import { tacticInput } from "../bench/tacticsDiagnostics";
 import { restoreStudyPosition } from "../src/domain/study";
 import { createStudyRootSearch } from "../../../packages/four-shogi/src/studySearch";
@@ -15,6 +16,19 @@ import {
   studyQuiescenceReason,
   selectStudyQuiescenceMoves,
 } from "../../../packages/four-shogi/src/studyTacticalSelection";
+
+test("追加の時間変動検査は改善方式から新たに不一致となった展開を保持する", () => {
+  const ids = refinementVarianceIds([
+    { id: "extra-tactic", strategy: "dual", accepted: true },
+    { id: "extra-tactic", strategy: "dual-refined", accepted: false },
+    { id: "already-failed", strategy: "dual", accepted: false },
+    { id: "already-failed", strategy: "dual-refined", accepted: false },
+  ]);
+  expect(ids).toContain("extra-tactic");
+  expect(ids).not.toContain("already-failed");
+  expect(ids).toContain("inactive-rook-false-north");
+  expect(ids).toContain("poisoned-gold-true-east");
+});
 
 test("選択延長は残予算0/1/2と通常深さを区別する", async () => {
   const tactic = tacticalCases().find((t) => t.id === "inactive-rook-false-north")!;
