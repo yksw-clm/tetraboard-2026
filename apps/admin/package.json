@@ -4,13 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5174 --strictPort",
-    "build": "bun run typecheck && vite build",
+    "build": "bun run typecheck && bun run build:assets",
     "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
     "typecheck:tsc": "tsc --noEmit",
     "test": "bun run test:unit && bun run test:dom",
     "preview": "vite preview",
     "test:unit": "bun test ./test",
-    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom"
+    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom",
+    "build:assets": "vite build"
   },
   "dependencies": {
     "@heroui/react": "^3.2.6",

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from "typescript";
 import { defineConfig } from "vitest/config";
+import { workerTestPattern } from "../../scripts/ci/workerGroups";
 
 // JSONCの実行条件だけを読み、Wranglerの個人設定ローダーを通しません。
 const configPath = fileURLToPath(new URL("./wrangler.jsonc", import.meta.url));
@@ -52,7 +53,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
       })),
     ],
     test: {
-      include: ["test/**/*.test.ts"],
+      include: [workerTestPattern],
       setupFiles: ["./test/setup.ts"],
       // 別のI/OコンテキストからのログでVitestのRPCが停止する上流不具合を回避します。
       disableConsoleIntercept: true,
