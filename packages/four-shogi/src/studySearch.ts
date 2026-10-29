@@ -141,6 +141,8 @@ export type StudyLaneSnapshot = {
   performance?: StudySearchPerformance;
 };
 export type StudySearchPerformance = AiContextMetrics & {
+  contextCacheEntries?: number;
+  contextCacheCapacity?: number;
   branchCacheHits: number;
   branchCacheEntries: number;
   keyMs: number;
@@ -161,6 +163,7 @@ export type StudySearchPerformance = AiContextMetrics & {
   rootSetupWork?: number;
 };
 export type StudyRootOptions = {
+  subtreeCacheLimit?: number;
   reuseChecks?: boolean;
   measureDetails?: boolean;
   strategy?: StudySearchStrategy;
@@ -515,6 +518,14 @@ export function createStudyRootSearch(
   const cacheSize = options.cacheSize ?? (optimized ? 4096 : 1024);
   if (!Number.isSafeInteger(cacheSize) || cacheSize < 0 || cacheSize > 65536)
     throw new TypeError("検討用キャッシュは0〜65536状態です");
+  if (
+    options.subtreeCacheLimit !== undefined &&
+    (!optimized ||
+      !Number.isSafeInteger(options.subtreeCacheLimit) ||
+      options.subtreeCacheLimit < 0 ||
+      options.subtreeCacheLimit > cacheSize)
+  )
+    throw new TypeError("独立応手キャッシュの保持枠が不正です");
   const settings = {
     ...resolveAiOptions({
       codeVersion: studySearchVersion,
@@ -1448,6 +1459,7 @@ export function createStudyRootSearch(
       )
         throw new TypeError("独立探索タスクの文脈が不正です");
       resetSteps();
+      if (options.subtreeCacheLimit !== undefined) ctx.limitCache(options.subtreeCacheLimit);
       let subtreeState = input.state;
       if (!("localPlanId" in task) && settings.cacheSize > 0) {
         const started = options.measureDetails ? performance.now() : 0;
@@ -1533,6 +1545,8 @@ export function createStudyRootSearch(
           materialWork,
           preparationWork,
           rootSetupWork,
+          contextCacheEntries: stats.cacheEntries,
+          contextCacheCapacity: ctx.cacheLimit,
           reducedNodes,
           researches,
           promotionExtraMoves,

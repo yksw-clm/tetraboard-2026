@@ -411,7 +411,10 @@ if (import.meta.main) {
     if (!result.allMatch) process.exitCode = 1;
   } else if (args.get("mode") === "known") {
     const { runKnownParallelTactics } = await import("./parallelFixed");
-    const result = await runKnownParallelTactics(directory);
+    const result = await runKnownParallelTactics(
+      directory,
+      args.has("subtree-cache-limit") ? Number(args.get("subtree-cache-limit")) : undefined,
+    );
     console.log(
       JSON.stringify({
         complete: result.complete,

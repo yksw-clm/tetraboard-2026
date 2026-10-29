@@ -38,10 +38,13 @@ if (process.env.STUDY_LOCAL_WORKER_ORIGIN) {
 const taskPartition = process.env.STUDY_TASK_PARTITION ?? "root";
 if (taskPartition !== "root" && taskPartition !== "replies")
   throw new Error("STUDY_TASK_PARTITIONはrootまたはrepliesです");
+const replyCacheBudget = process.env.STUDY_REPLY_CACHE_BUDGET ?? "roots";
+if (replyCacheBudget !== "roots" && replyCacheBudget !== "workers")
+  throw new Error("STUDY_REPLY_CACHE_BUDGETはrootsまたはworkersです");
 const app = new LocalStudyApplication(
   new StudyStore(dataDirectory),
   config,
-  (options) => createStudySearchRuntime({ ...options, taskPartition }),
+  (options) => createStudySearchRuntime({ ...options, taskPartition, replyCacheBudget }),
   (input, callbacks) => createLiveRoomSession(input, callbacks, { allowedOrigins }),
 );
 const assetsDirectory = fileURLToPath(new URL("../../dist", import.meta.url));

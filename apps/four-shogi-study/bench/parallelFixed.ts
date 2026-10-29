@@ -232,12 +232,24 @@ export async function runParallelFixed(directory: string, outputStem = "fixed-ru
 }
 
 /** 固定深さ9の既知8展開。性能測定ではなく、同じ根集合の品質検証です。 */
-export async function runKnownParallelTactics(directory: string) {
+export async function runKnownParallelTactics(directory: string, subtreeCacheLimit?: number) {
+  if (
+    subtreeCacheLimit !== undefined &&
+    (!Number.isSafeInteger(subtreeCacheLimit) || subtreeCacheLimit < 0 || subtreeCacheLimit > 65536)
+  )
+    throw new Error("独立応手キャッシュの保持枠が不正です");
   const source = efficiencySource(),
     fingerprint = digest(source),
     begin = performance.now(),
     rows: any[] = [];
-  const report = { source, sourceUnchanged: true, complete: false, allMatch: true, rows };
+  const report = {
+    source,
+    sourceUnchanged: true,
+    complete: false,
+    allMatch: true,
+    subtreeCacheLimit: subtreeCacheLimit ?? null,
+    rows,
+  };
   const path = join(directory, "validation/known-depth9.json");
   if (await Bun.file(path).exists()) throw Error("既存の測定を上書きしません");
   for (const tactic of tacticalCases().filter((t) => t.family === "inactive-rook")) {
@@ -259,6 +271,9 @@ export async function runKnownParallelTactics(directory: string) {
           createStudyRootSearch(position, {
             strategy: "dual-continuations",
             cacheSize,
+            ...(subtreeCacheLimit !== undefined
+              ? { subtreeCacheLimit: Math.min(cacheSize, subtreeCacheLimit) }
+              : {}),
             maxDepth: 9,
             extensions: 2,
             dangerWork: 0,
@@ -330,6 +345,8 @@ export async function runKnownParallelTactics(directory: string) {
             splits,
             candidates,
             pv,
+            contextCapacities: sessions.map((s) => s.snapshot().performance?.contextCacheCapacity),
+            cacheEvictions: sessions.map((s) => s.snapshot().performance?.cacheEvictions),
             physicalWork: sessions.reduce((n, s) => n + s.work, 0),
           };
           rows.push(row);

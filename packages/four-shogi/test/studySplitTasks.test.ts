@@ -312,3 +312,76 @@ test("応手状態キャッシュは履歴差を省略せず、容量上限と�
     helper.dispose();
   }
 });
+
+test("応手の保持枠を縮小しても同じMaxN評価とPVを返す", async () => {
+  const position = await restoreAnalysisPosition({
+    schemaVersion: 1,
+    rulesVersion: 1,
+    ruleProfileId: "tetraboard-four-shogi-singles-v1",
+    initial: {
+      mode: "singles",
+      players: { south: "s", west: "w", north: "n", east: "e" },
+      threePlayerAttackProhibited: false,
+    },
+    events: [],
+  });
+  const owner = createStudyRootSearch(position, {
+    strategy: "dual-continuations",
+    maxDepth: 5,
+    extensions: 0,
+    cacheSize: 64,
+  });
+  const standard = createStudyRootSearch(position, {
+    strategy: "dual-continuations",
+    maxDepth: 5,
+    extensions: 0,
+    cacheSize: 64,
+  });
+  const bounded = createStudyRootSearch(position, {
+    strategy: "dual-continuations",
+    maxDepth: 5,
+    extensions: 0,
+    cacheSize: 64,
+    subtreeCacheLimit: 1,
+  });
+  try {
+    for (const s of [owner, standard, bounded]) while (s.depth < 1) s.step();
+    owner.startTask(
+      owner.snapshot().candidates[0].rootIndex,
+      5,
+      false,
+      { phase: "deep", width: 2, ownWidth: 3 },
+      true,
+    );
+    let plan: ReturnType<typeof owner.takeSplitPlan> = null;
+    while (!owner.step()) {
+      plan = owner.takeSplitPlan();
+      if (plan) break;
+    }
+    expect(plan).not.toBeNull();
+    if (!plan) throw Error("missing plan");
+    for (const helper of [standard, bounded]) {
+      helper.startSubtree(structuredClone(plan.tasks[0]));
+      while (!helper.step()) {}
+    }
+    expect(bounded.snapshot().stats.cacheEntries).toBeLessThanOrEqual(1);
+    expect(bounded.snapshot().performance!.cacheEvictions).toBeGreaterThan(0);
+    expect(bounded.subtreeResult()!.branch).toEqual(standard.subtreeResult()!.branch);
+    expect(bounded.subtreeResult()!.nodes).toBe(standard.subtreeResult()!.nodes);
+  } finally {
+    for (const s of [owner, standard, bounded]) s.dispose();
+  }
+});
+
+test("独立応手の保持枠は不正な上限を開始前に拒否する", async () => {
+  const position = await initial();
+  for (const subtreeCacheLimit of [-1, 1.5, 65, Infinity]) {
+    expect(() =>
+      createStudyRootSearch(position, {
+        strategy: "dual-continuations",
+        cacheSize: 64,
+        subtreeCacheLimit,
+      }),
+    ).toThrow("独立応手キャッシュの保持枠");
+  }
+});

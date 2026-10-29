@@ -131,6 +131,7 @@ export function createAiContext(
   const start: FourShogiState = { ...input, repetitions: {} };
   const lookup = (key: string) => input.repetitions[key] ?? 0;
   const cache = new WeakMap<FourShogiState, CachedNode>();
+  let cacheLimit = settings.cacheSize;
   // 純粋遷移で作った探索内の状態参照だけを使い、盤面だけの同一視を避けます。
   const checkCache = profile?.sharedChecks
     ? new WeakMap<FourShogiState, ReturnType<typeof getCheckState>>()
@@ -167,8 +168,8 @@ export function createAiContext(
   function node(state: FourShogiState) {
     const existing = cache.get(state);
     if (existing) return existing;
-    if (settings.cacheSize === 0) return undefined;
-    if (stats.cacheEntries >= settings.cacheSize) {
+    if (cacheLimit === 0) return undefined;
+    if (stats.cacheEntries >= cacheLimit) {
       if (!profile?.replaceCache) return undefined;
       const oldest = retained.keys().next().value!;
       retained.delete(oldest);
@@ -202,6 +203,24 @@ export function createAiContext(
         );
   if (settings.includeAction !== null && includeIndex < 0)
     throw new TypeError("比較指定手は元局面の合法手である必要があります");
+  /** 既存の状態参照を解放し、着手処理を行わずに保持枠だけを縮小します。 */
+  function limitCache(limit: number) {
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 0 ||
+      limit > cacheLimit ||
+      (!profile?.replaceCache && limit !== settings.cacheSize)
+    )
+      throw new TypeError("探索キャッシュの縮小上限が不正です");
+    cacheLimit = limit;
+    while (stats.cacheEntries > limit) {
+      const oldest = retained.keys().next().value!;
+      retained.delete(oldest);
+      cache.delete(oldest);
+      stats.cacheEntries--;
+      metrics.cacheEvictions++;
+    }
+  }
   function* spend(cost = 1): Generator<number, void> {
     yield cost;
     stats.work += cost;
@@ -438,6 +457,10 @@ export function createAiContext(
   return {
     input,
     settings,
+    limitCache,
+    get cacheLimit() {
+      return cacheLimit;
+    },
     stats,
     metrics,
     start,

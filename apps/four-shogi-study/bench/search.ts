@@ -57,6 +57,9 @@ const taskPartition = args.get("task-partition") ?? "root";
 if (taskPartition !== "root" && taskPartition !== "replies")
   throw new Error("task-partitionはrootまたはrepliesです");
 const criticalOnly = args.get("critical-only") === "true";
+const replyCacheBudget = args.get("reply-cache-budget") ?? "roots";
+if (replyCacheBudget !== "roots" && replyCacheBudget !== "workers")
+  throw new Error("reply-cache-budgetはrootsまたはworkersです");
 if (args.has("critical-only") && !["true", "false"].includes(args.get("critical-only")!))
   throw new Error("critical-only must be true or false");
 const sourceFingerprint = () => ({
@@ -183,6 +186,7 @@ for (const count of threads)
       const runtime = createStudySearchRuntime({
         threads: count,
         taskPartition,
+        replyCacheBudget,
         cpuProfileDirectory: args.get("cpu-profile-dir"),
       });
       async function analyze(input: StudyPositionInput) {
@@ -360,7 +364,16 @@ const report = {
   },
   kind,
   claim: "limited engineering/tactical measurement; not strength certification",
-  settings: { timeBudgetMs, maxWork, threads, profiles, strategies, criticalOnly, taskPartition },
+  settings: {
+    timeBudgetMs,
+    maxWork,
+    threads,
+    profiles,
+    strategies,
+    criticalOnly,
+    taskPartition,
+    replyCacheBudget,
+  },
   inputsSha256: args.has("inputs")
     ? new Bun.CryptoHasher("sha256")
         .update(await Bun.file(args.get("inputs")!).arrayBuffer())

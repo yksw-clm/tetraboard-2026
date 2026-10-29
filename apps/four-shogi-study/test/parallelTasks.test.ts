@@ -352,3 +352,44 @@ test("担当変更後の未検査通知で、実施済み資産検査の打切�
     },
   );
 }, 20000);
+
+test("保持枠を実workerへ渡し、通常の根分配と既定v5には縮小を適用しない", async () => {
+  for (const [strategy, taskPartition, replyCacheBudget, bounded] of [
+    ["dual-continuations", "replies", "roots", true],
+    ["dual-continuations", "replies", "workers", false],
+    ["dual-continuations", "root", "roots", false],
+    ["adaptive", "replies", "roots", false],
+  ] as const) {
+    const limits: (number | undefined)[] = [];
+    const runtime = createStudySearchRuntime({
+      threads: 4,
+      taskPartition,
+      replyCacheBudget,
+      measureStages: true,
+      observeDiagnostic: (e) => {
+        if (e.type === "command" && e.command.type === "start")
+          limits.push(e.command.options.subtreeCacheLimit);
+      },
+    });
+    try {
+      const s = (
+        await parallelTrial(runtime, input, {
+          ...options,
+          strategy,
+          maxDepth: 4,
+          timeBudgetMs: 5000,
+          cacheSize: 64,
+        })
+      ).snapshot;
+      expect(s.completedDepth).toBe(4);
+      expect(limits).toEqual(Array(4).fill(bounded ? 48 : undefined));
+      if (bounded) {
+        expect(s.timing!.subtreeTasksAssigned).toBeGreaterThan(0);
+        expect(s.performance!.contextCacheCapacity).toBeLessThan(256);
+      } else expect(s.performance!.contextCacheCapacity).toBe(256);
+      if (strategy === "adaptive") expect(s.performance!.checkCacheHits).toBe(0);
+    } finally {
+      await runtime.close();
+    }
+  }
+}, 20000);

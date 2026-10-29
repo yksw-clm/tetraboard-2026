@@ -202,6 +202,7 @@ export type StudySearchRuntimeConfig = {
   observeParallel?: (event: StudyParallelEvent) => void;
   scheduling?: "fixed" | "dynamic";
   taskPartition?: "root" | "replies";
+  replyCacheBudget?: "workers" | "roots";
   threads?: number;
   memoryMb?: number;
   workerScript?: URL;
@@ -293,6 +294,7 @@ export function createStudySearchRuntime(
 ): StudySearchRuntime {
   const threads = config.threads ?? 4;
   const memoryMb = config.memoryMb ?? 8192;
+  const replyCacheBudget = config.replyCacheBudget ?? "roots";
   const startupTimeoutMs = config.startupTimeoutMs ?? 10000;
   const shutdownTimeoutMs = config.shutdownTimeoutMs ?? 500;
   const reuseWorkers = config.reuseWorkers ?? config.workerScript === undefined;
@@ -311,6 +313,8 @@ export function createStudySearchRuntime(
 
   if (!["root", "replies"].includes(config.taskPartition ?? "root"))
     throw new TypeError("タスク分割はrootまたはrepliesです");
+  if (!["workers", "roots"].includes(replyCacheBudget))
+    throw new TypeError("応手キャッシュ枠はworkersまたはrootsです");
   let children: ChildProcess[] = [];
   let starting: Promise<void> | null = null;
   let terminating = Promise.resolve();
@@ -494,6 +498,8 @@ export function createStudySearchRuntime(
         checkCacheHits: sum("checkCacheHits"),
         generatedMoves: lanes.reduce((n, entry) => n + entry.snapshot.stats.generatedMoves, 0),
         cacheEvictions: sum("cacheEvictions"),
+        contextCacheEntries: sum("contextCacheEntries"),
+        contextCacheCapacity: sum("contextCacheCapacity"),
         branchCacheHits: sum("branchCacheHits"),
         branchCacheEntries: sum("branchCacheEntries"),
         keyMs: sum("keyMs"),
@@ -637,6 +643,11 @@ export function createStudySearchRuntime(
     } = value.options;
     value.prepared = true;
     children.forEach((_child, lane) => {
+      const cacheSize =
+        rootOptions.cacheSize ??
+        (value.dynamic
+          ? Math.min(8192, Math.max(256, Math.floor((memoryMb / threads) * 4)))
+          : 1024);
       const message: SearchCommand = {
         type: "start",
         id: value.snapshot.id,
@@ -646,11 +657,10 @@ export function createStudySearchRuntime(
           ...rootOptions,
           measureDetails: config.measureStages === true,
           strategy: value.dynamic ? (value.options.strategy ?? "adaptive") : "legacy",
-          cacheSize:
-            rootOptions.cacheSize ??
-            (value.dynamic
-              ? Math.min(8192, Math.max(256, Math.floor((memoryMb / threads) * 4)))
-              : 1024),
+          cacheSize,
+          ...(value.dynamic?.parts && replyCacheBudget === "roots"
+            ? { subtreeCacheLimit: Math.floor(cacheSize * Math.min(1, 3 / threads)) }
+            : {}),
           lane,
           lanes: threads,
         },
