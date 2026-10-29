@@ -200,6 +200,7 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 - [fourGomokuProgress.ts](../apps/worker/src/rooms/fourGomokuProgress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
 - [fourGomokuMatchData.ts](../apps/worker/src/accounts/fourGomokuMatchData.ts) が規則版1の全局面再生と保存理由を照合します。共通D1保存とモード別SQLを利用し、既存ゲームの契約は維持します。
 - [FourGomokuRoomView](../apps/web/src/features/room/FourGomokuRoomView.tsx) と [FourGomokuMatchReplayView](../apps/web/src/features/room/FourGomokuMatchReplayView.tsx) は4カード・途中順位・90度回転を扱います。木の盤面の描画は通常版と共用し、エンジンは別の遅延チャンクです。待機カードは現在の準備状態、保存棋譜カードは選択したフレームの順位を表示します。
+- 各色の最終手は表示用の省略可能な `lastMoves` として確定着手時に更新し、脱落・勝ち抜けでも保持します。旧進行局は `FourGomokuProgress.normalize` が永続棋譜から復元します。旧保存棋譜は `replayV1` の再実行で得た局面をWebのフレームへ使い、未来の最終手を持ち込みません。規則版1の勝敗照合には表示用情報を含めません。通常版と共用の `GomokuBoard` はSVGと操作領域に同じ寸法定数を使います。
 - [検証範囲と部分実行](testing.md#四人五目並べの確認)を参照してください。既存5ゲームと新ゲームの全体回帰・必須検証と実機未確認事項はPRへ記録します。
 
 ## 四人五目並べの実装計画

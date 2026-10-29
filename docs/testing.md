@@ -535,6 +535,8 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 
 ## 四人五目並べの確認
 
+各色最終手の更新・入力不変・脱落時の保持・旧棋譜の復元は `packages/four-gomoku/test/replay.test.ts`、旧進行局の復元はWorkerの `fourGomokuRoom.test.ts` で確認します。Webの `fourGomoku.test.tsx` は各色の輪・最新手の点・前後操作と回転・初期局面・チーム案内の削除、`gomoku.test.tsx` は白黒とも最新1手だけの輪と点、`profileSelection.test.tsx` は四人五目並べのダブルスと選択復元を確認します。375px幅とPCでの文字・余白・輪の視認性、実タップ位置は手動確認対象です。
+
 | 確認する契約                                                                                                  | テストの入口                                                                             |
 | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | 15路・4色・全方向・長連・石を残す勝ち抜け／脱落・部分順位・最後の1人・満盤同順位、混色チーム・満盤引き分け    | `packages/four-gomoku/test/engine.test.ts`、`replay.test.ts`                             |

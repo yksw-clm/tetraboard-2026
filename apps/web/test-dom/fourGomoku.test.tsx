@@ -200,3 +200,40 @@ test("途中の勝ち抜けでは結果を自動表示せず、退室しても�
   act(() => clock.advance(300));
   expect(document.body.textContent).toContain("確定した順位は変わりません。");
 });
+
+test("ダブルスの待機中と対局中にチーム案内を重ねない", () => {
+  for (const input of [waiting(), playing()]) {
+    const room = fourGomokuRoomSchema.parse({
+      ...input,
+      settings: { ...input.settings, mode: "doubles" },
+    });
+    saveRoomMembershipToken(room.id, token);
+    const view = render(wrap()(<FourGomokuRoomDetail {...options(room)} invited={false} />));
+    connect(room);
+    expect(view.textContent).not.toContain("チーム：黒・赤 対 白・青");
+  }
+});
+
+test("旧保存棋譜の各色最終手を復元し、前後操作と回転で印が追従する", () => {
+  const detail = fourGomokuMatchDetailSchema.parse(archive.detail);
+  const view = render(wrap()(<FourGomokuMatchReplayView match={detail} />));
+  const board = view.querySelector('[aria-label="四人五目並べの盤面"]')!;
+  const positions = () =>
+    [...board.querySelectorAll("[data-last-move]")]
+      .map((p) => p.getAttribute("data-last-move"))
+      .sort();
+  expect(positions()).toHaveLength(4);
+  expect(board.querySelectorAll('[data-latest="true"] circle')).toHaveLength(2);
+  for (let i = detail.replay.steps.length; i > 4; i--)
+    act(() => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ戻る"]')!.click());
+  expect(positions()).toEqual(["A1", "A3", "A5", "A7"]);
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ進む"]')!.click());
+  expect(positions()).toEqual(["A3", "A5", "A7", "B1"]);
+  act(() =>
+    view.querySelector<HTMLButtonElement>('[aria-label="盤面を時計回りに90度回転"]')!.click(),
+  );
+  expect(positions()).toEqual(["A3", "A5", "A7", "B1"]);
+  for (let i = 5; i > 0; i--)
+    act(() => view.querySelector<HTMLButtonElement>('[aria-label="棋譜を1つ戻る"]')!.click());
+  expect(positions()).toEqual([]);
+});

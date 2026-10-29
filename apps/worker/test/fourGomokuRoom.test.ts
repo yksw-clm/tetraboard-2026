@@ -367,3 +367,30 @@ test("局ID・revision・担当色が古いCPU候補は適用せず破棄する"
       expect(gameRoom(state.storage.kv.get("room") as FourGomokuRoom).game).toEqual(saved.game);
     });
 });
+
+test("各色の最終手を配信し、旧進行局の再読込でも永続棋譜から復元する", async () => {
+  const { entry, clients, host, room: initial } = await setup();
+  let room = initial;
+  for (let x = 0; x < 5; x++) room = await play(room, clients, host, x, 0);
+  if (room.status !== "playing") throw Error();
+  const expected = {
+    black: { x: 4, y: 0 },
+    white: { x: 1, y: 0 },
+    red: { x: 2, y: 0 },
+    blue: { x: 3, y: 0 },
+  };
+  expect(room.game.lastMoves).toEqual(expected);
+  const stub = env.GAME_ROOM.getByName(entry.room.id);
+  await runInDurableObject(stub, (_instance, state) => {
+    const saved = state.storage.kv.get<FourGomokuRoom>("room")!;
+    if (saved.status !== "playing") throw Error();
+    delete saved.game.lastMoves;
+    state.storage.kv.put("room", saved);
+  });
+  const restored = gameRoom((await fixtures.snapshot(entry.room.id)).room);
+  if (restored.status !== "playing") throw Error();
+  expect(restored.game.lastMoves).toEqual(expected);
+  const next = await play(restored, clients, host, 5, 0);
+  if (next.status !== "playing") throw Error();
+  expect(next.game.lastMoves).toEqual({ ...expected, white: { x: 5, y: 0 } });
+});

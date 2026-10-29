@@ -62,6 +62,17 @@ export class FourGomokuProgress {
     this.accountId = dependencies.accountId;
   }
 
+  normalize(room: FourGomokuRoom): void {
+    if (room.status !== "playing" || room.game.lastMoves) return;
+    // 旧局面には表示用の履歴がないため、永続棋譜の確定着手から復元します。
+    const replay = this.storage.kv.get<RoundReplay>(replayKey);
+    if (!replay || replay.id !== room.roundId) return;
+    const lastMoves: Partial<Record<Color, Position>> = {};
+    for (const { action } of replay.steps)
+      if (action.type === "place") lastMoves[action.color] = action.position;
+    room.game.lastMoves = lastMoves;
+  }
+
   start(room: WaitingFor<"four-gomoku">): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(fourGomokuCpuJobKey);
     const assignments = shuffledAssignments(colors);
