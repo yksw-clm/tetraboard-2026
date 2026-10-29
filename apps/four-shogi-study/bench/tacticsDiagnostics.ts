@@ -140,6 +140,7 @@ export async function replayWorker(
     matches: boolean;
     candidate: StudyCandidate;
     expectedHash: string;
+    extendedNodes: number;
   }[] = [];
   try {
     const prep = drainTask(search, Math.min(deadline, performance.now() + 30_000), true);
@@ -157,6 +158,7 @@ export async function replayWorker(
       )?.message;
       // 最後の未完了タスクは、完成結果として再生・比較しません。
       if (!response || response.type !== "progress") break;
+      const beforeExtended = search.snapshot().stats.extendedNodes;
       search.startTask(command.index, command.depth, command.material, command.policy);
       const completion = drainTask(search, Math.min(deadline, performance.now() + 30_000));
       if (!completion.complete) return { results, complete: false, reason: completion.reason };
@@ -167,6 +169,7 @@ export async function replayWorker(
         matches: digest(candidate) === digest(expected),
         candidate,
         expectedHash: digest(expected),
+        extendedNodes: search.snapshot().stats.extendedNodes - beforeExtended,
       });
       if (performance.now() >= deadline) return { results, complete: false, reason: "time_limit" };
     }
@@ -696,6 +699,83 @@ export async function runDiagnostics(options: {
   return result;
 }
 
+/** 通常探索を変えず、記録済みの同じ通常深さで延長経路だけを有効にします。 */
+export async function runDeepLeafComparison(sourceDir: string, output: string, maxMinutes = 5) {
+  if (!(maxMinutes > 0 && maxMinutes <= 5)) throw new Error("追加の延長比較は5分以内です");
+  if (await Bun.file(output).exists()) throw new Error("既存の比較結果を上書きできません");
+  const manifest = JSON.parse(await readFile(resolve(sourceDir, "manifest.json"), "utf8"));
+  const status = JSON.parse(await readFile(resolve(sourceDir, "status.json"), "utf8"));
+  if (!status.complete || !status.sourceUnchanged)
+    throw new Error("不完全な元調査を比較元にできません");
+  const source = codeIdentity();
+  const fingerprint = digest(source);
+  const deadline = performance.now() + maxMinutes * 60000;
+  const report = {
+    schemaVersion: 1,
+    kind: "same-normal-depth-deep-leaf-extension" as const,
+    source,
+    sourceManifestHash: createHash("sha256")
+      .update(await readFile(resolve(sourceDir, "manifest.json")))
+      .digest("hex"),
+    sourceCommit: manifest.source.commit,
+    maxMinutes,
+    perCaseMs: 30000,
+    cases: [] as unknown[],
+    complete: false,
+    sourceUnchanged: true,
+  };
+  for (const id of status.summaries
+    .map((entry: { id: string }) => entry.id)
+    .filter((id: string) => id.startsWith("poisoned-gold"))) {
+    if (performance.now() >= deadline) break;
+    const d = JSON.parse(await readFile(resolve(sourceDir, id + ".json"), "utf8"));
+    const events = d.runtimeTrace.entries as StudyRuntimeTraceEvent[];
+    const end = Math.min(deadline, performance.now() + 30000);
+    const base = [];
+    const changed = [];
+    for (let worker = 0; worker < 4; worker++) {
+      if (performance.now() >= end) break;
+      base.push({ worker, ...(await replayWorker(events, worker, end)) });
+    }
+    const baseMatches =
+      base.length === 4 && base.every((r) => r.complete && r.results.every((task) => task.matches));
+    if (baseMatches)
+      for (let worker = 0; worker < 4; worker++) {
+        if (performance.now() >= end) break;
+        changed.push({
+          worker,
+          ...(await replayWorker(events, worker, end, { extendDeepLeaves: true })),
+        });
+      }
+    const comparison = baseMatches
+      ? comparePublication(events, changed, d.input.origin.setup.turn)
+      : { comparable: false, reason: "baseline_replay_incomplete" };
+    report.cases.push({
+      id,
+      originalDepth: d.observed.completedDepth,
+      baseMatches,
+      base,
+      changed,
+      comparison,
+      caseBudgetReached: performance.now() >= end,
+    });
+    report.sourceUnchanged = digest(codeIdentity()) === fingerprint;
+    if (!report.sourceUnchanged) throw new Error("延長比較中のコード変更");
+    await save(output, report);
+    console.log(
+      JSON.stringify({
+        id,
+        baseMatches,
+        comparable: comparison.comparable,
+        changed: "changed" in comparison ? comparison.changed : null,
+      }),
+    );
+  }
+  report.complete = report.cases.length === 8;
+  await save(output, report);
+  return report;
+}
+
 if (import.meta.main) {
   const args = new Map(
     Bun.argv.slice(2).map((arg) => {
@@ -705,14 +785,28 @@ if (import.meta.main) {
     }),
   );
   for (const name of args.keys())
-    if (!["output-dir", "max-minutes", "case", "repeats"].includes(name))
+    if (
+      !["output-dir", "max-minutes", "case", "repeats", "leaf-extensions-from", "output"].includes(
+        name,
+      )
+    )
       throw new Error(`不明な引数: ${name}`);
-  const outputDir = args.get("output-dir");
-  if (!outputDir) throw new Error("--output-dirが必要です");
-  await runDiagnostics({
-    outputDir,
-    maxMinutes: Number(args.get("max-minutes") ?? 50),
-    ...(args.has("case") ? { caseId: args.get("case") } : {}),
-    repeats: Number(args.get("repeats") ?? 3),
-  });
+  if (args.has("leaf-extensions-from")) {
+    const output = args.get("output");
+    if (!output) throw new Error("--outputが必要です");
+    await runDeepLeafComparison(
+      args.get("leaf-extensions-from")!,
+      output,
+      Number(args.get("max-minutes") ?? 5),
+    );
+  } else {
+    const outputDir = args.get("output-dir");
+    if (!outputDir) throw new Error("--output-dirが必要です");
+    await runDiagnostics({
+      outputDir,
+      maxMinutes: Number(args.get("max-minutes") ?? 50),
+      ...(args.has("case") ? { caseId: args.get("case") } : {}),
+      repeats: Number(args.get("repeats") ?? 3),
+    });
+  }
 }

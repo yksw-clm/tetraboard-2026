@@ -53,6 +53,7 @@ export type StudyTraceEvent = StudyTraceNode &
 export type StudySearchDiagnostics = {
   observe?: (event: StudyTraceEvent) => void;
   disableBranchCache?: boolean;
+  extendDeepLeaves?: boolean;
   watchPaths?: readonly (readonly string[])[];
   includeAt?: { key: string; path: readonly string[]; action: FourShogiAction };
 };

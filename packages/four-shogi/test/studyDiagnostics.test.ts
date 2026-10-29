@@ -45,6 +45,47 @@ test("診断observerは固定タスクの候補・PV・評価・workを変えず
   }
 });
 
+test("深掘り末端は既定では延長を通らず、診断条件だけで既存の延長規則を適用する", async () => {
+  const position = await restoreAnalysisPosition({
+    schemaVersion: 1,
+    rulesVersion: 1,
+    ruleProfileId: "tetraboard-four-shogi-singles-v1",
+    initial: {
+      mode: "singles",
+      players: { south: "s", west: "w", north: "n", east: "e" },
+      threePlayerAttackProhibited: false,
+    },
+    events: [],
+  });
+  const sessions = [
+    createStudyRootSearch(position, { strategy: "dual", maxDepth: 4, extensions: 2 }),
+    createStudyRootSearch(
+      position,
+      { strategy: "dual", maxDepth: 4, extensions: 2 },
+      { extendDeepLeaves: true },
+    ),
+    createStudyRootSearch(
+      position,
+      { strategy: "dual", maxDepth: 4, extensions: 0 },
+      { extendDeepLeaves: true },
+    ),
+  ];
+  try {
+    for (const session of sessions) {
+      while (session.depth < 1 && !session.step()) {}
+      session.startTask(0, 4, false, { phase: "deep", width: 2, ownWidth: 3 });
+      while (!session.step()) {}
+    }
+    expect(sessions[0].snapshot().stats.extendedNodes).toBe(0);
+    expect(sessions[1].snapshot().stats.extendedNodes).toBeGreaterThan(0);
+    expect(sessions[2].snapshot().stats.extendedNodes).toBe(0);
+    expect(sessions[0].snapshot().candidates[0].line).toHaveLength(4);
+    expect(sessions[1].snapshot().candidates[0].line.length).toBeGreaterThan(4);
+  } finally {
+    sessions.forEach((session) => session.dispose());
+  }
+});
+
 test("一節点への応手追加はその手だけを残し、元の候補と入力を保持する", async () => {
   const position = await restoreAnalysisPosition({
     schemaVersion: 1,

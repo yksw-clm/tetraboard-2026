@@ -789,7 +789,8 @@ export function createStudyRootSearch(
       selective ||= selected.length < ranked.length;
       for (const entry of selected) {
         const child =
-          remaining === 1 || entry.next.state.status === "finished"
+          (remaining === 1 && !diagnostics?.extendDeepLeaves) ||
+          entry.next.state.status === "finished"
             ? { evaluation: entry.evaluation, line: [], selective: false }
             : yield* explore(
                 entry.next.state,
