@@ -203,6 +203,7 @@ export type StudySearchRuntimeConfig = {
   scheduling?: "fixed" | "dynamic";
   taskPartition?: "root" | "replies";
   replyCacheBudget?: "workers" | "roots";
+  splitMinDepth?: number;
   threads?: number;
   memoryMb?: number;
   workerScript?: URL;
@@ -295,6 +296,7 @@ export function createStudySearchRuntime(
   const threads = config.threads ?? 4;
   const memoryMb = config.memoryMb ?? 8192;
   const replyCacheBudget = config.replyCacheBudget ?? "workers";
+  const splitMinDepth = config.splitMinDepth ?? 4;
   const startupTimeoutMs = config.startupTimeoutMs ?? 10000;
   const shutdownTimeoutMs = config.shutdownTimeoutMs ?? 500;
   const reuseWorkers = config.reuseWorkers ?? config.workerScript === undefined;
@@ -313,6 +315,8 @@ export function createStudySearchRuntime(
 
   if (!["root", "replies"].includes(config.taskPartition ?? "root"))
     throw new TypeError("タスク分割はrootまたはrepliesです");
+  if (!Number.isSafeInteger(splitMinDepth) || splitMinDepth < 4 || splitMinDepth > 256)
+    throw new TypeError("応手分割の開始深さは4〜256の整数です");
   if (!["workers", "roots"].includes(replyCacheBudget))
     throw new TypeError("応手キャッシュ枠はworkersまたはrootsです");
   let children: ChildProcess[] = [];
@@ -798,7 +802,10 @@ export function createStudySearchRuntime(
         index,
         depth: dynamic.depth,
         material: dynamic.depth === 2 && dynamic.material.has(index),
-        ...(dynamic.parts && dynamic.dual?.phase === "deep" && threads > 1
+        ...(dynamic.parts &&
+        dynamic.dual?.phase === "deep" &&
+        dynamic.depth >= splitMinDepth &&
+        threads > 1
           ? { partition: true }
           : {}),
         ...(dynamic.dual

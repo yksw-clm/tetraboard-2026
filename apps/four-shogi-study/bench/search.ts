@@ -57,6 +57,7 @@ const taskPartition = args.get("task-partition") ?? "root";
 if (taskPartition !== "root" && taskPartition !== "replies")
   throw new Error("task-partitionはrootまたはrepliesです");
 const criticalOnly = args.get("critical-only") === "true";
+const splitMinDepth = Number(args.get("split-min-depth") ?? 4);
 const replyCacheBudget = args.get("reply-cache-budget") ?? "workers";
 if (replyCacheBudget !== "roots" && replyCacheBudget !== "workers")
   throw new Error("reply-cache-budgetはrootsまたはworkersです");
@@ -187,6 +188,7 @@ for (const count of threads)
         threads: count,
         taskPartition,
         replyCacheBudget,
+        splitMinDepth,
         cpuProfileDirectory: args.get("cpu-profile-dir"),
       });
       async function analyze(input: StudyPositionInput) {
@@ -373,6 +375,7 @@ const report = {
     criticalOnly,
     taskPartition,
     replyCacheBudget,
+    splitMinDepth,
   },
   inputsSha256: args.has("inputs")
     ? new Bun.CryptoHasher("sha256")

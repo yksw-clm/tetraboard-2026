@@ -39,12 +39,16 @@ const taskPartition = process.env.STUDY_TASK_PARTITION ?? "root";
 if (taskPartition !== "root" && taskPartition !== "replies")
   throw new Error("STUDY_TASK_PARTITIONはrootまたはrepliesです");
 const replyCacheBudget = process.env.STUDY_REPLY_CACHE_BUDGET ?? "workers";
+const splitMinDepth = Number(process.env.STUDY_SPLIT_MIN_DEPTH ?? 4);
+if (!Number.isSafeInteger(splitMinDepth) || splitMinDepth < 4 || splitMinDepth > 256)
+  throw new Error("STUDY_SPLIT_MIN_DEPTHは4〜256の整数です");
 if (replyCacheBudget !== "roots" && replyCacheBudget !== "workers")
   throw new Error("STUDY_REPLY_CACHE_BUDGETはrootsまたはworkersです");
 const app = new LocalStudyApplication(
   new StudyStore(dataDirectory),
   config,
-  (options) => createStudySearchRuntime({ ...options, taskPartition, replyCacheBudget }),
+  (options) =>
+    createStudySearchRuntime({ ...options, taskPartition, replyCacheBudget, splitMinDepth }),
   (input, callbacks) => createLiveRoomSession(input, callbacks, { allowedOrigins }),
 );
 const assetsDirectory = fileURLToPath(new URL("../../dist", import.meta.url));

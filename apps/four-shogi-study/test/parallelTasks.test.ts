@@ -440,3 +440,49 @@ test("進捗と過去結果の改変を現在局面と保存履歴へ持ち込�
     await runtime.close();
   }
 });
+
+test("応手分割の開始深さを変えても完成した候補と読みを維持する", async () => {
+  const results: StudySearchSnapshot[] = [];
+  for (const splitMinDepth of [4, 6]) {
+    const depths = new Set<number>();
+    const runtime = createStudySearchRuntime({
+      threads: 4,
+      taskPartition: "replies",
+      splitMinDepth,
+      measureStages: true,
+      observeDiagnostic: (e) => {
+        if (
+          e.type === "message" &&
+          e.message.type === "progress" &&
+          e.message.reply?.kind === "split"
+        )
+          for (const task of e.message.reply.plan.tasks) depths.add(task.targetDepth);
+      },
+    });
+    try {
+      const s = (await parallelTrial(runtime, input, { ...options, timeBudgetMs: 10000 })).snapshot;
+      expect(s.completedDepth).toBe(6);
+      expect(depths.has(6)).toBe(true);
+      expect([...depths].every((depth) => depth >= splitMinDepth)).toBe(true);
+      expect(depths.has(4)).toBe(splitMinDepth === 4);
+      const p = s.performance!;
+      expect(s.work).toBe(
+        (p.preparationWork ?? 0) +
+          (p.rootSetupWork ?? 0) +
+          p.immediateWork +
+          p.materialWork +
+          (p.completedIterationWork ?? 0),
+      );
+      results.push(s);
+    } finally {
+      await runtime.close();
+    }
+  }
+  expect(results[1].candidates).toEqual(results[0].candidates);
+  expect(results[1].recommendedAction).toEqual(results[0].recommendedAction);
+  expect(results[1].performance!.completedIterationWork).toBe(
+    results[0].performance!.completedIterationWork,
+  );
+  for (const splitMinDepth of [3, 257, 4.5])
+    expect(() => createStudySearchRuntime({ splitMinDepth })).toThrow();
+});
