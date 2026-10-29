@@ -112,18 +112,70 @@ export function attacksSquare(board: Board, piece: Piece, from: Position, to: Po
   return ahead === 1 && sideways === 0;
 }
 
+const kingRays = [
+  [0, -1],
+  [-1, 0],
+  [1, 0],
+  [0, 1],
+] as const;
+
+function kingPosition(board: Board, side: Side): Position | null {
+  for (let y = 0; y < 9; y++)
+    for (let x = 0; x < 9; x++) {
+      const piece = board[y][x];
+      if (piece?.side === side && piece.kind === "king") return { x, y };
+    }
+  return null;
+}
+
+function kingAttacked(
+  state: FourShogiState,
+  side: Side,
+  king: Position,
+  active: readonly Side[],
+): boolean {
+  // 飛車の直線以外の利きは隣接8マスだけです。候補手の選別には使いません。
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const x = king.x + dx,
+        y = king.y + dy;
+      if (x < 0 || x >= 9 || y < 0 || y >= 9) continue;
+      const piece = state.board[y][x];
+      if (
+        piece &&
+        active.includes(piece.side) &&
+        areEnemies(state.mode, side, piece.side) &&
+        attacksSquare(state.board, piece, { x, y }, king)
+      )
+        return true;
+    }
+  for (const [dx, dy] of kingRays) {
+    for (
+      let x = king.x + dx, y = king.y + dy;
+      x >= 0 && x < 9 && y >= 0 && y < 9;
+      x += dx, y += dy
+    ) {
+      const piece = state.board[y][x];
+      if (!piece) continue;
+      if (
+        piece.kind === "rook" &&
+        active.includes(piece.side) &&
+        areEnemies(state.mode, side, piece.side)
+      )
+        return true;
+      // 脱落した駒も、元の幾何判定と同じく直線を遮ります。
+      break;
+    }
+  }
+  return false;
+}
+
 export function isInCheck(state: FourShogiState, side: Side): boolean {
   const active = getActiveSides(state);
   if (!active.includes(side)) return false;
-  const all = pieces(state.board);
-  const king = all.find(({ piece }) => piece.side === side && piece.kind === "king");
-  if (!king) return false;
-  return all.some(
-    ({ piece, position }) =>
-      active.includes(piece.side) &&
-      areEnemies(state.mode, side, piece.side) &&
-      attacksSquare(state.board, piece, position, king.position),
-  );
+  const king = kingPosition(state.board, side);
+  return king !== null && kingAttacked(state, side, king, active);
 }
 
 export function attackedPositions(board: Board, piece: Piece, from: Position): Position[] {
@@ -163,19 +215,17 @@ export function attackedPositions(board: Board, piece: Piece, from: Position): P
 
 export function getCheckState(state: FourShogiState): Record<Side, boolean> {
   const active = getActiveSides(state);
-  const all = pieces(state.board);
+  const kings: Record<Side, Position | null> = { south: null, west: null, north: null, east: null };
   const checks: Record<Side, boolean> = { south: false, west: false, north: false, east: false };
-  // 同じ盤面の駒一覧を共有し、所属・脱落・味方・遮蔽物の裁定を維持します。
+  for (let y = 0; y < 9; y++)
+    for (let x = 0; x < 9; x++) {
+      const piece = state.board[y][x];
+      if (piece?.kind === "king" && active.includes(piece.side) && !kings[piece.side])
+        kings[piece.side] = { x, y };
+    }
   for (const side of active) {
-    const king = all.find(({ piece }) => piece.side === side && piece.kind === "king");
-    checks[side] =
-      king !== undefined &&
-      all.some(
-        ({ piece, position }) =>
-          active.includes(piece.side) &&
-          areEnemies(state.mode, side, piece.side) &&
-          attacksSquare(state.board, piece, position, king.position),
-      );
+    const king = kings[side];
+    if (king) checks[side] = kingAttacked(state, side, king, active);
   }
   return checks;
 }
