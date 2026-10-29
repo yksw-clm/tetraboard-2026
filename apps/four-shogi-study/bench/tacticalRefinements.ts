@@ -169,11 +169,14 @@ export async function runRefinementDiagnostics(options: {
           )
         : null;
     const cohort = previousRuntime?.snapshot.candidates as StudyCandidate[] | undefined;
-    const baseActions = [
-      ...(cohort ?? old.observed.cohort).map((c) => c.action),
-      ...expected,
-      ...Object.values(old.originalActions),
-    ];
+    const baseActions =
+      options.mode === "variance"
+        ? []
+        : [
+            ...(cohort ?? old.observed.cohort).map((c) => c.action),
+            ...expected,
+            ...Object.values(old.originalActions),
+          ];
     if (options.mode === "variance") {
       for (let repeat = 0; repeat < 3; repeat++)
         for (let offset = 0; offset < 6; offset++) {
