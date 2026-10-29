@@ -22,6 +22,8 @@ import { fixture } from "../../../packages/four-shogi/bench/positionFixture";
 import { positionForSide } from "../../../packages/four-shogi/src/board";
 import {
   studySearchVersion,
+  studySearchStrategies,
+  type StudySearchStrategy,
   type StudyCandidate,
   type StudyProfile,
 } from "@tetraboard/four-shogi/study-search";
@@ -43,7 +45,7 @@ const profiles = (args.get("profiles") ?? "study").split(",");
 const strategies = (args.get("strategies") ?? "adaptive").split(",");
 if (
   !strategies.length ||
-  strategies.some((entry) => !["legacy", "adaptive", "dual"].includes(entry))
+  strategies.some((entry) => !studySearchStrategies.includes(entry as StudySearchStrategy))
 )
   throw new Error("strategies must be legacy, adaptive and/or dual");
 if (!profiles.length || profiles.some((profile) => !["study", "baseline"].includes(profile)))
@@ -184,7 +186,7 @@ for (const count of threads)
           {
             timeBudgetMs,
             profile: profile as StudyProfile,
-            strategy: strategy as "legacy" | "adaptive" | "dual",
+            strategy: strategy as StudySearchStrategy,
           },
           (value) => {
             if (value.status === "completed" || value.status === "error") finish(value);

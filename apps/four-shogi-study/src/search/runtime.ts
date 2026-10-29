@@ -5,8 +5,8 @@ import {
   evaluateStudyPosition,
   selectStudyRootIndices,
   selectStudyIterationRoots,
-  studySearchVersion,
-  adaptiveStudySearchVersion,
+  isDualStudyStrategy,
+  studyStrategyVersion,
   legacyStudySearchVersion,
   type StudyCandidate,
   type StudyLaneSnapshot,
@@ -289,6 +289,7 @@ export function createStudySearchRuntime(
         materialWork: sum("materialWork"),
         reducedNodes: sum("reducedNodes"),
         researches: sum("researches"),
+        promotionExtraMoves: sum("promotionExtraMoves"),
         legalCacheHits: lanes.reduce((n, entry) => n + entry.snapshot.stats.legalCacheHits, 0),
         transitionCacheHits: lanes.reduce(
           (n, entry) => n + entry.snapshot.stats.transitionCacheHits,
@@ -979,7 +980,7 @@ export function createStudySearchRuntime(
                 waitMs: Array(threads).fill(0),
                 depths: [],
                 total: 0,
-                ...(options.strategy === "dual"
+                ...(isDualStudyStrategy(options.strategy)
                   ? {
                       dual: {
                         phase: "broad" as const,
@@ -1033,9 +1034,7 @@ export function createStudySearchRuntime(
               config.scheduling === "fixed" ||
               (config.workerScript && config.scheduling !== "dynamic")
                 ? legacyStudySearchVersion
-                : options.strategy === "dual"
-                  ? studySearchVersion
-                  : adaptiveStudySearchVersion,
+                : studyStrategyVersion(options.strategy),
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,

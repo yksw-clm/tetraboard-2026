@@ -42,7 +42,20 @@ function keepBranch(branch: AiBranch, _reason?: string) {
 export const studySearchVersion = "local-root-maxn-v6";
 export const adaptiveStudySearchVersion = "local-root-maxn-v5";
 export const legacyStudySearchVersion = "local-root-maxn-v4";
-export type StudySearchStrategy = "legacy" | "adaptive" | "dual";
+export const studySearchStrategies = ["legacy", "adaptive", "dual", "dual-promotions"] as const;
+export type StudySearchStrategy = (typeof studySearchStrategies)[number];
+export function isDualStudyStrategy(strategy?: string): boolean {
+  return strategy === "dual" || strategy === "dual-promotions";
+}
+export function studyStrategyVersion(strategy?: StudySearchStrategy): string {
+  return strategy === "dual-promotions"
+    ? "local-root-maxn-v6-p0-2"
+    : strategy === "dual"
+      ? studySearchVersion
+      : strategy === "legacy"
+        ? legacyStudySearchVersion
+        : adaptiveStudySearchVersion;
+}
 export type StudyTaskPolicy = { phase: "broad" | "deep"; width: number; ownWidth: number };
 export const studyEvaluationVersion = "local-sole-first-pressure-v1";
 export type StudyProfile = "study" | "baseline";
@@ -90,6 +103,7 @@ export type StudySearchPerformance = AiContextMetrics & {
   materialWork: number;
   reducedNodes: number;
   researches: number;
+  promotionExtraMoves: number;
 };
 export type StudyRootOptions = {
   strategy?: StudySearchStrategy;
@@ -421,6 +435,7 @@ export function createStudyRootSearch(
   )
     throw new TypeError("探索レーンが不正です");
   const optimized = options.strategy !== "legacy";
+  const preserveOwnPromotion = options.strategy === "dual-promotions";
   const cacheSize = options.cacheSize ?? (optimized ? 4096 : 1024);
   if (!Number.isSafeInteger(cacheSize) || cacheSize < 0 || cacheSize > 65536)
     throw new TypeError("検討用キャッシュは0〜65536状態です");
@@ -452,7 +467,7 @@ export function createStudyRootSearch(
           preservePromotions: optimized,
           measure: true,
           cacheLeafEvaluations: !optimized,
-          allMoves: options.strategy === "dual",
+          allMoves: isDualStudyStrategy(options.strategy),
         }
       : optimized
         ? {
@@ -461,7 +476,7 @@ export function createStudyRootSearch(
             preservePromotions: true,
             measure: true,
             cacheLeafEvaluations: false,
-            allMoves: options.strategy === "dual",
+            allMoves: isDualStudyStrategy(options.strategy),
           }
         : undefined,
   );
@@ -515,6 +530,7 @@ export function createStudyRootSearch(
   let materialWork = 0;
   let reducedNodes = 0;
   let researches = 0;
+  let promotionExtraMoves = 0;
   let taskPolicy: StudyTaskPolicy | null = null;
   let taskPolicyKey = "";
   const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
@@ -683,7 +699,7 @@ export function createStudyRootSearch(
     let moves = yield* ctx.ordered(state, legal);
     const orderedBefore = moves;
     let afterBroad = moves;
-    if (options.strategy === "dual" && taskPolicy?.phase !== "deep") {
+    if (isDualStudyStrategy(options.strategy) && taskPolicy?.phase !== "deep") {
       moves = moves.filter(
         (entry, order) =>
           order < settings.width ||
@@ -733,6 +749,20 @@ export function createStudyRootSearch(
       const width = state.turn === root ? taskPolicy.ownWidth : taskPolicy.width;
       const selected =
         remaining === 1 ? [...ranked] : ranked.slice(0, Math.max(checked ? 4 : 1, width));
+      // 自手番の成り継続を静的評価だけで落とさず、追加は各節点で一手に制限します。
+      const promotion =
+        preserveOwnPromotion && remaining > 1 && state.turn === root
+          ? ranked.find(
+              (entry) =>
+                entry.move.action.type === "movePiece" &&
+                entry.move.action.promote &&
+                !selected.includes(entry),
+            )
+          : undefined;
+      if (promotion) {
+        selected.push(promotion);
+        promotionExtraMoves++;
+      }
       const include = diagnostics?.includeAt;
       const intervention =
         include &&
@@ -767,7 +797,9 @@ export function createStudyRootSearch(
             reason: chosen
               ? index === intervention
                 ? "diagnostic_include"
-                : "selected"
+                : index === promotion?.index
+                  ? "promotion_reserve"
+                  : "selected"
               : orderedIndex < 0
                 ? "ordering_filter"
                 : !afterBroad.some((entry) => entry.index === index)
@@ -1156,6 +1188,7 @@ export function createStudyRootSearch(
           materialWork,
           reducedNodes,
           researches,
+          promotionExtraMoves,
         },
       };
     },

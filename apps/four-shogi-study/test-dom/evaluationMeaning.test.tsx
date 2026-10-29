@@ -103,6 +103,7 @@ test("完成比較と進行中の深さを分け、並列計測を経過時間�
     materialWork: 10,
     reducedNodes: 11,
     researches: 12,
+    promotionExtraMoves: 0,
     legalCacheHits: 13,
     transitionCacheHits: 14,
     evaluationCacheHits: 15,

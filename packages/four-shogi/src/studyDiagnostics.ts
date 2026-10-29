@@ -26,6 +26,7 @@ export type StudySelectionRow = {
     | "extension_filter"
     | "top_k"
     | "selected"
+    | "promotion_reserve"
     | "diagnostic_include";
 };
 export type StudyTraceEvent = StudyTraceNode &

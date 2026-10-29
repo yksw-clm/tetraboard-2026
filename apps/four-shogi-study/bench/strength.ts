@@ -18,6 +18,8 @@ import {
   selectStudyRootIndices,
   type StudyProfile,
   type StudySearchStrategy,
+  studySearchStrategies,
+  isDualStudyStrategy,
 } from "@tetraboard/four-shogi/study-search";
 import {
   git,
@@ -1224,7 +1226,7 @@ export function argumentsFor(args: string[]): StrengthOptions {
     throw new Error("ルール・席・比較方式が不正です");
   const formal = values.get("formal") === "true";
   const strategy = values.get("search-strategy");
-  if (strategy !== undefined && !["legacy", "adaptive", "dual"].includes(strategy))
+  if (strategy !== undefined && !studySearchStrategies.includes(strategy as StudySearchStrategy))
     throw new Error("search-strategy must be legacy, adaptive or dual");
   const compareStrategies = values.get("compare-strategies")?.split(",");
   if (
@@ -1232,12 +1234,14 @@ export function argumentsFor(args: string[]): StrengthOptions {
     (strategy !== undefined ||
       compareStrategies.length !== 2 ||
       new Set(compareStrategies).size !== 2 ||
-      compareStrategies.some((entry) => !["legacy", "adaptive", "dual"].includes(entry)))
+      compareStrategies.some(
+        (entry) => !studySearchStrategies.includes(entry as StudySearchStrategy),
+      ))
   )
     throw new Error("compare-strategiesには異なる2方式を指定してください");
   if (formal && (strategy !== undefined || compareStrategies !== undefined))
     throw new Error("正式条件への探索方式の追加は別の測定計画にしてください");
-  if ((strategy === "dual" || compareStrategies) && values.has("work"))
+  if ((isDualStudyStrategy(strategy) || compareStrategies) && values.has("work"))
     throw new Error("二段階探索の対局比較は実時間予算で指定してください");
   if (
     compareStrategies &&
