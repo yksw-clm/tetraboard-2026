@@ -8,7 +8,9 @@ let current: {
   barrier: boolean;
   depth: number;
   taskId?: number;
+  partition: boolean;
   timing?: SearchWorkerTiming;
+  reply?: Extract<SearchMessage, { type: "progress" }>["reply"];
   cpuStart?: ReturnType<typeof process.cpuUsage>;
   transport?: NonNullable<SearchWorkerTiming["transport"]>;
 } | null = null;
@@ -54,6 +56,7 @@ function progress(barrier: boolean) {
     snapshot: current.search.snapshot(),
     memoryBytes: process.memoryUsage.rss(),
     barrier,
+    ...(current.reply ? { reply: current.reply } : {}),
     ...(current.taskId === undefined ? {} : { taskId: current.taskId }),
     ...(timing ? { timing } : {}),
   });
@@ -71,7 +74,13 @@ function schedule() {
     try {
       do {
         const done = current.search.step();
-        if (done || current.search.depth !== current.depth) {
+        const plan = current.partition ? current.search.takeSplitPlan() : null;
+        if (plan) current.reply = { kind: "split", plan };
+        else if (done) {
+          const result = current.search.subtreeResult();
+          if (result) current.reply = { kind: "subtree", result };
+        }
+        if (plan || done || current.search.depth !== current.depth) {
           current.depth = current.search.depth;
           current.barrier = true;
           progress(true);
@@ -122,6 +131,7 @@ process.on("message", async (raw: unknown) => {
         paused: requestedPaused,
         barrier: false,
         depth: 0,
+        partition: false,
         ...(cpuStart
           ? { cpuStart, transport: { sendCalls: 0, jsonBytes: 0, sendMs: 0, sizingMs: 0 } }
           : {}),
@@ -162,10 +172,22 @@ process.on("message", async (raw: unknown) => {
   if (message.type === "pause") requestedPaused = true;
   if (message.type === "resume") requestedPaused = false;
   if (!current || current.id !== message.id) return;
-  if (message.type === "task") {
+  if (message.type === "task" || message.type === "subtree" || message.type === "finish") {
     try {
       if (!current.barrier) throw new Error("実行中の探索へタスクを重ねられません");
-      current.search.startTask(message.index, message.depth, message.material, message.policy);
+      if (message.type === "task")
+        current.search.startTask(
+          message.index,
+          message.depth,
+          message.material,
+          message.policy,
+          message.partition,
+        );
+      else if (message.type === "subtree") current.search.startSubtree(message.task);
+      else current.search.finishSplitPlan(message.planId, message.results);
+      current.reply = undefined;
+      current.partition =
+        message.type === "task" && message.partition === true && message.depth >= 4;
       current.taskId = message.taskId;
       current.depth = current.search.depth;
       current.barrier = false;

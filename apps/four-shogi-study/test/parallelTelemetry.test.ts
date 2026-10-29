@@ -98,3 +98,66 @@ test("並列度は壁時計の区間積分で求め、CPU時間と区別する",
   expect(summary.phases.deep.workers[0].assignedWaitMs).toBe(50);
   expect(summary.iterations[0].tailWaitMs).toBe(50);
 });
+
+test("分割した根の待ち時間を最初の割当から最終集約まで測る", () => {
+  const meter = createParallelRecorder(3),
+    id = "split";
+  meter.observe({ type: "iteration", id, atMs: 0, depth: 4, phase: "deep", roots: 1 });
+  const assign = (
+    worker: number,
+    taskId: number,
+    atMs: number,
+    role: "root" | "subtree" | "finish",
+  ) =>
+    meter.observe({
+      type: "assigned",
+      id,
+      atMs,
+      worker,
+      taskId,
+      index: 7,
+      depth: 4,
+      phase: "deep",
+      role,
+    });
+  const done = (
+    worker: number,
+    taskId: number,
+    atMs: number,
+    work: number,
+    outcome?: "split" | "subtree",
+  ) =>
+    meter.observe({
+      type: "worker",
+      id,
+      atMs,
+      worker,
+      taskId,
+      index: 7,
+      depth: 4,
+      phase: "deep",
+      barrier: true,
+      accepted: true,
+      work,
+      nodes: work,
+      rss: 100,
+      activeMs: atMs,
+      cpuMs: atMs,
+      restoreMs: 0,
+      createMs: 0,
+      outcome,
+    });
+  assign(0, 1, 0, "root");
+  done(0, 1, 10, 5, "split");
+  assign(1, 2, 10, "subtree");
+  assign(2, 3, 10, "subtree");
+  done(1, 2, 40, 20, "subtree");
+  done(2, 3, 50, 30, "subtree");
+  assign(0, 4, 50, "finish");
+  done(0, 4, 60, 5);
+  meter.observe({ type: "iterationEnd", id, atMs: 60, depth: 4, phase: "deep", roots: 1 });
+  const summary = meter.summarize(id);
+  expect(summary.iterations[0].longestRootMs).toBe(60);
+  expect(summary.phases.deep.averageConcurrent).toBe(1.5);
+  expect(summary.phases.deep.peakConcurrent).toBe(2);
+});

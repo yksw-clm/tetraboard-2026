@@ -64,6 +64,8 @@ export function createParallelRecorder(threads: number) {
         number,
         {
           taskId: number;
+          role: "root" | "subtree" | "finish";
+          outcome?: "split" | "subtree";
           worker: number;
           index: number;
           depth: number;
@@ -98,6 +100,7 @@ export function createParallelRecorder(threads: number) {
           const w = workers[event.worker];
           tasks.set(event.taskId, {
             taskId: event.taskId,
+            role: event.role ?? "root",
             worker: event.worker,
             index: event.index,
             depth: event.depth,
@@ -135,6 +138,7 @@ export function createParallelRecorder(threads: number) {
           });
           const task = event.taskId === undefined ? undefined : tasks.get(event.taskId);
           if (task) {
+            task.outcome = event.outcome;
             task.work = Math.max(0, event.work - task.before.work);
             task.nodes = Math.max(0, event.nodes - task.before.nodes);
             task.activeMs = Math.max(0, event.activeMs - task.before.activeMs);
@@ -196,10 +200,10 @@ export function createParallelRecorder(threads: number) {
           ]),
         ),
         workers,
-        tasks: [...tasks.values()].map(({ before: _, ...t }) => ({
-          ...t,
-          wallMs: (t.endMs ?? end) - t.startMs,
-        })),
+        tasks: [...tasks.values()].map(({ before, ...t }) => {
+          void before;
+          return { ...t, wallMs: (t.endMs ?? end) - t.startMs };
+        }),
         iterations: intervals.map((i) => {
           const ts = [...tasks.values()].filter(
             (t) =>
@@ -208,17 +212,38 @@ export function createParallelRecorder(threads: number) {
               t.startMs >= i.startMs &&
               t.startMs < i.endMs,
           );
-          const ends = ts
+          const roots = [...new Set(ts.filter((t) => t.role === "root").map((t) => t.index))].map(
+            (index) => {
+              const parts = ts.filter((t) => t.index === index);
+              const started = Math.min(
+                ...parts.filter((t) => t.role === "root").map((t) => t.startMs),
+              );
+              const finished = parts.find(
+                (t) => t.complete && t.role !== "subtree" && t.outcome !== "split",
+              );
+              return {
+                index,
+                startMs: started,
+                endMs: finished?.endMs ?? null,
+                complete: !!finished,
+                wallMs: (finished?.endMs ?? i.endMs) - started,
+                work: parts.reduce((n, t) => n + t.work, 0),
+                nodes: parts.reduce((n, t) => n + t.nodes, 0),
+                activeMs: parts.reduce((n, t) => n + t.activeMs, 0),
+                cpuMs: parts.reduce((n, t) => n + t.cpuMs, 0),
+              };
+            },
+          );
+          const ends = roots
             .filter((t) => t.complete)
             .map((t) => t.endMs!)
             .sort((a, b) => a - b);
           return {
             ...i,
             tasks: ts.length,
+            roots,
             tailWaitMs: ends.length > 1 ? ends.at(-1)! - ends.at(-2)! : null,
-            longestRootMs: ts.length
-              ? Math.max(...ts.map((t) => (t.endMs ?? end) - t.startMs))
-              : null,
+            longestRootMs: roots.length ? Math.max(...roots.map((t) => t.wallMs)) : null,
           };
         }),
         ipc: Object.fromEntries(

@@ -3,6 +3,9 @@ import type {
   StudyLaneSnapshot,
   StudyRootOptions,
   StudyTaskPolicy,
+  StudySplitPlan,
+  StudySubtreeTask,
+  StudySubtreeResult,
 } from "@tetraboard/four-shogi/study-search";
 export type SearchCommand =
   | {
@@ -20,8 +23,16 @@ export type SearchCommand =
       index: number;
       depth: number;
       material: boolean;
+      partition?: boolean;
       policy?: StudyTaskPolicy;
     }
+  | {
+      type: "subtree";
+      id: string;
+      taskId: number;
+      task: StudySubtreeTask | { localPlanId: number; slot: number };
+    }
+  | { type: "finish"; id: string; taskId: number; planId: number; results: StudySubtreeResult[] }
   | { type: "pause" | "resume" | "cancel"; id: string }
   | { type: "close" };
 export type SearchWorkerTiming = {
@@ -43,6 +54,9 @@ export type SearchMessage =
       memoryBytes: number;
       barrier: boolean;
       taskId?: number;
+      reply?:
+        | { kind: "split"; plan: StudySplitPlan }
+        | { kind: "subtree"; result: StudySubtreeResult };
       timing?: SearchWorkerTiming;
     }
   | { type: "error"; id: string; error: string };

@@ -9,6 +9,9 @@ import {
   studyStrategyVersion,
   legacyStudySearchVersion,
   type StudyCandidate,
+  type StudySplitPlan,
+  type StudySubtreeResult,
+  type StudySubtreeTask,
   type StudyLaneSnapshot,
   type StudyProfile,
   type StudySearchPerformance,
@@ -46,6 +49,11 @@ export type StudySearchSnapshot = {
     depthOneMs: number | null;
     depthTwoMs: number | null;
     deepStartedMs: number | null;
+    splitPlans?: number;
+    subtreeTasksAssigned?: number;
+    subtreeTasksCompleted?: number;
+    pendingRoots?: number;
+    queuedSubtrees?: number;
     tasksAssigned: number;
     tasksCompleted: number;
     deepTasksAssigned: number;
@@ -136,6 +144,7 @@ export type StudyParallelEvent =
       atMs: number;
       worker: number;
       taskId: number;
+      role?: "root" | "subtree" | "finish";
       index: number;
       depth: number;
       phase: "broad" | "deep" | "adaptive";
@@ -146,6 +155,7 @@ export type StudyParallelEvent =
       atMs: number;
       worker: number;
       taskId?: number;
+      outcome?: "split" | "subtree";
       index?: number;
       depth: number;
       phase: "prepare" | "broad" | "deep" | "adaptive";
@@ -188,6 +198,7 @@ export type StudySearchRuntimeConfig = {
   observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
   observeParallel?: (event: StudyParallelEvent) => void;
   scheduling?: "fixed" | "dynamic";
+  taskPartition?: "root" | "replies";
   threads?: number;
   memoryMb?: number;
   workerScript?: URL;
@@ -200,6 +211,20 @@ type Lane = {
   memoryBytes: number;
   barrier: boolean;
   timing?: Extract<SearchMessage, { type: "progress" }>["timing"];
+};
+type Assignment = {
+  index: number;
+  taskId: number;
+  kind?: "root" | "subtree" | "finish";
+  planKey?: string;
+  slot?: number;
+};
+type PendingRoot = {
+  owner: number;
+  index: number;
+  plan: StudySplitPlan;
+  results: Map<number, StudySubtreeResult>;
+  finishing: boolean;
 };
 type Job = {
   dynamic: {
@@ -215,7 +240,12 @@ type Job = {
     depth: number;
     nextTaskId: number;
     queue: number[];
-    inflight: Map<number, { index: number; taskId: number }>;
+    inflight: Map<number, Assignment>;
+    parts: {
+      pending: Map<string, PendingRoot>;
+      queue: { planKey: string; task: StudySubtreeTask }[];
+      owners: Map<string, number>;
+    } | null;
     results: Map<number, StudyCandidate>;
     all: Map<number, StudyCandidate>;
     material: Set<number>;
@@ -275,6 +305,8 @@ export function createStudySearchRuntime(
   if (![startupTimeoutMs, shutdownTimeoutMs].every((value) => Number.isFinite(value) && value > 0))
     throw new TypeError("プロセスの起動・終了期限は正のミリ秒です");
 
+  if (!["root", "replies"].includes(config.taskPartition ?? "root"))
+    throw new TypeError("タスク分割はrootまたはrepliesです");
   let children: ChildProcess[] = [];
   let starting: Promise<void> | null = null;
   let terminating = Promise.resolve();
@@ -335,6 +367,8 @@ export function createStudySearchRuntime(
     if (value.snapshot.timing) {
       value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
       value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+      value.snapshot.timing.pendingRoots = value.dynamic?.parts?.pending.size ?? 0;
+      value.snapshot.timing.queuedSubtrees = value.dynamic?.parts?.queue.length ?? 0;
       if (value.snapshot.performance && value.dynamic) {
         const dynamic = value.dynamic;
         value.snapshot.performance.workerWaitMs = dynamic.waitMs.map(
@@ -434,6 +468,8 @@ export function createStudySearchRuntime(
       value.snapshot.timing.workers = value.lanes.map((lane) => lane?.timing ?? null);
       value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
       value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+      value.snapshot.timing.pendingRoots = value.dynamic?.parts?.pending.size ?? 0;
+      value.snapshot.timing.queuedSubtrees = value.dynamic?.parts?.queue.length ?? 0;
     }
     if (lanes.some((entry) => entry.snapshot.performance)) {
       const sum = (key: keyof StudySearchPerformance) =>
@@ -619,7 +655,80 @@ export function createStudySearchRuntime(
     const dynamic = value.dynamic;
     if (!dynamic || value.snapshot.status !== "running") return;
     children.forEach((_child, worker) => {
-      if (dynamic.inflight.has(worker) || !dynamic.queue.length) return;
+      if (dynamic.inflight.has(worker)) return;
+      const parts = dynamic.parts;
+      const finish =
+        parts &&
+        [...parts.pending.entries()].find(
+          ([, pending]) =>
+            pending.owner === worker &&
+            !pending.finishing &&
+            pending.results.size === pending.plan.tasks.length,
+        );
+      const preferredPart =
+        parts?.queue.findIndex(
+          (entry) => parts.owners.get(`${entry.task.rootIndex}:${entry.task.slot}`) === worker,
+        ) ?? -1;
+      const part =
+        !finish && parts?.queue.length
+          ? parts.queue.splice(preferredPart < 0 ? 0 : preferredPart, 1)[0]
+          : undefined;
+      if (finish || part) {
+        const taskId = ++dynamic.nextTaskId;
+        const pending = finish ? finish[1] : parts!.pending.get(part!.planKey)!;
+        const planKey = finish ? finish[0] : part!.planKey;
+        const kind = finish ? ("finish" as const) : ("subtree" as const);
+        dynamic.waitMs[worker] += Math.max(0, elapsed(value) - dynamic.waiting[worker]);
+        dynamic.inflight.set(worker, {
+          index: pending.index,
+          taskId,
+          kind,
+          planKey,
+          slot: part?.task.slot,
+        });
+        if (finish) pending.finishing = true;
+        else {
+          parts!.owners.set(`${part!.task.rootIndex}:${part!.task.slot}`, worker);
+          if (value.snapshot.timing)
+            value.snapshot.timing.subtreeTasksAssigned =
+              (value.snapshot.timing.subtreeTasksAssigned ?? 0) + 1;
+        }
+        config.observeParallel?.({
+          type: "assigned",
+          id: value.snapshot.id,
+          atMs: performance.now() - parallelOrigin,
+          worker,
+          taskId,
+          role: kind,
+          index: pending.index,
+          depth: dynamic.depth,
+          phase: dynamic.dual?.phase ?? "adaptive",
+        });
+        const message: SearchCommand = finish
+          ? {
+              type: "finish",
+              id: value.snapshot.id,
+              taskId,
+              planId: pending.plan.planId,
+              results: pending.plan.tasks.map((task) => pending.results.get(task.slot)!),
+            }
+          : {
+              type: "subtree",
+              id: value.snapshot.id,
+              taskId,
+              task:
+                pending.owner === worker
+                  ? { localPlanId: pending.plan.planId, slot: part!.task.slot }
+                  : part!.task,
+            };
+        if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
+        if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
+        sendTo(worker, message, (error) => {
+          if (error && job === value) stop("error", "独立探索タスクを送れませんでした", true);
+        });
+        return;
+      }
+      if (!dynamic.queue.length) return;
       const preferred = dynamic.queue.findIndex((index) => dynamic.owners.get(index) === worker);
       const [index] = dynamic.queue.splice(preferred < 0 ? 0 : preferred, 1);
       dynamic.waitMs[worker] += Math.max(0, elapsed(value) - dynamic.waiting[worker]);
@@ -647,6 +756,9 @@ export function createStudySearchRuntime(
         index,
         depth: dynamic.depth,
         material: dynamic.depth === 2 && dynamic.material.has(index),
+        ...(dynamic.parts && dynamic.dual?.phase === "deep" && threads > 1
+          ? { partition: true }
+          : {}),
         ...(dynamic.dual
           ? {
               policy: {
@@ -735,6 +847,8 @@ export function createStudySearchRuntime(
       value.snapshot.status !== "running" ||
       dynamic.inflight.size ||
       dynamic.queue.length ||
+      dynamic.parts?.pending.size ||
+      dynamic.parts?.queue.length ||
       dynamic.results.size !== dynamic.total
     )
       return;
@@ -1034,7 +1148,81 @@ export function createStudySearchRuntime(
         barrier: message.barrier,
         timing: message.timing,
       };
-      if (message.barrier) {
+      if (message.barrier && message.reply?.kind === "split") {
+        const parts = dynamic.parts;
+        const plan = message.reply.plan;
+        const key = `${index}:${plan.planId}`;
+        if (
+          !parts ||
+          assignment.kind ||
+          parts.pending.has(key) ||
+          parts.pending.size >= 3 ||
+          !Number.isSafeInteger(plan.planId) ||
+          plan.planId < 1 ||
+          plan.tasks.length < 2 ||
+          plan.tasks.length > 16 ||
+          new Set(plan.tasks.map((task) => task.slot)).size !== plan.tasks.length ||
+          plan.tasks.some(
+            (task) =>
+              task.baseStateHash !== value.snapshot.analysisStateHash ||
+              task.rootIndex !== assignment.index ||
+              task.targetDepth !== dynamic.depth ||
+              task.ply !== 2 ||
+              task.remaining !== dynamic.depth - 2 ||
+              task.policy.phase !== "deep",
+          ) ||
+          parts.queue.length + plan.tasks.length > 48
+        ) {
+          stop("error", "独立探索の分割計画が不正です", true);
+          return;
+        }
+        parts.pending.set(key, {
+          owner: index,
+          index: assignment.index,
+          plan,
+          results: new Map(),
+          finishing: false,
+        });
+        parts.queue.push(...plan.tasks.map((task) => ({ planKey: key, task })));
+        if (value.snapshot.timing)
+          value.snapshot.timing.splitPlans = (value.snapshot.timing.splitPlans ?? 0) + 1;
+        dynamic.inflight.delete(index);
+        dynamic.waiting[index] = elapsed(value);
+      } else if (message.barrier && assignment.kind === "subtree") {
+        const pending = dynamic.parts?.pending.get(assignment.planKey!);
+        const result = message.reply?.kind === "subtree" ? message.reply.result : null;
+        if (
+          !pending ||
+          !result ||
+          result.slot !== assignment.slot ||
+          pending.results.has(result.slot)
+        ) {
+          stop("error", "独立探索の結果が不足または重複しています", true);
+          return;
+        }
+        pending.results.set(result.slot, result);
+        if (value.snapshot.timing)
+          value.snapshot.timing.subtreeTasksCompleted =
+            (value.snapshot.timing.subtreeTasksCompleted ?? 0) + 1;
+        dynamic.inflight.delete(index);
+        dynamic.waiting[index] = elapsed(value);
+      } else if (message.barrier) {
+        if (message.reply) {
+          stop("error", "探索タスクの応答種別が一致しません", true);
+          return;
+        }
+        if (assignment.kind === "finish") {
+          const pending = dynamic.parts?.pending.get(assignment.planKey!);
+          if (
+            !pending ||
+            pending.owner !== index ||
+            pending.results.size !== pending.plan.tasks.length
+          ) {
+            stop("error", "分割探索の集約条件が一致しません", true);
+            return;
+          }
+          dynamic.parts!.pending.delete(assignment.planKey!);
+        }
         const candidate = message.snapshot.candidates[0];
         if (
           message.snapshot.depth !== dynamic.depth ||
@@ -1142,6 +1330,7 @@ export function createStudySearchRuntime(
                       atMs: handling - parallelOrigin,
                       worker: index,
                       taskId: message.taskId,
+                      outcome: message.reply?.kind,
                       index: assignment?.index,
                       depth: message.snapshot.depth,
                       phase:
@@ -1261,6 +1450,11 @@ export function createStudySearchRuntime(
                 nextTaskId: 0,
                 queue: [],
                 inflight: new Map(),
+                parts:
+                  config.taskPartition === "replies" &&
+                  (options.strategy === "dual" || options.strategy === "dual-continuations")
+                    ? { pending: new Map(), queue: [], owners: new Map() }
+                    : null,
                 results: new Map(),
                 all: new Map(),
                 material: new Set(),
@@ -1346,7 +1540,11 @@ export function createStudySearchRuntime(
               config.scheduling === "fixed" ||
               (config.workerScript && config.scheduling !== "dynamic")
                 ? legacyStudySearchVersion
-                : studyStrategyVersion(options.strategy),
+                : studyStrategyVersion(options.strategy) +
+                  (config.taskPartition === "replies" &&
+                  (options.strategy === "dual" || options.strategy === "dual-continuations")
+                    ? "-p1-3-replies"
+                    : ""),
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,

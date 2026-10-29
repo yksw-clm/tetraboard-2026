@@ -35,10 +35,13 @@ if (process.env.STUDY_LOCAL_WORKER_ORIGIN) {
     );
   allowedOrigins.push(local.origin);
 }
+const taskPartition = process.env.STUDY_TASK_PARTITION ?? "root";
+if (taskPartition !== "root" && taskPartition !== "replies")
+  throw new Error("STUDY_TASK_PARTITIONはrootまたはrepliesです");
 const app = new LocalStudyApplication(
   new StudyStore(dataDirectory),
   config,
-  createStudySearchRuntime,
+  (options) => createStudySearchRuntime({ ...options, taskPartition }),
   (input, callbacks) => createLiveRoomSession(input, callbacks, { allowedOrigins }),
 );
 const assetsDirectory = fileURLToPath(new URL("../../dist", import.meta.url));
@@ -51,6 +54,7 @@ const server = Bun.serve({
 });
 console.info(`四人将棋検討アプリ: http://127.0.0.1:${server.port}`);
 console.info(`保存先: ${dataDirectory}`);
+console.info(`探索タスク分割: ${taskPartition}`);
 console.info(`探索の既定: ${config.defaultThreads}プロセス / ${config.defaultMemoryMb}MiB`);
 let closing = false;
 const close = async () => {

@@ -883,6 +883,8 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ## 四人将棋のローカル検討アプリ
 
+P1-3の応手分配は `studySearch.ts` の `takeSplitPlan` / `startSubtree` / `finishSplitPlan`、`search/messages.ts` の型、`runtime.ts` の有界キュー、`worker.ts` の退避・応答再送で構成します。分配設定はruntimeの `taskPartition` とローカル起動時の `STUDY_TASK_PARTITION` です。探索の選別・集約規則は[CPU正本](rules/four-shogi.md#ローカル検討用cpu)、状態と仕事量の扱いは[構成](architecture.md#四人将棋のローカル検討)、測定条件と採否は[測定記録](four-shogi-ai.md#p1-3探索タスクの細分化と並列分配2026-10-30)を参照します。
+
 ### P0：v6戦術不一致の診断（2026-10-29）
 
 開発者が添付ロードマップの最初のP0を承認しました。Goalは`poisoned-gold`8展開と`inactive-rook`4展開の採点不一致を、根の選別、内部応手、評価、地平、時間切れ、キャッシュ、期待条件へ分類し、次の修正対象を根拠付きで決めることです。12件の期待初手は元reportの最終3候補に全件残っており、根の除外を原因と決めつけません。同系統の成功4展開も対照に含めます。

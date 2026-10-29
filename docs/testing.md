@@ -323,6 +323,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
+P1-3は `packages/four-shogi/test/studySplitTasks.test.ts` で逆順完成、四人評価・PV・work、同じ文脈で複数根を退避した仕事量、異なる入力文脈・未完成・重複の拒否、三人攻撃禁止ON/OFFと4/3/2人生存を確認します。`apps/four-shogi-study/test/parallelTasks.test.ts` は実Bunプロセスで旧新一致と、停止・期限からの再開、取消・新IDの再試行、重複・古いtaskId、worker異常終了・RSS上限を検証します。遅延や異常はプロセス通信境界のfixtureで与え、内部MaxNをモックしません。`parallelTelemetry.test.ts` は物理タスクの同時実行数と根全体の待ち時間を分けます。長い固定仕事・戦術・実時間比較は通常checkから分離し、固定ソース・資源上限・PVの正本再生を記録します。
+
 P0診断は`studyDiagnostics.test.ts`と`test/tacticsDiagnostics.test.ts`で、固定タスクのobserver有効/無効による候補・評価・PV・workの一致、一節点介入で元候補を維持すること、observerが受け取った値の変更による入力汚染の防止、評価内訳の合計、実Bun workerのタスク再生、記録の容量超過を確認します。長い16展開の調査は通常checkから分離し、`bun apps/four-shogi-study/bench/tacticsDiagnostics.ts --output-dir=/private/tmp/study-p0-run`で実行します。元測定と新しい再測定、通常の1秒探索と観測実行、runtime再生と新規固定深さ比較を別に記録します。
 
 [利用仕様](../README.md#四人将棋のローカル検討アプリ)・[承認済み実装計画](development.md#四人将棋のローカル検討アプリ)・[CPU正本](rules/four-shogi.md#ローカル検討用cpu)に対する検証です。Bunの純粋関数、happy-domの部品/hook、Worker統合を使い、ブラウザを起動するテスト・設定・workflowは追加しません。公開環境へデプロイしない条件と、ローカルWorkerで読取りAPIを確認する条件を分けます。

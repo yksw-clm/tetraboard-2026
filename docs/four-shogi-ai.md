@@ -954,7 +954,9 @@ bun apps/four-shogi-study/bench/preprocessingComparison.ts --mode=semantic --ref
 
 数値・各12入力の比較・成果物ID/SHAは[軽量サマリー](four-shogi-study-p1-efficiency-summary.json)、Driveの[結論](https://drive.google.com/file/d/1KIa64y6helPY_0nI3pcI2szksEZkPvmO/view)、[段階別診断](https://drive.google.com/file/d/1jRsk2_uPz2qnVXcoNe5rINtyj1o3WZuX/view)、[正当性・ローカル検証](https://drive.google.com/file/d/1k5XDNB_E0RHF5HMqom2htbwDU0rnSLNb/view)に保存しています。
 
-## P1-3：探索タスク分割の実装・検証計画（2026-10-30）
+## P1-3：探索タスクの細分化と並列分配（2026-10-30）
+
+### 事前の実装・検証計画
 
 GoalはMaxNの実手番者の4人評価ベクトル・候補集合・深さ・延長を維持し、根内部の独立な応手を空いたworkerへ渡して完成比較を増やすことです。開始HEADは`8724e888aab23ec043734f2060f97c1136f26778`で、P1提出版と差分はありません。ContextProvidersは開発者のP1-3依頼、AGENTS、README、構成/開発/テスト文書、四人将棋正本、P1結果とPR #266、探索/状態/worker/既存測定CLIです。
 
@@ -969,3 +971,22 @@ Constraintsはv5既定、v5の王手共有OFF、P0-5の戦術保持、ルール/
 Done Whenは並列性不足の実測、同一条件の固定探索とPV/評価/仕事の照合、全必要タスク完了後の公開、取消/期限/異常/再試行/メモリ/古い通知のテスト、重要40/40とP0-5既知8展開の固定深さ9保持、88展開と全予算/workerの比較、資源/IPC/未達を含む採否の報告、必須check/build/dry-run/study:buildと最終head CI成功です。棋力は独立対局で後続認定し、マージ・デプロイは行いません。
 
 コミットは(1)並列計測、(2)独立応手を保留/再開する探索APIと固定検証、(3)実験スケジューラと障害境界、(4)実時間/PV検証CLI、(5)結果・採否に分けます。新しい生データはGit管理外へ保持し、[今回のDrive保存先](https://drive.google.com/drive/folders/11OtH6iZzCcrtZrSGd_iwueA8I9VC-uRM)へ保存します。既存の非公開棋譜/PV/プレイヤー/認証情報は送らず、承認範囲の数値・入力ID/由来/SHA・合成局面のみの候補/PV・匿名化CPU profile・コードSHAに限定します。実際の読戻しとハッシュ照合の範囲はmanifestへ記録します。
+
+### 旧方式の予備計測
+
+探索を変更しない計測版`c633b3f4f85e39026906e57451bb8b29caf6717c`で、上記80条件を559.5秒で完了しました。開始版`8724e888`と探索本体は同一です。Apple M5・24GiB・Bun 1.4.4、最大8worker・8192MiB監視、各2000万work上限です。入力とコードの固定を確認し、完成候補PV284本を正本で再生して評価と一致しました。
+
+20秒coldの事前固定4局面では、次の中央値です。16局面の主要比較と混同しません。
+
+| worker | 完了深さ | deep同時実行数 | deep稼働率 | 最大観測worker RSS MiB |
+| --- | --- | --- | --- | --- |
+| 1 | 7.5 | 1.00 | 84.1% | 1802.6 |
+| 2 | 8.0 | 1.81 | 77.4% | 4450.6 |
+| 4 | 8.0 | 2.50 | 53.4% | 4376.7 |
+| 8 | 8.5 | 2.35 | 25.2% | 4496.3 |
+
+8workerでもdeepの根タスクは最大3本です。完成反復の最後の根だけを待つ区間は、反復壁時計に対する中央値19.4%でした。8workerの送受信JSON換算は中央値約1.58MB/検索、親CPUは約553ms/検索、workerごとの復元は約62.8ms、context生成は約4.1msでした。送信/受信処理の時計、JSONサイズ計測、探索slice・プロセスCPUは別項目であり、加算して総時間としません。wire bytes・native復号は未測定です。JSON換算は実送信バイト数ではありません。
+
+計測追加費用は、合成戦術2展開×3方式×3回×旧版/計測OFF/ONの54検索で、固定深さ4・キャッシュなしの候補/評価/PV/work/nodesが全件一致しました。壁時計中央値は旧版66.12ms、OFF67.96ms、ON72.77msでした。短い検索では計測費用が無視できず、後続の旧新比較は同じ計測ON条件にそろえます。通常の計測OFF経路にJSON換算を追加しません。
+
+探索APIは`0cada2a1ecc715a9fc56e116f8466ba6f2a340e8`で独立コミットしました。逆順完成、同一workerの複数退避根と委譲work、未完了/重複/別入力/破棄後の拒否、三人攻撃禁止ON/OFF・4/3/2人生存の9テストが成功しています。実験runtimeの固定深さ6・4workerでは旧新の候補/評価/PV/work/nodesが一致し、期限中断からの再送、停止/再開/取消、新IDの再試行、worker異常・RSS上限・古いtaskIdの境界テストも成功しました。これらは実時間性能や戦術88件、棋力の合格を意味しません。主要比較と最終採否は後続で記録します。
