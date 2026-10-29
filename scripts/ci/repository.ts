@@ -57,7 +57,7 @@ export function readWorkspaces(): Workspace[] {
       /^apps\/(web|admin|four-shogi-study)\//.test(file) ||
       file.startsWith("packages/shogi-ui/")
     ) {
-      for (const match of source.matchAll(/(?<![.\w])import\s*\(\s*([^\n)]+)\)(?!\s*[:{])/g)) {
+      for (const match of source.matchAll(/(?<![.\w])import\s*\(\s*([^)]*)\)(?!\s*[:{])/g)) {
         if (!/^(?:["'][^"']+["']|`[^`$]+`)$/.test(match[1].trim()))
           owner.uncertainty = `${file}: 動的importの対象を確定できません`;
       }

@@ -48,7 +48,7 @@ Fullは全workspaceのformat・lint・型・全テスト、ローカル検討の
 
 `bun run check` は引き続き全体検証です。テスト実行は上限2プロセスとし、Workerの重いファイルを先に2群へ分散します。全Workerファイルをサイズ順で軽い群へ割り当て、2つの独立したVitest／Miniflareで動かします。ファイル一覧のpatternはVitest設定と共有し、新規ファイルも必ずどちらか1群へ入れます。純粋関数とDOMのworkspaceも空いた枠で実行します。Bun内蔵型チェックはCPUを内部並列利用するためworkspace間では直列です。
 
-各Workerプロセス内の `--max-workers=1 --no-isolate` は維持します。[CloudflareのWebSocketとストレージ分離の制約](https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#websockets)に対応するためです。共有永続ディレクトリは指定せず、各プロセスが独立したD1・DO・R2とmodule cacheを使います。`bun scripts/ci/verifyWorkerIsolation.ts` は同じD1主キー・DO ID・R2キーへ異なる値を同時保存し、両方の書込み後に自分の値だけを読めることをbarrier付きで確認します。新しい並列化やCloudflare plugin更新時に実行してください。
+各Workerプロセス内の `--max-workers=1 --no-isolate` は維持します。[CloudflareのWebSocketとストレージ分離の制約](https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#websockets)に対応するためです。共有永続ディレクトリは指定せず、各プロセスが独立したD1・DO・R2とmodule cacheを使います。Vitestの結果キャッシュは無効にし、並列プロセス間のresults.json書込み競合と過去の時間による実行順変更を避けます。各群内も明示的にファイルサイズ降順・同サイズはパス順で実行します。`bun scripts/ci/verifyWorkerIsolation.ts` は同じD1主キー・DO ID・R2キーへ異なる値を同時保存し、両方の書込み後に自分の値だけを読めることをbarrier付きで確認します。新しい並列化やCloudflare plugin更新時に実行してください。
 
 分割を含む全1,018件のWorkerテストで、認証・認可・アカウント分離・合法手・CPU・再接続・DO復旧・D1保存／migration・大会の競合を維持します。ケースの削除・skip・timeout延長・本番コード変更は行っていません。複数ゲームの同じシナリオは、dispatch・認可・保存の接続ミスを検知するため保持します。時間プリセットの網羅はAPI層と純粋時計層で一部重複しますが、CIでAPI42件が約0.4秒のため削減対象にしません。AIの合法手・決定性・入力不変と棋力fixtureも、実行コストに見合う回帰価値があるため維持します。
 
@@ -74,7 +74,7 @@ Fullは全workspaceのformat・lint・型・全テスト、ローカル検討の
 
 直近の通常機能PRはWebのみ・Adminのみの表示調整と、protocol／Worker／ゲームを横断する変更が混在します。前者はFastの対象、後者はFullを維持します。未マージの探索改善PRとrelease PRを通常Web PRの同条件比較へ含めません。
 
-ローカル（macOS 27.0.1 arm64、Bun 1.4.4、Node 22.23.3、同じlockfile・checkout・依存導入済み、他の検証との同時実行なし）の初回比較では、checkが99.38秒から43.71秒へ短縮しました。Worker単独の変更前反復は71.79／73.28秒、hashによる2分割は62.02／41.45秒、サイズで均等化した分割は各約29秒でした。CIの効果はローカル比率から推定せず、このPRのActions計測結果で別に確認します。
+ローカル（macOS 27.0.1 arm64、Bun 1.4.4、Node 22.23.3、同じlockfile・checkout・依存導入済み、他の検証との同時実行なし）の初回比較では、checkが99.38秒から43.71秒へ短縮しました。Worker単独の変更前反復は71.79／73.28秒、hashによる2分割は62.02／41.45秒、サイズで均等化した分割は各約29秒でした。後続のローカル試行では実行順と実行時の環境による大きな変動（check 39.99〜139.59秒）もあったため、初回比率をCI効果へ外挿しません。最終設定は結果キャッシュを無効にして順序を固定し、このPRのActionsで同じrunner上の比較を行います。
 
 ## 管理画面の表示と画面選択
 
