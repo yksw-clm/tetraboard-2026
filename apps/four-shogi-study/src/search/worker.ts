@@ -175,6 +175,8 @@ process.on("message", async (raw: unknown) => {
   if (message.type === "task" || message.type === "subtree" || message.type === "finish") {
     try {
       if (!current.barrier) throw new Error("実行中の探索へタスクを重ねられません");
+      const initialized = current.timing ? performance.now() : 0;
+      const initCpu = current.timing ? process.cpuUsage() : undefined;
       if (message.type === "task")
         current.search.startTask(
           message.index,
@@ -186,6 +188,13 @@ process.on("message", async (raw: unknown) => {
       else if (message.type === "subtree") current.search.startSubtree(message.task);
       else current.search.finishSplitPlan(message.planId, message.results);
       current.reply = undefined;
+      if (current.timing && initCpu) {
+        const cpu = process.cpuUsage(initCpu);
+        current.timing.taskInitMs =
+          (current.timing.taskInitMs ?? 0) + performance.now() - initialized;
+        current.timing.taskInitCpuMs =
+          (current.timing.taskInitCpuMs ?? 0) + (cpu.user + cpu.system) / 1000;
+      }
       current.partition =
         message.type === "task" && message.partition === true && message.depth >= 4;
       current.taskId = message.taskId;

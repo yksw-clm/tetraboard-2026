@@ -154,6 +154,9 @@ export type StudySearchPerformance = AiContextMetrics & {
   extendedNodes?: number;
   quiescenceStops?: number;
   quiescenceMoves?: number;
+  subtreeStateCacheHits?: number;
+  subtreeStateCacheEntries?: number;
+  subtreeStateKeyMs?: number;
 };
 export type StudyRootOptions = {
   reuseChecks?: boolean;
@@ -630,6 +633,10 @@ export function createStudyRootSearch(
     policy: StudyTaskPolicy;
   };
   const suspended = new Map<number, Suspended>();
+  // 同じ入力文脈の完全な差分状態だけを、応手担当の移動後にも再利用します。
+  const subtreeStates = new Map<string, FourShogiState>();
+  let subtreeStateCacheHits = 0;
+  let subtreeStateKeyMs = 0;
   let nextPlanId = 0;
   let readySplit: Split | null = null;
   let partitionTask = false;
@@ -1434,6 +1441,21 @@ export function createStudyRootSearch(
       )
         throw new TypeError("独立探索タスクの文脈が不正です");
       resetSteps();
+      let subtreeState = input.state;
+      if (!("localPlanId" in task) && settings.cacheSize > 0) {
+        const started = options.measureDetails ? performance.now() : 0;
+        const key = JSON.stringify(input.state);
+        if (options.measureDetails) subtreeStateKeyMs += performance.now() - started;
+        const cached = subtreeStates.get(key);
+        if (cached) {
+          subtreeState = cached;
+          subtreeStateCacheHits++;
+        } else {
+          if (subtreeStates.size >= Math.min(64, settings.cacheSize))
+            subtreeStates.delete(subtreeStates.keys().next().value!);
+          subtreeStates.set(key, subtreeState);
+        }
+      }
       traceRootIndex = input.rootIndex;
       traceTaskDepth = input.targetDepth;
       taskPolicy = input.policy;
@@ -1443,7 +1465,7 @@ export function createStudyRootSearch(
       depth = input.targetDepth - 1;
       steps = (function* (): Generator<number, void> {
         const before = { work: stats.work, nodes: stats.nodes };
-        const branch = yield* explore(input.state, input.remaining, input.extra, input.ply);
+        const branch = yield* explore(subtreeState, input.remaining, input.extra, input.ply);
         completedSubtree = {
           slot: input.slot,
           branch,
@@ -1510,6 +1532,9 @@ export function createStudyRootSearch(
           extendedNodes: stats.extendedNodes,
           quiescenceStops,
           quiescenceMoves,
+          subtreeStateCacheHits,
+          subtreeStateCacheEntries: subtreeStates.size,
+          subtreeStateKeyMs,
         },
       };
     },
@@ -1517,6 +1542,7 @@ export function createStudyRootSearch(
       steps.return();
       for (const pending of suspended.values()) pending.steps.return();
       suspended.clear();
+      subtreeStates.clear();
       readySplit = null;
       completedSubtree = null;
       done = true;

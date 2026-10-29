@@ -168,6 +168,8 @@ export type StudyParallelEvent =
       cpuMs: number;
       restoreMs: number;
       createMs: number;
+      taskInitMs?: number;
+      taskInitCpuMs?: number;
       processCpuMs?: number;
       restoreCpuMs?: number;
       createCpuMs?: number;
@@ -503,6 +505,9 @@ export function createStudySearchRuntime(
         extendedNodes: sum("extendedNodes"),
         quiescenceStops: sum("quiescenceStops"),
         quiescenceMoves: sum("quiescenceMoves"),
+        subtreeStateCacheHits: sum("subtreeStateCacheHits"),
+        subtreeStateCacheEntries: sum("subtreeStateCacheEntries"),
+        subtreeStateKeyMs: sum("subtreeStateKeyMs"),
         legalCacheHits: lanes.reduce((n, entry) => n + entry.snapshot.stats.legalCacheHits, 0),
         transitionCacheHits: lanes.reduce(
           (n, entry) => n + entry.snapshot.stats.transitionCacheHits,
@@ -654,7 +659,26 @@ export function createStudySearchRuntime(
   function dispatchTasksImpl(value: Job) {
     const dynamic = value.dynamic;
     if (!dynamic || value.snapshot.status !== "running") return;
-    children.forEach((_child, worker) => {
+    const workers = children.map((_, worker) => worker);
+    if (dynamic.parts) {
+      const parts = dynamic.parts;
+      const priority = (worker: number) =>
+        [...parts.pending.values()].some(
+          (pending) =>
+            pending.owner === worker &&
+            !pending.finishing &&
+            pending.results.size === pending.plan.tasks.length,
+        )
+          ? 2
+          : parts.queue.some(
+                (entry) =>
+                  parts.owners.get(`${entry.task.rootIndex}:${entry.task.slot}`) === worker,
+              )
+            ? 1
+            : 0;
+      workers.sort((a, b) => priority(b) - priority(a) || a - b);
+    }
+    workers.forEach((worker) => {
       if (dynamic.inflight.has(worker)) return;
       const parts = dynamic.parts;
       const finish =
@@ -1346,6 +1370,8 @@ export function createStudySearchRuntime(
                       cpuMs: message.timing?.cpuMs ?? 0,
                       restoreMs: message.timing?.restoreMs ?? 0,
                       createMs: message.timing?.createMs ?? 0,
+                      taskInitMs: message.timing?.taskInitMs,
+                      taskInitCpuMs: message.timing?.taskInitCpuMs,
                       processCpuMs: message.timing?.processCpuMs,
                       restoreCpuMs: message.timing?.restoreCpuMs,
                       createCpuMs: message.timing?.createCpuMs,

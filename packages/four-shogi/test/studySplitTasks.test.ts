@@ -225,3 +225,90 @@ for (const restricted of [false, true])
         for (const s of [owner, serial, helper]) s.dispose();
       }
     });
+
+test("別workerから戻る同一の完全差分状態を検討内だけで再利用する", async () => {
+  const position = await initial(),
+    owner = create(position);
+  const helper = createStudyRootSearch(position, {
+    strategy: "dual-continuations",
+    maxDepth: 6,
+    extensions: 0,
+    cacheSize: 64,
+  });
+  const fresh = createStudyRootSearch(position, {
+    strategy: "dual-continuations",
+    maxDepth: 6,
+    extensions: 0,
+    cacheSize: 64,
+  });
+  try {
+    for (const s of [owner, helper, fresh]) prepare(s);
+    owner.startTask(0, 4, false, { phase: "deep", width: 2, ownWidth: 3 }, true);
+    let plan: ReturnType<typeof owner.takeSplitPlan> = null;
+    while (!owner.step()) {
+      plan = owner.takeSplitPlan();
+      if (plan) break;
+    }
+    expect(plan).not.toBeNull();
+    if (!plan) throw Error("missing split");
+    helper.startSubtree(structuredClone(plan.tasks[0]));
+    while (!helper.step()) {}
+    const task = { ...structuredClone(plan.tasks[0]), targetDepth: 5, remaining: 3 };
+    helper.startSubtree(task);
+    while (!helper.step()) {}
+    fresh.startSubtree(structuredClone(task));
+    while (!fresh.step()) {}
+    expect(helper.snapshot().performance?.subtreeStateCacheHits ?? 0).toBeGreaterThan(0);
+    expect(helper.subtreeResult()!.branch).toEqual(fresh.subtreeResult()!.branch);
+    expect(helper.snapshot().stats.transitionCacheHits).toBeGreaterThan(
+      fresh.snapshot().stats.transitionCacheHits,
+    );
+  } finally {
+    for (const s of [owner, helper, fresh]) s.dispose();
+  }
+});
+
+test("応手状態キャッシュは履歴差を省略せず、容量上限と破棄を守る", async () => {
+  const position = await initial(),
+    owner = create(position),
+    helper = createStudyRootSearch(position, {
+      strategy: "dual-continuations",
+      maxDepth: 5,
+      extensions: 0,
+      cacheSize: 1,
+    });
+  try {
+    prepare(owner);
+    prepare(helper);
+    owner.startTask(0, 4, false, { phase: "deep", width: 2, ownWidth: 3 }, true);
+    let plan: ReturnType<typeof owner.takeSplitPlan> = null;
+    while (!owner.step()) {
+      plan = owner.takeSplitPlan();
+      if (plan) break;
+    }
+    expect(plan).not.toBeNull();
+    if (!plan) throw Error("missing split");
+    const task = structuredClone(plan.tasks[0]);
+    helper.startSubtree(task);
+    while (!helper.step()) {}
+    const different = {
+      ...structuredClone(task),
+      state: {
+        ...structuredClone(task.state),
+        repetitions: { ...task.state.repetitions, anotherHistory: 1 },
+      },
+    };
+    helper.startSubtree(different);
+    while (!helper.step()) {}
+    expect(helper.snapshot().performance!.subtreeStateCacheHits).toBe(0);
+    expect(helper.snapshot().performance!.subtreeStateCacheEntries).toBe(1);
+    helper.startSubtree(structuredClone(task));
+    while (!helper.step()) {}
+    expect(helper.snapshot().performance!.subtreeStateCacheHits).toBe(0);
+    helper.dispose();
+    expect(helper.snapshot().performance!.subtreeStateCacheEntries).toBe(0);
+  } finally {
+    owner.dispose();
+    helper.dispose();
+  }
+});

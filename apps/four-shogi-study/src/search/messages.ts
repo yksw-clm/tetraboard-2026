@@ -40,6 +40,8 @@ export type SearchWorkerTiming = {
   createMs: number;
   activeMs: number;
   cpuMs: number;
+  taskInitMs?: number;
+  taskInitCpuMs?: number;
   processCpuMs?: number;
   restoreCpuMs?: number;
   createCpuMs?: number;
