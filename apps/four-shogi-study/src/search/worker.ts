@@ -8,16 +8,28 @@ let current: {
   barrier: boolean;
   depth: number;
   taskId?: number;
+  timing?: { restoreMs: number; createMs: number; activeMs: number; cpuMs: number };
 } | null = null;
 let generation = 0;
 let requestedId: string | null = null;
 let requestedPaused = false;
 let scheduled = false;
 let lastSent = 0;
+let activeSlice: {
+  ownerId: string;
+  started: number;
+  cpu: ReturnType<typeof process.cpuUsage>;
+} | null = null;
 const send = (message: SearchMessage) => process.send?.(message);
 function progress(barrier: boolean) {
   if (!current) return;
   lastSent = performance.now();
+  const timing = current.timing ? { ...current.timing } : undefined;
+  if (timing && activeSlice?.ownerId === current.id) {
+    const cpu = process.cpuUsage(activeSlice.cpu);
+    timing.activeMs += performance.now() - activeSlice.started;
+    timing.cpuMs += (cpu.user + cpu.system) / 1000;
+  }
   send({
     type: "progress",
     id: current.id,
@@ -25,6 +37,7 @@ function progress(barrier: boolean) {
     memoryBytes: process.memoryUsage.rss(),
     barrier,
     ...(current.taskId === undefined ? {} : { taskId: current.taskId }),
+    ...(timing ? { timing } : {}),
   });
 }
 function schedule() {
@@ -34,6 +47,9 @@ function schedule() {
     scheduled = false;
     if (!current || current.paused || current.barrier) return;
     const started = performance.now();
+    const owner = current;
+    const cpu = current.timing ? process.cpuUsage() : null;
+    if (cpu) activeSlice = { ownerId: owner.id, started, cpu };
     try {
       do {
         const done = current.search.step();
@@ -51,6 +67,13 @@ function schedule() {
       current.search.dispose();
       current = null;
       send({ type: "error", id, error: String(error) });
+    } finally {
+      if (owner?.timing && cpu) {
+        const used = process.cpuUsage(cpu);
+        owner.timing.activeMs += performance.now() - started;
+        owner.timing.cpuMs += (used.user + used.system) / 1000;
+      }
+      activeSlice = null;
     }
   }, 0);
 }
@@ -67,14 +90,27 @@ process.on("message", async (raw: unknown) => {
     current?.search.dispose();
     current = null;
     try {
+      const restored = performance.now();
       const position = await restoreStudyPosition(message.input);
+      const created = performance.now();
       if (token !== generation) return;
+      const search = createStudyRootSearch(position, message.options);
       current = {
         id: message.id,
-        search: createStudyRootSearch(position, message.options),
+        search,
         paused: requestedPaused,
         barrier: false,
         depth: 0,
+        ...(message.options.measureDetails
+          ? {
+              timing: {
+                restoreMs: created - restored,
+                createMs: performance.now() - created,
+                activeMs: 0,
+                cpuMs: 0,
+              },
+            }
+          : {}),
       };
       progress(false);
       schedule();

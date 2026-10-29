@@ -26,6 +26,7 @@ export type AiContextProfile = {
   measure?: boolean;
   cacheLeafEvaluations?: boolean;
   allMoves?: boolean;
+  measureDetails?: boolean;
 };
 export type AiContextMetrics = {
   legalMs: number;
@@ -33,6 +34,11 @@ export type AiContextMetrics = {
   evaluationMs: number;
   orderingMs: number;
   cacheEvictions: number;
+  initialLegalMs?: number;
+  initialEvaluationMs?: number;
+  priorityMs?: number;
+  priorityCalls?: number;
+  orderingBonusMs?: number;
 };
 type CachedNode = {
   moves?: OrdinaryMove[];
@@ -126,6 +132,7 @@ export function createAiContext(
     cacheEvictions: 0,
   };
   const clock = () => (profile?.measure ? performance.now() : 0);
+  const detailClock = () => (profile?.measureDetails ? performance.now() : 0);
   function node(state: FourShogiState) {
     const existing = cache.get(state);
     if (existing) return existing;
@@ -147,11 +154,14 @@ export function createAiContext(
   const started = clock();
   const legal = getLegalMoves(start);
   metrics.legalMs += clock() - started;
+  metrics.initialLegalMs = clock() - started;
   stats.generatedMoves = legal.length;
   const initialNode = node(start);
   if (initialNode) initialNode.moves = legal;
+  const evaluationStarted = clock();
   const staticEvaluation =
     profile?.evaluate(input) ?? evaluateAiPosition(input, settings.evaluationWeights);
+  metrics.initialEvaluationMs = clock() - evaluationStarted;
   const includeIndex =
     settings.includeAction === null
       ? -1
@@ -325,11 +335,18 @@ export function createAiContext(
     else {
       const started = clock();
       const checked = getCheckState(state)[state.turn!];
-      const entries = legalMoves.map((move, index) => ({
-        move,
-        index,
-        score: priority(move, state.turn!) + (profile?.orderingBonus?.(state, move) ?? 0),
-      }));
+      const entries = legalMoves.map((move, index) => {
+        const started = detailClock();
+        const score = priority(move, state.turn!);
+        const bonusStarted = detailClock();
+        const bonus = profile?.orderingBonus?.(state, move) ?? 0;
+        if (profile?.measureDetails) {
+          metrics.priorityMs = (metrics.priorityMs ?? 0) + bonusStarted - started;
+          metrics.orderingBonusMs = (metrics.orderingBonusMs ?? 0) + detailClock() - bonusStarted;
+          metrics.priorityCalls = (metrics.priorityCalls ?? 0) + 1;
+        }
+        return { move, index, score: score + bonus };
+      });
       if (model) {
         const prediction = yield* predict(state, legalMoves);
         model.stats.policyUses++;

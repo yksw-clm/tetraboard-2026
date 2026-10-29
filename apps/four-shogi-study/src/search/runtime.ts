@@ -36,6 +36,25 @@ export type StudyFocusMetadata = {
 };
 
 export type StudySearchSnapshot = {
+  timing?: {
+    restoreMs: number;
+    startupMs: number;
+    parentEvaluationMs: number;
+    parentLegalMs: number;
+    preSearchMs: number;
+    firstWorkerMs: number | null;
+    depthOneMs: number | null;
+    depthTwoMs: number | null;
+    deepStartedMs: number | null;
+    tasksAssigned: number;
+    tasksCompleted: number;
+    deepTasksAssigned: number;
+    incompleteTasks: number;
+    queuedTasks: number;
+    ipcCommands: number;
+    ipcMessages: number;
+    workers: ({ restoreMs: number; createMs: number; activeMs: number; cpuMs: number } | null)[];
+  };
   coverage?: StudySearchCoverage;
   broadCandidates?: readonly AiCandidate[];
   id: string;
@@ -101,6 +120,7 @@ export type StudyRuntimeTraceEvent =
     };
 
 export type StudySearchRuntimeConfig = {
+  measureStages?: boolean;
   observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
   scheduling?: "fixed" | "dynamic";
   threads?: number;
@@ -110,7 +130,12 @@ export type StudySearchRuntimeConfig = {
   shutdownTimeoutMs?: number;
   cpuProfileDirectory?: string;
 };
-type Lane = { snapshot: StudyLaneSnapshot; memoryBytes: number; barrier: boolean };
+type Lane = {
+  snapshot: StudyLaneSnapshot;
+  memoryBytes: number;
+  barrier: boolean;
+  timing?: Extract<SearchMessage, { type: "progress" }>["timing"];
+};
 type Job = {
   dynamic: {
     dual?: {
@@ -200,6 +225,10 @@ export function createStudySearchRuntime(
     );
   }
   function snapshot(value: Job): StudySearchSnapshot {
+    if (value.snapshot.timing) {
+      value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
+      value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+    }
     return structuredClone({ ...value.snapshot, elapsedMs: elapsed(value) });
   }
   function emit(value: Job) {
@@ -241,6 +270,7 @@ export function createStudySearchRuntime(
   function command(message: SearchCommand) {
     for (const [worker, child] of children.entries()) {
       if (!child.connected) continue;
+      if (job?.snapshot.timing) job.snapshot.timing.ipcCommands++;
       if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
       child.send(message, (error) => {
         if (
@@ -273,6 +303,11 @@ export function createStudySearchRuntime(
     value.snapshot.work = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.work, 0);
     value.snapshot.nodes = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.nodes, 0);
     value.snapshot.memoryBytes = lanes.reduce((sum, entry) => sum + entry.memoryBytes, 0);
+    if (value.snapshot.timing) {
+      value.snapshot.timing.workers = value.lanes.map((lane) => lane?.timing ?? null);
+      value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
+      value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+    }
     if (lanes.some((entry) => entry.snapshot.performance)) {
       const sum = (key: keyof StudySearchPerformance) =>
         lanes.reduce((n, entry) => n + (entry.snapshot.performance?.[key] ?? 0), 0);
@@ -281,6 +316,11 @@ export function createStudySearchRuntime(
         transitionMs: sum("transitionMs"),
         evaluationMs: sum("evaluationMs"),
         orderingMs: sum("orderingMs"),
+        initialLegalMs: sum("initialLegalMs"),
+        initialEvaluationMs: sum("initialEvaluationMs"),
+        priorityMs: sum("priorityMs"),
+        priorityCalls: sum("priorityCalls"),
+        orderingBonusMs: sum("orderingBonusMs"),
         cacheEvictions: sum("cacheEvictions"),
         branchCacheHits: sum("branchCacheHits"),
         branchCacheEntries: sum("branchCacheEntries"),
@@ -291,6 +331,7 @@ export function createStudySearchRuntime(
         researches: sum("researches"),
         promotionExtraMoves: sum("promotionExtraMoves"),
         checkingExtraMoves: sum("checkingExtraMoves"),
+        checkingReserveNodes: sum("checkingReserveNodes"),
         extendedNodes: sum("extendedNodes"),
         quiescenceStops: sum("quiescenceStops"),
         quiescenceMoves: sum("quiescenceMoves"),
@@ -419,6 +460,7 @@ export function createStudySearchRuntime(
         input,
         options: {
           ...rootOptions,
+          measureDetails: config.measureStages === true,
           strategy: value.dynamic ? (value.options.strategy ?? "adaptive") : "legacy",
           cacheSize:
             rootOptions.cacheSize ??
@@ -431,6 +473,7 @@ export function createStudySearchRuntime(
       };
       if (config.observeDiagnostic)
         sendDiagnostic({ type: "command", worker: lane, command: message });
+      if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
       child.send(message, (error) => {
         if (error && job === value) stop("error", "探索を開始できませんでした", true);
       });
@@ -446,6 +489,10 @@ export function createStudySearchRuntime(
       dynamic.waitMs[worker] += Math.max(0, elapsed(value) - dynamic.waiting[worker]);
       const taskId = ++dynamic.nextTaskId;
       dynamic.inflight.set(worker, { index, taskId });
+      if (value.snapshot.timing) {
+        value.snapshot.timing.tasksAssigned++;
+        if (dynamic.dual?.phase === "deep") value.snapshot.timing.deepTasksAssigned++;
+      }
       dynamic.owners.set(index, worker);
       const message: SearchCommand = {
         type: "task",
@@ -468,6 +515,7 @@ export function createStudySearchRuntime(
           : {}),
       };
       if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
+      if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
       child.send(message, (error) => {
         if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
       });
@@ -476,6 +524,12 @@ export function createStudySearchRuntime(
   function beginIteration(value: Job) {
     const dynamic = value.dynamic!;
     const dual = dynamic.dual;
+    if (
+      value.snapshot.timing &&
+      dual?.phase === "deep" &&
+      value.snapshot.timing.deepStartedMs === null
+    )
+      value.snapshot.timing.deepStartedMs = elapsed(value);
     dynamic.queue =
       dual?.phase === "deep"
         ? [...dual.roots]
@@ -536,6 +590,8 @@ export function createStudySearchRuntime(
     if (publish) {
       value.published = completed;
       value.snapshot.completedDepth = dynamic.depth;
+      if (value.snapshot.timing && dynamic.depth === 2 && value.snapshot.timing.depthTwoMs === null)
+        value.snapshot.timing.depthTwoMs = elapsed(value);
     }
     if (dual?.phase === "broad") {
       value.snapshot.broadCandidates = [...completed]
@@ -730,6 +786,7 @@ export function createStudySearchRuntime(
     if (depth > value.snapshot.completedDepth) {
       value.published = completed.flatMap((entry) => entry.snapshot.candidates);
       value.snapshot.completedDepth = depth;
+      if (value.snapshot.timing && depth === 1) value.snapshot.timing.depthOneMs = elapsed(value);
       if (depth === 1 && value.snapshot.rootSide) {
         value.snapshot.diagnostics.legalRoots = value.published.length;
         value.selected = selectStudyRootIndices(
@@ -802,6 +859,9 @@ export function createStudySearchRuntime(
       return;
     }
     const value = job;
+    if (value.snapshot.timing) value.snapshot.timing.ipcMessages++;
+    if (value.snapshot.timing && value.snapshot.timing.firstWorkerMs === null)
+      value.snapshot.timing.firstWorkerMs = elapsed(value);
     if (message.taskId !== undefined && value.dynamic) {
       const dynamic = value.dynamic;
       const assignment = dynamic.inflight.get(index);
@@ -810,6 +870,7 @@ export function createStudySearchRuntime(
         snapshot: message.snapshot,
         memoryBytes: message.memoryBytes,
         barrier: message.barrier,
+        timing: message.timing,
       };
       if (message.barrier) {
         const candidate = message.snapshot.candidates[0];
@@ -822,6 +883,7 @@ export function createStudySearchRuntime(
           return;
         }
         dynamic.results.set(candidate.rootIndex, candidate);
+        if (value.snapshot.timing) value.snapshot.timing.tasksCompleted++;
         dynamic.all.set(candidate.rootIndex, candidate);
         recordProof(value, candidate);
         dynamic.inflight.delete(index);
@@ -845,6 +907,7 @@ export function createStudySearchRuntime(
       snapshot: message.snapshot,
       memoryBytes: message.memoryBytes,
       barrier: message.barrier,
+      timing: message.timing,
     };
     for (const candidate of message.snapshot.candidates) recordProof(value, candidate);
     merge(value);
@@ -938,6 +1001,7 @@ export function createStudySearchRuntime(
   }
   return {
     async start(input, options, onProgress = () => {}) {
+      const requested = performance.now();
       if (closed) throw new Error("探索サービスは終了しています");
       if (
         options.timeBudgetMs !== null &&
@@ -950,12 +1014,17 @@ export function createStudySearchRuntime(
       if (job && ["running", "paused"].includes(job.snapshot.status))
         stop("cancelled", "replaced", true);
       else await terminateWorkers();
+      const restoring = performance.now();
       const position = await restoreStudyPosition(input);
+      const restored = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       await ensureWorkers();
+      const ready = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       const staticEvaluation = evaluateStudyPosition(position);
+      const evaluated = performance.now();
       const fallback = getAnalysisLegalActions(position)[0] ?? null;
+      const legalReady = performance.now();
       const focusSide = options.focusSide ?? null;
       const id = crypto.randomUUID();
       if (
@@ -1001,6 +1070,29 @@ export function createStudySearchRuntime(
                   : {}),
               },
         snapshot: {
+          ...(config.measureStages
+            ? {
+                timing: {
+                  restoreMs: restored - restoring,
+                  startupMs: ready - restored,
+                  parentEvaluationMs: evaluated - ready,
+                  parentLegalMs: legalReady - evaluated,
+                  preSearchMs: legalReady - requested,
+                  firstWorkerMs: null,
+                  depthOneMs: null,
+                  depthTwoMs: null,
+                  deepStartedMs: null,
+                  tasksAssigned: 0,
+                  tasksCompleted: 0,
+                  deepTasksAssigned: 0,
+                  incompleteTasks: 0,
+                  queuedTasks: 0,
+                  workers: [],
+                  ipcCommands: 0,
+                  ipcMessages: 0,
+                },
+              }
+            : {}),
           id,
           stateHash: position.stateHash,
           analysisStateHash: focusSide ? null : position.stateHash,

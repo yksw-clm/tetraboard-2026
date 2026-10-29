@@ -27,5 +27,6 @@ export type SearchMessage =
       memoryBytes: number;
       barrier: boolean;
       taskId?: number;
+      timing?: { restoreMs: number; createMs: number; activeMs: number; cpuMs: number };
     }
   | { type: "error"; id: string; error: string };

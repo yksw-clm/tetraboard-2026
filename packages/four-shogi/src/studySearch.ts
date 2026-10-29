@@ -136,11 +136,13 @@ export type StudySearchPerformance = AiContextMetrics & {
   researches: number;
   promotionExtraMoves: number;
   checkingExtraMoves?: number;
+  checkingReserveNodes?: number;
   extendedNodes?: number;
   quiescenceStops?: number;
   quiescenceMoves?: number;
 };
 export type StudyRootOptions = {
+  measureDetails?: boolean;
   strategy?: StudySearchStrategy;
   lane?: number;
   lanes?: number;
@@ -516,6 +518,7 @@ export function createStudyRootSearch(
           measure: true,
           cacheLeafEvaluations: !optimized,
           allMoves: isDualStudyStrategy(options.strategy),
+          measureDetails: options.measureDetails,
         }
       : optimized
         ? {
@@ -525,6 +528,7 @@ export function createStudyRootSearch(
             measure: true,
             cacheLeafEvaluations: false,
             allMoves: isDualStudyStrategy(options.strategy),
+            measureDetails: options.measureDetails,
           }
         : undefined,
   );
@@ -580,6 +584,7 @@ export function createStudyRootSearch(
   let researches = 0;
   let promotionExtraMoves = 0;
   let checkingExtraMoves = 0;
+  let checkingReserveNodes = 0;
   let quiescenceStops = 0;
   let quiescenceMoves = 0;
   let taskPolicy: StudyTaskPolicy | null = null;
@@ -841,6 +846,7 @@ export function createStudyRootSearch(
       }
       const checking = (() => {
         if (!preserveCheckingDiversity || remaining <= 1 || state.turn !== root) return undefined;
+        if (options.measureDetails) checkingReserveNodes++;
         const rays = (entry: (typeof ranked)[number]) =>
           entry.next.step.checkedSides.length
             ? studyCheckingRays(entry.next.state, state.turn!)
@@ -1296,6 +1302,7 @@ export function createStudyRootSearch(
           researches,
           promotionExtraMoves,
           checkingExtraMoves,
+          checkingReserveNodes,
           extendedNodes: stats.extendedNodes,
           quiescenceStops,
           quiescenceMoves,
