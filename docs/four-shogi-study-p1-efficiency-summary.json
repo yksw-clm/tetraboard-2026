@@ -1,0 +1,1100 @@
+{
+ "schemaVersion": 1,
+ "referenceCommit": "336db981a9a7a3575e94d2fd0fc42c7f6bf7c780",
+ "driveRoot": "https://drive.google.com/drive/folders/1nA2CIRjLb5Kqls-wjLfatTYLRNpLXHEA",
+ "sources": {
+  "baseline": {
+   "commit": "d49e8c005ffffe6777f7800b622bc5b1e79793c4",
+   "dirty": false,
+   "engine": "189ad817d20fc81970d6590970d4afafa32aa29f74f38bf41184eac060ba8462",
+   "runtime": "9aec34dee5f0864ada782f09102fcfe6886f5894250352ddb09cab2d28ce192a",
+   "bench": "862f67e5647b68a0b05000237d3cb5d13b998d8883b57dfdb46f79417dd852c7",
+   "searches": 416,
+   "stopReasons": {
+    "deadline": 416
+   }
+  },
+  "optimized": {
+   "commit": "0116e509ddea3fd06059f5dc52f2d6bdf6efec61",
+   "dirty": false,
+   "engine": "b854d525f32b0072eb385924d86a8ea3cef5ba45c486ca6983be1673fa70d5d9",
+   "runtime": "bff3fec7660b7e08a17144a6e03b25ac9948cdda689c2236a25d4fad53708a1d",
+   "bench": "d7afa92845a4ca0074933f537d7eca208aea7a021721935254bf7af7daf5bc4a",
+   "searches": 416,
+   "stopReasons": {
+    "deadline": 414,
+    "memory_limit": 2
+   }
+  },
+  "adaptive-selected": {
+   "commit": "b006dcfe35e916c7292fedd0d9a694496f574f57",
+   "dirty": false,
+   "engine": "d1cb22e6ce8b04e4b225d240cae8004687664c3684f76b5e559280e6eedff118",
+   "runtime": "bff3fec7660b7e08a17144a6e03b25ac9948cdda689c2236a25d4fad53708a1d",
+   "bench": "f06ad310b4df8b377b65cf4c083d328c5f29f57329c3aa94255731539b5e1bb9",
+   "searches": 104,
+   "stopReasons": {
+    "deadline": 104
+   }
+  }
+ },
+ "adoption": {
+  "defaultStrategy": "adaptive",
+  "sharedChecksDefault": "dual strategies only; adaptive explicit opt-in",
+  "processReuse": true,
+  "v6AsDefault": false,
+  "strengthCertified": false
+ },
+ "coldAll16": [
+  {
+   "strategy": "adaptive",
+   "budgetMs": 500,
+   "selectedPhase": "adaptive-selected",
+   "before": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 11222.347,
+    "responseP50Ms": 518.327,
+    "responseP95Ms": 559.673,
+    "workerRssMaxBytes": 333024160,
+    "sampledWorkerActiveShareMedian": 0.725
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 2.0,
+    "depth2Percent": 56.25,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 16208.385,
+    "responseP50Ms": 517.849,
+    "responseP95Ms": 555.371,
+    "workerRssMaxBytes": 416091088,
+    "sampledWorkerActiveShareMedian": 0.719
+   }
+  },
+  {
+   "strategy": "adaptive",
+   "budgetMs": 2000,
+   "selectedPhase": "adaptive-selected",
+   "before": {
+    "n": 16,
+    "depthMedian": 3.0,
+    "depth2Percent": 87.5,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 9443.093,
+    "responseP50Ms": 2022.121,
+    "responseP95Ms": 2069.986,
+    "workerRssMaxBytes": 457477192,
+    "sampledWorkerActiveShareMedian": 0.791
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 3.0,
+    "depth2Percent": 93.75,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 15989.799,
+    "responseP50Ms": 2021.912,
+    "responseP95Ms": 2058.324,
+    "workerRssMaxBytes": 938069472,
+    "sampledWorkerActiveShareMedian": 0.782
+   }
+  },
+  {
+   "strategy": "adaptive",
+   "budgetMs": 5000,
+   "selectedPhase": "adaptive-selected",
+   "before": {
+    "n": 16,
+    "depthMedian": 3.0,
+    "depth2Percent": 100.0,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 10655.761,
+    "responseP50Ms": 5024.92,
+    "responseP95Ms": 5082.553,
+    "workerRssMaxBytes": 1174261408,
+    "sampledWorkerActiveShareMedian": 0.79
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 3.5,
+    "depth2Percent": 100.0,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 16861.501,
+    "responseP50Ms": 5023.07,
+    "responseP95Ms": 5073.564,
+    "workerRssMaxBytes": 1561661376,
+    "sampledWorkerActiveShareMedian": 0.785
+   }
+  },
+  {
+   "strategy": "adaptive",
+   "budgetMs": 20000,
+   "selectedPhase": "adaptive-selected",
+   "before": {
+    "n": 16,
+    "depthMedian": 4.0,
+    "depth2Percent": 100.0,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 14071.306,
+    "responseP50Ms": 20025.492,
+    "responseP95Ms": 20071.704,
+    "workerRssMaxBytes": 5696857856,
+    "sampledWorkerActiveShareMedian": 0.732
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 4.0,
+    "depth2Percent": 100.0,
+    "deepPercent": null,
+    "nodesPerSecondMedian": 15471.758,
+    "responseP50Ms": 20039.642,
+    "responseP95Ms": 20095.003,
+    "workerRssMaxBytes": 6561130528,
+    "sampledWorkerActiveShareMedian": 0.713
+   }
+  },
+  {
+   "strategy": "dual",
+   "budgetMs": 500,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": 50.0,
+    "nodesPerSecondMedian": 12855.141,
+    "responseP50Ms": 519.097,
+    "responseP95Ms": 558.923,
+    "workerRssMaxBytes": 307252128,
+    "sampledWorkerActiveShareMedian": 0.61
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": 50.0,
+    "nodesPerSecondMedian": 12672.425,
+    "responseP50Ms": 524.025,
+    "responseP95Ms": 580.794,
+    "workerRssMaxBytes": 374901736,
+    "sampledWorkerActiveShareMedian": 0.589
+   }
+  },
+  {
+   "strategy": "dual",
+   "budgetMs": 2000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 4.0,
+    "depth2Percent": 93.75,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 11077.509,
+    "responseP50Ms": 2021.712,
+    "responseP95Ms": 2066.928,
+    "workerRssMaxBytes": 456707192,
+    "sampledWorkerActiveShareMedian": 0.685
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 4.0,
+    "depth2Percent": 93.75,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 17134.399,
+    "responseP50Ms": 2021.87,
+    "responseP95Ms": 2057.014,
+    "workerRssMaxBytes": 894864840,
+    "sampledWorkerActiveShareMedian": 0.645
+   }
+  },
+  {
+   "strategy": "dual",
+   "budgetMs": 5000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 6.5,
+    "depth2Percent": 100.0,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 13888.098,
+    "responseP50Ms": 5023.637,
+    "responseP95Ms": 5087.42,
+    "workerRssMaxBytes": 1056247360,
+    "sampledWorkerActiveShareMedian": 0.63
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 7.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 81.25,
+    "nodesPerSecondMedian": 21918.126,
+    "responseP50Ms": 5024.697,
+    "responseP95Ms": 5065.231,
+    "workerRssMaxBytes": 1552879816,
+    "sampledWorkerActiveShareMedian": 0.627
+   }
+  },
+  {
+   "strategy": "dual",
+   "budgetMs": 20000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 9.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 100.0,
+    "nodesPerSecondMedian": 17072.708,
+    "responseP50Ms": 20028.085,
+    "responseP95Ms": 20069.585,
+    "workerRssMaxBytes": 4609762712,
+    "sampledWorkerActiveShareMedian": 0.309
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 9.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 100.0,
+    "nodesPerSecondMedian": 19263.533,
+    "responseP50Ms": 20035.286,
+    "responseP95Ms": 20064.454,
+    "workerRssMaxBytes": 4837205304,
+    "sampledWorkerActiveShareMedian": 0.308
+   }
+  },
+  {
+   "strategy": "dual-continuations",
+   "budgetMs": 500,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": 50.0,
+    "nodesPerSecondMedian": 12962.298,
+    "responseP50Ms": 518.775,
+    "responseP95Ms": 558.541,
+    "workerRssMaxBytes": 327748464,
+    "sampledWorkerActiveShareMedian": 0.616
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": 50.0,
+    "nodesPerSecondMedian": 13796.514,
+    "responseP50Ms": 524.197,
+    "responseP95Ms": 578.934,
+    "workerRssMaxBytes": 400165864,
+    "sampledWorkerActiveShareMedian": 0.614
+   }
+  },
+  {
+   "strategy": "dual-continuations",
+   "budgetMs": 2000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 4.0,
+    "depth2Percent": 93.75,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 11573.791,
+    "responseP50Ms": 2022.483,
+    "responseP95Ms": 2073.105,
+    "workerRssMaxBytes": 469814296,
+    "sampledWorkerActiveShareMedian": 0.668
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 4.0,
+    "depth2Percent": 93.75,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 17231.205,
+    "responseP50Ms": 2021.364,
+    "responseP95Ms": 2073.768,
+    "workerRssMaxBytes": 928648696,
+    "sampledWorkerActiveShareMedian": 0.637
+   }
+  },
+  {
+   "strategy": "dual-continuations",
+   "budgetMs": 5000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 6.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 62.5,
+    "nodesPerSecondMedian": 14281.532,
+    "responseP50Ms": 5021.747,
+    "responseP95Ms": 5075.997,
+    "workerRssMaxBytes": 1044713144,
+    "sampledWorkerActiveShareMedian": 0.629
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 7.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 81.25,
+    "nodesPerSecondMedian": 21164.141,
+    "responseP50Ms": 5022.692,
+    "responseP95Ms": 5072.594,
+    "workerRssMaxBytes": 1691947136,
+    "sampledWorkerActiveShareMedian": 0.61
+   }
+  },
+  {
+   "strategy": "dual-continuations",
+   "budgetMs": 20000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 9.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 100.0,
+    "nodesPerSecondMedian": 16760.405,
+    "responseP50Ms": 20024.376,
+    "responseP95Ms": 20094.887,
+    "workerRssMaxBytes": 3955614816,
+    "sampledWorkerActiveShareMedian": 0.31
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 9.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 100.0,
+    "nodesPerSecondMedian": 17916.61,
+    "responseP50Ms": 20030.302,
+    "responseP95Ms": 20096.203,
+    "workerRssMaxBytes": 5104297896,
+    "sampledWorkerActiveShareMedian": 0.305
+   }
+  },
+  {
+   "strategy": "dual-quiescent",
+   "budgetMs": 500,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": 50.0,
+    "nodesPerSecondMedian": 8501.453,
+    "responseP50Ms": 518.088,
+    "responseP95Ms": 559.59,
+    "workerRssMaxBytes": 322734960,
+    "sampledWorkerActiveShareMedian": 0.615
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 1.5,
+    "depth2Percent": 50.0,
+    "deepPercent": 50.0,
+    "nodesPerSecondMedian": 9024.647,
+    "responseP50Ms": 524.281,
+    "responseP95Ms": 576.083,
+    "workerRssMaxBytes": 417893352,
+    "sampledWorkerActiveShareMedian": 0.601
+   }
+  },
+  {
+   "strategy": "dual-quiescent",
+   "budgetMs": 2000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 3.0,
+    "depth2Percent": 93.75,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 8891.746,
+    "responseP50Ms": 2020.637,
+    "responseP95Ms": 2067.707,
+    "workerRssMaxBytes": 506743880,
+    "sampledWorkerActiveShareMedian": 0.71
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 3.0,
+    "depth2Percent": 93.75,
+    "deepPercent": 56.25,
+    "nodesPerSecondMedian": 12868.323,
+    "responseP50Ms": 2020.847,
+    "responseP95Ms": 2062.205,
+    "workerRssMaxBytes": 922324424,
+    "sampledWorkerActiveShareMedian": 0.654
+   }
+  },
+  {
+   "strategy": "dual-quiescent",
+   "budgetMs": 5000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 4.5,
+    "depth2Percent": 100.0,
+    "deepPercent": 62.5,
+    "nodesPerSecondMedian": 9170.43,
+    "responseP50Ms": 5022.281,
+    "responseP95Ms": 5086.118,
+    "workerRssMaxBytes": 1106317080,
+    "sampledWorkerActiveShareMedian": 0.639
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 5.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 87.5,
+    "nodesPerSecondMedian": 13883.598,
+    "responseP50Ms": 5021.28,
+    "responseP95Ms": 5066.65,
+    "workerRssMaxBytes": 3020248008,
+    "sampledWorkerActiveShareMedian": 0.62
+   }
+  },
+  {
+   "strategy": "dual-quiescent",
+   "budgetMs": 20000,
+   "selectedPhase": "optimized",
+   "before": {
+    "n": 16,
+    "depthMedian": 6.0,
+    "depth2Percent": 100.0,
+    "deepPercent": 100.0,
+    "nodesPerSecondMedian": 8248.743,
+    "responseP50Ms": 20024.373,
+    "responseP95Ms": 20057.007,
+    "workerRssMaxBytes": 3783385920,
+    "sampledWorkerActiveShareMedian": 0.325
+   },
+   "after": {
+    "n": 16,
+    "depthMedian": 6.5,
+    "depth2Percent": 100.0,
+    "deepPercent": 100.0,
+    "nodesPerSecondMedian": 9911.307,
+    "responseP50Ms": 20028.003,
+    "responseP95Ms": 20072.814,
+    "workerRssMaxBytes": 6137752352,
+    "sampledWorkerActiveShareMedian": 0.323
+   }
+  }
+ ],
+ "existing12At20Seconds": [
+  {
+   "strategy": "adaptive",
+   "selectedPhase": "adaptive-selected",
+   "before": {
+    "depthMedian": 4.0,
+    "depthByInput": {
+     "local-1-ply40": 4,
+     "local-2-ply81": 4,
+     "local-3-ply122": 4,
+     "local-4-ply18": 6,
+     "local-5-ply37": 3,
+     "local-6-ply56": 3,
+     "local-7-ply8": 6,
+     "local-8-ply16": 6,
+     "local-9-ply24": 5,
+     "local-10-ply20": 5,
+     "local-11-ply40": 3,
+     "local-12-ply60": 3
+    }
+   },
+   "after": {
+    "depthMedian": 4.5,
+    "depthByInput": {
+     "local-1-ply40": 5,
+     "local-2-ply81": 4,
+     "local-3-ply122": 4,
+     "local-4-ply18": 6,
+     "local-5-ply37": 4,
+     "local-6-ply56": 3,
+     "local-7-ply8": 6,
+     "local-8-ply16": 6,
+     "local-9-ply24": 6,
+     "local-10-ply20": 5,
+     "local-11-ply40": 3,
+     "local-12-ply60": 3
+    }
+   }
+  },
+  {
+   "strategy": "dual",
+   "selectedPhase": "optimized",
+   "before": {
+    "depthMedian": 9.0,
+    "depthByInput": {
+     "local-1-ply40": 8,
+     "local-2-ply81": 7,
+     "local-3-ply122": 8,
+     "local-4-ply18": 9,
+     "local-5-ply37": 9,
+     "local-6-ply56": 9,
+     "local-7-ply8": 9,
+     "local-8-ply16": 9,
+     "local-9-ply24": 9,
+     "local-10-ply20": 9,
+     "local-11-ply40": 7,
+     "local-12-ply60": 8
+    }
+   },
+   "after": {
+    "depthMedian": 9.0,
+    "depthByInput": {
+     "local-1-ply40": 9,
+     "local-2-ply81": 8,
+     "local-3-ply122": 8,
+     "local-4-ply18": 9,
+     "local-5-ply37": 9,
+     "local-6-ply56": 9,
+     "local-7-ply8": 9,
+     "local-8-ply16": 9,
+     "local-9-ply24": 9,
+     "local-10-ply20": 9,
+     "local-11-ply40": 8,
+     "local-12-ply60": 8
+    }
+   }
+  },
+  {
+   "strategy": "dual-continuations",
+   "selectedPhase": "optimized",
+   "before": {
+    "depthMedian": 8.5,
+    "depthByInput": {
+     "local-1-ply40": 8,
+     "local-2-ply81": 7,
+     "local-3-ply122": 8,
+     "local-4-ply18": 9,
+     "local-5-ply37": 9,
+     "local-6-ply56": 8,
+     "local-7-ply8": 9,
+     "local-8-ply16": 9,
+     "local-9-ply24": 9,
+     "local-10-ply20": 9,
+     "local-11-ply40": 7,
+     "local-12-ply60": 8
+    }
+   },
+   "after": {
+    "depthMedian": 9.0,
+    "depthByInput": {
+     "local-1-ply40": 8,
+     "local-2-ply81": 7,
+     "local-3-ply122": 9,
+     "local-4-ply18": 9,
+     "local-5-ply37": 9,
+     "local-6-ply56": 8,
+     "local-7-ply8": 9,
+     "local-8-ply16": 9,
+     "local-9-ply24": 9,
+     "local-10-ply20": 9,
+     "local-11-ply40": 7,
+     "local-12-ply60": 8
+    }
+   }
+  },
+  {
+   "strategy": "dual-quiescent",
+   "selectedPhase": "optimized",
+   "before": {
+    "depthMedian": 6.0,
+    "depthByInput": {
+     "local-1-ply40": 6,
+     "local-2-ply81": 6,
+     "local-3-ply122": 6,
+     "local-4-ply18": 9,
+     "local-5-ply37": 6,
+     "local-6-ply56": 4,
+     "local-7-ply8": 8,
+     "local-8-ply16": 8,
+     "local-9-ply24": 8,
+     "local-10-ply20": 7,
+     "local-11-ply40": 5,
+     "local-12-ply60": 5
+    }
+   },
+   "after": {
+    "depthMedian": 6.5,
+    "depthByInput": {
+     "local-1-ply40": 6,
+     "local-2-ply81": 6,
+     "local-3-ply122": 7,
+     "local-4-ply18": 9,
+     "local-5-ply37": 6,
+     "local-6-ply56": 5,
+     "local-7-ply8": 9,
+     "local-8-ply16": 9,
+     "local-9-ply24": 8,
+     "local-10-ply20": 7,
+     "local-11-ply40": 5,
+     "local-12-ply60": 5
+    }
+   }
+  }
+ ],
+ "tactics": {
+  "baseline": {
+   "adaptive": {
+    "total": 88,
+    "accepted": 82,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east"
+    ]
+   },
+   "dual": {
+    "total": 88,
+    "accepted": 76,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-west",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-west",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east",
+     "inactive-rook-false-south",
+     "inactive-rook-false-east",
+     "inactive-rook-true-south",
+     "inactive-rook-true-east"
+    ]
+   },
+   "dual-continuations": {
+    "total": 88,
+    "accepted": 86,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-true-south"
+    ]
+   },
+   "dual-quiescent": {
+    "total": 88,
+    "accepted": 80,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-west",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-west",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east"
+    ]
+   }
+  },
+  "optimized": {
+   "adaptive": {
+    "total": 88,
+    "accepted": 82,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east"
+    ]
+   },
+   "dual": {
+    "total": 88,
+    "accepted": 76,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-west",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-west",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east",
+     "inactive-rook-false-south",
+     "inactive-rook-false-east",
+     "inactive-rook-true-south",
+     "inactive-rook-true-east"
+    ]
+   },
+   "dual-continuations": {
+    "total": 88,
+    "accepted": 84,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-east"
+    ]
+   },
+   "dual-quiescent": {
+    "total": 88,
+    "accepted": 76,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-west",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-west",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east",
+     "inactive-rook-false-south",
+     "inactive-rook-false-east",
+     "inactive-rook-true-south",
+     "inactive-rook-true-east"
+    ]
+   }
+  },
+  "adaptive-selected": {
+   "adaptive": {
+    "total": 88,
+    "accepted": 82,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east"
+    ]
+   }
+  },
+  "selectedFinal": {
+   "adaptive": {
+    "total": 88,
+    "accepted": 82,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east"
+    ]
+   },
+   "dual": {
+    "total": 88,
+    "accepted": 76,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-west",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-west",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east",
+     "inactive-rook-false-south",
+     "inactive-rook-false-east",
+     "inactive-rook-true-south",
+     "inactive-rook-true-east"
+    ]
+   },
+   "dual-continuations": {
+    "total": 88,
+    "accepted": 84,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-east"
+    ]
+   },
+   "dual-quiescent": {
+    "total": 88,
+    "accepted": 76,
+    "critical": 40,
+    "criticalTotal": 40,
+    "failures": [
+     "poisoned-gold-false-south",
+     "poisoned-gold-false-west",
+     "poisoned-gold-false-north",
+     "poisoned-gold-false-east",
+     "poisoned-gold-true-south",
+     "poisoned-gold-true-west",
+     "poisoned-gold-true-north",
+     "poisoned-gold-true-east",
+     "inactive-rook-false-south",
+     "inactive-rook-false-east",
+     "inactive-rook-true-south",
+     "inactive-rook-true-east"
+    ]
+   }
+  }
+ },
+ "integrity": {
+  "baselinePv": {
+   "allMatch": true,
+   "candidates": 1678,
+   "searches": 416
+  },
+  "baselineTacticsPvCount": 448,
+  "optimizedPv": {
+   "allMatch": true,
+   "candidates": 1652,
+   "searches": 416
+  },
+  "optimizedTacticsPvCount": 466,
+  "adaptive-selectedPv": {
+   "allMatch": true,
+   "candidates": 504,
+   "searches": 104
+  },
+  "adaptive-selectedTacticsPvCount": 118,
+  "selectedFinalTacticsPv": 466,
+  "board-fixed-speed": {
+   "pairs": 240,
+   "allOutputsMatch": true,
+   "speedRatioMedian": 1.136
+  },
+  "check-cache-fixed-speed": {
+   "pairs": 240,
+   "allOutputsMatch": true,
+   "speedRatioMedian": 1.087
+  },
+  "cumulative-fixed-speed": {
+   "pairs": 240,
+   "allOutputsMatch": true,
+   "speedRatioMedian": 1.208
+  },
+  "selected-fixed-speed": {
+   "pairs": 240,
+   "allOutputsMatch": true,
+   "speedRatioMedian": 1.179
+  }
+ },
+ "artifacts": [
+  {
+   "name": "input-manifest.json",
+   "id": "1v4KSlS71I83-388OmTjE6V7BDxcD2VSd",
+   "size": 2399,
+   "sha256": "ce0d73288d3293bcd137cbddc5aa2c073b4343cdf740b8b19b18e6ff69dcce8e",
+   "verified": "downloaded-bytes-identical"
+  },
+  {
+   "name": "measurement-overhead.json.gz",
+   "path": "cloud/diagnostics/measurement-overhead.json.gz",
+   "id": "1NR5gKfIjluPRoZp-O9WWzEuW679AAaUO",
+   "size": 17939,
+   "sha256": "ce250424aa61d07664e218ae408c72e822f4bb8174488165d39ab6f249904eda",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "baseline-cpu-profiles.zip",
+   "path": "cloud/profiles/baseline-cpu-profiles.zip",
+   "id": "1-otbXGM3Z1DgxELJ1h4NoL7qy8I2N2XW",
+   "size": 238223,
+   "sha256": "e32c3080ea8fa953c8a13da6981080dd29e8dc6f806b8e3a8d5540bc0fb23ac9",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "matrix.json.gz",
+   "path": "cloud/baseline/matrix.json.gz",
+   "id": "1V1KV2uTHmN3YWDQUVX2IzQAfkmS97vee",
+   "size": 308736,
+   "sha256": "703f3957567a7243cca3f62a2ec3a65d8d04167c81e9822174bb549571c0f195",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "baseline-short-repeats.json.gz",
+   "path": "cloud/diagnostics/baseline-short-repeats.json.gz",
+   "id": "1GNeJLlKbqd6Iv1Uf72n_641XnEP5Sjm5",
+   "size": 41471,
+   "sha256": "c1db37a609b5e15c649eb185aa4382f256b0fbd536287227826f7f4ffe1c24f8",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "tactics.json.gz",
+   "path": "cloud/baseline/tactics.json.gz",
+   "id": "1U2Z8RAaiX4Z7SYz7ENKH4T2vwwUiO9Ol",
+   "size": 94600,
+   "sha256": "be46355600784615ab05cde7d3e3b20c33ea68d55b5afc3dde21d47fc2fbfa28",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "baseline-pv.json.gz",
+   "path": "cloud/validation/baseline-pv.json.gz",
+   "id": "1YorcPSmyys2jcNU2j9DpQjRocZKa-EPA",
+   "size": 68,
+   "sha256": "6b1489f78f510bde83e2cc9412e6abc7f42e1fedeb5e48ea54c6c5f102cc0f3f",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "baseline-tactics-pv.json.gz",
+   "path": "cloud/validation/baseline-tactics-pv.json.gz",
+   "id": "1oeqoq112whUEKqZqFJw07s9fCrR5_DGq",
+   "size": 268,
+   "sha256": "dab32bee25de373b5d970074ffbd65f3b48eb8a032cc753082425eab505f405e",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "optimized-cpu-profiles.zip",
+   "path": "cloud/profiles/optimized-cpu-profiles.zip",
+   "id": "18PQAiTnn5upHCUwMbvFLXPs_AusYJDWl",
+   "size": 220083,
+   "sha256": "de02a7cd8cd0efdb8bab75539ca7c583f0d07c7a52eb149f805ca0ba5a638d78",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "matrix.json.gz",
+   "path": "cloud/optimized/matrix.json.gz",
+   "id": "1WEah04KR81nsE-d3vLPR6mqNYdQ0xu4z",
+   "size": 320861,
+   "sha256": "ffb6f95c088dd8b4771173b021ffd5af13dc6806cc95e8c869b396703bede210",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "tactics.json.gz",
+   "path": "cloud/optimized/tactics.json.gz",
+   "id": "1xxMGHHwST25GxFz7nnVRRx6EX-bg57Wi",
+   "size": 102088,
+   "sha256": "1a0829de2578fa21a3785eb23a52392547946c22c4b5ce0ded0bb24eee39796f",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "optimized-short-repeats.json.gz",
+   "path": "cloud/diagnostics/optimized-short-repeats.json.gz",
+   "id": "1jccy2zHf47UqPaQ635jbQpryYuIq6f6p",
+   "size": 42695,
+   "sha256": "bbb05aa67040281974ec543b57f1b18cd1c87a6df575bb673504bbb191f1e485",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "optimized-pv.json.gz",
+   "path": "cloud/validation/optimized-pv.json.gz",
+   "id": "1oHO75cx72pvB5sw0ADJMupRzhO4Q5ONU",
+   "size": 68,
+   "sha256": "ebbc07ad7b32cc93b9b57eb21a3272d780490ae35fb8b7cf0a98b47a083299ed",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "optimized-tactics-pv.json.gz",
+   "path": "cloud/validation/optimized-tactics-pv.json.gz",
+   "id": "1qEnxZKS-lvYCv2PDayEoE55qUh2oDHd2",
+   "size": 268,
+   "sha256": "0a87a09898d5b8e09d8936df7faf62196338ebac9815a632dc3f78fde510b0b7",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "adaptive-selected-matrix.json.gz",
+   "path": "cloud/optimized/adaptive-selected-matrix.json.gz",
+   "id": "1yr1G_VU8qOG0uS6Ix60u0j7sNV3njgG5",
+   "size": 95537,
+   "sha256": "0de74524b7f2c3d122ccccb0a780131906568707a47d295864af216fa0251a3d",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "adaptive-selected-tactics.json.gz",
+   "path": "cloud/optimized/adaptive-selected-tactics.json.gz",
+   "id": "19rPvKpybffr9CT_n5bkvkf5EM72IXbPa",
+   "size": 23656,
+   "sha256": "b55d772f9d8607ffceb381bad45853ec9fb0f0cd1861ab6354153708c1c6f860",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "adaptive-selected-short-repeats.json.gz",
+   "path": "cloud/diagnostics/adaptive-selected-short-repeats.json.gz",
+   "id": "1KGHYE0qAvwQFMAeIiPnphdzROQNF1G9G",
+   "size": 15648,
+   "sha256": "cfc1b5d8064a8a935337fa2711e3f14dd7499db936a726c3d81d49fd2b35dba9",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "adaptive-selected-pv.json.gz",
+   "path": "cloud/validation/adaptive-selected-pv.json.gz",
+   "id": "1tgQprxYmEPvlv7bqksifRenHS73FaPSW",
+   "size": 67,
+   "sha256": "daa642f20f5a5f42fdebdd766330f930957a3b22366634675bc4f8f4c2bdf663",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "adaptive-selected-tactics-pv.json.gz",
+   "path": "cloud/validation/adaptive-selected-tactics-pv.json.gz",
+   "id": "1KKEZbh6gy3Rq_iL2BYiaV7sCRcS3hzc7",
+   "size": 183,
+   "sha256": "64e8bf12667dd369b5f445f5587b843f24a099e92a33ed441234b76d643051e4",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "adaptive-selected-cpu-profiles.zip",
+   "path": "cloud/profiles/adaptive-selected-cpu-profiles.zip",
+   "id": "1rLtOQyPWtr-5HcQg34VWbrU2VPLAATBF",
+   "size": 56794,
+   "sha256": "134f4a63001179ce2eb26262f70b44e145940e53fc84e67f414aecb677d16200",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "selected-tactics-all.json.gz",
+   "path": "cloud/optimized/selected-tactics-all.json.gz",
+   "id": "1ztMs6aV9dRXHFwEXoc552zlkHGytheJO",
+   "size": 100948,
+   "sha256": "bbc7fcb3c7292e6580d0488c8f0e7368e383a3694130b905ed709011d574642c",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "selected-tactics-all-pv.json.gz",
+   "path": "cloud/validation/selected-tactics-all-pv.json.gz",
+   "id": "1pZyuU-PMRBPyzvvJK_FC9zzV66Q8GhPr",
+   "size": 268,
+   "sha256": "0a87a09898d5b8e09d8936df7faf62196338ebac9815a632dc3f78fde510b0b7",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "diagnostics.zip",
+   "path": "cloud/diagnostics/diagnostics.zip",
+   "id": "1jRsk2_uPz2qnVXcoNe5rINtyj1o3WZuX",
+   "size": 501828,
+   "sha256": "acfd54e5378d3a7a4683638ccaf97eac841035cccab649a7b2d9eb8444c2c5bc",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "validation.zip",
+   "path": "cloud/validation/validation.zip",
+   "id": "1k5XDNB_E0RHF5HMqom2htbwDU0rnSLNb",
+   "size": 14773,
+   "sha256": "72d0a69c69532fa60b087f4e859387cc6769def11183f2ee74d0f21c2cb83252",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  },
+  {
+   "name": "summary.md",
+   "path": "cloud/summary.md",
+   "id": "1KIa64y6helPY_0nI3pcI2szksEZkPvmO",
+   "size": 2828,
+   "sha256": "9831b6f51aebd18309a5fbebb890eac5fb95a617f5a01efe51b4cd425d0f889f",
+   "verified": "metadata-name-size-parent; SHA256 computed locally, provider checksum not returned"
+  }
+ ],
+ "limitations": [
+  "500ms P0-5 depth2/deep coverage unchanged in the primary 16-input comparison",
+  "P0-5 86 to84 and P0-6 80 to76 tactical agreement; 40/40 critical retained",
+  "Initial all-shared adaptive run hit memory limit twice; shared checks withheld for adaptive default",
+  "p95 regressions and temporal/JIT/OS variation retained; no strength match certification"
+ ]
+}
