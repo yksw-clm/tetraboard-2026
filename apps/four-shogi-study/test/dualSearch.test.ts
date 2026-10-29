@@ -5,7 +5,14 @@ import { createStudy, resolveStudyPositions, studyPositionInput } from "../src/d
 import { parseRecordedAnalyses } from "../src/domain/recordedAnalysis";
 import { studyStrategyVersion } from "../../../packages/four-shogi/src/studySearch";
 
-for (const strategy of ["dual-promotions", "dual-extensions", "dual-combined"] as const)
+for (const strategy of [
+  "dual-promotions",
+  "dual-extensions",
+  "dual-combined",
+  "dual-continuations",
+  "dual-quiescent",
+  "dual-refined",
+] as const)
   test(`改善版も二段階分配と固有の保存版を使う: ${strategy}`, async () => {
     const runtime = createStudySearchRuntime({ threads: 2 });
     try {

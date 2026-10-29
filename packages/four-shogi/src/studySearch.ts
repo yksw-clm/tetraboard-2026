@@ -11,7 +11,11 @@ import {
 } from "./aiSearchContext";
 import { getCheckState, pieces, attacksSquare } from "./board";
 import { priority } from "./cpuSearch";
-import { studyCheckingRays } from "./studyTacticalSelection";
+import {
+  studyCheckingRays,
+  studyQuiescenceReason,
+  selectStudyQuiescenceMoves,
+} from "./studyTacticalSelection";
 import {
   studyTraceAction,
   type StudySearchDiagnostics,
@@ -51,17 +55,27 @@ export const studySearchStrategies = [
   "dual-extensions",
   "dual-combined",
   "dual-continuations",
+  "dual-quiescent",
+  "dual-refined",
 ] as const;
 export type StudySearchStrategy = (typeof studySearchStrategies)[number];
 export function isDualStudyStrategy(strategy?: string): boolean {
   return (
     strategy !== undefined &&
-    ["dual", "dual-promotions", "dual-extensions", "dual-combined", "dual-continuations"].includes(
-      strategy,
-    )
+    [
+      "dual",
+      "dual-promotions",
+      "dual-extensions",
+      "dual-combined",
+      "dual-continuations",
+      "dual-quiescent",
+      "dual-refined",
+    ].includes(strategy)
   );
 }
 export function studyStrategyVersion(strategy?: StudySearchStrategy): string {
+  if (strategy === "dual-quiescent") return "local-root-maxn-v6-p0-6";
+  if (strategy === "dual-refined") return "local-root-maxn-v6-p0-56";
   if (strategy === "dual-continuations") return "local-root-maxn-v6-p0-5";
   if (strategy === "dual-extensions") return "local-root-maxn-v6-p0-3";
   if (strategy === "dual-combined") return "local-root-maxn-v6-p0-23";
@@ -122,6 +136,9 @@ export type StudySearchPerformance = AiContextMetrics & {
   researches: number;
   promotionExtraMoves: number;
   checkingExtraMoves?: number;
+  extendedNodes?: number;
+  quiescenceStops?: number;
+  quiescenceMoves?: number;
 };
 export type StudyRootOptions = {
   strategy?: StudySearchStrategy;
@@ -456,12 +473,17 @@ export function createStudyRootSearch(
   const preserveOwnPromotion =
     options.strategy === "dual-promotions" ||
     options.strategy === "dual-combined" ||
-    options.strategy === "dual-continuations";
-  const preserveCheckingDiversity = options.strategy === "dual-continuations";
+    options.strategy === "dual-continuations" ||
+    options.strategy === "dual-refined";
+  const preserveCheckingDiversity =
+    options.strategy === "dual-continuations" || options.strategy === "dual-refined";
+  const selectiveQuiescence =
+    options.strategy === "dual-quiescent" || options.strategy === "dual-refined";
   const extendDeepLeaves =
     options.strategy === "dual-extensions" ||
     options.strategy === "dual-combined" ||
-    diagnostics?.extendDeepLeaves;
+    diagnostics?.extendDeepLeaves ||
+    selectiveQuiescence;
   const cacheSize = options.cacheSize ?? (optimized ? 4096 : 1024);
   if (!Number.isSafeInteger(cacheSize) || cacheSize < 0 || cacheSize > 65536)
     throw new TypeError("検討用キャッシュは0〜65536状態です");
@@ -558,6 +580,8 @@ export function createStudyRootSearch(
   let researches = 0;
   let promotionExtraMoves = 0;
   let checkingExtraMoves = 0;
+  let quiescenceStops = 0;
+  let quiescenceMoves = 0;
   let taskPolicy: StudyTaskPolicy | null = null;
   let taskPolicyKey = "";
   const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
@@ -684,24 +708,45 @@ export function createStudyRootSearch(
         { evaluation: yield* ctx.evaluate(state), line: [], selective: false },
         "terminal",
       );
-    const checked = getCheckState(state)[state.turn];
+    const checks = getCheckState(state);
+    const checked = checks[state.turn];
+    const useQuiescence = selectiveQuiescence && taskPolicy?.phase === "deep";
+    const quietReason =
+      useQuiescence && remaining <= 0 && extra > 0 ? studyQuiescenceReason(state, checks) : null;
+    let extensionReason:
+      | Parameters<NonNullable<StudySearchDiagnostics["profileExtension"]>>[0]["reason"]
+      | null = null;
     let tacticalOnly = false;
     if (
       remaining <= 0 &&
       extra > 0 &&
-      (checked ||
-        state.lastMove?.captured ||
-        state.turn === root ||
-        (optimized && state.lastMove?.action.type === "movePiece" && state.lastMove.action.promote))
+      (useQuiescence
+        ? quietReason !== null
+        : checked ||
+          state.lastMove?.captured ||
+          state.turn === root ||
+          (optimized &&
+            state.lastMove?.action.type === "movePiece" &&
+            state.lastMove.action.promote))
     ) {
-      tacticalOnly = optimized && !checked && state.turn !== root;
+      extensionReason = useQuiescence
+        ? quietReason
+        : checked
+          ? "check"
+          : state.lastMove?.captured
+            ? "capture"
+            : state.lastMove?.action.type === "movePiece" && state.lastMove.action.promote
+              ? "promotion"
+              : "own_turn";
+      tacticalOnly = useQuiescence ? !checked : optimized && !checked && state.turn !== root;
       remaining = 1;
       extra--;
       stats.extendedNodes++;
     }
+    if (useQuiescence && remaining <= 0 && extra > 0) quiescenceStops++;
     if (remaining <= 0)
       return finish(
-        { evaluation: yield* ctx.evaluate(state), line: [], selective: false },
+        { evaluation: yield* ctx.evaluate(state), line: [], selective: useQuiescence && checked },
         "horizon",
       );
     const started = performance.now();
@@ -722,6 +767,7 @@ export function createStudyRootSearch(
         "cache",
       );
     }
+    const rankingStartWork = stats.work;
     const legal = yield* ctx.moves(state);
     let moves = yield* ctx.ordered(state, legal);
     const orderedBefore = moves;
@@ -737,7 +783,10 @@ export function createStudyRootSearch(
       );
     }
     afterBroad = moves;
-    if (tacticalOnly) {
+    if (useQuiescence && extensionReason) {
+      moves = selectStudyQuiescenceMoves(moves, state, checked);
+      quiescenceMoves += moves.length;
+    } else if (tacticalOnly) {
       // 仮のパスは作らず、実際の静かな合法手も最低一つ残します。
       let quiet = false;
       moves = moves.filter((entry) => {
@@ -823,6 +872,19 @@ export function createStudyRootSearch(
         }
         selected.push(entry);
       }
+      if (extensionReason)
+        diagnostics?.profileExtension?.(
+          Object.freeze({
+            reason: extensionReason,
+            ply,
+            turn: state.turn,
+            extra,
+            legalMoves: legal.length,
+            rankedMoves: ranked.length,
+            selectedMoves: selected.length,
+            rankingWork: stats.work - rankingStartWork,
+          }),
+        );
       if (observing) {
         const rows: StudySelectionRow[] = legal.map((move, index) => {
           const orderedIndex = orderedBefore.findIndex((entry) => entry.index === index);
@@ -865,7 +927,8 @@ export function createStudyRootSearch(
       selective ||= selected.length < ranked.length;
       for (const entry of selected) {
         const child =
-          (remaining === 1 && !extendDeepLeaves) || entry.next.state.status === "finished"
+          (remaining === 1 && (!extendDeepLeaves || (selectiveQuiescence && extra === 0))) ||
+          entry.next.state.status === "finished"
             ? { evaluation: entry.evaluation, line: [], selective: false }
             : yield* explore(
                 entry.next.state,
@@ -1233,6 +1296,9 @@ export function createStudyRootSearch(
           researches,
           promotionExtraMoves,
           checkingExtraMoves,
+          extendedNodes: stats.extendedNodes,
+          quiescenceStops,
+          quiescenceMoves,
         },
       };
     },

@@ -53,6 +53,18 @@ export type StudyTraceEvent = StudyTraceNode &
   );
 /** CLI専用の観測・一節点介入。アプリの設定やworkerの起動オプションへ渡しません。 */
 export type StudySearchDiagnostics = {
+  profileExtension?: (
+    sample: Readonly<{
+      reason: "check" | "capture" | "promotion" | "own_turn" | "recapture" | "valuable_capture";
+      ply: number;
+      turn: Side;
+      extra: number;
+      legalMoves: number;
+      rankedMoves: number;
+      selectedMoves: number;
+      rankingWork: number;
+    }>,
+  ) => void;
   observe?: (event: StudyTraceEvent) => void;
   disableBranchCache?: boolean;
   extendDeepLeaves?: boolean;
