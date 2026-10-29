@@ -188,7 +188,16 @@ export async function runEfficiencyMatrix(options: {
   limit?: number;
   budgets?: number[];
   reuseWorkers?: boolean;
+  reuseChecks?: boolean;
+  strategies?: readonly (typeof efficiencyStrategies)[number][];
 }) {
+  if (
+    options.strategies &&
+    (!options.strategies.length ||
+      new Set(options.strategies).size !== options.strategies.length ||
+      options.strategies.some((strategy) => !efficiencyStrategies.includes(strategy)))
+  )
+    throw new Error("主要4方式から重複なく選んでください");
   const directory = resolve(options.directory),
     source = efficiencySource(),
     fingerprint = sha(JSON.stringify(source)),
@@ -239,9 +248,11 @@ export async function runEfficiencyMatrix(options: {
         if (sha(JSON.stringify(efficiencySource())) !== fingerprint)
           throw new Error("測定ソースが変わりました");
         const input = inputs[index],
-          order = efficiencyStrategies.map(
-            (_, offset) => efficiencyStrategies[(index + offset) % efficiencyStrategies.length],
-          );
+          order = efficiencyStrategies
+            .map(
+              (_, offset) => efficiencyStrategies[(index + offset) % efficiencyStrategies.length],
+            )
+            .filter((strategy) => !options.strategies || options.strategies.includes(strategy));
         for (const strategy of order)
           for (const thermal of ["cold", "warm"] as const) {
             if (thermal === "warm" && budget > 2000 && ![0, 2, 5, 15].includes(index)) continue;
@@ -266,6 +277,7 @@ export async function runEfficiencyMatrix(options: {
             const searchOptions = {
               strategy,
               timeBudgetMs: budget,
+              reuseChecks: options.reuseChecks,
             };
             try {
               if (thermal === "warm")
@@ -346,5 +358,9 @@ if (import.meta.main) {
       limit: args.has("limit") ? Number(args.get("limit")) : undefined,
       budgets: args.get("budgets")?.split(",").map(Number),
       reuseWorkers: args.has("reuse-workers") ? args.get("reuse-workers") === "true" : undefined,
+      reuseChecks: args.has("reuse-checks") ? args.get("reuse-checks") === "true" : undefined,
+      strategies: args.get("strategies")?.split(",") as
+        | (typeof efficiencyStrategies)[number][]
+        | undefined,
     });
 }

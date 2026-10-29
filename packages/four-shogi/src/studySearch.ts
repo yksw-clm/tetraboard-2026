@@ -477,6 +477,8 @@ export function createStudyRootSearch(
   )
     throw new TypeError("探索レーンが不正です");
   const optimized = options.strategy !== "legacy";
+  // 広いv5では20秒比較でRSS上限停止が増えたため、王手共有は明示指定だけにします。
+  const reuseChecks = options.reuseChecks ?? isDualStudyStrategy(options.strategy);
   const preserveOwnPromotion =
     options.strategy === "dual-promotions" ||
     options.strategy === "dual-combined" ||
@@ -524,7 +526,7 @@ export function createStudyRootSearch(
           cacheLeafEvaluations: !optimized,
           allMoves: isDualStudyStrategy(options.strategy),
           measureDetails: options.measureDetails,
-          sharedChecks: optimized && options.reuseChecks !== false,
+          sharedChecks: optimized && reuseChecks,
         }
       : optimized
         ? {
@@ -535,7 +537,7 @@ export function createStudyRootSearch(
             cacheLeafEvaluations: false,
             allMoves: isDualStudyStrategy(options.strategy),
             measureDetails: options.measureDetails,
-            sharedChecks: options.reuseChecks !== false,
+            sharedChecks: reuseChecks,
           }
         : undefined,
   );
