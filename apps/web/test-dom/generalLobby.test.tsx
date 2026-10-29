@@ -112,7 +112,7 @@ test("初回失敗では空と断定せず、成功した0件表示は更新失�
   expect(view.querySelector('[role="alert"]')?.textContent).toContain("更新失敗");
   expect(view.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
 });
-test("ホームの6ゲームと作成ボタンはゲーム選択を経由し、作成意図とともにロビーへ移動", async () => {
+test("ホームの全登録ゲームと作成ボタンはゲーム選択を経由し、作成意図とともにロビーへ移動", async () => {
   function Page() {
     const location = useLocation();
     return (
@@ -125,12 +125,12 @@ test("ホームの6ゲームと作成ボタンはゲーム選択を経由し、�
   const view = render(wrap()(<Page />));
   expect(
     view.querySelector('section[aria-labelledby="game-list-title"]')!.querySelectorAll("a"),
-  ).toHaveLength(6);
+  ).toHaveLength(gameIds.length);
   expect(view.querySelector("h1")!.textContent).toBe("TetraBoard");
   press(view, "ルームを作る");
   await flush();
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.querySelectorAll("a")).toHaveLength(6);
+  expect(dialog.querySelectorAll("a")).toHaveLength(gameIds.length);
   for (const game of gameIds) {
     const link = dialog.querySelector<HTMLAnchorElement>(
       `a[href="${gameCatalog[game].lobbyPath}"]`,
