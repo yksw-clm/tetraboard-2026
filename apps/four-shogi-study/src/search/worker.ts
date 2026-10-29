@@ -1,6 +1,6 @@
 import { createStudyRootSearch } from "@tetraboard/four-shogi/study-search";
 import { restoreStudyPosition } from "../domain/study";
-import type { SearchCommand, SearchMessage } from "./messages";
+import type { SearchCommand, SearchMessage, SearchWorkerTiming } from "./messages";
 let current: {
   id: string;
   search: ReturnType<typeof createStudyRootSearch>;
@@ -8,7 +8,9 @@ let current: {
   barrier: boolean;
   depth: number;
   taskId?: number;
-  timing?: { restoreMs: number; createMs: number; activeMs: number; cpuMs: number };
+  timing?: SearchWorkerTiming;
+  cpuStart?: ReturnType<typeof process.cpuUsage>;
+  transport?: NonNullable<SearchWorkerTiming["transport"]>;
 } | null = null;
 let generation = 0;
 let requestedId: string | null = null;
@@ -20,11 +22,27 @@ let activeSlice: {
   started: number;
   cpu: ReturnType<typeof process.cpuUsage>;
 } | null = null;
-const send = (message: SearchMessage) => process.send?.(message);
+const send = (message: SearchMessage) => {
+  if (!current?.transport) return process.send?.(message);
+  const meter = current.transport,
+    probe = performance.now();
+  const bytes = Buffer.byteLength(JSON.stringify(message));
+  const started = performance.now();
+  process.send?.(message);
+  meter.sendCalls++;
+  meter.jsonBytes += bytes;
+  meter.sendMs += performance.now() - started;
+  meter.sizingMs += started - probe;
+};
 function progress(barrier: boolean) {
   if (!current) return;
   lastSent = performance.now();
   const timing = current.timing ? { ...current.timing } : undefined;
+  if (timing && current.cpuStart) {
+    const cpu = process.cpuUsage(current.cpuStart);
+    timing.processCpuMs = (cpu.user + cpu.system) / 1000;
+    timing.transport = { ...current.transport! };
+  }
   if (timing && activeSlice?.ownerId === current.id) {
     const cpu = process.cpuUsage(activeSlice.cpu);
     timing.activeMs += performance.now() - activeSlice.started;
@@ -91,23 +109,37 @@ process.on("message", async (raw: unknown) => {
     current = null;
     try {
       const restored = performance.now();
+      const cpuStart = message.measureTransport ? process.cpuUsage() : undefined;
       const position = await restoreStudyPosition(message.input);
       const created = performance.now();
+      const restoreCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       if (token !== generation) return;
       const search = createStudyRootSearch(position, message.options);
+      const createCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       current = {
         id: message.id,
         search,
         paused: requestedPaused,
         barrier: false,
         depth: 0,
-        ...(message.options.measureDetails
+        ...(cpuStart
+          ? { cpuStart, transport: { sendCalls: 0, jsonBytes: 0, sendMs: 0, sizingMs: 0 } }
+          : {}),
+        ...(message.options.measureDetails || message.measureTransport
           ? {
               timing: {
                 restoreMs: created - restored,
                 createMs: performance.now() - created,
                 activeMs: 0,
                 cpuMs: 0,
+                ...(restoreCpu && createCpu
+                  ? {
+                      restoreCpuMs: (restoreCpu.user + restoreCpu.system) / 1000,
+                      createCpuMs:
+                        (createCpu.user + createCpu.system - restoreCpu.user - restoreCpu.system) /
+                        1000,
+                    }
+                  : {}),
               },
             }
           : {}),

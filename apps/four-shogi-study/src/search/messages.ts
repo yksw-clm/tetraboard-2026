@@ -5,7 +5,13 @@ import type {
   StudyTaskPolicy,
 } from "@tetraboard/four-shogi/study-search";
 export type SearchCommand =
-  | { type: "start"; id: string; input: StudyPositionInput; options: StudyRootOptions }
+  | {
+      type: "start";
+      id: string;
+      input: StudyPositionInput;
+      options: StudyRootOptions;
+      measureTransport?: boolean;
+    }
   | { type: "continue"; id: string; depth: number; indices?: number[] }
   | {
       type: "task";
@@ -18,6 +24,16 @@ export type SearchCommand =
     }
   | { type: "pause" | "resume" | "cancel"; id: string }
   | { type: "close" };
+export type SearchWorkerTiming = {
+  restoreMs: number;
+  createMs: number;
+  activeMs: number;
+  cpuMs: number;
+  processCpuMs?: number;
+  restoreCpuMs?: number;
+  createCpuMs?: number;
+  transport?: { sendCalls: number; jsonBytes: number; sendMs: number; sizingMs: number };
+};
 export type SearchMessage =
   | { type: "ready" }
   | {
@@ -27,6 +43,6 @@ export type SearchMessage =
       memoryBytes: number;
       barrier: boolean;
       taskId?: number;
-      timing?: { restoreMs: number; createMs: number; activeMs: number; cpuMs: number };
+      timing?: SearchWorkerTiming;
     }
   | { type: "error"; id: string; error: string };

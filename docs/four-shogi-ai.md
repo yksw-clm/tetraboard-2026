@@ -953,3 +953,19 @@ bun apps/four-shogi-study/bench/preprocessingComparison.ts --mode=semantic --ref
 保存済みcontroller・別枠固定比較・中断測定の既知の計測時間合計は128.32分で、150分の上限内でした。軽い入力準備・単体検査とcheck/buildは別枠です。
 
 数値・各12入力の比較・成果物ID/SHAは[軽量サマリー](four-shogi-study-p1-efficiency-summary.json)、Driveの[結論](https://drive.google.com/file/d/1KIa64y6helPY_0nI3pcI2szksEZkPvmO/view)、[段階別診断](https://drive.google.com/file/d/1jRsk2_uPz2qnVXcoNe5rINtyj1o3WZuX/view)、[正当性・ローカル検証](https://drive.google.com/file/d/1k5XDNB_E0RHF5HMqom2htbwDU0rnSLNb/view)に保存しています。
+
+## P1-3：探索タスク分割の実装・検証計画（2026-10-30）
+
+GoalはMaxNの実手番者の4人評価ベクトル・候補集合・深さ・延長を維持し、根内部の独立な応手を空いたworkerへ渡して完成比較を増やすことです。開始HEADは`8724e888aab23ec043734f2060f97c1136f26778`で、P1提出版と差分はありません。ContextProvidersは開発者のP1-3依頼、AGENTS、README、構成/開発/テスト文書、四人将棋正本、P1結果とPR #266、探索/状態/worker/既存測定CLIです。
+
+まず探索を変えずに、固定した入力番号0/2/5/15の1/2/4/8worker、500ms/2秒/5秒/20秒を測ります。coldは新runtime/子プロセス、warmは別100ms探索後の同runtimeです。broad/deepの反復区間、実行中タスク数、workerの探索sliceとCPU時間、根別の偏り/末尾待ち、送受信JSON換算バイトと送信/受信処理時間、復元/生成、親の分配/集約費用を区別します。wireの実バイト数やnativeの復号時間を測れない場合はそう記録し、重なる時計を合算しません。計測ON/OFFの固定探索で候補/PV/workの不変も確認します。
+
+有望なら、同じ探索generatorで選んだ独立応手を分割し、元のgeneratorを保留して、全必要応手が完成してから元の順序で集約します。終了条件、通常深さと追加読み、実際の次手番、同値時の合法手番号を維持します。broadの深い節点にある暫定最善に依存する再探索は単純に分割せず、独立性が確認できる段階に限定します。一つのworkerのcontextをジョブ内だけで使い、保留根数・応手数・キューを有界にします。旧方式は維持し、新方式は明示的な実験設定で導入します。
+
+Constraintsはv5既定、v5の王手共有OFF、P0-5の戦術保持、ルール/公開CPU/評価係数/保存棋譜/採点条件の不変です。重い測定は直列・最大8worker・8192MiB監視、合計220分以内を上限とします。予備計測12分、主要比較170分、固定検証/戦術/追加診断の合計38分を目安にし、各検索は2000万work・指定期限＋応答監視30秒を上限とします。上限停止・未完成・失敗を完成や改善として数えません。
+
+主要比較は同じ既存12入力と未使用合成seed9802000〜9802003、adaptive/dual/P0-5のroot分配とP0-5新設定を、全4予算・1/2/4/8workerで比較します。cold全16入力、warmは事前固定した4入力を使い、開始順序を巡回します。固定仕事の比較と期限探索を分けます。キャッシュ配置による仕事量の差は通常条件とキャッシュなしの対照を分け、推奨手/PVの不一致を仕事量の差で説明したことにはしません。差があれば原因を調べ、未解決なら採用を見送ります。
+
+Done Whenは並列性不足の実測、同一条件の固定探索とPV/評価/仕事の照合、全必要タスク完了後の公開、取消/期限/異常/再試行/メモリ/古い通知のテスト、重要40/40とP0-5既知8展開の固定深さ9保持、88展開と全予算/workerの比較、資源/IPC/未達を含む採否の報告、必須check/build/dry-run/study:buildと最終head CI成功です。棋力は独立対局で後続認定し、マージ・デプロイは行いません。
+
+コミットは(1)並列計測、(2)独立応手を保留/再開する探索APIと固定検証、(3)実験スケジューラと障害境界、(4)実時間/PV検証CLI、(5)結果・採否に分けます。新しい生データはGit管理外へ保持し、[今回のDrive保存先](https://drive.google.com/drive/folders/11OtH6iZzCcrtZrSGd_iwueA8I9VC-uRM)へ保存します。既存の非公開棋譜/PV/プレイヤー/認証情報は送らず、承認範囲の数値・入力ID/由来/SHA・合成局面のみの候補/PV・匿名化CPU profile・コードSHAに限定します。実際の読戻しとハッシュ照合の範囲はmanifestへ記録します。

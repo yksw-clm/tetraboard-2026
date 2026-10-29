@@ -121,10 +121,72 @@ export type StudyRuntimeTraceEvent =
       coverage: StudySearchCoverage | undefined;
     };
 
+export type StudyParallelEvent =
+  | {
+      type: "iteration" | "iterationEnd";
+      id: string;
+      atMs: number;
+      depth: number;
+      phase: "broad" | "deep" | "adaptive";
+      roots: number;
+    }
+  | {
+      type: "assigned";
+      id: string;
+      atMs: number;
+      worker: number;
+      taskId: number;
+      index: number;
+      depth: number;
+      phase: "broad" | "deep" | "adaptive";
+    }
+  | {
+      type: "worker";
+      id: string;
+      atMs: number;
+      worker: number;
+      taskId?: number;
+      index?: number;
+      depth: number;
+      phase: "prepare" | "broad" | "deep" | "adaptive";
+      barrier: boolean;
+      accepted: boolean;
+      work: number;
+      nodes: number;
+      rss: number;
+      activeMs: number;
+      cpuMs: number;
+      restoreMs: number;
+      createMs: number;
+      processCpuMs?: number;
+      restoreCpuMs?: number;
+      createCpuMs?: number;
+      transport?: { sendCalls: number; jsonBytes: number; sendMs: number; sizingMs: number };
+    }
+  | {
+      type: "ipc";
+      id: string | null;
+      atMs: number;
+      worker: number;
+      direction: "send" | "receive";
+      jsonBytes: number;
+      sizingMs: number;
+      callMs: number;
+    }
+  | {
+      type: "parent";
+      id: string | null;
+      atMs: number;
+      operation: "dispatch" | "merge";
+      wallMs: number;
+      cpuMs: number;
+    };
+
 export type StudySearchRuntimeConfig = {
   reuseWorkers?: boolean;
   measureStages?: boolean;
   observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
+  observeParallel?: (event: StudyParallelEvent) => void;
   scheduling?: "fixed" | "dynamic";
   threads?: number;
   memoryMb?: number;
@@ -200,6 +262,7 @@ export function createStudySearchRuntime(
   const startupTimeoutMs = config.startupTimeoutMs ?? 10000;
   const shutdownTimeoutMs = config.shutdownTimeoutMs ?? 500;
   const reuseWorkers = config.reuseWorkers ?? config.workerScript === undefined;
+  const parallelOrigin = performance.now();
   if (
     !Number.isSafeInteger(threads) ||
     threads < 1 ||
@@ -219,6 +282,46 @@ export function createStudySearchRuntime(
   let closed = false;
   let job: Job | null = null;
   const history = new Map<string, StudySearchSnapshot>();
+
+  function parentCost<T>(operation: "dispatch" | "merge", run: () => T): T {
+    if (!config.observeParallel) return run();
+    const id = job?.snapshot.id ?? null,
+      started = performance.now(),
+      cpu = process.cpuUsage();
+    try {
+      return run();
+    } finally {
+      const used = process.cpuUsage(cpu);
+      config.observeParallel({
+        type: "parent",
+        id,
+        operation,
+        atMs: started - parallelOrigin,
+        wallMs: performance.now() - started,
+        cpuMs: (used.user + used.system) / 1000,
+      });
+    }
+  }
+  function sendTo(worker: number, message: SearchCommand, callback: (error: Error | null) => void) {
+    if (!config.observeParallel) {
+      children[worker].send(message, callback);
+      return;
+    }
+    const probe = performance.now();
+    const jsonBytes = Buffer.byteLength(JSON.stringify(message));
+    const sent = performance.now();
+    children[worker].send(message, callback);
+    config.observeParallel({
+      type: "ipc",
+      id: "id" in message ? message.id : (job?.snapshot.id ?? null),
+      worker,
+      direction: "send",
+      atMs: sent - parallelOrigin,
+      jsonBytes,
+      sizingMs: sent - probe,
+      callMs: performance.now() - sent,
+    });
+  }
 
   function exited(child: ChildProcess) {
     return child.exitCode !== null || child.signalCode !== null;
@@ -286,7 +389,7 @@ export function createStudySearchRuntime(
       if (!child.connected) continue;
       if (job?.snapshot.timing) job.snapshot.timing.ipcCommands++;
       if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
-      child.send(message, (error) => {
+      sendTo(worker, message, (error) => {
         if (
           error &&
           children.includes(child) &&
@@ -320,6 +423,9 @@ export function createStudySearchRuntime(
     emit(job);
   }
   function merge(value: Job) {
+    return parentCost("merge", () => mergeImpl(value));
+  }
+  function mergeImpl(value: Job) {
     const lanes = value.lanes.filter((entry): entry is Lane => entry !== null);
     value.snapshot.work = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.work, 0);
     value.snapshot.nodes = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.nodes, 0);
@@ -479,11 +585,12 @@ export function createStudySearchRuntime(
       ...rootOptions
     } = value.options;
     value.prepared = true;
-    children.forEach((child, lane) => {
+    children.forEach((_child, lane) => {
       const message: SearchCommand = {
         type: "start",
         id: value.snapshot.id,
         input,
+        ...(config.observeParallel ? { measureTransport: true } : {}),
         options: {
           ...rootOptions,
           measureDetails: config.measureStages === true,
@@ -500,15 +607,18 @@ export function createStudySearchRuntime(
       if (config.observeDiagnostic)
         sendDiagnostic({ type: "command", worker: lane, command: message });
       if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
-      child.send(message, (error) => {
+      sendTo(lane, message, (error) => {
         if (error && job === value) stop("error", "探索を開始できませんでした", true);
       });
     });
   }
   function dispatchTasks(value: Job) {
+    return parentCost("dispatch", () => dispatchTasksImpl(value));
+  }
+  function dispatchTasksImpl(value: Job) {
     const dynamic = value.dynamic;
     if (!dynamic || value.snapshot.status !== "running") return;
-    children.forEach((child, worker) => {
+    children.forEach((_child, worker) => {
       if (dynamic.inflight.has(worker) || !dynamic.queue.length) return;
       const preferred = dynamic.queue.findIndex((index) => dynamic.owners.get(index) === worker);
       const [index] = dynamic.queue.splice(preferred < 0 ? 0 : preferred, 1);
@@ -520,6 +630,16 @@ export function createStudySearchRuntime(
         if (dynamic.dual?.phase === "deep") value.snapshot.timing.deepTasksAssigned++;
       }
       dynamic.owners.set(index, worker);
+      config.observeParallel?.({
+        type: "assigned",
+        id: value.snapshot.id,
+        atMs: performance.now() - parallelOrigin,
+        worker,
+        taskId,
+        index,
+        depth: dynamic.depth,
+        phase: dynamic.dual?.phase ?? "adaptive",
+      });
       const message: SearchCommand = {
         type: "task",
         id: value.snapshot.id,
@@ -542,7 +662,7 @@ export function createStudySearchRuntime(
       };
       if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
       if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
-      child.send(message, (error) => {
+      sendTo(worker, message, (error) => {
         if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
       });
     });
@@ -579,6 +699,14 @@ export function createStudySearchRuntime(
         roots: [...dynamic.queue],
       });
     dynamic.total = dynamic.queue.length;
+    config.observeParallel?.({
+      type: "iteration",
+      id: value.snapshot.id,
+      atMs: performance.now() - parallelOrigin,
+      depth: dynamic.depth,
+      phase: dual?.phase ?? "adaptive",
+      roots: dynamic.total,
+    });
     dynamic.results.clear();
     value.snapshot.diagnostics.selectedRoots = dynamic.total;
     if (value.snapshot.performance) {
@@ -611,6 +739,14 @@ export function createStudySearchRuntime(
     )
       return;
     const dual = dynamic.dual;
+    config.observeParallel?.({
+      type: "iterationEnd",
+      id: value.snapshot.id,
+      atMs: performance.now() - parallelOrigin,
+      depth: dynamic.depth,
+      phase: dual?.phase ?? "adaptive",
+      roots: dynamic.total,
+    });
     const completed = [...dynamic.results.values()];
     const publish = !dual || dynamic.depth >= value.snapshot.completedDepth;
     if (publish) {
@@ -988,12 +1124,66 @@ export function createStudySearchRuntime(
                 child.on("message", (raw: unknown) => {
                   if (closed || children !== pool) return;
                   const message = raw as SearchMessage;
-                  if (config.observeDiagnostic)
-                    sendDiagnostic({ type: "message", worker: index, message });
-                  if (message.type === "ready") {
-                    clearTimeout(timer);
-                    resolve();
-                  } else receive(index, message);
+                  const probe = config.observeParallel ? performance.now() : 0;
+                  const jsonBytes = config.observeParallel
+                    ? Buffer.byteLength(JSON.stringify(message))
+                    : 0;
+                  const handling = config.observeParallel ? performance.now() : 0;
+                  if (config.observeParallel && message.type === "progress") {
+                    const assignment = job?.dynamic?.inflight.get(index);
+                    const accepted =
+                      !!job &&
+                      message.id === job.snapshot.id &&
+                      ["running", "paused"].includes(job.snapshot.status) &&
+                      (message.taskId === undefined || assignment?.taskId === message.taskId);
+                    config.observeParallel({
+                      type: "worker",
+                      id: message.id,
+                      atMs: handling - parallelOrigin,
+                      worker: index,
+                      taskId: message.taskId,
+                      index: assignment?.index,
+                      depth: message.snapshot.depth,
+                      phase:
+                        message.taskId === undefined
+                          ? "prepare"
+                          : (job?.dynamic?.dual?.phase ?? "adaptive"),
+                      barrier: message.barrier,
+                      accepted,
+                      work: message.snapshot.stats.work,
+                      nodes: message.snapshot.stats.nodes,
+                      rss: message.memoryBytes,
+                      activeMs: message.timing?.activeMs ?? 0,
+                      cpuMs: message.timing?.cpuMs ?? 0,
+                      restoreMs: message.timing?.restoreMs ?? 0,
+                      createMs: message.timing?.createMs ?? 0,
+                      processCpuMs: message.timing?.processCpuMs,
+                      restoreCpuMs: message.timing?.restoreCpuMs,
+                      createCpuMs: message.timing?.createCpuMs,
+                      transport: message.timing?.transport
+                        ? { ...message.timing.transport }
+                        : undefined,
+                    });
+                  }
+                  try {
+                    if (config.observeDiagnostic)
+                      sendDiagnostic({ type: "message", worker: index, message });
+                    if (message.type === "ready") {
+                      clearTimeout(timer);
+                      resolve();
+                    } else receive(index, message);
+                  } finally {
+                    config.observeParallel?.({
+                      type: "ipc",
+                      id: "id" in message ? message.id : null,
+                      worker: index,
+                      direction: "receive",
+                      atMs: handling - parallelOrigin,
+                      jsonBytes,
+                      sizingMs: handling - probe,
+                      callMs: performance.now() - handling,
+                    });
+                  }
                 });
                 child.once("error", (error) => {
                   clearTimeout(timer);

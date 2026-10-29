@@ -38,7 +38,9 @@ async function save(path: string, value: unknown) {
   await writeFile(path + ".tmp", JSON.stringify(value) + "\n");
   await rename(path + ".tmp", path);
 }
-export async function prepareEfficiencyInputs(directory: string) {
+export async function prepareEfficiencyInputs(directory: string, seedBase = 9801000) {
+  if (!Number.isSafeInteger(seedBase) || seedBase < 0 || seedBase + 3 > 0xffffffff)
+    throw new Error("合成入力seedは32bit非負整数の範囲にしてください");
   if (await Bun.file(join(directory, "private-inputs/inputs.json")).exists())
     throw new Error("固定済み入力を上書きしません。新しい測定フォルダを指定してください");
   await mkdir(join(directory, "private-inputs"), { recursive: true });
@@ -53,7 +55,7 @@ export async function prepareEfficiencyInputs(directory: string) {
   ).map((row: any) => ({ ...row, provenance: "existing-12-private-local-only" }));
   for (let index = 0; index < 4; index++) {
     const restricted = index % 2 === 0,
-      seed = 9801000 + index;
+      seed = seedBase + index;
     let random = seed,
       state = createInitialState({
         mode: "singles",
