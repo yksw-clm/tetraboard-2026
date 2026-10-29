@@ -77,6 +77,7 @@ export type StudySearchSnapshot = {
   workers: number;
   performance?: StudySearchPerformance & {
     legalCacheHits: number;
+    generatedMoves?: number;
     transitionCacheHits: number;
     evaluationCacheHits: number;
     iterationDepth: number;
@@ -228,6 +229,16 @@ export function createStudySearchRuntime(
     if (value.snapshot.timing) {
       value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
       value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+      if (value.snapshot.performance && value.dynamic) {
+        const dynamic = value.dynamic;
+        value.snapshot.performance.workerWaitMs = dynamic.waitMs.map(
+          (wait, worker) =>
+            wait +
+            (dynamic.inflight.has(worker)
+              ? 0
+              : Math.max(0, elapsed(value) - dynamic.waiting[worker])),
+        );
+      }
     }
     return structuredClone({ ...value.snapshot, elapsedMs: elapsed(value) });
   }
@@ -321,6 +332,10 @@ export function createStudySearchRuntime(
         priorityMs: sum("priorityMs"),
         priorityCalls: sum("priorityCalls"),
         orderingBonusMs: sum("orderingBonusMs"),
+        legalCalls: sum("legalCalls"),
+        checkCalls: sum("checkCalls"),
+        checkMs: sum("checkMs"),
+        generatedMoves: lanes.reduce((n, entry) => n + entry.snapshot.stats.generatedMoves, 0),
         cacheEvictions: sum("cacheEvictions"),
         branchCacheHits: sum("branchCacheHits"),
         branchCacheEntries: sum("branchCacheEntries"),

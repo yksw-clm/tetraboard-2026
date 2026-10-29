@@ -384,9 +384,13 @@ export function explainStudyEvaluation(position: AnalysisPosition) {
   return { base: base as EvaluationBreakdown | null, adjustments, evaluation };
 }
 
-function rightCheckBonus(state: FourShogiState, move: OrdinaryMove): number {
+function rightCheckBonus(
+  state: FourShogiState,
+  move: OrdinaryMove,
+  checks = getCheckState,
+): number {
   const right = studyRightSide(state, state.turn!);
-  return right && !getCheckState(state)[right] && getCheckState(move.state)[right] ? 180 : 0;
+  return right && !checks(state)[right] && checks(move.state)[right] ? 180 : 0;
 }
 export function compareStudyCandidates(a: StudyCandidate, b: StudyCandidate, root: Side): number {
   const terminalWin = (entry: StudyCandidate) =>
@@ -713,7 +717,7 @@ export function createStudyRootSearch(
         { evaluation: yield* ctx.evaluate(state), line: [], selective: false },
         "terminal",
       );
-    const checks = getCheckState(state);
+    const checks = ctx.checks(state);
     const checked = checks[state.turn];
     const useQuiescence = selectiveQuiescence && taskPolicy?.phase === "deep";
     const quietReason =
@@ -1126,7 +1130,8 @@ export function createStudyRootSearch(
       .map((move, index) => ({
         move,
         index,
-        rightCheckPriority: profile === "study" && rightCheckBonus(position.state, move) > 0,
+        rightCheckPriority:
+          profile === "study" && rightCheckBonus(position.state, move, ctx.checks) > 0,
       }))
       .sort(
         (a, b) => Number(b.rightCheckPriority) - Number(a.rightCheckPriority) || a.index - b.index,
@@ -1254,7 +1259,8 @@ export function createStudyRootSearch(
             index,
             move,
             state: next.state,
-            rightCheckPriority: profile === "study" && rightCheckBonus(position.state, move) > 0,
+            rightCheckPriority:
+              profile === "study" && rightCheckBonus(position.state, move, ctx.checks) > 0,
             branch: { evaluation, line: [next.step], selective: false },
             nodes: 0,
             work: 0,

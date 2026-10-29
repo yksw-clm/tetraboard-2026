@@ -28,6 +28,8 @@ test("詳細計測の有無で完成候補・PV・評価・workを変えない",
   expect(snapshots[1].stats).toEqual(snapshots[0].stats);
   expect(snapshots[1].performance!.priorityCalls).toBeGreaterThan(0);
   expect(snapshots[1].performance!.priorityMs).toBeGreaterThanOrEqual(0);
+  expect(snapshots[1].performance!.checkCalls).toBeGreaterThan(0);
+  expect(snapshots[1].performance!.legalCalls).toBeGreaterThan(0);
 });
 
 test("実プロセスの初期化・完成深さ・deep開始を壁時計と分けて記録する", async () => {
@@ -53,6 +55,7 @@ test("実プロセスの初期化・完成深さ・deep開始を壁時計と分�
     expect(result.snapshot.timing!.ipcMessages).toBeGreaterThan(0);
     expect(result.responseMs).toBeGreaterThanOrEqual(result.snapshot.elapsedMs);
     expect(result.snapshot.timing!.workers[0]!.cpuMs).toBeGreaterThan(0);
+    expect(result.snapshot.performance!.generatedMoves).toBeGreaterThan(0);
   } finally {
     await runtime.close();
   }

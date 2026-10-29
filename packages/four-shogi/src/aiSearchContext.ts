@@ -20,7 +20,11 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 /** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
 export type AiContextProfile = {
   evaluate: (state: FourShogiState) => AiEvaluation;
-  orderingBonus?: (state: FourShogiState, move: OrdinaryMove) => number;
+  orderingBonus?: (
+    state: FourShogiState,
+    move: OrdinaryMove,
+    checks?: typeof getCheckState,
+  ) => number;
   replaceCache?: boolean;
   preservePromotions?: boolean;
   measure?: boolean;
@@ -39,6 +43,9 @@ export type AiContextMetrics = {
   priorityMs?: number;
   priorityCalls?: number;
   orderingBonusMs?: number;
+  legalCalls?: number;
+  checkCalls?: number;
+  checkMs?: number;
 };
 type CachedNode = {
   moves?: OrdinaryMove[];
@@ -48,8 +55,8 @@ type CachedNode = {
   bestAction?: string;
   ordered?: { move: OrdinaryMove; index: number; score: number }[];
 };
-export function checkedSides(state: FourShogiState): Side[] {
-  const checks = getCheckState(state);
+export function checkedSides(state: FourShogiState, readChecks = getCheckState): Side[] {
+  const checks = readChecks(state);
   return getActiveSides(state).filter((side) => checks[side]);
 }
 export function makeAiDanger(line: readonly AiLineStep[], root: Side): AiCandidate["danger"] {
@@ -133,6 +140,15 @@ export function createAiContext(
   };
   const clock = () => (profile?.measure ? performance.now() : 0);
   const detailClock = () => (profile?.measureDetails ? performance.now() : 0);
+  function checks(state: FourShogiState) {
+    const started = detailClock();
+    const value = getCheckState(state);
+    if (profile?.measureDetails) {
+      metrics.checkCalls = (metrics.checkCalls ?? 0) + 1;
+      metrics.checkMs = (metrics.checkMs ?? 0) + detailClock() - started;
+    }
+    return value;
+  }
   function node(state: FourShogiState) {
     const existing = cache.get(state);
     if (existing) return existing;
@@ -153,6 +169,7 @@ export function createAiContext(
   }
   const started = clock();
   const legal = getLegalMoves(start);
+  metrics.legalCalls = 1;
   metrics.legalMs += clock() - started;
   metrics.initialLegalMs = clock() - started;
   stats.generatedMoves = legal.length;
@@ -183,6 +200,7 @@ export function createAiContext(
     }
     const started = clock();
     const result = getLegalMoves(state);
+    metrics.legalCalls = (metrics.legalCalls ?? 0) + 1;
     metrics.legalMs += clock() - started;
     stats.generatedMoves += result.length;
     yield* spend(Math.ceil(result.length / 16));
@@ -316,7 +334,7 @@ export function createAiContext(
         action: move.action,
         afterPly: ply + 1,
         nextTurn: next.turn,
-        checkedSides: checkedSides(next),
+        checkedSides: checkedSides(next, checks),
         captured: transition.captured,
         eliminations: transition.eliminations,
         result: next.result,
@@ -334,12 +352,12 @@ export function createAiContext(
     if (selected) stats.orderingCacheHits++;
     else {
       const started = clock();
-      const checked = getCheckState(state)[state.turn!];
+      const checked = checks(state)[state.turn!];
       const entries = legalMoves.map((move, index) => {
         const started = detailClock();
-        const score = priority(move, state.turn!);
+        const score = priority(move, state.turn!, checks(move.state));
         const bonusStarted = detailClock();
-        const bonus = profile?.orderingBonus?.(state, move) ?? 0;
+        const bonus = profile?.orderingBonus?.(state, move, checks) ?? 0;
         if (profile?.measureDetails) {
           metrics.priorityMs = (metrics.priorityMs ?? 0) + bonusStarted - started;
           metrics.orderingBonusMs = (metrics.orderingBonusMs ?? 0) + detailClock() - bonusStarted;
@@ -422,6 +440,7 @@ export function createAiContext(
     model,
     prefetch,
     rootOrder,
+    checks,
   };
 }
 export type AiContext = ReturnType<typeof createAiContext>;
