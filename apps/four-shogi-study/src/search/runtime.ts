@@ -88,7 +88,20 @@ export type StudySearchOptions = {
   dangerWork?: number;
   cacheSize?: number;
 };
+export type StudyRuntimeTraceEvent =
+  | { type: "command"; worker: number; command: SearchCommand }
+  | { type: "message"; worker: number; message: SearchMessage }
+  | { type: "iteration"; depth: number; phase: "broad" | "deep" | "adaptive"; roots: number[] }
+  | {
+      type: "publication";
+      depth: number;
+      published: boolean;
+      candidates: StudyCandidate[];
+      coverage: StudySearchCoverage | undefined;
+    };
+
 export type StudySearchRuntimeConfig = {
+  observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
   scheduling?: "fixed" | "dynamic";
   threads?: number;
   memoryMb?: number;
@@ -222,9 +235,13 @@ export function createStudySearchRuntime(
     terminating = Promise.all([terminating, ...ended]).then(() => {});
     return terminating;
   }
+  function sendDiagnostic(event: StudyRuntimeTraceEvent) {
+    config.observeDiagnostic?.(structuredClone(event));
+  }
   function command(message: SearchCommand) {
-    for (const child of children) {
+    for (const [worker, child] of children.entries()) {
       if (!child.connected) continue;
+      if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
       child.send(message, (error) => {
         if (
           error &&
@@ -390,29 +407,29 @@ export function createStudySearchRuntime(
       ...rootOptions
     } = value.options;
     value.prepared = true;
-    children.forEach((child, lane) =>
-      child.send(
-        {
-          type: "start",
-          id: value.snapshot.id,
-          input,
-          options: {
-            ...rootOptions,
-            strategy: value.dynamic ? (value.options.strategy ?? "adaptive") : "legacy",
-            cacheSize:
-              rootOptions.cacheSize ??
-              (value.dynamic
-                ? Math.min(8192, Math.max(256, Math.floor((memoryMb / threads) * 4)))
-                : 1024),
-            lane,
-            lanes: threads,
-          },
-        } satisfies SearchCommand,
-        (error) => {
-          if (error && job === value) stop("error", "探索を開始できませんでした", true);
+    children.forEach((child, lane) => {
+      const message: SearchCommand = {
+        type: "start",
+        id: value.snapshot.id,
+        input,
+        options: {
+          ...rootOptions,
+          strategy: value.dynamic ? (value.options.strategy ?? "adaptive") : "legacy",
+          cacheSize:
+            rootOptions.cacheSize ??
+            (value.dynamic
+              ? Math.min(8192, Math.max(256, Math.floor((memoryMb / threads) * 4)))
+              : 1024),
+          lane,
+          lanes: threads,
         },
-      ),
-    );
+      };
+      if (config.observeDiagnostic)
+        sendDiagnostic({ type: "command", worker: lane, command: message });
+      child.send(message, (error) => {
+        if (error && job === value) stop("error", "探索を開始できませんでした", true);
+      });
+    });
   }
   function dispatchTasks(value: Job) {
     const dynamic = value.dynamic;
@@ -425,31 +442,30 @@ export function createStudySearchRuntime(
       const taskId = ++dynamic.nextTaskId;
       dynamic.inflight.set(worker, { index, taskId });
       dynamic.owners.set(index, worker);
-      child.send(
-        {
-          type: "task",
-          id: value.snapshot.id,
-          taskId,
-          index,
-          depth: dynamic.depth,
-          material: dynamic.depth === 2 && dynamic.material.has(index),
-          ...(dynamic.dual
-            ? {
-                policy: {
-                  phase: dynamic.dual.phase,
-                  width:
-                    dynamic.dual.phase === "deep"
-                      ? Math.min(8, 2 + dynamic.dual.pass)
-                      : (value.options.width ?? 6),
-                  ownWidth: Math.min(10, 3 + dynamic.dual.pass),
-                },
-              }
-            : {}),
-        } satisfies SearchCommand,
-        (error) => {
-          if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
-        },
-      );
+      const message: SearchCommand = {
+        type: "task",
+        id: value.snapshot.id,
+        taskId,
+        index,
+        depth: dynamic.depth,
+        material: dynamic.depth === 2 && dynamic.material.has(index),
+        ...(dynamic.dual
+          ? {
+              policy: {
+                phase: dynamic.dual.phase,
+                width:
+                  dynamic.dual.phase === "deep"
+                    ? Math.min(8, 2 + dynamic.dual.pass)
+                    : (value.options.width ?? 6),
+                ownWidth: Math.min(10, 3 + dynamic.dual.pass),
+              },
+            }
+          : {}),
+      };
+      if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
+      child.send(message, (error) => {
+        if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
+      });
     });
   }
   function beginIteration(value: Job) {
@@ -470,6 +486,13 @@ export function createStudySearchRuntime(
               dynamic.depth,
               value.options.rootWidth ?? 24,
             );
+    if (config.observeDiagnostic)
+      sendDiagnostic({
+        type: "iteration",
+        depth: dynamic.depth,
+        phase: dual?.phase ?? "adaptive",
+        roots: [...dynamic.queue],
+      });
     dynamic.total = dynamic.queue.length;
     dynamic.results.clear();
     value.snapshot.diagnostics.selectedRoots = dynamic.total;
@@ -535,6 +558,14 @@ export function createStudySearchRuntime(
         ownWidth: Math.min(10, 3 + dual.pass),
       };
     }
+    if (config.observeDiagnostic)
+      sendDiagnostic({
+        type: "publication",
+        depth: dynamic.depth,
+        published: publish,
+        candidates: completed,
+        coverage: value.snapshot.coverage,
+      });
     dynamic.depths.push({ depth: dynamic.depth, elapsedMs: elapsed(value), roots: dynamic.total });
     merge(value);
     const best = value.snapshot.candidates[0];
@@ -730,6 +761,14 @@ export function createStudySearchRuntime(
       const dynamic = value.dynamic;
       value.published.forEach((entry) => dynamic.all.set(entry.rootIndex, entry));
       dynamic.material = new Set(value.selected!.slice(0, 5));
+      if (config.observeDiagnostic)
+        sendDiagnostic({
+          type: "publication",
+          depth: 1,
+          published: true,
+          candidates: value.published,
+          coverage: value.snapshot.coverage,
+        });
       dynamic.depths.push({ depth: 1, elapsedMs: elapsed(value), roots: value.published.length });
       dynamic.waiting.fill(elapsed(value));
       beginIteration(value);
@@ -855,6 +894,8 @@ export function createStudySearchRuntime(
                 child.on("message", (raw: unknown) => {
                   if (closed || children !== pool) return;
                   const message = raw as SearchMessage;
+                  if (config.observeDiagnostic)
+                    sendDiagnostic({ type: "message", worker: index, message });
                   if (message.type === "ready") {
                     clearTimeout(timer);
                     resolve();

@@ -10,7 +10,21 @@ import {
   type AiAdvance,
 } from "./aiSearchContext";
 import { getCheckState, pieces, attacksSquare } from "./board";
-import { pieceValue } from "./cpuEvaluation";
+import { priority } from "./cpuSearch";
+import {
+  studyTraceAction,
+  type StudySearchDiagnostics,
+  type StudyTraceEvent,
+  type StudyTraceNode,
+  type StudySelectionRow,
+} from "./studyDiagnostics";
+export type { StudySearchDiagnostics, StudyTraceEvent } from "./studyDiagnostics";
+import {
+  pieceValue,
+  evaluatePosition,
+  defaultEvaluationWeights,
+  type EvaluationBreakdown,
+} from "./cpuEvaluation";
 import type { OrdinaryMove } from "./moves";
 import { getActiveSides, handPieceKinds, sides, type FourShogiState, type Side } from "./types";
 import type {
@@ -20,6 +34,10 @@ import type {
   AiLineStep,
   AiSearchStats,
 } from "./aiTypes";
+
+function keepBranch(branch: AiBranch, _reason?: string) {
+  return branch;
+}
 
 export const studySearchVersion = "local-root-maxn-v6";
 export const adaptiveStudySearchVersion = "local-root-maxn-v5";
@@ -130,7 +148,10 @@ function engagements(state: FourShogiState): StudyEngagement[] {
 }
 
 /** 利きによる圧力は戦略上の目安で、三人攻撃の合法性や相手の選択を断定しません。 */
-function studyEvaluation(state: FourShogiState): AiEvaluation {
+function studyEvaluation(
+  state: FourShogiState,
+  observe?: (side: Side, engagement: number, skippedDefense: number) => void,
+): AiEvaluation {
   const base = evaluateAiPosition(state);
   if (state.status === "finished") return base;
   const active = getActiveSides(state);
@@ -166,6 +187,7 @@ function studyEvaluation(state: FourShogiState): AiEvaluation {
         if (threats.length && !checked[side]) skippedDefense += pieceValue(target.piece) * 0.12;
       }
     }
+    observe?.(side, Math.min(150, engagement), skippedDefense);
     const score = base.values[side].heuristicScore! + Math.min(150, engagement) - skippedDefense;
     values[side] = {
       ...values[side],
@@ -297,6 +319,20 @@ export function evaluateStudyPosition(position: AnalysisPosition): AiEvaluation 
   return studyEvaluation(position.state);
 }
 
+/** 正本で作った診断局面に限定し、現行評価の計算過程を説明します。 */
+export function explainStudyEvaluation(position: AnalysisPosition) {
+  getAnalysisLegalActions(position);
+  let base: EvaluationBreakdown | null = null;
+  evaluatePosition(position.state, { ...defaultEvaluationWeights, survival: 0 }, (parts) => {
+    base = parts;
+  });
+  const adjustments: Partial<Record<Side, { engagement: number; skippedDefense: number }>> = {};
+  const evaluation = studyEvaluation(position.state, (side, engagement, skippedDefense) => {
+    adjustments[side] = { engagement, skippedDefense };
+  });
+  return { base: base as EvaluationBreakdown | null, adjustments, evaluation };
+}
+
 function rightCheckBonus(state: FourShogiState, move: OrdinaryMove): number {
   const right = studyRightSide(state, state.turn!);
   return right && !getCheckState(state)[right] && getCheckState(move.state)[right] ? 180 : 0;
@@ -367,7 +403,11 @@ export function selectStudyRootIndices(
 }
 
 /** 各プロセスは同じ完全状態から探索し、全候補の完成深さを呼出側でそろえます。 */
-export function createStudyRootSearch(position: AnalysisPosition, options: StudyRootOptions = {}) {
+export function createStudyRootSearch(
+  position: AnalysisPosition,
+  options: StudyRootOptions = {},
+  diagnostics?: StudySearchDiagnostics,
+) {
   getAnalysisLegalActions(position);
   const lane = options.lane ?? 0;
   const lanes = options.lanes ?? 1;
@@ -439,6 +479,35 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     initialScore?: number;
   };
   const roots: Entry[] = [];
+  let traceRootIndex = -1;
+  let traceTaskDepth = 0;
+  const diagnosticCacheNamespace = diagnostics?.includeAt
+    ? JSON.stringify(diagnostics.includeAt)
+    : "";
+  function observingPath(path: readonly string[]) {
+    return Boolean(
+      diagnostics?.observe &&
+      (!diagnostics.watchPaths ||
+        diagnostics.watchPaths.some(
+          (watch) => path.length <= watch.length && path.every((entry, i) => entry === watch[i]),
+        )),
+    );
+  }
+  function trace(event: StudyTraceEvent) {
+    if (!diagnostics?.observe) return;
+    const paths = diagnostics.watchPaths;
+    if (
+      paths &&
+      !paths.some(
+        (path) =>
+          event.path.length <= path.length && event.path.every((entry, i) => entry === path[i]),
+      )
+    )
+      return;
+    diagnostics.observe(structuredClone(event));
+  }
+  const childPath = (path: readonly string[], step: AiLineStep) =>
+    diagnostics ? [...path, studyTraceAction(step.side, step.action)] : path;
   const branchCache = new Map<string, AiBranch>();
   let branchCacheHits = 0;
   let keyMs = 0;
@@ -537,10 +606,41 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
     remaining: number,
     extra: number,
     ply: number,
+    path: readonly string[] = [],
   ): Generator<number, AiBranch> {
     yield* ctx.spend(0);
+    const observing = observingPath(path);
+    const meta = diagnostics
+      ? (): StudyTraceNode => ({
+          rootIndex: traceRootIndex,
+          taskDepth: traceTaskDepth,
+          policy: taskPolicy,
+          path,
+          key: studyBranchKey(state, remaining, extra),
+          remaining,
+          extra,
+          ply,
+          turn: state.turn,
+        })
+      : undefined;
+    const finish = observing
+      ? (branch: AiBranch, reason: "terminal" | "horizon" | "cache" | "searched") => {
+          if (observing)
+            trace({
+              ...meta!(),
+              type: "return",
+              reason,
+              evaluation: branch.evaluation,
+              line: branch.line,
+            });
+          return branch;
+        }
+      : keepBranch;
     if (state.status === "finished" || !getActiveSides(state).includes(root!))
-      return { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
+      return finish(
+        { evaluation: yield* ctx.evaluate(state), line: [], selective: false },
+        "terminal",
+      );
     const checked = getCheckState(state)[state.turn];
     let tacticalOnly = false;
     if (
@@ -557,24 +657,32 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       stats.extendedNodes++;
     }
     if (remaining <= 0)
-      return { evaluation: yield* ctx.evaluate(state), line: [], selective: false };
+      return finish(
+        { evaluation: yield* ctx.evaluate(state), line: [], selective: false },
+        "horizon",
+      );
     const started = performance.now();
     // 完全状態を使います。攻撃/反復履歴やlastMoveを省略した同一視は行いません。
     const key =
-      optimized && remaining > 1 && settings.cacheSize > 0
-        ? taskPolicyKey + studyBranchKey(state, remaining, extra)
+      optimized && remaining > 1 && settings.cacheSize > 0 && !diagnostics?.disableBranchCache
+        ? taskPolicyKey + diagnosticCacheNamespace + studyBranchKey(state, remaining, extra)
         : null;
     keyMs += performance.now() - started;
     const cached = key === null ? undefined : branchCache.get(key);
     if (cached) {
       branchCacheHits++;
-      return {
-        ...cached,
-        line: cached.line.map((step) => ({ ...step, afterPly: step.afterPly + ply })),
-      };
+      return finish(
+        {
+          ...cached,
+          line: cached.line.map((step) => ({ ...step, afterPly: step.afterPly + ply })),
+        },
+        "cache",
+      );
     }
     const legal = yield* ctx.moves(state);
     let moves = yield* ctx.ordered(state, legal);
+    const orderedBefore = moves;
+    let afterBroad = moves;
     if (options.strategy === "dual" && taskPolicy?.phase !== "deep") {
       moves = moves.filter(
         (entry, order) =>
@@ -585,6 +693,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           (entry.move.action.type === "movePiece" && entry.move.action.promote),
       );
     }
+    afterBroad = moves;
     if (tacticalOnly) {
       // 仮のパスは作らず、実際の静かな合法手も最低一つ残します。
       let quiet = false;
@@ -622,13 +731,80 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           a.index - b.index,
       );
       const width = state.turn === root ? taskPolicy.ownWidth : taskPolicy.width;
-      const selected = remaining === 1 ? ranked : ranked.slice(0, Math.max(checked ? 4 : 1, width));
+      const selected =
+        remaining === 1 ? [...ranked] : ranked.slice(0, Math.max(checked ? 4 : 1, width));
+      const include = diagnostics?.includeAt;
+      const intervention =
+        include &&
+        include.key === studyBranchKey(state, remaining, extra) &&
+        JSON.stringify(include.path) === JSON.stringify(path)
+          ? legal.findIndex(
+              (move) => JSON.stringify(move.action) === JSON.stringify(include.action),
+            )
+          : -1;
+      if (intervention >= 0 && !selected.some((entry) => entry.index === intervention)) {
+        let entry = ranked.find((candidate) => candidate.index === intervention);
+        if (!entry) {
+          const move = legal[intervention];
+          const next = yield* ctx.advance(state, move, ply);
+          entry = { move, index: intervention, next, evaluation: yield* ctx.evaluate(next.state) };
+        }
+        selected.push(entry);
+      }
+      if (observing) {
+        const rows: StudySelectionRow[] = legal.map((move, index) => {
+          const orderedIndex = orderedBefore.findIndex((entry) => entry.index === index);
+          const staticIndex = ranked.findIndex((entry) => entry.index === index);
+          const chosen = selected.some((entry) => entry.index === index);
+          return {
+            index,
+            action: move.action,
+            orderRank: orderedIndex < 0 ? null : orderedIndex + 1,
+            orderScore: orderedBefore[orderedIndex]?.score ?? null,
+            staticRank: staticIndex < 0 ? null : staticIndex + 1,
+            evaluation: ranked[staticIndex]?.evaluation ?? null,
+            selected: chosen,
+            reason: chosen
+              ? index === intervention
+                ? "diagnostic_include"
+                : "selected"
+              : orderedIndex < 0
+                ? "ordering_filter"
+                : !afterBroad.some((entry) => entry.index === index)
+                  ? "broad_filter"
+                  : !moves.some((entry) => entry.index === index)
+                    ? "extension_filter"
+                    : "top_k",
+          };
+        });
+        trace({
+          ...meta!(),
+          type: "selection",
+          state: { ...state, repetitions: { ...position.state.repetitions, ...state.repetitions } },
+          rows,
+          checked,
+          tacticalOnly,
+        });
+      }
       selective ||= selected.length < ranked.length;
       for (const entry of selected) {
         const child =
           remaining === 1 || entry.next.state.status === "finished"
             ? { evaluation: entry.evaluation, line: [], selective: false }
-            : yield* explore(entry.next.state, remaining - 1, extra, ply + 1);
+            : yield* explore(
+                entry.next.state,
+                remaining - 1,
+                extra,
+                ply + 1,
+                childPath(path, entry.next.step),
+              );
+        if (observing)
+          trace({
+            ...meta!(),
+            type: "child",
+            action: entry.move.action,
+            evaluation: child.evaluation,
+          });
         selective ||= child.selective;
         const comparison = best
           ? compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn])
@@ -640,6 +816,57 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
         }
       }
     } else {
+      const include = diagnostics?.includeAt;
+      const intervention =
+        include &&
+        include.key === studyBranchKey(state, remaining, extra) &&
+        JSON.stringify(include.path) === JSON.stringify(path)
+          ? legal.findIndex(
+              (move) => JSON.stringify(move.action) === JSON.stringify(include.action),
+            )
+          : -1;
+      if (intervention >= 0 && !moves.some((entry) => entry.index === intervention)) {
+        const move = legal[intervention];
+        moves = [
+          ...moves,
+          orderedBefore.find((entry) => entry.index === intervention) ?? {
+            move,
+            index: intervention,
+            score:
+              priority(move, state.turn) + (profile === "study" ? rightCheckBonus(state, move) : 0),
+          },
+        ];
+      }
+      if (observing)
+        trace({
+          ...meta!(),
+          type: "selection",
+          state: { ...state, repetitions: { ...position.state.repetitions, ...state.repetitions } },
+          checked,
+          tacticalOnly,
+          rows: legal.map((move, index) => {
+            const order = orderedBefore.findIndex((entry) => entry.index === index);
+            const selected = moves.some((entry) => entry.index === index);
+            return {
+              index,
+              action: move.action,
+              orderRank: order < 0 ? null : order + 1,
+              orderScore: orderedBefore[order]?.score ?? null,
+              staticRank: null,
+              evaluation: null,
+              selected,
+              reason: selected
+                ? index === intervention
+                  ? "diagnostic_include"
+                  : "selected"
+                : order < 0
+                  ? "ordering_filter"
+                  : !afterBroad.some((entry) => entry.index === index)
+                    ? "broad_filter"
+                    : "extension_filter",
+            };
+          }),
+        });
       for (const [order, { move, index, score }] of moves.entries()) {
         const next = yield* ctx.advance(state, move, ply);
         const reduce =
@@ -650,7 +877,13 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           score < 10000 &&
           !move.captured &&
           !(move.action.type === "movePiece" && move.action.promote);
-        let child = yield* explore(next.state, remaining - 1 - Number(reduce), extra, ply + 1);
+        let child = yield* explore(
+          next.state,
+          remaining - 1 - Number(reduce),
+          extra,
+          ply + 1,
+          childPath(path, next.step),
+        );
         if (reduce) {
           reducedNodes++;
           selective = true;
@@ -662,9 +895,22 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
             ) >= 0
           ) {
             researches++;
-            child = yield* explore(next.state, remaining - 1, extra, ply + 1);
+            child = yield* explore(
+              next.state,
+              remaining - 1,
+              extra,
+              ply + 1,
+              childPath(path, next.step),
+            );
           }
         }
+        if (observing)
+          trace({
+            ...meta!(),
+            type: "child",
+            action: move.action,
+            evaluation: child.evaluation,
+          });
         selective ||= child.selective;
         const comparison = best
           ? compareAiValue(child.evaluation.values[state.turn], best.evaluation.values[state.turn])
@@ -692,7 +938,7 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
         line: result.line.map((step) => ({ ...step, afterPly: step.afterPly - ply })),
       });
     }
-    return result;
+    return finish(result, "searched");
   }
   function* inspectImmediate(entry: Entry): Generator<number, void> {
     const started = stats.work;
@@ -776,7 +1022,15 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
       const completed: Entry[] = [];
       for (const entry of active) {
         const before = { ...stats };
-        const branch = yield* explore(entry.state, nextDepth - 1, settings.extensions, 1);
+        traceRootIndex = entry.index;
+        traceTaskDepth = nextDepth;
+        const branch = yield* explore(
+          entry.state,
+          nextDepth - 1,
+          settings.extensions,
+          1,
+          diagnostics ? [studyTraceAction(root!, entry.move.action)] : [],
+        );
         completed.push({
           ...entry,
           branch: { ...branch, line: [entry.branch.line[0], ...branch.line] },
@@ -795,6 +1049,9 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
   }
   let steps = run();
   return {
+    get work() {
+      return stats.work;
+    },
     get depth() {
       return depth;
     },
@@ -835,6 +1092,8 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
           policy.ownWidth > 32)
       )
         throw new TypeError("段階拡張の幅が不正です");
+      traceRootIndex = index;
+      traceTaskDepth = targetDepth;
       taskPolicy = policy ?? null;
       taskPolicyKey = policy ? JSON.stringify(policy) : "";
       done = false;
@@ -860,7 +1119,13 @@ export function createStudyRootSearch(position: AnalysisPosition, options: Study
         }
         if (profile === "study" && !immediate.has(index)) yield* inspectImmediate(entry);
         const before = { ...stats };
-        const branch = yield* explore(entry.state, targetDepth - 1, settings.extensions, 1);
+        const branch = yield* explore(
+          entry.state,
+          targetDepth - 1,
+          settings.extensions,
+          1,
+          diagnostics ? [studyTraceAction(root!, entry.move.action)] : [],
+        );
         const completed = {
           ...entry,
           branch: { ...branch, line: [entry.branch.line[0], ...branch.line] },
