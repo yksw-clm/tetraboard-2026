@@ -385,3 +385,50 @@ test("独立応手の保持枠は不正な上限を開始前に拒否する", as
     ).toThrow("独立応手キャッシュの保持枠");
   }
 });
+
+test("担当外の根を初期化する仕事を、同じ候補の探索仕事と区別する", async () => {
+  const position = await initial();
+  const searches = [0, 1].map((lane) =>
+    createStudyRootSearch(position, {
+      strategy: "dual-continuations",
+      maxDepth: 4,
+      extensions: 0,
+      width: 2,
+      cacheSize: 0,
+      dangerWork: 0,
+      lane,
+      lanes: 2,
+      measureDetails: true,
+    }),
+  );
+  try {
+    searches.forEach(prepare);
+    const before = searches.map((s) => s.snapshot());
+    const index = before[0].candidates[0].rootIndex;
+    expect(before.map((s) => s.candidates.some((c) => c.rootIndex === index))).toEqual([
+      true,
+      false,
+    ]);
+    for (const search of searches) {
+      search.startTask(index, 4, false, { phase: "deep", width: 2, ownWidth: 3 });
+      while (!search.step()) {}
+    }
+    const after = searches.map((s) => s.snapshot());
+    expect(after[1].candidates).toEqual(after[0].candidates);
+    const deltas = after.map((s, i) => ({
+      work: s.stats.work - before[i].stats.work,
+      nodes: s.stats.nodes - before[i].stats.nodes,
+      setup: s.performance!.rootSetupWork! - before[i].performance!.rootSetupWork!,
+      immediate: s.performance!.immediateWork - before[i].performance!.immediateWork,
+    }));
+    expect(deltas.map((d) => d.setup)).toEqual([0, 2]);
+    expect(deltas[1].work - deltas[0].work).toBe(2);
+    expect(deltas[1].nodes - deltas[0].nodes).toBe(1);
+    for (const [i, snapshot] of after.entries())
+      expect(deltas[i].work).toBe(
+        deltas[i].setup + deltas[i].immediate + snapshot.candidates[0].iterationWork,
+      );
+  } finally {
+    searches.forEach((s) => s.dispose());
+  }
+});

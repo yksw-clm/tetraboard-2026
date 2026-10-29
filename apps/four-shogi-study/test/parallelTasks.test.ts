@@ -67,8 +67,10 @@ test("実workerへ応手を分配し、完成根だけを同深さで公開す�
   }
   expect(results[1].recommendedAction).toEqual(results[0].recommendedAction);
   expect(results[1].candidates).toEqual(results[0].candidates);
-  expect(results[1].work).toBe(results[0].work);
-  expect(results[1].nodes).toBe(results[0].nodes);
+  // 総work/nodesには担当変更で増減する根の初期化も含む。探索仕事は全完成反復で比較する。
+  expect(results[1].performance!.completedIterationWork).toBe(
+    results[0].performance!.completedIterationWork,
+  );
   expect(results[1].timing!.subtreeTasksAssigned).toBeGreaterThan(0);
   expect(results[1].timing!.subtreeTasksCompleted).toBe(results[1].timing!.subtreeTasksAssigned);
   expect(results[1].timing!.pendingRoots).toBe(0);

@@ -3576,5 +3576,45 @@
   },
   "pr": "https://github.com/yksw-clm/tetraboard-2026/pull/266",
   "merged": false,
-  "deployed": false
+  "deployed": false,
+  "submissionCiCorrection": {
+    "firstSubmission": "142204a5e6175aa8d76bc588852c1fe32fea8927",
+    "runId": 40971229966,
+    "result": "failure",
+    "checkSeconds": 89,
+    "cause": "Incorrect assumption that physical work/nodes are invariant under worker ownership; expected5471 actual5469 after candidate assertions passed",
+    "deterministicCounterexample": {
+      "selectedInitiallyPrepared": [
+        true,
+        false
+      ],
+      "physicalWork": [
+        151,
+        153
+      ],
+      "physicalNodes": [
+        72,
+        73
+      ],
+      "rootSetupWork": [
+        0,
+        2
+      ],
+      "immediateWork": [
+        11,
+        11
+      ],
+      "candidateWork": [
+        140,
+        140
+      ],
+      "candidateNodes": [
+        63,
+        63
+      ],
+      "sameCandidates": true
+    },
+    "correction": "Strict full candidates+all completedIterationWork equality+per-run physical audits; add deterministic setup2work1node accounting regression; no search/rule/fixture/threshold changes",
+    "additionalCi": "One additional push/run for this evidence-based test correction; no unconditional rerun"
+  }
 }
