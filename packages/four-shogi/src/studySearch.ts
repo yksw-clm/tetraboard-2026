@@ -88,6 +88,20 @@ export function studyStrategyVersion(strategy?: StudySearchStrategy): string {
         : adaptiveStudySearchVersion;
 }
 export type StudyTaskPolicy = { phase: "broad" | "deep"; width: number; ownWidth: number };
+/** 元の文脈の反復履歴を参照する差分状態です。新しい検討局面として復元しません。 */
+export type StudySubtreeTask = {
+  slot: number;
+  baseStateHash: string;
+  rootIndex: number;
+  targetDepth: number;
+  policy: StudyTaskPolicy;
+  state: FourShogiState;
+  remaining: number;
+  extra: number;
+  ply: number;
+};
+export type StudySubtreeResult = { slot: number; branch: AiBranch; work: number; nodes: number };
+export type StudySplitPlan = { planId: number; tasks: StudySubtreeTask[] };
 export const studyEvaluationVersion = "local-sole-first-pressure-v1";
 export type StudyProfile = "study" | "baseline";
 export type StudyEngagement = { attacker: Side; target: Side; pressure: number };
@@ -598,6 +612,36 @@ export function createStudyRootSearch(
   let quiescenceMoves = 0;
   let taskPolicy: StudyTaskPolicy | null = null;
   let taskPolicyKey = "";
+  type Accounting = {
+    foreignWork: number;
+    foreignNodes: number;
+    childWork: number;
+    childNodes: number;
+  };
+  type Split = StudySplitPlan & { results: Map<number, StudySubtreeResult> | null };
+  type Suspended = {
+    split: Split;
+    steps: Generator<number, void>;
+    accounting: Accounting;
+    work: number;
+    nodes: number;
+    rootIndex: number;
+    targetDepth: number;
+    policy: StudyTaskPolicy;
+  };
+  const suspended = new Map<number, Suspended>();
+  let nextPlanId = 0;
+  let readySplit: Split | null = null;
+  let partitionTask = false;
+  let taskAccounting: Accounting | null = null;
+  let completedSubtree: StudySubtreeResult | null = null;
+  function resetSteps() {
+    if (readySplit) throw new Error("未取得の分割計画があります");
+    steps.return();
+    completedSubtree = null;
+    done = false;
+    published = [];
+  }
   const risks = new Map<number, NonNullable<AiCandidate["danger"]["alternatives"]>>();
   const materialProofs = new Map<
     number,
@@ -940,18 +984,56 @@ export function createStudyRootSearch(
         });
       }
       selective ||= selected.length < ranked.length;
+      // 順序依存のLMR・延長を分割せず、深いMaxNの根直下だけを独立に評価します。
+      // 追加候補も含む同じselectedを維持し、過大な分割は元の逐次探索へ戻します。
+      const independent =
+        partitionTask && ply === 1 && remaining >= 3
+          ? selected.filter((entry) => entry.next.state.status !== "finished")
+          : null;
+      let split: Split | null = null;
+      if (
+        partitionTask &&
+        ply === 1 &&
+        remaining >= 3 &&
+        (options.strategy === "dual" || options.strategy === "dual-continuations") &&
+        independent !== null &&
+        independent.length >= 2 &&
+        independent.length <= 16 &&
+        suspended.size < 8
+      ) {
+        split = {
+          planId: ++nextPlanId,
+          tasks: independent.map((entry) => ({
+            slot: entry.index,
+            baseStateHash: position.stateHash,
+            rootIndex: traceRootIndex,
+            targetDepth: traceTaskDepth,
+            policy: { ...taskPolicy! },
+            state: entry.next.state,
+            remaining: remaining - 1,
+            extra,
+            ply: ply + 1,
+          })),
+          results: null,
+        };
+        readySplit = split;
+        yield 0;
+        if (!split.results) throw new Error("未完成の子タスクを集約できません");
+      }
       for (const entry of selected) {
         const child =
           (remaining === 1 && (!extendDeepLeaves || (selectiveQuiescence && extra === 0))) ||
           entry.next.state.status === "finished"
             ? { evaluation: entry.evaluation, line: [], selective: false }
-            : yield* explore(
-                entry.next.state,
-                remaining - 1,
-                extra,
-                ply + 1,
-                childPath(path, entry.next.step),
-              );
+            : split
+              ? split.results!.get(entry.index)!.branch
+              : yield* explore(
+                  entry.next.state,
+                  remaining - 1,
+                  extra,
+                  ply + 1,
+                  childPath(path, entry.next.step),
+                );
         if (observing)
           trace({
             ...meta!(),
@@ -1226,6 +1308,7 @@ export function createStudyRootSearch(
       targetDepth: number,
       inspectMaterialProof = false,
       policy?: StudyTaskPolicy,
+      partition = false,
     ) {
       if (
         !Number.isInteger(index) ||
@@ -1236,7 +1319,7 @@ export function createStudyRootSearch(
         targetDepth > settings.maxDepth
       )
         throw new TypeError("探索タスクの根または深さが不正です");
-      steps.return();
+      resetSteps();
       if (
         policy &&
         (!Number.isSafeInteger(policy.width) ||
@@ -1251,8 +1334,14 @@ export function createStudyRootSearch(
       traceTaskDepth = targetDepth;
       taskPolicy = policy ?? null;
       taskPolicyKey = policy ? JSON.stringify(policy) : "";
-      done = false;
-      published = [];
+      partitionTask = partition && policy?.phase === "deep" && !diagnostics;
+      const accounting: Accounting = {
+        foreignWork: 0,
+        foreignNodes: 0,
+        childWork: 0,
+        childNodes: 0,
+      };
+      taskAccounting = accounting;
       depth = targetDepth - 1;
       steps = (function* (): Generator<number, void> {
         let entry = roots.find((entry) => entry.index === index);
@@ -1285,14 +1374,118 @@ export function createStudyRootSearch(
         const completed = {
           ...entry,
           branch: { ...branch, line: [entry.branch.line[0], ...branch.line] },
-          nodes: stats.nodes - before.nodes,
-          work: stats.work - before.work,
+          nodes: stats.nodes - before.nodes - accounting.foreignNodes + accounting.childNodes,
+          work: stats.work - before.work - accounting.foreignWork + accounting.childWork,
         };
         if (inspectMaterialProof && profile === "study" && !materialProofs.has(index))
           yield* inspectMaterial(completed);
         published = [completed];
         depth = stats.completedDepth = targetDepth;
       })();
+    },
+    /** 計画を取得した時点で生成器を退避し、同じ文脈を別の独立タスクへ使えます。 */
+    takeSplitPlan(): StudySplitPlan | null {
+      if (!readySplit) return null;
+      const split = readySplit;
+      readySplit = null;
+      suspended.set(split.planId, {
+        split,
+        steps,
+        accounting: taskAccounting!,
+        work: stats.work,
+        nodes: stats.nodes,
+        rootIndex: traceRootIndex,
+        targetDepth: traceTaskDepth,
+        policy: { ...taskPolicy! },
+      });
+      steps = (function* (): Generator<number, void> {})();
+      done = true;
+      return { planId: split.planId, tasks: split.tasks };
+    },
+    startSubtree(task: StudySubtreeTask | { localPlanId: number; slot: number }) {
+      const input =
+        "localPlanId" in task
+          ? suspended.get(task.localPlanId)?.split.tasks.find((entry) => entry.slot === task.slot)
+          : task;
+      if (
+        !input ||
+        input.baseStateHash !== position.stateHash ||
+        !Number.isSafeInteger(input.rootIndex) ||
+        input.rootIndex < 0 ||
+        input.rootIndex >= ctx.legal.length ||
+        !Number.isSafeInteger(input.targetDepth) ||
+        input.targetDepth < 4 ||
+        input.targetDepth > settings.maxDepth ||
+        !Number.isSafeInteger(input.remaining) ||
+        input.remaining < 1 ||
+        input.ply !== 2 ||
+        input.remaining !== input.targetDepth - input.ply ||
+        input.extra !== settings.extensions ||
+        input.policy.phase !== "deep" ||
+        !Number.isSafeInteger(input.slot) ||
+        input.slot < 0 ||
+        !Number.isSafeInteger(input.policy.width) ||
+        input.policy.width < 1 ||
+        input.policy.width > 32 ||
+        !Number.isSafeInteger(input.policy.ownWidth) ||
+        input.policy.ownWidth < 1 ||
+        input.policy.ownWidth > 32 ||
+        (options.strategy !== "dual" && options.strategy !== "dual-continuations")
+      )
+        throw new TypeError("独立探索タスクの文脈が不正です");
+      resetSteps();
+      traceRootIndex = input.rootIndex;
+      traceTaskDepth = input.targetDepth;
+      taskPolicy = input.policy;
+      taskPolicyKey = JSON.stringify(taskPolicy);
+      partitionTask = false;
+      taskAccounting = null;
+      depth = input.targetDepth - 1;
+      steps = (function* (): Generator<number, void> {
+        const before = { work: stats.work, nodes: stats.nodes };
+        const branch = yield* explore(input.state, input.remaining, input.extra, input.ply);
+        completedSubtree = {
+          slot: input.slot,
+          branch,
+          work: stats.work - before.work,
+          nodes: stats.nodes - before.nodes,
+        };
+      })();
+    },
+    subtreeResult(): StudySubtreeResult | null {
+      return completedSubtree;
+    },
+    finishSplitPlan(planId: number, results: readonly StudySubtreeResult[]) {
+      const pending = suspended.get(planId);
+      if (
+        !pending ||
+        results.length !== pending.split.tasks.length ||
+        new Set(results.map((r) => r.slot)).size !== results.length ||
+        results.some(
+          (r) =>
+            !pending.split.tasks.some((t) => t.slot === r.slot) ||
+            !Number.isSafeInteger(r.work) ||
+            r.work < 0 ||
+            !Number.isSafeInteger(r.nodes) ||
+            r.nodes < 0,
+        )
+      )
+        throw new TypeError("分割探索の結果が不足または重複しています");
+      resetSteps();
+      suspended.delete(planId);
+      pending.split.results = new Map(results.map((r) => [r.slot, r]));
+      pending.accounting.foreignWork += stats.work - pending.work;
+      pending.accounting.foreignNodes += stats.nodes - pending.nodes;
+      pending.accounting.childWork += results.reduce((n, r) => n + r.work, 0);
+      pending.accounting.childNodes += results.reduce((n, r) => n + r.nodes, 0);
+      taskAccounting = pending.accounting;
+      traceRootIndex = pending.rootIndex;
+      traceTaskDepth = pending.targetDepth;
+      taskPolicy = pending.policy;
+      taskPolicyKey = JSON.stringify(taskPolicy);
+      partitionTask = false;
+      depth = pending.targetDepth - 1;
+      steps = pending.steps;
     },
     snapshot(): StudyLaneSnapshot {
       return {
@@ -1322,6 +1515,10 @@ export function createStudyRootSearch(
     },
     dispose() {
       steps.return();
+      for (const pending of suspended.values()) pending.steps.return();
+      suspended.clear();
+      readySplit = null;
+      completedSubtree = null;
       done = true;
     },
   };
