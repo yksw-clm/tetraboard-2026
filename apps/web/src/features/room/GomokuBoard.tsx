@@ -4,6 +4,9 @@ import { useId } from "react";
 import type { GomokuState, Position } from "@tetraboard/gomoku";
 import type { QuarterTurn } from "./boardRotation";
 
+const boardExtent = 15.75;
+const gridStart = 1.1;
+
 export function GomokuBoard({
   game,
   rotation = 0,
@@ -33,7 +36,11 @@ export function GomokuBoard({
       aria-label={label}
       className="relative aspect-square w-full overflow-hidden rounded-md bg-[#e7c48c] shadow-md [grid-area:board]"
     >
-      <svg viewBox="0 0 17 17" className="absolute inset-0 size-full" aria-hidden="true">
+      <svg
+        viewBox={`0 0 ${boardExtent} ${boardExtent}`}
+        className="absolute inset-0 size-full"
+        aria-hidden="true"
+      >
         <defs>
           <radialGradient id={`${id}-black`} cx="30%" cy="25%">
             <stop stopColor="#555" />
@@ -55,14 +62,20 @@ export function GomokuBoard({
         {Array.from({ length: 15 }, (_, i) => (
           <g key={i}>
             <path
-              d={`M 1.5 ${i + 1.5} H 15.5 M ${i + 1.5} 1.5 V 15.5`}
+              d={`M ${gridStart} ${i + gridStart} H ${14 + gridStart} M ${i + gridStart} ${gridStart} V ${14 + gridStart}`}
               stroke="#72502e"
               strokeWidth="0.025"
             />
-            <text x={i + 1.5} y="0.65" textAnchor="middle" fontSize="0.48" fill="#4a321d">
+            <text x={i + gridStart} y="0.43" textAnchor="middle" fontSize="0.34" fill="#4a321d">
               {rotation % 2 === 0 ? "ABCDEFGHIJKLMNO"[original(i, 0).x] : original(i, 0).y + 1}
             </text>
-            <text x="0.55" y={i + 1.67} textAnchor="middle" fontSize="0.48" fill="#4a321d">
+            <text
+              x="0.38"
+              y={i + gridStart + 0.12}
+              textAnchor="middle"
+              fontSize="0.34"
+              fill="#4a321d"
+            >
               {rotation % 2 === 0 ? original(0, i).y + 1 : "ABCDEFGHIJKLMNO"[original(0, i).x]}
             </text>
           </g>
@@ -74,38 +87,45 @@ export function GomokuBoard({
           [3, 11],
           [11, 11],
         ].map(([x, y]) => (
-          <circle key={`${x},${y}`} cx={x + 1.5} cy={y + 1.5} r="0.08" fill="#72502e" />
+          <circle key={`${x},${y}`} cx={x + gridStart} cy={y + gridStart} r="0.08" fill="#72502e" />
         ))}
         {game.board.flatMap((row, y) =>
-          row.map(
-            (color, x) =>
-              color && (
-                <g key={`${x},${y}`}>
-                  <circle
-                    cx={display(x, y).x + 1.5}
-                    cy={display(x, y).y + 1.5}
-                    r="0.43"
-                    fill={`url(#${id}-${color})`}
-                    stroke={
-                      winning.has(`${x},${y}`)
-                        ? "#7c3aed"
-                        : color === "white"
-                          ? "#a89880"
-                          : "#171717"
-                    }
-                    strokeWidth={winning.has(`${x},${y}`) ? "0.095" : "0.025"}
-                  />
-                  {game.lastMove?.x === x && game.lastMove.y === y && (
+          row.map((color, x) => {
+            if (!color) return null;
+            const latest = game.lastMove?.x === x && game.lastMove.y === y;
+            const lastForColor = "lastMoves" in game ? game.lastMoves?.[color] : undefined;
+            const marked = latest || (lastForColor?.x === x && lastForColor.y === y);
+            const cx = display(x, y).x + gridStart;
+            const cy = display(x, y).y + gridStart;
+            const ink = color === "white" ? "#171717" : "#ffffff";
+            return (
+              <g key={`${x},${y}`}>
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r="0.43"
+                  fill={`url(#${id}-${color})`}
+                  stroke={
+                    winning.has(`${x},${y}`) ? "#7c3aed" : color === "white" ? "#a89880" : "#171717"
+                  }
+                  strokeWidth={winning.has(`${x},${y}`) ? "0.095" : "0.025"}
+                />
+                {marked && (
+                  <g data-last-move={`${"ABCDEFGHIJKLMNO"[x]}${y + 1}`} data-latest={latest}>
                     <circle
-                      cx={display(x, y).x + 1.5}
-                      cy={display(x, y).y + 1.5}
-                      r="0.10"
-                      fill="#f97316"
+                      cx={cx}
+                      cy={cy}
+                      r="0.24"
+                      fill="none"
+                      stroke={ink}
+                      strokeWidth={latest ? "0.075" : "0.05"}
                     />
-                  )}
-                </g>
-              ),
-          ),
+                    {latest && <circle cx={cx} cy={cy} r="0.08" fill={ink} />}
+                  </g>
+                )}
+              </g>
+            );
+          }),
         )}
       </svg>
       {Array.from({ length: 15 }, (_, vy) =>
@@ -121,10 +141,10 @@ export function GomokuBoard({
               onClick={() => onPlaceStone({ x, y })}
               className="absolute m-0 cursor-pointer touch-manipulation border-0 bg-transparent p-0 enabled:hover:bg-violet-500/20 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-default"
               style={{
-                left: `${((vx + 1) / 17) * 100}%`,
-                top: `${((vy + 1) / 17) * 100}%`,
-                width: `${100 / 17}%`,
-                height: `${100 / 17}%`,
+                left: `${((vx + gridStart - 0.5) / boardExtent) * 100}%`,
+                top: `${((vy + gridStart - 0.5) / boardExtent) * 100}%`,
+                width: `${100 / boardExtent}%`,
+                height: `${100 / boardExtent}%`,
               }}
             />
           );

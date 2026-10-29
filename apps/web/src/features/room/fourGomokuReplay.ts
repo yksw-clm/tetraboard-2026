@@ -8,9 +8,10 @@ export function fourGomokuReplayFrames(lastRound: FourGomokuLastRound) {
   const states = replayV1(lastRound.replay);
   if (!sameState(states.at(-1)!, lastRound.game)) throw new Error("Invalid FourGomoku final state");
   const frames: { label: string; game: FourGomokuState }[] = [
-    { label: "開始局面", game: lastRound.replay.initial },
+    { label: "開始局面", game: states[0] },
   ];
-  for (const { action, game } of lastRound.replay.steps)
+  for (const [index, { action }] of lastRound.replay.steps.entries()) {
+    const game = states[index + 1];
     frames.push({
       label:
         action.type === "place"
@@ -18,6 +19,7 @@ export function fourGomokuReplayFrames(lastRound: FourGomokuLastRound) {
           : `${names[action.color]} ${reasons[action.reason]}`,
       game,
     });
+  }
   return frames;
 }
 export function useFourGomokuReplay(lastRound: FourGomokuLastRound | null) {

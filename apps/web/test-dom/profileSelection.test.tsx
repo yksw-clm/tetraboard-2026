@@ -180,7 +180,7 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
     expect(
       view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
     ).not.toBeNull();
-    const nextGame = game === "four-shogi" ? "four-reversi" : "four-shogi";
+    const nextGame = gameCatalog[game].hasModes ? game : "four-shogi";
     await chooseGame(view, gameCatalog[nextGame].name);
     chooseMode(view, "ダブルス");
     const selection = router.state.location.state.accountSelection;
@@ -396,4 +396,48 @@ test("フォーム用の画面は既定背景と下部のロビーリンクを�
   expect(view.querySelector(".game-theme-four-shogi")).toBeNull();
   expect(view.querySelector("main")!.lastElementChild!.textContent).toBe("ロビーへ");
   expect(view.querySelector(".app-theme.lobby-background")).not.toBeNull();
+});
+
+test("四人五目並べのダブルス戦績と履歴を表示し、ゲーム往復と再表示で選択を復元する", async () => {
+  const { view, router } = profilePage({
+    accountSelection: { game: "four-gomoku", modes: { "four-gomoku": "singles" } },
+  });
+  clock.advance(0);
+  requests.find((r) => r.url === "/api/account/stats?game=four-gomoku")!.respond(stats);
+  requests
+    .find((r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1&game=four-gomoku")!
+    .respond({ matches: [], nextCursor: null });
+  await flush();
+  chooseMode(view, "ダブルス");
+  clock.advance(0);
+  const summary = {
+    ...match(1, "doubles"),
+    game: "four-gomoku",
+    result: { mode: "doubles", reason: "five", winner: "black-red" },
+  };
+  requests
+    .find((r) => r.url === "/api/account/matches?mode=doubles&includeMoveCount=1&game=four-gomoku")!
+    .respond({ matches: [summary], nextCursor: null });
+  await flush();
+  expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
+    "ダブルス",
+  );
+  expect(view.querySelector('table[aria-label="戦績"]')!.textContent).toContain("勝数");
+  expect(view.querySelector('table[aria-label="戦績"]')!.textContent).not.toContain("優勝数");
+  expect(view.querySelector('[data-testid="account-replay-card"]')!.textContent).toContain(
+    "ダブルス",
+  );
+  expect(view.querySelector(`a[href="/account/matches/${summary.id}"]`)).not.toBeNull();
+  await chooseGame(view, "四人将棋");
+  await chooseGame(view, "四人五目並べ");
+  expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
+    "ダブルス",
+  );
+  const restored = renderHook(
+    useAccountSelection,
+    undefined,
+    wrap(null, { pathname: "/account", state: router.state.location.state }),
+  );
+  expect(restored.current.game).toBe("four-gomoku");
+  expect(restored.current.mode).toBe("doubles");
 });
