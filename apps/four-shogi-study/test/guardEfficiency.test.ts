@@ -62,3 +62,18 @@ for (const restricted of [false, true])
       }
       expect(new Set(statuses).size).toBe(1);
     });
+
+import { allocateGuardQuery } from "../src/search/guardBudget";
+import type { GuardRow } from "../src/search/lethalGuard";
+test("候補別配分は全体残時間を超えず、首位重点と代替確保を区別する", () => {
+  expect(allocateGuardQuery("fixed-50", 250, 249, [], 5)).toBe(125);
+  expect(allocateGuardQuery("incumbent", 250, 249, [], 5)).toBe(175);
+  expect(allocateGuardQuery("reserve", 250, 249, [], 5)).toBe(100);
+  const unsafe = { status: "unsafe", proof: null } as GuardRow;
+  expect(allocateGuardQuery("progress", 250, 150, [unsafe], 4)).toBe(150);
+  for (const p of ["fixed-50", "incumbent", "reserve", "progress"] as const)
+    for (const remaining of [0, 1, 10, 100]) {
+      expect(allocateGuardQuery(p, 250, remaining, [], 5)).toBeLessThanOrEqual(remaining);
+      expect(allocateGuardQuery(p, 250, remaining, [], 5)).toBeGreaterThanOrEqual(0);
+    }
+});

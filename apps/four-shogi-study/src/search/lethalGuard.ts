@@ -4,6 +4,7 @@ import type { AiCandidate } from "@tetraboard/four-shogi/ai";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 import { encodeAction } from "../../../../packages/four-shogi/src/actionEncoding";
 import { orderGuardReplies, type GuardReplyOrdering } from "./guardReplyOrder";
+import { allocateGuardQuery, type GuardBudgetPolicy } from "./guardBudget";
 import {
   proveFiniteAction,
   finiteLossWitness,
@@ -23,6 +24,7 @@ export type LethalGuardOptions = {
   maxBytes?: number;
   measureStages?: boolean;
   replyOrdering?: GuardReplyOrdering;
+  budgetPolicy?: GuardBudgetPolicy;
 };
 export type GuardRow = {
   remainingAtStartMs?: number | null;
@@ -63,6 +65,7 @@ export type LethalGuardReport = {
   reason: string;
   stagesMs?: { selection: number; proofs: number; aggregation: number };
   replyOrdering?: GuardReplyOrdering;
+  budgetPolicy?: GuardBudgetPolicy;
 };
 
 export function chooseGuardCandidate(
@@ -117,6 +120,9 @@ export async function runLethalGuard(
     !["off", "observe", "experimental"].includes(options.mode) ||
     !["top3", "top5", "top3-reserve", "all"].includes(selection) ||
     !["base", "simple", "checks"].includes(options.replyOrdering ?? "base") ||
+    !["fixed-50", "incumbent", "reserve", "progress"].includes(
+      options.budgetPolicy ?? "fixed-50",
+    ) ||
     !Number.isFinite(budgetMs) ||
     budgetMs < 0 ||
     budgetMs > 5000 ||
@@ -145,6 +151,7 @@ export async function runLethalGuard(
     wouldChange: false,
     reason: "unchanged",
     replyOrdering: options.replyOrdering ?? "base",
+    budgetPolicy: options.budgetPolicy ?? "fixed-50",
   };
   if (options.mode === "off") {
     report.reason = "off";
@@ -221,7 +228,8 @@ export async function runLethalGuard(
   const maxTransitions = options.maxTransitions ?? 5000,
     maxWork = options.maxWork ?? 100000,
     maxBytes = options.maxBytes ?? 16 * 1024 * 1024;
-  for (const row of report.rows) {
+  for (let rowIndex = 0; rowIndex < report.rows.length; rowIndex++) {
+    const row = report.rows[rowIndex];
     if (
       context.signal?.aborted ||
       performance.now() >= deadline ||
@@ -232,7 +240,13 @@ export async function runLethalGuard(
       break;
     const remaining = deadline - performance.now();
     row.remainingAtStartMs = remaining;
-    row.queryBudgetMs = Math.max(0, Math.min(remaining, Math.max(10, budgetMs / 2)));
+    row.queryBudgetMs = allocateGuardQuery(
+      options.budgetPolicy ?? "fixed-50",
+      budgetMs,
+      remaining,
+      report.rows.slice(0, rowIndex),
+      report.rows.length - rowIndex,
+    );
     const queryStarted = performance.now();
     const proof = await proveFiniteAction(position, row.action, root, horizon, {
       maxTransitions: Math.max(0, maxTransitions - report.transitions),
