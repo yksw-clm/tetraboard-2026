@@ -8,6 +8,7 @@ import {
 import { getAnalysisLegalActions } from "@tetraboard/four-shogi/analysis";
 import { createPonderFocusRuntime } from "../src/search/ponderRuntime";
 import { readFocusReuseEnvironment } from "../src/search/focusSettings";
+import { focusConditions } from "../src/search/focusRuntime";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -212,4 +213,11 @@ test("フォーカス引継ぎは明示指定だけ有効で、既定と不正�
     { STUDY_FOCUS_TTL_MS: "NaN" },
   ])
     expect(() => readFocusReuseEnvironment(env)).toThrow();
+});
+
+test("予算依存の広い比較深さは互換キーで区別し、明示した同条件だけ再利用する", () => {
+  const short = { ...options, timeBudgetMs: 1000 },
+    long = { ...options, timeBudgetMs: 5000 };
+  expect(focusConditions({}, short)).not.toBe(focusConditions({}, long));
+  expect(focusConditions({}, { ...short, broadDepth: 3 })).toBe(focusConditions({}, long));
 });

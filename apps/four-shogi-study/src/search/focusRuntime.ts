@@ -13,6 +13,11 @@ import {
   type StudySearchSnapshot,
 } from "./runtime";
 
+export function focusBroadDepth(options: StudySearchOptions) {
+  return (
+    options.broadDepth ?? (options.timeBudgetMs !== null && options.timeBudgetMs < 2000 ? 2 : 3)
+  );
+}
 export function focusConditions(
   config: StudySearchRuntimeConfig,
   options: StudySearchOptions,
@@ -29,7 +34,7 @@ export function focusConditions(
     options.extensions ?? 2,
     options.dangerWork ?? null,
     options.cacheSize ?? null,
-    options.broadDepth ?? 3,
+    focusBroadDepth(options),
     options.reuseChecks ?? true,
     config.threads ?? 4,
     config.memoryMb ?? 8192,

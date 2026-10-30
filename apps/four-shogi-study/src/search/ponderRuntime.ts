@@ -14,7 +14,7 @@ import {
   type StudySearchOptions,
   type StudySearchSnapshot,
 } from "./runtime";
-import { createPvFocusRuntime, focusConditions } from "./focusRuntime";
+import { createPvFocusRuntime, focusConditions, focusBroadDepth } from "./focusRuntime";
 import { createStudyDeadline } from "./deadline";
 export type FocusPonderOptions = { mode: "ponder" | "combined"; ponderMs?: number; ttlMs?: number };
 const copy = <T>(x: T): T => structuredClone(x);
@@ -404,8 +404,15 @@ export function createPonderFocusRuntime(
         else void inner.resume(s.id).catch((e) => void finish(j, "error", String(e)));
       } else
         void inner
-          .start(input, { ...opts, deadlineAt: deadline.endsAt, timeBudgetMs: budget }, (raw) =>
-            receive(s, raw),
+          .start(
+            input,
+            {
+              ...opts,
+              broadDepth: focusBroadDepth(opts),
+              deadlineAt: deadline.endsAt,
+              timeBudgetMs: budget,
+            },
+            (raw) => receive(s, raw),
           )
           .then(async (innerId) => {
             s.id = innerId;
