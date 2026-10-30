@@ -76,6 +76,7 @@ export function useStudySession() {
       try {
         const event = JSON.parse(message.data) as StudyServerEvent;
         if (event.type === "snapshot" && event.snapshot.study.id === studyId) {
+          if (event.snapshot.study.revision < (latest.current?.study.revision ?? 0)) return;
           accept(event.snapshot, studyId);
           verified = true;
           setConnected(true);

@@ -250,6 +250,42 @@ test("配信の再接続だけでは旧候補を戻さず、新しい初期snaps
   expect(view.textContent).toContain("この手を試す");
 });
 
+test("再接続後に古いrevisionの初期snapshotが届いても候補を表示しない", async () => {
+  const original = await initial();
+  const current = await snapshot(
+    await appendStudyEvent(original.study, {
+      type: "action",
+      side: original.position.state.turn!,
+      action: original.legalActions[0],
+    }),
+  );
+  current.analysis = analysis(current, "completed");
+  current.live = {
+    sourceUrl: "https://tetraboard.net/rooms/12345",
+    instanceId: "instance",
+    roundId: "round",
+    eventCount: 1,
+    latestNodeId: current.study.currentNodeId,
+    follow: true,
+    status: "live",
+    message: null,
+  };
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  act(() => events.onerror?.());
+  await flush();
+  events.open();
+  events.send({ type: "snapshot", snapshot: original });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "analysis", studyId: current.study.id, analysis: current.analysis! });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "snapshot", snapshot: current });
+  await flush();
+  expect(view.textContent).toContain("この手を試す");
+});
+
 test("新しい対局で各席の人間/CPUとCPU思考時間を指定して保存する", async () => {
   const current = await initial();
   const view = await boot(current);
