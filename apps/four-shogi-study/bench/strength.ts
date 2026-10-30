@@ -65,6 +65,7 @@ export const formalStrengthPlan = Object.freeze({
   bootstrapReplicates: 1000,
 });
 export type StrengthOptions = {
+  journalDirectory?: string;
   budget: Budget;
   threads: number;
   memoryMb: number;
@@ -90,7 +91,7 @@ type Opening = {
   restricted: boolean;
   seriesId: string;
 };
-type Choice = {
+export type StrengthChoice = {
   action: FourShogiAction | null;
   work: number;
   depth: number;
@@ -100,7 +101,33 @@ type Choice = {
   safetyComplete: boolean | null;
   evaluationComputed: boolean;
   principalVariationComputed: boolean;
+  search?: Pick<
+    StudySearchSnapshot,
+    "timing" | "coverage" | "evaluation" | "nodes" | "memoryBytes" | "diagnostics"
+  > & {
+    candidates: StudySearchSnapshot["candidates"];
+  };
 };
+type Choice = StrengthChoice;
+export type StrengthGameObserver = (
+  entry:
+    | {
+        type: "start";
+        job: StrengthJob;
+        lane: number;
+        replay: AnalysisReplayInput;
+        lineup: SinglesSample["lineup"];
+        stateHash: string;
+      }
+    | {
+        type: "move";
+        event: AnalysisReplayInput["events"][number];
+        beforeHash: string;
+        afterHash: string;
+        decision: SinglesSample["decisions"][number];
+        choice: StrengthChoice | null;
+      },
+) => void;
 export type RecordedGame = {
   jobId: string;
   searchStrategy?: StudySearchStrategy;
@@ -299,6 +326,7 @@ async function timedChoice(
   profile: StudyProfile,
   position: AnalysisPosition,
   strategy?: StudySearchStrategy,
+  recordSearch = false,
 ): Promise<Choice> {
   const forced = forcedLegalChoice(position);
   if (forced) return forced;
@@ -333,10 +361,23 @@ async function timedChoice(
     safetyComplete: snapshot.diagnostics.safetyComplete,
     evaluationComputed: snapshot.completedDepth > 0,
     principalVariationComputed: snapshot.completedDepth > 0,
+    ...(recordSearch
+      ? {
+          search: {
+            timing: snapshot.timing,
+            coverage: snapshot.coverage,
+            evaluation: snapshot.evaluation,
+            nodes: snapshot.nodes,
+            memoryBytes: snapshot.memoryBytes,
+            diagnostics: snapshot.diagnostics,
+            candidates: snapshot.candidates.slice(0, 3),
+          },
+        }
+      : {}),
   };
 }
 
-async function opening(seed: number, restricted: boolean): Promise<Opening> {
+export async function createStrengthOpening(seed: number, restricted: boolean): Promise<Opening> {
   const initial = {
     mode: "singles" as const,
     players: { south: "south", west: "west", north: "north", east: "east" },
@@ -383,6 +424,7 @@ async function play(
   opponent: Player,
   runtime: StudySearchRuntime | null,
   stopped: () => boolean,
+  observe?: StrengthGameObserver,
 ): Promise<RecordedGame> {
   const { seat, profile } = job;
   let position = opening.position;
@@ -393,12 +435,21 @@ async function play(
   const reasons: Record<string, number> = {};
   const candidateId = `${profile}/${job.searchStrategy ?? options.searchStrategy ?? "adaptive"}/${hashJson(options.budget).slice(0, 10)}`;
   const lineup = seatLineup(seat, candidateId, Array(3).fill(opponent.id));
+  observe?.({
+    type: "start",
+    job,
+    lane,
+    replay: opening.replay,
+    lineup,
+    stateHash: position.stateHash,
+  });
   while (position.state.status === "playing" && decisions.length < options.maxPlies && !stopped()) {
     const side = position.state.turn;
     const beforeHash = position.stateHash;
     const before = performance.now();
     let action: FourShogiAction | null;
     let stats: SinglesSample["decisions"][number]["stats"];
+    let recordedChoice: Choice | null = null;
     if (side === seat) {
       const replay = { ...opening.replay, events };
       let choice: Choice;
@@ -418,12 +469,14 @@ async function play(
                 profile,
                 position,
                 job.searchStrategy ?? options.searchStrategy,
+                observe !== undefined,
               );
       } catch (error) {
         if (stopped()) break;
         throw error;
       }
       if (stopped()) break;
+      recordedChoice = choice;
       action = choice.action;
       stats = { work: choice.work, completedDepth: choice.depth, cutoff: choice.cutoff };
       elapsed.push(choice.elapsedMs);
@@ -446,6 +499,14 @@ async function play(
       elapsedMs: performance.now() - before,
       rssBytes: process.memoryUsage().rss,
       stats,
+    });
+    observe?.({
+      type: "move",
+      event: events.at(-1)!,
+      beforeHash,
+      afterHash: next.stateHash,
+      decision: decisions.at(-1)!,
+      choice: recordedChoice,
     });
   }
   const interrupted = stopped();
@@ -490,16 +551,17 @@ export function createStrengthGameRunner(
   options: StrengthOptions,
   opponent: Player,
   runtime: StudySearchRuntime | null,
+  observe?: StrengthGameObserver,
 ) {
   const openings = new Map<string, Promise<Opening>>();
   return async (job: StrengthJob, lane: number, stopped: () => boolean) => {
     const key = `${job.seed}:${job.restricted}`;
     let start = openings.get(key);
     if (!start) {
-      start = opening(job.seed, job.restricted);
+      start = createStrengthOpening(job.seed, job.restricted);
       openings.set(key, start);
     }
-    return play(await start, job, lane, options, opponent, runtime, stopped);
+    return play(await start, job, lane, options, opponent, runtime, stopped, observe);
   };
 }
 
@@ -522,6 +584,7 @@ export function strengthProcessSourceIdentity() {
     "strengthGameWorker.ts",
     "strengthProcessPool.ts",
     "strengthProcessProtocol.ts",
+    "strengthJournal.ts",
   ].map((path) => ({
     path,
     sha256: new Bun.CryptoHasher("sha256")

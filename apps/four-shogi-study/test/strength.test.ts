@@ -529,6 +529,7 @@ test("runnerのソース識別は結果JSONを含めず、対局親とIPCも含�
     "strengthGameWorker.ts",
     "strengthProcessPool.ts",
     "strengthProcessProtocol.ts",
+    "strengthJournal.ts",
   ]);
   expect(source.files.every((entry) => entry.sha256.length === 64)).toBe(true);
 });
