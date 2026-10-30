@@ -7,6 +7,17 @@ import { getActiveSides, type FourShogiAction, type Side } from "./types";
 import { encodeAction, decodeAction } from "./actionEncoding";
 
 export type FiniteStatus = "safe" | "unsafe" | "unknown";
+export type SafetyMetrics = {
+  visits: number;
+  legalCalls: number;
+  legalActions: number;
+  localHits: number;
+  legalMs: number;
+  transitionMs: number;
+  orderingMs: number;
+  certificateMs: number;
+  traversalMs: number;
+};
 export type SafetyNode = {
   hash: string;
   remaining: number;
@@ -31,6 +42,7 @@ export type SafetyProof = {
   work?: number;
   estimatedBytes?: number;
   limit?: string | null;
+  metrics?: SafetyMetrics;
 };
 export type SafetyBudget = {
   maxTransitions: number;
@@ -40,6 +52,7 @@ export type SafetyBudget = {
   maxNodes?: number;
   maxBytes?: number;
   signal?: AbortSignal;
+  measureStages?: boolean;
   order?: (
     position: AnalysisPosition,
     actions: readonly FourShogiAction[],
@@ -72,6 +85,24 @@ export async function proveFiniteAction(
   const started = performance.now(),
     deadline = started + budget.maxMs;
   const nodes: Record<string, SafetyNode> = {};
+  const metrics: SafetyMetrics = {
+    visits: 0,
+    legalCalls: 0,
+    legalActions: 0,
+    localHits: 0,
+    legalMs: 0,
+    transitionMs: 0,
+    orderingMs: 0,
+    certificateMs: 0,
+    traversalMs: 0,
+  };
+  const clock = () => (budget.measureStages ? performance.now() : 0);
+  const advance = async (current: AnalysisPosition, side: Side, move: FourShogiAction) => {
+    const before = clock();
+    const next = await advanceAnalysisPosition(current, { type: "action", side, action: move });
+    metrics.transitionMs += clock() - before;
+    return next;
+  };
   let transitions = 0,
     work = 0,
     estimatedBytes = 0,
@@ -94,8 +125,13 @@ export async function proveFiniteAction(
     return limit === null;
   };
   const visit = async (current: AnalysisPosition, remaining: number): Promise<string> => {
+    metrics.visits++;
     const key = `${current.stateHash}/${remaining}`;
-    if (nodes[key]?.status !== undefined && nodes[key].status !== "unknown") return key;
+    if (nodes[key]?.status !== undefined && nodes[key].status !== "unknown") {
+      metrics.localHits++;
+      return key;
+    }
+    const certificateStarted = clock();
     const alive = getActiveSides(current.state).includes(root);
     const node: SafetyNode = {
       hash: current.stateHash,
@@ -109,16 +145,22 @@ export async function proveFiniteAction(
     nodes[key] = node;
     nodeCount++;
     estimatedBytes += 384;
+    metrics.certificateMs += clock() - certificateStarted;
     if (!alive || current.state.status === "finished" || remaining === 0) {
       node.status = alive ? "safe" : "unsafe";
       node.reason = "leaf";
       return key;
     }
     if (!available()) return key;
+    const legalStarted = clock();
     const legal = getAnalysisLegalActions(current);
+    metrics.legalCalls++;
+    metrics.legalActions += legal.length;
+    metrics.legalMs += clock() - legalStarted;
     work += legal.length;
     estimatedBytes += legal.length * 24;
     if (!legal.length) throw new Error("正本の未解決な合法手なし局面です");
+    const orderStarted = clock();
     node.legal = legal.map(encodeAction).sort((a, b) => a - b);
     const preferred = budget.preferred?.[current.stateHash] ?? [];
     const ordered = budget.order
@@ -135,18 +177,17 @@ export async function proveFiniteAction(
       JSON.stringify(ordered.map(encodeAction).sort((a, b) => a - b)) !== JSON.stringify(node.legal)
     )
       throw new Error("応手の順序付けは全合法手を一度ずつ保持する必要があります");
+    metrics.orderingMs += clock() - orderStarted;
     const own = current.state.turn === root;
     for (const move of ordered) {
       if (!available()) break;
       transitions++;
       work++;
-      const next = await advanceAnalysisPosition(current, {
-        type: "action",
-        side: current.state.turn!,
-        action: move,
-      });
+      const next = await advance(current, current.state.turn!, move);
       const child = await visit(next, remaining - 1);
+      const edgeStarted = clock();
       node.edges.push({ action: encodeAction(move), child });
+      metrics.certificateMs += clock() - edgeStarted;
       if ((own && nodes[child].status === "safe") || (!own && nodes[child].status === "unsafe")) {
         node.status = nodes[child].status;
         node.reason = "searched";
@@ -166,11 +207,13 @@ export async function proveFiniteAction(
   if (available()) {
     transitions++;
     work++;
-    entry = await visit(
-      await advanceAnalysisPosition(position, { type: "action", side: root, action: chosen }),
-      horizon - 1,
-    );
+    entry = await visit(await advance(position, root, chosen), horizon - 1);
   }
+  const elapsedMs = performance.now() - started;
+  metrics.traversalMs = Math.max(
+    0,
+    elapsedMs - metrics.legalMs - metrics.transitionMs - metrics.orderingMs - metrics.certificateMs,
+  );
   return {
     inputHash: position.stateHash,
     root,
@@ -180,12 +223,13 @@ export async function proveFiniteAction(
     goal: "survival-for-finite-real-plies",
     opponentModel: "all-opponents-adversarial",
     transitions,
-    elapsedMs: performance.now() - started,
+    elapsedMs,
     entry,
     nodes,
     work,
     estimatedBytes,
     limit,
+    metrics: budget.measureStages ? metrics : undefined,
   };
 }
 

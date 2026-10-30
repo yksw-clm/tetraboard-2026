@@ -21,8 +21,12 @@ export type LethalGuardOptions = {
   maxTransitions?: number;
   maxWork?: number;
   maxBytes?: number;
+  measureStages?: boolean;
 };
 export type GuardRow = {
+  remainingAtStartMs?: number | null;
+  elapsedMs?: number;
+  stopReason?: string;
   queryBudgetMs: number | null;
   action: FourShogiAction;
   actionId: number;
@@ -56,6 +60,7 @@ export type LethalGuardReport = {
   changed: boolean;
   wouldChange: boolean;
   reason: string;
+  stagesMs?: { selection: number; proofs: number; aggregation: number };
 };
 
 export function chooseGuardCandidate(
@@ -219,6 +224,7 @@ export async function runLethalGuard(
         });
     }
   report.rows = [...pool.values()];
+  const selectedAt = performance.now();
   const maxTransitions = options.maxTransitions ?? 5000,
     maxWork = options.maxWork ?? 100000,
     maxBytes = options.maxBytes ?? 16 * 1024 * 1024;
@@ -232,7 +238,9 @@ export async function runLethalGuard(
     )
       break;
     const remaining = deadline - performance.now();
+    row.remainingAtStartMs = remaining;
     row.queryBudgetMs = Math.max(0, Math.min(remaining, Math.max(10, budgetMs / 2)));
+    const queryStarted = performance.now();
     const proof = await proveFiniteAction(position, row.action, root, horizon, {
       maxTransitions: Math.max(0, maxTransitions - report.transitions),
       maxWork: Math.max(0, maxWork - report.work),
@@ -240,6 +248,7 @@ export async function runLethalGuard(
       maxBytes: Math.max(0, maxBytes - report.estimatedBytes),
       maxMs: row.queryBudgetMs,
       signal: context.signal,
+      measureStages: options.measureStages,
       order: (current, moves) => replyOrder(current, moves, root),
     });
     row.proof = proof;
@@ -250,17 +259,45 @@ export async function runLethalGuard(
       !context.signal?.aborted &&
       proof.status !== "unknown";
     row.status = row.completedWithinBudget ? proof.status : "unknown";
+    row.elapsedMs = performance.now() - queryStarted;
+    row.stopReason = row.completedWithinBudget
+      ? "complete"
+      : context.signal?.aborted
+        ? "cancelled"
+        : proof.status !== "unknown"
+          ? "late-complete"
+          : (proof.limit ?? "other");
     report.work += proof.work ?? proof.transitions;
     report.transitions += proof.transitions;
     report.estimatedBytes += proof.estimatedBytes ?? 0;
     report.parentRssBytes = Math.max(report.parentRssBytes, process.memoryUsage().rss);
   }
+  const proofsEnded = performance.now();
+  for (const row of report.rows)
+    if (!row.proof) {
+      row.remainingAtStartMs = null;
+      row.stopReason = context.signal?.aborted
+        ? "unstarted-cancelled"
+        : report.transitions >= maxTransitions
+          ? "unstarted-transitions"
+          : report.work >= maxWork
+            ? "unstarted-work"
+            : report.estimatedBytes >= maxBytes
+              ? "unstarted-memory"
+              : "unstarted-time";
+    }
   const chosen = chooseGuardCandidate(candidates, report.rows, root);
   report.hypotheticalAction = chosen?.action ?? report.originalAction;
   report.wouldChange =
     !!chosen && encodeAction(chosen.action) !== encodeAction(candidates[0].action);
   report.changed = options.mode === "experimental" && report.wouldChange;
   report.elapsedMs = performance.now() - started;
+  if (options.measureStages)
+    report.stagesMs = {
+      selection: selectedAt - started,
+      proofs: proofsEnded - selectedAt,
+      aggregation: performance.now() - proofsEnded,
+    };
   report.reason = context.signal?.aborted
     ? "cancelled"
     : report.wouldChange
