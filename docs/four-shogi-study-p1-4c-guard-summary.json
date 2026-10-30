@@ -1,0 +1,2188 @@
+{
+  "schemaVersion": 1,
+  "mainSource": {
+    "commit": "90f54339006c9c59e2f65324e7bc69560f0edc01",
+    "core": "d4797dd67ef7a014583cbc76ad331af671e801a72830cb32fb166057c947fec9",
+    "app": "e0ed7aea7473dd4e900842611a2198d3390a10d5929fe01a743ecdaad64fa2a5",
+    "bench": "9299a79f1ec9c261eb52beda171d828dc77b1df728e242347829e324d7bd130d",
+    "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+  },
+  "qualitySource": {
+    "commit": "8178da174931140796720564c92d2fe92325aba8",
+    "core": "d4797dd67ef7a014583cbc76ad331af671e801a72830cb32fb166057c947fec9",
+    "app": "e0ed7aea7473dd4e900842611a2198d3390a10d5929fe01a743ecdaad64fa2a5",
+    "bench": "6ebb8e94c229369871f9e211e2dff50aa2081096740ee22fc4b301d1b8951591",
+    "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+  },
+  "memorySource": {
+    "commit": "00a89127213246c42a33680b1b1b600604ace195",
+    "core": "d4797dd67ef7a014583cbc76ad331af671e801a72830cb32fb166057c947fec9",
+    "app": "e0ed7aea7473dd4e900842611a2198d3390a10d5929fe01a743ecdaad64fa2a5",
+    "bench": "f7f20e1b7ad04828a8a20e94b765aad914c58e346ecbc6a256bed11c024a1bfe",
+    "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+  },
+  "validationCodeCommit": "5ea8f64bb4a84b67c2e465bf895cfd3c1407710e",
+  "postprocessSHA256": "449e58172f3147efa2db151f7c0cc854e37d73473605a279622081357f16fcb8",
+  "drive": "https://drive.google.com/drive/folders/1XPPxwznMMlJIqvrylZLh_l54er2HcEWV",
+  "conditions": {
+    "totalMs": 2000,
+    "broadDepth": 3,
+    "budgetsMs": [
+      100,
+      250,
+      400
+    ],
+    "selections": [
+      "top3",
+      "top5",
+      "top3-reserve",
+      "all"
+    ],
+    "primarySelection": "top3-reserve",
+    "horizon": 4,
+    "transitions": 5000,
+    "work": 100000,
+    "proofBytes": 16777216,
+    "cold": "fresh runtime and worker processes per condition",
+    "warm": "same runtime prewarmed at completed depth1; repeated input, fresh search context",
+    "phaseOrder": "cold36 then preregistered warm12; per-case condition order rotated by case index",
+    "matrix": [
+      "v5-off-2000",
+      "p05-off-2000",
+      "p05-short-100",
+      "p05-observe-100",
+      "p05-experimental-100",
+      "p05-short-250",
+      "p05-observe-250",
+      "p05-experimental-250",
+      "p05-short-400",
+      "p05-observe-400",
+      "p05-experimental-400"
+    ],
+    "controls": "OFF-short has same wall/startup/broadDepth as guard's MaxN phase; frozen-result policy ablations use extra diagnostic time and are not equal-2s strength comparisons",
+    "rootPolicy": "incumbent->static rank2 reserves->other top3; per-query half of guard budget; exact same horizon/hash/root proof only; unknown is not unsafe",
+    "quality": {
+      "pastMs": 1000,
+      "pastStrategies": [
+        "adaptive",
+        "dual-continuations"
+      ],
+      "newMs": 2000,
+      "newConditions": [
+        "v5-off",
+        "p05-off",
+        "p05-observe-250",
+        "p05-experimental-250",
+        "p05-experimental-400"
+      ],
+      "cases": 88,
+      "critical": 40,
+      "knownFixed": 8,
+      "depth": 9
+    },
+    "compatibility": "old8943 runtime vs new OFF, 1worker/maxDepth2, source core old files byte identical; normalize only timing/memory/id"
+  },
+  "groups": [
+    {
+      "warm": false,
+      "condition": "v5-off-2000",
+      "n": 36,
+      "responseP50": 2000.8872500000007,
+      "responseP95": 2002.4327919999998,
+      "over2s": 33,
+      "maxNDepthMedian": 3,
+      "depth2": 35,
+      "deep": 0,
+      "nonforced": 30,
+      "nonforcedDepth2": 29,
+      "nonforcedDeep": 0,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 98608.27777777778,
+      "guardWorkMean": 0,
+      "rssReportedMax": 1070222840,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-off-2000",
+      "n": 36,
+      "responseP50": 2000.903167,
+      "responseP95": 2002.1783750000002,
+      "over2s": 34,
+      "maxNDepthMedian": 7,
+      "depth2": 35,
+      "deep": 26,
+      "nonforced": 30,
+      "nonforcedDepth2": 29,
+      "nonforcedDeep": 20,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 124684.08333333333,
+      "guardWorkMean": 0,
+      "rssReportedMax": 958533040,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-short-100",
+      "n": 36,
+      "responseP50": 1890.9979999999996,
+      "responseP95": 1892.803833,
+      "over2s": 0,
+      "maxNDepthMedian": 7,
+      "depth2": 34,
+      "deep": 27,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 21,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 119049.52777777778,
+      "guardWorkMean": 0,
+      "rssReportedMax": 950308512,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-observe-100",
+      "n": 36,
+      "responseP50": 1991.4854159999995,
+      "responseP95": 1992.9185419999994,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 27,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 21,
+      "guardP50": 99.3615409999993,
+      "guardP95": 100.96974999999975,
+      "targets": 113,
+      "unknown": 104,
+      "completionRate": 0.07964601769911504,
+      "changed": 0,
+      "wouldChange": 1,
+      "workMean": 118484.47222222222,
+      "guardWorkMean": 3397.1388888888887,
+      "rssReportedMax": 966266312,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-experimental-100",
+      "n": 36,
+      "responseP50": 1991.6802499999994,
+      "responseP95": 1992.802208,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 27,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 21,
+      "guardP50": 99.63624999999956,
+      "guardP95": 101.27087500000016,
+      "targets": 113,
+      "unknown": 104,
+      "completionRate": 0.07964601769911504,
+      "changed": 1,
+      "wouldChange": 1,
+      "workMean": 119664.30555555556,
+      "guardWorkMean": 3447.777777777778,
+      "rssReportedMax": 1004834440,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-short-250",
+      "n": 36,
+      "responseP50": 1741.1586660000003,
+      "responseP95": 1742.0521250000002,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 26,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 20,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 104148.72222222222,
+      "guardWorkMean": 0,
+      "rssReportedMax": 965283440,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-observe-250",
+      "n": 36,
+      "responseP50": 1991.8089589999997,
+      "responseP95": 1993.3209159999997,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 27,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 21,
+      "guardP50": 248.95087500000045,
+      "guardP95": 251.1198749999994,
+      "targets": 113,
+      "unknown": 86,
+      "completionRate": 0.23893805309734514,
+      "changed": 0,
+      "wouldChange": 1,
+      "workMean": 108350.72222222222,
+      "guardWorkMean": 9598.25,
+      "rssReportedMax": 983731752,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-experimental-250",
+      "n": 36,
+      "responseP50": 1992.0148340000014,
+      "responseP95": 1993.4898329999996,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 27,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 21,
+      "guardP50": 249.21720899999855,
+      "guardP95": 251.2474999999995,
+      "targets": 113,
+      "unknown": 88,
+      "completionRate": 0.22123893805309736,
+      "changed": 1,
+      "wouldChange": 1,
+      "workMean": 108547.69444444444,
+      "guardWorkMean": 9686.055555555555,
+      "rssReportedMax": 989122016,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-short-400",
+      "n": 36,
+      "responseP50": 1591.0078749999993,
+      "responseP95": 1592.786666,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 24,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 18,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 96655.58333333333,
+      "guardWorkMean": 0,
+      "rssReportedMax": 985239104,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-observe-400",
+      "n": 36,
+      "responseP50": 1992.1019579999993,
+      "responseP95": 1994.7635840000003,
+      "over2s": 0,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 24,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 18,
+      "guardP50": 398.7321670000001,
+      "guardP95": 401.1355000000003,
+      "targets": 110,
+      "unknown": 82,
+      "completionRate": 0.2545454545454545,
+      "changed": 0,
+      "wouldChange": 1,
+      "workMean": 95536.27777777778,
+      "guardWorkMean": 15147.166666666666,
+      "rssReportedMax": 984059432,
+      "controlChanges": []
+    },
+    {
+      "warm": false,
+      "condition": "p05-experimental-400",
+      "n": 36,
+      "responseP50": 1992.010666000002,
+      "responseP95": 1994.8297500000008,
+      "over2s": 1,
+      "maxNDepthMedian": 6,
+      "depth2": 34,
+      "deep": 25,
+      "nonforced": 30,
+      "nonforcedDepth2": 28,
+      "nonforcedDeep": 19,
+      "guardP50": 398.80691699999807,
+      "guardP95": 401.27516599999944,
+      "targets": 112,
+      "unknown": 82,
+      "completionRate": 0.26785714285714285,
+      "changed": 1,
+      "wouldChange": 1,
+      "workMean": 98916.97222222222,
+      "guardWorkMean": 14835.333333333334,
+      "rssReportedMax": 952733320,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "v5-off-2000",
+      "n": 12,
+      "responseP50": 2001.0533750000002,
+      "responseP95": 2001.643082999999,
+      "over2s": 12,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 0,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 0,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 79200.58333333333,
+      "guardWorkMean": 0,
+      "rssReportedMax": 788204832,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-off-2000",
+      "n": 12,
+      "responseP50": 2000.8772499999995,
+      "responseP95": 2002.3745,
+      "over2s": 12,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 4,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 3,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 91910.5,
+      "guardWorkMean": 0,
+      "rssReportedMax": 911379792,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-short-100",
+      "n": 12,
+      "responseP50": 1891.176708,
+      "responseP95": 1891.7407080000012,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 4,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 3,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 88283,
+      "guardWorkMean": 0,
+      "rssReportedMax": 903220584,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-observe-100",
+      "n": 12,
+      "responseP50": 1991.6579170000005,
+      "responseP95": 1994.1510419999977,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 4,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 3,
+      "guardP50": 99.93183299999873,
+      "guardP95": 102.30158300000039,
+      "targets": 40,
+      "unknown": 38,
+      "completionRate": 0.05,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 91391.91666666667,
+      "guardWorkMean": 1889.8333333333333,
+      "rssReportedMax": 954240432,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-experimental-100",
+      "n": 12,
+      "responseP50": 1991.6074160000007,
+      "responseP95": 1992.635209,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 5,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 4,
+      "guardP50": 99.55475000000024,
+      "guardP95": 101.93795899999895,
+      "targets": 41,
+      "unknown": 40,
+      "completionRate": 0.024390243902439025,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 88679.16666666667,
+      "guardWorkMean": 2046.3333333333333,
+      "rssReportedMax": 896650552,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-short-250",
+      "n": 12,
+      "responseP50": 1741.2211669999997,
+      "responseP95": 1744.0131660000006,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 5,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 4,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 81029.16666666667,
+      "guardWorkMean": 0,
+      "rssReportedMax": 898223464,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-observe-250",
+      "n": 12,
+      "responseP50": 1991.731166,
+      "responseP95": 1993.2103749999987,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 11,
+      "deep": 5,
+      "nonforced": 11,
+      "nonforcedDepth2": 10,
+      "nonforcedDeep": 4,
+      "guardP50": 249.11425000000054,
+      "guardP95": 250.97187500000018,
+      "targets": 39,
+      "unknown": 31,
+      "completionRate": 0.20512820512820512,
+      "changed": 0,
+      "wouldChange": 1,
+      "workMean": 83765.33333333333,
+      "guardWorkMean": 5745.833333333333,
+      "rssReportedMax": 949751192,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-experimental-250",
+      "n": 12,
+      "responseP50": 1992.280999999999,
+      "responseP95": 1993.2896250000013,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 12,
+      "deep": 5,
+      "nonforced": 11,
+      "nonforcedDepth2": 11,
+      "nonforcedDeep": 4,
+      "guardP50": 249.49633300000096,
+      "guardP95": 251.92133300000023,
+      "targets": 41,
+      "unknown": 35,
+      "completionRate": 0.14634146341463414,
+      "changed": 1,
+      "wouldChange": 1,
+      "workMean": 84608.33333333333,
+      "guardWorkMean": 5476,
+      "rssReportedMax": 872762824,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-short-400",
+      "n": 12,
+      "responseP50": 1591.2557500000003,
+      "responseP95": 1593.1745,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 11,
+      "deep": 4,
+      "nonforced": 11,
+      "nonforcedDepth2": 10,
+      "nonforcedDeep": 3,
+      "guardP50": 0,
+      "guardP95": 0,
+      "targets": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "changed": 0,
+      "wouldChange": 0,
+      "workMean": 72655.41666666667,
+      "guardWorkMean": 0,
+      "rssReportedMax": 688770264,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-observe-400",
+      "n": 12,
+      "responseP50": 1991.9705000000001,
+      "responseP95": 1994.285832999998,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 11,
+      "deep": 4,
+      "nonforced": 11,
+      "nonforcedDepth2": 10,
+      "nonforcedDeep": 3,
+      "guardP50": 399.24062500000036,
+      "guardP95": 400.20850000000064,
+      "targets": 38,
+      "unknown": 27,
+      "completionRate": 0.2894736842105263,
+      "changed": 0,
+      "wouldChange": 1,
+      "workMean": 70797.5,
+      "guardWorkMean": 9397.583333333334,
+      "rssReportedMax": 669879560,
+      "controlChanges": []
+    },
+    {
+      "warm": true,
+      "condition": "p05-experimental-400",
+      "n": 12,
+      "responseP50": 1992.0393329999997,
+      "responseP95": 1995.0282499999998,
+      "over2s": 0,
+      "maxNDepthMedian": 2,
+      "depth2": 11,
+      "deep": 4,
+      "nonforced": 11,
+      "nonforcedDepth2": 10,
+      "nonforcedDeep": 3,
+      "guardP50": 399.1980000000001,
+      "guardP95": 400.8634579999998,
+      "targets": 38,
+      "unknown": 27,
+      "completionRate": 0.2894736842105263,
+      "changed": 1,
+      "wouldChange": 1,
+      "workMean": 76519,
+      "guardWorkMean": 9112.5,
+      "rssReportedMax": 848350592,
+      "controlChanges": []
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "d67bd5108f43a39c-57",
+      "gameId": "d67bd5108f43a39c218f5c6a083a7fa9a814f14d4d8b41b7a0f33c630211c9b6",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "d7dd0fe615526b49-130",
+      "gameId": "d7dd0fe615526b4978ea9b654b901fa7b021084b0916b06c865da21a1bb49639",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "ae960d72d889183a-97",
+      "gameId": "ae960d72d889183a24de12116e8e4f534b8b57e57a0d60c4e197eef459daae3c",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "f1c8fdef9f37da03-146",
+      "gameId": "f1c8fdef9f37da034dea1ad2e1ef753231c1e60c878bf9f4ffa47540d8db221f",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": [
+        {
+          "actionId": 3451,
+          "budgetMs": 100,
+          "status": "safe",
+          "elapsedMs": 32.11787499999991,
+          "verified": true
+        },
+        {
+          "actionId": 3451,
+          "budgetMs": 250,
+          "status": "safe",
+          "elapsedMs": 34.100791000000754,
+          "verified": true
+        },
+        {
+          "actionId": 3451,
+          "budgetMs": 400,
+          "status": "safe",
+          "elapsedMs": 33.53533299999981,
+          "verified": true
+        },
+        {
+          "actionId": 3450,
+          "budgetMs": 100,
+          "status": "safe",
+          "elapsedMs": 50.489417000000685,
+          "verified": true
+        },
+        {
+          "actionId": 3450,
+          "budgetMs": 250,
+          "status": "safe",
+          "elapsedMs": 48.662209000001894,
+          "verified": true
+        },
+        {
+          "actionId": 3450,
+          "budgetMs": 400,
+          "status": "safe",
+          "elapsedMs": 48.91062500000044,
+          "verified": true
+        }
+      ]
+    },
+    {
+      "caseId": "314e463cf2eca3d4-28",
+      "gameId": "314e463cf2eca3d415adb64ac856d20a5e31ecf0c3fa807f052c1b4520d1a6e0",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "e88afb2647b6731e-64",
+      "gameId": "e88afb2647b6731e35221a64fe48e6060c3b13a358cb584aec3278380bc54f52",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "2b85a7c42d8baf79-54",
+      "gameId": "2b85a7c42d8baf79dc992192fac7e1fe277d29affdf69b25c5c39f1db6e1ec2d",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "6921d002682cf2f5-85",
+      "gameId": "6921d002682cf2f5f587a3817e79db78a2c92cb386b3c69ad83fd435f71d3454",
+      "kind": "loss",
+      "role": "last",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "5af97a243392610b-117",
+      "gameId": "5af97a243392610bdaac51c1af57242315de8862c037342c291f9301f279ae42",
+      "kind": "win-control",
+      "role": "control-3",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "safe",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "safe",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "8ffe15d17614d55b-17",
+      "gameId": "8ffe15d17614d55b2a2b1abfa2213469bf35da9a57966fb66f28bde43d783395",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "1bd9a54c8ba559d3-58",
+      "gameId": "1bd9a54c8ba559d32d03a0ee7b8b3d2933c297820505b5a4814714fd9df3291b",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "9df46e87b886dea8-107",
+      "gameId": "9df46e87b886dea84f88a3098cc512f5d3037146e61e1dbcfcba59cabe341809",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "ae960d72d889183a-95",
+      "gameId": "ae960d72d889183a24de12116e8e4f534b8b57e57a0d60c4e197eef459daae3c",
+      "kind": "loss",
+      "role": "previous",
+      "warm": true,
+      "complete": true,
+      "modelGame": true,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "d8db20336405552d-146",
+      "gameId": "d8db20336405552dc243211b29dd0442c3a752cf29f238ea40549ca7d4b965b6",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "safe",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "safe",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "safe",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "c07791e121bdad5b-51",
+      "gameId": "c07791e121bdad5ba7335f450af0f344f7e7f7e9d3e19db5666e8fae93eb3d23",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "314e463cf2eca3d4-24",
+      "gameId": "314e463cf2eca3d415adb64ac856d20a5e31ecf0c3fa807f052c1b4520d1a6e0",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "3c95b46ffc6af7e7-20",
+      "gameId": "3c95b46ffc6af7e7968ef7eab189e5c4c4eb68d782a0504f78bdf53ecf199954",
+      "kind": "win-control",
+      "role": "control-4",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "ec7f7ff2f3ef6f6f-145",
+      "gameId": "ec7f7ff2f3ef6f6fcc36b67e963ba01f018379e81b7d9502e1b2cccc8b2deac6",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "3c95b46ffc6af7e7-133",
+      "gameId": "3c95b46ffc6af7e7968ef7eab189e5c4c4eb68d782a0504f78bdf53ecf199954",
+      "kind": "win-control",
+      "role": "control-3",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "f18744085711e435-17",
+      "gameId": "f18744085711e43546d195cb1edb0f3b97a83764947f4f55cb6f5e4e17b8fbc8",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "d7dd0fe615526b49-128",
+      "gameId": "d7dd0fe615526b4978ea9b654b901fa7b021084b0916b06c865da21a1bb49639",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "34147a3c7260da65-166",
+      "gameId": "34147a3c7260da652f89dff7b1b094eff4c8c81cc9dbf4a26a5f1573baa04ea1",
+      "kind": "win-control",
+      "role": "control-3",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "34147a3c7260da65-105",
+      "gameId": "34147a3c7260da652f89dff7b1b094eff4c8c81cc9dbf4a26a5f1573baa04ea1",
+      "kind": "win-control",
+      "role": "control-4",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "5af97a243392610b-20",
+      "gameId": "5af97a243392610bdaac51c1af57242315de8862c037342c291f9301f279ae42",
+      "kind": "win-control",
+      "role": "control-4",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "ec7f7ff2f3ef6f6f-143",
+      "gameId": "ec7f7ff2f3ef6f6fcc36b67e963ba01f018379e81b7d9502e1b2cccc8b2deac6",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "3c95b46ffc6af7e7-133",
+      "gameId": "3c95b46ffc6af7e7968ef7eab189e5c4c4eb68d782a0504f78bdf53ecf199954",
+      "kind": "win-control",
+      "role": "control-3",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "3c95b46ffc6af7e7-20",
+      "gameId": "3c95b46ffc6af7e7968ef7eab189e5c4c4eb68d782a0504f78bdf53ecf199954",
+      "kind": "win-control",
+      "role": "control-4",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "8ffe15d17614d55b-13",
+      "gameId": "8ffe15d17614d55b2a2b1abfa2213469bf35da9a57966fb66f28bde43d783395",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "ae960d72d889183a-95",
+      "gameId": "ae960d72d889183a24de12116e8e4f534b8b57e57a0d60c4e197eef459daae3c",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": [
+        {
+          "actionId": 9988,
+          "budgetMs": 100,
+          "status": "unknown",
+          "elapsedMs": 100.13062499999796,
+          "verified": false
+        },
+        {
+          "actionId": 9988,
+          "budgetMs": 250,
+          "status": "safe",
+          "elapsedMs": 139.44479200000205,
+          "verified": true
+        },
+        {
+          "actionId": 9988,
+          "budgetMs": 400,
+          "status": "safe",
+          "elapsedMs": 138.69787499999802,
+          "verified": true
+        }
+      ]
+    },
+    {
+      "caseId": "5af97a243392610b-20",
+      "gameId": "5af97a243392610bdaac51c1af57242315de8862c037342c291f9301f279ae42",
+      "kind": "win-control",
+      "role": "control-4",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "e88afb2647b6731e-66",
+      "gameId": "e88afb2647b6731e35221a64fe48e6060c3b13a358cb584aec3278380bc54f52",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "c07791e121bdad5b-54",
+      "gameId": "c07791e121bdad5ba7335f450af0f344f7e7f7e9d3e19db5666e8fae93eb3d23",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "34147a3c7260da65-105",
+      "gameId": "34147a3c7260da652f89dff7b1b094eff4c8c81cc9dbf4a26a5f1573baa04ea1",
+      "kind": "win-control",
+      "role": "control-4",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "9df46e87b886dea8-105",
+      "gameId": "9df46e87b886dea84f88a3098cc512f5d3037146e61e1dbcfcba59cabe341809",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "34147a3c7260da65-166",
+      "gameId": "34147a3c7260da652f89dff7b1b094eff4c8c81cc9dbf4a26a5f1573baa04ea1",
+      "kind": "win-control",
+      "role": "control-3",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "safe",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "safe",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "1bd9a54c8ba559d3-50",
+      "gameId": "1bd9a54c8ba559d32d03a0ee7b8b3d2933c297820505b5a4814714fd9df3291b",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "314e463cf2eca3d4-28",
+      "gameId": "314e463cf2eca3d415adb64ac856d20a5e31ecf0c3fa807f052c1b4520d1a6e0",
+      "kind": "loss",
+      "role": "last",
+      "warm": true,
+      "complete": true,
+      "modelGame": true,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "2b85a7c42d8baf79-51",
+      "gameId": "2b85a7c42d8baf79dc992192fac7e1fe277d29affdf69b25c5c39f1db6e1ec2d",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "f1c8fdef9f37da03-148",
+      "gameId": "f1c8fdef9f37da034dea1ad2e1ef753231c1e60c878bf9f4ffa47540d8db221f",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "f1c8fdef9f37da03-146",
+      "gameId": "f1c8fdef9f37da034dea1ad2e1ef753231c1e60c878bf9f4ffa47540d8db221f",
+      "kind": "loss",
+      "role": "previous",
+      "warm": true,
+      "complete": true,
+      "modelGame": true,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "d8db20336405552d-144",
+      "gameId": "d8db20336405552dc243211b29dd0442c3a752cf29f238ea40549ca7d4b965b6",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "safe",
+          "witness": true
+        },
+        {
+          "budgetMs": 250,
+          "status": "safe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "safe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "6921d002682cf2f5-83",
+      "gameId": "6921d002682cf2f5f587a3817e79db78a2c92cb386b3c69ad83fd435f71d3454",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "d67bd5108f43a39c-59",
+      "gameId": "d67bd5108f43a39c218f5c6a083a7fa9a814f14d4d8b41b7a0f33c630211c9b6",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": true,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "1bd9a54c8ba559d3-58",
+      "gameId": "1bd9a54c8ba559d32d03a0ee7b8b3d2933c297820505b5a4814714fd9df3291b",
+      "kind": "loss",
+      "role": "last",
+      "warm": true,
+      "complete": true,
+      "modelGame": true,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "2b85a7c42d8baf79-54",
+      "gameId": "2b85a7c42d8baf79dc992192fac7e1fe277d29affdf69b25c5c39f1db6e1ec2d",
+      "kind": "loss",
+      "role": "last",
+      "warm": true,
+      "complete": true,
+      "modelGame": true,
+      "historical": [],
+      "reproductions": []
+    },
+    {
+      "caseId": "6921d002682cf2f5-85",
+      "gameId": "6921d002682cf2f5f587a3817e79db78a2c92cb386b3c69ad83fd435f71d3454",
+      "kind": "loss",
+      "role": "last",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unsafe",
+          "witness": true
+        },
+        {
+          "budgetMs": 400,
+          "status": "unsafe",
+          "witness": true
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "f18744085711e435-13",
+      "gameId": "f18744085711e43546d195cb1edb0f3b97a83764947f4f55cb6f5e4e17b8fbc8",
+      "kind": "loss",
+      "role": "previous",
+      "warm": false,
+      "complete": true,
+      "modelGame": false,
+      "historical": [
+        {
+          "budgetMs": 100,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 250,
+          "status": "unknown",
+          "witness": false
+        },
+        {
+          "budgetMs": 400,
+          "status": "unknown",
+          "witness": false
+        }
+      ],
+      "reproductions": []
+    },
+    {
+      "caseId": "5af97a243392610b-117",
+      "gameId": "5af97a243392610bdaac51c1af57242315de8862c037342c291f9301f279ae42",
+      "kind": "win-control",
+      "role": "control-3",
+      "warm": true,
+      "complete": true,
+      "modelGame": false,
+      "historical": [],
+      "reproductions": []
+    }
+  ],
+  "frozenSelectionDiagnostics": [
+    {
+      "budgetMs": 100,
+      "selection": "top3",
+      "cases": 36,
+      "statuses": {
+        "unknown": 77,
+        "unsafe": 10,
+        "safe": 3
+      },
+      "wouldChange": 0
+    },
+    {
+      "budgetMs": 100,
+      "selection": "top5",
+      "cases": 36,
+      "statuses": {
+        "unknown": 97,
+        "unsafe": 12,
+        "safe": 3
+      },
+      "wouldChange": 0
+    },
+    {
+      "budgetMs": 100,
+      "selection": "top3-reserve",
+      "cases": 36,
+      "statuses": {
+        "unknown": 97,
+        "unsafe": 9,
+        "safe": 4
+      },
+      "wouldChange": 1
+    },
+    {
+      "budgetMs": 100,
+      "selection": "all",
+      "cases": 36,
+      "statuses": {
+        "unknown": 1661,
+        "unsafe": 12,
+        "safe": 4
+      },
+      "wouldChange": 1
+    },
+    {
+      "budgetMs": 250,
+      "selection": "top3",
+      "cases": 36,
+      "statuses": {
+        "unknown": 64,
+        "unsafe": 19,
+        "safe": 7
+      },
+      "wouldChange": 0
+    },
+    {
+      "budgetMs": 250,
+      "selection": "top5",
+      "cases": 36,
+      "statuses": {
+        "unknown": 81,
+        "unsafe": 21,
+        "safe": 10
+      },
+      "wouldChange": 0
+    },
+    {
+      "budgetMs": 250,
+      "selection": "top3-reserve",
+      "cases": 36,
+      "statuses": {
+        "unknown": 85,
+        "unsafe": 16,
+        "safe": 9
+      },
+      "wouldChange": 1
+    },
+    {
+      "budgetMs": 250,
+      "selection": "all",
+      "cases": 36,
+      "statuses": {
+        "unknown": 1630,
+        "unsafe": 36,
+        "safe": 11
+      },
+      "wouldChange": 1
+    },
+    {
+      "budgetMs": 400,
+      "selection": "top3",
+      "cases": 36,
+      "statuses": {
+        "unknown": 57,
+        "unsafe": 25,
+        "safe": 8
+      },
+      "wouldChange": 0
+    },
+    {
+      "budgetMs": 400,
+      "selection": "top5",
+      "cases": 36,
+      "statuses": {
+        "unknown": 74,
+        "unsafe": 27,
+        "safe": 11
+      },
+      "wouldChange": 0
+    },
+    {
+      "budgetMs": 400,
+      "selection": "top3-reserve",
+      "cases": 36,
+      "statuses": {
+        "unknown": 79,
+        "unsafe": 19,
+        "safe": 12
+      },
+      "wouldChange": 1
+    },
+    {
+      "budgetMs": 400,
+      "selection": "all",
+      "cases": 36,
+      "statuses": {
+        "unknown": 1624,
+        "unsafe": 39,
+        "safe": 14
+      },
+      "wouldChange": 1
+    }
+  ],
+  "quality": [
+    {
+      "condition": "v5-off",
+      "accepted": 80,
+      "total": 88,
+      "criticalAccepted": 40,
+      "criticalTotal": 40,
+      "failedIds": [
+        "poisoned-gold-false-south",
+        "poisoned-gold-false-west",
+        "poisoned-gold-false-north",
+        "poisoned-gold-false-east",
+        "poisoned-gold-true-south",
+        "poisoned-gold-true-west",
+        "poisoned-gold-true-north",
+        "poisoned-gold-true-east"
+      ]
+    },
+    {
+      "condition": "p05-off",
+      "accepted": 81,
+      "total": 88,
+      "criticalAccepted": 40,
+      "criticalTotal": 40,
+      "failedIds": [
+        "poisoned-gold-false-south",
+        "poisoned-gold-false-west",
+        "poisoned-gold-false-north",
+        "poisoned-gold-false-east",
+        "poisoned-gold-true-south",
+        "poisoned-gold-true-north",
+        "poisoned-gold-true-east"
+      ]
+    },
+    {
+      "condition": "p05-observe-250",
+      "accepted": 82,
+      "total": 88,
+      "criticalAccepted": 40,
+      "criticalTotal": 40,
+      "failedIds": [
+        "poisoned-gold-false-south",
+        "poisoned-gold-false-west",
+        "poisoned-gold-false-north",
+        "poisoned-gold-false-east",
+        "poisoned-gold-true-south",
+        "poisoned-gold-true-east"
+      ]
+    },
+    {
+      "condition": "p05-experimental-250",
+      "accepted": 82,
+      "total": 88,
+      "criticalAccepted": 40,
+      "criticalTotal": 40,
+      "failedIds": [
+        "poisoned-gold-false-south",
+        "poisoned-gold-false-west",
+        "poisoned-gold-false-north",
+        "poisoned-gold-false-east",
+        "poisoned-gold-true-south",
+        "poisoned-gold-true-east"
+      ]
+    },
+    {
+      "condition": "p05-experimental-400",
+      "accepted": 82,
+      "total": 88,
+      "criticalAccepted": 40,
+      "criticalTotal": 40,
+      "failedIds": [
+        "poisoned-gold-false-south",
+        "poisoned-gold-false-west",
+        "poisoned-gold-false-north",
+        "poisoned-gold-false-east",
+        "poisoned-gold-true-south",
+        "poisoned-gold-true-east"
+      ]
+    }
+  ],
+  "pastTactics": {
+    "timeMs": 1000,
+    "adaptive": [
+      82,
+      88
+    ],
+    "dual-continuations": [
+      84,
+      88
+    ],
+    "criticalBoth": [
+      40,
+      40
+    ],
+    "workerReuse": true,
+    "memoryMiB": 8192
+  },
+  "fixedDepth9": {
+    "dual": [
+      4,
+      8
+    ],
+    "dual-continuations": [
+      8,
+      8
+    ],
+    "sameHistoricalRootSets": true,
+    "width": 2,
+    "ownWidth": 3
+  },
+  "serialization": {
+    "pv": 3770,
+    "pvSteps": 19565,
+    "certificates": 2586,
+    "verified": 1363,
+    "witnesses": 477,
+    "cases": 48
+  },
+  "offCompatibility": {
+    "reference": "8943d70e065f5a5a0fcc32cd635c9aa83f75ab8d",
+    "completeMatches": [
+      6,
+      6
+    ],
+    "scope": "3inputs x2strategies,1worker,maxDepth2; candidates/PV/evaluation/work/nodes/depth/diagnostics compared"
+  },
+  "memorySupplement": {
+    "trials": 132,
+    "groups": [
+      {
+        "condition": "v5-off-2000",
+        "n": 12,
+        "medianMiB": 864.046875,
+        "maxMiB": 1379.890625,
+        "missing": 0
+      },
+      {
+        "condition": "p05-off-2000",
+        "n": 12,
+        "medianMiB": 992.265625,
+        "maxMiB": 1423.5625,
+        "missing": 0
+      },
+      {
+        "condition": "p05-short-100",
+        "n": 12,
+        "medianMiB": 959.78125,
+        "maxMiB": 1383.421875,
+        "missing": 0
+      },
+      {
+        "condition": "p05-observe-100",
+        "n": 12,
+        "medianMiB": 991.421875,
+        "maxMiB": 1426.953125,
+        "missing": 0
+      },
+      {
+        "condition": "p05-experimental-100",
+        "n": 12,
+        "medianMiB": 972.1640625,
+        "maxMiB": 1395.1875,
+        "missing": 0
+      },
+      {
+        "condition": "p05-short-250",
+        "n": 12,
+        "medianMiB": 802.84375,
+        "maxMiB": 1332.359375,
+        "missing": 0
+      },
+      {
+        "condition": "p05-observe-250",
+        "n": 12,
+        "medianMiB": 878.1875,
+        "maxMiB": 1365.890625,
+        "missing": 0
+      },
+      {
+        "condition": "p05-experimental-250",
+        "n": 12,
+        "medianMiB": 910.078125,
+        "maxMiB": 1342.875,
+        "missing": 0
+      },
+      {
+        "condition": "p05-short-400",
+        "n": 12,
+        "medianMiB": 815.4140625,
+        "maxMiB": 1272.25,
+        "missing": 0
+      },
+      {
+        "condition": "p05-observe-400",
+        "n": 12,
+        "medianMiB": 821.0546875,
+        "maxMiB": 1281.6875,
+        "missing": 0
+      },
+      {
+        "condition": "p05-experimental-400",
+        "n": 12,
+        "medianMiB": 841.7734375,
+        "maxMiB": 1317.96875,
+        "missing": 0
+      }
+    ],
+    "scope": "fresh parent/runtime/workers,25ms sampled thinking peaks; post-response verification excluded"
+  },
+  "mainResources": {
+    "peakBytes": {
+      "total": 1560756224,
+      "aggregation": 40157184,
+      "game": 1505837056,
+      "workers": 1312686080,
+      "monitor": 24330240
+    },
+    "maxWorkers": 4,
+    "reason": null,
+    "elapsedSeconds": 1138.535168540955,
+    "samplingMs": 100
+  },
+  "resourceAudit": {
+    "reason": "corrected external runner reused original quality resource directory; exclusive resources.jsonl rejected monitor startup",
+    "rowsSavedBeforeMonitorRestart": 222,
+    "restartAtEpochMs": 1793343970531.411,
+    "effectiveResourceDirectory": "validation/quality-corrected-resource",
+    "unverifiedScope": "aggregate RSS peak before corrected monitor startup; do not substitute old partial-stage peak",
+    "runtimeWorkerMemoryCapMiB": 4096,
+    "mainAndSupplementalMonitorsSeparate": true
+  },
+  "adoption": {
+    "default": "v5/root/guard OFF maintained",
+    "decision": "experimental retained, default adoption deferred",
+    "newGames": 0,
+    "holdoutConsumed": false,
+    "independentGamesPlan": "deferred until unresolved adoption evidence is addressed; no seeds selected"
+  },
+  "limitations": [
+    "all cases from used correlated seed9874100; not independent strength evidence",
+    "main/quality/memory runner SHAs differ; measured app/core hashes identical",
+    "initial quality240 rows invalid cohort, reference import failure, and initial aggregation failure retained",
+    "corrected quality initial222 rows aggregate RSS peak unverified",
+    "proof/PV counts are serialized records, not unique independent positions",
+    "100ms experimental has no separate full88 quality run; warm change0 versus cold1"
+  ]
+}
