@@ -965,3 +965,8 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 
 
 `strengthPilotDiagnostics.test.ts`は、PVの次自手までの長さと実手順一致の区別、同じ着手のJSONキー順非依存、未終局・欠落条件を勝敗へ変換しないseed対応差、重複拒否を確認します。測定後の`bench/strengthPilotDiagnostics.ts <成果物ディレクトリ>`は、合成実戦棋譜を正本で再生し、脱落段階・捕獲・PV相違・同条件の最初の異なる候補手を記録します。`strengthPilot.ts prepare-cold`は4096MiB・毎手worker新規作成の共通条件を事前登録する入口で、既定のprepare条件を変更しません。
+
+
+## P1-4b敗退分析の確認
+
+`apps/four-shogi-study/test/lossAnalysis.test.ts`は有限生存証明の正本再生成、全称応手の欠落拒否、予算切れのunknown維持、非合法初手拒否、危険な合法応手の存在量化、固定規則の主要候補選択を確認します。実行はコミット済みソースで `bench/lossAnalysis.ts prepare <Git管理外出力先> <P1-4主比較ディレクトリ>`、`run <出力先>`、`summarize <出力先>`。元の完全棋譜/攻撃/反復履歴を保ち、編集局面や手番差替えを使いません。固定タスクのobserver on/offと一節点介入は同深さ完成時だけ比較し、全枝未記録の過去実行へ外挿しません。PRのCIはdevelop取り込み後のFull実行範囲を確認し、Fastの未実行workspaceを成功扱いしません。
