@@ -3,7 +3,7 @@ import { getActiveSides, type FourShogiAction, type Side } from "@tetraboard/fou
 import type { AiCandidate } from "@tetraboard/four-shogi/ai";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 import { encodeAction } from "../../../../packages/four-shogi/src/actionEncoding";
-import { pieceValue } from "../../../../packages/four-shogi/src/cpuEvaluation";
+import { orderGuardReplies, type GuardReplyOrdering } from "./guardReplyOrder";
 import {
   proveFiniteAction,
   finiteLossWitness,
@@ -22,6 +22,7 @@ export type LethalGuardOptions = {
   maxWork?: number;
   maxBytes?: number;
   measureStages?: boolean;
+  replyOrdering?: GuardReplyOrdering;
 };
 export type GuardRow = {
   remainingAtStartMs?: number | null;
@@ -61,6 +62,7 @@ export type LethalGuardReport = {
   wouldChange: boolean;
   reason: string;
   stagesMs?: { selection: number; proofs: number; aggregation: number };
+  replyOrdering?: GuardReplyOrdering;
 };
 
 export function chooseGuardCandidate(
@@ -100,17 +102,6 @@ export function chooseGuardCandidate(
   );
 }
 
-function replyOrder(position: AnalysisPosition, actions: readonly FourShogiAction[], root: Side) {
-  const score = (action: FourShogiAction) => {
-    const taken = position.state.board[action.to.y][action.to.x];
-    return (
-      (taken?.side === root ? 10000 + pieceValue(taken) : taken ? pieceValue(taken) : 0) +
-      (action.type === "movePiece" && action.promote ? 100 : 0)
-    );
-  };
-  return [...actions].sort((a, b) => score(b) - score(a) || encodeAction(a) - encodeAction(b));
-}
-
 export async function runLethalGuard(
   position: AnalysisPosition,
   candidates: readonly AiCandidate[],
@@ -125,6 +116,7 @@ export async function runLethalGuard(
   if (
     !["off", "observe", "experimental"].includes(options.mode) ||
     !["top3", "top5", "top3-reserve", "all"].includes(selection) ||
+    !["base", "simple", "checks"].includes(options.replyOrdering ?? "base") ||
     !Number.isFinite(budgetMs) ||
     budgetMs < 0 ||
     budgetMs > 5000 ||
@@ -152,6 +144,7 @@ export async function runLethalGuard(
     changed: false,
     wouldChange: false,
     reason: "unchanged",
+    replyOrdering: options.replyOrdering ?? "base",
   };
   if (options.mode === "off") {
     report.reason = "off";
@@ -249,7 +242,8 @@ export async function runLethalGuard(
       maxMs: row.queryBudgetMs,
       signal: context.signal,
       measureStages: options.measureStages,
-      order: (current, moves) => replyOrder(current, moves, root),
+      order: (current, moves) =>
+        orderGuardReplies(current, moves, root, options.replyOrdering ?? "base"),
     });
     row.proof = proof;
     row.witness = finiteLossWitness(proof);

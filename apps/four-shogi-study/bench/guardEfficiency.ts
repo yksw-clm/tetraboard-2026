@@ -11,7 +11,11 @@ import { spawn } from "node:child_process";
 import { guardBenchIdentity } from "./lethalGuardBench";
 import { git } from "../../../packages/four-shogi/bench/baseline";
 import { hashJson } from "../../../packages/four-shogi/bench/singlesMeasurement";
-import { runLethalGuard, type LethalGuardReport } from "../src/search/lethalGuard";
+import {
+  runLethalGuard,
+  type LethalGuardReport,
+  type LethalGuardOptions,
+} from "../src/search/lethalGuard";
 import { restoreStudyPosition } from "../src/domain/study";
 import { validateGuardReport } from "./lethalGuardValidation";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
@@ -242,10 +246,79 @@ export async function profileEfficiency(directory: string) {
   });
 }
 
+export async function isolatedEfficiency(directory: string, specification: string) {
+  const plan = readEfficiency(join(directory, "plan.json")),
+    spec = readEfficiency(specification);
+  if (git("status", "--porcelain")) throw Error("固定ソースが必要です");
+  const source = guardBenchIdentity(),
+    results: any[] = [];
+  saveEfficiency(join(directory, spec.name + "-plan.json"), {
+    ...spec,
+    source,
+    registeredAt: new Date().toISOString(),
+  });
+  await efficiencyPhase(directory, spec.name, async (deadline) => {
+    for (let i = 0; i < plan.frozen.length; i++) {
+      const f = plan.frozen[i],
+        saved = readEfficiency(join(directory, "inputs", f.file));
+      if (spec.caseIds && !spec.caseIds.includes(saved.caseId)) continue;
+      const record = readEfficiency<LossCase>(join(directory, "inputs", saved.caseId + ".json"));
+      const p = await restoreStudyPosition({
+        origin: { kind: "replay", replay: record.replay },
+        events: [],
+      });
+      const variants = [
+        ...spec.variants.slice(i % spec.variants.length),
+        ...spec.variants.slice(0, i % spec.variants.length),
+      ];
+      for (const budgetMs of spec.budgets)
+        for (const variant of variants) {
+          if (performance.now() >= deadline) throw Error("全体予算切れ");
+          const options: LethalGuardOptions = {
+            mode: "observe",
+            budgetMs,
+            measureStages: true,
+            ...variant.options,
+          };
+          const guard = await runLethalGuard(p, saved.candidates, saved.shallow, options);
+          if (
+            JSON.stringify(guard.rows.map((r) => r.actionId)) !== JSON.stringify(saved.expectedIds)
+          )
+            throw Error("比較候補不一致");
+          const validation = await validateGuardReport(p, guard);
+          const row = {
+            caseId: saved.caseId,
+            warm: saved.warm,
+            kind: saved.kind,
+            variant: variant.name,
+            budgetMs,
+            guard,
+            validation,
+          };
+          results.push(row);
+          saveEfficiency(join(directory, spec.output), { source, spec, results, complete: false });
+          console.log(
+            JSON.stringify({
+              phase: spec.name,
+              caseId: saved.caseId,
+              warm: saved.warm,
+              variant: variant.name,
+              budgetMs,
+              complete: guard.rows.filter((r) => r.status !== "unknown").length,
+              targets: guard.rows.length,
+            }),
+          );
+        }
+    }
+    saveEfficiency(join(directory, spec.output), { source, spec, results, complete: true });
+  });
+}
+
 if (import.meta.main) {
   const [command, directory, prior] = Bun.argv.slice(2);
   if (command === "prepare")
     console.log(JSON.stringify(prepareEfficiency(resolve(directory), resolve(prior))));
   else if (command === "profile") await profileEfficiency(resolve(directory));
-  else throw Error("prepare/profile を指定してください");
+  else if (command === "isolated") await isolatedEfficiency(resolve(directory), resolve(prior));
+  else throw Error("prepare/profile/isolated を指定してください");
 }
