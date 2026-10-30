@@ -128,6 +128,7 @@ export function createPvFocusRuntime(config: StudySearchRuntimeConfig = {}): Stu
       return s && c ? decorate(s, c) : s;
     },
     pause: (id) => base.pause(id),
+    pauseAndDrain: (id, timeout) => base.pauseAndDrain!(id, timeout),
     resume: (id) => base.resume(id),
     async holdFocus(id) {
       if (current?.id !== id) return;

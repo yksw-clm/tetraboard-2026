@@ -185,6 +185,17 @@ export function EvaluationPanel({
           <Metric label="探索局面" value={(analysis?.nodes ?? 0).toLocaleString("ja-JP")} />
           <Metric label="経過" value={`${((analysis?.elapsedMs ?? 0) / 1000).toFixed(1)}秒`} />
         </div>
+        {analysis?.continuation ? (
+          <p className="mt-3 text-[11px] leading-relaxed text-[#607252]" role="status">
+            {analysis.continuation.phase === "ponder" ? "相手手番中の先読み" : "現在の手番の検討"}
+            {analysis.continuation.sessionHit ? " · 予測と一致し、同じ探索を継続" : " · 新しい探索"}
+            {" · 今回 "}
+            {analysis.continuation.newWork.toLocaleString()}局面
+            {analysis.continuation.priorWork > 0
+              ? ` · 引継ぎ前 ${analysis.continuation.priorWork.toLocaleString()}局面`
+              : ""}
+          </p>
+        ) : null}
         {analysis?.coverage ? (
           <div className="mt-3 text-[11px] leading-relaxed text-[#607252]">
             <p>

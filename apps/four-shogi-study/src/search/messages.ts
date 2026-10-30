@@ -33,7 +33,8 @@ export type SearchCommand =
       task: StudySubtreeTask | { localPlanId: number; slot: number };
     }
   | { type: "finish"; id: string; taskId: number; planId: number; results: StudySubtreeResult[] }
-  | { type: "pause" | "resume" | "cancel"; id: string }
+  | { type: "pause"; id: string; pauseToken?: number }
+  | { type: "resume" | "cancel"; id: string }
   | { type: "close" };
 export type SearchWorkerTiming = {
   restoreMs: number;
@@ -55,6 +56,7 @@ export type SearchMessage =
       snapshot: StudyLaneSnapshot;
       memoryBytes: number;
       barrier: boolean;
+      pauseToken?: number;
       taskId?: number;
       reply?:
         | { kind: "split"; plan: StudySplitPlan }

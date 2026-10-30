@@ -1,0 +1,215 @@
+import { expect, test } from "bun:test";
+import {
+  createStudy,
+  appendStudyEvent,
+  studyPositionInput,
+  restoreStudyPosition,
+} from "../src/domain/study";
+import { getAnalysisLegalActions } from "@tetraboard/four-shogi/analysis";
+import { createPonderFocusRuntime } from "../src/search/ponderRuntime";
+import { readFocusReuseEnvironment } from "../src/search/focusSettings";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import type {
+  StudySearchRuntime,
+  StudySearchSnapshot,
+  StudySearchOptions,
+} from "../src/search/runtime";
+const options: StudySearchOptions = {
+  strategy: "dual-continuations",
+  sessionKey: "one-game",
+  focusSide: "west",
+  timeBudgetMs: 250,
+  maxDepth: 2,
+  rootWidth: 6,
+  width: 2,
+  extensions: 0,
+};
+async function done(
+  runtime: StudySearchRuntime,
+  input: Parameters<StudySearchRuntime["start"]>[0],
+  opts = options,
+  frames: StudySearchSnapshot[] = [],
+) {
+  return new Promise<StudySearchSnapshot>((resolve, reject) => {
+    void runtime
+      .start(input, opts, (s) => {
+        frames.push(s);
+        if (s.status === "error") reject(Error(s.reason ?? "error"));
+        if (s.status === "completed") resolve(s);
+      })
+      .catch(reject);
+  });
+}
+for (const eliminated of [[], ["east"], ["east", "north"]] as const)
+  test(`正本の実着手が予測と一致すると同じ根の完成比較を引継ぐ：${4 - eliminated.length}人/禁止ON`, async () => {
+    let study = await createStudy();
+    for (const side of eliminated)
+      study = await appendStudyEvent(study, { type: "eliminate", side, reason: "left" });
+    const runtime: StudySearchRuntime = createPonderFocusRuntime(
+      { threads: 1, memoryMb: 256 },
+      { mode: "ponder", ponderMs: 200 },
+    );
+    try {
+      const first = await done(runtime, studyPositionInput(study));
+      expect(first.focus?.conditional).toBe(true);
+      await runtime.holdFocus?.(first.id);
+      let next = study;
+      for (const x of first.focus!.prefix)
+        next = await appendStudyEvent(next, { type: "action", side: x.side, action: x.action });
+      const frames: StudySearchSnapshot[] = [];
+      const second = await done(runtime, studyPositionInput(next), options, frames);
+      expect(second.continuation?.sessionHit).toBe(true);
+      expect(second.stateHash).toBe(
+        (await restoreStudyPosition(studyPositionInput(next))).stateHash,
+      );
+      expect(second.id).not.toBe(first.id);
+      expect(second.focus?.conditional).toBe(false);
+      expect(second.focus?.prefix).toEqual([]);
+      expect(second.recommendedAction).not.toBeNull();
+      const reused = frames.find((x) => x.completedDepth > 0)!;
+      expect(reused.work).toBe(0);
+      expect(reused.continuation?.priorWork).toBeGreaterThan(0);
+      expect(reused.completedDepth).toBe(first.completedDepth);
+    } finally {
+      await runtime.close();
+    }
+  });
+test("予測外の合法手・異なるscopeでは新規へ戻り、古い取消で新ジョブを壊さない", async () => {
+  const study = await createStudy(),
+    runtime: StudySearchRuntime = createPonderFocusRuntime(
+      { threads: 1, memoryMb: 256 },
+      { mode: "combined", ponderMs: 200 },
+    );
+  try {
+    const first = await done(runtime, studyPositionInput(study));
+    await runtime.holdFocus?.(first.id);
+    const p = await restoreStudyPosition(studyPositionInput(study));
+    const other = getAnalysisLegalActions(p).find(
+      (a) => JSON.stringify(a) !== JSON.stringify(first.focus!.prefix[0].action),
+    )!;
+    const next = await appendStudyEvent(study, {
+      type: "action",
+      side: p.state.turn!,
+      action: other,
+    });
+    const second = await done(runtime, studyPositionInput(next));
+    expect(second.continuation?.sessionHit).toBe(false);
+    expect(second.continuation?.priorWork).toBe(0);
+    await runtime.cancel(first.id);
+    expect(runtime.get(second.id)?.status).toBe("completed");
+    await runtime.holdFocus?.(second.id);
+    const third = await done(runtime, studyPositionInput(next), {
+      ...options,
+      sessionKey: "another-game",
+    });
+    expect(third.continuation?.sessionHit).toBe(false);
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("期限で中断した探索の未完枝も同じ根で継続し、旧世代へ通知しない", async () => {
+  const study = await createStudy();
+  const runtime = createPonderFocusRuntime(
+    { threads: 1, memoryMb: 256 },
+    { mode: "ponder", ponderMs: 150 },
+  );
+  const opts = { ...options, maxDepth: 64, rootWidth: 24, width: 6 };
+  const oldFrames: StudySearchSnapshot[] = [];
+  try {
+    const first = await done(runtime, studyPositionInput(study), opts, oldFrames);
+    expect(first.reason).toBe("deadline");
+    expect(first.continuation?.pauseAcknowledged).toBe(true);
+    const oldCount = oldFrames.length;
+    let next = study;
+    for (const x of first.focus!.prefix)
+      next = await appendStudyEvent(next, { type: "action", side: x.side, action: x.action });
+    const frames: StudySearchSnapshot[] = [];
+    const second = await done(runtime, studyPositionInput(next), opts, frames);
+    expect(second.continuation?.sessionHit).toBe(true);
+    expect(second.continuation?.priorWork).toBeGreaterThan(0);
+    expect(second.work).toBeGreaterThan(0);
+    expect(second.continuation?.sessionWork).toBe(second.work + second.continuation!.priorWork);
+    expect(second.continuation?.pauseAcknowledged).toBe(true);
+    expect(oldFrames.length).toBe(oldCount);
+    expect(frames.every((f) => f.id === second.id && f.stateHash === second.stateHash)).toBe(true);
+    expect(runtime.get(first.id)?.status).toBe("completed");
+    await runtime.pause(second.id);
+    await runtime.resume(second.id);
+    expect(runtime.get(second.id)?.status).toBe("running");
+    await runtime.pause(second.id);
+    expect(runtime.get(second.id)?.reason).toBe("user");
+    await runtime.cancel(second.id);
+    const fresh = await done(runtime, studyPositionInput(next), opts);
+    expect(fresh.continuation?.sessionHit).toBe(false);
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("保持期限と設定変更でキャッシュを解放し、同じ局面でも再利用しない", async () => {
+  const study = await createStudy();
+  const runtime = createPonderFocusRuntime(
+    { threads: 1, memoryMb: 256 },
+    { mode: "combined", ponderMs: 100, ttlMs: 10 },
+  );
+  try {
+    await done(runtime, studyPositionInput(study));
+    await Bun.sleep(20);
+    const expired = await done(runtime, studyPositionInput(study));
+    expect(expired.continuation?.sessionHit).toBe(false);
+    const changed = await done(runtime, studyPositionInput(study), { ...options, extensions: 1 });
+    expect(changed.continuation?.sessionHit).toBe(false);
+    await runtime.releaseFocus?.();
+    const released = await done(runtime, studyPositionInput(study));
+    expect(released.continuation?.sessionHit).toBe(false);
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("worker異常終了は完成扱いせず、取消と終了で遅延結果を破棄する", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "ponder-worker-error-"));
+  const file = join(directory, "worker.ts");
+  await writeFile(
+    file,
+    "process.send?.({type:'ready'});process.on('message',m=>{if(m.type==='start')process.exit(2);if(m.type==='close')process.exit(0)});",
+  );
+  const runtime = createPonderFocusRuntime(
+    { threads: 1, workerScript: pathToFileURL(file) },
+    { mode: "ponder", ponderMs: 300 },
+  );
+  try {
+    const study = await createStudy();
+    const failed = await new Promise<StudySearchSnapshot>((resolve, reject) => {
+      void runtime
+        .start(studyPositionInput(study), options, (s) => {
+          if (s.status !== "running") resolve(s);
+        })
+        .catch(reject);
+    });
+    expect(failed.status).toBe("error");
+    expect(failed.recommendedAction).toBeNull();
+    expect(failed.completion).toBeUndefined();
+    await runtime.cancel(failed.id);
+    await runtime.close();
+    await expect(runtime.start(studyPositionInput(study), options)).rejects.toThrow();
+  } finally {
+    await runtime.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("フォーカス引継ぎは明示指定だけ有効で、既定と不正値を区別する", () => {
+  expect(readFocusReuseEnvironment({})).toEqual({ mode: "off", ponderMs: 1000, ttlMs: 30000 });
+  expect(readFocusReuseEnvironment({ STUDY_FOCUS_REUSE: "combined" }).mode).toBe("combined");
+  for (const env of [
+    { STUDY_FOCUS_REUSE: "tree" },
+    { STUDY_PONDER_MS: "0" },
+    { STUDY_FOCUS_TTL_MS: "NaN" },
+  ])
+    expect(() => readFocusReuseEnvironment(env)).toThrow();
+});

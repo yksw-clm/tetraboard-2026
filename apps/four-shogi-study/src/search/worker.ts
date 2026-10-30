@@ -17,6 +17,7 @@ let current: {
 let generation = 0;
 let requestedId: string | null = null;
 let requestedPaused = false;
+let requestedPauseToken: number | undefined;
 let scheduled = false;
 let lastSent = 0;
 let activeSlice: {
@@ -36,7 +37,7 @@ const send = (message: SearchMessage) => {
   meter.sendMs += performance.now() - started;
   meter.sizingMs += started - probe;
 };
-function progress(barrier: boolean) {
+function progress(barrier: boolean, pauseToken?: number) {
   if (!current) return;
   lastSent = performance.now();
   const timing = current.timing ? { ...current.timing } : undefined;
@@ -56,6 +57,7 @@ function progress(barrier: boolean) {
     snapshot: current.search.snapshot(),
     memoryBytes: process.memoryUsage.rss(),
     barrier,
+    ...(pauseToken === undefined ? {} : { pauseToken }),
     ...(current.reply ? { reply: current.reply } : {}),
     ...(current.taskId === undefined ? {} : { taskId: current.taskId }),
     ...(timing ? { timing } : {}),
@@ -114,6 +116,7 @@ process.on("message", async (raw: unknown) => {
     const token = ++generation;
     requestedId = message.id;
     requestedPaused = false;
+    requestedPauseToken = undefined;
     current?.search.dispose();
     current = null;
     try {
@@ -154,7 +157,7 @@ process.on("message", async (raw: unknown) => {
             }
           : {}),
       };
-      progress(false);
+      progress(false, requestedPaused ? requestedPauseToken : undefined);
       schedule();
     } catch (error) {
       send({ type: "error", id: message.id, error: String(error) });
@@ -169,7 +172,10 @@ process.on("message", async (raw: unknown) => {
     current = null;
     return;
   }
-  if (message.type === "pause") requestedPaused = true;
+  if (message.type === "pause") {
+    requestedPaused = true;
+    requestedPauseToken = message.pauseToken;
+  }
   if (message.type === "resume") requestedPaused = false;
   if (!current || current.id !== message.id) return;
   if (message.type === "task" || message.type === "subtree" || message.type === "finish") {
@@ -208,7 +214,7 @@ process.on("message", async (raw: unknown) => {
   }
   if (message.type === "pause") {
     current.paused = true;
-    progress(false);
+    progress(false, message.pauseToken);
     return;
   }
   if (message.type === "resume") {

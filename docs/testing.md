@@ -424,6 +424,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
+フォーカス引継ぎは`focusContinuation.test.ts`で完全状態/players/探索条件/保持期限と合法PV、`focusReuseRuntime.test.ts`で固定深さの評価/PV/候補集合の一致、`ponderRuntime.test.ts`で予測一致/不一致・同一根の途中継続・世代・停止再開/取消・worker異常・期限解放・2/3/4人生存を確認します。`liveApplication.test.ts`は確定更新の保持、旧結果の非表示、切断と設定変更の取消を検査します。固定仕事・実時間・開発seedの実戦比較を機能テストと分離し、未来候補を現在の推奨へ繰り上げません。
+
 最善手の矢印は共通盤面の`packages/shogi-ui/test-dom/board.test.tsx`で4方向のマス中心、9×9 gridとSVGの対応、成り/不成、駒種付きの打マーカー、クリックと成り選択への非干渉を検査します。`apps/four-shogi-study/test-dom/studyApp.test.tsx`はSSE境界の完成深さ1→2→3、反復中の保持、停止/完了、再解析・旧job/generation・別study・局面変更・編集・条件付き未来手・配信断を確認します。探索本体や保存形式は変更せず、実ブラウザの実画像・モバイル寸法・ネイティブのドラッグ確認は実施範囲と未確認事項を別記します。
 
 P1-4eは`test/deadlineRuntime.test.ts`で起動中の予算終了、完成通常結果を残すガード例外、timer取消とunknownを検証します。既存の実worker停止/再開/取消/異常終了/旧ID排除とDOM検証を維持し、`bench/tournamentPrep.ts <登録spec.json>`で通知とgetの外側経過・区間別の親時計・worker内時間を分けて保存します。予算超過、ガード報告欠落、正しい着手でも未完了の結果を戦術合格へ繰り上げません。手動の操作時間・実画像・実ブラウザをBun/HTTP検証で代替したとは報告しません。

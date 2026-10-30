@@ -49,6 +49,19 @@ export type StudySearchSnapshot = {
     hintReorders: number;
     priorWork: number;
     newWork: number;
+    phase?: "ponder" | "foreground";
+    sessionHit?: boolean;
+    matchedPlies?: number;
+    priorCompletedDepth?: number;
+    reusedComparison?: boolean;
+    sessionWork?: number;
+    ponderWork?: number;
+    workerCpuMs?: number;
+    workerActiveMs?: number;
+    priorPonderCpuMs?: number;
+    retainedBranchEntries?: number;
+    branchCacheHits?: number;
+    pauseAcknowledged?: boolean;
   };
   completion?: {
     normalResult: "complete" | "incomplete";
@@ -321,6 +334,7 @@ export interface StudySearchRuntime {
   close(): Promise<void>;
   holdFocus?(id: string): Promise<void>;
   releaseFocus?(): Promise<void>;
+  pauseAndDrain?(id: string, timeoutMs?: number): Promise<boolean>;
 }
 
 export function createStudySearchRuntime(
@@ -355,6 +369,16 @@ export function createStudySearchRuntime(
   let children: ChildProcess[] = [];
   let starting: Promise<void> | null = null;
   let terminating = Promise.resolve();
+  let pauseToken = 0;
+  const pauseDrains = new Map<
+    number,
+    {
+      id: string;
+      waiting: Set<number>;
+      resolve: (ok: boolean) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
   let generation = 0;
   let closed = false;
   let job: Job | null = null;
@@ -1267,6 +1291,17 @@ export function createStudySearchRuntime(
     });
   }
   function receive(index: number, message: SearchMessage) {
+    if (message.type === "progress" && message.pauseToken !== undefined) {
+      const pending = pauseDrains.get(message.pauseToken);
+      if (pending?.id === message.id) {
+        pending.waiting.delete(index);
+        if (!pending.waiting.size) {
+          clearTimeout(pending.timer);
+          pauseDrains.delete(message.pauseToken);
+          pending.resolve(true);
+        }
+      }
+    }
     if (
       message.type === "ready" ||
       !job ||
@@ -1773,6 +1808,24 @@ export function createStudySearchRuntime(
       if (job?.snapshot.id === id && job.snapshot.status === "running")
         stop("paused", "user", false);
     },
+    async pauseAndDrain(id, timeoutMs = 60) {
+      if (!Number.isFinite(timeoutMs) || timeoutMs < 1) throw Error("停止応答の期限が不正です");
+      if (job?.snapshot.id !== id) return false;
+      if (job.snapshot.status === "completed") return true;
+      if (job.snapshot.status !== "running" && job.snapshot.status !== "paused") return false;
+      if (job.snapshot.status === "running") stop("paused", "user", false);
+      const waiting = new Set(children.flatMap((child, i) => (child.connected ? [i] : [])));
+      if (!waiting.size) return false;
+      const token = ++pauseToken;
+      return new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => {
+          pauseDrains.delete(token);
+          resolve(false);
+        }, timeoutMs);
+        pauseDrains.set(token, { id, waiting, resolve, timer });
+        command({ type: "pause", id, pauseToken: token });
+      });
+    },
     async resume(id) {
       if (
         !job ||
@@ -1821,6 +1874,11 @@ export function createStudySearchRuntime(
       await terminating;
     },
     async close() {
+      for (const pending of pauseDrains.values()) {
+        clearTimeout(pending.timer);
+        pending.resolve(false);
+      }
+      pauseDrains.clear();
       if (closed) return terminating;
       generation++;
       closed = true;
