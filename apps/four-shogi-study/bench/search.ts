@@ -1,3 +1,4 @@
+import { studyTacticalCases } from "./studyTactics";
 import { cpus, totalmem, release } from "node:os";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -13,14 +14,8 @@ import {
   type FourShogiState,
 } from "@tetraboard/four-shogi";
 import { chooseCpuActionWithDiagnostics } from "../../../packages/four-shogi/src/cpu";
-import {
-  tacticalCases,
-  acceptsTactic,
-  tacticalFixtureVersion,
-} from "../../../packages/four-shogi/bench/tactics";
+import { acceptsTactic, tacticalFixtureVersion } from "../../../packages/four-shogi/bench/tactics";
 import { git, repoRoot, sourceIdentity } from "../../../packages/four-shogi/bench/baseline";
-import { fixture } from "../../../packages/four-shogi/bench/positionFixture";
-import { positionForSide } from "../../../packages/four-shogi/src/board";
 import {
   studySearchVersion,
   studySearchStrategies,
@@ -28,7 +23,6 @@ import {
   type StudyCandidate,
   type StudyProfile,
 } from "@tetraboard/four-shogi/study-search";
-import { sides } from "../../../packages/four-shogi/src/types";
 const args = new Map(
   Bun.argv.slice(2).map((arg) => {
     const match = /^--([a-z-]+)=(.+)$/.exec(arg);
@@ -264,39 +258,7 @@ for (const count of threads)
             console.log(JSON.stringify(result));
           }
         } else if (kind === "tactics") {
-          const cases = tacticalCases().filter((entry) => entry.state.mode === "singles");
-          for (const restricted of [false, true])
-            for (const [offset, orientation] of sides.entries()) {
-              const state = fixture({
-                threePlayerAttackProhibited: restricted,
-                kings: { south: "A8", east: "C8" },
-                pieces: [
-                  { side: "south", kind: "rook", at: "E3" },
-                  { side: "west", kind: "gold", at: "C3" },
-                  { side: "north", kind: "silver", at: "B4" },
-                ],
-              });
-              const board = state.board.map((row) =>
-                row.map(() => null),
-              ) as FourShogiState["board"][number][number][][];
-              for (let y = 0; y < 9; y++)
-                for (let x = 0; x < 9; x++) {
-                  const piece = state.board[y][x];
-                  const to = positionForSide({ x, y }, orientation);
-                  board[to.y][to.x] = piece
-                    ? { ...piece, side: sides[(sides.indexOf(piece.side) + offset) % 4] }
-                    : null;
-                }
-              cases.push({
-                id: `valid-magic-${restricted}-${orientation}`,
-                family: "valid-magic",
-                split: "validation",
-                criterion: "magic",
-                critical: true,
-                proof: "西の金を取り東王へ王手し、北銀の取り返しより先に南へ戻る",
-                state: { ...state, status: "playing", result: null, board, turn: orientation },
-              });
-            }
+          const cases = studyTacticalCases();
           for (const entry of cases.filter((entry) => !criticalOnly || entry.critical)) {
             const input = fromState(entry.state);
             let stateHash: string;

@@ -1,3 +1,4 @@
+import { studyTacticalCases } from "./studyTactics";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tacticalCases, acceptsTactic } from "../../../packages/four-shogi/bench/tactics";
@@ -14,15 +15,16 @@ import type { LethalGuardOptions } from "../src/search/lethalGuard";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 import type { FourShogiAction } from "@tetraboard/four-shogi";
 
-export async function runGuardQuality(directory: string) {
-  const plan = JSON.parse(readFileSync(join(directory, "plan.json"), "utf8"));
-  const file = join(directory, "validation/quality.json");
+export async function runGuardQuality(directory: string, planFile = "plan.json") {
+  const plan = JSON.parse(readFileSync(join(directory, planFile), "utf8"));
+  const file = join(directory, plan.output ?? "validation/quality.json");
   if (existsSync(file)) throw Error("既存結果は上書きしません");
   const report = {
     source: plan.source,
     conditions:
       "cold 2s wall including startup; 4worker/root/4096MiB/broadDepth3; 1000ms history measured separately",
     rows: [] as unknown[],
+    skipped: [] as unknown[],
     fixed: [] as unknown[],
     complete: false,
   };
@@ -31,9 +33,17 @@ export async function runGuardQuality(directory: string) {
     performance.now() + 25 * 60000,
     performance.now() + 90 * 60000 - (Date.now() - Date.parse(plan.registeredAt)),
   );
-  for (const tactic of tacticalCases()) {
-    const input = tacticInput(tactic.state),
+  for (const tactic of studyTacticalCases()) {
+    const input = tacticInput(tactic.state);
+    let position;
+    try {
       position = await restoreStudyPosition(input);
+    } catch (error) {
+      if (tactic.critical) throw error;
+      report.skipped.push({ id: tactic.id, reason: String(error) });
+      save();
+      continue;
+    }
     const conditions: {
       name: string;
       strategy: "adaptive" | "dual-continuations";
@@ -171,4 +181,4 @@ export async function runGuardQuality(directory: string) {
   save();
   return report;
 }
-if (import.meta.main) await runGuardQuality(resolve(Bun.argv[2]));
+if (import.meta.main) await runGuardQuality(resolve(Bun.argv[2]), Bun.argv[3]);

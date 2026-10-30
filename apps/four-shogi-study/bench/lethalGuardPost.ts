@@ -61,7 +61,11 @@ export async function collectGuardResults(directory: string) {
         withinTwoSeconds: row.responseMs <= 2000,
         depth: snapshot.completedDepth,
         maxNDepth: g?.maxNCompletedDepth ?? snapshot.completedDepth,
-        deep: snapshot.coverage?.phase === "deep",
+        deep:
+          snapshot.timing?.deepStartedMs !== null && snapshot.timing?.deepStartedMs !== undefined,
+        publishedDeep: snapshot.coverage?.phase === "deep",
+        forced: record.legalActions.length === 1,
+        alive: record.activeSides.length,
         normalElapsedMs: g?.normalElapsedMs ?? row.responseMs,
         work: snapshot.work,
         nodes: snapshot.nodes,
@@ -127,7 +131,12 @@ export async function collectGuardResults(directory: string) {
     totals.cases++;
   }
   const groups = [];
-  const qualityFile = join(directory, "validation/quality.json");
+  const qualityFile = join(
+    directory,
+    existsSync(join(directory, "validation/quality-corrected.json"))
+      ? "validation/quality-corrected.json"
+      : "validation/quality.json",
+  );
   if (existsSync(qualityFile)) {
     const quality = JSON.parse(readFileSync(qualityFile, "utf8"));
     for (const row of quality.rows) {
@@ -168,6 +177,9 @@ export async function collectGuardResults(directory: string) {
         maxNDepthMedian: quantile(nums("maxNDepth"), 0.5),
         depth2: r.filter((x) => Number(x.maxNDepth) >= 2).length,
         deep: r.filter((x) => x.deep).length,
+        nonforced: r.filter((x) => !x.forced).length,
+        nonforcedDepth2: r.filter((x) => !x.forced && Number(x.maxNDepth) >= 2).length,
+        nonforcedDeep: r.filter((x) => !x.forced && x.deep).length,
         guardP50: quantile(nums("guardMs"), 0.5),
         guardP95: quantile(nums("guardMs"), 0.95),
         targets,
