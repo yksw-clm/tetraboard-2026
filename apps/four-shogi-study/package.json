@@ -5,12 +5,13 @@
   "scripts": {
     "dev": "vite",
     "start": "bun --no-env-file src/server/main.ts",
-    "build": "bun run typecheck && vite build",
+    "build": "bun run typecheck && bun run build:assets",
     "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
     "typecheck:tsc": "tsc --noEmit",
     "test": "bun run test:unit && bun run test:dom",
     "test:unit": "bun test ./test",
-    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom"
+    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom",
+    "build:assets": "vite build"
   },
   "dependencies": {
     "@heroui/react": "^3.2.6",

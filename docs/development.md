@@ -298,15 +298,15 @@ Webの `/` は総合ロビーを表示します。各ゲームロビーの「CPU
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では6エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` は各workspaceのテストを自動収集し、6エンジン・protocol・共有盤面・Worker・Web・Admin・AI・ローカル検討とCI選択方針を検証します。上限2プロセスで実行し、Workerは別々のMiniflareに分けます。診断用の `bun run test:serial` は同じ全ファイルを直列実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
-`bun run typecheck` は全workspaceの `typecheck` を順番に実行し、Bun内蔵の `bun check --no-script --all` で検査します。workspaceの追加は従来どおり自動で対象になります。Webは `tsconfig.check.json` からapp・node・test・type-tests・buildの5設定、Workerは同名の設定から本体・test・scriptsの3設定を参照します。ほかの9workspaceは各 `tsconfig.json` を使い、従来の17対象を維持します。同時に各workspaceから全CPUを使う処理を起動しないよう、workspace間は直列にします。Web・Adminのbuild前の型検査も内蔵チェッカーを使います。Webのbuildは従来どおりapp・node・buildを検査し、共有のBun版確認スクリプトもbuild設定に含めます。
+`bun run typecheck` は全workspaceの `typecheck` を順番に実行し、Bun内蔵の `bun check --no-script --all` で検査します。workspaceの追加は従来どおり自動で対象になります。Webは `tsconfig.check.json` からapp・node・test・type-tests・buildの5設定、Workerは同名の設定から本体・test・scriptsの3設定を参照します。ほかのworkspaceは各 `tsconfig.json` を使い、従来の検査対象を維持します。CI選択・実行スクリプトも専用tsconfigで検査します。同時に各workspaceから全CPUを使う処理を起動しないよう、workspace間は直列にします。Web・Adminのbuild前の型検査も内蔵チェッカーを使います。Webのbuildは従来どおりapp・node・buildを検査し、共有のBun版確認スクリプトもbuild設定に含めます。
 
 miseとCIはBun 1.4.4へ固定しています。`scripts/checkBunVersion.ts` はmiseの指定より古いBunを内蔵チェック前に拒否し、旧Bunで既存checkスクリプトが再帰実行されることを防ぎます。シェルのPATHに古いBunが残っている場合は `mise exec -- bun run typecheck` で実行してください。protocolは `types: ["bun"]` を明示し、暗黙の型定義読込みに依存しません。
 
 比較用の従来方式は `bun run typecheck:tsc`、部分比較は `bun run --cwd <workspace> typecheck:tsc` です。通常CIで両方式を重複実行しません。Bun内蔵のTypeScriptと標準型定義はインストール済みTypeScriptやエディタの版とは独立しており、100%互換は前提にしません。診断差は比較コマンドと既存の否定fixtureで調べます。TypeScriptパッケージは比較用とWorkerテスト設定のJSONC解析にも必要なため維持します。Bunを更新するときは[測定条件と互換性の確認](testing.md#bun-144での型チェック比較2026-10-24)も参照してください。
 
-GitHub Actionsは `main`・`develop` へのpushと両ブランチ宛てのPRで整形・lint・型チェック・テストに加え、本番・開発それぞれのWeb・AdminのビルドとWorkerデプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
+GitHub Actionsは [Fast CIとFull CI](testing.md#fast-ciとfull-ci) の基準でPRの検証範囲を選択します。`scripts/ci/impact.ts` が分類と依存先の展開、`repository.ts` がmanifest・相対参照・import解決、`run.ts` が上限2プロセスでの実行、`workerGroups.ts` がWorkerファイルの自動分割を担当します。未知の変更はFullへ倒し、main・developのpushは常にFullです。Full成功と同じSHAの環境別artifactを確認してから既存のデプロイを行います。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。通常のbuildとコミット前フックの `bun run check` は全体検証を維持します。
 
 Workerテストは `vitest.config.mts` でローカルのD1・R2・SQLite対応Durable Objectとテスト専用のbindingsを指定します。追跡済みWrangler設定はJSONCとして入口・互換日・互換フラグだけを読み、Wranglerの開発用設定ローダーを通しません。管理者はテストごとに指定し、開発用 `.dev.vars`・`.env` やプロセスの秘密設定を取り込みません。詳細と回帰検証は [個人設定からの分離](testing.md#個人設定からの分離) を参照してください。
 
@@ -956,7 +956,7 @@ Macで四人将棋シングルス・三人攻撃禁止ON/OFFを検討できる�
 | 公開棋譜とライブ | 同 `server/publicImport.ts`・`liveRoom.ts`、`domain/publicReplay.ts`・`liveReplay.ts`、既存protocol/Worker replay経路 |
 | 戦術・性能・正式棋力 | 同 `bench/search.ts`・`strength.ts` と独立対局親のIPC制御。[測定記録](four-shogi-ai.md#ローカル検討cpuの測定と採否)へ条件と結果を残します。 |
 
-部分確認は `bun run study:check`、ビルドは `bun run study:build`。rootの `check` に通常テスト・型確認を含め、rootの公開 `build` には検討アプリを含めません。CIでも検討ビルドは別の確認ステップです。
+部分確認は `bun run study:check`、ビルドは `bun run study:build`。rootの `check` に通常テスト・型確認を含め、rootの公開 `build` には検討アプリを含めません。CIでも検討UIは配布資産へ混ぜず、選択対象のbuildとして確認します。
 
 ## 軽量テスト
 
@@ -987,7 +987,7 @@ bun run --cwd apps/worker test test/feedback.test.ts
 
 純粋なルーム・局面・棋譜fixtureは `apps/web/test/fixtures/`、固定棋譜と固定期待値は `test-fixtures/matches/` に置きます。DOMの共有preloadは `test-support/dom.ts`、React操作と偽時計・通信の支援は `apps/web/test-dom/support.tsx` です。時刻・タイマー・fetch・WebSocket・保存領域・画像処理の境界を制御し、実際の待ち時間・外部通信・実デコードを使いません。部品・hookの状態モデル自体は実装を使います。
 
-テスト結果は通常CIのログへ出力し、HTML・スクリーンショット・traceのレポートartifactは生成しません。デプロイに使う `web-<コミットSHA>` のビルドartifactは維持します。
+テスト結果は通常CIのログへ出力し、HTML・スクリーンショット・traceのレポートartifactは生成しません。デプロイに使う `web-production-<コミットSHA>`・`web-development-<コミットSHA>` のビルドartifactは維持します。
 
 既存のWorker E2Eと専用SQL・Playwright設定は削除します。実APIの権限・再送・保存・CPU・閉鎖は通常のWorker統合テストで確認します。画像変換は入力検証と状態・出力境界をDOMテスト、WASMの同一origin asset参照はビルド時の検証、assetへのHTTP転送はWorkerテストで確認します。既存のPlaywright依存は維持します。
 
@@ -1040,11 +1040,11 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-main・develop向けPRと両ブランチのpushでは、checksジョブで `bun install --frozen-lockfile` → `bun run check` → 本番ビルド・dry-run → 開発ビルド・dry-runを実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
+checksジョブは `bun install --frozen-lockfile` 後に[Fast／Fullの選択](testing.md#fast-ciとfull-ci)を行います。低リスクのdevelop向けPRは依存する利用側までの型・テスト・資産ビルド、高リスク・不明な変更とmain向けPRは全体検証・本番／開発ビルド・dry-runを実行します。両ブランチのpushは必ずFullです。範囲・未実行workspace・commit・工程別の秒数をsummaryへ記録し、Fullのcheck相当は180秒、通常PRのFastは60〜90秒以内を目標とします。CIは型検査後の `build:assets` で重複検査を避け、ローカルの `bun run check` と必須5コマンドは維持します。PRジョブはCloudflareの認証情報を使いません。
 
 公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
 
-main・developのpushでは同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
+main・developのpushではFullの全検証とupload成功後だけ `full-validated` を出力し、同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
 

@@ -827,7 +827,7 @@ HeroUIを継続使用し、ヘッダー・ボタン／ボタン風リンク・�
 
 developは `https://tetraboard-dev.chaossi-lab.workers.dev` へCI成功後に自動公開します。Workerは `tetraboard-dev`、D1は `tetraboard-dev-db`、R2は `tetraboard-dev-objects` とし、対局状態・アカウント・画像・棋譜を本番と分離します。本番データをコピーせず空の状態から開始します。誰でも利用できますがHTTPとHTMLのnoindexで検索対象外にします。canonicalは開発URL、サイトマップは空とし、robots.txtからサイトマップを案内しません。本番ドメイン・データ・検索設定は維持します。
 
-通常CIは整形・lint・型チェック・単体テスト、本番・開発それぞれのWeb・AdminビルドとWorker dry-runを実行します。コード・設定変更ではPR提出前に、ローカルで `bun run check`、`bun run build`、Workerの `deploy:dry-run`、`bun run build:development`、Workerの `deploy:dry-run:development` を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain・develop取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
+通常PRは依存関係に基づくFast CIを優先し、Worker・ルール・protocol・共通基盤・不明な変更とmain向けPRはFull CIを実行します。`ci-full` ラベルでも全体検証を要求できます。Full CIは全workspaceの静的検証・テスト、本番・開発のWeb・AdminビルドとWorker dry-runを実行し、main・developの自動公開前に必ず成功させます。Fastの未実行範囲はsummaryに明示します。詳しくは[CIの実行方針](docs/testing.md#fast-ciとfull-ci)を参照してください。コード・設定変更ではPR提出前に、ローカルで `bun run check`、`bun run build`、Workerの `deploy:dry-run`、`bun run build:development`、Workerの `deploy:dry-run:development` を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain・develop取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
 
 WorkerテストはローカルのD1・R2・SQLite対応Durable Objectとテスト専用の設定を明示し、開発用 `.dev.vars`・`.env` や個人の管理者設定を読み込みません。Workerの型生成は追跡済み `.dev.vars.example` を入力に固定します。設定の退避・一時コピーなしで通常の作業ディレクトリから検証し、CIでも設定なし・競合設定ありの結果と生成型の一致を確認します。
 

@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 permissions:
   contents: read
@@ -12,6 +13,12 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: ci-checks-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    outputs:
+      full-validated: ${{ steps.full.outputs.validated }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -23,7 +30,11 @@ jobs:
         with:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
+      - name: Select validation scope
+        id: plan
+        run: bun scripts/ci/plan.ts
       - name: Verify isolation without development settings
+        if: steps.plan.outputs.mode == 'full'
         env:
           CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
           CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
@@ -33,6 +44,7 @@ jobs:
           cp apps/worker/worker-configuration.d.ts "$RUNNER_TEMP/worker-configuration.clean.d.ts"
           bun run --cwd apps/worker test test/testEnvironment.test.ts
       - name: Verify isolation with conflicting dotenv settings
+        if: steps.plan.outputs.mode == 'full'
         env:
           CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
           CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
@@ -47,6 +59,7 @@ jobs:
           diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
           bun run --cwd apps/worker test test/testEnvironment.test.ts
       - name: Add conflicting development settings for isolation checks
+        if: steps.plan.outputs.mode == 'full'
         run: |
           cat > apps/worker/.dev.vars <<'VARS'
           APP_ORIGIN=https://personal-settings.example.invalid
@@ -61,28 +74,22 @@ jobs:
           DISCORD_CLIENT_SECRET=personal-discord-secret
           TETRABOARD_DEV_VARS_LEAK=must-not-be-loaded
           VARS
-      - name: Check (180-second target)
+      - name: Validate selected scope (Fast or Full)
         env:
           CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
           CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
           TETRABOARD_PROCESS_ENV_LEAK: must-not-be-loaded
-        run: |
-          started=$(date +%s)
-          status=0
-          bun run check || status=$?
-          elapsed=$(( $(date +%s) - started ))
-          echo "bun run check: ${elapsed}s / 180s target" >> "$GITHUB_STEP_SUMMARY"
-          echo "CHECK_DURATION_SECONDS=${elapsed}"
-          if [ "$elapsed" -gt 180 ]; then
-            echo "::warning::bun run check exceeded the 180-second target (${elapsed}s). Review duplicate tests and type checks."
-          fi
-          exit "$status"
+        run: bun scripts/ci/run.ts check
       - name: Verify generated types with conflicting development settings
+        if: steps.plan.outputs.mode == 'full'
         run: diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
-      - run: bun run build
-      - name: Build local study app (not deployed)
-        run: bun run study:build
-      - run: bun run --cwd apps/worker deploy:dry-run
+      - name: Build selected apps (types already checked)
+        run: bun scripts/ci/run.ts build
+      - name: Package and verify production assets
+        if: steps.plan.outputs.mode == 'full'
+        run: |
+          bun scripts/buildAssets.ts
+          bun run --cwd apps/worker deploy:dry-run
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
@@ -90,8 +97,16 @@ jobs:
           path: apps/worker/dist/assets
           if-no-files-found: error
           retention-days: 7
-      - run: bun run build:development
-      - run: bun run --cwd apps/worker deploy:dry-run:development
+      - name: Build and verify development assets
+        if: steps.plan.outputs.mode == 'full'
+        env:
+          VITE_PUBLIC_ORIGIN: https://tetraboard-dev.chaossi-lab.workers.dev
+          VITE_SEARCH_INDEXABLE: "false"
+        run: |
+          bun run --cwd apps/web build:assets
+          bun run --cwd apps/admin build:assets
+          bun scripts/buildAssets.ts
+          bun run --cwd apps/worker deploy:dry-run:development
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         with:
@@ -100,9 +115,41 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Confirm Full CI gate
+        id: full
+        if: steps.plan.outputs.mode == 'full'
+        run: echo 'validated=true' >> "$GITHUB_OUTPUT"
+
+  benchmark:
+    if: github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'ci-benchmark'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - name: Compare on the same runner
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bun scripts/ci/benchmark.ts "$BASE_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-benchmark-${{ github.sha }}
+          path: .ci-benchmark.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   deploy:
     needs: [checks]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: needs.checks.outputs.full-validated == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.ref_name == 'main' && 'production-deploy' || 'development-deploy' }}
