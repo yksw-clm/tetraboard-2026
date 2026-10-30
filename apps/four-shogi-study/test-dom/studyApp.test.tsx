@@ -129,6 +129,7 @@ async function boot(current: StudySnapshot) {
   request("/api/studies").respond(library(current));
   await flush();
   LocalEvents.instances.at(-1)!.open();
+  LocalEvents.instances.at(-1)!.send({ type: "snapshot", snapshot: current });
   await flush();
   return view;
 }
@@ -219,6 +220,34 @@ test("ローカル配信切断中はライブの旧候補を隠し、遅延snaps
   LocalEvents.instances.at(-1)!.send({ type: "snapshot", snapshot: current });
   await flush();
   expect(view.textContent).not.toContain("この手を試す");
+});
+
+test("配信の再接続だけでは旧候補を戻さず、新しい初期snapshotを待つ", async () => {
+  const current = await initial();
+  current.analysis = analysis(current, "completed");
+  current.live = {
+    sourceUrl: "https://tetraboard.net/rooms/12345",
+    instanceId: "instance",
+    roundId: "round",
+    eventCount: 0,
+    latestNodeId: current.study.currentNodeId,
+    follow: true,
+    status: "live",
+    message: null,
+  };
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  act(() => events.onerror?.());
+  await flush();
+  events.open();
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "analysis", studyId: current.study.id, analysis: current.analysis! });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "snapshot", snapshot: current });
+  await flush();
+  expect(view.textContent).toContain("この手を試す");
 });
 
 test("新しい対局で各席の人間/CPUとCPU思考時間を指定して保存する", async () => {
