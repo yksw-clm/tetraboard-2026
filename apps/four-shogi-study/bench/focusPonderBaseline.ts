@@ -57,8 +57,8 @@ if (Bun.argv[3] === "prepare") {
   });
   console.log(JSON.stringify({ cases: cases.length }));
 } else {
-  const plan = read(join(root, "baseline/cases.json"));
-  const output = join(root, "baseline/results.jsonl");
+  const plan = read(join(root, Bun.argv[3] ?? "baseline/cases.json"));
+  const output = join(root, plan.outputFile ?? "baseline/results.jsonl");
   if (existsSync(output)) throw Error("existing baseline preserved");
   for (const entry of plan.cases) {
     const input = read(entry.file),
@@ -180,7 +180,7 @@ if (Bun.argv[3] === "prepare") {
       await runtime.close();
     }
   }
-  save(join(root, "baseline/complete.json"), {
+  save(join(root, plan.completeFile ?? "baseline/complete.json"), {
     source: guardBenchIdentity(),
     complete: true,
     endedAt: new Date().toISOString(),

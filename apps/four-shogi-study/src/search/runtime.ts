@@ -26,6 +26,7 @@ import type { SearchCommand, SearchMessage } from "./messages";
 import { projectFocusPosition, type FocusProjection } from "./focus";
 import type { LethalGuardReport } from "./lethalGuard";
 import { createStudyDeadline, type StudyLifecycleEvent } from "./deadline";
+import { prioritizeFocusRoots } from "./focusContinuation";
 
 export type StudyFocusMetadata = {
   side: Side;
@@ -41,6 +42,14 @@ export type StudyFocusMetadata = {
 };
 
 export type StudySearchSnapshot = {
+  continuation?: {
+    mode: string;
+    pvHit: boolean;
+    pvEntries: number;
+    hintReorders: number;
+    priorWork: number;
+    newWork: number;
+  };
   completion?: {
     normalResult: "complete" | "incomplete";
     cause: string;
@@ -114,9 +123,12 @@ export type StudySearchSnapshot = {
     selectedRoots: number;
     legalRoots: number;
     safetyComplete: boolean;
+    hintReorders?: number;
   };
 };
 export type StudySearchOptions = {
+  /** 同一の検討/対局だけを識別し、workerへ送りません。 */
+  sessionKey?: string;
   /** 同じ親プロセス内だけで共有する単調時計の終了時刻です。workerへは送りません。 */
   deadlineAt?: number;
   reuseChecks?: boolean;
@@ -210,6 +222,7 @@ export type StudyParallelEvent =
     };
 
 export type StudySearchRuntimeConfig = {
+  rootOrderHint?: (position: AnalysisPosition) => FourShogiAction | null;
   observeLifecycle?: (event: StudyLifecycleEvent) => void;
   onPreparedPosition?: (position: AnalysisPosition) => void;
   onCompletedRoots?: (candidates: readonly StudyCandidate[], depth: number) => void;
@@ -249,6 +262,7 @@ type PendingRoot = {
   finishing: boolean;
 };
 type Job = {
+  rootOrderHint?: FourShogiAction | null;
   dynamic: {
     dual?: {
       phase: "broad" | "deep";
@@ -305,6 +319,8 @@ export interface StudySearchRuntime {
   resume(id: string): Promise<void>;
   cancel(id: string): Promise<void>;
   close(): Promise<void>;
+  holdFocus?(id: string): Promise<void>;
+  releaseFocus?(): Promise<void>;
 }
 
 export function createStudySearchRuntime(
@@ -707,6 +723,7 @@ export function createStudySearchRuntime(
       deadlineAt: _deadline,
       focusSide: _focus,
       broadDepth: _broad,
+      sessionKey: _session,
       ...rootOptions
     } = value.options;
     value.prepared = true;
@@ -915,6 +932,17 @@ export function createStudySearchRuntime(
               dynamic.depth,
               value.options.rootWidth ?? 24,
             );
+    if (value.rootOrderHint) {
+      const ordered = prioritizeFocusRoots(
+        dynamic.queue,
+        [...dynamic.all.values()],
+        value.rootOrderHint,
+      );
+      if (ordered.some((index, i) => index !== dynamic.queue[i]))
+        value.snapshot.diagnostics.hintReorders =
+          (value.snapshot.diagnostics.hintReorders ?? 0) + 1;
+      dynamic.queue = ordered;
+    }
     if (config.observeDiagnostic)
       sendDiagnostic({
         type: "iteration",
@@ -1129,6 +1157,7 @@ export function createStudySearchRuntime(
         );
         return;
       }
+      value.rootOrderHint = config.rootOrderHint?.(projected.position);
       const fallback = getAnalysisLegalActions(projected.position)[0] ?? null;
       value.snapshot.analysisRecommendedAction = fallback;
       value.snapshot.recommendedAction =
@@ -1580,6 +1609,7 @@ export function createStudySearchRuntime(
       )
         throw new TypeError("広い比較の深さは2〜4です");
       job = {
+        rootOrderHint: config.rootOrderHint?.(position),
         dynamic:
           options.strategy === "legacy" ||
           config.scheduling === "fixed" ||
