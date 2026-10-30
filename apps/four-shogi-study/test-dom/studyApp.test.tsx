@@ -198,6 +198,29 @@ function analysis(
   }
 }
 
+test("ローカル配信切断中はライブの旧候補を隠し、遅延snapshotでも再表示しない", async () => {
+  const current = await initial();
+  current.analysis = analysis(current, "completed");
+  current.live = {
+    sourceUrl: "https://tetraboard.net/rooms/12345",
+    instanceId: "instance",
+    roundId: "round",
+    eventCount: 0,
+    latestNodeId: current.study.currentNodeId,
+    follow: true,
+    status: "live",
+    message: null,
+  };
+  const view = await boot(current);
+  expect(view.textContent).toContain("この手を試す");
+  act(() => LocalEvents.instances.at(-1)!.onerror?.());
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  LocalEvents.instances.at(-1)!.send({ type: "snapshot", snapshot: current });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+});
+
 test("新しい対局で各席の人間/CPUとCPU思考時間を指定して保存する", async () => {
   const current = await initial();
   const view = await boot(current);

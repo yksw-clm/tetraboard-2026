@@ -236,6 +236,8 @@ export class LocalStudyApplication implements StudyApplication {
       forbiddenActions: availability.threePlayerAttackForbiddenActions,
       staticEvaluation: evaluateStudyPosition(position),
       analysis:
+        (!this.liveViews.get(id)?.follow ||
+          ["live", "finished"].includes(this.liveViews.get(id)!.status)) &&
         analysis?.nodeId === study.currentNodeId &&
         analysis.stateHash === position.stateHash &&
         matchesFocus(analysis)
@@ -820,7 +822,7 @@ export class LocalStudyApplication implements StudyApplication {
           if (!live) return;
           this.liveViews.set(id, { ...live, status: status.state, message: status.message });
           if (
-            ["error", "closed", "reconnecting"].includes(status.state) &&
+            ["error", "closed", "reconnecting", "syncing"].includes(status.state) &&
             this.active?.studyId === id
           ) {
             if (

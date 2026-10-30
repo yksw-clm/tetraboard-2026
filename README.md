@@ -288,6 +288,8 @@ Webの操作ボタンは、作成・参加・棋譜への移動・更新・送�
 
 有限時間の検討は局面復元・探索プロセス起動から結果確定までを同じ親時計で管理し、終了処理用に予算の5%・最大100msを予約します。ガード失敗・時間切れでは完成済みの通常探索結果を保持し、ガードの完成とは区別します。完成比較がなければ「未完了」です。同期処理・OS・HTTPの遅延を含む厳密な応答期限は保証しません。実対局の手動利用では、局面と履歴・席・最新更新の一致を確認し、30秒秒読みを解析だけに使い切らないでください。AI補助の許可が未確認の正式対局では使用せず、練習・非競技の検証に限定します。
 
+ライブ追従中は新しい履歴の取得開始時に旧探索を取り消し、同期中・再接続中・ローカル配信の切断中は候補を非表示にします。同じ更新番号への再接続も照合済み状態へ戻します。表示局面のhashと解析の元局面の一致、フォーカス席と実手番を確認してください。予測後の未来候補を現在指せる手として使いません。
+
 証明効率の実験設定は `STUDY_LETHAL_GUARD_ORDER=base|simple|checks|escapes`、`STUDY_LETHAL_GUARD_BUDGET=fixed-50|incumbent|reserve|progress`、`STUDY_LETHAL_GUARD_CACHE=off|on` です。既定はbase/fixed-50/offで、ガード自体もOFFのままです。[条件と採否](docs/four-shogi-ai.md#p1-4d有限証明の効率改善)を確認して明示的に切り替えます。
 
 致命応手ガードは既定OFFの実験機能です。`STUDY_LETHAL_GUARD_MODE=observe|experimental`、`STUDY_LETHAL_GUARD_MS=250`、`STUDY_LETHAL_GUARD_SELECTION=top3-reserve` を起動時に明示できます。OBSERVEは記録のみ、EXPERIMENTALは同じ有限手数で危険/安全を証明できた候補間だけ順位を変更します。フォーカス・無制限検討・再開では適用しません。[判定・予算・測定と採否](docs/four-shogi-ai.md#p1-4c致命応手ガード)を確認してください。

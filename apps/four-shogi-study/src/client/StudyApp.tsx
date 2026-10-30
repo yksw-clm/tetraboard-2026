@@ -23,7 +23,14 @@ import { Field, fieldClass } from "./ui";
 
 export function StudyApp() {
   const session = useStudySession();
-  const { snapshot } = session;
+  const sourceSnapshot = session.snapshot;
+  const liveResultInvalid =
+    sourceSnapshot?.live?.follow &&
+    (!session.connected ||
+      !["live", "finished"].includes(sourceSnapshot.live.status) ||
+      sourceSnapshot.analysis?.status === "cancelled");
+  const snapshot =
+    sourceSnapshot && liveResultInvalid ? { ...sourceSnapshot, analysis: null } : sourceSnapshot;
   const [dialog, setDialog] = useState<"new" | "import" | "settings" | "live" | null>(null);
   const [viewerSide, setViewerSide] = useState<Side>("south");
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -713,6 +720,17 @@ function LivePanel({ snapshot, session }: { snapshot: StudySnapshot; session: St
       <p className="text-xs">
         取得済み {live.eventCount}イベント · {live.follow ? "最新局面に追従" : "局面を固定して検討"}
       </p>
+      <p className="mt-2 text-xs">
+        表示局面 {snapshot.position.stateHash.slice(0, 12)} ·{" "}
+        {snapshot.analysis?.stateHash === snapshot.position.stateHash
+          ? "解析の元局面と一致"
+          : "現在局面の解析は未確認"}
+      </p>
+      {live.follow && (!session.connected || !["live", "finished"].includes(live.status)) ? (
+        <p role="status" className="mt-2 text-xs">
+          最新の履歴・接続を確認できるまで推奨手を非表示にします。
+        </p>
+      ) : null}
       <a
         className="mt-2 block break-all text-xs text-[#52734c]"
         href={live.sourceUrl}

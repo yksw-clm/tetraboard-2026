@@ -91,6 +91,12 @@ export function createGuardedStudySearchRuntime(
     const available = normal.completedDepth > 0 && normal.candidates.length > 0;
     const result: StudySearchSnapshot = {
       ...normal,
+      diagnostics: report
+        ? {
+            ...normal.diagnostics,
+            searchVersion: normal.diagnostics.searchVersion + "-guard-" + guard.mode,
+          }
+        : normal.diagnostics,
       lethalGuard: report,
       status: "completed",
       reason:

@@ -325,6 +325,21 @@ describe("ライブ棋譜の完全状態復元", () => {
 });
 
 describe("観戦WSと固定prefixの同期", () => {
+  test("同じrevisionへ再接続した場合も履歴照合済みのlive状態へ戻る", async () => {
+    const h = harness();
+    const ready = h.socket();
+    const start = h.session.start();
+    const socket = await ready;
+    h.send(socket, h.roomAt(3));
+    await start;
+    const nextSocket = h.socket();
+    await h.session.reconnect();
+    const reconnected = await nextSocket;
+    h.send(reconnected, h.roomAt(3));
+    await Bun.sleep(0);
+    expect(h.statuses.at(-1)?.state).toBe("live");
+    h.session.close();
+  });
   test("最初のsnapshotと完全履歴を照合してから公開し、更新は差分で取得する", async () => {
     const h = harness();
     const socketReady = h.socket();

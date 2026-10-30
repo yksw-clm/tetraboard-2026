@@ -227,6 +227,21 @@ async function branch(app: LocalStudyApplication, current: StudySnapshot) {
 }
 
 describe("ライブ対局と検討文書の統合", () => {
+  test("新しいrevisionの履歴同期中は旧解析を隠し、進行中の探索を取り消す", async () => {
+    const h = await harness();
+    const first = await h.watch();
+    expect(first.analysis).not.toBeNull();
+    h.status({ state: "syncing", message: null });
+    const pending = await h.app.command(first.study.id, {
+      type: "comment",
+      nodeId: first.study.currentNodeId,
+      comment: "同期中",
+      expectedRevision: first.study.revision,
+    });
+    expect(pending.live?.status).toBe("syncing");
+    expect(pending.analysis).toBeNull();
+    expect(h.cancelled).toContain(first.analysis!.id);
+  });
   test("フォーカス席を変えても追従し、他席の着手と次の対局でも同じ席を解析する", async () => {
     const h = await harness();
     const initial = await h.watch();
