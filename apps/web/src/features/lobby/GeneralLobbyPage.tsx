@@ -87,7 +87,7 @@ export function GeneralLobbyPage() {
             <h2 id="game-list-title" className="mb-4 text-xl font-bold">
               ゲーム一覧
             </h2>
-            <LobbyGameGrid />
+            <LobbyGameGrid mobile={mobile} />
           </section>
           <GeneralLobbyRooms
             page={rooms}

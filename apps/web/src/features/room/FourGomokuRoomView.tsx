@@ -62,7 +62,6 @@ export function FourGomokuRoomView({
       result={room.lastRound ? <FourGomokuResult lastRound={room.lastRound} /> : null}
       selfEliminated={inactive}
       onRotate={rotate}
-      operationNotice={room.settings.mode === "doubles" ? "チーム：黒・赤 対 白・青" : undefined}
     />
   );
 }

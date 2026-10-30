@@ -517,6 +517,7 @@ const fourGomokuStateBase = gameStateBaseSchema.omit({ consecutivePasses: true }
   winningLines: z.array(z.array(fourGomokuPositionSchema).min(5).max(15)).max(12),
   rulesVersion: z.literal(1),
   lastMove: fourGomokuPositionSchema.nullable(),
+  lastMoves: z.partialRecord(fourGomokuColorSchema, fourGomokuPositionSchema).optional(),
 });
 const fourGomokuPlayingStateSchema = fourGomokuStateBase.extend({
   status: z.literal("playing"),

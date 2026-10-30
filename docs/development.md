@@ -200,6 +200,7 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 - [fourGomokuProgress.ts](../apps/worker/src/rooms/fourGomokuProgress.ts) が配席・着手・期限・CPU・全体終局を共通ライフサイクルへ接続します。通信は専用の `placeFourGomokuStone` に `roundId` と `positionRevision` を要求します。途中順位ではplayingを維持し、最後の確定で保存・結果・再戦へ進みます。
 - [fourGomokuMatchData.ts](../apps/worker/src/accounts/fourGomokuMatchData.ts) が規則版1の全局面再生と保存理由を照合します。共通D1保存とモード別SQLを利用し、既存ゲームの契約は維持します。
 - [FourGomokuRoomView](../apps/web/src/features/room/FourGomokuRoomView.tsx) と [FourGomokuMatchReplayView](../apps/web/src/features/room/FourGomokuMatchReplayView.tsx) は4カード・途中順位・90度回転を扱います。木の盤面の描画は通常版と共用し、エンジンは別の遅延チャンクです。待機カードは現在の準備状態、保存棋譜カードは選択したフレームの順位を表示します。
+- 各色の最終手は表示用の省略可能な `lastMoves` として確定着手時に更新し、脱落・勝ち抜けでも保持します。旧進行局は `FourGomokuProgress.normalize` が永続棋譜から復元します。旧保存棋譜は `replayV1` の再実行で得た局面をWebのフレームへ使い、未来の最終手を持ち込みません。規則版1の勝敗照合には表示用情報を含めません。通常版と共用の `GomokuBoard` はSVGと操作領域に同じ寸法定数を使います。
 - [検証範囲と部分実行](testing.md#四人五目並べの確認)を参照してください。既存5ゲームと新ゲームの全体回帰・必須検証と実機未確認事項はPRへ記録します。
 
 ## 四人五目並べの実装計画
@@ -297,15 +298,15 @@ Webの `/` は総合ロビーを表示します。各ゲームロビーの「CPU
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` では6エンジン・Worker・Web・Adminのテストを実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` は各workspaceのテストを自動収集し、6エンジン・protocol・共有盤面・Worker・Web・Admin・AI・ローカル検討とCI選択方針を検証します。上限2プロセスで実行し、Workerは別々のMiniflareに分けます。診断用の `bun run test:serial` は同じ全ファイルを直列実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
-`bun run typecheck` は全workspaceの `typecheck` を順番に実行し、Bun内蔵の `bun check --no-script --all` で検査します。workspaceの追加は従来どおり自動で対象になります。Webは `tsconfig.check.json` からapp・node・test・type-tests・buildの5設定、Workerは同名の設定から本体・test・scriptsの3設定を参照します。ほかの9workspaceは各 `tsconfig.json` を使い、従来の17対象を維持します。同時に各workspaceから全CPUを使う処理を起動しないよう、workspace間は直列にします。Web・Adminのbuild前の型検査も内蔵チェッカーを使います。Webのbuildは従来どおりapp・node・buildを検査し、共有のBun版確認スクリプトもbuild設定に含めます。
+`bun run typecheck` は全workspaceの `typecheck` を順番に実行し、Bun内蔵の `bun check --no-script --all` で検査します。workspaceの追加は従来どおり自動で対象になります。Webは `tsconfig.check.json` からapp・node・test・type-tests・buildの5設定、Workerは同名の設定から本体・test・scriptsの3設定を参照します。ほかのworkspaceは各 `tsconfig.json` を使い、従来の検査対象を維持します。CI選択・実行スクリプトも専用tsconfigで検査します。同時に各workspaceから全CPUを使う処理を起動しないよう、workspace間は直列にします。Web・Adminのbuild前の型検査も内蔵チェッカーを使います。Webのbuildは従来どおりapp・node・buildを検査し、共有のBun版確認スクリプトもbuild設定に含めます。
 
 miseとCIはBun 1.4.4へ固定しています。`scripts/checkBunVersion.ts` はmiseの指定より古いBunを内蔵チェック前に拒否し、旧Bunで既存checkスクリプトが再帰実行されることを防ぎます。シェルのPATHに古いBunが残っている場合は `mise exec -- bun run typecheck` で実行してください。protocolは `types: ["bun"]` を明示し、暗黙の型定義読込みに依存しません。
 
 比較用の従来方式は `bun run typecheck:tsc`、部分比較は `bun run --cwd <workspace> typecheck:tsc` です。通常CIで両方式を重複実行しません。Bun内蔵のTypeScriptと標準型定義はインストール済みTypeScriptやエディタの版とは独立しており、100%互換は前提にしません。診断差は比較コマンドと既存の否定fixtureで調べます。TypeScriptパッケージは比較用とWorkerテスト設定のJSONC解析にも必要なため維持します。Bunを更新するときは[測定条件と互換性の確認](testing.md#bun-144での型チェック比較2026-10-24)も参照してください。
 
-GitHub Actionsは `main`・`develop` へのpushと両ブランチ宛てのPRで整形・lint・型チェック・テストに加え、本番・開発それぞれのWeb・AdminのビルドとWorkerデプロイのdry-runを実行します。CIでは `bun install --frozen-lockfile` を使用します。コミット前フックも `bun run check` を実行します。
+GitHub Actionsは [Fast CIとFull CI](testing.md#fast-ciとfull-ci) の基準でPRの検証範囲を選択します。`scripts/ci/impact.ts` が分類と依存先の展開、`repository.ts` がmanifest・相対参照・import解決、`run.ts` が上限2プロセスでの実行、`workerGroups.ts` がWorkerファイルの自動分割を担当します。未知の変更はFullへ倒し、main・developのpushは常にFullです。Full成功と同じSHAの環境別artifactを確認してから既存のデプロイを行います。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。通常のbuildとコミット前フックの `bun run check` は全体検証を維持します。
 
 Workerテストは `vitest.config.mts` でローカルのD1・R2・SQLite対応Durable Objectとテスト専用のbindingsを指定します。追跡済みWrangler設定はJSONCとして入口・互換日・互換フラグだけを読み、Wranglerの開発用設定ローダーを通しません。管理者はテストごとに指定し、開発用 `.dev.vars`・`.env` やプロセスの秘密設定を取り込みません。詳細と回帰検証は [個人設定からの分離](testing.md#個人設定からの分離) を参照してください。
 
@@ -539,7 +540,7 @@ ContextProvidersは開発者の承認、AGENTS、README、構成・開発・テ�
 
 `features/lobby/GeneralLobbyPage.tsx` がトップ、`GeneralLobbyRooms.tsx`・`useGeneralLobbyRooms.ts` が横断一覧、`GeneralLobbyChat.tsx`・`useLobbyChat.ts` が公開チャットです。架空データ・プレビュー操作・疑似ログイン・DEV限定分岐は撤去し、`/` を両環境のbuildへ含めます。既存の `AccountMenu`・`useRoomEntry`・`RoomEntryDialog`・`RecentMatches` を使い、参加時と観戦URLにルーム世代を渡します。観戦URLは世代確認用の `invite` と `watch=1` を持ち、参加ダイアログを自動表示しません。通常の招待URLは従来どおり参加案内を表示します。登録復帰先に `/` を許可し、チャット下書きはsessionStorage、送信者非表示は公開IDをキーにlocalStorageへ保存します。
 
-ホームはブランド見出し・紹介文、6ゲームカード、公開ルーム、大会一覧、公開チャット、最近の対局を縦に並べ、スマートフォンでは大会一覧を最近の対局の下へ移します。幅の購読でkey付きの領域を並べ替え、DOMと表示の順序をそろえつつチャットの下書き・取得済み状態を保持します。ゲームカードはPC6列／スマートフォン3列、公開ルームはPC2列／スマートフォン1列です。一覧は最大480px／400pxで内部スクロールします。作成入口はゲーム選択後に対象ロビーへ `roomEntryIntent: "create"` を渡し、既存ダイアログを一度だけ開きます。
+ホームはブランド見出し・紹介文、6ゲームカード、公開ルーム、大会一覧、公開チャット、最近の対局を縦に並べ、スマートフォンでは大会一覧を最近の対局の下へ移します。幅の購読でkey付きの領域を並べ替え、DOMと表示の順序をそろえつつチャットの下書き・取得済み状態を保持します。ゲームカードはPC6列／スマートフォン3列、公開ルームはPC2列／スマートフォン1列です。2026-10-30の開発者の承認により、スマートフォンのゲームカードの画像を32pxへ縮め、余白を削減しました。`LobbyGameGrid` は既存の優先順の後に未掲載の `gameIds` を追加し、`HomeGameList` は既存の幅購読結果を受け取って初期6件／全件を切り替えます。7件以上のスマートフォンだけに残件数付きの展開・折りたたみボタンを置き、`aria-expanded` と `aria-controls` を付けます。PCは全件、作成ダイアログは従来の全件・画像寸法を維持します。展開状態は幅切替で保持し、ページの再マウントで初期化します。一覧は最大480px／400pxで内部スクロールします。作成入口はゲーム選択後に対象ロビーへ `roomEntryIntent: "create"` を渡し、既存ダイアログを一度だけ開きます。
 
 `GeneralLobbyRooms` は取得済みデータと空表示を自動更新中も保ち、`pendingSource === "refresh"` のときだけ一覧に共通スピナーを重ねます。ゲーム選択後は履歴stateの `roomEntryIntent: "create"` を渡し、共通の `LobbyView` が既存ダイアログを初期表示します。stateの作成意図だけを履歴置換で消費し、他のstateを残して再訪時の自動再表示を防ぎます。
 
@@ -571,7 +572,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 全6ゲームのタイトル横と総合ロビーのゲーム一覧は `LobbyBoardPreview` を共用し、`assets/lobby/` の専用WebP画像を1枚の `img` で表示します。五目並べと四人五目並べは同じ空の15路盤画像を使い、画像は計5枚です。実行時にゲームエンジン・対局用の盤面部品・`ShogiPiece` を読み込まず、将棋の盤・駒画像の準備も始めません。`width`／`height` で画像の縦横比を確保し、`aria-hidden`・空のalt・ドラッグ無効の装飾として表示します。入力中のモードや通信状態には連動させません。
 
-画像は既存の初期盤面から傾きと外側の影を除いて書き出し、WebP品質0.86で保存しています。将棋は既存の盤・駒画像と方向変換から南を手前にした36枚／40枚を229×250px（縦横比458:500）へ、それ以外は264×264pxへ出力しています。5枚とも20KB未満です。元画像や初期配置を変更した場合は専用画像も更新します。タイトル横は白い囲みなしで48px、ホームは64px、共通ナビ・固定タブは20pxです。タイトルとホームの傾きと影はCSSで付け、将棋とリバーシは左へ7度、五目並べは左へ6度を維持し、ナビ・固定タブは回転と影を外します。初期配信HTMLもビルド済みの同じ画像URLを使います。ゲーム別のページから独自の盤面部品を渡さず、共通ロビーがゲームIDから画像を選びます。
+画像は既存の初期盤面から傾きと外側の影を除いて書き出し、WebP品質0.86で保存しています。将棋は既存の盤・駒画像と方向変換から南を手前にした36枚／40枚を229×250px（縦横比458:500）へ、それ以外は264×264pxへ出力しています。5枚とも20KB未満です。元画像や初期配置を変更した場合は専用画像も更新します。タイトル横は白い囲みなしで48px、ホームはPC64px／スマートフォン32px、共通ナビ・固定タブは20pxです。タイトルとホームの傾きと影はCSSで付け、将棋とリバーシは左へ7度、五目並べは左へ6度を維持し、ナビ・固定タブは回転と影を外します。初期配信HTMLもビルド済みの同じ画像URLを使います。ゲーム別のページから独自の盤面部品を渡さず、共通ロビーがゲームIDから画像を選びます。
 
 `GameBadge` は棋譜カードのゲーム名表示に使い、`showGame` で表示を切り替えます。公開ルームカードは常にゲーム名を表示し、総合ロビーでは `gameLink` で各ゲームのロビーへのリンクにします。`LobbyFooter` は総合・各ゲームロビーの規約導線と著作権表記を共用します。
 
@@ -991,7 +992,7 @@ Macで四人将棋シングルス・三人攻撃禁止ON/OFFを検討できる�
 | 公開棋譜とライブ | 同 `server/publicImport.ts`・`liveRoom.ts`、`domain/publicReplay.ts`・`liveReplay.ts`、既存protocol/Worker replay経路 |
 | 戦術・性能・正式棋力 | 同 `bench/search.ts`・`strength.ts` と独立対局親のIPC制御。[測定記録](four-shogi-ai.md#ローカル検討cpuの測定と採否)へ条件と結果を残します。 |
 
-部分確認は `bun run study:check`、ビルドは `bun run study:build`。rootの `check` に通常テスト・型確認を含め、rootの公開 `build` には検討アプリを含めません。CIでも検討ビルドは別の確認ステップです。
+部分確認は `bun run study:check`、ビルドは `bun run study:build`。rootの `check` に通常テスト・型確認を含め、rootの公開 `build` には検討アプリを含めません。CIでも検討UIは配布資産へ混ぜず、選択対象のbuildとして確認します。
 
 ## 軽量テスト
 
@@ -1022,7 +1023,7 @@ bun run --cwd apps/worker test test/feedback.test.ts
 
 純粋なルーム・局面・棋譜fixtureは `apps/web/test/fixtures/`、固定棋譜と固定期待値は `test-fixtures/matches/` に置きます。DOMの共有preloadは `test-support/dom.ts`、React操作と偽時計・通信の支援は `apps/web/test-dom/support.tsx` です。時刻・タイマー・fetch・WebSocket・保存領域・画像処理の境界を制御し、実際の待ち時間・外部通信・実デコードを使いません。部品・hookの状態モデル自体は実装を使います。
 
-テスト結果は通常CIのログへ出力し、HTML・スクリーンショット・traceのレポートartifactは生成しません。デプロイに使う `web-<コミットSHA>` のビルドartifactは維持します。
+テスト結果は通常CIのログへ出力し、HTML・スクリーンショット・traceのレポートartifactは生成しません。デプロイに使う `web-production-<コミットSHA>`・`web-development-<コミットSHA>` のビルドartifactは維持します。
 
 既存のWorker E2Eと専用SQL・Playwright設定は削除します。実APIの権限・再送・保存・CPU・閉鎖は通常のWorker統合テストで確認します。画像変換は入力検証と状態・出力境界をDOMテスト、WASMの同一origin asset参照はビルド時の検証、assetへのHTTP転送はWorkerテストで確認します。既存のPlaywright依存は維持します。
 
@@ -1075,11 +1076,11 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-main・develop向けPRと両ブランチのpushでは、checksジョブで `bun install --frozen-lockfile` → `bun run check` → 本番ビルド・dry-run → 開発ビルド・dry-runを実行します。`check` のformat確認・lint・型・全テストを合わせた秒数をGitHub Actionsのsummaryに記録し、180秒を目標とします。PRジョブはCloudflareの認証情報を使いません。
+checksジョブは `bun install --frozen-lockfile` 後に[Fast／Fullの選択](testing.md#fast-ciとfull-ci)を行います。低リスクのdevelop向けPRは依存する利用側までの型・テスト・資産ビルド、高リスク・不明な変更とmain向けPRは全体検証・本番／開発ビルド・dry-runを実行します。両ブランチのpushは必ずFullです。範囲・未実行workspace・commit・工程別の秒数をsummaryへ記録し、Fullのcheck相当は180秒、通常PRのFastは60〜90秒以内を目標とします。CIは型検査後の `build:assets` で重複検査を避け、ローカルの `bun run check` と必須5コマンドは維持します。PRジョブはCloudflareの認証情報を使いません。
 
 公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
 
-main・developのpushでは同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
+main・developのpushではFullの全検証とupload成功後だけ `full-validated` を出力し、同じ実行の対象環境の成果物をデプロイジョブへ渡します。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
 

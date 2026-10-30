@@ -94,3 +94,41 @@ test("ダブルスは満盤で引き分け、両端が敵石でも五連が成�
     { color: "black", rank: 1, reason: "five" },
   ]);
 });
+
+test("各色の最終手は着手だけで更新し、旧棋譜の再生でも復元する", () => {
+  const initial = createInitialState();
+  let game = initial;
+  const steps: Parameters<typeof replayV1>[0]["steps"][number][] = [];
+  for (const [x, y] of [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [0, 1],
+  ]) {
+    if (game.status !== "playing") throw Error();
+    const color = game.turn;
+    const before = structuredClone(game);
+    const next = move(game, x, y);
+    expect(game).toEqual(before);
+    game = next;
+    steps.push({ action: { type: "place", color, position: { x, y } }, game });
+  }
+  const expected = {
+    black: { x: 0, y: 1 },
+    white: { x: 1, y: 0 },
+    red: { x: 2, y: 0 },
+    blue: { x: 3, y: 0 },
+  };
+  expect(game.lastMoves).toEqual(expected);
+  const eliminated = eliminateColor(game, "red");
+  if (!eliminated.ok) throw Error();
+  expect(eliminated.state.lastMoves).toEqual(expected);
+  const legacy = structuredClone({ initial, steps });
+  delete legacy.initial.lastMoves;
+  for (const step of legacy.steps) delete step.game.lastMoves;
+  const frames = replayV1(legacy);
+  expect(frames[0].lastMoves).toEqual({});
+  expect(frames[4].lastMoves?.black).toEqual({ x: 0, y: 0 });
+  expect(frames[5].lastMoves).toEqual(expected);
+});

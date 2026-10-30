@@ -201,3 +201,23 @@ test("観戦者と手番外の対局者は着手を送信しない", () => {
     expect(socket.sent.filter((m) => m.type === "room.game.action")).toHaveLength(0);
   }
 });
+
+test("通常五目並べは白黒とも最新の1手だけを輪と点で示す", () => {
+  let game = createInitialState();
+  for (const position of [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+  ]) {
+    const result = applyAction(game, { type: "placeStone", position });
+    if (!result.ok) throw Error();
+    game = result.state;
+    const view = render(<GomokuBoard game={game} canPlay={false} onPlaceStone={() => {}} />);
+    const marks = view.querySelectorAll("[data-last-move]");
+    expect(marks).toHaveLength(1);
+    expect(marks[0].getAttribute("data-last-move")).toBe(position.x === 0 ? "A1" : "B1");
+    expect(marks[0].querySelectorAll("circle")).toHaveLength(2);
+    expect(marks[0].querySelector("circle")!.getAttribute("stroke")).toBe(
+      position.x === 0 ? "#ffffff" : "#171717",
+    );
+  }
+});

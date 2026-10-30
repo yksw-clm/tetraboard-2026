@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "bun run typecheck:build && vite build && bun build/generatePublicLobbies.ts",
+    "build": "bun run typecheck:build && bun run build:assets",
     "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all -b tsconfig.check.json",
     "typecheck:build": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all -b tsconfig.json && bun check --no-script --all -p tsconfig.build.json",
     "typecheck:tsc": "tsc -b && tsc -p tsconfig.test.json && tsc -p tsconfig.type-tests.json && tsc -p tsconfig.build.json",
@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "bun run test:unit && bun run test:dom",
     "test:unit": "bun test ./test",
-    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom"
+    "test:dom": "bun test --preload ../../test-support/dom.ts ./test-dom",
+    "build:assets": "vite build && bun build/generatePublicLobbies.ts"
   },
   "dependencies": {
     "@heroui/react": "^3.2.6",

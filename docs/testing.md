@@ -10,7 +10,106 @@
 
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
 
-`bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsはcheck全体の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
+`bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsは検証範囲・工程別の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
+
+## Fast CIとFull CI
+
+CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。
+
+| 変更・イベント                                                                                           | 検証範囲                                                                 |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Webのsrc・test・test-dom・静的資産                                                                       | Webと推移的な利用側。現在は共有テスト支援を使うAdmin・ローカル検討も含む |
+| Adminのsrc・test・test-dom                                                                               | Admin                                                                    |
+| ローカル検討のsrc・test・test-dom                                                                        | ローカル検討                                                             |
+| shogi-uiのsrc・test-dom・資産                                                                            | 共有盤面とWeb・Admin・ローカル検討                                       |
+| README・docs内のMarkdown（rulesを除く）だけ                                                              | format・lint・CI方針の型とテスト。アプリのテスト・buildは未実行          |
+| Worker・認証・対局・DB・migration・AIサービス・ゲームエンジン・protocol・ルール正本                      | PRでもFull                                                               |
+| package.json・lockfile・ビルド設定・CI・scripts・共有fixture・test-support・未知のファイル／依存解決不能 | PRでもFull                                                               |
+| main向けPR、`ci-full` ラベルのあるPR                                                                     | Full                                                                     |
+| main・developへのpush                                                                                    | 常にFull。成功後だけ既存の自動デプロイ                                   |
+
+Fastは対象workspaceの型・全テストと対象アプリの本番向け資産ビルドを実行します。型チェックは推移的にimportされるソースも検査します。開発向けbuild・Worker dry-run・環境分離はFullで確認します。ファイル単位のテスト省略や、成功した過去commitのテスト結果の流用は行いません。
+
+依存関係はworkspaceのdependencies・devDependencies・peerDependenciesに、相対import・型import・CSS・静的URL参照とBunのimport解決結果を加えます。WebのDOM支援をAdmin・検討アプリが直接参照する依存も対象です。検証対象から利用側への推移的閉包を取り、API・ルール・未知workspaceへ届けばFullです。Fast候補で動的importの対象やaliasを解決できない場合もFullにします。新しい実行方式や依存関係を追加するときは、この検出と選択テストを同じ変更で見直してください。
+
+PRはeventのbase SHAとcheckoutしたmerge commitを直接比較し、renameを追加・削除に分解して両方のパスを評価します。base更新の影響も含め、SHA不足・比較失敗・空差分ではFullへ倒します。PR更新時には同じPRの古い検証を取り消します。featureブランチへのpushでは別のCIを起動しません。マージ後のcommitはPRとは異なるため、pushのFullを再実行し、PRのartifactをデプロイへ流用しません。
+
+非公開リポジトリの現行プランではブランチ保護を強制できないため、GitHub CI・必須ローカル5コマンドの成功と開発者のマージ承認を運用で維持します。低リスクPRのFastを許可するのは、このローカル全体検証とデプロイ前Fullがあるためです。main向けPRと高リスク変更はPR時点でもFullを要求します。必要時は `ci-full` ラベルを追加してください。ラベル削除だけでは既存の実行結果を変更しません。
+
+### Fullの実行と資産の受け渡し
+
+Fullは全workspaceのformat・lint・型・全テスト、ローカル検討のbuild、本番／開発のWeb・Admin buildとWorker dry-runを実行します。個人設定なし・競合する.env・競合する.dev.varsの実Worker検証と型生成の一致も維持します。この3状態には異なるローダー分岐があるため、起動コストを理由に省略しません。
+
+型チェックが成功したCI内では `build:assets` で同じVite・公開ロビー生成・chunk／WASM検査を実行します。手元の `bun run build`・`study:build` は型チェックを含みます。本番と開発でcanonical・robots等が異なるWeb資産は別々に生成します。
+
+本番は本番build直後に `web-production-<SHA>`、開発は開発build直後に `web-development-<SHA>` をuploadします。全検証とupload成功の後にだけ `full-validated=true` を出力します。deployはchecks成功・この出力・main/developへのpushの3条件を満たす場合だけ起動し、同じSHAのartifactをdownloadします。既存のmigration前後のbranch最新性チェック、デプロイの直列化、公開後検証を維持します。
+
+### 実行の分割とテスト品質
+
+`bun run check` は引き続き全体検証です。テスト実行は上限2プロセスとし、Workerの重いファイルを先に2群へ分散します。全Workerファイルをサイズ順で軽い群へ割り当て、2つの独立したVitest／Miniflareで動かします。ファイル一覧のpatternはVitest設定と共有し、新規ファイルも必ずどちらか1群へ入れます。純粋関数とDOMのworkspaceも空いた枠で実行します。Bun内蔵型チェックはCPUを内部並列利用するためworkspace間では直列です。
+
+各Workerプロセス内の `--max-workers=1 --no-isolate` は維持します。[CloudflareのWebSocketとストレージ分離の制約](https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#websockets)に対応するためです。共有永続ディレクトリは指定せず、各プロセスが独立したD1・DO・R2とmodule cacheを使います。Vitestの結果キャッシュは無効にし、並列プロセス間のresults.json書込み競合と過去の時間による実行順変更を避けます。各群内も明示的にファイルサイズ降順・同サイズはパス順で実行します。`bun scripts/ci/verifyWorkerIsolation.ts` は同じD1主キー・DO ID・R2キーへ異なる値を同時保存し、両方の書込み後に自分の値だけを読めることをbarrier付きで確認します。新しい並列化やCloudflare plugin更新時に実行してください。
+
+分割を含む全1,018件のWorkerテストで、認証・認可・アカウント分離・合法手・CPU・再接続・DO復旧・D1保存／migration・大会の競合を維持します。ケースの削除・skip・timeout延長・本番コード変更は行っていません。複数ゲームの同じシナリオは、dispatch・認可・保存の接続ミスを検知するため保持します。時間プリセットの網羅はAPI層と純粋時計層で一部重複しますが、CIでAPI42件が約0.4秒のため削減対象にしません。AIの合法手・決定性・入力不変と棋力fixtureも、実行コストに見合う回帰価値があるため維持します。
+
+単体で代替可能な時計・期限の純粋関数はWorker内に残します。現状の実行コストは小さく、移管に伴う境界の変更を今回追加する効果が小さいためです。終了済みファイルの全DO Alarmを列挙して停止する案は、片付けコスト増加と終了待ちが発生したため採用しません。ローカル検討の長時間テストは未マージPRの条件を現行developの計測へ混ぜず、今回の基準では約6秒の全ケースを維持します。
+
+並列実行の失敗は子プロセスの終了コードで伝播し、開始済みの検証を回収してから失敗にします。失敗を成功へ変換しません。未発見のテスト間状態依存や、将来のファイルサイズと時間のずれは残るリスクです。`bun run test:serial` と通常分割で切り分け、分割一覧の欠落・重複テストを維持してください。
+
+### 測定と運用
+
+通常CIは1台のrunner内で並列化し、ジョブ数を増やして待機時間だけを短くする方式は採りません。依存installは基準CIで2〜3秒だったため、キャッシュの転送・無効化・保守コストを増やす変更は採用していません。PRとpushの全検証の重複は低リスクPRの対象選択で減らし、デプロイ前Fullは維持します。
+
+任意の `ci-benchmark` ラベル追加イベントは、別の測定専用jobを1回起動します。同じrunner・Bun・Nodeでbaseとheadのcheckを交互に2回実行し、D1／DO／R2分離とWeb・Admin・検討アプリのFast選択・check・buildを実行します。結果はsummaryと `ci-benchmark-<SHA>` artifactへ保存します。通常PRでは起動せず、ラベルを残したままpushしても測定jobは再実行しません。測定job自体の消費時間は、通常CIの費用削減とは別に数えます。
+
+2026-10-30の比較基準はdevelop `b9d5559069d63ef3fc6df183939e99900b1404ae` です。ActionsはUbuntu 26.04.1、Bun 1.4.4、Node 22。直近の参考実行は次のとおりです。
+
+| 実行                                                                                | 検証job | check |   Worker | 備考                                              |
+| ----------------------------------------------------------------------------------- | ------: | ----: | -------: | ------------------------------------------------- |
+| [40907139401](https://github.com/yksw-clm/tetraboard-2026/actions/runs/40907139401) |   295秒 | 227秒 | 167.63秒 | 基準develop。deploy 37秒は検証jobと別             |
+| [40906119486](https://github.com/yksw-clm/tetraboard-2026/actions/runs/40906119486) |   297秒 | 230秒 | 171.39秒 | 同じテスト構成のWeb変更PR                         |
+| [40905649527](https://github.com/yksw-clm/tetraboard-2026/actions/runs/40905649527) |   337秒 | 272秒 | 169.40秒 | 未マージの探索改善を含み、検討アプリ単体が47.98秒 |
+
+基準developのWorker上位はfourShogiRoom 17.94秒、roomDeadlineBoundary 16.17秒、gameRoom 9.31秒、commonRoomBehavior 8.72秒、guestAccounts 8.53秒です。全体は68ファイル1,018件で、tests 155.48秒、setup 6.15秒、transform 3.26秒。setup等はVitestの区間集計で、単純加算した値をwall timeとは扱いません。個人設定分離の2起動は計20秒、本番／開発のbuildは各14秒、dry-runは各2秒でした。
+
+workspace別の基準テスト時間はWorker 167.63秒、四人将棋16.72秒、Web 21.62秒（単体2.00＋DOM 19.62）、ローカル検討6.12秒（4.25＋1.87）、Admin 1.08秒、四人オセロ2.90秒、五目並べ1.30秒、その他の各workspaceは0.4秒未満です。今回の優先順位はWorkerの分割とworkspaceの並列化で、短い純粋関数のケース削減は行いません。
+
+直近の通常機能PRはWebのみ・Adminのみの表示調整と、protocol／Worker／ゲームを横断する変更が混在します。前者はFastの対象、後者はFullを維持します。未マージの探索改善PRとrelease PRを通常Web PRの同条件比較へ含めません。
+
+ローカル（macOS 27.0.1 arm64、Bun 1.4.4、Node 22.23.3、同じlockfile・checkout・依存導入済み、他の検証との同時実行なし）の初回比較では、checkが99.38秒から43.71秒へ短縮しました。Worker単独の変更前反復は71.79／73.28秒、hashによる2分割は62.02／41.45秒、サイズで均等化した分割は各約29秒でした。後続のローカル試行では実行順と実行時の環境による大きな変動（check 39.99〜139.59秒）もあったため、初回比率をCI効果へ外挿しません。最終設定は結果キャッシュを無効にして順序を固定し、このPRのActionsで同じrunner上の比較を行いました。
+
+変更後のコードは `c47b9629e321cd03219b13213b64f2079551ca38` です。[初回Full CI](https://github.com/yksw-clm/tetraboard-2026/actions/runs/40921770821)と[反復実行のchecks](https://github.com/yksw-clm/tetraboard-2026/actions/runs/40922389318/job/123618809799)が成功しました。
+
+| 範囲                   |                Before |            After | 比較条件                                                 |
+| ---------------------- | --------------------: | ---------------: | -------------------------------------------------------- |
+| 通常PRのworkflow全体   |                 300秒 |            216秒 | 40906119486と40921770821。deploy・測定jobなし。28.0%短縮 |
+| Fullのchecks job       |                 295秒 |       212／229秒 | 基準developと変更後2実行。22.4〜28.1%短縮                |
+| Fullのcheck相当のstep  |                 227秒 |       147／157秒 | 30.8〜35.2%短縮、180秒目標を達成                         |
+| Workerの2群のwall time | 167.63秒（1プロセス） | 100.55／108.42秒 | 初回のVitest区間。2群は同時実行で、和をwall timeとしない |
+
+通常CIのrunnerは1台のため、検証jobの総runner稼働も295秒から212〜229秒へ66〜83秒減りました。並列化で個々のテストはCPUを競合し、初回はWebが27.86秒、四人将棋が23.10秒へ増えましたが、job全体は短縮しています。総CPU秒の削減を確認した測定ではありません。GitHub timing APIのbillable値は0を返したため、請求分数・金額の削減率は未検証です。
+
+両環境ビルドは残しています。型チェックの重複は除去しましたが、初回の本番3アプリbuild 14秒・本番dry-run 2秒・開発buildとdry-run 16秒は基準の計33秒とほぼ同じです。ビルドの実測改善は確認できず、今回の時間短縮をビルド最適化の成果として計上しません。
+
+[同じrunner上の測定](https://github.com/yksw-clm/tetraboard-2026/actions/runs/40922389318)では、base `b9d5559` とPR merge commit `2b00fc5147a80a1a9e6011bb955806850e6cfba9`（head `c47b962`）を別checkoutに置き、同じBun 1.4.4・Node 22・lockfileで、before→after→before→afterの順に実行しました。変更前2,633件と変更後2,659件がすべて成功し、結果JSONを同runのartifactへ保存しました。
+
+| 同一runner・導入済み依存でのcheck |   Before |    After |
+| --------------------------------- | -------: | -------: |
+| 1回目                             | 222.01秒 | 144.31秒 |
+| 2回目                             | 218.48秒 | 143.23秒 |
+| 平均                              | 220.24秒 | 143.77秒 |
+
+全体checkは平均76.47秒、34.7%短縮しました。同じrunnerでFast用の変更パスを入力し、実際に対象のcheckとbuildを実行した結果は次のとおりです。
+
+| Fastの変更パターン | 実行workspace            | check＋build |
+| ------------------ | ------------------------ | -----------: |
+| Web                | Web・Admin・ローカル検討 |      39.35秒 |
+| Admin              | Admin                    |       3.74秒 |
+| ローカル検討       | ローカル検討             |       8.49秒 |
+
+Fastの全3パターンと、別Miniflare間の同一D1主キー・DO ID・R2キーの同時保存／読取りが成功しました。Fast値は導入済み依存に対する実処理で、runner割当・checkout・installを含む個別PR workflow全体の実測ではありません。その全体で60〜90秒を達成したとはまだ判定しません。依存辺・ルール・認証・DB・未知パスのFull選択、rename元と削除、Git差分失敗、実行失敗の伝播は26件のCI方針テストで確認しました。
+
+測定専用jobは806秒、同runの通常Full jobは229秒で、総runner稼働は1,035秒でした。この一度限りの比較費用を通常CIの費用削減へ混ぜません。Fullは依然3分半程度で、主な残余コストはWorker統合と環境分離です。将来は実測によるWorker分割の再均等化と、重い対局fixtureの初期化を優先して評価します。現在の本番コード・重要な回帰ケース・環境設定分離は維持し、実デプロイ／リモートDB／push時のartifact受渡しは今回実行していません。
 
 ## 管理画面の表示と画面選択
 
@@ -109,6 +208,8 @@ PC／スマートフォンの左右配置・名前10文字と列の収まり・�
 撮影は今回の利用ガイドに載せる画像を作るための一時作業です。PNGと撮影スクリプトは `/tmp` に置き、ブラウザを起動する自動テスト・設定・workflow・継続的なスクリーンショット比較は追加しません。通常のcheck・本番build／Worker dry-run・開発build／Worker dry-runの必須5コマンドを実行し、画像撮影の成功だけで実装検証を代替しません。
 
 ## 総合ロビーの確認
+
+`homeGameList.test.tsx` は6件で開閉操作なし、7・9・12件で初期6件から全件の展開・折りたたみ、残件数、リンク維持、ARIA関連付けと操作後のフォーカス、PCでの全件表示・幅状態の切替、既存順と全登録ゲームの網羅を確認します。実幅320px・375px・767px・768pxでの名前の収まりと画像・余白、公開ルームが上へ移ることはブラウザで手動確認し、自動テストへ寸法の判定は追加しません。
 
 UI改修の回帰では、Webのナビゲーション専用テストでPC／スマートフォンの共通リンク、現在地・戻る操作、アカウント状態別の導線、登録者画像の表示・画像更新・本人切替、ゲスト／未ログイン／画像なしの既存アイコンと、直近ゲームの保存・破損・保存拒否・別タブ同期と、対局／棋譜で記録しないことを確認します。大会の待機中に新ナビを使うと取消成功後だけ指定先へ進み、失敗時は大会画面を保持することも確認します。`generalLobby.test.tsx`・`dataLoading.test.tsx`・`lobbyComponents.test.tsx` は6ゲームカード・作成ゲーム選択・一度だけの作成ダイアログ表示、20件を超える全件取得と一括反映、公開ルームの3件から全件へのページ内展開、モード／参加可能条件のローカルANDと切替時の通信・中断・読み込み表示なし、定員変更時の再取得、更新途中失敗時の全件・0件表示保持を確認します。`recentMatchesDialog.test.tsx` はゲーム別の3件プレビュー維持、「もっと見る」で開く共通ダイアログの最大20件・ゲームテーマ・対人戦条件・更新／再試行・失敗時保持と公開棋譜への移動を確認します。`horizontalScroll.test.tsx` は総合ロビーの棋譜カードと横スクロールの回帰を確認します。
 
@@ -505,7 +606,7 @@ Workerテストは `apps/worker/vitest.config.mts` で `main` とMiniflare設定
 bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.test.ts test/feedback.test.ts test/accounts.test.ts test/sessionCookieRenewal.test.ts test/announcements.test.ts test/discordAuth.test.ts
 ```
 
-`testEnvironment.test.ts` は固定値・管理者設定の未登録・開発用設定の追加キーが取り込まれないことと、生成型のキーを検証し、通常の `check` に含めます。CIはプロセス環境変数の取り込みを要求する環境で、設定なしと競合する `.env` だけの状態をこのテストで確認し、偽の管理者・Origin・認証情報を含む `.dev.vars` を追加して通常の `check` を実行します。各状態で生成型が同一であることも照合します。全テストは重複実行せず、これらの偽設定はCIの使い捨て環境だけに作成します。
+`testEnvironment.test.ts` は固定値・管理者設定の未登録・開発用設定の追加キーが取り込まれないことと、生成型のキーを検証し、通常の `check` に含めます。CIはプロセス環境変数の取り込みを要求する環境で、設定なしと競合する `.env` だけの状態をこのテストで確認し、偽の管理者・Origin・認証情報を含む `.dev.vars` を追加してFullの全workspace検証を実行します。各状態で生成型が同一であることも照合します。全テストは重複実行せず、これらの偽設定はCIの使い捨て環境だけに作成します。
 
 ## セッション更新Cookie（Issue #142）
 
@@ -544,6 +645,8 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 画面寸法・位置・タブ位置、絵文字の実描画とフェード、実フォーカス・タッチ・ドラッグは自動テストへ追加しません。全6ゲームを320×640、390×844、768×1024、1280×800で確認し、通常将棋で投了・持将棋・入玉宣言とスタンプが並ぶ状態を重点ケースにします。実施結果と未確認事項はPR本文へ記載します。
 
 ## 四人五目並べの確認
+
+各色最終手の更新・入力不変・脱落時の保持・旧棋譜の復元は `packages/four-gomoku/test/replay.test.ts`、旧進行局の復元はWorkerの `fourGomokuRoom.test.ts` で確認します。Webの `fourGomoku.test.tsx` は各色の輪・最新手の点・前後操作と回転・初期局面・チーム案内の削除、`gomoku.test.tsx` は白黒とも最新1手だけの輪と点、`profileSelection.test.tsx` は四人五目並べのダブルスと選択復元を確認します。375px幅とPCでの文字・余白・輪の視認性、実タップ位置は手動確認対象です。
 
 | 確認する契約                                                                                                  | テストの入口                                                                             |
 | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
