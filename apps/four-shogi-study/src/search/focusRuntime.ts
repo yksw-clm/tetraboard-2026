@@ -44,7 +44,10 @@ export function focusConditions(
   ]);
 }
 /** PVは順序ヒントだけで、評価・完成深さ・枝の完成状態を新しい根へ移植しません。 */
-export function createPvFocusRuntime(config: StudySearchRuntimeConfig = {}): StudySearchRuntime {
+export function createPvFocusRuntime(
+  config: StudySearchRuntimeConfig = {},
+  retention: { keepSearchOnHold?: boolean } = {},
+): StudySearchRuntime {
   const hints = createFocusHints();
   type Context = {
     id: string | null;
@@ -140,6 +143,9 @@ export function createPvFocusRuntime(config: StudySearchRuntimeConfig = {}): Stu
       await base.pause(id);
       current.last = base.get(id);
       await capture(current);
+      // PV単独は従来の局面更新と同じ取消/worker終了を行い、順序以外を比較へ混ぜない。
+      // COMBINEDは外側のセッションが同じ終点の停止応答と保持を管理する。
+      if (!retention.keepSearchOnHold) await base.cancel(id);
     },
     async releaseFocus() {
       hints.clear();

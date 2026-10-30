@@ -41,7 +41,7 @@ export function createPonderFocusRuntime(
     throw Error("先読みの予算/保持期限が不正です");
   const inner =
     options.mode === "combined"
-      ? createPvFocusRuntime({ ...config, measureStages: true })
+      ? createPvFocusRuntime({ ...config, measureStages: true }, { keepSearchOnHold: true })
       : createStudySearchRuntime({ ...config, measureStages: true });
   type Session = {
     id: string | null;

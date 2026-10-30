@@ -42,6 +42,9 @@ import {
 
 export type FocusWay = "BASE" | "PV" | "PONDER" | "COMBINED";
 const modes: FocusWay[] = ["BASE", "PV", "PONDER", "COMBINED"];
+const tag = process.env.STUDY_FOCUS_BENCH_TAG ?? "";
+if (tag && !/^[a-z0-9-]{1,40}$/.test(tag)) throw Error("invalid measurement output tag");
+const artifact = (base: string, extension: string) => base + (tag ? "-" + tag : "") + extension;
 const read = (file: string) => JSON.parse(readFileSync(file, "utf8"));
 const save = (file: string, value: unknown) =>
   writeFileSync(file, JSON.stringify(value, null, 2) + "\n", { flag: "wx" });
@@ -73,7 +76,8 @@ export async function focusTrial(
   const started = performance.now(),
     parentCpu = process.cpuUsage();
   let firstCompletedMs: number | null = null,
-    firstForegroundMs: number | null = null;
+    firstForegroundMs: number | null = null,
+    firstLegalActionMs: number | null = null;
   let last: StudySearchSnapshot | null = null;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   const snapshot = await new Promise<StudySearchSnapshot>((resolve, reject) => {
@@ -88,7 +92,9 @@ export async function focusTrial(
         last = s;
         if (s.completedDepth > 0 && firstCompletedMs === null)
           firstCompletedMs = performance.now() - started;
-        if (s.recommendedAction && firstForegroundMs === null)
+        if (s.recommendedAction && firstLegalActionMs === null)
+          firstLegalActionMs = performance.now() - started;
+        if (s.completedDepth > 0 && s.recommendedAction && firstForegroundMs === null)
           firstForegroundMs = performance.now() - started;
         if (s.status === "error" || s.status === "cancelled") reject(Error(s.reason ?? s.status));
         else if (s.status === "completed") resolve(s);
@@ -133,6 +139,7 @@ export async function focusTrial(
     responseMs,
     firstCompletedMs,
     firstForegroundMs,
+    firstLegalActionMs,
     parentCpuMs: (cpu.user + cpu.system) / 1000,
     workerCpuMs:
       snapshot.continuation?.workerCpuMs ??
@@ -146,7 +153,7 @@ export async function focusTrial(
 }
 
 export async function qualityFocus(root: string) {
-  const output = join(root, "validation/focus-critical-v2.jsonl");
+  const output = join(root, "validation", artifact("focus-critical", ".jsonl"));
   if (existsSync(output)) throw Error("preserved results");
   const source = guardBenchIdentity();
   const cases = studyTacticalCases().filter((t) => t.critical);
@@ -182,7 +189,7 @@ export async function qualityFocus(root: string) {
       await runtime.close();
     }
   }
-  save(join(root, "validation/focus-critical-v2-complete.json"), {
+  save(join(root, "validation", artifact("focus-critical", "-complete.json")), {
     source,
     cases: 40,
     ways: modes,
@@ -193,7 +200,7 @@ export async function qualityFocus(root: string) {
 }
 
 export async function compareFocus(root: string) {
-  const output = join(root, "performance/focus-time.jsonl");
+  const output = join(root, "performance", artifact("focus-time", ".jsonl"));
   if (existsSync(output)) throw Error("preserved results");
   const source = guardBenchIdentity();
   const cases = ["results.jsonl", "extended-results.jsonl"]
@@ -282,7 +289,7 @@ export async function compareFocus(root: string) {
         await runtime.close();
       }
     }
-  save(join(root, "performance/focus-time-complete.json"), {
+  save(join(root, "performance", artifact("focus-time", "-complete.json")), {
     source,
     complete: true,
     sourceUnchanged: hashJson(source) === hashJson(guardBenchIdentity()),

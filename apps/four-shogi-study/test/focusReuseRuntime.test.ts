@@ -81,6 +81,7 @@ test("実着手一致のPVを次ジョブへ渡し、別scopeと明示取消で�
   try {
     const first = await done(runtime, studyPositionInput(study), opts);
     await runtime.holdFocus!(first.id);
+    expect(runtime.get(first.id)?.status).toBe("cancelled");
     const step = first.candidates[0].line[0];
     const next = await appendStudyEvent(study, {
       type: "action",
