@@ -16,7 +16,12 @@ import {
 } from "./runtime";
 import { createPvFocusRuntime, focusConditions, focusBroadDepth } from "./focusRuntime";
 import { createStudyDeadline } from "./deadline";
-export type FocusPonderOptions = { mode: "ponder" | "combined"; ponderMs?: number; ttlMs?: number };
+export type FocusPonderOptions = {
+  mode: "ponder" | "combined";
+  ponderMs?: number;
+  ttlMs?: number;
+  cacheEntries?: number;
+};
 const copy = <T>(x: T): T => structuredClone(x);
 const playerKey = (p: AnalysisPosition) => JSON.stringify(sides.map((s) => p.state.players[s]));
 const workerTotals = (s: StudySearchSnapshot | null) => ({
@@ -29,16 +34,20 @@ export function createPonderFocusRuntime(
   options: FocusPonderOptions = { mode: "ponder" },
 ): StudySearchRuntime {
   const ponderMs = options.ponderMs ?? 1000,
-    ttlMs = options.ttlMs ?? 30000;
+    ttlMs = options.ttlMs ?? 30000,
+    cacheEntries = options.cacheEntries ?? 1024;
   if (
     !Number.isFinite(ponderMs) ||
     ponderMs < 1 ||
     ponderMs > 60000 ||
     !Number.isFinite(ttlMs) ||
     ttlMs < 1 ||
-    ttlMs > 300000
+    ttlMs > 300000 ||
+    !Number.isSafeInteger(cacheEntries) ||
+    cacheEntries < 0 ||
+    cacheEntries > 65536
   )
-    throw Error("先読みの予算/保持期限が不正です");
+    throw Error("先読みの予算・保持期限・キャッシュ上限が不正です");
   const inner =
     options.mode === "combined"
       ? createPvFocusRuntime({ ...config, measureStages: true }, { keepSearchOnHold: true })
@@ -175,6 +184,7 @@ export function createPonderFocusRuntime(
         pvEntries: raw.continuation?.pvEntries ?? 0,
         hintReorders: raw.diagnostics.hintReorders ?? 0,
         priorWork: j.priorWork,
+        cacheEntryLimit: j.options.cacheSize,
         newWork: work,
         phase: j.phase,
         sessionHit: j.hit,
@@ -347,6 +357,15 @@ export function createPonderFocusRuntime(
         opts.timeBudgetMs! > 3600000
       )
         throw Error("検討時間は1〜3600000msの有限値が必要です");
+      if (
+        opts.cacheSize !== undefined &&
+        (!Number.isSafeInteger(opts.cacheSize) || opts.cacheSize < 0 || opts.cacheSize > 65536)
+      )
+        throw Error("cacheSizeは0〜65536の整数が必要です");
+      const boundedOptions = {
+        ...opts,
+        cacheSize: Math.min(opts.cacheSize ?? cacheEntries, cacheEntries),
+      };
       const started = performance.now(),
         token = ++generation;
       if (passthroughId) {
@@ -364,7 +383,7 @@ export function createPonderFocusRuntime(
       const key = JSON.stringify([
         opts.sessionKey,
         opts.focusSide,
-        focusConditions(config, opts),
+        focusConditions(config, boundedOptions),
         playerKey(p),
       ]);
       let previous = session;
@@ -441,7 +460,7 @@ export function createPonderFocusRuntime(
         done: false,
         view: blank(p, opts, id),
         notify,
-        options: opts,
+        options: boundedOptions,
       };
       current = j;
       publish(j, j.view);
@@ -459,8 +478,8 @@ export function createPonderFocusRuntime(
           .start(
             input,
             {
-              ...opts,
-              broadDepth: focusBroadDepth(opts),
+              ...boundedOptions,
+              broadDepth: focusBroadDepth(boundedOptions),
               deadlineAt: deadline.endsAt,
               timeBudgetMs: budget,
             },

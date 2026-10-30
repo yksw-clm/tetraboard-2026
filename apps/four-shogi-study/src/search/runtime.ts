@@ -49,6 +49,7 @@ export type StudySearchSnapshot = {
     hintReorders: number;
     priorWork: number;
     newWork: number;
+    cacheEntryLimit?: number;
     phase?: "ponder" | "foreground";
     sessionHit?: boolean;
     matchedPlies?: number;

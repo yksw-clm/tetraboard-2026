@@ -212,12 +212,18 @@ test("worker異常終了は完成扱いせず、取消と終了で遅延結果�
 });
 
 test("フォーカス引継ぎは明示指定だけ有効で、既定と不正値を区別する", () => {
-  expect(readFocusReuseEnvironment({})).toEqual({ mode: "off", ponderMs: 1000, ttlMs: 30000 });
+  expect(readFocusReuseEnvironment({})).toEqual({
+    mode: "off",
+    ponderMs: 1000,
+    ttlMs: 30000,
+    cacheEntries: 1024,
+  });
   expect(readFocusReuseEnvironment({ STUDY_FOCUS_REUSE: "combined" }).mode).toBe("combined");
   for (const env of [
     { STUDY_FOCUS_REUSE: "tree" },
     { STUDY_PONDER_MS: "0" },
     { STUDY_FOCUS_TTL_MS: "NaN" },
+    { STUDY_FOCUS_CACHE_ENTRIES: "1.5" },
   ])
     expect(() => readFocusReuseEnvironment(env)).toThrow();
 });
@@ -318,5 +324,27 @@ test("非有限の要求予算を窓で隠して受理せず、既存の正し�
     expect(next.continuation?.sessionHit).toBe(true);
   } finally {
     await runtime.close();
+  }
+});
+
+test("長く保持する探索のcacheを上限以内にし、明示した小さいcacheも守る", async () => {
+  const study = await createStudy();
+  for (const spec of [
+    { cap: undefined, requested: undefined, expected: 1024 },
+    { cap: 64, requested: 32, expected: 32 },
+  ]) {
+    const runtime = createPonderFocusRuntime(
+      { threads: 1, memoryMb: 512 },
+      { mode: "ponder", cacheEntries: spec.cap },
+    );
+    try {
+      const s = await done(runtime, studyPositionInput(study), {
+        ...options,
+        cacheSize: spec.requested,
+      });
+      expect(s.performance?.contextCacheCapacity).toBe(spec.expected);
+    } finally {
+      await runtime.close();
+    }
   }
 });
