@@ -859,3 +859,6 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 `apps/four-shogi-study/test/strengthPilot.test.ts`は、24局を同条件3方式で循環する順序、未完了と完了の分離、重複拒否、各着手journalの正本再生・途中復旧・改変拒否、外部guardの実時計と実signalによる停止を確認します。guard試験のOS列挙だけはsandboxから独立したfixtureを使い、実測のRSSは実OSのpsで監視します。既存のstrength/strengthProcessPool試験も維持します。
 
 実測はコミット済みの同一ソースで `bun --no-env-file apps/four-shogi-study/bench/strengthPilot.ts prepare <Git管理外成果物ディレクトリ> <調査済み未使用seed>`、次に `run <同ディレクトリ>` です。prepare前に `diagnostics/seed-audit.json`（selectedSeed、previouslyUsed=false、調査範囲）を置きます。planは排他的に作成され、runはコード・HEAD一致、1回限りの開始、外部監視の起動を確認します。実OSのプロセスRSSを読む権限が必要です。`verify <同ディレクトリ>` で全棋譜・着手hash・順位・結果・統計と事前の開始棋譜を照合します。既に使用したseedでの再現は再測定であり、新しい独立holdoutではありません。
+
+
+`strengthPilotDiagnostics.test.ts`は、PVの次自手までの長さと実手順一致の区別、同じ着手のJSONキー順非依存、未終局・欠落条件を勝敗へ変換しないseed対応差、重複拒否を確認します。測定後の`bench/strengthPilotDiagnostics.ts <成果物ディレクトリ>`は、合成実戦棋譜を正本で再生し、脱落段階・捕獲・PV相違・同条件の最初の異なる候補手を記録します。`strengthPilot.ts prepare-cold`は4096MiB・毎手worker新規作成の共通条件を事前登録する入口で、既定のprepare条件を変更しません。

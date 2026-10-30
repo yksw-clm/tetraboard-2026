@@ -34,7 +34,7 @@ async function save(path: string, value: unknown) {
   await writeFile(`${path}.tmp`, JSON.stringify(value, null, 2) + "\n");
   await rename(`${path}.tmp`, path);
 }
-export async function preparePilot(directory: string, seed: number) {
+export async function preparePilot(directory: string, seed: number, coldWorkers = false) {
   if (git("status", "--porcelain"))
     throw new Error("計測コードをコミットしてから事前登録してください");
   if (
@@ -56,7 +56,8 @@ export async function preparePilot(directory: string, seed: number) {
   const options: StrengthOptions = {
     budget: { timeMs: 2000 },
     threads: 4,
-    memoryMb: 8192,
+    memoryMb: coldWorkers ? 4096 : 8192,
+    ...(coldWorkers ? { reuseSearchWorkers: false } : {}),
     concurrency: 1,
     seed,
     seeds: 1,
@@ -120,7 +121,10 @@ export async function preparePilot(directory: string, seed: number) {
       startRule:
         "開始後86分を超えるか、残り時間が直近3局の平均時間の1.2倍（最低60秒）を下回ると新しい局を開始しません。",
       instrumentation:
-        "3方式共通のmeasureStages=true、既存root/default widths/extensions/evaluation/cache。各適用手を同期append、完成局を原子的checkpoint。強制合法手は探索時間・深さの分母と分離します。",
+        "3方式共通のmeasureStages=true、既存root/default widths/extensions/evaluation。各適用手を同期append、完成局を原子的checkpoint。強制合法手は探索時間・深さの分母と分離します。" +
+        (coldWorkers
+          ? " 全方式4096MiB、毎手worker新規作成。起動時間を予算と実時間へ含めます。"
+          : " メモリ8192MiB、既存worker再利用設定。"),
       inference:
         "独立系列n=1。24局を24独立標本とせず区間推定しません。完全な24局のseedを主比較、完成3局組とその他の途中結果は参考として分離します。",
     };
@@ -374,9 +378,11 @@ export async function runPilot(directory: string) {
 
 if (import.meta.main) {
   const [mode, directory, rawSeed] = Bun.argv.slice(2);
-  if (!directory) throw new Error("prepare|run|verify <成果物ディレクトリ> [未使用seed]");
+  if (!directory)
+    throw new Error("prepare|prepare-cold|run|verify <成果物ディレクトリ> [未使用seed]");
   const root = resolve(directory);
   if (mode === "prepare") await preparePilot(root, Number(rawSeed));
+  else if (mode === "prepare-cold") await preparePilot(root, Number(rawSeed), true);
   else if (mode === "run") await runPilot(root);
   else if (mode === "verify") console.log(JSON.stringify(await verifyPilot(root)));
   else throw new Error("不明なmodeです");
