@@ -148,6 +148,7 @@ export async function focusTrial(
       snapshot.continuation?.workerActiveMs ??
       (snapshot.timing?.workers ?? []).reduce((n, w) => n + (w?.activeMs ?? 0), 0),
     withinBudget: responseMs <= (options.timeBudgetMs ?? Infinity),
+    resourceOK: snapshot.reason !== "memory_limit" && snapshot.memoryBytes <= 4096 * 1024 ** 2,
     targetHash: target.stateHash,
   };
 }
@@ -177,6 +178,7 @@ export async function qualityFocus(root: string) {
           !!r.snapshot.recommendedAction &&
           acceptsStudyTactic(t, r.snapshot) &&
           r.withinBudget &&
+          r.resourceOK &&
           r.snapshot.continuation?.pauseAcknowledged !== false;
         allPass &&= pass;
         append(output, { source, way, id: t.id, pass, ...r });
@@ -199,7 +201,12 @@ export async function qualityFocus(root: string) {
   if (!allPass) throw Error("critical adoption gate failed");
 }
 
-export async function compareFocus(root: string) {
+export async function compareFocus(root: string, caseLimit?: number) {
+  if (
+    caseLimit !== undefined &&
+    (!Number.isSafeInteger(caseLimit) || caseLimit < 1 || caseLimit > 24)
+  )
+    throw Error("time case count must be1..24");
   const output = join(root, "performance", artifact("focus-time", ".jsonl"));
   if (existsSync(output)) throw Error("preserved results");
   const source = guardBenchIdentity();
@@ -210,7 +217,9 @@ export async function compareFocus(root: string) {
         .split("\n")
         .map((x) => JSON.parse(x)),
     )
-    .filter((x) => x.repeat === 0);
+    .filter((x) => x.repeat === 0)
+    .slice(0, caseLimit);
+  let adoptionGates = true;
   for (const [index, c] of cases.entries())
     for (const way of [...modes.slice(index % 4), ...modes.slice(0, index % 4)]) {
       const input = read(join(root, "inputs", c.id + ".json"));
@@ -244,6 +253,8 @@ export async function compareFocus(root: string) {
             sessionKey: scope,
           });
           const actual = actualEvents[transitions];
+          adoptionGates &&=
+            r.withinBudget && r.resourceOK && r.snapshot.continuation?.pauseAcknowledged !== false;
           if (!actual) throw Error("missing actual development event");
           const event = actual.event ?? actual;
           forecasts.push({
@@ -260,6 +271,7 @@ export async function compareFocus(root: string) {
           transitions++;
         }
         if (p.state.turn !== input.focus) {
+          adoptionGates = false;
           append(output, { source, id: c.id, way, unreached: true, forecasts });
           continue;
         }
@@ -275,6 +287,12 @@ export async function compareFocus(root: string) {
           },
         );
         append(output, { source, id: c.id, way, forecasts, transitions, ...r });
+        adoptionGates &&=
+          r.withinBudget &&
+          r.resourceOK &&
+          r.snapshot.completedDepth > 0 &&
+          !!r.snapshot.recommendedAction &&
+          r.snapshot.continuation?.pauseAcknowledged !== false;
         console.log(
           JSON.stringify({
             phase: "time",
@@ -292,8 +310,11 @@ export async function compareFocus(root: string) {
   save(join(root, "performance", artifact("focus-time", "-complete.json")), {
     source,
     complete: true,
+    cases: cases.length,
+    adoptionGates,
     sourceUnchanged: hashJson(source) === hashJson(guardBenchIdentity()),
   });
+  if (!adoptionGates) throw Error("performance adoption gate failed");
 }
 
 export async function playFocusGame(
@@ -373,7 +394,11 @@ export async function playFocusGame(
           },
         );
         append(metrics, { ply, side, beforeHash, own: side === seat, ...r });
-        if (!r.withinBudget || r.snapshot.continuation?.pauseAcknowledged === false)
+        if (
+          !r.withinBudget ||
+          !r.resourceOK ||
+          r.snapshot.continuation?.pauseAcknowledged === false
+        )
           throw Error("deadline/pause adoption gate failed");
         if (side === seat) {
           if (r.snapshot.completedDepth < 1 || !r.snapshot.recommendedAction)
@@ -523,7 +548,8 @@ if (import.meta.main) {
   const [root, command, ...args] = Bun.argv.slice(2);
   if (!root) throw Error("root required");
   if (command === "critical") await qualityFocus(root);
-  else if (command === "time") await compareFocus(root);
+  else if (command === "time")
+    await compareFocus(root, args[0] === undefined ? undefined : Number(args[0]));
   else if (command === "game") {
     const [phase, way, seed, seat] = args;
     if (

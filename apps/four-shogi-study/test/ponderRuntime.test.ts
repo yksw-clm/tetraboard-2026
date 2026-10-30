@@ -135,6 +135,13 @@ test("期限で中断した探索の未完枝も同じ根で継続し、旧世�
     expect(second.work).toBeGreaterThan(0);
     expect(second.continuation?.sessionWork).toBe(second.work + second.continuation!.priorWork);
     expect(second.continuation?.pauseAcknowledged).toBe(true);
+    expect(
+      new Set(
+        frames
+          .filter((f) => f.continuation?.sessionHit)
+          .map((f) => f.continuation!.retainedBranchEntries),
+      ),
+    ).toEqual(new Set([first.performance?.branchCacheEntries ?? 0]));
     expect(oldFrames.length).toBe(oldCount);
     expect(frames.every((f) => f.id === second.id && f.stateHash === second.stateHash)).toBe(true);
     expect(runtime.get(first.id)?.status).toBe("completed");
@@ -220,4 +227,96 @@ test("予算依存の広い比較深さは互換キーで区別し、明示し�
     long = { ...options, timeBudgetMs: 5000 };
   expect(focusConditions({}, short)).not.toBe(focusConditions({}, long));
   expect(focusConditions({}, { ...short, broadDepth: 3 })).toBe(focusConditions({}, long));
+});
+
+test("対象外のv5・無制限解析も保持要求と解放で停止する", async () => {
+  const study = await createStudy();
+  for (const strategy of ["adaptive", "dual-continuations"] as const) {
+    const runtime = createPonderFocusRuntime({ threads: 1, memoryMb: 256 }, { mode: "ponder" });
+    try {
+      const id = await runtime.start(studyPositionInput(study), {
+        ...options,
+        strategy,
+        timeBudgetMs: null,
+        maxDepth: 64,
+      });
+      await runtime.holdFocus?.(id);
+      expect(runtime.get(id)?.status).toBe("cancelled");
+      const next = await runtime.start(studyPositionInput(study), {
+        ...options,
+        strategy,
+        timeBudgetMs: null,
+        maxDepth: 64,
+      });
+      await runtime.releaseFocus?.();
+      expect(runtime.get(next)?.status).toBe("cancelled");
+    } finally {
+      await runtime.close();
+    }
+  }
+});
+
+test("メモリ上限で終わった探索を一致sessionとして再利用しない", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "ponder-worker-rss-"));
+  const file = join(directory, "worker.ts");
+  await writeFile(
+    file,
+    `const send=process.send.bind(process);process.send=(m)=>{if(m.type==='progress')m.memoryBytes=1024**4;return send(m)};await import(${JSON.stringify(new URL("../src/search/worker.ts", import.meta.url).href)});`,
+  );
+  const runtime = createPonderFocusRuntime(
+    { threads: 1, memoryMb: 256, workerScript: pathToFileURL(file), scheduling: "dynamic" },
+    { mode: "ponder", ponderMs: 300 },
+  );
+  try {
+    const study = await createStudy(),
+      opts = { ...options, maxDepth: 64 };
+    const first = await done(runtime, studyPositionInput(study), opts);
+    expect(first.reason).toBe("memory_limit");
+    const next = await done(runtime, studyPositionInput(study), opts);
+    expect(next.continuation?.sessionHit).toBe(false);
+    expect(next.reason).toBe("memory_limit");
+  } finally {
+    await runtime.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("完成後の取消は公開履歴も取消済みになり、TTL後の再開は新規探索する", async () => {
+  const study = await createStudy();
+  const runtime = createPonderFocusRuntime(
+    { threads: 1, memoryMb: 256 },
+    { mode: "ponder", ponderMs: 100, ttlMs: 10 },
+  );
+  const frames: StudySearchSnapshot[] = [];
+  try {
+    const first = await done(runtime, studyPositionInput(study), options, frames);
+    await runtime.cancel(first.id);
+    expect(runtime.get(first.id)?.status).toBe("cancelled");
+    expect(runtime.get(first.id)?.recommendedAction).toBeNull();
+    const second = await done(runtime, studyPositionInput(study), options, frames);
+    await Bun.sleep(20);
+    await runtime.resume(second.id);
+    const deadline = performance.now() + 1000;
+    while (frames.at(-1)?.status === "running" && performance.now() < deadline) await Bun.sleep(5);
+    expect(frames.at(-1)?.id).not.toBe(second.id);
+    expect(frames.at(-1)?.continuation?.sessionHit).toBe(false);
+    expect(frames.at(-1)?.status).toBe("completed");
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("非有限の要求予算を窓で隠して受理せず、既存の正しい保持を壊さない", async () => {
+  const study = await createStudy(),
+    runtime = createPonderFocusRuntime({ threads: 1, memoryMb: 256 }, { mode: "ponder" });
+  try {
+    await done(runtime, studyPositionInput(study));
+    await expect(
+      runtime.start(studyPositionInput(study), { ...options, timeBudgetMs: Infinity }),
+    ).rejects.toThrow();
+    const next = await done(runtime, studyPositionInput(study));
+    expect(next.continuation?.sessionHit).toBe(true);
+  } finally {
+    await runtime.close();
+  }
 });

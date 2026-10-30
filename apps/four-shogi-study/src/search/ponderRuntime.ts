@@ -69,6 +69,7 @@ export function createPonderFocusRuntime(
     priorWork: number;
     priorNodes: number;
     priorDepth: number;
+    priorBranchEntries: number;
     priorCpu: number;
     priorActive: number;
     started: number;
@@ -83,6 +84,7 @@ export function createPonderFocusRuntime(
     current: Job | null = null,
     closed = false,
     generation = 0;
+  let passthroughId: string | null = null;
   const history = new Map<string, StudySearchSnapshot>();
   function blank(p: AnalysisPosition, opts: StudySearchOptions, id: string): StudySearchSnapshot {
     const focus = opts.focusSide!;
@@ -184,10 +186,39 @@ export function createPonderFocusRuntime(
         workerCpuMs: cpu,
         workerActiveMs: Math.max(0, totals.active - j.priorActive),
         priorPonderCpuMs: j.session.ponderCpu,
-        retainedBranchEntries: j.hit ? (raw.performance?.branchCacheEntries ?? 0) : 0,
+        retainedBranchEntries: j.priorBranchEntries,
         branchCacheHits: raw.performance?.branchCacheHits ?? 0,
       },
     };
+  }
+  async function startPlain(
+    input: StudyPositionInput,
+    opts: StudySearchOptions,
+    notify: (s: StudySearchSnapshot) => void,
+  ) {
+    const token = generation;
+    const id = await inner.start(input, opts, (s) => {
+      if (closed || token !== generation) return;
+      passthroughId = s.id;
+      notify(s);
+    });
+    if (closed || token !== generation) {
+      await inner.cancel(id);
+      throw Error("探索の開始が取り消されました");
+    }
+    passthroughId = id;
+    return id;
+  }
+  function cancelledHistory(j: Job, reason: string) {
+    j.view = {
+      ...j.view,
+      status: "cancelled",
+      reason,
+      completion: undefined,
+      recommendedAction: null,
+      analysisRecommendedAction: null,
+    };
+    history.set(j.id, copy(j.view));
   }
   async function drop(s: Session) {
     if (s.dead) return;
@@ -237,6 +268,9 @@ export function createPonderFocusRuntime(
       ...view,
       status,
       reason,
+      ...(status === "cancelled"
+        ? { recommendedAction: null, analysisRecommendedAction: null }
+        : {}),
       elapsedMs: elapsed,
       completion:
         status === "completed"
@@ -256,7 +290,13 @@ export function createPonderFocusRuntime(
     j.done = true;
     j.view = copy(result);
     history.set(j.id, j.view);
-    if (status === "cancelled" || status === "error" || !raw || !acknowledged)
+    if (
+      status === "cancelled" ||
+      status === "error" ||
+      reason === "memory_limit" ||
+      !raw ||
+      !acknowledged
+    )
       await drop(j.session);
     else expire(j.session);
   }
@@ -299,16 +339,27 @@ export function createPonderFocusRuntime(
         opts.timeBudgetMs === null
       ) {
         await this.releaseFocus!();
-        return inner.start(input, opts, notify);
+        return startPlain(input, opts, notify);
       }
+      if (
+        !Number.isFinite(opts.timeBudgetMs) ||
+        opts.timeBudgetMs! < 1 ||
+        opts.timeBudgetMs! > 3600000
+      )
+        throw Error("検討時間は1〜3600000msの有限値が必要です");
       const started = performance.now(),
         token = ++generation;
+      if (passthroughId) {
+        const id = passthroughId;
+        passthroughId = null;
+        await inner.cancel(id);
+      }
       if (current && !current.done) await finish(current, "paused", "position_update");
       const p = await restoreStudyPosition(input);
       if (closed || token !== generation) throw Error("探索の開始が取り消されました");
       if (p.state.status !== "playing" || !getActiveSides(p.state).includes(opts.focusSide)) {
         await this.releaseFocus!();
-        return inner.start(input, opts, notify);
+        return startPlain(input, opts, notify);
       }
       const key = JSON.stringify([
         opts.sessionKey,
@@ -381,6 +432,7 @@ export function createPonderFocusRuntime(
         priorWork: hit ? (old?.work ?? 0) : 0,
         priorNodes: hit ? (old?.nodes ?? 0) : 0,
         priorDepth: hit ? (old?.completedDepth ?? 0) : 0,
+        priorBranchEntries: hit ? (old?.performance?.branchCacheEntries ?? 0) : 0,
         priorCpu: hit ? totals.cpu : 0,
         priorActive: hit ? totals.active : 0,
         started,
@@ -430,7 +482,13 @@ export function createPonderFocusRuntime(
     },
     async holdFocus(id) {
       const j = current;
-      if (j?.id !== id) return;
+      if (j?.id !== id) {
+        if (passthroughId === id) {
+          passthroughId = null;
+          await inner.cancel(id);
+        }
+        return;
+      }
       if (!j.done) await finish(j, "paused", "position_update");
       if (j.session.id && session === j.session) await inner.holdFocus?.(j.session.id);
       expire(j.session);
@@ -445,7 +503,10 @@ export function createPonderFocusRuntime(
         await inner.resume(id);
         return;
       }
-      if (j.session.dead || session !== j.session || !j.session.id) return;
+      if (j.session.dead || session !== j.session || !j.session.id) {
+        await this.start(j.input, j.options, j.notify);
+        return;
+      }
       if (j.phase === "ponder") {
         await this.start(j.input, j.options, j.notify);
         return;
@@ -466,15 +527,25 @@ export function createPonderFocusRuntime(
       const j = current;
       if (j?.id === id) {
         if (!j.done) await finish(j, "cancelled", "user");
+        cancelledHistory(j, "user");
         await drop(j.session);
         current = null;
-      } else if (!history.has(id)) await inner.cancel(id);
+      } else if (!history.has(id)) {
+        if (passthroughId === id) passthroughId = null;
+        await inner.cancel(id);
+      }
     },
     async releaseFocus() {
       generation++;
       const j = current;
       if (j && !j.done) await finish(j, "cancelled", "invalidated");
       if (session) await drop(session);
+      if (passthroughId) {
+        const id = passthroughId;
+        passthroughId = null;
+        await inner.cancel(id);
+      }
+      if (j) cancelledHistory(j, "invalidated");
       current = null;
       await inner.releaseFocus?.();
     },
