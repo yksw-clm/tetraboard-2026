@@ -166,6 +166,12 @@ export function createGuardedStudySearchRuntime(
             publish(s);
             return;
           }
+          if (s.reason === "memory_limit" || s.status === "error" || s.status === "cancelled") {
+            job.phase = "done";
+            clearTimeout(job.timer ?? undefined);
+            publish(s);
+            return;
+          }
           if (s.status === "completed" || (s.status === "paused" && job.budgetStop)) void finish(s);
           else publish(s);
         },
