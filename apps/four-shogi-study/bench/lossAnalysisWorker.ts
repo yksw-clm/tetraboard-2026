@@ -1,5 +1,5 @@
 import { appendFileSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   advanceAnalysisPosition,
   getAnalysisLegalActions,
@@ -269,6 +269,7 @@ async function fixed(
   position: AnalysisPosition,
   actionId: number,
   policyRows: PolicyRow[],
+  output: string,
 ) {
   const action = record.legalActions.find((move) => encodeAction(move) === actionId);
   if (!action) throw Error("固定根が合法手にありません");
@@ -325,6 +326,7 @@ async function fixed(
         stats: snapshot.stats,
         pv: candidate ? await validatePv(position, candidate) : null,
       });
+      appendFileSync(output + ".progress.jsonl", JSON.stringify(results.at(-1)) + "\n");
       if (!candidate) break;
     }
   } finally {
@@ -504,7 +506,22 @@ async function safety(
         preferred,
       });
       const validation = await validateFiniteProof(position, proof);
-      const row = { actionId, horizon, proof, validation };
+      const certificatePath = output + `.h${horizon}-a${actionId}.certificate.json`;
+      save(certificatePath, { caseId: record.id, actionId, horizon, proof, validation });
+      const row = {
+        actionId,
+        horizon,
+        proof: {
+          inputHash: proof.inputHash,
+          status: proof.status,
+          goal: proof.goal,
+          opponentModel: proof.opponentModel,
+          transitions: proof.transitions,
+          elapsedMs: proof.elapsedMs,
+        },
+        validation,
+        certificateFile: basename(certificatePath),
+      };
       rows.push(row);
       appendFileSync(
         output + ".progress.jsonl",
@@ -539,7 +556,7 @@ export async function runLossWorker(job: LossWorkerJob) {
       : job.mode === "runtime"
         ? await runtime(record)
         : job.mode === "fixed"
-          ? await fixed(record, position, job.actionId!, policyRows)
+          ? await fixed(record, position, job.actionId!, policyRows, job.output)
           : await safety(record, position, job.actionIds!, policyRows, job.output);
   const value = {
     caseId: record.id,
