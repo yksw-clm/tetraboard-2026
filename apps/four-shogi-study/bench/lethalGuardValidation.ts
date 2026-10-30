@@ -58,6 +58,8 @@ export async function validateGuardReport(position: AnalysisPosition, report: Le
   let certificates = 0,
     verified = 0,
     witnesses = 0;
+  for (const candidate of report.originalCandidates)
+    await validateGuardCandidate(position, candidate);
   for (const row of report.rows) {
     if (!legal.has(row.actionId) || row.actionId !== encodeAction(row.action))
       throw Error("検査初手が非合法");

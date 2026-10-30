@@ -114,7 +114,10 @@ export async function collectGuardResults(directory: string) {
       historical,
       reproductions: artifact.reproductions,
       frozenPolicies: artifact.diagnostics
-        .filter((d: { selection: string }) => d.selection !== "historical-chosen")
+        .filter(
+          (d: { selection: string; report?: unknown }) =>
+            d.report && !d.selection.startsWith("historical-"),
+        )
         .map(
           (d: {
             budgetMs: number;
@@ -131,6 +134,31 @@ export async function collectGuardResults(directory: string) {
     totals.cases++;
   }
   const groups = [];
+  const memoryDir = join(directory, "validation/memory-trials");
+  if (existsSync(memoryDir))
+    for (const name of readdirSync(memoryDir).filter(
+      (n) => n.endsWith(".json") && !n.endsWith(".started.json") && !n.endsWith(".ended.json"),
+    )) {
+      const item = JSON.parse(readFileSync(join(memoryDir, name), "utf8"));
+      const record = JSON.parse(
+        readFileSync(join(directory, "inputs", item.caseId + ".json"), "utf8"),
+      ) as LossCase;
+      const position = await restoreStudyPosition({
+        origin: { kind: "replay", replay: record.replay },
+        events: [],
+      });
+      for (const candidate of item.snapshot.candidates) {
+        const v = await validateGuardCandidate(position, candidate);
+        totals.pv++;
+        totals.pvSteps += v.steps;
+      }
+      if (item.snapshot.lethalGuard) {
+        const v = await validateGuardReport(position, item.snapshot.lethalGuard);
+        totals.certificates += v.certificates;
+        totals.verified += v.verified;
+        totals.witnesses += v.witnesses;
+      }
+    }
   const qualityFile = join(
     directory,
     existsSync(join(directory, "validation/quality-corrected.json"))
