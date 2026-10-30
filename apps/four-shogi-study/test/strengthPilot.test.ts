@@ -48,6 +48,17 @@ const options = () => ({
   compareStrategies: [...pilotStrategies],
 });
 
+test("worker再利用の条件を対局IDへ含め、既存条件と混同しない", () => {
+  const defaults = createPilotSchedule(options());
+  const cold = createPilotSchedule({ ...options(), reuseSearchWorkers: false });
+  expect(cold).toHaveLength(24);
+  for (const [index, job] of cold.entries()) {
+    expect(job.id).not.toBe(defaults[index].id);
+    expect(job.seed).toBe(defaults[index].seed);
+    expect(job.searchStrategy).toBe(defaults[index].searchStrategy);
+  }
+});
+
 test("独立1系列の24局を同条件3局ずつに束ね、方式順を循環する", () => {
   const jobs = createPilotSchedule(options());
   expect(jobs).toHaveLength(24);

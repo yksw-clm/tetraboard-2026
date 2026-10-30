@@ -76,6 +76,9 @@ async function initialize(message: Initialization) {
     const base = createStudySearchRuntime({
       threads: options.threads,
       memoryMb: options.memoryMb,
+      ...(options.reuseSearchWorkers === undefined
+        ? {}
+        : { reuseWorkers: options.reuseSearchWorkers }),
       ...(options.journalDirectory ? { measureStages: true, taskPartition: "root" as const } : {}),
     });
     runtime = {

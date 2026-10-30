@@ -66,6 +66,7 @@ export const formalStrengthPlan = Object.freeze({
 });
 export type StrengthOptions = {
   journalDirectory?: string;
+  reuseSearchWorkers?: boolean;
   budget: Budget;
   threads: number;
   memoryMb: number;
@@ -216,6 +217,9 @@ export function createStrengthJobs(options: StrengthOptions): StrengthJob[] {
                 budget: options.budget,
                 threads: options.threads,
                 memoryMb: options.memoryMb,
+                ...(options.reuseSearchWorkers === undefined
+                  ? {}
+                  : { reuseSearchWorkers: options.reuseSearchWorkers }),
                 concurrency: options.concurrency,
                 maxPlies: options.maxPlies,
               };
