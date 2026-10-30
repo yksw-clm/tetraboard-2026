@@ -4,236 +4,293 @@ import {
   type StudySearchRuntimeConfig,
   type StudySearchSnapshot,
 } from "./runtime";
-import { runLethalGuard, type LethalGuardOptions } from "./lethalGuard";
+import { runLethalGuard, type LethalGuardOptions, type LethalGuardReport } from "./lethalGuard";
 import type { AnalysisPosition } from "@tetraboard/four-shogi/analysis";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 import { encodeAction } from "../../../../packages/four-shogi/src/actionEncoding";
+import { createStudyDeadline } from "./deadline";
 
-/** OFFでは元runtimeそのものを返します。明示的な有限時間検討だけに後段の検査を加えます。 */
+/** OFFは通常runtime、有限時間の明示的なガードだけを同じ親時計の期限で包みます。 */
 export function createGuardedStudySearchRuntime(
   config: StudySearchRuntimeConfig = {},
   guard: LethalGuardOptions = { mode: "off" },
 ): StudySearchRuntime {
   if (guard.mode === "off") return createStudySearchRuntime(config);
-  let position: AnalysisPosition | null = null,
-    shallow: readonly StudyCandidate[] = [];
-  let current: {
+  type Job = {
     id: string | null;
     phase: "search" | "guard" | "done";
     controller: AbortController;
     view: StudySearchSnapshot | null;
+    normal: StudySearchSnapshot | null;
+    position: AnalysisPosition | null;
+    shallow: readonly StudyCandidate[];
     timer: ReturnType<typeof setTimeout> | null;
-    budgetStop: boolean;
     bypass: boolean;
     notify: (s: StudySearchSnapshot) => void;
-    started: number;
-    deadline: number;
-  } | null = null;
+    deadline: ReturnType<typeof createStudyDeadline>;
+    total: number;
+  };
+  let current: Job | null = null;
   const history = new Map<string, StudySearchSnapshot>();
+  const trace = (stage: string, id: string | null, durationMs?: number, reason?: string) =>
+    config.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage,
+      id,
+      atMs: performance.now(),
+      durationMs,
+      reason,
+    });
   const base = createStudySearchRuntime({
     ...config,
     onPreparedPosition: (p) => {
-      position = p;
+      if (current?.phase === "search") current.position = p;
       config.onPreparedPosition?.(p);
     },
     onCompletedRoots: (c, d) => {
-      if (d === 1) shallow = c;
+      if (current?.phase === "search" && d === 1) current.shallow = c;
       config.onCompletedRoots?.(c, d);
     },
   });
-  const abort = () => {
-    if (!current) return;
-    current.controller.abort();
-    clearTimeout(current.timer ?? undefined);
+  const abort = (job: Job) => {
+    job.controller.abort();
+    clearTimeout(job.timer ?? undefined);
+    job.timer = null;
+  };
+  const publish = (job: Job, view: StudySearchSnapshot) => {
+    if (current !== job) return;
+    job.view = view;
+    history.set(view.id, view);
+    while (history.size > 4) history.delete(history.keys().next().value!);
+    const copying = performance.now();
+    const output = structuredClone(view);
+    trace("guard-snapshot-copy", view.id, performance.now() - copying);
+    const notifying = performance.now();
+    try {
+      job.notify(output);
+    } finally {
+      trace("guard-callback", view.id, performance.now() - notifying);
+    }
+  };
+  const finish = (job: Job, cause: string, report?: LethalGuardReport, detail?: string) => {
+    if (current !== job || job.phase === "done" || !job.normal) return;
+    const started = performance.now();
+    const normal = job.normal;
+    const late = started >= job.deadline.workUntil;
+    const failed = cause === "guard_error" || cause === "guard_timeout" || late;
+    if (failed && report) report = { ...report, changed: false };
+    const chosen =
+      !failed && report?.changed
+        ? report.rows.find(
+            (row) =>
+              row.candidate &&
+              report.hypotheticalAction &&
+              encodeAction(row.action) === encodeAction(report.hypotheticalAction),
+          )?.candidate
+        : null;
+    const available = normal.completedDepth > 0 && normal.candidates.length > 0;
+    const result: StudySearchSnapshot = {
+      ...normal,
+      lethalGuard: report,
+      status: "completed",
+      reason:
+        cause === "guard_error"
+          ? cause
+          : failed
+            ? "guard_timeout"
+            : report
+              ? "lethal_guard"
+              : "deadline",
+      elapsedMs: performance.now() - job.deadline.startedAt,
+      completion: {
+        normalResult: available ? "complete" : "incomplete",
+        cause: failed
+          ? cause === "guard_error"
+            ? "guard_error"
+            : "budget"
+          : report
+            ? "guard"
+            : "budget",
+        guard: cause === "guard_error" ? "error" : failed || !report ? "timeout" : "complete",
+        budgetMs: job.total,
+        finalizedMs: performance.now() - job.deadline.startedAt,
+        overdueMs: Math.max(0, performance.now() - job.deadline.endsAt),
+        ...(detail ? { detail } : {}),
+      },
+      ...(chosen
+        ? {
+            candidates: [
+              chosen,
+              ...normal.candidates.filter(
+                (row) =>
+                  encodeAction(row.action) !== encodeAction(chosen.action) &&
+                  row.completedDepth === chosen.completedDepth,
+              ),
+            ],
+            completedDepth: chosen.completedDepth,
+            coverage: chosen.completedDepth === normal.completedDepth ? normal.coverage : undefined,
+            evaluation: chosen.evaluation,
+            recommendedAction: chosen.action,
+            analysisRecommendedAction: chosen.action,
+          }
+        : {}),
+    };
+    job.phase = "done";
+    abort(job);
+    trace("guard-finalize", normal.id, performance.now() - started, result.reason ?? undefined);
+    publish(job, result);
+  };
+  const inspect = async (job: Job, normal: StudySearchSnapshot) => {
+    if (current !== job || job.phase !== "search" || job.controller.signal.aborted) return;
+    job.normal = normal;
+    if (!normal.candidates.length || performance.now() >= job.deadline.workUntil) {
+      finish(job, "guard_timeout");
+      return;
+    }
+    job.phase = "guard";
+    publish(job, { ...normal, status: "running", reason: "lethal_guard", completion: undefined });
+    if (job.controller.signal.aborted || current !== job || job.phase !== "guard") return;
+    const started = performance.now();
+    trace("guard-start", normal.id);
+    try {
+      if (!job.position || normal.analysisStateHash !== job.position.stateHash)
+        throw Error("検査元局面が一致しません");
+      const report = await runLethalGuard(job.position, normal.candidates, job.shallow, guard, {
+        deadline: job.deadline.workUntil - 15,
+        signal: job.controller.signal,
+      });
+      trace("finite-proof-end", normal.id, performance.now() - started);
+      if (current !== job || job.phase !== "guard" || job.controller.signal.aborted) return;
+      report.normalElapsedMs = started - job.deadline.startedAt;
+      report.totalBudgetMs = job.total;
+      report.maxNCompletedDepth = normal.completedDepth;
+      finish(job, "lethal_guard", report);
+    } catch (error) {
+      if (current === job && job.phase === "guard" && !job.controller.signal.aborted)
+        finish(job, "guard_error", undefined, String(error));
+    }
   };
   return {
     async start(input, options, callback = () => {}) {
-      abort();
+      if (current) abort(current);
       current = null;
       if (options.timeBudgetMs === null || options.focusSide)
         return base.start(input, options, callback);
       const total = options.timeBudgetMs,
         reserve = guard.budgetMs ?? 250;
+      const deadline = createStudyDeadline(total, options.deadlineAt);
       if (
         !Number.isFinite(total) ||
         !Number.isFinite(reserve) ||
         total < 1 ||
         reserve < 0 ||
-        reserve + 10 >= total
+        reserve + deadline.settlementMs >= total
       )
-        throw Error("検査予算と終了余裕10msを含む有限の思考時間が必要です");
-      shallow = [];
-      position = null;
-      const started = performance.now();
-      const job = {
-        id: null as string | null,
-        phase: "search" as "search" | "guard" | "done",
+        throw Error("検査予算と結果確定の終了余裕を含む有限の思考時間が必要です");
+      const job: Job = {
+        id: null,
+        phase: "search",
         controller: new AbortController(),
-        view: null as StudySearchSnapshot | null,
-        timer: null as ReturnType<typeof setTimeout> | null,
-        budgetStop: false,
+        view: null,
+        normal: null,
+        position: null,
+        shallow: [],
+        timer: null,
         bypass: false,
         notify: callback,
-        started,
-        deadline: started + total,
+        deadline,
+        total,
       };
       current = job;
-      const publish = (s: StudySearchSnapshot) => {
-        if (current !== job || job.controller.signal.aborted) return;
-        job.view = s;
-        callback(s);
-      };
-      const finish = async (s: StudySearchSnapshot) => {
-        if (current !== job || job.phase !== "search" || job.controller.signal.aborted) return;
-        job.phase = "guard";
-        const operation = job.controller;
-        clearTimeout(job.timer ?? undefined);
-        publish({ ...s, status: "running", reason: "lethal_guard" });
-        try {
-          if (!position || s.analysisStateHash !== position.stateHash)
-            throw Error("検査元局面が一致しません");
-          const report = await runLethalGuard(position, s.candidates, shallow, guard, {
-            deadline: job.deadline - 10,
-            signal: operation.signal,
-          });
-          if (current !== job || job.controller !== operation || operation.signal.aborted) return;
-          report.normalElapsedMs = performance.now() - started - report.elapsedMs;
-          report.totalBudgetMs = total;
-          report.maxNCompletedDepth = s.completedDepth;
-          const chosen = report.changed
-            ? report.rows.find(
-                (row) =>
-                  row.candidate &&
-                  report.hypotheticalAction &&
-                  encodeAction(row.action) === encodeAction(report.hypotheticalAction),
-              )?.candidate
-            : null;
-          const candidates = chosen
-            ? [
-                chosen,
-                ...s.candidates.filter(
-                  (row) =>
-                    encodeAction(row.action) !== encodeAction(chosen.action) &&
-                    row.completedDepth === chosen.completedDepth,
-                ),
-              ]
-            : s.candidates;
-          const result: StudySearchSnapshot = {
-            ...s,
-            diagnostics: {
-              ...s.diagnostics,
-              searchVersion: s.diagnostics.searchVersion + "-guard-" + guard.mode,
-            },
-            lethalGuard: report,
-            candidates,
-            status: "completed",
-            reason: "lethal_guard",
-            elapsedMs: performance.now() - started,
-            ...(chosen
-              ? {
-                  completedDepth: chosen.completedDepth,
-                  coverage: chosen.completedDepth === s.completedDepth ? s.coverage : undefined,
-                  evaluation: chosen.evaluation,
-                  recommendedAction: chosen.action,
-                  analysisRecommendedAction: chosen.action,
-                }
-              : {}),
-          };
-          job.phase = "done";
-          history.set(s.id, result);
-          if (history.size > 4) history.delete(history.keys().next().value!);
-          publish(result);
-        } catch (error) {
-          job.phase = "done";
-          publish({
-            ...s,
-            status: "error",
-            reason: String(error),
-            elapsedMs: performance.now() - started,
-          });
-        }
-      };
-      const id = await base.start(
-        input,
-        {
-          ...options,
-          broadDepth: options.broadDepth ?? (total < 2000 ? 2 : 3),
-          timeBudgetMs: total - reserve - 10,
+      job.timer = setTimeout(
+        () => {
+          if (current === job && job.phase === "guard") finish(job, "guard_timeout");
         },
-        (s) => {
-          if (current !== job || job.phase !== "search" || job.controller.signal.aborted) return;
-          if (job.bypass) {
-            publish(s);
-            return;
-          }
-          if (s.reason === "memory_limit" || s.status === "error" || s.status === "cancelled") {
-            job.phase = "done";
-            clearTimeout(job.timer ?? undefined);
-            publish(s);
-            return;
-          }
-          if (s.status === "completed" || (s.status === "paused" && job.budgetStop)) void finish(s);
-          else publish(s);
-        },
+        Math.max(0, deadline.workUntil - performance.now()),
       );
-      job.id = id;
-      if (job.phase === "search")
-        job.timer = setTimeout(
-          () => {
-            if (current === job && job.phase === "search") {
-              job.budgetStop = true;
-              void base.pause(id);
-            }
+      try {
+        const id = await base.start(
+          input,
+          {
+            ...options,
+            broadDepth: options.broadDepth ?? (total < 2000 ? 2 : 3),
+            timeBudgetMs: total - reserve - deadline.settlementMs,
+            deadlineAt: deadline.workUntil - reserve,
           },
-          Math.max(0, job.deadline - reserve - 10 - performance.now()),
+          (s) => {
+            if (current !== job || job.phase !== "search" || job.controller.signal.aborted) return;
+            job.id = s.id;
+            if (job.bypass) {
+              publish(job, s);
+              return;
+            }
+            if (
+              s.reason === "memory_limit" ||
+              s.status === "error" ||
+              s.status === "cancelled" ||
+              s.status === "paused"
+            ) {
+              job.phase = "done";
+              abort(job);
+              publish(job, s);
+            } else if (s.status === "completed") void inspect(job, s);
+            else publish(job, s);
+          },
         );
-      return id;
+        job.id = id;
+        return id;
+      } catch (error) {
+        abort(job);
+        throw error;
+      }
     },
     get(id) {
-      return current?.view?.id === id
-        ? structuredClone(current.view)
-        : structuredClone(history.get(id) ?? base.get(id));
+      const before = performance.now();
+      const owned = current?.view?.id === id ? current.view : history.get(id);
+      const result = owned ? structuredClone(owned) : base.get(id);
+      trace("guard-get-copy", id, performance.now() - before);
+      return result;
     },
     async pause(id) {
-      if (current?.view?.id === id) {
-        const job = current;
-        abort();
+      const job = current;
+      if (job?.view?.id === id && job.phase !== "done") {
+        abort(job);
         job.phase = "done";
-        job.view = {
-          ...job.view!,
+        publish(job, {
+          ...job.view,
           status: "paused",
           reason: "user",
-          elapsedMs: performance.now() - job.started,
-        };
-        job.notify(job.view);
+          elapsedMs: performance.now() - job.deadline.startedAt,
+        });
       }
       await base.pause(id);
     },
     async resume(id) {
-      if (current?.view?.id === id) {
-        abort();
-        current.controller = new AbortController();
-        current.bypass = true;
-        current.phase = "search";
+      const job = current;
+      if (job?.view?.id === id) {
+        abort(job);
+        job.controller = new AbortController();
+        job.bypass = true;
+        job.phase = "search";
       }
       await base.resume(id);
     },
     async cancel(id) {
-      if (current?.view?.id === id) {
-        const job = current;
-        abort();
+      const job = current;
+      if (job?.view?.id === id) {
+        abort(job);
         job.phase = "done";
-        job.view = { ...job.view!, status: "cancelled", reason: "user" };
-        job.notify(job.view);
+        publish(job, { ...job.view, status: "cancelled", reason: "user" });
       }
       await base.cancel(id);
     },
     async close() {
-      abort();
-      if (current?.view) {
-        current.phase = "done";
-        current.view = { ...current.view, status: "cancelled", reason: "closed" };
-        current.notify(current.view);
+      if (current) {
+        const job = current;
+        abort(job);
+        job.phase = "done";
+        if (job.view?.status === "running" || job.view?.status === "paused")
+          publish(job, { ...job.view, status: "cancelled", reason: "closed" });
       }
       await base.close();
     },

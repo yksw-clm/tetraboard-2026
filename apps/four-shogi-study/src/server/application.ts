@@ -33,6 +33,7 @@ import {
 import { validatePublicReplay } from "../domain/publicReplay";
 import { restoreRecordedCandidates } from "../domain/recordedAnalysis";
 import { createStudySearchRuntime, type StudySearchRuntime } from "../search/runtime";
+import type { StudyLifecycleEvent } from "../search/deadline";
 import type { StudyDocument, StudyRecordedAnalysis } from "../shared/model";
 import { HttpError, type StudyApplication } from "./http";
 import { fetchPublicReplay } from "./publicImport";
@@ -102,6 +103,7 @@ export class LocalStudyApplication implements StudyApplication {
     private readonly config: StudyConfig,
     private readonly runtimeFactory = createStudySearchRuntime,
     private readonly liveFactory = createLiveRoomSession,
+    private readonly observeLifecycle?: (event: StudyLifecycleEvent) => void,
   ) {}
 
   private serial<T>(operation: () => Promise<T>): Promise<T> {
@@ -153,6 +155,7 @@ export class LocalStudyApplication implements StudyApplication {
     }));
   }
   async get(id: string): Promise<StudySnapshot> {
+    const requested = performance.now();
     const study = await this.document(id);
     const positions = await resolveStudyPositions(study);
     const position = positions.get(study.currentNodeId)!;
@@ -224,7 +227,7 @@ export class LocalStudyApplication implements StudyApplication {
         },
       };
     }
-    return {
+    const snapshot: StudySnapshot = {
       study,
       position,
       history,
@@ -240,6 +243,14 @@ export class LocalStudyApplication implements StudyApplication {
           : null,
       ...(this.liveViews.has(id) ? { live: this.liveViews.get(id) } : {}),
     };
+    this.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "application-snapshot",
+      id: analysis?.id ?? null,
+      atMs: performance.now(),
+      durationMs: performance.now() - requested,
+    });
+    return snapshot;
   }
   private async publish(id: string) {
     const snapshot = await this.get(id);
@@ -604,6 +615,7 @@ export class LocalStudyApplication implements StudyApplication {
       (progress) => {
         if (this.active !== active || progress.stateHash !== active.stateHash) return;
         const view: StudyAnalysisView = {
+          completion: progress.completion,
           lethalGuard: progress.lethalGuard,
           coverage: progress.coverage,
           broadCandidates: progress.broadCandidates,

@@ -170,7 +170,9 @@ export function EvaluationPanel({
               : analysis?.status === "paused"
                 ? "一時停止"
                 : analysis?.status === "completed"
-                  ? "完了"
+                  ? analysis.completion?.normalResult === "incomplete"
+                    ? "未完了"
+                    : "完了"
                   : "待機"}
           </span>
         }
@@ -316,6 +318,11 @@ export function EvaluationPanel({
             className="mt-3 text-xs text-[#758469]"
           >
             {stopLabel(analysis.reason)}
+          </p>
+        ) : null}
+        {analysis?.completion?.normalResult === "incomplete" ? (
+          <p role="status" className="mt-3 text-xs text-[#758469]">
+            完成済みの推奨手がありません。静的評価や未評価の代替手を推奨として使用しないでください。
           </p>
         ) : null}
       </Panel>
@@ -538,6 +545,9 @@ function EvaluationGraph({
 function stopLabel(reason: string) {
   const labels: Record<string, string> = {
     deadline: "指定時間に到達しました",
+    guard_timeout:
+      "検査は時間内に確定しませんでした。完成済みの通常探索結果がある場合だけ利用できます。",
+    guard_error: "検査に失敗しました。完成済みの通常探索結果がある場合だけ利用できます。",
     memory_limit: "探索メモリの上限に到達したため停止しました",
     max_depth: "探索深さの上限に到達しました",
     sole_win:

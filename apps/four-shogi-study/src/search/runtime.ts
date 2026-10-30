@@ -25,6 +25,7 @@ import type { StudyPositionInput, StudySearchCoverage } from "../shared/model";
 import type { SearchCommand, SearchMessage } from "./messages";
 import { projectFocusPosition, type FocusProjection } from "./focus";
 import type { LethalGuardReport } from "./lethalGuard";
+import { createStudyDeadline, type StudyLifecycleEvent } from "./deadline";
 
 export type StudyFocusMetadata = {
   side: Side;
@@ -40,6 +41,15 @@ export type StudyFocusMetadata = {
 };
 
 export type StudySearchSnapshot = {
+  completion?: {
+    normalResult: "complete" | "incomplete";
+    cause: string;
+    guard?: "complete" | "timeout" | "error" | "cancelled";
+    budgetMs: number | null;
+    finalizedMs: number;
+    overdueMs: number;
+    detail?: string;
+  };
   lethalGuard?: LethalGuardReport;
   timing?: {
     restoreMs: number;
@@ -107,6 +117,8 @@ export type StudySearchSnapshot = {
   };
 };
 export type StudySearchOptions = {
+  /** 同じ親プロセス内だけで共有する単調時計の終了時刻です。workerへは送りません。 */
+  deadlineAt?: number;
   reuseChecks?: boolean;
   strategy?: StudySearchStrategy;
   broadDepth?: number;
@@ -198,6 +210,7 @@ export type StudyParallelEvent =
     };
 
 export type StudySearchRuntimeConfig = {
+  observeLifecycle?: (event: StudyLifecycleEvent) => void;
   onPreparedPosition?: (position: AnalysisPosition) => void;
   onCompletedRoots?: (candidates: readonly StudyCandidate[], depth: number) => void;
   reuseWorkers?: boolean;
@@ -399,11 +412,30 @@ export function createStudySearchRuntime(
     return structuredClone({ ...value.snapshot, elapsedMs: elapsed(value) });
   }
   function emit(value: Job) {
+    const before = performance.now();
     const result = snapshot(value);
     // 実行中の履歴は非公開の元状態を参照し、停止後の履歴だけ独立して固定する。
     history.set(result.id, result.status === "running" ? value.snapshot : structuredClone(result));
     while (history.size > 16) history.delete(history.keys().next().value!);
-    value.callback(result);
+    config.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "snapshot-copy",
+      id: result.id,
+      atMs: performance.now(),
+      durationMs: performance.now() - before,
+    });
+    const notifying = performance.now();
+    try {
+      value.callback(result);
+    } finally {
+      config.observeLifecycle?.({
+        clock: "parent-monotonic",
+        stage: "callback",
+        id: result.id,
+        atMs: performance.now(),
+        durationMs: performance.now() - notifying,
+      });
+    }
   }
   function freezeTime(value: Job) {
     value.consumed = elapsed(value);
@@ -417,9 +449,17 @@ export function createStudySearchRuntime(
       (child) =>
         new Promise<void>((resolve) => {
           if (exited(child)) return resolve();
+          const ending = performance.now();
           const timer = setTimeout(() => child.kill("SIGKILL"), shutdownTimeoutMs);
           child.once("exit", () => {
             clearTimeout(timer);
+            config.observeLifecycle?.({
+              clock: "parent-monotonic",
+              stage: "worker-exit",
+              id: job?.snapshot.id ?? null,
+              atMs: performance.now(),
+              durationMs: performance.now() - ending,
+            });
             resolve();
           });
           if (graceful && child.connected) {
@@ -456,6 +496,24 @@ export function createStudySearchRuntime(
     freezeTime(job);
     job.snapshot.status = status;
     job.snapshot.reason = reason;
+    job.snapshot.completion = {
+      normalResult:
+        job.snapshot.completedDepth > 0 || reason === "terminal" ? "complete" : "incomplete",
+      cause: reason === "deadline" ? "budget" : reason,
+      budgetMs: job.options.timeBudgetMs,
+      finalizedMs: elapsed(job),
+      overdueMs:
+        job.options.timeBudgetMs === null
+          ? 0
+          : Math.max(0, elapsed(job) - job.options.timeBudgetMs),
+    };
+    config.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "normal-stop",
+      id: job.snapshot.id,
+      atMs: performance.now(),
+      reason,
+    });
     job.preparation++;
     if (!job.prepared && job.snapshot.focus) {
       job.snapshot.focus.status = reason === "deadline" ? "unreached" : "cancelled";
@@ -646,6 +704,7 @@ export function createStudySearchRuntime(
     if (job !== value || value.snapshot.status !== "running") return;
     const {
       timeBudgetMs: _time,
+      deadlineAt: _deadline,
       focusSide: _focus,
       broadDepth: _broad,
       ...rootOptions
@@ -1465,6 +1524,10 @@ export function createStudySearchRuntime(
   return {
     async start(input, options, onProgress = () => {}) {
       const requested = performance.now();
+      const deadline =
+        options.timeBudgetMs === null
+          ? null
+          : createStudyDeadline(options.timeBudgetMs, options.deadlineAt);
       if (closed) throw new Error("探索サービスは終了しています");
       if (
         options.timeBudgetMs !== null &&
@@ -1479,9 +1542,9 @@ export function createStudySearchRuntime(
       else if (!reuseWorkers) await terminateWorkers();
       const restoring = performance.now();
       const position = await restoreStudyPosition(input);
-      config.onPreparedPosition?.(position);
       const restored = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
+      config.onPreparedPosition?.(position);
       await ensureWorkers();
       const ready = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
@@ -1617,7 +1680,7 @@ export function createStudySearchRuntime(
         selected: null,
         releasedDepth: -1,
         callback: onProgress,
-        started: performance.now(),
+        started: requested,
         consumed: 0,
         timer: null,
         input,
@@ -1629,9 +1692,16 @@ export function createStudySearchRuntime(
       const { timeBudgetMs } = options;
       if (timeBudgetMs !== null) {
         const value = job;
-        value.timer = setTimeout(() => {
-          if (job === value) stop("completed", "deadline", false);
-        }, timeBudgetMs);
+        if (performance.now() >= deadline!.workUntil) {
+          stop("completed", "deadline", false);
+          return id;
+        }
+        value.timer = setTimeout(
+          () => {
+            if (job === value) stop("completed", "deadline", false);
+          },
+          Math.max(0, deadline!.workUntil - performance.now()),
+        );
       }
       emit(job);
       if (focusSide) void prepareFocus(job);
@@ -1639,7 +1709,17 @@ export function createStudySearchRuntime(
       return id;
     },
     get(id) {
-      return job?.snapshot.id === id ? snapshot(job) : structuredClone(history.get(id) ?? null);
+      const before = performance.now();
+      const result =
+        job?.snapshot.id === id ? snapshot(job) : structuredClone(history.get(id) ?? null);
+      config.observeLifecycle?.({
+        clock: "parent-monotonic",
+        stage: "get-copy",
+        id,
+        atMs: performance.now(),
+        durationMs: performance.now() - before,
+      });
+      return result;
     },
     async pause(id) {
       if (job?.snapshot.id === id && job.snapshot.status === "running")
@@ -1656,6 +1736,7 @@ export function createStudySearchRuntime(
         return;
       job.snapshot.status = "running";
       job.snapshot.reason = null;
+      job.snapshot.completion = undefined;
       job.started = performance.now();
       // 継続は既存の読みを保つ無制限解析です。時間を指定し直す場合は新しく開始します。
       job.options = { ...job.options, timeBudgetMs: null };

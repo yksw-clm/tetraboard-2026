@@ -261,6 +261,7 @@ export async function runLethalGuard(
       );
       const queryStarted = performance.now();
       const proof = await proveFiniteAction(position, row.action, root, horizon, {
+        yieldIntervalMs: 4,
         maxTransitions: Math.max(0, maxTransitions - report.transitions),
         maxWork: Math.max(0, maxWork - report.work),
         maxNodes: 4096,

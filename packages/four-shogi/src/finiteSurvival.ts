@@ -54,6 +54,7 @@ export type SafetyProof = {
   cacheStats?: FiniteCacheStats;
 };
 export type SafetyBudget = {
+  yieldIntervalMs?: number;
   maxTransitions: number;
   maxMs: number;
   preferred?: Record<string, number[]>;
@@ -91,6 +92,11 @@ export async function proveFiniteAction(
   for (const value of [budget.maxWork, budget.maxNodes, budget.maxBytes])
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 0))
       throw new Error("有限検証の追加上限が不正です");
+  if (
+    budget.yieldIntervalMs !== undefined &&
+    (!Number.isFinite(budget.yieldIntervalMs) || budget.yieldIntervalMs < 0)
+  )
+    throw new Error("有限検証の通知間隔が不正です");
   if (!chosen) throw new Error("非合法な代替着手です");
   if (budget.cache) requireFiniteCache(budget.cache, position, root);
   const started = performance.now(),
@@ -119,6 +125,7 @@ export async function proveFiniteAction(
     estimatedBytes = 0,
     nodeCount = 0,
     limit: string | null = null;
+  let lastYield = performance.now();
   const available = () => {
     limit = budget.signal?.aborted
       ? "cancelled"
@@ -208,6 +215,13 @@ export async function proveFiniteAction(
     metrics.orderingMs += clock() - orderStarted;
     const own = current.state.turn === root;
     for (const move of ordered) {
+      if (
+        budget.yieldIntervalMs !== undefined &&
+        performance.now() - lastYield >= budget.yieldIntervalMs
+      ) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        lastYield = performance.now();
+      }
       if (!available()) break;
       transitions++;
       work++;

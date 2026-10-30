@@ -65,6 +65,24 @@ function panel(current: StudySnapshot) {
   );
 }
 
+test("予算終了でも完成比較がない場合は未完了と表示する", async () => {
+  const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
+  const analysis = projection(current, current.staticEvaluation);
+  analysis.completedDepth = 0;
+  analysis.evaluation = null;
+  analysis.reason = "deadline";
+  analysis.completion = {
+    normalResult: "incomplete",
+    cause: "budget",
+    budgetMs: 1,
+    finalizedMs: 1,
+    overdueMs: 0,
+  };
+  const view = panel({ ...current, analysis });
+  expect(view.textContent).toContain("未完了");
+  expect(view.textContent).toContain("完成済みの推奨手がありません");
+});
+
 test("広い比較と主要候補の深さを分けて表示する", async () => {
   const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
   const analysis = projection(current, current.staticEvaluation);
