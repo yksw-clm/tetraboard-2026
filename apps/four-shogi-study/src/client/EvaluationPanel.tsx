@@ -187,8 +187,16 @@ export function EvaluationPanel({
         </div>
         {analysis?.continuation ? (
           <p className="mt-3 text-[11px] leading-relaxed text-[#607252]" role="status">
-            {analysis.continuation.phase === "ponder" ? "相手手番中の先読み" : "現在の手番の検討"}
-            {analysis.continuation.sessionHit ? " · 予測と一致し、同じ探索を継続" : " · 新しい探索"}
+            {analysis.continuation.phase === "ponder"
+              ? "相手手番中の先読み"
+              : analysis.continuation.phase === "foreground"
+                ? "現在の手番の検討"
+                : "フォーカスの検討"}
+            {analysis.continuation.sessionHit
+              ? " · 予測と一致し、同じ探索を継続"
+              : analysis.continuation.pvHit
+                ? " · 前回の読みを探索順序へ利用"
+                : " · 新しい探索"}
             {" · 今回 "}
             {analysis.continuation.newWork.toLocaleString()}局面
             {analysis.continuation.priorWork > 0

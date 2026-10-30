@@ -125,6 +125,33 @@ test("未来の候補は相手の予測prefixとともに分岐へ送り、現�
   ]);
 });
 
+test("PV引継ぎの未来候補を現在の手と表示・採用しない", async () => {
+  const snapshot = await focusedSnapshot();
+  const { view, commands } = panel({
+    ...snapshot,
+    analysis: {
+      ...snapshot.analysis!,
+      continuation: {
+        mode: "pv",
+        pvHit: true,
+        pvEntries: 3,
+        hintReorders: 1,
+        priorWork: 0,
+        newWork: 10,
+      },
+    },
+  });
+  expect(view.textContent).toContain("西の次手番を検討");
+  expect(view.textContent).toContain("フォーカスの検討");
+  expect(view.textContent).toContain("前回の読みを探索順序へ利用");
+  expect(view.textContent).not.toContain("現在の手番の検討");
+  expect(view.textContent).not.toContain("推奨手を指す");
+  press(view, "予測手順とこの手を分岐で確認 →");
+  await flush();
+  expect(commands).toHaveLength(1);
+  expect(commands[0]?.type).toBe("variation");
+});
+
 test("予測上の脱落を現在の脱落と取り違えず、次手番未到達を表示する", async () => {
   const snapshot = await focusedSnapshot();
   const { view } = panel({
