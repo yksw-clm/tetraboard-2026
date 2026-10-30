@@ -123,6 +123,7 @@ for (const saved of base) {
           })
           .catch(reject);
       });
+      const responseMs = performance.now() - started;
       for (const c of final.candidates) await validateGuardCandidate(target, c);
       appendFileSync(
         output,
@@ -132,7 +133,7 @@ for (const saved of base) {
           mode,
           kind: "time",
           budgetMs: 1000,
-          responseMs: performance.now() - started,
+          responseMs,
           firstCompletedMs: first,
           snapshot: final,
         }) + "\n",
