@@ -48,10 +48,17 @@ export function createPonderFocusRuntime(
     cacheEntries > 65536
   )
     throw Error("先読みの予算・保持期限・キャッシュ上限が不正です");
+  // 同じ予測終点のresumeはworkerも保持する。新しい根のstartでは、完成済みの
+  // 探索から高いRSSを持ち越さないよう既存runtimeのpool再利用を既定で止める。
+  const nativeConfig = {
+    ...config,
+    measureStages: true,
+    reuseWorkers: config.reuseWorkers ?? false,
+  };
   const inner =
     options.mode === "combined"
-      ? createPvFocusRuntime({ ...config, measureStages: true }, { keepSearchOnHold: true })
-      : createStudySearchRuntime({ ...config, measureStages: true });
+      ? createPvFocusRuntime(nativeConfig, { keepSearchOnHold: true })
+      : createStudySearchRuntime(nativeConfig);
   type Session = {
     id: string | null;
     key: string;

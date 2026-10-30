@@ -29,6 +29,78 @@ const options: StudySearchOptions = {
   width: 2,
   extensions: 0,
 };
+
+test("完成した予測と異なる新規根ではworker準備通知が新しく届く", async () => {
+  let ready = 0;
+  const runtime = createPonderFocusRuntime(
+    {
+      threads: 1,
+      memoryMb: 256,
+      observeDiagnostic(event) {
+        if (event.type === "message" && event.message.type === "ready") ready++;
+      },
+    },
+    { mode: "ponder", ponderMs: 1000 },
+  );
+  const opts = { ...options, timeBudgetMs: 1000, maxDepth: 2, broadDepth: 2 };
+  try {
+    const study = await createStudy();
+    const first = await done(runtime, studyPositionInput(study), opts);
+    expect(first.reason).toBe("max_depth");
+    expect(ready).toBe(1);
+    const position = await restoreStudyPosition(studyPositionInput(study));
+    const other = getAnalysisLegalActions(position).find(
+      (a) => JSON.stringify(a) !== JSON.stringify(first.focus!.prefix[0].action),
+    )!;
+    const next = await appendStudyEvent(study, {
+      type: "action",
+      side: position.state.turn!,
+      action: other,
+    });
+    const second = await done(runtime, studyPositionInput(next), opts);
+    expect(second.continuation?.sessionHit).toBe(false);
+    expect(second.recommendedAction).not.toBeNull();
+    expect(ready).toBe(2);
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("一致した途中探索の再開ではworker準備通知を増やさず完成比較を引継ぐ", async () => {
+  let ready = 0;
+  const runtime = createPonderFocusRuntime(
+    {
+      threads: 1,
+      memoryMb: 256,
+      observeDiagnostic(event) {
+        if (event.type === "message" && event.message.type === "ready") ready++;
+      },
+    },
+    { mode: "ponder", ponderMs: 300 },
+  );
+  const opts = { ...options, timeBudgetMs: 500, maxDepth: 64, broadDepth: 2 };
+  try {
+    let study = await createStudy();
+    const first = await done(runtime, studyPositionInput(study), opts);
+    expect(first.reason).toBe("deadline");
+    expect(first.continuation?.pauseAcknowledged).toBe(true);
+    expect(ready).toBe(1);
+    for (const step of first.focus!.prefix)
+      study = await appendStudyEvent(study, {
+        type: "action",
+        side: step.side,
+        action: step.action,
+      });
+    const second = await done(runtime, studyPositionInput(study), opts);
+    expect(second.continuation?.sessionHit).toBe(true);
+    expect(second.continuation?.priorWork).toBeGreaterThan(0);
+    expect(second.work).toBeGreaterThan(0);
+    expect(second.recommendedAction).not.toBeNull();
+    expect(ready).toBe(1);
+  } finally {
+    await runtime.close();
+  }
+});
 async function done(
   runtime: StudySearchRuntime,
   input: Parameters<StudySearchRuntime["start"]>[0],
