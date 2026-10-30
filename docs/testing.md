@@ -972,3 +972,7 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 `apps/four-shogi-study/test/lossAnalysis.test.ts`は有限生存証明の正本再生成、全称応手の欠落拒否、予算切れのunknown維持、非合法初手拒否、危険な合法応手の存在量化、固定規則の主要候補選択を確認します。実行はコミット済みソースで `bench/lossAnalysis.ts prepare <Git管理外出力先> <P1-4主比較ディレクトリ>`、`run <出力先>`、`summarize <出力先>`。元の完全棋譜/攻撃/反復履歴を保ち、編集局面や手番差替えを使いません。固定タスクのobserver on/offと一節点介入は同深さ完成時だけ比較し、全枝未記録の過去実行へ外挿しません。PRのCIはdevelop取り込み後のFull実行範囲を確認し、Fastの未実行workspaceを成功扱いしません。
 
 保存後は `bun apps/four-shogi-study/bench/lossAnalysisValidation.ts <出力先>` で全入力hash/合法手、元/新PVの着手・王手・捕獲・脱落・評価、代替分岐、有限証明DAGを正本へ再照合します。`bun apps/four-shogi-study/bench/lossAnalysisEvidence.ts <出力先>` は保存した完成探索だけから、実応手の脱落枝も評価しながら相手の効用が高い別枝を選ぶ例を抽出し、両枝の評価内訳・盤駒/持駒・対照との頻度を保存します。これらは追加探索・探索条件変更を行わない事後分析です。最初の元測定ソースSHAと、後から加えた照合/分析コードのSHAを分けて保持します。
+
+## P1-4c致命応手ガードの確認
+
+`lethalGuard.test.ts` は異なる地平の比較拒否、unknown/未完成/一本道での順位不変、MaxN同点順序、単独勝利保持、有限検査の取消/work上限/合法手の順序集合、OFF/OBSERVEの固定完成探索の候補・評価・PV・work一致、ガード中の取消後の遅延公開拒否、環境設定の既定OFFを確認します。証明DAGの全称応手欠落拒否と合法再生は既存lossAnalysis.testを再利用します。ガードは通常探索の仕事量と別の単位（内部で列挙した合法手数＋遷移数）を報告し、未完成の証明はunknownのまま扱います。

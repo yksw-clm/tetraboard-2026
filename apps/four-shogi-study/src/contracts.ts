@@ -7,6 +7,7 @@ import type { StudyFocusMetadata, StudySearchSnapshot } from "./search/runtime";
 export type { StudyFocusMetadata } from "./search/runtime";
 
 export type StudyAnalysisView = {
+  lethalGuard?: import("./search/lethalGuard").LethalGuardReport;
   coverage?: StudySearchCoverage;
   broadCandidates?: readonly AiCandidate[];
   searchVersion?: string;

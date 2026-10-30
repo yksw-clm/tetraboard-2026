@@ -604,6 +604,7 @@ export class LocalStudyApplication implements StudyApplication {
       (progress) => {
         if (this.active !== active || progress.stateHash !== active.stateHash) return;
         const view: StudyAnalysisView = {
+          lethalGuard: progress.lethalGuard,
           coverage: progress.coverage,
           broadCandidates: progress.broadCandidates,
           searchVersion: progress.diagnostics.searchVersion,

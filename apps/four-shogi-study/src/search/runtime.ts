@@ -24,6 +24,7 @@ import { restoreStudyPosition } from "../domain/study";
 import type { StudyPositionInput, StudySearchCoverage } from "../shared/model";
 import type { SearchCommand, SearchMessage } from "./messages";
 import { projectFocusPosition, type FocusProjection } from "./focus";
+import type { LethalGuardReport } from "./lethalGuard";
 
 export type StudyFocusMetadata = {
   side: Side;
@@ -39,6 +40,7 @@ export type StudyFocusMetadata = {
 };
 
 export type StudySearchSnapshot = {
+  lethalGuard?: LethalGuardReport;
   timing?: {
     restoreMs: number;
     startupMs: number;
@@ -196,6 +198,8 @@ export type StudyParallelEvent =
     };
 
 export type StudySearchRuntimeConfig = {
+  onPreparedPosition?: (position: AnalysisPosition) => void;
+  onCompletedRoots?: (candidates: readonly StudyCandidate[], depth: number) => void;
   reuseWorkers?: boolean;
   measureStages?: boolean;
   observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
@@ -916,6 +920,7 @@ export function createStudySearchRuntime(
     if (publish) {
       value.published = completed;
       value.snapshot.completedDepth = dynamic.depth;
+      config.onCompletedRoots?.(value.published, dynamic.depth);
       if (value.snapshot.timing && dynamic.depth === 2 && value.snapshot.timing.depthTwoMs === null)
         value.snapshot.timing.depthTwoMs = elapsed(value);
     }
@@ -1112,6 +1117,7 @@ export function createStudySearchRuntime(
     if (depth > value.snapshot.completedDepth) {
       value.published = completed.flatMap((entry) => entry.snapshot.candidates);
       value.snapshot.completedDepth = depth;
+      config.onCompletedRoots?.(value.published, depth);
       if (value.snapshot.timing && depth === 1) value.snapshot.timing.depthOneMs = elapsed(value);
       if (depth === 1 && value.snapshot.rootSide) {
         value.snapshot.diagnostics.legalRoots = value.published.length;
@@ -1473,6 +1479,7 @@ export function createStudySearchRuntime(
       else if (!reuseWorkers) await terminateWorkers();
       const restoring = performance.now();
       const position = await restoreStudyPosition(input);
+      config.onPreparedPosition?.(position);
       const restored = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       await ensureWorkers();
