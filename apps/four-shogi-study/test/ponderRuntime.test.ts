@@ -13,10 +13,11 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type {
-  StudySearchRuntime,
-  StudySearchSnapshot,
-  StudySearchOptions,
+import {
+  createStudySearchRuntime,
+  type StudySearchRuntime,
+  type StudySearchSnapshot,
+  type StudySearchOptions,
 } from "../src/search/runtime";
 const options: StudySearchOptions = {
   strategy: "dual-continuations",
@@ -211,6 +212,62 @@ test("worker異常終了は完成扱いせず、取消と終了で遅延結果�
   }
 });
 
+for (const delayMs of [120, 260])
+  test(`停止応答が${delayMs}ms遅れても外側の期限を守り、未確認の保持を採用しない`, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ponder-delayed-pause-"));
+    const file = join(directory, "worker.ts");
+    await writeFile(
+      file,
+      `const send=process.send.bind(process);process.send=(m)=>{if(m.type==='progress'&&m.pauseToken!==undefined){setTimeout(()=>send(m),${delayMs});return true;}return send(m)};await import(${JSON.stringify(new URL("../src/search/worker.ts", import.meta.url).href)});`,
+    );
+    const acknowledgements: number[] = [];
+    const runtime = createPonderFocusRuntime(
+      {
+        threads: 1,
+        memoryMb: 256,
+        workerScript: pathToFileURL(file),
+        observeDiagnostic(event) {
+          if (
+            event.type === "message" &&
+            event.message.type === "progress" &&
+            event.message.pauseToken !== undefined
+          )
+            acknowledgements.push(performance.now());
+        },
+      },
+      { mode: "ponder" },
+    );
+    try {
+      const study = await createStudy(),
+        input = studyPositionInput(study),
+        opts = { ...options, focusSide: "south" as const, timeBudgetMs: 1000, maxDepth: 64 },
+        started = performance.now();
+      const result = await done(runtime, input, opts);
+      expect(performance.now() - started).toBeLessThanOrEqual(1000);
+      expect(result.completion?.overdueMs).toBe(0);
+      expect(result.completedDepth).toBeGreaterThan(0);
+      expect(result.recommendedAction).not.toBeNull();
+      expect(getAnalysisLegalActions(await restoreStudyPosition(input))).toContainEqual(
+        result.recommendedAction!,
+      );
+      if (delayMs === 120) {
+        expect(result.continuation?.pauseAcknowledged).toBe(true);
+        expect(result.reason).toBe("deadline");
+        expect(acknowledgements).toHaveLength(1);
+      } else {
+        expect(result.continuation?.pauseAcknowledged).toBe(false);
+        expect(result.reason).toBe("pause_timeout");
+        const frames: StudySearchSnapshot[] = [];
+        const next = await runtime.start(input, opts, (s) => frames.push(s));
+        expect(frames.every((s) => !s.continuation?.sessionHit)).toBe(true);
+        await runtime.cancel(next);
+      }
+    } finally {
+      await runtime.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
 test("フォーカス引継ぎは明示指定だけ有効で、既定と不正値を区別する", () => {
   expect(readFocusReuseEnvironment({})).toEqual({
     mode: "off",
@@ -346,5 +403,75 @@ test("長く保持する探索のcacheを上限以内にし、明示した小さ
     } finally {
       await runtime.close();
     }
+  }
+});
+
+test("未完の深さ2を保持した継続も、新規探索と同じ固定深さの四人評価・PVを返す", async () => {
+  let study = await createStudy();
+  const opts: StudySearchOptions = {
+    ...options,
+    timeBudgetMs: 5000,
+    maxDepth: 3,
+    broadDepth: 3,
+    cacheSize: 1024,
+  };
+  let publicId: string | undefined;
+  let stopRequested = false;
+  const runtime = createPonderFocusRuntime(
+    {
+      threads: 1,
+      memoryMb: 256,
+      observeParallel(event) {
+        if (event.type === "assigned" && event.depth === 2 && !stopRequested && publicId) {
+          stopRequested = true;
+          void runtime.holdFocus!(publicId);
+        }
+      },
+    },
+    { mode: "ponder", ponderMs: 5000 },
+  );
+  const fresh = createStudySearchRuntime({ threads: 1, memoryMb: 256 });
+  try {
+    const paused = await new Promise<StudySearchSnapshot>((resolve, reject) => {
+      void runtime
+        .start(studyPositionInput(study), opts, (s) => {
+          publicId = s.id;
+          if (s.status === "paused") resolve(s);
+          else if (s.status === "error" || s.status === "completed")
+            reject(Error(s.reason ?? s.status));
+        })
+        .catch(reject);
+    });
+    expect(stopRequested).toBe(true);
+    expect(paused.completedDepth).toBe(1);
+    expect(paused.continuation?.pauseAcknowledged).toBe(true);
+    for (const step of paused.focus!.prefix)
+      study = await appendStudyEvent(study, {
+        type: "action",
+        side: step.side,
+        action: step.action,
+      });
+    const input = studyPositionInput(study);
+    const resumed = await done(runtime, input, opts);
+    const control = await done(fresh, input, opts);
+    expect(resumed.continuation?.sessionHit).toBe(true);
+    expect(resumed.continuation?.priorWork).toBeGreaterThan(0);
+    expect(resumed.work).toBeGreaterThan(0);
+    expect(resumed.completedDepth).toBe(3);
+    expect(resumed.reason).toBe("max_depth");
+    expect(control.completedDepth).toBe(3);
+    const semantic = (s: StudySearchSnapshot) =>
+      s.candidates.map((c) => ({
+        action: c.action,
+        evaluation: c.evaluation,
+        line: c.line,
+        depth: c.completedDepth,
+      }));
+    expect(semantic(resumed)).toEqual(semantic(control));
+    expect(resumed.analysisStateHash).toBe(control.analysisStateHash);
+    expect(resumed.recommendedAction).toEqual(control.recommendedAction);
+  } finally {
+    await runtime.close();
+    await fresh.close();
   }
 });

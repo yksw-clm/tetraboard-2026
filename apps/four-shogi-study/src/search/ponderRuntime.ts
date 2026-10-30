@@ -257,7 +257,7 @@ export function createPonderFocusRuntime(
       if (inner.pauseAndDrain)
         acknowledged = await inner.pauseAndDrain(
           j.session.id,
-          Math.max(1, Math.min(60, j.deadline.endsAt - performance.now() - 10)),
+          Math.max(1, Math.min(150, j.deadline.endsAt - performance.now() - 10)),
         );
       else await inner.pause(j.session.id);
     }
@@ -428,8 +428,8 @@ export function createPonderFocusRuntime(
       if (budget === null || !Number.isFinite(budget) || budget < 1)
         throw Error("先読み引継ぎは有限の検討時間が必要です");
       const deadline = createStudyDeadline(budget); // Restore is included by shifting the same parent-clock limits.
-      // IPC停止応答と最後のcopyまで予約する。短い予算の5%だけでは往復に足りない。
-      const settlement = Math.min(100, budget * 0.25, Math.max(50, budget * 0.05));
+      // 停止応答を150msまで待ち、copy/通知へ50ms残す。短い予算では全体の25%を上限にする。
+      const settlement = Math.min(200, budget * 0.25);
       deadline.workUntil = Math.min(deadline.workUntil, deadline.endsAt - settlement);
       const pre = performance.now() - started;
       deadline.startedAt -= pre;
