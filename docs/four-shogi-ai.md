@@ -1195,3 +1195,6 @@ Done Whenは全24局または期限による未完了を保全し、全着手・
 軽量データは[サマリー](four-shogi-study-p1-4-strength-summary.json)、大容量の合成棋譜・統計・診断・検証・事前計画は[Drive成果物](https://drive.google.com/drive/folders/1IRD4pdx-mWBkYBxMYuUP6-rE4CQnVbUd)に保存します。manifestへ測定SHA・環境・条件・ファイルID/サイズ/SHA-256・読戻し検証範囲を記録します。最終提出headの必須6コマンド・CI結果はPR #266と同manifestを参照します。マージ・デプロイは行いません。
 
 再現用CLIはコミット済みのソースで `strengthPilot.ts prepare-cold <Git管理外ディレクトリ> <調査済みseed>` → `run <同ディレクトリ>`。本測定のe7b1af5では保存済みplanへcold条件と最初の開始からの絶対期限を事前固定しました。追加したprepare-coldは同じ共通条件を一度に登録する再現用入口で、保存済み測定結果を新しいコードの結果へ置き換えません。`verify`と`strengthPilotDiagnostics.ts <同ディレクトリ>`で再生照合・対応比較・PVと実手順の診断を再生成できます。9874100は使用済みであり、再現しても新しい独立holdoutにはなりません。
+
+
+P1-4の提出コードは432f461655e1a54daa86c241365cc4886b5599a1で、必須6コマンドは成功（通常pre-commitのcheckはコミット処理込み88.97秒）。ただしPR #266は最新develop 506f3b1との.gitignore・README・開発/テスト文書の競合があり、GitHubのmergeStateStatus=DIRTY / mergeable=CONFLICTING、最終HEADのworkflow runは0件でした。既存CIには手動実行経路がありません。依頼のマージ禁止を維持し、developの取り込みやCI回避用のworkflow変更は行っていません。**最終HEADのGitHub CI確認は未達**であり、ローカル成功で代替しません。後続の変更はこの未達記録を追加する文書・軽量JSONだけです。PRの競合解消とCIは次の対応事項として残します。

@@ -522,6 +522,27 @@
     "Add independent unused start series and diverse opponents after bounded resource validation.",
     "Then compare root/reply selection changes; evaluation learning only with separated training and holdout data."
   ],
-  "localValidation": "Final code/tree validation recorded in PR and Drive manifest; six required commands.",
-  "ci": "Final-head workflow linked in PR and Drive manifest; no merge or deployment."
+  "localValidation": {
+    "codeVerifiedCommit": "432f461655e1a54daa86c241365cc4886b5599a1",
+    "check": "success (mandatory pre-commit; 88.97s including commit)",
+    "build": "success",
+    "workerDryRun": "success",
+    "buildDevelopment": "success",
+    "workerDryRunDevelopment": "success",
+    "studyBuild": "success",
+    "docsOnlyAfterVerifiedCode": true
+  },
+  "ci": {
+    "status": "not_run",
+    "reason": "PR #266 conflicts with develop; existing workflow has no workflow_dispatch; merging is prohibited",
+    "checkedHead": "432f461655e1a54daa86c241365cc4886b5599a1",
+    "developHead": "506f3b1efdf39ff57cdf388d9e30d6f0f8b06b95",
+    "conflictFiles": [
+      ".gitignore",
+      "README.md",
+      "docs/development.md",
+      "docs/testing.md"
+    ],
+    "localValidationIsNotCiSubstitute": true
+  }
 }
