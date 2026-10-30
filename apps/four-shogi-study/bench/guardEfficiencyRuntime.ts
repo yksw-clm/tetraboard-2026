@@ -126,21 +126,22 @@ export async function runEfficiencyMatrix(directory: string, specification: stri
   const source = guardBenchIdentity();
   const conditions: { name: string; guard: LethalGuardOptions; normalMs: number }[] =
     spec.variants.flatMap((v: any) =>
-      [100, 250, 400].map((budgetMs) => ({
+      (spec.budgets ?? [100, 250, 400]).map((budgetMs: number) => ({
         name: v.name + "-" + budgetMs,
         guard: { mode: "experimental", budgetMs, measureStages: true, ...v.options },
         normalMs: 2000,
       })),
     );
-  conditions.push(
-    { name: "OFF-2000", guard: { mode: "off" }, normalMs: 2000 },
-    { name: "SHORT-250", guard: { mode: "off" }, normalMs: 1740 },
-    {
-      name: "OBSERVE-250",
-      guard: { mode: "observe", budgetMs: 250, measureStages: true, ...spec.combined },
-      normalMs: 2000,
-    },
-  );
+  if (spec.controls !== false)
+    conditions.push(
+      { name: "OFF-2000", guard: { mode: "off" }, normalMs: 2000 },
+      { name: "SHORT-250", guard: { mode: "off" }, normalMs: 1740 },
+      {
+        name: "OBSERVE-250",
+        guard: { mode: "observe", budgetMs: 250, measureStages: true, ...spec.combined },
+        normalMs: 2000,
+      },
+    );
   const registration = {
     ...spec,
     source,
@@ -204,7 +205,7 @@ export async function runEfficiencyMatrix(directory: string, specification: stri
       process.off("SIGINT", interrupt);
       process.off("SIGTERM", interrupt);
     }
-    if (failures.length || stopped || completed.length !== 48)
+    if (failures.length || stopped || completed.length !== plan.cases.length + plan.warm.length)
       throw Error("runtime比較が未完了です");
   });
 }
@@ -232,7 +233,7 @@ export async function runFrozenMatrix(directory: string, specification: string) 
         ...spec.variants.slice(index % spec.variants.length),
         ...spec.variants.slice(0, index % spec.variants.length),
       ];
-      for (const budgetMs of [100, 250, 400])
+      for (const budgetMs of spec.budgets ?? [100, 250, 400])
         for (const v of variants) {
           if (performance.now() >= deadline) throw Error("全体予算終了");
           const guard = await runLethalGuard(p, saved.candidates, saved.shallow, {

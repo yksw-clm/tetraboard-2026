@@ -125,7 +125,7 @@ export async function runLethalGuard(
   if (
     !["off", "observe", "experimental"].includes(options.mode) ||
     !["top3", "top5", "top3-reserve", "all"].includes(selection) ||
-    !["base", "simple", "checks"].includes(options.replyOrdering ?? "base") ||
+    !["base", "simple", "checks", "escapes"].includes(options.replyOrdering ?? "base") ||
     !["fixed-50", "incumbent", "reserve", "progress"].includes(
       options.budgetPolicy ?? "fixed-50",
     ) ||

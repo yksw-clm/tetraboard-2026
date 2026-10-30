@@ -24,7 +24,7 @@ test("王手順序は駒打ち王手を捕獲より先に調べ、合法手集�
     capture = encodeAction(move("H6", "G6"));
   const base = orderGuardReplies(position, legal, "south", "base").map(encodeAction);
   expect(base.indexOf(capture)).toBeLessThan(base.indexOf(checking));
-  for (const mode of ["simple", "checks"] as const) {
+  for (const mode of ["simple", "checks", "escapes"] as const) {
     const ordered = orderGuardReplies(position, legal, "south", mode).map(encodeAction);
     expect(ordered.indexOf(checking)).toBeLessThan(ordered.indexOf(capture));
     expect([...ordered].sort((a, b) => a - b)).toEqual(
@@ -50,7 +50,7 @@ for (const restricted of [false, true])
       );
       const action = getAnalysisLegalActions(position)[0],
         statuses = [];
-      for (const mode of ["base", "simple", "checks"] as const) {
+      for (const mode of ["base", "simple", "checks", "escapes"] as const) {
         const proof = await proveFiniteAction(position, action, "south", 3, {
           maxTransitions: 5000,
           maxMs: 2000,
@@ -184,7 +184,7 @@ test("unsafeの存在証明は順序とキャッシュ有無で一致し、欠�
     ),
   );
   const a = move("E5", "E4");
-  for (const mode of ["base", "simple", "checks"] as const) {
+  for (const mode of ["base", "simple", "checks", "escapes"] as const) {
     const cache = createFiniteProofCache(p, "south");
     for (const useCache of [false, true, true]) {
       const proof = await proveFiniteAction(p, a, "south", 2, {
@@ -201,4 +201,23 @@ test("unsafeの存在証明は順序とキャッシュ有無で一致し、欠�
     }
     expect(cache.stats.hits).toBeGreaterThan(0);
   }
+});
+
+import { countGuardKingFlights } from "../src/search/guardKingFlights";
+test("王の退路順序は幾何だけを数え、合駒を含む詰みの判定や元盤面の変更をしない", () => {
+  const state = fixture({
+    kings: { south: "E5", north: "I2" },
+    pieces: [{ side: "east", kind: "rook", at: "E1" }],
+  });
+  const before = structuredClone(state);
+  expect(countGuardKingFlights(state, "south")).toBe(6);
+  expect(state).toEqual(before);
+  const blocked = fixture({
+    kings: { south: "E5", north: "I2" },
+    pieces: [
+      { side: "east", kind: "rook", at: "E1" },
+      { side: "south", kind: "pawn", at: "F5" },
+    ],
+  });
+  expect(countGuardKingFlights(blocked, "south")).toBe(5);
 });

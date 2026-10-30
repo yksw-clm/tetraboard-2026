@@ -3,8 +3,9 @@ import type { FourShogiAction, Side, Piece } from "@tetraboard/four-shogi";
 import { attacksSquare, isInCheck, pieces } from "../../../../packages/four-shogi/src/board";
 import { pieceValue } from "../../../../packages/four-shogi/src/cpuEvaluation";
 import { encodeAction } from "../../../../packages/four-shogi/src/actionEncoding";
+import { countGuardKingFlights } from "./guardKingFlights";
 
-export type GuardReplyOrdering = "base" | "simple" | "checks";
+export type GuardReplyOrdering = "base" | "simple" | "checks" | "escapes";
 export function orderGuardReplies(
   position: AnalysisPosition,
   actions: readonly FourShogiAction[],
@@ -34,11 +35,14 @@ export function orderGuardReplies(
         : { id: -1, side: position.state.turn!, kind: action.pieceKind, promoted: false };
     // 簡易順序は動かした駒の幾何だけ、checksは空き王手も含む盤面の利きを調べます。正本遷移は証明側で行います。
     let checking = !!king && attacksSquare(position.state.board, moving, action.to, king);
-    if (mode === "checks") {
+    let flights = 9;
+    if (mode === "checks" || mode === "escapes") {
       const board = position.state.board.map((row) => [...row]);
       if (action.type === "movePiece") board[action.from.y][action.from.x] = null;
       board[action.to.y][action.to.x] = moving;
       checking = isInCheck({ ...position.state, board }, root);
+      if (mode === "escapes" && checking)
+        flights = countGuardKingFlights({ ...position.state, board }, root);
     }
     const distance = king
       ? Math.max(Math.abs(king.x - action.to.x), Math.abs(king.y - action.to.y))
@@ -46,6 +50,8 @@ export function orderGuardReplies(
     const rookDrop = action.type === "dropPiece" && action.pieceKind === "rook";
     return {
       action,
+      checking,
+      flights,
       id: encodeAction(action),
       score:
         score(action) +
@@ -53,5 +59,14 @@ export function orderGuardReplies(
         (rookDrop ? 500 + Math.max(0, 5 - distance) * 100 : 0),
     };
   });
-  return values.sort((a, b) => b.score - a.score || a.id - b.id).map((v) => v.action);
+  return values
+    .sort(
+      (a, b) =>
+        (mode === "escapes"
+          ? Number(b.checking) - Number(a.checking) || a.flights - b.flights
+          : 0) ||
+        b.score - a.score ||
+        a.id - b.id,
+    )
+    .map((v) => v.action);
 }

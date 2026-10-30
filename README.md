@@ -286,7 +286,7 @@ Webの操作ボタンは、作成・参加・棋譜への移動・更新・送�
 
 ## 四人将棋のローカル検討アプリ
 
-証明効率の実験設定は `STUDY_LETHAL_GUARD_ORDER=base|simple|checks`、`STUDY_LETHAL_GUARD_BUDGET=fixed-50|incumbent|reserve|progress`、`STUDY_LETHAL_GUARD_CACHE=off|on` です。既定はbase/fixed-50/offで、ガード自体もOFFのままです。[条件と採否](docs/four-shogi-ai.md#p1-4d有限証明の効率改善)を確認して明示的に切り替えます。
+証明効率の実験設定は `STUDY_LETHAL_GUARD_ORDER=base|simple|checks|escapes`、`STUDY_LETHAL_GUARD_BUDGET=fixed-50|incumbent|reserve|progress`、`STUDY_LETHAL_GUARD_CACHE=off|on` です。既定はbase/fixed-50/offで、ガード自体もOFFのままです。[条件と採否](docs/four-shogi-ai.md#p1-4d有限証明の効率改善)を確認して明示的に切り替えます。
 
 致命応手ガードは既定OFFの実験機能です。`STUDY_LETHAL_GUARD_MODE=observe|experimental`、`STUDY_LETHAL_GUARD_MS=250`、`STUDY_LETHAL_GUARD_SELECTION=top3-reserve` を起動時に明示できます。OBSERVEは記録のみ、EXPERIMENTALは同じ有限手数で危険/安全を証明できた候補間だけ順位を変更します。フォーカス・無制限検討・再開では適用しません。[判定・予算・測定と採否](docs/four-shogi-ai.md#p1-4c致命応手ガード)を確認してください。
 

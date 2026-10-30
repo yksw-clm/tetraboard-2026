@@ -14,7 +14,7 @@ export function readLethalGuardEnvironment(
   if (
     !["off", "observe", "experimental"].includes(mode) ||
     !["top3", "top5", "top3-reserve"].includes(selection) ||
-    !["base", "simple", "checks"].includes(replyOrdering) ||
+    !["base", "simple", "checks", "escapes"].includes(replyOrdering) ||
     !["fixed-50", "incumbent", "reserve", "progress"].includes(budgetPolicy) ||
     !["off", "on"].includes(cache) ||
     !Number.isFinite(budgetMs) ||
