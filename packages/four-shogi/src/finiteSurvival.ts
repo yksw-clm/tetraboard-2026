@@ -5,6 +5,14 @@ import {
 } from "./analysis";
 import { getActiveSides, type FourShogiAction, type Side } from "./types";
 import { encodeAction, decodeAction } from "./actionEncoding";
+import {
+  requireFiniteCache,
+  readFiniteCache,
+  rememberFiniteNode,
+  type FiniteProofCache,
+  type FiniteCacheStats,
+} from "./finiteProofCache";
+export { createFiniteProofCache } from "./finiteProofCache";
 
 export type FiniteStatus = "safe" | "unsafe" | "unknown";
 export type SafetyMetrics = {
@@ -43,6 +51,7 @@ export type SafetyProof = {
   estimatedBytes?: number;
   limit?: string | null;
   metrics?: SafetyMetrics;
+  cacheStats?: FiniteCacheStats;
 };
 export type SafetyBudget = {
   maxTransitions: number;
@@ -53,6 +62,7 @@ export type SafetyBudget = {
   maxBytes?: number;
   signal?: AbortSignal;
   measureStages?: boolean;
+  cache?: FiniteProofCache;
   order?: (
     position: AnalysisPosition,
     actions: readonly FourShogiAction[],
@@ -82,6 +92,7 @@ export async function proveFiniteAction(
     if (value !== undefined && (!Number.isSafeInteger(value) || value < 0))
       throw new Error("有限検証の追加上限が不正です");
   if (!chosen) throw new Error("非合法な代替着手です");
+  if (budget.cache) requireFiniteCache(budget.cache, position, root);
   const started = performance.now(),
     deadline = started + budget.maxMs;
   const nodes: Record<string, SafetyNode> = {};
@@ -131,6 +142,21 @@ export async function proveFiniteAction(
       metrics.localHits++;
       return key;
     }
+    if (budget.cache && available()) {
+      const hit = readFiniteCache(budget.cache, key, {
+        nodes: (budget.maxNodes ?? Infinity) - nodeCount,
+        bytes: (budget.maxBytes ?? Infinity) - estimatedBytes,
+        work: (budget.maxWork ?? Infinity) - work,
+        available,
+      });
+      if (hit) {
+        Object.assign(nodes, hit.nodes);
+        nodeCount += Object.keys(hit.nodes).length;
+        estimatedBytes += hit.bytes;
+        work += Object.keys(hit.nodes).length;
+        return key;
+      }
+    }
     const certificateStarted = clock();
     const alive = getActiveSides(current.state).includes(root);
     const node: SafetyNode = {
@@ -149,6 +175,8 @@ export async function proveFiniteAction(
     if (!alive || current.state.status === "finished" || remaining === 0) {
       node.status = alive ? "safe" : "unsafe";
       node.reason = "leaf";
+      if (budget.cache && !budget.signal?.aborted)
+        rememberFiniteNode(budget.cache, key, node, nodes);
       return key;
     }
     if (!available()) return key;
@@ -191,6 +219,8 @@ export async function proveFiniteAction(
       if ((own && nodes[child].status === "safe") || (!own && nodes[child].status === "unsafe")) {
         node.status = nodes[child].status;
         node.reason = "searched";
+        if (budget.cache && !budget.signal?.aborted)
+          rememberFiniteNode(budget.cache, key, node, nodes);
         return key;
       }
     }
@@ -200,6 +230,8 @@ export async function proveFiniteAction(
     ) {
       node.status = own ? "unsafe" : "safe";
       node.reason = "searched";
+      if (budget.cache && !budget.signal?.aborted)
+        rememberFiniteNode(budget.cache, key, node, nodes);
     }
     return key;
   };
@@ -230,6 +262,7 @@ export async function proveFiniteAction(
     estimatedBytes,
     limit,
     metrics: budget.measureStages ? metrics : undefined,
+    cacheStats: budget.cache?.stats,
   };
 }
 

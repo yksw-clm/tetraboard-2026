@@ -10,11 +10,15 @@ import {
   finiteLossWitness,
   type SafetyProof,
   type FiniteStatus,
+  createFiniteProofCache,
 } from "../../../../packages/four-shogi/src/finiteSurvival";
+import type { FiniteCacheStats } from "../../../../packages/four-shogi/src/finiteProofCache";
 
 export type LethalGuardMode = "off" | "observe" | "experimental";
 export type GuardSelection = "top3" | "top5" | "top3-reserve" | "all";
 export type LethalGuardOptions = {
+  proofCache?: boolean;
+  cacheBytes?: number;
   mode: LethalGuardMode;
   budgetMs?: number;
   selection?: GuardSelection;
@@ -42,6 +46,8 @@ export type GuardRow = {
   witness: FourShogiAction[] | null;
 };
 export type LethalGuardReport = {
+  proofCache?: boolean;
+  cacheStats?: FiniteCacheStats;
   normalElapsedMs?: number;
   totalBudgetMs?: number;
   maxNCompletedDepth?: number;
@@ -123,6 +129,8 @@ export async function runLethalGuard(
     !["fixed-50", "incumbent", "reserve", "progress"].includes(
       options.budgetPolicy ?? "fixed-50",
     ) ||
+    (options.cacheBytes !== undefined &&
+      (!Number.isSafeInteger(options.cacheBytes) || options.cacheBytes < 0)) ||
     !Number.isFinite(budgetMs) ||
     budgetMs < 0 ||
     budgetMs > 5000 ||
@@ -152,6 +160,7 @@ export async function runLethalGuard(
     reason: "unchanged",
     replyOrdering: options.replyOrdering ?? "base",
     budgetPolicy: options.budgetPolicy ?? "fixed-50",
+    proofCache: options.proofCache ?? false,
   };
   if (options.mode === "off") {
     report.reason = "off";
@@ -228,57 +237,65 @@ export async function runLethalGuard(
   const maxTransitions = options.maxTransitions ?? 5000,
     maxWork = options.maxWork ?? 100000,
     maxBytes = options.maxBytes ?? 16 * 1024 * 1024;
-  for (let rowIndex = 0; rowIndex < report.rows.length; rowIndex++) {
-    const row = report.rows[rowIndex];
-    if (
-      context.signal?.aborted ||
-      performance.now() >= deadline ||
-      report.transitions >= maxTransitions ||
-      report.work >= maxWork ||
-      report.estimatedBytes >= maxBytes
-    )
-      break;
-    const remaining = deadline - performance.now();
-    row.remainingAtStartMs = remaining;
-    row.queryBudgetMs = allocateGuardQuery(
-      options.budgetPolicy ?? "fixed-50",
-      budgetMs,
-      remaining,
-      report.rows.slice(0, rowIndex),
-      report.rows.length - rowIndex,
-    );
-    const queryStarted = performance.now();
-    const proof = await proveFiniteAction(position, row.action, root, horizon, {
-      maxTransitions: Math.max(0, maxTransitions - report.transitions),
-      maxWork: Math.max(0, maxWork - report.work),
-      maxNodes: 4096,
-      maxBytes: Math.max(0, maxBytes - report.estimatedBytes),
-      maxMs: row.queryBudgetMs,
-      signal: context.signal,
-      measureStages: options.measureStages,
-      order: (current, moves) =>
-        orderGuardReplies(current, moves, root, options.replyOrdering ?? "base"),
-    });
-    row.proof = proof;
-    row.witness = finiteLossWitness(proof);
-    row.completedWithinBudget =
-      performance.now() <= deadline &&
-      proof.elapsedMs <= row.queryBudgetMs &&
-      !context.signal?.aborted &&
-      proof.status !== "unknown";
-    row.status = row.completedWithinBudget ? proof.status : "unknown";
-    row.elapsedMs = performance.now() - queryStarted;
-    row.stopReason = row.completedWithinBudget
-      ? "complete"
-      : context.signal?.aborted
-        ? "cancelled"
-        : proof.status !== "unknown"
-          ? "late-complete"
-          : (proof.limit ?? "other");
-    report.work += proof.work ?? proof.transitions;
-    report.transitions += proof.transitions;
-    report.estimatedBytes += proof.estimatedBytes ?? 0;
-    report.parentRssBytes = Math.max(report.parentRssBytes, process.memoryUsage().rss);
+  const cacheBytes = options.proofCache ? Math.min(options.cacheBytes ?? 1048576, maxBytes) : 0;
+  const cache = options.proofCache ? createFiniteProofCache(position, root, cacheBytes) : undefined;
+  try {
+    for (let rowIndex = 0; rowIndex < report.rows.length; rowIndex++) {
+      const row = report.rows[rowIndex];
+      if (
+        context.signal?.aborted ||
+        performance.now() >= deadline ||
+        report.transitions >= maxTransitions ||
+        report.work >= maxWork ||
+        report.estimatedBytes >= maxBytes
+      )
+        break;
+      const remaining = deadline - performance.now();
+      row.remainingAtStartMs = remaining;
+      row.queryBudgetMs = allocateGuardQuery(
+        options.budgetPolicy ?? "fixed-50",
+        budgetMs,
+        remaining,
+        report.rows.slice(0, rowIndex),
+        report.rows.length - rowIndex,
+      );
+      const queryStarted = performance.now();
+      const proof = await proveFiniteAction(position, row.action, root, horizon, {
+        maxTransitions: Math.max(0, maxTransitions - report.transitions),
+        maxWork: Math.max(0, maxWork - report.work),
+        maxNodes: 4096,
+        maxBytes: Math.max(0, maxBytes - report.estimatedBytes - cacheBytes),
+        maxMs: row.queryBudgetMs,
+        signal: context.signal,
+        measureStages: options.measureStages,
+        cache,
+        order: (current, moves) =>
+          orderGuardReplies(current, moves, root, options.replyOrdering ?? "base"),
+      });
+      row.proof = proof;
+      row.witness = finiteLossWitness(proof);
+      row.completedWithinBudget =
+        performance.now() <= deadline &&
+        proof.elapsedMs <= row.queryBudgetMs &&
+        !context.signal?.aborted &&
+        proof.status !== "unknown";
+      row.status = row.completedWithinBudget ? proof.status : "unknown";
+      row.elapsedMs = performance.now() - queryStarted;
+      row.stopReason = row.completedWithinBudget
+        ? "complete"
+        : context.signal?.aborted
+          ? "cancelled"
+          : proof.status !== "unknown"
+            ? "late-complete"
+            : (proof.limit ?? "other");
+      report.work += proof.work ?? proof.transitions;
+      report.transitions += proof.transitions;
+      report.estimatedBytes += proof.estimatedBytes ?? 0;
+      report.parentRssBytes = Math.max(report.parentRssBytes, process.memoryUsage().rss);
+    }
+  } finally {
+    cache?.clear();
+    if (cache) report.cacheStats = cache.stats;
   }
   const proofsEnded = performance.now();
   for (const row of report.rows)

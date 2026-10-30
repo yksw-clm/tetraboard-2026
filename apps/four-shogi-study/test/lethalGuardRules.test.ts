@@ -9,6 +9,7 @@ import { getActiveSides, type Side } from "@tetraboard/four-shogi";
 import {
   proveFiniteAction,
   validateFiniteProof,
+  createFiniteProofCache,
 } from "../../../packages/four-shogi/src/finiteSurvival";
 import { fixture, move } from "../../../packages/four-shogi/bench/positionFixture";
 import { tacticInput } from "../bench/tacticsDiagnostics";
@@ -99,6 +100,19 @@ test("盤面・手番・直前手が同じでも反復履歴の違う証明を�
     { repetitions: br, ...rightState } = b.state;
   expect(leftState).toEqual(rightState);
   expect(ar).not.toEqual(br);
+  const cache = createFiniteProofCache(a, "south");
+  await proveFiniteAction(a, getAnalysisLegalActions(a)[0], "south", 2, {
+    maxTransitions: 100,
+    maxMs: 500,
+    cache,
+  });
+  await expect(
+    proveFiniteAction(b, getAnalysisLegalActions(b)[0], "south", 2, {
+      maxTransitions: 100,
+      maxMs: 500,
+      cache,
+    }),
+  ).rejects.toThrow("キャッシュ");
   const proof = await proveFiniteAction(a, getAnalysisLegalActions(a)[0], "south", 1, {
     maxTransitions: 1,
     maxMs: 500,

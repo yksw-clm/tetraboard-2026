@@ -77,3 +77,128 @@ test("候補別配分は全体残時間を超えず、首位重点と代替確�
       expect(allocateGuardQuery(p, 250, remaining, [], 5)).toBeGreaterThanOrEqual(0);
     }
 });
+
+import { createFiniteProofCache } from "../../../packages/four-shogi/src/finiteSurvival";
+test("完成部分証明だけをジョブ内で再利用し、保存した独立DAGを正本で検証できる", async () => {
+  const p = await restoreStudyPosition(tacticInput(fixture()));
+  const a = getAnalysisLegalActions(p)[0];
+  const cache = createFiniteProofCache(p, "south", 1048576);
+  const first = await proveFiniteAction(p, a, "south", 3, {
+    maxTransitions: 5000,
+    maxMs: 2000,
+    cache,
+  });
+  expect(first.status).toBe("safe");
+  expect(cache.stats.stores).toBeGreaterThan(0);
+  first.nodes[first.entry!].status = "unsafe";
+  const next = await proveFiniteAction(p, a, "south", 3, {
+    maxTransitions: 5000,
+    maxMs: 2000,
+    cache,
+  });
+  expect(next.status).toBe("safe");
+  expect(cache.stats.hits).toBeGreaterThan(0);
+  expect(next.transitions).toBeLessThan(first.transitions);
+  expect((await validateFiniteProof(p, JSON.parse(JSON.stringify(next)))).verified).toBe(true);
+  cache.clear();
+  expect(cache.stats.bytes).toBe(0);
+});
+
+test("unknownと中断節点を完成キャッシュへ入れず、容量不足でも判定を変えない", async () => {
+  const p = await restoreStudyPosition(tacticInput(fixture()));
+  const a = getAnalysisLegalActions(p)[0];
+  const cache = createFiniteProofCache(p, "south", 512);
+  const unknown = await proveFiniteAction(p, a, "south", 3, {
+    maxTransitions: 1,
+    maxMs: 2000,
+    cache,
+  });
+  expect(unknown.status).toBe("unknown");
+  expect(cache.stats.stores).toBe(0);
+  const proof = await proveFiniteAction(p, a, "south", 3, {
+    maxTransitions: 5000,
+    maxMs: 2000,
+    cache,
+  });
+  expect(proof.status).toBe("safe");
+  expect(cache.stats.peakBytes).toBeLessThanOrEqual(512);
+  expect(cache.stats.evictions).toBeGreaterThan(0);
+  expect((await validateFiniteProof(p, proof)).verified).toBe(true);
+  const aborted = new AbortController();
+  aborted.abort();
+  expect(
+    (
+      await proveFiniteAction(p, a, "south", 3, {
+        maxTransitions: 5000,
+        maxMs: 2000,
+        cache,
+        signal: aborted.signal,
+      })
+    ).status,
+  ).toBe("unknown");
+});
+
+test("キャッシュは持ち駒・規則・本人・残手数の異なる証明を混同しない", async () => {
+  const p = await restoreStudyPosition(tacticInput(fixture()));
+  const a = getAnalysisLegalActions(p)[0];
+  const cache = createFiniteProofCache(p, "south");
+  const first = await proveFiniteAction(p, a, "south", 2, {
+    maxTransitions: 5000,
+    maxMs: 2000,
+    cache,
+  });
+  expect(first.status).toBe("safe");
+  const next = await proveFiniteAction(p, a, "south", 3, {
+    maxTransitions: 5000,
+    maxMs: 2000,
+    cache,
+  });
+  expect(next.status).toBe("safe");
+  expect(next.transitions).toBeGreaterThan(1);
+  for (const setup of [
+    fixture({ hands: { south: { silver: 1 } } }),
+    fixture({ threePlayerAttackProhibited: true }),
+  ]) {
+    const q = await restoreStudyPosition(tacticInput(setup));
+    await expect(
+      proveFiniteAction(q, getAnalysisLegalActions(q)[0], "south", 3, {
+        maxTransitions: 5000,
+        maxMs: 2000,
+        cache,
+      }),
+    ).rejects.toThrow("キャッシュ");
+  }
+});
+
+test("unsafeの存在証明は順序とキャッシュ有無で一致し、欠けた証明は再検証で拒否する", async () => {
+  const p = await restoreStudyPosition(
+    tacticInput(
+      fixture({
+        kings: { south: "A9", west: "C8", north: "I1", east: "I9" },
+        pieces: [
+          { side: "west", kind: "rook", at: "C7" },
+          { side: "west", kind: "gold", at: "B8" },
+          { side: "south", kind: "pawn", at: "E5" },
+        ],
+      }),
+    ),
+  );
+  const a = move("E5", "E4");
+  for (const mode of ["base", "simple", "checks"] as const) {
+    const cache = createFiniteProofCache(p, "south");
+    for (const useCache of [false, true, true]) {
+      const proof = await proveFiniteAction(p, a, "south", 2, {
+        maxTransitions: 1000,
+        maxMs: 2000,
+        cache: useCache ? cache : undefined,
+        order: (p, a) => orderGuardReplies(p, a, "south", mode),
+      });
+      expect(proof.status).toBe("unsafe");
+      expect((await validateFiniteProof(p, proof)).verified).toBe(true);
+      const damaged = structuredClone(proof);
+      damaged.nodes[damaged.entry!].edges = [];
+      await expect(validateFiniteProof(p, damaged)).rejects.toThrow();
+    }
+    expect(cache.stats.hits).toBeGreaterThan(0);
+  }
+});

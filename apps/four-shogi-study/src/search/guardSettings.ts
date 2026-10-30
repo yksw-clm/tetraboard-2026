@@ -10,11 +10,13 @@ export function readLethalGuardEnvironment(
   const selection = env.STUDY_LETHAL_GUARD_SELECTION ?? "top3-reserve";
   const replyOrdering = env.STUDY_LETHAL_GUARD_ORDER ?? "base";
   const budgetPolicy = env.STUDY_LETHAL_GUARD_BUDGET ?? "fixed-50";
+  const cache = env.STUDY_LETHAL_GUARD_CACHE ?? "off";
   if (
     !["off", "observe", "experimental"].includes(mode) ||
     !["top3", "top5", "top3-reserve"].includes(selection) ||
     !["base", "simple", "checks"].includes(replyOrdering) ||
     !["fixed-50", "incumbent", "reserve", "progress"].includes(budgetPolicy) ||
+    !["off", "on"].includes(cache) ||
     !Number.isFinite(budgetMs) ||
     budgetMs < 1 ||
     budgetMs > 5000
@@ -28,5 +30,6 @@ export function readLethalGuardEnvironment(
     selection: selection as GuardSelection,
     replyOrdering: replyOrdering as GuardReplyOrdering,
     budgetPolicy: budgetPolicy as GuardBudgetPolicy,
+    proofCache: cache === "on",
   };
 }
