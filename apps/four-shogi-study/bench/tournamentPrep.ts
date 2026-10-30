@@ -12,9 +12,8 @@ import type { StudyLifecycleEvent } from "../src/search/deadline";
 import type { StudyPositionInput } from "../src/shared/model";
 import { restoreStudyPosition } from "../src/domain/study";
 import { getAnalysisLegalActions } from "@tetraboard/four-shogi/analysis";
-import { studyTacticalCases } from "./studyTactics";
+import { studyTacticalCases, acceptsStudyTactic } from "./studyTactics";
 import { tacticInput } from "./tacticsDiagnostics";
-import { acceptsTactic } from "../../../packages/four-shogi/bench/tactics";
 import { validateGuardCandidate, validateGuardReport } from "./lethalGuardValidation";
 import { guardBenchIdentity } from "./lethalGuardBench";
 import { hashJson } from "../../../packages/four-shogi/bench/singlesMeasurement";
@@ -168,13 +167,7 @@ export async function runTournamentSpec(file: string) {
         ? completed &&
           result.responseMs <= job.budgetMs &&
           guardFinalized &&
-          (tactic.family === "valid-magic"
-            ? Boolean(
-                candidate?.line[0]?.captured?.kind === "gold" &&
-                candidate.study?.magicEvidence?.status === "line_confirmed" &&
-                candidate.study.material.lineDelta >= 500,
-              )
-            : acceptsTactic(tactic, snapshot.recommendedAction))
+          acceptsStudyTactic(tactic, snapshot)
         : null;
       let finite = null;
       if (job.finiteDiagnostic && candidate) {

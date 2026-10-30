@@ -18,9 +18,8 @@ import { restoreStudyPosition } from "../src/domain/study";
 import type { StudyPositionInput } from "../src/shared/model";
 import { guardBenchIdentity } from "./lethalGuardBench";
 import { validateGuardCandidate } from "./lethalGuardValidation";
-import { studyTacticalCases } from "./studyTactics";
+import { studyTacticalCases, acceptsStudyTactic } from "./studyTactics";
 import { tacticInput } from "./tacticsDiagnostics";
-import { acceptsTactic } from "../../../packages/four-shogi/bench/tactics";
 import { loadPlayer } from "../../../packages/four-shogi/bench/baseline";
 import {
   hashJson,
@@ -147,7 +146,7 @@ export async function focusTrial(
 }
 
 export async function qualityFocus(root: string) {
-  const output = join(root, "validation/focus-critical.jsonl");
+  const output = join(root, "validation/focus-critical-v2.jsonl");
   if (existsSync(output)) throw Error("preserved results");
   const source = guardBenchIdentity();
   const cases = studyTacticalCases().filter((t) => t.critical);
@@ -169,7 +168,7 @@ export async function qualityFocus(root: string) {
         const pass =
           r.snapshot.completedDepth > 0 &&
           !!r.snapshot.recommendedAction &&
-          acceptsTactic(t, r.snapshot.recommendedAction) &&
+          acceptsStudyTactic(t, r.snapshot) &&
           r.withinBudget &&
           r.snapshot.continuation?.pauseAcknowledged !== false;
         allPass &&= pass;
@@ -183,7 +182,7 @@ export async function qualityFocus(root: string) {
       await runtime.close();
     }
   }
-  save(join(root, "validation/focus-critical-complete.json"), {
+  save(join(root, "validation/focus-critical-v2-complete.json"), {
     source,
     cases: 40,
     ways: modes,

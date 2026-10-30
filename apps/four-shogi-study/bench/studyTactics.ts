@@ -1,7 +1,24 @@
-import { tacticalCases } from "../../../packages/four-shogi/bench/tactics";
+import { tacticalCases, acceptsTactic } from "../../../packages/four-shogi/bench/tactics";
+import type { StudySearchSnapshot } from "../src/search/runtime";
+import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 import { fixture } from "../../../packages/four-shogi/bench/positionFixture";
 import { positionForSide } from "../../../packages/four-shogi/src/board";
 import { sides, type FourShogiState } from "../../../packages/four-shogi/src/types";
+
+/** search/tournament CLIで使用してきた同じ合格条件。valid-magicは金取りのPV証拠を要する。 */
+export function acceptsStudyTactic(
+  tactic: ReturnType<typeof studyTacticalCases>[number],
+  snapshot: StudySearchSnapshot,
+) {
+  const candidate = snapshot.candidates[0] as StudyCandidate | undefined;
+  return tactic.family === "valid-magic"
+    ? Boolean(
+        candidate?.line[0]?.captured?.kind === "gold" &&
+        candidate.study?.magicEvidence?.status === "line_confirmed" &&
+        candidate.study.material.lineDelta >= 500,
+      )
+    : acceptsTactic(tactic, snapshot.recommendedAction);
+}
 
 /** 従来search CLIのシングルス/有効マジック集合を、採点条件を変えず共用します。 */
 export function studyTacticalCases() {
