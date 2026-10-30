@@ -1,5 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, symlinkSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  symlinkSync,
+  existsSync,
+  lstatSync,
+  unlinkSync,
+  readdirSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createGuardedStudySearchRuntime } from "../src/search/guardedRuntime";
@@ -10,6 +19,7 @@ import { repoRoot } from "../../../packages/four-shogi/bench/baseline";
 import type { StudySearchRuntime, StudySearchSnapshot } from "../src/search/runtime";
 import type { StudyPositionInput } from "../src/shared/model";
 import { hashJson } from "../../../packages/four-shogi/bench/singlesMeasurement";
+import { guardBenchIdentity } from "./lethalGuardBench";
 
 export async function compareGuardOffReference(directory: string) {
   const reference = "8943d70e065f5a5a0fcc32cd635c9aa83f75ab8d",
@@ -20,8 +30,18 @@ export async function compareGuardOffReference(directory: string) {
     maxBuffer: 16 * 1024 * 1024,
   });
   execFileSync("tar", ["-x", "-C", root], { input: archive });
-  if (!existsSync(join(root, "node_modules")))
-    symlinkSync(join(repoRoot, "node_modules"), join(root, "node_modules"), "dir");
+  const modules = join(root, "node_modules");
+  if (existsSync(modules) && lstatSync(modules).isSymbolicLink()) unlinkSync(modules);
+  const namespace = join(modules, "@tetraboard");
+  mkdirSync(namespace, { recursive: true });
+  for (const name of readdirSync(join(repoRoot, "packages"))) {
+    const packageFile = join(repoRoot, "packages", name, "package.json");
+    if (!existsSync(packageFile)) continue;
+    const pkg = JSON.parse(readFileSync(packageFile, "utf8"));
+    if (!String(pkg.name).startsWith("@tetraboard/")) continue;
+    const alias = join(namespace, String(pkg.name).slice("@tetraboard/".length));
+    if (!existsSync(alias)) symlinkSync(join(repoRoot, "packages", name), alias, "dir");
+  }
   const old = await import(
     pathToFileURL(join(root, "apps/four-shogi-study/src/search/runtime.ts")).href
   );
@@ -85,6 +105,7 @@ export async function compareGuardOffReference(directory: string) {
         join(directory, "validation/off-compatibility.json"),
         JSON.stringify({
           reference,
+          source: guardBenchIdentity(),
           conditions: "1worker/root/4096MiB/maxDepth2/broadDepth2; timing/id/memory excluded",
           rows,
         }) + "\n",
