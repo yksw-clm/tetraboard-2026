@@ -286,6 +286,8 @@ Webの操作ボタンは、作成・参加・棋譜への移動・更新・送�
 
 ## 四人将棋のローカル検討アプリ
 
+証明効率の実験設定は `STUDY_LETHAL_GUARD_ORDER=base|simple|checks`、`STUDY_LETHAL_GUARD_BUDGET=fixed-50|incumbent|reserve|progress`、`STUDY_LETHAL_GUARD_CACHE=off|on` です。既定はbase/fixed-50/offで、ガード自体もOFFのままです。[条件と採否](docs/four-shogi-ai.md#p1-4d有限証明の効率改善)を確認して明示的に切り替えます。
+
 致命応手ガードは既定OFFの実験機能です。`STUDY_LETHAL_GUARD_MODE=observe|experimental`、`STUDY_LETHAL_GUARD_MS=250`、`STUDY_LETHAL_GUARD_SELECTION=top3-reserve` を起動時に明示できます。OBSERVEは記録のみ、EXPERIMENTALは同じ有限手数で危険/安全を証明できた候補間だけ順位を変更します。フォーカス・無制限検討・再開では適用しません。[判定・予算・測定と採否](docs/four-shogi-ai.md#p1-4c致命応手ガード)を確認してください。
 
 2026-10-28の承認済み仕様に基づき、Mac上で探索する四人将棋シングルス専用の検討アプリを `apps/four-shogi-study` に実装します。三人攻撃禁止ON/OFF、盤面・持ち駒・成り・回転、公開棋譜の読込み、巻き戻しと分岐、コメント、局面編集、席ごとの人間/CPU切替、CPU自己対戦に対応します。ルール・順位・オンラインの公開Lv1/Lv2を変更しません。局面編集は履歴をリセットした別の検討として保存し、元棋譜の攻撃履歴や千日手回数を引き継いだ実戦局面とは区別します。

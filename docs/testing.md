@@ -976,3 +976,9 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 ## P1-4c致命応手ガードの確認
 
 `lethalGuard.test.ts` は異なる地平の比較拒否、unknown/未完成/一本道での順位不変、MaxN同点順序、単独勝利保持、有限検査の取消/work上限/合法手の順序集合、OFF/OBSERVEの固定完成探索の候補・評価・PV・work一致、ガード中の取消後の遅延公開拒否、環境設定の既定OFFを確認します。証明DAGの全称応手欠落拒否と合法再生は既存lossAnalysis.testを再利用します。ガードは通常探索の仕事量と別の単位（内部で列挙した合法手数＋遷移数）を報告し、未完成の証明はunknownのまま扱います。
+
+## P1-4d証明効率の確認
+
+`test/guardEfficiency.test.ts` は駒打ち王手の順序・全合法手集合と決定性、2/3/4人×禁止ON/OFFでの完成した有限証明の一致、候補別配分の総時間制限、完成safe/unsafeのみの再利用、unknown/取消/容量追出しと独立DAGの正本照合を確認します。`lethalGuardRules.test.ts` は同じ盤面でも反復履歴の違うキャッシュを拒否します。証明の検証器と量化条件は変更しません。
+
+`bench/guardEfficiency.ts prepare <新規保存先> <P1-4c保存先>` と `profile` が原因/内訳、`isolated <保存先> <spec>` が個別変更です。`guardEfficiencyRuntime.ts frozen|runtime <保存先> <spec>` は同じ候補の追加診断と起動込み2秒比較を分け、`known` は既知手指定だけの再現、`verify` は保存済みの完全証明・危険手順・PVを正本で再生します。各phaseを固定ソースで登録し、最初の測定から90分・最大4worker主条件/8上限・RSS6144/7168MiBで停止します。測定結果の採否と未確認範囲はfour-shogi-ai.mdへ記録します。

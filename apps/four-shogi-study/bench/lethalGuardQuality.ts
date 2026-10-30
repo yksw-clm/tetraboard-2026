@@ -48,7 +48,7 @@ export async function runGuardQuality(directory: string, planFile = "plan.json")
       name: string;
       strategy: "adaptive" | "dual-continuations";
       guard: LethalGuardOptions;
-    }[] = [
+    }[] = plan.qualityConditions ?? [
       { name: "v5-off", strategy: "adaptive", guard: { mode: "off" } },
       { name: "p05-off", strategy: "dual-continuations", guard: { mode: "off" } },
       {

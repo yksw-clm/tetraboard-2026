@@ -77,7 +77,7 @@ def main():
                     role = "aggregation"
                 elif pid == os.getpid() or parent == os.getpid():
                     role = "monitor"
-                elif "lethalGuardCase.ts" in command:
+                elif "lethalGuardCase.ts" in command or "guardEfficiencyRuntime.ts" in command:
                     role = "game"
                     worker_count += int(role == "workers")
                     if parent == args.pid:

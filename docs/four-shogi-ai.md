@@ -1326,3 +1326,7 @@ ORDERはbase（従来）、simple（動かした駒による直接利きと飛�
 BUDGETはSTUDY_LETHAL_GUARD_BUDGETでfixed-50（既定）、incumbent（最初70%、残りは現在残時間）、reserve（最初40%に制限し代替へ60%確保）、progress（最初40%、首位unsafeでsafe未発見なら残時間、その他は後続数で配分し、時間切れかつ平均分岐16超なら最大残量半分/全体35%）を比較します。いずれも同じ全体期限・一回限りの候補順序を維持し、通常探索から予約する総時間を増やしません。割合/閾値は比較前に固定し、結果に合わせて変更しません。
 
 CACHEはSTUDY_LETHAL_GUARD_CACHE=onで明示し、既定offです。各runLethalGuardに最大1MiBの完成部分証明キャッシュを作り、終了/例外時に解放します。キーのscopeは入力完全hash・本人・analysis/rule版・量化条件版、節点は完全hash/残実手数です。unknownは格納せず、存在節点の不要辺を省いた完成証拠だけ保持します。依存節点が追い出された項目はmissへ戻し、全DAGを事前検査・複製して独立した証明へ取り込みます。容量不足は再探索で扱い、検証器は変更しません。全証拠容量からキャッシュ予約分を引き、命中・依存miss・追出し・取り込み数・最大容量を記録します。元状態の反復辞書もhash対象なので、異なる経路の同盤面が実際には同じ状態と認められず、命中が少ない可能性も検証対象です。
+
+独立screenの250ms/cold固定候補ではORDERがBASE31/113に対しsimple/checks各35/113、順序処理はsimpleが短い結果でした。BUDGETはBASE31、incumbent31、reserve25、progress28。CACHEはBASE32に対し31、37500弱のcold/warm照会で命中0です。screenは元候補のcold/warmラベルを保持しますが、ガード親の再利用と計時揺れを含む内部診断です。通常探索込みの利益とは分離します。
+
+次の固定ソースでBASE・ORDER=simple・BUDGET=incumbent・CACHEを100/250/400msで独立比較します。利益が確認できない予算変更/キャッシュを組み合わせず、COMBINEDはORDERと同じ設定・同じ実行レコードへのaliasとし、独立した二試行と扱いません。固定候補48組の内部比較後、合計2秒/4worker/root/4096MiBでcold36/warm12を測定し、OFF2000ms・短縮OFF1740ms・COMBINEDのOBSERVE250msも対照に加えます。各局面の親を新規作成し、条件順を巡回、warmは同じruntimeの深さ1で準備します。ソース/条件をplanへ事前登録し、未知や不利な結果も保持します。
