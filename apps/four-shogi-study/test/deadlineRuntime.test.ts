@@ -13,6 +13,84 @@ import { proveFiniteAction } from "../../../packages/four-shogi/src/finiteSurviv
 
 const input = () => tacticInput(fixture());
 
+test("起動前に予算が終わった通常解析も、継続ではworkerを準備して探索できる", async () => {
+  const runtime = createStudySearchRuntime({ threads: 1 });
+  try {
+    const id = await runtime.start(input(), { timeBudgetMs: 1, maxDepth: 1 });
+    expect(runtime.get(id)?.completion?.normalResult).toBe("incomplete");
+    await runtime.resume(id);
+    const deadline = performance.now() + 2000;
+    while (runtime.get(id)?.status === "running" && performance.now() < deadline)
+      await Bun.sleep(5);
+    expect(runtime.get(id)?.status).toBe("completed");
+    expect(runtime.get(id)?.completedDepth).toBe(1);
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("置換前の起動期限は、新しいジョブが共有するworkerを終了しない", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "study-deadline-replaced-"));
+  const file = join(directory, "worker.ts");
+  await writeFile(
+    file,
+    `await new Promise(resolve=>setTimeout(resolve,80));await import(${JSON.stringify(new URL("../src/search/worker.ts", import.meta.url).href)});`,
+  );
+  let second: Promise<string> | undefined;
+  let replace = true;
+  const runtime = createStudySearchRuntime({
+    threads: 1,
+    workerScript: pathToFileURL(file),
+    scheduling: "dynamic",
+    onPreparedPosition() {
+      if (replace) {
+        replace = false;
+        second = Promise.resolve().then(() =>
+          runtime.start(input(), { timeBudgetMs: 1000, maxDepth: 1 }),
+        );
+      }
+    },
+  });
+  try {
+    await runtime.start(input(), { timeBudgetMs: 30 }).catch(() => null);
+    const id = await second!;
+    const deadline = performance.now() + 2000;
+    while (runtime.get(id)?.status === "running" && performance.now() < deadline)
+      await Bun.sleep(5);
+    expect(runtime.get(id)?.status).toBe("completed");
+    expect(runtime.get(id)?.reason).toBe("max_depth");
+    expect(runtime.get(id)?.completedDepth).toBe(1);
+  } finally {
+    await runtime.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("readyを返さないworkerもジョブ予算で待機を打ち切り、未完成結果を返す", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "study-deadline-unready-"));
+  const file = join(directory, "worker.ts");
+  await writeFile(file, "process.on('message', m => { if(m.type === 'close') process.exit(0); });");
+  const runtime = createStudySearchRuntime({
+    threads: 1,
+    workerScript: pathToFileURL(file),
+    startupTimeoutMs: 500,
+  });
+  try {
+    const result = await runtime.start(input(), { timeBudgetMs: 30 }).then(
+      (id) => ({ snapshot: runtime.get(id), error: null }),
+      (error) => ({ snapshot: null, error: String(error) }),
+    );
+    expect(result.error).toBeNull();
+    expect(result.snapshot?.status).toBe("completed");
+    expect(result.snapshot?.reason).toBe("deadline");
+    expect(result.snapshot?.completion?.normalResult).toBe("incomplete");
+    expect(result.snapshot?.candidates).toEqual([]);
+  } finally {
+    await runtime.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("起動中に予算を使い切ったジョブは、追加の探索を始めず未完成を返す", async () => {
   const directory = await mkdtemp(join(tmpdir(), "study-deadline-ready-"));
   const file = join(directory, "worker.ts");

@@ -1545,7 +1545,25 @@ export function createStudySearchRuntime(
       const restored = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       config.onPreparedPosition?.(position);
-      await ensureWorkers();
+      if (!deadline) await ensureWorkers();
+      else if (performance.now() < deadline.workUntil) {
+        let startupCut: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const ready = await Promise.race([
+            ensureWorkers().then(() => true),
+            new Promise<boolean>((resolve) => {
+              startupCut = setTimeout(
+                () => resolve(false),
+                Math.max(0, deadline.workUntil - performance.now()),
+              );
+            }),
+          ]);
+          // 置換後の要求が共有している起動中のpoolは、古い要求の期限では終了しません。
+          if (!ready && token === generation) void terminateWorkers();
+        } finally {
+          clearTimeout(startupCut);
+        }
+      }
       const ready = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       const staticEvaluation = evaluateStudyPosition(position);
@@ -1734,14 +1752,26 @@ export function createStudySearchRuntime(
         job.snapshot.reason?.startsWith("focus_")
       )
         return;
+      const value = job;
+      const token = generation;
       job.snapshot.status = "running";
       job.snapshot.reason = null;
       job.snapshot.completion = undefined;
       job.started = performance.now();
       // 継続は既存の読みを保つ無制限解析です。時間を指定し直す場合は新しく開始します。
       job.options = { ...job.options, timeBudgetMs: null };
-      if (!job.prepared && job.snapshot.focus) void prepareFocus(job);
-      else command({ type: "resume", id });
+      try {
+        await ensureWorkers();
+      } catch (error) {
+        if (job === value && job.snapshot.status === "running") stop("error", String(error), true);
+        throw error;
+      }
+      if (closed || job !== value || token !== generation || value.snapshot.status !== "running")
+        return;
+      if (!job.prepared) {
+        if (job.snapshot.focus) void prepareFocus(job);
+        else startChildren(job, job.input);
+      } else command({ type: "resume", id });
       if (job.dynamic && job.dynamic.all.size) {
         dispatchTasks(job);
         finishIteration(job);

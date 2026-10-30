@@ -428,6 +428,8 @@ P1-4eは`test/deadlineRuntime.test.ts`で起動中の予算終了、完成通常
 
 大会準備の同期回帰は`liveApplication.test.ts`、`liveReplay.test.ts`、DOMの`studyApp.test.tsx`で、新着履歴取得中の旧解析無効化、同revision再接続、配信切断中の遅延snapshotを確認します。`bench/tournamentManualSmoke.ts <成果物ルート>`は実loopback HTTPで4席/5秒/10秒、完全履歴の保存復元・旧着手拒否・再起動・応答構築後の150ms遅延を記録します。外部への着手や自動ブラウザ操作をせず、人間の30秒リハーサルとは区別します。
 
+`deadlineRuntime.test.ts`はready未通知のworkerでも起動上限ではなくジョブ期限で未完成結果を返し、古い開始要求の期限が新要求の共有poolを終了しないことも確認します。実時間の上限を緩めるテストではなく、未完了と起動例外・置換の観測可能な違いを検査します。
+
 P1-3は `packages/four-shogi/test/studySplitTasks.test.ts` で逆順完成、四人評価・PV・work、同じ文脈で複数根を退避した仕事量、異なる入力文脈・未完成・重複の拒否、三人攻撃禁止ON/OFFと4/3/2人生存を確認します。`apps/four-shogi-study/test/parallelTasks.test.ts` は実Bunプロセスで旧新一致と、停止・期限からの再開、取消・新IDの再試行、重複・古いtaskId、worker異常終了・RSS上限を検証します。遅延や異常はプロセス通信境界のfixtureで与え、内部MaxNをモックしません。`parallelTelemetry.test.ts` は物理タスクの同時実行数と根全体の待ち時間を分けます。長い固定仕事・戦術・実時間比較は通常checkから分離し、固定ソース・資源上限・PVの正本再生を記録します。`bench/parallelSearch.ts --mode=fixed --directory=<固定済み入力の保存先>` が同深さの候補・評価・PV・探索本体workと物理work内訳、`--mode=known` が既知8展開・深さ9、`--mode=matrix` が全予算/workerの旧新比較を記録します。`--mode=verify --file=<JSONL>` は公開候補と広い比較候補のPVを再生し、実手番・afterPly・評価・捕獲・脱落・王手・終局を照合します。`bench/search.ts --kind=tactics --time-ms=1000 --threads=4 --strategies=adaptive,dual,dual-continuations --task-partition=root` と、P0-5だけの `--task-partition=replies` を同じソースで比較します。work上限は既定2000万で、上限取消を戦術の合格に含めません。
 
 P0診断は`studyDiagnostics.test.ts`と`test/tacticsDiagnostics.test.ts`で、固定タスクのobserver有効/無効による候補・評価・PV・workの一致、一節点介入で元候補を維持すること、observerが受け取った値の変更による入力汚染の防止、評価内訳の合計、実Bun workerのタスク再生、記録の容量超過を確認します。長い16展開の調査は通常checkから分離し、`bun apps/four-shogi-study/bench/tacticsDiagnostics.ts --output-dir=/private/tmp/study-p0-run`で実行します。元測定と新しい再測定、通常の1秒探索と観測実行、runtime再生と新規固定深さ比較を別に記録します。
