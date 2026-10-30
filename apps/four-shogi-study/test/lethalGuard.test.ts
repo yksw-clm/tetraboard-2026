@@ -34,6 +34,7 @@ test("ガードは異なる地平の安全/危険を比較しない", async () =
     source: "maxn",
     status: i === 0 ? "unsafe" : "safe",
     completedWithinBudget: true,
+    queryBudgetMs: 100,
     proof: {
       action: candidate.action,
       goal: "survival-for-finite-real-plies",
@@ -62,6 +63,7 @@ test("unknown・未完成・一本道だけでは変えず、同地平の証明�
     source: "maxn",
     status: i === 0 ? "unsafe" : "safe",
     completedWithinBudget: true,
+    queryBudgetMs: 100,
     proof: {
       action: candidate.action,
       goal: "survival-for-finite-real-plies",
@@ -161,6 +163,26 @@ test("既定はOFFで、非有限/範囲外の設定を受け付けない", () =
   expect(() => readLethalGuardEnvironment({ STUDY_LETHAL_GUARD_SELECTION: "all" })).toThrow();
 });
 
+test("証拠容量上限と期限切れはunknownを保ち、未着手を安全へ繰り上げない", async () => {
+  const { position, candidates } = await prepared();
+  const limited = await proveFiniteAction(position, candidates[0].action, "south", 4, {
+    maxTransitions: 100,
+    maxMs: 100,
+    maxBytes: 0,
+  });
+  expect(limited.status).toBe("unknown");
+  expect(limited.limit).toBe("memory");
+  const report = await runLethalGuard(
+    position,
+    candidates,
+    [],
+    { mode: "experimental", budgetMs: 100 },
+    { deadline: performance.now() - 1 },
+  );
+  expect(report.changed).toBe(false);
+  expect(report.rows.every((row) => row.status === "unknown" && row.proof === null)).toBe(true);
+});
+
 test("証明済み単独勝利は有限安全によって覆さない", async () => {
   const { candidates } = await prepared();
   const winner = {
@@ -184,6 +206,7 @@ test("証明済み単独勝利は有限安全によって覆さない", async ()
     actionId: encodeAction(candidate.action),
     status: i === 0 ? "unsafe" : "safe",
     completedWithinBudget: true,
+    queryBudgetMs: 100,
   })) as GuardRow[];
   expect(chooseGuardCandidate([winner, ...candidates.slice(1)], rows, "south")).toBe(winner);
 });

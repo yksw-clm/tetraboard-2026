@@ -65,6 +65,9 @@ export async function proveFiniteAction(
   const chosen = getAnalysisLegalActions(position).find(
     (move) => encodeAction(move) === encodeAction(action),
   );
+  for (const value of [budget.maxWork, budget.maxNodes, budget.maxBytes])
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0))
+      throw new Error("有限検証の追加上限が不正です");
   if (!chosen) throw new Error("非合法な代替着手です");
   const started = performance.now(),
     deadline = started + budget.maxMs;

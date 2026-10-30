@@ -23,6 +23,7 @@ export type LethalGuardOptions = {
   maxBytes?: number;
 };
 export type GuardRow = {
+  queryBudgetMs: number | null;
   action: FourShogiAction;
   actionId: number;
   maxNRank: number | null;
@@ -167,7 +168,7 @@ export async function runLethalGuard(
   const deadline = Math.min(started + budgetMs, context.deadline ?? Infinity);
   const legal = getAnalysisLegalActions(position),
     ids = new Set(legal.map(encodeAction));
-  const top = candidates.slice(0, selection === "top5" ? 5 : 3);
+  const top = candidates.slice(0, selection === "top5" || selection === "all" ? 5 : 3);
   const reserve =
     selection === "top3-reserve" || selection === "all"
       ? [...shallowPool]
@@ -195,6 +196,7 @@ export async function runLethalGuard(
       candidate,
       status: "unknown",
       completedWithinBudget: false,
+      queryBudgetMs: null,
       proof: null,
       witness: null,
     });
@@ -211,6 +213,7 @@ export async function runLethalGuard(
           candidate: null,
           status: "unknown",
           completedWithinBudget: false,
+          queryBudgetMs: null,
           proof: null,
           witness: null,
         });
@@ -229,19 +232,23 @@ export async function runLethalGuard(
     )
       break;
     const remaining = deadline - performance.now();
+    row.queryBudgetMs = Math.max(0, Math.min(remaining, Math.max(10, budgetMs / 2)));
     const proof = await proveFiniteAction(position, row.action, root, horizon, {
       maxTransitions: Math.max(0, maxTransitions - report.transitions),
       maxWork: Math.max(0, maxWork - report.work),
       maxNodes: 4096,
       maxBytes: Math.max(0, maxBytes - report.estimatedBytes),
-      maxMs: Math.max(0, Math.min(remaining, Math.max(10, budgetMs / 2))),
+      maxMs: row.queryBudgetMs,
       signal: context.signal,
       order: (current, moves) => replyOrder(current, moves, root),
     });
     row.proof = proof;
     row.witness = finiteLossWitness(proof);
     row.completedWithinBudget =
-      performance.now() <= deadline && !context.signal?.aborted && proof.status !== "unknown";
+      performance.now() <= deadline &&
+      proof.elapsedMs <= row.queryBudgetMs &&
+      !context.signal?.aborted &&
+      proof.status !== "unknown";
     row.status = row.completedWithinBudget ? proof.status : "unknown";
     report.work += proof.work ?? proof.transitions;
     report.transitions += proof.transitions;
