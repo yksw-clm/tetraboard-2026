@@ -424,6 +424,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
+最善手の矢印は共通盤面の`packages/shogi-ui/test-dom/board.test.tsx`で4方向のマス中心、9×9 gridとSVGの対応、成り/不成、駒種付きの打マーカー、クリックと成り選択への非干渉を検査します。`apps/four-shogi-study/test-dom/studyApp.test.tsx`はSSE境界の完成深さ1→2→3、反復中の保持、停止/完了、再解析・旧job/generation・別study・局面変更・編集・条件付き未来手・配信断を確認します。探索本体や保存形式は変更せず、実ブラウザの実画像・モバイル寸法・ネイティブのドラッグ確認は実施範囲と未確認事項を別記します。
+
 P1-4eは`test/deadlineRuntime.test.ts`で起動中の予算終了、完成通常結果を残すガード例外、timer取消とunknownを検証します。既存の実worker停止/再開/取消/異常終了/旧ID排除とDOM検証を維持し、`bench/tournamentPrep.ts <登録spec.json>`で通知とgetの外側経過・区間別の親時計・worker内時間を分けて保存します。予算超過、ガード報告欠落、正しい着手でも未完了の結果を戦術合格へ繰り上げません。手動の操作時間・実画像・実ブラウザをBun/HTTP検証で代替したとは報告しません。
 
 大会準備の同期回帰は`liveApplication.test.ts`、`liveReplay.test.ts`、DOMの`studyApp.test.tsx`で、新着履歴取得中の旧解析無効化、同revision再接続、配信切断中の遅延snapshotを確認します。`bench/tournamentManualSmoke.ts <成果物ルート>`は実loopback HTTPで4席/5秒/10秒、完全履歴の保存復元・旧着手拒否・再起動・応答構築後の150ms遅延を記録します。外部への着手や自動ブラウザ操作をせず、人間の30秒リハーサルとは区別します。

@@ -15,6 +15,7 @@ import { FourShogiHand } from "./FourShogiHand";
 import { ShogiPiece } from "./ShogiPiece";
 import { prepareShogiAssets } from "./shogiPieceImages";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
+import { ShogiBestMoveOverlay, type ShogiBestMove } from "./ShogiBestMoveOverlay";
 import { useLocalPromotion, type PromotionController } from "./useLocalPromotion";
 import {
   shogiActionChoices,
@@ -108,6 +109,7 @@ export type FourShogiBoardLayoutProps<A extends FourShogiAction = LegacyAction> 
   game: ShogiBoardView;
   eliminatedHands?: EliminatedHands;
   pendingAction?: A;
+  bestMove?: ShogiBestMove;
   viewerSide: Side;
   interactionSide?: Side;
   revision: Revision;
@@ -129,6 +131,7 @@ export function FourShogiBoardLayout({
   eliminatedHands = {},
   standard = false,
   pendingAction,
+  bestMove,
   viewerSide,
   interactionSide = viewerSide,
   revision,
@@ -556,6 +559,9 @@ export function FourShogiBoardLayout({
               </button>
             );
           })}
+          {bestMove && !editing && (
+            <ShogiBestMoveOverlay move={bestMove} game={game} viewerSide={viewerSide} />
+          )}
           {formationNotice && !selection && !drag && !promotionChoices && (
             <div
               key={formationNotice}
