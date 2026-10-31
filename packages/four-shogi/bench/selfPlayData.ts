@@ -335,7 +335,7 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   return config;
 }
 
-function replayFamily(replay: AnalysisReplayInput): string {
+export function replayFamily(replay: AnalysisReplayInput): string {
   const rotations = sides.map((orientation, offset) =>
     canonicalData(
       replay.events.map(({ event }) => ({
