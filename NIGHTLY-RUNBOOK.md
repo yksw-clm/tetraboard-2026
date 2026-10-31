@@ -43,6 +43,8 @@ caffeinate -i bun run ai:nightly
 
 P0-5の固定work運転は既存`createStudyRootSearch`と候補選別を使用する**単一プロセスのfirst-pass運転**です。広い比較から主要3根へ進み、既定深さ9で止めます。アプリの4worker/壁時計による候補巡回と同じスケジューラーとは主張しません。運転版・全条件・実消費workを記録します。共通MaxNとP0-5は別のCPUプロフィールです。
 
+研究用設定`teacherSelection:"trajectory-importance-v1"`は、確定した全棋譜を正本で再生し、序中終盤の各枠から時系列の錨と王手・成り・捕獲・脱落の局面を採ります。終局ラベルは選別に使いません。元棋譜は変えず、新しい派生datasetへ教師を保存して選別を再検査します。既定は比較用の従来`prefix-v1`です。旧runへ設定を足してresumeせず、新しい夜へ適用します。
+
 学習は32/8幅の既存tinyモデル、1000step、batch4です。同じ構成のCPU/MPS比較を各夜に記録し、`device:auto`では完走した速い方を選びます。`device:cpu|mps`を指定した場合は勝手に切り替えません。前世代があれば重みだけを初期化に使用し、optimizer/RNGは新run用に初期化します。親のvalidation集合も別に評価して忘却を監視します。
 
 ## 停止・再開・翌夜

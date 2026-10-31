@@ -34,6 +34,7 @@ import {
 import type { SelfPlayStore } from "./selfPlayStore";
 import { validateStudyDecision, validateStudyTeacher } from "./studyCpuInspect";
 import type { StudyCpuResult } from "./studyCpu";
+import { trajectoryTeacherPoints } from "./teacherSelection";
 
 export async function validateManifest(manifest: DataManifest, temporaryDirectory?: string) {
   const { datasetId, ...content } = manifest;
@@ -235,6 +236,12 @@ export async function validateGameArtifact(
   const byOffset = new Map(record.samples.map((sample) => [sample.eventOffset, sample]));
   if (byOffset.size !== record.samples.length) throw new Error("同じ局面を二重採用しています");
   let samples = 0;
+  const selectedTrajectory = manifest.config.teacherSelection
+    ? new Set(
+        (await trajectoryTeacherPoints(start.replay, record, manifest.config.sampling.maxPositions))
+          .indices,
+      )
+    : null;
   for (let offset = opening; offset < events.length; offset++) {
     const actor = record.actors[offset - opening];
     const event = events[offset];
@@ -271,7 +278,12 @@ export async function validateGameArtifact(
     )
       throw new Error("固定相手の版が不一致です");
     const sample = byOffset.get(offset);
-    if (Boolean(sample) !== shouldTeach(manifest.config, offset - opening, samples, position))
+    if (
+      Boolean(sample) !==
+      (selectedTrajectory
+        ? selectedTrajectory.has(offset - opening)
+        : shouldTeach(manifest.config, offset - opening, samples, position))
+    )
       throw new Error("教師局面の選別/件数が不一致です");
     if (sample) {
       await checkTeacher(manifest, sample, position, actor.actionId);

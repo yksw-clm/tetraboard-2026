@@ -11,6 +11,7 @@ import {
 import { encodeAction } from "../src/actionEncoding";
 import { analyzeStudyCpu, readStudyCpuSettings, type StudyCpuSettings } from "./studyCpu";
 import { loadLocalModel } from "../src/localModel";
+import { trajectoryTeacherPoints, trajectoryTeacherVersion } from "./teacherSelection";
 
 /** 確定棋譜を変更せず、新しいdatasetへ選択局面だけを追加解析する。 */
 export async function generateStudyTeachers(
@@ -19,7 +20,10 @@ export async function generateStudyTeachers(
   settings: StudyCpuSettings,
   maxPositions = 24,
   signal?: AbortSignal,
+  selection: "prefix-v1" | typeof trajectoryTeacherVersion = "prefix-v1",
 ) {
+  if (selection !== "prefix-v1" && selection !== trajectoryTeacherVersion)
+    throw new Error("教師選別の版が不正です");
   const input = new SelfPlayStore(source, 1024 ** 4);
   let output: SelfPlayStore | undefined;
   let attempted = 0,
@@ -37,7 +41,12 @@ export async function generateStudyTeachers(
         ...(configInput(original.config) as object),
         derivedFrom: { datasetId: original.datasetId, contentHash: inspection.contentHash },
         studyTeacher: settings,
-        sampling: { every: 16, important: true, maxPositions },
+        ...(selection === trajectoryTeacherVersion ? { teacherSelection: selection } : {}),
+        sampling: {
+          every: selection === "prefix-v1" ? 16 : 0,
+          important: selection === "prefix-v1",
+          maxPositions,
+        },
       },
       original.code,
       original.cpuSources,
@@ -62,9 +71,26 @@ export async function generateStudyTeachers(
         samples: [],
       };
       let position = await restoreAnalysisPosition(manifest.starts[plan.start].replay);
+      const selected =
+        selection === trajectoryTeacherVersion
+          ? new Set(
+              (
+                await trajectoryTeacherPoints(
+                  manifest.starts[plan.start].replay,
+                  record,
+                  maxPositions,
+                  signal,
+                )
+              ).indices,
+            )
+          : null;
       for (const [index, actor] of record.actors.entries()) {
         if (signal?.aborted) throw new Error("教師生成を中断しました");
-        if (shouldTeach(manifest.config, index, record.samples.length, position)) {
+        if (
+          selected
+            ? selected.has(index)
+            : shouldTeach(manifest.config, index, record.samples.length, position)
+        ) {
           const result = await analyzeStudyCpu(
             position,
             settings,
@@ -105,6 +131,7 @@ export async function generateStudyTeachers(
       completedThisInvocation: completed,
       workThisInvocation: work,
       cpuMsThisInvocation: cpuMs,
+      selection,
     };
   } finally {
     input.close();
@@ -126,6 +153,7 @@ if (import.meta.main) {
       readStudyCpuSettings(config.teacher),
       config.maxPositions,
       controller.signal,
+      config.selection ?? "prefix-v1",
     );
     await Bun.write(reportPath, JSON.stringify(report, null, 2) + "\n");
   } finally {

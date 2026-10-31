@@ -34,6 +34,7 @@ export type DataAgent =
   | { id: string; kind: "cpu"; reference: string };
 export type SelfPlayConfig = {
   derivedFrom?: { datasetId: string; contentHash: string };
+  teacherSelection?: "trajectory-importance-v1";
   studyTeacher?: StudyCpuSettings;
   model?: DataModel;
   origins: { seed: number; replay: AnalysisReplayInput | null }[];
@@ -222,6 +223,7 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
     "model",
     "studyTeacher",
     "derivedFrom",
+    "teacherSelection",
     "origins",
     "restrictions",
     "seatOffsets",
@@ -315,6 +317,21 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   if (typeof sampling.important !== "boolean")
     throw new TypeError("重要局面の選別を明示してください");
   const config = {
+    ...(raw.teacherSelection === undefined
+      ? {}
+      : {
+          teacherSelection: (() => {
+            if (
+              raw.teacherSelection !== "trajectory-importance-v1" ||
+              !raw.derivedFrom ||
+              !raw.studyTeacher ||
+              sampling.every !== 0 ||
+              sampling.important
+            )
+              throw new Error("軌跡選別は確定棋譜の派生P0-5教師専用です");
+            return "trajectory-importance-v1" as const;
+          })(),
+        }),
     ...(raw.derivedFrom === undefined
       ? {}
       : {

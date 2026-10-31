@@ -335,6 +335,7 @@ export async function runNightly(options: NightlyOptions) {
     immutableJson(teachConfigPath, {
       teacher: { maxWork: config.teacherWork, ...currentModel },
       maxPositions: config.teacherPositions,
+      selection: config.teacherSelection,
     });
     const teaching = await step(
       "teachers",

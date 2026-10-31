@@ -19,6 +19,7 @@ export type NightlyConfig = {
   actorWork: number;
   teacherWork: number;
   teacherPositions: number;
+  teacherSelection: "prefix-v1" | "trajectory-importance-v1";
   trainingSteps: number;
   replayNights: number;
   compare: boolean;
@@ -43,6 +44,7 @@ export function nightlyConfig(value: unknown = {}, smoke = false): NightlyConfig
     actorWork: 4096,
     teacherWork: 16000,
     teacherPositions: 24,
+    teacherSelection: "prefix-v1",
     trainingSteps: 1000,
     replayNights: 8,
     compare: true,
@@ -93,6 +95,8 @@ export function nightlyConfig(value: unknown = {}, smoke = false): NightlyConfig
   ] as const)
     dataInteger(config[key], min, max);
   if (config.hardRssMb < config.maxRssMb) throw new Error("hard RSSは管理目標以上が必要です");
+  if (!["prefix-v1", "trajectory-importance-v1"].includes(config.teacherSelection))
+    throw new Error("教師選別の版が不正です");
   if (config.policyOnly && !config.engineering)
     throw new Error("Policyのみの学習はengineering実験だけです");
   config.python = resolve(config.python);

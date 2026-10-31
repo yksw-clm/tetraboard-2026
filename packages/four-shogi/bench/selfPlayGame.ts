@@ -145,6 +145,7 @@ export async function generateSelfPlayGame(
   control: AiControl = {},
   temporaryDirectory?: string,
 ) {
+  if (manifest.config.teacherSelection) throw new Error("軌跡選別は確定棋譜の追加教師専用です");
   const start = manifest.starts[plan.start];
   let position = await restoreAnalysisPosition(saved?.replay ?? start.replay);
   const replay: AnalysisReplayInput = {
