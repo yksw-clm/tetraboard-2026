@@ -134,12 +134,7 @@ export type StudyAnalysisCommand = { expectedRevision: number } & (
   | { command: "start" }
   | { command: "pause" }
   | { command: "resume" }
-  | {
-      command: "adopt";
-      analysisId: string;
-      stateHash: string;
-      action?: FourShogiAction;
-    }
+  | { command: "adopt"; analysisId: string; stateHash: string; action?: FourShogiAction }
 );
 
 export type StudyServerEvent =

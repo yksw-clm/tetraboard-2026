@@ -176,9 +176,7 @@ export async function parseRecordedAnalyses(
       ...(item.modelId === undefined ? {} : { modelId: text(item.modelId) }),
       ...(item.modelUsage === undefined
         ? {}
-        : {
-            modelUsage: item.modelUsage as StudyRecordedAnalysis["modelUsage"],
-          }),
+        : { modelUsage: item.modelUsage as StudyRecordedAnalysis["modelUsage"] }),
       stateHash: text(item.stateHash),
       savedAt,
       searchVersion: text(item.searchVersion),

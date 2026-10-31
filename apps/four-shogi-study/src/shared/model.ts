@@ -32,10 +32,7 @@ export type StudySearchCoverage = Readonly<{
   opponentWidth: number;
   ownWidth: number;
 }>;
-export type StudySeat = Readonly<{
-  controller: "human" | "cpu";
-  thinkTimeMs: number;
-}>;
+export type StudySeat = Readonly<{ controller: "human" | "cpu"; thinkTimeMs: number }>;
 export type StudyRecordedAnalysis = Readonly<{
   modelGeneration?: string;
   modelId?: string;
@@ -59,11 +56,7 @@ export type StudyRecordedAnalysis = Readonly<{
   }>[];
 }>;
 export type StudyOrigin =
-  | Readonly<{
-      kind: "replay";
-      replay: AnalysisReplayInput;
-      sourceUrl?: string;
-    }>
+  | Readonly<{ kind: "replay"; replay: AnalysisReplayInput; sourceUrl?: string }>
   | Readonly<{
       kind: "setup";
       setup: AnalysisSetupInput;

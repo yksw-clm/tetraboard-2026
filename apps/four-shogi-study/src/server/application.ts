@@ -44,12 +44,7 @@ import {
   generationStudyModel,
 } from "../../../../packages/four-shogi/bench/nightlyStore";
 
-const names: Record<Side, string> = {
-  south: "南",
-  west: "西",
-  north: "北",
-  east: "東",
-};
+const names: Record<Side, string> = { south: "南", west: "西", north: "北", east: "東" };
 
 function eventLabel(
   before: AnalysisPosition,
@@ -113,19 +108,12 @@ export class LocalStudyApplication implements StudyApplication {
   private readonly listeners = new Set<(event: StudyServerEvent) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private active: ActiveSearch | null = null;
-  private pool: {
-    runtime: StudySearchRuntime;
-    threads: number;
-    memoryMb: number;
-  } | null = null;
+  private pool: { runtime: StudySearchRuntime; threads: number; memoryMb: number } | null = null;
   private generation = 0;
   private readonly analyses = new Map<string, StudyAnalysisView>();
   private readonly liveViews = new Map<string, StudyLiveView>();
   private readonly focusReconnect = new Set<string>();
-  private watching: {
-    session: LiveRoomSession;
-    studyId: string | null;
-  } | null = null;
+  private watching: { session: LiveRoomSession; studyId: string | null } | null = null;
 
   constructor(
     private readonly store: StudyStore,
@@ -448,9 +436,7 @@ export class LocalStudyApplication implements StudyApplication {
           break;
         }
         case "settings":
-          next = updateStudySettings(study, input.settings, {
-            title: input.title,
-          });
+          next = updateStudySettings(study, input.settings, { title: input.title });
           this.checkResources(next);
           break;
         case "pausePlay":
@@ -647,11 +633,7 @@ export class LocalStudyApplication implements StudyApplication {
         await this.saveAnalysis(
           active,
           view.status === "running"
-            ? {
-                ...view,
-                status: "cancelled",
-                reason: "局面または操作が変更されました",
-              }
+            ? { ...view, status: "cancelled", reason: "局面または操作が変更されました" }
             : view,
           current,
         );
@@ -721,11 +703,7 @@ export class LocalStudyApplication implements StudyApplication {
         settings: structuredClone(study.settings),
         requestedAt: new Date().toISOString(),
         live: live
-          ? {
-              instanceId: live.instanceId,
-              roundId: live.roundId,
-              eventCount: live.eventCount,
-            }
+          ? { instanceId: live.instanceId, roundId: live.roundId, eventCount: live.eventCount }
           : null,
       },
     };
@@ -957,11 +935,7 @@ export class LocalStudyApplication implements StudyApplication {
           if (this.watching !== binding) return;
           const live = this.liveViews.get(id);
           if (!live) return;
-          this.liveViews.set(id, {
-            ...live,
-            status: status.state,
-            message: status.message,
-          });
+          this.liveViews.set(id, { ...live, status: status.state, message: status.message });
           if (
             ["error", "closed", "reconnecting", "syncing"].includes(status.state) &&
             this.active?.studyId === id
