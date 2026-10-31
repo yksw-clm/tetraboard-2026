@@ -3,8 +3,11 @@ import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import {
   validateModelOutputs,
+  validateModelValue,
   type AiModelInput,
   type AiModelOutput,
+  type AiModelValueInput,
+  type AiModelValueOutput,
   type AiSyncModel,
 } from "./aiModel";
 import {
@@ -146,16 +149,19 @@ export function loadLocalModel(
     cache.set(key, values);
     return values;
   }
-  const predict = (input: AiModelInput): AiModelOutput => {
+  const dense = (name: string, row: number, hidden: number[]) => {
+    let n = tensors[name + ".bias"][row];
+    for (let i = 0; i < hidden.length; i++)
+      n += tensors[name + ".weight"][row * hidden.length + i] * hidden[i];
+    return n;
+  };
+  const encode = (input: AiModelValueInput): number[] => {
     if (
       !meta.supportedRestrictions.includes(input.restricted) ||
       !input.features.history.length ||
-      input.features.history.length > 2048 ||
-      !input.legalActionIds.length ||
-      new Set(input.legalActionIds).size !== input.legalActionIds.length ||
-      input.legalActionIds.some((i) => !Number.isInteger(i) || i < 0 || i >= actionSpaceSize)
+      input.features.history.length > 2048
     )
-      throw new Error("モデル入力の設定/履歴/合法手が不正です");
+      throw new Error("モデル入力の設定/履歴が不正です");
     sparse(input.features.current, currentFeatureSize);
     const pooled = Array(h).fill(0),
       count = input.features.history.length;
@@ -172,26 +178,37 @@ export function loadLocalModel(
       n += (weights[row * stride + currentFeatureSize + h] * count) / 2048;
       return Math.max(0, n);
     });
-    const dense = (name: string, row: number, hidden: number[]) => {
-      let n = tensors[name + ".bias"][row];
-      for (let i = 0; i < hidden.length; i++)
-        n += tensors[name + ".weight"][row * hidden.length + i] * hidden[i];
-      return n;
-    };
-    const hidden = Array.from({ length: w }, (_, row) => Math.max(0, dense("body.2", row, body0)));
-    const logits = input.legalActionIds.map((id) => dense("policy", id, hidden));
+    return Array.from({ length: w }, (_, row) => Math.max(0, dense("body.2", row, body0)));
+  };
+  const valueHead = (input: AiModelValueInput, hidden: number[]) => {
     const alive = new Set(input.features.current.indices);
+    return softmax(
+      Array.from({ length: 5 }, (_, i) =>
+        i === 4 || alive.has(2689 + i) ? dense("value", i, hidden) : -Infinity,
+      ),
+    );
+  };
+  const predictValue = (input: AiModelValueInput): AiModelValueOutput => {
+    const result = { id: input.id, value: valueHead(input, encode(input)) };
+    validateModelValue(input, result);
+    return result;
+  };
+  const predict = (input: AiModelInput): AiModelOutput => {
+    if (
+      !input.legalActionIds.length ||
+      new Set(input.legalActionIds).size !== input.legalActionIds.length ||
+      input.legalActionIds.some((i) => !Number.isInteger(i) || i < 0 || i >= actionSpaceSize)
+    )
+      throw new Error("モデル入力の合法手が不正です");
+    const hidden = encode(input);
+    const logits = input.legalActionIds.map((id) => dense("policy", id, hidden));
     const result = {
       id: input.id,
       legalActionIds: [...input.legalActionIds],
       policyLogits: logits,
       policy: softmax(logits),
       topActionId: input.legalActionIds[logits.indexOf(Math.max(...logits))],
-      value: softmax(
-        Array.from({ length: 5 }, (_, i) =>
-          i === 4 || alive.has(2689 + i) ? dense("value", i, hidden) : -Infinity,
-        ),
-      ),
+      value: valueHead(input, hidden),
       illegalPolicyNonzero: 0,
     };
     validateModelOutputs([input], [result]);
@@ -202,6 +219,7 @@ export function loadLocalModel(
     throw new Error("local probeのchecksumが不一致です");
   probe.rows.forEach((row: AiModelInput, i: number) => {
     const output = predict(row),
+      value = predictValue(row),
       expected = probe.expected[i];
     for (const key of ["policyLogits", "policy", "value"] as const)
       output[key].forEach((v, j) => {
@@ -210,10 +228,13 @@ export function loadLocalModel(
       });
     if (output.topActionId !== expected.topActionId)
       throw new Error("PyTorchとlocal推論の最良手が不一致です");
+    if (JSON.stringify(value.value) !== JSON.stringify(output.value))
+      throw new Error("Value単独と両headの推論が不一致です");
   });
   return {
     modelId: meta.modelId,
     predict,
+    predictValue,
     bytes: bytes.length,
     historyCacheEntries: () => cache.size,
   };

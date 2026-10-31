@@ -10,9 +10,11 @@ import {
   AiModelFailure,
   modelEvaluation,
   validateModelOutputs,
+  validateModelValue,
   type AiSyncModel,
   type AiModelDriver,
   type AiModelOutput,
+  type AiModelValueOutput,
 } from "./aiModel";
 import type {
   AiCandidate,
@@ -47,6 +49,7 @@ export type AiContextMetrics = {
   modelPolicyUses?: number;
   modelValueUses?: number;
   modelInferenceMs?: number;
+  modelValueOnlyInferences?: number;
   legalMs: number;
   transitionMs: number;
   evaluationMs: number;
@@ -267,7 +270,7 @@ export function createAiContext(
     }
     const prediction =
       (model || (profile?.model && profile.modelUsage !== "policy")) && state.status === "playing"
-        ? yield* predict(state)
+        ? yield* predictValue(state)
         : null;
     const started = clock();
     const value = prediction
@@ -283,7 +286,7 @@ export function createAiContext(
     if (profile?.cacheLeafEvaluations === false) leafEvaluations.set(state, value);
     return value;
   }
-  function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
+  function modelFeatures(state: FourShogiState, id: string) {
     try {
       return {
         id,
@@ -292,11 +295,31 @@ export function createAiContext(
           ...state,
           repetitions: { ...input.repetitions, ...state.repetitions },
         }),
-        legalActionIds: legalMoves.map((move) => encodeAction(move.action)).sort((a, b) => a - b),
       };
     } catch (error) {
       throw new AiModelFailure("model_features", String(error));
     }
+  }
+  function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
+    return {
+      ...modelFeatures(state, id),
+      legalActionIds: legalMoves.map((move) => encodeAction(move.action)).sort((a, b) => a - b),
+    };
+  }
+  function* predictValue(state: FourShogiState): Generator<number, AiModelValueOutput> {
+    if (!profile?.model?.predictValue) return yield* predict(state);
+    const record = node(state);
+    if (record?.prediction) return record.prediction;
+    yield* spend();
+    const request = modelFeatures(state, "0"),
+      started = performance.now(),
+      prediction = profile.model.predictValue(request);
+    validateModelValue(request, prediction);
+    metrics.modelInferences = (metrics.modelInferences ?? 0) + 1;
+    metrics.modelValueOnlyInferences = (metrics.modelValueOnlyInferences ?? 0) + 1;
+    metrics.modelInferenceMs = (metrics.modelInferenceMs ?? 0) + performance.now() - started;
+    // 完成した評価はevaluate()の同じ状態参照キャッシュへ保存します。
+    return prediction;
   }
   function* predict(
     state: FourShogiState,

@@ -141,7 +141,7 @@ export type StudySearchSnapshot = {
   };
 };
 export type StudySearchOptions = {
-  evaluationModel?: { file: string; modelId: string; sha256?: string };
+  evaluationModel?: { file: string; modelId: string; sha256?: string; valueOnlyHead?: boolean };
   /** 同一の検討/対局だけを識別し、workerへ送りません。 */
   sessionKey?: string;
   /** 同じ親プロセス内だけで共有する単調時計の終了時刻です。workerへは送りません。 */
@@ -601,6 +601,7 @@ export function createStudySearchRuntime(
               modelPolicyUses: sum("modelPolicyUses"),
               modelValueUses: sum("modelValueUses"),
               modelInferenceMs: sum("modelInferenceMs"),
+              modelValueOnlyInferences: sum("modelValueOnlyInferences"),
             }
           : {}),
         orderingMs: sum("orderingMs"),

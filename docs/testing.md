@@ -432,6 +432,8 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 Pythonの既存`trainingTest.py`は異なるsnapshotへweights-only warm startした場合の親不変/optimizer初期化と、同じrunの厳密resumeも検証します。実PyTorch・CPU/MPS・推論配布物・夜間バッチは[RUNBOOKの検証手順](../NIGHTLY-RUNBOOK.md#開発検証)で別実行し、通常Bun CIだけで実学習成功を主張しません。生の結果はGit管理外へ保持します。
 
+`trainingTest.py`はtrain限定のValue重み、教師なし行の除外、既定損失の同値、重み付き学習の中断/再開と条件変更拒否も検査します。validationの分類指標は重みなしで算出します。`localModel.test.ts`は実f32ファイルからのロードでON/OFF・各席・脱落時のPolicy/Value単独headを照合し、`studyCpu.test.ts`は同じ完成深さの候補/評価/PV、合法手列挙とworkの削減、不正Valueの拒否を確認します。実学習済みモデルの数値と速度はGit管理外の測定として別に保存します。
+
 フォーカス引継ぎは`focusContinuation.test.ts`で完全状態/players/探索条件/保持期限と合法PV、`focusReuseRuntime.test.ts`で固定深さの評価/PV/候補集合の一致、`ponderRuntime.test.ts`で予測一致/不一致・同一根の途中継続・世代・停止再開/取消・worker異常・期限解放・2/3/4人生存を確認します。実workerの停止応答を120/260ms遅延させ、外側の同じ期限内での確認と未確認時の保持破棄を区別し、深さ2の未完タスクを保持して深さ3の四人評価/PV/推奨が新規探索と一致することも検査します。実workerのready通知で、完成後の予測外の新規根はworkerを更新し、一致した途中探索の再開は新規起動なし・新規workありとなることを確認します。`focusPanel.test.tsx`はPV一致の補助表示が未来候補を現在手と呼ばず、variationへ送ることを検査します。`liveApplication.test.ts`は確定更新の保持、旧結果の非表示、切断と設定変更の取消を検査します。固定仕事・実時間・開発seedの実戦比較を機能テストと分離し、未来候補を現在の推奨へ繰り上げません。
 
 最善手の矢印は共通盤面の`packages/shogi-ui/test-dom/board.test.tsx`で4方向のマス中心、9×9 gridとSVGの対応、成り/不成、駒種付きの打マーカー、クリックと成り選択への非干渉を検査します。`apps/four-shogi-study/test-dom/studyApp.test.tsx`はSSE境界の完成深さ1→2→3、反復中の保持、停止/完了、再解析・旧job/generation・別study・局面変更・編集・条件付き未来手・配信断を確認します。探索本体や保存形式は変更せず、実ブラウザの実画像・モバイル寸法・ネイティブのドラッグ確認は実施範囲と未確認事項を別記します。
@@ -987,7 +989,6 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 
 ## P1-4b敗退分析の確認
 
-`training/four-shogi-ai/trainingTest.py`は、trainだけから作ったValueクラス重み、教師なし行の損失除外、既定損失の同値、重み付き学習の中断/再開と条件変更の拒否も検査します。validationの分類指標は重みなしで算出し、macro-F1と予測分布をconfusionから照合します。
 
 `apps/four-shogi-study/test/lossAnalysis.test.ts`は有限生存証明の正本再生成、全称応手の欠落拒否、予算切れのunknown維持、非合法初手拒否、危険な合法応手の存在量化、固定規則の主要候補選択を確認します。実行はコミット済みソースで `bench/lossAnalysis.ts prepare <Git管理外出力先> <P1-4主比較ディレクトリ>`、`run <出力先>`、`summarize <出力先>`。元の完全棋譜/攻撃/反復履歴を保ち、編集局面や手番差替えを使いません。固定タスクのobserver on/offと一節点介入は同深さ完成時だけ比較し、全枝未記録の過去実行へ外挿しません。PRのCIはdevelop取り込み後のFull実行範囲を確認し、Fastの未実行workspaceを成功扱いしません。
 

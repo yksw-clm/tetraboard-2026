@@ -10,7 +10,7 @@ import { validateGameArtifact } from "../bench/selfPlayInspect";
 import { analyzeStudyCpu, readStudyCpuSettings } from "../bench/studyCpu";
 import { restoreAnalysisPosition, getAnalysisLegalActions } from "../src/analysis";
 import { encodeAction } from "../src/actionEncoding";
-import type { AiSyncModel } from "../src/aiModel";
+import { validateModelValue, type AiSyncModel, type AiModelValueInput } from "../src/aiModel";
 import type { StudySearchPerformance } from "../src/studySearch";
 const code: DataCode = {
   commit: "0".repeat(40),
@@ -19,6 +19,113 @@ const code: DataCode = {
   runnerHash: "2".repeat(64),
   runtime: { bun: Bun.version, platform: process.platform, arch: process.arch },
 };
+
+test("Value単独の葉は合法手列挙を省き、同じ完成深さの評価とPVを維持する", async () => {
+  const position = await restoreAnalysisPosition({
+    schemaVersion: 1,
+    ruleProfileId: "tetraboard-four-shogi-singles-v1",
+    rulesVersion: 1,
+    initial: {
+      mode: "singles",
+      players: { south: "s", west: "w", north: "n", east: "e" },
+      threePlayerAttackProhibited: true,
+    },
+    events: [],
+  });
+  const modelId = "four-shogi-tiny-policy-value-v1:" + "2".repeat(64),
+    values = (input: AiModelValueInput) => {
+      const f = input.features.current,
+        last = Math.round((f.values[f.indices.indexOf(4476)] ?? 0) * 13446),
+        seats = [0.1 + (last % 7) / 100, 0.2, 0.15, 0.1].map((v, i) =>
+          f.indices.includes(2689 + i) ? v : 0,
+        );
+      return [...seats, 1 - seats.reduce((a, b) => a + b, 0)];
+    };
+  const slow: AiSyncModel = {
+    modelId,
+    predict(input) {
+      return {
+        id: input.id,
+        legalActionIds: input.legalActionIds,
+        policyLogits: input.legalActionIds.map((_, i) => -i),
+        policy: input.legalActionIds.map((_, i) => Number(i === 0)),
+        topActionId: input.legalActionIds[0],
+        value: values(input),
+        illegalPolicyNonzero: 0,
+      };
+    },
+  };
+  const fast: AiSyncModel = {
+    ...slow,
+    predictValue(input) {
+      expect("legalActionIds" in input).toBe(false);
+      return { id: input.id, value: values(input) };
+    },
+  };
+  const settings = readStudyCpuSettings({
+    maxWork: 100000,
+    maxDepth: 3,
+    rootWidth: 8,
+    width: 2,
+    extensions: 0,
+    dangerWork: 0,
+    modelFile: "unused-model",
+    modelId,
+  });
+  const results: Awaited<ReturnType<typeof analyzeStudyCpu>>[] = [],
+    metrics: StudySearchPerformance[] = [];
+  for (const model of [slow, fast])
+    results.push(
+      await analyzeStudyCpu(
+        position,
+        settings,
+        code.commit,
+        {},
+        {
+          model,
+          onFinish(snapshot) {
+            metrics.push(snapshot.performance!);
+          },
+        },
+      ),
+    );
+  const semantic = (r: (typeof results)[number]) =>
+    r.candidates.map(({ action, evaluation, line, selective, completedDepth }) => ({
+      action,
+      evaluation,
+      line,
+      selective,
+      completedDepth,
+    }));
+  expect(results.map((r) => r.diagnostics.completedDepth)).toEqual([3, 3]);
+  expect(semantic(results[1])).toEqual(semantic(results[0]));
+  expect(results[1].diagnostics.work).toBeLessThan(results[0].diagnostics.work);
+  expect(results[1].diagnostics.generatedMoves).toBeLessThan(results[0].diagnostics.generatedMoves);
+  expect(metrics[1].modelValueOnlyInferences).toBeGreaterThan(0);
+  const request = {
+    id: "v",
+    restricted: true,
+    features: { current: { indices: [2689], values: [1] }, history: [] },
+  };
+  for (const output of [
+    { id: "wrong", value: [1, 0, 0, 0, 0] },
+    { id: "v", value: [0, 1, 0, 0, 0] },
+    { id: "v", value: [0.2, 0, 0, 0, 0] },
+    { id: "v", value: [NaN, 0, 0, 0, 1] },
+  ])
+    expect(() => validateModelValue(request, output)).toThrow();
+  await expect(
+    analyzeStudyCpu(
+      position,
+      settings,
+      code.commit,
+      {},
+      {
+        model: { ...fast, predictValue: () => ({ id: "wrong", value: [1, 0, 0, 0, 0] }) },
+      },
+    ),
+  ).rejects.toThrow("Value");
+});
 
 test("研究用Policy/Valueを独立に使い、既定の両方使用と異なる比較を識別する", async () => {
   const position = await restoreAnalysisPosition({
