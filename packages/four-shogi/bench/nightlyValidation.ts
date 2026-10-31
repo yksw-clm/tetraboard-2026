@@ -48,7 +48,9 @@ export async function validateGenerationTactics(
     modelUsed: boolean;
     resourcePassed: boolean;
   }[] = existsSync(path) ? readCheckedJson(path) : [];
-  const cases = studyTacticalCases().filter((t) => t.critical || t.family === "inactive-rook");
+  const cases = studyTacticalCases()
+    .filter((t) => t.critical || t.family === "inactive-rook")
+    .sort((a, b) => Number(Boolean(b.critical)) - Number(Boolean(a.critical)));
   if (
     new Set(rows.map((row) => row.id)).size !== rows.length ||
     rows.some((row) => !cases.some((tactic) => tactic.id === row.id))

@@ -16,6 +16,7 @@ import {
   type StudyCandidate,
   type StudyRootOptions,
   type StudySearchPerformance,
+  type StudyLaneSnapshot,
 } from "../src/studySearch";
 import { dataHash, dataInteger, dataObject } from "./selfPlayData";
 import { loadLocalModel } from "../src/localModel";
@@ -143,6 +144,7 @@ export async function analyzeStudyCpu(
   control: AiControl = {},
   modelOptions: Pick<StudyRootOptions, "model"> & {
     diagnostics?: StudySearchDiagnostics;
+    onFinish?: (snapshot: StudyLaneSnapshot) => void;
     onIteration?: (iteration: {
       depth: number;
       phase: "broad" | "deep";
@@ -243,6 +245,7 @@ export async function analyzeStudyCpu(
       }
     }
     const snap = search.snapshot();
+    modelOptions.onFinish?.(structuredClone(snap));
     const candidates = published
       .sort((a, b) => compareStudyCandidates(a, b, position.state.turn!))
       .slice(0, 5);

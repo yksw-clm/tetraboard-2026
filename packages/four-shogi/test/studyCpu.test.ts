@@ -61,6 +61,7 @@ test("研究用Policy/Valueを独立に使い、既定の両方使用と異な�
       ...(usage ? { modelUsage: usage } : {}),
     });
     let metrics: StudySearchPerformance | undefined;
+    let finalWork: number | undefined;
     const result = await analyzeStudyCpu(
       position,
       settings,
@@ -71,9 +72,13 @@ test("研究用Policy/Valueを独立に使い、既定の両方使用と異な�
         onIteration(row) {
           metrics = row.performance;
         },
+        onFinish(row) {
+          finalWork = row.stats.work;
+        },
       },
     );
     expect(result.diagnostics.completedDepth).toBe(2);
+    expect(finalWork).toBe(result.diagnostics.work);
     expect(result.model.inferenceCount).toBeGreaterThan(0);
     expect((metrics?.modelPolicyUses ?? 0) > 0).toBe(usage !== "value");
     expect((metrics?.modelValueUses ?? 0) > 0).toBe(usage !== "policy");
