@@ -29,7 +29,7 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 /** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
 export type AiContextProfile = {
   model?: AiSyncModel;
-  modelUsage?: "policy-value" | "policy" | "value";
+  modelUsage?: "policy-value" | "policy" | "policy-own" | "value";
   modelFeatureCache?: boolean;
   evaluate: (state: FourShogiState) => AiEvaluation;
   orderingBonus?: (
@@ -48,6 +48,8 @@ export type AiContextProfile = {
 export type AiContextMetrics = {
   modelInferences?: number;
   modelPolicyUses?: number;
+  modelPolicyRootUses?: number;
+  modelPolicyOpponentUses?: number;
   modelValueUses?: number;
   modelInferenceMs?: number;
   modelValueOnlyInferences?: number;
@@ -279,7 +281,11 @@ export function createAiContext(
       return cached;
     }
     const prediction =
-      (model || (profile?.model && profile.modelUsage !== "policy")) && state.status === "playing"
+      (model ||
+        (profile?.model &&
+          profile.modelUsage !== "policy" &&
+          profile.modelUsage !== "policy-own")) &&
+      state.status === "playing"
         ? yield* predictValue(state)
         : null;
     const started = clock();
@@ -394,11 +400,16 @@ export function createAiContext(
       return legal.map((move, index) => ({ move, index }));
     const prediction = yield* predict(start, legal);
     if (model) model.stats.policyUses++;
-    else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
+    else countPolicy(start);
     return sortWithPolicy(
       legal.map((move, index) => ({ move, index, score: priority(move, start.turn!) })),
       prediction,
     );
+  }
+  function countPolicy(state: FourShogiState) {
+    metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
+    const key = state.turn === start.turn ? "modelPolicyRootUses" : "modelPolicyOpponentUses";
+    metrics[key] = (metrics[key] ?? 0) + 1;
   }
   function sortWithPolicy(
     entries: { move: OrdinaryMove; index: number; score: number }[],
@@ -473,10 +484,16 @@ export function createAiContext(
         }
         return { move, index, score: score + bonus };
       });
-      if (usePolicy && (model || (profile?.model && profile.modelUsage !== "value"))) {
+      if (
+        usePolicy &&
+        (model ||
+          (profile?.model &&
+            profile.modelUsage !== "value" &&
+            (profile.modelUsage !== "policy-own" || state.turn === start.turn)))
+      ) {
         const prediction = yield* predict(state, legalMoves);
         if (model) model.stats.policyUses++;
-        else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
+        else countPolicy(state);
         selected = sortWithPolicy(entries, prediction);
       } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
       selected = selected.filter(

@@ -13,6 +13,7 @@ test("Policy利用の指定は学習専用フラグと区別し、従来の両he
   expect(nightlyConfig().modelUsage).toBe("policy-value");
   expect(nightlyConfig({ modelUsage: "policy" }).modelUsage).toBe("policy");
   expect(nightlyConfig({ modelUsage: "policy" }).policyOnly).toBe(false);
+  expect(nightlyConfig({ modelUsage: "policy-own" }).modelUsage).toBe("policy-own");
   for (const usage of ["value", "", null, true])
     expect(() => nightlyConfig({ modelUsage: usage })).toThrow("形式");
 });

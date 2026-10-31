@@ -572,7 +572,10 @@ export class LocalStudyApplication implements StudyApplication {
       searchVersion: view.searchVersion ?? studySearchVersion,
       ...(view.coverage ? { coverage: view.coverage } : {}),
       evaluationVersion: view.modelId
-        ? view.modelId + (view.modelUsage === "policy" ? ":policy-g0-value-v1" : "")
+        ? view.modelId +
+          (view.modelUsage === "policy" || view.modelUsage === "policy-own"
+            ? ":" + view.modelUsage + "-g0-value-v1"
+            : "")
         : studyEvaluationVersion,
       engineVersion: aiVersions.engineVersion,
       ...active.conditions,

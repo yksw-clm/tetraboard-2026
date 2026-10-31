@@ -37,7 +37,7 @@ export type StudyCpuSettings = {
   modelFile?: string;
   modelId?: string;
   modelSha256?: string;
-  modelUsage?: "policy-value" | "policy" | "value";
+  modelUsage?: "policy-value" | "policy" | "policy-own" | "value";
   modelFeatureCache?: boolean;
   modelHistoryReferenceCache?: boolean;
 };
@@ -72,7 +72,8 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     throw new Error("履歴特徴キャッシュの指定にはモデルとbooleanが必要です");
   if (
     raw.modelUsage !== undefined &&
-    (!raw.modelId || !["policy-value", "policy", "value"].includes(String(raw.modelUsage)))
+    (!raw.modelId ||
+      !["policy-value", "policy", "policy-own", "value"].includes(String(raw.modelUsage)))
   )
     throw new Error("研究用modelUsageにはモデルとPolicy/Valueの使用条件が必要です");
   if (

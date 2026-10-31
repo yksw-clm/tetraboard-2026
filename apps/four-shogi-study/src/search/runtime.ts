@@ -145,7 +145,7 @@ export type StudySearchOptions = {
     file: string;
     modelId: string;
     sha256?: string;
-    usage?: "policy-value" | "policy";
+    usage?: "policy-value" | "policy" | "policy-own";
     valueOnlyHead?: boolean;
     historyFeatureCache?: boolean;
     historyReferenceCache?: boolean;
@@ -607,6 +607,8 @@ export function createStudySearchRuntime(
           ? {
               modelInferences: sum("modelInferences"),
               modelPolicyUses: sum("modelPolicyUses"),
+              modelPolicyRootUses: sum("modelPolicyRootUses"),
+              modelPolicyOpponentUses: sum("modelPolicyOpponentUses"),
               modelValueUses: sum("modelValueUses"),
               modelInferenceMs: sum("modelInferenceMs"),
               modelValueOnlyInferences: sum("modelValueOnlyInferences"),
@@ -1616,9 +1618,9 @@ export function createStudySearchRuntime(
     async start(input, options, onProgress = () => {}) {
       if (
         options.evaluationModel?.usage !== undefined &&
-        !["policy-value", "policy"].includes(options.evaluationModel.usage)
+        !["policy-value", "policy", "policy-own"].includes(options.evaluationModel.usage)
       )
-        throw new Error("学習モデルの利用方法はpolicy-valueまたはpolicyです");
+        throw new Error("学習モデルの利用方法はpolicy-value・policy・policy-ownです");
       if (
         options.evaluationModel &&
         ((options.strategy ?? "adaptive") !== "dual-continuations" ||
@@ -1789,7 +1791,10 @@ export function createStudySearchRuntime(
                   (options.strategy === "dual" || options.strategy === "dual-continuations")
                     ? "-p1-3-replies"
                     : "") +
-                  (options.evaluationModel?.usage === "policy" ? "-model-policy" : ""),
+                  (options.evaluationModel?.usage === "policy" ||
+                  options.evaluationModel?.usage === "policy-own"
+                    ? "-model-" + options.evaluationModel.usage
+                    : ""),
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,

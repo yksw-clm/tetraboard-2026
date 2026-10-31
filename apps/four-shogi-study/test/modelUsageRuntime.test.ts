@@ -19,6 +19,12 @@ test("同じモデルでもPolicy利用とValue利用をフォーカスの再利
       { ...options, evaluationModel: { ...options.evaluationModel, usage: "policy-value" } },
     ),
   );
+  expect(focusConditions({}, options)).not.toBe(
+    focusConditions(
+      {},
+      { ...options, evaluationModel: { ...options.evaluationModel, usage: "policy-own" } },
+    ),
+  );
 });
 
 test("実workerでPolicyだけを使いG0 Valueを保ち、両headやG0への切替で評価を混ぜない", async () => {
@@ -27,7 +33,7 @@ test("実workerでPolicyだけを使いG0 Valueを保ち、両headやG0への切
   try {
     const model = await writeZeroLocalModelFixture(directory);
     const input = tacticInput(fixture());
-    async function run(usage?: "policy" | "policy-value") {
+    async function run(usage?: "policy" | "policy-value" | "policy-own") {
       let settle!: (value: StudySearchSnapshot) => void;
       const done = new Promise<StudySearchSnapshot>((r) => {
         settle = r;
@@ -54,6 +60,13 @@ test("実workerでPolicyだけを使いG0 Valueを保ち、両headやG0への切
     expect(policy.performance?.modelPolicyUses).toBeGreaterThan(0);
     expect(policy.performance?.modelValueUses).toBe(0);
     expect(policy.diagnostics.searchVersion).toContain("model-policy");
+    const own = await run("policy-own");
+    expect(own.id).not.toBe(policy.id);
+    expect(own.evaluation?.evaluationKind).toBe("heuristic");
+    expect(own.performance?.modelPolicyRootUses).toBeGreaterThan(0);
+    expect(own.performance?.modelPolicyOpponentUses).toBe(0);
+    expect(own.performance?.modelValueUses).toBe(0);
+    expect(own.diagnostics.searchVersion).toContain("model-policy-own");
     const full = await run("policy-value");
     expect(full.id).not.toBe(policy.id);
     expect(full.evaluation?.evaluationKind).toBe("model");

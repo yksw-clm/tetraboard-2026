@@ -165,7 +165,7 @@ export type StudySearchPerformance = AiContextMetrics & {
 };
 export type StudyRootOptions = {
   model?: AiSyncModel;
-  modelUsage?: "policy-value" | "policy" | "value";
+  modelUsage?: "policy-value" | "policy" | "policy-own" | "value";
   modelFeatureCache?: boolean;
   subtreeCacheLimit?: number;
   reuseChecks?: boolean;
@@ -492,7 +492,8 @@ export function createStudyRootSearch(
 ) {
   if (
     options.modelUsage !== undefined &&
-    (!options.model || !["policy-value", "policy", "value"].includes(options.modelUsage))
+    (!options.model ||
+      !["policy-value", "policy", "policy-own", "value"].includes(options.modelUsage))
   )
     throw new TypeError("モデルを指定した研究用Policy/Value条件が必要です");
   if (options.modelFeatureCache !== undefined && typeof options.modelFeatureCache !== "boolean")
@@ -870,7 +871,7 @@ export function createStudyRootSearch(
     // Policy専用のdeepでは全合法手を従来Valueで再順位付けするため、その前の
     // Policy順序は使いません。順序で静かな延長手を選ぶ箇所は従来経路を保ちます。
     const unusedPolicyOrder =
-      options.modelUsage === "policy" &&
+      (options.modelUsage === "policy" || options.modelUsage === "policy-own") &&
       isDualStudyStrategy(options.strategy) &&
       taskPolicy?.phase === "deep" &&
       !tacticalOnly &&

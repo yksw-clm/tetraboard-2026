@@ -17,7 +17,7 @@ export type SearchCommand =
         file: string;
         modelId: string;
         sha256?: string;
-        usage?: "policy-value" | "policy";
+        usage?: "policy-value" | "policy" | "policy-own";
         valueOnlyHead?: boolean;
         historyFeatureCache?: boolean;
         historyReferenceCache?: boolean;

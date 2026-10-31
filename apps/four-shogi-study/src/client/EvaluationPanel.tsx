@@ -57,9 +57,11 @@ export function EvaluationPanel({
       {study.settings.modelGeneration ? (
         <p role="status" className="break-all text-xs">
           評価モデル {study.settings.modelGeneration} · {analysis?.modelId ?? "読み込み待ち"} ·
-          {analysis?.modelUsage === "policy"
-            ? "学習Policy・ValueはG0（研究用）"
-            : "未校正の研究用評価"}
+          {analysis?.modelUsage === "policy-own"
+            ? "自手番だけ学習Policy・相手順序とValueはG0（研究用）"
+            : analysis?.modelUsage === "policy"
+              ? "学習Policy・ValueはG0（研究用）"
+              : "未校正の研究用評価"}
         </p>
       ) : null}
       {!snapshot.live ? (

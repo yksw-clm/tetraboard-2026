@@ -9,7 +9,7 @@ export type { StudyFocusMetadata } from "./search/runtime";
 export type StudyAnalysisView = {
   modelGeneration?: string;
   modelId?: string;
-  modelUsage?: "policy-value" | "policy";
+  modelUsage?: "policy-value" | "policy" | "policy-own";
   continuation?: StudySearchSnapshot["continuation"];
   completion?: StudySearchSnapshot["completion"];
   lethalGuard?: import("./search/lethalGuard").LethalGuardReport;
@@ -82,7 +82,7 @@ export type StudyConfig = {
     generation: number;
     state: string;
     modelId: string | null;
-    modelUsage?: "policy-value" | "policy";
+    modelUsage?: "policy-value" | "policy" | "policy-own";
     createdAt: string;
     parentId: string | null;
     trainingSamples: number;

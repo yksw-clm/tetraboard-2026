@@ -279,7 +279,11 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
               .map((m) => (
                 <option key={m.id} value={m.id} disabled={!m.available}>
                   G{m.generation} {m.state === "promoted" ? "昇格済み" : "候補・研究用"} · {m.id}
-                  {m.modelUsage === "policy" ? "（Policy学習・Value G0）" : ""}
+                  {m.modelUsage === "policy-own"
+                    ? "（自手番Policy学習・相手とValue G0）"
+                    : m.modelUsage === "policy"
+                      ? "（Policy学習・Value G0）"
+                      : ""}
                   {m.available ? "" : "（利用不可）"}
                 </option>
               ))}
@@ -294,9 +298,11 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
                   ? "データ品質ゲート通過"
                   : "データ品質は未達・動作試験用"}
               <br />
-              {selectedModel.modelUsage === "policy"
-                ? "探索では学習PolicyとG0 Valueを使用"
-                : "探索では学習Policy・Valueを使用"}
+              {selectedModel.modelUsage === "policy-own"
+                ? "探索では自手番だけ学習Policyを使用し、相手の候補順序とValueはG0"
+                : selectedModel.modelUsage === "policy"
+                  ? "探索では学習PolicyとG0 Valueを使用"
+                  : "探索では学習Policy・Valueを使用"}
               <br />
               検証Policy一致{" "}
               {typeof validation?.policyAccuracy === "number"

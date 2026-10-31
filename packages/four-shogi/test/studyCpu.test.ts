@@ -170,7 +170,7 @@ test("研究用Policy/Valueを独立に使い、既定の両方使用と異な�
     },
   };
   const results = [];
-  for (const usage of [undefined, "policy-value", "policy", "value"] as const) {
+  for (const usage of [undefined, "policy-value", "policy", "value", "policy-own"] as const) {
     const settings = readStudyCpuSettings({
       maxWork: 20000,
       maxDepth: 2,
@@ -202,15 +202,15 @@ test("研究用Policy/Valueを独立に使い、既定の両方使用と異な�
     expect(finalWork).toBe(result.diagnostics.work);
     expect(result.model.inferenceCount).toBeGreaterThan(0);
     expect((metrics?.modelPolicyUses ?? 0) > 0).toBe(usage !== "value");
-    expect((metrics?.modelValueUses ?? 0) > 0).toBe(usage !== "policy");
+    expect((metrics?.modelValueUses ?? 0) > 0).toBe(usage !== "policy" && usage !== "policy-own");
     expect(result.candidates.every((c) => c.lineEvaluation?.evaluationKind === "model")).toBe(
-      usage !== "policy",
+      usage !== "policy" && usage !== "policy-own",
     );
     results.push(result);
   }
   expect(results[0].candidates).toEqual(results[1].candidates);
   expect(results[0].diagnostics.work).toBe(results[1].diagnostics.work);
-  expect(new Set(results.map((r) => r.cacheKey)).size).toBe(4);
+  expect(new Set(results.map((r) => r.cacheKey)).size).toBe(5);
   expect(() => readStudyCpuSettings({ modelUsage: "value" })).toThrow("使用条件");
 });
 

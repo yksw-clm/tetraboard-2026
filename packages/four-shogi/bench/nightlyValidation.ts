@@ -20,6 +20,7 @@ import {
   generationStudyModel,
 } from "./nightlyStore";
 import { nightlySource } from "./nightlyConfig";
+import type { StudySearchPerformance } from "../src/studySearch";
 
 export async function validateGenerationTactics(
   directory: string,
@@ -48,6 +49,9 @@ export async function validateGenerationTactics(
     work: number;
     elapsedMs: number;
     modelUsed: boolean;
+    modelPolicyRootUses?: number;
+    modelPolicyOpponentUses?: number;
+    modelValueUses?: number;
     resourcePassed: boolean;
   }[] = existsSync(path) ? readCheckedJson(path) : [];
   const cases = studyTacticalCases()
@@ -66,6 +70,7 @@ export async function validateGenerationTactics(
       position = await restoreStudyPosition(input),
       known = tactic.family === "inactive-rook";
     if (known) {
+      let performance: StudySearchPerformance | undefined;
       const result = await analyzeStudyCpu(
         position,
         readStudyCpuSettings({
@@ -82,6 +87,11 @@ export async function validateGenerationTactics(
         }),
         "nightly-known-depth9",
         { signal },
+        {
+          onFinish: (snapshot) => {
+            performance = snapshot.performance;
+          },
+        },
       );
       const legal =
         !!result.recommendedAction &&
@@ -101,7 +111,20 @@ export async function validateGenerationTactics(
         completedDepth: result.diagnostics.completedDepth,
         work: result.diagnostics.work,
         elapsedMs: result.diagnostics.elapsedMs,
-        modelUsed: model === null || result.model.inferenceCount > 0,
+        modelUsed:
+          model === null ||
+          (result.model.inferenceCount > 0 &&
+            (model.usage !== "policy-own" ||
+              ((performance?.modelPolicyRootUses ?? 0) > 0 &&
+                (performance?.modelPolicyOpponentUses ?? 0) === 0 &&
+                (performance?.modelValueUses ?? 0) === 0))),
+        ...(model
+          ? {
+              modelPolicyRootUses: performance?.modelPolicyRootUses ?? 0,
+              modelPolicyOpponentUses: performance?.modelPolicyOpponentUses ?? 0,
+              modelValueUses: performance?.modelValueUses ?? 0,
+            }
+          : {}),
         resourcePassed: result.studyCpu.rssBytes <= 4096 * 1024 ** 2,
       });
     } else {
@@ -121,6 +144,13 @@ export async function validateGenerationTactics(
         work: result.work,
         elapsedMs: measured.elapsedMs,
         modelUsed: measured.modelUsed,
+        ...(model
+          ? {
+              modelPolicyRootUses: result.performance?.modelPolicyRootUses ?? 0,
+              modelPolicyOpponentUses: result.performance?.modelPolicyOpponentUses ?? 0,
+              modelValueUses: result.performance?.modelValueUses ?? 0,
+            }
+          : {}),
         resourcePassed: measured.withinBudget && result.memoryBytes <= 4096 * 1024 ** 2,
       });
     }

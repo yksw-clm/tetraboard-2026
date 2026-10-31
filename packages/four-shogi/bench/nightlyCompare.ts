@@ -57,8 +57,10 @@ type Game = {
     depth: number;
     elapsedMs: number;
     modelUsed: boolean;
-    modelUsage?: "policy-value" | "policy";
+    modelUsage?: "policy-value" | "policy" | "policy-own";
     modelPolicyUses?: number;
+    modelPolicyRootUses?: number;
+    modelPolicyOpponentUses?: number;
     modelValueUses?: number;
     withinBudget: boolean;
     memoryBytes: number;
@@ -220,10 +222,17 @@ export async function runGenerationComparison(
           throw new Error("比較着手と計算記録が不一致です");
         const generation = game.generationId === plan.parent.id ? plan.parent : plan.candidate;
         if (
-          generation.modelUsage === "policy" &&
-          (d.modelUsage !== "policy" || !(d.modelPolicyUses! > 0) || d.modelValueUses !== 0)
+          (generation.modelUsage === "policy" || generation.modelUsage === "policy-own") &&
+          (d.modelUsage !== generation.modelUsage ||
+            !(d.modelPolicyUses! > 0) ||
+            d.modelValueUses !== 0)
         )
           throw new Error("比較でPolicy利用とG0 Valueが確認できません");
+        if (
+          generation.modelUsage === "policy-own" &&
+          (!(d.modelPolicyRootUses! > 0) || d.modelPolicyOpponentUses !== 0)
+        )
+          throw new Error("比較で自手番Policyと相手の従来順序が確認できません");
       }
       const before = getActiveSides(branch.state);
       branch = await advanceAnalysisPosition(branch, event.event);
@@ -402,6 +411,9 @@ export async function runGenerationComparison(
                   ...(generation.modelId
                     ? {
                         modelPolicyUses: measured.result.performance?.modelPolicyUses ?? 0,
+                        modelPolicyRootUses: measured.result.performance?.modelPolicyRootUses ?? 0,
+                        modelPolicyOpponentUses:
+                          measured.result.performance?.modelPolicyOpponentUses ?? 0,
                         modelValueUses: measured.result.performance?.modelValueUses ?? 0,
                       }
                     : {}),

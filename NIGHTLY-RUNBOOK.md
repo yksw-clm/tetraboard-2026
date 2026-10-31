@@ -133,6 +133,8 @@ bun run study:build
 
 2026-11-01の明示研究設定`nightly.policy.example.json`は、両headを実終局/探索教師で学習しながら、探索時には学習Policyだけを使いValueはG0に保ちます。`modelUsage: "policy"`を世代manifestに固定し、自己対局・教師・戦術・実対局・検討画面へ同じ条件を渡します。省略時は従来の`policy-value`です。`policyOnly: true`というValue未学習の動作実験とは異なり、データ品質や昇格gateを免除しません。モデルPolicyの実使用とモデルValueの不使用を実workerの診断でも検査します。G0・既定のnightly条件を変更せず、有効性は独立対局で判断します。
 
+追加の研究条件`modelUsage: "policy-own"`では、探索の根にいる席の手番だけ学習Policyを使い、相手の候補順序と全ValueはG0に保ちます。世代を切り替えると、この条件も一緒に切り替わります。画面には「自手番だけ学習Policy」と表示します。`policy`とは異なる選択探索で、同じモデルIDでも利用条件を混ぜません。自己対局・教師・実対局でも同じ条件を使い、相手Policyの使用が0であることを昇格前に確認します。この条件の追加だけで棋力向上とは判断せず、40/40・8/8と独立対局の基準を維持します。
+
 ```sh
 bun run ai:nightly --root=/専用保存先 --config=training/four-shogi-ai/nightly.policy.example.json --dry-run
 caffeinate -i bun run ai:nightly --root=/専用保存先 --config=training/four-shogi-ai/nightly.policy.example.json

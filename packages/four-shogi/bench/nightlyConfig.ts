@@ -28,7 +28,7 @@ export type NightlyConfig = {
   comparisonMaxPlies: number;
   engineering: boolean;
   policyOnly: boolean;
-  modelUsage: "policy-value" | "policy";
+  modelUsage: "policy-value" | "policy" | "policy-own";
 };
 export function nightlyConfig(value: unknown = {}, smoke = false): NightlyConfig {
   const defaults: NightlyConfig = {
@@ -77,7 +77,7 @@ export function nightlyConfig(value: unknown = {}, smoke = false): NightlyConfig
     typeof config.python !== "string" ||
     !config.python ||
     !["auto", "cpu", "mps"].includes(config.device) ||
-    !["policy-value", "policy"].includes(config.modelUsage) ||
+    !["policy-value", "policy", "policy-own"].includes(config.modelUsage) ||
     ![1, 4].includes(config.seats) ||
     [config.compare, config.engineering, config.policyOnly].some((v) => typeof v !== "boolean")
   )

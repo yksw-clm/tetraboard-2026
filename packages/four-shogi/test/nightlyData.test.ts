@@ -47,6 +47,12 @@ test("世代ごとのPolicy/Value利用方法を固定し、同じ世代での�
     expect(() => registerGeneration(root, { ...candidate, modelUsage: "policy-value" })).toThrow(
       "不変",
     );
+    expect(() => registerGeneration(root, { ...candidate, modelUsage: "policy-own" })).toThrow(
+      "不変",
+    );
+    const own = { ...candidate, id: "g001-candidate-own-test", modelUsage: "policy-own" as const };
+    registerGeneration(root, own);
+    expect(generationStudyModel(resolveGeneration(own.id, root))?.usage).toBe("policy-own");
     expect(() =>
       registerGeneration(root, { ...candidate, modelUsage: "other" as "policy" }),
     ).toThrow("利用方法");

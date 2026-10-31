@@ -79,7 +79,7 @@ export type GenerationManifest = {
   parentId: string | null;
   parentCheckpointSha256: string | null;
   modelId: string | null;
-  modelUsage?: "policy-value" | "policy";
+  modelUsage?: "policy-value" | "policy" | "policy-own";
   checkpointSha256: string | null;
   localModelFile: string | null;
   localModelSha256: string | null;
@@ -109,7 +109,10 @@ export const g0: GenerationManifest = {
 };
 export type GenerationEntry = GenerationManifest & { available: boolean; error: string | null };
 function validateGeneration(raw: GenerationManifest) {
-  if (raw.modelUsage !== undefined && !["policy-value", "policy"].includes(raw.modelUsage))
+  if (
+    raw.modelUsage !== undefined &&
+    !["policy-value", "policy", "policy-own"].includes(raw.modelUsage)
+  )
     throw new Error("世代モデルの利用方法が不正です");
   if (
     raw.format !== g0.format ||
