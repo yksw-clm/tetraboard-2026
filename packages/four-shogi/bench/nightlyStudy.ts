@@ -5,7 +5,13 @@ import {
 import type { StudyPositionInput } from "../../../apps/four-shogi-study/src/shared/model";
 export async function runNativeStudy(
   input: StudyPositionInput,
-  model: { file: string; modelId: string; sha256?: string; valueOnlyHead?: boolean } | null = null,
+  model: {
+    file: string;
+    modelId: string;
+    sha256?: string;
+    valueOnlyHead?: boolean;
+    historyFeatureCache?: boolean;
+  } | null = null,
   timeBudgetMs = 5000,
   threads = 4,
   signal?: AbortSignal,

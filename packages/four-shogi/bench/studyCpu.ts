@@ -38,6 +38,7 @@ export type StudyCpuSettings = {
   modelId?: string;
   modelSha256?: string;
   modelUsage?: "policy-value" | "policy" | "value";
+  modelFeatureCache?: boolean;
 };
 export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
   const raw = dataObject(value, [
@@ -54,8 +55,14 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     "modelId",
     "modelSha256",
     "modelUsage",
+    "modelFeatureCache",
   ]);
   const strategy = raw.strategy ?? "dual-continuations";
+  if (
+    raw.modelFeatureCache !== undefined &&
+    (!raw.modelId || typeof raw.modelFeatureCache !== "boolean")
+  )
+    throw new Error("履歴特徴キャッシュの指定にはモデルとbooleanが必要です");
   if (
     raw.modelUsage !== undefined &&
     (!raw.modelId || !["policy-value", "policy", "value"].includes(String(raw.modelUsage)))
@@ -93,6 +100,9 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     ...(raw.modelId ? { modelId: raw.modelId as string, modelFile: raw.modelFile as string } : {}),
     ...(raw.modelSha256 ? { modelSha256: raw.modelSha256 as string } : {}),
     ...(raw.modelUsage ? { modelUsage: raw.modelUsage as StudyCpuSettings["modelUsage"] } : {}),
+    ...(raw.modelFeatureCache === undefined
+      ? {}
+      : { modelFeatureCache: raw.modelFeatureCache as boolean }),
   };
 }
 export function studyCpuVersions(settings: StudyCpuSettings, codeVersion: string) {

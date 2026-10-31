@@ -5,7 +5,7 @@ import { getLegalMoves, applyLegalMove } from "./transition";
 import { getActiveSides, type FourShogiState, type Side } from "./types";
 import type { OrdinaryMove } from "./moves";
 import { encodeAction } from "./actionEncoding";
-import { encodeStateFeatures } from "./modelFeatureEncoding";
+import { encodeStateFeatures, createStateFeatureEncoder } from "./modelFeatureEncoding";
 import {
   AiModelFailure,
   modelEvaluation,
@@ -30,6 +30,7 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 export type AiContextProfile = {
   model?: AiSyncModel;
   modelUsage?: "policy-value" | "policy" | "value";
+  modelFeatureCache?: boolean;
   evaluate: (state: FourShogiState) => AiEvaluation;
   orderingBonus?: (
     state: FourShogiState,
@@ -50,6 +51,11 @@ export type AiContextMetrics = {
   modelValueUses?: number;
   modelInferenceMs?: number;
   modelValueOnlyInferences?: number;
+  modelFeatureMs?: number;
+  modelFeatureHistoryEntries?: number;
+  modelFeatureCacheHits?: number;
+  modelFeatureCacheMisses?: number;
+  modelFeatureCacheEntries?: number;
   legalMs: number;
   transitionMs: number;
   evaluationMs: number;
@@ -161,6 +167,8 @@ export function createAiContext(
     orderingMs: 0,
     cacheEvictions: 0,
   };
+  const featureEncoder =
+    profile?.model && profile.modelFeatureCache !== false ? createStateFeatureEncoder() : null;
   const clock = () => (profile?.measure ? performance.now() : 0);
   const detailClock = () => (profile?.measureDetails ? performance.now() : 0);
   function checks(state: FourShogiState) {
@@ -288,13 +296,22 @@ export function createAiContext(
   }
   function modelFeatures(state: FourShogiState, id: string) {
     try {
+      const started = performance.now(),
+        full = { ...state, repetitions: { ...input.repetitions, ...state.repetitions } },
+        features = featureEncoder ? featureEncoder.encode(full) : encodeStateFeatures(full);
+      metrics.modelFeatureMs = (metrics.modelFeatureMs ?? 0) + performance.now() - started;
+      metrics.modelFeatureHistoryEntries =
+        (metrics.modelFeatureHistoryEntries ?? 0) + features.history.length;
+      if (featureEncoder) {
+        const cache = featureEncoder.stats();
+        metrics.modelFeatureCacheHits = cache.hits;
+        metrics.modelFeatureCacheMisses = cache.misses;
+        metrics.modelFeatureCacheEntries = cache.entries;
+      }
       return {
         id,
         restricted: state.threePlayerAttackProhibited,
-        features: encodeStateFeatures({
-          ...state,
-          repetitions: { ...input.repetitions, ...state.repetitions },
-        }),
+        features,
       };
     } catch (error) {
       throw new AiModelFailure("model_features", String(error));

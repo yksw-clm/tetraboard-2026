@@ -166,6 +166,7 @@ export type StudySearchPerformance = AiContextMetrics & {
 export type StudyRootOptions = {
   model?: AiSyncModel;
   modelUsage?: "policy-value" | "policy" | "value";
+  modelFeatureCache?: boolean;
   subtreeCacheLimit?: number;
   reuseChecks?: boolean;
   measureDetails?: boolean;
@@ -494,6 +495,8 @@ export function createStudyRootSearch(
     (!options.model || !["policy-value", "policy", "value"].includes(options.modelUsage))
   )
     throw new TypeError("モデルを指定した研究用Policy/Value条件が必要です");
+  if (options.modelFeatureCache !== undefined && typeof options.modelFeatureCache !== "boolean")
+    throw new TypeError("履歴特徴キャッシュの指定はbooleanです");
   getAnalysisLegalActions(position);
   const lane = options.lane ?? 0;
   const lanes = options.lanes ?? 1;
@@ -557,7 +560,13 @@ export function createStudyRootSearch(
     profile === "study"
       ? {
           evaluate: studyEvaluation,
-          ...(options.model ? { model: options.model, modelUsage: options.modelUsage } : {}),
+          ...(options.model
+            ? {
+                model: options.model,
+                modelUsage: options.modelUsage,
+                modelFeatureCache: options.modelFeatureCache,
+              }
+            : {}),
           orderingBonus: rightCheckBonus,
           replaceCache: optimized,
           preservePromotions: optimized,

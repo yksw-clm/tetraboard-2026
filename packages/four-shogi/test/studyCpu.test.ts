@@ -102,6 +102,20 @@ test("Value単独の葉は合法手列挙を省き、同じ完成深さの評価
   expect(results[1].diagnostics.work).toBeLessThan(results[0].diagnostics.work);
   expect(results[1].diagnostics.generatedMoves).toBeLessThan(results[0].diagnostics.generatedMoves);
   expect(metrics[1].modelValueOnlyInferences).toBeGreaterThan(0);
+  expect(metrics[1].modelFeatureCacheHits).toBeGreaterThan(0);
+  const noCache = await analyzeStudyCpu(
+    position,
+    { ...settings, modelFeatureCache: false },
+    code.commit,
+    {},
+    { model: fast },
+  );
+  expect(noCache.candidates).toEqual(results[1].candidates);
+  expect(noCache.diagnostics.work).toBe(results[1].diagnostics.work);
+  expect(() => readStudyCpuSettings({ modelFeatureCache: true })).toThrow("モデル");
+  expect(() =>
+    readStudyCpuSettings({ modelFile: "unused", modelId, modelFeatureCache: "yes" }),
+  ).toThrow("boolean");
   const request = {
     id: "v",
     restricted: true,

@@ -142,7 +142,7 @@ process.on("message", async (raw: unknown) => {
       if (token !== generation) return;
       const search = createStudyRootSearch(position, {
         ...message.options,
-        ...(model ? { model } : {}),
+        ...(model ? { model, modelFeatureCache: message.localModel?.historyFeatureCache } : {}),
       });
       const createCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       current = {

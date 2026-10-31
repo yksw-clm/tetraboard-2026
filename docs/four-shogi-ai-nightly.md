@@ -64,6 +64,8 @@ H3の研究用学習CLIは`--value-weighting=none|inverse-frequency`を受け付
 
 比較測定の内部`evaluationModel.valueOnlyHead:false`は、同じworker/source/モデルで旧経路を再現する。UIの世代選択やG0の既定設定は変更せず、各測定のflagとmodel ID、過去と今回のworkを区別する。
 
+P0-5の同期モデルは、探索ごとに最大4096件の反復履歴特徴を保持する。完全なposition key文字列と反復回数が一致する項目だけを使い、共有配列をfreezeする。現在の手番/提案/lastMove等の追加特徴は毎回作成し、全反復履歴を列挙する上限検査も維持する。元の`encodeStateFeatures`/学習exportは非キャッシュのままで、評価の値と完成workを変えない。研究用の固定work `modelFeatureCache:false`、runtime内部`evaluationModel.historyFeatureCache:false`で単独の効果を比較できる。特徴構築時間とNN推論時間を別に測り、cacheのhit/miss/保持数も記録する。
+
 候補は重要40/40・既知8/8・合法/完成/実使用/期限/RSSを通過してから5秒/4workerの性能・新規開発系列の席替えへ進む。正式16対応条件、単独勝ち+3・確定順位0.25改善の昇格基準を緩和しない。未達はG0維持。重大な異常や利益のない仮説は中止して証拠を残す。
 
 各重工程は直列・soft6GiB/hard7GiB/空き10GiB、既存の独立watchdogを用いて18:55までの絶対時刻へ予算を制限する。18:15に方式追加を収束、18:40以降は新しい重測定を開始せず、18:55までに所有プロセスを停止し19:00で作業を終了する。最終検証・CI未完はそのまま報告する。
