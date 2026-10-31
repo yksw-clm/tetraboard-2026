@@ -39,7 +39,10 @@ import { writeStudyAnalysisTrace } from "./analysisTrace";
 import { HttpError, type StudyApplication } from "./http";
 import { fetchPublicReplay } from "./publicImport";
 import { createLiveRoomSession, type LiveRoomSession, type VerifiedLiveUpdate } from "./liveRoom";
-import { resolveGeneration } from "../../../../packages/four-shogi/bench/nightlyStore";
+import {
+  resolveGeneration,
+  generationStudyModel,
+} from "../../../../packages/four-shogi/bench/nightlyStore";
 
 const names: Record<Side, string> = { south: "南", west: "西", north: "北", east: "東" };
 
@@ -211,8 +214,12 @@ export class LocalStudyApplication implements StudyApplication {
       const candidates = await restoreRecordedCandidates(record, position);
       analysis = {
         ...(record.modelGeneration
-          ? { modelGeneration: record.modelGeneration, modelId: record.evaluationVersion }
+          ? {
+              modelGeneration: record.modelGeneration,
+              modelId: record.modelId ?? record.evaluationVersion,
+            }
           : {}),
+        ...(record.modelUsage ? { modelUsage: record.modelUsage } : {}),
         id: `saved-${study.currentNodeId}`,
         nodeId: study.currentNodeId,
         stateHash: position.stateHash,
@@ -558,11 +565,15 @@ export class LocalStudyApplication implements StudyApplication {
     if (!position || position.stateHash !== active.stateHash) return current;
     const record: StudyRecordedAnalysis = {
       ...(view.modelGeneration ? { modelGeneration: view.modelGeneration } : {}),
+      ...(view.modelId ? { modelId: view.modelId } : {}),
+      ...(view.modelUsage ? { modelUsage: view.modelUsage } : {}),
       stateHash: view.stateHash,
       savedAt: new Date().toISOString(),
       searchVersion: view.searchVersion ?? studySearchVersion,
       ...(view.coverage ? { coverage: view.coverage } : {}),
-      evaluationVersion: view.modelId ?? studyEvaluationVersion,
+      evaluationVersion: view.modelId
+        ? view.modelId + (view.modelUsage === "policy" ? ":policy-g0-value-v1" : "")
+        : studyEvaluationVersion,
       engineVersion: aiVersions.engineVersion,
       ...active.conditions,
       elapsedMs: view.elapsedMs,
@@ -653,6 +664,7 @@ export class LocalStudyApplication implements StudyApplication {
     const model = study.settings.modelGeneration
       ? resolveGeneration(study.settings.modelGeneration)
       : null;
+    const modelOptions = model ? generationStudyModel(model) : null;
     this.focusReconnect.delete(study.id);
     const live = this.liveViews.get(study.id);
     const active: ActiveSearch = {
@@ -688,15 +700,7 @@ export class LocalStudyApplication implements StudyApplication {
       studyPositionInput(study),
       {
         strategy: study.settings.searchStrategy ?? "adaptive",
-        ...(model?.localModelFile && model.modelId
-          ? {
-              evaluationModel: {
-                file: model.localModelFile,
-                modelId: model.modelId,
-                sha256: model.localModelSha256 ?? undefined,
-              },
-            }
-          : {}),
+        ...(modelOptions ? { evaluationModel: modelOptions } : {}),
         focusSide: active.focusSide,
         sessionKey: JSON.stringify([
           study.id,
@@ -711,6 +715,7 @@ export class LocalStudyApplication implements StudyApplication {
         if (this.active !== active || progress.stateHash !== active.stateHash) return;
         const view: StudyAnalysisView = {
           ...(model?.modelId ? { modelGeneration: model.id, modelId: model.modelId } : {}),
+          ...(model?.modelUsage ? { modelUsage: model.modelUsage } : {}),
           continuation: progress.continuation,
           completion: progress.completion,
           lethalGuard: progress.lethalGuard,

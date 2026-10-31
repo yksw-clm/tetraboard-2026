@@ -9,6 +9,7 @@ import {
   checkedJson,
   readCheckedJson,
   type GenerationManifest,
+  generationStudyModel,
 } from "./nightlyStore";
 import { dataHash, sameData, outcomeFor, type GameArtifact } from "./selfPlayData";
 import {
@@ -56,6 +57,9 @@ type Game = {
     depth: number;
     elapsedMs: number;
     modelUsed: boolean;
+    modelUsage?: "policy-value" | "policy";
+    modelPolicyUses?: number;
+    modelValueUses?: number;
     withinBudget: boolean;
     memoryBytes: number;
     work: number;
@@ -214,6 +218,12 @@ export async function runGenerationComparison(
           !d.withinBudget
         )
           throw new Error("比較着手と計算記録が不一致です");
+        const generation = game.generationId === plan.parent.id ? plan.parent : plan.candidate;
+        if (
+          generation.modelUsage === "policy" &&
+          (d.modelUsage !== "policy" || !(d.modelPolicyUses! > 0) || d.modelValueUses !== 0)
+        )
+          throw new Error("比較でPolicy利用とG0 Valueが確認できません");
       }
       const before = getActiveSides(branch.state);
       branch = await advanceAnalysisPosition(branch, event.event);
@@ -344,13 +354,7 @@ export async function runGenerationComparison(
                 try {
                   measured = await runNativeStudy(
                     input,
-                    generation.localModelFile && generation.modelId
-                      ? {
-                          file: generation.localModelFile,
-                          modelId: generation.modelId,
-                          sha256: generation.localModelSha256 ?? undefined,
-                        }
-                      : null,
+                    generationStudyModel(generation),
                     plan.timeBudgetMs,
                     plan.threads,
                     signal,
@@ -394,6 +398,13 @@ export async function runGenerationComparison(
                   depth: measured.result.completedDepth,
                   elapsedMs: measured.elapsedMs,
                   modelUsed: measured.modelUsed,
+                  ...(generation.modelUsage ? { modelUsage: generation.modelUsage } : {}),
+                  ...(generation.modelId
+                    ? {
+                        modelPolicyUses: measured.result.performance?.modelPolicyUses ?? 0,
+                        modelValueUses: measured.result.performance?.modelValueUses ?? 0,
+                      }
+                    : {}),
                   withinBudget: measured.withinBudget,
                   memoryBytes: Math.max(measured.result.memoryBytes, measured.peakWorkerRssBytes),
                   workerCpuMs: measured.workerCpuMs,

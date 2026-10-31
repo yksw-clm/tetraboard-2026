@@ -29,6 +29,7 @@ export function focusConditions(
     studyEvaluationVersion,
     options.evaluationModel?.modelId ?? null,
     options.evaluationModel?.sha256 ?? null,
+    options.evaluationModel ? (options.evaluationModel.usage ?? "policy-value") : null,
     options.profile ?? "study",
     options.maxDepth ?? 256,
     options.width ?? 6,

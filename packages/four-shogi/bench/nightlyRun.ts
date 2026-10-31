@@ -282,6 +282,7 @@ export async function runNightly(options: NightlyOptions) {
             modelFile: fixed.parent.localModelFile,
             modelId: fixed.parent.modelId,
             modelSha256: fixed.parent.localModelSha256 ?? undefined,
+            ...(fixed.parent.modelUsage ? { modelUsage: fixed.parent.modelUsage } : {}),
           }
         : {};
     const generated = join(root, "datasets", fixed.id + "-games"),
@@ -453,6 +454,7 @@ export async function runNightly(options: NightlyOptions) {
       parentId: parent.id,
       parentCheckpointSha256: parent.checkpointSha256,
       modelId: trained.modelId,
+      ...(config.modelUsage === "policy" ? { modelUsage: config.modelUsage } : {}),
       checkpointSha256: trained.checkpointSha256,
       localModelFile: join(modelDirectory, "local-model.json"),
       localModelSha256: fileSha(join(modelDirectory, "local-model.json")),

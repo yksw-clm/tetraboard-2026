@@ -156,6 +156,11 @@ export async function parseRecordedAnalyses(
     const position = positions.get(nodeId);
     if (!position) fail();
     const item = object(value);
+    if (
+      item.modelUsage !== undefined &&
+      (!item.modelGeneration || !["policy-value", "policy"].includes(String(item.modelUsage)))
+    )
+      fail();
     if (!Array.isArray(item.candidates) || item.candidates.length > 5 || !item.candidates.length)
       fail();
     const timeBudgetMs = item.timeBudgetMs === null ? null : number(item.timeBudgetMs, 3_600_000);
@@ -165,6 +170,10 @@ export async function parseRecordedAnalyses(
       ...(item.modelGeneration === undefined
         ? {}
         : { modelGeneration: text(item.modelGeneration) }),
+      ...(item.modelId === undefined ? {} : { modelId: text(item.modelId) }),
+      ...(item.modelUsage === undefined
+        ? {}
+        : { modelUsage: item.modelUsage as "policy-value" | "policy" }),
       stateHash: text(item.stateHash),
       savedAt,
       searchVersion: text(item.searchVersion),

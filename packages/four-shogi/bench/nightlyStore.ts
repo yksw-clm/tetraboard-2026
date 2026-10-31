@@ -79,6 +79,7 @@ export type GenerationManifest = {
   parentId: string | null;
   parentCheckpointSha256: string | null;
   modelId: string | null;
+  modelUsage?: "policy-value" | "policy";
   checkpointSha256: string | null;
   localModelFile: string | null;
   localModelSha256: string | null;
@@ -108,6 +109,8 @@ export const g0: GenerationManifest = {
 };
 export type GenerationEntry = GenerationManifest & { available: boolean; error: string | null };
 function validateGeneration(raw: GenerationManifest) {
+  if (raw.modelUsage !== undefined && !["policy-value", "policy"].includes(raw.modelUsage))
+    throw new Error("世代モデルの利用方法が不正です");
   if (
     raw.format !== g0.format ||
     !/^g\d{3,6}(?:-candidate-[a-zA-Z0-9-]+)?$/.test(raw.id) ||
@@ -144,6 +147,17 @@ function validateGeneration(raw: GenerationManifest) {
       throw new Error("世代モデルの重み/推論manifestが破損しています");
   }
   return raw;
+}
+/** 世代manifestに固定した利用方法を、アプリ・戦術・対局へ同じ形で渡します。 */
+export function generationStudyModel(generation: GenerationManifest) {
+  return generation.localModelFile && generation.modelId
+    ? {
+        file: generation.localModelFile,
+        modelId: generation.modelId,
+        sha256: generation.localModelSha256 ?? undefined,
+        ...(generation.modelUsage ? { usage: generation.modelUsage } : {}),
+      }
+    : null;
 }
 export function listGenerations(directory = defaultAiDirectory()): GenerationEntry[] {
   const path = join(directory, "generations");

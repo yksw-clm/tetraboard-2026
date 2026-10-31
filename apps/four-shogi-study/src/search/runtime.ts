@@ -145,6 +145,7 @@ export type StudySearchOptions = {
     file: string;
     modelId: string;
     sha256?: string;
+    usage?: "policy-value" | "policy";
     valueOnlyHead?: boolean;
     historyFeatureCache?: boolean;
     historyReferenceCache?: boolean;
@@ -1614,6 +1615,11 @@ export function createStudySearchRuntime(
   return {
     async start(input, options, onProgress = () => {}) {
       if (
+        options.evaluationModel?.usage !== undefined &&
+        !["policy-value", "policy"].includes(options.evaluationModel.usage)
+      )
+        throw new Error("学習モデルの利用方法はpolicy-valueまたはpolicyです");
+      if (
         options.evaluationModel &&
         ((options.strategy ?? "adaptive") !== "dual-continuations" ||
           options.profile === "baseline")
@@ -1782,7 +1788,8 @@ export function createStudySearchRuntime(
                   (config.taskPartition === "replies" &&
                   (options.strategy === "dual" || options.strategy === "dual-continuations")
                     ? "-p1-3-replies"
-                    : ""),
+                    : "") +
+                  (options.evaluationModel?.usage === "policy" ? "-model-policy" : ""),
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,

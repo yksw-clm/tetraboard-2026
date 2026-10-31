@@ -131,6 +131,13 @@ bun run study:build
 
 ### 次の夜の品質改善実験
 
+2026-11-01の明示研究設定`nightly.policy.example.json`は、両headを実終局/探索教師で学習しながら、探索時には学習Policyだけを使いValueはG0に保ちます。`modelUsage: "policy"`を世代manifestに固定し、自己対局・教師・戦術・実対局・検討画面へ同じ条件を渡します。省略時は従来の`policy-value`です。`policyOnly: true`というValue未学習の動作実験とは異なり、データ品質や昇格gateを免除しません。モデルPolicyの実使用とモデルValueの不使用を実workerの診断でも検査します。G0・既定のnightly条件を変更せず、有効性は独立対局で判断します。
+
+```sh
+bun run ai:nightly --root=/専用保存先 --config=training/four-shogi-ai/nightly.policy.example.json --dry-run
+caffeinate -i bun run ai:nightly --root=/専用保存先 --config=training/four-shogi-ai/nightly.policy.example.json
+```
+
 [品質実験の設定例](training/four-shogi-ai/nightly.quality.example.json)は、独立系列4/2、全棋譜から24局面・教師8000work、CPU学習1000step・学習率0.0001です。既定の学習率0.001は変更しません。教師を12局面へ集中する比較は深い教師を増やしましたが、戦術が悪化したため使用しません。同じ拡張データの学習率0.001は重要38/40・既知6/8、0.0001は40/40・4/8で、回復と退化が混在し不昇格です。設定を組み合わせた6時間の全夜試験は未実施で、強い設定としての認定ではありません。
 
 ```sh

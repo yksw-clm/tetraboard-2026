@@ -593,6 +593,7 @@ test("実在候補だけから評価世代を選び、P0-5へ切替え、旧モ�
     error: null,
     qualified: false,
     validation: {},
+    modelUsage: "policy" as const,
   };
   const view = await boot(current, [
     model,
@@ -607,6 +608,7 @@ test("実在候補だけから評価世代を選び、P0-5へ切替え、旧モ�
   select("評価モデル", model.id);
   expect((field("探索方式") as HTMLSelectElement).value).toBe("dual-continuations");
   expect(document.body.textContent).toContain("データ品質は未達");
+  expect(document.body.textContent).toContain("探索では学習PolicyとG0 Valueを使用");
   act(() =>
     field("検討名")
       .closest("form")!

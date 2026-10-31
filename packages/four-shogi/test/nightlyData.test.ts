@@ -16,7 +16,44 @@ import {
   currentGeneration,
   immutableJson,
   atomicJson,
+  registerGeneration,
+  resolveGeneration,
+  generationStudyModel,
+  g0,
 } from "../bench/nightlyStore";
+import { writeZeroLocalModelFixture } from "../bench/localModelFixture";
+
+test("世代ごとのPolicy/Value利用方法を固定し、同じ世代での変更や不正指定を拒否する", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nightly-model-mode-"));
+  try {
+    const model = await writeZeroLocalModelFixture(root);
+    const candidate = {
+      ...g0,
+      id: "g001-candidate-mode-test",
+      generation: 1,
+      state: "candidate" as const,
+      parentId: "g000",
+      modelId: model.modelId,
+      modelUsage: "policy" as const,
+      checkpointSha256: "3".repeat(64),
+      localModelFile: model.file,
+      localModelSha256: fileSha(model.file),
+      qualified: false,
+    };
+    registerGeneration(root, candidate);
+    const restored = resolveGeneration(candidate.id, root);
+    expect(generationStudyModel(restored)?.usage).toBe("policy");
+    expect(currentGeneration(root).id).toBe("g000");
+    expect(() => registerGeneration(root, { ...candidate, modelUsage: "policy-value" })).toThrow(
+      "不変",
+    );
+    expect(() =>
+      registerGeneration(root, { ...candidate, modelUsage: "other" as "policy" }),
+    ).toThrow("利用方法");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 const code: DataCode = {
   commit: "0".repeat(40),
   dirty: false,

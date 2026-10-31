@@ -9,6 +9,7 @@ export async function runNativeStudy(
     file: string;
     modelId: string;
     sha256?: string;
+    usage?: "policy-value" | "policy";
     valueOnlyHead?: boolean;
     historyFeatureCache?: boolean;
     historyReferenceCache?: boolean;
@@ -92,7 +93,12 @@ export async function runNativeStudy(
       result,
       elapsedMs,
       searchElapsedMs: elapsedMs,
-      modelUsed: model === null || (result.performance?.modelInferences ?? 0) > 0,
+      modelUsed:
+        model === null ||
+        ((result.performance?.modelInferences ?? 0) > 0 &&
+          (model.usage !== "policy" ||
+            ((result.performance?.modelPolicyUses ?? 0) > 0 &&
+              result.performance?.modelValueUses === 0))),
       withinBudget: elapsedMs <= timeBudgetMs,
       complete:
         result.status === "completed" &&

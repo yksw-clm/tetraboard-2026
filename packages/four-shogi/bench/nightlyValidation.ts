@@ -17,6 +17,7 @@ import {
   checkedJson,
   readCheckedJson,
   type GenerationManifest,
+  generationStudyModel,
 } from "./nightlyStore";
 import { nightlySource } from "./nightlyConfig";
 
@@ -29,6 +30,7 @@ export async function validateGenerationTactics(
     format: "four-shogi-nightly-tactics-v1",
     generationId: generation.id,
     modelId: generation.modelId,
+    ...(generation.modelUsage ? { modelUsage: generation.modelUsage } : {}),
     sourceFingerprint: nightlySource().fingerprint,
     criticalMs: 1000,
     knownWork: 1000000,
@@ -56,14 +58,7 @@ export async function validateGenerationTactics(
     rows.some((row) => !cases.some((tactic) => tactic.id === row.id))
   )
     throw new Error("戦術検証の保存行に未知/重複した問題があります");
-  const model =
-    generation.localModelFile && generation.modelId
-      ? {
-          file: generation.localModelFile,
-          modelId: generation.modelId,
-          sha256: generation.localModelSha256 ?? undefined,
-        }
-      : null;
+  const model = generationStudyModel(generation);
   for (const tactic of cases) {
     if (rows.some((r) => r.id === tactic.id)) continue;
     if (signal?.aborted) throw new Error("戦術検証を中断しました");
@@ -77,7 +72,12 @@ export async function validateGenerationTactics(
           maxWork: 1000000,
           maxDepth: 9,
           ...(model
-            ? { modelFile: model.file, modelId: model.modelId, modelSha256: model.sha256 }
+            ? {
+                modelFile: model.file,
+                modelId: model.modelId,
+                modelSha256: model.sha256,
+                ...(model.usage ? { modelUsage: model.usage } : {}),
+              }
             : {}),
         }),
         "nightly-known-depth9",

@@ -35,6 +35,8 @@ export type StudySearchCoverage = Readonly<{
 export type StudySeat = Readonly<{ controller: "human" | "cpu"; thinkTimeMs: number }>;
 export type StudyRecordedAnalysis = Readonly<{
   modelGeneration?: string;
+  modelId?: string;
+  modelUsage?: "policy-value" | "policy";
   coverage?: StudySearchCoverage;
   stateHash: string;
   savedAt: string;

@@ -9,6 +9,14 @@ import { validateGenerationTactics } from "../bench/nightlyValidation";
 import { checkedJson, atomicJson, g0 } from "../bench/nightlyStore";
 import { nightlyConfig } from "../bench/nightlyConfig";
 
+test("Policy利用の指定は学習専用フラグと区別し、従来の両head既定を維持する", () => {
+  expect(nightlyConfig().modelUsage).toBe("policy-value");
+  expect(nightlyConfig({ modelUsage: "policy" }).modelUsage).toBe("policy");
+  expect(nightlyConfig({ modelUsage: "policy" }).policyOnly).toBe(false);
+  for (const usage of ["value", "", null, true])
+    expect(() => nightlyConfig({ modelUsage: usage })).toThrow("形式");
+});
+
 test("夜間の学習率は従来既定を保ち、明示指定とPythonと同じ数値境界を検査する", () => {
   expect(nightlyConfig().learningRate).toBe(0.001);
   expect(nightlyConfig({}, true).learningRate).toBe(0.001);
