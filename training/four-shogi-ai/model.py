@@ -70,7 +70,8 @@ def supervisedLoss(policy, value, rows):
 def evaluate(model, rows, device, batchSize):
     model.eval()
     result = {"policyLoss": 0.0, "valueLoss": 0.0, "policySamples": 0, "valueSamples": 0,
-              "policyCorrect": 0, "valueClasses": [0] * 5, "restricted": {"on": 0, "off": 0}}
+              "policyCorrect": 0, "valueClasses": [0] * 5, "valueConfusion": [[0]*5 for _ in range(5)],
+              "restricted": {"on": 0, "off": 0}}
     for start in range(0, len(rows), batchSize):
         batch = rows[start:start + batchSize]
         policy, value = model(*batchTensors(batch, device))
@@ -87,8 +88,11 @@ def evaluate(model, rows, device, batchSize):
                 result["policyCorrect"] += int(int(policy[index].argmax()) == row["policyTarget"])
             if row["valueTarget"] is not None:
                 result["valueClasses"][row["valueTarget"]] += 1
+                result["valueConfusion"][row["valueTarget"]][int(value[index].argmax())] += 1
     for kind in ("policy", "value"):
         count = result[kind + "Samples"]
         result[kind + "Loss"] = result[kind + "Loss"] / count if count else None
     result["policyAccuracy"] = result.pop("policyCorrect") / result["policySamples"] if result["policySamples"] else None
+    result["valueRecall"] = [result["valueConfusion"][i][i]/count if count else None for i, count in enumerate(result["valueClasses"])]
+    result["valueAccuracy"] = sum(result["valueConfusion"][i][i] for i in range(5))/result["valueSamples"] if result["valueSamples"] else None
     return result

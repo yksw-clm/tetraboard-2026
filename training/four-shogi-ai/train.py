@@ -6,13 +6,14 @@ import math
 import os
 import platform
 import random
+import resource
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 import torch
-from dataset import LearningData, FEATURE_VERSION, ACTION_VERSION, VALUE_ORDER, integer
+from dataset import LearningData, FEATURE_VERSION, ACTION_VERSION, VALUE_ORDER, integer, fileHash
 from model import TinyPolicyValue, MODEL_VERSION, batchTensors, supervisedLoss, evaluate
 from checkpoint import CheckpointStore, CHECKPOINT_VERSION
 
@@ -39,7 +40,8 @@ def runtime(device, threads):
 def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16,
           batchSize=4, learningRate=0.001, device="cpu", threads=1, checkpointEvery=10,
           maxSeconds=600, maxCheckpointBytes=128 * 1024 ** 2, maxInputBytes=256 * 1024 ** 2,
-          allowPolicyOnly=False, allowDirty=False, stopAfterSteps=None):
+          allowPolicyOnly=False, allowDirty=False, stopAfterSteps=None,
+          warmStart=None, warmStartSha256=None):
     for number, low, high in [(steps, 1, 100000), (seed, 0, 2**31 - 1), (width, 16, 128),
                               (historyWidth, 4, 32), (batchSize, 1, 32), (threads, 1, 8),
                               (checkpointEvery, 1, 10000), (maxSeconds, 1, 86400),
@@ -64,6 +66,25 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
     random.seed(seed)
     sampler = torch.Generator().manual_seed(seed + 1)
     model = TinyPolicyValue(width, historyWidth).to(device)
+    parent = None
+    parentState = None
+    if warmStart is not None or warmStartSha256 is not None:
+        import re
+        if not warmStart or not re.fullmatch(r"[0-9a-f]{64}", str(warmStartSha256)):
+            raise ValueError("warm startには親checkpointと固定SHAの両方が必要です")
+        path = Path(warmStart) / (warmStartSha256 + ".pt")
+        if path.is_symlink() or path.stat().st_size > maxCheckpointBytes or fileHash(path) != warmStartSha256:
+            raise ValueError("親checkpointのchecksum/容量が不一致です")
+        parentState = torch.load(path, map_location="cpu", weights_only=True)
+        pc = parentState["metadata"]["contract"]
+        expected = {"modelVersion": MODEL_VERSION, "featureVersion": FEATURE_VERSION,
+                    "actionEncodingVersion": ACTION_VERSION, "valueOrder": VALUE_ORDER,
+                    "ruleProfileId": data.manifest["ruleProfileId"], "rulesVersion": data.manifest["rulesVersion"]}
+        if (parentState.get("format") != CHECKPOINT_VERSION or
+            any(pc.get(k) != v for k, v in expected.items()) or
+            pc["config"]["width"] != width or pc["config"]["historyWidth"] != historyWidth):
+            raise ValueError("親モデルと特徴/構造/ルール版が不一致です")
+        parent = {"checkpointSha256": warmStartSha256, "optimizer": "reset", "rng": "new-run-seed"}
     optimizer = torch.optim.Adam(model.parameters(), lr=learningRate)
     config = {"seed": seed, "width": width, "historyWidth": historyWidth, "batchSize": batchSize,
               "learningRate": learningRate, "allowPolicyOnly": allowPolicyOnly}
@@ -71,6 +92,8 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
                 "ruleProfileId": data.manifest["ruleProfileId"], "rulesVersion": data.manifest["rulesVersion"],
                 "actionEncodingVersion": ACTION_VERSION, "valueOrder": VALUE_ORDER,
                 "data": data.identity, "codeHash": code["sha256"], "runtime": runtime(device, threads), "config": config}
+    if parent:
+        contract["warmStart"] = parent
     store = CheckpointStore(output, maxCheckpointBytes)
     interrupted = False
     def stop(_signal, _frame):
@@ -79,7 +102,7 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
     handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
     for sig in handlers:
         signal.signal(sig, stop)
-    started = time.monotonic()
+    started, cpuStarted = time.monotonic(), time.process_time()
     completed, history, digest = 0, [], None
     try:
         saved = store.load()
@@ -95,6 +118,8 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
                 torch.mps.set_rng_state(saved["mpsRng"])
             completed, history = saved["step"], saved["history"]
             code = saved["metadata"]["code"]
+        elif parentState is not None:
+            model.load_state_dict(parentState["model"], strict=True)
         if steps < completed:
             raise ValueError("stepsは保存済みstep以上にしてください")
         def metrics():
@@ -135,7 +160,9 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
                 "checkpointSha256": digest, "modelId": MODEL_VERSION + ":" + digest, "modelVersion": MODEL_VERSION, "featureVersion": FEATURE_VERSION,
                 "calibrated": False, "data": data.identity, "code": code,
                 "parameterCount": sum(p.numel() for p in model.parameters()), "history": history,
-                "elapsedSeconds": time.monotonic() - started}
+                "elapsedSeconds": time.monotonic() - started, "cpuSeconds": time.process_time() - cpuStarted,
+                "device": device, "threads": threads, "parent": parent,
+                "maxRssBytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024)}
     finally:
         store.close()
         for sig, handler in handlers.items():
@@ -157,6 +184,8 @@ if __name__ == "__main__":
     parser.add_argument("--device", choices=["cpu", "mps"], default="cpu")
     parser.add_argument("--allow-policy-only", action="store_true")
     parser.add_argument("--allow-dirty", action="store_true")
+    parser.add_argument("--warm-start")
+    parser.add_argument("--warm-start-sha256")
     args = vars(parser.parse_args())
     source, output, report = args.pop("data"), args.pop("output"), args.pop("report")
     options = {key.split("_")[0] + "".join(part.title() for part in key.split("_")[1:]): value for key, value in args.items()}

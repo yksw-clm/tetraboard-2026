@@ -15,6 +15,32 @@ DATA = None
 
 
 class TrainingTest(unittest.TestCase):
+    def testWarmStartResetsOptimizerAndPreservesParent(self):
+        parent = self.root / "parent"
+        first = train(DATA, parent, steps=2, width=16, historyWidth=4, allowDirty=True)
+        before = (parent / "latest.json").read_bytes()
+        nextData = self.root / "new-data"
+        shutil.copytree(DATA, nextData)
+        manifest = json.loads((nextData / "manifest.json").read_text())
+        manifest["nightlyWarmStartTest"] = True
+        (nextData / "manifest.json").write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "再開元"):
+            train(nextData, parent, steps=3, width=16, historyWidth=4, allowDirty=True)
+        output = self.root / "next"
+        fresh = train(nextData, output, steps=3, width=16, historyWidth=4, stopAfterSteps=0,
+                      warmStart=str(parent), warmStartSha256=first["checkpointSha256"], allowDirty=True)
+        self.assertEqual(fresh["step"], 0)
+        self.assertEqual(fresh["parent"]["optimizer"], "reset")
+        old = torch.load(parent / (first["checkpointSha256"] + ".pt"), weights_only=True)
+        new = torch.load(output / (fresh["checkpointSha256"] + ".pt"), weights_only=True)
+        for key in old["model"]:
+            self.assertTrue(torch.equal(old["model"][key], new["model"][key]))
+        self.assertEqual(new["optimizer"]["state"], {})
+        self.assertEqual((parent / "latest.json").read_bytes(), before)
+        resumed = train(nextData, output, steps=3, width=16, historyWidth=4,
+                        warmStart=str(parent), warmStartSha256=first["checkpointSha256"], allowDirty=True)
+        self.assertEqual(resumed["status"], "completed")
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
