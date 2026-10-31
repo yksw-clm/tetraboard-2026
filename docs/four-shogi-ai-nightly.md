@@ -52,6 +52,8 @@
 
 最初に同じ既知8局面・固定work1000000/深さ9・broad3/root24/幅6/deep応手2/自手3/延長2/cache1024で、G0・Policyのみ・Valueのみ・両方を比較する。各方式を版と条件で識別し、根/broad/deep/PVと自手成り継続の選別を観測する。モデル/なしの既定動作とfixture/期待手は維持し、fixtureを学習へ使わない。
 
+固定work CPUの研究用`modelUsage:policy|value|policy-value`で使用するheadを分離する。省略時は既存の両方使用を維持する。各設定はprofile/cache/evaluation版へ含め、PolicyのみのPV末端は従来評価として検査する。完成反復の観測callbackと既存の経路traceを使い、数値とPVを別方式へ移植しない。検討画面や公開CPUの既定へは追加しない。
+
 教師はprefix上限による初期局面偏重を仮説とし、全棋譜の時期別/重要局面被覆と、固定work・同一総CPUでの追加予算を独立比較する。Valueは同じ不変snapshot・seed19000/32-8幅/batch4/lr0.001でstep数を先に比較し、必要ならtrainだけの系列/クラスsampling、loss比を一つずつ調べる。クラス別recall/confusion/macro-F1と系列数を報告し、局面数を独立対局数に読み替えない。
 
 候補は重要40/40・既知8/8・合法/完成/実使用/期限/RSSを通過してから5秒/4workerの性能・新規開発系列の席替えへ進む。正式16対応条件、単独勝ち+3・確定順位0.25改善の昇格基準を緩和しない。未達はG0維持。重大な異常や利益のない仮説は中止して証拠を残す。

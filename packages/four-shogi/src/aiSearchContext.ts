@@ -27,6 +27,7 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 /** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
 export type AiContextProfile = {
   model?: AiSyncModel;
+  modelUsage?: "policy-value" | "policy" | "value";
   evaluate: (state: FourShogiState) => AiEvaluation;
   orderingBonus?: (
     state: FourShogiState,
@@ -265,7 +266,9 @@ export function createAiContext(
       return cached;
     }
     const prediction =
-      (model || profile?.model) && state.status === "playing" ? yield* predict(state) : null;
+      (model || (profile?.model && profile.modelUsage !== "policy")) && state.status === "playing"
+        ? yield* predict(state)
+        : null;
     const started = clock();
     const value = prediction
       ? modelEvaluation(state, prediction)
@@ -343,7 +346,8 @@ export function createAiContext(
     yield* flush();
   }
   function* rootOrder(): Generator<number, { move: OrdinaryMove; index: number }[]> {
-    if (!model && !profile?.model) return legal.map((move, index) => ({ move, index }));
+    if (!model && (!profile?.model || profile.modelUsage === "value"))
+      return legal.map((move, index) => ({ move, index }));
     const prediction = yield* predict(start, legal);
     if (model) model.stats.policyUses++;
     else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
@@ -424,7 +428,7 @@ export function createAiContext(
         }
         return { move, index, score: score + bonus };
       });
-      if (model || profile?.model) {
+      if (model || (profile?.model && profile.modelUsage !== "value")) {
         const prediction = yield* predict(state, legalMoves);
         if (model) model.stats.policyUses++;
         else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;

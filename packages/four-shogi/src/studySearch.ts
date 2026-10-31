@@ -165,6 +165,7 @@ export type StudySearchPerformance = AiContextMetrics & {
 };
 export type StudyRootOptions = {
   model?: AiSyncModel;
+  modelUsage?: "policy-value" | "policy" | "value";
   subtreeCacheLimit?: number;
   reuseChecks?: boolean;
   measureDetails?: boolean;
@@ -488,6 +489,11 @@ export function createStudyRootSearch(
   options: StudyRootOptions = {},
   diagnostics?: StudySearchDiagnostics,
 ) {
+  if (
+    options.modelUsage !== undefined &&
+    (!options.model || !["policy-value", "policy", "value"].includes(options.modelUsage))
+  )
+    throw new TypeError("モデルを指定した研究用Policy/Value条件が必要です");
   getAnalysisLegalActions(position);
   const lane = options.lane ?? 0;
   const lanes = options.lanes ?? 1;
@@ -551,7 +557,7 @@ export function createStudyRootSearch(
     profile === "study"
       ? {
           evaluate: studyEvaluation,
-          ...(options.model ? { model: options.model } : {}),
+          ...(options.model ? { model: options.model, modelUsage: options.modelUsage } : {}),
           orderingBonus: rightCheckBonus,
           replaceCache: optimized,
           preservePromotions: optimized,
@@ -1238,7 +1244,8 @@ export function createStudyRootSearch(
   function* run(): Generator<number, void> {
     if (position.state.status === "finished" || !ctx.legal.length) return;
     // 元の番号でレーンを固定したまま、各レーン内では右への新規王手を先に調べます。
-    const policyOrder = options.model ? yield* ctx.rootOrder() : null;
+    const policyOrder =
+      options.model && options.modelUsage !== "value" ? yield* ctx.rootOrder() : null;
     const orderedRoots = ctx.legal
       .map((move, index) => ({
         move,

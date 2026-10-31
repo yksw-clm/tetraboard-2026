@@ -104,7 +104,11 @@ export async function validateStudyTeacher(
       if (step.nextTurn !== branch.state.turn || !sameData(step.result, branch.state.result))
         throw new Error("P0-5教師PVの遷移が不一致です");
     }
-    if (!settings.modelId || branch.state.status === "finished") {
+    if (
+      !settings.modelId ||
+      settings.modelUsage === "policy" ||
+      branch.state.status === "finished"
+    ) {
       if (!sameData(candidate.lineEvaluation, studyStaticEvaluation(branch)))
         throw new Error("P0-5教師のPV末端評価が不一致です");
     } else if (

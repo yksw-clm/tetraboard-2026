@@ -10,6 +10,8 @@ import { validateGameArtifact } from "../bench/selfPlayInspect";
 import { analyzeStudyCpu, readStudyCpuSettings } from "../bench/studyCpu";
 import { restoreAnalysisPosition, getAnalysisLegalActions } from "../src/analysis";
 import { encodeAction } from "../src/actionEncoding";
+import type { AiSyncModel } from "../src/aiModel";
+import type { StudySearchPerformance } from "../src/studySearch";
 const code: DataCode = {
   commit: "0".repeat(40),
   dirty: false,
@@ -17,6 +19,74 @@ const code: DataCode = {
   runnerHash: "2".repeat(64),
   runtime: { bun: Bun.version, platform: process.platform, arch: process.arch },
 };
+
+test("研究用Policy/Valueを独立に使い、既定の両方使用と異なる比較を識別する", async () => {
+  const position = await restoreAnalysisPosition({
+    schemaVersion: 1,
+    ruleProfileId: "tetraboard-four-shogi-singles-v1",
+    rulesVersion: 1,
+    initial: {
+      mode: "singles",
+      players: { south: "s", west: "w", north: "n", east: "e" },
+      threePlayerAttackProhibited: true,
+    },
+    events: [],
+  });
+  const modelId = "four-shogi-tiny-policy-value-v1:" + "1".repeat(64);
+  const model: AiSyncModel = {
+    modelId,
+    predict(input) {
+      const ids = input.legalActionIds;
+      return {
+        id: input.id,
+        legalActionIds: ids,
+        policy: ids.map((_, i) => Number(i === ids.length - 1)),
+        policyLogits: ids.map((_, i) => Number(i === ids.length - 1)),
+        topActionId: ids.at(-1)!,
+        value: [0.4, 0.3, 0.2, 0.1, 0],
+        illegalPolicyNonzero: 0,
+      };
+    },
+  };
+  const results = [];
+  for (const usage of [undefined, "policy-value", "policy", "value"] as const) {
+    const settings = readStudyCpuSettings({
+      maxWork: 20000,
+      maxDepth: 2,
+      width: 2,
+      extensions: 0,
+      dangerWork: 0,
+      modelFile: "unused-model",
+      modelId,
+      ...(usage ? { modelUsage: usage } : {}),
+    });
+    let metrics: StudySearchPerformance | undefined;
+    const result = await analyzeStudyCpu(
+      position,
+      settings,
+      code.commit,
+      {},
+      {
+        model,
+        onIteration(row) {
+          metrics = row.performance;
+        },
+      },
+    );
+    expect(result.diagnostics.completedDepth).toBe(2);
+    expect(result.model.inferenceCount).toBeGreaterThan(0);
+    expect((metrics?.modelPolicyUses ?? 0) > 0).toBe(usage !== "value");
+    expect((metrics?.modelValueUses ?? 0) > 0).toBe(usage !== "policy");
+    expect(result.candidates.every((c) => c.lineEvaluation?.evaluationKind === "model")).toBe(
+      usage !== "policy",
+    );
+    results.push(result);
+  }
+  expect(results[0].candidates).toEqual(results[1].candidates);
+  expect(results[0].diagnostics.work).toBe(results[1].diagnostics.work);
+  expect(new Set(results.map((r) => r.cacheKey)).size).toBe(4);
+  expect(() => readStudyCpuSettings({ modelUsage: "value" })).toThrow("使用条件");
+});
 
 test("P0-5固定workは完成した比較だけを残し、同条件で手とPVを再現する", async () => {
   const position = await restoreAnalysisPosition({

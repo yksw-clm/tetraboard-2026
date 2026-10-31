@@ -15,9 +15,11 @@ import {
   evaluateStudyPosition,
   type StudyCandidate,
   type StudyRootOptions,
+  type StudySearchPerformance,
 } from "../src/studySearch";
 import { dataHash, dataInteger, dataObject } from "./selfPlayData";
 import { loadLocalModel } from "../src/localModel";
+import type { StudySearchDiagnostics } from "../src/studyDiagnostics";
 
 /** 単一プロセス・固定workの運転版。アプリの壁時計/並列スケジューラーとは別に識別する。 */
 export const studyCpuRunner = "p0-5-fixed-work-first-pass-v1";
@@ -34,6 +36,7 @@ export type StudyCpuSettings = {
   modelFile?: string;
   modelId?: string;
   modelSha256?: string;
+  modelUsage?: "policy-value" | "policy" | "value";
 };
 export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
   const raw = dataObject(value, [
@@ -49,8 +52,14 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     "modelFile",
     "modelId",
     "modelSha256",
+    "modelUsage",
   ]);
   const strategy = raw.strategy ?? "dual-continuations";
+  if (
+    raw.modelUsage !== undefined &&
+    (!raw.modelId || !["policy-value", "policy", "value"].includes(String(raw.modelUsage)))
+  )
+    throw new Error("研究用modelUsageにはモデルとPolicy/Valueの使用条件が必要です");
   if (
     raw.modelSha256 !== undefined &&
     (!raw.modelId || typeof raw.modelSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.modelSha256))
@@ -82,6 +91,7 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     ),
     ...(raw.modelId ? { modelId: raw.modelId as string, modelFile: raw.modelFile as string } : {}),
     ...(raw.modelSha256 ? { modelSha256: raw.modelSha256 as string } : {}),
+    ...(raw.modelUsage ? { modelUsage: raw.modelUsage as StudyCpuSettings["modelUsage"] } : {}),
   };
 }
 export function studyCpuVersions(settings: StudyCpuSettings, codeVersion: string) {
@@ -89,7 +99,12 @@ export function studyCpuVersions(settings: StudyCpuSettings, codeVersion: string
     ...aiVersions,
     analysisVersion: studyCpuRunner,
     searchVersion: studyStrategyVersion(settings.strategy),
-    evaluationVersion: settings.modelId ?? studyEvaluationVersion,
+    evaluationVersion: settings.modelId
+      ? settings.modelId +
+        (settings.modelUsage && settings.modelUsage !== "policy-value"
+          ? ":" + settings.modelUsage
+          : "")
+      : studyEvaluationVersion,
     featureVersion: settings.modelId ? "four-shogi-features-v1" : null,
     codeVersion,
   };
@@ -126,7 +141,16 @@ export async function analyzeStudyCpu(
   settings: StudyCpuSettings,
   codeVersion: string,
   control: AiControl = {},
-  modelOptions: Pick<StudyRootOptions, "model"> = {},
+  modelOptions: Pick<StudyRootOptions, "model"> & {
+    diagnostics?: StudySearchDiagnostics;
+    onIteration?: (iteration: {
+      depth: number;
+      phase: "broad" | "deep";
+      work: number;
+      candidates: StudyCandidate[];
+      performance?: StudySearchPerformance;
+    }) => void;
+  } = {},
 ): Promise<StudyCpuResult> {
   const started = performance.now(),
     cpu = process.cpuUsage();
@@ -135,7 +159,14 @@ export async function analyzeStudyCpu(
     (settings.modelFile
       ? loadLocalModel(settings.modelFile, settings.modelId, settings.modelSha256)
       : undefined);
-  const search = createStudyRootSearch(position, { ...settings, ...(model ? { model } : {}) });
+  const search = createStudyRootSearch(
+    position,
+    {
+      ...settings,
+      ...(model ? { model } : {}),
+    },
+    modelOptions.diagnostics,
+  );
   let published: StudyCandidate[] = [],
     completedDepth = 0,
     phase: "broad" | "deep" = "broad";
@@ -163,6 +194,13 @@ export async function analyzeStudyCpu(
     if (await finishTask(1)) {
       published = search.snapshot().candidates;
       completedDepth = 1;
+      modelOptions.onIteration?.({
+        depth: 1,
+        phase: "broad",
+        work: search.work,
+        candidates: structuredClone(published),
+        performance: search.snapshot().performance,
+      });
       for (let depth = 2; depth <= settings.maxDepth; depth++) {
         const deep = settings.strategy === "dual-continuations" && depth > settings.broadDepth;
         const indices = selectStudyRootIndices(
@@ -184,6 +222,13 @@ export async function analyzeStudyCpu(
         published = completed;
         completedDepth = depth;
         phase = deep ? "deep" : "broad";
+        modelOptions.onIteration?.({
+          depth,
+          phase,
+          work: search.work,
+          candidates: structuredClone(published),
+          performance: search.snapshot().performance,
+        });
         const best = [...published].sort((a, b) =>
           compareStudyCandidates(a, b, position.state.turn!),
         )[0];
