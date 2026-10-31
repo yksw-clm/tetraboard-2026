@@ -152,3 +152,13 @@ caffeinate -i bun run ai:nightly --root=/専用保存先 --config=training/four-
 最初はデータと教師の品質を確認するため、後者に`--stop-after=teachers`を付ける運用もできます。同じコード・設定で`--resume`すれば続行します。学習率を変えるときは新しい夜へ適用し、旧runの厳密な再開を回避しません。現役はG0のままです。既知8/8を含む昇格gateは変更しません。
 
 この設定は直近1datasetだけを再利用します。現時点の多系列snapshotは約229MBで、従来の256MiB入力上限に近いためです。古いdatasetは削除しません。被覆・クラス分布・独立系列・入力容量を毎夜確認し、上限を外して無制限に連結しないでください。分類と戦術の比較は[品質改善の測定記録](docs/four-shogi-ai.md)を参照してください。
+
+### 2026-11-01の運用判断
+
+新しい`policy-own`候補は重要40/40・既知8/8を通過しましたが、独立再確認9/16組で双方単独9勝・平均1.00の後、G0の4GiB探索メモリ停止によって比較を中断しました。現役はG0のままで、棋力向上・G1昇格とは扱いません。学習Valueの全件「なし」は解消しても、北のrecall0と既知展開の退化が残るため、探索時のValueはG0を保ちます。
+
+次の研究条件は`modelUsage:"policy-own"`、`teacherSelection:"trajectory-importance-v1"`、`teacherWork:32000`、`teacherPositions:24`、`learningRate:0.0001`、`trainingSteps:1000`、CPUです。全て明示した新しい設定で開始し、最初は`--stop-after=teachers`で品質を確認する運用を推奨します。教師のCPU費用は同じ96棋譜で8kの約3.63倍で、深さや教師の完成だけを強さとしません。既存の設定例や裸の既定実行を自動的に変更する指示ではありません。
+
+追加24局の通常nightlyは既存96局と合わせた120局/2880教師/独立10+5系列から実学習・推論まで完了し、別工程の戦術40+8も通過しました。ただし新しい中盤の5秒検査はG0深さ9に対し候補7で、独立対局は未実施です。候補と旧checkpointを保持し、より新しいモデルだから強いと判断しません。
+
+成果物ルート`.study-measurements/overnight-20261101-05b3271`の`LOCAL-NIGHTLY-RUNBOOK.md`に、このMacの保存先を保つ起動・停止・再開コマンドと`nightly-next-own32k.json`への参照を置きます。`replayNights:1`は直近1個の教師datasetであり、前夜のsnapshot全体ではありません。次夜にも全96局が自動継承されるとは限らないため、忘却・系列数と256MiB上限を確認します。過去datasetを削除したり、厳密resumeを解除して異なる条件を混ぜたりしません。
