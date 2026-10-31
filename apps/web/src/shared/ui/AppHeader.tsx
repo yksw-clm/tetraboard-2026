@@ -1,10 +1,11 @@
 import { type MouseEventHandler, type ReactNode } from "react";
 import { Link } from "react-router";
 import { cn } from "@heroui/react";
+import { tournamentRules } from "@tetraboard/protocol";
 import { appPageWidthClasses } from "./pageLayout";
 import { AppNavigation, type AppNavigationHandler } from "./AppNavigation";
 import { BrowserSettingsButton } from "./BrowserSettings";
-import type { AppTheme } from "./appTheme";
+import { appThemeClasses, gameThemes, type AppTheme } from "./appTheme";
 import { useActiveTournaments } from "../../features/tournaments/useActiveTournaments";
 import { AppIcon } from "./AppIcon";
 
@@ -59,7 +60,10 @@ export function AppHeader({
               <Link
                 to={`/tournaments/${active.id}`}
                 aria-label={`${active.name} 開催中${tournaments.length > 1 ? `（ほか${tournaments.length - 1}件）` : ""}`}
-                className="inline-flex min-h-11 items-center gap-1 rounded-control px-1 text-[11px] font-bold text-brand no-underline hover:bg-surface-muted focus-visible:outline-[3px] focus-visible:outline-focus md:gap-2 md:px-2 md:text-xs"
+                className={cn(
+                  "inline-flex min-h-11 items-center gap-1 rounded-control px-1 text-[11px] font-bold text-brand no-underline hover:bg-surface-muted focus-visible:outline-[3px] focus-visible:outline-focus md:gap-2 md:px-2 md:text-xs",
+                  appThemeClasses[gameThemes[tournamentRules.game]],
+                )}
                 onClick={(event) => {
                   if (
                     !onNavigate ||
