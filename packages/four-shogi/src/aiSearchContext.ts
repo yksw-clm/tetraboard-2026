@@ -79,6 +79,7 @@ type CachedNode = {
   transitions: Map<OrdinaryMove, AiAdvance>;
   bestAction?: string;
   ordered?: { move: OrdinaryMove; index: number; score: number }[];
+  heuristicOrdered?: { move: OrdinaryMove; index: number; score: number }[];
 };
 export function checkedSides(state: FourShogiState, readChecks = getCheckState): Side[] {
   const checks = readChecks(state);
@@ -452,9 +453,10 @@ export function createAiContext(
   function* ordered(
     state: FourShogiState,
     legalMoves: OrdinaryMove[],
+    usePolicy = true,
   ): Generator<number, { move: OrdinaryMove; index: number; score: number }[]> {
     const record = node(state);
-    let selected = record?.ordered;
+    let selected = usePolicy ? record?.ordered : record?.heuristicOrdered;
     if (selected) stats.orderingCacheHits++;
     else {
       const started = clock();
@@ -471,7 +473,7 @@ export function createAiContext(
         }
         return { move, index, score: score + bonus };
       });
-      if (model || (profile?.model && profile.modelUsage !== "value")) {
+      if (usePolicy && (model || (profile?.model && profile.modelUsage !== "value"))) {
         const prediction = yield* predict(state, legalMoves);
         if (model) model.stats.policyUses++;
         else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
@@ -489,7 +491,10 @@ export function createAiContext(
             entry.move.action.promote),
       );
       metrics.orderingMs += clock() - started;
-      if (record) record.ordered = selected;
+      if (record) {
+        if (usePolicy) record.ordered = selected;
+        else record.heuristicOrdered = selected;
+      }
     }
     const preferred =
       settings.moveOrdering === "previous" ? cache.get(state)?.bestAction : undefined;

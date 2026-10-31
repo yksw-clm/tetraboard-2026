@@ -867,7 +867,15 @@ export function createStudyRootSearch(
     }
     const rankingStartWork = stats.work;
     const legal = yield* ctx.moves(state);
-    let moves = yield* ctx.ordered(state, legal);
+    // Policy専用のdeepでは全合法手を従来Valueで再順位付けするため、その前の
+    // Policy順序は使いません。順序で静かな延長手を選ぶ箇所は従来経路を保ちます。
+    const unusedPolicyOrder =
+      options.modelUsage === "policy" &&
+      isDualStudyStrategy(options.strategy) &&
+      taskPolicy?.phase === "deep" &&
+      !tacticalOnly &&
+      !(useQuiescence && extensionReason);
+    let moves = yield* ctx.ordered(state, legal, !unusedPolicyOrder);
     const orderedBefore = moves;
     let afterBroad = moves;
     if (isDualStudyStrategy(options.strategy) && taskPolicy?.phase !== "deep") {
