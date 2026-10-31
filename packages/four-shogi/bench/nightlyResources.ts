@@ -216,6 +216,7 @@ export class NightlySupervisor {
       });
       if (!this.remaining()) usage.stopReason ??= "time_limit";
       if (this.signal?.aborted) usage.stopReason ??= "cancelled";
+      usage.stopReason ??= this.stopped;
     } finally {
       clearInterval(timer);
       this.signal?.removeEventListener("abort", cancel);

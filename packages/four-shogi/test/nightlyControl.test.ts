@@ -100,3 +100,37 @@ test("外側の期限でBun工程を回収し、失敗を完了として返さ�
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("明示停止した工程は子が正常終了しても停止理由を残す", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nightly-explicit-stop-"));
+  const supervisor = new NightlySupervisor(
+    { maxRunMs: 10000, maxRssBytes: 2 * 1024 ** 3, hardRssBytes: 3 * 1024 ** 3, minFreeBytes: 1 },
+    root,
+    undefined,
+    { readPressure: () => 1 },
+  );
+  // 子の停止ハンドラーが用意されてから、監督側へ準備完了を通知します。
+  const ready = () => supervisor.stop("operator_stop");
+  process.on("SIGUSR2", ready);
+  try {
+    await expect(
+      supervisor.run(
+        "explicit-stop",
+        [
+          process.execPath,
+          "-e",
+          'process.on("SIGTERM",()=>process.exit(0));process.kill(Number(process.argv[1]),"SIGUSR2");setInterval(()=>{},1000)',
+          String(process.pid),
+        ],
+        join(root, "log"),
+        join(root, "usage.json"),
+      ),
+    ).rejects.toThrow("operator_stop");
+    expect(supervisor.records).toHaveLength(1);
+    expect(supervisor.records[0].exitCode).toBe(0);
+    expect(supervisor.records[0].stopReason).toBe("operator_stop");
+  } finally {
+    process.off("SIGUSR2", ready);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
