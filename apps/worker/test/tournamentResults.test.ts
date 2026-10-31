@@ -206,10 +206,29 @@ test("勝ち点・撃破・丸め前の平均順位で比較し、異なる対�
 
 test("5位の同順位は全員を含め、本人を上位内で重複させず、上位外と未対局の本人も返す", async () => {
   const { row, players } = await fixture(8);
+  for (const player of [players[0]!, players[4]!]) {
+    await env.APP_DB.prepare("UPDATE user SET publicProfileId=? WHERE id=?")
+      .bind(crypto.randomUUID(), player.id)
+      .run();
+  }
   const points = [120, 108, 96, 84, 72, 72, 60];
   for (let index = 0; index < points.length; index++)
     await score(row, players[index]!, { points: points[index]! });
-  const inside = await standingsPage(env.APP_DB, row, players[4]!.id);
+  const inside = await standingsPage(env.APP_DB, row, players[4]!.id, false, 0, true);
+  const publicIds = await env.APP_DB.prepare(
+    "SELECT id,publicProfileId FROM user WHERE id IN (?,?)",
+  )
+    .bind(players[0]!.id, players[4]!.id)
+    .all<{ id: string; publicProfileId: string }>();
+  for (const { id, publicProfileId } of publicIds.results) {
+    const player = players.find((player) => player.id === id)!;
+    expect(inside.standings.find((row) => row.username === player.username)?.profileId).toBe(
+      publicProfileId,
+    );
+  }
+  expect(inside.self?.profileId).toBe(
+    publicIds.results.find((user) => user.id === players[4]!.id)!.publicProfileId,
+  );
   expect(inside.standings.map((value) => value.rank)).toEqual([1, 2, 3, 4, 5, 5]);
   expect(inside.standings.filter((value) => value.self)).toHaveLength(1);
   expect(new Set(inside.standings.map((value) => value.username)).size).toBe(6);
@@ -226,6 +245,27 @@ test("5位の同順位は全員を含め、本人を上位内で重複させず�
   for (const player of players) expect(serialized).not.toContain(player.id);
   expect(serialized).not.toContain("entryId");
   expect(serialized).not.toContain("accountId");
+});
+
+test("ゲストの順位と未対局の本人にも内部IDとは異なる公開プロフィールIDだけを返す", async () => {
+  const { row, players } = await fixture(1);
+  const publicId = crypto.randomUUID();
+  await env.APP_DB.prepare(
+    "UPDATE user SET publicProfileId=?,isAnonymous=1,username=NULL WHERE id=?",
+  )
+    .bind(publicId, players[0]!.id)
+    .run();
+  const page = await standingsPage(env.APP_DB, row, players[0]!.id, true, 0, true);
+  expect(page.standings[0]).toMatchObject({
+    profileId: publicId,
+    username: null,
+    isGuest: true,
+    games: 0,
+    rank: null,
+    self: true,
+  });
+  expect(page.self?.profileId).toBe(publicId);
+  expect(JSON.stringify(page)).not.toContain(players[0]!.id);
 });
 
 test.each(["reserved", "playing", "saving"] as const)(
@@ -294,9 +334,10 @@ test("確定後の退会とプロフィール変更でも最終順位を保ち�
   for (let index = 0; index < players.length; index++)
     await score(row, players[index]!, { points: 120 - index * 12 });
   const removed = players[0]!,
-    avatarId = crypto.randomUUID();
-  await env.APP_DB.prepare("UPDATE user SET avatarKey=? WHERE id=?")
-    .bind(`avatars/${avatarId}.webp`, removed.id)
+    avatarId = crypto.randomUUID(),
+    publicId = crypto.randomUUID();
+  await env.APP_DB.prepare("UPDATE user SET avatarKey=?,publicProfileId=? WHERE id=?")
+    .bind(`avatars/${avatarId}.webp`, publicId, removed.id)
     .run();
   await finalizeTournament(env.APP_DB, row.key, row.ends_at_ms!);
   const finalized = await fresh(row);
@@ -312,14 +353,15 @@ test("確定後の退会とプロフィール変更でも最終順位を保ち�
       rank: 1,
       name: "退会したプレイヤー",
       username: null,
+      profileId: null,
       avatarUrl: null,
       accountId: null,
       pointsUnits: 120,
     });
-    const page = await standingsPage(env.APP_DB, await fresh(row), removed.id, true);
+    const page = await standingsPage(env.APP_DB, await fresh(row), removed.id, true, 0, true);
     expect(page.self).toBeNull();
     const serialized = JSON.stringify(page);
-    for (const secret of [removed.name, removed.username, removed.id, avatarId])
+    for (const secret of [removed.name, removed.username, removed.id, avatarId, publicId])
       expect(serialized).not.toContain(secret);
     expect((await fresh(row)).finalized_at_ms).toBe(finalized.finalized_at_ms);
     if (step === 0)

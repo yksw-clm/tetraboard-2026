@@ -15,6 +15,7 @@ import { useRoomEntry } from "./useRoomEntry";
 import { RoomEntryDialog } from "./RoomEntryDialog";
 import { RecentMatches } from "../matches/RecentMatches";
 import { TournamentList } from "../tournaments/TournamentList";
+import { ActiveTournamentNotice } from "../tournaments/ActiveTournamentNotice";
 import { gameThemes } from "../../shared/ui/appTheme";
 
 const mobileQuery = "(max-width: 767px)";
@@ -83,6 +84,7 @@ export function GeneralLobbyPage() {
           <p className="text-sm text-muted">
             将棋・リバーシ・五目並べを、二人でも四人でも。気軽に対戦や観戦を楽しめるオンラインボードゲームサイトです。
           </p>
+          <ActiveTournamentNotice />
           <section aria-labelledby="game-list-title" className="min-w-0">
             <h2 id="game-list-title" className="mb-4 text-xl font-bold">
               ゲーム一覧

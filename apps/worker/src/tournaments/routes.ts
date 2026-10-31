@@ -238,7 +238,14 @@ tournamentRoutes.get("/tournaments/:id", async (c) => {
     .first<TournamentRow>();
   return c.json({
     tournament: await publicSummary(c.env.APP_DB, row),
-    ...(await standingsPage(c.env.APP_DB, row, user?.id)),
+    ...(await standingsPage(
+      c.env.APP_DB,
+      row,
+      user?.id,
+      false,
+      0,
+      c.req.query("includeProfiles") === "1",
+    )),
     nextTournament: next ? await publicSummary(c.env.APP_DB, next) : null,
   });
 });
@@ -248,7 +255,14 @@ tournamentRoutes.get("/tournaments/:id/standings", async (c) => {
   if (offset === null) return c.json({ message: "検索条件が正しくありません。" }, 400);
   const user = await accountIdentity(c.req.raw, c.env);
   return c.json(
-    await standingsPage(c.env.APP_DB, row, user?.id, c.req.query("all") === "1", offset),
+    await standingsPage(
+      c.env.APP_DB,
+      row,
+      user?.id,
+      c.req.query("all") === "1",
+      offset,
+      c.req.query("includeProfiles") === "1",
+    ),
   );
 });
 const member: MiddlewareHandler<{ Bindings: Env; Variables: Variables }> = async (c, next) => {

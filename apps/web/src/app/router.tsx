@@ -3,6 +3,7 @@ import { LegalPage } from "../features/privacy/LegalPage";
 import { matchReplayLoader, publicMatchReplayLoader } from "../features/room/matchReplayLoader";
 import { MatchReplayPage, MatchReplayErrorPage } from "../features/room/MatchReplayPage";
 import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider";
+import { ActiveTournamentProvider } from "../features/tournaments/ActiveTournamentProvider";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
 import { createBrowserRouter, Link } from "react-router";
@@ -66,7 +67,9 @@ export const router = createBrowserRouter([
     ErrorBoundary: AppRouteErrorPage,
     Component: () => (
       <PlayerProfileProvider>
-        <AccountLayout />
+        <ActiveTournamentProvider>
+          <AccountLayout />
+        </ActiveTournamentProvider>
       </PlayerProfileProvider>
     ),
     children: [

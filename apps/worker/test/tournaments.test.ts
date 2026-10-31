@@ -402,6 +402,36 @@ test("開催前の公開APIは名簿・本人戦績を返さず、公開情報�
   }
 });
 
+test("大会詳細と全順位は指定時だけ公開プロフィールIDを返し、旧Webへの応答を維持する", async () => {
+  const a = await admin(),
+    published = await publish(a, await create(a));
+  const publicId = crypto.randomUUID();
+  await env.APP_DB.prepare("UPDATE user SET publicProfileId=? WHERE id=?")
+    .bind(publicId, a.user.id)
+    .run();
+  expect((await entry(1, a.user.headers)).status).toBe(200);
+  await env.APP_DB.prepare("UPDATE tournaments SET starts_at_ms=?,ends_at_ms=? WHERE key=?")
+    .bind(Date.now() - 1000, Date.now() + 3600000, published.key)
+    .run();
+  for (const path of ["/api/tournaments/1", "/api/tournaments/1/standings?all=1"]) {
+    const schema = path.includes("/standings") ? tournamentStandingsSchema : tournamentDetailSchema;
+    const previous = schema.parse(
+      await (await fetchWith(path, { headers: a.user.headers })).json(),
+    );
+    expect(previous.self).not.toHaveProperty("profileId");
+    for (const standing of previous.standings) expect(standing).not.toHaveProperty("profileId");
+    const next = schema.parse(
+      await (
+        await fetchWith(`${path}${path.includes("?") ? "&" : "?"}includeProfiles=1`, {
+          headers: a.user.headers,
+        })
+      ).json(),
+    );
+    expect(next.self?.profileId).toBe(publicId);
+    expect(JSON.stringify(next)).not.toContain(a.user.id);
+  }
+});
+
 test("大会エントリーは規約と年齢条件の現行版確認を要求し、同意と本人のエントリーを記録する", async () => {
   const a = await admin(),
     published = await publish(a, await create(a));
