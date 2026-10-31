@@ -393,6 +393,7 @@ export async function runNightly(options: NightlyOptions) {
         `--data=${snapshot}`,
         `--output=${checkpoint}`,
         `--steps=${config.trainingSteps}`,
+        `--learning-rate=${config.learningRate}`,
         "--width=32",
         "--history-width=8",
         "--threads=1",

@@ -128,3 +128,16 @@ bun run study:build
 単体の`train.py`は`--value-weighting=inverse-frequency`で、trainの確定結果の逆頻度をValue損失へ適用できます。既定は`none`で、通常nightlyの設定は変更しません。validationは重みなしで評価し、クラス別recall・confusion・macro-F1・予測分布を保存します。重みを変えた比較は新しいcheckpoint保存先で始めてください。同じrunのresumeで条件を変えることは拒否されます。分類性能の改善だけでは昇格しません。
 
 研究用`--policy-loss-weight=0`はValueだけを学習するアブレーションです。通常は1で、同じ入力・batch順のままPolicy勾配の寄与を比較できます。0で作ったモデルはPolicy/Valueを学習したG1とは扱わず、正式昇格させません。損失重みもcheckpoint契約へ含め、再開時の変更を拒否します。validationの損失と分類は重みなしで表示します。
+
+### 次の夜の品質改善実験
+
+[品質実験の設定例](training/four-shogi-ai/nightly.quality.example.json)は、独立系列4/2、全棋譜から24局面・教師8000work、CPU学習1000step・学習率0.0001です。既定の学習率0.001は変更しません。教師を12局面へ集中する比較は深い教師を増やしましたが、戦術が悪化したため使用しません。同じ拡張データの学習率0.001は重要38/40・既知6/8、0.0001は40/40・4/8で、回復と退化が混在し不昇格です。設定を組み合わせた6時間の全夜試験は未実施で、強い設定としての認定ではありません。
+
+```sh
+bun run ai:nightly --root=/専用保存先 --config=training/four-shogi-ai/nightly.quality.example.json --dry-run
+caffeinate -i bun run ai:nightly --root=/専用保存先 --config=training/four-shogi-ai/nightly.quality.example.json
+```
+
+最初はデータと教師の品質を確認するため、後者に`--stop-after=teachers`を付ける運用もできます。同じコード・設定で`--resume`すれば続行します。学習率を変えるときは新しい夜へ適用し、旧runの厳密な再開を回避しません。現役はG0のままです。既知8/8を含む昇格gateは変更しません。
+
+この設定は直近1datasetだけを再利用します。現時点の多系列snapshotは約229MBで、従来の256MiB入力上限に近いためです。古いdatasetは削除しません。被覆・クラス分布・独立系列・入力容量を毎夜確認し、上限を外して無制限に連結しないでください。分類と戦術の比較は[品質改善の測定記録](docs/four-shogi-ai.md)を参照してください。

@@ -21,6 +21,7 @@ export type NightlyConfig = {
   teacherPositions: number;
   teacherSelection: "prefix-v1" | "trajectory-importance-v1";
   trainingSteps: number;
+  learningRate: number;
   replayNights: number;
   compare: boolean;
   comparisonMs: number;
@@ -46,6 +47,7 @@ export function nightlyConfig(value: unknown = {}, smoke = false): NightlyConfig
     teacherPositions: 24,
     teacherSelection: "prefix-v1",
     trainingSteps: 1000,
+    learningRate: 0.001,
     replayNights: 8,
     compare: true,
     comparisonMs: 5000,
@@ -95,6 +97,13 @@ export function nightlyConfig(value: unknown = {}, smoke = false): NightlyConfig
   ] as const)
     dataInteger(config[key], min, max);
   if (config.hardRssMb < config.maxRssMb) throw new Error("hard RSSは管理目標以上が必要です");
+  if (
+    typeof config.learningRate !== "number" ||
+    !Number.isFinite(config.learningRate) ||
+    config.learningRate < 0.000001 ||
+    config.learningRate > 0.1
+  )
+    throw new Error("learningRateが範囲外です");
   if (!["prefix-v1", "trajectory-importance-v1"].includes(config.teacherSelection))
     throw new Error("教師選別の版が不正です");
   if (config.policyOnly && !config.engineering)

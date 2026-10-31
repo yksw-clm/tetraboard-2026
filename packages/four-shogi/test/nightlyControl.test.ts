@@ -7,6 +7,17 @@ import { NightlySupervisor } from "../bench/nightlyResources";
 import { sides } from "../src/types";
 import { validateGenerationTactics } from "../bench/nightlyValidation";
 import { checkedJson, atomicJson, g0 } from "../bench/nightlyStore";
+import { nightlyConfig } from "../bench/nightlyConfig";
+
+test("夜間の学習率は従来既定を保ち、明示指定とPythonと同じ数値境界を検査する", () => {
+  expect(nightlyConfig().learningRate).toBe(0.001);
+  expect(nightlyConfig({}, true).learningRate).toBe(0.001);
+  expect(nightlyConfig({ learningRate: 0.0001 }).learningRate).toBe(0.0001);
+  for (const value of [0.000001, 0.1])
+    expect(nightlyConfig({ learningRate: value }).learningRate).toBe(value);
+  for (const value of [null, "0.0001", 0, 0.0000009, 0.10001, NaN, Infinity])
+    expect(() => nightlyConfig({ learningRate: value })).toThrow("learningRate");
+});
 
 test("壊れた戦術キャッシュと未知の問題を完成済み検証へ流用しない", async () => {
   const root = mkdtempSync(join(tmpdir(), "nightly-tactics-cache-"));

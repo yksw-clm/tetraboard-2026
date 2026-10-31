@@ -62,6 +62,8 @@ H3の研究用学習CLIは`--value-weighting=none|inverse-frequency`を受け付
 
 Policyとの共同勾配は`--policy-loss-weight`（既定1、研究用0〜2）で独立比較する。Valueの実結果ラベル・batch抽出を保ち、重み0ではPolicy headを学習しない。これはValue診断用で、完全なG1候補として昇格させない。通常nightlyは1を維持し、別runの厳密契約へ条件を保存する。
 
+nightly設定の`learningRate`は既定0.001、明示指定は0.000001〜0.1の有限数を受け付け、実Pythonの学習引数とcheckpoint契約へ渡す。同じ夜の再開で変更しない。品質実験例の0.0001は同じ多系列入力・1000stepで独立比較した条件だが、既知4/8で昇格には不足している。新しいデータとの組合せや全夜運転は別の検証とする。
+
 ローカルf32モデルは、同じ共有bodyと5分類Valueだけを計算する同期`predictValue`も提供する。Policyを消費しない葉では合法手列挙とPolicy headを省くが、完全な攻撃/反復特徴、ID/席/有限値/分布の検査は維持する。既存の両head API、Python推論形式、重み、評価尺度は変更しない。対応しない同期モデルと共通AIの非同期IPCは従来経路を使う。ロード時に14基準入力でPythonとの誤差と両head/単独Valueの一致を確認する。完成深さ固定で評価/PVを照合してから実時間を測定し、削減した合法手生成のworkと、時間制限で到達した深さを分けて記録する。
 
 比較測定の内部`evaluationModel.valueOnlyHead:false`は、同じworker/source/モデルで旧経路を再現する。UIの世代選択やG0の既定設定は変更せず、各測定のflagとmodel ID、過去と今回のworkを区別する。
