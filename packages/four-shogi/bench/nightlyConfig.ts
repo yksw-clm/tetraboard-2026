@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import { repoRoot, sourceIdentity } from "./baseline";
+import { repoRoot, sourceIdentity, git } from "./baseline";
 import { currentDataCode } from "./selfPlayRun";
 import { dataObject, dataInteger, dataHash } from "./selfPlayData";
 import { fileSha } from "./nightlySnapshot";
@@ -113,6 +113,18 @@ export function nightlySource() {
     ].map((name) => [name, fileSha(join(repoRoot, "training/four-shogi-ai", name))]),
   );
   const code = currentDataCode();
+  code.dirty ||=
+    git(
+      "status",
+      "--porcelain",
+      "--",
+      "training/four-shogi-ai",
+      "apps/four-shogi-study/src",
+      "apps/four-shogi-study/bench",
+      "apps/four-shogi-study/package.json",
+      "package.json",
+      "bun.lock",
+    ).length > 0;
   const identity = {
     packageFiles: Object.fromEntries(
       [
@@ -134,6 +146,8 @@ export function nightlySource() {
     training,
     studySearch: sourceIdentity(join(repoRoot, "apps/four-shogi-study/src/search")).sha256,
     studyDomain: sourceIdentity(join(repoRoot, "apps/four-shogi-study/src/domain")).sha256,
+    studyShared: sourceIdentity(join(repoRoot, "apps/four-shogi-study/src/shared")).sha256,
+    studyTactics: sourceIdentity(join(repoRoot, "apps/four-shogi-study/bench")).sha256,
   };
   return { code, identity, fingerprint: dataHash(identity) };
 }

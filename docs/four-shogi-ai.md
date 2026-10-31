@@ -1649,3 +1649,5 @@ train Policy loss2.7344/一致29.43%、Value loss1.2294/一致50.0%。validation
 成果物はGit管理外の`.study-measurements/nightly-committed-pilot`（2夜の正本棋譜・snapshot・モデル・各工程レポート）と`.study-measurements/nightly-final-validation`（戦術の成功/失敗、Python/warm start、操作/資源/最終検証）へ保持します。変更前と初期の偏ったengineering試験も`.study-measurements/nightly-baseline-99289c1`と`nightly-first-smoke`へ残し、今回の通常品質モデルと混同しません。外部へのアップロードや公開対局の取り込みはしていません。
 
 `852aafb`で通常の全体check60.95秒、本番build4.59秒/Worker dry-run0.62秒、開発build4.49秒/dry-run0.58秒、study:build0.38秒が全て成功し、工程前後の探索/学習source fingerprint一致を確認しました。DOM31件を含むBun検証と、実PyTorch学習11件/推論9件は別に記録します。実loopback HTTPでは実在する初夜候補を選んで新jobを開始し、4516回のモデル推論/深さ7の完成した合法推奨、G0への新job復帰、旧モデル採用409を確認しました。試験サーバー5201は終了し、既存5198サーバーは操作していません。画面寸法・ネイティブ入力・実ブラウザ・オンライン対局の試験へ代入しません。
+
+最終の凍結検査では、未コミットの学習側ファイルが開始時dirty判定に含まれないことを`2d721f3`で再現し、学習/検討src・bench・関連manifestまで検査対象を広げました。shared入力と戦術コードもsource fingerprintに含めます。探索・モデル・既存fixtureの採点は変えず、この修正後にも必須ローカル検証と最終HEADのFull CIを要求します。最初のCI成功と修正後のCIは別に記録し、先の結果を最終成功へ代用しません。
