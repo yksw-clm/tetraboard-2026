@@ -22,6 +22,7 @@ type StateBase = {
   board: Board;
   moveNumber: number;
   lastMove: Position | null;
+  lastMoves?: Partial<Record<Color, Position>>;
   eliminatedColors: readonly Color[];
   completedColors: readonly Color[];
   standings: readonly Standing[];
@@ -47,6 +48,7 @@ export function createInitialState(mode: GameMode = "singles"): FourGomokuState 
     board: Array.from({ length: boardSize }, () => Array<Cell>(boardSize).fill(null)),
     moveNumber: 0,
     lastMove: null,
+    lastMoves: {},
     eliminatedColors: [],
     completedColors: [],
     standings: [],
@@ -155,6 +157,7 @@ export function applyAction(
     board,
     moveNumber: state.moveNumber + 1,
     lastMove: { ...position },
+    lastMoves: { ...state.lastMoves, [state.turn]: { ...position } },
     winningLines: [...state.winningLines, ...lines],
   };
   if (lines.length) {

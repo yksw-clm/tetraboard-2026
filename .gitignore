@@ -1,1 +1,5 @@
 node_modules/
+.ci-plan.json
+.ci-results.jsonl
+.ci-benchmark.json
+.ci-logs/

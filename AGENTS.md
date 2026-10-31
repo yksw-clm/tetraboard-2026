@@ -12,7 +12,7 @@
 
 ## PR提出前の検証
 
-- 通常のGitHub CIでは `bun install --frozen-lockfile` 後に、下記のcheckと本番・開発それぞれのbuild・dry-runを実行する。GitHub CI成功をローカル検証で代替しない。
+- GitHub CIは `bun install --frozen-lockfile` 後、低リスクPRでは依存先を含むFast CI、Worker・ルール・protocol・共通基盤・不明な変更とmain向けPRではFull CIを実行する。`ci-full` ラベルでもFull CIを要求できる。main・developのpushは必ずFull CIで全体check相当と本番・開発それぞれのbuild・dry-runを成功させてからデプロイする。Fast成功を未実行テストの成功とみなさず、summaryの実行・未実行範囲を確認する。GitHub CI成功をローカル検証で代替しない。詳細は [CIの実行方針](docs/testing.md#fast-ciとfull-ci) を参照する。
 - コード・設定変更では、PRを作成する前にローカルで次の全コマンドを成功させる。
 
   ```sh

@@ -1,13 +1,25 @@
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { flattenDiagnosticMessageText, parseConfigFileTextToJson } from "typescript";
 import { defineConfig } from "vitest/config";
+import { BaseSequencer, type TestSpecification } from "vitest/node";
+import { workerTestPattern } from "../../scripts/ci/workerGroups";
 
 // JSONCの実行条件だけを読み、Wranglerの個人設定ローダーを通しません。
 const configPath = fileURLToPath(new URL("./wrangler.jsonc", import.meta.url));
 const { config, error } = parseConfigFileTextToJson(configPath, readFileSync(configPath, "utf8"));
 if (error) throw new Error(flattenDiagnosticMessageText(error.messageText, "\n"));
+
+class WorkerSequencer extends BaseSequencer {
+  override async sort(files: TestSpecification[]) {
+    return [...files].sort(
+      (a, b) =>
+        statSync(b.moduleId).size - statSync(a.moduleId).size ||
+        a.moduleId.localeCompare(b.moduleId),
+    );
+  }
+}
 
 export function workerTestConfig(extraBindings: Record<string, string> = {}) {
   return defineConfig({
@@ -52,7 +64,10 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
       })),
     ],
     test: {
-      include: ["test/**/*.test.ts"],
+      // 別プロセス間でresults.jsonを共有せず、過去の実行時間で順序を変えません。
+      cache: false,
+      sequence: { sequencer: WorkerSequencer },
+      include: [workerTestPattern],
       setupFiles: ["./test/setup.ts"],
       // 別のI/OコンテキストからのログでVitestのRPCが停止する上流不具合を回避します。
       disableConsoleIntercept: true,

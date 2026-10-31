@@ -1217,7 +1217,8 @@ export class GameRoom extends DurableObject<Env> {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
     if (saved === undefined) return null;
     const room = roomSchema.parse(saved);
-    if (isFourShogiRoom(room)) this.shogiProgress.normalize(room, saved);
+    if (isFourGomokuRoom(room)) this.fourGomokuProgress.normalize(room);
+    else if (isFourShogiRoom(room)) this.shogiProgress.normalize(room, saved);
     else if (isReversiRoom(room)) this.standardProgress.normalize(room, saved);
     else if (!isShogiRoom(room) && !isGomokuRoom(room) && !isFourGomokuRoom(room))
       this.reversiProgress.normalize(room, saved);
