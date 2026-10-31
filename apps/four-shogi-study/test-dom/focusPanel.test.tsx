@@ -143,7 +143,7 @@ test("PV引継ぎの未来候補を現在の手と表示・採用しない", asy
   });
   expect(view.textContent).toContain("西の次手番を検討");
   expect(view.textContent).toContain("フォーカスの検討");
-  expect(view.textContent).toContain("前回の読みを探索順序へ利用");
+  expect(view.textContent).toContain("前回の読みと一致");
   expect(view.textContent).not.toContain("現在の手番の検討");
   expect(view.textContent).not.toContain("推奨手を指す");
   press(view, "予測手順とこの手を分岐で確認 →");

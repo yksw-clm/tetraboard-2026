@@ -884,7 +884,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ## 四人将棋のローカル検討アプリ
 
-実験用フォーカス引継ぎの入口は`search/focusSettings.ts`です。環境変数の既定は無効で、`pv`の順序ヒントと`ponder/combined`の同一予測終点のセッション保持を分離します。`application.ts`は確定イベントだけを保持可能な更新として渡し、対局識別子をscopeへ含めます。汎用の別根への部分木移植は実装範囲外です。比較CLIは`bench/focusPonderBaseline.ts`と`bench/focusPvComparison.ts`、事前登録・資源/絶対期限・開発seedと棋力判定は[測定記録](four-shogi-ai.md#フォーカス引継ぎとponderingの事前計画2026-10-31)を参照します。
+実験用フォーカス引継ぎの入口は`search/focusSettings.ts`です。環境変数の既定は無効で、`pv`の順序ヒントと`ponder/combined`の同一予測終点のセッション保持を分離します。`application.ts`は確定イベントだけを保持可能な更新として渡し、対局識別子をscopeへ含めます。同じ途中根のresumeはworkerを保持し、新規start時のworker再利用はPONDER/COMBINED内側だけ既定で無効にします。PV一致の診断値はヒントの存在で、実際の投入順変更数や完成部分木の再利用と混同しません。汎用の別根への部分木移植は実装範囲外です。比較CLIは`bench/focusPonderBaseline.ts`と`bench/focusPvComparison.ts`、事前登録・資源/絶対期限・開発seedと棋力判定は[測定記録](four-shogi-ai.md#フォーカス引継ぎとponderingの事前計画2026-10-31)を参照します。
 
 最善手の可視化は`client/bestMove.ts`で現在局面・完成深さ・手番・合法手を照合し、`StudyApp.tsx`から共通盤面の任意prop `bestMove`へ渡します。`ShogiBestMoveOverlay.tsx`は既存の`shogiDisplayPosition()`と9×9のSVG座標で操作gridへ重ねます。キャッシュした矢印や新規の探索・ポーリングを持たず、既存SSEの公開済み比較だけを描画します。別study/旧generation/同generationの別jobは表示側で拒否し、予測局面と表示局面が違うフォーカスは矢印の対象にしません。prop未指定の対局画面は表示を変えません。
 

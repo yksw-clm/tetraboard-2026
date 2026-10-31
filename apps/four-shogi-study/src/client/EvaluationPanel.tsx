@@ -195,12 +195,12 @@ export function EvaluationPanel({
             {analysis.continuation.sessionHit
               ? " · 予測と一致し、同じ探索を継続"
               : analysis.continuation.pvHit
-                ? " · 前回の読みを探索順序へ利用"
+                ? " · 前回の読みと一致"
                 : " · 新しい探索"}
-            {" · 今回 "}
-            {analysis.continuation.newWork.toLocaleString()}局面
+            {" · 今回の探索量 "}
+            {analysis.continuation.newWork.toLocaleString()}
             {analysis.continuation.priorWork > 0
-              ? ` · 引継ぎ前 ${analysis.continuation.priorWork.toLocaleString()}局面`
+              ? ` · 引継ぎ前 ${analysis.continuation.priorWork.toLocaleString()}`
               : ""}
           </p>
         ) : null}
