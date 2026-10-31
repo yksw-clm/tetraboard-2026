@@ -61,7 +61,7 @@
     --lobby-quick-end: #e8f4ed;
   }
 
-  /* ゲーム本文と、そのPortalだけに適用します。共通ヘッダーは既定色を保ちます。 */
+  /* ゲーム本文・Portal・大会の開催中表示へ適用し、共通ヘッダーは大会リンク以外の既定色を保ちます。 */
   .game-theme-four-shogi {
     --color-brand: #916200;
     --color-brand-hover: #7a5200;

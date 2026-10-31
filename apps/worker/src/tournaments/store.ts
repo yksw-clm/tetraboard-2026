@@ -191,7 +191,7 @@ export async function publicTournamentList(
   if (finalized.length) {
     const scores = await db
       .prepare(`SELECT e.tournament_key AS tournamentKey,
-      e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,u.isAnonymous,
+      e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.publicProfileId,u.avatarKey,u.isAnonymous,
       s.points_units AS pointsUnits,s.games,s.first,s.second,s.third,s.fourth,s.knockouts,s.rank_sum AS rankSum,s.final_rank AS finalRank
       FROM tournament_entries e JOIN tournament_scores s ON s.entry_id=e.id AND s.tournament_key=e.tournament_key
       LEFT JOIN user u ON u.id=e.account_id AND e.deleted=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
@@ -312,6 +312,7 @@ type ScoreRow = {
   deleted: number;
   name: string | null;
   username: string | null;
+  publicProfileId: string | null;
   isAnonymous: number | null;
   avatarKey: string | null;
   pointsUnits: number;
@@ -332,6 +333,7 @@ function standingFromRow(v: ScoreRow): InternalStanding {
     rank: v.finalRank,
     name: v.name ?? "退会したプレイヤー",
     username: v.username,
+    profileId: v.deleted ? null : v.publicProfileId,
     ...(v.isAnonymous ? { isGuest: true } : {}),
     avatarUrl: profileAvatarUrl(v.avatarKey),
     pointsUnits: v.pointsUnits,
@@ -349,7 +351,7 @@ export async function allStandings(
   row: TournamentRow,
 ): Promise<InternalStanding[]> {
   const values = await db
-    .prepare(`SELECT e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.avatarKey,u.isAnonymous,
+    .prepare(`SELECT e.id AS entryId,e.account_id AS accountId,e.deleted,u.name,u.username,u.publicProfileId,u.avatarKey,u.isAnonymous,
     COALESCE(s.points_units,0) AS pointsUnits,COALESCE(s.games,0) AS games,
     COALESCE(s.first,0) AS first,COALESCE(s.second,0) AS second,COALESCE(s.third,0) AS third,COALESCE(s.fourth,0) AS fourth,
     COALESCE(s.knockouts,0) AS knockouts,COALESCE(s.rank_sum,0) AS rankSum,s.final_rank AS finalRank
@@ -368,10 +370,15 @@ export async function allStandings(
       );
 }
 export function visibleStanding(
-  { entryId: _entry, accountId, ...score }: InternalStanding,
+  { entryId: _entry, accountId, profileId, ...score }: InternalStanding,
   viewer?: string,
+  includeProfiles = false,
 ): TournamentStanding {
-  return { ...score, ...(viewer && accountId === viewer ? { self: true } : {}) };
+  return {
+    ...score,
+    ...(includeProfiles ? { profileId } : {}),
+    ...(viewer && accountId === viewer ? { self: true } : {}),
+  };
 }
 export async function standingsPage(
   db: D1Database,
@@ -379,6 +386,7 @@ export async function standingsPage(
   viewer: string | undefined,
   all = false,
   offset = 0,
+  includeProfiles = false,
 ) {
   if (stage(row) === "upcoming") return { standings: [], self: null, nextCursor: null };
   const values = await allStandings(db, row);
@@ -387,8 +395,8 @@ export async function standingsPage(
     ? values.slice(offset, offset + 50)
     : values.filter((v) => v.rank !== null && v.rank <= 5);
   return {
-    standings: page.map((v) => visibleStanding(v, viewer)),
-    self: own ? visibleStanding(own, viewer) : null,
+    standings: page.map((v) => visibleStanding(v, viewer, includeProfiles)),
+    self: own ? visibleStanding(own, viewer, includeProfiles) : null,
     nextCursor: all && values.length > offset + 50 ? nextOffset(offset + 50) : null,
   };
 }

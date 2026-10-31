@@ -25,7 +25,9 @@ function requestSignal(signal?: AbortSignal) {
 export async function readTournament(id: number, signal?: AbortSignal) {
   return parseTournamentData(
     tournamentDetailSchema,
-    await accountRequest(tournamentPath(id), { signal: requestSignal(signal) }),
+    await accountRequest(`${tournamentPath(id)}?includeProfiles=1`, {
+      signal: requestSignal(signal),
+    }),
   );
 }
 export async function readLobbyTournaments(game: GameId, signal?: AbortSignal) {
@@ -61,7 +63,7 @@ export async function readTournamentParticipation(
   );
 }
 export async function readTournamentStandings(id: number, cursor?: string, signal?: AbortSignal) {
-  const params = new URLSearchParams({ all: "1" });
+  const params = new URLSearchParams({ all: "1", includeProfiles: "1" });
   if (cursor) params.set("cursor", cursor);
   return parseTournamentData(
     tournamentStandingsSchema,

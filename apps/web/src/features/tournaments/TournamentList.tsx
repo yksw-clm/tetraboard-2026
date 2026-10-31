@@ -66,7 +66,7 @@ export function TournamentList({ game }: { game: GameId | "all" }) {
                   >
                     {tournament.name}
                   </h3>
-                  <TournamentStatus stage={tournament.status} />
+                  <TournamentStatus stage={tournament.status} game={tournament.game} />
                 </div>
                 <p className="text-xs text-muted">
                   {game === "all" && <span>{gameCatalog[tournament.game].name} · </span>}
