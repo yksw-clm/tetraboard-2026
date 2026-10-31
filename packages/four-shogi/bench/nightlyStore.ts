@@ -105,6 +105,23 @@ function validateGeneration(raw: GenerationManifest) {
       fileSha(raw.localModelFile) !== raw.localModelSha256)
   )
     throw new Error("世代モデルのID/SHA/実体が不一致です");
+  if (raw.localModelFile) {
+    const local = readJson<{
+      format: string;
+      modelId: string;
+      sourceManifestSha256: string;
+      weights: { file: string; sha256: string; bytes: number };
+    }>(raw.localModelFile);
+    if (
+      local.format !== "four-shogi-local-f32-v1" ||
+      local.modelId !== raw.modelId ||
+      !/^[a-f0-9]{64}\.f32$/.test(local.weights.file) ||
+      local.weights.file !== local.weights.sha256 + ".f32" ||
+      fileSha(join(dirname(raw.localModelFile), local.weights.file)) !== local.weights.sha256 ||
+      fileSha(join(dirname(raw.localModelFile), "manifest.json")) !== local.sourceManifestSha256
+    )
+      throw new Error("世代モデルの重み/推論manifestが破損しています");
+  }
   return raw;
 }
 export function listGenerations(directory = defaultAiDirectory()): GenerationEntry[] {
@@ -114,10 +131,18 @@ export function listGenerations(directory = defaultAiDirectory()): GenerationEnt
     { ...g0, available: true, error: null },
     ...readdirSync(path)
       .filter((name) => /^g\d+-candidate-[a-zA-Z0-9-]+$/.test(name))
+      .filter((name) => existsSync(join(path, name, "generation.json")))
       .sort()
       .map((name) => {
-        const item = readJson<GenerationManifest>(join(path, name, "generation.json"));
+        let item: GenerationManifest = {
+          ...g0,
+          id: name,
+          generation: Number(/^g(\d+)/.exec(name)![1]),
+          state: "candidate",
+          qualified: false,
+        };
         try {
+          item = readJson<GenerationManifest>(join(path, name, "generation.json"));
           validateGeneration(item);
           const promoted = existsSync(join(path, name, "promotion.json"));
           return {
@@ -145,11 +170,21 @@ export function currentGeneration(directory = defaultAiDirectory()) {
     entry = resolveGeneration(ref.id, directory);
   if (
     entry.state !== "promoted" ||
+    !entry.qualified ||
     entry.modelId !== ref.modelId ||
     fileSha(join(directory, "generations", entry.id, "generation.json")) !==
       ref.generationManifestSha256
   )
     throw new Error("現役世代の参照/昇格が不一致です");
+  const receipt = readJson<{ modelId: string; parentId: string; decision: { decision: string } }>(
+    join(directory, "generations", entry.id, "promotion.json"),
+  );
+  if (
+    receipt.modelId !== entry.modelId ||
+    receipt.parentId !== entry.parentId ||
+    receipt.decision.decision !== "promote"
+  )
+    throw new Error("現役世代の昇格記録が不一致です");
   return entry;
 }
 export function initializeNightlyRoot(path: string) {

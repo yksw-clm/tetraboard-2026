@@ -7,6 +7,7 @@ import type {
 } from "@tetraboard/four-shogi/analysis";
 
 export type StudySettings = Readonly<{
+  modelGeneration?: string;
   searchStrategy?:
     | "adaptive"
     | "dual"
@@ -33,6 +34,7 @@ export type StudySearchCoverage = Readonly<{
 }>;
 export type StudySeat = Readonly<{ controller: "human" | "cpu"; thinkTimeMs: number }>;
 export type StudyRecordedAnalysis = Readonly<{
+  modelGeneration?: string;
   coverage?: StudySearchCoverage;
   stateHash: string;
   savedAt: string;

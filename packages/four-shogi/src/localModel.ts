@@ -32,9 +32,13 @@ const softmax = (values: number[]) => {
 export function loadLocalModel(
   path: string,
   expectedModelId?: string,
+  expectedManifestSha256?: string,
 ): AiSyncModel & { bytes: number; historyCacheEntries: () => number } {
   const directory = dirname(path),
-    meta = JSON.parse(read(path, 1024 ** 2).toString());
+    manifestBytes = read(path, 1024 ** 2),
+    meta = JSON.parse(manifestBytes.toString());
+  if (expectedManifestSha256 !== undefined && sha(manifestBytes) !== expectedManifestSha256)
+    throw new Error("指定モデルmanifestのSHAが不一致です");
   const sourceBytes = read(join(directory, "manifest.json"), 1024 ** 2),
     source = JSON.parse(sourceBytes.toString());
   if (

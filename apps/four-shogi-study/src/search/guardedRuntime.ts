@@ -178,6 +178,8 @@ export function createGuardedStudySearchRuntime(
   };
   return {
     async start(input, options, callback = () => {}) {
+      if (options.evaluationModel)
+        throw new Error("学習モデルと致命応手ガードの併用は未検証です。ガードをOFFにしてください");
       if (current) abort(current);
       current = null;
       if (options.timeBudgetMs === null || options.focusSide)

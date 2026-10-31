@@ -56,7 +56,11 @@ export async function loadDataPlayers(
         });
       } else if (agent.kind === "study") {
         const model = agent.settings.modelFile
-          ? loadLocalModel(agent.settings.modelFile, agent.settings.modelId)
+          ? loadLocalModel(
+              agent.settings.modelFile,
+              agent.settings.modelId,
+              agent.settings.modelSha256,
+            )
           : undefined;
         selectors.set(agent.id, async (position) => {
           const result = await analyzeStudyCpu(
@@ -170,7 +174,11 @@ export async function generateSelfPlayGame(
   if (!saved) await commit(record);
   if (record.status !== "in_progress") return record;
   const studyTeacherModel = manifest.config.studyTeacher?.modelFile
-    ? loadLocalModel(manifest.config.studyTeacher.modelFile, manifest.config.studyTeacher.modelId)
+    ? loadLocalModel(
+        manifest.config.studyTeacher.modelFile,
+        manifest.config.studyTeacher.modelId,
+        manifest.config.studyTeacher.modelSha256,
+      )
     : undefined;
   const players = await loadDataPlayers(manifest, control, temporaryDirectory);
   try {

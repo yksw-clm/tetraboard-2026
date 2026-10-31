@@ -33,6 +33,7 @@ export type StudyCpuSettings = {
   dangerWork: number;
   modelFile?: string;
   modelId?: string;
+  modelSha256?: string;
 };
 export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
   const raw = dataObject(value, [
@@ -47,8 +48,14 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     "dangerWork",
     "modelFile",
     "modelId",
+    "modelSha256",
   ]);
   const strategy = raw.strategy ?? "dual-continuations";
+  if (
+    raw.modelSha256 !== undefined &&
+    (!raw.modelId || typeof raw.modelSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.modelSha256))
+  )
+    throw new Error("モデルmanifestのSHAが不正です");
   if (strategy !== "dual-continuations" && strategy !== "adaptive")
     throw new Error("study CPUはP0-5/v5です");
   if (
@@ -66,10 +73,15 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     broadDepth: dataInteger(raw.broadDepth ?? 3, 2, 4),
     width: dataInteger(raw.width ?? 6, 1, 32),
     rootWidth: dataInteger(raw.rootWidth ?? 24, 1, 256),
-    extensions: dataInteger(raw.extensions ?? 2, 0, 8),
+    extensions: dataInteger(raw.extensions ?? 2, 0, 4),
     cacheSize: dataInteger(raw.cacheSize ?? 1024, 0, 65536),
-    dangerWork: dataInteger(raw.dangerWork ?? 128, 0, 100000),
+    dangerWork: dataInteger(
+      raw.dangerWork ?? Math.min(128, Number(raw.maxWork ?? 4096)),
+      0,
+      Number(raw.maxWork ?? 4096),
+    ),
     ...(raw.modelId ? { modelId: raw.modelId as string, modelFile: raw.modelFile as string } : {}),
+    ...(raw.modelSha256 ? { modelSha256: raw.modelSha256 as string } : {}),
   };
 }
 export function studyCpuVersions(settings: StudyCpuSettings, codeVersion: string) {
@@ -84,17 +96,20 @@ export function studyCpuVersions(settings: StudyCpuSettings, codeVersion: string
 }
 export function studyCpuAiSettings(settings: StudyCpuSettings) {
   const { maxWork, maxDepth, width, rootWidth, extensions, cacheSize, dangerWork } = settings;
-  return resolveAiOptions({
-    codeVersion: studyCpuRunner,
-    maxWork,
-    maxDepth,
-    width,
-    rootWidth,
-    extensions,
+  return {
+    ...resolveAiOptions({
+      codeVersion: studyCpuRunner,
+      maxWork,
+      maxDepth,
+      width,
+      rootWidth,
+      extensions,
+      cacheSize: Math.min(2048, cacheSize),
+      dangerWork,
+      candidateCount: 5,
+    }).settings,
     cacheSize,
-    dangerWork,
-    candidateCount: 5,
-  }).settings;
+  };
 }
 export type StudyCpuResult = AiResult & {
   studyCpu: {
@@ -117,7 +132,9 @@ export async function analyzeStudyCpu(
     cpu = process.cpuUsage();
   const model =
     modelOptions.model ??
-    (settings.modelFile ? loadLocalModel(settings.modelFile, settings.modelId) : undefined);
+    (settings.modelFile
+      ? loadLocalModel(settings.modelFile, settings.modelId, settings.modelSha256)
+      : undefined);
   const search = createStudyRootSearch(position, { ...settings, ...(model ? { model } : {}) });
   let published: StudyCandidate[] = [],
     completedDepth = 0,

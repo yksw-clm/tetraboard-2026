@@ -54,6 +54,8 @@ export function scoreLabel(
   const confirmed = confirmedRank(evaluation, side, context);
   if (confirmed !== null) return `確定${confirmed}位`;
   if (!evaluation) return "—";
+  if (evaluation.evaluationKind === "model")
+    return `Value ${evaluation.values[side].primary.toFixed(3)}`;
   const value = scoreValue(evaluation, side);
   if (evaluation.evaluationKind === "terminal" || value === null) {
     const rank = evaluation.ranks.find((entry) => entry.side === side)?.rank;

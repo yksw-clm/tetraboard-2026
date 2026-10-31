@@ -1,5 +1,6 @@
 import { createStudyRootSearch } from "@tetraboard/four-shogi/study-search";
 import { restoreStudyPosition } from "../domain/study";
+import { loadLocalModel } from "../../../../packages/four-shogi/src/localModel";
 import type { SearchCommand, SearchMessage, SearchWorkerTiming } from "./messages";
 let current: {
   id: string;
@@ -126,7 +127,18 @@ process.on("message", async (raw: unknown) => {
       const created = performance.now();
       const restoreCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       if (token !== generation) return;
-      const search = createStudyRootSearch(position, message.options);
+      const model = message.localModel
+        ? loadLocalModel(
+            message.localModel.file,
+            message.localModel.modelId,
+            message.localModel.sha256,
+          )
+        : undefined;
+      if (token !== generation) return;
+      const search = createStudyRootSearch(position, {
+        ...message.options,
+        ...(model ? { model } : {}),
+      });
       const createCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       current = {
         id: message.id,

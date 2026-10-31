@@ -35,10 +35,10 @@ export function EvaluationPanel({
   const evaluationContext: EvaluationContext = analysis?.evaluation
     ? { source: "line", position: snapshot.position.state }
     : { source: "position" };
-  const maximum = Math.max(
-    500,
-    ...sideOrder.map((side) => Math.abs(scoreValue(evaluation, side) ?? 0)),
-  );
+  const modelValue = evaluation.evaluationKind === "model";
+  const maximum = modelValue
+    ? 1
+    : Math.max(500, ...sideOrder.map((side) => Math.abs(scoreValue(evaluation, side) ?? 0)));
   const searching = analysis?.status === "running";
   const manual = study.settings.mode === "analysis";
   const focus = analysis?.focus;
@@ -54,6 +54,12 @@ export function EvaluationPanel({
     );
   return (
     <aside className="flex min-w-0 flex-col gap-4">
+      {study.settings.modelGeneration ? (
+        <p role="status" className="break-all text-xs">
+          評価モデル {study.settings.modelGeneration} · {analysis?.modelId ?? "読み込み待ち"} ·
+          未校正の研究用評価
+        </p>
+      ) : null}
       {!snapshot.live ? (
         <Panel title="検討のフォーカス">
           <FocusSelector
@@ -138,13 +144,19 @@ export function EvaluationPanel({
                 {rankLabel(evaluation, side, evaluationContext)}
               </p>
               <div className="relative h-1.5 overflow-hidden rounded bg-[#eef1e9]">
-                <span className="absolute left-1/2 h-full w-px bg-[#cdd6c4]" />
+                {modelValue ? null : (
+                  <span className="absolute left-1/2 h-full w-px bg-[#cdd6c4]" />
+                )}
                 <span
                   className="absolute h-full rounded"
                   style={{
                     background: sideColors[side],
-                    left: `${50 + Math.min(0, ((scoreValue(evaluation, side) ?? 0) / maximum) * 50)}%`,
-                    width: `${Math.min(50, (Math.abs(scoreValue(evaluation, side) ?? 0) / maximum) * 50)}%`,
+                    left: modelValue
+                      ? "0%"
+                      : `${50 + Math.min(0, ((scoreValue(evaluation, side) ?? 0) / maximum) * 50)}%`,
+                    width: modelValue
+                      ? `${evaluation.values[side].primary * 100}%`
+                      : `${Math.min(50, (Math.abs(scoreValue(evaluation, side) ?? 0) / maximum) * 50)}%`,
                   }}
                 />
               </div>
@@ -152,6 +164,7 @@ export function EvaluationPanel({
           ))}
         </div>
         <p className="mt-4 text-[10px] leading-relaxed text-[#8a9481]">
+          {modelValue ? "Valueは未校正のモデル指標で、勝率ではありません。 " : null}
           点数は勝率ではありません。表示中の盤面で決まった順位を「確定」、元局面の静的順位を「暫定」、読み筋末尾の順位を「予想」と表示します。
         </p>
       </Panel>

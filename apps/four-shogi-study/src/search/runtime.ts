@@ -141,6 +141,7 @@ export type StudySearchSnapshot = {
   };
 };
 export type StudySearchOptions = {
+  evaluationModel?: { file: string; modelId: string; sha256?: string };
   /** 同一の検討/対局だけを識別し、workerへ送りません。 */
   sessionKey?: string;
   /** 同じ親プロセス内だけで共有する単調時計の終了時刻です。workerへは送りません。 */
@@ -594,6 +595,14 @@ export function createStudySearchRuntime(
         legalMs: sum("legalMs"),
         transitionMs: sum("transitionMs"),
         evaluationMs: sum("evaluationMs"),
+        ...(value.options.evaluationModel
+          ? {
+              modelInferences: sum("modelInferences"),
+              modelPolicyUses: sum("modelPolicyUses"),
+              modelValueUses: sum("modelValueUses"),
+              modelInferenceMs: sum("modelInferenceMs"),
+            }
+          : {}),
         orderingMs: sum("orderingMs"),
         initialLegalMs: sum("initialLegalMs"),
         initialEvaluationMs: sum("initialEvaluationMs"),
@@ -749,6 +758,7 @@ export function createStudySearchRuntime(
       focusSide: _focus,
       broadDepth: _broad,
       sessionKey: _session,
+      evaluationModel: _evaluationModel,
       ...rootOptions
     } = value.options;
     value.prepared = true;
@@ -762,6 +772,7 @@ export function createStudySearchRuntime(
         type: "start",
         id: value.snapshot.id,
         input,
+        ...(value.options.evaluationModel ? { localModel: value.options.evaluationModel } : {}),
         ...(config.observeParallel ? { measureTransport: true } : {}),
         options: {
           ...rootOptions,
@@ -1588,6 +1599,12 @@ export function createStudySearchRuntime(
   }
   return {
     async start(input, options, onProgress = () => {}) {
+      if (
+        options.evaluationModel &&
+        ((options.strategy ?? "adaptive") !== "dual-continuations" ||
+          options.profile === "baseline")
+      )
+        throw new Error("学習モデルはP0-5のstudy評価で明示指定してください");
       const requested = performance.now();
       const deadline =
         options.timeBudgetMs === null

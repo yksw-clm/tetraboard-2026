@@ -86,6 +86,7 @@ export function useStudySession() {
               !current ||
               current.study.id !== studyId ||
               event.analysis.nodeId !== current.study.currentNodeId ||
+              event.analysis.modelGeneration !== current.study.settings.modelGeneration ||
               event.analysis.stateHash !== current.position.stateHash
             )
               return current;

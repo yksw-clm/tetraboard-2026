@@ -38,6 +38,7 @@ import type { StudyDocument, StudyRecordedAnalysis } from "../shared/model";
 import { HttpError, type StudyApplication } from "./http";
 import { fetchPublicReplay } from "./publicImport";
 import { createLiveRoomSession, type LiveRoomSession, type VerifiedLiveUpdate } from "./liveRoom";
+import { resolveGeneration } from "../../../../packages/four-shogi/bench/nightlyStore";
 
 const names: Record<Side, string> = { south: "南", west: "西", north: "北", east: "東" };
 
@@ -186,7 +187,9 @@ export class LocalStudyApplication implements StudyApplication {
       this.active.stateHash === position.stateHash
         ? this.active.focusSide
         : study.settings.focusSide;
-    const matchesFocus = (view: StudyAnalysisView) => (view.focus?.side ?? null) === focusSide;
+    const matchesFocus = (view: StudyAnalysisView) =>
+      (view.focus?.side ?? null) === focusSide &&
+      view.modelGeneration === study.settings.modelGeneration;
     const record = study.analysisRecords?.[study.currentNodeId];
     if (
       (!analysis ||
@@ -194,10 +197,14 @@ export class LocalStudyApplication implements StudyApplication {
         analysis.stateHash !== position.stateHash ||
         !matchesFocus(analysis)) &&
       focusSide === null &&
-      record?.stateHash === position.stateHash
+      record?.stateHash === position.stateHash &&
+      record.modelGeneration === study.settings.modelGeneration
     ) {
       const candidates = await restoreRecordedCandidates(record, position);
       analysis = {
+        ...(record.modelGeneration
+          ? { modelGeneration: record.modelGeneration, modelId: record.evaluationVersion }
+          : {}),
         id: `saved-${study.currentNodeId}`,
         nodeId: study.currentNodeId,
         stateHash: position.stateHash,
@@ -451,6 +458,7 @@ export class LocalStudyApplication implements StudyApplication {
     });
   }
   private checkResources(study: StudyDocument) {
+    if (study.settings.modelGeneration) resolveGeneration(study.settings.modelGeneration);
     if (study.settings.threads > Math.max(1, this.config.logicalCpus - 2))
       throw new HttpError(
         400,
@@ -496,6 +504,7 @@ export class LocalStudyApplication implements StudyApplication {
     current: StudyDocument,
   ): Promise<StudyDocument> {
     // 予測付き解析は通常局面の保存形式へ混ぜず、対象席を変えた結果の再利用を防ぎます。
+    if (current.settings.modelGeneration !== view.modelGeneration) return current;
     if (active.focusSide !== null) return current;
     if (view.elapsedMs <= active.lastSavedElapsedMs) return current;
     if (
@@ -507,11 +516,12 @@ export class LocalStudyApplication implements StudyApplication {
     const position = (await resolveStudyPositions(current)).get(active.nodeId);
     if (!position || position.stateHash !== active.stateHash) return current;
     const record: StudyRecordedAnalysis = {
+      ...(view.modelGeneration ? { modelGeneration: view.modelGeneration } : {}),
       stateHash: view.stateHash,
       savedAt: new Date().toISOString(),
       searchVersion: view.searchVersion ?? studySearchVersion,
       ...(view.coverage ? { coverage: view.coverage } : {}),
-      evaluationVersion: studyEvaluationVersion,
+      evaluationVersion: view.modelId ?? studyEvaluationVersion,
       engineVersion: aiVersions.engineVersion,
       ...active.conditions,
       elapsedMs: view.elapsedMs,
@@ -593,6 +603,9 @@ export class LocalStudyApplication implements StudyApplication {
       memoryMb: study.settings.memoryMb,
     };
     const runtime = this.pool.runtime;
+    const model = study.settings.modelGeneration
+      ? resolveGeneration(study.settings.modelGeneration)
+      : null;
     this.focusReconnect.delete(study.id);
     const active: ActiveSearch = {
       studyId: study.id,
@@ -618,6 +631,15 @@ export class LocalStudyApplication implements StudyApplication {
       studyPositionInput(study),
       {
         strategy: study.settings.searchStrategy ?? "adaptive",
+        ...(model?.localModelFile && model.modelId
+          ? {
+              evaluationModel: {
+                file: model.localModelFile,
+                modelId: model.modelId,
+                sha256: model.localModelSha256 ?? undefined,
+              },
+            }
+          : {}),
         focusSide: active.focusSide,
         sessionKey: JSON.stringify([
           study.id,
@@ -631,6 +653,7 @@ export class LocalStudyApplication implements StudyApplication {
       (progress) => {
         if (this.active !== active || progress.stateHash !== active.stateHash) return;
         const view: StudyAnalysisView = {
+          ...(model?.modelId ? { modelGeneration: model.id, modelId: model.modelId } : {}),
           continuation: progress.continuation,
           completion: progress.completion,
           lethalGuard: progress.lethalGuard,

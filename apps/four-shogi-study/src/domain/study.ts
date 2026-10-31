@@ -77,12 +77,23 @@ export function readStudySettings(value: unknown, legacyCpuSide?: Side): StudySe
       "focusSide",
       "seats",
       "searchStrategy",
+      "modelGeneration",
     ],
     ["mode", "thinkTimeMs", "threads", "memoryMb"],
   );
   if (item.mode !== "auto" && item.mode !== "analysis") fail("CPUの動作モードが不正です");
   const focusSide = item.focusSide ?? null;
   const searchStrategy = item.searchStrategy ?? "adaptive";
+  const modelGeneration = item.modelGeneration;
+  if (
+    modelGeneration !== undefined &&
+    modelGeneration !== null &&
+    (typeof modelGeneration !== "string" ||
+      !/^g\d{3,6}(?:-candidate-[a-zA-Z0-9-]+)?$/.test(modelGeneration))
+  )
+    fail("評価モデルの世代が不正です");
+  if (modelGeneration && modelGeneration !== "g000" && searchStrategy !== "dual-continuations")
+    fail("学習モデルはP0-5を選択してください");
   if (
     searchStrategy !== "adaptive" &&
     searchStrategy !== "dual" &&
@@ -143,6 +154,9 @@ export function readStudySettings(value: unknown, legacyCpuSide?: Side): StudySe
   ) as Record<Side, StudySeat>;
   return {
     searchStrategy,
+    ...(modelGeneration && modelGeneration !== "g000"
+      ? { modelGeneration: modelGeneration as string }
+      : {}),
     mode: item.mode,
     thinkTimeMs: item.thinkTimeMs as number,
     threads: item.threads as number,

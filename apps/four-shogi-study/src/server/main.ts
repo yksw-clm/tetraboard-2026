@@ -8,6 +8,7 @@ import { createLiveRoomSession } from "./liveRoom";
 import { createGuardedStudySearchRuntime } from "../search/guardedRuntime";
 import { createFocusReuseRuntime, readFocusReuseEnvironment } from "../search/focusSettings";
 import { readLethalGuardEnvironment } from "../search/guardSettings";
+import { listGenerations } from "../../../../packages/four-shogi/bench/nightlyStore";
 
 const logicalCpus = os.availableParallelism();
 const totalMemoryMb = Math.floor(os.totalmem() / 1024 ** 2);
@@ -15,6 +16,35 @@ const dataDirectory =
   process.env.STUDY_DATA_DIR ??
   resolve(os.homedir(), "Library/Application Support/Tetraboard Study");
 const config = {
+  get models() {
+    return listGenerations().map(
+      ({
+        id,
+        generation,
+        state,
+        modelId,
+        createdAt,
+        parentId,
+        trainingSamples,
+        available,
+        error,
+        qualified,
+        validation,
+      }) => ({
+        id,
+        generation,
+        state,
+        modelId,
+        createdAt,
+        parentId,
+        trainingSamples,
+        available,
+        error,
+        qualified,
+        validation,
+      }),
+    );
+  },
   logicalCpus,
   totalMemoryMb,
   defaultThreads: Math.min(4, Math.max(1, logicalCpus - 2)),
