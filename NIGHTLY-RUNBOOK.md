@@ -122,3 +122,7 @@ bun run study:build
 ```
 
 実測と未達事項は[AI測定記録](docs/four-shogi-ai.md)、契約と事前計画は[夜間学習の設計](docs/four-shogi-ai-nightly.md)を参照してください。PRのマージ・デプロイは別の明示承認が必要です。
+
+### Value多数クラス偏重の研究用比較
+
+単体の`train.py`は`--value-weighting=inverse-frequency`で、trainの確定結果の逆頻度をValue損失へ適用できます。既定は`none`で、通常nightlyの設定は変更しません。validationは重みなしで評価し、クラス別recall・confusion・macro-F1・予測分布を保存します。重みを変えた比較は新しいcheckpoint保存先で始めてください。同じrunのresumeで条件を変えることは拒否されます。分類性能の改善だけでは昇格しません。
