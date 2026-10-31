@@ -56,6 +56,7 @@ export type AiContextMetrics = {
   modelFeatureCacheHits?: number;
   modelFeatureCacheMisses?: number;
   modelFeatureCacheEntries?: number;
+  modelHistoryReferenceHits?: number;
   legalMs: number;
   transitionMs: number;
   evaluationMs: number;
@@ -334,6 +335,7 @@ export function createAiContext(
     validateModelValue(request, prediction);
     metrics.modelInferences = (metrics.modelInferences ?? 0) + 1;
     metrics.modelValueOnlyInferences = (metrics.modelValueOnlyInferences ?? 0) + 1;
+    metrics.modelHistoryReferenceHits = profile.model.historyReferenceHits?.() ?? 0;
     metrics.modelInferenceMs = (metrics.modelInferenceMs ?? 0) + performance.now() - started;
     // 完成した評価はevaluate()の同じ状態参照キャッシュへ保存します。
     return prediction;
@@ -353,6 +355,7 @@ export function createAiContext(
       prediction = profile.model.predict(request);
       validateModelOutputs([request], [prediction]);
       metrics.modelInferences = (metrics.modelInferences ?? 0) + 1;
+      metrics.modelHistoryReferenceHits = profile.model.historyReferenceHits?.() ?? 0;
       metrics.modelInferenceMs = (metrics.modelInferenceMs ?? 0) + performance.now() - started;
     } else [prediction] = yield* model!.request([request]);
     if (record) record.prediction = prediction;

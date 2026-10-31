@@ -19,6 +19,7 @@ export type SearchCommand =
         sha256?: string;
         valueOnlyHead?: boolean;
         historyFeatureCache?: boolean;
+        historyReferenceCache?: boolean;
       };
       measureTransport?: boolean;
     }

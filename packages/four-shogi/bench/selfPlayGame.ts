@@ -60,6 +60,7 @@ export async function loadDataPlayers(
               agent.settings.modelFile,
               agent.settings.modelId,
               agent.settings.modelSha256,
+              { historyReferences: agent.settings.modelHistoryReferenceCache },
             )
           : undefined;
         selectors.set(agent.id, async (position) => {
@@ -179,6 +180,7 @@ export async function generateSelfPlayGame(
         manifest.config.studyTeacher.modelFile,
         manifest.config.studyTeacher.modelId,
         manifest.config.studyTeacher.modelSha256,
+        { historyReferences: manifest.config.studyTeacher.modelHistoryReferenceCache },
       )
     : undefined;
   const players = await loadDataPlayers(manifest, control, temporaryDirectory);

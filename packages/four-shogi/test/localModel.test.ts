@@ -8,7 +8,9 @@ import {
   currentFeatureSize,
   historyFeatureSize,
   featureVersion,
+  createStateFeatureEncoder,
 } from "../src/modelFeatureEncoding";
+import { restoreAnalysisPosition } from "../src/analysis";
 import { actionSpaceSize, actionEncodingVersion } from "../src/actionEncoding";
 
 test("local f32モデルは合法Policyと同値のValue専用headを両ルール・各席・脱落局面で検査する", async () => {
@@ -82,6 +84,39 @@ test("local f32モデルは合法Policyと同値のValue専用headを両ルー�
     writeFileSync(join(directory, "probe.json"), probe);
     writeFileSync(join(directory, "local-model.json"), meta);
     const model = loadLocalModel(join(directory, "local-model.json"), modelId, hash(meta));
+    const position = await restoreAnalysisPosition({
+        schemaVersion: 1,
+        ruleProfileId: "tetraboard-four-shogi-singles-v1",
+        rulesVersion: 1,
+        initial: {
+          mode: "singles",
+          players: { south: "s", west: "w", north: "n", east: "e" },
+          threePlayerAttackProhibited: true,
+        },
+        events: [],
+      }),
+      encoder = createStateFeatureEncoder(),
+      shared = { id: "shared", restricted: true, features: encoder.encode(position.state) };
+    model.predictValue!(shared);
+    const firstHits = model.historyReferenceHits();
+    expect(model.predictValue!(shared).value).toEqual(model.predictValue!(shared).value);
+    expect(model.historyReferenceHits()).toBeGreaterThan(firstHits);
+    const unshared = structuredClone(shared),
+      hits = model.historyReferenceHits();
+    for (const entry of unshared.features.history) {
+      Object.freeze(entry.indices);
+      Object.freeze(entry.values);
+      Object.freeze(entry);
+    }
+    model.predictValue!(unshared);
+    model.predictValue!(unshared);
+    expect(model.historyReferenceHits()).toBe(hits);
+    const disabled = loadLocalModel(join(directory, "local-model.json"), modelId, hash(meta), {
+      historyReferences: false,
+    });
+    expect(disabled.predictValue!(shared)).toEqual(model.predictValue!(shared));
+    disabled.predictValue!(shared);
+    expect(disabled.historyReferenceHits()).toBe(0);
     for (const [i, row] of fixture.rows.entries()) {
       const { legalActionIds: _ids, ...input } = row,
         full = model.predict(row),

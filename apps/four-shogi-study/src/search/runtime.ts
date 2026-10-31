@@ -147,6 +147,7 @@ export type StudySearchOptions = {
     sha256?: string;
     valueOnlyHead?: boolean;
     historyFeatureCache?: boolean;
+    historyReferenceCache?: boolean;
   };
   /** 同一の検討/対局だけを識別し、workerへ送りません。 */
   sessionKey?: string;
@@ -613,6 +614,7 @@ export function createStudySearchRuntime(
               modelFeatureCacheHits: sum("modelFeatureCacheHits"),
               modelFeatureCacheMisses: sum("modelFeatureCacheMisses"),
               modelFeatureCacheEntries: sum("modelFeatureCacheEntries"),
+              modelHistoryReferenceHits: sum("modelHistoryReferenceHits"),
             }
           : {}),
         orderingMs: sum("orderingMs"),

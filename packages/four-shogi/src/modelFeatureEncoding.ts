@@ -9,6 +9,9 @@ export const currentFeatureSize = positionFeatureSize + 19;
 export const maxHistoryEntries = 2048;
 export type SparseFeatures = { indices: number[]; values: number[] };
 export type ModelFeatures = { current: SparseFeatures; history: SparseFeatures[] };
+const reusableHistory = new WeakSet<SparseFeatures>();
+/** 内部で構築し、配列までfreezeした共有履歴だけを識別します。 */
+export const isReusableHistoryFeature = (entry: SparseFeatures) => reusableHistory.has(entry);
 const pieceKinds = ["king", "rook", "gold", "silver", "pawn", "dragon", "promotedSilver", "tokin"];
 const attackReasons = ["check", "capture", "threat", "blockade"];
 type Key = [
@@ -120,6 +123,7 @@ export function createStateFeatureEncoder(limit = 4096) {
     Object.freeze(feature.indices);
     Object.freeze(feature.values);
     Object.freeze(feature);
+    reusableHistory.add(feature);
     if (limit > 0) {
       cache.delete(key);
       if (cache.size >= limit) cache.delete(cache.keys().next().value!);

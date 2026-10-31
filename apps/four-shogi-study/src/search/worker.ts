@@ -132,6 +132,7 @@ process.on("message", async (raw: unknown) => {
             message.localModel.file,
             message.localModel.modelId,
             message.localModel.sha256,
+            { historyReferences: message.localModel.historyReferenceCache },
           )
         : undefined;
       // 同じモデル/評価のまま、研究用に従来の両head経路と比較できます。

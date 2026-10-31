@@ -57,7 +57,9 @@ export async function generateStudyTeachers(
     if (!previous) output.writeManifest(manifest);
     const sourcePlans = gamePlans(original),
       model = settings.modelFile
-        ? loadLocalModel(settings.modelFile, settings.modelId, settings.modelSha256)
+        ? loadLocalModel(settings.modelFile, settings.modelId, settings.modelSha256, {
+            historyReferences: settings.modelHistoryReferenceCache,
+          })
         : undefined;
     for (const plan of gamePlans(manifest)) {
       if (output.readGame(plan.gameId)) continue;

@@ -11,6 +11,7 @@ export async function runNativeStudy(
     sha256?: string;
     valueOnlyHead?: boolean;
     historyFeatureCache?: boolean;
+    historyReferenceCache?: boolean;
   } | null = null,
   timeBudgetMs = 5000,
   threads = 4,

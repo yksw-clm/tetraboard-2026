@@ -39,6 +39,7 @@ export type StudyCpuSettings = {
   modelSha256?: string;
   modelUsage?: "policy-value" | "policy" | "value";
   modelFeatureCache?: boolean;
+  modelHistoryReferenceCache?: boolean;
 };
 export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
   const raw = dataObject(value, [
@@ -56,8 +57,14 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     "modelSha256",
     "modelUsage",
     "modelFeatureCache",
+    "modelHistoryReferenceCache",
   ]);
   const strategy = raw.strategy ?? "dual-continuations";
+  if (
+    raw.modelHistoryReferenceCache !== undefined &&
+    (!raw.modelId || typeof raw.modelHistoryReferenceCache !== "boolean")
+  )
+    throw new Error("履歴参照キャッシュの指定にはモデルとbooleanが必要です");
   if (
     raw.modelFeatureCache !== undefined &&
     (!raw.modelId || typeof raw.modelFeatureCache !== "boolean")
@@ -103,6 +110,9 @@ export function readStudyCpuSettings(value: unknown): StudyCpuSettings {
     ...(raw.modelFeatureCache === undefined
       ? {}
       : { modelFeatureCache: raw.modelFeatureCache as boolean }),
+    ...(raw.modelHistoryReferenceCache === undefined
+      ? {}
+      : { modelHistoryReferenceCache: raw.modelHistoryReferenceCache as boolean }),
   };
 }
 export function studyCpuVersions(settings: StudyCpuSettings, codeVersion: string) {
@@ -169,7 +179,9 @@ export async function analyzeStudyCpu(
   const model =
     modelOptions.model ??
     (settings.modelFile
-      ? loadLocalModel(settings.modelFile, settings.modelId, settings.modelSha256)
+      ? loadLocalModel(settings.modelFile, settings.modelId, settings.modelSha256, {
+          historyReferences: settings.modelHistoryReferenceCache,
+        })
       : undefined);
   const search = createStudyRootSearch(
     position,

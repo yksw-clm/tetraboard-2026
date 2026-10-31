@@ -32,6 +32,7 @@ export type AiSyncModel = Readonly<{
   predict: (input: AiModelInput) => AiModelOutput;
   /** 同じ完全特徴に対するpredictのValueと同じ値を返す省略経路。 */
   predictValue?: (input: AiModelValueInput) => AiModelValueOutput;
+  historyReferenceHits?: () => number;
 }>;
 export class AiModelFailure extends Error {
   constructor(

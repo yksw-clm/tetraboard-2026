@@ -14,6 +14,7 @@ import {
   currentFeatureSize,
   historyFeatureSize,
   featureVersion,
+  isReusableHistoryFeature,
   type SparseFeatures,
 } from "./modelFeatureEncoding";
 import { actionEncodingVersion, actionSpaceSize } from "./actionEncoding";
@@ -36,7 +37,14 @@ export function loadLocalModel(
   path: string,
   expectedModelId?: string,
   expectedManifestSha256?: string,
-): AiSyncModel & { bytes: number; historyCacheEntries: () => number } {
+  options: { historyReferences?: boolean } = {},
+): AiSyncModel & {
+  bytes: number;
+  historyCacheEntries: () => number;
+  historyReferenceHits: () => number;
+} {
+  if (options.historyReferences !== undefined && typeof options.historyReferences !== "boolean")
+    throw new Error("履歴参照キャッシュの指定はbooleanです");
   const directory = dirname(path),
     manifestBytes = read(path, 1024 ** 2),
     meta = JSON.parse(manifestBytes.toString());
@@ -117,6 +125,8 @@ export function loadLocalModel(
   if (total !== floats.length || Object.keys(meta.tensors).length !== Object.keys(shapes).length)
     throw new Error("local tensorの総量が不一致です");
   const cache = new Map<string, number[]>();
+  const references = new WeakMap<SparseFeatures, number[]>();
+  let referenceHits = 0;
   function sparse(input: SparseFeatures, size: number) {
     if (input.indices.length !== input.values.length || input.indices.length > size)
       throw new Error("モデル疎入力が不正です");
@@ -133,9 +143,20 @@ export function loadLocalModel(
     });
   }
   function history(input: SparseFeatures) {
+    const reusable = options.historyReferences !== false && isReusableHistoryFeature(input);
+    if (reusable) {
+      const saved = references.get(input);
+      if (saved) {
+        referenceHits++;
+        return saved;
+      }
+    }
     const key = JSON.stringify(input),
       existing = cache.get(key);
-    if (existing) return existing;
+    if (existing) {
+      if (reusable) references.set(input, existing);
+      return existing;
+    }
     sparse(input, historyFeatureSize);
     const values = Array.from({ length: h }, (_, row) => {
       let n = tensors["history.0.bias"][row];
@@ -147,6 +168,7 @@ export function loadLocalModel(
     });
     if (cache.size >= 2048) cache.delete(cache.keys().next().value!);
     cache.set(key, values);
+    if (reusable) references.set(input, values);
     return values;
   }
   const dense = (name: string, row: number, hidden: number[]) => {
@@ -237,5 +259,6 @@ export function loadLocalModel(
     predictValue,
     bytes: bytes.length,
     historyCacheEntries: () => cache.size,
+    historyReferenceHits: () => referenceHits,
   };
 }
