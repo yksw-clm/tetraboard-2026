@@ -14,6 +14,8 @@
 
 ## Fast CIとFull CI
 
+PR #266を基点とする夜間学習のstacked PRも実CIを実行するため、`pull_request`の対象へ`feat/study-search-efficiency`を含めます。pushの対象はmain/developのままで、学習ブランチのpushやPRからデプロイしません。
+
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。
 
 | 変更・イベント                                                                                           | 検証範囲                                                                 |
