@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "ai:nightly": "bun packages/four-shogi/bench/nightlyCli.ts",
     "study": "bun run study:build && bun run --cwd apps/four-shogi-study start",
     "study:build": "bun run --cwd apps/four-shogi-study build",
     "study:check": "bun run --cwd apps/four-shogi-study typecheck && bun run --cwd apps/four-shogi-study test",

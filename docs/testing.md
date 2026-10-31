@@ -424,6 +424,10 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
+夜間学習は`packages/four-shogi/test/studyCpu.test.ts`、`nightlyData.test.ts`、`nightlyControl.test.ts`で、固定workの完成比較/合法PV、Value打切り、集合/予約seed、排他/不変manifest、独立対応条件と昇格保留、実Bun工程の期限回収を検証します。OSメモリ圧迫の読み取りだけを境界で固定し、Bunの起動/停止をモックしません。DOMではモデル世代選択、G0への復帰、旧モデルSSE拒否、未校正Value表示を検証します。既存fixture/採点条件は変更しません。
+
+Pythonの既存`trainingTest.py`は異なるsnapshotへweights-only warm startした場合の親不変/optimizer初期化と、同じrunの厳密resumeも検証します。実PyTorch・CPU/MPS・推論配布物・夜間バッチは[RUNBOOKの検証手順](../NIGHTLY-RUNBOOK.md#開発検証)で別実行し、通常Bun CIだけで実学習成功を主張しません。生の結果はGit管理外へ保持します。
+
 フォーカス引継ぎは`focusContinuation.test.ts`で完全状態/players/探索条件/保持期限と合法PV、`focusReuseRuntime.test.ts`で固定深さの評価/PV/候補集合の一致、`ponderRuntime.test.ts`で予測一致/不一致・同一根の途中継続・世代・停止再開/取消・worker異常・期限解放・2/3/4人生存を確認します。実workerの停止応答を120/260ms遅延させ、外側の同じ期限内での確認と未確認時の保持破棄を区別し、深さ2の未完タスクを保持して深さ3の四人評価/PV/推奨が新規探索と一致することも検査します。実workerのready通知で、完成後の予測外の新規根はworkerを更新し、一致した途中探索の再開は新規起動なし・新規workありとなることを確認します。`focusPanel.test.tsx`はPV一致の補助表示が未来候補を現在手と呼ばず、variationへ送ることを検査します。`liveApplication.test.ts`は確定更新の保持、旧結果の非表示、切断と設定変更の取消を検査します。固定仕事・実時間・開発seedの実戦比較を機能テストと分離し、未来候補を現在の推奨へ繰り上げません。
 
 最善手の矢印は共通盤面の`packages/shogi-ui/test-dom/board.test.tsx`で4方向のマス中心、9×9 gridとSVGの対応、成り/不成、駒種付きの打マーカー、クリックと成り選択への非干渉を検査します。`apps/four-shogi-study/test-dom/studyApp.test.tsx`はSSE境界の完成深さ1→2→3、反復中の保持、停止/完了、再解析・旧job/generation・別study・局面変更・編集・条件付き未来手・配信断を確認します。探索本体や保存形式は変更せず、実ブラウザの実画像・モバイル寸法・ネイティブのドラッグ確認は実施範囲と未確認事項を別記します。

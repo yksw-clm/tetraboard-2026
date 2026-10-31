@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "device": "auto",
+  "maxRunMs": 21600000,
+  "maxRssMb": 6144,
+  "hardRssMb": 7168,
+  "minFreeGiB": 10,
+  "trainFamilies": 2,
+  "validationFamilies": 1,
+  "seats": 4,
+  "maxPlies": 512,
+  "actorWork": 4096,
+  "teacherWork": 16000,
+  "teacherPositions": 24,
+  "trainingSteps": 1000,
+  "replayNights": 8,
+  "compare": true,
+  "comparisonMs": 5000,
+  "comparisonMaxPlies": 512,
+  "engineering": false,
+  "policyOnly": false
+}

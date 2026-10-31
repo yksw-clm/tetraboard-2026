@@ -52,6 +52,15 @@ export function immutableJson(path: string, value: unknown) {
 export function checkedJson(path: string, payload: unknown) {
   atomicJson(path, { checksum: dataHash(payload), payload });
 }
+export function appendNightEvent(path: string, event: unknown) {
+  const fd = openSync(path, "a", 0o600);
+  try {
+    writeFileSync(fd, JSON.stringify(event) + "\n");
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
 export function readCheckedJson<T>(path: string): T {
   const envelope = readJson<{ checksum: string; payload: T }>(path);
   if (

@@ -408,6 +408,10 @@ bun run --cwd packages/four-shogi selfplay --kind=inspect --output=/tmp/four-sho
 
 ### 軽量Policy/Valueの学習とチェックポイント（#190）
 
+複数夜を継続するローカル経路は[夜間学習の設計](four-shogi-ai-nightly.md)と[運用手順](../NIGHTLY-RUNBOOK.md)を参照します。元の単一dataset出力と厳密resumeは維持し、検査済みの不変dataset集合を新しいsnapshotとして作ります。新snapshotへの次世代学習はweights-only warm startで、optimizer/RNGを新規にします。親checkpoint SHA、元の全manifest/計画、集合IDとsplitを保持します。P0-5の固定work教師と実アプリのP0-5モデル利用は共通MaxNとは別の運転版です。
+
+ローカル推論は既存checkpoint/推論配布物を保持し、tiny構造の同じ重みをfloat32補助ファイルへ出力します。Bunの疎な演算は14基準入力でPyTorchと許容誤差内の一致、合法Policy、全5Value、脱落席0を検査してから使用します。モデルID/manifest/重み/probeのchecksumを検証し、workerごとに常駐させます。Python常駐1/4プロセスの費用・バッチ・native P0-5の5秒を別測定します。速い推論でも探索品質や棋力の改善を保証しません。明示選択だけで使用し、旧世代の結果やcacheを混ぜません。
+
 `training/four-shogi-ai` にPython 3.12とPyTorch 2.14.1の小規模学習CLIを置きます。ルール判定はTSが正本です。`training:export` は#189の単一datasetを排他して全イベント・完全状態・教師PV・結果・版・系列分離を再検査し、完了済みの局だけを新しい出力先へ渡します。`samples.jsonl` とmanifestにSHA-256、全件数/分割、元manifest/検査/計画、出力コード版を残します。生成途中は除外し、手数打切りはPolicyだけ、自然終局だけをValueへ採用します。教師は完成した探索の最良手IDで、全合法手の訪問分布と偽りません。
 
 特徴版は `four-shogi-features-v1`。絶対座標・南/西/北/東を維持し、行動IDは既存の `four-shogi-policy-index-v1`（13,446）を使います。現在局面4,481要素は、81マス×33駒/空マス、持駒16、生存4、実手番5、各攻撃関係の有無/理由/解除待ち/標的マス、取り返し4×81、ON/OFF・引分提案・確定順位/脱落群・手数・直前の手/陣営です。盤上の一時IDはルールの千日手キーと同じ標的マス対応へ正規化し、参加者の個人情報を含めません。
