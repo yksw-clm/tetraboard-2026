@@ -158,7 +158,8 @@ export async function parseRecordedAnalyses(
     const item = object(value);
     if (
       item.modelUsage !== undefined &&
-      (!item.modelGeneration || !["policy-value", "policy"].includes(String(item.modelUsage)))
+      (!item.modelGeneration ||
+        !["policy-value", "policy", "policy-own"].includes(String(item.modelUsage)))
     )
       fail();
     if (!Array.isArray(item.candidates) || item.candidates.length > 5 || !item.candidates.length)
@@ -173,7 +174,7 @@ export async function parseRecordedAnalyses(
       ...(item.modelId === undefined ? {} : { modelId: text(item.modelId) }),
       ...(item.modelUsage === undefined
         ? {}
-        : { modelUsage: item.modelUsage as "policy-value" | "policy" }),
+        : { modelUsage: item.modelUsage as StudyRecordedAnalysis["modelUsage"] }),
       stateHash: text(item.stateHash),
       savedAt,
       searchVersion: text(item.searchVersion),

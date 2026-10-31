@@ -12,6 +12,7 @@ import { restoreAnalysisPosition, getAnalysisLegalActions } from "../src/analysi
 import { encodeAction } from "../src/actionEncoding";
 import { validateModelValue, type AiSyncModel, type AiModelValueInput } from "../src/aiModel";
 import type { StudySearchPerformance } from "../src/studySearch";
+import { validateStudyTeacher } from "../bench/studyCpuInspect";
 const code: DataCode = {
   commit: "0".repeat(40),
   dirty: false,
@@ -206,6 +207,24 @@ test("研究用Policy/Valueを独立に使い、既定の両方使用と異な�
     expect(result.candidates.every((c) => c.lineEvaluation?.evaluationKind === "model")).toBe(
       usage !== "policy" && usage !== "policy-own",
     );
+    if (usage === "policy" || usage === "policy-own") {
+      const actionId = encodeAction(result.recommendedAction!);
+      await validateStudyTeacher(
+        {
+          eventOffset: position.eventOffset,
+          stateHash: position.stateHash,
+          state: position.state,
+          legalActionIds: getAnalysisLegalActions(position).map(encodeAction),
+          playedActionId: actionId,
+          policyActionId: actionId,
+          teacher: result,
+        },
+        position,
+        actionId,
+        settings,
+        code.commit,
+      );
+    }
     results.push(result);
   }
   expect(results[0].candidates).toEqual(results[1].candidates);

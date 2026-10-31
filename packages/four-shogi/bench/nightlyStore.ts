@@ -162,6 +162,12 @@ export function generationStudyModel(generation: GenerationManifest) {
       }
     : null;
 }
+/** 通常の既定は省略し、明示的な利用条件を候補の不変manifestへ残します。 */
+export function generationUsageFields(
+  usage: NonNullable<GenerationManifest["modelUsage"]>,
+): Pick<GenerationManifest, "modelUsage"> {
+  return usage !== "policy-value" ? { modelUsage: usage } : {};
+}
 export function listGenerations(directory = defaultAiDirectory()): GenerationEntry[] {
   const path = join(directory, "generations");
   if (!existsSync(path)) return [{ ...g0, available: true, error: null }];

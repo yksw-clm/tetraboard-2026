@@ -19,26 +19,32 @@ import {
   registerGeneration,
   resolveGeneration,
   generationStudyModel,
+  generationUsageFields,
   g0,
 } from "../bench/nightlyStore";
 import { writeZeroLocalModelFixture } from "../bench/localModelFixture";
+import { nightlyConfig } from "../bench/nightlyConfig";
 
 test("世代ごとのPolicy/Value利用方法を固定し、同じ世代での変更や不正指定を拒否する", async () => {
+  expect(generationUsageFields(nightlyConfig().modelUsage)).toEqual({});
   const root = mkdtempSync(join(tmpdir(), "nightly-model-mode-"));
   try {
     const model = await writeZeroLocalModelFixture(root);
-    const candidate = {
+    const base = {
       ...g0,
       id: "g001-candidate-mode-test",
       generation: 1,
       state: "candidate" as const,
       parentId: "g000",
       modelId: model.modelId,
-      modelUsage: "policy" as const,
       checkpointSha256: "3".repeat(64),
       localModelFile: model.file,
       localModelSha256: fileSha(model.file),
       qualified: false,
+    };
+    const candidate = {
+      ...base,
+      ...generationUsageFields(nightlyConfig({ modelUsage: "policy" }).modelUsage),
     };
     registerGeneration(root, candidate);
     const restored = resolveGeneration(candidate.id, root);
@@ -50,7 +56,11 @@ test("世代ごとのPolicy/Value利用方法を固定し、同じ世代での�
     expect(() => registerGeneration(root, { ...candidate, modelUsage: "policy-own" })).toThrow(
       "不変",
     );
-    const own = { ...candidate, id: "g001-candidate-own-test", modelUsage: "policy-own" as const };
+    const own = {
+      ...base,
+      id: "g001-candidate-own-test",
+      ...generationUsageFields(nightlyConfig({ modelUsage: "policy-own" }).modelUsage),
+    };
     registerGeneration(root, own);
     expect(generationStudyModel(resolveGeneration(own.id, root))?.usage).toBe("policy-own");
     expect(() =>

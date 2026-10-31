@@ -307,6 +307,25 @@ describe("ローカル検討アプリのHTTPと保存", () => {
     expect(root.study.nodes.find((node) => node.id === "root")?.comment).toBe(
       "右への王手を比較する",
     );
+    for (const usage of ["policy-value", "policy", "policy-own"] as const) {
+      const document = JSON.parse(JSON.stringify(await reopened.export(initial.study.id)));
+      Object.assign(document.analysisRecords.root, {
+        modelGeneration: "g001-candidate-persist-test",
+        modelId: "four-shogi-tiny-policy-value-v1:" + "1".repeat(64),
+        modelUsage: usage,
+      });
+      const imported = await reopened.import({ data: document });
+      const changed = await reopened.command(imported.study.id, {
+        type: "comment",
+        expectedRevision: imported.study.revision,
+        nodeId: "root",
+        comment: "利用条件を保持",
+      });
+      expect(changed.study.analysisRecords?.root.modelUsage).toBe(usage);
+      const invalid = JSON.parse(JSON.stringify(document));
+      invalid.analysisRecords.root.modelUsage = "other";
+      await expect(reopened.import({ data: invalid })).rejects.toThrow("一致");
+    }
     const corrupt = JSON.parse(JSON.stringify(await reopened.export(initial.study.id)));
     corrupt.analysisRecords.root.stateHash = "different-state";
     await expect(reopened.import({ data: corrupt })).rejects.toThrow("一致");

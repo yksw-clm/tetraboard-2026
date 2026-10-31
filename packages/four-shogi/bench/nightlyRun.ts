@@ -9,6 +9,7 @@ import {
   initializeNightlyRoot,
   currentGeneration,
   registerGeneration,
+  generationUsageFields,
   appendNightEvent,
   type GenerationManifest,
 } from "./nightlyStore";
@@ -454,7 +455,7 @@ export async function runNightly(options: NightlyOptions) {
       parentId: parent.id,
       parentCheckpointSha256: parent.checkpointSha256,
       modelId: trained.modelId,
-      ...(config.modelUsage === "policy" ? { modelUsage: config.modelUsage } : {}),
+      ...generationUsageFields(config.modelUsage),
       checkpointSha256: trained.checkpointSha256,
       localModelFile: join(modelDirectory, "local-model.json"),
       localModelSha256: fileSha(join(modelDirectory, "local-model.json")),

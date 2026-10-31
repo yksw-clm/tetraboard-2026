@@ -107,6 +107,7 @@ export async function validateStudyTeacher(
     if (
       !settings.modelId ||
       settings.modelUsage === "policy" ||
+      settings.modelUsage === "policy-own" ||
       branch.state.status === "finished"
     ) {
       if (!sameData(candidate.lineEvaluation, studyStaticEvaluation(branch)))
