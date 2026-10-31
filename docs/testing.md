@@ -424,6 +424,20 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 
 ## 四人将棋のローカル検討アプリの確認
 
+フォーカス引継ぎは`focusContinuation.test.ts`で完全状態/players/探索条件/保持期限と合法PV、`focusReuseRuntime.test.ts`で固定深さの評価/PV/候補集合の一致、`ponderRuntime.test.ts`で予測一致/不一致・同一根の途中継続・世代・停止再開/取消・worker異常・期限解放・2/3/4人生存を確認します。実workerの停止応答を120/260ms遅延させ、外側の同じ期限内での確認と未確認時の保持破棄を区別し、深さ2の未完タスクを保持して深さ3の四人評価/PV/推奨が新規探索と一致することも検査します。実workerのready通知で、完成後の予測外の新規根はworkerを更新し、一致した途中探索の再開は新規起動なし・新規workありとなることを確認します。`focusPanel.test.tsx`はPV一致の補助表示が未来候補を現在手と呼ばず、variationへ送ることを検査します。`liveApplication.test.ts`は確定更新の保持、旧結果の非表示、切断と設定変更の取消を検査します。固定仕事・実時間・開発seedの実戦比較を機能テストと分離し、未来候補を現在の推奨へ繰り上げません。
+
+最善手の矢印は共通盤面の`packages/shogi-ui/test-dom/board.test.tsx`で4方向のマス中心、9×9 gridとSVGの対応、成り/不成、駒種付きの打マーカー、クリックと成り選択への非干渉を検査します。`apps/four-shogi-study/test-dom/studyApp.test.tsx`はSSE境界の完成深さ1→2→3、反復中の保持、停止/完了、再解析・旧job/generation・別study・局面変更・編集・条件付き未来手・配信断を確認します。探索本体や保存形式は変更せず、実ブラウザの実画像・モバイル寸法・ネイティブのドラッグ確認は実施範囲と未確認事項を別記します。
+
+P1-4eは`test/deadlineRuntime.test.ts`で起動中の予算終了、完成通常結果を残すガード例外、timer取消とunknownを検証します。既存の実worker停止/再開/取消/異常終了/旧ID排除とDOM検証を維持し、`bench/tournamentPrep.ts <登録spec.json>`で通知とgetの外側経過・区間別の親時計・worker内時間を分けて保存します。予算超過、ガード報告欠落、正しい着手でも未完了の結果を戦術合格へ繰り上げません。手動の操作時間・実画像・実ブラウザをBun/HTTP検証で代替したとは報告しません。
+
+大会準備の同期回帰は`liveApplication.test.ts`、`liveReplay.test.ts`、DOMの`studyApp.test.tsx`で、新着履歴取得中の旧解析無効化、同revision再接続、配信切断中の遅延snapshotを確認します。`bench/tournamentManualSmoke.ts <成果物ルート>`は実loopback HTTPで4席/5秒/10秒、完全履歴の保存復元・旧着手拒否・再起動・応答構築後の150ms遅延を記録します。外部への着手や自動ブラウザ操作をせず、人間の30秒リハーサルとは区別します。
+
+`deadlineRuntime.test.ts`はready未通知のworkerでも起動上限ではなくジョブ期限で未完成結果を返し、古い開始要求の期限が新要求の共有poolを終了しないことも確認します。実時間の上限を緩めるテストではなく、未完了と起動例外・置換の観測可能な違いを検査します。
+
+P1-3は `packages/four-shogi/test/studySplitTasks.test.ts` で逆順完成、四人評価・PV・work、同じ文脈で複数根を退避した仕事量、異なる入力文脈・未完成・重複の拒否、三人攻撃禁止ON/OFFと4/3/2人生存を確認します。`apps/four-shogi-study/test/parallelTasks.test.ts` は実Bunプロセスで旧新一致と、停止・期限からの再開、取消・新IDの再試行、重複・古いtaskId、worker異常終了・RSS上限を検証します。遅延や異常はプロセス通信境界のfixtureで与え、内部MaxNをモックしません。`parallelTelemetry.test.ts` は物理タスクの同時実行数と根全体の待ち時間を分けます。長い固定仕事・戦術・実時間比較は通常checkから分離し、固定ソース・資源上限・PVの正本再生を記録します。`bench/parallelSearch.ts --mode=fixed --directory=<固定済み入力の保存先>` が同深さの候補・評価・PV・探索本体workと物理work内訳、`--mode=known` が既知8展開・深さ9、`--mode=matrix` が全予算/workerの旧新比較を記録します。`--mode=verify --file=<JSONL>` は公開候補と広い比較候補のPVを再生し、実手番・afterPly・評価・捕獲・脱落・王手・終局を照合します。`bench/search.ts --kind=tactics --time-ms=1000 --threads=4 --strategies=adaptive,dual,dual-continuations --task-partition=root` と、P0-5だけの `--task-partition=replies` を同じソースで比較します。work上限は既定2000万で、上限取消を戦術の合格に含めません。
+
+P0診断は`studyDiagnostics.test.ts`と`test/tacticsDiagnostics.test.ts`で、固定タスクのobserver有効/無効による候補・評価・PV・workの一致、一節点介入で元候補を維持すること、observerが受け取った値の変更による入力汚染の防止、評価内訳の合計、実Bun workerのタスク再生、記録の容量超過を確認します。長い16展開の調査は通常checkから分離し、`bun apps/four-shogi-study/bench/tacticsDiagnostics.ts --output-dir=/private/tmp/study-p0-run`で実行します。元測定と新しい再測定、通常の1秒探索と観測実行、runtime再生と新規固定深さ比較を別に記録します。
+
 [利用仕様](../README.md#四人将棋のローカル検討アプリ)・[承認済み実装計画](development.md#四人将棋のローカル検討アプリ)・[CPU正本](rules/four-shogi.md#ローカル検討用cpu)に対する検証です。Bunの純粋関数、happy-domの部品/hook、Worker統合を使い、ブラウザを起動するテスト・設定・workflowは追加しません。公開環境へデプロイしない条件と、ローカルWorkerで読取りAPIを確認する条件を分けます。
 
 | 層 | 検証する観測可能な振る舞い |
@@ -440,6 +454,12 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 ローカルアプリの通常検証と公開経路の回帰は次を使います。テスト個別の入口はアプリの `test/`・`test-dom/`、四人将棋の `test/studySearch.test.ts`・`analysisSetup.test.ts`、既存Worker/protocolのreplay検証です。
 
 通常checkに含む `strengthProcessPool.test.ts` の小さい実プロセス試験は、`packages/four-shogi/bench/lv2Baseline.json` が指定する固定Lv2のコミットを `git archive` で一時展開します。Gitとtar、およびそのコミットを含む履歴が必要です。CIのchecksジョブは `actions/checkout` の `fetch-depth: 0` で履歴を取得します。ローカルのshallow cloneでは、検証前に `git fetch --unshallow origin` で履歴を取得してください。テスト自体は履歴をfetchせず、固定コミットとソースハッシュの照合を維持します。この小さい試験は対局親の動作確認であり、保留中の正式棋力測定は実行しません。
+
+`dualSearch.test.ts` はv6の広い比較を保持した深掘り、同深さの主要組の公開、保存した選別範囲の復元と偽装拒否を確認します。DOMは探索方式の設定送信と、広い比較深さ/主要候補深さの区別を確認します。対局CLIの `--compare-strategies adaptive,dual --profiles study` は方式をjob IDと結果・再開/IPC照合へ含め、同じ開始条件をペアにし、方式別に集計します。正式256局の契約へこの追加条件を混ぜません。
+
+探索v5では `studyEfficiency.test.ts` で満杯後のキャッシュ入替、完全状態/深さ/延長を区別するキー、完成枝の再利用と合法PV、下位の静かな根の巡回を確認します。実プロセスのruntime試験は、重い根を担当する子を待つ間に空いた子が複数根を引き受け、タスク結果の重複を無視し、途中の異なる深さを完成比較へ混ぜないことを確認します。DOM試験では比較深さと進行中の深さ、選択探索、並列時間の意味を区別します。
+
+旧新探索は `bench/search.ts --strategies=legacy,adaptive` で同一入力へ適用します。`--kind=efficiency --inputs=/private/tmp/inputs.json` は `{id,input:StudyPositionInput}` の固定配列を読み、完全状態hash・入力ファイルSHA-256・ソース識別・深さ別時刻・処理内訳を記録します。`--cpu-profile-dir=/private/tmp/study-profiles` は探索子のBun CPU profileを終了時に保存します。速度計測中は別の対局/重い検証を併走させません。`strength.ts --search-strategy legacy|adaptive` は非正式の短い席交代対局用で、正式条件へこの追加引数を混ぜません。未終局は勝利や引分へ変換しません。
 
 戦術fixtureは `four-shogi-tactics-v2` で識別します。`packages/four-shogi/test/tacticalFixtures.test.ts` は強制成りの重要問題が、4方向×三人攻撃禁止ON/OFFの全8局面で王手中となり、成りだけが合法で、不成が拒否され、正本への復元後も王手を解くことを検証します。旧fixtureの「歩を最終段へ進めるなら成り必須」を「根で必ず歩を選ぶ」と採点した不整合を修正したもので、重要指定・成りの期待条件・探索/評価は緩和しません。[旧39/40と新fixtureの測定条件](four-shogi-ai.md#ローカル検討cpuの測定と採否)を分け、旧結果を再採点しません。戦術reportにはfixture版・HEAD/dirty・対象ソースのSHA-256・ソース不変性と、未達時の全候補評価/PVを残します。
 
@@ -945,3 +965,30 @@ PCの盤面と状況カードは全6ゲームで画面の高さを変えて手�
 `apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。公開チャットではゲストの投稿・再送・送信間隔・通報上限・運営停止を検証し、統合後も非表示用ID・再送・投稿停止・通報と退会時の削除を維持することを確認します。本人確認後の本文読取を制御して統合を挟み、遅延した通報が元ゲストの参照で保存されないことも検証します。表示用IDの一意性、登録者IDとの衝突・再生成、作成batchの失敗時にアカウント・本人資格・同意を残さないこと、取得時にIDを補完しないこと、ゲスト中の編集拒否、新規連携後の保持・変更を確認します。既存登録者へ引き継がない場合は0局・対局済みの両方で、記録を維持しつつ元ゲストへ復帰しないこと、確認未完了のログアウト・登録セッション失効・OAuth取消・別アカウント・Origin違反を検証します。
 
 WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・既存ゲストの入力省略・大会エントリー・統合確認を検証します。公開チャットの名前入力では確定前にゲストを作成せず、Cookie保存不能時に投稿を送らないこと、名前確定後の下書き保持とゲスト投稿を確認します。ゲストのログアウト操作が非表示で、APIへ直接要求しても拒否され本人認証を維持することをWeb・Workerの境界で確認します。実OAuth・Cookie保存と別タブのWeb Locks・画面寸法・ネイティブ入力は手動確認事項であり、未実施の項目をPRに明記します。必須のcheck・本番／開発buildとWorker dry-runを実行し、GitHub CIの成功も確認します。
+
+
+## P1-4実戦比較の確認
+
+`apps/four-shogi-study/test/strengthPilot.test.ts`は、24局を同条件3方式で循環する順序、未完了と完了の分離、重複拒否、各着手journalの正本再生・途中復旧・改変拒否、外部guardの実時計と実signalによる停止を確認します。guard試験のOS列挙だけはsandboxから独立したfixtureを使い、実測のRSSは実OSのpsで監視します。既存のstrength/strengthProcessPool試験も維持します。
+
+実測はコミット済みの同一ソースで `bun --no-env-file apps/four-shogi-study/bench/strengthPilot.ts prepare <Git管理外成果物ディレクトリ> <調査済み未使用seed>`、次に `run <同ディレクトリ>` です。prepare前に `diagnostics/seed-audit.json`（selectedSeed、previouslyUsed=false、調査範囲）を置きます。planは排他的に作成され、runはコード・HEAD一致、1回限りの開始、外部監視の起動を確認します。実OSのプロセスRSSを読む権限が必要です。`verify <同ディレクトリ>` で全棋譜・着手hash・順位・結果・統計と事前の開始棋譜を照合します。既に使用したseedでの再現は再測定であり、新しい独立holdoutではありません。
+
+
+`strengthPilotDiagnostics.test.ts`は、PVの次自手までの長さと実手順一致の区別、同じ着手のJSONキー順非依存、未終局・欠落条件を勝敗へ変換しないseed対応差、重複拒否を確認します。測定後の`bench/strengthPilotDiagnostics.ts <成果物ディレクトリ>`は、合成実戦棋譜を正本で再生し、脱落段階・捕獲・PV相違・同条件の最初の異なる候補手を記録します。`strengthPilot.ts prepare-cold`は4096MiB・毎手worker新規作成の共通条件を事前登録する入口で、既定のprepare条件を変更しません。
+
+
+## P1-4b敗退分析の確認
+
+`apps/four-shogi-study/test/lossAnalysis.test.ts`は有限生存証明の正本再生成、全称応手の欠落拒否、予算切れのunknown維持、非合法初手拒否、危険な合法応手の存在量化、固定規則の主要候補選択を確認します。実行はコミット済みソースで `bench/lossAnalysis.ts prepare <Git管理外出力先> <P1-4主比較ディレクトリ>`、`run <出力先>`、`summarize <出力先>`。元の完全棋譜/攻撃/反復履歴を保ち、編集局面や手番差替えを使いません。固定タスクのobserver on/offと一節点介入は同深さ完成時だけ比較し、全枝未記録の過去実行へ外挿しません。PRのCIはdevelop取り込み後のFull実行範囲を確認し、Fastの未実行workspaceを成功扱いしません。
+
+保存後は `bun apps/four-shogi-study/bench/lossAnalysisValidation.ts <出力先>` で全入力hash/合法手、元/新PVの着手・王手・捕獲・脱落・評価、代替分岐、有限証明DAGを正本へ再照合します。`bun apps/four-shogi-study/bench/lossAnalysisEvidence.ts <出力先>` は保存した完成探索だけから、実応手の脱落枝も評価しながら相手の効用が高い別枝を選ぶ例を抽出し、両枝の評価内訳・盤駒/持駒・対照との頻度を保存します。これらは追加探索・探索条件変更を行わない事後分析です。最初の元測定ソースSHAと、後から加えた照合/分析コードのSHAを分けて保持します。
+
+## P1-4c致命応手ガードの確認
+
+`lethalGuard.test.ts` は異なる地平の比較拒否、unknown/未完成/一本道での順位不変、MaxN同点順序、単独勝利保持、有限検査の取消/work上限/合法手の順序集合、OFF/OBSERVEの固定完成探索の候補・評価・PV・work一致、ガード中の取消後の遅延公開拒否、環境設定の既定OFFを確認します。証明DAGの全称応手欠落拒否と合法再生は既存lossAnalysis.testを再利用します。ガードは通常探索の仕事量と別の単位（内部で列挙した合法手数＋遷移数）を報告し、未完成の証明はunknownのまま扱います。
+
+## P1-4d証明効率の確認
+
+`test/guardEfficiency.test.ts` は駒打ち王手の順序・全合法手集合と決定性、2/3/4人×禁止ON/OFFでの完成した有限証明の一致、候補別配分の総時間制限、完成safe/unsafeのみの再利用、unknown/取消/容量追出しと独立DAGの正本照合を確認します。`lethalGuardRules.test.ts` は同じ盤面でも反復履歴の違うキャッシュを拒否します。証明の検証器と量化条件は変更しません。
+
+`bench/guardEfficiency.ts prepare <新規保存先> <P1-4c保存先>` と `profile` が原因/内訳、`isolated <保存先> <spec>` が個別変更です。`guardEfficiencyRuntime.ts frozen|runtime <保存先> <spec>` は同じ候補の追加診断と起動込み2秒比較を分け、`known` は既知手指定だけの再現、`verify` は保存済みの完全証明・危険手順・PVを正本で再生します。各phaseを固定ソースで登録し、最初の測定から90分・最大4worker主条件/8上限・RSS6144/7168MiBで停止します。測定結果の採否と未確認範囲はfour-shogi-ai.mdへ記録します。

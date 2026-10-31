@@ -1,10 +1,53 @@
 import type { StudyPositionInput } from "../shared/model";
-import type { StudyLaneSnapshot, StudyRootOptions } from "@tetraboard/four-shogi/study-search";
+import type {
+  StudyLaneSnapshot,
+  StudyRootOptions,
+  StudyTaskPolicy,
+  StudySplitPlan,
+  StudySubtreeTask,
+  StudySubtreeResult,
+} from "@tetraboard/four-shogi/study-search";
 export type SearchCommand =
-  | { type: "start"; id: string; input: StudyPositionInput; options: StudyRootOptions }
+  | {
+      type: "start";
+      id: string;
+      input: StudyPositionInput;
+      options: StudyRootOptions;
+      measureTransport?: boolean;
+    }
   | { type: "continue"; id: string; depth: number; indices?: number[] }
-  | { type: "pause" | "resume" | "cancel"; id: string }
+  | {
+      type: "task";
+      id: string;
+      taskId: number;
+      index: number;
+      depth: number;
+      material: boolean;
+      partition?: boolean;
+      policy?: StudyTaskPolicy;
+    }
+  | {
+      type: "subtree";
+      id: string;
+      taskId: number;
+      task: StudySubtreeTask | { localPlanId: number; slot: number };
+    }
+  | { type: "finish"; id: string; taskId: number; planId: number; results: StudySubtreeResult[] }
+  | { type: "pause"; id: string; pauseToken?: number }
+  | { type: "resume" | "cancel"; id: string }
   | { type: "close" };
+export type SearchWorkerTiming = {
+  restoreMs: number;
+  createMs: number;
+  activeMs: number;
+  cpuMs: number;
+  taskInitMs?: number;
+  taskInitCpuMs?: number;
+  processCpuMs?: number;
+  restoreCpuMs?: number;
+  createCpuMs?: number;
+  transport?: { sendCalls: number; jsonBytes: number; sendMs: number; sizingMs: number };
+};
 export type SearchMessage =
   | { type: "ready" }
   | {
@@ -13,5 +56,11 @@ export type SearchMessage =
       snapshot: StudyLaneSnapshot;
       memoryBytes: number;
       barrier: boolean;
+      pauseToken?: number;
+      taskId?: number;
+      reply?:
+        | { kind: "split"; plan: StudySplitPlan }
+        | { kind: "subtree"; result: StudySubtreeResult };
+      timing?: SearchWorkerTiming;
     }
   | { type: "error"; id: string; error: string };

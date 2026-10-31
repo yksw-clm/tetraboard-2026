@@ -170,16 +170,109 @@ export function EvaluationPanel({
               : analysis?.status === "paused"
                 ? "一時停止"
                 : analysis?.status === "completed"
-                  ? "完了"
+                  ? analysis.completion?.normalResult === "incomplete"
+                    ? "未完了"
+                    : "完了"
                   : "待機"}
           </span>
         }
       >
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Metric label="深さ" value={String(analysis?.completedDepth ?? 0)} />
+          <Metric
+            label={analysis?.coverage?.phase === "deep" ? "主要候補の深さ" : "比較深さ"}
+            value={String(analysis?.completedDepth ?? 0)}
+          />
           <Metric label="探索局面" value={(analysis?.nodes ?? 0).toLocaleString("ja-JP")} />
           <Metric label="経過" value={`${((analysis?.elapsedMs ?? 0) / 1000).toFixed(1)}秒`} />
         </div>
+        {analysis?.continuation ? (
+          <p className="mt-3 text-[11px] leading-relaxed text-[#607252]" role="status">
+            {analysis.continuation.phase === "ponder"
+              ? "相手手番中の先読み"
+              : analysis.continuation.phase === "foreground"
+                ? "現在の手番の検討"
+                : "フォーカスの検討"}
+            {analysis.continuation.sessionHit
+              ? " · 予測と一致し、同じ探索を継続"
+              : analysis.continuation.pvHit
+                ? " · 前回の読みと一致"
+                : " · 新しい探索"}
+            {" · 今回の探索量 "}
+            {analysis.continuation.newWork.toLocaleString()}
+            {analysis.continuation.priorWork > 0
+              ? ` · 引継ぎ前 ${analysis.continuation.priorWork.toLocaleString()}`
+              : ""}
+          </p>
+        ) : null}
+        {analysis?.coverage ? (
+          <div className="mt-3 text-[11px] leading-relaxed text-[#607252]">
+            <p>
+              広い比較：深さ{analysis.coverage.broadDepth}・{analysis.coverage.broadRoots}候補
+            </p>
+            {analysis.coverage.phase === "deep" ? (
+              <p>
+                主要{analysis.coverage.deepRoots}候補を深掘り · 相手の深掘り幅
+                {analysis.coverage.opponentWidth} · 段階{analysis.coverage.pass + 1}
+              </p>
+            ) : (
+              <p>広い比較が完成した後、主要候補を深掘りします。</p>
+            )}
+            <p>深い検討も相手の応手を選んだ予想です。</p>
+            {analysis.broadCandidates?.length ? (
+              <details className="mt-2">
+                <summary className="cursor-pointer">浅い比較の候補（参考）</summary>
+                <ol className="list-inside list-decimal">
+                  {analysis.broadCandidates.map((candidate, index) => (
+                    <li key={index}>
+                      {candidate.line[0] ? lineLabel(candidate.line[0]) : "候補"} · 深さ
+                      {candidate.completedDepth}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
+        {analysis?.performance ? (
+          <div className="mt-3 text-[10px] leading-relaxed text-[#758469]">
+            <p>
+              {searching
+                ? `深さ${analysis.performance.iterationDepth}を検討中`
+                : "最後に完成した候補比較を表示"}
+              {analysis.performance.totalTasks > 0
+                ? ` · ${analysis.performance.completedTasks}/${analysis.performance.totalTasks}候補完了`
+                : ""}
+            </p>
+            <p>候補・静かな枝を絞る選択探索です。全合法手を網羅した深さではありません。</p>
+            <details className="mt-2">
+              <summary className="cursor-pointer">探索の処理内訳</summary>
+              <p>
+                合法手生成 {(analysis.performance.legalMs / 1000).toFixed(2)}秒 · 局面確定{" "}
+                {(analysis.performance.transitionMs / 1000).toFixed(2)}秒
+              </p>
+              <p>
+                評価 {(analysis.performance.evaluationMs / 1000).toFixed(2)}秒 · 手の並べ替え{" "}
+                {(analysis.performance.orderingMs / 1000).toFixed(2)}秒
+              </p>
+              <p>各プロセスの計測合計です。並列実行のため経過時間とは異なります。</p>
+              <p>
+                探索結果の再利用 {analysis.performance.branchCacheHits.toLocaleString()}回 ·
+                キャッシュ入替 {analysis.performance.cacheEvictions.toLocaleString()}回
+              </p>
+              <p>
+                静かな枝の浅い確認 {analysis.performance.reducedNodes.toLocaleString()}回 · 再探索{" "}
+                {analysis.performance.researches.toLocaleString()}回
+              </p>
+              <ol className="list-inside list-decimal">
+                {analysis.performance.depths.map((entry, index) => (
+                  <li key={`${entry.depth}-${index}`}>
+                    深さ{entry.depth} · {(entry.elapsedMs / 1000).toFixed(2)}秒 · {entry.roots}候補
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </div>
+        ) : null}
         <div className="mt-3 flex items-center justify-between text-[10px] text-[#8c9685]">
           <span>
             {study.settings.threads}プロセス · {study.settings.memoryMb.toLocaleString()} MBまで
@@ -246,6 +339,11 @@ export function EvaluationPanel({
             {stopLabel(analysis.reason)}
           </p>
         ) : null}
+        {analysis?.completion?.normalResult === "incomplete" ? (
+          <p role="status" className="mt-3 text-xs text-[#758469]">
+            完成済みの推奨手がありません。静的評価や未評価の代替手を推奨として使用しないでください。
+          </p>
+        ) : null}
       </Panel>
       <Panel title="候補手" eyebrow="CANDIDATES">
         {!analysis?.candidates.length ? (
@@ -283,6 +381,7 @@ export function EvaluationPanel({
                   深さ {candidate.completedDepth} · {sideNames[rootSide]}視点
                   {future ? " · 次手番の条件付き候補" : ""}
                   {candidate.selective ? " · 選択探索" : ""}
+                  {` · この予想手順では次の自手${Math.max(0, candidate.line.filter((step) => step.side === rootSide).length - 1)}回まで到達`}
                 </p>
                 <details className="mt-2 text-[11px]">
                   <summary className="cursor-pointer text-[#607252]">予想手順・危険の確認</summary>
@@ -465,6 +564,9 @@ function EvaluationGraph({
 function stopLabel(reason: string) {
   const labels: Record<string, string> = {
     deadline: "指定時間に到達しました",
+    guard_timeout:
+      "検査は時間内に確定しませんでした。完成済みの通常探索結果がある場合だけ利用できます。",
+    guard_error: "検査に失敗しました。完成済みの通常探索結果がある場合だけ利用できます。",
     memory_limit: "探索メモリの上限に到達したため停止しました",
     max_depth: "探索深さの上限に到達しました",
     sole_win:

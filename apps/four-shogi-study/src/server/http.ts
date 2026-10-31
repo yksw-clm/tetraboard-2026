@@ -1,4 +1,5 @@
 import { resolve, sep } from "node:path";
+import type { StudyLifecycleEvent } from "../search/deadline";
 import type {
   StudyAnalysisCommand,
   StudyCommand,
@@ -74,8 +75,9 @@ export function createStudyHttpHandler(
   app: StudyApplication,
   config: StudyConfig,
   assetsDirectory: string,
+  observeLifecycle?: (event: StudyLifecycleEvent) => void,
 ) {
-  return async (request: Request): Promise<Response> => {
+  const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url);
       if (url.hostname !== "127.0.0.1")
@@ -186,5 +188,17 @@ export function createStudyHttpHandler(
         error instanceof HttpError ? error.status : 400,
       );
     }
+  };
+  return async (request: Request): Promise<Response> => {
+    const started = performance.now();
+    const response = await handle(request);
+    observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "http-response-ready",
+      id: null,
+      atMs: performance.now(),
+      durationMs: performance.now() - started,
+    });
+    return response;
   };
 }

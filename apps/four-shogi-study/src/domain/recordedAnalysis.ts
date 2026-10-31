@@ -161,7 +161,7 @@ export async function parseRecordedAnalyses(
     const timeBudgetMs = item.timeBudgetMs === null ? null : number(item.timeBudgetMs, 3_600_000);
     const savedAt = text(item.savedAt);
     if (!Number.isFinite(Date.parse(savedAt))) fail();
-    const record: StudyRecordedAnalysis = {
+    let record: StudyRecordedAnalysis = {
       stateHash: text(item.stateHash),
       savedAt,
       searchVersion: text(item.searchVersion),
@@ -188,6 +188,40 @@ export async function parseRecordedAnalyses(
       }),
     };
     if (record.completedDepth < 1 || record.threads < 1 || record.memoryMb < 256) fail();
+    if (item.coverage !== undefined) {
+      const c = object(item.coverage);
+      if (c.phase !== "broad" && c.phase !== "deep") fail();
+      const fields = [
+        "broadDepth",
+        "broadRoots",
+        "deepRoots",
+        "pass",
+        "opponentWidth",
+        "ownWidth",
+      ] as const;
+      for (const key of fields)
+        if (!Number.isSafeInteger(c[key]) || number(c[key], 100000) < 0) fail();
+      const broadDepth = number(c.broadDepth, 4),
+        deepRoots = number(c.deepRoots, 3);
+      if (
+        broadDepth < 1 ||
+        broadDepth > record.completedDepth ||
+        (c.phase === "deep" && (deepRoots < 1 || broadDepth >= record.completedDepth))
+      )
+        fail();
+      record = {
+        ...record,
+        coverage: {
+          phase: c.phase,
+          broadDepth,
+          broadRoots: number(c.broadRoots),
+          deepRoots,
+          pass: number(c.pass),
+          opponentWidth: number(c.opponentWidth, 32),
+          ownWidth: number(c.ownWidth, 32),
+        },
+      };
+    }
     await restoreRecordedCandidates(record, position);
     Object.defineProperty(records, nodeId, { value: record, enumerable: true });
   }

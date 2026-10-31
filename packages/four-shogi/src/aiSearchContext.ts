@@ -20,7 +20,34 @@ export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 /** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
 export type AiContextProfile = {
   evaluate: (state: FourShogiState) => AiEvaluation;
-  orderingBonus?: (state: FourShogiState, move: OrdinaryMove) => number;
+  orderingBonus?: (
+    state: FourShogiState,
+    move: OrdinaryMove,
+    checks?: typeof getCheckState,
+  ) => number;
+  replaceCache?: boolean;
+  preservePromotions?: boolean;
+  measure?: boolean;
+  cacheLeafEvaluations?: boolean;
+  allMoves?: boolean;
+  measureDetails?: boolean;
+  sharedChecks?: boolean;
+};
+export type AiContextMetrics = {
+  legalMs: number;
+  transitionMs: number;
+  evaluationMs: number;
+  orderingMs: number;
+  cacheEvictions: number;
+  initialLegalMs?: number;
+  initialEvaluationMs?: number;
+  priorityMs?: number;
+  priorityCalls?: number;
+  orderingBonusMs?: number;
+  legalCalls?: number;
+  checkCalls?: number;
+  checkMs?: number;
+  checkCacheHits?: number;
 };
 type CachedNode = {
   moves?: OrdinaryMove[];
@@ -30,8 +57,8 @@ type CachedNode = {
   bestAction?: string;
   ordered?: { move: OrdinaryMove; index: number; score: number }[];
 };
-export function checkedSides(state: FourShogiState): Side[] {
-  const checks = getCheckState(state);
+export function checkedSides(state: FourShogiState, readChecks = getCheckState): Side[] {
+  const checks = readChecks(state);
   return getActiveSides(state).filter((side) => checks[side]);
 }
 export function makeAiDanger(line: readonly AiLineStep[], root: Side): AiCandidate["danger"] {
@@ -104,21 +131,70 @@ export function createAiContext(
   const start: FourShogiState = { ...input, repetitions: {} };
   const lookup = (key: string) => input.repetitions[key] ?? 0;
   const cache = new WeakMap<FourShogiState, CachedNode>();
+  let cacheLimit = settings.cacheSize;
+  // 純粋遷移で作った探索内の状態参照だけを使い、盤面だけの同一視を避けます。
+  const checkCache = profile?.sharedChecks
+    ? new WeakMap<FourShogiState, ReturnType<typeof getCheckState>>()
+    : null;
+  const leafEvaluations = new WeakMap<FourShogiState, AiEvaluation>();
+  const retained = new Map<FourShogiState, true>();
+  const metrics: AiContextMetrics = {
+    legalMs: 0,
+    transitionMs: 0,
+    evaluationMs: 0,
+    orderingMs: 0,
+    cacheEvictions: 0,
+  };
+  const clock = () => (profile?.measure ? performance.now() : 0);
+  const detailClock = () => (profile?.measureDetails ? performance.now() : 0);
+  function checks(state: FourShogiState) {
+    const started = detailClock();
+    let value = checkCache?.get(state);
+    if (value) {
+      if (profile?.measureDetails) metrics.checkCacheHits = (metrics.checkCacheHits ?? 0) + 1;
+    } else {
+      value = getCheckState(state);
+      if (checkCache) {
+        Object.freeze(value);
+        checkCache.set(state, value);
+      }
+      if (profile?.measureDetails) metrics.checkCalls = (metrics.checkCalls ?? 0) + 1;
+    }
+    if (profile?.measureDetails) {
+      metrics.checkMs = (metrics.checkMs ?? 0) + detailClock() - started;
+    }
+    return value;
+  }
   function node(state: FourShogiState) {
     const existing = cache.get(state);
     if (existing) return existing;
-    if (stats.cacheEntries >= settings.cacheSize) return undefined;
+    if (cacheLimit === 0) return undefined;
+    if (stats.cacheEntries >= cacheLimit) {
+      if (!profile?.replaceCache) return undefined;
+      const oldest = retained.keys().next().value!;
+      retained.delete(oldest);
+      cache.delete(oldest);
+      stats.cacheEntries--;
+      metrics.cacheEvictions++;
+    }
     const created: CachedNode = { transitions: new Map() };
     cache.set(state, created);
+    if (profile?.replaceCache) retained.set(state, true);
     stats.cacheEntries++;
     return created;
   }
+  const started = clock();
   const legal = getLegalMoves(start);
+  metrics.legalCalls = 1;
+  metrics.legalMs += clock() - started;
+  metrics.initialLegalMs = clock() - started;
   stats.generatedMoves = legal.length;
   const initialNode = node(start);
   if (initialNode) initialNode.moves = legal;
+  const evaluationStarted = clock();
   const staticEvaluation =
     profile?.evaluate(input) ?? evaluateAiPosition(input, settings.evaluationWeights);
+  metrics.initialEvaluationMs = clock() - evaluationStarted;
   const includeIndex =
     settings.includeAction === null
       ? -1
@@ -127,6 +203,24 @@ export function createAiContext(
         );
   if (settings.includeAction !== null && includeIndex < 0)
     throw new TypeError("比較指定手は元局面の合法手である必要があります");
+  /** 既存の状態参照を解放し、着手処理を行わずに保持枠だけを縮小します。 */
+  function limitCache(limit: number) {
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 0 ||
+      limit > cacheLimit ||
+      (!profile?.replaceCache && limit !== settings.cacheSize)
+    )
+      throw new TypeError("探索キャッシュの縮小上限が不正です");
+    cacheLimit = limit;
+    while (stats.cacheEntries > limit) {
+      const oldest = retained.keys().next().value!;
+      retained.delete(oldest);
+      cache.delete(oldest);
+      stats.cacheEntries--;
+      metrics.cacheEvictions++;
+    }
+  }
   function* spend(cost = 1): Generator<number, void> {
     yield cost;
     stats.work += cost;
@@ -138,7 +232,10 @@ export function createAiContext(
       stats.legalCacheHits++;
       return record.moves;
     }
+    const started = clock();
     const result = getLegalMoves(state);
+    metrics.legalCalls = (metrics.legalCalls ?? 0) + 1;
+    metrics.legalMs += clock() - started;
     stats.generatedMoves += result.length;
     yield* spend(Math.ceil(result.length / 16));
     if (record) record.moves = result;
@@ -146,18 +243,25 @@ export function createAiContext(
   }
   function* evaluate(state: FourShogiState): Generator<number, AiEvaluation> {
     yield* spend();
-    const record = node(state);
-    if (record?.evaluation) {
+    // 一度しか訪れない葉で、繰り返し使う内部節点を追い出さないようにします。
+    const record = profile?.cacheLeafEvaluations === false ? cache.get(state) : node(state);
+    const cached =
+      record?.evaluation ??
+      (profile?.cacheLeafEvaluations === false ? leafEvaluations.get(state) : undefined);
+    if (cached) {
       stats.evaluationCacheHits++;
-      return record.evaluation;
+      return cached;
     }
     const prediction = model && state.status === "playing" ? yield* predict(state) : null;
+    const started = clock();
     const value = prediction
       ? modelEvaluation(state, prediction)
       : (profile?.evaluate(state) ?? evaluateAiPosition(state, settings.evaluationWeights));
+    metrics.evaluationMs += clock() - started;
     if (prediction) model!.stats.valueUses++;
     stats.evaluations++;
     if (record) record.evaluation = value;
+    if (profile?.cacheLeafEvaluations === false) leafEvaluations.set(state, value);
     return value;
   }
   function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
@@ -253,7 +357,9 @@ export function createAiContext(
       stats.transitionCacheHits++;
       return { state: cached.state, step: { ...cached.step, afterPly: ply + 1 } };
     }
+    const started = clock();
     const transition = applyLegalMove(state, state.turn!, move, lookup);
+    metrics.transitionMs += clock() - started;
     const next = transition.state;
     const result = {
       state: next,
@@ -262,7 +368,7 @@ export function createAiContext(
         action: move.action,
         afterPly: ply + 1,
         nextTurn: next.turn,
-        checkedSides: checkedSides(next),
+        checkedSides: checkedSides(next, checks),
         captured: transition.captured,
         eliminations: transition.eliminations,
         result: next.result,
@@ -279,12 +385,20 @@ export function createAiContext(
     let selected = record?.ordered;
     if (selected) stats.orderingCacheHits++;
     else {
-      const checked = getCheckState(state)[state.turn!];
-      const entries = legalMoves.map((move, index) => ({
-        move,
-        index,
-        score: priority(move, state.turn!) + (profile?.orderingBonus?.(state, move) ?? 0),
-      }));
+      const started = clock();
+      const checked = checks(state)[state.turn!];
+      const entries = legalMoves.map((move, index) => {
+        const started = detailClock();
+        const score = priority(move, state.turn!, checks(move.state));
+        const bonusStarted = detailClock();
+        const bonus = profile?.orderingBonus?.(state, move, checks) ?? 0;
+        if (profile?.measureDetails) {
+          metrics.priorityMs = (metrics.priorityMs ?? 0) + bonusStarted - started;
+          metrics.orderingBonusMs = (metrics.orderingBonusMs ?? 0) + detailClock() - bonusStarted;
+          metrics.priorityCalls = (metrics.priorityCalls ?? 0) + 1;
+        }
+        return { move, index, score: score + bonus };
+      });
       if (model) {
         const prediction = yield* predict(state, legalMoves);
         model.stats.policyUses++;
@@ -292,8 +406,16 @@ export function createAiContext(
       } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
       selected = selected.filter(
         (entry, index) =>
-          index < settings.width || checked || entry.score >= 10000 || entry.move.captured !== null,
+          profile?.allMoves ||
+          index < settings.width ||
+          checked ||
+          entry.score >= 10000 ||
+          entry.move.captured !== null ||
+          (profile?.preservePromotions &&
+            entry.move.action.type === "movePiece" &&
+            entry.move.action.promote),
       );
+      metrics.orderingMs += clock() - started;
       if (record) record.ordered = selected;
     }
     const preferred =
@@ -335,7 +457,12 @@ export function createAiContext(
   return {
     input,
     settings,
+    limitCache,
+    get cacheLimit() {
+      return cacheLimit;
+    },
     stats,
+    metrics,
     start,
     root: input.turn,
     legal,
@@ -351,6 +478,7 @@ export function createAiContext(
     model,
     prefetch,
     rootOrder,
+    checks,
   };
 }
 export type AiContext = ReturnType<typeof createAiContext>;

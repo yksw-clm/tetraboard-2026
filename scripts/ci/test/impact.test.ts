@@ -2,7 +2,37 @@ import { expect, test } from "bun:test";
 import { fullReason, selectPlan, type Workspace } from "../impact";
 import { readWorkspaces } from "../repository";
 
-const workspaces = readWorkspaces();
+// 選択方針の単体テストは、実repoの動的import追加から独立した既知の依存で検証します。
+const workspaces: Workspace[] = [
+  { path: "apps/admin", name: "admin", dependencies: ["apps/web"] },
+  {
+    path: "apps/four-shogi-study",
+    name: "study",
+    dependencies: ["apps/web", "packages/shogi-ui", "packages/four-shogi", "packages/protocol"],
+  },
+  {
+    path: "apps/web",
+    name: "web",
+    dependencies: ["packages/shogi-ui", "packages/four-shogi", "packages/protocol"],
+  },
+  { path: "packages/shogi-ui", name: "shogi-ui", dependencies: [] },
+  { path: "packages/four-shogi", name: "four-shogi", dependencies: [] },
+  { path: "packages/protocol", name: "protocol", dependencies: [] },
+];
+
+test("実repoの依存が不確実な場合は文書変更でもFull検証を省略しない", () => {
+  const actual = readWorkspaces();
+  expect(actual.length).toBeGreaterThan(0);
+  const uncertain = actual.find((workspace) => workspace.uncertainty);
+  const plan = selectPlan(["README.md", "docs/testing.md"], actual);
+  if (uncertain) {
+    expect(plan.mode).toBe("full");
+    expect(plan.workspaces).toEqual(actual.map((workspace) => workspace.path).sort());
+    expect(plan.reasons).toEqual([`依存解決が不確実: ${uncertain.uncertainty}`]);
+  } else {
+    expect(plan).toMatchObject({ mode: "fast", workspaces: [] });
+  }
+});
 test("push・main向けPR・明示Full・不明イベントはFast成功をデプロイ条件に使わない", () => {
   expect(fullReason("pull_request", "develop")).toBeUndefined();
   for (const reason of [

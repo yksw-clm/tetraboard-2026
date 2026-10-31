@@ -55,15 +55,32 @@ export function useStudySession() {
   useEffect(() => {
     if (!studyId) return;
     const events = new EventSource(`/api/events?studyId=${encodeURIComponent(studyId)}`);
-    events.onopen = () => setConnected(true);
-    events.onerror = () => setConnected(false);
+    let disposed = false,
+      opened = false,
+      verified = false;
+    const active = () => !disposed && latest.current?.study.id === studyId;
+    events.onopen = () => {
+      if (!active()) return;
+      opened = true;
+      verified = false;
+      setConnected(false);
+    };
+    events.onerror = () => {
+      if (!active()) return;
+      opened = false;
+      verified = false;
+      setConnected(false);
+    };
     events.onmessage = (message) => {
-      if (latest.current?.study.id !== studyId) return;
+      if (!active() || !opened) return;
       try {
         const event = JSON.parse(message.data) as StudyServerEvent;
-        if (event.type === "snapshot" && event.snapshot.study.id === studyId)
+        if (event.type === "snapshot" && event.snapshot.study.id === studyId) {
+          if (event.snapshot.study.revision < (latest.current?.study.revision ?? 0)) return;
           accept(event.snapshot, studyId);
-        else if (event.type === "analysis" && event.studyId === studyId) {
+          verified = true;
+          setConnected(true);
+        } else if (verified && event.type === "analysis" && event.studyId === studyId) {
           setSnapshot((current) => {
             if (
               !current ||
@@ -76,10 +93,13 @@ export function useStudySession() {
           });
         } else if (event.type === "error") setError(event.message);
       } catch {
+        verified = false;
+        setConnected(false);
         setError("解析結果の読み込みに失敗しました。検討を開き直してください。");
       }
     };
     return () => {
+      disposed = true;
       events.close();
       setConnected(false);
     };

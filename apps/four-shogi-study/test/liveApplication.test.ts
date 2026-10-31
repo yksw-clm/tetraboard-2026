@@ -78,7 +78,7 @@ function liveFixture() {
   return { instanceId, roundId, events, update };
 }
 
-async function harness() {
+async function harness(reuse = false) {
   const directory = await mkdtemp(join(tmpdir(), "study-live-application-"));
   const fixture = liveFixture();
   let initial = await fixture.update(2);
@@ -105,7 +105,19 @@ async function harness() {
   const searches: StudySearchSnapshot[] = [];
   const searchOptions: StudySearchOptions[] = [];
   const cancelled: string[] = [];
+  const held: string[] = [];
+  let releases = 0;
   const runtime: typeof createStudySearchRuntime = () => ({
+    ...(reuse
+      ? {
+          async holdFocus(id: string) {
+            held.push(id);
+          },
+          async releaseFocus() {
+            releases++;
+          },
+        }
+      : {}),
     async start(input, options, notify = () => {}) {
       searchOptions.push(options);
       const position = await restoreStudyPosition(input);
@@ -187,6 +199,8 @@ async function harness() {
     searches,
     searchOptions,
     cancelled,
+    held,
+    releaseCount: () => releases,
     sessions,
     notices,
     setInitial(update: VerifiedLiveUpdate) {
@@ -227,6 +241,49 @@ async function branch(app: LocalStudyApplication, current: StudySnapshot) {
 }
 
 describe("ライブ対局と検討文書の統合", () => {
+  test("確定した次局面だけ探索を保持し、世代を更新して切断・設定変更では解放する", async () => {
+    const h = await harness(true);
+    const initial = await h.watch();
+    const focused = await h.app.command(initial.study.id, {
+      type: "settings",
+      expectedRevision: initial.study.revision,
+      settings: { focusSide: "west" },
+    });
+    const scope = h.searchOptions.at(-1)!.sessionKey;
+    await h.send(await h.update(3));
+    const next = await h.app.get(initial.study.id);
+    expect(h.held).toContain(focused.analysis!.id);
+    expect(h.cancelled).not.toContain(focused.analysis!.id);
+    expect(next.analysis!.generation).toBeGreaterThan(focused.analysis!.generation);
+    expect(next.analysis!.stateHash).toBe(next.position.stateHash);
+    expect(h.searchOptions.at(-1)!.sessionKey).toBe(scope);
+    h.status({ state: "reconnecting", message: "切断" });
+    await h.send(await h.update(3));
+    expect(h.cancelled).toContain(next.analysis!.id);
+    const current = await h.app.get(initial.study.id);
+    const changed = await h.app.command(initial.study.id, {
+      type: "settings",
+      expectedRevision: current.study.revision,
+      settings: { focusSide: "north" },
+    });
+    expect(changed.analysis!.focus!.side).toBe("north");
+    expect(h.cancelled).toContain(current.analysis!.id);
+  });
+  test("新しいrevisionの履歴同期中は旧解析を隠し、進行中の探索を取り消す", async () => {
+    const h = await harness();
+    const first = await h.watch();
+    expect(first.analysis).not.toBeNull();
+    h.status({ state: "syncing", message: null });
+    const pending = await h.app.command(first.study.id, {
+      type: "comment",
+      nodeId: first.study.currentNodeId,
+      comment: "同期中",
+      expectedRevision: first.study.revision,
+    });
+    expect(pending.live?.status).toBe("syncing");
+    expect(pending.analysis).toBeNull();
+    expect(h.cancelled).toContain(first.analysis!.id);
+  });
   test("フォーカス席を変えても追従し、他席の着手と次の対局でも同じ席を解析する", async () => {
     const h = await harness();
     const initial = await h.watch();

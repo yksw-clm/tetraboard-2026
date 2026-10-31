@@ -277,6 +277,9 @@ export function createLiveRoomSession(
           if (verified.eventCount === target.eventCount && verified.finished === target.finished) {
             if (!isDeepStrictEqual(verified.game, target.game)) {
               failed(new Error("同じ更新番号の観戦局面が変更されています"));
+            } else if (lastStatus?.state !== (verified.finished ? "finished" : "live")) {
+              await callbacks.onUpdate(verified);
+              if (current(epoch)) status(verified.finished ? "finished" : "live");
             }
             continue;
           }

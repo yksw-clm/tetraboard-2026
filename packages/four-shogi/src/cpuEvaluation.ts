@@ -37,9 +37,28 @@ function rankScore(rank: number): number {
   return rank === 1 ? victoryScore : -(rank - 1) * victoryScore;
 }
 
+export type EvaluationBreakdown = Record<
+  Side,
+  {
+    material: number;
+    mobility: number;
+    advancement: number;
+    risk: number;
+    check: number;
+    kingRing: number;
+    shelter: number;
+    assetTotal: number;
+    survival: number;
+    opponentAverage: number;
+    opponentStrongest: number;
+    score: number;
+  }
+>;
+
 export function evaluatePosition(
   state: FourShogiState,
   weights: EvaluationWeights = defaultEvaluationWeights,
+  observe?: (parts: EvaluationBreakdown) => void,
 ): Record<Side, number> {
   const scores: Record<Side, number> = { south: 0, west: 0, north: 0, east: 0 };
   if (state.status === "finished") {
@@ -54,6 +73,27 @@ export function evaluatePosition(
               : -victoryScore;
     return scores;
   }
+  const parts = observe
+    ? (Object.fromEntries(
+        sides.map((side) => [
+          side,
+          {
+            material: 0,
+            mobility: 0,
+            advancement: 0,
+            risk: 0,
+            check: 0,
+            kingRing: 0,
+            shelter: 0,
+            assetTotal: 0,
+            survival: 0,
+            opponentAverage: 0,
+            opponentStrongest: 0,
+            score: 0,
+          },
+        ]),
+      ) as EvaluationBreakdown)
+    : null;
   const active = getActiveSides(state);
   const all = pieces(state.board).filter(({ piece }) => active.includes(piece.side));
   const attacks = Object.fromEntries(sides.map((side) => [side, new Uint8Array(81)])) as Record<
@@ -68,6 +108,7 @@ export function evaluatePosition(
   for (const { piece, position } of all) {
     const value = pieceValue(piece);
     assets[piece.side] += value;
+    if (parts) parts[piece.side].material += value;
     const destinations = attackedPositions(state.board, piece, position);
     for (const to of destinations) {
       const square = to.y * 9 + to.x;
@@ -82,6 +123,7 @@ export function evaluatePosition(
         (to) => state.board[to.y][to.x]?.side !== piece.side,
       ).length;
       assets[piece.side] += mobility * weights.mobility;
+      if (parts) parts[piece.side].mobility += mobility * weights.mobility;
       if (piece.kind === "pawn" && !piece.promoted) {
         const advance =
           piece.side === "south"
@@ -92,13 +134,17 @@ export function evaluatePosition(
                 ? position.x
                 : 8 - position.x;
         assets[piece.side] += advance * weights.advancement;
+        if (parts) parts[piece.side].advancement += advance * weights.advancement;
       }
     }
   }
   for (const side of active) {
     const enemies = active.filter((enemy) => areEnemies(state.mode, side, enemy));
     const own = all.filter(({ piece }) => piece.side === side);
-    for (const kind of handPieceKinds) assets[side] += state.hands[side][kind] * pieceValues[kind];
+    for (const kind of handPieceKinds) {
+      assets[side] += state.hands[side][kind] * pieceValues[kind];
+      if (parts) parts[side].material += state.hands[side][kind] * pieceValues[kind];
+    }
     for (const { piece, position } of own) {
       const square = position.y * 9 + position.x;
       const enemyCost = Math.min(...enemies.map((enemy) => cheapest[enemy][square]));
@@ -114,18 +160,27 @@ export function evaluatePosition(
               ? 1
               : 0.75;
         assets[side] -= risk * urgency;
+        if (parts) parts[side].risk -= risk * urgency;
       }
       if (piece.kind !== "king") continue;
       const threatened = (x: number, y: number) =>
         enemies.some((enemy) => attacks[enemy][y * 9 + x] > 0);
-      if (threatened(position.x, position.y)) assets[side] -= weights.check;
+      if (threatened(position.x, position.y)) {
+        assets[side] -= weights.check;
+        if (parts) parts[side].check -= weights.check;
+      }
       for (let dy = -1; dy <= 1; dy++)
         for (let dx = -1; dx <= 1; dx++) {
           if (dx === 0 && dy === 0) continue;
           const to = { x: position.x + dx, y: position.y + dy };
           if (!inBounds(to)) continue;
-          if (threatened(to.x, to.y)) assets[side] -= weights.kingRing;
-          else if (attacks[side][to.y * 9 + to.x] > 1) assets[side] += weights.shelter;
+          if (threatened(to.x, to.y)) {
+            assets[side] -= weights.kingRing;
+            if (parts) parts[side].kingRing -= weights.kingRing;
+          } else if (attacks[side][to.y * 9 + to.x] > 1) {
+            assets[side] += weights.shelter;
+            if (parts) parts[side].shelter += weights.shelter;
+          }
         }
     }
   }
@@ -143,9 +198,21 @@ export function evaluatePosition(
       const average =
         opponents.reduce((sum, value) => sum + value, 0) / Math.max(1, opponents.length);
       const strongest = opponents.length > 0 ? Math.max(...opponents) : 0;
+      if (parts) {
+        parts[side].survival = weights.survival * (4 - active.length);
+        parts[side].opponentAverage = -0.6 * average;
+        parts[side].opponentStrongest = -0.4 * strongest;
+      }
       scores[side] =
         weights.survival * (4 - active.length) + assets[side] - 0.6 * average - 0.4 * strongest;
     }
+  }
+  if (parts && observe) {
+    for (const side of sides) {
+      parts[side].assetTotal = assets[side];
+      parts[side].score = scores[side];
+    }
+    observe(parts);
   }
   return scores;
 }

@@ -230,6 +230,7 @@ export function createStrengthProcessPool(config: StrengthProcessPoolOptions) {
       game.jobId !== active.job.id ||
       game.lane !== slot.lane ||
       game.profile !== active.job.profile ||
+      game.searchStrategy !== active.job.searchStrategy ||
       game.restricted !== active.job.restricted ||
       game.sample?.matchId !== active.job.id ||
       game.sample.seed !== active.job.seed ||

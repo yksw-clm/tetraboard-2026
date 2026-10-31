@@ -1,4 +1,5 @@
 node_modules/
+/.study-measurements/
 .ci-plan.json
 .ci-results.jsonl
 .ci-benchmark.json

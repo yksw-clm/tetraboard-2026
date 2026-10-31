@@ -4,18 +4,29 @@ import {
   compareStudyCandidates,
   evaluateStudyPosition,
   selectStudyRootIndices,
-  studySearchVersion,
+  selectStudyIterationRoots,
+  isDualStudyStrategy,
+  studyStrategyVersion,
+  legacyStudySearchVersion,
   type StudyCandidate,
+  type StudySplitPlan,
+  type StudySubtreeResult,
+  type StudySubtreeTask,
   type StudyLaneSnapshot,
   type StudyProfile,
+  type StudySearchPerformance,
+  type StudySearchStrategy,
 } from "@tetraboard/four-shogi/study-search";
 import type { AiCandidate, AiEvaluation, AiLineStep } from "@tetraboard/four-shogi/ai";
 import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
 import { getAnalysisLegalActions, type AnalysisPosition } from "@tetraboard/four-shogi/analysis";
 import { restoreStudyPosition } from "../domain/study";
-import type { StudyPositionInput } from "../shared/model";
+import type { StudyPositionInput, StudySearchCoverage } from "../shared/model";
 import type { SearchCommand, SearchMessage } from "./messages";
 import { projectFocusPosition, type FocusProjection } from "./focus";
+import type { LethalGuardReport } from "./lethalGuard";
+import { createStudyDeadline, type StudyLifecycleEvent } from "./deadline";
+import { prioritizeFocusRoots } from "./focusContinuation";
 
 export type StudyFocusMetadata = {
   side: Side;
@@ -31,6 +42,64 @@ export type StudyFocusMetadata = {
 };
 
 export type StudySearchSnapshot = {
+  continuation?: {
+    mode: string;
+    pvHit: boolean;
+    pvEntries: number;
+    hintReorders: number;
+    priorWork: number;
+    newWork: number;
+    cacheEntryLimit?: number;
+    phase?: "ponder" | "foreground";
+    sessionHit?: boolean;
+    matchedPlies?: number;
+    priorCompletedDepth?: number;
+    reusedComparison?: boolean;
+    sessionWork?: number;
+    ponderWork?: number;
+    workerCpuMs?: number;
+    workerActiveMs?: number;
+    priorPonderCpuMs?: number;
+    retainedBranchEntries?: number;
+    branchCacheHits?: number;
+    pauseAcknowledged?: boolean;
+  };
+  completion?: {
+    normalResult: "complete" | "incomplete";
+    cause: string;
+    guard?: "complete" | "timeout" | "error" | "cancelled";
+    budgetMs: number | null;
+    finalizedMs: number;
+    overdueMs: number;
+    detail?: string;
+  };
+  lethalGuard?: LethalGuardReport;
+  timing?: {
+    restoreMs: number;
+    startupMs: number;
+    parentEvaluationMs: number;
+    parentLegalMs: number;
+    preSearchMs: number;
+    firstWorkerMs: number | null;
+    depthOneMs: number | null;
+    depthTwoMs: number | null;
+    deepStartedMs: number | null;
+    splitPlans?: number;
+    subtreeTasksAssigned?: number;
+    subtreeTasksCompleted?: number;
+    pendingRoots?: number;
+    queuedSubtrees?: number;
+    tasksAssigned: number;
+    tasksCompleted: number;
+    deepTasksAssigned: number;
+    incompleteTasks: number;
+    queuedTasks: number;
+    ipcCommands: number;
+    ipcMessages: number;
+    workers: ({ restoreMs: number; createMs: number; activeMs: number; cpuMs: number } | null)[];
+  };
+  coverage?: StudySearchCoverage;
+  broadCandidates?: readonly AiCandidate[];
   id: string;
   stateHash: string;
   analysisStateHash: string | null;
@@ -49,15 +118,36 @@ export type StudySearchSnapshot = {
   evaluation: AiEvaluation | null;
   staticEvaluation: AiEvaluation;
   workers: number;
+  performance?: StudySearchPerformance & {
+    legalCacheHits: number;
+    generatedMoves?: number;
+    transitionCacheHits: number;
+    evaluationCacheHits: number;
+    iterationDepth: number;
+    completedIterationWork?: number;
+    completedTasks: number;
+    totalTasks: number;
+    workerNodes: number[];
+    workerWaitMs: number[];
+    depths: { depth: number; elapsedMs: number; roots: number }[];
+  };
   diagnostics: {
     searchVersion: string;
     profile: StudyProfile;
     selectedRoots: number;
     legalRoots: number;
     safetyComplete: boolean;
+    hintReorders?: number;
   };
 };
 export type StudySearchOptions = {
+  /** 同一の検討/対局だけを識別し、workerへ送りません。 */
+  sessionKey?: string;
+  /** 同じ親プロセス内だけで共有する単調時計の終了時刻です。workerへは送りません。 */
+  deadlineAt?: number;
+  reuseChecks?: boolean;
+  strategy?: StudySearchStrategy;
+  broadDepth?: number;
   timeBudgetMs: number | null;
   focusSide?: Side | null;
   maxDepth?: number;
@@ -66,16 +156,156 @@ export type StudySearchOptions = {
   rootWidth?: number;
   extensions?: number;
   dangerWork?: number;
+  cacheSize?: number;
 };
+export type StudyRuntimeTraceEvent =
+  | { type: "command"; worker: number; command: SearchCommand }
+  | { type: "message"; worker: number; message: SearchMessage }
+  | { type: "iteration"; depth: number; phase: "broad" | "deep" | "adaptive"; roots: number[] }
+  | {
+      type: "publication";
+      depth: number;
+      published: boolean;
+      candidates: StudyCandidate[];
+      coverage: StudySearchCoverage | undefined;
+    };
+
+export type StudyParallelEvent =
+  | {
+      type: "iteration" | "iterationEnd";
+      id: string;
+      atMs: number;
+      depth: number;
+      phase: "broad" | "deep" | "adaptive";
+      roots: number;
+    }
+  | {
+      type: "assigned";
+      id: string;
+      atMs: number;
+      worker: number;
+      taskId: number;
+      role?: "root" | "subtree" | "finish";
+      index: number;
+      depth: number;
+      phase: "broad" | "deep" | "adaptive";
+    }
+  | {
+      type: "worker";
+      id: string;
+      atMs: number;
+      worker: number;
+      taskId?: number;
+      outcome?: "split" | "subtree";
+      index?: number;
+      depth: number;
+      phase: "prepare" | "broad" | "deep" | "adaptive";
+      barrier: boolean;
+      accepted: boolean;
+      work: number;
+      nodes: number;
+      rss: number;
+      activeMs: number;
+      cpuMs: number;
+      restoreMs: number;
+      createMs: number;
+      taskInitMs?: number;
+      taskInitCpuMs?: number;
+      processCpuMs?: number;
+      restoreCpuMs?: number;
+      createCpuMs?: number;
+      transport?: { sendCalls: number; jsonBytes: number; sendMs: number; sizingMs: number };
+    }
+  | {
+      type: "ipc";
+      id: string | null;
+      atMs: number;
+      worker: number;
+      direction: "send" | "receive";
+      jsonBytes: number;
+      sizingMs: number;
+      callMs: number;
+    }
+  | {
+      type: "parent";
+      id: string | null;
+      atMs: number;
+      operation: "dispatch" | "merge";
+      wallMs: number;
+      cpuMs: number;
+    };
+
 export type StudySearchRuntimeConfig = {
+  rootOrderHint?: (position: AnalysisPosition) => FourShogiAction | null;
+  observeLifecycle?: (event: StudyLifecycleEvent) => void;
+  onPreparedPosition?: (position: AnalysisPosition) => void;
+  onCompletedRoots?: (candidates: readonly StudyCandidate[], depth: number) => void;
+  reuseWorkers?: boolean;
+  measureStages?: boolean;
+  observeDiagnostic?: (event: StudyRuntimeTraceEvent) => void;
+  observeParallel?: (event: StudyParallelEvent) => void;
+  scheduling?: "fixed" | "dynamic";
+  taskPartition?: "root" | "replies";
+  replyCacheBudget?: "workers" | "roots";
+  splitMinDepth?: number;
   threads?: number;
   memoryMb?: number;
   workerScript?: URL;
   startupTimeoutMs?: number;
   shutdownTimeoutMs?: number;
+  cpuProfileDirectory?: string;
 };
-type Lane = { snapshot: StudyLaneSnapshot; memoryBytes: number; barrier: boolean };
+type Lane = {
+  snapshot: StudyLaneSnapshot;
+  memoryBytes: number;
+  barrier: boolean;
+  timing?: Extract<SearchMessage, { type: "progress" }>["timing"];
+};
+type Assignment = {
+  index: number;
+  taskId: number;
+  kind?: "root" | "subtree" | "finish";
+  planKey?: string;
+  slot?: number;
+};
+type PendingRoot = {
+  owner: number;
+  index: number;
+  plan: StudySplitPlan;
+  results: Map<number, StudySubtreeResult>;
+  finishing: boolean;
+};
 type Job = {
+  rootOrderHint?: FourShogiAction | null;
+  dynamic: {
+    dual?: {
+      phase: "broad" | "deep";
+      broadDepth: number;
+      pool: StudyCandidate[];
+      roots: number[];
+      pass: number;
+      cursor: number;
+      challenged: Set<number>;
+    };
+    depth: number;
+    nextTaskId: number;
+    queue: number[];
+    inflight: Map<number, Assignment>;
+    parts: {
+      pending: Map<string, PendingRoot>;
+      queue: { planKey: string; task: StudySubtreeTask }[];
+      owners: Map<string, number>;
+    } | null;
+    results: Map<number, StudyCandidate>;
+    all: Map<number, StudyCandidate>;
+    material: Set<number>;
+    owners: Map<number, number>;
+    waiting: number[];
+    waitMs: number[];
+    depths: { depth: number; elapsedMs: number; roots: number }[];
+    total: number;
+    completedIterationWork: number;
+  } | null;
   snapshot: StudySearchSnapshot;
   lanes: (Lane | null)[];
   proofs: Map<number, Pick<StudyCandidate, "study" | "danger">>;
@@ -103,6 +333,9 @@ export interface StudySearchRuntime {
   resume(id: string): Promise<void>;
   cancel(id: string): Promise<void>;
   close(): Promise<void>;
+  holdFocus?(id: string): Promise<void>;
+  releaseFocus?(): Promise<void>;
+  pauseAndDrain?(id: string, timeoutMs?: number): Promise<boolean>;
 }
 
 export function createStudySearchRuntime(
@@ -110,8 +343,12 @@ export function createStudySearchRuntime(
 ): StudySearchRuntime {
   const threads = config.threads ?? 4;
   const memoryMb = config.memoryMb ?? 8192;
+  const replyCacheBudget = config.replyCacheBudget ?? "workers";
+  const splitMinDepth = config.splitMinDepth ?? 4;
   const startupTimeoutMs = config.startupTimeoutMs ?? 10000;
   const shutdownTimeoutMs = config.shutdownTimeoutMs ?? 500;
+  const reuseWorkers = config.reuseWorkers ?? config.workerScript === undefined;
+  const parallelOrigin = performance.now();
   if (
     !Number.isSafeInteger(threads) ||
     threads < 1 ||
@@ -124,13 +361,69 @@ export function createStudySearchRuntime(
   if (![startupTimeoutMs, shutdownTimeoutMs].every((value) => Number.isFinite(value) && value > 0))
     throw new TypeError("プロセスの起動・終了期限は正のミリ秒です");
 
+  if (!["root", "replies"].includes(config.taskPartition ?? "root"))
+    throw new TypeError("タスク分割はrootまたはrepliesです");
+  if (!Number.isSafeInteger(splitMinDepth) || splitMinDepth < 4 || splitMinDepth > 256)
+    throw new TypeError("応手分割の開始深さは4〜256の整数です");
+  if (!["workers", "roots"].includes(replyCacheBudget))
+    throw new TypeError("応手キャッシュ枠はworkersまたはrootsです");
   let children: ChildProcess[] = [];
   let starting: Promise<void> | null = null;
   let terminating = Promise.resolve();
+  let pauseToken = 0;
+  const pauseDrains = new Map<
+    number,
+    {
+      id: string;
+      waiting: Set<number>;
+      resolve: (ok: boolean) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
   let generation = 0;
   let closed = false;
   let job: Job | null = null;
   const history = new Map<string, StudySearchSnapshot>();
+
+  function parentCost<T>(operation: "dispatch" | "merge", run: () => T): T {
+    if (!config.observeParallel) return run();
+    const id = job?.snapshot.id ?? null,
+      started = performance.now(),
+      cpu = process.cpuUsage();
+    try {
+      return run();
+    } finally {
+      const used = process.cpuUsage(cpu);
+      config.observeParallel({
+        type: "parent",
+        id,
+        operation,
+        atMs: started - parallelOrigin,
+        wallMs: performance.now() - started,
+        cpuMs: (used.user + used.system) / 1000,
+      });
+    }
+  }
+  function sendTo(worker: number, message: SearchCommand, callback: (error: Error | null) => void) {
+    if (!config.observeParallel) {
+      children[worker].send(message, callback);
+      return;
+    }
+    const probe = performance.now();
+    const jsonBytes = Buffer.byteLength(JSON.stringify(message));
+    const sent = performance.now();
+    children[worker].send(message, callback);
+    config.observeParallel({
+      type: "ipc",
+      id: "id" in message ? message.id : (job?.snapshot.id ?? null),
+      worker,
+      direction: "send",
+      atMs: sent - parallelOrigin,
+      jsonBytes,
+      sizingMs: sent - probe,
+      callMs: performance.now() - sent,
+    });
+  }
 
   function exited(child: ChildProcess) {
     return child.exitCode !== null || child.signalCode !== null;
@@ -141,13 +434,49 @@ export function createStudySearchRuntime(
     );
   }
   function snapshot(value: Job): StudySearchSnapshot {
+    if (value.snapshot.timing) {
+      value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
+      value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+      value.snapshot.timing.pendingRoots = value.dynamic?.parts?.pending.size ?? 0;
+      value.snapshot.timing.queuedSubtrees = value.dynamic?.parts?.queue.length ?? 0;
+      if (value.snapshot.performance && value.dynamic) {
+        const dynamic = value.dynamic;
+        value.snapshot.performance.workerWaitMs = dynamic.waitMs.map(
+          (wait, worker) =>
+            wait +
+            (dynamic.inflight.has(worker)
+              ? 0
+              : Math.max(0, elapsed(value) - dynamic.waiting[worker])),
+        );
+      }
+    }
     return structuredClone({ ...value.snapshot, elapsedMs: elapsed(value) });
   }
   function emit(value: Job) {
+    const before = performance.now();
     const result = snapshot(value);
-    history.set(result.id, structuredClone(result));
+    // 実行中の履歴は非公開の元状態を参照し、停止後の履歴だけ独立して固定する。
+    history.set(result.id, result.status === "running" ? value.snapshot : structuredClone(result));
     while (history.size > 16) history.delete(history.keys().next().value!);
-    value.callback(result);
+    config.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "snapshot-copy",
+      id: result.id,
+      atMs: performance.now(),
+      durationMs: performance.now() - before,
+    });
+    const notifying = performance.now();
+    try {
+      value.callback(result);
+    } finally {
+      config.observeLifecycle?.({
+        clock: "parent-monotonic",
+        stage: "callback",
+        id: result.id,
+        atMs: performance.now(),
+        durationMs: performance.now() - notifying,
+      });
+    }
   }
   function freezeTime(value: Job) {
     value.consumed = elapsed(value);
@@ -161,9 +490,17 @@ export function createStudySearchRuntime(
       (child) =>
         new Promise<void>((resolve) => {
           if (exited(child)) return resolve();
+          const ending = performance.now();
           const timer = setTimeout(() => child.kill("SIGKILL"), shutdownTimeoutMs);
           child.once("exit", () => {
             clearTimeout(timer);
+            config.observeLifecycle?.({
+              clock: "parent-monotonic",
+              stage: "worker-exit",
+              id: job?.snapshot.id ?? null,
+              atMs: performance.now(),
+              durationMs: performance.now() - ending,
+            });
             resolve();
           });
           if (graceful && child.connected) {
@@ -176,10 +513,15 @@ export function createStudySearchRuntime(
     terminating = Promise.all([terminating, ...ended]).then(() => {});
     return terminating;
   }
+  function sendDiagnostic(event: StudyRuntimeTraceEvent) {
+    config.observeDiagnostic?.(structuredClone(event));
+  }
   function command(message: SearchCommand) {
-    for (const child of children) {
+    for (const [worker, child] of children.entries()) {
       if (!child.connected) continue;
-      child.send(message, (error) => {
+      if (job?.snapshot.timing) job.snapshot.timing.ipcCommands++;
+      if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
+      sendTo(worker, message, (error) => {
         if (
           error &&
           children.includes(child) &&
@@ -195,21 +537,120 @@ export function createStudySearchRuntime(
     freezeTime(job);
     job.snapshot.status = status;
     job.snapshot.reason = reason;
+    job.snapshot.completion = {
+      normalResult:
+        job.snapshot.completedDepth > 0 || reason === "terminal" ? "complete" : "incomplete",
+      cause: reason === "deadline" ? "budget" : reason,
+      budgetMs: job.options.timeBudgetMs,
+      finalizedMs: elapsed(job),
+      overdueMs:
+        job.options.timeBudgetMs === null
+          ? 0
+          : Math.max(0, elapsed(job) - job.options.timeBudgetMs),
+    };
+    config.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "normal-stop",
+      id: job.snapshot.id,
+      atMs: performance.now(),
+      reason,
+    });
     job.preparation++;
     if (!job.prepared && job.snapshot.focus) {
       job.snapshot.focus.status = reason === "deadline" ? "unreached" : "cancelled";
       job.snapshot.focus.reason = reason === "deadline" ? "deadline" : "cancelled";
       job.snapshot.focus.projectionElapsedMs = elapsed(job);
     }
-    if (discard) void terminateWorkers();
-    else command({ type: "pause", id: job.snapshot.id });
+    const reusableCompletion =
+      reuseWorkers &&
+      status === "completed" &&
+      ["max_depth", "sole_win", "terminal"].includes(reason);
+    if (discard && !reusableCompletion) void terminateWorkers();
+    else if (reusableCompletion) {
+      // 続行しない終端では探索状態を解放し、プロセスだけを次の入力へ残します。
+      command({ type: "cancel", id: job.snapshot.id });
+    } else command({ type: "pause", id: job.snapshot.id });
     emit(job);
   }
   function merge(value: Job) {
+    return parentCost("merge", () => mergeImpl(value));
+  }
+  function mergeImpl(value: Job) {
     const lanes = value.lanes.filter((entry): entry is Lane => entry !== null);
     value.snapshot.work = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.work, 0);
     value.snapshot.nodes = lanes.reduce((sum, entry) => sum + entry.snapshot.stats.nodes, 0);
     value.snapshot.memoryBytes = lanes.reduce((sum, entry) => sum + entry.memoryBytes, 0);
+    if (value.snapshot.timing) {
+      value.snapshot.timing.workers = value.lanes.map((lane) => lane?.timing ?? null);
+      value.snapshot.timing.incompleteTasks = value.dynamic?.inflight.size ?? 0;
+      value.snapshot.timing.queuedTasks = value.dynamic?.queue.length ?? 0;
+      value.snapshot.timing.pendingRoots = value.dynamic?.parts?.pending.size ?? 0;
+      value.snapshot.timing.queuedSubtrees = value.dynamic?.parts?.queue.length ?? 0;
+    }
+    if (lanes.some((entry) => entry.snapshot.performance)) {
+      const sum = (key: keyof StudySearchPerformance) =>
+        lanes.reduce((n, entry) => n + (entry.snapshot.performance?.[key] ?? 0), 0);
+      value.snapshot.performance = {
+        legalMs: sum("legalMs"),
+        transitionMs: sum("transitionMs"),
+        evaluationMs: sum("evaluationMs"),
+        orderingMs: sum("orderingMs"),
+        initialLegalMs: sum("initialLegalMs"),
+        initialEvaluationMs: sum("initialEvaluationMs"),
+        priorityMs: sum("priorityMs"),
+        priorityCalls: sum("priorityCalls"),
+        orderingBonusMs: sum("orderingBonusMs"),
+        legalCalls: sum("legalCalls"),
+        checkCalls: sum("checkCalls"),
+        checkMs: sum("checkMs"),
+        checkCacheHits: sum("checkCacheHits"),
+        generatedMoves: lanes.reduce((n, entry) => n + entry.snapshot.stats.generatedMoves, 0),
+        cacheEvictions: sum("cacheEvictions"),
+        contextCacheEntries: sum("contextCacheEntries"),
+        contextCacheCapacity: sum("contextCacheCapacity"),
+        branchCacheHits: sum("branchCacheHits"),
+        branchCacheEntries: sum("branchCacheEntries"),
+        keyMs: sum("keyMs"),
+        immediateWork: sum("immediateWork"),
+        materialWork: sum("materialWork"),
+        preparationWork: sum("preparationWork"),
+        rootSetupWork: sum("rootSetupWork"),
+        completedIterationWork: value.dynamic?.completedIterationWork ?? 0,
+        reducedNodes: sum("reducedNodes"),
+        researches: sum("researches"),
+        promotionExtraMoves: sum("promotionExtraMoves"),
+        checkingExtraMoves: sum("checkingExtraMoves"),
+        checkingReserveNodes: sum("checkingReserveNodes"),
+        extendedNodes: sum("extendedNodes"),
+        quiescenceStops: sum("quiescenceStops"),
+        quiescenceMoves: sum("quiescenceMoves"),
+        subtreeStateCacheHits: sum("subtreeStateCacheHits"),
+        subtreeStateCacheEntries: sum("subtreeStateCacheEntries"),
+        subtreeStateKeyMs: sum("subtreeStateKeyMs"),
+        legalCacheHits: lanes.reduce((n, entry) => n + entry.snapshot.stats.legalCacheHits, 0),
+        transitionCacheHits: lanes.reduce(
+          (n, entry) => n + entry.snapshot.stats.transitionCacheHits,
+          0,
+        ),
+        evaluationCacheHits: lanes.reduce(
+          (n, entry) => n + entry.snapshot.stats.evaluationCacheHits,
+          0,
+        ),
+        iterationDepth: value.dynamic?.depth ?? value.snapshot.completedDepth + 1,
+        completedTasks: value.dynamic?.results.size ?? 0,
+        totalTasks: value.dynamic?.total ?? 0,
+        workerNodes: value.lanes.map((entry) => entry?.snapshot.stats.nodes ?? 0),
+        workerWaitMs:
+          value.dynamic?.waitMs.map(
+            (wait, worker) =>
+              wait +
+              (value.dynamic!.inflight.has(worker)
+                ? 0
+                : Math.max(0, elapsed(value) - value.dynamic!.waiting[worker])),
+          ) ?? [],
+        depths: value.dynamic?.depths ?? [],
+      };
+    }
     const root = value.snapshot.rootSide;
     if (root) {
       const merged = value.published
@@ -218,7 +659,28 @@ export function createStudySearchRuntime(
           return proof
             ? {
                 ...candidate,
-                study: proof.study,
+                study: {
+                  ...candidate.study,
+                  immediateLoss: proof.study.immediateLoss,
+                  immediateRepliesComplete: proof.study.immediateRepliesComplete,
+                  material: {
+                    ...candidate.study.material,
+                    lossWitness: proof.study.material.lossWitness,
+                    complete: proof.study.material.complete,
+                    limit: proof.study.material.limit,
+                  },
+                  explanations: [
+                    ...new Set([
+                      ...candidate.study.explanations,
+                      ...(proof.study.immediateLoss
+                        ? ["次の相手手番で自分が脱落する合法手があります。"]
+                        : []),
+                      ...(proof.study.material.lossWitness
+                        ? ["次の実自手番までに資産が減る合法な応手列があります。"]
+                        : []),
+                    ]),
+                  ],
+                },
                 danger: { ...candidate.danger, alternatives: proof.danger.alternatives },
               }
             : candidate;
@@ -236,23 +698,428 @@ export function createStudySearchRuntime(
         merged.length > 0 && merged.every((entry) => entry.study.immediateRepliesComplete);
     }
   }
+  function recordProof(value: Job, candidate: StudyCandidate) {
+    const previous = value.proofs.get(candidate.rootIndex);
+    const material = candidate.study.material;
+    const oldMaterial = previous?.study.material;
+    const complete = material.complete || oldMaterial?.complete === true;
+    const alternatives = candidate.danger.alternatives;
+    const oldAlternatives = previous?.danger.alternatives;
+    const base = alternatives ?? oldAlternatives;
+    value.proofs.set(candidate.rootIndex, {
+      study: {
+        ...candidate.study,
+        immediateLoss: candidate.study.immediateLoss ?? previous?.study.immediateLoss ?? null,
+        immediateRepliesComplete:
+          candidate.study.immediateRepliesComplete ||
+          previous?.study.immediateRepliesComplete === true,
+        material: {
+          ...material,
+          complete,
+          // 別担当の未検査通知は、既に行った検査の具体的な打切り理由を消しません。
+          limit: complete
+            ? null
+            : material.limit === "interrupted" || material.limit === null
+              ? (oldMaterial?.limit ?? material.limit)
+              : material.limit,
+          lossWitness: material.lossWitness ?? oldMaterial?.lossWitness ?? null,
+        },
+      },
+      danger: {
+        ...candidate.danger,
+        alternatives: base
+          ? {
+              ...base,
+              complete: alternatives?.complete === true || oldAlternatives?.complete === true,
+              limit: alternatives?.complete || oldAlternatives?.complete ? null : base.limit,
+              eliminationWitness:
+                alternatives?.eliminationWitness ?? oldAlternatives?.eliminationWitness ?? null,
+              rookLossWitness:
+                alternatives?.rookLossWitness ?? oldAlternatives?.rookLossWitness ?? null,
+            }
+          : null,
+      },
+    });
+  }
   function startChildren(value: Job, input: StudyPositionInput) {
     if (job !== value || value.snapshot.status !== "running") return;
-    const { timeBudgetMs: _time, focusSide: _focus, ...rootOptions } = value.options;
+    const {
+      timeBudgetMs: _time,
+      deadlineAt: _deadline,
+      focusSide: _focus,
+      broadDepth: _broad,
+      sessionKey: _session,
+      ...rootOptions
+    } = value.options;
     value.prepared = true;
-    children.forEach((child, lane) =>
-      child.send(
-        {
-          type: "start",
-          id: value.snapshot.id,
-          input,
-          options: { ...rootOptions, lane, lanes: threads },
-        } satisfies SearchCommand,
-        (error) => {
-          if (error && job === value) stop("error", "探索を開始できませんでした", true);
+    children.forEach((_child, lane) => {
+      const cacheSize =
+        rootOptions.cacheSize ??
+        (value.dynamic
+          ? Math.min(8192, Math.max(256, Math.floor((memoryMb / threads) * 4)))
+          : 1024);
+      const message: SearchCommand = {
+        type: "start",
+        id: value.snapshot.id,
+        input,
+        ...(config.observeParallel ? { measureTransport: true } : {}),
+        options: {
+          ...rootOptions,
+          measureDetails: config.measureStages === true,
+          strategy: value.dynamic ? (value.options.strategy ?? "adaptive") : "legacy",
+          cacheSize,
+          ...(value.dynamic?.parts && replyCacheBudget === "roots"
+            ? { subtreeCacheLimit: Math.floor(cacheSize * Math.min(1, 3 / threads)) }
+            : {}),
+          lane,
+          lanes: threads,
         },
-      ),
-    );
+      };
+      if (config.observeDiagnostic)
+        sendDiagnostic({ type: "command", worker: lane, command: message });
+      if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
+      sendTo(lane, message, (error) => {
+        if (error && job === value) stop("error", "探索を開始できませんでした", true);
+      });
+    });
+  }
+  function dispatchTasks(value: Job) {
+    return parentCost("dispatch", () => dispatchTasksImpl(value));
+  }
+  function dispatchTasksImpl(value: Job) {
+    const dynamic = value.dynamic;
+    if (!dynamic || value.snapshot.status !== "running") return;
+    const workers = children.map((_, worker) => worker);
+    if (dynamic.parts) {
+      const parts = dynamic.parts;
+      const priority = Array(threads).fill(0) as number[];
+      for (const entry of parts.queue) {
+        const owner = parts.owners.get(`${entry.task.rootIndex}:${entry.task.slot}`);
+        if (owner !== undefined) priority[owner] = 1;
+      }
+      for (const pending of parts.pending.values())
+        if (!pending.finishing && pending.results.size === pending.plan.tasks.length)
+          priority[pending.owner] = 2;
+      workers.sort((a, b) => priority[b] - priority[a] || a - b);
+    }
+    workers.forEach((worker) => {
+      if (dynamic.inflight.has(worker)) return;
+      const parts = dynamic.parts;
+      const finish =
+        parts &&
+        [...parts.pending.entries()].find(
+          ([, pending]) =>
+            pending.owner === worker &&
+            !pending.finishing &&
+            pending.results.size === pending.plan.tasks.length,
+        );
+      const preferredPart =
+        parts?.queue.findIndex(
+          (entry) => parts.owners.get(`${entry.task.rootIndex}:${entry.task.slot}`) === worker,
+        ) ?? -1;
+      const part =
+        !finish && parts?.queue.length
+          ? parts.queue.splice(preferredPart < 0 ? 0 : preferredPart, 1)[0]
+          : undefined;
+      if (finish || part) {
+        const taskId = ++dynamic.nextTaskId;
+        const pending = finish ? finish[1] : parts!.pending.get(part!.planKey)!;
+        const planKey = finish ? finish[0] : part!.planKey;
+        const kind = finish ? ("finish" as const) : ("subtree" as const);
+        dynamic.waitMs[worker] += Math.max(0, elapsed(value) - dynamic.waiting[worker]);
+        dynamic.inflight.set(worker, {
+          index: pending.index,
+          taskId,
+          kind,
+          planKey,
+          slot: part?.task.slot,
+        });
+        if (finish) pending.finishing = true;
+        else {
+          const affinityKey = `${part!.task.rootIndex}:${part!.task.slot}`;
+          if (parts!.owners.size >= 256 && !parts!.owners.has(affinityKey))
+            parts!.owners.delete(parts!.owners.keys().next().value!);
+          parts!.owners.set(affinityKey, worker);
+          if (value.snapshot.timing)
+            value.snapshot.timing.subtreeTasksAssigned =
+              (value.snapshot.timing.subtreeTasksAssigned ?? 0) + 1;
+        }
+        config.observeParallel?.({
+          type: "assigned",
+          id: value.snapshot.id,
+          atMs: performance.now() - parallelOrigin,
+          worker,
+          taskId,
+          role: kind,
+          index: pending.index,
+          depth: dynamic.depth,
+          phase: dynamic.dual?.phase ?? "adaptive",
+        });
+        const message: SearchCommand = finish
+          ? {
+              type: "finish",
+              id: value.snapshot.id,
+              taskId,
+              planId: pending.plan.planId,
+              results: pending.plan.tasks.map((task) => pending.results.get(task.slot)!),
+            }
+          : {
+              type: "subtree",
+              id: value.snapshot.id,
+              taskId,
+              task:
+                pending.owner === worker
+                  ? { localPlanId: pending.plan.planId, slot: part!.task.slot }
+                  : part!.task,
+            };
+        if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
+        if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
+        sendTo(worker, message, (error) => {
+          if (error && job === value) stop("error", "独立探索タスクを送れませんでした", true);
+        });
+        return;
+      }
+      if (!dynamic.queue.length) return;
+      const preferred = dynamic.queue.findIndex((index) => dynamic.owners.get(index) === worker);
+      const [index] = dynamic.queue.splice(preferred < 0 ? 0 : preferred, 1);
+      dynamic.waitMs[worker] += Math.max(0, elapsed(value) - dynamic.waiting[worker]);
+      const taskId = ++dynamic.nextTaskId;
+      dynamic.inflight.set(worker, { index, taskId });
+      if (value.snapshot.timing) {
+        value.snapshot.timing.tasksAssigned++;
+        if (dynamic.dual?.phase === "deep") value.snapshot.timing.deepTasksAssigned++;
+      }
+      dynamic.owners.set(index, worker);
+      config.observeParallel?.({
+        type: "assigned",
+        id: value.snapshot.id,
+        atMs: performance.now() - parallelOrigin,
+        worker,
+        taskId,
+        index,
+        depth: dynamic.depth,
+        phase: dynamic.dual?.phase ?? "adaptive",
+      });
+      const message: SearchCommand = {
+        type: "task",
+        id: value.snapshot.id,
+        taskId,
+        index,
+        depth: dynamic.depth,
+        material: dynamic.depth === 2 && dynamic.material.has(index),
+        ...(dynamic.parts &&
+        dynamic.dual?.phase === "deep" &&
+        dynamic.depth >= splitMinDepth &&
+        threads > 1
+          ? { partition: true }
+          : {}),
+        ...(dynamic.dual
+          ? {
+              policy: {
+                phase: dynamic.dual.phase,
+                width:
+                  dynamic.dual.phase === "deep"
+                    ? Math.min(8, 2 + dynamic.dual.pass)
+                    : (value.options.width ?? 6),
+                ownWidth: Math.min(10, 3 + dynamic.dual.pass),
+              },
+            }
+          : {}),
+      };
+      if (config.observeDiagnostic) sendDiagnostic({ type: "command", worker, command: message });
+      if (value.snapshot.timing) value.snapshot.timing.ipcCommands++;
+      sendTo(worker, message, (error) => {
+        if (error && job === value) stop("error", "探索タスクを送れませんでした", true);
+      });
+    });
+  }
+  function beginIteration(value: Job) {
+    const dynamic = value.dynamic!;
+    const dual = dynamic.dual;
+    if (
+      value.snapshot.timing &&
+      dual?.phase === "deep" &&
+      value.snapshot.timing.deepStartedMs === null
+    )
+      value.snapshot.timing.deepStartedMs = elapsed(value);
+    dynamic.queue =
+      dual?.phase === "deep"
+        ? [...dual.roots]
+        : dual
+          ? selectStudyRootIndices(
+              [...dynamic.all.values()],
+              value.snapshot.rootSide!,
+              value.options.rootWidth ?? 24,
+            )
+          : selectStudyIterationRoots(
+              [...dynamic.all.values()],
+              value.snapshot.rootSide!,
+              dynamic.depth,
+              value.options.rootWidth ?? 24,
+            );
+    if (value.rootOrderHint) {
+      const ordered = prioritizeFocusRoots(
+        dynamic.queue,
+        [...dynamic.all.values()],
+        value.rootOrderHint,
+      );
+      if (ordered.some((index, i) => index !== dynamic.queue[i]))
+        value.snapshot.diagnostics.hintReorders =
+          (value.snapshot.diagnostics.hintReorders ?? 0) + 1;
+      dynamic.queue = ordered;
+    }
+    if (config.observeDiagnostic)
+      sendDiagnostic({
+        type: "iteration",
+        depth: dynamic.depth,
+        phase: dual?.phase ?? "adaptive",
+        roots: [...dynamic.queue],
+      });
+    dynamic.total = dynamic.queue.length;
+    config.observeParallel?.({
+      type: "iteration",
+      id: value.snapshot.id,
+      atMs: performance.now() - parallelOrigin,
+      depth: dynamic.depth,
+      phase: dual?.phase ?? "adaptive",
+      roots: dynamic.total,
+    });
+    dynamic.results.clear();
+    value.snapshot.diagnostics.selectedRoots = dynamic.total;
+    if (value.snapshot.performance) {
+      value.snapshot.performance.iterationDepth = dynamic.depth;
+      value.snapshot.performance.completedTasks = 0;
+      value.snapshot.performance.totalTasks = dynamic.total;
+    }
+    dispatchTasks(value);
+  }
+  function rotateDeep(value: Job) {
+    const dynamic = value.dynamic!;
+    const dual = dynamic.dual!;
+    const best = [...value.published].sort((a, b) =>
+      compareStudyCandidates(a, b, value.snapshot.rootSide!),
+    )[0];
+    const reserve = dual.pool.filter((entry) => entry.rootIndex !== best?.rootIndex);
+    dual.roots = best ? [best.rootIndex] : [];
+    for (let offset = 0; offset < Math.min(2, reserve.length); offset++)
+      dual.roots.push(reserve[(dual.cursor + offset) % reserve.length].rootIndex);
+    dual.cursor += 2;
+    if (!dual.roots.length) dual.roots = dual.pool.slice(0, 3).map((entry) => entry.rootIndex);
+  }
+  function finishIteration(value: Job) {
+    const dynamic = value.dynamic!;
+    if (
+      value.snapshot.status !== "running" ||
+      dynamic.inflight.size ||
+      dynamic.queue.length ||
+      dynamic.parts?.pending.size ||
+      dynamic.parts?.queue.length ||
+      dynamic.results.size !== dynamic.total
+    )
+      return;
+    const dual = dynamic.dual;
+    config.observeParallel?.({
+      type: "iterationEnd",
+      id: value.snapshot.id,
+      atMs: performance.now() - parallelOrigin,
+      depth: dynamic.depth,
+      phase: dual?.phase ?? "adaptive",
+      roots: dynamic.total,
+    });
+    const completed = [...dynamic.results.values()];
+    dynamic.completedIterationWork += completed.reduce((n, c) => n + c.iterationWork, 0);
+    const publish = !dual || dynamic.depth >= value.snapshot.completedDepth;
+    if (publish) {
+      value.published = completed;
+      value.snapshot.completedDepth = dynamic.depth;
+      config.onCompletedRoots?.(value.published, dynamic.depth);
+      if (value.snapshot.timing && dynamic.depth === 2 && value.snapshot.timing.depthTwoMs === null)
+        value.snapshot.timing.depthTwoMs = elapsed(value);
+    }
+    if (dual?.phase === "broad") {
+      value.snapshot.broadCandidates = [...completed]
+        .sort((a, b) => compareStudyCandidates(a, b, value.snapshot.rootSide!))
+        .slice(0, 5);
+      dual.pool = [...completed].sort((a, b) =>
+        compareStudyCandidates(a, b, value.snapshot.rootSide!),
+      );
+      value.snapshot.coverage = {
+        phase: "broad",
+        broadDepth: dynamic.depth,
+        broadRoots: completed.length,
+        deepRoots: 0,
+        pass: 0,
+        opponentWidth: value.options.width ?? 6,
+        ownWidth: value.options.width ?? 6,
+      };
+    } else if (dual && publish) {
+      value.snapshot.coverage = {
+        ...value.snapshot.coverage!,
+        phase: "deep",
+        deepRoots: completed.length,
+        pass: dual.pass,
+        opponentWidth: Math.min(8, 2 + dual.pass),
+        ownWidth: Math.min(10, 3 + dual.pass),
+      };
+    }
+    if (config.observeDiagnostic)
+      sendDiagnostic({
+        type: "publication",
+        depth: dynamic.depth,
+        published: publish,
+        candidates: completed,
+        coverage: value.snapshot.coverage,
+      });
+    dynamic.depths.push({ depth: dynamic.depth, elapsedMs: elapsed(value), roots: dynamic.total });
+    merge(value);
+    const best = value.snapshot.candidates[0];
+    if (
+      (best?.evaluation?.evaluationKind === "terminal" &&
+        best.evaluation.values[value.snapshot.rootSide!].primary === 1) ||
+      dynamic.depth >= (value.options.maxDepth ?? 256)
+    ) {
+      stop(
+        "completed",
+        dynamic.depth >= (value.options.maxDepth ?? 256) ? "max_depth" : "sole_win",
+        true,
+      );
+      return;
+    }
+    if (dual) {
+      if (dual.phase === "broad" && dynamic.depth >= dual.broadDepth) {
+        dual.phase = "deep";
+        dual.roots = dual.pool.slice(0, 3).map((entry) => entry.rootIndex);
+      } else if (
+        dual.phase === "deep" &&
+        dynamic.depth >= Math.min(value.options.maxDepth ?? 256, 9 + Math.floor(dual.pass / 3))
+      ) {
+        dual.pass++;
+        rotateDeep(value);
+        dynamic.depth = dual.broadDepth;
+      } else if (
+        dual.phase === "deep" &&
+        !dual.challenged.has(dynamic.depth) &&
+        dual.pool.length > 3
+      ) {
+        const winner = [...completed].sort((a, b) =>
+          compareStudyCandidates(a, b, value.snapshot.rootSide!),
+        )[0];
+        const original = dual.pool.find((entry) => entry.rootIndex === winner?.rootIndex);
+        if (
+          winner?.evaluation &&
+          original?.evaluation &&
+          (winner.evaluation.values[value.snapshot.rootSide!].heuristicScore ?? 0) <
+            (original.evaluation.values[value.snapshot.rootSide!].heuristicScore ?? 0) - 200
+        ) {
+          dual.challenged.add(dynamic.depth);
+          rotateDeep(value);
+          beginIteration(value);
+          return;
+        }
+      }
+    }
+    dynamic.depth++;
+    beginIteration(value);
   }
   async function prepareFocus(value: Job) {
     const focus = value.snapshot.focus;
@@ -315,6 +1182,7 @@ export function createStudySearchRuntime(
         );
         return;
       }
+      value.rootOrderHint = config.rootOrderHint?.(projected.position);
       const fallback = getAnalysisLegalActions(projected.position)[0] ?? null;
       value.snapshot.analysisRecommendedAction = fallback;
       value.snapshot.recommendedAction =
@@ -362,6 +1230,8 @@ export function createStudySearchRuntime(
     if (depth > value.snapshot.completedDepth) {
       value.published = completed.flatMap((entry) => entry.snapshot.candidates);
       value.snapshot.completedDepth = depth;
+      config.onCompletedRoots?.(value.published, depth);
+      if (value.snapshot.timing && depth === 1) value.snapshot.timing.depthOneMs = elapsed(value);
       if (depth === 1 && value.snapshot.rootSide) {
         value.snapshot.diagnostics.legalRoots = value.published.length;
         value.selected = selectStudyRootIndices(
@@ -372,13 +1242,43 @@ export function createStudySearchRuntime(
         value.snapshot.diagnostics.selectedRoots = value.selected.length;
       }
       merge(value);
+      if (value.dynamic?.dual && depth === 1) {
+        value.snapshot.coverage = {
+          phase: "broad",
+          broadDepth: 1,
+          broadRoots: value.published.length,
+          deepRoots: 0,
+          pass: 0,
+          opponentWidth: value.options.width ?? 6,
+          ownWidth: value.options.width ?? 6,
+        };
+        value.snapshot.broadCandidates = value.snapshot.candidates;
+      }
     }
     const soleWin =
       value.snapshot.candidates[0]?.evaluation?.evaluationKind === "terminal" &&
       value.snapshot.rootSide !== null &&
       value.snapshot.candidates[0].evaluation.values[value.snapshot.rootSide].primary === 1;
-    if (allDone || soleWin) {
+    if (allDone || soleWin || depth >= (value.options.maxDepth ?? 256)) {
       stop("completed", soleWin ? "sole_win" : depth === 0 ? "terminal" : "max_depth", true);
+      return;
+    }
+    if (value.dynamic) {
+      value.releasedDepth = depth;
+      const dynamic = value.dynamic;
+      value.published.forEach((entry) => dynamic.all.set(entry.rootIndex, entry));
+      dynamic.material = new Set(value.selected!.slice(0, 5));
+      if (config.observeDiagnostic)
+        sendDiagnostic({
+          type: "publication",
+          depth: 1,
+          published: true,
+          candidates: value.published,
+          coverage: value.snapshot.coverage,
+        });
+      dynamic.depths.push({ depth: 1, elapsedMs: elapsed(value), roots: value.published.length });
+      dynamic.waiting.fill(elapsed(value));
+      beginIteration(value);
       return;
     }
     // 同じ深さを全レーンで比較してから、次の反復を一つだけ開始します。
@@ -392,6 +1292,17 @@ export function createStudySearchRuntime(
     });
   }
   function receive(index: number, message: SearchMessage) {
+    if (message.type === "progress" && message.pauseToken !== undefined) {
+      const pending = pauseDrains.get(message.pauseToken);
+      if (pending?.id === message.id) {
+        pending.waiting.delete(index);
+        if (!pending.waiting.size) {
+          clearTimeout(pending.timer);
+          pauseDrains.delete(message.pauseToken);
+          pending.resolve(true);
+        }
+      }
+    }
     if (
       message.type === "ready" ||
       !job ||
@@ -404,6 +1315,120 @@ export function createStudySearchRuntime(
       return;
     }
     const value = job;
+    if (value.snapshot.timing) value.snapshot.timing.ipcMessages++;
+    if (value.snapshot.timing && value.snapshot.timing.firstWorkerMs === null)
+      value.snapshot.timing.firstWorkerMs = elapsed(value);
+    if (message.taskId !== undefined && value.dynamic) {
+      const dynamic = value.dynamic;
+      const assignment = dynamic.inflight.get(index);
+      if (!assignment || assignment.taskId !== message.taskId) return;
+      value.lanes[index] = {
+        snapshot: message.snapshot,
+        memoryBytes: message.memoryBytes,
+        barrier: message.barrier,
+        timing: message.timing,
+      };
+      if (message.barrier && message.reply?.kind === "split") {
+        const parts = dynamic.parts;
+        const plan = message.reply.plan;
+        const key = `${index}:${plan.planId}`;
+        if (
+          !parts ||
+          assignment.kind ||
+          parts.pending.has(key) ||
+          parts.pending.size >= 3 ||
+          !Number.isSafeInteger(plan.planId) ||
+          plan.planId < 1 ||
+          plan.tasks.length < 2 ||
+          plan.tasks.length > 16 ||
+          new Set(plan.tasks.map((task) => task.slot)).size !== plan.tasks.length ||
+          plan.tasks.some(
+            (task) =>
+              task.baseStateHash !== value.snapshot.analysisStateHash ||
+              task.rootIndex !== assignment.index ||
+              task.targetDepth !== dynamic.depth ||
+              task.ply !== 2 ||
+              task.remaining !== dynamic.depth - 2 ||
+              task.policy.phase !== "deep",
+          ) ||
+          parts.queue.length + plan.tasks.length > 48
+        ) {
+          stop("error", "独立探索の分割計画が不正です", true);
+          return;
+        }
+        parts.pending.set(key, {
+          owner: index,
+          index: assignment.index,
+          plan,
+          results: new Map(),
+          finishing: false,
+        });
+        parts.queue.push(...plan.tasks.map((task) => ({ planKey: key, task })));
+        if (value.snapshot.timing)
+          value.snapshot.timing.splitPlans = (value.snapshot.timing.splitPlans ?? 0) + 1;
+        dynamic.inflight.delete(index);
+        dynamic.waiting[index] = elapsed(value);
+      } else if (message.barrier && assignment.kind === "subtree") {
+        const pending = dynamic.parts?.pending.get(assignment.planKey!);
+        const result = message.reply?.kind === "subtree" ? message.reply.result : null;
+        if (
+          !pending ||
+          !result ||
+          result.slot !== assignment.slot ||
+          pending.results.has(result.slot)
+        ) {
+          stop("error", "独立探索の結果が不足または重複しています", true);
+          return;
+        }
+        pending.results.set(result.slot, result);
+        if (value.snapshot.timing)
+          value.snapshot.timing.subtreeTasksCompleted =
+            (value.snapshot.timing.subtreeTasksCompleted ?? 0) + 1;
+        dynamic.inflight.delete(index);
+        dynamic.waiting[index] = elapsed(value);
+      } else if (message.barrier) {
+        if (message.reply) {
+          stop("error", "探索タスクの応答種別が一致しません", true);
+          return;
+        }
+        if (assignment.kind === "finish") {
+          const pending = dynamic.parts?.pending.get(assignment.planKey!);
+          if (
+            !pending ||
+            pending.owner !== index ||
+            pending.results.size !== pending.plan.tasks.length
+          ) {
+            stop("error", "分割探索の集約条件が一致しません", true);
+            return;
+          }
+          dynamic.parts!.pending.delete(assignment.planKey!);
+        }
+        const candidate = message.snapshot.candidates[0];
+        if (
+          message.snapshot.depth !== dynamic.depth ||
+          message.snapshot.candidates.length !== 1 ||
+          candidate?.rootIndex !== assignment.index
+        ) {
+          stop("error", "探索タスクの根または深さが一致しません", true);
+          return;
+        }
+        dynamic.results.set(candidate.rootIndex, candidate);
+        if (value.snapshot.timing) value.snapshot.timing.tasksCompleted++;
+        dynamic.all.set(candidate.rootIndex, candidate);
+        recordProof(value, candidate);
+        dynamic.inflight.delete(index);
+        dynamic.waiting[index] = elapsed(value);
+      }
+      merge(value);
+      if (value.snapshot.memoryBytes > memoryMb * 1024 * 1024) {
+        stop("completed", "memory_limit", true);
+        return;
+      }
+      dispatchTasks(value);
+      finishIteration(value);
+      if (["running", "paused"].includes(value.snapshot.status)) emit(value);
+      return;
+    }
     const previous = value.lanes[index];
     if (previous && message.snapshot.depth < previous.snapshot.depth) return;
     if (message.barrier && !message.snapshot.done && message.snapshot.depth <= value.releasedDepth)
@@ -412,9 +1437,9 @@ export function createStudySearchRuntime(
       snapshot: message.snapshot,
       memoryBytes: message.memoryBytes,
       barrier: message.barrier,
+      timing: message.timing,
     };
-    for (const candidate of message.snapshot.candidates)
-      value.proofs.set(candidate.rootIndex, { study: candidate.study, danger: candidate.danger });
+    for (const candidate of message.snapshot.candidates) recordProof(value, candidate);
     merge(value);
     if (value.snapshot.memoryBytes > memoryMb * 1024 * 1024) {
       stop("completed", "memory_limit", true);
@@ -443,9 +1468,19 @@ export function createStudySearchRuntime(
                 const workerPath = fileURLToPath(
                   config.workerScript ?? new URL("./worker.ts", import.meta.url),
                 );
-                const child = spawn(process.execPath, ["--no-env-file", workerPath], {
-                  stdio: ["ignore", "ignore", "pipe", "ipc"],
-                });
+                const child = spawn(
+                  process.execPath,
+                  [
+                    "--no-env-file",
+                    ...(config.cpuProfileDirectory
+                      ? ["--cpu-prof-md", `--cpu-prof-dir=${config.cpuProfileDirectory}`]
+                      : []),
+                    workerPath,
+                  ],
+                  {
+                    stdio: ["ignore", "ignore", "pipe", "ipc"],
+                  },
+                );
                 pool[index] = child;
                 let errors = "";
                 child.stderr?.on("data", (chunk) => {
@@ -457,10 +1492,69 @@ export function createStudySearchRuntime(
                 child.on("message", (raw: unknown) => {
                   if (closed || children !== pool) return;
                   const message = raw as SearchMessage;
-                  if (message.type === "ready") {
-                    clearTimeout(timer);
-                    resolve();
-                  } else receive(index, message);
+                  const probe = config.observeParallel ? performance.now() : 0;
+                  const jsonBytes = config.observeParallel
+                    ? Buffer.byteLength(JSON.stringify(message))
+                    : 0;
+                  const handling = config.observeParallel ? performance.now() : 0;
+                  if (config.observeParallel && message.type === "progress") {
+                    const assignment = job?.dynamic?.inflight.get(index);
+                    const accepted =
+                      !!job &&
+                      message.id === job.snapshot.id &&
+                      ["running", "paused"].includes(job.snapshot.status) &&
+                      (message.taskId === undefined || assignment?.taskId === message.taskId);
+                    config.observeParallel({
+                      type: "worker",
+                      id: message.id,
+                      atMs: handling - parallelOrigin,
+                      worker: index,
+                      taskId: message.taskId,
+                      outcome: message.reply?.kind,
+                      index: assignment?.index,
+                      depth: message.snapshot.depth,
+                      phase:
+                        message.taskId === undefined
+                          ? "prepare"
+                          : (job?.dynamic?.dual?.phase ?? "adaptive"),
+                      barrier: message.barrier,
+                      accepted,
+                      work: message.snapshot.stats.work,
+                      nodes: message.snapshot.stats.nodes,
+                      rss: message.memoryBytes,
+                      activeMs: message.timing?.activeMs ?? 0,
+                      cpuMs: message.timing?.cpuMs ?? 0,
+                      restoreMs: message.timing?.restoreMs ?? 0,
+                      createMs: message.timing?.createMs ?? 0,
+                      taskInitMs: message.timing?.taskInitMs,
+                      taskInitCpuMs: message.timing?.taskInitCpuMs,
+                      processCpuMs: message.timing?.processCpuMs,
+                      restoreCpuMs: message.timing?.restoreCpuMs,
+                      createCpuMs: message.timing?.createCpuMs,
+                      transport: message.timing?.transport
+                        ? { ...message.timing.transport }
+                        : undefined,
+                    });
+                  }
+                  try {
+                    if (config.observeDiagnostic)
+                      sendDiagnostic({ type: "message", worker: index, message });
+                    if (message.type === "ready") {
+                      clearTimeout(timer);
+                      resolve();
+                    } else receive(index, message);
+                  } finally {
+                    config.observeParallel?.({
+                      type: "ipc",
+                      id: "id" in message ? message.id : null,
+                      worker: index,
+                      direction: "receive",
+                      atMs: handling - parallelOrigin,
+                      jsonBytes,
+                      sizingMs: handling - probe,
+                      callMs: performance.now() - handling,
+                    });
+                  }
                 });
                 child.once("error", (error) => {
                   clearTimeout(timer);
@@ -494,6 +1588,11 @@ export function createStudySearchRuntime(
   }
   return {
     async start(input, options, onProgress = () => {}) {
+      const requested = performance.now();
+      const deadline =
+        options.timeBudgetMs === null
+          ? null
+          : createStudyDeadline(options.timeBudgetMs, options.deadlineAt);
       if (closed) throw new Error("探索サービスは終了しています");
       if (
         options.timeBudgetMs !== null &&
@@ -505,17 +1604,112 @@ export function createStudySearchRuntime(
       const token = ++generation;
       if (job && ["running", "paused"].includes(job.snapshot.status))
         stop("cancelled", "replaced", true);
-      else await terminateWorkers();
+      else if (!reuseWorkers) await terminateWorkers();
+      const restoring = performance.now();
       const position = await restoreStudyPosition(input);
+      const restored = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
-      await ensureWorkers();
+      config.onPreparedPosition?.(position);
+      if (!deadline) await ensureWorkers();
+      else if (performance.now() < deadline.workUntil) {
+        let startupCut: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const ready = await Promise.race([
+            ensureWorkers().then(() => true),
+            new Promise<boolean>((resolve) => {
+              startupCut = setTimeout(
+                () => resolve(false),
+                Math.max(0, deadline.workUntil - performance.now()),
+              );
+            }),
+          ]);
+          // 置換後の要求が共有している起動中のpoolは、古い要求の期限では終了しません。
+          if (!ready && token === generation) void terminateWorkers();
+        } finally {
+          clearTimeout(startupCut);
+        }
+      }
+      const ready = performance.now();
       if (closed || token !== generation) throw new Error("探索の開始が取り消されました");
       const staticEvaluation = evaluateStudyPosition(position);
+      const evaluated = performance.now();
       const fallback = getAnalysisLegalActions(position)[0] ?? null;
+      const legalReady = performance.now();
       const focusSide = options.focusSide ?? null;
       const id = crypto.randomUUID();
+      if (
+        options.broadDepth !== undefined &&
+        (!Number.isSafeInteger(options.broadDepth) ||
+          options.broadDepth < 2 ||
+          options.broadDepth > 4)
+      )
+        throw new TypeError("広い比較の深さは2〜4です");
       job = {
+        rootOrderHint: config.rootOrderHint?.(position),
+        dynamic:
+          options.strategy === "legacy" ||
+          config.scheduling === "fixed" ||
+          (config.workerScript && config.scheduling !== "dynamic")
+            ? null
+            : {
+                depth: 2,
+                nextTaskId: 0,
+                queue: [],
+                inflight: new Map(),
+                parts:
+                  config.taskPartition === "replies" &&
+                  (options.strategy === "dual" || options.strategy === "dual-continuations")
+                    ? { pending: new Map(), queue: [], owners: new Map() }
+                    : null,
+                results: new Map(),
+                all: new Map(),
+                material: new Set(),
+                owners: new Map(),
+                waiting: Array(threads).fill(0),
+                waitMs: Array(threads).fill(0),
+                depths: [],
+                total: 0,
+                completedIterationWork: 0,
+                ...(isDualStudyStrategy(options.strategy)
+                  ? {
+                      dual: {
+                        phase: "broad" as const,
+                        broadDepth:
+                          options.broadDepth ??
+                          (options.timeBudgetMs !== null && options.timeBudgetMs < 2000 ? 2 : 3),
+                        pool: [],
+                        roots: [],
+                        pass: 0,
+                        cursor: 0,
+                        challenged: new Set<number>(),
+                      },
+                    }
+                  : {}),
+              },
         snapshot: {
+          ...(config.measureStages
+            ? {
+                timing: {
+                  restoreMs: restored - restoring,
+                  startupMs: ready - restored,
+                  parentEvaluationMs: evaluated - ready,
+                  parentLegalMs: legalReady - evaluated,
+                  preSearchMs: legalReady - requested,
+                  firstWorkerMs: null,
+                  depthOneMs: null,
+                  depthTwoMs: null,
+                  deepStartedMs: null,
+                  tasksAssigned: 0,
+                  tasksCompleted: 0,
+                  deepTasksAssigned: 0,
+                  incompleteTasks: 0,
+                  queuedTasks: 0,
+                  workers: [],
+                  ipcCommands: 0,
+                  ipcMessages: 0,
+                },
+              }
+            : {}),
           id,
           stateHash: position.stateHash,
           analysisStateHash: focusSide ? null : position.stateHash,
@@ -548,7 +1742,16 @@ export function createStudySearchRuntime(
           staticEvaluation,
           workers: threads,
           diagnostics: {
-            searchVersion: studySearchVersion,
+            searchVersion:
+              options.strategy === "legacy" ||
+              config.scheduling === "fixed" ||
+              (config.workerScript && config.scheduling !== "dynamic")
+                ? legacyStudySearchVersion
+                : studyStrategyVersion(options.strategy) +
+                  (config.taskPartition === "replies" &&
+                  (options.strategy === "dual" || options.strategy === "dual-continuations")
+                    ? "-p1-3-replies"
+                    : ""),
             profile: options.profile ?? "study",
             legalRoots: 0,
             selectedRoots: options.rootWidth ?? 24,
@@ -561,7 +1764,7 @@ export function createStudySearchRuntime(
         selected: null,
         releasedDepth: -1,
         callback: onProgress,
-        started: performance.now(),
+        started: requested,
         consumed: 0,
         timer: null,
         input,
@@ -573,9 +1776,16 @@ export function createStudySearchRuntime(
       const { timeBudgetMs } = options;
       if (timeBudgetMs !== null) {
         const value = job;
-        value.timer = setTimeout(() => {
-          if (job === value) stop("completed", "deadline", false);
-        }, timeBudgetMs);
+        if (performance.now() >= deadline!.workUntil) {
+          stop("completed", "deadline", false);
+          return id;
+        }
+        value.timer = setTimeout(
+          () => {
+            if (job === value) stop("completed", "deadline", false);
+          },
+          Math.max(0, deadline!.workUntil - performance.now()),
+        );
       }
       emit(job);
       if (focusSide) void prepareFocus(job);
@@ -583,11 +1793,39 @@ export function createStudySearchRuntime(
       return id;
     },
     get(id) {
-      return job?.snapshot.id === id ? snapshot(job) : structuredClone(history.get(id) ?? null);
+      const before = performance.now();
+      const result =
+        job?.snapshot.id === id ? snapshot(job) : structuredClone(history.get(id) ?? null);
+      config.observeLifecycle?.({
+        clock: "parent-monotonic",
+        stage: "get-copy",
+        id,
+        atMs: performance.now(),
+        durationMs: performance.now() - before,
+      });
+      return result;
     },
     async pause(id) {
       if (job?.snapshot.id === id && job.snapshot.status === "running")
         stop("paused", "user", false);
+    },
+    async pauseAndDrain(id, timeoutMs = 60) {
+      if (!Number.isFinite(timeoutMs) || timeoutMs < 1) throw Error("停止応答の期限が不正です");
+      if (job?.snapshot.id !== id) return false;
+      if (job.snapshot.status === "completed") return true;
+      if (job.snapshot.status !== "running" && job.snapshot.status !== "paused") return false;
+      if (job.snapshot.status === "running") stop("paused", "user", false);
+      const waiting = new Set(children.flatMap((child, i) => (child.connected ? [i] : [])));
+      if (!waiting.size) return false;
+      const token = ++pauseToken;
+      return new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => {
+          pauseDrains.delete(token);
+          resolve(false);
+        }, timeoutMs);
+        pauseDrains.set(token, { id, waiting, resolve, timer });
+        command({ type: "pause", id, pauseToken: token });
+      });
     },
     async resume(id) {
       if (
@@ -598,14 +1836,30 @@ export function createStudySearchRuntime(
         job.snapshot.reason?.startsWith("focus_")
       )
         return;
+      const value = job;
+      const token = generation;
       job.snapshot.status = "running";
       job.snapshot.reason = null;
+      job.snapshot.completion = undefined;
       job.started = performance.now();
       // 継続は既存の読みを保つ無制限解析です。時間を指定し直す場合は新しく開始します。
       job.options = { ...job.options, timeBudgetMs: null };
-      if (!job.prepared && job.snapshot.focus) void prepareFocus(job);
-      else command({ type: "resume", id });
-      advanceBarrier(job);
+      try {
+        await ensureWorkers();
+      } catch (error) {
+        if (job === value && job.snapshot.status === "running") stop("error", String(error), true);
+        throw error;
+      }
+      if (closed || job !== value || token !== generation || value.snapshot.status !== "running")
+        return;
+      if (!job.prepared) {
+        if (job.snapshot.focus) void prepareFocus(job);
+        else startChildren(job, job.input);
+      } else command({ type: "resume", id });
+      if (job.dynamic && job.dynamic.all.size) {
+        dispatchTasks(job);
+        finishIteration(job);
+      } else advanceBarrier(job);
       if (job.snapshot.status === "running") emit(job);
     },
     async cancel(id) {
@@ -621,6 +1875,11 @@ export function createStudySearchRuntime(
       await terminating;
     },
     async close() {
+      for (const pending of pauseDrains.values()) {
+        clearTimeout(pending.timer);
+        pending.resolve(false);
+      }
+      pauseDrains.clear();
       if (closed) return terminating;
       generation++;
       closed = true;

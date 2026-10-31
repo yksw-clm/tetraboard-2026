@@ -1,0 +1,1984 @@
+{
+  "schemaVersion": 1,
+  "measurementSource": {
+    "commit": "f482d334d312d2b7c84454d746a8438f6a212d45",
+    "core": "b4807b8f0f4284d0660b02056ba20ed04e9a7b0b299374fa87af4bca1cf2305d",
+    "runtime": "35d42af86727347ee2e6c32c5d3a51266de2a1fc32a618abf46d16913e9bfad6",
+    "analysis": [
+      {
+        "path": "lossAnalysis.ts",
+        "sha256": "1f83855e64333dd6e21b1f226586848163d62e9f02aca6547068f27a20f0e087"
+      },
+      {
+        "path": "lossAnalysisCases.ts",
+        "sha256": "6d77ebbda45bdb0d85904874722a6dab7cae9875b6f9a4f56fbadf3705d37382"
+      },
+      {
+        "path": "lossAnalysisWorker.ts",
+        "sha256": "320cd0d8dedba433f57df3df295834e39dbdbcc7e609677fefcb3a642268a040"
+      },
+      {
+        "path": "lossSafety.ts",
+        "sha256": "a981b9b7ad280279fb8d0449dfae82ecf13f4248604eaccd103a4488d6f6f081"
+      },
+      {
+        "path": "lossAnalysisGuard.py",
+        "sha256": "db700832795bedf07a0dbe20687f2d4d1eef3f8763508db95dc2c556826a9910"
+      }
+    ]
+  },
+  "postAnalysisCommit": "722a5a7100eb4e5d489fce76856f502f83e8ad1d",
+  "referenceMeasurement": "e7b1af5e87d32039eb3c610438220b2726787de4",
+  "referenceSubmission": "ed749ce22355b37122f380302c8120863a915e10",
+  "mergeCommit": "592548f6d9668fe9cccb8e6bfc4ff7cfd215771a",
+  "developMerged": "506f3b1efdf39ff57cdf388d9e30d6f0f8b06b95",
+  "drive": "https://drive.google.com/drive/folders/1A4NBzU_6eqDLikF9dJloVplvVsxIgNkG",
+  "statisticalUnit": "used seed9874100; all15 losses from one correlated series",
+  "limits": {
+    "wallMs": 3600000,
+    "workers": 4,
+    "memoryMb": 4096,
+    "softRssMiB": 6144,
+    "hardRssMiB": 7168,
+    "runtimeMs": 2000,
+    "fixedDepths": [
+      2,
+      4,
+      6
+    ],
+    "fixedWork": 100000,
+    "fixedMs": 2000,
+    "majorActions": 6,
+    "policyPlies": 8,
+    "policyActionMs": 2000,
+    "policyCaseMs": 20000,
+    "safetyHorizons": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "safetyTransitions": 2500,
+    "safetyQueryMs": 500,
+    "safetyCaseMs": 20000,
+    "traceBytes": 2097152,
+    "caseBytes": 16777216,
+    "maxOutputBytes": 536870912
+  },
+  "coverage": {
+    "lossGames": 15,
+    "lossCases": 30,
+    "controls": 6,
+    "finiteAvoidableGames": 2,
+    "policyConditionalAvoidableGames": 10,
+    "policyTestedRoots": 1272,
+    "allLegalRoots": 1858,
+    "policyCompleteCases": 27,
+    "policyBudgetLimitedCases": 9,
+    "finiteCertificates": 636,
+    "verifiedCertificates": 491,
+    "unknownCertificates": 145,
+    "modelWitnessGames": 9,
+    "modelWitnessCases": 11,
+    "modelWitnessEvents": 20,
+    "incompleteFixedStages": 84,
+    "traceCappedRootTasks": 24
+  },
+  "labelsNonexclusiveByGame": {
+    "回避困難・未確定": 7,
+    "凍結Lv2方針に対する次自手番復帰が可能": 10,
+    "根候補選別の可能性（新観測のみ）": 12,
+    "相手応手選別の可能性（固定再現）": 6,
+    "指定有限範囲で回避可能（全合法応手証明）": 2,
+    "自手継続選別の可能性（固定再現）": 2
+  },
+  "controlledGroups": {
+    "loss": {
+      "cases": 30,
+      "rootSelectionPossible": 15,
+      "opponentSelectionPossible": 8,
+      "ownContinuationPossible": 2,
+      "horizonEvidence": 0,
+      "modelWitnessCases": 11
+    },
+    "control": {
+      "cases": 6,
+      "rootSelectionPossible": 5,
+      "opponentSelectionPossible": 3,
+      "ownContinuationPossible": 1,
+      "horizonEvidence": 0,
+      "modelWitnessCases": 0
+    }
+  },
+  "originalFilterSetsRecovered": false,
+  "serializationValidation": {
+    "schemaVersion": 1,
+    "validationSourceSha256": "bf67e62eb640abd67d135574f483d18a93e646ddfb20f22482a1b092ffaa5d56",
+    "totals": {
+      "cases": 36,
+      "originalPv": 87,
+      "newPv": 648,
+      "pvSteps": 3366,
+      "policyRows": 1272,
+      "policySteps": 4242,
+      "certificates": 636,
+      "verifiedCertificates": 491,
+      "unknownCertificates": 145,
+      "rootIndexMismatches": 0,
+      "lineEvaluationMismatches": 0
+    },
+    "errors": [],
+    "cases": [
+      {
+        "caseId": "1bd9a54c8ba559d3-58",
+        "verified": true
+      },
+      {
+        "caseId": "2b85a7c42d8baf79-54",
+        "verified": true
+      },
+      {
+        "caseId": "314e463cf2eca3d4-28",
+        "verified": true
+      },
+      {
+        "caseId": "6921d002682cf2f5-85",
+        "verified": true
+      },
+      {
+        "caseId": "8ffe15d17614d55b-17",
+        "verified": true
+      },
+      {
+        "caseId": "9df46e87b886dea8-107",
+        "verified": true
+      },
+      {
+        "caseId": "ae960d72d889183a-97",
+        "verified": true
+      },
+      {
+        "caseId": "c07791e121bdad5b-54",
+        "verified": true
+      },
+      {
+        "caseId": "d67bd5108f43a39c-59",
+        "verified": true
+      },
+      {
+        "caseId": "d7dd0fe615526b49-130",
+        "verified": true
+      },
+      {
+        "caseId": "d8db20336405552d-146",
+        "verified": true
+      },
+      {
+        "caseId": "e88afb2647b6731e-66",
+        "verified": true
+      },
+      {
+        "caseId": "ec7f7ff2f3ef6f6f-145",
+        "verified": true
+      },
+      {
+        "caseId": "f18744085711e435-17",
+        "verified": true
+      },
+      {
+        "caseId": "f1c8fdef9f37da03-148",
+        "verified": true
+      },
+      {
+        "caseId": "1bd9a54c8ba559d3-50",
+        "verified": true
+      },
+      {
+        "caseId": "2b85a7c42d8baf79-51",
+        "verified": true
+      },
+      {
+        "caseId": "314e463cf2eca3d4-24",
+        "verified": true
+      },
+      {
+        "caseId": "6921d002682cf2f5-83",
+        "verified": true
+      },
+      {
+        "caseId": "8ffe15d17614d55b-13",
+        "verified": true
+      },
+      {
+        "caseId": "9df46e87b886dea8-105",
+        "verified": true
+      },
+      {
+        "caseId": "ae960d72d889183a-95",
+        "verified": true
+      },
+      {
+        "caseId": "c07791e121bdad5b-51",
+        "verified": true
+      },
+      {
+        "caseId": "d67bd5108f43a39c-57",
+        "verified": true
+      },
+      {
+        "caseId": "d7dd0fe615526b49-128",
+        "verified": true
+      },
+      {
+        "caseId": "d8db20336405552d-144",
+        "verified": true
+      },
+      {
+        "caseId": "e88afb2647b6731e-64",
+        "verified": true
+      },
+      {
+        "caseId": "ec7f7ff2f3ef6f6f-143",
+        "verified": true
+      },
+      {
+        "caseId": "f18744085711e435-13",
+        "verified": true
+      },
+      {
+        "caseId": "f1c8fdef9f37da03-146",
+        "verified": true
+      },
+      {
+        "caseId": "34147a3c7260da65-105",
+        "verified": true
+      },
+      {
+        "caseId": "34147a3c7260da65-166",
+        "verified": true
+      },
+      {
+        "caseId": "3c95b46ffc6af7e7-133",
+        "verified": true
+      },
+      {
+        "caseId": "3c95b46ffc6af7e7-20",
+        "verified": true
+      },
+      {
+        "caseId": "5af97a243392610b-117",
+        "verified": true
+      },
+      {
+        "caseId": "5af97a243392610b-20",
+        "verified": true
+      }
+    ],
+    "allStructuralChecksValid": true,
+    "evaluationMatches": true
+  },
+  "resources": {
+    "peakBytes": {
+      "total": 3488022528,
+      "aggregation": 48775168,
+      "game": 1490141184,
+      "workers": 3415654400,
+      "monitor": 23855104
+    },
+    "maxWorkers": 4,
+    "reason": null,
+    "elapsedSeconds": 563.4294872080209,
+    "samplingMs": 100
+  },
+  "elapsedMinutes": 9.391115546533333,
+  "sourceUnchanged": true,
+  "criticalTactics": {
+    "adaptive": [
+      40,
+      40
+    ],
+    "dual": [
+      40,
+      40
+    ],
+    "dual-continuations": [
+      40,
+      40
+    ],
+    "budgetMs": 1000,
+    "workers": 4,
+    "partition": "root",
+    "sourceCommit": "f482d334d312d2b7c84454d746a8438f6a212d45"
+  },
+  "games": [
+    {
+      "gameId": "1bd9a54c8ba559d32d03a0ee7b8b3d2933c297820505b5a4814714fd9df3291b",
+      "strategy": "adaptive",
+      "side": "west",
+      "restricted": true,
+      "cases": [
+        "1bd9a54c8ba559d3-58",
+        "1bd9a54c8ba559d3-50"
+      ],
+      "labels": [
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "回避困難・未確定"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "1bd9a54c8ba559d3-58",
+          "role": "last",
+          "stateHash": "cea325a3508bfeb30efe2d9f40ad43b5528ed67b85639d2c095951f4cc3164a0",
+          "alive": 4,
+          "recordedDepth": 2,
+          "legalMoves": 10,
+          "pliesAfterChosenAction": 3,
+          "labels": [
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 19,
+            "unknown": 5
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 5
+            },
+            "to": {
+              "x": 1,
+              "y": 4
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "north",
+              "actualSide": "north"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "1bd9a54c8ba559d3-50",
+          "role": "previous",
+          "stateHash": "1c9eaf478b64a2e741e107656c141eba5717df5ffad4bf56d8516a15567e86ab",
+          "alive": 4,
+          "recordedDepth": 2,
+          "legalMoves": 15,
+          "pliesAfterChosenAction": 11,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 12,
+            "unknown": 12
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 2
+            },
+            "to": {
+              "x": 2,
+              "y": 3
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "north",
+              "actualSide": "north"
+            },
+            "predictedPlies": 2,
+            "pvReachesNextOwnMove": false,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "2b85a7c42d8baf79dc992192fac7e1fe277d29affdf69b25c5c39f1db6e1ec2d",
+      "strategy": "dual",
+      "side": "north",
+      "restricted": true,
+      "cases": [
+        "2b85a7c42d8baf79-54",
+        "2b85a7c42d8baf79-51"
+      ],
+      "labels": [
+        "回避困難・未確定",
+        "根候補選別の可能性（新観測のみ）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": false,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "2b85a7c42d8baf79-54",
+          "role": "last",
+          "stateHash": "de82512b53b8f5c4f3cf17cc76c26158a57dd5e5e59a1b8c3d18dfcc4ae9fdc6",
+          "alive": 3,
+          "recordedDepth": 0,
+          "legalMoves": 1,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 4,
+            "verified": 4,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 0
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false
+          },
+          "pvDivergence": null,
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "2b85a7c42d8baf79-51",
+          "role": "previous",
+          "stateHash": "fff50cd15b93ab73e757eff9b7df5bb9a46f19d66a34a6788dd2ab366cdc021f",
+          "alive": 3,
+          "recordedDepth": 6,
+          "legalMoves": 28,
+          "pliesAfterChosenAction": 5,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 21,
+            "unknown": 3
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 6
+            },
+            "to": {
+              "x": 2,
+              "y": 6
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 6,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "314e463cf2eca3d415adb64ac856d20a5e31ecf0c3fa807f052c1b4520d1a6e0",
+      "strategy": "dual-continuations",
+      "side": "south",
+      "restricted": false,
+      "cases": [
+        "314e463cf2eca3d4-28",
+        "314e463cf2eca3d4-24"
+      ],
+      "labels": [
+        "根候補選別の可能性（新観測のみ）",
+        "凍結Lv2方針に対する次自手番復帰が可能"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "314e463cf2eca3d4-28",
+          "role": "last",
+          "stateHash": "ded4473d304a3e35c7b1f8ea25ceade42248c865cd148ebb2174ab3dfe39fbae",
+          "alive": 4,
+          "recordedDepth": 6,
+          "legalMoves": 149,
+          "pliesAfterChosenAction": 3,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 19,
+            "unknown": 5
+          },
+          "policyComplete": false,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 6,
+              "y": 7
+            },
+            "to": {
+              "x": 7,
+              "y": 6
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 3,
+            "firstDivergence": {
+              "at": 3,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 6,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "314e463cf2eca3d4-24",
+          "role": "previous",
+          "stateHash": "2cbcd222be9d58e69f3085b3a7acf6afae7859d4e4ec5e5a6f62e68c15fbdb39",
+          "alive": 4,
+          "recordedDepth": 7,
+          "legalMoves": 88,
+          "pliesAfterChosenAction": 7,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 19,
+            "unknown": 5
+          },
+          "policyComplete": false,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 8
+            },
+            "to": {
+              "x": 6,
+              "y": 7
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "west",
+              "actualSide": "west"
+            },
+            "predictedPlies": 7,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "6921d002682cf2f5f587a3817e79db78a2c92cb386b3c69ad83fd435f71d3454",
+      "strategy": "dual-continuations",
+      "side": "west",
+      "restricted": true,
+      "cases": [
+        "6921d002682cf2f5-85",
+        "6921d002682cf2f5-83"
+      ],
+      "labels": [
+        "相手応手選別の可能性（固定再現）",
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "根候補選別の可能性（新観測のみ）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": false,
+      "positions": [
+        {
+          "caseId": "6921d002682cf2f5-85",
+          "role": "last",
+          "stateHash": "a5c3d926fc67882d95a6a853617ce73b6dbf3e6d6064a0ba0347bfefb88f3f76",
+          "alive": 3,
+          "recordedDepth": 7,
+          "legalMoves": 2,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "相手応手選別の可能性（固定再現）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 8,
+            "verified": 6,
+            "unknown": 2
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 6
+            },
+            "to": {
+              "x": 0,
+              "y": 5
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 2,
+            "firstDivergence": {
+              "at": 2,
+              "expectedSide": "south",
+              "actualSide": "south"
+            },
+            "predictedPlies": 7,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "6921d002682cf2f5-83",
+          "role": "previous",
+          "stateHash": "037f06d1ed81d26b0faae4f63f03db20c7ac5cbf44c57f4df6cbd3e14b1a1c3b",
+          "alive": 3,
+          "recordedDepth": 7,
+          "legalMoves": 5,
+          "pliesAfterChosenAction": 4,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）"
+          ],
+          "finiteProofs": {
+            "attempted": 20,
+            "verified": 12,
+            "unknown": 8
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "dropPiece",
+            "pieceKind": "rook",
+            "to": {
+              "x": 0,
+              "y": 5
+            }
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 7,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "8ffe15d17614d55b2a2b1abfa2213469bf35da9a57966fb66f28bde43d783395",
+      "strategy": "dual",
+      "side": "west",
+      "restricted": false,
+      "cases": [
+        "8ffe15d17614d55b-17",
+        "8ffe15d17614d55b-13"
+      ],
+      "labels": [
+        "根候補選別の可能性（新観測のみ）",
+        "相手応手選別の可能性（固定再現）",
+        "凍結Lv2方針に対する次自手番復帰が可能"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": false,
+      "positions": [
+        {
+          "caseId": "8ffe15d17614d55b-17",
+          "role": "last",
+          "stateHash": "af00882f9f120583d10694f6bc20f0c0fe7024c90d4c0abc7710ef47fc5e71c4",
+          "alive": 4,
+          "recordedDepth": 8,
+          "legalMoves": 64,
+          "pliesAfterChosenAction": 3,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "相手応手選別の可能性（固定再現）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 19,
+            "unknown": 5
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 4
+            },
+            "to": {
+              "x": 0,
+              "y": 4
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "north",
+              "actualSide": "north"
+            },
+            "predictedPlies": 8,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "8ffe15d17614d55b-13",
+          "role": "previous",
+          "stateHash": "240dc1dd2d7f7a769b3f42b20c7faf7fe8e8c132ef2516c07c3540c8aec1efff",
+          "alive": 4,
+          "recordedDepth": 0,
+          "legalMoves": 1,
+          "pliesAfterChosenAction": 7,
+          "labels": [
+            "相手応手選別の可能性（固定再現）"
+          ],
+          "finiteProofs": {
+            "attempted": 4,
+            "verified": 3,
+            "unknown": 1
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 4
+            },
+            "to": {
+              "x": 0,
+              "y": 5
+            },
+            "promote": false
+          },
+          "pvDivergence": null,
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "9df46e87b886dea84f88a3098cc512f5d3037146e61e1dbcfcba59cabe341809",
+      "strategy": "dual",
+      "side": "west",
+      "restricted": true,
+      "cases": [
+        "9df46e87b886dea8-107",
+        "9df46e87b886dea8-105"
+      ],
+      "labels": [
+        "回避困難・未確定"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": false,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "9df46e87b886dea8-107",
+          "role": "last",
+          "stateHash": "6918c7fb92586b97591274d82beaf79b1ae58980f5ca8516c6cb06046ac3bf0d",
+          "alive": 3,
+          "recordedDepth": 0,
+          "legalMoves": 1,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 4,
+            "verified": 4,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 1
+            },
+            "to": {
+              "x": 0,
+              "y": 0
+            },
+            "promote": false
+          },
+          "pvDivergence": null,
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "9df46e87b886dea8-105",
+          "role": "previous",
+          "stateHash": "0642f2ed898f31df12ad957cb01751efbc813372e064e1adbd42df3cdfdbeeb2",
+          "alive": 3,
+          "recordedDepth": 7,
+          "legalMoves": 3,
+          "pliesAfterChosenAction": 4,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 12,
+            "verified": 12,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 2
+            },
+            "to": {
+              "x": 0,
+              "y": 1
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 4,
+            "firstDivergence": {
+              "at": 4,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 7,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "ae960d72d889183a24de12116e8e4f534b8b57e57a0d60c4e197eef459daae3c",
+      "strategy": "adaptive",
+      "side": "west",
+      "restricted": false,
+      "cases": [
+        "ae960d72d889183a-97",
+        "ae960d72d889183a-95"
+      ],
+      "labels": [
+        "回避困難・未確定",
+        "根候補選別の可能性（新観測のみ）",
+        "指定有限範囲で回避可能（全合法応手証明）"
+      ],
+      "finiteAvoidable": true,
+      "policyConditionalAvoidance": false,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "ae960d72d889183a-97",
+          "role": "last",
+          "stateHash": "388cb8bee816b4b66cbc931d774567594f9cf642926a8abd0e37f5f021a461b8",
+          "alive": 3,
+          "recordedDepth": 3,
+          "legalMoves": 3,
+          "pliesAfterChosenAction": 1,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 12,
+            "verified": 12,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 5
+            },
+            "to": {
+              "x": 3,
+              "y": 5
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            2,
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "ae960d72d889183a-95",
+          "role": "previous",
+          "stateHash": "a1f740b480f689da9920d43b26aa390e21332e912bae801d5b43d7bcdc02c6b9",
+          "alive": 3,
+          "recordedDepth": 2,
+          "legalMoves": 132,
+          "pliesAfterChosenAction": 3,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "指定有限範囲で回避可能（全合法応手証明）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 16,
+            "unknown": 8
+          },
+          "policyComplete": false,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 4
+            },
+            "to": {
+              "x": 2,
+              "y": 5
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [
+            {
+              "horizon": 4,
+              "alternative": 9988
+            }
+          ],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "c07791e121bdad5ba7335f450af0f344f7e7f7e9d3e19db5666e8fae93eb3d23",
+      "strategy": "dual-continuations",
+      "side": "north",
+      "restricted": true,
+      "cases": [
+        "c07791e121bdad5b-54",
+        "c07791e121bdad5b-51"
+      ],
+      "labels": [
+        "回避困難・未確定",
+        "根候補選別の可能性（新観測のみ）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": false,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "c07791e121bdad5b-54",
+          "role": "last",
+          "stateHash": "9f22e17d56f9f6e3d03722a31ac0aeef092430450400c44502a2b10422c603c9",
+          "alive": 3,
+          "recordedDepth": 0,
+          "legalMoves": 1,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 4,
+            "verified": 4,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 5,
+              "y": 0
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            },
+            "promote": false
+          },
+          "pvDivergence": null,
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "c07791e121bdad5b-51",
+          "role": "previous",
+          "stateHash": "fff50cd15b93ab73e757eff9b7df5bb9a46f19d66a34a6788dd2ab366cdc021f",
+          "alive": 3,
+          "recordedDepth": 6,
+          "legalMoves": 28,
+          "pliesAfterChosenAction": 5,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 21,
+            "unknown": 3
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 2,
+              "y": 4
+            },
+            "to": {
+              "x": 2,
+              "y": 5
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 6,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "d67bd5108f43a39c218f5c6a083a7fa9a814f14d4d8b41b7a0f33c630211c9b6",
+      "strategy": "adaptive",
+      "side": "north",
+      "restricted": true,
+      "cases": [
+        "d67bd5108f43a39c-59",
+        "d67bd5108f43a39c-57"
+      ],
+      "labels": [
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "回避困難・未確定"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "d67bd5108f43a39c-59",
+          "role": "last",
+          "stateHash": "9dbc16e318643b5d6680c7417acbc03908a4fd064fdee29d88e266aebf4d503e",
+          "alive": 3,
+          "recordedDepth": 4,
+          "legalMoves": 3,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 12,
+            "verified": 12,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 1
+            },
+            "to": {
+              "x": 8,
+              "y": 0
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "d67bd5108f43a39c-57",
+          "role": "previous",
+          "stateHash": "040b2a9b17ec295e7dfd3138473183c530e38326d8b164c9bc5c7a0dc3d5b99f",
+          "alive": 3,
+          "recordedDepth": 4,
+          "legalMoves": 4,
+          "pliesAfterChosenAction": 4,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 16,
+            "verified": 14,
+            "unknown": 2
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 8,
+              "y": 1
+            },
+            "to": {
+              "x": 7,
+              "y": 1
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 2,
+            "firstDivergence": {
+              "at": 2,
+              "expectedSide": "north",
+              "actualSide": "north"
+            },
+            "predictedPlies": 6,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "d7dd0fe615526b4978ea9b654b901fa7b021084b0916b06c865da21a1bb49639",
+      "strategy": "dual-continuations",
+      "side": "east",
+      "restricted": true,
+      "cases": [
+        "d7dd0fe615526b49-130",
+        "d7dd0fe615526b49-128"
+      ],
+      "labels": [
+        "根候補選別の可能性（新観測のみ）",
+        "相手応手選別の可能性（固定再現）",
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "自手継続選別の可能性（固定再現）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": false,
+      "positions": [
+        {
+          "caseId": "d7dd0fe615526b49-130",
+          "role": "last",
+          "stateHash": "c47b80c980187f2e74c9f676faec68bc4aa02ac72d093b0b9cbcdb3912922fba",
+          "alive": 3,
+          "recordedDepth": 6,
+          "legalMoves": 8,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "相手応手選別の可能性（固定再現）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 14,
+            "unknown": 10
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 3
+            },
+            "to": {
+              "x": 8,
+              "y": 4
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "south",
+              "actualSide": "south"
+            },
+            "predictedPlies": 6,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "d7dd0fe615526b49-128",
+          "role": "previous",
+          "stateHash": "6a7cebd143eb642c81c25867b28e29c84f4d070c2af7668f58157ec82fd2ef64",
+          "alive": 3,
+          "recordedDepth": 5,
+          "legalMoves": 17,
+          "pliesAfterChosenAction": 4,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "自手継続選別の可能性（固定再現）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 12,
+            "unknown": 12
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 4,
+              "y": 3
+            }
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "south",
+              "actualSide": "south"
+            },
+            "predictedPlies": 5,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "d8db20336405552dc243211b29dd0442c3a752cf29f238ea40549ca7d4b965b6",
+      "strategy": "dual",
+      "side": "north",
+      "restricted": false,
+      "cases": [
+        "d8db20336405552d-146",
+        "d8db20336405552d-144"
+      ],
+      "labels": [
+        "根候補選別の可能性（新観測のみ）",
+        "相手応手選別の可能性（固定再現）",
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "自手継続選別の可能性（固定再現）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": false,
+      "positions": [
+        {
+          "caseId": "d8db20336405552d-146",
+          "role": "last",
+          "stateHash": "2fbb88b9d8b3bcc9a3d5ec2131f1c6682d454e71d33852c8bc27243a5acb3276",
+          "alive": 3,
+          "recordedDepth": 4,
+          "legalMoves": 181,
+          "pliesAfterChosenAction": 6,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "相手応手選別の可能性（固定再現）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 24,
+            "unknown": 0
+          },
+          "policyComplete": false,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 7
+            },
+            "to": {
+              "x": 1,
+              "y": 4
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "d8db20336405552d-144",
+          "role": "previous",
+          "stateHash": "f3fa07ea8d80396057f0c286adb639443dad01b4c50d74bd574d0bc412c9fcd2",
+          "alive": 3,
+          "recordedDepth": 6,
+          "legalMoves": 181,
+          "pliesAfterChosenAction": 8,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "自手継続選別の可能性（固定再現）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 24,
+            "unknown": 0
+          },
+          "policyComplete": false,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 1
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 2,
+            "firstDivergence": {
+              "at": 2,
+              "expectedSide": "north",
+              "actualSide": "north"
+            },
+            "predictedPlies": 6,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "e88afb2647b6731e35221a64fe48e6060c3b13a358cb584aec3278380bc54f52",
+      "strategy": "dual",
+      "side": "east",
+      "restricted": false,
+      "cases": [
+        "e88afb2647b6731e-66",
+        "e88afb2647b6731e-64"
+      ],
+      "labels": [
+        "相手応手選別の可能性（固定再現）",
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "根候補選別の可能性（新観測のみ）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": false,
+      "positions": [
+        {
+          "caseId": "e88afb2647b6731e-66",
+          "role": "last",
+          "stateHash": "a6eeca3439ff18976a4b88548a35bd06c9b4a6ff767ff213ac81794a10cebfd9",
+          "alive": 3,
+          "recordedDepth": 7,
+          "legalMoves": 2,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "相手応手選別の可能性（固定再現）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 8,
+            "verified": 6,
+            "unknown": 2
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 3
+            },
+            "to": {
+              "x": 8,
+              "y": 2
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "south",
+              "actualSide": "south"
+            },
+            "predictedPlies": 7,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "e88afb2647b6731e-64",
+          "role": "previous",
+          "stateHash": "e9c250019a9ec974c7f6ffeb94bb53a38261afa9c19f36ff31f5c16cc2e6766a",
+          "alive": 3,
+          "recordedDepth": 2,
+          "legalMoves": 59,
+          "pliesAfterChosenAction": 4,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 16,
+            "unknown": 8
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "dropPiece",
+            "pieceKind": "pawn",
+            "to": {
+              "x": 3,
+              "y": 6
+            }
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "south",
+              "actualSide": "south"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "ec7f7ff2f3ef6f6fcc36b67e963ba01f018379e81b7d9502e1b2cccc8b2deac6",
+      "strategy": "adaptive",
+      "side": "north",
+      "restricted": false,
+      "cases": [
+        "ec7f7ff2f3ef6f6f-145",
+        "ec7f7ff2f3ef6f6f-143"
+      ],
+      "labels": [
+        "凍結Lv2方針に対する次自手番復帰が可能",
+        "根候補選別の可能性（新観測のみ）"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "ec7f7ff2f3ef6f6f-145",
+          "role": "last",
+          "stateHash": "07c91dbb4fd3f161e7c199458f65ccb3e2218109214e1abce30a1708e446b14e",
+          "alive": 3,
+          "recordedDepth": 3,
+          "legalMoves": 3,
+          "pliesAfterChosenAction": 2,
+          "labels": [
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 12,
+            "verified": 10,
+            "unknown": 2
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 7,
+              "y": 1
+            },
+            "to": {
+              "x": 8,
+              "y": 0
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "east",
+              "actualSide": "east"
+            },
+            "predictedPlies": 4,
+            "pvReachesNextOwnMove": false,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "ec7f7ff2f3ef6f6f-143",
+          "role": "previous",
+          "stateHash": "675a9a2a1155b9e2a73fab9637a25032e69ed356794331eceae4fc7df99b6abd",
+          "alive": 3,
+          "recordedDepth": 1,
+          "legalMoves": 105,
+          "pliesAfterChosenAction": 4,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 14,
+            "unknown": 10
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 5
+            },
+            "to": {
+              "x": 1,
+              "y": 6
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": null,
+            "predictedPlies": 1,
+            "pvReachesNextOwnMove": false,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "f18744085711e43546d195cb1edb0f3b97a83764947f4f55cb6f5e4e17b8fbc8",
+      "strategy": "dual-continuations",
+      "side": "west",
+      "restricted": false,
+      "cases": [
+        "f18744085711e435-17",
+        "f18744085711e435-13"
+      ],
+      "labels": [
+        "根候補選別の可能性（新観測のみ）",
+        "相手応手選別の可能性（固定再現）",
+        "凍結Lv2方針に対する次自手番復帰が可能"
+      ],
+      "finiteAvoidable": false,
+      "policyConditionalAvoidance": true,
+      "modelWitnessObserved": false,
+      "positions": [
+        {
+          "caseId": "f18744085711e435-17",
+          "role": "last",
+          "stateHash": "af00882f9f120583d10694f6bc20f0c0fe7024c90d4c0abc7710ef47fc5e71c4",
+          "alive": 4,
+          "recordedDepth": 7,
+          "legalMoves": 64,
+          "pliesAfterChosenAction": 3,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "相手応手選別の可能性（固定再現）",
+            "凍結Lv2方針に対する次自手番復帰が可能"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 19,
+            "unknown": 5
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 1,
+              "y": 4
+            },
+            "to": {
+              "x": 0,
+              "y": 4
+            },
+            "promote": false
+          },
+          "pvDivergence": {
+            "matchingPlies": 1,
+            "firstDivergence": {
+              "at": 1,
+              "expectedSide": "north",
+              "actualSide": "north"
+            },
+            "predictedPlies": 7,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "f18744085711e435-13",
+          "role": "previous",
+          "stateHash": "240dc1dd2d7f7a769b3f42b20c7faf7fe8e8c132ef2516c07c3540c8aec1efff",
+          "alive": 4,
+          "recordedDepth": 0,
+          "legalMoves": 1,
+          "pliesAfterChosenAction": 7,
+          "labels": [
+            "相手応手選別の可能性（固定再現）"
+          ],
+          "finiteProofs": {
+            "attempted": 4,
+            "verified": 3,
+            "unknown": 1
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 4
+            },
+            "to": {
+              "x": 0,
+              "y": 5
+            },
+            "promote": false
+          },
+          "pvDivergence": null,
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    },
+    {
+      "gameId": "f1c8fdef9f37da034dea1ad2e1ef753231c1e60c878bf9f4ffa47540d8db221f",
+      "strategy": "adaptive",
+      "side": "south",
+      "restricted": true,
+      "cases": [
+        "f1c8fdef9f37da03-148",
+        "f1c8fdef9f37da03-146"
+      ],
+      "labels": [
+        "回避困難・未確定",
+        "根候補選別の可能性（新観測のみ）",
+        "指定有限範囲で回避可能（全合法応手証明）"
+      ],
+      "finiteAvoidable": true,
+      "policyConditionalAvoidance": false,
+      "modelWitnessObserved": true,
+      "positions": [
+        {
+          "caseId": "f1c8fdef9f37da03-148",
+          "role": "last",
+          "stateHash": "3af21fb302013e591048a687d3cc8e60096b5759f7ea32306f8e751e6a67f0b1",
+          "alive": 3,
+          "recordedDepth": 0,
+          "legalMoves": 1,
+          "pliesAfterChosenAction": 1,
+          "labels": [
+            "回避困難・未確定"
+          ],
+          "finiteProofs": {
+            "attempted": 4,
+            "verified": 4,
+            "unknown": 0
+          },
+          "policyComplete": true,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 0,
+              "y": 7
+            },
+            "to": {
+              "x": 0,
+              "y": 6
+            },
+            "promote": false
+          },
+          "pvDivergence": null,
+          "finiteAvoidance": [],
+          "finiteForcedLoss": [
+            2,
+            3,
+            4
+          ],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        },
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "role": "previous",
+          "stateHash": "e92658ee926ff557da511ece1fc310f1226d4533bff09c8c86316a6869eb3879",
+          "alive": 3,
+          "recordedDepth": 2,
+          "legalMoves": 239,
+          "pliesAfterChosenAction": 3,
+          "labels": [
+            "根候補選別の可能性（新観測のみ）",
+            "指定有限範囲で回避可能（全合法応手証明）"
+          ],
+          "finiteProofs": {
+            "attempted": 24,
+            "verified": 23,
+            "unknown": 1
+          },
+          "policyComplete": false,
+          "chosenAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          },
+          "pvDivergence": {
+            "matchingPlies": 3,
+            "firstDivergence": null,
+            "predictedPlies": 3,
+            "pvReachesNextOwnMove": true,
+            "actualPrefixExhausted": false
+          },
+          "finiteAvoidance": [
+            {
+              "horizon": 4,
+              "alternative": 3451
+            },
+            {
+              "horizon": 4,
+              "alternative": 3450
+            }
+          ],
+          "finiteForcedLoss": [],
+          "evaluationCoefficientsDefect": "unconfirmed"
+        }
+      ]
+    }
+  ],
+  "localAllRootsUnsafePositions": [
+    {
+      "caseId": "2b85a7c42d8baf79-54",
+      "legalMoves": 1,
+      "horizons": [
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    },
+    {
+      "caseId": "9df46e87b886dea8-107",
+      "legalMoves": 1,
+      "horizons": [
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    },
+    {
+      "caseId": "ae960d72d889183a-97",
+      "legalMoves": 3,
+      "horizons": [
+        2,
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    },
+    {
+      "caseId": "c07791e121bdad5b-54",
+      "legalMoves": 1,
+      "horizons": [
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    },
+    {
+      "caseId": "d67bd5108f43a39c-59",
+      "legalMoves": 3,
+      "horizons": [
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    },
+    {
+      "caseId": "f1c8fdef9f37da03-148",
+      "legalMoves": 1,
+      "horizons": [
+        2,
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    },
+    {
+      "caseId": "9df46e87b886dea8-105",
+      "legalMoves": 3,
+      "horizons": [
+        3,
+        4
+      ],
+      "opponentModel": "all-opponents-adversarial"
+    }
+  ],
+  "noAvoidanceEstablishedGames": [
+    "2b85a7c42d8baf79dc992192fac7e1fe277d29affdf69b25c5c39f1db6e1ec2d",
+    "9df46e87b886dea84f88a3098cc512f5d3037146e61e1dbcfcba59cabe341809",
+    "c07791e121bdad5ba7335f450af0f344f7e7f7e9d3e19db5666e8fae93eb3d23"
+  ],
+  "limitations": [
+    "元の全枝は未記録。固定/新計時観測の採否を過去の実行証明へ置換しない。",
+    "有限生存の証明は勝利・最善手・無限安全を意味しない。",
+    "選択探索や凍結方針への生存を全合法応手安全や不可避性へ読み替えない。",
+    "静的評価内訳だけで評価係数の欠陥を確定しない。",
+    "27局面の方針検査は全初手を終了、9局面は20秒予算により一部初手のみ。",
+    "同一seed系列の記述分析であり、15独立開始系列や棋力改善の効果量ではない。",
+    "相手モデル証拠9局は固定再検討であり、元の2秒実行の内部枝を復元した証明ではない。",
+    "24根タスクは2MiBのtrace記録上限。未観測枝は不存在とは扱わない。",
+    "Mは実手順での脱落枝を抽出条件に含むため、勝利対照M0を敗退特有の統計的証拠とは扱わない。"
+  ]
+}

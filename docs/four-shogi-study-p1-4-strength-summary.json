@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 1,
+  "goal": "P1-4 independent playing-strength pilot",
+  "referenceCommit": "09b497d4b879556e091f1f5dfa4a409483875d97",
+  "measurementCommit": "e7b1af5e87d32039eb3c610438220b2726787de4",
+  "coreAndRuntimeUnchangedSinceReference": true,
+  "analysisSourceSha256": "77f6ff65e02174b183c21cc525a245460652fd239512958e9c48024aeb5d7b3b",
+  "seed": 9874100,
+  "independentSeeds": 1,
+  "primaryGames": 24,
+  "totalAttemptsIncludingResourceStops": 28,
+  "completeMatchedSeeds": [
+    9874100
+  ],
+  "globalElapsedMs": 2996986.0,
+  "globalWallLimitMs": 5400000,
+  "wallLimitMet": true,
+  "primaryConditions": {
+    "timeMs": 2000,
+    "workers": 4,
+    "taskPartition": "root",
+    "memoryMb": 4096,
+    "reuseWorkers": false,
+    "profile": "study",
+    "openingPlies": 12,
+    "maxAdditionalPlies": 1024,
+    "seats": [
+      "south",
+      "west",
+      "north",
+      "east"
+    ],
+    "restrictions": [
+      "off",
+      "on"
+    ],
+    "opponentCommit": "913a09d4edce5e44c96d190a60757ef184a4738d",
+    "opponentSourceSha256": "38e9b81f223d79e9e0596901273754e28643b5273f74f4d9bb7b5230c03025a3",
+    "opponentBudget": {
+      "maxWork": 2048,
+      "maxDepth": 6,
+      "width": 6,
+      "rootWidth": 24,
+      "extensions": 2
+    },
+    "softRssMiB": 6144,
+    "hardRssMiB": 7168
+  },
+  "phases": [
+    {
+      "name": "initial",
+      "source": "44ddd98dcb8b54392a20e52f7da96e4b4a9da006",
+      "memoryMb": 8192,
+      "reuseWorkers": true,
+      "attempts": 3,
+      "finished": 2,
+      "unfinished": 1,
+      "stopReason": "soft_memory_limit",
+      "peakMiB": 6145.046875,
+      "peakBytesByRole": {
+        "total": 6443548672,
+        "aggregation": 33832960,
+        "game": 244416512,
+        "workers": 6170869760,
+        "monitor": 22855680
+      },
+      "maxWorkers": 4,
+      "sourceUnchanged": true,
+      "dirtyDuringMeasurement": false,
+      "startedAt": "2026-10-30T01:43:22.554Z",
+      "endedAt": "2026-10-30T01:47:31.187Z",
+      "canonicalEvents": 355,
+      "allReplaysValid": true,
+      "workerFailures": [],
+      "failure": null
+    },
+    {
+      "name": "cache4096",
+      "source": "44ddd98dcb8b54392a20e52f7da96e4b4a9da006",
+      "memoryMb": 4096,
+      "reuseWorkers": true,
+      "attempts": 1,
+      "finished": 0,
+      "unfinished": 1,
+      "stopReason": "soft_memory_limit",
+      "peakMiB": 6148.90625,
+      "peakBytesByRole": {
+        "total": 6447595520,
+        "aggregation": 34209792,
+        "game": 208797696,
+        "workers": 6309560320,
+        "monitor": 23134208
+      },
+      "maxWorkers": 4,
+      "sourceUnchanged": true,
+      "dirtyDuringMeasurement": false,
+      "startedAt": "2026-10-30T01:51:09.848Z",
+      "endedAt": "2026-10-30T01:51:46.423Z",
+      "canonicalEvents": 61,
+      "allReplaysValid": true,
+      "workerFailures": [],
+      "failure": null
+    },
+    {
+      "name": "cold4096",
+      "source": "e7b1af5e87d32039eb3c610438220b2726787de4",
+      "memoryMb": 4096,
+      "reuseWorkers": false,
+      "attempts": 24,
+      "finished": 24,
+      "unfinished": 0,
+      "stopReason": null,
+      "peakMiB": 1850.765625,
+      "peakBytesByRole": {
+        "total": 1940668416,
+        "aggregation": 69976064,
+        "game": 1859911680,
+        "workers": 1619869696,
+        "monitor": 24395776
+      },
+      "maxWorkers": 4,
+      "sourceUnchanged": true,
+      "dirtyDuringMeasurement": false,
+      "startedAt": "2026-10-30T02:00:51.788Z",
+      "endedAt": "2026-10-30T02:33:19.540Z",
+      "canonicalEvents": 3844,
+      "allReplaysValid": true,
+      "workerFailures": [],
+      "failure": null
+    }
+  ],
+  "primary": {
+    "adaptive": {
+      "attempted": 8,
+      "finished": 8,
+      "unfinished": 0,
+      "soleFirst": 3,
+      "soleFirstRateAmongFinished": 0.375,
+      "soleFirstRateAll": 0.375,
+      "meanRank": 2.375,
+      "tiedFirst": 0,
+      "repetitions": 1,
+      "repetitionRateAmongFinished": 0.125,
+      "earlyEliminations": 5,
+      "earlyEliminationRate": 0.625,
+      "completionRate": 1,
+      "plies": {
+        "count": 8,
+        "mean": 141.875,
+        "p50": 125,
+        "p95": 249,
+        "max": 249
+      },
+      "candidateChoices": 276,
+      "forcedChoices": 5,
+      "elapsedMs": {
+        "count": 276,
+        "mean": 1958.4919536920252,
+        "p50": 2022.8728329999722,
+        "p95": 2031.3292500001844,
+        "max": 2046.3687080000527
+      },
+      "searchElapsedMs": {
+        "count": 271,
+        "mean": 1994.6183333653094,
+        "p50": 2022.9662920001429,
+        "p95": 2031.3292500001844,
+        "max": 2046.3687080000527
+      },
+      "depth": {
+        "count": 271,
+        "mean": 2.5571955719557193,
+        "p50": 3,
+        "p95": 4,
+        "max": 4
+      },
+      "depthOneRate": 1,
+      "depthTwoRate": 0.9114391143911439,
+      "deepApplicableSearches": 0,
+      "deepReachRate": null,
+      "deadlineRate": 0.981549815498155,
+      "terminationReasons": {
+        "last_player": 7,
+        "repetition": 1
+      },
+      "searchReasons": {
+        "deadline": 266,
+        "sole_win": 5
+      }
+    },
+    "dual": {
+      "attempted": 8,
+      "finished": 8,
+      "unfinished": 0,
+      "soleFirst": 3,
+      "soleFirstRateAmongFinished": 0.375,
+      "soleFirstRateAll": 0.375,
+      "meanRank": 2.375,
+      "tiedFirst": 0,
+      "repetitions": 2,
+      "repetitionRateAmongFinished": 0.25,
+      "earlyEliminations": 5,
+      "earlyEliminationRate": 0.625,
+      "completionRate": 1,
+      "plies": {
+        "count": 8,
+        "mean": 170,
+        "p50": 151,
+        "p95": 276,
+        "max": 276
+      },
+      "candidateChoices": 301,
+      "forcedChoices": 8,
+      "elapsedMs": {
+        "count": 301,
+        "mean": 1942.8301975348847,
+        "p50": 2027.502790999948,
+        "p95": 2038.3193749999627,
+        "max": 2075.568750000006
+      },
+      "searchElapsedMs": {
+        "count": 293,
+        "mean": 1995.8555915836184,
+        "p50": 2027.6647499999963,
+        "p95": 2038.5861249999143,
+        "max": 2075.568750000006
+      },
+      "depth": {
+        "count": 293,
+        "mean": 3.4368600682593855,
+        "p50": 2,
+        "p95": 7,
+        "max": 9
+      },
+      "depthOneRate": 1,
+      "depthTwoRate": 0.9658703071672355,
+      "deepApplicableSearches": 293,
+      "deepReachRate": 0.3651877133105802,
+      "deadlineRate": 0.9795221843003413,
+      "terminationReasons": {
+        "last_player": 6,
+        "repetition": 2
+      },
+      "searchReasons": {
+        "deadline": 287,
+        "sole_win": 6
+      }
+    },
+    "dual-continuations": {
+      "attempted": 8,
+      "finished": 8,
+      "unfinished": 0,
+      "soleFirst": 3,
+      "soleFirstRateAmongFinished": 0.375,
+      "soleFirstRateAll": 0.375,
+      "meanRank": 2.5,
+      "tiedFirst": 0,
+      "repetitions": 1,
+      "repetitionRateAmongFinished": 0.125,
+      "earlyEliminations": 5,
+      "earlyEliminationRate": 0.625,
+      "completionRate": 1,
+      "plies": {
+        "count": 8,
+        "mean": 132.625,
+        "p50": 114,
+        "p95": 198,
+        "max": 198
+      },
+      "candidateChoices": 220,
+      "forcedChoices": 4,
+      "elapsedMs": {
+        "count": 220,
+        "mean": 1944.8955416636363,
+        "p50": 2026.127957999939,
+        "p95": 2033.2664579999982,
+        "max": 2048.580707999994
+      },
+      "searchElapsedMs": {
+        "count": 216,
+        "mean": 1980.9097293564816,
+        "p50": 2026.2062499999302,
+        "p95": 2033.4827090000035,
+        "max": 2048.580707999994
+      },
+      "depth": {
+        "count": 216,
+        "mean": 3.810185185185185,
+        "p50": 2,
+        "p95": 7,
+        "max": 8
+      },
+      "depthOneRate": 1,
+      "depthTwoRate": 0.9814814814814815,
+      "deepApplicableSearches": 216,
+      "deepReachRate": 0.46296296296296297,
+      "deadlineRate": 0.9722222222222222,
+      "terminationReasons": {
+        "last_player": 7,
+        "repetition": 1
+      },
+      "searchReasons": {
+        "deadline": 210,
+        "sole_win": 6
+      }
+    }
+  },
+  "byRule": {
+    "off": {
+      "adaptive": {
+        "games": 4,
+        "soleFirst": 2,
+        "soleFirstRate": 0.5,
+        "meanRank": 2
+      },
+      "dual": {
+        "games": 4,
+        "soleFirst": 1,
+        "soleFirstRate": 0.25,
+        "meanRank": 2.75
+      },
+      "dual-continuations": {
+        "games": 4,
+        "soleFirst": 2,
+        "soleFirstRate": 0.5,
+        "meanRank": 2.5
+      }
+    },
+    "on": {
+      "adaptive": {
+        "games": 4,
+        "soleFirst": 1,
+        "soleFirstRate": 0.25,
+        "meanRank": 2.75
+      },
+      "dual": {
+        "games": 4,
+        "soleFirst": 2,
+        "soleFirstRate": 0.5,
+        "meanRank": 2
+      },
+      "dual-continuations": {
+        "games": 4,
+        "soleFirst": 1,
+        "soleFirstRate": 0.25,
+        "meanRank": 2.5
+      }
+    }
+  },
+  "bySeat": {
+    "south": {
+      "adaptive": {
+        "games": 2,
+        "soleFirst": 1,
+        "soleFirstRate": 0.5,
+        "meanRank": 2
+      },
+      "dual": {
+        "games": 2,
+        "soleFirst": 2,
+        "soleFirstRate": 1,
+        "meanRank": 1
+      },
+      "dual-continuations": {
+        "games": 2,
+        "soleFirst": 1,
+        "soleFirstRate": 0.5,
+        "meanRank": 2.5
+      }
+    },
+    "west": {
+      "adaptive": {
+        "games": 2,
+        "soleFirst": 0,
+        "soleFirstRate": 0,
+        "meanRank": 3.5
+      },
+      "dual": {
+        "games": 2,
+        "soleFirst": 0,
+        "soleFirstRate": 0,
+        "meanRank": 3.5
+      },
+      "dual-continuations": {
+        "games": 2,
+        "soleFirst": 0,
+        "soleFirstRate": 0,
+        "meanRank": 3.5
+      }
+    },
+    "east": {
+      "adaptive": {
+        "games": 2,
+        "soleFirst": 2,
+        "soleFirstRate": 1,
+        "meanRank": 1
+      },
+      "dual": {
+        "games": 2,
+        "soleFirst": 1,
+        "soleFirstRate": 0.5,
+        "meanRank": 2
+      },
+      "dual-continuations": {
+        "games": 2,
+        "soleFirst": 1,
+        "soleFirstRate": 0.5,
+        "meanRank": 2
+      }
+    },
+    "north": {
+      "adaptive": {
+        "games": 2,
+        "soleFirst": 0,
+        "soleFirstRate": 0,
+        "meanRank": 3
+      },
+      "dual": {
+        "games": 2,
+        "soleFirst": 0,
+        "soleFirstRate": 0,
+        "meanRank": 3
+      },
+      "dual-continuations": {
+        "games": 2,
+        "soleFirst": 1,
+        "soleFirstRate": 0.5,
+        "meanRank": 2
+      }
+    }
+  },
+  "pairedComparisons": [
+    {
+      "seed": 9874100,
+      "left": "adaptive",
+      "right": "dual",
+      "completeSeed": true,
+      "matchedCells": 8,
+      "differenceDirection": "right-minus-left",
+      "primarySoleFirstRateDifference": 0,
+      "primaryMeanRankDifference": 0
+    },
+    {
+      "seed": 9874100,
+      "left": "adaptive",
+      "right": "dual-continuations",
+      "completeSeed": true,
+      "matchedCells": 8,
+      "differenceDirection": "right-minus-left",
+      "primarySoleFirstRateDifference": 0,
+      "primaryMeanRankDifference": 0.125
+    },
+    {
+      "seed": 9874100,
+      "left": "dual",
+      "right": "dual-continuations",
+      "completeSeed": true,
+      "matchedCells": 8,
+      "differenceDirection": "right-minus-left",
+      "primarySoleFirstRateDifference": 0,
+      "primaryMeanRankDifference": 0.125
+    }
+  ],
+  "diagnostics": {
+    "adaptive": {
+      "searched": 271,
+      "pvAvailable": 271,
+      "pvReachesOwnMove": 202,
+      "pvDivergedAtOpponent": 191,
+      "eliminatedBeforeGameEnd": 5
+    },
+    "dual": {
+      "searched": 293,
+      "pvAvailable": 293,
+      "pvReachesOwnMove": 224,
+      "pvDivergedAtOpponent": 220,
+      "eliminatedBeforeGameEnd": 5
+    },
+    "dual-continuations": {
+      "searched": 216,
+      "pvAvailable": 216,
+      "pvReachesOwnMove": 187,
+      "pvDivergedAtOpponent": 168,
+      "eliminatedBeforeGameEnd": 5
+    }
+  },
+  "importantTactics": {
+    "adaptive": [
+      40,
+      40
+    ],
+    "dual": [
+      40,
+      40
+    ],
+    "dual-continuations": [
+      40,
+      40
+    ],
+    "condition": "1000ms/4worker/root; source44ddd98; unchanged engine/runtime in e7b1af5; existing worker-reuse condition"
+  },
+  "validation": {
+    "games": 28,
+    "uniqueGameIds": 28,
+    "canonicalEvents": 4260,
+    "primaryCanonicalEvents": 3844,
+    "allValid": true,
+    "workerFailures": 0,
+    "primaryUnfinished": 0
+  },
+  "driveFolder": "https://drive.google.com/drive/folders/1IRD4pdx-mWBkYBxMYuUP6-rE4CQnVbUd",
+  "adoption": "Keep default v5/root. No demonstrated strength difference; P0-5 not promoted.",
+  "limitations": [
+    "One correlated seed cluster; no interval or significance or tournament-strength certification.",
+    "Cold worker control is different from the default warm application; resource-stop pilot phases excluded.",
+    "Avoidable versus forced losses, missing opponent branches versus evaluation errors remain unproven.",
+    "Prior one-retry-only plan amended after resource probe, before all-three cold rerun; no outcome-based seed or method selection.",
+    "Timing/depth distributions follow different game trajectories, not identical-position speed comparisons."
+  ],
+  "nextPriorities": [
+    "Freeze contrasting win/loss positions from matched cells and test legal opponent replies and avoidable losses.",
+    "Add independent unused start series and diverse opponents after bounded resource validation.",
+    "Then compare root/reply selection changes; evaluation learning only with separated training and holdout data."
+  ],
+  "localValidation": {
+    "codeVerifiedCommit": "432f461655e1a54daa86c241365cc4886b5599a1",
+    "check": "success (mandatory pre-commit; 88.97s including commit)",
+    "build": "success",
+    "workerDryRun": "success",
+    "buildDevelopment": "success",
+    "workerDryRunDevelopment": "success",
+    "studyBuild": "success",
+    "docsOnlyAfterVerifiedCode": true
+  },
+  "ci": {
+    "status": "not_run",
+    "reason": "PR #266 conflicts with develop; existing workflow has no workflow_dispatch; merging is prohibited",
+    "checkedHead": "432f461655e1a54daa86c241365cc4886b5599a1",
+    "developHead": "506f3b1efdf39ff57cdf388d9e30d6f0f8b06b95",
+    "conflictFiles": [
+      ".gitignore",
+      "README.md",
+      "docs/development.md",
+      "docs/testing.md"
+    ],
+    "localValidationIsNotCiSubstitute": true
+  }
+}

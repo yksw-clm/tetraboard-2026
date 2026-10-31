@@ -30,6 +30,70 @@ import {
 } from "@tetraboard/four-shogi/analysis";
 
 const directories: string[] = [];
+
+test("各改善方式を旧v6と独立に席替え比較でき、work方式へ混ぜない", () => {
+  for (const strategy of ["dual-promotions", "dual-extensions", "dual-combined"]) {
+    const options = argumentsFor([
+      "--compare-strategies",
+      `dual,${strategy}`,
+      "--profiles",
+      "study",
+      "--seeds",
+      "4",
+      "--time-ms",
+      "500",
+    ]);
+    const jobs = createStrengthJobs(options);
+    expect(jobs.filter((job) => job.searchStrategy === strategy)).toHaveLength(32);
+    expect(jobs.filter((job) => job.searchStrategy === "dual")).toHaveLength(32);
+    expect(() => argumentsFor(["--search-strategy", strategy, "--work", "10"])).toThrow("実時間");
+  }
+});
+
+test("方式比較は同じ開始条件をペアにし、v5とv6を各32局へ割り当てる", () => {
+  const options = argumentsFor([
+    "--compare-strategies",
+    "adaptive,dual",
+    "--profiles",
+    "study",
+    "--seed",
+    "9680000",
+    "--seeds",
+    "4",
+    "--time-ms",
+    "500",
+    "--concurrency",
+    "2",
+    "--max-plies",
+    "1024",
+  ]);
+  const jobs = createStrengthJobs(options);
+  expect(jobs).toHaveLength(64);
+  expect(new Set(jobs.map((job) => job.id)).size).toBe(64);
+  for (let index = 0; index < jobs.length; index += 2) {
+    expect(jobs[index].seed).toBe(jobs[index + 1].seed);
+    expect(jobs[index].seat).toBe(jobs[index + 1].seat);
+    expect(jobs[index].restricted).toBe(jobs[index + 1].restricted);
+    expect(new Set([jobs[index].searchStrategy, jobs[index + 1].searchStrategy])).toEqual(
+      new Set(["adaptive", "dual"]),
+    );
+  }
+  expect(jobs.filter((job) => job.searchStrategy === "dual")).toHaveLength(32);
+  expect(() =>
+    argumentsFor(["--compare-strategies", "adaptive,dual", "--profiles", "study", "--work", "10"]),
+  ).toThrow("実時間");
+});
+
+test("旧新探索の短期比較は方式をjob識別へ含め、正式条件へ混ぜない", () => {
+  const legacy = argumentsFor(["--search-strategy", "legacy"]);
+  const adaptive = argumentsFor(["--search-strategy", "adaptive"]);
+  expect(legacy.searchStrategy).toBe("legacy");
+  expect(createStrengthJobs(legacy)[0].id).not.toBe(createStrengthJobs(adaptive)[0].id);
+  expect(() => argumentsFor(["--search-strategy", "unknown"])).toThrow("search-strategy");
+  expect(() => argumentsFor(["--formal", "true", "--search-strategy", "legacy"])).toThrow(
+    "正式条件",
+  );
+});
 afterEach(async () => {
   await Promise.all(
     directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
@@ -465,6 +529,7 @@ test("runnerのソース識別は結果JSONを含めず、対局親とIPCも含�
     "strengthGameWorker.ts",
     "strengthProcessPool.ts",
     "strengthProcessProtocol.ts",
+    "strengthJournal.ts",
   ]);
   expect(source.files.every((entry) => entry.sha256.length === 64)).toBe(true);
 });

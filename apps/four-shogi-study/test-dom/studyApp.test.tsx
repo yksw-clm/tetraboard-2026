@@ -129,6 +129,7 @@ async function boot(current: StudySnapshot) {
   request("/api/studies").respond(library(current));
   await flush();
   LocalEvents.instances.at(-1)!.open();
+  LocalEvents.instances.at(-1)!.send({ type: "snapshot", snapshot: current });
   await flush();
   return view;
 }
@@ -198,6 +199,342 @@ function analysis(
   }
 }
 
+test("完成反復の最善手をSSEで更新し、次の反復・停止・完了でも保持する", async () => {
+  const current = await initial();
+  const published = analysis(current);
+  const comparison = (
+    depth: number,
+    alternate = false,
+    status: StudyAnalysisView["status"] = "running",
+  ) => {
+    const candidates = [...published.candidates];
+    if (alternate) [candidates[0], candidates[1]] = [candidates[1], candidates[0]];
+    return {
+      ...published,
+      completedDepth: depth,
+      status,
+      work: depth * 1000,
+      elapsedMs: depth * 100,
+      candidates: depth
+        ? candidates.map((candidate) => ({ ...candidate, completedDepth: depth }))
+        : [],
+      recommendedAction: candidates[0].action,
+      analysisRecommendedAction: candidates[0].action,
+      analysisStateHash: current.position.stateHash,
+    };
+  };
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  const count = requests.length;
+  const arrow = () => view.querySelector<SVGSVGElement>('[data-testid="shogi-best-move"]');
+  const coordinates = () =>
+    [...arrow()!.querySelector("line")!.attributes]
+      .filter((a) => ["x1", "y1", "x2", "y2"].includes(a.name))
+      .map((a) => a.value);
+  const send = async (next: StudyAnalysisView) => {
+    events.send({ type: "analysis", studyId: current.study.id, analysis: next });
+    await flush();
+  };
+  expect(arrow()).toBeNull();
+  await send(comparison(0));
+  expect(view.textContent).toContain("最善手を計算中");
+  expect(arrow()).toBeNull();
+  await send(comparison(1));
+  expect(arrow()).not.toBeNull();
+  expect(arrow()!.getAttribute("aria-label")).toContain("暫定最善手・深さ1まで完成");
+  const first = coordinates();
+  await send({ ...comparison(1), work: 1500, elapsedMs: 150 });
+  expect(coordinates()).toEqual(first);
+  await send(comparison(2, true));
+  const second = coordinates();
+  expect(second).not.toEqual(first);
+  await send({ ...comparison(2, true), work: 2500, elapsedMs: 250 });
+  expect(coordinates()).toEqual(second);
+  await send(comparison(3, true));
+  expect(coordinates()).toEqual(second);
+  expect(arrow()!.getAttribute("aria-label")).toContain("深さ3まで完成");
+  await send(comparison(3, true, "paused"));
+  expect(coordinates()).toEqual(second);
+  expect(arrow()!.getAttribute("aria-label")).toContain("停止中");
+  await send(comparison(3, true, "completed"));
+  expect(coordinates()).toEqual(second);
+  expect(arrow()!.getAttribute("aria-label")).toContain("最善手（探索完了）");
+  expect(requests).toHaveLength(count);
+});
+
+test("矢印は旧job・旧generation・別studyの通知を拒否し、再解析開始時に消える", async () => {
+  const current = await initial();
+  current.analysis = { ...analysis(current, "running", 2), id: "current-job" };
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  const arrow = () => view.querySelector('[data-testid="shogi-best-move"]');
+  const original = arrow()!.getAttribute("aria-label");
+  const alternate = current.analysis.candidates[1];
+  const stale = {
+    ...current.analysis,
+    id: "old-job",
+    recommendedAction: alternate.action,
+    candidates: [alternate],
+    work: 999999,
+    elapsedMs: 999999,
+  };
+  events.send({
+    type: "analysis",
+    studyId: current.study.id,
+    analysis: { ...stale, generation: 1 },
+  });
+  await flush();
+  expect(arrow()!.getAttribute("aria-label")).toBe(original);
+  events.send({
+    type: "analysis",
+    studyId: "different-study",
+    analysis: { ...stale, generation: 99 },
+  });
+  await flush();
+  expect(arrow()!.getAttribute("aria-label")).toBe(original);
+  events.send({ type: "analysis", studyId: current.study.id, analysis: stale });
+  await flush();
+  expect(arrow()!.getAttribute("aria-label")).toBe(original);
+  events.send({
+    type: "analysis",
+    studyId: current.study.id,
+    analysis: {
+      ...current.analysis,
+      id: "new-job",
+      generation: 3,
+      completedDepth: 0,
+      candidates: [],
+      work: 0,
+      elapsedMs: 0,
+    },
+  });
+  await flush();
+  expect(arrow()).toBeNull();
+  events.send({ type: "analysis", studyId: current.study.id, analysis: current.analysis });
+  await flush();
+  expect(arrow()).toBeNull();
+});
+
+test("局面変更・異なる解析対象・条件付きフォーカスでは矢印を表示しない", async () => {
+  const current = await initial();
+  current.analysis = analysis(current, "completed");
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  const arrow = () => view.querySelector('[data-testid="shogi-best-move"]');
+  expect(arrow()).not.toBeNull();
+  const nextStudy = await appendStudyEvent(current.study, {
+    type: "action",
+    side: current.position.state.turn!,
+    action: current.legalActions[0],
+  });
+  const next = await snapshot(nextStudy, current.analysis);
+  events.send({ type: "snapshot", snapshot: next });
+  await flush();
+  expect(arrow()).toBeNull();
+  events.send({
+    type: "analysis",
+    studyId: current.study.id,
+    analysis: { ...current.analysis, generation: 99 },
+  });
+  await flush();
+  expect(arrow()).toBeNull();
+  const focused = {
+    ...analysis(next, "running", 100),
+    analysisStateHash: "future-hash",
+    focus: {
+      side: "south" as const,
+      status: "ready" as const,
+      sourceStateHash: next.position.stateHash,
+      analysisStateHash: "future-hash",
+      prefix: [],
+      conditional: true,
+      reason: null,
+      projectionElapsedMs: 0,
+      result: null,
+      model: {
+        version: "local-focus-projection-v1" as const,
+        opponentModelId: "selfish-maxn-v1" as const,
+        workPerPly: 1,
+        maxPlies: 4,
+        work: 0,
+        decisions: [],
+      },
+    },
+  };
+  events.send({ type: "analysis", studyId: next.study.id, analysis: focused });
+  await flush();
+  expect(arrow()).toBeNull();
+  expect(view.textContent).toContain("現在局面の最善手は未確認");
+});
+
+test("未完成根・手番違い・非合法な候補を隠し、現在手番のフォーカスだけを描画する", async () => {
+  const current = await initial();
+  const completed = analysis(current, "completed");
+  current.analysis = completed;
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  const arrow = () => view.querySelector('[data-testid="shogi-best-move"]');
+  const invalid: readonly ((value: StudyAnalysisView) => StudyAnalysisView)[] = [
+    (value) => ({ ...value, analysisStateHash: "different-target" }),
+    (value) => ({ ...value, nodeId: "different-node" }),
+    (value) => ({ ...value, candidates: [{ ...value.candidates[0], completedDepth: 0 }] }),
+    (value) => ({
+      ...value,
+      candidates: [
+        { ...value.candidates[0], line: [{ ...value.candidates[0].line[0], side: "west" }] },
+      ],
+    }),
+    (value) => ({ ...value, status: "cancelled" }),
+    (value) => ({ ...value, status: "error" }),
+  ];
+  for (const [index, change] of invalid.entries()) {
+    events.send({
+      type: "snapshot",
+      snapshot: {
+        ...current,
+        study: { ...current.study, revision: index + 1 },
+        analysis: change({ ...completed, generation: index + 2, id: `invalid-${index}` }),
+      },
+    });
+    await flush();
+    expect(arrow()).toBeNull();
+  }
+  events.send({
+    type: "snapshot",
+    snapshot: {
+      ...current,
+      study: { ...current.study, revision: 10 },
+      legalActions: current.legalActions.filter(
+        (action) => JSON.stringify(action) !== JSON.stringify(completed.recommendedAction),
+      ),
+      analysis: { ...completed, id: "not-legal", generation: 10 },
+    },
+  });
+  await flush();
+  expect(arrow()).toBeNull();
+  const focused: StudySnapshot = {
+    ...current,
+    study: { ...current.study, revision: 11 },
+    analysis: {
+      ...completed,
+      id: "current-focus",
+      generation: 11,
+      analysisStateHash: current.position.stateHash,
+      focus: {
+        side: "south",
+        status: "ready",
+        conditional: false,
+        prefix: [],
+        sourceStateHash: current.position.stateHash,
+        analysisStateHash: current.position.stateHash,
+        reason: null,
+        projectionElapsedMs: 0,
+        model: null,
+        result: null,
+      },
+    },
+  };
+  events.send({ type: "snapshot", snapshot: focused });
+  await flush();
+  expect(arrow()).not.toBeNull();
+  press(view, "局面編集");
+  await finish(request(`/api/studies/${current.study.id}/commands`, "POST"), {
+    ...focused,
+    study: { ...focused.study, revision: 12 },
+  });
+  expect(view.textContent).toContain("盤面を編集");
+  expect(arrow()).toBeNull();
+});
+
+test("ローカル配信切断中はライブの旧候補を隠し、遅延snapshotでも再表示しない", async () => {
+  const current = await initial();
+  current.analysis = analysis(current, "completed");
+  current.live = {
+    sourceUrl: "https://tetraboard.net/rooms/12345",
+    instanceId: "instance",
+    roundId: "round",
+    eventCount: 0,
+    latestNodeId: current.study.currentNodeId,
+    follow: true,
+    status: "live",
+    message: null,
+  };
+  const view = await boot(current);
+  expect(view.textContent).toContain("この手を試す");
+  expect(view.querySelector('[data-testid="shogi-best-move"]')).not.toBeNull();
+  act(() => LocalEvents.instances.at(-1)!.onerror?.());
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  expect(view.querySelector('[data-testid="shogi-best-move"]')).toBeNull();
+  LocalEvents.instances.at(-1)!.send({ type: "snapshot", snapshot: current });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+});
+
+test("配信の再接続だけでは旧候補を戻さず、新しい初期snapshotを待つ", async () => {
+  const current = await initial();
+  current.analysis = analysis(current, "completed");
+  current.live = {
+    sourceUrl: "https://tetraboard.net/rooms/12345",
+    instanceId: "instance",
+    roundId: "round",
+    eventCount: 0,
+    latestNodeId: current.study.currentNodeId,
+    follow: true,
+    status: "live",
+    message: null,
+  };
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  act(() => events.onerror?.());
+  await flush();
+  events.open();
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "analysis", studyId: current.study.id, analysis: current.analysis! });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "snapshot", snapshot: current });
+  await flush();
+  expect(view.textContent).toContain("この手を試す");
+});
+
+test("再接続後に古いrevisionの初期snapshotが届いても候補を表示しない", async () => {
+  const original = await initial();
+  const current = await snapshot(
+    await appendStudyEvent(original.study, {
+      type: "action",
+      side: original.position.state.turn!,
+      action: original.legalActions[0],
+    }),
+  );
+  current.analysis = analysis(current, "completed");
+  current.live = {
+    sourceUrl: "https://tetraboard.net/rooms/12345",
+    instanceId: "instance",
+    roundId: "round",
+    eventCount: 1,
+    latestNodeId: current.study.currentNodeId,
+    follow: true,
+    status: "live",
+    message: null,
+  };
+  const view = await boot(current);
+  const events = LocalEvents.instances.at(-1)!;
+  act(() => events.onerror?.());
+  await flush();
+  events.open();
+  events.send({ type: "snapshot", snapshot: original });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "analysis", studyId: current.study.id, analysis: current.analysis! });
+  await flush();
+  expect(view.textContent).not.toContain("この手を試す");
+  events.send({ type: "snapshot", snapshot: current });
+  await flush();
+  expect(view.textContent).toContain("この手を試す");
+});
+
 test("新しい対局で各席の人間/CPUとCPU思考時間を指定して保存する", async () => {
   const current = await initial();
   const view = await boot(current);
@@ -242,6 +579,11 @@ test("検討時間をプリセットと無制限に変更し、探索の停止/�
   press(view, "設定");
   await flush();
   press(document.body, "15秒");
+  const strategy = field("探索方式") as HTMLSelectElement;
+  act(() => {
+    strategy.value = "dual-refined";
+    strategy.dispatchEvent(new Event("change", { bubbles: true }));
+  });
   expect((field("1回の検討時間（秒）") as HTMLInputElement).value).toBe("15");
   const continuous = [
     ...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
@@ -257,7 +599,7 @@ test("検討時間をプリセットと無制限に変更し、探索の停止/�
   expect(body(settings)).toMatchObject({
     type: "settings",
     expectedRevision: 0,
-    settings: { analysisTimeMs: null },
+    settings: { analysisTimeMs: null, searchStrategy: "dual-refined" },
   });
   current = await snapshot(
     updateStudySettings(current.study, body(settings).settings as Partial<StudySettings>),

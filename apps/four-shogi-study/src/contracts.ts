@@ -2,11 +2,17 @@ import type { FourShogiAction, Side } from "@tetraboard/four-shogi";
 import type { AnalysisPosition, FourShogiReplayEvent } from "@tetraboard/four-shogi/analysis";
 import type { AiCandidate, AiEvaluation } from "@tetraboard/four-shogi/ai";
 import type { AnalysisSetupInput } from "@tetraboard/four-shogi/analysis";
-import type { StudyDocument, StudySettings } from "./shared/model";
-import type { StudyFocusMetadata } from "./search/runtime";
+import type { StudyDocument, StudySettings, StudySearchCoverage } from "./shared/model";
+import type { StudyFocusMetadata, StudySearchSnapshot } from "./search/runtime";
 export type { StudyFocusMetadata } from "./search/runtime";
 
 export type StudyAnalysisView = {
+  continuation?: StudySearchSnapshot["continuation"];
+  completion?: StudySearchSnapshot["completion"];
+  lethalGuard?: import("./search/lethalGuard").LethalGuardReport;
+  coverage?: StudySearchCoverage;
+  broadCandidates?: readonly AiCandidate[];
+  searchVersion?: string;
   id: string;
   nodeId: string;
   stateHash: string;
@@ -20,6 +26,7 @@ export type StudyAnalysisView = {
   work: number;
   nodes: number;
   memoryBytes: number;
+  performance?: StudySearchSnapshot["performance"];
   candidates: readonly AiCandidate[];
   recommendedAction: FourShogiAction | null;
   analysisRecommendedAction?: FourShogiAction | null;

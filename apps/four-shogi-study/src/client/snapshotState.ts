@@ -7,7 +7,8 @@ export function newerAnalysis(
   if (!current) return incoming;
   if (!incoming) return current;
   if (incoming.generation < current.generation) return current;
-  if (incoming.generation > current.generation || incoming.id !== current.id) return incoming;
+  if (incoming.generation > current.generation) return incoming;
+  if (incoming.id !== current.id) return current;
   if (incoming.work < current.work || incoming.elapsedMs < current.elapsedMs) return current;
   if (["completed", "cancelled", "error"].includes(current.status) && incoming.status === "running")
     return current;

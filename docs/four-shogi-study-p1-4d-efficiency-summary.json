@@ -1,0 +1,3619 @@
+{
+  "schemaVersion": 1,
+  "reference": "7338e7d24574b336a4c4e3df43c7971039122dc6",
+  "mainSource": {
+    "commit": "bcd78b62c12612a347962537d1126ed0ecc8aa8c",
+    "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+    "app": "77efb1e6474e2b67a2c5591b9bfdfbebb424bf03549eba5510ec8b3b97934972",
+    "bench": "61958331008216a8789331418e7bc70af43e7117a12994bc920485d112c9f1b0",
+    "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+  },
+  "supplementSource": {
+    "commit": "21a3c9e1337ae1cd3016dddeba7f4f7fa8bf1607",
+    "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+    "app": "155fd7e4ac3863e248b41064522c4e1696628923aae77c127f6e84b873f51a8f",
+    "bench": "0e0cae96ec12b8f56fc36380bf09dedb278110e434f11a89cf634abd3d0ab5ed",
+    "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+  },
+  "aggregationCommit": "71bd4c7c93a4c1ca83f24fa9dc9fd42045826b2d",
+  "environment": {
+    "bun": "1.4.4",
+    "cpu": "Apple M5",
+    "logicalCpus": 10,
+    "memoryBytes": 25769803776,
+    "os": "27.0.0"
+  },
+  "conditions": {
+    "totalMs": 2000,
+    "guardMs": [
+      100,
+      250,
+      400
+    ],
+    "threads": 4,
+    "memoryMiB": 4096,
+    "partition": "root",
+    "selection": "top3-reserve",
+    "horizon": 4,
+    "broadDepth": 3
+  },
+  "aliases": {
+    "COMBINED": "ORDER"
+  },
+  "decision": {
+    "default": "v5/root/OFF",
+    "recommendedDefaultChange": false,
+    "simpleOrder": "retain explicit experiment; completion improved but strict latency unmet",
+    "budgetAndCache": "not adopted as defaults",
+    "escapesCombined250": "rejected:39/40 completion criterion and2s timeout",
+    "escapesCombined400": "40/40 but full36/warm12 performance not run after gate; not adopted"
+  },
+  "groups": [
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "BASE-100",
+      "cases": 36,
+      "targets": 113,
+      "complete": 16,
+      "safe": 6,
+      "unsafe": 10,
+      "unknown": 97,
+      "completionRate": 0.1415929203539823,
+      "unknownReasons": {
+        "time": 58,
+        "unstarted-time": 39
+      },
+      "incumbentUnsafe": 6,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.3574580000004,
+      "guardP95Ms": 101.2081249999901,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "BASE-250",
+      "cases": 36,
+      "targets": 113,
+      "complete": 31,
+      "safe": 13,
+      "unsafe": 18,
+      "unknown": 82,
+      "completionRate": 0.2743362831858407,
+      "unknownReasons": {
+        "time": 49,
+        "unstarted-time": 33
+      },
+      "incumbentUnsafe": 11,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.36587500000314,
+      "guardP95Ms": 251.20074999999997,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "BASE-400",
+      "cases": 36,
+      "targets": 113,
+      "complete": 36,
+      "safe": 16,
+      "unsafe": 20,
+      "unknown": 77,
+      "completionRate": 0.3185840707964602,
+      "unknownReasons": {
+        "time": 48,
+        "unstarted-time": 29
+      },
+      "incumbentUnsafe": 13,
+      "safeAlternative": 6,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 400.3761249999952,
+      "guardP95Ms": 401.02604099999735,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "BUDGET-100",
+      "cases": 36,
+      "targets": 113,
+      "complete": 17,
+      "safe": 7,
+      "unsafe": 10,
+      "unknown": 96,
+      "completionRate": 0.1504424778761062,
+      "unknownReasons": {
+        "time": 55,
+        "unstarted-time": 40,
+        "late-complete": 1
+      },
+      "incumbentUnsafe": 6,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.39020800000071,
+      "guardP95Ms": 100.99308300000848,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "BUDGET-250",
+      "cases": 36,
+      "targets": 113,
+      "complete": 31,
+      "safe": 12,
+      "unsafe": 19,
+      "unknown": 82,
+      "completionRate": 0.2743362831858407,
+      "unknownReasons": {
+        "time": 45,
+        "unstarted-time": 37
+      },
+      "incumbentUnsafe": 12,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.36262499999793,
+      "guardP95Ms": 251.01595899999666,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "BUDGET-400",
+      "cases": 36,
+      "targets": 113,
+      "complete": 37,
+      "safe": 16,
+      "unsafe": 21,
+      "unknown": 76,
+      "completionRate": 0.3274336283185841,
+      "unknownReasons": {
+        "time": 42,
+        "unstarted-time": 34
+      },
+      "incumbentUnsafe": 13,
+      "safeAlternative": 5,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 400.3915000000052,
+      "guardP95Ms": 401.39970900000026,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "CACHE-100",
+      "cases": 36,
+      "targets": 113,
+      "complete": 16,
+      "safe": 6,
+      "unsafe": 10,
+      "unknown": 97,
+      "completionRate": 0.1415929203539823,
+      "unknownReasons": {
+        "time": 57,
+        "unstarted-time": 39,
+        "late-complete": 1
+      },
+      "incumbentUnsafe": 6,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.34845900000073,
+      "guardP95Ms": 101.02574999999979,
+      "cacheLookups": 12121,
+      "cacheHits": 0,
+      "cachePeakBytes": 537880
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "CACHE-250",
+      "cases": 36,
+      "targets": 113,
+      "complete": 31,
+      "safe": 13,
+      "unsafe": 18,
+      "unknown": 82,
+      "completionRate": 0.2743362831858407,
+      "unknownReasons": {
+        "time": 49,
+        "unstarted-time": 33
+      },
+      "incumbentUnsafe": 11,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.39850000000297,
+      "guardP95Ms": 251.27012499999546,
+      "cacheLookups": 27831,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048568
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "CACHE-400",
+      "cases": 36,
+      "targets": 113,
+      "complete": 37,
+      "safe": 17,
+      "unsafe": 20,
+      "unknown": 76,
+      "completionRate": 0.3274336283185841,
+      "unknownReasons": {
+        "time": 47,
+        "unstarted-time": 29
+      },
+      "incumbentUnsafe": 13,
+      "safeAlternative": 6,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 400.23095899999316,
+      "guardP95Ms": 401.0235840000096,
+      "cacheLookups": 42821,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048576
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "ORDER-100",
+      "cases": 36,
+      "targets": 113,
+      "complete": 27,
+      "safe": 7,
+      "unsafe": 20,
+      "unknown": 86,
+      "completionRate": 0.23893805309734514,
+      "unknownReasons": {
+        "time": 50,
+        "unstarted-time": 36
+      },
+      "incumbentUnsafe": 10,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.28250000000116,
+      "guardP95Ms": 101.321167,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "ORDER-250",
+      "cases": 36,
+      "targets": 113,
+      "complete": 35,
+      "safe": 13,
+      "unsafe": 22,
+      "unknown": 78,
+      "completionRate": 0.30973451327433627,
+      "unknownReasons": {
+        "time": 47,
+        "unstarted-time": 31
+      },
+      "incumbentUnsafe": 12,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.3785840000055,
+      "guardP95Ms": 251.25362499999994,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": false,
+      "condition": "ORDER-400",
+      "cases": 36,
+      "targets": 113,
+      "complete": 44,
+      "safe": 17,
+      "unsafe": 27,
+      "unknown": 69,
+      "completionRate": 0.3893805309734513,
+      "unknownReasons": {
+        "time": 42,
+        "unstarted-time": 27
+      },
+      "incumbentUnsafe": 15,
+      "safeAlternative": 6,
+      "unsafeAndSafePair": 2,
+      "changed": 0,
+      "wouldChange": 2,
+      "guardP50Ms": 400.18937500000175,
+      "guardP95Ms": 401.1824590000033,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "BASE-100",
+      "cases": 12,
+      "targets": 41,
+      "complete": 6,
+      "safe": 2,
+      "unsafe": 4,
+      "unknown": 35,
+      "completionRate": 0.14634146341463414,
+      "unknownReasons": {
+        "time": 20,
+        "unstarted-time": 15
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 1,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.44716699999844,
+      "guardP95Ms": 101.48595800000476,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "BASE-250",
+      "cases": 12,
+      "targets": 41,
+      "complete": 11,
+      "safe": 6,
+      "unsafe": 5,
+      "unknown": 30,
+      "completionRate": 0.2682926829268293,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 13
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.3711669999975,
+      "guardP95Ms": 251.1470420000005,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "BASE-400",
+      "cases": 12,
+      "targets": 41,
+      "complete": 14,
+      "safe": 9,
+      "unsafe": 5,
+      "unknown": 27,
+      "completionRate": 0.34146341463414637,
+      "unknownReasons": {
+        "time": 16,
+        "unstarted-time": 11
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 400.40070800000103,
+      "guardP95Ms": 400.7824590000091,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "BUDGET-100",
+      "cases": 12,
+      "targets": 41,
+      "complete": 7,
+      "safe": 3,
+      "unsafe": 4,
+      "unknown": 34,
+      "completionRate": 0.17073170731707318,
+      "unknownReasons": {
+        "time": 19,
+        "unstarted-time": 15
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 1,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.40325000000303,
+      "guardP95Ms": 100.91420799999469,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "BUDGET-250",
+      "cases": 12,
+      "targets": 41,
+      "complete": 11,
+      "safe": 6,
+      "unsafe": 5,
+      "unknown": 30,
+      "completionRate": 0.2682926829268293,
+      "unknownReasons": {
+        "time": 16,
+        "unstarted-time": 14
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.35045799999716,
+      "guardP95Ms": 250.76083300000028,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "BUDGET-400",
+      "cases": 12,
+      "targets": 41,
+      "complete": 14,
+      "safe": 8,
+      "unsafe": 6,
+      "unknown": 27,
+      "completionRate": 0.34146341463414637,
+      "unknownReasons": {
+        "time": 15,
+        "unstarted-time": 12
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 400.37920799999847,
+      "guardP95Ms": 400.7439999999915,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "CACHE-100",
+      "cases": 12,
+      "targets": 41,
+      "complete": 6,
+      "safe": 2,
+      "unsafe": 4,
+      "unknown": 35,
+      "completionRate": 0.14634146341463414,
+      "unknownReasons": {
+        "time": 20,
+        "unstarted-time": 15
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 1,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.33266600000206,
+      "guardP95Ms": 100.9228750000002,
+      "cacheLookups": 3952,
+      "cacheHits": 0,
+      "cachePeakBytes": 498456
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "CACHE-250",
+      "cases": 12,
+      "targets": 41,
+      "complete": 11,
+      "safe": 6,
+      "unsafe": 5,
+      "unknown": 30,
+      "completionRate": 0.2682926829268293,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 13
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.49612500000512,
+      "guardP95Ms": 250.9940840000054,
+      "cacheLookups": 9187,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048568
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "CACHE-400",
+      "cases": 12,
+      "targets": 41,
+      "complete": 14,
+      "safe": 9,
+      "unsafe": 5,
+      "unknown": 27,
+      "completionRate": 0.34146341463414637,
+      "unknownReasons": {
+        "time": 16,
+        "unstarted-time": 11
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 400.24395899999945,
+      "guardP95Ms": 400.9370829999971,
+      "cacheLookups": 14131,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048576
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "ORDER-100",
+      "cases": 12,
+      "targets": 41,
+      "complete": 8,
+      "safe": 2,
+      "unsafe": 6,
+      "unknown": 33,
+      "completionRate": 0.1951219512195122,
+      "unknownReasons": {
+        "time": 19,
+        "unstarted-time": 14
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 1,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 100.30174999999872,
+      "guardP95Ms": 101.02533399999811,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "ORDER-250",
+      "cases": 12,
+      "targets": 41,
+      "complete": 12,
+      "safe": 6,
+      "unsafe": 6,
+      "unknown": 29,
+      "completionRate": 0.2926829268292683,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 12
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 250.4020410000012,
+      "guardP95Ms": 250.82433300000048,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "frozen",
+      "warm": true,
+      "condition": "ORDER-400",
+      "cases": 12,
+      "targets": 41,
+      "complete": 18,
+      "safe": 9,
+      "unsafe": 9,
+      "unknown": 23,
+      "completionRate": 0.43902439024390244,
+      "unknownReasons": {
+        "time": 13,
+        "unstarted-time": 10
+      },
+      "incumbentUnsafe": 4,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 2,
+      "changed": 0,
+      "wouldChange": 2,
+      "guardP50Ms": 400.23116599999776,
+      "guardP95Ms": 400.776291999995,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "BASE-100",
+      "cases": 36,
+      "targets": 115,
+      "complete": 11,
+      "safe": 5,
+      "unsafe": 6,
+      "unknown": 104,
+      "completionRate": 0.09565217391304348,
+      "unknownReasons": {
+        "time": 60,
+        "unstarted-time": 44
+      },
+      "incumbentUnsafe": 5,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 99.59754199999952,
+      "guardP95Ms": 102.33812499999976,
+      "responseP50Ms": 1991.7839580000004,
+      "responseP95Ms": 1993.1550829999996,
+      "maxResponseMs": 1993.1650420000005,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 109007.02777777778,
+      "normalDepthMedian": 6.0,
+      "normalDepthTwo": 29,
+      "nonforced": 30,
+      "deepStarted": 21,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1417969664,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "BASE-250",
+      "cases": 36,
+      "targets": 112,
+      "complete": 20,
+      "safe": 8,
+      "unsafe": 12,
+      "unknown": 92,
+      "completionRate": 0.17857142857142858,
+      "unknownReasons": {
+        "time": 55,
+        "unstarted-time": 37
+      },
+      "incumbentUnsafe": 6,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 249.38175,
+      "guardP95Ms": 250.95716700000048,
+      "responseP50Ms": 1991.977332999999,
+      "responseP95Ms": 1993.4241670000001,
+      "maxResponseMs": 1993.6395,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 93707.72222222222,
+      "normalDepthMedian": 5.5,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1415888896,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "BASE-400",
+      "cases": 36,
+      "targets": 110,
+      "complete": 28,
+      "safe": 11,
+      "unsafe": 17,
+      "unknown": 82,
+      "completionRate": 0.2545454545454545,
+      "unknownReasons": {
+        "time": 49,
+        "unstarted-time": 33
+      },
+      "incumbentUnsafe": 9,
+      "safeAlternative": 5,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 398.2173329999998,
+      "guardP95Ms": 400.6798329999983,
+      "responseP50Ms": 1992.331166,
+      "responseP95Ms": 1994.8120840000001,
+      "maxResponseMs": 1995.2336659999999,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 83249.25,
+      "normalDepthMedian": 5.0,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 17,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1283915776,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "BUDGET-100",
+      "cases": 36,
+      "targets": 114,
+      "complete": 11,
+      "safe": 4,
+      "unsafe": 7,
+      "unknown": 103,
+      "completionRate": 0.09649122807017543,
+      "unknownReasons": {
+        "time": 58,
+        "unstarted-time": 45
+      },
+      "incumbentUnsafe": 6,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 99.47262499999852,
+      "guardP95Ms": 101.22195799999827,
+      "responseP50Ms": 1991.4971250000017,
+      "responseP95Ms": 1992.9061669999974,
+      "maxResponseMs": 1993.3575420000002,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 105937.80555555556,
+      "normalDepthMedian": 6.0,
+      "normalDepthTwo": 29,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1471152128,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "BUDGET-250",
+      "cases": 36,
+      "targets": 112,
+      "complete": 25,
+      "safe": 9,
+      "unsafe": 16,
+      "unknown": 87,
+      "completionRate": 0.22321428571428573,
+      "unknownReasons": {
+        "time": 49,
+        "unstarted-time": 38
+      },
+      "incumbentUnsafe": 10,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 249.29724999999962,
+      "guardP95Ms": 250.71529199999986,
+      "responseP50Ms": 1991.7538329999988,
+      "responseP95Ms": 1993.3581669999985,
+      "maxResponseMs": 1993.6651659999989,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 93996,
+      "normalDepthMedian": 5.5,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1452834816,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "BUDGET-400",
+      "cases": 36,
+      "targets": 110,
+      "complete": 31,
+      "safe": 13,
+      "unsafe": 18,
+      "unknown": 79,
+      "completionRate": 0.2818181818181818,
+      "unknownReasons": {
+        "time": 45,
+        "unstarted-time": 34
+      },
+      "incumbentUnsafe": 10,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 399.06066700000156,
+      "guardP95Ms": 401.2246670000022,
+      "responseP50Ms": 1992.148333000001,
+      "responseP95Ms": 1994.3603340000009,
+      "maxResponseMs": 1994.6009999999987,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 84108.02777777778,
+      "normalDepthMedian": 5.0,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1476706304,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "CACHE-100",
+      "cases": 36,
+      "targets": 114,
+      "complete": 10,
+      "safe": 4,
+      "unsafe": 6,
+      "unknown": 104,
+      "completionRate": 0.08771929824561403,
+      "unknownReasons": {
+        "time": 60,
+        "unstarted-time": 44
+      },
+      "incumbentUnsafe": 4,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 99.2635420000006,
+      "guardP95Ms": 101.31037500000002,
+      "responseP50Ms": 1991.603083,
+      "responseP95Ms": 1992.877375,
+      "maxResponseMs": 1994.580875,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 107715.58333333333,
+      "normalDepthMedian": 6.0,
+      "normalDepthTwo": 29,
+      "nonforced": 30,
+      "deepStarted": 18,
+      "cacheLookups": 7698,
+      "cacheHits": 0,
+      "cachePeakBytes": 402824,
+      "rssInteriorSampleMaxBytes": 1435910144,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "CACHE-250",
+      "cases": 36,
+      "targets": 112,
+      "complete": 21,
+      "safe": 9,
+      "unsafe": 12,
+      "unknown": 91,
+      "completionRate": 0.1875,
+      "unknownReasons": {
+        "time": 53,
+        "unstarted-time": 37,
+        "late-complete": 1
+      },
+      "incumbentUnsafe": 5,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 249.19425000000047,
+      "guardP95Ms": 251.1699580000004,
+      "responseP50Ms": 1991.9318749999993,
+      "responseP95Ms": 1993.3324580000008,
+      "maxResponseMs": 1993.6000839999997,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 90335.19444444444,
+      "normalDepthMedian": 5.0,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 18,
+      "cacheLookups": 20535,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048344,
+      "rssInteriorSampleMaxBytes": 1360478208,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "CACHE-400",
+      "cases": 36,
+      "targets": 112,
+      "complete": 27,
+      "safe": 12,
+      "unsafe": 15,
+      "unknown": 85,
+      "completionRate": 0.24107142857142858,
+      "unknownReasons": {
+        "time": 51,
+        "unstarted-time": 34
+      },
+      "incumbentUnsafe": 8,
+      "safeAlternative": 5,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 399.14608299999963,
+      "guardP95Ms": 400.8119170000027,
+      "responseP50Ms": 1992.2719999999972,
+      "responseP95Ms": 1994.7047909999965,
+      "maxResponseMs": 1994.768791999999,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 82255.41666666667,
+      "normalDepthMedian": 5.0,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 33188,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048576,
+      "rssInteriorSampleMaxBytes": 1273315328,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "OBSERVE-250",
+      "cases": 36,
+      "targets": 112,
+      "complete": 31,
+      "safe": 11,
+      "unsafe": 20,
+      "unknown": 81,
+      "completionRate": 0.2767857142857143,
+      "unknownReasons": {
+        "time": 47,
+        "unstarted-time": 34
+      },
+      "incumbentUnsafe": 10,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 248.53216599999723,
+      "guardP95Ms": 250.70654099999956,
+      "responseP50Ms": 1991.867374999998,
+      "responseP95Ms": 1993.135957999999,
+      "maxResponseMs": 1993.347834,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 93938.41666666667,
+      "normalDepthMedian": 5.5,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1361362944,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "OFF-2000",
+      "cases": 36,
+      "targets": 0,
+      "complete": 0,
+      "safe": 0,
+      "unsafe": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "unknownReasons": {},
+      "incumbentUnsafe": 0,
+      "safeAlternative": 0,
+      "unsafeAndSafePair": 0,
+      "changed": 0,
+      "wouldChange": 0,
+      "guardP50Ms": null,
+      "guardP95Ms": null,
+      "responseP50Ms": 2001.1221250000017,
+      "responseP95Ms": 2003.4307079999999,
+      "maxResponseMs": 2003.4938750000001,
+      "over2000Ms": 36,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 116501.52777777778,
+      "normalDepthMedian": 6.0,
+      "normalDepthTwo": 29,
+      "nonforced": 30,
+      "deepStarted": 21,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1355284480,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "ORDER-100",
+      "cases": 36,
+      "targets": 114,
+      "complete": 22,
+      "safe": 5,
+      "unsafe": 17,
+      "unknown": 92,
+      "completionRate": 0.19298245614035087,
+      "unknownReasons": {
+        "time": 53,
+        "unstarted-time": 39
+      },
+      "incumbentUnsafe": 9,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 99.13133300000118,
+      "guardP95Ms": 101.94991700000173,
+      "responseP50Ms": 1991.662584,
+      "responseP95Ms": 1995.354834,
+      "maxResponseMs": 2076.910667,
+      "over2000Ms": 1,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 110902.63888888889,
+      "normalDepthMedian": 6.0,
+      "normalDepthTwo": 29,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1345814528,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "ORDER-250",
+      "cases": 36,
+      "targets": 112,
+      "complete": 31,
+      "safe": 10,
+      "unsafe": 21,
+      "unknown": 81,
+      "completionRate": 0.2767857142857143,
+      "unknownReasons": {
+        "time": 47,
+        "unstarted-time": 33,
+        "late-complete": 1
+      },
+      "incumbentUnsafe": 11,
+      "safeAlternative": 4,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 248.18087500000183,
+      "guardP95Ms": 250.55833299999904,
+      "responseP50Ms": 1991.7415,
+      "responseP95Ms": 1993.2261660000004,
+      "maxResponseMs": 1993.3142920000028,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 94013.75,
+      "normalDepthMedian": 5.5,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1430962176,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "ORDER-400",
+      "cases": 36,
+      "targets": 111,
+      "complete": 36,
+      "safe": 13,
+      "unsafe": 23,
+      "unknown": 75,
+      "completionRate": 0.32432432432432434,
+      "unknownReasons": {
+        "time": 45,
+        "unstarted-time": 30
+      },
+      "incumbentUnsafe": 11,
+      "safeAlternative": 5,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 398.7645,
+      "guardP95Ms": 400.9708750000009,
+      "responseP50Ms": 1991.9355830000004,
+      "responseP95Ms": 1994.393209,
+      "maxResponseMs": 1994.990167,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 83558.44444444444,
+      "normalDepthMedian": 4.5,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 17,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1434845184,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": false,
+      "condition": "SHORT-250",
+      "cases": 36,
+      "targets": 0,
+      "complete": 0,
+      "safe": 0,
+      "unsafe": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "unknownReasons": {},
+      "incumbentUnsafe": 0,
+      "safeAlternative": 0,
+      "unsafeAndSafePair": 0,
+      "changed": 0,
+      "wouldChange": 0,
+      "guardP50Ms": null,
+      "guardP95Ms": null,
+      "responseP50Ms": 1741.5714580000003,
+      "responseP95Ms": 1743.460084000002,
+      "maxResponseMs": 1744.6380410000002,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 92030.05555555556,
+      "normalDepthMedian": 5.0,
+      "normalDepthTwo": 28,
+      "nonforced": 30,
+      "deepStarted": 19,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1161805824,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "BASE-100",
+      "cases": 12,
+      "targets": 41,
+      "complete": 3,
+      "safe": 1,
+      "unsafe": 2,
+      "unknown": 38,
+      "completionRate": 0.07317073170731707,
+      "unknownReasons": {
+        "time": 21,
+        "unstarted-time": 17
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 1,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 100.17875000000004,
+      "guardP95Ms": 101.1230830000004,
+      "responseP50Ms": 1991.5779999999995,
+      "responseP95Ms": 1993.0734580000026,
+      "maxResponseMs": 1993.0734580000026,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 95794,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 11,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1355481088,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "BASE-250",
+      "cases": 12,
+      "targets": 39,
+      "complete": 9,
+      "safe": 5,
+      "unsafe": 4,
+      "unknown": 30,
+      "completionRate": 0.23076923076923078,
+      "unknownReasons": {
+        "time": 18,
+        "unstarted-time": 12
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 250.01833299999998,
+      "guardP95Ms": 251.1736669999991,
+      "responseP50Ms": 1991.9405000000006,
+      "responseP95Ms": 1993.6540830000001,
+      "maxResponseMs": 1993.6540830000001,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 84620.16666666667,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1085652992,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "BASE-400",
+      "cases": 12,
+      "targets": 38,
+      "complete": 11,
+      "safe": 6,
+      "unsafe": 5,
+      "unknown": 27,
+      "completionRate": 0.2894736842105263,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 10
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 3,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 398.8799589999999,
+      "guardP95Ms": 401.64612500000294,
+      "responseP50Ms": 1991.745832999999,
+      "responseP95Ms": 1994.3535410000004,
+      "maxResponseMs": 1994.3535410000004,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 74837.08333333333,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 3,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1009156096,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "BUDGET-100",
+      "cases": 12,
+      "targets": 39,
+      "complete": 3,
+      "safe": 1,
+      "unsafe": 2,
+      "unknown": 36,
+      "completionRate": 0.07692307692307693,
+      "unknownReasons": {
+        "time": 21,
+        "unstarted-time": 15
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 1,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 99.14516699999876,
+      "guardP95Ms": 101.26220900000044,
+      "responseP50Ms": 1991.666709000001,
+      "responseP95Ms": 1992.7075829999994,
+      "maxResponseMs": 1992.7075829999994,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 95867.41666666667,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1316012032,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "BUDGET-250",
+      "cases": 12,
+      "targets": 39,
+      "complete": 10,
+      "safe": 5,
+      "unsafe": 5,
+      "unknown": 29,
+      "completionRate": 0.2564102564102564,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 12
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 249.45724999999948,
+      "guardP95Ms": 262.0701670000017,
+      "responseP50Ms": 1991.6668750000026,
+      "responseP95Ms": 2005.3049159999973,
+      "maxResponseMs": 2005.3049159999973,
+      "over2000Ms": 1,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 80040.25,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1310621696,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "BUDGET-400",
+      "cases": 12,
+      "targets": 35,
+      "complete": 11,
+      "safe": 6,
+      "unsafe": 5,
+      "unknown": 24,
+      "completionRate": 0.3142857142857143,
+      "unknownReasons": {
+        "time": 14,
+        "unstarted-time": 10
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 399.7967089999984,
+      "guardP95Ms": 400.94525000000067,
+      "responseP50Ms": 1991.9643749999996,
+      "responseP95Ms": 2019.752124999999,
+      "maxResponseMs": 2019.752124999999,
+      "over2000Ms": 1,
+      "guardReportsMissing": 1,
+      "normalWorkMean": 73903.83333333333,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 3,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1115488256,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "CACHE-100",
+      "cases": 12,
+      "targets": 40,
+      "complete": 2,
+      "safe": 0,
+      "unsafe": 2,
+      "unknown": 38,
+      "completionRate": 0.05,
+      "unknownReasons": {
+        "time": 21,
+        "unstarted-time": 17
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 0,
+      "unsafeAndSafePair": 0,
+      "changed": 0,
+      "wouldChange": 0,
+      "guardP50Ms": 99.75558400000045,
+      "guardP95Ms": 100.54470799999945,
+      "responseP50Ms": 1991.7691670000004,
+      "responseP95Ms": 1994.2452080000003,
+      "maxResponseMs": 1994.2452080000003,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 90105.41666666667,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 11,
+      "nonforced": 11,
+      "deepStarted": 3,
+      "cacheLookups": 2119,
+      "cacheHits": 0,
+      "cachePeakBytes": 358536,
+      "rssInteriorSampleMaxBytes": 1218576384,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "CACHE-250",
+      "cases": 12,
+      "targets": 38,
+      "complete": 9,
+      "safe": 5,
+      "unsafe": 4,
+      "unknown": 29,
+      "completionRate": 0.23684210526315788,
+      "unknownReasons": {
+        "time": 18,
+        "unstarted-time": 11
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 248.997374999999,
+      "guardP95Ms": 250.7665419999994,
+      "responseP50Ms": 1991.601375000002,
+      "responseP95Ms": 1993.858791999999,
+      "maxResponseMs": 1993.858791999999,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 80180.91666666667,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 3,
+      "cacheLookups": 5554,
+      "cacheHits": 0,
+      "cachePeakBytes": 998416,
+      "rssInteriorSampleMaxBytes": 1133395968,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "CACHE-400",
+      "cases": 12,
+      "targets": 38,
+      "complete": 10,
+      "safe": 5,
+      "unsafe": 5,
+      "unknown": 28,
+      "completionRate": 0.2631578947368421,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 11
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 399.55166699999995,
+      "guardP95Ms": 401.88387500000135,
+      "responseP50Ms": 1992.364541,
+      "responseP95Ms": 1994.6400409999987,
+      "maxResponseMs": 1994.6400409999987,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 73269.33333333333,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 3,
+      "cacheLookups": 9745,
+      "cacheHits": 0,
+      "cachePeakBytes": 1048568,
+      "rssInteriorSampleMaxBytes": 1290518528,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "OBSERVE-250",
+      "cases": 12,
+      "targets": 41,
+      "complete": 11,
+      "safe": 5,
+      "unsafe": 6,
+      "unknown": 30,
+      "completionRate": 0.2682926829268293,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 13
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 0,
+      "wouldChange": 1,
+      "guardP50Ms": 248.15350000000035,
+      "guardP95Ms": 250.5445409999993,
+      "responseP50Ms": 1991.572792,
+      "responseP95Ms": 1993.3926249999968,
+      "maxResponseMs": 1993.3926249999968,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 83582.25,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 11,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1276755968,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "OFF-2000",
+      "cases": 12,
+      "targets": 0,
+      "complete": 0,
+      "safe": 0,
+      "unsafe": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "unknownReasons": {},
+      "incumbentUnsafe": 0,
+      "safeAlternative": 0,
+      "unsafeAndSafePair": 0,
+      "changed": 0,
+      "wouldChange": 0,
+      "guardP50Ms": null,
+      "guardP95Ms": null,
+      "responseP50Ms": 2000.9889159999984,
+      "responseP95Ms": 2001.684792,
+      "maxResponseMs": 2001.684792,
+      "over2000Ms": 12,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 105563.58333333333,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 11,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1229160448,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "ORDER-100",
+      "cases": 12,
+      "targets": 41,
+      "complete": 2,
+      "safe": 0,
+      "unsafe": 2,
+      "unknown": 39,
+      "completionRate": 0.04878048780487805,
+      "unknownReasons": {
+        "time": 21,
+        "unstarted-time": 17,
+        "late-complete": 1
+      },
+      "incumbentUnsafe": 2,
+      "safeAlternative": 0,
+      "unsafeAndSafePair": 0,
+      "changed": 0,
+      "wouldChange": 0,
+      "guardP50Ms": 99.84291599999779,
+      "guardP95Ms": 100.7989579999994,
+      "responseP50Ms": 1991.598833,
+      "responseP95Ms": 2011.2587089999997,
+      "maxResponseMs": 2011.2587089999997,
+      "over2000Ms": 1,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 96414.08333333333,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 11,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1305870336,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "ORDER-250",
+      "cases": 12,
+      "targets": 39,
+      "complete": 11,
+      "safe": 5,
+      "unsafe": 6,
+      "unknown": 28,
+      "completionRate": 0.28205128205128205,
+      "unknownReasons": {
+        "time": 17,
+        "unstarted-time": 11
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 249.7168329999995,
+      "guardP95Ms": 257.7357499999998,
+      "responseP50Ms": 1992.0763750000006,
+      "responseP95Ms": 2000.9790420000008,
+      "maxResponseMs": 2000.9790420000008,
+      "over2000Ms": 1,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 81996.75,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1285586944,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "ORDER-400",
+      "cases": 12,
+      "targets": 39,
+      "complete": 14,
+      "safe": 6,
+      "unsafe": 8,
+      "unknown": 25,
+      "completionRate": 0.358974358974359,
+      "unknownReasons": {
+        "time": 14,
+        "unstarted-time": 10,
+        "late-complete": 1
+      },
+      "incumbentUnsafe": 3,
+      "safeAlternative": 2,
+      "unsafeAndSafePair": 1,
+      "changed": 1,
+      "wouldChange": 1,
+      "guardP50Ms": 399.1037090000027,
+      "guardP95Ms": 400.4951669999991,
+      "responseP50Ms": 1992.0195830000011,
+      "responseP95Ms": 1994.402333,
+      "maxResponseMs": 1994.402333,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 76321.16666666667,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1347829760,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [
+        {
+          "caseId": "f1c8fdef9f37da03-146",
+          "action": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 6,
+              "y": 2
+            },
+            "promote": true
+          },
+          "oldAction": {
+            "type": "movePiece",
+            "from": {
+              "x": 3,
+              "y": 2
+            },
+            "to": {
+              "x": 1,
+              "y": 2
+            },
+            "promote": true
+          }
+        }
+      ],
+      "guardControlChanges": []
+    },
+    {
+      "phase": "runtime",
+      "warm": true,
+      "condition": "SHORT-250",
+      "cases": 12,
+      "targets": 0,
+      "complete": 0,
+      "safe": 0,
+      "unsafe": 0,
+      "unknown": 0,
+      "completionRate": null,
+      "unknownReasons": {},
+      "incumbentUnsafe": 0,
+      "safeAlternative": 0,
+      "unsafeAndSafePair": 0,
+      "changed": 0,
+      "wouldChange": 0,
+      "guardP50Ms": null,
+      "guardP95Ms": null,
+      "responseP50Ms": 1740.703625,
+      "responseP95Ms": 1742.036083,
+      "maxResponseMs": 1742.036083,
+      "over2000Ms": 0,
+      "guardReportsMissing": 0,
+      "normalWorkMean": 84813.91666666667,
+      "normalDepthMedian": 2,
+      "normalDepthTwo": 10,
+      "nonforced": 11,
+      "deepStarted": 4,
+      "cacheLookups": 0,
+      "cacheHits": 0,
+      "cachePeakBytes": 0,
+      "rssInteriorSampleMaxBytes": 1228701696,
+      "rssUnobservedInteriorWindows": 0,
+      "changes": [],
+      "guardControlChanges": []
+    }
+  ],
+  "quality": {
+    "complete": true,
+    "source": {
+      "commit": "bcd78b62c12612a347962537d1126ed0ecc8aa8c",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "77efb1e6474e2b67a2c5591b9bfdfbebb424bf03549eba5510ec8b3b97934972",
+      "bench": "61958331008216a8789331418e7bc70af43e7117a12994bc920485d112c9f1b0",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "conditions": {
+      "v5-off": {
+        "count": 88,
+        "accepted": 81,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-west",
+          "poisoned-gold-false-north",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-north",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      },
+      "p05-off": {
+        "count": 88,
+        "accepted": 83,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-north",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      },
+      "BASE-250": {
+        "count": 88,
+        "accepted": 84,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      },
+      "COMBINED-250": {
+        "count": 88,
+        "accepted": 84,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      },
+      "OBSERVE-250": {
+        "count": 88,
+        "accepted": 84,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      },
+      "COMBINED-400": {
+        "count": 88,
+        "accepted": 84,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      }
+    },
+    "fixed": [
+      {
+        "id": "inactive-rook-false-south",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-false-south",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-west",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-west",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-north",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-north",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-east",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-false-east",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-south",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-true-south",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-west",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-west",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-north",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-north",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-east",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-true-east",
+        "strategy": "dual-continuations",
+        "accepted": true
+      }
+    ]
+  },
+  "supplementQuality": {
+    "complete": true,
+    "source": {
+      "commit": "21a3c9e1337ae1cd3016dddeba7f4f7fa8bf1607",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "155fd7e4ac3863e248b41064522c4e1696628923aae77c127f6e84b873f51a8f",
+      "bench": "0e0cae96ec12b8f56fc36380bf09dedb278110e434f11a89cf634abd3d0ab5ed",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "conditions": {
+      "BASE-250": {
+        "count": 88,
+        "accepted": 84,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      },
+      "COMBINED_ESCAPES-250": {
+        "count": 88,
+        "accepted": 83,
+        "criticalCount": 40,
+        "criticalAccepted": 39,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east",
+          "forced-block-true-west"
+        ],
+        "guardChanges": 0
+      },
+      "COMBINED_ESCAPES-400": {
+        "count": 88,
+        "accepted": 84,
+        "criticalCount": 40,
+        "criticalAccepted": 40,
+        "failed": [
+          "poisoned-gold-false-south",
+          "poisoned-gold-false-east",
+          "poisoned-gold-true-south",
+          "poisoned-gold-true-east"
+        ],
+        "guardChanges": 0
+      }
+    },
+    "fixed": [
+      {
+        "id": "inactive-rook-false-south",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-false-south",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-west",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-west",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-north",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-north",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-false-east",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-false-east",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-south",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-true-south",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-west",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-west",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-north",
+        "strategy": "dual",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-north",
+        "strategy": "dual-continuations",
+        "accepted": true
+      },
+      {
+        "id": "inactive-rook-true-east",
+        "strategy": "dual",
+        "accepted": false
+      },
+      {
+        "id": "inactive-rook-true-east",
+        "strategy": "dual-continuations",
+        "accepted": true
+      }
+    ]
+  },
+  "runtimeBudgetAudit": {
+    "counts": {
+      "trials": 720,
+      "guardTrials": 624
+    },
+    "issues": [
+      {
+        "caseId": "5af97a243392610b-117",
+        "warm": false,
+        "condition": "ORDER-100",
+        "responseMs": 2076.910667,
+        "guardPresent": true,
+        "status": "completed",
+        "reason": "lethal_guard"
+      },
+      {
+        "caseId": "1bd9a54c8ba559d3-58",
+        "warm": true,
+        "condition": "ORDER-100",
+        "responseMs": 2011.2587089999997,
+        "guardPresent": true,
+        "status": "completed",
+        "reason": "lethal_guard"
+      },
+      {
+        "caseId": "1bd9a54c8ba559d3-58",
+        "warm": true,
+        "condition": "ORDER-250",
+        "responseMs": 2000.9790420000008,
+        "guardPresent": true,
+        "status": "completed",
+        "reason": "lethal_guard"
+      },
+      {
+        "caseId": "34147a3c7260da65-105",
+        "warm": true,
+        "condition": "BUDGET-250",
+        "responseMs": 2005.3049159999973,
+        "guardPresent": true,
+        "status": "completed",
+        "reason": "lethal_guard"
+      },
+      {
+        "caseId": "314e463cf2eca3d4-28",
+        "warm": true,
+        "condition": "BUDGET-400",
+        "responseMs": 2019.752124999999,
+        "guardPresent": false,
+        "status": "paused",
+        "reason": "user"
+      }
+    ],
+    "scope": "Process exit success differs from completed guard result and strict total2000ms response."
+  },
+  "supplementScreenBudgetAudit": {
+    "counts": {
+      "trials": 60,
+      "guardTrials": 60
+    },
+    "issues": [
+      {
+        "caseId": "3c95b46ffc6af7e7-133",
+        "warm": false,
+        "condition": "COMBINED_ESCAPES-400",
+        "responseMs": 2029.119917,
+        "guardPresent": false,
+        "status": "paused",
+        "reason": "user"
+      },
+      {
+        "caseId": "34147a3c7260da65-166",
+        "warm": false,
+        "condition": "ORDER_ESCAPES-400",
+        "responseMs": 2000.631666,
+        "guardPresent": true,
+        "status": "completed",
+        "reason": "lethal_guard"
+      }
+    ],
+    "scope": "Process exit success differs from completed guard result and strict total2000ms response."
+  },
+  "criticalTimeout": {
+    "source": {
+      "commit": "21a3c9e1337ae1cd3016dddeba7f4f7fa8bf1607",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "155fd7e4ac3863e248b41064522c4e1696628923aae77c127f6e84b873f51a8f",
+      "bench": "0e0cae96ec12b8f56fc36380bf09dedb278110e434f11a89cf634abd3d0ab5ed",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "failures": [
+      {
+        "id": "forced-block-true-west",
+        "condition": "COMBINED_ESCAPES-250",
+        "accepted": false,
+        "responseMs": 2043.1185839999816,
+        "status": "paused",
+        "reason": "user",
+        "action": {
+          "type": "dropPiece",
+          "pieceKind": "gold",
+          "to": {
+            "x": 1,
+            "y": 4
+          }
+        },
+        "matchesExpectedAction": true,
+        "guardReportPresent": false,
+        "scope": "Failure retained. Without completed guard report, exact cause inside the phase is unobserved; do not attribute solely to ordering or rescore the expected move."
+      }
+    ]
+  },
+  "primarySerialized": {
+    "source": {
+      "commit": "bcd78b62c12612a347962537d1126ed0ecc8aa8c",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "77efb1e6474e2b67a2c5591b9bfdfbebb424bf03549eba5510ec8b3b97934972",
+      "bench": "61958331008216a8789331418e7bc70af43e7117a12994bc920485d112c9f1b0",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "counts": {
+      "reports": 1551,
+      "certificates": 3645,
+      "verified": 1945,
+      "witnesses": 657,
+      "pv": 4089,
+      "pvSteps": 21905
+    },
+    "records": [
+      {
+        "name": "5af97a243392610b-117-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "e88afb2647b6731e-66-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "5af97a243392610b-117-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "ec7f7ff2f3ef6f6f-145-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "1bd9a54c8ba559d3-58-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "1bd9a54c8ba559d3-58-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d8db20336405552d-146-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "8ffe15d17614d55b-17-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ec7f7ff2f3ef6f6f-145-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f1c8fdef9f37da03-148-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "2b85a7c42d8baf79-54-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "6921d002682cf2f5-85-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "34147a3c7260da65-105-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "8ffe15d17614d55b-13-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "3c95b46ffc6af7e7-20-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "8ffe15d17614d55b-13-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f1c8fdef9f37da03-146-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "f18744085711e435-17-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ae960d72d889183a-95-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "5af97a243392610b-20-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "2b85a7c42d8baf79-54-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f18744085711e435-13-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "8ffe15d17614d55b-17-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "9df46e87b886dea8-107-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d67bd5108f43a39c-57-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ae960d72d889183a-97-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "e88afb2647b6731e-64-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "3c95b46ffc6af7e7-133-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "2b85a7c42d8baf79-51-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "314e463cf2eca3d4-28-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "d67bd5108f43a39c-57-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "314e463cf2eca3d4-24-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "e88afb2647b6731e-66-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "2b85a7c42d8baf79-54-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d7dd0fe615526b49-128-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "314e463cf2eca3d4-24-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "1bd9a54c8ba559d3-58-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "ec7f7ff2f3ef6f6f-143-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "34147a3c7260da65-166-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "9df46e87b886dea8-105-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "9df46e87b886dea8-107-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "5af97a243392610b-117-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "2b85a7c42d8baf79-51-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "6921d002682cf2f5-83-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f18744085711e435-13-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "3c95b46ffc6af7e7-20-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "6921d002682cf2f5-85-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "314e463cf2eca3d4-28-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "e88afb2647b6731e-64-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "5af97a243392610b-20-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "c07791e121bdad5b-51-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "d7dd0fe615526b49-128-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "5af97a243392610b-20-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f1c8fdef9f37da03-146-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ae960d72d889183a-95-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "2b85a7c42d8baf79-54-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "34147a3c7260da65-166-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "34147a3c7260da65-105-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "6921d002682cf2f5-85-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "c07791e121bdad5b-54-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "1bd9a54c8ba559d3-50-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "3c95b46ffc6af7e7-20-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "d7dd0fe615526b49-130-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "9df46e87b886dea8-105-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ae960d72d889183a-95-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "3c95b46ffc6af7e7-133-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d8db20336405552d-146-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f18744085711e435-17-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "1bd9a54c8ba559d3-50-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d7dd0fe615526b49-130-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "34147a3c7260da65-105-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "1bd9a54c8ba559d3-58-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "c07791e121bdad5b-51-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "5af97a243392610b-117-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "f1c8fdef9f37da03-146-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "34147a3c7260da65-105-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "3c95b46ffc6af7e7-133-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f1c8fdef9f37da03-146-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d8db20336405552d-144-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "6921d002682cf2f5-83-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "34147a3c7260da65-166-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "34147a3c7260da65-166-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ae960d72d889183a-95-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "ec7f7ff2f3ef6f6f-143-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "5af97a243392610b-20-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "f1c8fdef9f37da03-148-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "ae960d72d889183a-97-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "314e463cf2eca3d4-28-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "c07791e121bdad5b-54-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "6921d002682cf2f5-85-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d8db20336405552d-144-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "3c95b46ffc6af7e7-133-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "314e463cf2eca3d4-28-warm-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      },
+      {
+        "name": "3c95b46ffc6af7e7-20-warm-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d67bd5108f43a39c-59-cold-runtime.json",
+        "complete": true,
+        "rows": 15
+      },
+      {
+        "name": "d67bd5108f43a39c-59-cold-frozen-results.json",
+        "complete": true,
+        "rows": 12
+      }
+    ],
+    "complete": true
+  },
+  "supplementSerialized": {
+    "source": {
+      "commit": "21a3c9e1337ae1cd3016dddeba7f4f7fa8bf1607",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "155fd7e4ac3863e248b41064522c4e1696628923aae77c127f6e84b873f51a8f",
+      "bench": "0e0cae96ec12b8f56fc36380bf09dedb278110e434f11a89cf634abd3d0ab5ed",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "counts": {
+      "reports": 263,
+      "certificates": 777,
+      "verified": 775,
+      "witnesses": 70,
+      "pv": 792,
+      "pvSteps": 5477
+    },
+    "records": [],
+    "complete": true
+  },
+  "screenSerialized": {
+    "source": {
+      "commit": "21a3c9e1337ae1cd3016dddeba7f4f7fa8bf1607",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "155fd7e4ac3863e248b41064522c4e1696628923aae77c127f6e84b873f51a8f",
+      "bench": "0e0cae96ec12b8f56fc36380bf09dedb278110e434f11a89cf634abd3d0ab5ed",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "reports": 59,
+    "pv": 202,
+    "verified": 98,
+    "complete": true
+  },
+  "measurementClosure": {
+    "registeredAt": "2026-10-30T08:38:44.174Z",
+    "endedAt": "2026-10-30T10:07:18.613221+00:00",
+    "elapsedWallSeconds": 5314.439221,
+    "measurementCompleteBefore90Minutes": true,
+    "noNewPerformanceMeasurements": true,
+    "supplementStoppedAtCriticalQualityGate": true
+  },
+  "lastMeasuredPhase": {
+    "phase": "final-correctness",
+    "startedAt": "2026-10-30T10:05:05.192Z",
+    "endedAt": "2026-10-30T10:05:08.950Z",
+    "elapsedMs": 3758.3451670000004,
+    "source": {
+      "commit": "21a3c9e1337ae1cd3016dddeba7f4f7fa8bf1607",
+      "core": "ce8f2263104f014e4ee77da5e766d45ef60507ef33b752b86dcc27f51b954293",
+      "app": "155fd7e4ac3863e248b41064522c4e1696628923aae77c127f6e84b873f51a8f",
+      "bench": "0e0cae96ec12b8f56fc36380bf09dedb278110e434f11a89cf634abd3d0ab5ed",
+      "fixtures": "06c9e955e2a59574cedacb6d3b1a030142b634c4bad0a1770b0966b1117b6b6a"
+    },
+    "success": true,
+    "error": null,
+    "sourceUnchanged": true
+  },
+  "resources": {
+    "frozen-resource": {
+      "peakBytes": {
+        "total": 482508800,
+        "aggregation": 460210176,
+        "game": 0,
+        "workers": 0,
+        "monitor": 22331392
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 112.35130091599422,
+      "samplingMs": 100
+    },
+    "quality-resource": {
+      "peakBytes": {
+        "total": 4402364416,
+        "aggregation": 4382605312,
+        "game": 1187004416,
+        "workers": 1222328320,
+        "monitor": 24051712
+      },
+      "maxWorkers": 4,
+      "reason": null,
+      "elapsedSeconds": 965.1948046249454,
+      "samplingMs": 100
+    },
+    "escapes-probe-resource": {
+      "peakBytes": {
+        "total": 149487616,
+        "aggregation": 127107072,
+        "game": 0,
+        "workers": 0,
+        "monitor": 22380544
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 1.026266291970387,
+      "samplingMs": 100
+    },
+    "cache-screen-resource": {
+      "peakBytes": {
+        "total": 1249460224,
+        "aggregation": 1226866688,
+        "game": 0,
+        "workers": 0,
+        "monitor": 22609920
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 27.559775792004075,
+      "samplingMs": 100
+    },
+    "known-resource": {
+      "peakBytes": {
+        "total": 201670656,
+        "aggregation": 179453952,
+        "game": 0,
+        "workers": 0,
+        "monitor": 22216704
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 2.5810664580203593,
+      "samplingMs": 100
+    },
+    "order-screen-resource": {
+      "peakBytes": {
+        "total": 1985347584,
+        "aggregation": 1962885120,
+        "game": 0,
+        "workers": 0,
+        "monitor": 22462464
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 41.62733491702238,
+      "samplingMs": 100
+    },
+    "phase-a-resource": {
+      "peakBytes": {
+        "total": 773079040,
+        "aggregation": 751108096,
+        "game": 4603904,
+        "workers": 0,
+        "monitor": 21987328
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 12.968800084025133,
+      "samplingMs": 100
+    },
+    "runtime-resource": {
+      "peakBytes": {
+        "total": 1534951424,
+        "aggregation": 41910272,
+        "game": 1413709824,
+        "workers": 1308770304,
+        "monitor": 24199168
+      },
+      "maxWorkers": 4,
+      "reason": null,
+      "elapsedSeconds": 1417.5272767079878,
+      "samplingMs": 100
+    },
+    "final-correctness-resource": {
+      "peakBytes": {
+        "total": 639467520,
+        "aggregation": 612270080,
+        "game": 5013504,
+        "workers": 0,
+        "monitor": 22183936
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 3.717879500007257,
+      "samplingMs": 100
+    },
+    "serialized-resource": {
+      "peakBytes": {
+        "total": 571326464,
+        "aggregation": 548306944,
+        "game": 7274496,
+        "workers": 0,
+        "monitor": 23035904
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 44.61867066699779,
+      "samplingMs": 100
+    },
+    "budget-screen-resource": {
+      "peakBytes": {
+        "total": 3032973312,
+        "aggregation": 3010510848,
+        "game": 0,
+        "workers": 0,
+        "monitor": 22560768
+      },
+      "maxWorkers": 0,
+      "reason": null,
+      "elapsedSeconds": 62.68045916699339,
+      "samplingMs": 100
+    }
+  },
+  "drive": "https://drive.google.com/drive/folders/1-Qu-q7G8xiyPwMIhZVxExv_rq_HpDk7f",
+  "scope": [
+    "Used correlated seed9874100; no new games/seeds/holdout; no independent strength claim.",
+    "Primary COMBINED aliases ORDER, not a distinct trial. Supplement uses new source and separate labels.",
+    "Frozen candidates come from prior250ms MaxN results; internal timings are extra diagnostics, not fair2s comparisons.",
+    "Missing guard reports have unobserved target counts; do not treat them as completed or safe.",
+    "Initial profile/screens canonical validation at generation; final matrices/quality/supplement screen/cache demo additionally replayed after saving.",
+    "RSS per-condition figures are1s saved interior samples, not strict peaks. Global monitor peak100ms.",
+    "Supplement full runtime/frozen comparison not executed after critical gate; no discarded or rescored failed trial."
+  ]
+}

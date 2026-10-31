@@ -40,8 +40,11 @@ type Candidate = { action: FourShogiAction; state: FourShogiState; values: Value
 const values = { king: 0, rook: 800, gold: 500, silver: 400, pawn: 100 };
 class SearchStopped extends Error {}
 
-export function priority(move: OrdinaryMove, side: Side): number {
-  const checks = getCheckState(move.state);
+export function priority(
+  move: OrdinaryMove,
+  side: Side,
+  checks = getCheckState(move.state),
+): number {
   const checking = getActiveSides(move.state).some(
     (target) => areEnemies(move.state.mode, side, target) && checks[target],
   );

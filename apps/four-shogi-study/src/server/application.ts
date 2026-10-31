@@ -33,6 +33,7 @@ import {
 import { validatePublicReplay } from "../domain/publicReplay";
 import { restoreRecordedCandidates } from "../domain/recordedAnalysis";
 import { createStudySearchRuntime, type StudySearchRuntime } from "../search/runtime";
+import type { StudyLifecycleEvent } from "../search/deadline";
 import type { StudyDocument, StudyRecordedAnalysis } from "../shared/model";
 import { HttpError, type StudyApplication } from "./http";
 import { fetchPublicReplay } from "./publicImport";
@@ -102,6 +103,7 @@ export class LocalStudyApplication implements StudyApplication {
     private readonly config: StudyConfig,
     private readonly runtimeFactory = createStudySearchRuntime,
     private readonly liveFactory = createLiveRoomSession,
+    private readonly observeLifecycle?: (event: StudyLifecycleEvent) => void,
   ) {}
 
   private serial<T>(operation: () => Promise<T>): Promise<T> {
@@ -153,6 +155,7 @@ export class LocalStudyApplication implements StudyApplication {
     }));
   }
   async get(id: string): Promise<StudySnapshot> {
+    const requested = performance.now();
     const study = await this.document(id);
     const positions = await resolveStudyPositions(study);
     const position = positions.get(study.currentNodeId)!;
@@ -212,6 +215,7 @@ export class LocalStudyApplication implements StudyApplication {
         recommendedAction: candidates[0]?.action ?? null,
         analysisRecommendedAction: candidates[0]?.action ?? null,
         evaluation: record.evaluation,
+        coverage: record.coverage,
         saved: {
           savedAt: record.savedAt,
           searchVersion: record.searchVersion,
@@ -223,7 +227,7 @@ export class LocalStudyApplication implements StudyApplication {
         },
       };
     }
-    return {
+    const snapshot: StudySnapshot = {
       study,
       position,
       history,
@@ -232,6 +236,8 @@ export class LocalStudyApplication implements StudyApplication {
       forbiddenActions: availability.threePlayerAttackForbiddenActions,
       staticEvaluation: evaluateStudyPosition(position),
       analysis:
+        (!this.liveViews.get(id)?.follow ||
+          ["live", "finished"].includes(this.liveViews.get(id)!.status)) &&
         analysis?.nodeId === study.currentNodeId &&
         analysis.stateHash === position.stateHash &&
         matchesFocus(analysis)
@@ -239,6 +245,14 @@ export class LocalStudyApplication implements StudyApplication {
           : null,
       ...(this.liveViews.has(id) ? { live: this.liveViews.get(id) } : {}),
     };
+    this.observeLifecycle?.({
+      clock: "parent-monotonic",
+      stage: "application-snapshot",
+      id: analysis?.id ?? null,
+      atMs: performance.now(),
+      durationMs: performance.now() - requested,
+    });
+    return snapshot;
   }
   private async publish(id: string) {
     const snapshot = await this.get(id);
@@ -421,7 +435,9 @@ export class LocalStudyApplication implements StudyApplication {
           throw new HttpError(400, "未対応の操作です");
       }
       if (["action", "event", "setup"].includes(input.type)) this.holdLive(id);
-      await this.stopSearch();
+      await this.stopSearch(
+        ["action", "event"].includes(input.type) && next.settings.focusSide !== null,
+      );
       await this.save(next, study.revision);
       if (input.type === "liveFollow" && input.enabled) {
         if ((await resolveStudyPositions(next)).get(next.currentNodeId)!.state.status === "playing")
@@ -493,7 +509,8 @@ export class LocalStudyApplication implements StudyApplication {
     const record: StudyRecordedAnalysis = {
       stateHash: view.stateHash,
       savedAt: new Date().toISOString(),
-      searchVersion: studySearchVersion,
+      searchVersion: view.searchVersion ?? studySearchVersion,
+      ...(view.coverage ? { coverage: view.coverage } : {}),
       evaluationVersion: studyEvaluationVersion,
       engineVersion: aiVersions.engineVersion,
       ...active.conditions,
@@ -517,10 +534,13 @@ export class LocalStudyApplication implements StudyApplication {
     active.lastSavedElapsedMs = view.elapsedMs;
     return next;
   }
-  private async stopSearch() {
+  private async stopSearch(preserveFocus = false) {
     const active = this.active;
     this.active = null;
-    if (!active) return;
+    if (!active) {
+      if (!preserveFocus) await this.pool?.runtime.releaseFocus?.();
+      return;
+    }
     if (active.view && ["running", "paused"].includes(active.view.status)) {
       const view: StudyAnalysisView = {
         ...active.view,
@@ -530,7 +550,11 @@ export class LocalStudyApplication implements StudyApplication {
       this.analyses.set(active.studyId, view);
       this.emit({ type: "analysis", studyId: active.studyId, analysis: view });
     }
-    if (active.view) await active.runtime.cancel(active.view.id);
+    if (active.view) {
+      if (preserveFocus && active.focusSide !== null && active.runtime.holdFocus)
+        await active.runtime.holdFocus(active.view.id);
+      else await active.runtime.cancel(active.view.id);
+    }
     const view = active.view;
     if (view && view.completedDepth > 0)
       void this.serial(async () => {
@@ -548,7 +572,7 @@ export class LocalStudyApplication implements StudyApplication {
   private async startSearch(study: StudyDocument, auto: boolean) {
     await this.holdOtherLive(study.id);
     this.checkResources(study);
-    await this.stopSearch();
+    await this.stopSearch(!auto && study.settings.focusSide !== null);
     const position = (await resolveStudyPositions(study)).get(study.currentNodeId)!;
     if (position.state.status === "finished")
       throw new HttpError(400, "終局した局面です。途中の局面を選んでください");
@@ -593,7 +617,13 @@ export class LocalStudyApplication implements StudyApplication {
     await runtime.start(
       studyPositionInput(study),
       {
+        strategy: study.settings.searchStrategy ?? "adaptive",
         focusSide: active.focusSide,
+        sessionKey: JSON.stringify([
+          study.id,
+          this.liveViews.get(study.id)?.instanceId ?? null,
+          this.liveViews.get(study.id)?.roundId ?? null,
+        ]),
         timeBudgetMs: auto
           ? study.settings.seats[position.state.turn].thinkTimeMs
           : study.settings.analysisTimeMs,
@@ -601,6 +631,12 @@ export class LocalStudyApplication implements StudyApplication {
       (progress) => {
         if (this.active !== active || progress.stateHash !== active.stateHash) return;
         const view: StudyAnalysisView = {
+          continuation: progress.continuation,
+          completion: progress.completion,
+          lethalGuard: progress.lethalGuard,
+          coverage: progress.coverage,
+          broadCandidates: progress.broadCandidates,
+          searchVersion: progress.diagnostics.searchVersion,
           id: progress.id,
           nodeId: active.nodeId,
           stateHash: active.stateHash,
@@ -615,6 +651,7 @@ export class LocalStudyApplication implements StudyApplication {
           work: progress.work,
           nodes: progress.nodes,
           memoryBytes: progress.memoryBytes,
+          performance: progress.performance,
           candidates: progress.candidates,
           recommendedAction: progress.recommendedAction,
           evaluation: progress.evaluation,
@@ -800,7 +837,7 @@ export class LocalStudyApplication implements StudyApplication {
           if (!live) return;
           this.liveViews.set(id, { ...live, status: status.state, message: status.message });
           if (
-            ["error", "closed", "reconnecting"].includes(status.state) &&
+            ["error", "closed", "reconnecting", "syncing"].includes(status.state) &&
             this.active?.studyId === id
           ) {
             if (
@@ -809,7 +846,7 @@ export class LocalStudyApplication implements StudyApplication {
               this.active.view?.status !== "paused"
             )
               this.focusReconnect.add(id);
-            await this.stopSearch();
+            await this.stopSearch(status.state === "syncing");
           }
           await this.publish(id);
         }).catch((error: unknown) =>
@@ -903,7 +940,7 @@ export class LocalStudyApplication implements StudyApplication {
         next = await appendStudyEvent(next, event);
       const latestNodeId = next.currentNodeId;
       if (!previous.follow) next = selectStudyNode(next, original.currentNodeId);
-      if (previous.follow) await this.stopSearch();
+      if (previous.follow) await this.stopSearch(true);
       await this.save(next, original.revision);
       this.liveViews.set(priorId, {
         ...previous,

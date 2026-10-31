@@ -3,6 +3,7 @@ import { hashJson } from "../../../packages/four-shogi/bench/singlesMeasurement"
 import { createStudySearchRuntime, type StudySearchRuntime } from "../src/search/runtime";
 import { createStrengthGameRunner, strengthCodeIdentity, strengthRunnerVersion } from "./strength";
 import type { StrengthParentCommand, StrengthParentMessage } from "./strengthProcessProtocol";
+import { createStrengthJournal } from "./strengthJournal";
 
 type Initialization = Extract<StrengthParentCommand, { type: "init" }>;
 let initialization: Initialization | null = null;
@@ -72,7 +73,14 @@ async function initialize(message: Initialization) {
     throw new Error("対局親の固定Lv2が一致しません");
   const options = message.config.options;
   if ("timeMs" in options.budget) {
-    const base = createStudySearchRuntime({ threads: options.threads, memoryMb: options.memoryMb });
+    const base = createStudySearchRuntime({
+      threads: options.threads,
+      memoryMb: options.memoryMb,
+      ...(options.reuseSearchWorkers === undefined
+        ? {}
+        : { reuseWorkers: options.reuseSearchWorkers }),
+      ...(options.journalDirectory ? { measureStages: true, taskPartition: "root" as const } : {}),
+    });
     runtime = {
       ...base,
       async start(input, settings, callback) {
@@ -83,7 +91,12 @@ async function initialize(message: Initialization) {
       },
     };
   }
-  gameRunner = createStrengthGameRunner(options, opponent, runtime);
+  gameRunner = createStrengthGameRunner(
+    options,
+    opponent,
+    runtime,
+    options.journalDirectory ? createStrengthJournal(options.journalDirectory) : undefined,
+  );
   if (!closing)
     send({
       type: "ready",
@@ -136,6 +149,8 @@ process.on("message", (raw: unknown) => {
     job.seed >= options.seed + options.seeds ||
     !options.seats.includes(job.seat) ||
     !options.profiles.includes(job.profile) ||
+    (job.searchStrategy !== undefined &&
+      !(options.compareStrategies ?? [options.searchStrategy]).includes(job.searchStrategy)) ||
     !options.restrictions.includes(job.restricted)
   ) {
     error("対局jobの開始条件が一致しません", job.id);
