@@ -12,7 +12,12 @@ export type StudyAnalysisTrace = {
   requestedAt: string;
   input: StudyPositionInput;
   settings: StudySettings;
-  conditions: { timeBudgetMs: number | null; threads: number; memoryMb: number };
+  conditions: {
+    timeBudgetMs: number | null;
+    threads: number;
+    memoryMb: number;
+    cacheSize?: number;
+  };
   auto: boolean;
   live: Pick<StudyLiveView, "instanceId" | "roundId" | "eventCount"> | null;
   analysis: StudyAnalysisView;
@@ -41,7 +46,11 @@ export async function writeStudyAnalysisTrace(directory: string, record: StudyAn
               ...row,
               candidateDepth: candidate?.completedDepth ?? null,
               proof: proof
-                ? { ...proof, nodeCount: Object.keys(proof.nodes).length, nodes: undefined }
+                ? {
+                    ...proof,
+                    nodeCount: Object.keys(proof.nodes).length,
+                    nodes: undefined,
+                  }
                 : null,
             })),
           }
@@ -61,7 +70,10 @@ export async function writeStudyAnalysisTrace(directory: string, record: StudyAn
   const handle = await open(temporary, "wx", 0o600);
   try {
     await handle.writeFile(
-      JSON.stringify({ checksum: createHash("sha256").update(body).digest("hex"), payload }) + "\n",
+      JSON.stringify({
+        checksum: createHash("sha256").update(body).digest("hex"),
+        payload,
+      }) + "\n",
       "utf8",
     );
     await handle.sync();

@@ -42,6 +42,7 @@ export type StudyAnalysisView = {
     timeBudgetMs: number | null;
     threads: number;
     memoryMb: number;
+    cacheSize?: number;
   };
 };
 export type StudyLiveView = {
@@ -95,6 +96,7 @@ export type StudyConfig = {
   totalMemoryMb: number;
   defaultThreads: number;
   defaultMemoryMb: number;
+  searchCacheEntries?: number;
   dataDirectory: string;
 };
 
@@ -132,7 +134,12 @@ export type StudyAnalysisCommand = { expectedRevision: number } & (
   | { command: "start" }
   | { command: "pause" }
   | { command: "resume" }
-  | { command: "adopt"; analysisId: string; stateHash: string; action?: FourShogiAction }
+  | {
+      command: "adopt";
+      analysisId: string;
+      stateHash: string;
+      action?: FourShogiAction;
+    }
 );
 
 export type StudyServerEvent =

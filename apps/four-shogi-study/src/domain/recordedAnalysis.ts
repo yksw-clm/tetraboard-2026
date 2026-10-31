@@ -165,6 +165,8 @@ export async function parseRecordedAnalyses(
     if (!Array.isArray(item.candidates) || item.candidates.length > 5 || !item.candidates.length)
       fail();
     const timeBudgetMs = item.timeBudgetMs === null ? null : number(item.timeBudgetMs, 3_600_000);
+    const cacheSize = item.cacheSize === undefined ? undefined : number(item.cacheSize, 65536);
+    if (cacheSize !== undefined && !Number.isSafeInteger(cacheSize)) fail();
     const savedAt = text(item.savedAt);
     if (!Number.isFinite(Date.parse(savedAt))) fail();
     let record: StudyRecordedAnalysis = {
@@ -174,7 +176,9 @@ export async function parseRecordedAnalyses(
       ...(item.modelId === undefined ? {} : { modelId: text(item.modelId) }),
       ...(item.modelUsage === undefined
         ? {}
-        : { modelUsage: item.modelUsage as StudyRecordedAnalysis["modelUsage"] }),
+        : {
+            modelUsage: item.modelUsage as StudyRecordedAnalysis["modelUsage"],
+          }),
       stateHash: text(item.stateHash),
       savedAt,
       searchVersion: text(item.searchVersion),
@@ -183,6 +187,7 @@ export async function parseRecordedAnalyses(
       timeBudgetMs,
       threads: number(item.threads, 32),
       memoryMb: number(item.memoryMb, 65536),
+      ...(cacheSize === undefined ? {} : { cacheSize }),
       elapsedMs: number(item.elapsedMs),
       completedDepth: number(item.completedDepth, 256),
       evaluation: evaluation(item.evaluation),

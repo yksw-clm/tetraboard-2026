@@ -28,7 +28,7 @@ afterEach(async () => {
   }
 });
 
-async function harness() {
+async function harness(searchCacheEntries?: number) {
   const directory = await mkdtemp(join(tmpdir(), "study-focus-application-"));
   const starts: StudySearchOptions[] = [];
   let finish = () => {};
@@ -120,12 +120,42 @@ async function harness() {
       defaultThreads: 1,
       defaultMemoryMb: 512,
       dataDirectory: directory,
+      ...(searchCacheEntries === undefined ? {} : { searchCacheEntries }),
     },
     factory,
   );
   resources.push({ app, directory });
   return { app, store, starts, complete: () => finish() };
 }
+
+test("明示した探索キャッシュ上限をジョブ・診断・保存再読込へ保持する", async () => {
+  const { app, store, starts, complete } = await harness(1024);
+  const initial = await app.create({
+    settings: { mode: "analysis", searchStrategy: "dual-continuations" },
+  });
+  await app.analyze(initial.study.id, {
+    command: "start",
+    expectedRevision: initial.study.revision,
+  });
+  expect(starts[0].cacheSize).toBe(1024);
+  complete();
+  await app.close();
+  const saved = (await store.load(initial.study.id))!;
+  expect(saved.analysisRecords?.[saved.currentNodeId].cacheSize).toBe(1024);
+  const directory = join(store.directory, "analysis-traces", initial.study.id);
+  const file = (await readdir(directory)).find((name) => name.endsWith(".json"))!;
+  const { payload } = JSON.parse(await readFile(join(directory, file), "utf8"));
+  expect(payload.conditions.cacheSize).toBe(1024);
+  const invalid = JSON.parse(JSON.stringify(saved));
+  invalid.analysisRecords[saved.currentNodeId].cacheSize = 1.5;
+  await expect(parseStudyDocument(invalid)).rejects.toThrow("保存された解析結果");
+});
+
+test("探索キャッシュ未指定時は既存のメモリ依存の既定値を上書きしない", async () => {
+  const { app, starts } = await harness();
+  await app.create({ settings: { mode: "analysis", focusSide: "south" } });
+  expect(starts[0]).not.toHaveProperty("cacheSize");
+});
 
 test("フォーカス席を保存し、旧保存ファイルは未指定として読み込む", async () => {
   const study = await createStudy();
@@ -145,7 +175,11 @@ for (const side of ["south", "west"] as const)
   test(`完成したフォーカスの思考を実局面・予測局面と開始時設定を分けて記録する: ${side}`, async () => {
     const { app, store, complete } = await harness();
     const initial = await app.create({
-      settings: { mode: "analysis", focusSide: side, searchStrategy: "dual-continuations" },
+      settings: {
+        mode: "analysis",
+        focusSide: side,
+        searchStrategy: "dual-continuations",
+      },
     });
     complete();
     await app.close();
@@ -170,7 +204,9 @@ for (const side of ["south", "west"] as const)
 
 test("局面変更で止めたフォーカスの思考も取消として記録し、完成扱いしない", async () => {
   const { app, store } = await harness();
-  const initial = await app.create({ settings: { mode: "analysis", focusSide: "west" } });
+  const initial = await app.create({
+    settings: { mode: "analysis", focusSide: "west" },
+  });
   await app.close();
   const directory = join(store.directory, "analysis-traces", initial.study.id);
   const files = await readdir(directory);
@@ -184,7 +220,9 @@ test("局面変更で止めたフォーカスの思考も取消として記録�
 
 test("未来の候補を直接採用せず、予測を含む完全な読み筋だけを合法な分岐へ追加する", async () => {
   const { app } = await harness();
-  const initial = await app.create({ settings: { mode: "analysis", focusSide: "west" } });
+  const initial = await app.create({
+    settings: { mode: "analysis", focusSide: "west" },
+  });
   const analysis = initial.analysis!;
   const prefix = analysis.focus!.prefix;
   const candidate = analysis.candidates[0];
@@ -239,7 +277,9 @@ test("未来の候補を直接採用せず、予測を含む完全な読み筋�
 
 test("実手番のフォーカス候補は直接採用でき、CPUの自動着手はフォーカスを使わない", async () => {
   const { app, starts } = await harness();
-  const initial = await app.create({ settings: { mode: "analysis", focusSide: "south" } });
+  const initial = await app.create({
+    settings: { mode: "analysis", focusSide: "south" },
+  });
   expect(initial.analysis?.focus?.prefix).toHaveLength(0);
   const adopted = await app.analyze(initial.study.id, {
     command: "adopt",
@@ -290,7 +330,10 @@ test("実手番のフォーカス候補は直接採用でき、CPUの自動着�
 test("通常解析の保存結果をフォーカスへ流用せず、フォーカス結果で上書きしない", async () => {
   const { app, complete } = await harness();
   const created = await app.create({ settings: { mode: "analysis" } });
-  await app.analyze(created.study.id, { command: "start", expectedRevision: 0 });
+  await app.analyze(created.study.id, {
+    command: "start",
+    expectedRevision: 0,
+  });
   const nextSaved = (focus: boolean) =>
     new Promise<void>((resolve) => {
       const unsubscribe = app.subscribe((event) => {

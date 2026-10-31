@@ -9,9 +9,11 @@ import { createGuardedStudySearchRuntime } from "../search/guardedRuntime";
 import { createFocusReuseRuntime, readFocusReuseEnvironment } from "../search/focusSettings";
 import { readLethalGuardEnvironment } from "../search/guardSettings";
 import { listGenerations } from "../../../../packages/four-shogi/bench/nightlyStore";
+import { readStudyCacheEnvironment } from "./searchSettings";
 
 const logicalCpus = os.availableParallelism();
 const totalMemoryMb = Math.floor(os.totalmem() / 1024 ** 2);
+const searchCacheEntries = readStudyCacheEnvironment(process.env);
 const dataDirectory =
   process.env.STUDY_DATA_DIR ??
   resolve(os.homedir(), "Library/Application Support/Tetraboard Study");
@@ -51,6 +53,7 @@ const config = {
   totalMemoryMb,
   defaultThreads: Math.min(4, Math.max(1, logicalCpus - 2)),
   defaultMemoryMb: Math.max(256, Math.min(8192, Math.floor(totalMemoryMb / 3))),
+  ...(searchCacheEntries === undefined ? {} : { searchCacheEntries }),
   dataDirectory,
 };
 const port = Number(process.env.STUDY_PORT ?? 5198);

@@ -44,7 +44,12 @@ import {
   generationStudyModel,
 } from "../../../../packages/four-shogi/bench/nightlyStore";
 
-const names: Record<Side, string> = { south: "南", west: "西", north: "北", east: "東" };
+const names: Record<Side, string> = {
+  south: "南",
+  west: "西",
+  north: "北",
+  east: "東",
+};
 
 function eventLabel(
   before: AnalysisPosition,
@@ -85,7 +90,12 @@ type ActiveSearch = {
   view: StudyAnalysisView | null;
   auto: boolean;
   focusSide: Side | null;
-  conditions: { timeBudgetMs: number | null; threads: number; memoryMb: number };
+  conditions: {
+    timeBudgetMs: number | null;
+    threads: number;
+    memoryMb: number;
+    cacheSize?: number;
+  };
   lastSavedElapsedMs: number;
   traceKey: string | null;
   trace: {
@@ -103,12 +113,19 @@ export class LocalStudyApplication implements StudyApplication {
   private readonly listeners = new Set<(event: StudyServerEvent) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private active: ActiveSearch | null = null;
-  private pool: { runtime: StudySearchRuntime; threads: number; memoryMb: number } | null = null;
+  private pool: {
+    runtime: StudySearchRuntime;
+    threads: number;
+    memoryMb: number;
+  } | null = null;
   private generation = 0;
   private readonly analyses = new Map<string, StudyAnalysisView>();
   private readonly liveViews = new Map<string, StudyLiveView>();
   private readonly focusReconnect = new Set<string>();
-  private watching: { session: LiveRoomSession; studyId: string | null } | null = null;
+  private watching: {
+    session: LiveRoomSession;
+    studyId: string | null;
+  } | null = null;
 
   constructor(
     private readonly store: StudyStore,
@@ -246,6 +263,7 @@ export class LocalStudyApplication implements StudyApplication {
           timeBudgetMs: record.timeBudgetMs,
           threads: record.threads,
           memoryMb: record.memoryMb,
+          ...(record.cacheSize === undefined ? {} : { cacheSize: record.cacheSize }),
         },
       };
     }
@@ -430,7 +448,9 @@ export class LocalStudyApplication implements StudyApplication {
           break;
         }
         case "settings":
-          next = updateStudySettings(study, input.settings, { title: input.title });
+          next = updateStudySettings(study, input.settings, {
+            title: input.title,
+          });
           this.checkResources(next);
           break;
         case "pausePlay":
@@ -627,7 +647,11 @@ export class LocalStudyApplication implements StudyApplication {
         await this.saveAnalysis(
           active,
           view.status === "running"
-            ? { ...view, status: "cancelled", reason: "局面または操作が変更されました" }
+            ? {
+                ...view,
+                status: "cancelled",
+                reason: "局面または操作が変更されました",
+              }
             : view,
           current,
         );
@@ -686,6 +710,9 @@ export class LocalStudyApplication implements StudyApplication {
           : study.settings.analysisTimeMs,
         threads: study.settings.threads,
         memoryMb: study.settings.memoryMb,
+        ...(this.config.searchCacheEntries === undefined
+          ? {}
+          : { cacheSize: this.config.searchCacheEntries }),
       },
       lastSavedElapsedMs: -1,
       traceKey: null,
@@ -694,7 +721,11 @@ export class LocalStudyApplication implements StudyApplication {
         settings: structuredClone(study.settings),
         requestedAt: new Date().toISOString(),
         live: live
-          ? { instanceId: live.instanceId, roundId: live.roundId, eventCount: live.eventCount }
+          ? {
+              instanceId: live.instanceId,
+              roundId: live.roundId,
+              eventCount: live.eventCount,
+            }
           : null,
       },
     };
@@ -703,6 +734,9 @@ export class LocalStudyApplication implements StudyApplication {
       studyPositionInput(study),
       {
         strategy: study.settings.searchStrategy ?? "adaptive",
+        ...(this.config.searchCacheEntries === undefined
+          ? {}
+          : { cacheSize: this.config.searchCacheEntries }),
         ...(modelOptions ? { evaluationModel: modelOptions } : {}),
         focusSide: active.focusSide,
         sessionKey: JSON.stringify([
@@ -923,7 +957,11 @@ export class LocalStudyApplication implements StudyApplication {
           if (this.watching !== binding) return;
           const live = this.liveViews.get(id);
           if (!live) return;
-          this.liveViews.set(id, { ...live, status: status.state, message: status.message });
+          this.liveViews.set(id, {
+            ...live,
+            status: status.state,
+            message: status.message,
+          });
           if (
             ["error", "closed", "reconnecting", "syncing"].includes(status.state) &&
             this.active?.studyId === id
