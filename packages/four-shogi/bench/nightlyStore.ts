@@ -49,6 +49,18 @@ export function immutableJson(path: string, value: unknown) {
   }
   atomicJson(path, value);
 }
+export function checkedJson(path: string, payload: unknown) {
+  atomicJson(path, { checksum: dataHash(payload), payload });
+}
+export function readCheckedJson<T>(path: string): T {
+  const envelope = readJson<{ checksum: string; payload: T }>(path);
+  if (
+    Object.keys(envelope).sort().join(",") !== "checksum,payload" ||
+    dataHash(envelope.payload) !== envelope.checksum
+  )
+    throw new Error("保存結果のchecksumが不一致です");
+  return envelope.payload;
+}
 export type GenerationManifest = {
   format: "four-shogi-generation-v1";
   id: string;

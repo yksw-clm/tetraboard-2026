@@ -8,13 +8,25 @@ import {
   openSync,
   closeSync,
   fsyncSync,
+  readSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { exportTrainingData } from "./trainingExport";
 import { dataHash, sameData, replayFamily, type DataStart, type DataSplit } from "./selfPlayData";
 
-export const fileSha = (path: string) =>
-  new Bun.CryptoHasher("sha256").update(readFileSync(path)).digest("hex");
+export function fileSha(path: string) {
+  const hasher = new Bun.CryptoHasher("sha256"),
+    buffer = Buffer.alloc(65536),
+    fd = openSync(path, "r");
+  try {
+    let n;
+    while ((n = readSync(fd, buffer, 0, buffer.length, null)) > 0)
+      hasher.update(buffer.subarray(0, n));
+    return hasher.digest("hex");
+  } finally {
+    closeSync(fd);
+  }
+}
 export type QualitySummary = {
   games: number;
   finished: number;
@@ -64,7 +76,7 @@ export async function createDatasetSnapshot(
     const exports = [];
     for (const [i, dataset] of datasets.entries())
       exports.push(
-        await exportTrainingData(dataset, join(temporary, `source-${i}`), 512 * 1024 ** 2),
+        await exportTrainingData(dataset, join(temporary, `source-${i}`), 256 * 1024 ** 2),
       );
     const starts = exports.flatMap((meta) => meta.source.manifest.starts);
     if (starts.some((s) => excludedSeeds.includes(s.seed)))
@@ -208,7 +220,7 @@ export async function createDatasetSnapshot(
     for (const [split, set] of splitFamilies) quality.splits[split].families = set.size;
     Object.assign(quality, qualityGate(quality));
     const content = rows.join("\n") + "\n";
-    if (Buffer.byteLength(content) > 512 * 1024 ** 2) throw new Error("snapshotの容量上限です");
+    if (Buffer.byteLength(content) > 256 * 1024 ** 2) throw new Error("snapshotの容量上限です");
     writeFileSync(join(temporary, "samples.jsonl"), content, { flag: "wx", mode: 0o600 });
     const metadata = {
       ...exports[0],
