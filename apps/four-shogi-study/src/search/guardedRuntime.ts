@@ -9,6 +9,7 @@ import type { AnalysisPosition } from "@tetraboard/four-shogi/analysis";
 import type { StudyCandidate } from "@tetraboard/four-shogi/study-search";
 import { encodeAction } from "../../../../packages/four-shogi/src/actionEncoding";
 import { createStudyDeadline } from "./deadline";
+import { restoreStudyPosition } from "../domain/study";
 
 /** OFFは通常runtime、有限時間の明示的なガードだけを同じ親時計の期限で包みます。 */
 export function createGuardedStudySearchRuntime(
@@ -31,6 +32,7 @@ export function createGuardedStudySearchRuntime(
     total: number;
   };
   let current: Job | null = null;
+  let requests = 0;
   const history = new Map<string, StudySearchSnapshot>();
   const trace = (stage: string, id: string | null, durationMs?: number, reason?: string) =>
     config.observeLifecycle?.({
@@ -178,12 +180,12 @@ export function createGuardedStudySearchRuntime(
   };
   return {
     async start(input, options, callback = () => {}) {
+      const request = ++requests;
       if (options.evaluationModel)
         throw new Error("学習モデルと致命応手ガードの併用は未検証です。ガードをOFFにしてください");
       if (current) abort(current);
       current = null;
-      if (options.timeBudgetMs === null || options.focusSide)
-        return base.start(input, options, callback);
+      if (options.timeBudgetMs === null) return base.start(input, options, callback);
       const total = options.timeBudgetMs,
         reserve = guard.budgetMs ?? 250;
       const deadline = createStudyDeadline(total, options.deadlineAt);
@@ -195,6 +197,16 @@ export function createGuardedStudySearchRuntime(
         reserve + deadline.settlementMs >= total
       )
         throw Error("検査予算と結果確定の終了余裕を含む有限の思考時間が必要です");
+      if (options.focusSide) {
+        const started = performance.now();
+        const position = await restoreStudyPosition(input);
+        trace("guard-focus-restore", null, performance.now() - started);
+        if (request !== requests) throw Error("探索の開始が取り消されました");
+        // 予測後の局面に、現在局面の有限証明を付けません。
+        // 追加の復元も、最初に作った同じ期限の内側へ含めます。
+        if (position.state.status !== "playing" || position.state.turn !== options.focusSide)
+          return base.start(input, { ...options, deadlineAt: deadline.workUntil }, callback);
+      }
       const job: Job = {
         id: null,
         phase: "search",
@@ -293,6 +305,7 @@ export function createGuardedStudySearchRuntime(
       await base.cancel(id);
     },
     async close() {
+      requests++;
       if (current) {
         const job = current;
         abort(job);

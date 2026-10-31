@@ -886,6 +886,8 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 思考の診断保存は`src/server/analysisTrace.ts`を入口とし、`application.ts`が開始時の入力/設定を捕捉します。完了・明示停止・置換・終了の各境界で、既存の通常解析保存と分離した原子的ファイルを作ります。完全状態と未来局面を同じとして復元せず、checksumは記録内容の整合確認に使います。`test/focusApplication.test.ts`で実手番/予測ありの保存と取消を確認します。
 
+`search/guardedRuntime.ts`は有限時間のフォーカス開始時に完全状態を復元し、実手番と一致する場合だけ通常ガードへ進めます。復元中の置換・closeは要求世代を更新し、旧要求の検査起動を拒否します。`test/guardFocusRuntime.test.ts`が2/3/4人生存・禁止ON/OFF、未来局面への誤適用拒否、開始の置換を検証します。
+
 夜間学習のCLIは`packages/four-shogi/bench/nightlyCli.ts`、工程は`nightlyRun.ts`、不変集合は`nightlySnapshot.ts`、ローカル世代の排他/manifestは`nightlyStore.ts`です。`selfPlayData/Game/Run/Store/Inspect`を再利用し、`studyCpu.ts`が既存P0-5の固定work first-pass運転、`nightlyTeacher.ts`が確定棋譜を別datasetへ追加解析します。`localModel.ts`とPythonの`localExport.py`は既存tiny重みの同値推論を検査します。`nightlyStudy/Compare/Validation`は実アプリのroot分配と既存の戦術採点を使用し、`nightlyResources/Watchdog`が親子の期限・RSS・停止を監視します。主要依存や公開CPUを追加/置換しません。
 
 検討画面は`StudySettings.modelGeneration`を保持し、実在するモデルをローカル世代manifestから解決します。workerへはモデルIDとmanifest SHAを渡し、読込み失敗は未完了として扱います。世代が違うSSE・保存解析・矢印を拒否し、フォーカス保持条件にもモデルID/SHAを含めます。仕様/設計は[夜間学習](four-shogi-ai-nightly.md)、起動・設定・復旧は[RUNBOOK](../NIGHTLY-RUNBOOK.md)を参照してください。
