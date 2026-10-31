@@ -10,7 +10,15 @@ import { getAnalysisLegalActions } from "../src/analysis";
 import { encodeAction } from "../src/actionEncoding";
 import { runNativeStudy } from "./nightlyStudy";
 import { analyzeStudyCpu, readStudyCpuSettings } from "./studyCpu";
-import { atomicJson, immutableJson, readJson, type GenerationManifest } from "./nightlyStore";
+import {
+  atomicJson,
+  immutableJson,
+  readJson,
+  checkedJson,
+  readCheckedJson,
+  type GenerationManifest,
+} from "./nightlyStore";
+import { nightlySource } from "./nightlyConfig";
 
 export async function validateGenerationTactics(
   directory: string,
@@ -21,6 +29,7 @@ export async function validateGenerationTactics(
     format: "four-shogi-nightly-tactics-v1",
     generationId: generation.id,
     modelId: generation.modelId,
+    sourceFingerprint: nightlySource().fingerprint,
     criticalMs: 1000,
     knownWork: 1000000,
     knownDepth: 9,
@@ -38,7 +47,13 @@ export async function validateGenerationTactics(
     elapsedMs: number;
     modelUsed: boolean;
     resourcePassed: boolean;
-  }[] = existsSync(path) ? readJson(path) : [];
+  }[] = existsSync(path) ? readCheckedJson(path) : [];
+  const cases = studyTacticalCases().filter((t) => t.critical || t.family === "inactive-rook");
+  if (
+    new Set(rows.map((row) => row.id)).size !== rows.length ||
+    rows.some((row) => !cases.some((tactic) => tactic.id === row.id))
+  )
+    throw new Error("戦術検証の保存行に未知/重複した問題があります");
   const model =
     generation.localModelFile && generation.modelId
       ? {
@@ -47,9 +62,7 @@ export async function validateGenerationTactics(
           sha256: generation.localModelSha256 ?? undefined,
         }
       : null;
-  for (const tactic of studyTacticalCases().filter(
-    (t) => t.critical || t.family === "inactive-rook",
-  )) {
+  for (const tactic of cases) {
     if (rows.some((r) => r.id === tactic.id)) continue;
     if (signal?.aborted) throw new Error("戦術検証を中断しました");
     const input = tacticInput(tactic.state),
@@ -109,7 +122,7 @@ export async function validateGenerationTactics(
         resourcePassed: measured.withinBudget && result.memoryBytes <= 4096 * 1024 ** 2,
       });
     }
-    atomicJson(path, rows);
+    checkedJson(path, rows);
   }
   const cohort = (name: string) => ({
     total: rows.filter((r) => r.cohort === name).length,

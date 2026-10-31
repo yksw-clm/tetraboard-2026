@@ -5,6 +5,21 @@ import { join } from "node:path";
 import { pairedSummary, promotionDecision } from "../bench/nightlyCompare";
 import { NightlySupervisor } from "../bench/nightlyResources";
 import { sides } from "../src/types";
+import { validateGenerationTactics } from "../bench/nightlyValidation";
+import { checkedJson, atomicJson, g0 } from "../bench/nightlyStore";
+
+test("壊れた戦術キャッシュと未知の問題を完成済み検証へ流用しない", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nightly-tactics-cache-"));
+  try {
+    const row = { id: "unknown", cohort: "critical", passed: true };
+    checkedJson(join(root, "tactics-progress.json"), [row]);
+    await expect(validateGenerationTactics(root, g0)).rejects.toThrow("未知/重複");
+    atomicJson(join(root, "tactics-progress.json"), { checksum: "0".repeat(64), payload: [row] });
+    await expect(validateGenerationTactics(root, g0)).rejects.toThrow("checksum");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 test("独立16対応条件と戦術/実用予算が全部揃うまで昇格せず、未終局を補完しない", () => {
   const seeds = [48001, 48002, 48003, 48004];
   const games = seeds.flatMap((seed) =>

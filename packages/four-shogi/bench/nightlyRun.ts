@@ -589,11 +589,51 @@ export async function runNightly(options: NightlyOptions) {
         state.resources = [...usage.values()];
         if (supervisor?.records.length) state.activeStartedAt = null;
         atomicJson(join(directory, "state.json"), state);
+        const stageReports: Record<string, any> = {},
+          reportErrors: Record<string, string> = {};
+        for (const [name, receipt] of Object.entries(state.completed)) {
+          try {
+            if (fileSha(receipt.report) !== receipt.sha256)
+              throw new Error("工程報告のchecksumが不一致です");
+            stageReports[name] = readJson(receipt.report);
+          } catch (error) {
+            reportErrors[name] = String(error);
+          }
+        }
+        const training = stageReports.training;
+        const measurements = {
+          newGames: stageReports.generation ?? null,
+          teacherDataset: stageReports.teachers ?? null,
+          accumulatedSnapshot: stageReports.snapshot ?? null,
+          training: training
+            ? {
+                step: training.step,
+                modelId: training.modelId,
+                parent: training.parent,
+                device: training.device,
+                elapsedSeconds: training.elapsedSeconds,
+                cpuSeconds: training.cpuSeconds,
+                maxRssBytes: training.maxRssBytes,
+                finalMetrics: training.history.at(-1) ?? null,
+              }
+            : null,
+          inference: stageReports.inference ?? null,
+          tactics: stageReports.tactics ?? null,
+          comparison: stageReports.comparison ?? null,
+          resources: {
+            elapsedStageMs: state.resources.reduce((n, r) => n + r.elapsedMs, 0),
+            sampledCpuSeconds: state.resources.reduce((n, r) => n + r.sampledCpuSeconds, 0),
+            peakRssBytes: Math.max(0, ...state.resources.map((r) => r.peakRssBytes)),
+            recoveredWallMs: state.recoveredWallMs ?? 0,
+          },
+          reportErrors,
+        };
         const result = {
           format: "four-shogi-nightly-report-v1",
           plan,
           state,
           resources: state.resources,
+          measurements,
           cpuObservation:
             "ps採取のPID別累積最大。短命プロセスを含む厳密な総CPU時間の下限であり、GPU時間ではありません",
           sourceUnchanged: nightlySource().fingerprint === plan.source.fingerprint,
@@ -601,7 +641,7 @@ export async function runNightly(options: NightlyOptions) {
         atomicJson(join(reportDirectory || join(root, "reports", plan.id), "summary.json"), result);
         writeFileSync(
           join(reportDirectory || join(root, "reports", plan.id), "summary.md"),
-          `# ${plan.id}\n\n状態: ${state.status}\n工程: ${state.stage}\n理由: ${state.reason ?? "なし"}\n親: ${plan.parent.id}\n候補: ${state.candidateId ?? "未作成"}\nコード: ${plan.source.code.commit}\n\n実行済み: ${Object.keys(state.completed).join(", ")}\n\n学習成功・推論検証・棋力改善は別の判定です。詳細は各工程JSONとstate.jsonを参照してください。\n`,
+          `# ${plan.id}\n\n状態: ${state.status}\n工程: ${state.stage}\n理由: ${state.reason ?? "なし"}\n親: ${plan.parent.id}\n候補: ${state.candidateId ?? "未作成"}\nコード: ${plan.source.code.commit}\n\n実行済み: ${Object.keys(state.completed).join(", ")}\n\n今夜の新規棋譜と、過去の夜を含むsnapshotを分けて記録します。未実行工程はnullです。教師のThisInvocationは最後の工程呼出の費用で、再開前の費用は資源履歴にも保持します。\n\n\`\`\`json\n${JSON.stringify(measurements, null, 2)}\n\`\`\`\n\n学習成功・推論検証・棋力改善は別の判定です。CPU観測は短命プロセスを取りこぼす下限で、GPU時間ではありません。詳細は各工程JSONとstate.jsonを参照してください。\n`,
         );
         saveNightlyArtifacts(
           root,

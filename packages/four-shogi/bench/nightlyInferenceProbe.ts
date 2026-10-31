@@ -66,7 +66,12 @@ export async function probeInference(
         single.push(performance.now() - t);
       }
       const batch = performance.now();
-      await Promise.all(clients.map((c) => c.asEvaluator().evaluate(rows, signal)));
+      // 集約1プロセスと各worker用4プロセスへ同じ4要求・同じ総局面数を送る。
+      await Promise.all(
+        Array.from({ length: 4 }, (_, i) =>
+          clients[i % clients.length].asEvaluator().evaluate(rows, signal),
+        ),
+      );
       const batchMs = performance.now() - batch;
       pythonResults.push({
         processes: count,
@@ -75,6 +80,8 @@ export async function probeInference(
         singleMedianMs: single.sort((a, b) => a - b)[4],
         concurrentBatchMs: batchMs,
         rowsPerProcess: rows.length,
+        concurrentRequests: 4,
+        totalBatchRows: rows.length * 4,
       });
       for (const client of clients.splice(0)) client.close();
       await new Promise((r) => setTimeout(r, 25));
