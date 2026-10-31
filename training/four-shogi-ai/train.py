@@ -41,7 +41,7 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
           batchSize=4, learningRate=0.001, device="cpu", threads=1, checkpointEvery=10,
           maxSeconds=600, maxCheckpointBytes=128 * 1024 ** 2, maxInputBytes=256 * 1024 ** 2,
           allowPolicyOnly=False, allowDirty=False, stopAfterSteps=None,
-          warmStart=None, warmStartSha256=None):
+          warmStart=None, warmStartSha256=None, replayValidation=None):
     for number, low, high in [(steps, 1, 100000), (seed, 0, 2**31 - 1), (width, 16, 128),
                               (historyWidth, 4, 32), (batchSize, 1, 32), (threads, 1, 8),
                               (checkpointEvery, 1, 10000), (maxSeconds, 1, 86400),
@@ -57,6 +57,7 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
     if code["dirty"] and not allowDirty:
         raise ValueError("学習コードをコミットするか、実験時にallow-dirtyを明示してください")
     data = LearningData(directory, maxInputBytes)
+    replayData = LearningData(replayValidation, maxInputBytes) if replayValidation else None
     trainRows = data.splits["train"]
     if not allowPolicyOnly and not any(row["valueTarget"] is not None for row in trainRows):
         raise ValueError("Value教師がありません。Policyのみの実験はallow-policy-onlyが必要です")
@@ -94,6 +95,8 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
                 "data": data.identity, "codeHash": code["sha256"], "runtime": runtime(device, threads), "config": config}
     if parent:
         contract["warmStart"] = parent
+    if replayData:
+        contract["replayValidation"] = replayData.identity
     store = CheckpointStore(output, maxCheckpointBytes)
     interrupted = False
     def stop(_signal, _frame):
@@ -123,8 +126,11 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
         if steps < completed:
             raise ValueError("stepsは保存済みstep以上にしてください")
         def metrics():
-            return {"step": completed, **{split: evaluate(model, data.splits[split], device, batchSize)
-                                          for split in ("train", "validation")}}
+            result = {"step": completed, **{split: evaluate(model, data.splits[split], device, batchSize)
+                                           for split in ("train", "validation")}}
+            if replayData:
+                result["replayValidation"] = evaluate(model, replayData.splits["validation"], device, batchSize)
+            return result
         if not history:
             history.append(metrics())
         def save():
@@ -186,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--warm-start")
     parser.add_argument("--warm-start-sha256")
+    parser.add_argument("--replay-validation")
     args = vars(parser.parse_args())
     source, output, report = args.pop("data"), args.pop("output"), args.pop("report")
     options = {key.split("_")[0] + "".join(part.title() for part in key.split("_")[1:]): value for key, value in args.items()}

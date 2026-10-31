@@ -33,6 +33,7 @@ export type DataAgent =
   | { id: string; kind: "analysis"; settings: AiSearchSettings }
   | { id: string; kind: "cpu"; reference: string };
 export type SelfPlayConfig = {
+  derivedFrom?: { datasetId: string; contentHash: string };
   studyTeacher?: StudyCpuSettings;
   model?: DataModel;
   origins: { seed: number; replay: AnalysisReplayInput | null }[];
@@ -220,6 +221,7 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   const raw = dataObject(input, [
     "model",
     "studyTeacher",
+    "derivedFrom",
     "origins",
     "restrictions",
     "seatOffsets",
@@ -313,6 +315,19 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   if (typeof sampling.important !== "boolean")
     throw new TypeError("重要局面の選別を明示してください");
   const config = {
+    ...(raw.derivedFrom === undefined
+      ? {}
+      : {
+          derivedFrom: (() => {
+            const d = dataObject(raw.derivedFrom, ["datasetId", "contentHash"]);
+            if (
+              !Object.values(d).every((v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v)) ||
+              Object.keys(d).length !== 2
+            )
+              throw new Error("由来datasetの識別が不正です");
+            return d as { datasetId: string; contentHash: string };
+          })(),
+        }),
     ...(raw.studyTeacher === undefined
       ? {}
       : { studyTeacher: readStudyCpuSettings(raw.studyTeacher) }),

@@ -454,6 +454,19 @@ export class LocalStudyApplication implements StudyApplication {
         if (["action", "event", "select", "settings", "variation"].includes(input.type))
           await this.maybeFocus(next);
       }
+      if (
+        input.type === "settings" &&
+        study.settings.modelGeneration !== next.settings.modelGeneration &&
+        !this.active
+      ) {
+        const live = this.liveViews.get(id),
+          position = (await resolveStudyPositions(next)).get(next.currentNodeId)!;
+        if (
+          position.state.status === "playing" &&
+          (!live?.follow || ["live", "finished"].includes(live.status))
+        )
+          await this.startSearch(next, false);
+      }
       return this.publish(id);
     });
   }
