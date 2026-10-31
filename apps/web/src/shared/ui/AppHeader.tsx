@@ -5,6 +5,8 @@ import { appPageWidthClasses } from "./pageLayout";
 import { AppNavigation, type AppNavigationHandler } from "./AppNavigation";
 import { BrowserSettingsButton } from "./BrowserSettings";
 import type { AppTheme } from "./appTheme";
+import { useActiveTournaments } from "../../features/tournaments/useActiveTournaments";
+import { AppIcon } from "./AppIcon";
 
 export function AppHeader({
   homeTo,
@@ -21,6 +23,8 @@ export function AppHeader({
   children?: ReactNode;
   theme?: AppTheme;
 }) {
+  const { tournaments } = useActiveTournaments();
+  const active = tournaments[0];
   return (
     <>
       <header className="border-0 border-b border-solid border-line bg-[#f9fbfac9]">
@@ -51,6 +55,35 @@ export function AppHeader({
           </Link>
           <AppNavigation onNavigate={onNavigate} />
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4 [@media(max-width:1023px)]:gap-2">
+            {active && (
+              <Link
+                to={`/tournaments/${active.id}`}
+                aria-label={`${active.name} 開催中${tournaments.length > 1 ? `（ほか${tournaments.length - 1}件）` : ""}`}
+                className="inline-flex min-h-11 items-center gap-1 rounded-control px-1 text-[11px] font-bold text-brand no-underline hover:bg-surface-muted focus-visible:outline-[3px] focus-visible:outline-focus md:gap-2 md:px-2 md:text-xs"
+                onClick={(event) => {
+                  if (
+                    !onNavigate ||
+                    event.defaultPrevented ||
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  event.preventDefault();
+                  onNavigate(`/tournaments/${active.id}`);
+                }}
+              >
+                <AppIcon name="trophy" className="size-4" />
+                <span>
+                  大会開催中
+                  {tournaments.length > 1 && (
+                    <span className="ml-1">+{tournaments.length - 1}</span>
+                  )}
+                </span>
+              </Link>
+            )}
             <div className="[@media(max-width:767px)]:hidden">
               {children ?? (
                 <span className="text-xs tracking-[0.06em] text-muted [@media(max-width:650px)]:hidden">

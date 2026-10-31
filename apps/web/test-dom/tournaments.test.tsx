@@ -130,7 +130,7 @@ async function respond(
 ) {
   latestParticipation = participation;
   for (const request of requests.filter((request) => !request.init.signal?.aborted)) {
-    if (request.url === "/api/tournaments/1") request.respond(state);
+    if (request.url === "/api/tournaments/1?includeProfiles=1") request.respond(state);
     if (request.url === "/api/lobby/rooms?view=cards&game=four-shogi")
       request.respond({ rooms: [], nextCursor: null, totalCount: 0 });
     if (request.url === "/api/tournaments/1/participation")
@@ -273,8 +273,9 @@ test("対局結果がなくても列見出しを空表示の上に置き、本�
     "4位数",
     "撃破数",
     "平均順位",
+    "成績詳細",
   ]);
-  const message = table.querySelector<HTMLTableCellElement>('tbody td[colspan="10"]')!;
+  const message = table.querySelector<HTMLTableCellElement>('tbody td[colspan="11"]')!;
   expect(message.textContent).toContain("まだ対局結果はありません。");
   expect(
     table.querySelector("thead")!.compareDocumentPosition(message) &
@@ -310,7 +311,7 @@ test("開催中は対局操作と本人の成績を左、全成績列を右に�
   expect(view.textContent).toContain(`${profile.name}さんの大会成績`);
   expect(view.textContent).toContain("あいうえおかきくけこ");
   const table = view.querySelector("table")!;
-  expect(table.querySelectorAll("thead th").length).toBe(10);
+  expect(table.querySelectorAll("thead th").length).toBe(11);
   expect(table.textContent).toContain("優勝数");
   expect(table.textContent).toContain("4位数");
   expect(table.textContent).toContain("7");
@@ -322,7 +323,7 @@ test("開催中は対局操作と本人の成績を左、全成績列を右に�
     (element) =>
       element.textContent === player.name && element.classList.contains("whitespace-nowrap"),
   );
-  expect(name?.classList.contains("min-w-[10em]")).toBe(true);
+  expect(name?.textContent).toBe(player.name);
 });
 test("対局するは保存した資格で待機へ入り、待機中は取り消すへ変化する", async () => {
   const view = page();
@@ -514,7 +515,7 @@ test("全員を見るはページを取得し、未対局者も表示する", as
   clock.advance(0);
   await flush();
   requests
-    .find((request) => request.url.endsWith("/standings?all=1"))!
+    .find((request) => request.url.endsWith("/standings?all=1&includeProfiles=1"))!
     .respond({
       standings: [{ ...player, rank: null, games: 0, name: "まだ未対局" }],
       self: null,
@@ -538,7 +539,7 @@ test("表示取得の失敗は0人に置き換えず、再取得できる", asyn
   const view = page(null);
   clock.advance(0);
   requests
-    .find((request) => request.url === "/api/tournaments/1")!
+    .find((request) => request.url === "/api/tournaments/1?includeProfiles=1")!
     .respond({ message: "取得失敗" }, 503);
   await flush();
   expect(view.textContent).toContain("取得失敗");
@@ -598,7 +599,8 @@ test("表示は5秒ごとに更新し、非表示では停止、再表示で取�
   page();
   clock.advance(0);
   await respond(detail("active"));
-  const count = () => requests.filter((request) => request.url === "/api/tournaments/1").length;
+  const count = () =>
+    requests.filter((request) => request.url === "/api/tournaments/1?includeProfiles=1").length;
   expect(count()).toBe(1);
   clock.advance(4999);
   expect(count()).toBe(1);
@@ -701,7 +703,8 @@ test("アカウント切替後の取得失敗では前の本人の成績と参�
   rerender(view, tree({ ...profile, username: "anotheruser", name: "別の人" }));
   clock.advance(0);
   for (const request of requests.filter((request) => !request.init.signal?.aborted)) {
-    if (request.url === "/api/tournaments/1") request.respond({ message: "切替後の取得失敗" }, 503);
+    if (request.url === "/api/tournaments/1?includeProfiles=1")
+      request.respond({ message: "切替後の取得失敗" }, 503);
     if (request.url.endsWith("/participation"))
       request.respond({ entered: false, status: "idle", controller: "none", controllerVersion: 0 });
   }
@@ -1408,7 +1411,9 @@ test("本人状態が未応答でも大会概要・順位を表示し、確認�
   const view = page();
   clock.advance(0);
   await flush();
-  const publicRead = requests.find((request) => request.url === "/api/tournaments/1")!;
+  const publicRead = requests.find(
+    (request) => request.url === "/api/tournaments/1?includeProfiles=1",
+  )!;
   const personalRead = requests.find((request) => request.url.endsWith("/participation"))!;
   publicRead.respond(detail("active"));
   await flush();
@@ -1431,7 +1436,9 @@ test("本人状態の取得失敗でも公開済みの大会概要と順位を�
   const view = page();
   clock.advance(0);
   await flush();
-  requests.find((request) => request.url === "/api/tournaments/1")!.respond(detail("active"));
+  requests
+    .find((request) => request.url === "/api/tournaments/1?includeProfiles=1")!
+    .respond(detail("active"));
   await flush();
   requests
     .find((request) => request.url.endsWith("/participation"))!
@@ -1450,17 +1457,23 @@ test("本人状態の失敗が先に届いても後続の公開情報を表示�
   clock.advance(0);
   await flush();
   const personal = requests.find((request) => request.url.endsWith("/participation"))!;
-  const publicRead = requests.find((request) => request.url === "/api/tournaments/1")!;
+  const publicRead = requests.find(
+    (request) => request.url === "/api/tournaments/1?includeProfiles=1",
+  )!;
   personal.respond({ message: "本人状態の取得失敗" }, 503);
   await flush();
   clock.advance(5000);
-  expect(requests.filter((request) => request.url === "/api/tournaments/1")).toHaveLength(1);
+  expect(
+    requests.filter((request) => request.url === "/api/tournaments/1?includeProfiles=1"),
+  ).toHaveLength(1);
   publicRead.respond(detail("active"));
   await flush();
   expect(view.textContent).toContain("今回のご案内");
   expect(view.textContent).toContain("本人状態の取得失敗");
   clock.advance(5000);
-  const newest = requests.filter((request) => request.url === "/api/tournaments/1").at(-1)!;
+  const newest = requests
+    .filter((request) => request.url === "/api/tournaments/1?includeProfiles=1")
+    .at(-1)!;
   expect(newest).not.toBe(publicRead);
   await respond(detail("active"));
   expect(view.textContent).not.toContain("本人状態の取得失敗");

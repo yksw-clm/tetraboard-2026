@@ -74,6 +74,7 @@ export const tournamentPublicSchema = z.strictObject({
 export type TournamentPublic = z.infer<typeof tournamentPublicSchema>;
 export const tournamentStandingSchema = z.strictObject({
   rank: z.number().int().positive().nullable(),
+  profileId: z.uuid().nullable().optional(),
   username: z.string().nullable(),
   isGuest: z.boolean().optional(),
   name: z.string(),
