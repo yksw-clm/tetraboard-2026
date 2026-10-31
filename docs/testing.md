@@ -438,6 +438,8 @@ Pythonの既存`trainingTest.py`は異なるsnapshotへweights-only warm start�
 
 `localModel.test.ts`は内部の不変特徴だけが参照hitすること、外部でfreezeした入力への誤適用がないこと、無効化時の同じ出力とhitゼロも検証します。WeakMapは入力への強参照を持たず、正本状態・モデル世代を横断する評価キャッシュには使いません。
 
+PythonのValue専用アブレーションは、Policy勾配ゼロとPolicy head不変、Value head更新、loss重みの範囲、同じrunでの条件変更拒否を検査する。通常nightlyの既定1と、研究用の重み0を区別する。
+
 フォーカス引継ぎは`focusContinuation.test.ts`で完全状態/players/探索条件/保持期限と合法PV、`focusReuseRuntime.test.ts`で固定深さの評価/PV/候補集合の一致、`ponderRuntime.test.ts`で予測一致/不一致・同一根の途中継続・世代・停止再開/取消・worker異常・期限解放・2/3/4人生存を確認します。実workerの停止応答を120/260ms遅延させ、外側の同じ期限内での確認と未確認時の保持破棄を区別し、深さ2の未完タスクを保持して深さ3の四人評価/PV/推奨が新規探索と一致することも検査します。実workerのready通知で、完成後の予測外の新規根はworkerを更新し、一致した途中探索の再開は新規起動なし・新規workありとなることを確認します。`focusPanel.test.tsx`はPV一致の補助表示が未来候補を現在手と呼ばず、variationへ送ることを検査します。`liveApplication.test.ts`は確定更新の保持、旧結果の非表示、切断と設定変更の取消を検査します。固定仕事・実時間・開発seedの実戦比較を機能テストと分離し、未来候補を現在の推奨へ繰り上げません。
 
 最善手の矢印は共通盤面の`packages/shogi-ui/test-dom/board.test.tsx`で4方向のマス中心、9×9 gridとSVGの対応、成り/不成、駒種付きの打マーカー、クリックと成り選択への非干渉を検査します。`apps/four-shogi-study/test-dom/studyApp.test.tsx`はSSE境界の完成深さ1→2→3、反復中の保持、停止/完了、再解析・旧job/generation・別study・局面変更・編集・条件付き未来手・配信断を確認します。探索本体や保存形式は変更せず、実ブラウザの実画像・モバイル寸法・ネイティブのドラッグ確認は実施範囲と未確認事項を別記します。

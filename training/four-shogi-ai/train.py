@@ -49,7 +49,7 @@ def trainingValueWeights(rows, mode):
     return [sum(counts) / (present * count) if count else 0.0 for count in counts]
 
 
-def trainingLoss(policy, value, rows, weights=None):
+def trainingLoss(policy, value, rows, weights=None, policyLossWeight=1.0):
     loss, policyLoss, valueLoss = supervisedLoss(policy, value, rows)
     if weights is not None and any(row["valueTarget"] is not None for row in rows):
         targets = torch.tensor([row["valueTarget"] if row["valueTarget"] is not None else -100
@@ -57,6 +57,8 @@ def trainingLoss(policy, value, rows, weights=None):
         valueLoss = torch.nn.functional.cross_entropy(
             value, targets, weight=value.new_tensor(weights), ignore_index=-100)
         loss = policyLoss + valueLoss
+    if policyLossWeight != 1:
+        loss = policyLossWeight * policyLoss + valueLoss
     return loss, policyLoss, valueLoss
 
 
@@ -77,12 +79,14 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
           batchSize=4, learningRate=0.001, device="cpu", threads=1, checkpointEvery=10,
           maxSeconds=600, maxCheckpointBytes=128 * 1024 ** 2, maxInputBytes=256 * 1024 ** 2,
           allowPolicyOnly=False, allowDirty=False, stopAfterSteps=None,
-          warmStart=None, warmStartSha256=None, replayValidation=None, valueWeighting="none"):
+          warmStart=None, warmStartSha256=None, replayValidation=None, valueWeighting="none", policyLossWeight=1.0):
     for number, low, high in [(steps, 1, 100000), (seed, 0, 2**31 - 1), (width, 16, 128),
                               (historyWidth, 4, 32), (batchSize, 1, 32), (threads, 1, 8),
                               (checkpointEvery, 1, 10000), (maxSeconds, 1, 86400),
                               (maxCheckpointBytes, 1, 1024**3), (maxInputBytes, 1, 1024**3)]:
         integer(number, low, high)
+    if type(policyLossWeight) not in (int, float) or not math.isfinite(policyLossWeight) or not 0 <= policyLossWeight <= 2:
+        raise ValueError("Policy損失の重みが範囲外です")
     if not math.isfinite(learningRate) or not 0.000001 <= learningRate <= 0.1:
         raise ValueError("learningRateが範囲外です")
     if stopAfterSteps is not None:
@@ -126,7 +130,8 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
     optimizer = torch.optim.Adam(model.parameters(), lr=learningRate)
     config = {"seed": seed, "width": width, "historyWidth": historyWidth, "batchSize": batchSize,
               "learningRate": learningRate, "allowPolicyOnly": allowPolicyOnly,
-              "valueWeighting": valueWeighting, "valueWeights": valueWeights}
+              "valueWeighting": valueWeighting, "valueWeights": valueWeights,
+              "policyLossWeight": policyLossWeight}
     contract = {"modelVersion": MODEL_VERSION, "featureVersion": FEATURE_VERSION,
                 "ruleProfileId": data.manifest["ruleProfileId"], "rulesVersion": data.manifest["rulesVersion"],
                 "actionEncodingVersion": ACTION_VERSION, "valueOrder": VALUE_ORDER,
@@ -194,7 +199,7 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
             batch = [trainRows[index] for index in indices]
             optimizer.zero_grad(set_to_none=True)
             policy, value = model(*batchTensors(batch, device))
-            loss, _, _ = trainingLoss(policy, value, batch, valueWeights)
+            loss, _, _ = trainingLoss(policy, value, batch, valueWeights, policyLossWeight)
             if not bool(torch.isfinite(loss)):
                 raise ValueError("学習lossが有限値ではありません")
             loss.backward()
@@ -213,7 +218,7 @@ def train(directory, output, *, steps=100, seed=19000, width=64, historyWidth=16
                 "elapsedSeconds": time.monotonic() - started, "cpuSeconds": time.process_time() - cpuStarted,
                 "device": device, "threads": threads, "parent": parent,
                 "valueWeighting": valueWeighting, "valueWeights": valueWeights,
-                "sampledValueClasses": sampledValueClasses,
+                "sampledValueClasses": sampledValueClasses, "policyLossWeight": policyLossWeight,
                 "maxRssBytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == "darwin" else 1024)}
     finally:
         store.close()
@@ -239,6 +244,7 @@ if __name__ == "__main__":
     parser.add_argument("--warm-start")
     parser.add_argument("--warm-start-sha256")
     parser.add_argument("--replay-validation")
+    parser.add_argument("--policy-loss-weight", type=float, default=1.0)
     parser.add_argument("--value-weighting", choices=["none", "inverse-frequency"], default="none")
     args = vars(parser.parse_args())
     source, output, report = args.pop("data"), args.pop("output"), args.pop("report")

@@ -126,3 +126,5 @@ bun run study:build
 ### Value多数クラス偏重の研究用比較
 
 単体の`train.py`は`--value-weighting=inverse-frequency`で、trainの確定結果の逆頻度をValue損失へ適用できます。既定は`none`で、通常nightlyの設定は変更しません。validationは重みなしで評価し、クラス別recall・confusion・macro-F1・予測分布を保存します。重みを変えた比較は新しいcheckpoint保存先で始めてください。同じrunのresumeで条件を変えることは拒否されます。分類性能の改善だけでは昇格しません。
+
+研究用`--policy-loss-weight=0`はValueだけを学習するアブレーションです。通常は1で、同じ入力・batch順のままPolicy勾配の寄与を比較できます。0で作ったモデルはPolicy/Valueを学習したG1とは扱わず、正式昇格させません。損失重みもcheckpoint契約へ含め、再開時の変更を拒否します。validationの損失と分類は重みなしで表示します。

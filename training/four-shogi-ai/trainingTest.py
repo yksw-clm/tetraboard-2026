@@ -63,6 +63,31 @@ class TrainingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "再開元"):
             train(DATA, interrupted, **{**options, "valueWeighting": "none"})
 
+    def testValueOnlyLossKeepsActualLabelsAndUntrainedPolicyHead(self):
+        rows = [{"policyTarget": 0, "valueTarget": 4}]
+        p, v = torch.randn(1, 13446, requires_grad=True), torch.randn(1, 5, requires_grad=True)
+        plain = trainingLoss(p, v, rows)
+        zero = trainingLoss(p, v, rows, policyLossWeight=0)
+        self.assertTrue(torch.equal(zero[0], zero[2]))
+        self.assertTrue(torch.equal(zero[1], plain[1]))
+        zero[0].backward()
+        self.assertEqual(int(torch.count_nonzero(p.grad)), 0)
+        self.assertGreater(int(torch.count_nonzero(v.grad)), 0)
+        path = self.root / "value-only"
+        options = dict(steps=3, width=16, historyWidth=4, policyLossWeight=0, allowDirty=True)
+        first = train(DATA, path, stopAfterSteps=0, **options)
+        last = train(DATA, path, **options)
+        before = torch.load(path / (first["checkpointSha256"] + ".pt"), weights_only=True)
+        after = torch.load(path / (last["checkpointSha256"] + ".pt"), weights_only=True)
+        for name in ["policy.weight", "policy.bias"]:
+            self.assertTrue(torch.equal(before["model"][name], after["model"][name]))
+        self.assertFalse(torch.equal(before["model"]["value.bias"], after["model"]["value.bias"]))
+        with self.assertRaisesRegex(ValueError, "再開元"):
+            train(DATA, path, **{**options, "policyLossWeight": 1})
+        for weight in [-1, float("nan"), True]:
+            with self.assertRaisesRegex(ValueError, "範囲"):
+                train(DATA, self.root / "invalid", policyLossWeight=weight, allowDirty=True)
+
     def testWarmStartResetsOptimizerAndPreservesParent(self):
         parent = self.root / "parent"
         first = train(DATA, parent, steps=2, width=16, historyWidth=4, allowDirty=True)

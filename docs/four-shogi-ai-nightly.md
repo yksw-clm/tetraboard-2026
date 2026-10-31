@@ -60,6 +60,8 @@ H2の介入は`trajectory-importance-v1`で、三つの時期へ等分し、各�
 
 H3の研究用学習CLIは`--value-weighting=none|inverse-frequency`を受け付け、既定はnone。逆頻度の重みはtrainの確定Value教師だけから算出し、Policyのbatch抽出、実際の勝敗、validationの損失/分類を変更しない。重みと方式をcheckpointの厳密な契約へ含め、変更した条件でのresumeを拒否する。実際に抽出した5分類件数も保存・復元する。評価は重みなしのCE、confusion、クラス別recall、macro-F1、多数クラス基準と予測分布を記録する。異なる採取方式の候補は同じ固定validation集合でも比較し、各自の採取局面の難易度差を改善へ読み替えない。
 
+Policyとの共同勾配は`--policy-loss-weight`（既定1、研究用0〜2）で独立比較する。Valueの実結果ラベル・batch抽出を保ち、重み0ではPolicy headを学習しない。これはValue診断用で、完全なG1候補として昇格させない。通常nightlyは1を維持し、別runの厳密契約へ条件を保存する。
+
 ローカルf32モデルは、同じ共有bodyと5分類Valueだけを計算する同期`predictValue`も提供する。Policyを消費しない葉では合法手列挙とPolicy headを省くが、完全な攻撃/反復特徴、ID/席/有限値/分布の検査は維持する。既存の両head API、Python推論形式、重み、評価尺度は変更しない。対応しない同期モデルと共通AIの非同期IPCは従来経路を使う。ロード時に14基準入力でPythonとの誤差と両head/単独Valueの一致を確認する。完成深さ固定で評価/PVを照合してから実時間を測定し、削減した合法手生成のworkと、時間制限で到達した深さを分けて記録する。
 
 比較測定の内部`evaluationModel.valueOnlyHead:false`は、同じworker/source/モデルで旧経路を再現する。UIの世代選択やG0の既定設定は変更せず、各測定のflagとmodel ID、過去と今回のworkを区別する。
