@@ -6,7 +6,14 @@ import { getActiveSides, type FourShogiState, type Side } from "./types";
 import type { OrdinaryMove } from "./moves";
 import { encodeAction } from "./actionEncoding";
 import { encodeStateFeatures } from "./modelFeatureEncoding";
-import { AiModelFailure, modelEvaluation, type AiModelDriver, type AiModelOutput } from "./aiModel";
+import {
+  AiModelFailure,
+  modelEvaluation,
+  validateModelOutputs,
+  type AiSyncModel,
+  type AiModelDriver,
+  type AiModelOutput,
+} from "./aiModel";
 import type {
   AiCandidate,
   AiEvaluation,
@@ -19,6 +26,7 @@ export type AiBranch = { evaluation: AiEvaluation; line: AiLineStep[]; selective
 export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 /** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
 export type AiContextProfile = {
+  model?: AiSyncModel;
   evaluate: (state: FourShogiState) => AiEvaluation;
   orderingBonus?: (
     state: FourShogiState,
@@ -34,6 +42,10 @@ export type AiContextProfile = {
   sharedChecks?: boolean;
 };
 export type AiContextMetrics = {
+  modelInferences?: number;
+  modelPolicyUses?: number;
+  modelValueUses?: number;
+  modelInferenceMs?: number;
   legalMs: number;
   transitionMs: number;
   evaluationMs: number;
@@ -252,13 +264,17 @@ export function createAiContext(
       stats.evaluationCacheHits++;
       return cached;
     }
-    const prediction = model && state.status === "playing" ? yield* predict(state) : null;
+    const prediction =
+      (model || profile?.model) && state.status === "playing" ? yield* predict(state) : null;
     const started = clock();
     const value = prediction
       ? modelEvaluation(state, prediction)
       : (profile?.evaluate(state) ?? evaluateAiPosition(state, settings.evaluationWeights));
     metrics.evaluationMs += clock() - started;
-    if (prediction) model!.stats.valueUses++;
+    if (prediction) {
+      if (model) model.stats.valueUses++;
+      else metrics.modelValueUses = (metrics.modelValueUses ?? 0) + 1;
+    }
     stats.evaluations++;
     if (record) record.evaluation = value;
     if (profile?.cacheLeafEvaluations === false) leafEvaluations.set(state, value);
@@ -287,7 +303,15 @@ export function createAiContext(
     if (record?.prediction) return record.prediction;
     const available = legalMoves ?? (yield* moves(state));
     yield* spend();
-    const [prediction] = yield* model!.request([modelInput(state, available, "0")]);
+    const request = modelInput(state, available, "0");
+    let prediction: AiModelOutput;
+    if (profile?.model) {
+      const started = performance.now();
+      prediction = profile.model.predict(request);
+      validateModelOutputs([request], [prediction]);
+      metrics.modelInferences = (metrics.modelInferences ?? 0) + 1;
+      metrics.modelInferenceMs = (metrics.modelInferenceMs ?? 0) + performance.now() - started;
+    } else [prediction] = yield* model!.request([request]);
     if (record) record.prediction = prediction;
     return prediction;
   }
@@ -319,9 +343,10 @@ export function createAiContext(
     yield* flush();
   }
   function* rootOrder(): Generator<number, { move: OrdinaryMove; index: number }[]> {
-    if (!model) return legal.map((move, index) => ({ move, index }));
+    if (!model && !profile?.model) return legal.map((move, index) => ({ move, index }));
     const prediction = yield* predict(start, legal);
-    model.stats.policyUses++;
+    if (model) model.stats.policyUses++;
+    else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
     return sortWithPolicy(
       legal.map((move, index) => ({ move, index, score: priority(move, start.turn!) })),
       prediction,
@@ -399,9 +424,10 @@ export function createAiContext(
         }
         return { move, index, score: score + bonus };
       });
-      if (model) {
+      if (model || profile?.model) {
         const prediction = yield* predict(state, legalMoves);
-        model.stats.policyUses++;
+        if (model) model.stats.policyUses++;
+        else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
         selected = sortWithPolicy(entries, prediction);
       } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
       selected = selected.filter(

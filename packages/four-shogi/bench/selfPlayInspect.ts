@@ -32,6 +32,8 @@ import {
   validateOutcome,
 } from "./selfPlayGame";
 import type { SelfPlayStore } from "./selfPlayStore";
+import { validateStudyDecision, validateStudyTeacher } from "./studyCpuInspect";
+import type { StudyCpuResult } from "./studyCpu";
 
 export async function validateManifest(manifest: DataManifest, temporaryDirectory?: string) {
   const { datasetId, ...content } = manifest;
@@ -93,6 +95,14 @@ async function checkTeacher(
   position: AnalysisPosition,
   playedId: number,
 ) {
+  if (manifest.config.studyTeacher)
+    return validateStudyTeacher(
+      sample,
+      position,
+      playedId,
+      manifest.config.studyTeacher,
+      manifest.code.commit,
+    );
   const action = decodeAction(playedId);
   const expected = teacherSettings(manifest, action);
   const result = sample.teacher;
@@ -249,6 +259,12 @@ export async function validateGameArtifact(
           codeVersion: manifest.code.commit,
         }),
         manifest.config.model?.modelId ?? null,
+      );
+    else if (agent.kind === "study")
+      validateStudyDecision(
+        actor.diagnostics as StudyCpuResult,
+        agent.settings,
+        manifest.code.commit,
       );
     else if (
       !sameData(actor.diagnostics, { source: manifest.cpuSources[agent.id], featureVersion: null })

@@ -17,6 +17,7 @@ import { sides, type Side, type FourShogiState } from "../src/types";
 import type { Player } from "./baseline";
 import { experimentStarts } from "./searchExperiment";
 import type { DataModel } from "./modelRuntime";
+import { readStudyCpuSettings, type StudyCpuSettings } from "./studyCpu";
 
 export const selfPlayVersion = "four-shogi-training-record-v1";
 export type DataSplit = "train" | "validation" | "calibration" | "test";
@@ -28,9 +29,11 @@ export type DataCode = {
   runtime: { bun: string; platform: string; arch: string };
 };
 export type DataAgent =
+  | { id: string; kind: "study"; settings: StudyCpuSettings }
   | { id: string; kind: "analysis"; settings: AiSearchSettings }
   | { id: string; kind: "cpu"; reference: string };
 export type SelfPlayConfig = {
+  studyTeacher?: StudyCpuSettings;
   model?: DataModel;
   origins: { seed: number; replay: AnalysisReplayInput | null }[];
   restrictions: boolean[];
@@ -216,6 +219,7 @@ export function defaultSelfPlayConfig() {
 export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayConfig {
   const raw = dataObject(input, [
     "model",
+    "studyTeacher",
     "origins",
     "restrictions",
     "seatOffsets",
@@ -284,6 +288,8 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
         kind: "analysis",
         settings: searchSettings(agent.options, code.commit, 256, model?.modelId),
       };
+    if (agent.kind === "study" && agent.reference === undefined)
+      return { id: agent.id, kind: "study", settings: readStudyCpuSettings(agent.options ?? {}) };
     if (
       agent.kind === "cpu" &&
       agent.options === undefined &&
@@ -307,6 +313,9 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   if (typeof sampling.important !== "boolean")
     throw new TypeError("重要局面の選別を明示してください");
   const config = {
+    ...(raw.studyTeacher === undefined
+      ? {}
+      : { studyTeacher: readStudyCpuSettings(raw.studyTeacher) }),
     ...(model ? { model } : {}),
     origins,
     restrictions,

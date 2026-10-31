@@ -24,6 +24,11 @@ export type AiModelEvaluator = Readonly<{
     signal?: AbortSignal,
   ) => Promise<{ modelId: string; rows: AiModelOutput[] }>;
 }>;
+/** ローカルtinyモデル用の同期境界。正本のルール判定は呼出側に残す。 */
+export type AiSyncModel = Readonly<{
+  modelId: string;
+  predict: (input: AiModelInput) => AiModelOutput;
+}>;
 export class AiModelFailure extends Error {
   constructor(
     readonly reason: string,
