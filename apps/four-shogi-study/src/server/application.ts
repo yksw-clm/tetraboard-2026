@@ -34,7 +34,8 @@ import { validatePublicReplay } from "../domain/publicReplay";
 import { restoreRecordedCandidates } from "../domain/recordedAnalysis";
 import { createStudySearchRuntime, type StudySearchRuntime } from "../search/runtime";
 import type { StudyLifecycleEvent } from "../search/deadline";
-import type { StudyDocument, StudyRecordedAnalysis } from "../shared/model";
+import type { StudyDocument, StudyRecordedAnalysis, StudyPositionInput } from "../shared/model";
+import { writeStudyAnalysisTrace } from "./analysisTrace";
 import { HttpError, type StudyApplication } from "./http";
 import { fetchPublicReplay } from "./publicImport";
 import { createLiveRoomSession, type LiveRoomSession, type VerifiedLiveUpdate } from "./liveRoom";
@@ -83,6 +84,13 @@ type ActiveSearch = {
   focusSide: Side | null;
   conditions: { timeBudgetMs: number | null; threads: number; memoryMb: number };
   lastSavedElapsedMs: number;
+  traceKey: string | null;
+  trace: {
+    input: StudyPositionInput;
+    settings: StudyDocument["settings"];
+    requestedAt: string;
+    live: Pick<StudyLiveView, "instanceId" | "roundId" | "eventCount"> | null;
+  };
 };
 
 export class LocalStudyApplication implements StudyApplication {
@@ -516,6 +524,26 @@ export class LocalStudyApplication implements StudyApplication {
     view: StudyAnalysisView,
     current: StudyDocument,
   ): Promise<StudyDocument> {
+    const traceKey = `${view.status}/${view.elapsedMs}/${view.completedDepth}`;
+    if (active.traceKey !== traceKey) {
+      active.traceKey = traceKey;
+      try {
+        await writeStudyAnalysisTrace(this.store.directory, {
+          studyId: active.studyId,
+          nodeId: active.nodeId,
+          ...active.trace,
+          conditions: active.conditions,
+          auto: active.auto,
+          analysis: view,
+        });
+      } catch (error) {
+        this.emit({
+          type: "error",
+          studyId: active.studyId,
+          message: `思考ログを保存できませんでした: ${String(error)}`,
+        });
+      }
+    }
     // 予測付き解析は通常局面の保存形式へ混ぜず、対象席を変えた結果の再利用を防ぎます。
     if (current.settings.modelGeneration !== view.modelGeneration) return current;
     if (active.focusSide !== null) return current;
@@ -579,10 +607,16 @@ export class LocalStudyApplication implements StudyApplication {
       else await active.runtime.cancel(active.view.id);
     }
     const view = active.view;
-    if (view && view.completedDepth > 0)
+    if (view)
       void this.serial(async () => {
         const current = await this.document(active.studyId);
-        await this.saveAnalysis(active, view, current);
+        await this.saveAnalysis(
+          active,
+          view.status === "running"
+            ? { ...view, status: "cancelled", reason: "局面または操作が変更されました" }
+            : view,
+          current,
+        );
         await this.publish(active.studyId);
       }).catch((error: unknown) =>
         this.emit({
@@ -620,6 +654,7 @@ export class LocalStudyApplication implements StudyApplication {
       ? resolveGeneration(study.settings.modelGeneration)
       : null;
     this.focusReconnect.delete(study.id);
+    const live = this.liveViews.get(study.id);
     const active: ActiveSearch = {
       studyId: study.id,
       nodeId: study.currentNodeId,
@@ -638,6 +673,15 @@ export class LocalStudyApplication implements StudyApplication {
         memoryMb: study.settings.memoryMb,
       },
       lastSavedElapsedMs: -1,
+      traceKey: null,
+      trace: {
+        input: structuredClone(studyPositionInput(study)),
+        settings: structuredClone(study.settings),
+        requestedAt: new Date().toISOString(),
+        live: live
+          ? { instanceId: live.instanceId, roundId: live.roundId, eventCount: live.eventCount }
+          : null,
+      },
     };
     this.active = active;
     await runtime.start(

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { advanceAnalysisPosition } from "@tetraboard/four-shogi/analysis";
@@ -139,6 +139,47 @@ test("フォーカス席を保存し、旧保存ファイルは未指定とし�
   const invalid = JSON.parse(JSON.stringify(focused));
   invalid.settings.focusSide = "center";
   await expect(parseStudyDocument(invalid)).rejects.toThrow("フォーカスする席");
+});
+
+for (const side of ["south", "west"] as const)
+  test(`完成したフォーカスの思考を実局面・予測局面と開始時設定を分けて記録する: ${side}`, async () => {
+    const { app, store, complete } = await harness();
+    const initial = await app.create({
+      settings: { mode: "analysis", focusSide: side, searchStrategy: "dual-continuations" },
+    });
+    complete();
+    await app.close();
+    const directory = join(store.directory, "analysis-traces", initial.study.id);
+    const files = await readdir(directory).catch(() => []);
+    expect(files.filter((name) => name.endsWith(".json"))).toHaveLength(1);
+    const { payload, checksum } = JSON.parse(await readFile(join(directory, files[0]), "utf8"));
+    expect(checksum).toMatch(/^[a-f0-9]{64}$/);
+    expect(payload.settings.focusSide).toBe(side);
+    expect(payload.settings.searchStrategy).toBe("dual-continuations");
+    expect(payload.conditions.timeBudgetMs).toBe(initial.study.settings.analysisTimeMs);
+    expect(payload.analysis.status).toBe("completed");
+    expect(payload.analysis.id).toBe(initial.analysis!.id);
+    expect(payload.analysis.focus.conditional).toBe(side === "west");
+    expect((await restoreStudyPosition(payload.input)).stateHash).toBe(initial.position.stateHash);
+    expect(payload.analysis.analysisStateHash === payload.analysis.stateHash).toBe(
+      side === "south",
+    );
+    expect(payload.analysis.candidates[0].line.length).toBeGreaterThan(0);
+    expect(payload.analysis.candidates[0].evaluation).toBeDefined();
+  });
+
+test("局面変更で止めたフォーカスの思考も取消として記録し、完成扱いしない", async () => {
+  const { app, store } = await harness();
+  const initial = await app.create({ settings: { mode: "analysis", focusSide: "west" } });
+  await app.close();
+  const directory = join(store.directory, "analysis-traces", initial.study.id);
+  const files = await readdir(directory);
+  expect(files).toHaveLength(1);
+  const { payload } = JSON.parse(await readFile(join(directory, files[0]), "utf8"));
+  expect(payload.analysis.status).toBe("cancelled");
+  expect(payload.analysis.focus.conditional).toBe(true);
+  expect(payload.analysis.recommendedAction).toBeNull();
+  expect(payload.settings.focusSide).toBe("west");
 });
 
 test("未来の候補を直接採用せず、予測を含む完全な読み筋だけを合法な分岐へ追加する", async () => {
