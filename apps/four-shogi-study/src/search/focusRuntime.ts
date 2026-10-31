@@ -27,6 +27,8 @@ export function focusConditions(
     "analysis-state-v1",
     studyStrategyVersion(options.strategy),
     studyEvaluationVersion,
+    options.evaluationModel?.modelId ?? null,
+    options.evaluationModel?.sha256 ?? null,
     options.profile ?? "study",
     options.maxDepth ?? 256,
     options.width ?? 6,

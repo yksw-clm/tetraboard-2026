@@ -10,6 +10,8 @@ import { encodeAction } from "../src/actionEncoding";
 import { sides } from "../src/types";
 import { loadPlayer, type Player } from "./baseline";
 import { hashJson } from "./singlesMeasurement";
+import { analyzeStudyCpu } from "./studyCpu";
+import { loadLocalModel } from "../src/localModel";
 import { playAnalysisSingles, type PositionDecision } from "./searchExperiment";
 import {
   sameData,
@@ -50,6 +52,34 @@ export async function loadDataPlayers(
           return {
             ...player.selector(position.state),
             details: { source: player.metadata, featureVersion: null },
+          };
+        });
+      } else if (agent.kind === "study") {
+        const model = agent.settings.modelFile
+          ? loadLocalModel(
+              agent.settings.modelFile,
+              agent.settings.modelId,
+              agent.settings.modelSha256,
+              { historyReferences: agent.settings.modelHistoryReferenceCache },
+            )
+          : undefined;
+        selectors.set(agent.id, async (position) => {
+          const result = await analyzeStudyCpu(
+            position,
+            agent.settings,
+            manifest.code.commit,
+            control,
+            { model },
+          );
+          if (result.status === "cancelled") throw new GenerationPaused("cancelled");
+          return {
+            action: result.recommendedAction,
+            stats: {
+              work: result.diagnostics.work,
+              completedDepth: result.diagnostics.completedDepth,
+              cutoff: result.status === "limited",
+            },
+            details: result,
           };
         });
       } else
@@ -116,6 +146,7 @@ export async function generateSelfPlayGame(
   control: AiControl = {},
   temporaryDirectory?: string,
 ) {
+  if (manifest.config.teacherSelection) throw new Error("軌跡選別は確定棋譜の追加教師専用です");
   const start = manifest.starts[plan.start];
   let position = await restoreAnalysisPosition(saved?.replay ?? start.replay);
   const replay: AnalysisReplayInput = {
@@ -144,6 +175,14 @@ export async function generateSelfPlayGame(
   finish(record, position, manifest.config.maxPlies);
   if (!saved) await commit(record);
   if (record.status !== "in_progress") return record;
+  const studyTeacherModel = manifest.config.studyTeacher?.modelFile
+    ? loadLocalModel(
+        manifest.config.studyTeacher.modelFile,
+        manifest.config.studyTeacher.modelId,
+        manifest.config.studyTeacher.modelSha256,
+        { historyReferences: manifest.config.studyTeacher.modelHistoryReferenceCache },
+      )
+    : undefined;
   const players = await loadDataPlayers(manifest, control, temporaryDirectory);
   try {
     const benchStart = {
@@ -170,18 +209,26 @@ export async function generateSelfPlayGame(
         if (
           shouldTeach(manifest.config, record.actors.length, record.samples.length, step.before)
         ) {
-          const teacher = await analyzePosition(
-            step.before,
-            {
-              ...manifest.config.teacher,
-              modelId: manifest.config.model?.modelId ?? null,
-              includeAction: action,
-              codeVersion: manifest.code.commit,
-            },
-            control,
-          );
+          const teacher = manifest.config.studyTeacher
+            ? await analyzeStudyCpu(
+                step.before,
+                manifest.config.studyTeacher,
+                manifest.code.commit,
+                control,
+                { model: studyTeacherModel },
+              )
+            : await analyzePosition(
+                step.before,
+                {
+                  ...manifest.config.teacher,
+                  modelId: manifest.config.model?.modelId ?? null,
+                  includeAction: action,
+                  codeVersion: manifest.code.commit,
+                },
+                control,
+              );
           if (teacher.status === "cancelled") throw new GenerationPaused("cancelled");
-          requireGenerationModel(manifest, teacher);
+          if (!manifest.config.studyTeacher) requireGenerationModel(manifest, teacher);
           record.samples.push({
             eventOffset: step.before.eventOffset,
             stateHash: step.before.stateHash,
@@ -225,7 +272,9 @@ export function configInput(config: SelfPlayConfig): unknown {
     ...config,
     origins: config.origins.map((o) => (o.replay ? o : { seed: o.seed })),
     agents: config.agents.map((a) =>
-      a.kind === "analysis" ? { id: a.id, kind: a.kind, options: a.settings } : a,
+      a.kind === "analysis" || a.kind === "study"
+        ? { id: a.id, kind: a.kind, options: a.settings }
+        : a,
     ),
   };
 }

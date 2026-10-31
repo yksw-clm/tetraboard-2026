@@ -4,7 +4,8 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    # 未マージの#266へ積み重ねるローカルAI学習PRも検証する。
+    branches: [main, develop, feat/study-search-efficiency]
     types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 permissions:

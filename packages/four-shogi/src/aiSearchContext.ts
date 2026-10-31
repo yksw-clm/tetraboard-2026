@@ -5,8 +5,17 @@ import { getLegalMoves, applyLegalMove } from "./transition";
 import { getActiveSides, type FourShogiState, type Side } from "./types";
 import type { OrdinaryMove } from "./moves";
 import { encodeAction } from "./actionEncoding";
-import { encodeStateFeatures } from "./modelFeatureEncoding";
-import { AiModelFailure, modelEvaluation, type AiModelDriver, type AiModelOutput } from "./aiModel";
+import { encodeStateFeatures, createStateFeatureEncoder } from "./modelFeatureEncoding";
+import {
+  AiModelFailure,
+  modelEvaluation,
+  validateModelOutputs,
+  validateModelValue,
+  type AiSyncModel,
+  type AiModelDriver,
+  type AiModelOutput,
+  type AiModelValueOutput,
+} from "./aiModel";
 import type {
   AiCandidate,
   AiEvaluation,
@@ -19,6 +28,9 @@ export type AiBranch = { evaluation: AiEvaluation; line: AiLineStep[]; selective
 export type AiAdvance = { state: FourShogiState; step: AiLineStep };
 /** 検討用の明示指定にだけ適用し、公開CPUと共通AIの評価を維持します。 */
 export type AiContextProfile = {
+  model?: AiSyncModel;
+  modelUsage?: "policy-value" | "policy" | "value";
+  modelFeatureCache?: boolean;
   evaluate: (state: FourShogiState) => AiEvaluation;
   orderingBonus?: (
     state: FourShogiState,
@@ -34,6 +46,17 @@ export type AiContextProfile = {
   sharedChecks?: boolean;
 };
 export type AiContextMetrics = {
+  modelInferences?: number;
+  modelPolicyUses?: number;
+  modelValueUses?: number;
+  modelInferenceMs?: number;
+  modelValueOnlyInferences?: number;
+  modelFeatureMs?: number;
+  modelFeatureHistoryEntries?: number;
+  modelFeatureCacheHits?: number;
+  modelFeatureCacheMisses?: number;
+  modelFeatureCacheEntries?: number;
+  modelHistoryReferenceHits?: number;
   legalMs: number;
   transitionMs: number;
   evaluationMs: number;
@@ -145,6 +168,8 @@ export function createAiContext(
     orderingMs: 0,
     cacheEvictions: 0,
   };
+  const featureEncoder =
+    profile?.model && profile.modelFeatureCache !== false ? createStateFeatureEncoder() : null;
   const clock = () => (profile?.measure ? performance.now() : 0);
   const detailClock = () => (profile?.measureDetails ? performance.now() : 0);
   function checks(state: FourShogiState) {
@@ -252,32 +277,68 @@ export function createAiContext(
       stats.evaluationCacheHits++;
       return cached;
     }
-    const prediction = model && state.status === "playing" ? yield* predict(state) : null;
+    const prediction =
+      (model || (profile?.model && profile.modelUsage !== "policy")) && state.status === "playing"
+        ? yield* predictValue(state)
+        : null;
     const started = clock();
     const value = prediction
       ? modelEvaluation(state, prediction)
       : (profile?.evaluate(state) ?? evaluateAiPosition(state, settings.evaluationWeights));
     metrics.evaluationMs += clock() - started;
-    if (prediction) model!.stats.valueUses++;
+    if (prediction) {
+      if (model) model.stats.valueUses++;
+      else metrics.modelValueUses = (metrics.modelValueUses ?? 0) + 1;
+    }
     stats.evaluations++;
     if (record) record.evaluation = value;
     if (profile?.cacheLeafEvaluations === false) leafEvaluations.set(state, value);
     return value;
   }
-  function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
+  function modelFeatures(state: FourShogiState, id: string) {
     try {
+      const started = performance.now(),
+        full = { ...state, repetitions: { ...input.repetitions, ...state.repetitions } },
+        features = featureEncoder ? featureEncoder.encode(full) : encodeStateFeatures(full);
+      metrics.modelFeatureMs = (metrics.modelFeatureMs ?? 0) + performance.now() - started;
+      metrics.modelFeatureHistoryEntries =
+        (metrics.modelFeatureHistoryEntries ?? 0) + features.history.length;
+      if (featureEncoder) {
+        const cache = featureEncoder.stats();
+        metrics.modelFeatureCacheHits = cache.hits;
+        metrics.modelFeatureCacheMisses = cache.misses;
+        metrics.modelFeatureCacheEntries = cache.entries;
+      }
       return {
         id,
         restricted: state.threePlayerAttackProhibited,
-        features: encodeStateFeatures({
-          ...state,
-          repetitions: { ...input.repetitions, ...state.repetitions },
-        }),
-        legalActionIds: legalMoves.map((move) => encodeAction(move.action)).sort((a, b) => a - b),
+        features,
       };
     } catch (error) {
       throw new AiModelFailure("model_features", String(error));
     }
+  }
+  function modelInput(state: FourShogiState, legalMoves: OrdinaryMove[], id: string) {
+    return {
+      ...modelFeatures(state, id),
+      legalActionIds: legalMoves.map((move) => encodeAction(move.action)).sort((a, b) => a - b),
+    };
+  }
+  function* predictValue(state: FourShogiState): Generator<number, AiModelValueOutput> {
+    if (!profile?.model?.predictValue) return yield* predict(state);
+    const record = node(state);
+    if (record?.prediction) return record.prediction;
+    yield* spend();
+    const request = modelFeatures(state, "0"),
+      started = performance.now(),
+      prediction = profile.model.predictValue(request);
+    validateModelValue(request, prediction);
+    metrics.modelInferences = (metrics.modelInferences ?? 0) + 1;
+    metrics.modelValueOnlyInferences = (metrics.modelValueOnlyInferences ?? 0) + 1;
+    metrics.modelHistoryReferenceHits = profile.model.historyReferenceHits?.() ?? 0;
+    metrics.modelInferenceMs = (metrics.modelInferenceMs ?? 0) + performance.now() - started;
+    // 完成した評価はevaluate()の同じ状態参照キャッシュへ保存します。
+    return prediction;
   }
   function* predict(
     state: FourShogiState,
@@ -287,7 +348,16 @@ export function createAiContext(
     if (record?.prediction) return record.prediction;
     const available = legalMoves ?? (yield* moves(state));
     yield* spend();
-    const [prediction] = yield* model!.request([modelInput(state, available, "0")]);
+    const request = modelInput(state, available, "0");
+    let prediction: AiModelOutput;
+    if (profile?.model) {
+      const started = performance.now();
+      prediction = profile.model.predict(request);
+      validateModelOutputs([request], [prediction]);
+      metrics.modelInferences = (metrics.modelInferences ?? 0) + 1;
+      metrics.modelHistoryReferenceHits = profile.model.historyReferenceHits?.() ?? 0;
+      metrics.modelInferenceMs = (metrics.modelInferenceMs ?? 0) + performance.now() - started;
+    } else [prediction] = yield* model!.request([request]);
     if (record) record.prediction = prediction;
     return prediction;
   }
@@ -319,9 +389,11 @@ export function createAiContext(
     yield* flush();
   }
   function* rootOrder(): Generator<number, { move: OrdinaryMove; index: number }[]> {
-    if (!model) return legal.map((move, index) => ({ move, index }));
+    if (!model && (!profile?.model || profile.modelUsage === "value"))
+      return legal.map((move, index) => ({ move, index }));
     const prediction = yield* predict(start, legal);
-    model.stats.policyUses++;
+    if (model) model.stats.policyUses++;
+    else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
     return sortWithPolicy(
       legal.map((move, index) => ({ move, index, score: priority(move, start.turn!) })),
       prediction,
@@ -399,9 +471,10 @@ export function createAiContext(
         }
         return { move, index, score: score + bonus };
       });
-      if (model) {
+      if (model || (profile?.model && profile.modelUsage !== "value")) {
         const prediction = yield* predict(state, legalMoves);
-        model.stats.policyUses++;
+        if (model) model.stats.policyUses++;
+        else metrics.modelPolicyUses = (metrics.modelPolicyUses ?? 0) + 1;
         selected = sortWithPolicy(entries, prediction);
       } else selected = entries.sort((a, b) => b.score - a.score || a.index - b.index);
       selected = selected.filter(

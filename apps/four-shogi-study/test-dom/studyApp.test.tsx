@@ -9,7 +9,12 @@ import {
   requests,
   type Request as PendingRequest,
 } from "../../web/test-dom/support";
-import type { StudyAnalysisView, StudyServerEvent, StudySnapshot } from "../src/contracts";
+import type {
+  StudyAnalysisView,
+  StudyServerEvent,
+  StudySnapshot,
+  StudyConfig,
+} from "../src/contracts";
 import {
   appendStudyEvent,
   createStudy,
@@ -113,7 +118,7 @@ async function initial() {
     }),
   );
 }
-async function boot(current: StudySnapshot) {
+async function boot(current: StudySnapshot, models?: StudyConfig["models"]) {
   const view = render(<StudyApp />);
   request("/api/config").respond({
     logicalCpus: 10,
@@ -121,6 +126,7 @@ async function boot(current: StudySnapshot) {
     defaultThreads: 4,
     defaultMemoryMb: 8192,
     dataDirectory: "/tmp/study-dom",
+    ...(models ? { models } : {}),
   });
   request("/api/studies").respond(library(current));
   await flush();
@@ -571,6 +577,70 @@ test("新しい対局で各席の人間/CPUとCPU思考時間を指定して保�
   await finish(creation, next);
   expect(view.textContent?.includes("一人のCPUと検討")).toBe(true);
   expect(document.querySelector('[role="dialog"]') === null).toBe(true);
+});
+
+test("実在候補だけから評価世代を選び、P0-5へ切替え、旧モデルのSSEを拒否してG0へ戻せる", async () => {
+  let current = await initial();
+  const model = {
+    id: "g001-candidate-night-0001",
+    generation: 1,
+    state: "candidate",
+    modelId: "four-shogi-tiny-policy-value-v1:" + "1".repeat(64),
+    createdAt: "2026-10-31T02:00:00Z",
+    parentId: "g000",
+    trainingSamples: 16,
+    available: true,
+    error: null,
+    qualified: false,
+    validation: {},
+  };
+  const view = await boot(current, [
+    model,
+    { ...model, id: "g001-candidate-broken", available: false, error: "checksum" },
+  ]);
+  press(view, "設定");
+  await flush();
+  const picker = field("評価モデル") as HTMLSelectElement;
+  expect(
+    picker.querySelector<HTMLOptionElement>('option[value="g001-candidate-broken"]')!.disabled,
+  ).toBe(true);
+  select("評価モデル", model.id);
+  expect((field("探索方式") as HTMLSelectElement).value).toBe("dual-continuations");
+  expect(document.body.textContent).toContain("データ品質は未達");
+  act(() =>
+    field("検討名")
+      .closest("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  const saving = request(`/api/studies/${current.study.id}/commands`, "POST");
+  expect(body(saving)).toMatchObject({
+    settings: { modelGeneration: model.id, searchStrategy: "dual-continuations" },
+  });
+  current = await snapshot(
+    updateStudySettings(current.study, body(saving).settings as Partial<StudySettings>),
+  );
+  await finish(saving, current);
+  LocalEvents.instances.at(-1)!.send({
+    type: "analysis",
+    studyId: current.study.id,
+    analysis: { ...analysis(current, "completed", 999), nodes: 987654 },
+  });
+  await flush();
+  expect(view.textContent).not.toContain("987,654");
+  press(view, "設定");
+  await flush();
+  select("評価モデル", "g000");
+  act(() =>
+    field("検討名")
+      .closest("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  const fallback = request(`/api/studies/${current.study.id}/commands`, "POST");
+  current = await snapshot(
+    updateStudySettings(current.study, body(fallback).settings as Partial<StudySettings>),
+  );
+  await finish(fallback, current);
+  expect(current.study.settings.modelGeneration).toBeUndefined();
 });
 
 test("検討時間をプリセットと無制限に変更し、探索の停止/再解析をHTTPへ伝える", async () => {

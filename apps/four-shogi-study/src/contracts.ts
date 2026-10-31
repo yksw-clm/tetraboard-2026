@@ -7,6 +7,8 @@ import type { StudyFocusMetadata, StudySearchSnapshot } from "./search/runtime";
 export type { StudyFocusMetadata } from "./search/runtime";
 
 export type StudyAnalysisView = {
+  modelGeneration?: string;
+  modelId?: string;
   continuation?: StudySearchSnapshot["continuation"];
   completion?: StudySearchSnapshot["completion"];
   lethalGuard?: import("./search/lethalGuard").LethalGuardReport;
@@ -74,6 +76,19 @@ export type StudySnapshot = {
 };
 
 export type StudyConfig = {
+  models?: readonly {
+    id: string;
+    generation: number;
+    state: string;
+    modelId: string | null;
+    createdAt: string;
+    parentId: string | null;
+    trainingSamples: number;
+    available: boolean;
+    error: string | null;
+    qualified: boolean;
+    validation: Record<string, unknown>;
+  }[];
   logicalCpus: number;
   totalMemoryMb: number;
   defaultThreads: number;

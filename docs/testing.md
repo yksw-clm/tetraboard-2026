@@ -14,6 +14,8 @@
 
 ## Fast CIとFull CI
 
+PR #266を基点とする夜間学習のstacked PRも実CIを実行するため、`pull_request`の対象へ`feat/study-search-efficiency`を含めます。pushの対象はmain/developのままで、学習ブランチのpushやPRからデプロイしません。
+
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。
 
 | 変更・イベント                                                                                           | 検証範囲                                                                 |
@@ -423,6 +425,20 @@ Workerの `test/fourShogiAi.test.ts` は実D1/セッションCookieで、未設�
 実モデルは[専用設定・コマンド](four-shogi-ai-engine.md#対局cpuの試用接続194)でだけ4つのSMOKE環境値を明示します。LinuxのPyTorchを実使用して、ON/OFF×両予算の着手と採用診断を確認します。通常 `vitest.config.mts` はこれらを読み込まず、個人設定分離の契約を維持します。専用4試行は棋力の判定や実VPS/HTTPS/長時間性能の保証に使いません。
 
 ## 四人将棋のローカル検討アプリの確認
+
+夜間学習は`packages/four-shogi/test/studyCpu.test.ts`、`nightlyData.test.ts`、`nightlyControl.test.ts`で、固定workの完成比較/合法PV、Value打切り、集合/予約seed、排他/不変manifest、独立対応条件と昇格保留、実Bun工程の期限回収を検証します。OSメモリ圧迫の読み取りだけを境界で固定し、Bunの起動/停止をモックしません。DOMではモデル世代選択、G0への復帰、旧モデルSSE拒否、未校正Value表示を検証します。既存fixture/採点条件は変更しません。
+
+`teacherSelection.test.ts`は軌跡選別の時期別被覆・件数・最終着手前を検査し、実エンジンで生成した完全棋譜から選別を再現します。派生教師の欠落とraw生成への誤用を拒否し、戦術fixtureを教師へ取り込みません。
+
+Pythonの既存`trainingTest.py`は異なるsnapshotへweights-only warm startした場合の親不変/optimizer初期化と、同じrunの厳密resumeも検証します。実PyTorch・CPU/MPS・推論配布物・夜間バッチは[RUNBOOKの検証手順](../NIGHTLY-RUNBOOK.md#開発検証)で別実行し、通常Bun CIだけで実学習成功を主張しません。生の結果はGit管理外へ保持します。
+
+`trainingTest.py`はtrain限定のValue重み、教師なし行の除外、既定損失の同値、重み付き学習の中断/再開と条件変更拒否も検査します。validationの分類指標は重みなしで算出します。`localModel.test.ts`は実f32ファイルからのロードでON/OFF・各席・脱落時のPolicy/Value単独headを照合し、`studyCpu.test.ts`は同じ完成深さの候補/評価/PV、合法手列挙とworkの削減、不正Valueの拒否を確認します。実学習済みモデルの数値と速度はGit管理外の測定として別に保存します。
+
+`modelFeatures.test.ts`では履歴特徴cacheの有無、反復回数変更、現在の提案/手数、ON/OFF/攻撃/脱落の完全特徴を照合します。保持済みの配列への変更、上限を越す履歴の切捨て、cache容量超過を許容せず、`studyCpu.test.ts`で候補/PV/workの一致も確認します。
+
+`localModel.test.ts`は内部の不変特徴だけが参照hitすること、外部でfreezeした入力への誤適用がないこと、無効化時の同じ出力とhitゼロも検証します。WeakMapは入力への強参照を持たず、正本状態・モデル世代を横断する評価キャッシュには使いません。
+
+PythonのValue専用アブレーションは、Policy勾配ゼロとPolicy head不変、Value head更新、loss重みの範囲、同じrunでの条件変更拒否を検査する。通常nightlyの既定1と、研究用の重み0を区別する。
 
 フォーカス引継ぎは`focusContinuation.test.ts`で完全状態/players/探索条件/保持期限と合法PV、`focusReuseRuntime.test.ts`で固定深さの評価/PV/候補集合の一致、`ponderRuntime.test.ts`で予測一致/不一致・同一根の途中継続・世代・停止再開/取消・worker異常・期限解放・2/3/4人生存を確認します。実workerの停止応答を120/260ms遅延させ、外側の同じ期限内での確認と未確認時の保持破棄を区別し、深さ2の未完タスクを保持して深さ3の四人評価/PV/推奨が新規探索と一致することも検査します。実workerのready通知で、完成後の予測外の新規根はworkerを更新し、一致した途中探索の再開は新規起動なし・新規workありとなることを確認します。`focusPanel.test.tsx`はPV一致の補助表示が未来候補を現在手と呼ばず、variationへ送ることを検査します。`liveApplication.test.ts`は確定更新の保持、旧結果の非表示、切断と設定変更の取消を検査します。固定仕事・実時間・開発seedの実戦比較を機能テストと分離し、未来候補を現在の推奨へ繰り上げません。
 
@@ -978,6 +994,7 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 
 
 ## P1-4b敗退分析の確認
+
 
 `apps/four-shogi-study/test/lossAnalysis.test.ts`は有限生存証明の正本再生成、全称応手の欠落拒否、予算切れのunknown維持、非合法初手拒否、危険な合法応手の存在量化、固定規則の主要候補選択を確認します。実行はコミット済みソースで `bench/lossAnalysis.ts prepare <Git管理外出力先> <P1-4主比較ディレクトリ>`、`run <出力先>`、`summarize <出力先>`。元の完全棋譜/攻撃/反復履歴を保ち、編集局面や手番差替えを使いません。固定タスクのobserver on/offと一節点介入は同深さ完成時だけ比較し、全枝未記録の過去実行へ外挿しません。PRのCIはdevelop取り込み後のFull実行範囲を確認し、Fastの未実行workspaceを成功扱いしません。
 

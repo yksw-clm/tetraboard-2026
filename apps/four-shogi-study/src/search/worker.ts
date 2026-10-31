@@ -1,5 +1,6 @@
 import { createStudyRootSearch } from "@tetraboard/four-shogi/study-search";
 import { restoreStudyPosition } from "../domain/study";
+import { loadLocalModel } from "../../../../packages/four-shogi/src/localModel";
 import type { SearchCommand, SearchMessage, SearchWorkerTiming } from "./messages";
 let current: {
   id: string;
@@ -126,7 +127,24 @@ process.on("message", async (raw: unknown) => {
       const created = performance.now();
       const restoreCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       if (token !== generation) return;
-      const search = createStudyRootSearch(position, message.options);
+      const loaded = message.localModel
+        ? loadLocalModel(
+            message.localModel.file,
+            message.localModel.modelId,
+            message.localModel.sha256,
+            { historyReferences: message.localModel.historyReferenceCache },
+          )
+        : undefined;
+      // 同じモデル/評価のまま、研究用に従来の両head経路と比較できます。
+      const model =
+        loaded && message.localModel?.valueOnlyHead === false
+          ? { modelId: loaded.modelId, predict: loaded.predict }
+          : loaded;
+      if (token !== generation) return;
+      const search = createStudyRootSearch(position, {
+        ...message.options,
+        ...(model ? { model, modelFeatureCache: message.localModel?.historyFeatureCache } : {}),
+      });
       const createCpu = cpuStart ? process.cpuUsage(cpuStart) : undefined;
       current = {
         id: message.id,

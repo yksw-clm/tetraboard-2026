@@ -884,6 +884,10 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ## 四人将棋のローカル検討アプリ
 
+夜間学習のCLIは`packages/four-shogi/bench/nightlyCli.ts`、工程は`nightlyRun.ts`、不変集合は`nightlySnapshot.ts`、ローカル世代の排他/manifestは`nightlyStore.ts`です。`selfPlayData/Game/Run/Store/Inspect`を再利用し、`studyCpu.ts`が既存P0-5の固定work first-pass運転、`nightlyTeacher.ts`が確定棋譜を別datasetへ追加解析します。`localModel.ts`とPythonの`localExport.py`は既存tiny重みの同値推論を検査します。`nightlyStudy/Compare/Validation`は実アプリのroot分配と既存の戦術採点を使用し、`nightlyResources/Watchdog`が親子の期限・RSS・停止を監視します。主要依存や公開CPUを追加/置換しません。
+
+検討画面は`StudySettings.modelGeneration`を保持し、実在するモデルをローカル世代manifestから解決します。workerへはモデルIDとmanifest SHAを渡し、読込み失敗は未完了として扱います。世代が違うSSE・保存解析・矢印を拒否し、フォーカス保持条件にもモデルID/SHAを含めます。仕様/設計は[夜間学習](four-shogi-ai-nightly.md)、起動・設定・復旧は[RUNBOOK](../NIGHTLY-RUNBOOK.md)を参照してください。
+
 実験用フォーカス引継ぎの入口は`search/focusSettings.ts`です。環境変数の既定は無効で、`pv`の順序ヒントと`ponder/combined`の同一予測終点のセッション保持を分離します。`application.ts`は確定イベントだけを保持可能な更新として渡し、対局識別子をscopeへ含めます。同じ途中根のresumeはworkerを保持し、新規start時のworker再利用はPONDER/COMBINED内側だけ既定で無効にします。PV一致の診断値はヒントの存在で、実際の投入順変更数や完成部分木の再利用と混同しません。汎用の別根への部分木移植は実装範囲外です。比較CLIは`bench/focusPonderBaseline.ts`と`bench/focusPvComparison.ts`、事前登録・資源/絶対期限・開発seedと棋力判定は[測定記録](four-shogi-ai.md#フォーカス引継ぎとponderingの事前計画2026-10-31)を参照します。
 
 最善手の可視化は`client/bestMove.ts`で現在局面・完成深さ・手番・合法手を照合し、`StudyApp.tsx`から共通盤面の任意prop `bestMove`へ渡します。`ShogiBestMoveOverlay.tsx`は既存の`shogiDisplayPosition()`と9×9のSVG座標で操作gridへ重ねます。キャッシュした矢印や新規の探索・ポーリングを持たず、既存SSEの公開済み比較だけを描画します。別study/旧generation/同generationの別jobは表示側で拒否し、予測局面と表示局面が違うフォーカスは矢印の対象にしません。prop未指定の対局画面は表示を変えません。

@@ -9,12 +9,111 @@ import torch
 from checkpoint import CheckpointStore, CHECKPOINT_VERSION
 from dataset import LearningData, VALUE_ORDER, fileHash
 from model import TinyPolicyValue, batchTensors, supervisedLoss
-from train import train
+from train import train, trainingValueWeights, trainingLoss, classificationMetrics
 
 DATA = None
 
 
 class TrainingTest(unittest.TestCase):
+    def testTrainOnlyValueWeightsAndUnweightedMetrics(self):
+        rows = [{"valueTarget": value, "policyTarget": None} for value in [0, 0, 1, 4, None]]
+        self.assertIsNone(trainingValueWeights(rows, "none"))
+        weights = trainingValueWeights(rows, "inverse-frequency")
+        self.assertEqual(weights, [2/3, 4/3, 0.0, 0.0, 4/3])
+        with self.assertRaisesRegex(ValueError, "条件"):
+            trainingValueWeights(rows, "validation")
+        with self.assertRaisesRegex(ValueError, "train"):
+            trainingValueWeights([{"valueTarget": None}], "inverse-frequency")
+        value = torch.tensor([[1., 2., 3., 4., 5.]] * 5, requires_grad=True)
+        policy = torch.zeros(5, 13446, requires_grad=True)
+        loss, pl, vl = trainingLoss(policy, value, rows, weights)
+        targets = torch.tensor([0, 0, 1, 4, -100])
+        expected = torch.nn.functional.cross_entropy(value, targets, weight=torch.tensor(weights), ignore_index=-100)
+        self.assertTrue(torch.equal(vl, expected))
+        self.assertEqual(float(pl), 0)
+        self.assertTrue(torch.isfinite(loss))
+        loss.backward()
+        self.assertTrue(torch.equal(value.grad[4], torch.zeros(5)))
+        absent = trainingLoss(policy[:1], value[:1], [{"policyTarget": 0, "valueTarget": None}], weights)
+        self.assertEqual(float(absent[2]), 0)
+        base = supervisedLoss(policy, value, rows)
+        unchanged = trainingLoss(policy, value, rows)
+        for actual, wanted in zip(unchanged, base):
+            self.assertTrue(torch.equal(actual, wanted))
+        metrics = classificationMetrics({"valueConfusion": [[1, 1, 0, 0, 0], [0, 1, 0, 0, 0],
+                                  [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 0, 0, 1]],
+                                  "valueClasses": [2, 1, 0, 0, 2], "valueSamples": 5})
+        self.assertEqual(metrics["valuePredictedClasses"], [1, 3, 0, 0, 1])
+        self.assertAlmostEqual(metrics["valueMacroF1"], (2/3 + 0.5 + 2/3)/5)
+        self.assertEqual(metrics["noSoleBaselineAccuracy"], 0.4)
+
+    def testWeightedValueResumeKeepsSamplerAndRejectsChangedObjective(self):
+        options = dict(steps=4, width=16, historyWidth=4, batchSize=2, checkpointEvery=2,
+                       valueWeighting="inverse-frequency", allowDirty=True)
+        interrupted, continuous = self.root / "weighted-part", self.root / "weighted-whole"
+        train(DATA, interrupted, stopAfterSteps=2, **options)
+        resumed = train(DATA, interrupted, **options)
+        whole = train(DATA, continuous, **options)
+        self.assertEqual(resumed["sampledValueClasses"], whole["sampledValueClasses"])
+        self.assertEqual(resumed["history"], whole["history"])
+        left = torch.load(interrupted / (resumed["checkpointSha256"] + ".pt"), weights_only=True)
+        right = torch.load(continuous / (whole["checkpointSha256"] + ".pt"), weights_only=True)
+        for key, tensor in left["model"].items():
+            self.assertTrue(torch.equal(tensor, right["model"][key]))
+        with self.assertRaisesRegex(ValueError, "再開元"):
+            train(DATA, interrupted, **{**options, "valueWeighting": "none"})
+
+    def testValueOnlyLossKeepsActualLabelsAndUntrainedPolicyHead(self):
+        rows = [{"policyTarget": 0, "valueTarget": 4}]
+        p, v = torch.randn(1, 13446, requires_grad=True), torch.randn(1, 5, requires_grad=True)
+        plain = trainingLoss(p, v, rows)
+        zero = trainingLoss(p, v, rows, policyLossWeight=0)
+        self.assertTrue(torch.equal(zero[0], zero[2]))
+        self.assertTrue(torch.equal(zero[1], plain[1]))
+        zero[0].backward()
+        self.assertEqual(int(torch.count_nonzero(p.grad)), 0)
+        self.assertGreater(int(torch.count_nonzero(v.grad)), 0)
+        path = self.root / "value-only"
+        options = dict(steps=3, width=16, historyWidth=4, policyLossWeight=0, allowDirty=True)
+        first = train(DATA, path, stopAfterSteps=0, **options)
+        last = train(DATA, path, **options)
+        before = torch.load(path / (first["checkpointSha256"] + ".pt"), weights_only=True)
+        after = torch.load(path / (last["checkpointSha256"] + ".pt"), weights_only=True)
+        for name in ["policy.weight", "policy.bias"]:
+            self.assertTrue(torch.equal(before["model"][name], after["model"][name]))
+        self.assertFalse(torch.equal(before["model"]["value.bias"], after["model"]["value.bias"]))
+        with self.assertRaisesRegex(ValueError, "再開元"):
+            train(DATA, path, **{**options, "policyLossWeight": 1})
+        for weight in [-1, float("nan"), True]:
+            with self.assertRaisesRegex(ValueError, "範囲"):
+                train(DATA, self.root / "invalid", policyLossWeight=weight, allowDirty=True)
+
+    def testWarmStartResetsOptimizerAndPreservesParent(self):
+        parent = self.root / "parent"
+        first = train(DATA, parent, steps=2, width=16, historyWidth=4, allowDirty=True)
+        before = (parent / "latest.json").read_bytes()
+        nextData = self.root / "new-data"
+        shutil.copytree(DATA, nextData)
+        manifest = json.loads((nextData / "manifest.json").read_text())
+        manifest["nightlyWarmStartTest"] = True
+        (nextData / "manifest.json").write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "再開元"):
+            train(nextData, parent, steps=3, width=16, historyWidth=4, allowDirty=True)
+        output = self.root / "next"
+        fresh = train(nextData, output, steps=3, width=16, historyWidth=4, stopAfterSteps=0,
+                      warmStart=str(parent), warmStartSha256=first["checkpointSha256"], allowDirty=True)
+        self.assertEqual(fresh["step"], 0)
+        self.assertEqual(fresh["parent"]["optimizer"], "reset")
+        old = torch.load(parent / (first["checkpointSha256"] + ".pt"), weights_only=True)
+        new = torch.load(output / (fresh["checkpointSha256"] + ".pt"), weights_only=True)
+        for key in old["model"]:
+            self.assertTrue(torch.equal(old["model"][key], new["model"][key]))
+        self.assertEqual(new["optimizer"]["state"], {})
+        self.assertEqual((parent / "latest.json").read_bytes(), before)
+        resumed = train(nextData, output, steps=3, width=16, historyWidth=4,
+                        warmStart=str(parent), warmStartSha256=first["checkpointSha256"], allowDirty=True)
+        self.assertEqual(resumed["status"], "completed")
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)

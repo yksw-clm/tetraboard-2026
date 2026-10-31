@@ -162,6 +162,9 @@ export async function parseRecordedAnalyses(
     const savedAt = text(item.savedAt);
     if (!Number.isFinite(Date.parse(savedAt))) fail();
     let record: StudyRecordedAnalysis = {
+      ...(item.modelGeneration === undefined
+        ? {}
+        : { modelGeneration: text(item.modelGeneration) }),
       stateHash: text(item.stateHash),
       savedAt,
       searchVersion: text(item.searchVersion),

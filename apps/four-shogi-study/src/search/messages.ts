@@ -13,6 +13,14 @@ export type SearchCommand =
       id: string;
       input: StudyPositionInput;
       options: StudyRootOptions;
+      localModel?: {
+        file: string;
+        modelId: string;
+        sha256?: string;
+        valueOnlyHead?: boolean;
+        historyFeatureCache?: boolean;
+        historyReferenceCache?: boolean;
+      };
       measureTransport?: boolean;
     }
   | { type: "continue"; id: string; depth: number; indices?: number[] }

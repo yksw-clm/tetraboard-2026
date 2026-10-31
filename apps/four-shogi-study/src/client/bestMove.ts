@@ -25,6 +25,7 @@ export function studyBestMove(snapshot: StudySnapshot, connected: boolean) {
     position.state.status !== "playing" ||
     analysis.nodeId !== study.currentNodeId ||
     analysis.stateHash !== position.stateHash ||
+    analysis.modelGeneration !== study.settings.modelGeneration ||
     targetHash !== position.stateHash ||
     (analysis.focus &&
       (analysis.focus.status !== "ready" ||

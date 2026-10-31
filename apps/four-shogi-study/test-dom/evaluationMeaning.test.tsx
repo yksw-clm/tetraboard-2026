@@ -65,6 +65,24 @@ function panel(current: StudySnapshot) {
   );
 }
 
+test("学習Valueは未校正の数値として表示し、勝率表示に置き換えない", async () => {
+  const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
+  const evaluation: AiEvaluation = {
+    ...current.staticEvaluation,
+    evaluationKind: "model",
+    values: Object.fromEntries(
+      (["south", "west", "north", "east"] as const).map((side, index) => [
+        side,
+        { primary: [0.4, 0.3, 0.2, 0.1][index], secondaryRank: index + 1, heuristicScore: null },
+      ]),
+    ) as AiEvaluation["values"],
+  };
+  const view = panel({ ...current, analysis: projection(current, evaluation) });
+  expect(view.textContent).toContain("Value 0.400");
+  expect(view.textContent).toContain("未校正のモデル指標");
+  expect(view.textContent).not.toContain("40%");
+});
+
 test("予算終了でも完成比較がない場合は未完了と表示する", async () => {
   const current = await snapshot(await createStudy({ settings: { mode: "analysis" } }));
   const analysis = projection(current, current.staticEvaluation);

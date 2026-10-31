@@ -9,6 +9,9 @@ export const currentFeatureSize = positionFeatureSize + 19;
 export const maxHistoryEntries = 2048;
 export type SparseFeatures = { indices: number[]; values: number[] };
 export type ModelFeatures = { current: SparseFeatures; history: SparseFeatures[] };
+const reusableHistory = new WeakSet<SparseFeatures>();
+/** 内部で構築し、配列までfreezeした共有履歴だけを識別します。 */
+export const isReusableHistoryFeature = (entry: SparseFeatures) => reusableHistory.has(entry);
 const pieceKinds = ["king", "rook", "gold", "silver", "pawn", "dragon", "promotedSilver", "tokin"];
 const attackReasons = ["check", "capture", "threat", "blockade"];
 type Key = [
@@ -60,7 +63,17 @@ function encodeKey(key: string): SparseFeatures {
   return { indices, values: indices.map((i) => values.get(i)!) };
 }
 
-export function encodeStateFeatures(state: FourShogiState): ModelFeatures {
+function historyEntry(key: string, count: number): SparseFeatures {
+  const feature = encodeKey(key);
+  feature.indices.push(positionFeatureSize);
+  feature.values.push(count / 4);
+  return feature;
+}
+
+function encodeFeatures(
+  state: FourShogiState,
+  readHistory: (key: string, count: number) => SparseFeatures,
+): ModelFeatures {
   const keys = Object.keys(state.repetitions).sort();
   if (keys.length > maxHistoryEntries)
     throw new RangeError("特徴版1の反復履歴上限を超えています。切り捨てずに拒否します");
@@ -82,11 +95,44 @@ export function encodeStateFeatures(state: FourShogiState): ModelFeatures {
   });
   return {
     current,
-    history: keys.map((key) => {
-      const feature = encodeKey(key);
-      feature.indices.push(positionFeatureSize);
-      feature.values.push(state.repetitions[key] / 4);
-      return feature;
-    }),
+    history: keys.map((key) => readHistory(key, state.repetitions[key])),
+  };
+}
+
+export function encodeStateFeatures(state: FourShogiState): ModelFeatures {
+  return encodeFeatures(state, historyEntry);
+}
+
+/** 探索内だけで、完全な反復キーと回数の同じ履歴特徴を再利用します。 */
+export function createStateFeatureEncoder(limit = 4096) {
+  if (!Number.isSafeInteger(limit) || limit < 0 || limit > 8192)
+    throw new RangeError("履歴特徴キャッシュの上限が不正です");
+  const cache = new Map<string, { count: number; feature: SparseFeatures }>();
+  let hits = 0,
+    misses = 0;
+  const readHistory = (key: string, count: number) => {
+    const saved = cache.get(key);
+    if (saved?.count === count) {
+      hits++;
+      cache.delete(key);
+      cache.set(key, saved);
+      return saved.feature;
+    }
+    misses++;
+    const feature = historyEntry(key, count);
+    Object.freeze(feature.indices);
+    Object.freeze(feature.values);
+    Object.freeze(feature);
+    reusableHistory.add(feature);
+    if (limit > 0) {
+      cache.delete(key);
+      if (cache.size >= limit) cache.delete(cache.keys().next().value!);
+      cache.set(key, { count, feature });
+    }
+    return feature;
+  };
+  return {
+    encode: (state: FourShogiState) => encodeFeatures(state, readHistory),
+    stats: () => ({ hits, misses, entries: cache.size, capacity: limit }),
   };
 }

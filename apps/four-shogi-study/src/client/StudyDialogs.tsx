@@ -189,6 +189,11 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
   const [seconds, setSeconds] = useState((study.settings.analysisTimeMs ?? 5000) / 1000);
   const [continuous, setContinuous] = useState(study.settings.analysisTimeMs === null);
   const [searchStrategy, setSearchStrategy] = useState(study.settings.searchStrategy ?? "adaptive");
+  const [modelGeneration, setModelGeneration] = useState(study.settings.modelGeneration ?? "g000");
+  const selectedModel = session.config?.models?.find((m) => m.id === modelGeneration);
+  const validation = selectedModel?.validation.validation as
+    | { policyAccuracy?: unknown; valueAccuracy?: unknown }
+    | undefined;
   const [threads, setThreads] = useState(study.settings.threads);
   const [memoryMb, setMemoryMb] = useState(study.settings.memoryMb);
   const [seats, setSeats] = useState(study.settings.seats);
@@ -202,6 +207,7 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
     setSeconds((study.settings.analysisTimeMs ?? 5000) / 1000);
     setContinuous(study.settings.analysisTimeMs === null);
     setSearchStrategy(study.settings.searchStrategy ?? "adaptive");
+    setModelGeneration(study.settings.modelGeneration ?? "g000");
     setThreads(study.settings.threads);
     setMemoryMb(study.settings.memoryMb);
     setSeats(study.settings.seats);
@@ -220,6 +226,7 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
               title: title.trim(),
               settings: {
                 searchStrategy,
+                modelGeneration,
                 analysisTimeMs: continuous ? null : Math.round(seconds * 1000),
                 seats,
                 threads,
@@ -253,6 +260,51 @@ export function SettingsDialog({ session, close }: { session: StudySession; clos
           />
           停止するまで検討する
         </label>
+        <Field
+          label="評価モデル"
+          help="学習モデルは研究用の未校正評価です。候補の作成と棋力向上は別の判定です。"
+        >
+          <select
+            className={fieldClass}
+            value={modelGeneration}
+            onChange={(event) => {
+              const value = event.target.value;
+              setModelGeneration(value);
+              if (value !== "g000") setSearchStrategy("dual-continuations");
+            }}
+          >
+            <option value="g000">G0：従来P0-5評価（v5の従来評価も維持）</option>
+            {(session.config?.models ?? [])
+              .filter((m) => m.id !== "g000")
+              .map((m) => (
+                <option key={m.id} value={m.id} disabled={!m.available}>
+                  G{m.generation} {m.state === "promoted" ? "昇格済み" : "候補・研究用"} · {m.id}
+                  {m.available ? "" : "（利用不可）"}
+                </option>
+              ))}
+          </select>
+          {selectedModel?.modelId ? (
+            <p className="mt-2 break-all text-xs">
+              {selectedModel.modelId} · 学習日 {selectedModel.createdAt} · 親{" "}
+              {selectedModel.parentId ?? "なし"} · {selectedModel.trainingSamples}教師 ·{" "}
+              {selectedModel.validation.policyOnly
+                ? "Policyのみの実験・Valueは未学習"
+                : selectedModel.qualified
+                  ? "データ品質ゲート通過"
+                  : "データ品質は未達・動作試験用"}
+              <br />
+              検証Policy一致{" "}
+              {typeof validation?.policyAccuracy === "number"
+                ? `${(validation.policyAccuracy * 100).toFixed(1)}%`
+                : "未測定"}{" "}
+              · Value分類一致{" "}
+              {typeof validation?.valueAccuracy === "number"
+                ? `${(validation.valueAccuracy * 100).toFixed(1)}%`
+                : "教師なし/未測定"}{" "}
+              · {selectedModel.state === "promoted" ? "暫定昇格ゲート通過" : "棋力優位は未確定"}
+            </p>
+          ) : null}
+        </Field>
         <Field
           label="探索方式"
           help="v6は実験機能です。広い比較と主要候補の深さを分けて表示します。"

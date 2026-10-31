@@ -17,6 +17,7 @@ import { sides, type Side, type FourShogiState } from "../src/types";
 import type { Player } from "./baseline";
 import { experimentStarts } from "./searchExperiment";
 import type { DataModel } from "./modelRuntime";
+import { readStudyCpuSettings, type StudyCpuSettings } from "./studyCpu";
 
 export const selfPlayVersion = "four-shogi-training-record-v1";
 export type DataSplit = "train" | "validation" | "calibration" | "test";
@@ -28,9 +29,13 @@ export type DataCode = {
   runtime: { bun: string; platform: string; arch: string };
 };
 export type DataAgent =
+  | { id: string; kind: "study"; settings: StudyCpuSettings }
   | { id: string; kind: "analysis"; settings: AiSearchSettings }
   | { id: string; kind: "cpu"; reference: string };
 export type SelfPlayConfig = {
+  derivedFrom?: { datasetId: string; contentHash: string };
+  teacherSelection?: "trajectory-importance-v1";
+  studyTeacher?: StudyCpuSettings;
   model?: DataModel;
   origins: { seed: number; replay: AnalysisReplayInput | null }[];
   restrictions: boolean[];
@@ -216,6 +221,9 @@ export function defaultSelfPlayConfig() {
 export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayConfig {
   const raw = dataObject(input, [
     "model",
+    "studyTeacher",
+    "derivedFrom",
+    "teacherSelection",
     "origins",
     "restrictions",
     "seatOffsets",
@@ -284,6 +292,8 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
         kind: "analysis",
         settings: searchSettings(agent.options, code.commit, 256, model?.modelId),
       };
+    if (agent.kind === "study" && agent.reference === undefined)
+      return { id: agent.id, kind: "study", settings: readStudyCpuSettings(agent.options ?? {}) };
     if (
       agent.kind === "cpu" &&
       agent.options === undefined &&
@@ -307,6 +317,37 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   if (typeof sampling.important !== "boolean")
     throw new TypeError("重要局面の選別を明示してください");
   const config = {
+    ...(raw.teacherSelection === undefined
+      ? {}
+      : {
+          teacherSelection: (() => {
+            if (
+              raw.teacherSelection !== "trajectory-importance-v1" ||
+              !raw.derivedFrom ||
+              !raw.studyTeacher ||
+              sampling.every !== 0 ||
+              sampling.important
+            )
+              throw new Error("軌跡選別は確定棋譜の派生P0-5教師専用です");
+            return "trajectory-importance-v1" as const;
+          })(),
+        }),
+    ...(raw.derivedFrom === undefined
+      ? {}
+      : {
+          derivedFrom: (() => {
+            const d = dataObject(raw.derivedFrom, ["datasetId", "contentHash"]);
+            if (
+              !Object.values(d).every((v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v)) ||
+              Object.keys(d).length !== 2
+            )
+              throw new Error("由来datasetの識別が不正です");
+            return d as { datasetId: string; contentHash: string };
+          })(),
+        }),
+    ...(raw.studyTeacher === undefined
+      ? {}
+      : { studyTeacher: readStudyCpuSettings(raw.studyTeacher) }),
     ...(model ? { model } : {}),
     origins,
     restrictions,
@@ -326,7 +367,7 @@ export function parseSelfPlayConfig(input: unknown, code: DataCode): SelfPlayCon
   return config;
 }
 
-function replayFamily(replay: AnalysisReplayInput): string {
+export function replayFamily(replay: AnalysisReplayInput): string {
   const rotations = sides.map((orientation, offset) =>
     canonicalData(
       replay.events.map(({ event }) => ({

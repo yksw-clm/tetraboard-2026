@@ -14,6 +14,7 @@ import { generateSelfPlayGame } from "../bench/selfPlayGame";
 import { SelfPlayStore } from "../bench/selfPlayStore";
 import { exportTrainingData } from "../bench/trainingExport";
 import archive from "../../../test-fixtures/matches/shogi-singles.json";
+import { createStateFeatureEncoder, encodeStateFeatures } from "../src/modelFeatureEncoding";
 
 const initial = {
   mode: "singles" as const,
@@ -26,6 +27,47 @@ const replay = (events: unknown[] = [], restricted = true) => ({
   rulesVersion: 1,
   initial: { ...initial, threePlayerAttackProhibited: restricted },
   events,
+});
+
+test("完全履歴特徴のキャッシュは反復回数を区別し、現在情報・保持済み値・容量を保つ", async () => {
+  const encoder = createStateFeatureEncoder();
+  for (const restricted of [false, true])
+    for (const offset of [0, 1, 6, 26]) {
+      const position = await restoreAnalysisPosition({
+        ...replay(archive.events, restricted),
+        eventOffset: offset,
+      });
+      expect(encoder.encode(position.state)).toEqual(encodeStateFeatures(position.state));
+      expect(encoder.encode(position.state)).toEqual(encodeStateFeatures(position.state));
+      const before = encoder.encode(position.state),
+        key = Object.keys(position.state.repetitions).sort()[0],
+        count = position.state.repetitions[key],
+        changed = {
+          ...position.state,
+          repetitions: { ...position.state.repetitions, [key]: count + 1 },
+          moveNumber: position.state.moveNumber + 1,
+          drawProposals: ["south" as const],
+        };
+      expect(encoder.encode(changed)).toEqual(encodeStateFeatures(changed));
+      expect(before.history[0].values.at(-1)).toBe(count / 4);
+      expect(Object.isFrozen(before.history[0].indices)).toBe(true);
+      expect(() => before.history[0].values.push(1)).toThrow();
+      expect(encoder.encode(position.state)).toEqual(encodeStateFeatures(position.state));
+      const limited = createStateFeatureEncoder(2);
+      expect(limited.encode(position.state)).toEqual(encodeStateFeatures(position.state));
+      expect(limited.stats().entries).toBeLessThanOrEqual(2);
+    }
+  expect(encoder.stats().hits).toBeGreaterThan(0);
+  expect(encoder.stats().entries).toBeLessThanOrEqual(4096);
+  expect(() => createStateFeatureEncoder(-1)).toThrow("上限");
+  expect(() => createStateFeatureEncoder(8193)).toThrow("上限");
+  const position = await restoreAnalysisPosition(replay());
+  expect(() =>
+    encoder.encode({
+      ...position.state,
+      repetitions: Object.fromEntries(Array.from({ length: 2049 }, (_, i) => [String(i), 1])),
+    }),
+  ).toThrow("切り捨てず");
 });
 
 test("特徴版1は絶対座標の4方向・実手番・ON/OFFを固定位置で区別する", async () => {

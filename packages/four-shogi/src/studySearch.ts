@@ -31,6 +31,7 @@ import {
   type EvaluationBreakdown,
 } from "./cpuEvaluation";
 import type { OrdinaryMove } from "./moves";
+import type { AiSyncModel } from "./aiModel";
 import { getActiveSides, handPieceKinds, sides, type FourShogiState, type Side } from "./types";
 import type {
   AiAlternativeRisk,
@@ -163,6 +164,9 @@ export type StudySearchPerformance = AiContextMetrics & {
   rootSetupWork?: number;
 };
 export type StudyRootOptions = {
+  model?: AiSyncModel;
+  modelUsage?: "policy-value" | "policy" | "value";
+  modelFeatureCache?: boolean;
   subtreeCacheLimit?: number;
   reuseChecks?: boolean;
   measureDetails?: boolean;
@@ -486,6 +490,13 @@ export function createStudyRootSearch(
   options: StudyRootOptions = {},
   diagnostics?: StudySearchDiagnostics,
 ) {
+  if (
+    options.modelUsage !== undefined &&
+    (!options.model || !["policy-value", "policy", "value"].includes(options.modelUsage))
+  )
+    throw new TypeError("モデルを指定した研究用Policy/Value条件が必要です");
+  if (options.modelFeatureCache !== undefined && typeof options.modelFeatureCache !== "boolean")
+    throw new TypeError("履歴特徴キャッシュの指定はbooleanです");
   getAnalysisLegalActions(position);
   const lane = options.lane ?? 0;
   const lanes = options.lanes ?? 1;
@@ -549,6 +560,13 @@ export function createStudyRootSearch(
     profile === "study"
       ? {
           evaluate: studyEvaluation,
+          ...(options.model
+            ? {
+                model: options.model,
+                modelUsage: options.modelUsage,
+                modelFeatureCache: options.modelFeatureCache,
+              }
+            : {}),
           orderingBonus: rightCheckBonus,
           replaceCache: optimized,
           preservePromotions: optimized,
@@ -1235,6 +1253,8 @@ export function createStudyRootSearch(
   function* run(): Generator<number, void> {
     if (position.state.status === "finished" || !ctx.legal.length) return;
     // 元の番号でレーンを固定したまま、各レーン内では右への新規王手を先に調べます。
+    const policyOrder =
+      options.model && options.modelUsage !== "value" ? yield* ctx.rootOrder() : null;
     const orderedRoots = ctx.legal
       .map((move, index) => ({
         move,
@@ -1243,7 +1263,13 @@ export function createStudyRootSearch(
           profile === "study" && rightCheckBonus(position.state, move, ctx.checks) > 0,
       }))
       .sort(
-        (a, b) => Number(b.rightCheckPriority) - Number(a.rightCheckPriority) || a.index - b.index,
+        (a, b) =>
+          Number(b.rightCheckPriority) - Number(a.rightCheckPriority) ||
+          (policyOrder
+            ? policyOrder.findIndex((e) => e.index === a.index) -
+              policyOrder.findIndex((e) => e.index === b.index)
+            : 0) ||
+          a.index - b.index,
       );
     for (const { index, move, rightCheckPriority } of orderedRoots) {
       if (index % lanes !== lane) continue;

@@ -17,12 +17,22 @@ export type AiModelOutput = {
   value: number[];
   illegalPolicyNonzero: number;
 };
+export type AiModelValueInput = Omit<AiModelInput, "legalActionIds">;
+export type AiModelValueOutput = Pick<AiModelOutput, "id" | "value">;
 export type AiModelEvaluator = Readonly<{
   modelId: string;
   evaluate: (
     rows: readonly AiModelInput[],
     signal?: AbortSignal,
   ) => Promise<{ modelId: string; rows: AiModelOutput[] }>;
+}>;
+/** ローカルtinyモデル用の同期境界。正本のルール判定は呼出側に残す。 */
+export type AiSyncModel = Readonly<{
+  modelId: string;
+  predict: (input: AiModelInput) => AiModelOutput;
+  /** 同じ完全特徴に対するpredictのValueと同じ値を返す省略経路。 */
+  predictValue?: (input: AiModelValueInput) => AiModelValueOutput;
+  historyReferenceHits?: () => number;
 }>;
 export class AiModelFailure extends Error {
   constructor(
@@ -71,7 +81,26 @@ export function validateModelOutputs(
   });
 }
 
-export function modelEvaluation(state: FourShogiState, prediction: AiModelOutput): AiEvaluation {
+/** Valueだけを消費する葉でも、席・ID・分布の検査は省略しません。 */
+export function validateModelValue(input: AiModelValueInput, output: AiModelValueOutput) {
+  if (
+    !output ||
+    output.id !== input.id ||
+    !Array.isArray(output.value) ||
+    output.value.length !== 5 ||
+    output.value.some((v) => !Number.isFinite(v) || v < 0 || v > 1) ||
+    Math.abs(output.value.reduce((a, b) => a + b, 0) - 1) > 1e-5
+  )
+    throw new AiModelFailure("invalid_output", "モデルValueのID/分布が不正です");
+  for (let side = 0; side < 4; side++)
+    if (!input.features.current.indices.includes(2689 + side) && output.value[side] !== 0)
+      throw new AiModelFailure("invalid_output", "脱落した席のValueが0ではありません");
+}
+
+export function modelEvaluation(
+  state: FourShogiState,
+  prediction: AiModelOutput | AiModelValueOutput,
+): AiEvaluation {
   const active = getActiveSides(state);
   const primary = sides.map((side, index) =>
     active.includes(side)
