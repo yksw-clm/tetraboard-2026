@@ -73,8 +73,9 @@ test("全6ロビーの作成導線はダイアログだけを開き、再訪時�
     );
     expect(preview.getAttribute("alt")).toBe("");
     expect(preview.getAttribute("aria-hidden")).toBe("true");
-    expect(Number(preview.getAttribute("width"))).toBeGreaterThan(0);
-    expect(Number(preview.getAttribute("height"))).toBeGreaterThan(0);
+    const size = game === "four-shogi" || game === "shogi" ? "250" : "264";
+    expect(preview.getAttribute("width")).toBe(size);
+    expect(preview.getAttribute("height")).toBe(size);
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain("ルームを作る");
     expect(JSON.parse(view.querySelector("output")!.textContent!)).toEqual({ preserved: true });

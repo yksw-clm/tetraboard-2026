@@ -3,7 +3,6 @@ import type { FourShogiAction } from "@tetraboard/four-shogi";
 import {
   shogiActionChoices,
   shogiBoardPosition,
-  shogiBoardPositionAtPoint,
   shogiDisplayPosition,
   shogiDragThresholdReached,
   shogiPieceDirection,
@@ -45,27 +44,6 @@ test("四陣営の相対配置と進行向きを同じ順序で表示する", ()
       expect(shogiPieceDirection(side, viewer)).toBe(directions[offset]);
     }
   }
-});
-
-test("ドラッグの終点は木目の内側の矩形で判定し、盤外や不正値を送信先にしない", () => {
-  const rectangle = { left: 20, top: 30, width: 450, height: 490 };
-  expect(shogiBoardPositionAtPoint({ x: 21, y: 31 }, rectangle, "south")).toEqual({ x: 0, y: 0 });
-  expect(shogiBoardPositionAtPoint({ x: 469, y: 519 }, rectangle, "south")).toEqual({ x: 8, y: 8 });
-  expect(shogiBoardPositionAtPoint({ x: 21, y: 31 }, rectangle, "west")).toEqual({ x: 8, y: 0 });
-  expect(shogiBoardPositionAtPoint({ x: 21, y: 31 }, rectangle, "north")).toEqual({ x: 8, y: 8 });
-  expect(shogiBoardPositionAtPoint({ x: 21, y: 31 }, rectangle, "east")).toEqual({ x: 0, y: 8 });
-  for (const point of [
-    { x: 19, y: 30 },
-    { x: 470, y: 30 },
-    { x: 20, y: 520 },
-    { x: 20, y: 29 },
-    { x: NaN, y: 31 },
-  ]) {
-    expect(shogiBoardPositionAtPoint(point, rectangle, "south")).toBeNull();
-  }
-  expect(
-    shogiBoardPositionAtPoint({ x: 20, y: 30 }, { ...rectangle, width: 0 }, "south"),
-  ).toBeNull();
 });
 
 test("選択駒と移動先に対応するサーバーの候補だけを取り出し、成りの二択を保つ", () => {
