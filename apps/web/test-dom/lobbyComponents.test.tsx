@@ -90,9 +90,12 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
       `/api/games/${game}/rankings?profilePreview=1${game === "four-shogi" ? "&includeKnockouts=1" : ""}`,
     );
     expect(view.textContent).toContain("読み込んで");
+    const preview = view.querySelector('[role="status"]')!.parentElement!;
+    expect(preview.querySelectorAll(':scope > [aria-hidden="true"]')).toHaveLength(3);
     requests.at(-1)!.respond(rankings);
     await flush();
-    expect(view.querySelectorAll("li")).toHaveLength(3);
+    expect(preview.querySelectorAll("li")).toHaveLength(3);
+    expect(preview.querySelector(".skeleton")).toBeNull();
     expect(view.textContent).toContain("対人戦のみ集計");
     press(view, "もっと見る");
     await flush();
@@ -116,10 +119,30 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
       .at(-1)!
       .respond({ singles: { first: [], total: [] }, doubles: { wins: [], total: [] } });
     await flush();
-    expect(view.textContent).toContain("対象者がいません");
+    expect(preview.textContent).toContain("対象者がいません");
     rerender(view, null);
   }
 });
+
+test.each([1, 2])(
+  "初回失敗後もランキングのプレビュー内に再試行と%d件の結果を表示する",
+  async (count) => {
+    const view = render(<LobbyRankings game="four-shogi" />);
+    const preview = view.querySelector('[role="status"]')!.parentElement!;
+    clock.advance(0);
+    requests.at(-1)!.respond({}, 503);
+    await flush();
+    expect(preview.querySelector('[role="alert"]')).not.toBeNull();
+    expect(preview.querySelector(".skeleton")).toBeNull();
+    press(preview, "再試行");
+    requests
+      .at(-1)!
+      .respond({ ...rankings, singles: { ...rankings.singles, first: entries.slice(0, count) } });
+    await flush();
+    expect(preview.querySelectorAll("li")).toHaveLength(count);
+    expect(preview.querySelector('[role="alert"]')).toBeNull();
+  },
+);
 
 test("ロビーは幅に関わらず公開ルーム・ランキング・最近の対局・大会一覧の順と詳細の選択を保持", async () => {
   const media = new window.EventTarget();

@@ -63,15 +63,21 @@ test.each([...gameIds])(
     const view = render(
       wrap(null, gameCatalog[game].lobbyPath)(<LobbyView {...lobbyProps(game)} />),
     );
+    const main = view.querySelector("main")!;
+    const actions = main.querySelectorAll('section[aria-label="対局を始める"]');
+    expect(actions).toHaveLength(1);
+    const loading = [...main.querySelectorAll('[role="status"]')].find(
+      (status) => status.textContent === "大会の情報を読み込んでいます…",
+    );
+    if (game === "four-shogi") {
+      expect(loading).toBeDefined();
+      expect(loading!.parentElement!.querySelector(".skeleton")).not.toBeNull();
+    } else expect(loading).toBeUndefined();
     clock.advance(0);
     tournamentRequest(game).respond({ current: [], upcoming: [], serverTimeMs: Date.now() });
     await flush();
-    const main = view.querySelector("main")!;
-    expect(
-      [...main.querySelectorAll(":scope > section")].map((section) =>
-        section.getAttribute("aria-label"),
-      ),
-    ).toEqual(["対局を始める", `${gameCatalog[game].name}の紹介`]);
+    expect(main.querySelector('section[aria-label="対局を始める"]')).toBe(actions[0]!);
+    expect(main.textContent).not.toContain("大会の情報を読み込んでいます…");
     expect([...main.querySelectorAll("h2")].map((heading) => heading.textContent)).not.toContain(
       "大会",
     );
@@ -81,7 +87,7 @@ test.each([...gameIds])(
   },
 );
 
-test("四人将棋ロビーはお知らせ・大会・次回の大会・対局操作の順で表示する", async () => {
+test("四人将棋ロビーは対局操作・お知らせ・大会・次回の大会の順で表示する", async () => {
   const game = "four-shogi";
   const view = render(wrap(null, gameCatalog[game].lobbyPath)(<LobbyView {...lobbyProps(game)} />));
   clock.advance(0);
@@ -120,7 +126,7 @@ test("四人将棋ロビーはお知らせ・大会・次回の大会・対局�
     currentHeading.compareDocumentPosition(upcomingHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(
-    upcomingHeading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING,
+    actions.compareDocumentPosition(announcement) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(view.querySelector(`a[href="/tournaments/${current.id}"]`)).not.toBeNull();
   expect(view.querySelector(`a[href="/tournaments/${upcoming.id}"]`)).not.toBeNull();

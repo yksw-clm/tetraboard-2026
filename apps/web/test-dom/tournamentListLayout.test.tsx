@@ -1,8 +1,11 @@
 import { expect, spyOn, test } from "bun:test";
 import type { ComponentProps } from "react";
+import { createMemoryRouter, RouterProvider } from "react-router";
+import { AccountContext } from "../src/features/account/useAccount";
 import { GeneralLobbyPage } from "../src/features/lobby/GeneralLobbyPage";
 import { LobbyView } from "../src/features/lobby/LobbyView";
 import { profile } from "../test/fixtures/account";
+import { match } from "../test/fixtures/matchSummary";
 import { act, clock, enter, flush, render, requests, wrap } from "./harness";
 
 const pastTournament = {
@@ -41,10 +44,36 @@ test("ホームの大会一覧は幅変更で位置だけを変え、チャッ�
         removeEventListener: events.removeEventListener.bind(events),
       }) as unknown as MediaQueryList,
   );
+  const router = createMemoryRouter([{ path: "/", element: <GeneralLobbyPage /> }]);
   try {
-    const view = render(wrap(profile)(<GeneralLobbyPage />));
+    const view = render(
+      <AccountContext.Provider
+        value={{
+          user: profile,
+          loading: false,
+          error: null,
+          refresh: async () => {},
+          update: () => {},
+        }}
+      >
+        <RouterProvider router={router} />
+      </AccountContext.Provider>,
+    );
+    const rooms = view.querySelector('[aria-labelledby="public-rooms-title"]')!;
+    const list = view.querySelector('[aria-labelledby="tournament-list-all-title"]')!;
+    const recent = view.querySelector('[aria-labelledby="recent-matches-title"]')!;
+    for (const section of [rooms, list, recent]) {
+      expect(section.querySelectorAll('[role="status"]')).toHaveLength(1);
+      expect(section.querySelector('.skeleton[aria-hidden="true"]')).not.toBeNull();
+    }
     clock.advance(0);
     respondList("all");
+    requests
+      .find(({ url }) => url.startsWith("/api/lobby/rooms?"))!
+      .respond({ rooms: [], nextCursor: null, totalCount: 0 });
+    requests
+      .find(({ url }) => url.startsWith("/api/lobby/matches?"))!
+      .respond({ matches: [match(1)] });
     requests
       .find(({ url }) => url.startsWith("/api/lobby/chat?"))!
       .respond({
@@ -56,10 +85,18 @@ test("ホームの大会一覧は幅変更で位置だけを変え、チャッ�
         serverTimeMs: Date.now(),
       });
     await flush();
-    const rooms = view.querySelector('[aria-labelledby="public-rooms-title"]')!;
-    const list = view.querySelector('[aria-labelledby="tournament-list-all-title"]')!;
+    for (const section of [rooms, list, recent])
+      expect(section.querySelector(".skeleton")).toBeNull();
+    expect(recent.querySelector("article")).not.toBeNull();
+    act(() => recent.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    clock.advance(0);
+    expect(recent.querySelector(".skeleton")).toBeNull();
+    expect(recent.querySelector('[role="status"]')).not.toBeNull();
+    const filtered = requests.find(({ url }) => url.includes("humanOnly=true"))!;
+    filtered.respond({ matches: [] });
+    await flush();
+    expect(recent.textContent).toContain("対人戦の対局履歴がありません。");
     const chat = view.querySelector('[aria-labelledby="public-chat-title"]')!;
-    const recent = view.querySelector('[aria-labelledby="recent-matches-title"]')!;
     before(rooms, list);
     before(list, chat);
     before(chat, recent);
@@ -82,6 +119,7 @@ test("ホームの大会一覧は幅変更で位置だけを変え、チャッ�
     before(list, chat);
     expect(requests).toHaveLength(requestCount);
   } finally {
+    router.dispose();
     matchMedia.mockRestore();
   }
 });

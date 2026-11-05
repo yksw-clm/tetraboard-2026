@@ -152,51 +152,44 @@ export function LobbyView(props: Props) {
                 <h1 className="text-[36px] leading-[1.35] tracking-[0.02em] [@media(max-width:767px)]:text-[27px]">
                   {game.title}
                 </h1>
-                <p className="mt-[6px]! text-muted text-sm [@media(max-width:767px)]:hidden">
+                <p className="mt-[6px]! text-muted text-sm [@media(max-width:767px)]:text-xs">
                   ひとりでも、友達とでも。{game.description}
                 </p>
+                <AppButton
+                  className="-ml-[9px] px-[9px] text-[13px]"
+                  appearance="quiet"
+                  type="button"
+                  onPress={() => setDialog({ type: "rules" })}
+                >
+                  <AppIcon name="book" />
+                  遊び方
+                </AppButton>
               </div>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="hidden text-muted text-xs [@media(max-width:767px)]:block">
-                ひとりでも、友達とでも。
-                <br />
-                {game.description}
-              </p>
+            <section
+              aria-label="対局を始める"
+              className="grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 [@media(max-width:400px)]:grid-cols-1"
+            >
               <AppButton
-                className="px-[9px] text-[13px]"
-                appearance="quiet"
-                type="button"
-                onPress={() => setDialog({ type: "rules" })}
+                className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
+                onPress={() => openEntry("quick")}
               >
-                <AppIcon name="book" />
-                遊び方
+                <AppIcon name="robot" />
+                CPUと遊ぶ
               </AppButton>
-            </div>
+              <AppButton
+                className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
+                appearance="secondary"
+                onPress={() => openEntry("create")}
+              >
+                <AppIcon name="plus" />
+                公開ルームを作る
+              </AppButton>
+            </section>
           </div>
 
           <LobbyAnnouncement game={props.game} />
           <TournamentEntrance game={props.game} />
-          <section
-            aria-label="対局を始める"
-            className="grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(max-width:400px)]:grid-cols-1"
-          >
-            <AppButton
-              className="w-full min-w-0 min-h-12 gap-2 px-3"
-              onPress={() => openEntry("quick")}
-            >
-              <AppIcon name="robot" />
-              CPUと遊ぶ
-            </AppButton>
-            <AppButton
-              className="w-full min-w-0 min-h-12 gap-2 px-3"
-              appearance="secondary"
-              onPress={() => openEntry("create")}
-            >
-              <AppIcon name="plus" />
-              公開ルームを作る
-            </AppButton>
-          </section>
           <div className="grid grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] items-start gap-5 [@media(max-width:767px)]:grid-cols-1 [@media(max-width:767px)]:gap-[18px]">
             {order.map((section) => sections[section])}
           </div>

@@ -8,6 +8,7 @@ import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppDialog } from "../../shared/ui/AppDialog";
+import { AppSkeleton } from "../../shared/ui/AppSkeleton";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { type AppTheme } from "../../shared/ui/appTheme";
 import { useRankings } from "./useRankings";
@@ -64,18 +65,23 @@ function RankingList({
   label,
   game,
   mode,
+  preview,
 }: {
   entries: PreviewRankings["singles"]["first"];
   label: string;
   game: MatchGame;
   mode: RoomMode;
+  preview: boolean;
 }) {
   return entries.length ? (
-    <ol aria-label={`${label}ランキング`} className="m-0 flex flex-col gap-3 p-0 list-none">
+    <ol
+      aria-label={`${label}ランキング`}
+      className={`m-0 flex flex-col p-0 list-none ${preview ? "" : "gap-3"}`}
+    >
       {entries.map((entry) => (
         <li
           key={entry.profileId ?? entry.username ?? `${entry.rank}:${entry.name}`}
-          className="flex min-w-0 items-center gap-2 border-b border-solid border-line py-3 text-sm last:border-0"
+          className={`flex min-w-0 items-center gap-2 border-b border-solid border-line text-sm last:border-0 ${preview ? "h-12" : "py-3"}`}
         >
           <span className="w-8 shrink-0 text-muted text-xs tabular-nums">{entry.rank}位</span>
           <PlayerProfileTrigger
@@ -87,7 +93,7 @@ function RankingList({
           >
             <AppAvatar src={entry.avatarUrl} label={`${entry.name}のアイコン`} className="size-8" />
           </PlayerProfileTrigger>
-          <span className="min-w-0 flex-1 break-words font-semibold">
+          <span className={`min-w-0 flex-1 font-semibold ${preview ? "" : "break-words"}`}>
             <PlayerProfileTrigger
               target={
                 entry.profileId ? { source: "profile", profileId: entry.profileId } : undefined
@@ -96,6 +102,7 @@ function RankingList({
               mode={mode}
               theme={gameThemes[game]}
               label={entry.name}
+              className={preview ? "block max-w-full truncate" : undefined}
             >
               {entry.name}
               {entry.isGuest && <span className="ml-1 text-xs font-normal text-muted">ゲスト</span>}
@@ -121,12 +128,14 @@ function RankingContent({
   metric = "victories",
   limit,
   source = "retry",
+  preview = false,
 }: {
   state: ReturnType<typeof useRankings>;
   mode: RoomMode;
   metric?: RankingMetric;
   limit: number;
   source?: string;
+  preview?: boolean;
 }) {
   const label = rankingLabel(state.game, mode, metric);
   const entries =
@@ -144,41 +153,59 @@ function RankingContent({
           : mode === "singles"
             ? state.rankings.singles.first
             : state.rankings.doubles.wins);
+  const loading = state.loading && !state.pendingSource;
+  const showErrorInPreview = preview && !entries?.length && Boolean(state.error);
+  const error = state.error && (
+    <div className="flex flex-col items-start gap-2">
+      <p role="alert" className="text-sm text-danger">
+        {state.error}
+      </p>
+      <AppButton
+        appearance="secondary"
+        size="compact"
+        isDisabled={state.loading}
+        isPending={state.pendingSource === source}
+        onPress={() => void state.refresh(source)}
+      >
+        再試行
+      </AppButton>
+    </div>
+  );
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-muted">{label}</h3>
-      {state.loading && !state.pendingSource && (
-        <p role="status" className="text-sm text-muted">
-          ランキングを読み込んでいます…
-        </p>
-      )}
-      {entries && (
-        <RankingList
-          entries={entries.slice(0, limit)}
-          label={label}
-          game={state.game}
-          mode={mode}
-        />
-      )}
-      {metric === "knockouts" && state.rankings && !entries && !state.loading && (
-        <p className="text-sm text-muted">撃破数ランキングは現在表示できません。</p>
-      )}
-      {state.error && (
-        <div className="flex flex-col items-start gap-2">
-          <p role="alert" className="text-sm text-danger">
-            {state.error}
+      <h3 className={preview ? "sr-only" : "text-sm font-semibold text-muted"}>{label}</h3>
+      <div className={preview ? "min-h-36" : "contents"}>
+        {loading && (
+          <p role="status" className={preview ? "sr-only" : "text-sm text-muted"}>
+            ランキングを読み込んでいます…
           </p>
-          <AppButton
-            appearance="secondary"
-            size="compact"
-            isDisabled={state.loading}
-            isPending={state.pendingSource === source}
-            onPress={() => void state.refresh(source)}
-          >
-            再試行
-          </AppButton>
-        </div>
-      )}
+        )}
+        {preview &&
+          loading &&
+          !entries &&
+          [0, 1, 2].map((row) => (
+            <div key={row} className="flex h-12 items-center gap-2" aria-hidden="true">
+              <AppSkeleton className="h-3 w-8" />
+              <AppSkeleton className="size-8 rounded-full" />
+              <AppSkeleton className="h-3 w-1/3" />
+              <AppSkeleton className="ml-auto h-3 w-8" />
+            </div>
+          ))}
+        {entries && !showErrorInPreview && (
+          <RankingList
+            entries={entries.slice(0, limit)}
+            label={label}
+            game={state.game}
+            mode={mode}
+            preview={preview}
+          />
+        )}
+        {metric === "knockouts" && state.rankings && !entries && !state.loading && (
+          <p className="text-sm text-muted">撃破数ランキングは現在表示できません。</p>
+        )}
+        {showErrorInPreview && error}
+      </div>
+      {!showErrorInPreview && error}
     </div>
   );
 }
@@ -287,9 +314,7 @@ function LobbyRankingsView({
         <p className="text-xs text-muted">
           {gameCatalog[state.game].hasModes ? "シングルス・優勝数" : "勝利数"}（対人戦のみ集計）
         </p>
-        <div className="[&_h3]:sr-only">
-          <RankingContent state={state} mode="singles" limit={3} />
-        </div>
+        <RankingContent state={state} mode="singles" limit={3} preview />
       </AppCard>
       {open && (
         <RankingsDialog

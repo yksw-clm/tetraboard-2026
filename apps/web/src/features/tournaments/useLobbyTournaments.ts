@@ -113,11 +113,13 @@ export function useLobbyTournaments(game: GameId) {
   }, [game, identity, authAvailable, scope, revision]);
 
   const publicData = publicState.game === game ? publicState.data : null;
+  const error = publicState.game === game ? publicState.error : null;
   return {
     current: publicData?.current ?? [],
     upcoming: publicData?.upcoming ?? [],
     serverTimeMs: publicData?.serverTimeMs ?? 0,
-    error: publicState.game === game ? publicState.error : null,
+    error,
+    isInitialLoading: !publicData && !error,
     retry,
     participation: (id: number): Participation =>
       identity
