@@ -80,30 +80,8 @@ export function shogiBoardPosition(position: Position, viewerSide: Side): Positi
   }
 }
 
-export function shogiBoardPositionAtPoint(
-  point: Position,
-  rectangle: Readonly<{ left: number; top: number; width: number; height: number }>,
-  viewerSide: Side,
-): Position | null {
-  if (
-    rectangle.width <= 0 ||
-    rectangle.height <= 0 ||
-    !Number.isFinite(point.x) ||
-    !Number.isFinite(point.y) ||
-    point.x < rectangle.left ||
-    point.x >= rectangle.left + rectangle.width ||
-    point.y < rectangle.top ||
-    point.y >= rectangle.top + rectangle.height
-  ) {
-    return null;
-  }
-  return shogiBoardPosition(
-    {
-      x: Math.floor(((point.x - rectangle.left) / rectangle.width) * 9),
-      y: Math.floor(((point.y - rectangle.top) / rectangle.height) * 9),
-    },
-    viewerSide,
-  );
+export function shogiSquareName(position: Position): string {
+  return `${"ABCDEFGHI"[position.x]}${position.y + 1}`;
 }
 
 export function shogiSamePosition(left: Position, right: Position): boolean {
