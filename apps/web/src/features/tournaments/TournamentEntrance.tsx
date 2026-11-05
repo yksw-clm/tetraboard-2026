@@ -1,6 +1,7 @@
 import type { TournamentPublic } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { AppCard } from "../../shared/ui/AppCard";
+import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { useAccount } from "../account/useAccount";
@@ -105,6 +106,16 @@ function TournamentEntranceCard({
 export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
   const account = useAccount();
   const state = useLobbyTournaments(game);
+  if (game === "four-shogi" && state.isInitialLoading) {
+    return (
+      <div>
+        <p role="status" className="sr-only">
+          大会の情報を読み込んでいます…
+        </p>
+        <AppSkeletonCard className="h-28 [@media(min-width:768px)]:h-24" />
+      </div>
+    );
+  }
   if (!state.current.length && !state.upcoming.length && !state.error) return null;
   return (
     <div className="space-y-4">

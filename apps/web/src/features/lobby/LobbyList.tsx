@@ -7,6 +7,7 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppPendingIndicator } from "../../shared/ui/AppPendingIndicator";
 import { LobbyRoomCard } from "./LobbyRoomCard";
 import type { CapacityFilter, ModeFilter } from "./useGeneralLobbyRooms";
+import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 
 type Props = {
   game?: GameId;
@@ -170,9 +171,13 @@ export function LobbyList({
           }
         >
           {isInitialLoading && (
-            <p role="status" className="py-8 text-sm text-muted">
-              公開ルームを読み込んでいます…
-            </p>
+            <div className={`grid gap-3 ${general ? "[@media(min-width:768px)]:grid-cols-2" : ""}`}>
+              <p role="status" className="sr-only">
+                公開ルームを読み込んでいます…
+              </p>
+              <AppSkeletonCard className="h-34" />
+              <AppSkeletonCard className="h-34" />
+            </div>
           )}
           {visible.length > 0 && (
             <ul

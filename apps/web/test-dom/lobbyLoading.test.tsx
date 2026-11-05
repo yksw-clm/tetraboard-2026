@@ -46,6 +46,7 @@ for (const game of gameIds) {
       const page = { rooms, nextCursor: null, totalCount: rooms.length };
       const view = render(<Lobby />);
       expect(view.textContent).toContain(loadingText);
+      expect(view.querySelectorAll('.skeleton[aria-hidden="true"]')).not.toHaveLength(0);
       clock.advance(0);
       const initial = requests.at(-1)!;
       clock.advance(10_000);
@@ -56,11 +57,13 @@ for (const game of gameIds) {
       const retainedText = count ? "ホスト" : "公開ルームはまだありません";
       expect(view.textContent).toContain(retainedText);
       expect(view.textContent).not.toContain(loadingText);
+      expect(view.querySelector(".skeleton")).toBeNull();
 
       clock.advance(10_000);
       expect(requests).toHaveLength(2);
       expect(view.textContent).toContain(retainedText);
       expect(view.textContent).not.toContain(loadingText);
+      expect(view.querySelector(".skeleton")).toBeNull();
       expect(view.querySelector('[data-pending="true"]')).toBeNull();
       requests.at(-1)!.respond(page);
       await flush();

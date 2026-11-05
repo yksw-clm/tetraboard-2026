@@ -7,6 +7,7 @@ export function useRecentMatches(game: GameId | "all") {
   const [page, setPage] = useState({
     matches: [] as MatchSummary[],
     loading: true,
+    isInitialLoading: true,
     loaded: false,
     error: null as string | null,
     revision: 0,
@@ -22,6 +23,7 @@ export function useRecentMatches(game: GameId | "all") {
       setPage((current) => ({
         matches: [],
         loading: true,
+        isInitialLoading: false,
         loaded: false,
         error: null,
         revision: current.revision,
@@ -46,6 +48,7 @@ export function useRecentMatches(game: GameId | "all") {
         setPage((current) => ({
           matches,
           loading: false,
+          isInitialLoading: false,
           loaded: true,
           error: null,
           revision: current.revision + 1,
@@ -55,6 +58,7 @@ export function useRecentMatches(game: GameId | "all") {
           setPage((current) => ({
             ...current,
             loading: false,
+            isInitialLoading: false,
             loaded: true,
             error: "最近の対局を取得できませんでした。",
           }));

@@ -22,11 +22,14 @@ test("もっと見るは20件をダイアログで表示し、ロビーの3件�
   const view = render(<RouterProvider router={router} />);
   try {
     clock.advance(0);
+    const preview = view.querySelector('ul[aria-label="最近行われた対局の棋譜"]')!;
+    const previewBody = preview.parentElement!;
+    expect(previewBody.querySelectorAll(':scope > [aria-hidden="true"]')).toHaveLength(3);
     const matches = Array.from({ length: 20 }, (_, index) => match(index + 1));
     requests.at(-1)!.respond({ matches });
     await flush();
-    const preview = view.querySelector('ul[aria-label="最近行われた対局の棋譜"]')!;
     expect(preview.children).toHaveLength(3);
+    expect(previewBody.querySelector(".skeleton")).toBeNull();
     expect(view.querySelector("article")).toBeNull();
     expect(view.querySelector('input[type="checkbox"]')).toBeNull();
     const requestCount = requests.length;
@@ -121,14 +124,19 @@ test("初回失敗は詳細から再試行でき、取得中に閉じてもプ�
     expect(dialog.querySelector('[role="alert"]')).not.toBeNull();
     press(dialog, "再試行");
     await closeDialog();
-    requests.at(-1)!.respond({ matches: [match(1)] });
+    expect(
+      view
+        .querySelector('ul[aria-label="最近行われた対局の棋譜"]')!
+        .parentElement!.querySelector('[role="alert"]'),
+    ).not.toBeNull();
+    requests.at(-1)!.respond({ matches: [match(1), match(2)] });
     await flush();
-    expect(view.querySelectorAll('ul[aria-label="最近行われた対局の棋譜"] > li')).toHaveLength(1);
+    expect(view.querySelectorAll('ul[aria-label="最近行われた対局の棋譜"] > li')).toHaveLength(2);
     expect(view.querySelector('[role="alert"]')).toBeNull();
     const requestCount = requests.length;
     press(view, "もっと見る");
     await flush();
-    expect(document.querySelectorAll('[role="dialog"] article')).toHaveLength(1);
+    expect(document.querySelectorAll('[role="dialog"] article')).toHaveLength(2);
     expect(requests).toHaveLength(requestCount);
   } finally {
     router.dispose();
