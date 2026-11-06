@@ -38,7 +38,7 @@ PRはeventのbase SHAとcheckoutしたmerge commitを直接比較し、renameを
 
 ### Fullの実行と資産の受け渡し
 
-Fullは全workspaceのformat・lint・型・全テスト、ローカル検討のbuild、本番／開発のWeb・Admin buildとWorker dry-runを実行します。個人設定なし・競合する.env・競合する.dev.varsの実Worker検証と型生成の一致も維持します。この3状態には異なるローダー分岐があるため、起動コストを理由に省略しません。
+Fullは独立Python AIのRuff・mypy・pytestと、全workspaceのformat・lint・型・全テスト、ローカル検討のbuild、本番／開発のWeb・Admin buildとWorker dry-runを実行します。個人設定なし・競合する.env・競合する.dev.varsの実Worker検証と型生成の一致も維持します。この3状態には異なるローダー分岐があるため、起動コストを理由に省略しません。
 
 型チェックが成功したCI内では `build:assets` で同じVite・公開ロビー生成・chunk／WASM検査を実行します。手元の `bun run build`・`study:build` は型チェックを含みます。本番と開発でcanonical・robots等が異なるWeb資産は別々に生成します。
 
@@ -381,7 +381,21 @@ Webの `shogiComponents.test.tsx` は種類・枚数・4方向と選択・pointe
 
 PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネイティブ操作は手動確認し、環境と未確認事項をPRへ記録します。ブラウザ起動型の自動テストは追加しません。PR前は共通の必須5コマンドとGitHub CIを成功させます。
 
+## 独立Python四人将棋AIの確認
+
+2026-11-06に旧AI計画を全面置換した[設計契約](../ai/four-shogi-ai/docs/design.md)の検証です。Python領域だけpytest＋Hypothesisを使う方針を承認済みです。既存Bun・happy-dom・Worker統合テストとブラウザ自動テストを追加しない方針は維持します。
+
+ルートの `mise install`、`mise exec -- uv sync --locked --directory ai/four-shogi-ai` 後に `bun run ai:check` を実行します。Ruffのformat確認・Lint、mypy strict、pytestを同じ順に実行し、いずれかの失敗で非零終了します。ルートの `bun run check`／`bun run test` とFull CIも同じ入口を使います。GitHubのchecksジョブはmise.tomlの固定版を導入し、Python工程の時間と結果を記録します。FastではPython未実行をsummaryへ記録します。`ai/`・mise・依存／CI変更はFullを選びます。
+
+01のテストは版・プロフィール・mode・全イベント形・座標・連番・offset・未知項目・参加者の重複、正常／異常時の入力不変、外部dictの変更からの隔離を検査します。JSONの整数値とPythonのboolの違いも境界です。Hypothesisはderandomizeで固定された100生成例を使い、正規化後の往復を検証します。内部の関数呼出し回数をモックしません。
+
+`test_contract_matches_real_ts_validator` は同じ正常／異常入力を実BunプロセスのTS入力検査器へ渡し、正規化した再生入力または拒否code・イベント位置を比較します。タイムアウト30秒で停止し、Bun不在をskipで成功扱いしません。TS側の比較入口は `scripts/ci/tsconfig.json` の型検査対象です。
+
+01の形式検証は、ルール遷移・合法手・順位・攻撃履歴・反復・棋力を検証しません。これらは後続の固定例／生成対局／差分比較で検証します。全コマンド成功でもその範囲を合格扱いせず、PRとNotionへ未実装範囲を記録します。重い自己対局・学習・棋力測定は通常checkへ追加しません。
+
 ## 四人将棋シングルスAIの契約確認
+
+この節は廃止した旧計画に由来する、現在残るTS AI実装の回帰確認です。新しいPython計画の完了条件は上の専用節と設計契約で管理します。
 
 [Issue #184の契約](four-shogi-ai-engine.md)はD01〜D05を2026-10-14に承認済みです。この文書変更では現在のルール・CPU・通信・設定を変更せず、相対リンク・整形・判断ID・承認記録と未決表示、最終 `git diff --check` を確認します。コード/設定が同一と確認できる直前の5必須コマンド成功結果は、AGENTSの条件で検証済みコミットを明記して再利用できます。GitHub CI成功は別に確認します。
 
