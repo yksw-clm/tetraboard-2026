@@ -11,6 +11,7 @@ export type RegistrationFlow = {
   instance_id: string;
   match_id: string;
   player_id: string | null;
+  guest_account_id: string | null;
   old_token_hash: string;
   new_token_hash: string;
   created_at_ms: number;
@@ -104,9 +105,13 @@ export async function registrationStatus(
       "登録の準備を確認しています。もう一度お試しください。",
     );
   const identity = await accountSessionIdentity(request, env);
-  const matchState = flow.account_id
-    ? await readMatchClaimState(env.APP_DB, flow.match_id, flow.player_id, flow.account_id)
-    : null;
+  const matchState = flow.guest_account_id
+    ? (await guestRoomLinkComplete(env.APP_DB, flow))
+      ? "applied"
+      : null
+    : flow.account_id
+      ? await readMatchClaimState(env.APP_DB, flow.match_id, flow.player_id, flow.account_id)
+      : null;
   const state = await env.GAME_ROOM.getByName(flow.room_id).getGuestRegistration(flow.id);
   let seat: RegistrationStatus["seat"] = flow.seat_state;
   if (state) {
@@ -159,6 +164,24 @@ export async function registrationStatus(
                 : "unclaimed",
     seat,
   };
+}
+
+export async function guestRoomLinkComplete(db: D1Database, flow: RegistrationFlow) {
+  if (!flow.guest_account_id || !flow.account_id) return false;
+  return Boolean(
+    await db
+      .prepare(`SELECT 1 FROM user u WHERE u.id=? AND COALESCE(u.isAnonymous,0)=0
+    AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
+    AND (u.id=? OR (? IS NOT NULL AND EXISTS (
+      SELECT 1 FROM guest_account_merges m WHERE m.guest_id=? AND m.account_id=u.id)))`)
+      .bind(
+        flow.account_id,
+        flow.guest_account_id,
+        flow.record_accepted_at_ms,
+        flow.guest_account_id,
+      )
+      .first(),
+  );
 }
 
 export async function prepareRegistrationOAuth(env: AuthEnv, credential: unknown) {

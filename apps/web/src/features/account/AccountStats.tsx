@@ -44,13 +44,11 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
   return (
     <>
       {gameCatalog[game].hasModes && mode === "singles" && stats && (
-        <div className="mt-2 border-0 border-t border-solid border-line pt-5">
-          <AccountBadges game={game} stats={stats} />
-        </div>
+        <AccountBadges game={game} stats={stats} />
       )}
       <section
         aria-labelledby="account-stats-title"
-        className="mt-2 min-w-0 flex flex-col gap-3 border-0 border-t border-solid border-line pt-5"
+        className="min-w-0 flex flex-col gap-3 not-first:mt-2 not-first:border-0 not-first:border-t not-first:border-solid not-first:border-line not-first:pt-5"
       >
         <div className="flex items-center justify-between gap-2">
           <h2 id="account-stats-title" className="text-lg font-bold">

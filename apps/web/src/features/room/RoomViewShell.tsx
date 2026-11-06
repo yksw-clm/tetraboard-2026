@@ -18,10 +18,12 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { RoomLayout } from "./RoomLayout";
 import type { useRoomChat } from "./useRoomChat";
 import type { SharedRoomSession } from "./useRoomTransport";
-import { gameCatalog } from "@tetraboard/protocol/games";
+import { isFourShogiRoom, isShogiRoom } from "@tetraboard/protocol";
+import { gameCapacity, gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes, appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
+import { GuestResultLinkCard } from "../account/GuestResultLinkCard";
 import { useResultRegistration } from "../account/useResultRegistration";
 import {
   registrationMatchId,
@@ -73,11 +75,15 @@ export function RoomViewShell({
   const [unfinishedRegistration, setUnfinishedRegistration] = useState(readGuestRegistration);
   const [registrationResult] = useState(() => {
     const result =
-      (location.state as { registrationResult?: { matchId: string; record: string } } | null)
-        ?.registrationResult ??
+      (
+        location.state as {
+          registrationResult?: { matchId: string; record: string; linkedGuest?: true };
+        } | null
+      )?.registrationResult ??
       (unfinishedRegistration?.returning && {
         matchId: unfinishedRegistration.matchId,
         record: unfinishedRegistration.returning.record,
+        linkedGuest: unfinishedRegistration.linkGuest,
       });
     return result?.matchId === registrationMatchId(session.room) ? result : null;
   });
@@ -87,10 +93,26 @@ export function RoomViewShell({
         ?.registrationCancelledMatchId === registrationMatchId(session.room),
   );
   const [tab, setTab] = useState("board");
+  const [openReplayKey, setOpenReplayKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<
     "result" | "leave" | "resign" | "feedback" | "settings" | "room-settings" | null
   >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
+  const resultMatchId = registrationMatchId(room);
+  const participated = room.lastRound?.players.some((player) => player.id === membership?.playerId);
+  const humanOnly =
+    room.lastRound?.players.every(
+      (player) =>
+        (player.appearance?.kind ??
+          room.players.find((current) => current.id === player.id)?.kind) === "human",
+    ) ?? false;
+  const turn =
+    room.status === "playing"
+      ? isFourShogiRoom(room) || isShogiRoom(room)
+        ? room.players.find((player) => player.side === room.game.turn)
+        : room.players.find((player) => player.color === room.game.turn)
+      : undefined;
+  const myTurn = turn !== undefined && turn.id === session.self?.id;
   const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
   const tournamentStartsAtMs =
     tournamentId !== undefined &&
@@ -197,6 +219,18 @@ export function RoomViewShell({
       { timeout: 3000 },
     );
   const accountAvailable = !account.loading && !account.error;
+  const guestLinkResult =
+    accountAvailable &&
+    account.user?.isGuest &&
+    session.authenticated &&
+    membership?.accountLinked &&
+    session.self?.kind === "human" &&
+    session.self.isGuest &&
+    participated
+      ? resultMatchId
+      : null;
+  const linkedGuestResult =
+    registrationResult?.linkedGuest && registrationResult.matchId === resultMatchId;
   const postGameFeedback = usePostGameFeedback(
     room,
     membership,
@@ -209,10 +243,10 @@ export function RoomViewShell({
     dialog !== null || invitation.dialog !== null || postGameFeedback.context !== null,
     Boolean(session.unavailable) || session.leaving,
   );
-  const closeResult = () => {
+  const closeResult = (showFeedback = true) => {
     autoResult.dismiss();
     setDialog(null);
-    if (postGameFeedback.open()) return;
+    if (showFeedback && postGameFeedback.open()) return;
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         (resultButtonRef.current ?? fallbackFocusRef.current)?.focus();
@@ -269,8 +303,11 @@ export function RoomViewShell({
   const status = (
     <RoomStatus
       session={session}
+      turn={turn}
       onRotate={onRotate}
       replay={desktop ? undefined : replayCard}
+      openReplayKey={openReplayKey}
+      onReplayChange={setOpenReplayKey}
       onJoin={
         tournamentId !== undefined
           ? () => {
@@ -351,6 +388,19 @@ export function RoomViewShell({
             tab={tab}
             onTabChange={setTab}
             board={board}
+            boardOverlay={
+              room.status === "waiting" &&
+              room.lastRound === null &&
+              tournamentId === undefined && (
+                <div className="rounded-xl bg-[#17241de0] px-5 py-2 text-center text-xs text-white shadow-md">
+                  <strong className="block text-sm">待機中</strong>
+                  <span>
+                    参加者 {room.players.length}/{gameCapacity(room.settings.game)}
+                  </span>
+                </div>
+              )
+            }
+            myTurn={myTurn}
             info={info}
             status={status}
             chat={chatPanel}
@@ -412,47 +462,48 @@ export function RoomViewShell({
               title="対局結果"
               onClose={closeResult}
               theme={theme}
-              busy={signIn.busy}
+              busy={signIn.busy || session.leaving}
             >
               {result}
-              {tournamentId !== undefined && membership && (
-                <AppButton
-                  className="mt-4 w-full"
-                  isDisabled={session.leaving}
-                  isPending={session.leaving}
-                  onPress={() => {
-                    void session.handleLeaveClick();
-                  }}
-                >
-                  次の対局
-                </AppButton>
-              )}
+              {tournamentId !== undefined &&
+                membership &&
+                !guestLinkResult &&
+                !linkedGuestResult && (
+                  <AppButton
+                    className="mt-4 w-full"
+                    isDisabled={session.leaving}
+                    isPending={session.leaving}
+                    onPress={() => {
+                      void session.handleLeaveClick();
+                    }}
+                  >
+                    次の対局
+                  </AppButton>
+                )}
               {registrationCancelled && (
                 <p role="status" className="mt-4 text-sm">
                   登録手続きを中止しました。
                 </p>
               )}
-              {registrationResult && (
+              {registrationResult && registrationResult.matchId === resultMatchId && (
                 <p role="status" className="mt-4 text-sm">
-                  {registrationResult.record === "complete"
-                    ? "この対局をマイページに追加しました。"
-                    : "この対局の引継ぎを受け付けました。棋譜の保存を待っています。"}
+                  {linkedGuestResult
+                    ? "アカウントを連携しました。"
+                    : registrationResult.record === "complete"
+                      ? "この対局をマイページに追加しました。"
+                      : "この対局の引継ぎを受け付けました。棋譜の保存を待っています。"}
                   このアカウントでそのまま再戦できます。
                 </p>
               )}
               {accountAvailable &&
                 membership &&
                 !membership.accountLinked &&
-                registrationMatchId(room) &&
-                room.lastRound.players.some((player) => player.id === membership.playerId) && (
+                resultMatchId &&
+                participated && (
                   <div className="mt-5">
                     <RegistrationPrompt
                       game={room.settings.game}
-                      humanOnly={room.lastRound.players.every(
-                        (p) =>
-                          (p.appearance?.kind ??
-                            room.players.find((current) => current.id === p.id)?.kind) === "human",
-                      )}
+                      humanOnly={humanOnly}
                       busy={signIn.busy}
                       pendingProvider={signIn.pendingProvider}
                       onRegister={(provider) => void signIn.start(provider)}
@@ -470,6 +521,50 @@ export function RoomViewShell({
                     )}
                   </div>
                 )}
+              {guestLinkResult && (
+                <GuestResultLinkCard
+                  key={guestLinkResult}
+                  game={room.settings.game}
+                  humanOnly={humanOnly}
+                  busy={signIn.busy || session.leaving}
+                  pendingProvider={signIn.pendingProvider}
+                  error={signIn.message}
+                  onLink={(provider) => {
+                    setDialog("result");
+                    autoResult.dismiss();
+                    void signIn.start(provider, true);
+                  }}
+                />
+              )}
+              {(guestLinkResult || linkedGuestResult) && (
+                <div role="group" aria-label="対局結果の操作" className="mt-4 flex flex-wrap gap-2">
+                  <AppButton
+                    size="compact"
+                    isDisabled={signIn.busy || session.leaving || session.connection !== "接続済み"}
+                    onPress={() => {
+                      if (tournamentId !== undefined) void session.handleLeaveClick();
+                      else {
+                        if (!session.self?.ready) session.handleReadyClick();
+                        closeResult(false);
+                      }
+                    }}
+                  >
+                    {tournamentId === undefined ? "再戦" : "次の対局"}
+                  </AppButton>
+                  <AppButton
+                    size="compact"
+                    appearance="secondary"
+                    isDisabled={signIn.busy || session.leaving}
+                    onPress={() => {
+                      setTab("board");
+                      setOpenReplayKey(`${room.instanceId}:${resultMatchId}`);
+                      closeResult(false);
+                    }}
+                  >
+                    棋譜を見る
+                  </AppButton>
+                </div>
+              )}
             </AppDialog>
           )}
           {(dialog === "leave" || dialog === "resign") && (

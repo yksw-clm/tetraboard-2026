@@ -9,8 +9,8 @@ import gomoku from "../../assets/lobby/gomoku.webp";
 const boards = {
   "four-reversi": { src: fourReversi, width: 264, height: 264, style: "reversi" },
   reversi: { src: reversi, width: 264, height: 264, style: "reversi" },
-  "four-shogi": { src: fourShogi, width: 229, height: 250, style: "shogi" },
-  shogi: { src: shogi, width: 229, height: 250, style: "shogi" },
+  "four-shogi": { src: fourShogi, width: 250, height: 250, style: "shogi" },
+  shogi: { src: shogi, width: 250, height: 250, style: "shogi" },
   gomoku: { src: gomoku, width: 264, height: 264, style: "gomoku" },
   "four-gomoku": { src: gomoku, width: 264, height: 264, style: "gomoku" },
 } as const satisfies Record<GameId, { src: string; width: number; height: number; style: string }>;

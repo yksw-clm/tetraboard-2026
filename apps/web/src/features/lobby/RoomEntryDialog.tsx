@@ -79,35 +79,50 @@ export function RoomEntryDialog({
           ? `ルーム ${selectedRoomId} に参加`
           : "ルーム番号で参加";
 
+  const compactIntro = intent !== "join";
+  const visibilityNotice = <p className="text-sm text-muted">対局の棋譜・結果は公開されます。</p>;
+  const description = (
+    <p className="text-muted text-[13px] leading-[1.8]">
+      {unavailable
+        ? "四人将棋のオンライン対局は準備中です。入力項目は確認できますが、まだルームの作成・参加はできません。"
+        : intent === "quick"
+          ? !gameCatalog[game].hasModes
+            ? "CPUと対戦します。"
+            : "CPU3人と対戦します。"
+          : intent === "create"
+            ? "ルームを作って、招待URLを友達に共有しましょう。公開ルーム一覧からも参加できます。"
+            : account.user
+              ? "アカウントのプロフィールで参加します。"
+              : "対局で使うニックネームを入力してください。"}
+    </p>
+  );
+
   return (
-    <AppDialog title={title} busy={busy} onClose={onClose} theme={theme}>
-      <p className="text-muted text-[13px] leading-[1.8]">
-        {unavailable
-          ? "四人将棋のオンライン対局は準備中です。入力項目は確認できますが、まだルームの作成・参加はできません。"
-          : intent === "quick"
-            ? !gameCatalog[game].hasModes
-              ? "CPUと対戦します。"
-              : "CPU3人と対戦します。"
-            : intent === "create"
-              ? "ルームを作って、招待URLを友達に共有しましょう。公開ルーム一覧からも参加できます。"
-              : account.user
-                ? "アカウントのプロフィールで参加します。"
-                : "対局で使うニックネームを入力してください。"}
-      </p>
-      {intent === "quick" && account.user && (
-        <div className="mt-3">
-          <CpuMatchNotice />
+    <AppDialog
+      title={title}
+      busy={busy}
+      onClose={onClose}
+      theme={theme}
+      compactHeader={compactIntro}
+    >
+      {compactIntro ? (
+        <div className="flex flex-col gap-1">
+          {description}
+          {intent === "quick" && account.user && <CpuMatchNotice />}
+          {visibilityNotice}
         </div>
+      ) : (
+        description
       )}
       <form
-        className="flex flex-col gap-[22px] mt-6"
+        className={`flex flex-col gap-[22px] ${compactIntro ? "mt-[22px]" : "mt-6"}`}
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
           if (!blocked) onSubmit();
         }}
       >
-        <p className="text-sm text-muted">対局の棋譜・結果は公開されます。</p>
+        {!compactIntro && visibilityNotice}
         <RoomIdentityFields name={name} onChange={onNameChange} busy={busy} id="nickname" />
 
         {intent === "join" ? (

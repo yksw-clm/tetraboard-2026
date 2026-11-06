@@ -99,7 +99,6 @@ test("通常将棋のマイページは5項目と引き分けを含む率、モ�
   expect(view.textContent).toContain(".500");
   expect(view.textContent).not.toContain("シングルス");
   expect(view.textContent).not.toContain("未獲得");
-  expect(view.querySelector('a[href="/games/shogi"]')).not.toBeNull();
 });
 test("通常将棋ランキングは勝数3人と詳細10人でモードタブを表示しない", async () => {
   const entries = Array.from({ length: 10 }, (_, i) => ({

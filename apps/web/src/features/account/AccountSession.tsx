@@ -43,6 +43,7 @@ export function AccountLayout() {
     null,
   );
   const location = useLocation();
+  const guestMergePending = new URLSearchParams(location.search).has("guestMerge");
   const update = useCallback((user: AccountProfile | null) => {
     version.current++;
     active.current?.controller.abort();
@@ -200,19 +201,16 @@ export function AccountLayout() {
             new URLSearchParams(location.search).get("destination") === "admin"
           ) ? (
             <Navigate
-              to={
-                new URLSearchParams(location.search).has("guestMerge")
-                  ? "/account/setup?guestMerge=1"
-                  : "/account/setup"
-              }
+              to={guestMergePending ? "/account/setup?guestMerge=1" : "/account/setup"}
               replace
             />
           ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
             <RegistrationCompletion
+              guestMergePending={guestMergePending}
               enabled={Boolean(
                 state.user?.profileCompleted &&
                 !state.user.isGuest &&
-                !new URLSearchParams(location.search).has("guestMerge") &&
+                !guestMergePending &&
                 !state.loading &&
                 !state.error,
               )}

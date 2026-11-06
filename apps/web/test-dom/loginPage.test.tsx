@@ -4,11 +4,14 @@ import { render, rerender, wrap, press, requests, flush } from "./harness";
 
 test("ログインは両ゲームのバッジ例とメリットを表示し、Discord失敗でも操作を再開できる", async () => {
   const view = render(wrap(null, "/login")(<LoginPage />));
-  expect(view.textContent).toContain("対局の楽しさを、自分のアカウントに。");
-  expect(view.textContent).toContain("対人シングルス");
-  expect(view.textContent).toContain("四人リバーシ");
-  expect(view.textContent).toContain("四人将棋");
-  expect(view.querySelectorAll("figure img")).toHaveLength(4);
+  expect(view.textContent).not.toContain("対局の楽しさを、自分のアカウントに。");
+  const badges = [...view.querySelectorAll("li")].find(
+    (item) => item.querySelector("strong")?.textContent === "バッジを集めよう",
+  )!;
+  expect(badges.textContent).toContain("対人シングルス");
+  expect(badges.textContent).toContain("四人リバーシ");
+  expect(badges.textContent).toContain("四人将棋");
+  expect(badges.querySelectorAll("figure img")).toHaveLength(4);
   expect(view.textContent).toContain("登録せずに遊ぶこともできます。");
   press(view, "Discordで続ける");
   expect(JSON.parse(String(requests[0]!.init.body))).toEqual({ provider: "discord" });

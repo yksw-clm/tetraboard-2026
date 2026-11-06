@@ -7,6 +7,7 @@ import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppPendingIndicator } from "../../shared/ui/AppPendingIndicator";
 import { LobbyRoomCard } from "./LobbyRoomCard";
 import type { CapacityFilter, ModeFilter } from "./useGeneralLobbyRooms";
+import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 
 type Props = {
   game?: GameId;
@@ -77,7 +78,9 @@ export function LobbyList({
       aria-labelledby="public-rooms-title"
       className={general ? "min-w-0" : "flex h-full min-w-0 flex-col"}
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={`mb-4 flex flex-wrap items-center justify-between gap-3 ${general ? "" : "[@media(max-width:767px)]:mb-1"}`}
+      >
         <div className="flex items-center gap-3">
           <h2 id="public-rooms-title" className="text-xl font-bold">
             {general ? "公開ルーム一覧" : "公開ルーム"}
@@ -108,7 +111,9 @@ export function LobbyList({
           </AppButton>
         </div>
       </div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div
+        className={`mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 ${general ? "" : "[@media(max-width:767px)]:mb-1 [@media(max-width:767px)]:gap-x-2 [@media(max-width:767px)]:gap-y-0"}`}
+      >
         {filters.length > 0 && (
           <div
             role="group"
@@ -170,9 +175,13 @@ export function LobbyList({
           }
         >
           {isInitialLoading && (
-            <p role="status" className="py-8 text-sm text-muted">
-              公開ルームを読み込んでいます…
-            </p>
+            <div className={`grid gap-3 ${general ? "[@media(min-width:768px)]:grid-cols-2" : ""}`}>
+              <p role="status" className="sr-only">
+                公開ルームを読み込んでいます…
+              </p>
+              <AppSkeletonCard className="h-34" />
+              <AppSkeletonCard className="h-34" />
+            </div>
           )}
           {visible.length > 0 && (
             <ul

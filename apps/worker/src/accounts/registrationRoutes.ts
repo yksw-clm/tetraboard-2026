@@ -5,7 +5,12 @@ import {
   registrationStatusSchema,
   membershipTokenSchema,
 } from "@tetraboard/protocol";
-import { accountSessionIdentity } from "./auth";
+import {
+  accountIdentity,
+  accountSessionIdentity,
+  avatarKeyPattern,
+  type StoredProfile,
+} from "./auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { analyticsVisitor } from "../analytics/store";
 import { digest } from "../privacy/deletion";
@@ -18,6 +23,8 @@ import {
   registrationStatus,
   assertRegistrationAccount,
   requireRegistrationConsent,
+  guestRoomLinkComplete,
+  type RegistrationFlow,
 } from "./registrationFlows";
 
 export const registrationRoutes = new Hono<{ Bindings: Env }>();
@@ -62,14 +69,18 @@ registrationRoutes.post("/rooms/:roomId/registration", async (c) => {
   if (!token.success)
     throw new RegistrationError("unauthorized", 401, "参加資格を確認できません。");
   const data = input.data;
+  const guest = data.linkGuest ? await accountIdentity(c.req.raw, c.env) : null;
+  if (data.linkGuest && !guest?.isAnonymous)
+    throw new RegistrationError("unauthorized", 401, "ゲスト本人を確認できません。");
+  const guestAccountId = guest?.id ?? null;
   const secretHash = await digest(data.secret);
   const oldTokenHash = await digest(token.data);
   if (oldTokenHash === data.newTokenHash)
     throw new RegistrationError("invalid_request", 400, "新しい参加資格を用意してください。");
   const now = Date.now();
   await c.env.APP_DB.prepare(`INSERT INTO registration_flows
-    (id,secret_hash,room_id,instance_id,match_id,old_token_hash,new_token_hash,created_at_ms,hold_until_ms,claim_until_ms)
-    VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`)
+    (id,secret_hash,room_id,instance_id,match_id,old_token_hash,new_token_hash,created_at_ms,hold_until_ms,claim_until_ms,guest_account_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`)
     .bind(
       data.registrationId,
       secretHash,
@@ -81,6 +92,7 @@ registrationRoutes.post("/rooms/:roomId/registration", async (c) => {
       now,
       now + 600_000,
       now + 3_600_000,
+      guestAccountId,
     )
     .run();
   const flow = (await readRegistrationFlow(c.env.APP_DB, data.registrationId))!;
@@ -90,7 +102,8 @@ registrationRoutes.post("/rooms/:roomId/registration", async (c) => {
     flow.instance_id !== data.instanceId ||
     flow.match_id !== data.matchId ||
     flow.old_token_hash !== oldTokenHash ||
-    flow.new_token_hash !== data.newTokenHash
+    flow.new_token_hash !== data.newTokenHash ||
+    flow.guest_account_id !== guestAccountId
   )
     throw new RegistrationError("conflict", 409, "登録手続きの内容が一致しません。");
   if (flow.cancelled_at_ms !== null)
@@ -101,6 +114,7 @@ registrationRoutes.post("/rooms/:roomId/registration", async (c) => {
     matchId: flow.match_id,
     oldTokenHash,
     newTokenHash: flow.new_token_hash,
+    ...(guestAccountId ? { guestAccountId } : {}),
   });
   if (result.status !== "started") {
     // 認証を拒否した開始要求は残しません。RPCの結果不明時は同じIDで再試行できます。
@@ -148,10 +162,71 @@ registrationRoutes.get("/registrations/:registrationId", async (c) => {
   return c.json(registrationStatusSchema.parse(await registrationStatus(c.req.raw, c.env, flow)));
 });
 
+async function completeLinkedGuestSeat(env: Env, flow: RegistrationFlow, user: StoredProfile) {
+  if (!(await guestRoomLinkComplete(env.APP_DB, flow)))
+    throw new RegistrationError("conflict", 409, "先にゲスト記録の引き継ぎを確認してください。");
+  const room = env.GAME_ROOM.getByName(flow.room_id);
+  const held = await room.getGuestRegistration(flow.id);
+  if (held?.state !== "pending" || !flow.player_id) return;
+  const db = env.APP_DB;
+  const avatarKey = user.avatarKey && avatarKeyPattern.test(user.avatarKey) ? user.avatarKey : null;
+  const seat = [user.id, flow.room_id, flow.instance_id, flow.player_id] as const;
+  const where = "account_id=? AND room_id=? AND instance_id=? AND player_id=?";
+  const updated = await db.batch<{ operation_id: string }>([
+    db
+      .prepare(`UPDATE account_room_seats SET name=?,avatar_key=? WHERE ${where}
+      AND EXISTS (SELECT 1 FROM user u WHERE u.id=account_room_seats.account_id AND u.name=? AND u.avatarKey IS ?
+        AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)) RETURNING operation_id`)
+      .bind(user.name, avatarKey, ...seat, user.name, user.avatarKey),
+    db
+      .prepare(`INSERT OR REPLACE INTO room_avatar_refs
+      SELECT operation_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats
+      WHERE ${where} AND avatar_key IS NOT NULL`)
+      .bind(...seat),
+    db
+      .prepare(`UPDATE privacy_room_players SET avatar_key=? WHERE ${where}
+      AND EXISTS (SELECT 1 FROM account_room_seats WHERE ${where} AND avatar_key IS ?)`)
+      .bind(avatarKey, ...seat, ...seat, avatarKey),
+  ]);
+  const operationId = updated[0].results[0]?.operation_id;
+  if (!operationId) {
+    if ((await room.getGuestRegistration(flow.id))?.state !== "pending") return;
+    throw new RegistrationError("conflict", 409, "現在の席を確認できません。再試行してください。");
+  }
+  const result = await room.completeGuestRegistration(
+    flow.id,
+    {
+      accountId: user.id,
+      operationId,
+      roomId: flow.room_id,
+      instanceId: flow.instance_id,
+      playerId: flow.player_id,
+      name: user.name,
+      avatarKey,
+    },
+    { visitorId: null, accountId: user.id, isTest: Boolean(user.isTestUser) },
+  );
+  if (result.status === "converted")
+    await db
+      .prepare("UPDATE registration_flows SET seat_state='complete' WHERE id=?")
+      .bind(flow.id)
+      .run();
+  else if ((await room.getGuestRegistration(flow.id))?.state === "pending")
+    throw new RegistrationError(
+      "conflict",
+      409,
+      "席を切り替えられませんでした。再試行してください。",
+    );
+}
+
 registrationRoutes.post("/registrations/:registrationId/complete", async (c) => {
   const flow = await registrationFromRequest(c.req.raw, c.env, c.req.param("registrationId"));
   const identity = await assertRegistrationAccount(c.req.raw, c.env, flow, true);
   await requireRegistrationConsent(c.env.APP_DB, identity.user.id);
+  if (flow.guest_account_id) {
+    await completeLinkedGuestSeat(c.env, flow, identity.user);
+    return c.json(registrationStatusSchema.parse(await registrationStatus(c.req.raw, c.env, flow)));
+  }
   if (!flow.player_id)
     throw new RegistrationError("preparing", 503, "登録の準備を再試行してください。");
   const priorClaim = await readMatchClaimState(
@@ -258,6 +333,22 @@ registrationRoutes.post("/registrations/:registrationId/cancel", async (c) => {
     .safeParse(await c.req.json().catch(() => ({})));
   if (!body.success)
     throw new RegistrationError("invalid_request", 400, "中止の指定が正しくありません。");
+  if (flow.guest_account_id) {
+    // コールバックと競合した場合は、先に確定した操作だけを採用します。
+    const cancelled = await c.env.APP_DB.prepare(`UPDATE registration_flows
+      SET cancelled_at_ms=COALESCE(cancelled_at_ms,?),seat_state='cancelled' WHERE id=?
+      AND account_id IS NULL AND NOT EXISTS (SELECT 1 FROM guest_oauth_flows f
+        WHERE f.room_registration_id=registration_flows.id AND f.target_id IS NOT NULL)
+      RETURNING id`)
+      .bind(Date.now(), flow.id)
+      .first();
+    if (!cancelled)
+      throw new RegistrationError(
+        "already_complete",
+        409,
+        "認証が完了しています。連携の状態を確認してください。",
+      );
+  }
   const room = c.env.GAME_ROOM.getByName(flow.room_id);
   const state = await room.cancelGuestRegistration(flow.id);
   if (state?.state === "converted")

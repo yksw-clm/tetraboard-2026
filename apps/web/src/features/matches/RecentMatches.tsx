@@ -11,6 +11,7 @@ import { AppSectionHeading } from "../../shared/ui/AppSectionHeading";
 import { AppHorizontalScrollButtons } from "../../shared/ui/AppHorizontalScrollButtons";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppButton } from "../../shared/ui/AppButton";
+import { AppSkeleton, AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 import { MatchHistoryCard } from "./MatchHistoryCard";
 import { useRecentMatches } from "./useRecentMatches";
 
@@ -58,10 +59,11 @@ function RecentMatchList({ game }: { game: GameId | "all" }) {
         />
         対人戦のみ
       </label>
-      {page.loading && !page.pendingSource && (
-        <p role="status" className="text-sm text-muted">
-          最近の対局を読み込んでいます…
-        </p>
+      {page.isInitialLoading && (
+        <div className="flex gap-3 overflow-hidden pb-1">
+          <AppSkeletonCard className="h-40 shrink-0 [width:min(320px,100%)]" />
+          <AppSkeletonCard className="h-40 shrink-0 [width:min(320px,100%)]" />
+        </div>
       )}
       <div className="relative isolate min-w-0">
         <ul
@@ -84,30 +86,12 @@ function RecentMatchList({ game }: { game: GameId | "all" }) {
         </ul>
         <AppHorizontalScrollButtons scrollRef={list} label="最近の対局" contentKey={page.matches} />
       </div>
-      {page.loaded && !page.loading && !page.error && !page.matches.length && (
-        <p className="text-sm text-muted">
-          {page.humanOnly ? "対人戦の対局履歴がありません。" : "まだ対局履歴がありません。"}
-        </p>
-      )}
-      {page.error && (
-        <div className="flex flex-col items-start gap-2">
-          <p role="alert" className="text-sm text-danger">
-            {page.error}
-          </p>
-          <AppButton
-            size="compact"
-            appearance="secondary"
-            isDisabled={page.loading}
-            isPending={page.pendingSource === "retry"}
-            onPress={() => void page.refresh("retry")}
-          >
-            再試行
-          </AppButton>
-        </div>
-      )}
+      <RecentMatchStatus page={page} hideLoadingText={page.isInitialLoading} />
     </section>
   );
 }
+
+const matchPreviewRowHeight = "h-18 [@media(max-width:767px)]:h-15";
 
 function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) {
   const winners = matchResultGroups(match).filter((group) => group.emphasized);
@@ -117,7 +101,7 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
   return (
     <Link
       to={`/matches/${match.id}`}
-      className="flex min-w-0 items-center gap-3 border-b border-solid border-line py-4 text-ink no-underline last:border-0 hover:bg-surface-muted"
+      className={`flex min-w-0 items-center gap-3 text-ink no-underline hover:bg-surface-muted ${matchPreviewRowHeight}`}
     >
       <PlayerAvatar
         appearance={
@@ -125,13 +109,13 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
             ? { kind: "cpu", level: first.level }
             : { kind: "human", avatarUrl: first?.avatarUrl ?? null }
         }
-        className="size-8"
+        className="size-8 shrink-0"
       />
       <span className="min-w-0 flex-1">
-        <strong className="block text-sm wrap-anywhere">
+        <strong className="block truncate text-sm">
           {winners.length ? `${name}が${label}` : "引き分け"}
         </strong>
-        <span className="block text-xs text-muted">
+        <span className="block truncate text-xs text-muted">
           {match.mode ? `${match.mode === "singles" ? "シングルス" : "ダブルス"}・` : ""}
           <time
             dateTime={new Date(match.startedAtMs).toISOString()}
@@ -140,19 +124,25 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
             {formatMatchDate(match.startedAtMs, nowMs)}
           </time>
         </span>
-        <span className="block text-xs text-muted wrap-anywhere">
+        <span className="block truncate text-xs text-muted">
           {match.participants.map((player) => player.name).join("・")}
         </span>
       </span>
-      <AppIcon name="arrow" className="size-4 text-muted" />
+      <AppIcon name="arrow" className="size-4 shrink-0 text-muted" />
     </Link>
   );
 }
-function RecentMatchStatus({ page }: { page: ReturnType<typeof useRecentMatches> }) {
+function RecentMatchStatus({
+  page,
+  hideLoadingText = false,
+}: {
+  page: ReturnType<typeof useRecentMatches>;
+  hideLoadingText?: boolean;
+}) {
   return (
     <>
       {page.loading && !page.pendingSource && (
-        <p role="status" className="text-sm text-muted">
+        <p role="status" className={hideLoadingText ? "sr-only" : "text-sm text-muted"}>
           最近の対局を読み込んでいます…
         </p>
       )}
@@ -189,9 +179,10 @@ function GameRecentMatches({ game }: { game: GameId }) {
     const interval = window.setInterval(() => setNowMs(Date.now()), 60_000);
     return () => window.clearInterval(interval);
   }, []);
+  const status = <RecentMatchStatus page={page} hideLoadingText={page.isInitialLoading} />;
   return (
     <section aria-labelledby="recent-matches-title" className="min-w-0">
-      <AppCard className="gap-3 p-5">
+      <AppCard className="gap-3 p-5 [@media(max-width:767px)]:gap-2 [@media(max-width:767px)]:p-3">
         <div className="flex items-center justify-between gap-2">
           <h2
             id="recent-matches-title"
@@ -211,14 +202,32 @@ function GameRecentMatches({ game }: { game: GameId }) {
             もっと見る
           </AppButton>
         </div>
-        <ul aria-label="最近行われた対局の棋譜" className="m-0 list-none p-0">
-          {page.matches.slice(0, 3).map((match) => (
-            <li key={match.id}>
-              <MatchPreview match={match} nowMs={nowMs} />
-            </li>
-          ))}
-        </ul>
-        <RecentMatchStatus page={page} />
+        <div className="min-h-54 [@media(max-width:767px)]:min-h-45">
+          {page.isInitialLoading &&
+            [0, 1, 2].map((row) => (
+              <div
+                key={row}
+                className={`flex items-center gap-3 ${matchPreviewRowHeight}`}
+                aria-hidden="true"
+              >
+                <AppSkeleton className="size-8 shrink-0 rounded-full" />
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <AppSkeleton className="h-3 w-1/2" />
+                  <AppSkeleton className="h-2 w-1/3" />
+                  <AppSkeleton className="h-2 w-2/3" />
+                </div>
+              </div>
+            ))}
+          <ul aria-label="最近行われた対局の棋譜" className="m-0 list-none p-0">
+            {page.matches.slice(0, 3).map((match) => (
+              <li key={match.id}>
+                <MatchPreview match={match} nowMs={nowMs} />
+              </li>
+            ))}
+          </ul>
+          {!page.matches.length && status}
+        </div>
+        {page.matches.length > 0 && status}
       </AppCard>
       {open && (
         <AppDialog title="最近の対局" theme={gameThemes[game]} onClose={() => setOpen(false)}>

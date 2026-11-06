@@ -5,6 +5,7 @@ import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppHorizontalScrollButtons } from "../../shared/ui/AppHorizontalScrollButtons";
+import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
 import { TournamentStatus } from "./TournamentStatus";
 import { tournamentDate } from "./tournamentPresentation";
 import { useTournamentList } from "./useTournamentList";
@@ -32,9 +33,13 @@ export function TournamentList({ game }: { game: GameId | "all" }) {
         </p>
       )}
       {!state.loaded && !state.error && (
-        <p role="status" className="text-sm text-muted">
-          大会一覧を読み込んでいます…
-        </p>
+        <div className="flex gap-3 overflow-hidden [@media(min-width:768px)]:pb-1">
+          <p role="status" className="sr-only">
+            大会一覧を読み込んでいます…
+          </p>
+          <AppSkeletonCard className="h-34 w-full shrink-0 [@media(min-width:768px)]:w-[min(320px,100%)]" />
+          <AppSkeletonCard className="hidden h-34 w-[min(320px,100%)] shrink-0 [@media(min-width:768px)]:flex" />
+        </div>
       )}
       {state.loaded && state.tournaments.length === 0 && (
         <p className="rounded-control bg-white p-5 text-center text-sm text-muted">

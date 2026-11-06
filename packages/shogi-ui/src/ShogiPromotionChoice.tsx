@@ -2,7 +2,7 @@ import type { FourShogiAction, PieceKind, Side } from "./shogiUiTypes";
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ShogiPiece } from "./ShogiPiece";
-import { shogiDisplayPosition, shogiPieceDirection } from "./shogiBoardPresentation";
+import { shogiPieceDirection, shogiSquareName } from "./shogiBoardPresentation";
 
 export function ShogiPromotionChoice({
   choices,
@@ -10,6 +10,7 @@ export function ShogiPromotionChoice({
   viewerSide,
   interactionSide = viewerSide,
   grid,
+  pieceScale,
   onChoose,
 }: {
   choices: Extract<FourShogiAction, { type: "movePiece" }>[];
@@ -17,34 +18,44 @@ export function ShogiPromotionChoice({
   viewerSide: Side;
   interactionSide?: Side;
   grid: RefObject<HTMLDivElement | null>;
+  pieceScale: number;
   onChoose: (action: Extract<FourShogiAction, { type: "movePiece" }>) => void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<CSSProperties>();
-  const { x, y } = shogiDisplayPosition(choices[0].to, viewerSide);
+  const squareName = shogiSquareName(choices[0].to);
   useLayoutEffect(() => {
-    function place(): void {
-      if (!grid.current) return;
-      const bounds = grid.current.getBoundingClientRect();
-      const pieceWidth = (bounds.width / 9) * 0.82;
+    const board = grid.current;
+    const target = board?.querySelector(`button[data-square="${squareName}"]`);
+    if (!board || !target) return;
+    const place = () => {
+      const bounds = board.getBoundingClientRect();
+      const square = target.getBoundingClientRect();
+      const pieceWidth = (bounds.width / 9) * pieceScale;
       const width = 2 * (pieceWidth + 8) + 4;
       const height = (pieceWidth * 148) / 140 + 8;
       setPlacement({
         left:
           bounds.left +
-          Math.max(0, Math.min(bounds.width - width, ((x + 0.5) * bounds.width) / 9 - width / 2)),
+          Math.max(
+            0,
+            Math.min(bounds.width - width, square.left - bounds.left + (square.width - width) / 2),
+          ),
         top:
           bounds.top +
           Math.max(
             0,
-            Math.min(bounds.height - height, ((y + 0.5) * bounds.height) / 9 - height / 2),
+            Math.min(
+              bounds.height - height,
+              square.top - bounds.top + (square.height - height) / 2,
+            ),
           ),
         "--shogi-piece-width": `${pieceWidth}px`,
       } as CSSProperties);
-    }
+    };
     place();
     const observer = new ResizeObserver(place);
-    if (grid.current) observer.observe(grid.current);
+    observer.observe(board);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
@@ -52,7 +63,7 @@ export function ShogiPromotionChoice({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [grid, x, y]);
+  }, [grid, pieceScale, squareName, viewerSide]);
   const placed = placement !== undefined;
   useLayoutEffect(() => {
     if (placed) menu.current?.querySelector("button")?.focus({ preventScroll: true });

@@ -6,7 +6,7 @@
 
 ## 採用する構成
 
-- 開発環境はBunに統一し、Bun Workspaceでフロントエンド、サーバー、共有コードを管理する。各ゲームの純粋なルールとCPUは `packages/` 配下へ分離する。
+- 既存アプリはBun Workspaceでフロントエンド、サーバー、共有コードを管理する。独立Python AIは `ai/four-shogi-ai` の専用uvプロジェクトとし、同じリポジトリのmiseでツール版を固定する。各ゲームの純粋なルールとCPUは `packages/` 配下へ分離する。
 - フロントエンドはVite、React、TypeScriptで作る。
 - 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。
@@ -22,9 +22,13 @@
 - 四人五目並べは `packages/four-gomoku` で4色・混色の連と順位を判定する。勝ち抜け、外部脱落、全体終局を別に保持し、部分順位を盤面・棋譜とともにDOへ保存する。途中順位では終局保存へ進まず、全順位確定時だけ共通の保存・再戦処理へ渡す。時計・席保持は既存4色の仕組みを使い、確定順位は切断・退室で上書きしない。CPU候補の保存と次Alarmでの期限照合も五目並べと同様に行う。
 - 四人五目並べの保存棋譜は規則版1で全着手を再実行し、途中順位・完成線・外部脱落理由・最終状態を照合する。D1の既存テーブルに `four-gomoku` とモードを保存し、全人間の結果だけを順位／チーム別に集計する。新しい外部依存・サービス・マイグレーションは追加しない。
 
+## 独立Python四人将棋AI
+
+2026-11-06に旧AI開発計画を廃止し、[READMEの現行計画](../README.md#四人将棋シングルスaiの開発計画)へ全面置換しました。Pythonのルール層はI/O・時計・乱数に依存せず、AI層がそれを呼びます。TSエンジンは開発時の差分比較に使い、Pythonの実行時依存にはしません。交換形式と履歴を含む状態の契約は[設計正本](../ai/four-shogi-ai/docs/design.md)を参照します。新計画のVPS・モデル・オンラインAPIは未決です。
+
 ## 四人将棋シングルスAIのVPS実行計画
 
-新AIの承認済み目標は[README](../README.md#四人将棋シングルスaiの開発計画)、承認済みの構成とAPI・モデル配布・ジョブの設計は[契約文書](four-shogi-ai-engine.md)を参照します。VPSで推論しMac等で学習する方針に基づき、現在のWorker/DOが時計・着手確定・保存を管理し、別VPSが計算だけを担当する構成をD03で承認しました。既存 `packages/four-shogi` に完全状態復元の `/analysis` と静的評価または実験用Policy/Valueを使う共通探索の `/ai` を実装しています。自己対戦/教師生成は同じパッケージのbench内で親プロセスが保存・資源制限を、独立したBun子プロセスが計算を担当し、UI/Workerへ生成処理を含めません。[生成契約](four-shogi-ai-engine.md#自己対戦と探索教師データ189)を参照してください。TS側の `/model-features` と学習出力CLIが完全状態・履歴・合法手・分割を検査してPythonへ渡します。`training/four-shogi-ai` のPyTorchは学習と版付きcheckpointを担当し、ルール・遷移は再実装しません。[学習契約](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を参照してください。#191の `/model-inference` は同じホストの常駐Python/PyTorch CPUプロセスへ版付きJSONLでまとめて依頼します。推論専用の重み・manifest・Mac基準出力を組にして検査し、ロード/数値照合に失敗した候補へ切り替えません。[推論契約](four-shogi-ai-engine.md#linux-cpu推論とmac出力の照合191)を参照してください。#192の共通探索はprocessに依存しない評価器を注入し、Policyの手順序とValueの葉評価へ使います。枝の反復差分は元履歴と合わせて数値化し、正本の合法手・遷移・終局をモデルへ委ねません。推論障害時は消費済み予算を引いて従来評価へやり直し、同じ候補比較へ尺度を混在させません。[モデル探索契約](four-shogi-ai-engine.md#policyvalueを使う共通探索192)を参照してください。`apps/four-shogi-ai` のHTTP受付/有限ジョブ・利用量管理と独立Bun計算群が、CPU用枠を予約して長時間解析と共存します。各計算プロセスにPython/PyTorchを常駐させ、モデルと完全履歴を同じ共通APIへ渡します。Workerの許可アカウント/保存済み棋譜検査とサーバー間認証を分担し、秘密と本人IDをVPSの入力・一般ログへ含めません。[サービス契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)を参照してください。実VPS配置と公開CPUへの採用は後続です。
+この節は旧計画に基づき現在も存在する実装の責務を説明します。旧計画自体は廃止済みで、実VPS配置や後続開発を新計画の前提にはしません。既存コードの保守契約は[契約文書](four-shogi-ai-engine.md)を参照します。VPSで推論しMac等で学習する方針に基づき、現在のWorker/DOが時計・着手確定・保存を管理し、別VPSが計算だけを担当する構成をD03で承認しました。既存 `packages/four-shogi` に完全状態復元の `/analysis` と静的評価または実験用Policy/Valueを使う共通探索の `/ai` を実装しています。自己対戦/教師生成は同じパッケージのbench内で親プロセスが保存・資源制限を、独立したBun子プロセスが計算を担当し、UI/Workerへ生成処理を含めません。[生成契約](four-shogi-ai-engine.md#自己対戦と探索教師データ189)を参照してください。TS側の `/model-features` と学習出力CLIが完全状態・履歴・合法手・分割を検査してPythonへ渡します。`training/four-shogi-ai` のPyTorchは学習と版付きcheckpointを担当し、ルール・遷移は再実装しません。[学習契約](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を参照してください。#191の `/model-inference` は同じホストの常駐Python/PyTorch CPUプロセスへ版付きJSONLでまとめて依頼します。推論専用の重み・manifest・Mac基準出力を組にして検査し、ロード/数値照合に失敗した候補へ切り替えません。[推論契約](four-shogi-ai-engine.md#linux-cpu推論とmac出力の照合191)を参照してください。#192の共通探索はprocessに依存しない評価器を注入し、Policyの手順序とValueの葉評価へ使います。枝の反復差分は元履歴と合わせて数値化し、正本の合法手・遷移・終局をモデルへ委ねません。推論障害時は消費済み予算を引いて従来評価へやり直し、同じ候補比較へ尺度を混在させません。[モデル探索契約](four-shogi-ai-engine.md#policyvalueを使う共通探索192)を参照してください。`apps/four-shogi-ai` のHTTP受付/有限ジョブ・利用量管理と独立Bun計算群が、CPU用枠を予約して長時間解析と共存します。各計算プロセスにPython/PyTorchを常駐させ、モデルと完全履歴を同じ共通APIへ渡します。Workerの許可アカウント/保存済み棋譜検査とサーバー間認証を分担し、秘密と本人IDをVPSの入力・一般ログへ含めません。[サービス契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)を参照してください。実VPS配置と公開CPUへの採用は後続です。
 
 VPSへ着手確定・戦績更新の権限を移さず、対局CPUの限定試用はDOのKVへ要求/候補を保存し、外部通信をtransaction外のwaitUntilで行います。局・世代・revision・CPU本人/レベル・完全状態hash・時計/実手番/期限を照合し、次のAlarmで正本の合法性と通常着手処理を通します。通信と計算は全て計時し、期限内だけ既存Lv2→確保した合法手で代替します。[CPU接続契約](four-shogi-ai-engine.md#対局cpuの試用接続194)を参照してください。30秒解析は非同期ジョブとし、通常の操作待ちやDOの処理を全体で延長しません。VPS障害時の動作と試用範囲はD04/D05、初期の推論形式はLinux CPU実測に基づく版付きPyTorch重みとし、対象VPSプランは未決です。TetraBoard全面のVPS移行は[#128](https://github.com/yksw-clm/tetraboard-2026/issues/128)の別検討です。
 

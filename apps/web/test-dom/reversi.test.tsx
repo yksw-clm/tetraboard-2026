@@ -130,7 +130,6 @@ test("通常リバーシのマイページは5戦績項目、引き分けを分�
   expect(view.querySelector('[role="tablist"]:not([hidden])')).toBeNull();
   expect(view.textContent).not.toContain("シングルス");
   expect(view.textContent).not.toContain("未獲得");
-  expect(view.querySelector('a[href="/games/reversi"]')).not.toBeNull();
 });
 test("通常リバーシのランキングは勝数3人・詳細10人、対局数切替、モードタブなし", async () => {
   const entries = Array.from({ length: 10 }, (_, i) => ({

@@ -1,22 +1,24 @@
 import { AppIcon } from "../../shared/ui/AppIcon";
-import type { ReactNode } from "react";
 import { AppButton } from "../../shared/ui/AppButton";
 
 export function ViewerControls({
   label,
+  hideLabelOnMobile = false,
   onRotate,
-  children,
   rotationDegrees = 90,
 }: {
   label: "観戦中" | "棋譜閲覧中";
+  hideLabelOnMobile?: boolean;
   onRotate: () => void;
-  children?: ReactNode;
   rotationDegrees?: 90 | 180;
 }) {
   return (
-    <div className="flex w-full h-[38px] min-h-[38px] items-center justify-between gap-2">
-      <span className="text-muted text-xs whitespace-nowrap">{label}</span>
-      {children}
+    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <span
+        className={`text-muted text-xs whitespace-nowrap ${hideLabelOnMobile ? "[@media(max-width:767px)]:hidden" : ""}`}
+      >
+        {label}
+      </span>
       <span title={`盤面を時計回りに${rotationDegrees}度回転`} className="shrink-0">
         <AppButton
           isIconOnly

@@ -23,7 +23,7 @@
   bun run --cwd apps/worker deploy:dry-run:development
   ```
 
-- 自動検証は純粋関数のBunテスト、Bun＋happy-domの部品・hookテスト、Worker統合テストへ集約する。ブラウザを起動するテスト・設定・workflowは廃止する。画面寸法・ネイティブ入力・実画像デコードは自動検証対象に含めない。`bun run check`（format確認・lint・型・全テスト）の目標は180秒以内とし、CIで所要時間を記録する。実行方法と移管対応表は [docs/testing.md](docs/testing.md) を参照する。
+- 既存TypeScriptの自動検証は純粋関数のBunテスト、Bun＋happy-domの部品・hookテスト、Worker統合テストへ集約する。2026-11-06承認の独立Python四人将棋AI（`ai/four-shogi-ai`）はpytest＋Hypothesis、Ruff、mypyで検証し、`bun run check`とFull CIへ含める。ブラウザを起動するテスト・設定・workflowは廃止する。画面寸法・ネイティブ入力・実画像デコードは自動検証対象に含めない。`bun run check`（format確認・lint・型・全テスト）の目標は180秒以内とし、CIで所要時間を記録する。実行方法と移管対応表は [docs/testing.md](docs/testing.md) を参照する。
 - PR本文に検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載する。PR提出後にコード・設定を変更した場合も、更新対象に対して上記の必須コマンドを再実行し、結果を更新する。main・developの取り込みでコード・設定が変わった場合も同様に扱う。
 - 文書だけの変更では同一コード・設定に対する直前の成功結果を再利用できる。検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行う。
 

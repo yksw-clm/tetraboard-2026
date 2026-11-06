@@ -9,17 +9,17 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import boardImage from "../assets/board.png";
+import boardImage from "../assets/board-wood.png";
 import { RoomBoardGroup } from "./RoomBoardGroup";
 import { FourShogiHand } from "./FourShogiHand";
 import { ShogiPiece } from "./ShogiPiece";
 import { prepareShogiAssets } from "./shogiPieceImages";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
+import { shogiNotationFile, shogiNotationRank, shogiNotationSquare } from "./shogiNotation";
 import { useLocalPromotion, type PromotionController } from "./useLocalPromotion";
 import {
   shogiActionChoices,
   shogiBoardPosition,
-  shogiBoardPositionAtPoint,
   shogiDragThresholdReached,
   shogiPieceDirection,
   shogiPieceNames,
@@ -29,6 +29,7 @@ import {
   shogiSideNames,
   shogiSidePlacement,
   shogiSides,
+  shogiSquareName,
   type ShogiBoardView,
   type ShogiPieceDirection,
   type ShogiSelection,
@@ -53,47 +54,36 @@ type PointerTrace = DragSource & {
 };
 type Drag = DragSource & { point: Position; width: number };
 
-// board.png の罫線（アンチエイリアス部分を含む）の原寸での左右／上下端。
-// 等分した操作マスとの差を補正し、装飾を罫線の内縁まで広げる。
-const boardLines = {
-  x: [
-    [6, 8],
-    [55, 57],
-    [105, 107],
-    [154, 156],
-    [203, 206],
-    [253, 255],
-    [302, 305],
-    [352, 354],
-    [401, 404],
-    [451, 453],
-  ],
-  y: [
-    [5, 7],
-    [59, 62],
-    [114, 116],
-    [168, 170],
-    [222, 224],
-    [276, 278],
-    [330, 332],
-    [384, 387],
-    [438, 441],
-    [493, 495],
-  ],
-} as const;
+const boardSizing = [
+  "[--shogi-board-margin:0.013]",
+  "[--shogi-coordinate-space:calc(var(--shogi-board-width)_*_var(--shogi-board-margin))]",
+  "[--shogi-piece-ratio:calc((1_-_2_*_var(--shogi-board-margin))_*_var(--shogi-piece-scale)_/_9)]",
+  "[--shogi-piece-width:calc(var(--shogi-board-width)_*_var(--shogi-piece-ratio))]",
+  "[--shogi-board-with-hands-ratio:calc(1_+_2_*_var(--shogi-piece-ratio)_*_148_/_140)]",
+  "grid w-full min-h-full content-center justify-center gap-2 py-2",
+].join(" ");
 
-function squareHighlightStyle(index: number): CSSProperties {
-  const x = index % 9;
-  const y = Math.floor(index / 9);
-  const width = 446 / 9;
-  const height = 488 / 9;
-  return {
-    left: `${((boardLines.x[x][1] - (6 + x * width)) / width) * 100}%`,
-    right: `${((6 + (x + 1) * width - boardLines.x[x + 1][0]) / width) * 100}%`,
-    top: `${((boardLines.y[y][1] - (6 + y * height)) / height) * 100}%`,
-    bottom: `${((6 + (y + 1) * height - boardLines.y[y + 1][0]) / height) * 100}%`,
-  };
-}
+const coordinateLabelClasses =
+  "pointer-events-none absolute grid place-items-center select-none font-semibold leading-none tabular-nums text-[#3b260c] text-[length:var(--shogi-coordinate-space)]";
+
+const standardLayout = [
+  "[--player-height:68px] [@media(max-width:767px)]:[--player-height:52px]",
+  "[--shogi-fixed-height:72px] [@media(max-width:767px)]:[--shogi-fixed-height:32px]",
+  "[--shogi-board-width:max(var(--board-min-size,160px),min(600px,100cqw,calc((100cqh_-_2_*_var(--player-height)_-_var(--shogi-fixed-height)_-_var(--board-status-space,0px))_/_var(--shogi-board-with-hands-ratio))))]",
+  "[--seat-width:var(--shogi-board-width)] grid-cols-[var(--shogi-board-width)] grid-rows-[auto_auto_auto]",
+  "[grid-template-areas:'top'_'board'_'bottom'] [@media(max-width:767px)]:gap-1 [@media(max-width:767px)]:py-1",
+].join(" ");
+
+const fourPlayerLayout = [
+  "[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px]",
+  "[--shogi-side-width:clamp(140px,21cqw,220px)] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%]",
+  "[--shogi-board-width:max(var(--board-min-size,180px),min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc(100cqh_-_2_*_var(--player-height)_-_32px_-_var(--board-status-space,0px))))]",
+  "[@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px_-_var(--board-status-space,0px))_/_var(--shogi-board-with-hands-ratio))))]",
+  "grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_var(--shogi-board-width)_var(--player-height)]",
+  "[grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom']",
+  "[@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto]",
+  "[@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0",
+].join(" ");
 
 const groupClasses = {
   top: "[grid-area:top] w-fit justify-self-center flex-row-reverse items-center [@media(max-width:767px)]:w-full [@media(max-width:767px)]:flex-col",
@@ -202,7 +192,7 @@ export function FourShogiBoardLayout({
     if (restoreFocus && promotionChoices) {
       const from = promotionChoices[0].from;
       grid.current
-        ?.querySelector<HTMLButtonElement>(`[data-square="${"ABCDEFGHI"[from.x]}${from.y + 1}"]`)
+        ?.querySelector<HTMLButtonElement>(`[data-square="${shogiSquareName(from)}"]`)
         ?.focus({ preventScroll: true });
     }
     promotion.clear();
@@ -292,7 +282,7 @@ export function FourShogiBoardLayout({
       element: event.currentTarget,
       start: { x: event.clientX, y: event.clientY },
       moved: false,
-      width: image?.clientWidth ?? 30,
+      width: image ? Number.parseFloat(getComputedStyle(image).width) || image.clientWidth : 30,
       revision,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -317,12 +307,15 @@ export function FourShogiBoardLayout({
     if (!active.moved) return;
     suppressClick.current = true;
     if (!enabled || active.revision !== revision || !grid.current) return;
-    const to = shogiBoardPositionAtPoint(
-      { x: event.clientX, y: event.clientY },
-      grid.current.getBoundingClientRect(),
-      viewerSide,
-    );
-    if (to) chooseDestination(active.selection, to);
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLButtonElement>("button[data-square]");
+    const name = target?.dataset.square;
+    if (!target || !name || !grid.current.contains(target)) return;
+    chooseDestination(active.selection, {
+      x: name.charCodeAt(0) - "A".charCodeAt(0),
+      y: Number(name[1]) - 1,
+    });
   }
 
   function cancelPointer(): void {
@@ -390,17 +383,24 @@ export function FourShogiBoardLayout({
   }
 
   const lastAction = game.lastMove?.action;
+  const pieceScale = standard ? 0.86 : 0.82;
+  const sideways = viewerSide === "west" || viewerSide === "east";
+  const coordinates = Array.from({ length: 9 }, (_, index) => {
+    const top = shogiBoardPosition({ x: index, y: 0 }, viewerSide);
+    const right = shogiBoardPosition({ x: 8, y: index }, viewerSide);
+    return {
+      top: sideways ? shogiNotationRank(top.y) : shogiNotationFile(top.x),
+      right: sideways ? shogiNotationFile(right.x) : shogiNotationRank(right.y),
+    };
+  });
   // カード2段・持ち駒2段・余白を除いた高さに収めます。
   // 持ち駒の高さも盤の幅に比例するため、盤と駒2段の比率を合わせて計算します。
   return (
     <RoomBoardGroup
       ref={layout}
       data-testid="shogi-board-layout"
-      className={
-        standard
-          ? "[--player-height:68px] [@media(max-width:767px)]:[--player-height:52px] [--shogi-fixed-height:72px] [@media(max-width:767px)]:[--shogi-fixed-height:32px] [--seat-width:var(--shogi-board-width)] [--shogi-board-width:max(var(--board-min-size,160px),min(600px,100cqw,calc((100cqh_-_2_*_var(--player-height)_-_var(--shogi-fixed-height)_-_var(--board-status-space,0px))_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.86_*_148_/_140))))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.86)] grid w-full min-h-full grid-cols-[var(--shogi-board-width)] grid-rows-[auto_auto_auto] [grid-template-areas:'top'_'board'_'bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:gap-1 [@media(max-width:767px)]:py-1"
-          : "[--player-height:60px] [@media(max-width:767px)]:[--player-height:48px] [--seat-width:var(--shogi-side-width)] [@media(max-width:767px)]:[--seat-width:100%] [--shogi-side-width:clamp(140px,21cqw,220px)] [--shogi-board-width:max(var(--board-min-size,180px),min(458px,calc(100cqw_-_2_*_var(--shogi-side-width)_-_16px),calc((100cqh_-_2_*_var(--player-height)_-_32px_-_var(--board-status-space,0px))_*_458_/_500)))] [--shogi-piece-width:calc(var(--shogi-board-width)_*_446_/_458_/_9_*_0.82)] grid w-full min-h-full grid-cols-[var(--shogi-side-width)_var(--shogi-board-width)_var(--shogi-side-width)] grid-rows-[var(--player-height)_calc(var(--shogi-board-width)_*_500_/_458)_var(--player-height)] [grid-template-areas:'top_top_top'_'left_board_right'_'bottom_bottom_bottom'] gap-2 content-center justify-center py-2 [@media(max-width:767px)]:[--shogi-board-width:max(0px,min(100cqw,calc((100cqh_-_2_*_var(--player-height)_-_2_*_6px_-_4_*_2px)_/_(500_/_458_+_2_*_446_/_458_/_9_*_0.82_*_148_/_140))))] [@media(max-width:767px)]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [@media(max-width:767px)]:grid-rows-[auto_auto_auto] [@media(max-width:767px)]:[grid-template-areas:'left_top'_'board_board'_'bottom_right'] [@media(max-width:767px)]:gap-[2px] [@media(max-width:767px)]:content-start [@media(max-width:767px)]:py-0"
-      }
+      style={{ "--shogi-piece-scale": pieceScale } as CSSProperties}
+      className={`${boardSizing} ${standard ? standardLayout : fourPlayerLayout}`}
     >
       {(standard ? (["south", "north"] as const) : shogiSides).map((side) => {
         const placement = shogiSidePlacement(side, viewerSide);
@@ -434,25 +434,40 @@ export function FourShogiBoardLayout({
       })}
       <div
         data-testid="shogi-board"
-        className="[grid-area:board] relative w-[var(--shogi-board-width)] aspect-[458/500] place-self-center shadow-[0_8px_24px_#71531c25]"
+        className="[grid-area:board] relative w-[var(--shogi-board-width)] aspect-square place-self-center bg-[#cb8900] bg-cover bg-center shadow-[0_8px_24px_#71531c25]"
+        style={{ backgroundImage: `url("${boardImage}")` }}
         role="group"
         aria-label={standard ? "将棋の盤面" : "四人将棋の盤面"}
       >
-        <img
-          src={boardImage}
-          alt=""
-          draggable={false}
-          className="absolute inset-0 block size-full select-none pointer-events-none"
-        />
         <div
           ref={grid}
-          className="absolute inset-x-[1.3100437%] inset-y-[1.2%] grid grid-cols-9 grid-rows-9"
+          className="absolute inset-[calc(var(--shogi-board-margin)*100%)] isolate grid grid-cols-9 grid-rows-9"
         >
+          <div
+            aria-hidden="true"
+            data-testid="shogi-coordinates-top"
+            className={`${coordinateLabelClasses} bottom-full left-0 h-[var(--shogi-coordinate-space)] w-full grid-cols-9`}
+          >
+            {coordinates.map(({ top }) => (
+              <span key={top}>{top}</span>
+            ))}
+          </div>
+          <div
+            aria-hidden="true"
+            data-testid="shogi-coordinates-right"
+            className={`${coordinateLabelClasses} top-0 left-full h-full w-[var(--shogi-coordinate-space)] grid-rows-9`}
+          >
+            {coordinates.map(({ right }) => (
+              <span key={right}>{right}</span>
+            ))}
+          </div>
           {Array.from({ length: 81 }, (_, index) => {
-            const position = shogiBoardPosition(
-              { x: index % 9, y: Math.floor(index / 9) },
-              viewerSide,
-            );
+            const x = index % 9;
+            const y = Math.floor(index / 9);
+            const position = shogiBoardPosition({ x, y }, viewerSide);
+            const squareName = shogiSquareName(position);
+            const star = (x === 3 || x === 6) && (y === 3 || y === 6);
+            const highlightBounds = `absolute top-px left-px ${x === 8 ? "right-px" : "right-0"} ${y === 8 ? "bottom-px" : "bottom-0"} pointer-events-none`;
             const piece = game.board[position.y][position.x];
             const dead = !standard && piece !== null && eliminated.includes(piece.side);
             const canSelect =
@@ -487,7 +502,7 @@ export function FourShogiBoardLayout({
                 key={index}
                 type="button"
                 disabled={!editing && !canSelect && !destination}
-                data-square={`${"ABCDEFGHI"[position.x]}${position.y + 1}`}
+                data-square={squareName}
                 data-selected={selectedSquare || undefined}
                 data-legal-destination={destination || undefined}
                 data-three-player-attack-forbidden={forbiddenDestination || undefined}
@@ -495,7 +510,7 @@ export function FourShogiBoardLayout({
                 data-pending-move={pendingTo || undefined}
                 data-check={checked || undefined}
                 data-dragging={dragging || undefined}
-                aria-label={`${"ABCDEFGHI"[position.x]}${position.y + 1}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}${pendingTo ? "、未確定の移動先" : ""}`}
+                aria-label={`${squareName}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}${pendingTo ? "、未確定の移動先" : ""}、棋譜座標${shogiNotationSquare(position)}`}
                 aria-pressed={
                   !!selectedSquare ||
                   !!(editing?.selected && shogiSamePosition(editing.selected, position))
@@ -524,19 +539,17 @@ export function FourShogiBoardLayout({
                 {pendingTo && (
                   <span
                     aria-hidden="true"
-                    style={squareHighlightStyle(index)}
-                    className="absolute pointer-events-none box-border border-2 border-dashed border-[#9c6f14]"
+                    className={`${highlightBounds} box-border border-2 border-dashed border-[#9c6f14]`}
                   />
                 )}
                 <span
                   aria-hidden="true"
                   data-testid="shogi-square-highlight"
-                  style={squareHighlightStyle(index)}
-                  className={`absolute pointer-events-none ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#54361870]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-[3px] ring-inset ring-[#ffad32]" : ""}`}
+                  className={`${highlightBounds} ${checked ? "bg-[#e93f3540] shadow-[inset_0_0_0_2px_#b84625]" : selectedSquare ? "bg-[#ffeb8980] shadow-[inset_0_0_0_2px_#9c6f14]" : lastFrom ? "bg-[#54361870]" : canSelect || destination ? "group-hover/shogi-piece:bg-[#fff0b735]" : ""}${lastTo ? " ring-[3px] ring-inset ring-[#ffad32]" : ""}`}
                 />
                 {piece && (
                   <span
-                    className={`relative ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect || selectedSquare ? shogiPieceLiftClasses(!!selectedSquare) : ""}`}
+                    className={`relative pointer-events-none ${dead && piece.kind !== "king" ? "opacity-55" : ""} ${dragging ? "invisible" : canSelect || selectedSquare ? shogiPieceLiftClasses(!!selectedSquare) : ""}`}
                   >
                     <ShogiPiece
                       royalKing={standard && piece.side === "south"}
@@ -553,6 +566,16 @@ export function FourShogiBoardLayout({
                     className={`absolute size-[18%] rounded-full ring-1 pointer-events-none ${forbiddenDestination ? "bg-[#e93f35b0] ring-[#fff0edc7]" : "bg-[#267541b0] ring-[#f6ffd8c7]"}`}
                   />
                 )}
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-0 z-[1] pointer-events-none border-solid border-[#3b260c] border-t border-l ${x === 8 ? "border-r" : "border-r-0"} ${y === 8 ? "border-b" : "border-b-0"}`}
+                />
+                {star && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-0 left-0 z-[2] size-[clamp(3px,14%,8px)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#3b260c] pointer-events-none"
+                  />
+                )}
               </button>
             );
           })}
@@ -563,7 +586,7 @@ export function FourShogiBoardLayout({
               aria-live="polite"
               aria-atomic="true"
               data-testid="shogi-formation-notice"
-              className="absolute left-1/2 top-[83.333333%] -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none whitespace-nowrap rounded-lg bg-[#3d291ee6] px-[0.5em] py-[0.25em] text-white shadow-md text-[clamp(0px,calc(var(--shogi-board-width)_*_0.047),24px)] motion-safe:animate-[shogi-formation-fade_2s_ease-in-out_both]"
+              className="absolute left-1/2 top-[83.333333%] z-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none whitespace-nowrap rounded-lg bg-[#3d291ee6] px-[0.5em] py-[0.25em] text-white shadow-md text-[clamp(0px,calc(var(--shogi-board-width)_*_0.047),24px)] motion-safe:animate-[shogi-formation-fade_2s_ease-in-out_both]"
             >
               {formationNotice}
             </div>
@@ -598,6 +621,7 @@ export function FourShogiBoardLayout({
           viewerSide={viewerSide}
           interactionSide={interactionSide}
           grid={grid}
+          pieceScale={pieceScale}
           onChoose={send}
         />
       )}

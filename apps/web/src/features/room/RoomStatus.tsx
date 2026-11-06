@@ -1,24 +1,21 @@
-import { gameCatalog } from "@tetraboard/protocol/games";
-import { gameCapacity } from "@tetraboard/protocol/games";
+import { gameCapacity, gameCatalog } from "@tetraboard/protocol/games";
 import { ViewerControls } from "./ViewerControls";
-import { RoomClock } from "./RoomClock";
-import { AppCard } from "../../shared/ui/AppCard";
+import { RoomStatusCard } from "./RoomStatusCard";
 import { AppButton } from "../../shared/ui/AppButton";
+import { AppIcon } from "../../shared/ui/AppIcon";
 
-import type { ReactNode, Ref } from "react";
+import { useId, type ReactNode, type Ref } from "react";
 import { playerName } from "./roomCommonPresentation";
-import { playerClock, shogiPlayerClock, reversiPlayerClock } from "./playerClocks";
+import { useRoomMobile } from "./useRoomDesktop";
 import type { SharedRoomSession } from "./useRoomTransport";
-import {
-  isFourShogiRoom,
-  isShogiRoom,
-  isFourReversiRoom,
-  isFourGomokuRoom,
-  isReversiRoom,
-} from "@tetraboard/protocol";
+import { isFourShogiRoom, type Room } from "@tetraboard/protocol";
+
+const waitingActionWidth =
+  "[@media(max-width:767px)]:flex-1 [@media(max-width:767px)]:min-w-[68px] [@media(max-width:767px)]:max-w-28";
 
 export function RoomStatus({
   session,
+  turn,
   onResults,
   onResign,
   turnActions,
@@ -28,10 +25,13 @@ export function RoomStatus({
   resultButtonRef,
   joinUnavailable,
   replay,
+  openReplayKey,
+  onReplayChange,
   onRotate,
   onTournamentNext,
 }: {
   session: SharedRoomSession & { canPlay: boolean };
+  turn: Room["players"][number] | undefined;
   onResults: () => void;
   onResign: () => void;
   turnActions?: ReactNode;
@@ -41,11 +41,21 @@ export function RoomStatus({
   resultButtonRef?: Ref<HTMLButtonElement>;
   joinUnavailable: string | null;
   replay?: ReactNode;
+  openReplayKey: string | null;
+  onReplayChange: (key: string | null) => void;
   onRotate: () => void;
   onTournamentNext?: () => void;
 }) {
   const { room, self, membership, presence, authenticated, connection } = session;
   const waiting = room.status === "waiting";
+  const mobile = useRoomMobile();
+  const replayPanelId = useId();
+  const round = room.lastRound;
+  const mobileReplayKey =
+    mobile && replay && round
+      ? `${room.instanceId}:${"roundId" in round ? round.roundId : (round.replay?.id ?? "legacy")}`
+      : null;
+  const replayOpen = mobileReplayKey !== null && openReplayKey === mobileReplayKey;
   const tournamentId = isFourShogiRoom(room) ? room.tournamentId : undefined;
   const nextTournamentRound =
     tournamentId !== undefined &&
@@ -55,147 +65,140 @@ export function RoomStatus({
         self &&
         "side" in self &&
         room.game.eliminations.some((entry) => entry.side === self.side)));
-  const turn =
-    room.status === "playing"
-      ? isFourShogiRoom(room) || isShogiRoom(room)
-        ? room.players.find((player) => player.side === room.game.turn)
-        : room.players.find((player) => player.color === room.game.turn)
-      : null;
-  const myTurn = !!turn && turn.id === self?.id;
-  const clock = turn
-    ? (isFourShogiRoom(room) || isShogiRoom(room)) && "side" in turn
-      ? shogiPlayerClock(room, turn.side, session.serverNowMs)
-      : (isFourReversiRoom(room) || isFourGomokuRoom(room)) && "color" in turn
-        ? playerClock(room, turn.color, session.serverNowMs)
-        : isReversiRoom(room) &&
-            "color" in turn &&
-            (turn.color === "black" || turn.color === "white")
-          ? reversiPlayerClock(room, turn.color, session.serverNowMs)
-          : null
-    : null;
+  const myTurn = turn !== undefined && turn.id === self?.id;
   const available =
     authenticated &&
     connection === "接続済み" &&
     !session.leaving &&
     session.pendingGameAction === null;
-  const registering = room.players.filter(
+  const registering = room.players.some(
     (player) => player.kind === "human" && player.registrationPendingUntilMs !== undefined,
   );
   const ownRegistration = self?.kind === "human" && self.registrationPendingUntilMs !== undefined;
   const ready = available && session.pendingReady === null && !ownRegistration;
   const canStart =
     ready &&
-    registering.length === 0 &&
+    !registering &&
     room.players.length === gameCapacity(room.settings.game) &&
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
-  return (
-    <AppCard
-      density="compact"
-      className={`min-h-[88px] flex flex-col justify-center gap-2 shrink-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-2 [@media(max-width:1279px)]:col-start-1 [@media(max-width:1279px)]:row-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:min-h-20 [@media(min-width:768px)_and_(max-width:1279px)]:grid [@media(min-width:768px)_and_(max-width:1279px)]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] [@media(min-width:768px)_and_(max-width:1279px)]:items-center [@media(max-width:767px)]:mx-[2px] [@media(max-width:767px)]:py-2 [@media(max-width:767px)]:px-3 [@media(max-width:767px)]:h-[92px] [@media(max-width:767px)]:min-h-[92px] ${replay || membership === null ? "flex! flex-col!" : ""}`}
-      aria-label="対局状況"
+  const notice = registering
+    ? "登録手続きの完了を待っています。"
+    : tournamentId !== undefined
+      ? room.lastRound
+        ? "大会の対局が終了しました。"
+        : "参加者の接続を待っています。"
+      : null;
+  const status = (
+    <RoomStatusCard
+      className={`[@media(min-width:360px)]:[&>button:not(.button--icon-only)]:min-w-16 [@media(min-width:768px)]:[&>button:not(.button--icon-only)]:min-w-[84px] ${replayOpen ? "rounded-t-none" : ""}`}
     >
       <div
-        className={`flex justify-between items-center gap-[10px] min-h-6 [&>strong]:text-[15px] [&>strong]:leading-[1.45] [&>strong]:wrap-anywhere [@media(min-width:768px)_and_(max-width:1279px)]:contents [@media(min-width:768px)_and_(max-width:1279px)]:[&>strong]:col-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:[&>strong]:row-start-1 [@media(max-width:767px)]:h-7 [@media(max-width:767px)]:min-h-7 [@media(max-width:767px)]:shrink-0 [@media(max-width:767px)]:[&>strong]:text-[clamp(12px,3.6vw,14px)] [@media(max-width:767px)]:[&>strong]:leading-[1.15] ${replay ? "grid! w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-2 [&>*]:row-start-1 [&>strong]:whitespace-nowrap [@media(max-width:767px)]:gap-1" : membership === null ? "flex! w-full" : ""}`}
+        role="status"
+        className={
+          !myTurn && turn
+            ? "flex min-w-0 flex-1 items-center text-sm font-bold"
+            : waiting && notice && !replay
+              ? "min-w-0 truncate text-xs"
+              : "sr-only"
+        }
       >
-        <strong
-          className={
-            myTurn ? "text-[#ca771d] animate-[room-urgency_1.5s_ease-in-out_infinite]" : undefined
-          }
-          aria-live="polite"
+        {waiting ? (
+          (notice ?? "待機中です。")
+        ) : myTurn ? (
+          "あなたの番です。"
+        ) : turn ? (
+          <>
+            <span className="truncate">{playerName(turn)}</span>
+            <span className="shrink-0">の番です。</span>
+          </>
+        ) : null}
+      </div>
+      {tournamentId === undefined && waiting && self && membership && (
+        <AppButton
+          size="compact"
+          className={waitingActionWidth}
+          appearance={self.ready ? "secondary" : "primary"}
+          isDisabled={!ready}
+          isPending={session.pendingReady !== null}
+          onPress={session.handleReadyClick}
         >
-          {waiting
-            ? registering.length > 0
-              ? "登録手続きの完了を待っています。"
-              : tournamentId !== undefined
-                ? room.lastRound
-                  ? "大会の対局が終了しました。"
-                  : "参加者の接続を待っています。"
-                : "待機中です。"
-            : myTurn
-              ? "あなたの番です。"
-              : `${turn ? playerName(turn) : ""}の番です。`}
-        </strong>
-        {replay}
-        <div className="text-muted text-xs whitespace-nowrap [&>span]:text-xs [@media(min-width:768px)_and_(max-width:1279px)]:col-start-3 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:text-right">
-          {waiting ? (
-            room.lastRound ? (
-              <AppButton
-                ref={resultButtonRef}
-                appearance="quiet"
-                size="compact"
-                className="text-brand bg-surface-muted rounded-lg h-7 min-h-7 text-xs py-[3px] px-[15px] [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:min-w-9"
-                onPress={onResults}
-              >
-                結果
-              </AppButton>
-            ) : (
-              `参加者 ${room.players.length}/${gameCapacity(room.settings.game)}`
-            )
-          ) : (
-            clock && <RoomClock clock={clock} describe className="text-xs" />
-          )}
-        </div>
+          {ownRegistration ? "登録手続中" : self.ready ? "準備取消" : "準備完了"}
+        </AppButton>
+      )}
+      {tournamentId === undefined && waiting && membership?.role === "host" && (
+        <AppButton
+          size="compact"
+          className={waitingActionWidth}
+          isDisabled={!canStart}
+          isPending={session.pendingGameAction?.type === "start"}
+          onPress={session.handleStartClick}
+        >
+          対局開始
+        </AppButton>
+      )}
+      {waiting && room.lastRound && (
+        <AppButton ref={resultButtonRef} appearance="secondary" size="compact" onPress={onResults}>
+          結果
+        </AppButton>
+      )}
+      {mobileReplayKey ? (
+        <AppButton
+          appearance="secondary"
+          size="compact"
+          aria-expanded={replayOpen}
+          aria-controls={replayPanelId}
+          onPress={() => onReplayChange(replayOpen ? null : mobileReplayKey)}
+        >
+          棋譜
+          <AppIcon name="chevronDown" className={`size-3 ${replayOpen ? "" : "rotate-180"}`} />
+        </AppButton>
+      ) : (
+        replay && <div className="min-w-0 flex-1">{replay}</div>
+      )}
+      {membership === null && (tournamentId !== undefined || !joinUnavailable) && (
+        <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
+          {tournamentId !== undefined ? "大会へ" : "参加する"}
+        </AppButton>
+      )}
+      {myTurn && (
+        <AppButton
+          size="compact"
+          isDisabled={!session.canPlay}
+          onPress={onResign}
+          appearance="danger"
+        >
+          投了
+        </AppButton>
+      )}
+      {nextTournamentRound && membership && onTournamentNext && (
+        <AppButton
+          size="compact"
+          isDisabled={session.leaving}
+          isPending={session.leaving}
+          onPress={onTournamentNext}
+        >
+          次の対局
+        </AppButton>
+      )}
+      {turnActions}
+      {stampPicker}
+      {membership === null && (
+        <ViewerControls
+          label="観戦中"
+          onRotate={onRotate}
+          rotationDegrees={!gameCatalog[room.settings.game].hasModes ? 180 : 90}
+        />
+      )}
+    </RoomStatusCard>
+  );
+  if (!mobileReplayKey) return status;
+
+  return (
+    <div className="col-start-1 row-start-2 flex min-w-0 flex-col">
+      {status}
+      <div id={replayPanelId} hidden={!replayOpen} className="order-first mx-[2px] min-w-0">
+        {replayOpen && replay}
       </div>
-      <div
-        className={`flex gap-2 min-h-[38px] [&>button]:flex-1 ${stampPicker ? "[&>button]:min-w-0 [&>button]:shrink [&>button]:px-2 [@media(max-width:767px)]:gap-1 [@media(max-width:767px)]:[&>button]:px-1" : ""} [@media(min-width:768px)_and_(max-width:1279px)]:col-start-2 [@media(min-width:768px)_and_(max-width:1279px)]:row-start-1 [@media(min-width:768px)_and_(max-width:1279px)]:min-w-[140px] [@media(max-width:767px)]:h-[38px] [@media(max-width:767px)]:min-h-[38px] [@media(max-width:767px)]:shrink-0`}
-      >
-        {membership === null && (
-          <ViewerControls
-            label="観戦中"
-            onRotate={onRotate}
-            rotationDegrees={!gameCatalog[room.settings.game].hasModes ? 180 : 90}
-          >
-            {(tournamentId !== undefined || !joinUnavailable) && (
-              <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
-                {tournamentId !== undefined ? "大会へ" : "参加する"}
-              </AppButton>
-            )}
-          </ViewerControls>
-        )}
-        {tournamentId === undefined && waiting && self && membership && (
-          <AppButton
-            size="compact"
-            appearance={self.ready ? "secondary" : "primary"}
-            isDisabled={!ready}
-            isPending={session.pendingReady !== null}
-            onPress={session.handleReadyClick}
-          >
-            {ownRegistration ? "登録手続中" : self.ready ? "準備取消" : "準備完了"}
-          </AppButton>
-        )}
-        {tournamentId === undefined && waiting && membership?.role === "host" && (
-          <AppButton
-            size="compact"
-            isDisabled={!canStart}
-            isPending={session.pendingGameAction?.type === "start"}
-            onPress={session.handleStartClick}
-          >
-            対局開始
-          </AppButton>
-        )}
-        {myTurn && (
-          <AppButton
-            size="compact"
-            isDisabled={!session.canPlay}
-            onPress={onResign}
-            appearance="danger"
-          >
-            投了
-          </AppButton>
-        )}
-        {nextTournamentRound && membership && onTournamentNext && (
-          <AppButton
-            size="compact"
-            isDisabled={session.leaving}
-            isPending={session.leaving}
-            onPress={onTournamentNext}
-          >
-            次の対局
-          </AppButton>
-        )}
-        {turnActions}
-        {stampPicker}
-      </div>
-    </AppCard>
+    </div>
   );
 }
