@@ -78,7 +78,9 @@ export function LobbyList({
       aria-labelledby="public-rooms-title"
       className={general ? "min-w-0" : "flex h-full min-w-0 flex-col"}
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={`mb-4 flex flex-wrap items-center justify-between gap-3 ${general ? "" : "[@media(max-width:767px)]:mb-1"}`}
+      >
         <div className="flex items-center gap-3">
           <h2 id="public-rooms-title" className="text-xl font-bold">
             {general ? "公開ルーム一覧" : "公開ルーム"}
@@ -109,7 +111,9 @@ export function LobbyList({
           </AppButton>
         </div>
       </div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div
+        className={`mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 ${general ? "" : "[@media(max-width:767px)]:mb-1 [@media(max-width:767px)]:gap-x-2 [@media(max-width:767px)]:gap-y-0"}`}
+      >
         {filters.length > 0 && (
           <div
             role="group"

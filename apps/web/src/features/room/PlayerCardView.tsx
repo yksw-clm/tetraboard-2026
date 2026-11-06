@@ -120,7 +120,7 @@ export function PlayerCardView({
     <AppCard
       data-testid="player-card"
       className={cn(
-        "[container-type:inline-size] grid grid-cols-[32px_minmax(0,1fr)] grid-rows-[20px_22px] content-center gap-x-2 gap-y-[2px] py-[6px] px-2 w-[var(--seat-width)] h-[var(--player-height)] justify-self-center rounded-[17px] overflow-visible shadow-[0_2px_5px_#203b2210] [@media(max-width:767px)]:py-px [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:gap-x-1 [@media(max-width:767px)]:grid-cols-[26px_minmax(0,1fr)]",
+        "[container-type:inline-size] grid grid-cols-[32px_minmax(0,1fr)] grid-rows-[20px_22px] content-center gap-x-2 gap-y-[2px] py-[6px] px-2 w-[var(--seat-width)] h-[var(--player-height)] justify-self-center rounded-lg! overflow-visible shadow-[0_2px_5px_#203b2210] [@media(max-width:767px)]:py-px [@media(max-width:767px)]:px-[6px] [@media(max-width:767px)]:gap-x-1 [@media(max-width:767px)]:grid-cols-[26px_minmax(0,1fr)]",
         game === "shogi" &&
           "grid-cols-[40px_minmax(0,1fr)] grid-rows-[22px_24px] [@media(max-width:767px)]:grid-cols-[32px_minmax(0,1fr)]",
         seatClasses[position],
@@ -129,10 +129,17 @@ export function PlayerCardView({
           (shogi
             ? "border-[#d5b35d] shadow-[0_0_0_1px_#d5b35d2b]"
             : "border-[#81b99d] shadow-[0_0_0_1px_#8ec4a62b]"),
-        current && "border-[#dc9a39] shadow-[0_0_0_2px_#e8b76640]",
+        current &&
+          "border-[color:var(--turn-border)] outline-solid outline-[length:var(--turn-outline)] outline-[color:var(--turn-border)] outline-offset-[calc(0px_-_var(--turn-outline))] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:opacity-0 after:shadow-[0_0_9px_2px_var(--turn-glow)] motion-safe:after:animate-[room-turn-glow_var(--turn-glow-duration)_ease-in-out_infinite]",
+        current &&
+          (clock?.urgent
+            ? "[--turn-border:#c52e38] [--turn-outline:2px] [--turn-glow:#ef414c] [--turn-glow-duration:1.5s]"
+            : "[--turn-border:#bd7721] [--turn-outline:1px] [--turn-glow:#ed9b2e] [--turn-glow-duration:2.4s]"),
       )}
       aria-label={
-        player ? `${playerName(player)}${self ? "、あなた" : ""}${host ? "、ホスト" : ""}` : "空席"
+        player
+          ? `${playerName(player)}${self ? "、あなた" : ""}${host ? "、ホスト" : ""}${current ? "、手番" : ""}`
+          : "空席"
       }
     >
       <Badge.Anchor

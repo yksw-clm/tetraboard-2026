@@ -6,6 +6,7 @@ import { useRoomDesktop } from "./useRoomDesktop";
 import { ViewerControls } from "./ViewerControls";
 import { ReplayCard } from "./ReplayCard";
 import { RoomLayout } from "./RoomLayout";
+import { RoomStatusCard } from "./RoomStatusCard";
 import { RoomInfoCard } from "./RoomInfo";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -34,7 +35,7 @@ export function SavedMatchReplayView({
   const location = useLocation();
   const [tab, setTab] = useState("board");
   const [results, setResults] = useState(false);
-  const replayCard = <ReplayCard replay={replay} theme={theme} />;
+  const replayCard = <ReplayCard replay={replay} theme={theme} compactMobile />;
   const info = (
     <RoomInfoCard roomId={match.roomId} settings={match.settings}>
       <AppButtonLink
@@ -48,31 +49,18 @@ export function SavedMatchReplayView({
     </RoomInfoCard>
   );
   const status = (
-    <AppCard
-      density="compact"
-      aria-label="対局状況"
-      className="min-h-[88px] flex flex-col gap-2 items-center justify-center shrink-0 [@media(min-width:1280px)]:col-start-2 [@media(min-width:1280px)]:row-start-2 [@media(max-width:1279px)]:col-start-1 [@media(max-width:1279px)]:row-start-2 [@media(max-width:767px)]:mx-[2px] [@media(max-width:767px)]:h-[92px] [@media(max-width:767px)]:py-2"
-    >
-      <div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 [@media(max-width:767px)]:gap-1">
-        <strong className="text-sm whitespace-nowrap [@media(max-width:767px)]:text-xs">
-          対局終了
-        </strong>
-        {desktop ? <span /> : replayCard}
-        <AppButton
-          size="compact"
-          appearance="quiet"
-          className={`text-brand ${theme === "gomoku" ? "bg-surface-muted" : theme === "four-shogi" ? "bg-[#fff0c9]" : "bg-[#e9f4ec]"} h-7 min-h-7 px-[6px] text-xs`}
-          onPress={() => setResults(true)}
-        >
-          結果
-        </AppButton>
-      </div>
+    <RoomStatusCard>
+      <strong className={desktop ? "text-sm whitespace-nowrap" : "sr-only"}>対局終了</strong>
+      {!desktop && <div className="min-w-0 flex-1">{replayCard}</div>}
+      <AppButton size="compact" appearance="secondary" onPress={() => setResults(true)}>
+        結果
+      </AppButton>
       <ViewerControls
         label="棋譜閲覧中"
         onRotate={onRotate}
         rotationDegrees={!gameCatalog[match.settings.game].hasModes ? 180 : 90}
       />
-    </AppCard>
+    </RoomStatusCard>
   );
   return (
     <main

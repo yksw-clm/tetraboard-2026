@@ -29,6 +29,8 @@ export function RoomLayout({
   board,
   info,
   status,
+  boardOverlay,
+  myTurn = false,
   chat,
   replay,
   showChatTab = true,
@@ -40,6 +42,8 @@ export function RoomLayout({
   board: ReactNode;
   info: ReactNode;
   status: ReactNode;
+  boardOverlay?: ReactNode;
+  myTurn?: boolean;
   chat: ReactNode;
   replay: ReactNode;
   showChatTab?: boolean;
@@ -54,7 +58,10 @@ export function RoomLayout({
             aria-label="盤面とプレイヤー"
           >
             <div className="flex-1 min-w-0 min-h-0 [container-type:size] overflow-auto">
-              <RoomBoardStatusProvider status={statusBelowBoard ? status : null}>
+              <RoomBoardStatusProvider
+                status={statusBelowBoard ? status : null}
+                overlay={boardOverlay}
+              >
                 {board}
               </RoomBoardStatusProvider>
             </div>
@@ -83,6 +90,14 @@ export function RoomLayout({
                 <AppTabs.Tab key={key} id={key} className="h-full p-2 text-xs [&_svg]:size-4">
                   <AppIcon name={key === "room" ? "user" : key} />
                   {tabLabels[key]}
+                  {key === "board" && myTurn && tab !== "board" && (
+                    <span
+                      className="rounded-full bg-[#fff0cc] px-1 text-[10px] font-bold text-[#805000]"
+                      aria-hidden="true"
+                    >
+                      手番
+                    </span>
+                  )}
                   <AppTabs.Indicator />
                 </AppTabs.Tab>
               ))}
@@ -92,7 +107,7 @@ export function RoomLayout({
             className="min-w-0 min-h-0 [container-type:size] overflow-auto [@media(min-width:1280px)]:col-start-1 [@media(min-width:1280px)]:row-span-3 relative [@media(min-width:1280px)]:flex [@media(min-width:1280px)]:flex-col [@media(min-width:1280px)]:gap-2 col-start-1 row-start-1 p-0 min-w-0 min-h-0 [&[inert]]:hidden [&[hidden]]:hidden"
             shouldForceMount
           >
-            {board}
+            <RoomBoardStatusProvider overlay={boardOverlay}>{board}</RoomBoardStatusProvider>
           </AppTabs.Panel>
           <AppTabs.Panel
             id="room"
