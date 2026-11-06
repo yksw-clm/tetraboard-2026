@@ -91,6 +91,8 @@ function RecentMatchList({ game }: { game: GameId | "all" }) {
   );
 }
 
+const matchPreviewRowHeight = "h-18 [@media(max-width:767px)]:h-15";
+
 function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) {
   const winners = matchResultGroups(match).filter((group) => group.emphasized);
   const first = winners[0]?.players[0];
@@ -99,7 +101,7 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
   return (
     <Link
       to={`/matches/${match.id}`}
-      className="flex h-18 min-w-0 items-center gap-3 text-ink no-underline hover:bg-surface-muted"
+      className={`flex min-w-0 items-center gap-3 text-ink no-underline hover:bg-surface-muted ${matchPreviewRowHeight}`}
     >
       <PlayerAvatar
         appearance={
@@ -180,7 +182,7 @@ function GameRecentMatches({ game }: { game: GameId }) {
   const status = <RecentMatchStatus page={page} hideLoadingText={page.isInitialLoading} />;
   return (
     <section aria-labelledby="recent-matches-title" className="min-w-0">
-      <AppCard className="gap-3 p-5">
+      <AppCard className="gap-3 p-5 [@media(max-width:767px)]:gap-2 [@media(max-width:767px)]:p-3">
         <div className="flex items-center justify-between gap-2">
           <h2
             id="recent-matches-title"
@@ -200,10 +202,14 @@ function GameRecentMatches({ game }: { game: GameId }) {
             もっと見る
           </AppButton>
         </div>
-        <div className="min-h-54">
+        <div className="min-h-54 [@media(max-width:767px)]:min-h-45">
           {page.isInitialLoading &&
             [0, 1, 2].map((row) => (
-              <div key={row} className="flex h-18 items-center gap-3" aria-hidden="true">
+              <div
+                key={row}
+                className={`flex items-center gap-3 ${matchPreviewRowHeight}`}
+                aria-hidden="true"
+              >
                 <AppSkeleton className="size-8 shrink-0 rounded-full" />
                 <div className="flex flex-1 flex-col gap-1.5">
                   <AppSkeleton className="h-3 w-1/2" />

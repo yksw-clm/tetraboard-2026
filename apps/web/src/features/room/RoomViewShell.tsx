@@ -18,7 +18,8 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { RoomLayout } from "./RoomLayout";
 import type { useRoomChat } from "./useRoomChat";
 import type { SharedRoomSession } from "./useRoomTransport";
-import { gameCatalog } from "@tetraboard/protocol/games";
+import { isFourShogiRoom, isShogiRoom } from "@tetraboard/protocol";
+import { gameCapacity, gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes, appThemeClasses } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
 import { RegistrationPrompt } from "../account/RegistrationPrompt";
@@ -91,6 +92,13 @@ export function RoomViewShell({
     "result" | "leave" | "resign" | "feedback" | "settings" | "room-settings" | null
   >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
+  const turn =
+    room.status === "playing"
+      ? isFourShogiRoom(room) || isShogiRoom(room)
+        ? room.players.find((player) => player.side === room.game.turn)
+        : room.players.find((player) => player.color === room.game.turn)
+      : undefined;
+  const myTurn = turn !== undefined && turn.id === session.self?.id;
   const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
   const tournamentStartsAtMs =
     tournamentId !== undefined &&
@@ -269,6 +277,7 @@ export function RoomViewShell({
   const status = (
     <RoomStatus
       session={session}
+      turn={turn}
       onRotate={onRotate}
       replay={desktop ? undefined : replayCard}
       onJoin={
@@ -351,6 +360,19 @@ export function RoomViewShell({
             tab={tab}
             onTabChange={setTab}
             board={board}
+            boardOverlay={
+              room.status === "waiting" &&
+              room.lastRound === null &&
+              tournamentId === undefined && (
+                <div className="rounded-xl bg-[#17241de0] px-5 py-2 text-center text-xs text-white shadow-md">
+                  <strong className="block text-sm">待機中</strong>
+                  <span>
+                    参加者 {room.players.length}/{gameCapacity(room.settings.game)}
+                  </span>
+                </div>
+              )
+            }
+            myTurn={myTurn}
             info={info}
             status={status}
             chat={chatPanel}

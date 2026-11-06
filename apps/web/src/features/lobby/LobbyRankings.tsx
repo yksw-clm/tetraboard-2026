@@ -60,6 +60,8 @@ function ModeTabs({
   );
 }
 
+const previewRankRowHeight = "h-12 [@media(max-width:767px)]:h-11";
+
 function RankingList({
   entries,
   label,
@@ -81,7 +83,7 @@ function RankingList({
       {entries.map((entry) => (
         <li
           key={entry.profileId ?? entry.username ?? `${entry.rank}:${entry.name}`}
-          className={`flex min-w-0 items-center gap-2 border-b border-solid border-line text-sm last:border-0 ${preview ? "h-12" : "py-3"}`}
+          className={`flex min-w-0 items-center gap-2 border-b border-solid border-line text-sm last:border-0 ${preview ? previewRankRowHeight : "py-3"}`}
         >
           <span className="w-8 shrink-0 text-muted text-xs tabular-nums">{entry.rank}位</span>
           <PlayerProfileTrigger
@@ -174,7 +176,7 @@ function RankingContent({
   return (
     <div className="flex flex-col gap-3">
       <h3 className={preview ? "sr-only" : "text-sm font-semibold text-muted"}>{label}</h3>
-      <div className={preview ? "min-h-36" : "contents"}>
+      <div className={preview ? "min-h-36 [@media(max-width:767px)]:min-h-33" : "contents"}>
         {loading && (
           <p role="status" className={preview ? "sr-only" : "text-sm text-muted"}>
             ランキングを読み込んでいます…
@@ -184,7 +186,11 @@ function RankingContent({
           loading &&
           !entries &&
           [0, 1, 2].map((row) => (
-            <div key={row} className="flex h-12 items-center gap-2" aria-hidden="true">
+            <div
+              key={row}
+              className={`flex items-center gap-2 ${previewRankRowHeight}`}
+              aria-hidden="true"
+            >
               <AppSkeleton className="h-3 w-8" />
               <AppSkeleton className="size-8 rounded-full" />
               <AppSkeleton className="h-3 w-1/3" />
@@ -293,7 +299,7 @@ function LobbyRankingsView({
   const [open, setOpen] = useState(false);
   return (
     <section aria-labelledby="lobby-rankings-title" className="min-w-0">
-      <AppCard className="gap-4 p-5">
+      <AppCard className="gap-4 p-5 [@media(max-width:767px)]:gap-2 [@media(max-width:767px)]:p-3">
         <div className="flex items-center justify-between gap-2">
           <h2
             id="lobby-rankings-title"

@@ -8,16 +8,24 @@ import {
   type RefObject,
 } from "react";
 
-const BoardStatusContext = createContext<ReactNode>(null);
+const BoardStatusContext = createContext<{ status: ReactNode; overlay?: ReactNode }>({
+  status: null,
+});
 
 export function RoomBoardStatusProvider({
-  status,
+  status = null,
+  overlay,
   children,
 }: {
-  status: ReactNode;
+  status?: ReactNode;
+  overlay?: ReactNode;
   children: ReactNode;
 }) {
-  return <BoardStatusContext.Provider value={status}>{children}</BoardStatusContext.Provider>;
+  return (
+    <BoardStatusContext.Provider value={{ status, overlay }}>
+      {children}
+    </BoardStatusContext.Provider>
+  );
 }
 
 export function RoomBoardGroup({
@@ -30,7 +38,7 @@ export function RoomBoardGroup({
   ref?: RefObject<HTMLDivElement | null>;
   hasNotice?: boolean;
 }) {
-  const status = useContext(BoardStatusContext);
+  const { status, overlay } = useContext(BoardStatusContext);
   const ownRef = useRef<HTMLDivElement>(null);
   const layoutRef = ref ?? ownRef;
   const statusRef = useRef<HTMLDivElement>(null);
@@ -40,9 +48,9 @@ export function RoomBoardGroup({
     const layout = layoutRef.current;
     const card = statusRef.current;
     if (!layout || !card) return;
-    // 名前や操作の折り返しで変わる高さも確保し、盤面とカードを一緒に収めます。
+    // 状況カードの高さと間隔を確保し、盤面と一緒に収めます。
     const reserveHeight = () => {
-      const height = Math.ceil(card.getBoundingClientRect().height) || 88;
+      const height = Math.ceil(card.getBoundingClientRect().height) || 48;
       layout.style.setProperty("--board-status-space", `${height + 8}px`);
     };
     reserveHeight();
@@ -64,16 +72,21 @@ export function RoomBoardGroup({
       ref={layoutRef}
       data-with-status={hasStatus || undefined}
       style={{
-        ...(hasStatus ? { "--board-status-space": "96px", "--board-min-size": "0px" } : {}),
+        ...(hasStatus ? { "--board-status-space": "56px", "--board-min-size": "0px" } : {}),
         ...(hasStatus && hasNotice ? { "--board-notice-space": "25px" } : {}),
         ...style,
       }}
     >
       {children}
+      {overlay && (
+        <div className="[grid-area:board] z-[1] place-self-center pointer-events-none">
+          {overlay}
+        </div>
+      )}
       {hasStatus && (
         <div
           ref={statusRef}
-          className={`col-start-1 col-end-[-1] ${hasNotice ? "row-start-5" : "row-start-4"} justify-self-center w-[var(--shogi-board-width,var(--board-size))] max-w-full min-w-0`}
+          className={`col-start-1 col-end-[-1] ${hasNotice ? "row-start-5" : "row-start-4"} justify-self-center w-[max(320px,var(--shogi-board-width,var(--board-size)))] max-w-full min-w-0`}
         >
           {status}
         </div>

@@ -1,29 +1,15 @@
 import { cn } from "@heroui/react";
 export type RoomClockPresentation = { text: string; byoyomi: boolean; urgent: boolean };
 
-export function RoomClock({
-  clock,
-  describe = false,
-  className,
-}: {
-  clock: RoomClockPresentation;
-  describe?: boolean;
-  className?: string;
-}) {
+export function RoomClock({ clock }: { clock: RoomClockPresentation }) {
   return (
     <span
       aria-label={`${clock.byoyomi ? "秒読み" : "持ち時間"} ${clock.text}`}
       className={cn(
-        "tabular-nums font-[650] whitespace-nowrap text-sm [@media(max-width:767px)]:text-xs",
-        clock.urgent
-          ? "text-[#d04444] animate-[room-urgency_1s_ease-in-out_infinite]"
-          : clock.byoyomi
-            ? "text-[#a97c0b]"
-            : "text-ink",
-        className,
+        "tabular-nums font-normal whitespace-nowrap text-xl leading-none [@media(max-width:767px)]:text-lg [@container(max-width:112px)]:text-sm",
+        clock.urgent ? "text-[#b82733]" : clock.byoyomi ? "text-[#a97c0b]" : "text-ink",
       )}
     >
-      {describe && (clock.byoyomi ? "秒読み " : "残り ")}
       {clock.text}
     </span>
   );
