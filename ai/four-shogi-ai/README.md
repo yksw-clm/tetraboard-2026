@@ -6,7 +6,7 @@
 
 ## 現在の実装範囲
 
-フェーズ01の成果物は、[設計契約](docs/design.md)、Pythonパッケージのひな形、版付き再生入力の検証・不変データへの変換と、品質チェックです。ルールエンジン、対局、合法手生成、探索、学習は未実装です。入力形式を受理しても、その棋譜が合法とは限りません。
+フェーズ01の入力検証・[設計契約](docs/design.md)に加え、02の第1段階として三人攻撃禁止OFFの初期化、合法手生成、着手・外部脱落・引分提案の適用、終局までの再生を実装しています。入力検証はONも受理しますが、ONのルール実行は `NotImplementedError` で明示的に拒否します。ON対応、探索、学習は未実装です。
 
 - [ゲームのルール正本](../../docs/rules/four-shogi.md)
 - [開発手順](../../docs/development.md#独立python四人将棋ai)
@@ -26,7 +26,7 @@ mise exec -- uv sync --locked --directory ai/four-shogi-ai
 bun run ai:check
 ```
 
-`ai:check` はRuff整形確認・Lint、mypy strict、pytestを順に実行します。pytestは固定例・決定的なHypothesis生成例と、実BunプロセスでのTS入力検証器との比較を含みます。TS側の比較入口はルートの型検査対象です。全体の `bun run check` とFull CIにも組み込み、Fast CIでは未実行として表示します。
+`ai:check` はRuff整形確認・Lint、mypy strict、pytestを順に実行します。pytestは固定例・決定的なHypothesis生成例と、実BunプロセスでのTS入力検証器・OFFルールとの逐次比較を含みます。TS側の比較入口はルートの型検査対象です。全体の `bun run check` とFull CIにも組み込み、Fast CIでは未実行として表示します。
 
 交換入力をPythonから扱う例です。
 
@@ -52,6 +52,34 @@ assert replay_to_dict(replay)["eventOffset"] == 0
 
 `mise exec -- uv run --locked --directory ai/four-shogi-ai python` で専用環境を使えます。通常実行にBun・TS・PyTorchは不要です。Bunは開発時の照合にだけ必要です。
 
+## OFFのルールを使う
+
+```python
+from four_shogi_ai import (
+    ActionEvent,
+    InitialOptions,
+    apply_event,
+    create_initial_state,
+    legal_actions,
+)
+
+state = create_initial_state(InitialOptions(("s", "w", "n", "e"), False))
+result = apply_event(state, ActionEvent("south", legal_actions(state)[0]))
+assert result.ok
+assert result.state.move_number == 1
+assert state.move_number == 0  # 元の状態は不変
+```
+
+`replay(parse_replay(json_value))` で `eventOffset` までの完全状態を復元します。形状エラーは `ReplayInputError`、再生中のルール拒否は `ReplayExecutionError`（`code`、`event_index`、`reason`）です。状態には反復辞書を含み、表示用frameで置き換えません。
+
+OFFの版付き再生入力を実TSと照合する開発用コマンドです。入力と出力には絶対パスを指定します。
+
+```sh
+mise exec -- uv run --locked --directory ai/four-shogi-ai python scripts/rule_comparison.py /tmp/replay-off.json --output /tmp/rule-comparison.json
+```
+
+初期局面と各イベント後の合法手集合・完全状態・遷移結果を比較します。結果JSONに入力、両実装のコミット、作業ツリーの変更有無、比較器の版、最初の不一致を記録し、不一致なら非零終了します。出力先は通常Gitへ追加しません。テスト内の不一致はpytestの一時ディレクトリへ同じ再現情報を保存します。
+
 ## 後続の進め方
 
-ルール検証 → 自己対局・評価基盤 → 探索 → 棋風・棋力帯 → TetraBoard統合 → 機械学習の順に進めます。各フェーズの完了はNotionの完了条件と成果物PRで管理します。フェーズ01のテスト成功は、ルール互換性や棋力の達成を意味しません。
+ルール検証 → 自己対局・評価基盤 → 探索 → 棋風・棋力帯 → TetraBoard統合 → 機械学習の順に進めます。各フェーズの完了はNotionの完了条件と成果物PRで管理します。02はOFFとONの2本のPRに分け、OFF取り込み後にONへ進みます。02完了にはON／OFF両方の終局再生と照合が必要です。03で生成対局の範囲と性能測定を拡張します。
