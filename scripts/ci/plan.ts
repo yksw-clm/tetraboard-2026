@@ -33,5 +33,5 @@ if (process.env.GITHUB_STEP_SUMMARY)
         .filter((w) => !plan.workspaces.includes(w.path))
         .map((w) => w.path)
         .join(", ") || "なし"
-    }\n\nFast成功は未実行の検証の成功を意味しません。デプロイはFull成功時のみ許可します。\n`,
+    }\n\nPython AI: ${plan.mode === "full" ? "実行（Ruff・mypy・pytest／TS入力比較）" : "未実行（Fast対象外）"}\n\nFast成功は未実行の検証の成功を意味しません。デプロイはFull成功時のみ許可します。\n`,
   );

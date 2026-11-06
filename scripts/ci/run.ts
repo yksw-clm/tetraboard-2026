@@ -42,6 +42,9 @@ if (mode === "test" || mode === "check") {
   if (mode === "test")
     await runTask({ name: "CI policy tests", command: ["bun", "test", "./scripts/ci/test"] });
   const tasks: Task[] = [];
+  if (plan.mode === "full")
+    tasks.push({ name: "Python AI check", command: ["bun", "run", "ai:check"] });
+  else console.log("未実行: Python AI check (Fast CIの対象外)");
   if (plan.workspaces.includes("apps/worker")) {
     const files = [...new Bun.Glob(workerTestPattern).scanSync(`${root}/apps/worker`)];
     if (!files.length) throw new Error("Workerテストが見つかりません");

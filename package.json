@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "ai:check": "mise exec -- uv run --locked --directory ai/four-shogi-ai python scripts/check.py",
     "study": "bun run study:build && bun run --cwd apps/four-shogi-study start",
     "study:build": "bun run --cwd apps/four-shogi-study build",
     "study:check": "bun run --cwd apps/four-shogi-study typecheck && bun run --cwd apps/four-shogi-study test",

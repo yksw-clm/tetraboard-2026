@@ -14,7 +14,8 @@
 | この開発文書                                             | 実装の入口、変更手順、構造と互換性などの注意点                                                    |
 | [テスト方針](testing.md)                                 | 実行方法、検証範囲、対象別のテストと移管根拠                                                      |
 | [四人将棋AIの測定・採用記録](four-shogi-ai.md)           | 比較条件、対象コミット、結果、採用判断と限界                                                      |
-| [四人将棋シングルスAIの契約](four-shogi-ai-engine.md)    | 新AIの承認済み目標・D01〜D05の設計契約、判断IDと未決事項。実装前の計画と現行CPUの採用仕様を分ける |
+| [独立Python四人将棋AIの契約](../ai/four-shogi-ai/docs/design.md) | 現行AI計画の初期範囲、データ・ルール／AI境界、TS比較。旧計画を全面置換 |
+| [既存TS AIの契約](four-shogi-ai-engine.md) | 現在残るTS解析・モデル・試用接続の保守契約。新計画の要求にはしない |
 | [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録                                      |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
@@ -791,6 +792,16 @@ WebはHTTP応答の項目の有無で対応を確認し、対応Workerだけに�
 
 ルーム内・保存棋譜は版1のルール再生と表示用枚数を併走させ、フレームの `game` の外側へ `eliminatedHands` を保持します。完全な旧棋譜もイベントから導出でき、選択局面・回転に追従します。最終ルール状態の一致検証、保存JSON、分割イベント、manifest、D1形式、`rulesVersion: 1` を維持し、保存記録を書き換えません。検証と手動確認の境界は [テスト方針](testing.md#四人将棋の脱落後の持ち駒表示) を参照してください。
 
+## 独立Python四人将棋AI
+
+2026-11-06承認の[現行設計契約](../ai/four-shogi-ai/docs/design.md)は `ai/four-shogi-ai` に置きます。旧 #183 の開発計画は廃止し、Pythonのルール独立実装とTS照合へ全面置換しました。既存実装のAPI・試用接続は[保守契約](four-shogi-ai-engine.md)で扱い、新計画の要件にはしません。
+
+`src/four_shogi_ai/replay.py` は版付き初期値・連番イベント・適用位置の形状検証と不変データへの変換を担当します。合法性や状態復元は後続フェーズです。`tests/test_replay.py` は全イベント・ON/OFF・不正入力・入力不変・生成例を確認し、`scripts/ci/validateAiReplay.ts` の実TS入力検査器とも同じ入力を照合します。比較器は開発用で、Python実行時からTSを呼びません。
+
+導入はルートの `mise install` と `mise exec -- uv sync --locked --directory ai/four-shogi-ai`、部分確認は `bun run ai:check` です。Python 3.14とuvの版はmise.toml、依存はuv.lockに固定します。実行時依存は標準ライブラリ、開発依存はRuff・mypy・pytest・Hypothesisです。Pythonの名前はsnake_case、JSONはTSと同じcamelCaseを使います。完全な状態・結果・ルールAPIは設計契約を参照してください。
+
+既存アプリと同じ `bun run check` とFull CIでPythonの品質確認も実行します。ルール正本は共有し、仕様とTS実装が食い違う場合は最小再現と根拠を示して確認します。正本の誤りや未決事項を互換性の名目で確定しません。
+
 ## 四人将棋エンジン
 
 `packages/four-shogi` は `@tetraboard/four-shogi` として利用する独立したパッケージです。ランタイム依存はなく、既存の四人リバーシと同じTypeScript・Bunの構成を使います。`bun run --cwd packages/four-shogi check` で単体の整形・lint・型・テストを確認できます。
@@ -869,11 +880,7 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 
 ### 四人将棋シングルスAIの実装前整理
 
-[Issue #184](https://github.com/yksw-clm/tetraboard-2026/issues/184)で、[READMEの開発目標](../README.md#四人将棋シングルスaiの開発計画)を起点に、[契約と判断一覧](four-shogi-ai-engine.md)を整理しました。VPSで推論しMac等で学習する前提は開発者の指示済みです。初期の規則、探索の副目的・引分同意、構成、試用範囲、障害時の動作は2026-10-14にD01〜D05の推奨案で承認済みです。具体的なAPI型や推論形式などの未決事項は担当Issueで検証します。
-
-現在の入口は `packages/four-shogi/src/cpu.ts`・`cpuSearch.ts`・`cpuEvaluation.ts`、`apps/worker/src/rooms/fourShogiProgress.ts`・`shogiStore.ts`、Webの `fourShogiReplayV1.ts`・`fourShogiMatchReplay.ts` です。表示frameから千日手履歴が除かれること、Workerの `cpuDraw` が着手探索と別に同意を決めることを確認します。#185の現行Lv2固定は [lv2Baseline.json](../packages/four-shogi/bench/lv2Baseline.json)、新しい測定入口は [singlesCli.ts](../packages/four-shogi/bench/singlesCli.ts)。開始系列/合法対局/集計は `singlesMeasurement.ts`、履歴版の取得/hash検査は `baseline.ts`、性能は `singlesPerformance.ts` に置きます。[実行条件と使い方](four-shogi-ai-engine.md#現行lv2の固定基準と測定cli)を確認し、既存benchの旧基準と過去測定条件は維持します。
-
-後続のエージェントは親Issueの依存と契約案の判断IDを確認し、影響する判断だけを開始条件にします。承認済みの目標・既存ルール・現行基準の調査を全項目の決定待ちにせず、変更は最新developから専用ブランチにまとめます。新パッケージやモデル形式は提案段階で、空の実装・主要依存を先に追加しません。確認分担は[契約確認](testing.md#四人将棋シングルスaiの契約確認)を参照します。
+旧 #183／#184 の開発計画は2026-11-06に廃止し、[独立Python四人将棋AI](#独立python四人将棋ai)へ全面置換しました。旧D01〜D05は既存実装を保守するための根拠で、新計画の開始条件・探索目的・公開条件にはしません。以下は現在も存在するTS AI・試用接続の実装案内です。
 
 #187の `@tetraboard/four-shogi/ai` は [ai.ts](../packages/four-shogi/src/ai.ts) が版/条件の解決と識別、時間/取消/ホストへのyield、完成結果の凍結を担当します。[aiSearch.ts](../packages/four-shogi/src/aiSearch.ts) は旧Maxⁿの反復深化・並べ替えを起点に、既存の合法手/確定遷移/基底反復参照を共有し、各手番者自身の値・PVを伝播します。[aiEvaluation.ts](../packages/four-shogi/src/aiEvaluation.ts) がD01の単独1位/副順位、[aiTypes.ts](../packages/four-shogi/src/aiTypes.ts) が出力と版です。旧 `cpuSearch.ts` の並べ替え関数を共有しますが、Lv2の選択結果・初期設定は変えません。[共通APIの使用例と診断](four-shogi-ai-engine.md#共通ai解析api187)、[部分テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。性能CLIは [analysisCli.ts](../packages/four-shogi/bench/analysisCli.ts) と既存 `singlesPerformance.ts` を使い、#185の初期/開始系列だけを完全状態復元から測定します。
 
@@ -1135,6 +1142,7 @@ CSSを追加できる範囲は `shared/theme.css` の共通テーマ／最小リ
 
 ## Naming
 
+- 独立Python AIのモジュール・関数・変数はsnake_case、クラスはPascalCaseとします。交換JSONは既存のcamelCaseを維持します。以下はTypeScriptの命名です。
 - ファイル名: camelCase（Reactコンポーネントファイルは基本PascalCase）
 - クラス名: PascalCase
 - 型名: PascalCase
