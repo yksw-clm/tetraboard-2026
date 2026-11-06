@@ -10,7 +10,7 @@ export async function accountFixture(
   const username = `u_${id.replace(/[^a-z0-9]/gi, "").slice(0, 16)}`;
   await db
     .prepare(
-      "INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, username, profileCompleted) VALUES (?, ?, ?, 1, ?, ?, ?, ?)",
+      "INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt, username, profileCompleted, publicProfileId) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)",
     )
     .bind(
       id,
@@ -20,6 +20,7 @@ export async function accountFixture(
       now,
       completed ? username : null,
       completed ? 1 : 0,
+      completed ? crypto.randomUUID() : null,
     )
     .run();
   if (

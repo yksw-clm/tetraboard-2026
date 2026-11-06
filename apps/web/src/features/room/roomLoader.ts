@@ -26,7 +26,6 @@ export type RoomLoaderDataFor<G extends GameId> = {
   membership: RoomMembership | null;
   serverNowMs: number;
   presence: RoomPresence;
-  formationAnalysisSupported?: boolean;
   eliminatedHands?: FourShogiEliminatedHands | null;
   stampsSupported?: boolean;
 };
@@ -44,13 +43,16 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     url.searchParams.get("watch") === "1" ? null : readTournamentRoom(id!, instanceId);
   if (tournamentReference && instanceId)
     await recoverTournamentRoom(id!, instanceId, request.signal);
-  const { room, presence, serverNowMs, formationAnalysis, stampsSupported, eliminatedHands } =
-    await fetchRoom(id!, request.signal, instanceId).catch((error: unknown) => {
-      const reference = tournamentReference;
-      if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
-        throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
-      throw error;
-    });
+  const { room, presence, serverNowMs, stampsSupported, eliminatedHands } = await fetchRoom(
+    id!,
+    request.signal,
+    instanceId,
+  ).catch((error: unknown) => {
+    const reference = tournamentReference;
+    if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
+      throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
+    throw error;
+  });
   if (tournamentReference && !instanceId && room.instanceId === tournamentReference.instanceId)
     await recoverTournamentRoom(id!, room.instanceId, request.signal);
   const membership = await fetchRoomMembership(room.id, request.signal);
@@ -74,7 +76,6 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
       ...common,
       game: "four-shogi",
       room,
-      formationAnalysisSupported: formationAnalysis !== undefined,
       eliminatedHands,
     };
   return assertNever(room);

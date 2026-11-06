@@ -1,5 +1,5 @@
 import { registeredIdentity as accountIdentity, type AuthEnv } from "../accounts/auth";
-export type AdminEnv = AuthEnv & { ADMIN_ACCOUNT_ID?: string; ADMIN_ACCOUNT_IDS?: string };
+export type AdminEnv = AuthEnv & { ADMIN_ACCOUNT_IDS?: string };
 export function adminAccountIds(env: AdminEnv): string[] | null {
   if (env.ADMIN_ACCOUNT_IDS !== undefined) {
     try {
@@ -18,8 +18,7 @@ export function adminAccountIds(env: AdminEnv): string[] | null {
       return null;
     }
   }
-  const id = env.ADMIN_ACCOUNT_ID?.trim();
-  return id ? [id] : null;
+  return null;
 }
 export async function adminIdentity(request: Request, env: AdminEnv) {
   const ids = adminAccountIds(env);

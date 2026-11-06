@@ -38,7 +38,7 @@ export async function chatPage(
   tournamentId: number | null = null,
 ) {
   const position = before?.split(":");
-  const rows = await db
+  const messagesQuery = db
     .prepare(`SELECT ${lobbyMessageColumns} ${lobbyVisible} AND m.tournament_id IS ?
  ${position ? "AND (m.sent_at_ms<? OR (m.sent_at_ms=? AND m.id<?))" : ""}
  ORDER BY m.sent_at_ms DESC,m.id DESC LIMIT ?`)
@@ -47,35 +47,49 @@ export async function chatPage(
       tournamentId,
       ...(position ? [Number(position[0]), Number(position[0]), position[1]] : []),
       limit + 1,
-    )
-    .all<Row>();
-  const page = rows.results.slice(0, limit);
-  const last = page.at(-1);
-  const settings = await db
-    .prepare("SELECT accepting FROM lobby_chat_settings WHERE id=1")
-    .first<{ accepting: number }>();
-  const sender = viewer
-    ? await db
+    );
+  const queries = [
+    messagesQuery,
+    db.prepare("SELECT accepting FROM lobby_chat_settings WHERE id=1"),
+  ];
+  if (viewer)
+    queries.push(
+      db
         .prepare("SELECT stopped,last_sent_at_ms FROM lobby_chat_senders WHERE account_id=?")
-        .bind(viewer)
-        .first<{ stopped: number; last_sent_at_ms: number }>()
-    : null;
+        .bind(viewer),
+    );
+  if (tournamentId !== null)
+    queries.push(
+      db
+        .prepare(`SELECT t.chat_accepting,t.finalized_at_ms,
+     EXISTS(SELECT 1 FROM tournament_entries e WHERE e.tournament_key=t.key AND e.account_id=? AND e.deleted=0) AS entered
+     FROM tournaments t WHERE t.public_id=? AND t.published=1`)
+        .bind(viewer ?? null, tournamentId),
+    );
+  // 同じ表示に必要な独立SELECTを一つのD1往復へまとめます。
+  const results = await db.batch(queries);
+  const rows = results[0]!.results as Row[];
+  const settings = results[1]!.results[0] as { accepting: number } | undefined;
+  const page = rows.slice(0, limit);
+  const last = page.at(-1);
+  const sender = viewer
+    ? (results[2]!.results[0] as { stopped: number; last_sent_at_ms: number } | undefined)
+    : undefined;
   const tournament =
     tournamentId === null
-      ? null
-      : await db
-          .prepare(
-            `SELECT t.chat_accepting,t.finalized_at_ms,
-     EXISTS(SELECT 1 FROM tournament_entries e WHERE e.tournament_key=t.key AND e.account_id=? AND e.deleted=0) AS entered
-     FROM tournaments t WHERE t.public_id=? AND t.published=1`,
-          )
-          .bind(viewer ?? null, tournamentId)
-          .first<{ chat_accepting: number; finalized_at_ms: number | null; entered: number }>();
+      ? undefined
+      : (results[viewer ? 3 : 2]!.results[0] as
+          | {
+              chat_accepting: number;
+              finalized_at_ms: number | null;
+              entered: number;
+            }
+          | undefined);
   const closesAtMs =
     tournament?.finalized_at_ms == null ? null : tournament.finalized_at_ms + 86400000;
   return {
     messages: page.reverse().map((row) => publicMessage(row, viewer)),
-    nextCursor: rows.results.length > limit && last ? `${last.sentAtMs}:${last.id}` : null,
+    nextCursor: rows.length > limit && last ? `${last.sentAtMs}:${last.id}` : null,
     acceptingPosts:
       Boolean(settings?.accepting) &&
       (tournamentId === null || Boolean(tournament?.chat_accepting)) &&

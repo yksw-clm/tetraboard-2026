@@ -29,7 +29,8 @@ import { archiveAnalytics } from "../src/analytics/retention";
 import { analyticsVisitor, writeAnalyticsMatch, type AnalyticsMatch } from "../src/analytics/store";
 import { readAnalytics, japanDay } from "../src/admin/metrics";
 import worker from "../src/worker";
-import { migrateOAuthTokens, unsealToken } from "../src/privacy/tokens";
+import { authSecret, unsealToken } from "../src/privacy/tokens";
+import { symmetricEncrypt } from "better-auth/crypto";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new Request(`${origin}/api${path}`, { redirect: "manual", ...init }));
 afterEach(() => vi.restoreAllMocks());
@@ -625,9 +626,14 @@ test("利用計測は常時有効で旧選択Cookieに依存せず、90日境界
   expect(data.summary.pageViews).toBeGreaterThan(0);
 });
 
-test("旧OAuthトークンを暗号化し、解除の失敗を成功にせず再試行する", async () => {
+test("OAuthトークンの平文を復号結果として受理しない", async () => {
+  await expect(unsealToken(env, "plaintext-provider-token")).rejects.toThrow();
+});
+
+test("暗号化されたOAuthトークンを復号し、解除の失敗を成功にせず再試行する", async () => {
   const user = await accountFixture(),
-    token = "legacy-private-provider-token";
+    token = "private-provider-token";
+  const sealed = await symmetricEncrypt({ key: authSecret(env), data: token });
   await env.APP_DB.prepare(
     "INSERT INTO account(id,accountId,providerId,userId,accessToken,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)",
   )
@@ -636,15 +642,11 @@ test("旧OAuthトークンを暗号化し、解除の失敗を成功にせず再
       crypto.randomUUID(),
       "google",
       user.id,
-      token,
+      sealed,
       Date.now(),
       Date.now(),
     )
     .run();
-  await migrateOAuthTokens(env);
-  const sealed = (await env.APP_DB.prepare("SELECT accessToken FROM account WHERE userId=?")
-    .bind(user.id)
-    .first<{ accessToken: string }>())!.accessToken;
   expect(sealed).not.toBe(token);
   expect(await unsealToken(env, sealed)).toBe(token);
   expect(await tombstone(user.id)).toBe(true);

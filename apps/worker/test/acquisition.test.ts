@@ -306,7 +306,7 @@ test("本人・テストの除外を訪問と開始の両方へ適用し、混�
   record.participants[2]!.accountId = tester.id;
   record.participants[2]!.isTest = true;
   await writeAnalyticsMatch(db, record);
-  const config = { ...bindings, ADMIN_ACCOUNT_ID: owner.id };
+  const config = { ...bindings, ADMIN_ACCOUNT_IDS: JSON.stringify([owner.id]) };
   for (const archived of [false, true]) {
     if (archived) {
       now += analyticsRetentionMs;

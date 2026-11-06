@@ -9,7 +9,6 @@ import {
   type PreviewRankings,
   previewRankingsSchema,
 } from "@tetraboard/protocol";
-import { ensurePublicProfileId } from "../accounts/currentProfiles";
 import { profileAvatarUrl } from "../accounts/auth";
 import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
@@ -64,17 +63,10 @@ async function queryGameRankings(
     singles: { first: [], total: [], ...(includeKnockouts ? { knockouts: [] } : {}) },
     doubles: { wins: [], total: [] },
   };
-  const ids = new Map<string, string>();
-  if (preview) {
-    for (const row of rows.results) {
-      if (ids.has(row.accountId)) continue;
-      const id = row.publicProfileId ?? (await ensurePublicProfileId(db, row.accountId));
-      if (id) ids.set(row.accountId, id);
-    }
-  }
   for (const row of rows.results) {
+    if (preview && !row.publicProfileId) throw new Error("Public profile ID is missing");
     const entry = {
-      ...(preview ? { profileId: ids.get(row.accountId) } : {}),
+      ...(preview ? { profileId: row.publicProfileId! } : {}),
       rank: row.rank,
       username: row.username,
       ...(row.isAnonymous ? { isGuest: true } : {}),
@@ -119,9 +111,8 @@ async function queryTwoPlayerRankings(
     }>();
   const result: PreviewReversiRankings = { wins: [], total: [] };
   for (const row of rows.results) {
-    const profileId = preview
-      ? (row.publicProfileId ?? (await ensurePublicProfileId(db, row.accountId)))
-      : undefined;
+    if (preview && !row.publicProfileId) throw new Error("Public profile ID is missing");
+    const profileId = preview ? row.publicProfileId : undefined;
     result[row.metric].push({
       rank: row.rank,
       username: row.username,

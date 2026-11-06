@@ -52,7 +52,7 @@ const query = {
 test("管理API・HTMLは本人限定で、通報用トークンを流用せず、障害と未認証を区別する", async () => {
   const owner = await accountFixture();
   const other = await accountFixture();
-  const bindings = { ...env, ADMIN_ACCOUNT_ID: owner.id };
+  const bindings = { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([owner.id]) };
   for (const path of [
     "/api/admin/session",
     "/api/admin/analytics?from=2001-01-01&to=2001-01-31",
@@ -98,9 +98,9 @@ test("管理API・HTMLは本人限定で、通報用トークンを流用せず�
       await fetchWith(deployed, "/admin/assets/example.js", { headers: { Cookie: owner.cookie } })
     ).text(),
   ).toBe("/admin/assets/example.js");
-  expect(
-    (await fetchWith({ ...env, ADMIN_ACCOUNT_ID: undefined }, "/api/admin/session")).status,
-  ).toBe(503);
+  const unconfigured = { ...env };
+  Reflect.deleteProperty(unconfigured, "ADMIN_ACCOUNT_IDS");
+  expect((await fetchWith(unconfigured, "/api/admin/session")).status).toBe(503);
   const failedDb = {
     prepare() {
       throw new Error("unavailable");
@@ -156,7 +156,7 @@ test("日本時間の境界・月別・両ゲーム・内部参加者除外と�
       ],
     }),
   );
-  const data = await readAnalytics({ ...env, ADMIN_ACCOUNT_ID: ownerId }, query);
+  const data = await readAnalytics({ ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([ownerId]) }, query);
   expect(data.summary).toMatchObject({
     started: 3,
     completed: 1,
@@ -173,13 +173,13 @@ test("日本時間の境界・月別・両ゲーム・内部参加者除外と�
   expect(data.buckets[0].metrics.started).toBe(1);
   expect(data.buckets[1].metrics.started).toBe(2);
   const monthly = await readAnalytics(
-    { ...env, ADMIN_ACCOUNT_ID: ownerId },
+    { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([ownerId]) },
     { ...query, bucket: "month", game: "four-shogi" },
   );
   expect(monthly.buckets).toHaveLength(1);
   expect(monthly.summary).toMatchObject({ started: 1, abandoned: 1 });
   const included = await readAnalytics(
-    { ...env, ADMIN_ACCOUNT_ID: ownerId },
+    { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([ownerId]) },
     { ...query, includeInternal: "true" },
   );
   expect(included.summary.started).toBe(5);
@@ -312,7 +312,7 @@ test("ブラウザ計測はOriginと形式を検証し、他ブラウザの更�
 
 test("ユーザー一覧は種別ごとに日時形式の混在・未完了・検索・同時刻のページングに対応する", async () => {
   const owner = await accountFixture();
-  const bindings = { ...env, ADMIN_ACCOUNT_ID: owner.id };
+  const bindings = { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([owner.id]) };
   const marker = visitor().replace(/-/g, "").slice(0, 10);
   const accounts = (["registered", "guest"] as const).flatMap((kind) =>
     Array.from({ length: 51 }, (_, i) => ({
@@ -431,7 +431,7 @@ test("新規登録は両日時形式を日本時間で集計し、計測開始�
         ),
       ),
     ]);
-    const bindings = { ...env, ADMIN_ACCOUNT_ID: accounts[5].id };
+    const bindings = { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([accounts[5].id]) };
     const period = { ...query, from: "2011-01-31", to: "2011-02-01" };
     const daily = await readAnalytics(bindings, period);
     expect(daily.summary.newUsers).toBe(3);
@@ -596,7 +596,7 @@ for (const game of ["four-reversi", "four-shogi"] as const)
 
 test("不正な期間は400で、集計障害は0件にせず503を返す", async () => {
   const owner = await accountFixture();
-  const bindings = { ...env, ADMIN_ACCOUNT_ID: owner.id };
+  const bindings = { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([owner.id]) };
   const response = await fetchWith(bindings, "/api/admin/analytics?from=2001-02-30&to=2001-03-01", {
     headers: { Cookie: owner.cookie },
   });
@@ -689,12 +689,11 @@ test("将棋の実対局でも人間とブラウザの開始時情報を保存�
   }
 });
 
-test("指定した2つの本人アカウントだけを許可し、不正な配列では旧設定へフォールバックしない", async () => {
+test("指定した2つの本人アカウントだけを許可し、管理者配列の欠落や不正を拒否する", async () => {
   const owners = [await accountFixture(), await accountFixture()];
   const other = await accountFixture();
   const bindings = {
     ...env,
-    ADMIN_ACCOUNT_ID: other.id,
     ADMIN_ACCOUNT_IDS: JSON.stringify([owners[0].id, owners[1].id, owners[0].id]),
     ASSETS: {
       fetch: async (request: Request) => new Response(new URL(request.url).pathname),

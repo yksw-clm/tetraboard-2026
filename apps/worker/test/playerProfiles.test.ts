@@ -207,6 +207,34 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     );
   });
 }
+test("公開IDの欠落は503とし、プロフィール・ランキングのGETで補完しない", async () => {
+  const user = await accountFixture(true, crypto.randomUUID(), db);
+  const record = humanFixtureRecord(user.id, 1);
+  ids.push(record.id);
+  await writeMatch(db, record);
+  await db.prepare("UPDATE user SET publicProfileId=NULL WHERE id=?").bind(user.id).run();
+  try {
+    expect(
+      (
+        await lookup(
+          { source: "match", matchId: record.id, playerId: record.participants[0]!.id },
+          "four-reversi",
+        )
+      ).status,
+    ).toBe(503);
+    expect((await request("/games/four-reversi/rankings?profilePreview=1")).status).toBe(503);
+    expect(
+      await db.prepare("SELECT publicProfileId FROM user WHERE id=?").bind(user.id).first(),
+    ).toEqual({ publicProfileId: null });
+    expect((await request("/games/four-reversi/rankings")).status).toBe(200);
+  } finally {
+    await db
+      .prepare("UPDATE user SET publicProfileId=? WHERE id=?")
+      .bind(crypto.randomUUID(), user.id)
+      .run();
+  }
+});
+
 test("guest, CPU, missing account, invalid target and D1 failure stay distinct", async () => {
   const record = humanFixtureRecord(crypto.randomUUID(), 1);
   ids.push(record.id);
