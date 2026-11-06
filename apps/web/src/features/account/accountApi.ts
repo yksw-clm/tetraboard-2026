@@ -12,6 +12,15 @@ export async function accountRequest(path: string, init?: RequestInit): Promise<
 export async function readAccount(signal?: AbortSignal) {
   return accountSessionSchema.parse(await accountRequest("/api/account/session", { signal })).user;
 }
+export async function saveGuestName(name: string) {
+  return accountProfileSchema.parse(
+    await accountRequest("/api/account/guest/name", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
+  );
+}
 export async function saveProfile(setup: boolean, data: FormData) {
   const registration = setup ? readGuestRegistration() : null;
   return accountProfileSchema.parse(

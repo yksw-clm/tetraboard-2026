@@ -832,7 +832,8 @@ export class GameRoom extends DurableObject<Env> {
           previous.instanceId !== input.instanceId ||
           previous.matchId !== input.matchId ||
           previous.oldTokenHash !== input.oldTokenHash ||
-          previous.newTokenHash !== input.newTokenHash
+          previous.newTokenHash !== input.newTokenHash ||
+          previous.guestAccountId !== input.guestAccountId
         )
           return { status: "registration_conflict" };
         if (
@@ -864,6 +865,7 @@ export class GameRoom extends DurableObject<Env> {
             record.instanceId === input.instanceId &&
             record.matchId === input.matchId &&
             record.oldTokenHash === input.oldTokenHash &&
+            record.guestAccountId === input.guestAccountId &&
             !record.accountId &&
             (record.holdUntilMs <= now || record.state === "released") &&
             record.claimUntilMs > now,
@@ -886,7 +888,13 @@ export class GameRoom extends DurableObject<Env> {
       const player = room.players.find((p) => p.id === membership?.playerId);
       if (!membership || player?.kind !== "human" || !this.isHumanParticipant(player))
         return { status: "unauthorized" };
-      if (this.storedAccount(player.id)) return { status: "not_guest" };
+      const seat = this.storedAccount(player.id);
+      if (
+        input.guestAccountId
+          ? seat?.accountId !== input.guestAccountId || !seat.isGuest || !seat.occupying
+          : seat !== null
+      )
+        return { status: "not_guest" };
       const last = room.lastRound;
       const matchId = last && ("roundId" in last ? last.roundId : last.replay?.id);
       if (matchId !== input.matchId || !last?.players.some((p) => p.id === player.id))
@@ -1005,7 +1013,16 @@ export class GameRoom extends DurableObject<Env> {
         )
           return { status: "released" };
         const membership = this.readMembership(record.oldTokenHash);
-        if (membership?.playerId !== record.playerId || this.storedAccount(record.playerId))
+        const existing = this.storedAccount(record.playerId);
+        if (
+          membership?.playerId !== record.playerId ||
+          (record.guestAccountId
+            ? existing?.accountId !== record.guestAccountId ||
+              !existing.isGuest ||
+              !existing.occupying ||
+              existing.operationId !== admission.operationId
+            : existing !== null)
+        )
           return { status: "released" };
         if (this.readMembership(record.newTokenHash))
           return { status: "account_reservation_invalid" };
@@ -1039,7 +1056,7 @@ export class GameRoom extends DurableObject<Env> {
             lastActivityAtMs: now,
             players: room.players.map((p) => {
               if (p.id !== record.playerId || p.kind !== "human") return p;
-              const { registrationPendingUntilMs: _pending, ...player } = p;
+              const { registrationPendingUntilMs: _pending, isGuest: _guest, ...player } = p;
               return {
                 ...player,
                 name: admission.name,

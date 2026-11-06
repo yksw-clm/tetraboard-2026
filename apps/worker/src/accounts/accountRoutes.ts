@@ -104,11 +104,13 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     )
       return c.json(error("規約と年齢条件を確認してください。"), 403);
     adminLogin = data.destination === "admin";
-    if (!adminLogin) guest = await prepareGuestLink(c.req.raw, c.env);
     if (data.registration !== undefined) {
       if (adminLogin) return c.json(error("管理画面のログインでは対局を引き継げません。"), 400);
       registration = await prepareRegistrationOAuth(c.env, data.registration);
     }
+    if (!adminLogin) guest = await prepareGuestLink(c.req.raw, c.env, registration);
+    if (registration?.guest_account_id && !guest)
+      throw new GuestLinkError("連携を始めたゲスト本人でお試しください。");
     if (adminLogin && provider !== "google")
       return c.json(error("管理画面にはGoogleでログインしてください。"), 400);
     const configured =
@@ -146,8 +148,16 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       await c.env.APP_DB.prepare("INSERT INTO oauth_legal_consents VALUES (?,?,?,?,?)")
         .bind(state, provider, legalVersion, Date.now(), Date.now() + 600000)
         .run();
-      if (guest) await rememberGuestLink(c.req.raw, c.env, guest, state, provider);
       if (registration) await rememberRegistrationOAuth(c.env, registration, state, provider);
+      if (guest)
+        await rememberGuestLink(
+          c.req.raw,
+          c.env,
+          guest,
+          state,
+          provider,
+          registration?.guest_account_id ? registration.id : undefined,
+        );
     }
   }
   return response;

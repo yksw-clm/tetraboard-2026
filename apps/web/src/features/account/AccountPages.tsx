@@ -1,14 +1,8 @@
 import { GuestAccountControls } from "./GuestAccountControls";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
-import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
+import { RegistrationBenefits } from "./RegistrationBenefits";
 import { SocialSignInButtons } from "./SocialSignInButtons";
-import {
-  gameCatalog,
-  gameIds,
-  defaultGameId,
-  isGameId,
-  type GameId,
-} from "@tetraboard/protocol/games";
+import { gameCatalog, gameIds, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { MatchHistory } from "./MatchHistory";
 import { AccountStats } from "./AccountStats";
 import { useEffect, useId, useState, type ReactNode } from "react";
@@ -19,8 +13,8 @@ import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import type { AccountProfile, RoomMode } from "@tetraboard/protocol";
-import { cn, Dropdown } from "@heroui/react";
-import { AppIcon } from "../../shared/ui/AppIcon";
+import { cn } from "@heroui/react";
+import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { useAccountSelection } from "./useAccountSelection";
@@ -41,31 +35,20 @@ export function AccountPageShell({
   children,
   layout = "form",
   game = defaultGameId,
+  profile,
   navigation,
   modeTabs,
 }: {
   children: ReactNode;
   layout?: "form" | "profile" | "login";
   game?: GameId;
+  profile?: ReactNode;
   navigation?: ReactNode;
   modeTabs?: ReactNode;
 }) {
   const { user } = useAccount();
   const profileLayout = layout === "profile";
   const loginLayout = layout === "login";
-  const lobbyLink = (
-    <AppButtonLink
-      to={gameCatalog[profileLayout ? game : defaultGameId].lobbyPath}
-      appearance={profileLayout ? "secondary" : "quiet"}
-      className={
-        profileLayout
-          ? "col-start-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-start-3"
-          : undefined
-      }
-    >
-      ロビーへ
-    </AppButtonLink>
-  );
   return (
     <div
       className={cn(
@@ -98,21 +81,11 @@ export function AccountPageShell({
           )}
         >
           {profileLayout && (
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-5 [@media(min-width:651px)]:grid-cols-[auto_minmax(0,1fr)_auto]">
-              <div className="col-start-1 row-start-1">{navigation}</div>
-              {modeTabs && (
-                <div
-                  hidden={!gameCatalog[game].hasModes}
-                  className={cn(
-                    "col-span-2 col-start-1 row-start-2 min-w-0 [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-2 [@media(min-width:651px)]:row-start-1 [@media(min-width:651px)]:max-w-[360px]",
-                    !gameCatalog[game].hasModes && "hidden!",
-                  )}
-                >
-                  {modeTabs}
-                </div>
-              )}
-              {lobbyLink}
-            </div>
+            <>
+              {profile}
+              {navigation}
+              {modeTabs}
+            </>
           )}
           {children}
           <PrivacyLinks />
@@ -122,52 +95,42 @@ export function AccountPageShell({
             </AppButtonLink>
           )}
           {!profileLayout && (
-            <div className={loginLayout ? "text-center" : undefined}>{lobbyLink}</div>
+            <div className={loginLayout ? "text-center" : undefined}>
+              <AppButtonLink to={gameCatalog[defaultGameId].lobbyPath} appearance="quiet">
+                ロビーへ
+              </AppButtonLink>
+            </div>
           )}
         </main>
       </div>
     </div>
   );
 }
-function AccountGameMenu({ game, onChange }: { game: GameId; onChange: (game: GameId) => void }) {
+function AccountGameButtons({
+  game,
+  onChange,
+}: {
+  game: GameId;
+  onChange: (game: GameId) => void;
+}) {
   return (
-    <Dropdown>
-      <AppButton appearance="secondary" aria-label={`ゲームを選択：${gameCatalog[game].name}`}>
-        {gameCatalog[game].name}
-        <AppIcon name="chevronDown" className="size-4" />
-      </AppButton>
-      <Dropdown.Popover
-        placement="bottom start"
-        className={cn(
-          "app-theme min-w-48 rounded-panel border border-solid border-line bg-white p-1.5 text-ink shadow-dialog",
-          appThemeClasses[gameThemes[game]],
-        )}
-      >
-        <Dropdown.Menu
-          aria-label="プロフィールのゲーム"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={[game]}
-          onSelectionChange={(keys) => {
-            if (keys === "all") return;
-            const next = [...keys][0];
-            if (isGameId(next)) onChange(next);
+    <div role="group" aria-label="プロフィールのゲーム" className="flex flex-wrap gap-2">
+      {gameIds.map((id) => (
+        <AppButton
+          key={id}
+          appearance={id === game ? "primary" : "secondary"}
+          size="compact"
+          className="min-h-11 px-3 text-sm"
+          aria-pressed={id === game}
+          onPress={() => {
+            if (id !== game) onChange(id);
           }}
         >
-          {gameIds.map((id) => (
-            <Dropdown.Item
-              key={id}
-              id={id}
-              textValue={gameCatalog[id].name}
-              className="flex min-h-11 items-center justify-between gap-3 rounded-control px-3 text-sm cursor-pointer data-[focused=true]:bg-surface-hover"
-            >
-              {gameCatalog[id].name}
-              <Dropdown.ItemIndicator />
-            </Dropdown.Item>
-          ))}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
+          <LobbyBoardPreview game={id} compact className="w-6 rotate-0 shadow-none" />
+          {gameCatalog[id].name}
+        </AppButton>
+      ))}
+    </div>
   );
 }
 function AccountStatus() {
@@ -204,7 +167,7 @@ export function LoginPage() {
     if (!loading && !error && user && !user.isGuest && adminDestination && !params.has("error"))
       window.location.replace("/admin");
   }, [loading, error, user, adminDestination, params]);
-  if (handoff && !adminDestination && (!user || params.has("error")))
+  if (handoff && !adminDestination && (!user || params.has("error") || handoff.linkGuest))
     return <GuestRegistrationCompletion flow={handoff} />;
   if (!loading && !error && user && !user.isGuest && !params.has("error")) {
     if (adminDestination) return <p role="status">管理画面へ移動しています…</p>;
@@ -220,28 +183,12 @@ export function LoginPage() {
             <h1 className="text-2xl font-bold">
               {adminDestination ? "管理画面へログイン" : "登録・ログイン"}
             </h1>
-            <p className="text-sm text-muted">
-              {adminDestination
-                ? "Googleアカウントでログインしてください。"
-                : "対局の楽しさを、自分のアカウントに。"}
-            </p>
+            {adminDestination && (
+              <p className="text-sm text-muted">Googleアカウントでログインしてください。</p>
+            )}
           </AppCard.Header>
           <AppCard.Content className="flex flex-col gap-5">
-            {!adminDestination && (
-              <>
-                <RegistrationBenefits />
-                <div className="@container rounded-panel bg-surface-muted p-3">
-                  <div className="grid grid-cols-1 gap-3 @min-[300px]:grid-cols-2">
-                    {(["four-reversi", "four-shogi"] as const).map((exampleGame) => (
-                      <div key={exampleGame} className="flex min-w-0 flex-col items-center gap-1">
-                        <span className="text-xs font-bold">{gameCatalog[exampleGame].name}</span>
-                        <RegistrationBadgeExamples game={exampleGame} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            {!adminDestination && <RegistrationBenefits />}
             {(location.state as { sessionLost?: boolean } | null)?.sessionLost && (
               <p role="alert" className="text-sm text-danger">
                 ログイン状態が失われました。もう一度ログインしてください。
@@ -301,7 +248,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
       <AccountPageShell
         layout={setup ? "form" : "profile"}
         game={game}
-        navigation={!setup && <AccountGameMenu game={game} onChange={setGame} />}
+        navigation={!setup && <AccountGameButtons game={game} onChange={setGame} />}
       >
         <AccountStatus />
       </AccountPageShell>
@@ -319,12 +266,19 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
         <AccountPageShell
           layout="profile"
           game={game}
-          navigation={<AccountGameMenu game={game} onChange={setGame} />}
+          profile={
+            <AccountProfileCard key={user.profileId ?? user.username} user={user} game={game} />
+          }
+          navigation={<AccountGameButtons game={game} onChange={setGame} />}
           modeTabs={
             <AppTabs.List
               aria-label="プロフィールの対局モード"
               hidden={!gameCatalog[game].hasModes}
               aria-hidden={!gameCatalog[game].hasModes || undefined}
+              className={cn(
+                "w-full min-w-0 self-start [@media(min-width:651px)]:w-[240px]",
+                !gameCatalog[game].hasModes && "hidden!",
+              )}
             >
               {(["singles", "doubles"] as const).map((tab) => (
                 <AppTabs.Tab
@@ -361,12 +315,15 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               />
             )}
           >
-            <AccountProfileView
+            <div
               key={user.profileId ?? user.username}
-              user={user}
-              game={game}
-              mode={mode}
-            />
+              className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]"
+            >
+              <AppCard>
+                <AccountStats game={game} mode={mode} />
+              </AppCard>
+              <MatchHistory game={game} mode={mode} />
+            </div>
           </AppTabs.Panel>
         </AccountPageShell>
       </AppTabs>
@@ -386,57 +343,44 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
     </AccountPageShell>
   );
 }
-function AccountProfileView({
-  user,
-  game,
-  mode,
-}: {
-  user: AccountProfile;
-  game: GameId;
-  mode: RoomMode;
-}) {
+function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <>
-      <div className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]">
-        <AppCard data-testid="account-profile-card">
-          <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 [@media(min-width:651px)]:grid-cols-[64px_minmax(0,1fr)_auto]">
-            <AppButton
-              appearance="secondary"
-              className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
-              isDisabled={user.isGuest}
-              onPress={() => {
-                setNotice(null);
-                setEditing(true);
-              }}
-            >
-              プロフィールを編集
-            </AppButton>
-            <AppAvatar
-              src={user.avatarUrl}
-              label="プロフィールアイコン"
-              className="col-start-1 row-start-2 size-16 [&_svg]:size-7 [@media(min-width:651px)]:row-start-1"
-            />
-            <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
-              <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
-              <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
-                {user.username && `@${user.username}`}
-                {user.isGuest && <span className="ml-2">ゲスト</span>}
-              </p>
-            </div>
-          </div>
-          {notice && (
-            <p role="status" className="text-sm text-brand">
-              {notice}
+      <AppCard data-testid="account-profile-card">
+        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-x-4 gap-y-5 [@media(min-width:651px)]:grid-cols-[64px_minmax(0,1fr)_auto]">
+          <AppButton
+            appearance="secondary"
+            className="col-span-2 row-start-1 justify-self-end [@media(min-width:651px)]:col-span-1 [@media(min-width:651px)]:col-start-3 [@media(min-width:651px)]:self-start"
+            onPress={() => {
+              setNotice(null);
+              setEditing(true);
+            }}
+          >
+            プロフィールを編集
+          </AppButton>
+          <AppAvatar
+            src={user.avatarUrl}
+            label="プロフィールアイコン"
+            className="col-start-1 row-start-2 size-16 [&_svg]:size-7 [@media(min-width:651px)]:row-start-1"
+          />
+          <div className="col-start-2 row-start-2 min-w-0 [@media(min-width:651px)]:row-start-1">
+            <h1 className="text-xl font-bold [overflow-wrap:anywhere]">{user.name}</h1>
+            <p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
+              {user.username && `@${user.username}`}
+              {user.isGuest && <span className="ml-2">ゲスト</span>}
             </p>
-          )}
-          {user.isGuest && <GuestAccountControls />}
-          <AccountStats game={game} mode={mode} />
-        </AppCard>
-        <MatchHistory game={game} mode={mode} />
-      </div>
+          </div>
+        </div>
+        {notice && (
+          <p role="status" className="text-sm text-brand">
+            {notice}
+          </p>
+        )}
+        {user.isGuest && <GuestAccountControls />}
+      </AppCard>
       {editing && (
         <AppDialog
           title="プロフィールを編集"

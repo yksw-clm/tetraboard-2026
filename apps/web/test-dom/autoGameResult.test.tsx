@@ -39,7 +39,8 @@ import {
 } from "../test/fixtures/standardShogiFixtures";
 import { replayMatch } from "../test/fixtures/matchReplayFixtures";
 import { profile } from "../test/fixtures/account";
-import { act, clock, flush, press, render, renderHook, wrap } from "./harness";
+import { act, clock, flush, press, render, renderHook, requests, wrap } from "./harness";
+import { guestProfile } from "./guestAccountFixtures";
 import { installSocket, Socket } from "./socket";
 import {
   createGuestRegistration,
@@ -351,6 +352,105 @@ test("アカウント席からログアウトしてもゲスト対局の登録�
     "この対局を、自分の記録に残そう",
   );
 });
+
+test.each([true, false])(
+  "ゲスト本人に連携を案内し、結果操作を末尾に表示する（対人戦 %s）",
+  async (humanOnly) => {
+    const { playing, ended, renderDetail } = rounds()[0]!;
+    const endedRoom = {
+      ...ended,
+      players: ended.players.map((player, index) =>
+        index === 0 ? { ...player, isGuest: true } : player,
+      ),
+      lastRound: {
+        ...ended.lastRound!,
+        players: ended.lastRound!.players.map((player, index) =>
+          !humanOnly && index === 1 ? { ...player, appearance: { kind: "cpu", level: 1 } } : player,
+        ),
+      },
+    } as Room;
+    const key = `tetraboard:room:${playing.id}:membership`;
+    sessionStorage.setItem(key, token);
+    const view = render(wrap(guestProfile())(renderDetail(false)));
+    const socket = Socket.instances.at(-1)!;
+    act(() => {
+      socket.open();
+      socket.snapshot(playing);
+      socket.receive({
+        type: "room.authenticated",
+        membership: { ...membership, accountLinked: true },
+      });
+      socket.snapshot(endedRoom);
+    });
+    await flush();
+    clock.advance(1000);
+    await flush();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const actions = dialog.querySelector('[aria-label="対局結果の操作"]')!;
+    expect(actions.textContent).toBe("再戦棋譜を見る");
+    expect(actions.nextElementSibling).toBeNull();
+    const card = actions.previousElementSibling as HTMLElement;
+    expect(card.querySelector("h2")?.textContent).toBe("アカウントを連携しよう");
+    expect(card.textContent).toContain(
+      humanOnly
+        ? "これまでの戦績・棋譜・獲得したバッジ"
+        : "別端末でも同じアカウントで遊べ、バッジ、戦績など各種機能をご利用いただけます。",
+    );
+    expect(card.querySelectorAll("figure")).toHaveLength(humanOnly ? 1 : 0);
+    expect(card.textContent).not.toContain("連携後は、このルームに戻って再戦できます。");
+    const buttons = card.querySelectorAll("button");
+    expect(buttons).toHaveLength(2);
+    const [google, discord] = buttons;
+    expect(google?.textContent).toBe("Googleで続ける");
+    expect(discord?.textContent).toBe("Discordで続ける");
+    const consent = discord?.parentElement?.nextElementSibling;
+    expect(consent?.textContent).toContain("続けることで、利用規約に同意し");
+    expect(google?.getAttribute("aria-describedby")).toBe(consent?.id ?? null);
+    expect(discord?.getAttribute("aria-describedby")).toBe(consent?.id ?? null);
+    if (humanOnly) {
+      press(card, "Discordで続ける");
+      await flush();
+      const prepare = requests.find(({ url }) => url === `/api/rooms/${playing.id}/registration`)!;
+      const payload = JSON.parse(String(prepare.init.body));
+      expect(payload).toMatchObject({ instanceId: playing.instanceId, linkGuest: true });
+      prepare.respond({
+        ...payload,
+        roomId: playing.id,
+        playerId: membership.playerId,
+        holdUntilMs: Date.now() + 600000,
+        claimUntilMs: Date.now() + 3600000,
+        identity: "unverified",
+        record: "unclaimed",
+        seat: "held",
+      });
+      await flush();
+      const auth = requests.find(({ url }) => url === "/api/auth/sign-in/social")!;
+      expect(JSON.parse(String(auth.init.body))).toEqual({
+        provider: "discord",
+        registration: { registrationId: payload.registrationId, secret: payload.secret },
+      });
+      auth.respond({ message: "Discordログインは準備中です。" }, 503);
+      await flush();
+      requests.find(({ url }) => url.endsWith("/cancel"))!.respond(null, 204);
+      await flush();
+      expect(card.querySelector('[role="alert"]')?.textContent).toContain(
+        "Discordログインは準備中です。",
+      );
+      expect(requests.some(({ url }) => url.endsWith("/leave"))).toBe(false);
+      expect(sessionStorage.getItem(key)).toBe(token);
+    }
+    press(dialog, humanOnly ? "棋譜を見る" : "再戦");
+    await flush();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    if (humanOnly) {
+      press(view, "結果");
+      await flush();
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Discordで続ける");
+    } else {
+      expect(socket.sent).toContainEqual({ type: "room.ready.set", ready: true });
+    }
+  },
+);
 
 test("登録待ちの席・残り時間を表示し、全員が準備済みでも再戦を開始させない", async () => {
   const { playing, ended, renderDetail } = rounds()[0]!;

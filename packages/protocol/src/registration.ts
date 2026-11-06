@@ -9,6 +9,7 @@ export const startRegistrationSchema = registrationCredentialSchema.extend({
   instanceId: z.uuid(),
   matchId: z.uuid(),
   newTokenHash: registrationSecretSchema,
+  linkGuest: z.literal(true).optional(),
 });
 export const registrationStatusSchema = z.object({
   registrationId: z.uuid(),

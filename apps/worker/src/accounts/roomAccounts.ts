@@ -66,8 +66,13 @@ export async function releaseReservation(
 ) {
   const statements = [
     env.APP_DB.prepare(
-      "DELETE FROM account_room_seats WHERE account_id = ? AND operation_id = ? AND instance_id = ?",
-    ).bind(reservation.accountId, reservation.operationId, reservation.instanceId),
+      "DELETE FROM account_room_seats WHERE operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ?",
+    ).bind(
+      reservation.operationId,
+      reservation.roomId,
+      reservation.instanceId,
+      reservation.playerId,
+    ),
   ];
   if (releaseAvatar)
     statements.push(

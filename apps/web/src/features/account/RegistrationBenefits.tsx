@@ -27,9 +27,21 @@ export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
         .map(({ icon, title, text }) => (
           <li key={title} className="flex items-start gap-2.5">
             <AppIcon name={icon as "crown" | "users" | "board"} className="mt-0.5 text-primary" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <strong className="block text-sm">{title}</strong>
               <p className="m-0 text-xs leading-relaxed text-muted">{text}</p>
+              {game === undefined && icon === "crown" && (
+                <div className="@container mt-2 rounded-panel bg-surface-muted p-3">
+                  <div className="grid grid-cols-1 gap-3 @min-[300px]:grid-cols-2">
+                    {(["four-reversi", "four-shogi"] as const).map((exampleGame) => (
+                      <div key={exampleGame} className="flex min-w-0 flex-col items-center gap-1">
+                        <span className="text-xs font-bold">{gameCatalog[exampleGame].name}</span>
+                        <RegistrationBadgeExamples game={exampleGame} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </li>
         ))}

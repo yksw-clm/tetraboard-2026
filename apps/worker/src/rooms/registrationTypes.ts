@@ -16,6 +16,7 @@ export type GuestRegistrationInput = {
   matchId: string;
   oldTokenHash: string;
   newTokenHash: string;
+  guestAccountId?: string;
 };
 export type GuestRegistrationState = {
   registrationId: string;
@@ -31,6 +32,7 @@ export type GuestRegistrationState = {
 export type StoredGuestRegistration = GuestRegistrationState & {
   oldTokenHash: string;
   newTokenHash: string;
+  guestAccountId?: string;
   originalAccountIds: string[];
   admission?: AccountAdmission;
 };
@@ -64,6 +66,7 @@ export function guestRegistrationState(record: StoredGuestRegistration): GuestRe
   const {
     oldTokenHash: _old,
     newTokenHash: _next,
+    guestAccountId: _guest,
     originalAccountIds: _accounts,
     admission: _admission,
     ...state
