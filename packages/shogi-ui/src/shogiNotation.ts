@@ -25,8 +25,16 @@ const promotedNames = {
   pawn: "と",
 } as const;
 
+export function shogiNotationFile(x: number): string {
+  return String(9 - x);
+}
+
+export function shogiNotationRank(y: number): string {
+  return "一二三四五六七八九"[y];
+}
+
 export function shogiNotationSquare(position: Position): string {
-  return `${9 - position.x}${"一二三四五六七八九"[position.y]}`;
+  return `${shogiNotationFile(position.x)}${shogiNotationRank(position.y)}`;
 }
 
 export function shogiNotationPiece(piece: Pick<Piece, "kind" | "promoted">): string {
