@@ -15,6 +15,7 @@ import { FourShogiHand } from "./FourShogiHand";
 import { ShogiPiece } from "./ShogiPiece";
 import { prepareShogiAssets } from "./shogiPieceImages";
 import { ShogiPromotionChoice } from "./ShogiPromotionChoice";
+import { shogiNotationFile, shogiNotationRank, shogiNotationSquare } from "./shogiNotation";
 import { useLocalPromotion, type PromotionController } from "./useLocalPromotion";
 import {
   shogiActionChoices,
@@ -55,11 +56,15 @@ type Drag = DragSource & { point: Position; width: number };
 
 const boardSizing = [
   "[--shogi-board-margin:0.013]",
+  "[--shogi-coordinate-space:calc(var(--shogi-board-width)_*_var(--shogi-board-margin))]",
   "[--shogi-piece-ratio:calc((1_-_2_*_var(--shogi-board-margin))_*_var(--shogi-piece-scale)_/_9)]",
   "[--shogi-piece-width:calc(var(--shogi-board-width)_*_var(--shogi-piece-ratio))]",
   "[--shogi-board-with-hands-ratio:calc(1_+_2_*_var(--shogi-piece-ratio)_*_148_/_140)]",
   "grid w-full min-h-full content-center justify-center gap-2 py-2",
 ].join(" ");
+
+const coordinateLabelClasses =
+  "pointer-events-none absolute grid place-items-center select-none font-semibold leading-none tabular-nums text-[#3b260c] text-[length:var(--shogi-coordinate-space)]";
 
 const standardLayout = [
   "[--player-height:68px] [@media(max-width:767px)]:[--player-height:52px]",
@@ -379,6 +384,15 @@ export function FourShogiBoardLayout({
 
   const lastAction = game.lastMove?.action;
   const pieceScale = standard ? 0.86 : 0.82;
+  const sideways = viewerSide === "west" || viewerSide === "east";
+  const coordinates = Array.from({ length: 9 }, (_, index) => {
+    const top = shogiBoardPosition({ x: index, y: 0 }, viewerSide);
+    const right = shogiBoardPosition({ x: 8, y: index }, viewerSide);
+    return {
+      top: sideways ? shogiNotationRank(top.y) : shogiNotationFile(top.x),
+      right: sideways ? shogiNotationFile(right.x) : shogiNotationRank(right.y),
+    };
+  });
   // カード2段・持ち駒2段・余白を除いた高さに収めます。
   // 持ち駒の高さも盤の幅に比例するため、盤と駒2段の比率を合わせて計算します。
   return (
@@ -429,6 +443,24 @@ export function FourShogiBoardLayout({
           ref={grid}
           className="absolute inset-[calc(var(--shogi-board-margin)*100%)] isolate grid grid-cols-9 grid-rows-9"
         >
+          <div
+            aria-hidden="true"
+            data-testid="shogi-coordinates-top"
+            className={`${coordinateLabelClasses} bottom-full left-0 h-[var(--shogi-coordinate-space)] w-full grid-cols-9`}
+          >
+            {coordinates.map(({ top }) => (
+              <span key={top}>{top}</span>
+            ))}
+          </div>
+          <div
+            aria-hidden="true"
+            data-testid="shogi-coordinates-right"
+            className={`${coordinateLabelClasses} top-0 left-full h-full w-[var(--shogi-coordinate-space)] grid-rows-9`}
+          >
+            {coordinates.map(({ right }) => (
+              <span key={right}>{right}</span>
+            ))}
+          </div>
           {Array.from({ length: 81 }, (_, index) => {
             const x = index % 9;
             const y = Math.floor(index / 9);
@@ -478,7 +510,7 @@ export function FourShogiBoardLayout({
                 data-pending-move={pendingTo || undefined}
                 data-check={checked || undefined}
                 data-dragging={dragging || undefined}
-                aria-label={`${squareName}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}${pendingTo ? "、未確定の移動先" : ""}`}
+                aria-label={`${squareName}：${pieceLabel}${dead && piece?.kind !== "king" ? "、脱落した駒" : ""}${canSelect ? "、選択できます" : ""}${destination ? "、移動できます" : ""}${forbiddenDestination ? "、三人攻撃のため着手できません" : ""}${checked ? "、王手" : ""}${lastFrom ? "、直前の移動元" : ""}${lastTo ? "、直前の移動先" : ""}${pendingTo ? "、未確定の移動先" : ""}、棋譜座標${shogiNotationSquare(position)}`}
                 aria-pressed={
                   !!selectedSquare ||
                   !!(editing?.selected && shogiSamePosition(editing.selected, position))

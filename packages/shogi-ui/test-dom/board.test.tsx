@@ -109,6 +109,26 @@ test("局面を切り替えて元へ戻っても以前の成り選択を再表�
   expect(sent).toEqual([]);
 });
 
+test("盤の上辺と右辺は回転後も基準の筋・段を示す", () => {
+  const input = props(() => {});
+  const view = render(<FourShogiBoardLayout {...input} />);
+  for (const [viewerSide, top, right] of [
+    ["south", "987654321", "一二三四五六七八九"],
+    ["west", "一二三四五六七八九", "123456789"],
+    ["north", "123456789", "九八七六五四三二一"],
+    ["east", "九八七六五四三二一", "987654321"],
+  ] as const) {
+    view.rerender(<FourShogiBoardLayout {...input} viewerSide={viewerSide} />);
+    expect(view.container.querySelector('[data-testid="shogi-coordinates-top"]')?.textContent).toBe(
+      top,
+    );
+    expect(
+      view.container.querySelector('[data-testid="shogi-coordinates-right"]')?.textContent,
+    ).toBe(right);
+    expect(square(view.container, "E7").getAttribute("aria-label")).toContain("棋譜座標5七");
+  }
+});
+
 test("ドラッグは回転後にポインター直下のマスへ着手し、盤の余白や盤外では送信しない", () => {
   const sent: FourShogiAction[] = [];
   const input = props((action) => {
@@ -143,6 +163,7 @@ test("ドラッグは回転後にポインター直下のマスへ着手し、�
   }
   try {
     dragTo(view.container.querySelector('[data-testid="shogi-board"]'));
+    dragTo(view.container.querySelector('[data-testid="shogi-coordinates-top"] span'));
     dragTo(null);
     expect(sent).toEqual([]);
 
