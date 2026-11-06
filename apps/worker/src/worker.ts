@@ -32,7 +32,6 @@ import { deleteExpiredReports } from "./rooms/reportStore";
 import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
 import { cleanupFeedback } from "./feedback/store";
 import { servePublicAssets } from "./publicAssets";
-import { fourShogiAiRoutes } from "./fourShogiAi/routes";
 import { tournamentRoutes, tournamentAdminRoutes, recoverTournaments } from "./tournaments/routes";
 
 export { GameRoom } from "./rooms/gameRoom";
@@ -57,7 +56,6 @@ api.route("/", feedbackAdminRoutes);
 api.route("/", feedbackRoutes);
 api.route("/", analyticsRoutes);
 api.route("/", matchRoutes);
-api.route("/", fourShogiAiRoutes);
 api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);
 api.route("/", badgeNotificationRoutes);

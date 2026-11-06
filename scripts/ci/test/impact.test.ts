@@ -16,12 +16,8 @@ test("push・main向けPR・明示Full・不明イベントはFast成功をデ�
 });
 test.each([
   ["apps/admin/src/App.tsx", ["apps/admin"]],
-  ["apps/four-shogi-study/src/search/runtime.ts", ["apps/four-shogi-study"]],
-  ["apps/web/src/app/router.tsx", ["apps/admin", "apps/four-shogi-study", "apps/web"]],
-  [
-    "packages/shogi-ui/src/ShogiPiece.tsx",
-    ["apps/admin", "apps/four-shogi-study", "apps/web", "packages/shogi-ui"],
-  ],
+  ["apps/web/src/app/router.tsx", ["apps/admin", "apps/web"]],
+  ["packages/shogi-ui/src/ShogiPiece.tsx", ["apps/admin", "apps/web", "packages/shogi-ui"]],
 ] as const)("%s は利用側まで検証する", (file, expected) => {
   const plan = selectPlan([file, "docs/testing.md"], workspaces);
   expect(plan.mode).toBe("fast");
@@ -33,11 +29,6 @@ test.each([
   "packages/four-shogi/src/movement.ts",
   "apps/worker/src/accounts/auth.ts",
   "apps/worker/migrations/001.sql",
-  "apps/four-shogi-ai/src/http.ts",
-  "ai/four-shogi-ai/src/four_shogi_ai/replay.py",
-  "ai/four-shogi-ai/tests/test_replay.py",
-  "ai/four-shogi-ai/uv.lock",
-  "ai/four-shogi-ai/pyproject.toml",
   "mise.toml",
   "apps/web/vite.config.ts",
   "apps/web/package.json",
