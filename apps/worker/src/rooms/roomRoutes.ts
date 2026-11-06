@@ -251,11 +251,8 @@ roomRoutes.on(
         query.data.instanceId,
         params.data.roundId,
         query.data.cursor ?? 0,
-        query.data.throughEventCount,
       );
       if (result.status === "room_changed") return context.json(roomError("room_changed"), 410);
-      if (result.status === "invalid_request")
-        return context.json(roomError("invalid_request"), 400);
       if (result.status !== "found") return context.json(roomError("not_found"), 404);
       return context.json(
         z.union([getFourShogiReplayContract.response, shogiReplayPageSchema]).parse(result.page),

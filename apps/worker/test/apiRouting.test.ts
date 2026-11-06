@@ -5,6 +5,26 @@ import { expect, test, vi } from "vitest";
 import worker from "../src/worker";
 import { env } from "cloudflare:workers";
 
+test("撤去した四人将棋AIのAPIは利用できない", async () => {
+  for (const [path, method] of [
+    ["/four-shogi-ai/health", "GET"],
+    ["/four-shogi-ai/jobs", "POST"],
+    ["/four-shogi-ai/jobs/retired-job", "GET"],
+    ["/four-shogi-ai/jobs/retired-job", "DELETE"],
+    ["/four-shogi-ai/rooms/12345/cpu", "POST"],
+    ["/four-shogi-ai/rooms/12345/cpu-diagnostics", "GET"],
+  ]) {
+    for (const prefix of ["", "/api"]) {
+      const response = await worker.fetch(
+        new AcceptedGameRequest(`http://localhost:8787${prefix}${path}`, { method }),
+        env,
+        {} as ExecutionContext,
+      );
+      expect(response.status).toBe(404);
+    }
+  }
+});
+
 test("開発環境は本番へ転送せずHTML・API・エラーを検索対象外にする", async () => {
   const development = {
     ...env,

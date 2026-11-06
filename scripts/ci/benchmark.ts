@@ -51,7 +51,6 @@ try {
   for (const [name, file] of [
     ["web", "apps/web/src/app/router.tsx"],
     ["admin", "apps/admin/src/App.tsx"],
-    ["study", "apps/four-shogi-study/src/search/runtime.ts"],
   ]) {
     const plan = selectPlan([file], workspaces);
     if (plan.mode !== "fast") throw new Error(`${name} がFastになりませんでした`);

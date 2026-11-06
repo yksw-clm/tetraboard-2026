@@ -42,9 +42,6 @@ if (mode === "test" || mode === "check") {
   if (mode === "test")
     await runTask({ name: "CI policy tests", command: ["bun", "test", "./scripts/ci/test"] });
   const tasks: Task[] = [];
-  if (plan.mode === "full")
-    tasks.push({ name: "Python AI check", command: ["bun", "run", "ai:check"] });
-  else console.log("未実行: Python AI check (Fast CIの対象外)");
   if (plan.workspaces.includes("apps/worker")) {
     const files = [...new Bun.Glob(workerTestPattern).scanSync(`${root}/apps/worker`)];
     if (!files.length) throw new Error("Workerテストが見つかりません");
@@ -59,7 +56,7 @@ if (mode === "test" || mode === "check") {
         command: command("apps/worker", "test", group),
       });
   }
-  const priority = ["packages/four-shogi", "apps/web", "apps/four-shogi-study"];
+  const priority = ["packages/four-shogi", "apps/web"];
   for (const path of plan.workspaces
     .filter((path) => path !== "apps/worker")
     .sort(
@@ -72,7 +69,7 @@ if (mode === "test" || mode === "check") {
 }
 
 if (mode === "build") {
-  for (const path of ["apps/web", "apps/admin", "apps/four-shogi-study"])
+  for (const path of ["apps/web", "apps/admin"])
     if (plan.workspaces.includes(path))
       await runTask({ name: `build ${path}`, command: command(path, "build:assets") });
 }

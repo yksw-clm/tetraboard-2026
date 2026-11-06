@@ -23,12 +23,7 @@ export function fullReason(
 }
 
 // API・永続化・ルールはPRでも全体検証します。未知のworkspaceも同じ扱いです。
-const fastWorkspaces = new Set([
-  "apps/web",
-  "apps/admin",
-  "apps/four-shogi-study",
-  "packages/shogi-ui",
-]);
+const fastWorkspaces = new Set(["apps/web", "apps/admin", "packages/shogi-ui"]);
 
 export function selectPlan(files: string[], workspaces: Workspace[], forceFull?: string): Plan {
   const all = workspaces.map((workspace) => workspace.path).sort();

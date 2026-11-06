@@ -53,10 +53,7 @@ export function readWorkspaces(): Workspace[] {
     if (!owner) continue;
     // 型import・CSS・new URLの静的パスも含め、実行時importだけに限定しません。
     const source = readFileSync(resolve(root, file), "utf8");
-    if (
-      /^apps\/(web|admin|four-shogi-study)\//.test(file) ||
-      file.startsWith("packages/shogi-ui/")
-    ) {
+    if (/^apps\/(web|admin)\//.test(file) || file.startsWith("packages/shogi-ui/")) {
       for (const match of source.matchAll(/(?<![.\w])import\s*\(\s*([^)]*)\)(?!\s*[:{])/g)) {
         if (!/^(?:["'][^"']+["']|`[^`$]+`)$/.test(match[1].trim()))
           owner.uncertainty = `${file}: 動的importの対象を確定できません`;

@@ -33,13 +33,6 @@ export function gameChunks(): Plugin {
       for (const chunk of chunks) {
         for (const [id, info] of Object.entries(chunk.modules)) {
           if (
-            hasImplementation(info.code) &&
-            /\/(?:apps\/four-shogi-study|packages\/four-shogi\/src\/(?:study|aiSearch|modelInference))/.test(
-              id,
-            )
-          )
-            this.error(`Local study implementation emitted in ${chunk.fileName}: ${id}`);
-          if (
             /\/packages\/(four-reversi|four-shogi|reversi|shogi|gomoku|four-gomoku)\/src\/cpu[^/]*\.ts$/.test(
               id,
             ) &&
