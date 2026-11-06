@@ -52,7 +52,7 @@ test("状況カードの高さが変わると予約を更新し、配置解除�
   }
 });
 
-test("ライブのPCだけ状況カードを盤面にまとめ、タブレットと棋譜では従来の配置を使う", () => {
+test("指定があるPCでは状況カードを盤面にまとめ、タブレットではタブの上に配置する", () => {
   function Layout({ desktop, live }: { desktop: boolean; live: boolean }) {
     return (
       <RoomLayout

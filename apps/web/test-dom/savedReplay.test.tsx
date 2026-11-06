@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import {
   fourReversiMatchDetailSchema,
@@ -16,6 +16,30 @@ import { simultaneousMateFrames } from "../test/fixtures/shogiKnockouts";
 import { token } from "../test/fixtures/rooms";
 import { AccountContext } from "../src/features/account/useAccount";
 import { act, clock, flush, press, render, requests, wrap } from "./harness";
+
+test("PCの保存棋譜は結果・回転を盤面下の状況カードに置き、局面操作を分ける", () => {
+  const matchMedia = spyOn(window, "matchMedia").mockImplementation(
+    (query) =>
+      Object.assign(new window.EventTarget(), {
+        matches: query === "(min-width: 1280px)",
+      }) as MediaQueryList,
+  );
+  try {
+    const match = fourReversiMatchDetailSchema.parse(reversiArchives[0].detail);
+    const view = render(wrap()(<FourReversiMatchReplayView match={match} />));
+    const status = view.querySelector('[data-with-status="true"] [aria-label="対局状況"]')!;
+    expect(status.querySelector('[aria-label="棋譜"]')).toBeNull();
+    expect(
+      view.querySelector('section[aria-label="盤面とプレイヤー"] > [aria-label="棋譜"]'),
+    ).not.toBeNull();
+    expect(status.querySelector('[aria-label="盤面を時計回りに90度回転"]')).not.toBeNull();
+    expect(status.textContent).toContain("結果");
+    expect(status.textContent).not.toContain("対局終了");
+    expect(view.querySelectorAll('[aria-label="棋譜"]')).toHaveLength(1);
+  } finally {
+    matchMedia.mockRestore();
+  }
+});
 
 test("固定棋譜5種を表示し、局面・回転操作は通信せず参加資格を維持する", async () => {
   sessionStorage.setItem("tetraboard:room:12345:membership", token);

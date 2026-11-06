@@ -3,16 +3,22 @@ import { AppButton } from "../../shared/ui/AppButton";
 
 export function ViewerControls({
   label,
+  hideLabelOnMobile = false,
   onRotate,
   rotationDegrees = 90,
 }: {
   label: "観戦中" | "棋譜閲覧中";
+  hideLabelOnMobile?: boolean;
   onRotate: () => void;
   rotationDegrees?: 90 | 180;
 }) {
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1.5">
-      <span className="text-muted text-xs whitespace-nowrap">{label}</span>
+      <span
+        className={`text-muted text-xs whitespace-nowrap ${hideLabelOnMobile ? "[@media(max-width:767px)]:hidden" : ""}`}
+      >
+        {label}
+      </span>
       <span title={`盤面を時計回りに${rotationDegrees}度回転`} className="shrink-0">
         <AppButton
           isIconOnly
