@@ -14,15 +14,15 @@ export function useResultRegistration(room: Room) {
   const signIn = useSocialSignIn();
   const navigate = useNavigate();
   const submitting = useRef(false);
-  const [preparing, setPreparing] = useState(false);
+  const [preparing, setPreparing] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  async function start(provider: SocialProvider) {
+  async function start(provider: SocialProvider, linkGuest?: true) {
     if (submitting.current) return;
     submitting.current = true;
-    setPreparing(true);
+    setPreparing(provider);
     setMessage(null);
     try {
-      const flow = createGuestRegistration(room);
+      const flow = createGuestRegistration(room, linkGuest);
       if (flow.returning) {
         await navigate("/account");
         return;
@@ -34,6 +34,8 @@ export function useResultRegistration(room: Room) {
       }
       if (!["held", "expired"].includes(status.seat) || status.record !== "unclaimed")
         throw new Error("登録する席を保持できません。手続きを確認してください。");
+      if (linkGuest && status.seat !== "held")
+        throw new Error("席の保持期限が過ぎました。ルームの状態を確認してください。");
       if (status.seat === "expired") {
         // 記録だけを引き継ぐことを確認画面で伝えてから認証へ進みます。
         await navigate("/login");
@@ -49,12 +51,12 @@ export function useResultRegistration(room: Room) {
       setMessage(error instanceof Error ? error.message : "登録を開始できませんでした。");
     } finally {
       submitting.current = false;
-      setPreparing(false);
+      setPreparing(null);
     }
   }
   return {
-    busy: preparing || signIn.busy,
-    pendingProvider: signIn.pendingProvider,
+    busy: preparing !== null || signIn.busy,
+    pendingProvider: signIn.pendingProvider ?? preparing,
     message: message ?? signIn.message,
     start,
   };

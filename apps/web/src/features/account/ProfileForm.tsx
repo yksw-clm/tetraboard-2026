@@ -40,50 +40,56 @@ export function ProfileForm({
       <div className="flex flex-col items-center gap-3">
         <div className="relative size-24">
           <AppAvatar src={image} label="アイコンのプレビュー" className="size-24 [&_svg]:size-10" />
-          <AppButton
-            type="button"
-            appearance="quiet"
-            aria-label="アイコン画像を選択"
-            className="absolute left-1/2 top-1/2 size-11 min-h-11 -translate-x-1/2 -translate-y-1/2 rounded-full border-0 bg-black/50 p-0 text-white enabled:hover:bg-black/65 enabled:hover:text-white data-[hovered=true]:bg-black/65 data-[hovered=true]:text-white"
-            isDisabled={busy}
-            onPress={() => fileInput.current?.click()}
-          >
-            <AppIcon name="camera" className="size-6" />
-          </AppButton>
+          {!user.isGuest && (
+            <AppButton
+              type="button"
+              appearance="quiet"
+              aria-label="アイコン画像を選択"
+              className="absolute left-1/2 top-1/2 size-11 min-h-11 -translate-x-1/2 -translate-y-1/2 rounded-full border-0 bg-black/50 p-0 text-white enabled:hover:bg-black/65 enabled:hover:text-white data-[hovered=true]:bg-black/65 data-[hovered=true]:text-white"
+              isDisabled={busy}
+              onPress={() => fileInput.current?.click()}
+            >
+              <AppIcon name="camera" className="size-6" />
+            </AppButton>
+          )}
         </div>
-        {image && (
-          <AppButton
-            type="button"
-            appearance="quiet"
-            size="compact"
-            isDisabled={busy || !image}
-            onPress={removeImage}
-          >
-            アイコンを削除
-          </AppButton>
-        )}
-        <input
-          ref={fileInput}
-          type="file"
-          className="sr-only"
-          tabIndex={-1}
-          aria-label="アイコン画像"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={busy}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void selectImage(file);
-          }}
-        />
-        <p className="text-center text-xs text-muted">
-          JPEG・PNG・WebP、5MB以下。中央を正方形に切り抜きます。
-          <br />
-          変更・削除はプロフィールの保存で反映されます。
-        </p>
-        {processing && (
-          <p role="status" className="text-sm text-muted">
-            画像を読み込んでいます…
-          </p>
+        {!user.isGuest && (
+          <>
+            {image && (
+              <AppButton
+                type="button"
+                appearance="quiet"
+                size="compact"
+                isDisabled={busy || !image}
+                onPress={removeImage}
+              >
+                アイコンを削除
+              </AppButton>
+            )}
+            <input
+              ref={fileInput}
+              type="file"
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="アイコン画像"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void selectImage(file);
+              }}
+            />
+            <p className="text-center text-xs text-muted">
+              JPEG・PNG・WebP、5MB以下。中央を正方形に切り抜きます。
+              <br />
+              変更・削除はプロフィールの保存で反映されます。
+            </p>
+            {processing && (
+              <p role="status" className="text-sm text-muted">
+                画像を読み込んでいます…
+              </p>
+            )}
+          </>
         )}
       </div>
       <AppTextField name="name" isInvalid={submitted && nameInvalid} isDisabled={busy}>
@@ -95,22 +101,31 @@ export function ProfileForm({
           }}
           autoComplete="nickname"
         />
-        <AppTextField.Description>1〜10文字。前後の空白は除きます。</AppTextField.Description>
+        <AppTextField.Description>
+          1〜10文字。前後の空白は除きます。
+          {user.isGuest && "本名・連絡先は入力しないでください。"}
+        </AppTextField.Description>
         <AppTextField.Error>名前は1〜10文字で入力してください。</AppTextField.Error>
       </AppTextField>
-      <AppTextField name="username" isInvalid={submitted && usernameInvalid} isDisabled={busy}>
+      <AppTextField
+        name="username"
+        isInvalid={submitted && usernameInvalid}
+        isDisabled={busy}
+        isReadOnly={user.isGuest}
+      >
         <AppTextField.Label>ID（@ID）</AppTextField.Label>
         <AppTextField.Input
-          value={username}
-          onChange={(event) => {
-            setUsername(event.target.value);
-          }}
-          autoComplete="username"
+          value={user.isGuest && username ? `@${username}` : username}
+          onChange={user.isGuest ? undefined : (event) => setUsername(event.target.value)}
+          autoComplete={user.isGuest ? undefined : "username"}
           autoCapitalize="none"
           spellCheck={false}
+          className="read-only:bg-surface-muted"
         />
         <AppTextField.Description>
-          英数字・_の3〜20文字。大文字は小文字になり、@を付けて表示します。他の人と同じIDは使えません。
+          {user.isGuest
+            ? "アイコンとIDを変更するには、GoogleまたはDiscordとの連携が必要です。"
+            : "英数字・_の3〜20文字。大文字は小文字になり、@を付けて表示します。他の人と同じIDは使えません。"}
         </AppTextField.Description>
         <AppTextField.Error>IDは英数字・_の3〜20文字で入力してください。</AppTextField.Error>
       </AppTextField>

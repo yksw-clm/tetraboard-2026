@@ -9,6 +9,7 @@ import {
 import { responseCookies } from "../privacy/deletion";
 import { badgeAwardsSql } from "./badgeAwards";
 import { guestChatMergeStatements } from "../lobby/mergeGuestChat";
+import { readRegistrationFlow, type RegistrationFlow } from "./registrationFlows";
 
 export class GuestLinkError extends Error {}
 export async function requireGuestIdle(env: Env, id: string) {
@@ -21,7 +22,11 @@ export async function requireGuestIdle(env: Env, id: string) {
       "参加中のルームを退室し、大会の待機を取り消してから連携してください。",
     );
 }
-export async function prepareGuestLink(request: Request, env: Env) {
+export async function prepareGuestLink(
+  request: Request,
+  env: Env,
+  registration?: RegistrationFlow,
+) {
   if (
     /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(
       request.headers.get("Cookie") ?? "",
@@ -29,8 +34,34 @@ export async function prepareGuestLink(request: Request, env: Env) {
   )
     return null;
   const guest = await guestIdentity(request, env);
-  if (guest) await requireGuestIdle(env, guest.id);
+  if (registration?.guest_account_id) {
+    if (
+      !guest ||
+      guest.id !== registration.guest_account_id ||
+      !(await heldRoomRegistration(env, registration.id, guest.id))
+    )
+      throw new GuestLinkError("連携する席を確認できません。対局結果を開き直してください。");
+  } else if (guest) await requireGuestIdle(env, guest.id);
   return guest;
+}
+async function heldRoomRegistration(
+  env: Env,
+  registrationId: string | null | undefined,
+  guestId: string,
+) {
+  if (!registrationId) return null;
+  const registration = await readRegistrationFlow(env.APP_DB, registrationId);
+  if (
+    !registration ||
+    registration.guest_account_id !== guestId ||
+    registration.cancelled_at_ms !== null ||
+    registration.hold_until_ms <= Date.now()
+  )
+    return null;
+  const state = await env.GAME_ROOM.getByName(registration.room_id).getGuestRegistration(
+    registrationId,
+  );
+  return state?.state === "pending" ? registration : null;
 }
 export async function rememberGuestLink(
   request: Request,
@@ -38,16 +69,26 @@ export async function rememberGuestLink(
   guest: StoredProfile,
   state: string,
   provider: string,
+  roomRegistrationId?: string,
 ) {
   const now = Date.now();
   await env.APP_DB.prepare(
-    "INSERT INTO guest_oauth_flows(state,guest_id,guest_token_hash,provider,started_at_ms,expires_at_ms) VALUES(?,?,?,?,?,?)",
+    "INSERT INTO guest_oauth_flows(state,guest_id,guest_token_hash,provider,started_at_ms,expires_at_ms,room_registration_id) VALUES(?,?,?,?,?,?,?)",
   )
-    .bind(state, guest.id, await guestTokenHash(request), provider, now, now + 600000)
+    .bind(
+      state,
+      guest.id,
+      await guestTokenHash(request),
+      provider,
+      now,
+      now + 600000,
+      roomRegistrationId ?? null,
+    )
     .run();
 }
 async function promoteGuestLink(request: Request, env: AuthEnv, flow: MergeFlow) {
-  await requireGuestIdle(env, flow.guest_id);
+  const held = await heldRoomRegistration(env, flow.room_registration_id, flow.guest_id);
+  if (!held) await requireGuestIdle(env, flow.guest_id);
   await requireGuestIdle(env, flow.target_id);
   const hash = await guestTokenHash(request);
   const created = await env.APP_DB.prepare("SELECT email FROM user WHERE id=?")
@@ -57,13 +98,10 @@ async function promoteGuestLink(request: Request, env: AuthEnv, flow: MergeFlow)
   const source = flow.guest_id,
     target = flow.target_id;
   await env.APP_DB.batch([
-    env.APP_DB.prepare("INSERT INTO guest_promotions VALUES(?,?,?,?,?)").bind(
-      source,
-      target,
-      hash,
-      flow.target_session_id,
-      Date.now(),
-    ),
+    ...roomLinkCommitStatements(env.APP_DB, flow),
+    env.APP_DB.prepare(
+      "INSERT INTO guest_promotions(guest_id,temporary_id,token_hash,session_id,created_at_ms) VALUES(?,?,?,?,?)",
+    ).bind(source, target, hash, flow.target_session_id, Date.now()),
     env.APP_DB.prepare("UPDATE user SET email=? WHERE id=?").bind(
       `${target}@transferred.invalid`,
       target,
@@ -82,10 +120,24 @@ async function promoteGuestLink(request: Request, env: AuthEnv, flow: MergeFlow)
     ),
     env.APP_DB.prepare("UPDATE account SET userId=? WHERE userId=?").bind(source, target),
     env.APP_DB.prepare("UPDATE session SET userId=? WHERE userId=?").bind(source, target),
+    ...(flow.room_registration_id
+      ? [
+          env.APP_DB.prepare(
+            "UPDATE registration_flows SET account_id=? WHERE id=? AND account_id=? AND session_id=?",
+          ).bind(source, flow.room_registration_id, target, flow.target_session_id),
+        ]
+      : []),
     env.APP_DB.prepare("DELETE FROM user WHERE id=?").bind(target),
     env.APP_DB.prepare("DELETE FROM guest_sessions WHERE account_id=?").bind(source),
     env.APP_DB.prepare("DELETE FROM guest_oauth_flows WHERE guest_id=?").bind(source),
     env.APP_DB.prepare("DELETE FROM guest_promotions WHERE guest_id=?").bind(source),
+    ...(flow.room_registration_id
+      ? [
+          env.APP_DB.prepare("DELETE FROM guest_room_link_commits WHERE registration_id=?").bind(
+            flow.room_registration_id,
+          ),
+        ]
+      : []),
   ]);
 }
 
@@ -111,10 +163,15 @@ export async function completeGuestLink(request: Request, response: Response, en
     return;
   }
   const flow = await env.APP_DB.prepare(
-    "SELECT * FROM guest_oauth_flows WHERE state=? AND guest_token_hash=? AND expires_at_ms>? AND target_id IS NULL",
+    "SELECT guest_id,provider,started_at_ms,room_registration_id FROM guest_oauth_flows WHERE state=? AND guest_token_hash=? AND expires_at_ms>? AND target_id IS NULL",
   )
     .bind(state, hash, Date.now())
-    .first<{ guest_id: string; provider: string; started_at_ms: number }>();
+    .first<{
+      guest_id: string;
+      provider: string;
+      started_at_ms: number;
+      room_registration_id: string | null;
+    }>();
   if (!flow || !new URL(request.url).pathname.endsWith(`/callback/${flow.provider}`)) {
     await suspendGuestSession(request, env);
     return;
@@ -130,11 +187,54 @@ export async function completeGuestLink(request: Request, response: Response, en
     (typeof created?.createdAt === "string"
       ? Date.parse(created.createdAt)
       : (created?.createdAt ?? 0)) >= flow.started_at_ms;
-  await env.APP_DB.prepare(
-    "UPDATE guest_oauth_flows SET target_id=?,target_session_id=?,is_new_target=?,expires_at_ms=? WHERE state=? AND target_id IS NULL",
-  )
-    .bind(identity.user.id, identity.sessionId, Number(isNew), Date.now() + 3600000, state)
-    .run();
+  const claim = env.APP_DB.prepare(
+    `UPDATE guest_oauth_flows SET target_id=?,target_session_id=?,is_new_target=?,expires_at_ms=?
+     WHERE state=? AND target_id IS NULL AND (room_registration_id IS NULL OR EXISTS(
+       SELECT 1 FROM registration_flows r WHERE r.id=room_registration_id AND r.guest_account_id=guest_id
+         AND r.cancelled_at_ms IS NULL AND r.claim_until_ms>? AND r.account_id IS NULL
+         AND EXISTS (SELECT 1 FROM registration_oauth_states s WHERE s.state=guest_oauth_flows.state AND s.registration_id=r.id AND s.expires_at_ms>?)
+     )) RETURNING state`,
+  ).bind(
+    identity.user.id,
+    identity.sessionId,
+    Number(isNew),
+    Date.now() + 3600000,
+    state,
+    Date.now(),
+    Date.now(),
+  );
+  const claimed = flow.room_registration_id
+    ? (
+        await env.APP_DB.batch([
+          claim,
+          env.APP_DB.prepare(`UPDATE registration_flows SET account_id=?,session_id=? WHERE id=?
+          AND account_id IS NULL AND cancelled_at_ms IS NULL AND EXISTS (
+            SELECT 1 FROM guest_oauth_flows f WHERE f.state=? AND f.room_registration_id=registration_flows.id
+              AND f.target_id=? AND f.target_session_id=?
+          )`).bind(
+            identity.user.id,
+            identity.sessionId,
+            flow.room_registration_id,
+            state,
+            identity.user.id,
+            identity.sessionId,
+          ),
+        ])
+      )[0].results[0]
+    : await claim.first();
+  if (!claimed && flow.room_registration_id) {
+    await env.APP_DB.prepare("DELETE FROM session WHERE id=? AND userId=?")
+      .bind(identity.sessionId, identity.user.id)
+      .run();
+    const cookies = response.headers.getSetCookie();
+    response.headers.delete("Set-Cookie");
+    for (const cookie of cookies)
+      if (!/^(?:__Secure-)?tetraboard-2026\.session_token=/.test(cookie))
+        response.headers.append("Set-Cookie", cookie);
+    response.headers.set("Location", "/login?error=guest_room_link_expired");
+    return;
+  }
+  if (!claimed) return;
   // 対応の保存後に確認専用へ切り替え、一時障害で元ゲストだけが先に失効することを防ぎます。
   await suspendGuestSession(request, env);
   // 初回登録でのみプロバイダーを元のゲストへ移し、内部IDを維持します。
@@ -147,6 +247,7 @@ export async function completeGuestLink(request: Request, response: Response, en
         target_session_id: identity.sessionId,
         is_new_target: 1,
         name: "",
+        room_registration_id: flow.room_registration_id,
       });
       await clearGuestSession(request, env);
       return;
@@ -164,7 +265,18 @@ type MergeFlow = {
   target_session_id: string;
   name: string;
   is_new_target: number;
+  room_registration_id?: string | null;
 };
+function roomLinkCommitStatements(db: D1Database, flow: MergeFlow) {
+  return flow.room_registration_id
+    ? [
+        db
+          .prepare(`INSERT INTO guest_room_link_commits
+      (registration_id,guest_id,target_id,oauth_state,committed_at_ms) VALUES(?,?,?,?,?)`)
+          .bind(flow.room_registration_id, flow.guest_id, flow.target_id, flow.state, Date.now()),
+      ]
+    : [];
+}
 async function mergeFlow(request: Request, env: AuthEnv): Promise<MergeFlow | null> {
   const identity = await accountSessionIdentity(request, env),
     hash = await guestTokenHash(request);
@@ -188,9 +300,21 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
   for (const room of rooms.results)
     if (await env.GAME_ROOM.getByName(room.room_id).guestMergeConflict(g, a))
       throw new GuestLinkError("同じ対局で参加した複数の席の記録は統合できません。");
+  const held = await heldRoomRegistration(env, flow.room_registration_id, g);
+  if (flow.room_registration_id && !held) await requireGuestIdle(env, g);
   const statements = [
-    db.prepare(`INSERT INTO guest_account_merges VALUES(?,?,?)`).bind(g, a, Date.now()),
+    ...roomLinkCommitStatements(db, flow),
+    db
+      .prepare("INSERT INTO guest_account_merges(guest_id,account_id,merged_at_ms) VALUES(?,?,?)")
+      .bind(g, a, Date.now()),
   ];
+  if (held)
+    statements.push(
+      db
+        .prepare(`UPDATE account_room_seats SET account_id=?
+    WHERE account_id=? AND room_id=? AND instance_id=? AND player_id=?`)
+        .bind(a, g, held.room_id, held.instance_id, held.player_id),
+    );
   // 公開棋譜の本人参照だけを移し、手順・日時・結果を保持します。
   for (const table of ["matches", "shogi_match_uploads"]) {
     for (const table of [
@@ -251,6 +375,17 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
       )
       .bind(g),
   );
+  if (flow.room_registration_id)
+    statements.push(
+      db
+        .prepare(
+          "UPDATE registration_flows SET record_accepted_at_ms=? WHERE id=? AND account_id=?",
+        )
+        .bind(Date.now(), flow.room_registration_id, a),
+      db
+        .prepare("DELETE FROM guest_room_link_commits WHERE registration_id=?")
+        .bind(flow.room_registration_id),
+    );
   await db.batch(statements);
 }
 export const guestLinkRoutes = new Hono<{ Bindings: AuthEnv }>();
@@ -276,7 +411,11 @@ guestLinkRoutes.get("/account/guest-merge", async (c) => {
   const flow = await mergeFlow(c.req.raw, c.env);
   return c.json({
     pending: flow
-      ? { guestName: flow.name, ...(flow.is_new_target ? { isNewTarget: true } : {}) }
+      ? {
+          guestName: flow.name,
+          ...(flow.is_new_target ? { isNewTarget: true } : {}),
+          ...(flow.room_registration_id ? { roomRegistrationId: flow.room_registration_id } : {}),
+        }
       : null,
   });
 });
@@ -294,6 +433,19 @@ guestLinkRoutes.delete("/account/guest-merge", async (c) => {
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)
     return c.json({ message: "操作元を確認できません。" }, 403);
   const flow = await mergeFlow(c.req.raw, c.env);
+  if (flow?.room_registration_id) {
+    const registration = await c.env.APP_DB.prepare(`UPDATE registration_flows
+      SET cancelled_at_ms=COALESCE(cancelled_at_ms,?),seat_state='cancelled'
+      WHERE id=? AND NOT EXISTS (SELECT 1 FROM guest_account_merges WHERE guest_id=registration_flows.guest_account_id)
+        AND EXISTS (SELECT 1 FROM user WHERE id=registration_flows.guest_account_id AND isAnonymous=1)
+      RETURNING room_id`)
+      .bind(Date.now(), flow.room_registration_id)
+      .first<{ room_id: string }>();
+    if (!registration) throw new GuestLinkError("ゲスト記録の引き継ぎは完了しています。");
+    await c.env.GAME_ROOM.getByName(registration.room_id).cancelGuestRegistration(
+      flow.room_registration_id,
+    );
+  }
   if (flow) await clearGuestSession(c.req.raw, c.env);
   return c.json({ cancelled: true });
 });

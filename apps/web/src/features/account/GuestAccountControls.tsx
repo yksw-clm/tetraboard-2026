@@ -1,69 +1,28 @@
 import { useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
-import { accountProfileSchema } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
-import { AppTextField } from "../../shared/ui/AppTextField";
 import { useAccount } from "./useAccount";
 import { accountRequest } from "./accountApi";
 import { useSocialSignIn } from "./useSocialSignIn";
 import { SocialSignInButtons } from "./SocialSignInButtons";
 import { guestStorageNotice } from "./guestAccount";
+import { clearGuestRegistration, readGuestRegistration } from "./guestRegistration";
+import { clearRegistrationReturn } from "./registrationReturn";
 
 export function GuestAccountControls() {
-  const account = useAccount(),
-    signIn = useSocialSignIn();
-  const [name, setName] = useState(account.user?.name ?? ""),
-    [busy, setBusy] = useState(false),
-    [message, setMessage] = useState<string | null>(null);
-  async function save() {
-    if (busy) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      account.update(
-        accountProfileSchema.parse(
-          await accountRequest("/api/account/guest/name", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-          }),
-        ),
-      );
-      setMessage("名前を保存しました。");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "保存できませんでした。");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const signIn = useSocialSignIn();
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">{guestStorageNotice}</p>
-      <p className="text-sm text-muted">
-        IDは自動発行です。Google・Discordへの新規連携後に変更できます。
-      </p>
-      <AppTextField value={name} onChange={setName} isDisabled={busy}>
-        <AppTextField.Label>名前</AppTextField.Label>
-        <AppTextField.Input autoComplete="nickname" />
-        <AppTextField.Description>
-          1〜10文字。本名・連絡先は入力しないでください。
-        </AppTextField.Description>
-      </AppTextField>
-      <AppButton onPress={() => void save()} isPending={busy} isDisabled={busy}>
-        名前を保存
-      </AppButton>
-      <p className="text-sm text-muted">
-        連携すると、これまでの全ゲームの記録と公開チャットの投稿を引き継げます。参加中のルームを退室し、大会の待機を取り消してから進んでください。
-      </p>
       <SocialSignInButtons
         onSignIn={(provider) => void signIn.start(provider)}
         busy={signIn.busy}
         pendingProvider={signIn.pendingProvider}
       />
-      {(message || signIn.message) && (
+      {signIn.message && (
         <p role="status" className="text-sm">
-          {message ?? signIn.message}
+          {signIn.message}
         </p>
       )}
     </div>
@@ -74,6 +33,7 @@ export function GuestMergeConfirmation() {
   const [pending, setPending] = useState<{
       guestName: string;
       isNewTarget?: boolean;
+      roomRegistrationId?: string;
       identity: string;
     } | null>(null),
     [busy, setBusy] = useState(false),
@@ -90,10 +50,23 @@ export function GuestMergeConfirmation() {
     void accountRequest("/api/account/guest-merge", { signal: controller.signal })
       .then((body) => {
         if (!controller.signal.aborted) {
-          const value = (body as { pending: { guestName: string; isNewTarget?: boolean } | null })
-            .pending;
+          const value = (
+            body as {
+              pending: {
+                guestName: string;
+                isNewTarget?: boolean;
+                roomRegistrationId?: string;
+              } | null;
+            }
+          ).pending;
           setPending(value ? { ...value, identity } : null);
           setLoadError(null);
+          if (!value && readGuestRegistration()?.linkGuest) {
+            // 統合の成功応答を失った場合も、確定済みの手続きを再開します。
+            const params = new URLSearchParams(location.search);
+            params.delete("guestMerge");
+            void navigate(location.pathname + (params.size ? `?${params}` : ""), { replace: true });
+          }
         }
       })
       .catch(() => {
@@ -104,7 +77,15 @@ export function GuestMergeConfirmation() {
           });
       });
     return () => controller.abort();
-  }, [identity, account.user?.isGuest, requested, revision]);
+  }, [
+    identity,
+    account.user?.isGuest,
+    requested,
+    revision,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
   async function respond(merge: boolean) {
     if (busy) return;
     setBusy(true);
@@ -115,7 +96,12 @@ export function GuestMergeConfirmation() {
       const params = new URLSearchParams(location.search);
       params.delete("guestMerge");
       const path = location.pathname + (params.size ? `?${params}` : "");
-      if (merge) window.location.replace(path);
+      const handoff = readGuestRegistration();
+      if (!merge && handoff?.linkGuest && handoff.registrationId === pending?.roomRegistrationId) {
+        clearGuestRegistration(handoff);
+        clearRegistrationReturn();
+        window.location.replace(path);
+      } else if (merge) window.location.replace(path);
       else await navigate(path, { replace: true });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "引き継ぎできませんでした。");

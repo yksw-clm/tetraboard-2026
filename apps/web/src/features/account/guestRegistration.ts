@@ -21,6 +21,7 @@ export type GuestRegistration = RegistrationCredential & {
   game: GameId;
   newToken: string;
   createdAtMs: number;
+  linkGuest?: true;
   holdUntilMs?: number;
   claimUntilMs?: number;
   returning?: { playerId: string; record: RegistrationStatus["record"] };
@@ -50,6 +51,7 @@ export function readGuestRegistration(): GuestRegistration | null {
       !membershipTokenSchema.safeParse(flow.newToken).success ||
       !gameIds.includes(flow.game) ||
       !Number.isFinite(flow.createdAtMs) ||
+      (flow.linkGuest !== undefined && flow.linkGuest !== true) ||
       (flow.holdUntilMs !== undefined && !Number.isFinite(flow.holdUntilMs)) ||
       (flow.claimUntilMs !== undefined && !Number.isFinite(flow.claimUntilMs)) ||
       (flow.returning !== undefined &&
@@ -89,12 +91,17 @@ function randomSecret(): string {
     .join("");
 }
 
-export function createGuestRegistration(room: Room): GuestRegistration {
+export function createGuestRegistration(room: Room, linkGuest?: true): GuestRegistration {
   const matchId = registrationMatchId(room);
   if (!matchId) throw new Error("引き継ぐ対局を確認できません。結果を開き直してください。");
   const previous = readGuestRegistration();
   if (previous) {
-    if (previous.instanceId === room.instanceId && previous.matchId === matchId) return previous;
+    if (
+      previous.instanceId === room.instanceId &&
+      previous.matchId === matchId &&
+      previous.linkGuest === linkGuest
+    )
+      return previous;
     throw new Error("別の対局の登録手続きが残っています。先に登録を完了するか中止してください。");
   }
   if (typeof crypto.randomUUID !== "function" || !crypto.subtle)
@@ -108,6 +115,7 @@ export function createGuestRegistration(room: Room): GuestRegistration {
     game: room.settings.game,
     newToken: randomSecret(),
     createdAtMs: Date.now(),
+    ...(linkGuest ? { linkGuest } : {}),
   };
   saveGuestRegistration(flow);
   return flow;
@@ -183,6 +191,7 @@ export async function prepareGuestRegistration(
       instanceId: flow.instanceId,
       matchId: flow.matchId,
       newTokenHash,
+      ...(flow.linkGuest ? { linkGuest: true } : {}),
     }),
   });
   saveGuestRegistration({

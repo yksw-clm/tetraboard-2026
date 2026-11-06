@@ -85,9 +85,14 @@ async function seedFlow(cookie?: string) {
   if (cookie) await bind(flow, cookie);
   return flow;
 }
-async function setup(opponentCookie?: string) {
-  const entry = await fixtures.create({ game: "reversi", name: "ゲスト本人", quickPlay: false });
-  const host = await fixtures.connect(entry);
+async function setup(opponentCookie?: string, guestCookie?: string) {
+  const entry = await fixtures.create(
+    { game: "reversi", name: "ゲスト本人", quickPlay: false },
+    guestCookie,
+  );
+  const host = await fixtures.open(entry.room.id);
+  host.send({ type: "room.auth", token: entry.membership.token });
+  await host.waitFor("room.authenticated");
   const other = opponentCookie
     ? joinRoomContract.response.parse(
         await (
@@ -126,6 +131,7 @@ async function setup(opponentCookie?: string) {
     instanceId: room.instanceId,
     matchId,
     newTokenHash: await digest(nextToken),
+    ...(guestCookie ? { linkGuest: true } : {}),
   };
   const response = await request(`/rooms/${room.id}/registration`, {
     method: "POST",
@@ -133,6 +139,7 @@ async function setup(opponentCookie?: string) {
       Origin: origin,
       Authorization: `Bearer ${entry.membership.token}`,
       "Content-Type": "application/json",
+      ...(guestCookie ? { Cookie: guestCookie } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -140,13 +147,14 @@ async function setup(opponentCookie?: string) {
   const status = registrationStatusSchema.parse(await response.json());
   return { flow, entry, host, room, matchId, body, nextToken, status };
 }
-const signIn = (flow?: Credential, extra: Record<string, unknown> = {}) =>
+const signIn = (flow?: Credential, extra: Record<string, unknown> = {}, guestCookie?: string) =>
   request("/auth/sign-in/social", {
     method: "POST",
     headers: {
       Origin: origin,
       "Content-Type": "application/json",
       "X-Legal-Consent": legalVersion,
+      ...(guestCookie ? { Cookie: guestCookie } : {}),
     },
     body: JSON.stringify({
       provider: "discord",
@@ -154,17 +162,24 @@ const signIn = (flow?: Credential, extra: Record<string, unknown> = {}) =>
       ...extra,
     }),
   });
-async function startOAuth(flow?: Credential, extra?: Record<string, unknown>) {
-  const response = await signIn(flow, extra);
+async function startOAuth(
+  flow?: Credential,
+  extra?: Record<string, unknown>,
+  guestCookie?: string,
+) {
+  const response = await signIn(flow, extra, guestCookie);
   expect(response.status).toBe(200);
   const url = new URL(((await response.json()) as { url: string }).url);
-  return { state: url.searchParams.get("state")!, cookie: cookies(response) };
+  return {
+    state: url.searchParams.get("state")!,
+    cookie: [cookies(response), guestCookie].filter(Boolean).join("; "),
+  };
 }
 const callback = (auth: Awaited<ReturnType<typeof startOAuth>>, query = "code=code") =>
   request(`/auth/callback/discord?${query}&state=${encodeURIComponent(auth.state)}`, {
     headers: { Cookie: auth.cookie },
   });
-function discord() {
+function discord(email?: string) {
   const id = `${Date.now()}${Math.floor(Math.random() * 100000)}`;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -178,7 +193,7 @@ function discord() {
     if (decodeURIComponent(url) === "https://discord.com/api/users/@me")
       return Response.json({
         id,
-        email: `${id}@example.test`,
+        email: email ?? `${id}@example.test`,
         username: "外部名",
         global_name: "外部名",
         avatar: null,
@@ -187,6 +202,20 @@ function discord() {
       });
     throw new Error(`Unexpected OAuth request: ${url}`);
   });
+  return id;
+}
+async function guestCookie() {
+  const response = await request("/account/guest", {
+    method: "POST",
+    headers: {
+      Origin: origin,
+      "Content-Type": "application/json",
+      "X-Legal-Consent": legalVersion,
+    },
+    body: JSON.stringify({ name: "ゲスト本人" }),
+  });
+  expect(response.status).toBe(201);
+  return cookies(response);
 }
 function profileBody() {
   const data = new FormData();
@@ -214,6 +243,128 @@ async function accountRequest(request: Request, bindings = env) {
   await waitOnExecutionContext(ctx);
   return response;
 }
+
+test.each([false, true])(
+  "ゲストアカウントは退室せず全記録と同じ席を連携する（既存登録先 %s）",
+  async (existing) => {
+    const guest = await guestCookie();
+    const prepared = await setup(undefined, guest);
+    const before = (await readRegistrationFlow(env.APP_DB, prepared.flow.registrationId))!;
+    expect(before.guest_account_id).toBeTypeOf("string");
+    const target = existing ? await accountFixture() : null;
+    const providerId = discord(target ? `${target.id}@example.test` : undefined);
+    if (target)
+      await env.APP_DB.prepare(
+        "INSERT INTO account(id,accountId,providerId,userId,createdAt,updatedAt) VALUES(?,?,'discord',?,?,?)",
+      )
+        .bind(crypto.randomUUID(), providerId, target.id, Date.now(), Date.now())
+        .run();
+    expect((await signIn(prepared.flow)).status).toBe(409);
+    const auth = await startOAuth(prepared.flow, {}, guest);
+    const redirected = await callback(auth);
+    expect(redirected.status).toBe(302);
+    const cookie = [cookies(redirected), guest].filter(Boolean).join("; ");
+    const registered = await session(cookie);
+    expect(registered.user.id).toBe(target?.id ?? before.guest_account_id);
+    if (target) {
+      expect(redirected.headers.get("Location")).toBe("/account?guestMerge=1");
+      expect((await registrationRequest(prepared.flow, "complete", cookie)).status).toBe(409);
+      const merge = () =>
+        request("/account/guest-merge", {
+          method: "POST",
+          headers: { Origin: origin, Cookie: cookie },
+        });
+      const otherRoom = await fixtures.create({ game: "reversi", quickPlay: false }, target.cookie);
+      expect((await merge()).status).toBe(409);
+      expect((await fixtures.snapshot(prepared.room.id)).room.players[0]?.id).toBe(
+        prepared.entry.membership.playerId,
+      );
+      expect(
+        (
+          await request(`/rooms/${otherRoom.room.id}/leave`, {
+            method: "POST",
+            headers: { Origin: origin, Authorization: `Bearer ${otherRoom.membership.token}` },
+          })
+        ).status,
+      ).toBe(204);
+      fixtures.forgetClosedRoom(otherRoom.room.id);
+      const response = await merge();
+      expect(response.status).toBe(200);
+    } else {
+      const saved = await accountRequest(profileRequest(prepared.flow, cookie));
+      expect(saved.status).toBe(200);
+    }
+    const finished = await registrationRequest(prepared.flow, "complete", cookie);
+    expect(finished.status).toBe(200);
+    expect(await finished.json()).toMatchObject({
+      identity: "ready",
+      record: "complete",
+      seat: "complete",
+    });
+    expect(
+      await (await registrationRequest(prepared.flow, "complete", cookie)).json(),
+    ).toMatchObject({
+      seat: "complete",
+    });
+    expect(
+      (
+        await request(`/rooms/${prepared.room.id}/me`, {
+          headers: { Authorization: `Bearer ${prepared.entry.membership.token}` },
+        })
+      ).status,
+    ).toBe(401);
+    prepared.entry.membership.token = prepared.nextToken;
+    expect(
+      (
+        await request(`/rooms/${prepared.room.id}/me`, {
+          headers: { Authorization: `Bearer ${prepared.nextToken}` },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await fixtures.snapshot(prepared.room.id)).room.players[0]).toMatchObject({
+      id: prepared.entry.membership.playerId,
+      name: target ? "登録名" : "登録した本人",
+      ready: false,
+    });
+    expect((await fixtures.snapshot(prepared.room.id)).room.players[0]).not.toHaveProperty(
+      "isGuest",
+    );
+    expect(
+      await env.APP_DB.prepare("SELECT account_id FROM account_room_seats WHERE room_id=?")
+        .bind(prepared.room.id)
+        .first(),
+    ).toEqual({ account_id: registered.user.id });
+    expect(
+      await env.APP_DB.prepare(
+        "SELECT COUNT(*) AS n FROM match_participant_accounts WHERE match_id=?",
+      )
+        .bind(prepared.matchId)
+        .first(),
+    ).toEqual({ n: 0 });
+  },
+);
+
+test("ゲストがOAuthを中止すると席を保持したまま準備待ちに戻り、遅れた認証を反映しない", async () => {
+  discord();
+  const guest = await guestCookie();
+  const prepared = await setup(undefined, guest);
+  const auth = await startOAuth(prepared.flow, {}, guest);
+  expect((await registrationRequest(prepared.flow, "cancel", guest)).status).toBe(200);
+  expect((await fixtures.snapshot(prepared.room.id)).room.players[0]).toMatchObject({
+    id: prepared.entry.membership.playerId,
+    isGuest: true,
+    ready: false,
+  });
+  expect((await fixtures.snapshot(prepared.room.id)).room.players[0]).not.toHaveProperty(
+    "registrationPendingUntilMs",
+  );
+  const delayed = await callback(auth);
+  expect(delayed.headers.get("Location")).toBe("/login?error=guest_room_link_expired");
+  expect(cookies(delayed)).not.toContain("tetraboard-2026.session_token=");
+  expect(
+    await (await request("/account/session", { headers: { Cookie: guest } })).json(),
+  ).toMatchObject({ user: { isGuest: true } });
+});
 
 test("開始資格の拒否と別Originでは未認証フローを残さず、資格は他人へ公開しない", async () => {
   const entry = await fixtures.create({ game: "reversi", name: "ゲスト", quickPlay: false });

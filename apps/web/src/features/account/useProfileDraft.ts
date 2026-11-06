@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { countCharacters, usernameSchema, type AccountProfile } from "@tetraboard/protocol";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { useAccount } from "./useAccount";
-import { convertAvatar, saveProfile } from "./accountApi";
+import { convertAvatar, saveGuestName, saveProfile } from "./accountApi";
 
 export function useProfileDraft({
   user,
@@ -33,7 +33,7 @@ export function useProfileDraft({
   const submission = useRef(false);
   const busy = processing || saving;
   const nameInvalid = countCharacters(name.trim()) < 1 || countCharacters(name.trim()) > 10;
-  const usernameInvalid = !usernameSchema.safeParse(username).success;
+  const usernameInvalid = !user.isGuest && !usernameSchema.safeParse(username).success;
   useEffect(
     () => () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -66,14 +66,19 @@ export function useProfileDraft({
     submission.current = true;
     setSaving(true);
     onBusyChange?.(true);
-    const data = new FormData();
-    if (setup) data.set("consentVersion", legalVersion);
-    data.set("name", name);
-    data.set("username", username);
-    data.set("avatarAction", avatarAction);
-    if (avatarAction === "replace" && avatar) data.set("avatar", avatar, "avatar.webp");
     try {
-      const saved = await saveProfile(setup, data);
+      let saved: AccountProfile;
+      if (user.isGuest) {
+        saved = await saveGuestName(name);
+      } else {
+        const data = new FormData();
+        if (setup) data.set("consentVersion", legalVersion);
+        data.set("name", name);
+        data.set("username", username);
+        data.set("avatarAction", avatarAction);
+        if (avatarAction === "replace" && avatar) data.set("avatar", avatar, "avatar.webp");
+        saved = await saveProfile(setup, data);
+      }
       profiles?.store.invalidate(saved.profileId ? { profileId: saved.profileId } : {});
       update(saved);
       setName(saved.name);

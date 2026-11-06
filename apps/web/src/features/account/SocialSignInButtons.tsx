@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { LegalNotice } from "../privacy/LegalNotice";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
 import type { SocialProvider } from "./useSocialSignIn";
@@ -7,20 +8,25 @@ export function SocialSignInButtons({
   busy,
   pendingProvider = null,
   adminOnly = false,
+  consentBelowButtons = false,
   onSignIn,
 }: {
   busy: boolean;
   pendingProvider?: SocialProvider | null;
   adminOnly?: boolean;
+  consentBelowButtons?: boolean;
   onSignIn: (provider: SocialProvider) => void;
 }) {
+  const consentId = useId();
+  const buttonDescription = consentBelowButtons && !adminOnly ? consentId : undefined;
   return (
     <div className="@container w-full flex flex-col gap-3">
-      {!adminOnly && <LegalNotice />}
+      {!adminOnly && !consentBelowButtons && <LegalNotice />}
       <div
         className={`grid gap-2 ${adminOnly ? "grid-cols-1" : "grid-cols-1 @min-[480px]:grid-cols-2"}`}
       >
         <AppButton
+          aria-describedby={buttonDescription}
           appearance="secondary"
           className="min-h-11 w-full gap-2.5 border-[#747775] bg-white px-3 text-sm font-medium [font-family:Google_Sans,Arial,sans-serif] text-[#1f1f1f]"
           isDisabled={busy}
@@ -41,6 +47,7 @@ export function SocialSignInButtons({
         </AppButton>
         {!adminOnly && (
           <AppButton
+            aria-describedby={buttonDescription}
             appearance="secondary"
             className="min-h-11 w-full gap-2.5 border-[#747775] bg-white px-3 text-sm font-medium text-[#1f1f1f]"
             isDisabled={busy}
@@ -60,6 +67,7 @@ export function SocialSignInButtons({
           </AppButton>
         )}
       </div>
+      {!adminOnly && consentBelowButtons && <LegalNotice id={consentId} />}
       {!adminOnly && <PrivacyLinks newTab />}
     </div>
   );

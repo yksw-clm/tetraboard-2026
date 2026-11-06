@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { RoomIdentityFields } from "../src/features/account/RoomIdentityFields";
 import { AccountMenu } from "../src/features/account/AccountMenu";
-import {
-  GuestAccountControls,
-  GuestMergeConfirmation,
-} from "../src/features/account/GuestAccountControls";
+import { ProfilePage } from "../src/features/account/AccountPages";
+import { AccountLayout } from "../src/features/account/AccountSession";
+import { GuestMergeConfirmation } from "../src/features/account/GuestAccountControls";
 import { ensureGuestAccount } from "../src/features/account/guestAccount";
 import { useRoomEntry } from "../src/features/lobby/useRoomEntry";
 import { profile } from "../test/fixtures/account";
@@ -71,19 +71,70 @@ test("名前未入力・認証障害・Cookie拒否ではルーム作成を送�
   expect(requests).toHaveLength(count + 1);
   expect(hook.current.name).toBe("参加者");
 });
-test("ゲストの名前変更は専用APIで保存し、失敗時も下書きと記録の連携案内を保持する", async () => {
-  const view = render(wrap(guestProfile())(<GuestAccountControls />));
-  enter(view.querySelector("input")!, "変更名");
-  press(view, "名前を保存");
+test("ゲストは連携ボタンがあるマイページから共通ダイアログを開き、名前だけを変更できる", async () => {
+  const router = createMemoryRouter(
+    [
+      {
+        element: <AccountLayout />,
+        children: [{ path: "/account", element: <ProfilePage /> }],
+      },
+    ],
+    { initialEntries: ["/account"] },
+  );
+  const view = render(<RouterProvider router={router} />);
+  const user = guestProfile();
+  requests.find((request) => request.url === "/api/account/session")!.respond({ user });
   await flush();
-  expect(requests[0]!.url).toBe("/api/account/guest/name");
-  expect(JSON.parse(String(requests[0]!.init.body))).toEqual({ name: "変更名" });
-  requests[0]!.respond({ message: "保存できません" }, 503);
+  const card = view.querySelector('[data-testid="account-profile-card"]')!;
+  expect(card.querySelector("input")).toBeNull();
+  expect(card.textContent).toContain("Cookie");
+  expect(card.textContent).toContain("Googleで続ける");
+  expect(card.textContent).toContain("Discordで続ける");
+  expect(card.textContent).not.toContain("IDは自動発行です");
+  expect(card.textContent).not.toContain("連携すると、これまでの全ゲームの記録");
+
+  const saves = () => requests.filter((request) => request.init.method === "PATCH");
+  press(view, "プロフィールを編集");
   await flush();
-  expect(view.querySelector<HTMLInputElement>("input")!.value).toBe("変更名");
-  expect(view.textContent).toContain("保存できません");
-  expect(view.textContent).toContain("全ゲームの記録");
-  expect(view.textContent).toContain("Cookie");
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog.textContent).toContain("プロフィールを編集");
+  expect(dialog.querySelector('[data-slot="avatar-fallback"] svg')).not.toBeNull();
+  expect(dialog.querySelector('[aria-label="アイコン画像を選択"]')).toBeNull();
+  expect(dialog.querySelector('input[type="file"]')).toBeNull();
+  const username = dialog.querySelector<HTMLInputElement>('input[name="username"]')!;
+  expect(username.value).toBe(`@${user.username}`);
+  expect(username.readOnly).toBe(true);
+  expect(dialog.textContent).toContain(
+    "アイコンとIDを変更するには、GoogleまたはDiscordとの連携が必要です。",
+  );
+  const name = dialog.querySelector<HTMLInputElement>('input[name="name"]')!;
+  expect(name.value).toBe(user.name);
+  enter(name, " ");
+  press(dialog, "保存");
+  expect(dialog.textContent).toContain("名前は1〜10文字で入力してください。");
+  expect(saves()).toHaveLength(0);
+
+  enter(name, "変更名");
+  press(dialog, "保存");
+  expect(dialog.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.disabled).toBe(true);
+  expect(saves()).toHaveLength(1);
+  const request = saves()[0]!;
+  expect(request.url).toBe("/api/account/guest/name");
+  expect(JSON.parse(String(request.init.body))).toEqual({ name: "変更名" });
+  request.respond({ message: "保存できません" }, 503);
+  await flush();
+  expect(name.value).toBe("変更名");
+  expect(dialog.querySelector('[role="alert"]')?.textContent).toBe("保存できません");
+
+  press(dialog, "保存");
+  expect(saves()).toHaveLength(2);
+  saves()[1]!.respond(guestProfile("変更名"));
+  await flush();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(card.querySelector("h1")?.textContent).toBe("変更名");
+  expect(card.textContent).toContain(`@${user.username}`);
+  expect(card.textContent).toContain("プロフィールを保存しました。");
+  expect(view.querySelector('[aria-label="変更名のアカウントメニュー"]')).not.toBeNull();
 });
 test("既存登録者への引き継ぎは確認するまで送信せず、失敗時に再試行できる", async () => {
   render(wrap(profile, "/account?guestMerge=1")(<GuestMergeConfirmation />));

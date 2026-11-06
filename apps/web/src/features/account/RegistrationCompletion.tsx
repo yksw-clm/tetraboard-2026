@@ -11,15 +11,18 @@ import {
 export function RegistrationCompletion({
   children,
   enabled,
+  guestMergePending = false,
 }: {
   children: ReactNode;
   enabled: boolean;
+  guestMergePending?: boolean;
 }) {
   const [destination] = useState(readRegistrationReturn);
   const [handoff] = useState(readGuestRegistration);
   useEffect(() => {
     if (enabled && !handoff) clearRegistrationReturn();
   }, [enabled, handoff]);
+  if (handoff?.linkGuest && guestMergePending) return children;
   if (handoff)
     return <GuestRegistrationCompletion flow={handoff}>{children}</GuestRegistrationCompletion>;
   const validDestination = parseRegistrationReturn(destination);

@@ -4,7 +4,7 @@ import { RoomStatusCard } from "./RoomStatusCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 
-import { useId, useState, type ReactNode, type Ref } from "react";
+import { useId, type ReactNode, type Ref } from "react";
 import { playerName } from "./roomCommonPresentation";
 import { useRoomMobile } from "./useRoomDesktop";
 import type { SharedRoomSession } from "./useRoomTransport";
@@ -25,6 +25,8 @@ export function RoomStatus({
   resultButtonRef,
   joinUnavailable,
   replay,
+  openReplayKey,
+  onReplayChange,
   onRotate,
   onTournamentNext,
 }: {
@@ -39,6 +41,8 @@ export function RoomStatus({
   resultButtonRef?: Ref<HTMLButtonElement>;
   joinUnavailable: string | null;
   replay?: ReactNode;
+  openReplayKey: string | null;
+  onReplayChange: (key: string | null) => void;
   onRotate: () => void;
   onTournamentNext?: () => void;
 }) {
@@ -46,7 +50,6 @@ export function RoomStatus({
   const waiting = room.status === "waiting";
   const mobile = useRoomMobile();
   const replayPanelId = useId();
-  const [openReplayKey, setOpenReplayKey] = useState<string | null>(null);
   const round = room.lastRound;
   const mobileReplayKey =
     mobile && replay && round
@@ -144,7 +147,7 @@ export function RoomStatus({
           size="compact"
           aria-expanded={replayOpen}
           aria-controls={replayPanelId}
-          onPress={() => setOpenReplayKey(replayOpen ? null : mobileReplayKey)}
+          onPress={() => onReplayChange(replayOpen ? null : mobileReplayKey)}
         >
           棋譜
           <AppIcon name="chevronDown" className={`size-3 ${replayOpen ? "" : "rotate-180"}`} />

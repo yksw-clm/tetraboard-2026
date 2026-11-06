@@ -114,6 +114,9 @@ async function seed() {
 const card = (view: HTMLElement, id: string) =>
   view.querySelector<HTMLElement>(`[data-testid="${id}"]`)!;
 
+const statsSection = (view: HTMLElement) =>
+  view.querySelector<HTMLElement>('[aria-labelledby="account-stats-title"]')!;
+
 test.each([...gameIds])(
   "%s: 初回401を同時に受けても一度だけ確認し、失効案内とヘッダーを同期",
   async (game) => {
@@ -152,7 +155,7 @@ test("同じアカウントで有効なら各取得を一度だけ再取得し�
   expect(sessions()).toHaveLength(2);
   expect(statsRequests()).toHaveLength(2);
   expect(m.view.textContent).toContain("戦績を取得できませんでした。");
-  press(card(m.view, "account-profile-card"), "再試行");
+  press(statsSection(m.view), "再試行");
   statsRequests()[2]!.respond(stats);
   await flush();
   expect(m.view.textContent).toContain("対局数12");
@@ -180,10 +183,10 @@ test("更新と手動再試行の401でも失効確認からログインへ誘�
   const m = mount();
   await signIn(m);
   await seed();
-  press(card(m.view, "account-profile-card"), "更新");
+  press(statsSection(m.view), "更新");
   statsRequests().at(-1)!.respond({}, 503);
   await flush();
-  press(card(m.view, "account-profile-card"), "再試行");
+  press(statsSection(m.view), "再試行");
   statsRequests().at(-1)!.respond({}, 401);
   await flush();
   sessions()[1]!.respond({ user: null });
@@ -296,7 +299,7 @@ test("通常の503・オフラインはセッション再確認を起動せず�
   const m = mount();
   await signIn(m);
   await seed();
-  press(card(m.view, "account-profile-card"), "更新");
+  press(statsSection(m.view), "更新");
   press(card(m.view, "account-replay-card"), "更新");
   statsRequests().at(-1)!.respond({}, 503);
   historyRequests().at(-1)!.reject(new TypeError("offline"));
@@ -388,7 +391,7 @@ test("初回失敗後の更新が認証世代変更で古くなっても、空�
   await signIn(m);
   statsRequests()[0]!.respond({}, 503);
   await flush();
-  press(card(m.view, "account-profile-card"), "更新");
+  press(statsSection(m.view), "更新");
   const old = statsRequests()[1]!;
   act(() => window.dispatchEvent(new Event("focus")));
   sessions()[1]!.respond({ user: profile });

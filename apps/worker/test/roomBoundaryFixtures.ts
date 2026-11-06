@@ -90,8 +90,11 @@ export class RoomBoundaryFixtures {
   private entries: Entry[] = [];
   private sockets: BoundarySocket[] = [];
 
-  async create(body: unknown): Promise<Entry> {
-    const response = await boundaryRequest(createRoomContract.path, boundaryJson(body));
+  async create(body: unknown, cookie?: string): Promise<Entry> {
+    const init = boundaryJson(body);
+    const headers = new Headers(init.headers);
+    if (cookie) headers.set("Cookie", cookie);
+    const response = await boundaryRequest(createRoomContract.path, { ...init, headers });
     expect(response.status).toBe(201);
     const entry = createRoomContract.response.parse(await response.json());
     this.entries.push(entry);

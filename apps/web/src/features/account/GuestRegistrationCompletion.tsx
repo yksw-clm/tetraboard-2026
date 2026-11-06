@@ -102,14 +102,22 @@ export function GuestRegistrationCompletion({
           finishing.current = true;
           await navigate(registrationRoomPath(flow), {
             replace: true,
-            state: { registrationResult: { matchId: flow.matchId, record: next.record } },
+            state: {
+              registrationResult: {
+                matchId: flow.matchId,
+                record: next.record,
+                linkedGuest: flow.linkGuest,
+              },
+            },
           });
         } else if (
           ["expired", "unavailable"].includes(next.seat) &&
           ["complete", "pending"].includes(next.record)
         ) {
           setMessage(
-            "この対局の引継ぎを受け付けました。席の保持期限が過ぎたため、棋譜から確認できます。",
+            flow.linkGuest
+              ? "アカウントを連携しました。席の保持期限が過ぎたため、記録はマイページで確認できます。"
+              : "この対局の引継ぎを受け付けました。席の保持期限が過ぎたため、棋譜から確認できます。",
           );
         }
       })
@@ -168,7 +176,9 @@ export function GuestRegistrationCompletion({
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-5 py-6">
       <AppCard className="gap-3">
-        <h1 className="text-xl font-bold">この対局をアカウントに引き継ぐ</h1>
+        <h1 className="text-xl font-bold">
+          {flow.linkGuest ? "ゲストアカウントを連携する" : "この対局をアカウントに引き継ぐ"}
+        </h1>
         {working && (
           <p role="status">
             {working === "cancel"
@@ -182,7 +192,9 @@ export function GuestRegistrationCompletion({
           <p className="text-sm text-muted">
             {remaining > 0
               ? `席をあと${Math.floor(remaining / 60)}分${remaining % 60}秒保持します。登録後は同じ席で再戦できます。`
-              : "席の保持期限が過ぎました。対局の記録は登録開始から1時間以内なら引き継げます。"}
+              : flow.linkGuest
+                ? "席の保持期限が過ぎました。"
+                : "席の保持期限が過ぎました。対局の記録は登録開始から1時間以内なら引き継げます。"}
           </p>
         )}
         {status?.identity === "mismatch" && (
@@ -212,13 +224,15 @@ export function GuestRegistrationCompletion({
         {(message || signIn.message || account.error) && (
           <p role="alert">{message ?? signIn.message ?? account.error}</p>
         )}
-        {status?.identity === "unverified" && !terminal && (
-          <SocialSignInButtons
-            busy={busy}
-            pendingProvider={signIn.pendingProvider}
-            onSignIn={(provider) => void retrySignIn(provider)}
-          />
-        )}
+        {status?.identity === "unverified" &&
+          !terminal &&
+          (!flow.linkGuest || status.seat === "held") && (
+            <SocialSignInButtons
+              busy={busy}
+              pendingProvider={signIn.pendingProvider}
+              onSignIn={(provider) => void retrySignIn(provider)}
+            />
+          )}
         {setup && !children && (
           <AppButtonLink to="/account/setup">プロフィールを作成する</AppButtonLink>
         )}
@@ -254,6 +268,7 @@ export function GuestRegistrationCompletion({
             </AppButtonLink>
           )}
         {(!terminal || setupIdentity || status?.seat === "held" || status?.seat === "conflict") &&
+          (!flow.linkGuest || status?.identity === "unverified" || !status) &&
           status?.seat !== "complete" && (
             <AppButton appearance="secondary" isDisabled={busy} onPress={() => void cancel()}>
               {setupIdentity ? "登録をやめてゲストに戻る" : "手続きを中止してルームへ戻る"}

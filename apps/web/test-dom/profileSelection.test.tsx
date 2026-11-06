@@ -89,17 +89,17 @@ async function openMyPage(view: HTMLElement) {
 }
 
 async function chooseGame(view: HTMLElement, name: string) {
-  act(() => view.querySelector<HTMLButtonElement>('[aria-label^="ゲームを選択："]')!.click());
-  await flush();
-  const menu = document.querySelector('[aria-label="プロフィールのゲーム"]')!;
-  expect(menu.querySelector('[aria-checked="true"]')).not.toBeNull();
-  act(() =>
-    [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')]
-      .find((item) => item.textContent?.includes(name))!
-      .click(),
+  const buttons = view.querySelectorAll<HTMLButtonElement>(
+    '[aria-label="プロフィールのゲーム"] button',
   );
+  act(() => [...buttons].find((button) => button.textContent === name)!.click());
   await flush();
-  expect(document.querySelector('[aria-label="プロフィールのゲーム"]')).toBeNull();
+  expect(selectedGameName(view)).toBe(name);
+}
+
+function selectedGameName(view: HTMLElement) {
+  return view.querySelector('[aria-label="プロフィールのゲーム"] button[aria-pressed="true"]')
+    ?.textContent;
 }
 
 function chooseMode(view: HTMLElement, name: string) {
@@ -129,10 +129,8 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
     await openMyPage(view);
     expect(router.state.location.pathname).toBe("/account");
     expect(router.state.location.search).toBe("");
-    expect(
-      view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
-    ).not.toBeNull();
-    expect(view.querySelector(`main a[href="${gameCatalog[game].lobbyPath}"]`)).not.toBeNull();
+    expect(selectedGameName(view)).toBe(gameCatalog[game].name);
+    expect(view.querySelector("main")!.textContent).not.toContain("ロビーへ");
     const background = view.querySelector("main")!.closest(".lobby-background")!;
     if (game !== "four-reversi")
       expect(
@@ -177,9 +175,7 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
     expect(
       view.querySelector('table[aria-label="戦績"] td > span > span:last-child')!.textContent,
     ).toBe("0");
-    expect(
-      view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[game].name}"]`),
-    ).not.toBeNull();
+    expect(selectedGameName(view)).toBe(gameCatalog[game].name);
     const nextGame = gameCatalog[game].hasModes ? game : "four-shogi";
     await chooseGame(view, gameCatalog[nextGame].name);
     chooseMode(view, "ダブルス");
@@ -198,9 +194,7 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
     await act(() => router.navigate(1));
     await flush();
     expect(router.state.location.state.accountSelection).toEqual(selection);
-    expect(
-      view.querySelector(`[aria-label="ゲームを選択：${gameCatalog[nextGame].name}"]`),
-    ).not.toBeNull();
+    expect(selectedGameName(view)).toBe(gameCatalog[nextGame].name);
     expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
       "ダブルス",
     );
@@ -214,8 +208,19 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   expect(view.querySelectorAll('[role="combobox"]')).toHaveLength(0);
   const profileCard = view.querySelector('[data-testid="account-profile-card"]');
   const historyCard = view.querySelector('[data-testid="account-replay-card"]');
-  const lobby = view.querySelector<HTMLAnchorElement>('main a[href="/games/four-reversi"]')!;
-  expect(lobby.className).toContain("bg-white");
+  const gameButtons = view.querySelector('[role="group"][aria-label="プロフィールのゲーム"]')!;
+  const modeTabs = view.querySelector('[role="tablist"]')!;
+  expect(profileCard!.nextElementSibling).toBe(gameButtons);
+  expect(gameButtons.compareDocumentPosition(modeTabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  const buttons = [...gameButtons.querySelectorAll("button")];
+  expect(buttons.map((button) => button.textContent)).toEqual(
+    gameIds.map((game) => gameCatalog[game].name),
+  );
+  expect(buttons.every((button) => button.querySelector('img[alt=""][src]'))).toBe(true);
+  expect(gameButtons.querySelectorAll('button[aria-pressed="true"]')).toHaveLength(1);
+  expect(selectedGameName(view)).toBe("四人リバーシ");
   clock.advance(0);
   requests.find((r) => r.url === "/api/account/stats")!.respond(stats);
   requests
@@ -234,7 +239,6 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   clock.advance(0);
   expect(view.querySelector('[data-testid="account-profile-card"]')).toBe(profileCard);
   expect(view.querySelector('[data-testid="account-replay-card"]')).toBe(historyCard);
-  expect(view.querySelector('main a[href="/games/four-shogi"]')).not.toBeNull();
   expect(view.querySelector("header")!.closest(".game-theme-four-shogi")).toBeNull();
   expect(
     view
@@ -297,17 +301,6 @@ test("棋譜往復と再表示で共通選択・無関係な履歴stateを復元
     .find((r) => r.url.includes("/matches"))!
     .respond({ matches: [shogi.summary], nextCursor: null });
   await flush();
-  act(() => view.querySelector<HTMLButtonElement>('[aria-label^="ゲームを選択："]')!.click());
-  await flush();
-  expect(
-    document
-      .querySelector('[aria-label="プロフィールのゲーム"]')!
-      .closest(".game-theme-four-shogi"),
-  ).not.toBeNull();
-  act(() =>
-    document.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]')!.click(),
-  );
-  await flush();
   press(view, "プロフィールを編集");
   await flush();
   expect(
@@ -323,7 +316,7 @@ test("棋譜往復と再表示で共通選択・無関係な履歴stateを復元
   expect(router.state.location.state).toEqual(state);
   act(() => view.querySelector<HTMLAnchorElement>('a[href="/account"]')!.click());
   await flush();
-  expect(view.querySelector('[aria-label="ゲームを選択：四人将棋"]')).not.toBeNull();
+  expect(selectedGameName(view)).toBe("四人将棋");
   expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
     "ダブルス",
   );
