@@ -66,17 +66,17 @@ def test_initial_and_all_legal_actions_are_independent() -> None:
         setattr(state, "turn", "west")  # noqa: B010
 
 
-def test_on_is_explicitly_unsupported_at_every_rule_entry() -> None:
+def test_on_initial_state_and_replay_are_supported() -> None:
     on = replace(OFF, three_player_attack_prohibited=True)
-    with pytest.raises(NotImplementedError):
-        create_initial_state(on)
-    with pytest.raises(NotImplementedError):
-        replay(ReplayInput(on, (), 0))
-    state = replace(create_initial_state(OFF), initial=on)
-    with pytest.raises(NotImplementedError):
-        legal_actions(state)
-    with pytest.raises(NotImplementedError):
-        apply_event(state, EliminateEvent("south", "resigned"))
+    state = None
+    try:
+        state = create_initial_state(on)
+    except NotImplementedError:
+        pass
+    assert state is not None, "第2段階ではONの初期状態を生成できます"
+    assert replay(ReplayInput(on, (), 0)) == state
+    assert legal_actions(state)
+    assert apply_event(state, EliminateEvent("south", "resigned")).ok
 
 
 @pytest.mark.parametrize("side", SIDES)
@@ -381,8 +381,10 @@ def test_draw_proposals_preserve_rule_history_and_agree_after_elimination() -> N
     assert agreed.result and agreed.result.reason == "agreement"
 
 
-def test_replay_repetition_offset_and_error_index() -> None:
-    input = repetition_input()
+@pytest.mark.parametrize("restricted", [False, True])
+def test_replay_repetition_offset_and_error_index(restricted: bool) -> None:
+    options = replace(OFF, three_player_attack_prohibited=restricted)
+    input = replace(repetition_input(), initial=options)
     before = replay(replace(input, event_offset=31))
     assert before.status == "playing" and max(c for _, c in before.repetitions) == 3
     end = replay(input)
@@ -390,7 +392,7 @@ def test_replay_repetition_offset_and_error_index() -> None:
     assert [s.rank for s in end.result.standings] == [1, 1, 1, 1]
     assert end.move_number == 32 and legal_actions(end) == () and end.turn is None
     assert max(c for _, c in end.repetitions) == 4
-    assert replay(replace(input, event_offset=0)) == create_initial_state(OFF)
+    assert replay(replace(input, event_offset=0)) == create_initial_state(options)
     invalid = replace(
         input, events=input.events + (EliminateEvent("south", "left"),), event_offset=33
     )

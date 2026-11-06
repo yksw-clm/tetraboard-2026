@@ -33,9 +33,9 @@ from scripts.rule_comparison import (
 from .rule_fixtures import OFF, move, repetition_input, repetition_json
 
 
-def archived_input(name: str) -> dict[str, Any]:
+def archived_input(name: str, restricted: bool = False) -> dict[str, Any]:
     archive = json.loads((ROOT / "test-fixtures/matches" / name).read_text())
-    initial = {**archive["detail"]["replay"]["initial"], "threePlayerAttackProhibited": False}
+    initial = {**archive["detail"]["replay"]["initial"], "threePlayerAttackProhibited": restricted}
     return {
         "schemaVersion": 1,
         "ruleProfileId": "tetraboard-four-shogi-singles-v1",
@@ -45,6 +45,7 @@ def archived_input(name: str) -> dict[str, Any]:
     }
 
 
+@pytest.mark.parametrize("restricted", [False, True])
 @pytest.mark.parametrize(
     "name,reason,ranks",
     [
@@ -53,17 +54,20 @@ def archived_input(name: str) -> dict[str, Any]:
         ("shogi-singles-draw.json", "agreement", [1, 1, 1, 1]),
     ],
 )
-def test_python_only_archive_replay(name: str, reason: str, ranks: list[int]) -> None:
-    # 元fixtureはON。複製した入力だけをOFFへ変更し、元の保存棋譜は変更しません。
+def test_python_only_archive_replay(
+    name: str, reason: str, ranks: list[int], restricted: bool
+) -> None:
+    # 元fixtureはONです。OFFは複製した入力だけを変更し、保存棋譜は変更しません。
     # TSを起動せず、イベント列をPython単独で最後まで再生します。
-    state = replay(parse_replay(archived_input(name)))
+    state = replay(parse_replay(archived_input(name, restricted)))
     assert state.result and state.result.reason == reason
     assert [s.rank for s in state.result.standings] == ranks
     assert legal_actions(state) == ()
 
 
-def generated_sequence(seed: int, count: int) -> dict[str, object]:
-    state = create_initial_state(OFF)
+def generated_sequence(seed: int, count: int, restricted: bool = False) -> dict[str, object]:
+    options = replace(OFF, three_player_attack_prohibited=restricted)
+    state = create_initial_state(options)
     events = []
     for _ in range(count):
         if state.status == "finished":
@@ -83,13 +87,14 @@ def generated_sequence(seed: int, count: int) -> dict[str, object]:
         assert all(n >= 0 for h in state.hands for n in (h.rook, h.gold, h.silver, h.pawn))
         assert state.status == "finished" or state.turn in active_sides(state)
         assert state.move_number == len(events)
-    return replay_to_dict(ReplayInput(OFF, tuple(events), len(events)))
+    return replay_to_dict(ReplayInput(options, tuple(events), len(events)))
 
 
-def test_full_state_and_transitions_match_real_ts(tmp_path: Path) -> None:
+@pytest.mark.parametrize("restricted", [False, True])
+def test_full_state_and_transitions_match_real_ts(tmp_path: Path, restricted: bool) -> None:
     initial = create_initial_state(OFF)
     inputs = [
-        archived_input(name)
+        archived_input(name, restricted)
         for name in ("shogi-singles.json", "shogi-legacy.json", "shogi-singles-draw.json")
     ]
     inputs += [repetition_json(), replay_to_dict(replace(repetition_input(), event_offset=31))]
@@ -107,7 +112,9 @@ def test_full_state_and_transitions_match_real_ts(tmp_path: Path) -> None:
     inputs += [
         replay_to_dict(ReplayInput(OFF, tuple(events), len(events))) for events in event_sequences
     ]
-    inputs += [generated_sequence(seed, 32) for seed in (7, 314159)]
+    inputs += [generated_sequence(seed, 32, restricted) for seed in (7, 314159)]
+    for input in inputs:
+        input["initial"]["threePlayerAttackProhibited"] = restricted
     expected = ts_traces(inputs)
     assert len(expected) == len(inputs)
     for case, (input, ts) in enumerate(zip(inputs, expected, strict=True)):
@@ -180,3 +187,75 @@ def test_comparator_ignores_enumeration_and_identity_numbers_not_history() -> No
         }
     assert first_difference(normalize_trace(original), normalize_trace(changed)) is None
     assert changed != original
+
+
+def test_real_archive_third_attack_rejection_matches_ts(tmp_path: Path) -> None:
+    input = parse_replay(archived_input("shogi-singles.json", True))
+    events = input.events[:49] + (ActionEvent("east", move("C3", "C1", True)),)
+    on_input = replace(input, events=events, event_offset=50)
+    off_input = replace(
+        on_input, initial=replace(on_input.initial, three_player_attack_prohibited=False)
+    )
+    for parsed in (on_input, off_input):
+        encoded = replay_to_dict(parsed)
+        trace = ts_traces([encoded])[0]
+        difference = compare(encoded, trace)
+        if difference:
+            artifact = tmp_path / "third-attack-mismatch.json"
+            artifact.write_text(json.dumps(evidence(encoded, difference), ensure_ascii=False))
+            pytest.fail(f"{artifact}: {difference}")
+        expected = (
+            {"ok": False, "reason": "three_player_attack"}
+            if parsed.initial.three_player_attack_prohibited
+            else None
+        )
+        if expected:
+            assert trace[-1]["transition"] == expected
+            assert trace[-1]["state"] == trace[-2]["state"]
+        else:
+            assert trace[-1]["transition"]["ok"]
+
+
+@pytest.mark.parametrize(
+    "field", ["attacker", "target", "reasons", "targetPieceIds", "pendingSides"]
+)
+def test_comparator_detects_attack_history_differences(field: str) -> None:
+    input = archived_input("shogi-singles.json", True)
+    input["eventOffset"] = 49
+    trace = python_trace(input)
+    frame = next(
+        i
+        for i, item in enumerate(trace)
+        if any(r["targetPieceIds"] for r in item["state"]["attackRelations"])
+    )
+    relation = next(r for r in trace[frame]["state"]["attackRelations"] if r["targetPieceIds"])
+    if field in ("attacker", "target"):
+        relation[field] = SIDES[(SIDES.index(relation[field]) + 1) % 4]
+    else:
+        relation[field] = []
+    difference = compare(input, trace)
+    assert difference and difference["eventIndex"] == frame - 1 and field in difference["path"]
+
+
+def test_on_trace_identity_normalization_keeps_captured_targets_and_piece_records() -> None:
+    input = archived_input("shogi-singles.json", True)
+    original = python_trace(input)
+    renamed = deepcopy(original)
+    assert any(frame["transition"] and frame["transition"].get("captured") for frame in original)
+    assert any(frame["state"]["attackRelations"] for frame in original)
+    for frame in renamed:
+        state = frame["state"]
+        for row in state["board"]:
+            for piece in row:
+                if piece:
+                    piece["id"] += 100
+        state["nextPieceId"] += 100
+        if state["lastMove"]:
+            for key in ("piece", "captured"):
+                if state["lastMove"][key]:
+                    state["lastMove"][key]["id"] += 100
+        if frame["transition"] and frame["transition"].get("captured"):
+            frame["transition"]["captured"]["id"] += 100
+        for relation in state["attackRelations"]:
+            relation["targetPieceIds"] = [i + 100 for i in relation["targetPieceIds"]]
+    assert first_difference(normalize_trace(original), normalize_trace(renamed)) is None
