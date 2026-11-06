@@ -27,7 +27,10 @@ type MoveError = Literal[
     "dead_king_pawn_drop",
     "self_check",
     "pawn_drop_mate",
+    "three_player_attack",
 ]
+type AttackReason = Literal["check", "capture", "threat", "blockade"]
+
 HAND_KINDS: tuple[HandPieceKind, ...] = ("rook", "gold", "silver", "pawn")
 
 
@@ -77,7 +80,7 @@ class GameResult:
 class AttackRelation:
     attacker: Side
     target: Side
-    reasons: tuple[Literal["check", "capture", "threat", "blockade"], ...]
+    reasons: tuple[AttackReason, ...]
     target_piece_ids: tuple[int, ...]
     pending_sides: tuple[Side, ...]
 

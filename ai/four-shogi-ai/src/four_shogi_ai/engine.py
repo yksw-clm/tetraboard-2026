@@ -1,9 +1,10 @@
-"""シングルスの確定遷移。OFF対応、ONは次のPRで実装します。"""
+"""シングルスのON／OFFに対応する確定遷移と完全状態再生を提供します。"""
 
 import json
 from dataclasses import replace
 
-from .board import active_sides, initial_board, is_in_check
+from .attacks import filter_moves, restricted_targets, update_history, uses_restriction
+from .board import active_sides, initial_board, is_in_check, pieces
 from .moves import has_ordinary_move, ordinary_moves, validate
 from .replay import (
     SIDES,
@@ -32,11 +33,6 @@ from .state import (
 )
 
 
-def require_supported(options: InitialOptions) -> None:
-    if options.three_player_attack_prohibited:
-        raise NotImplementedError("三人攻撃禁止ONのルール実行は未実装です")
-
-
 def position_key(state: State) -> str:
     active = active_sides(state)
     board = [
@@ -46,7 +42,32 @@ def position_key(state: State) -> str:
         [side, [state.hands[SIDES.index(side)].count(kind) for kind in HAND_KINDS]]
         for side in active
     ]
-    return json.dumps([board, hands, active, state.turn, [], []], separators=(",", ":"))
+    positions = {p.id: pos.y * 9 + pos.x for p, pos in pieces(state.board)}
+    attacks = (
+        [
+            [
+                r.attacker,
+                r.target,
+                sorted(set(r.reasons)),
+                sorted({positions[i] for i in r.target_piece_ids if i in positions}),
+                [side for side in SIDES if side in r.pending_sides],
+            ]
+            for r in sorted(
+                state.attack_relations,
+                key=lambda r: (SIDES.index(r.attacker), SIDES.index(r.target)),
+            )
+        ]
+        if uses_restriction(state)
+        else []
+    )
+    recaptures = (
+        [sorted({p.y * 9 + p.x for p in squares}) for squares in state.recapture_squares]
+        if uses_restriction(state)
+        else []
+    )
+    return json.dumps(
+        [board, hands, active, state.turn, attacks, recaptures], separators=(",", ":")
+    )
 
 
 def record_position(state: State) -> State:
@@ -57,15 +78,16 @@ def record_position(state: State) -> State:
 
 
 def create_initial_state(options: InitialOptions) -> State:
-    require_supported(options)
     return record_position(State(options, initial_board(), 37))
 
 
 def legal_actions(state: State) -> tuple[Action, ...]:
-    require_supported(state.initial)
     if state.status == "finished" or state.turn is None:
         return ()
-    return tuple(move.action for move in ordinary_moves(state, state.turn))
+    return tuple(
+        move.action
+        for move in filter_moves(state, state.turn, tuple(ordinary_moves(state, state.turn)))
+    )
 
 
 def eliminate_batch(state: State, sides: tuple[Side, ...], reason: EliminationReason) -> State:
@@ -136,7 +158,11 @@ def settle(state: State, after: Side, preserve_turn: bool = False) -> State:
     assert selected is not None
     while True:
         state = replace(state, turn=selected)
-        if has_ordinary_move(state, selected):
+        if (
+            bool(legal_actions(state))
+            if restricted_targets(state, selected)
+            else has_ordinary_move(state, selected)
+        ):
             break
         state = finish_if_eliminated(eliminate_batch(state, (selected,), "no_legal_actions"))
         if state.status == "finished":
@@ -152,7 +178,6 @@ def settle(state: State, after: Side, preserve_turn: bool = False) -> State:
 
 
 def apply_event(state: State, event: Event) -> TransitionResult:
-    require_supported(state.initial)
     if state.status == "finished":
         return TransitionFailure("game_finished")
     if event.side not in active_sides(state):
@@ -171,8 +196,10 @@ def apply_event(state: State, event: Event) -> TransitionResult:
         move = validate(state, event.side, event.action)
         if isinstance(move, TransitionFailure):
             return move
+        if restricted_targets(state, event.side) and event.action not in legal_actions(state):
+            return TransitionFailure("three_player_attack")
         moved = replace(
-            move.state,
+            update_history(state, event.side, move),
             move_number=state.move_number + 1,
             last_move=MoveRecord(event.side, event.action, move.piece, move.captured),
         )
