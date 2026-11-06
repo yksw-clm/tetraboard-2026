@@ -165,20 +165,16 @@ test("将棋の提案は二重送信せず反映・局ID変更で解除、送信
   expect(h.current.moveNotice).toBeNull();
 });
 
-test("再接続はGET・本人確認を経由し、解析対応を引継ぎ、閉鎖と世代変更では再試行を止める", async () => {
+test("再接続はGET・本人確認を経由し、未使用の解析を要求せず、閉鎖で再試行を止める", async () => {
   const room = waitingShogiRoom();
-  const h = renderHook(
-    useFourShogiRoomSession,
-    { ...options(room), initialFormationAnalysisSupported: true },
-    wrap(),
-  );
+  const h = renderHook(useFourShogiRoomSession, options(room), wrap());
   const socket = connected(room);
-  expect(socket.url).toContain("formationAnalysis=1");
+  expect(socket.url).not.toContain("formationAnalysis");
   act(() => socket.close());
   clock.advance(999);
   expect(requests).toHaveLength(0);
   clock.advance(1);
-  expect(requests[0]!.url).toContain("formationAnalysis=1");
+  expect(requests[0]!.url).not.toContain("formationAnalysis");
   requests[0]!.respond({
     room,
     presence: { hostPlayerId: playerIds[0], connectedPlayerIds: playerIds },
@@ -188,7 +184,7 @@ test("再接続はGET・本人確認を経由し、解析対応を引継ぎ、�
   await flush();
   requests[1]!.respond(membership);
   await flush();
-  expect(Socket.instances[1]!.url).toContain("formationAnalysis=1");
+  expect(Socket.instances[1]!.url).not.toContain("formationAnalysis");
   connected(room).receive({ type: "room.error", error: "not_found" });
   expect(h.current.unavailable).toContain("閉鎖");
   clock.advance(60000);

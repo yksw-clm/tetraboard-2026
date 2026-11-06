@@ -43,15 +43,12 @@ export function roomInvitationPath(room: Pick<Room, "id" | "instanceId">): strin
 }
 
 export async function fetchRoom(id: string, signal?: AbortSignal, instanceId?: string) {
-  const path = `/api${getRoomContract.pathFor(id)}?formationAnalysis=1&stamps=1`;
-  let response = await fetch(`${path}&eliminatedHands=1`, {
+  const path = `/api${getRoomContract.pathFor(id)}?stamps=1&eliminatedHands=1`;
+  const response = await fetch(path, {
     method: getRoomContract.method,
     cache: "no-store",
     signal,
   });
-  if (response.status === 400) {
-    response = await fetch(path, { method: getRoomContract.method, cache: "no-store", signal });
-  }
   const body: unknown = await response.json();
   if (!response.ok) {
     if (!getRoomContract.error.safeParse(body).success) {

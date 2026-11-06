@@ -342,6 +342,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushMatches(): Promise<void> {
     if (this.matchFlush) return this.matchFlush;
+    if (this.pendingMatches().size === 0) return;
     const flush = async () => {
       for (;;) {
         const next = [...this.pendingMatches()].find(([, job]) => job.retryAtMs <= Date.now());
@@ -1043,6 +1044,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushAccountCleanup(): Promise<void> {
     if (this.accountFlush) return this.accountFlush;
+    if (!this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey)?.length) return;
     const flush = async () => {
       for (;;) {
         const job = (this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).find(
@@ -1708,6 +1710,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushRoomIndex(): Promise<void> {
     if (this.indexFlush !== null) return this.indexFlush;
+    if (this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey) === undefined) return;
     const flush = async () => {
       for (;;) {
         const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
@@ -1836,12 +1839,14 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushTournamentStates(): Promise<void> {
     if (this.tournamentStateFlush) return this.tournamentStateFlush;
+    const pendingStates = [
+      ...this.ctx.storage.kv.list<PendingTournamentState>({
+        prefix: pendingTournamentStatePrefix,
+      }),
+    ];
+    if (pendingStates.length === 0) return;
     const flush = async () => {
-      for (const [key, pending] of [
-        ...this.ctx.storage.kv.list<PendingTournamentState>({
-          prefix: pendingTournamentStatePrefix,
-        }),
-      ]) {
+      for (const [key, pending] of pendingStates) {
         if (pending.retryAtMs > Date.now()) continue;
         try {
           await writeTournamentState(this.env.APP_DB, pending);
@@ -2512,6 +2517,16 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "unauthorized" }
   > {
     await this.reconcileDeadlines();
+    return this.currentRoomMembership(tokenHash);
+  }
+
+  /** 期限を確認した入口から、awaitを挟まず現在の資格を照合します。 */
+  private currentRoomMembership(
+    tokenHash: string,
+  ):
+    | { status: "found"; membership: RoomMembership }
+    | { status: "not_found" }
+    | { status: "unauthorized" } {
     const room = this.readRoom();
     if (room === null) {
       return { status: "not_found" };
@@ -3776,13 +3791,16 @@ export class GameRoom extends DurableObject<Env> {
     }
 
     try {
+      // hash計算中に復帰期限を越える場合も、照合直前に期限を処理します。
+      const authTokenHash =
+        parsed.data.type === "room.auth" ? await hashMembershipToken(parsed.data.token) : null;
       await this.reconcileDeadlines();
       if (this.readRoom() === null) {
         this.sendSocketError(socket, "not_found");
         return;
       }
       if (parsed.data.type === "room.auth") {
-        const tokenHash = await hashMembershipToken(parsed.data.token);
+        const tokenHash = authTokenHash!;
         const existing: unknown = socket.deserializeAttachment();
         if (
           typeof existing === "object" &&
@@ -3793,7 +3811,7 @@ export class GameRoom extends DurableObject<Env> {
           this.sendSocketError(socket, "unauthorized");
           return;
         }
-        const result = await this.getRoomMembership(tokenHash);
+        const result = this.currentRoomMembership(tokenHash);
         if (result.status !== "found") {
           socket.serializeAttachment(null);
           this.sendSocketError(

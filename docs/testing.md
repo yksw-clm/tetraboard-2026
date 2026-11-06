@@ -281,7 +281,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 
 ## プレイヤー情報と戦績の表示
 
-`apps/web/test/playerStatsSummary.test.ts` は勝敗分、優勝率、順位の加重平均と丸め、0局、撃破数、旧Workerの不足項目を確認します。`playerProfiles.test.tsx` と `badges.test.tsx` はコンパクトな文章の表示、ゲーム・モード別項目、追加指定と旧Workerへのフォールバックを確認します。戦績表のラベル・数値、先頭行の左右配置と空セルは `presentation.test.tsx`・`formationStats.test.tsx`・`reversi.test.tsx`・`standardShogi.test.tsx` で確認します。Workerの `playerProfiles.test.ts` は追加指定時の全戦績と従来応答の維持、内部IDの非公開、不正指定の拒否を確認します。実寸法での折り返し・罫線・ラベルと数値の間隔は手動確認の対象です。
+`apps/web/test/playerStatsSummary.test.ts` は勝敗分、優勝率、順位の加重平均と丸め、0局、撃破数、旧Workerの不足項目を確認します。`playerProfiles.test.tsx` と `badges.test.tsx` はコンパクトな文章の表示、ゲーム・モード別項目、追加指定、400時の自動再取得抑止、同条件の手動再試行を確認します。戦績表のラベル・数値、先頭行の左右配置と空セルは `presentation.test.tsx`・`formationStats.test.tsx`・`reversi.test.tsx`・`standardShogi.test.tsx` で確認します。Workerの `playerProfiles.test.ts` は追加指定時の全戦績と従来応答の維持、内部IDの非公開、不正指定の拒否を確認します。実寸法での折り返し・罫線・ラベルと数値の間隔は手動確認の対象です。
 
 ## プライバシー・規約・退会の確認
 
@@ -867,3 +867,12 @@ PCの盤面と状況カードは全6ゲームで画面の高さを変えて手�
 `apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。公開チャットではゲストの投稿・再送・送信間隔・通報上限・運営停止を検証し、統合後も非表示用ID・再送・投稿停止・通報と退会時の削除を維持することを確認します。本人確認後の本文読取を制御して統合を挟み、遅延した通報が元ゲストの参照で保存されないことも検証します。表示用IDの一意性、登録者IDとの衝突・再生成、作成batchの失敗時にアカウント・本人資格・同意を残さないこと、取得時にIDを補完しないこと、ゲスト中の編集拒否、新規連携後の保持・変更を確認します。既存登録者へ引き継がない場合は0局・対局済みの両方で、記録を維持しつつ元ゲストへ復帰しないこと、確認未完了のログアウト・登録セッション失効・OAuth取消・別アカウント・Origin違反を検証します。
 
 WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・既存ゲストの入力省略・大会エントリー・統合確認を検証します。`guestAccounts.test.tsx` はマイページの連携ボタンと、共通ダイアログでのアイコン・読み取り専用ID・連携案内の表示、名前だけの変更、入力エラー・保存失敗後の再試行・保存成功後の表示更新を確認します。公開チャットの名前入力では確定前にゲストを作成せず、Cookie保存不能時に投稿を送らないこと、名前確定後の下書き保持とゲスト投稿を確認します。ゲストのログアウト操作が非表示で、APIへ直接要求しても拒否され本人認証を維持することをWeb・Workerの境界で確認します。実OAuth・Cookie保存と別タブのWeb Locks・画面寸法・ネイティブ入力は手動確認事項であり、未実施の項目をPRに明記します。必須のcheck・本番／開発buildとWorker dry-runを実行し、GitHub CIの成功も確認します。
+
+## 互換整理・定期処理・DB取得の確認
+
+- `playerProfiles.test.ts` は公開ID欠落時の503と、プロフィール・ランキングのGETがIDを補完しないことを確認します。`privacy.test.ts` は暗号化トークンの解除・失敗再送を維持し、平文の受理を拒否します。`adminAnalytics.test.ts` は配列設定だけの認可と未設定・不正値の拒否を確認します。
+- `scheduledMaintenance.test.ts` は失敗後のジョブ実行、順序、秘密を含まないログ、次回の成功と、追加索引の実行計画を確認します。`generalLobby.test.ts`・`tournamentChat.test.ts` はbatch化後も匿名・本人・投稿停止・大会の受付とページングを確認します。
+- `gameRoom.test.ts`・`roomDeadlineBoundary.test.ts`・`accountRooms.test.ts`・大会と棋譜保存の統合テストで、期限の前後、失効資格、閉鎖後の保存・再送を確認します。空キューではAlarm再同期を省き、実際の保存・失敗後には次の期限を維持します。
+- Webの `roomLoader.test.ts`・`dataLoading.test.tsx`・`badges.test.tsx` は400時の単一リクエストと手動再試行、`roomSession.test.tsx` は再接続時も戦型解析を要求しないことを確認します。戦型通知の既存 `shogiState.test.tsx` は継続します。
+
+ローカルのSQL計画は本番レイテンシの改善率を保証しません。DOの旧保存形状・未送信キュー、利用者の旧sessionStorageの残存は別途診断が必要で、D1の0件だけで互換処理を削除しません。

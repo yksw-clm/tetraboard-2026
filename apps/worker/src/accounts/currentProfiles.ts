@@ -25,16 +25,3 @@ export async function readCurrentProfiles(
   }
   return profiles;
 }
-// Handles accounts completed by the previous Worker between migration and deployment.
-export async function ensurePublicProfileId(
-  db: D1Database,
-  accountId: string,
-): Promise<string | null> {
-  const row = await db
-    .prepare(
-      "UPDATE user SET publicProfileId = COALESCE(publicProfileId, ?) WHERE id = ? AND profileCompleted = 1 AND (COALESCE(isAnonymous,0)=0 OR guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING publicProfileId",
-    )
-    .bind(crypto.randomUUID(), accountId)
-    .first<{ publicProfileId: string }>();
-  return row?.publicProfileId ?? null;
-}
