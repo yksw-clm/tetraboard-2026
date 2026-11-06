@@ -10,6 +10,7 @@ export type AppDialogProps = {
   onClose: () => void;
   children: ReactNode;
   size?: "default" | "compact";
+  compactHeader?: boolean;
   theme?: AppTheme;
 };
 
@@ -20,6 +21,7 @@ export function AppDialog({
   onClose,
   children,
   size = "default",
+  compactHeader = false,
   theme = "default",
 }: AppDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -68,7 +70,12 @@ export function AppDialog({
               size === "compact" ? "max-w-[480px]" : "max-w-[500px]",
             )}
           >
-            <Modal.Header className="mb-3 flex min-h-8 shrink-0 flex-row items-center justify-between gap-3 pr-11">
+            <Modal.Header
+              className={cn(
+                "flex min-h-8 shrink-0 flex-row items-center justify-between gap-3 pr-11",
+                compactHeader ? "mb-1" : "mb-3",
+              )}
+            >
               <Modal.Heading className="m-0 text-[22px] leading-normal [@media(max-width:650px)]:text-xl">
                 {title}
               </Modal.Heading>
@@ -82,7 +89,7 @@ export function AppDialog({
                 </Modal.CloseTrigger>
               )}
             </Modal.Header>
-            <Modal.Body className="shrink-0">{children}</Modal.Body>
+            <Modal.Body className={cn("shrink-0", compactHeader && "mt-0")}>{children}</Modal.Body>
           </Modal.Dialog>
         </div>
       </Modal.Container>
