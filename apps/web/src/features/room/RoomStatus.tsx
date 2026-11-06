@@ -10,6 +10,9 @@ import { useRoomMobile } from "./useRoomDesktop";
 import type { SharedRoomSession } from "./useRoomTransport";
 import { isFourShogiRoom, type Room } from "@tetraboard/protocol";
 
+const waitingActionWidth =
+  "[@media(max-width:767px)]:flex-1 [@media(max-width:767px)]:min-w-[68px] [@media(max-width:767px)]:max-w-28";
+
 export function RoomStatus({
   session,
   turn,
@@ -110,6 +113,7 @@ export function RoomStatus({
       {tournamentId === undefined && waiting && self && membership && (
         <AppButton
           size="compact"
+          className={waitingActionWidth}
           appearance={self.ready ? "secondary" : "primary"}
           isDisabled={!ready}
           isPending={session.pendingReady !== null}
@@ -121,6 +125,7 @@ export function RoomStatus({
       {tournamentId === undefined && waiting && membership?.role === "host" && (
         <AppButton
           size="compact"
+          className={waitingActionWidth}
           isDisabled={!canStart}
           isPending={session.pendingGameAction?.type === "start"}
           onPress={session.handleStartClick}

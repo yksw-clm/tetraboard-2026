@@ -2,7 +2,7 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import type { ReplayMatch } from "@tetraboard/protocol";
 import { useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
-import { useRoomDesktop } from "./useRoomDesktop";
+import { useRoomDesktop, useRoomMobile } from "./useRoomDesktop";
 import { ViewerControls } from "./ViewerControls";
 import { ReplayCard } from "./ReplayCard";
 import { RoomLayout } from "./RoomLayout";
@@ -32,10 +32,10 @@ export function SavedMatchReplayView({
   onRotate: () => void;
 }) {
   const desktop = useRoomDesktop();
+  const mobile = useRoomMobile();
   const location = useLocation();
   const [tab, setTab] = useState("board");
   const [results, setResults] = useState(false);
-  const replayCard = <ReplayCard replay={replay} theme={theme} compactMobile />;
   const info = (
     <RoomInfoCard roomId={match.roomId} settings={match.settings}>
       <AppButtonLink
@@ -50,13 +50,22 @@ export function SavedMatchReplayView({
   );
   const status = (
     <RoomStatusCard>
-      <strong className={desktop ? "text-sm whitespace-nowrap" : "sr-only"}>対局終了</strong>
-      {!desktop && <div className="min-w-0 flex-1">{replayCard}</div>}
-      <AppButton size="compact" appearance="secondary" onPress={() => setResults(true)}>
+      {!desktop && (
+        <div className="min-w-0 flex-1">
+          <ReplayCard replay={replay} theme={theme} placement={mobile ? "status" : "board"} />
+        </div>
+      )}
+      <AppButton
+        size="compact"
+        appearance="secondary"
+        className="[@media(max-width:767px)]:min-w-16 [@media(min-width:1280px)]:min-w-16"
+        onPress={() => setResults(true)}
+      >
         結果
       </AppButton>
       <ViewerControls
         label="棋譜閲覧中"
+        hideLabelOnMobile
         onRotate={onRotate}
         rotationDegrees={!gameCatalog[match.settings.game].hasModes ? 180 : 90}
       />
@@ -67,13 +76,14 @@ export function SavedMatchReplayView({
       className={`app-theme ${appThemeClasses[theme]} room-background flex flex-col h-dvh overflow-hidden text-ink text-sm leading-normal`}
     >
       <RoomLayout
+        statusBelowBoard
         desktop={desktop}
         tab={tab}
         onTabChange={setTab}
         board={board}
         info={info}
         status={status}
-        replay={replayCard}
+        replay={desktop ? <ReplayCard replay={replay} theme={theme} placement="footer" /> : null}
         showChatTab={false}
         chat={
           <AppCard className="h-full">
