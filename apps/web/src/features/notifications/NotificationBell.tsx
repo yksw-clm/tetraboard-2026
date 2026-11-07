@@ -220,7 +220,7 @@ function NotificationDialog({
             appearance="secondary"
             isIconOnly
             aria-label="一覧に戻る"
-            className="size-11 min-w-11 p-0"
+            className="size-9 min-h-9 min-w-9 p-0"
             onPress={() => {
               const id = selected.id;
               setSelected(null);
@@ -233,7 +233,7 @@ function NotificationDialog({
               });
             }}
           >
-            <AppIcon name="arrow" className="rotate-180" />
+            <AppIcon name="arrow" className="size-4 rotate-180" />
           </AppButton>
         )
       }
@@ -258,17 +258,17 @@ function NotificationDialog({
               size="compact"
               isIconOnly
               aria-label="お知らせを更新"
-              className="size-11 min-w-11 p-0"
+              className="size-9 min-h-9 min-w-9 p-0"
               isDisabled={pending}
               isPending={pending && pendingSource === "refresh"}
               onPress={() => void load()}
             >
-              <AppIcon name="refresh" />
+              <AppIcon name="refresh" className="size-4" />
             </AppButton>
             <AppButton
               appearance="secondary"
               size="compact"
-              className="min-h-11"
+              className="min-h-9 px-3 py-1.5"
               isDisabled={pending || !loaded}
               isPending={pending && pendingSource === "read-all"}
               onPress={() => void allRead()}
