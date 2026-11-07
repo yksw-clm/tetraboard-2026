@@ -256,15 +256,19 @@ function NotificationDialog({
             <AppButton
               appearance="secondary"
               size="compact"
+              isIconOnly
+              aria-label="お知らせを更新"
+              className="size-11 min-w-11 p-0"
               isDisabled={pending}
               isPending={pending && pendingSource === "refresh"}
               onPress={() => void load()}
             >
-              更新
+              <AppIcon name="refresh" />
             </AppButton>
             <AppButton
-              appearance="quiet"
+              appearance="secondary"
               size="compact"
+              className="min-h-11"
               isDisabled={pending || !loaded}
               isPending={pending && pendingSource === "read-all"}
               onPress={() => void allRead()}

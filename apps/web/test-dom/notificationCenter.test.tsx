@@ -64,6 +64,15 @@ test("共通ヘッダーの設定直前にベルを置き、開いただけで�
   expect(dialog().textContent).toContain("未読");
   expect(dialog().textContent).toContain("運営からのお知らせ");
   expect(requests.some((r) => r.url === "/api/account/notifications/read")).toBe(false);
+  const refresh = dialog().querySelector<HTMLButtonElement>('[aria-label="お知らせを更新"]')!;
+  expect(refresh.textContent).toBe("");
+  await respond(2, { hasUnread: true, upperBound: 1 });
+  act(() => refresh.click());
+  await flush();
+  expect(requests[3]!.url).toBe("/api/notifications");
+  expect(refresh.disabled).toBe(true);
+  await respond(3, page([announcement()]));
+  expect(refresh.disabled).toBe(false);
 });
 
 test("詳細取得・描画が成功してから既読を記録し、一覧に戻って保持する", async () => {

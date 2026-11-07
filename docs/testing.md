@@ -901,7 +901,7 @@ WebのDOMテストは6選択肢・選択状態・ゲスト権限、プレビュ�
 
 Workerの `notifications.test.ts` で公開・編集・再公開・非公開化、本人限定、Origin・入力、初回全体基準と本人宛未読、20件のページ境界、既読再送、取得済み上限と新着、実対局保存からのバッジ生成とtoastとの独立、同率を含む大会表彰、原子的保存失敗、ゲスト統合の既読維持、退会・遅延保存フェンス、既存DBからのmigrationを確認します。通知API・退会は専用の `NOTIFICATION_TEST_DB`、移行は `NOTIFICATION_MIGRATION_TEST_DB` を使い、他テストの削除待ちジョブや移行検証DBを共有しません。
 
-Webの `notificationCenter.test.tsx` はベルの配置と赤丸、開くだけでは既読にしないこと、詳細表示後と記事の直接閲覧による既読、「運営からのお知らせ」のラベル、アイコンボタンによる一覧への復帰と選択項目へのフォーカス、追加取得失敗と再試行、まとめて既読の上限、匿名の初回基準・別タブ同期・保存失敗、非表示中の更新停止、本人切替の古い応答破棄、StrictModeでの継続をBun＋happy-domで確認します。既存のannouncements・badgeNotifications・tournamentResults・guestAccounts・privacyの回帰も維持します。
+Webの `notificationCenter.test.tsx` はベルの配置と赤丸、更新アイコンの読み上げ名と処理中の操作抑止、開くだけでは既読にしないこと、詳細表示後と記事の直接閲覧による既読、「運営からのお知らせ」のラベル、アイコンボタンによる一覧への復帰と選択項目へのフォーカス、追加取得失敗と再試行、まとめて既読の上限、匿名の初回基準・別タブ同期・保存失敗、非表示中の更新停止、本人切替の古い応答破棄、StrictModeでの継続をBun＋happy-domで確認します。既存のannouncements・badgeNotifications・tournamentResults・guestAccounts・privacyの回帰も維持します。
 
 部分実行は `bun run --cwd apps/worker test test/notifications.test.ts test/announcements.test.ts test/badgeNotifications.test.ts test/tournamentResults.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/notificationCenter.test.tsx ./test-dom/announcements.test.tsx ./test-dom/badgeNotifications.test.tsx` です。
 
