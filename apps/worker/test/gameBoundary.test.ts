@@ -151,6 +151,8 @@ describe("ゲーム境界: 作成・一覧", () => {
   for (const game of [...invalidGames, null]) {
     test(`作成: 不正game ${JSON.stringify(game)}を拒否してルームを増やさない`, async () => {
       const existing = await fixtures.create({ name: "既存", mode: "singles", quickPlay: false });
+      // 一覧のページ取得中に未接続の席が期限切れにならないよう、本人を接続します。
+      await fixtures.connect(existing);
       const before = (await Promise.all([roomList("four-reversi"), roomList("four-shogi")]))
         .flat()
         .map((room) => room.id)

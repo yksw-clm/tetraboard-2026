@@ -94,6 +94,9 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         name: profile.name,
         username: profile.username,
         avatarUrl: profile.avatarUrl,
+        ...(target.includeDetails === "1" && !profile.isAnonymous
+          ? { profileMessage: profile.profileMessage, favoriteGames: profile.favoriteGames }
+          : {}),
         game: target.game,
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:

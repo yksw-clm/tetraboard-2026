@@ -6,6 +6,10 @@ import {
   avatarPresets,
   countCharacters,
   usernameSchema,
+  profileDetailsSchema,
+  profileMessageSchema,
+  gameIds,
+  type GameId,
   type AccountProfile,
   type AvatarPresetId,
 } from "@tetraboard/protocol";
@@ -29,6 +33,8 @@ export function useProfileDraft({
   const navigate = useNavigate();
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username ?? "");
+  const [profileMessage, setProfileMessage] = useState(user.profileMessage ?? "");
+  const [favoriteGames, setFavoriteGames] = useState<GameId[]>(user.favoriteGames ?? []);
   const [avatar, setAvatar] = useState<Blob | null>(null);
   const [avatarAction, setAvatarAction] = useState<"keep" | "replace" | "remove" | "preset">(
     "keep",
@@ -44,6 +50,8 @@ export function useProfileDraft({
   const busy = processing || saving;
   const nameInvalid = countCharacters(name.trim()) < 1 || countCharacters(name.trim()) > 10;
   const usernameInvalid = !user.isGuest && !usernameSchema.safeParse(username).success;
+  const profileMessageInvalid =
+    !user.isGuest && !profileMessageSchema.safeParse(profileMessage).success;
   useEffect(
     () => () => {
       if (preview) URL.revokeObjectURL(preview);
@@ -73,7 +81,8 @@ export function useProfileDraft({
     if (busy || submission.current) return;
     setSubmitted(true);
     setError(null);
-    if (nameInvalid || usernameInvalid) return;
+    const details = profileDetailsSchema.safeParse({ profileMessage, favoriteGames });
+    if (nameInvalid || usernameInvalid || (!user.isGuest && !details.success)) return;
     submission.current = true;
     setSaving(true);
     onBusyChange?.(true);
@@ -87,6 +96,10 @@ export function useProfileDraft({
         data.set("name", name);
         data.set("username", username);
         data.set("avatarAction", avatarAction);
+        if (details.success) {
+          data.set("profileMessage", details.data.profileMessage);
+          data.set("favoriteGames", JSON.stringify(details.data.favoriteGames));
+        }
         if (avatarAction === "preset" && presetId) data.set("avatarPresetId", presetId);
         if (avatarAction === "replace" && avatar) data.set("avatar", avatar, "avatar.webp");
         saved = await saveProfile(setup, data);
@@ -95,6 +108,8 @@ export function useProfileDraft({
       update(saved);
       setName(saved.name);
       setUsername(saved.username ?? "");
+      setProfileMessage(saved.profileMessage ?? "");
+      setFavoriteGames(saved.favoriteGames ?? []);
       setAvatar(null);
       setAvatarAction("keep");
       setPresetId(saved.avatarPresetId);
@@ -124,6 +139,20 @@ export function useProfileDraft({
     setName,
     username,
     setUsername,
+    profileMessage,
+    setProfileMessage,
+    profileMessageInvalid,
+    favoriteGames,
+    toggleFavoriteGame(game: GameId) {
+      if (busy) return;
+      setFavoriteGames((current) =>
+        current.includes(game)
+          ? current.filter((id) => id !== game)
+          : current.length < 3
+            ? gameIds.filter((id) => id === game || current.includes(id))
+            : current,
+      );
+    },
     submitted,
     nameInvalid,
     usernameInvalid,

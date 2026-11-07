@@ -7,7 +7,12 @@
 }
 
 @theme {
-  --color-brand: #278455;
+  --color-game-four-reversi: #278455;
+  --color-game-four-shogi: #916200;
+  --color-game-reversi: #2b8558;
+  --color-game-shogi: #856216;
+  --color-game-gomoku: #6d28d9;
+  --color-brand: var(--color-game-four-reversi);
   --color-brand-hover: #20764d;
   --color-primary: #278455;
   --color-primary-hover: #20764d;
@@ -63,7 +68,7 @@
 
   /* ゲーム本文・Portal・大会の開催中表示へ適用し、共通ヘッダーは大会リンク以外の既定色を保ちます。 */
   .game-theme-four-shogi {
-    --color-brand: #916200;
+    --color-brand: var(--color-game-four-shogi);
     --color-brand-hover: #7a5200;
     --color-primary: #f2bc3b;
     --color-primary-hover: #e3aa2c;
@@ -103,7 +108,7 @@
   }
 
   .game-theme-gomoku {
-    --color-brand: #6d28d9;
+    --color-brand: var(--color-game-gomoku);
     --color-brand-hover: #5b21b6;
     --color-primary: #7c3aed;
     --color-primary-hover: #6d28d9;
@@ -191,7 +196,7 @@ body:has(.app-modal) #root {
 .game-theme-reversi {
   --color-primary: #369766;
   --color-primary-hover: #2b8558;
-  --color-brand: #2b8558;
+  --color-brand: var(--color-game-reversi);
   --color-brand-hover: #237249;
   --lobby-background: #f6faf7;
   --lobby-glow: #e7f5ec80;
@@ -203,7 +208,7 @@ body:has(.app-modal) #root {
 .game-theme-shogi {
   --color-primary: #f6ce73;
   --color-primary-hover: #efbf56;
-  --color-brand: #856216;
+  --color-brand: var(--color-game-shogi);
   --color-brand-hover: #70510e;
   --color-line: #efe5d0;
   --color-input: #e6d8b9;

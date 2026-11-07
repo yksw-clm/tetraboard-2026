@@ -127,6 +127,8 @@ async function guestInput(request: Request): Promise<{
   username?: unknown;
   avatarAction?: unknown;
   avatar?: unknown;
+  profileMessage?: unknown;
+  favoriteGames?: unknown;
 } | null> {
   const bytes = await readLimitedBody(request, 4096);
   if (!bytes) return null;
@@ -156,6 +158,11 @@ guestRoutes.post("/account/guest", async (c) => {
   )
     return c.json({ message: "規約と年齢条件を確認してください。" }, 403);
   const data = await guestInput(c.req.raw);
+  if (data && ("profileMessage" in data || "favoriteGames" in data))
+    return c.json(
+      { message: "ひとこと・お気に入りゲームの設定にはGoogleまたはDiscordとの連携が必要です。" },
+      403,
+    );
   const name = profileInputSchema.shape.name.safeParse(data?.name);
   if (!name.success) return c.json({ message: "名前は1〜10文字で入力してください。" }, 400);
   if (data?.avatarPresetId !== undefined && !isAvatarPresetId(data.avatarPresetId))
@@ -222,10 +229,15 @@ guestRoutes.patch("/account/guest/name", async (c) => {
   if (
     data?.username !== undefined ||
     data?.avatarAction !== undefined ||
-    data?.avatar !== undefined
+    data?.avatar !== undefined ||
+    data?.profileMessage !== undefined ||
+    data?.favoriteGames !== undefined
   )
     return c.json(
-      { message: "画像アップロードとID変更にはGoogleまたはDiscordとの連携が必要です。" },
+      {
+        message:
+          "画像アップロード・ID変更・ひとこと・お気に入りゲームの設定にはGoogleまたはDiscordとの連携が必要です。",
+      },
       403,
     );
   if (data?.avatarPresetId !== undefined && !isAvatarPresetId(data.avatarPresetId))

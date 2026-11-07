@@ -25,6 +25,7 @@ import {
   profileInputSchema,
   avatarPresets,
   isAvatarPresetId,
+  profileDetailsSchema,
 } from "@tetraboard/protocol";
 import {
   accountIdentity,
@@ -287,6 +288,25 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   });
   if (!input.success)
     return c.json(error("名前は1〜10文字、IDは半角英数字と_の3〜20文字にしてください。"), 400);
+  let favoriteGames: unknown;
+  if (data.has("favoriteGames")) {
+    try {
+      const value = data.get("favoriteGames");
+      if (typeof value !== "string") throw new Error();
+      favoriteGames = JSON.parse(value);
+    } catch {
+      return c.json(error("お気に入りゲームは一覧から3つまで選んでください。"), 400);
+    }
+  }
+  const details = profileDetailsSchema.partial().safeParse({
+    ...(data.has("profileMessage") ? { profileMessage: data.get("profileMessage") } : {}),
+    ...(data.has("favoriteGames") ? { favoriteGames } : {}),
+  });
+  if (!details.success)
+    return c.json(
+      error("ひとことは改行なしの30文字以内、お気に入りゲームは一覧から3つまで指定してください。"),
+      400,
+    );
   const avatarAction = data.get("avatarAction");
   if (data.has("avatarPresetId") && !isAvatarPresetId(data.get("avatarPresetId")))
     return c.json(error("アイコンの指定が正しくありません。"), 400);
@@ -329,10 +349,17 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   }
   let publicProfileId = user.publicProfileId ?? crypto.randomUUID();
   let changed = false;
+  let savedDetails: Pick<StoredProfile, "profileMessage" | "favoriteGames"> = {};
   try {
     // 同時編集で参照中の画像を消さず、旧画像の削除待ちをプロフィールと同時に保存します。
-    const results = await c.env.APP_DB.batch<{ id: string; publicProfileId: string }>([
-      c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, avatarPresetId = ?, updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
+    const results = await c.env.APP_DB.batch<{
+      id: string;
+      publicProfileId: string;
+      profileMessage: string;
+      favoriteGames: string;
+    }>([
+      // 旧フォームの省略項目はDBの現在値を保持し、空文字・空配列は明示的な削除にします。
+      c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, avatarPresetId = ?, profileMessage = COALESCE(?, profileMessage), favoriteGames = COALESCE(?, favoriteGames), updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
         WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? AND avatarPresetId IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)
         ${
           registration
@@ -340,12 +367,16 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
           WHERE f.id=? AND f.account_id=user.id AND f.session_id=? AND f.cancelled_at_ms IS NULL AND f.claim_until_ms>? AND s.expiresAt>?)`
             : ""
         }
-        RETURNING id, publicProfileId`).bind(
+        RETURNING id, publicProfileId, profileMessage, favoriteGames`).bind(
         input.data.name,
         input.data.username,
         image,
         avatarKey,
         avatarPresetId,
+        details.data.profileMessage ?? null,
+        details.data.favoriteGames === undefined
+          ? null
+          : JSON.stringify(details.data.favoriteGames),
         Date.now(),
         publicProfileId,
         user.id,
@@ -369,7 +400,11 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
         : []),
     ]);
     changed = results[0].results.length === 1;
-    if (changed) publicProfileId = String(results[0].results[0]!.publicProfileId);
+    if (changed) {
+      const row = results[0].results[0]!;
+      publicProfileId = row.publicProfileId;
+      savedDetails = { profileMessage: row.profileMessage, favoriteGames: row.favoriteGames };
+    }
   } catch (err) {
     if (uploadedKey) {
       await finishAvatarUpload(c.env, user.id, uploadedKey);
@@ -392,6 +427,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     publicProfile({
       ...user,
       ...input.data,
+      ...savedDetails,
       profileCompleted: 1,
       image,
       avatarKey,
