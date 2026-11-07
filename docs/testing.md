@@ -283,7 +283,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 
 ひとこと・お気に入りゲームはWorkerの `profileDetails.test.ts` と `playerProfiles.test.ts`・`guestAccounts.test.ts` で、30／31書記素・絵文字・空白・改行、0／3／4ゲーム・不正ID・重複、初回設定・旧フォームの省略時保持・明示的な削除・ゲストの拒否を確認します。公開ID・入室済みの部屋・保存棋譜の参照から現在値を取得し、要求がない旧クライアントへの応答形状、統合先の優先、退会後の非公開を検証します。
 
-Webの `profileDetails.test.tsx` は選択上限と解除、通常テキストの表示、未設定項目の省略、保存・失敗・再試行・取消・マイページへの反映をDOMで確認します。`accountRecovery.test.tsx` は認証再確認中の追加項目の下書き保持、`avatarPresets.test.tsx` はゲストに設定欄を提供しないことを確認します。お気に入りの各ゲーム色・20／24pxの盤面画像・選択枠とチェック・2列から1列への切替は一時的な画面撮影で確認し、自動テストやworkflowは追加しません。スマホでの配置、吹き出しの先端とアイコンの位置、30文字・絵文字・長い英数字の実寸での折り返しは手動確認とし、未実施の場合はPRに明記します。
+Webの `profileDetails.test.tsx` は選択上限と解除、通常テキストの表示、未設定項目の省略、保存・失敗・再試行・取消・マイページへの反映をDOMで確認します。`accountRecovery.test.tsx` は認証再確認中の追加項目の下書き保持、`avatarPresets.test.tsx` はゲストにも設定項目を表示し、ID・ひとことの入力が読み取り専用であることを確認します。お気に入りの各ゲーム色・20／24pxの盤面画像・選択枠とチェック・2列から1列への切替は一時的な画面撮影で確認し、自動テストやworkflowは追加しません。スマホでの配置、吹き出しの先端とアイコンの位置、30文字・絵文字・長い英数字の実寸での折り返しは手動確認とし、未実施の場合はPRに明記します。
 
 `apps/web/test/playerStatsSummary.test.ts` は勝敗分、優勝率、順位の加重平均と丸め、0局、撃破数、旧Workerの不足項目を確認します。`playerProfiles.test.tsx` と `badges.test.tsx` はコンパクトな文章の表示、ゲーム・モード別項目、追加指定、400時の自動再取得抑止、同条件の手動再試行を確認します。戦績表のラベル・数値、先頭行の左右配置と空セルは `presentation.test.tsx`・`formationStats.test.tsx`・`reversi.test.tsx`・`standardShogi.test.tsx` で確認します。Workerの `playerProfiles.test.ts` は追加指定時の全戦績と従来応答の維持、内部IDの非公開、不正指定の拒否を確認します。実寸法での折り返し・罫線・ラベルと数値の間隔は手動確認の対象です。
 
@@ -523,6 +523,12 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 `bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts test/accounts.test.ts` を使います。WorkerのHTTP入口とテスト用D1を使い、偽時計で発行から1日の直前・ちょうど・直後を確認します。DB期限とHTTP応答のCookieを照合し、更新CookieのMax-Ageに従って元の7日期限を越えて認証できることを確認します。
 
 複数のSet-CookieとExpiresのカンマ、Secure・HttpOnly・SameSite・Path、更新不要・未認証・改ざん・失効・DB障害、更新後のエラー応答、管理画面と各認証API、並行アカウントの分離、リダイレクト・WebSocketの保持を検証します。既存のOAuth・ログアウト・プロフィール・ルーム認証の回帰も維持します。ブラウザのCookie保存と本番で観測されたログイン喪失の直接原因は未確認事項として記録し、本番Cookie・本番DBを変更した再現は行いません。
+
+## 共通のアカウント連携案内
+
+`apps/web/test-dom/accountLinkDialog.test.tsx` は、ゲストの全項目表示と4種類の制限操作、重ねた連携案内、Escapeで案内だけを閉じることと下書きの保持、名前の入力エラー、保存→OAuth開始の順序、保存失敗・OAuth開始失敗後の再試行を確認します。共通ダイアログの単独利用、編集画面の破棄後の保存応答、OAuth要求の中止と遅い応答による遷移抑止も確認します。
+
+既存のプロフィール保存・取消・認証再確認中の下書き保持、Google／Discordと登録後の復帰は既存DOM・Worker検証を維持します。実ブラウザではPC・スマホ幅で重ねたダイアログの配置、フォーカスの移動と復帰、Escape・外側操作が最上段だけを閉じることを一時的に確認し、PRに結果と未確認事項を記録します。実OAuthとスマホ実機のネイティブ操作は別途確認事項です。
 
 ## 認証喪失後の画面復帰（Issue #143）
 
