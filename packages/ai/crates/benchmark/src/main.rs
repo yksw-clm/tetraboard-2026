@@ -1,38 +1,62 @@
 use serde::Serialize;
 use std::io::{self, BufWriter, Write};
 use std::process::{Command, ExitCode};
-use tetraboard_ai_benchmark::{GameLog, play_game};
+use tetraboard_ai_benchmark::{
+    play_game,
+    tournament::{TournamentConfig, run_tournament},
+};
 
-const USAGE: &str = "Usage: tetraboard-ai-benchmark [--games <positive-u64>] [--seed <u64>]\nDefaults: --games 1 --seed 0. Outputs one JSON record per game to stdout.";
+const USAGE: &str = "Usage: tetraboard-ai-benchmark [--games <positive-u64>] [--seed <u64>]\n       tetraboard-ai-benchmark --config <path> [--rounds <positive-u64>] [--seed <u64>]\nDefaults: random mode 1 game, seed 0; config mode 1 round with 4 rotations per matchup and config.seed. Outputs JSONL.";
 
 #[derive(Debug, PartialEq, Eq)]
 struct Options {
     games: u64,
-    seed: u64,
+    seed: Option<u64>,
+    config: Option<String>,
+    rounds: u64,
 }
 
 fn parse_options(args: impl IntoIterator<Item = String>) -> Result<Option<Options>, String> {
     let mut args = args.into_iter();
-    let mut options = Options { games: 1, seed: 0 };
+    let mut options = Options {
+        games: 1,
+        seed: None,
+        config: None,
+        rounds: 1,
+    };
     let mut seen = Vec::new();
     while let Some(flag) = args.next() {
         if flag == "--help" || flag == "-h" {
             return Ok(None);
         }
-        if !["--games", "--seed"].contains(&flag.as_str()) || seen.contains(&flag) {
+        if !["--games", "--seed", "--config", "--rounds"].contains(&flag.as_str())
+            || seen.contains(&flag)
+        {
             return Err(format!("不明または重複した引数: {flag}"));
         }
-        let number: u64 = args
+        let value = args
             .next()
-            .ok_or_else(|| format!("{flag} の値がありません"))?
+            .ok_or_else(|| format!("{flag} の値がありません"))?;
+        if flag == "--config" {
+            options.config = Some(value);
+            seen.push(flag);
+            continue;
+        }
+        let number: u64 = value
             .parse()
             .map_err(|_| format!("{flag} にはu64整数を指定してください"))?;
         match flag.as_str() {
             "--games" if number > 0 => options.games = number,
-            "--seed" => options.seed = number,
-            _ => return Err("--games は1以上にしてください".into()),
+            "--seed" => options.seed = Some(number),
+            "--rounds" if number > 0 => options.rounds = number,
+            _ => return Err("--gamesと--roundsは1以上にしてください".into()),
         }
         seen.push(flag);
+    }
+    if (options.config.is_some() && seen.iter().any(|s| s == "--games"))
+        || (options.config.is_none() && seen.iter().any(|s| s == "--rounds"))
+    {
+        return Err("--gamesはランダム対局専用、--roundsは--configと併用してください".into());
     }
     Ok(Some(options))
 }
@@ -46,10 +70,10 @@ struct Environment {
 }
 
 #[derive(Serialize)]
-struct Record<'a> {
+struct Record<'a, T> {
     environment: &'a Environment,
     #[serde(flatten)]
-    game: GameLog,
+    record: &'a T,
 }
 
 fn environment() -> Environment {
@@ -79,18 +103,41 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let environment = environment();
     let mut output = BufWriter::new(io::stdout().lock());
-    for game_index in 0..options.games {
-        let game = play_game(options.seed, game_index)?;
-        serde_json::to_writer(
-            &mut output,
-            &Record {
-                environment: &environment,
-                game,
-            },
+    if let Some(path) = options.config {
+        let config: TournamentConfig = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        let summary = run_tournament(
+            &config,
+            options.rounds,
+            options.seed.unwrap_or(config.seed),
+            |record| emit(&mut output, &environment, record).map_err(|error| error.to_string()),
         )?;
-        writeln!(output)?;
-        output.flush()?;
+        emit(&mut output, &environment, &summary)?;
+        if summary.failed_games > 0 {
+            return Err(format!("{}局の失敗があります", summary.failed_games).into());
+        }
+        return Ok(());
     }
+    for game_index in 0..options.games {
+        let game = play_game(options.seed.unwrap_or(0), game_index)?;
+        emit(&mut output, &environment, &game)?;
+    }
+    Ok(())
+}
+
+fn emit(
+    output: &mut impl Write,
+    environment: &Environment,
+    record: &impl Serialize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    serde_json::to_writer(
+        &mut *output,
+        &Record {
+            environment,
+            record,
+        },
+    )?;
+    writeln!(output)?;
+    output.flush()?;
     Ok(())
 }
 
@@ -114,12 +161,22 @@ mod tests {
 
     #[test]
     fn options_accept_defaults_and_explicit_limits() {
-        assert_eq!(parse(&[]).unwrap(), Some(Options { games: 1, seed: 0 }));
+        assert_eq!(
+            parse(&[]).unwrap(),
+            Some(Options {
+                games: 1,
+                seed: None,
+                config: None,
+                rounds: 1
+            })
+        );
         assert_eq!(
             parse(&["--seed", "18446744073709551615", "--games", "100"]).unwrap(),
             Some(Options {
                 games: 100,
-                seed: u64::MAX
+                seed: Some(u64::MAX),
+                config: None,
+                rounds: 1
             })
         );
         assert_eq!(parse(&["--help"]).unwrap(), None);
@@ -135,6 +192,9 @@ mod tests {
             vec!["--seed", "18446744073709551616"],
             vec!["--unknown", "1"],
             vec!["--seed", "1", "--seed", "2"],
+            vec!["--rounds", "1"],
+            vec!["--config", "x", "--games", "1"],
+            vec!["--config", "x", "--rounds", "0"],
         ] {
             assert!(parse(&args).is_err(), "{args:?}");
         }

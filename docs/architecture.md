@@ -7,7 +7,7 @@
 ## 採用する構成
 
 - Bun Workspaceでフロントエンド、サーバー、共有コードを管理し、miseでBun・Node.js・AI開発用Rustの版を固定する。各ゲームの純粋なルールとCPUは `packages/` 配下へ分離する。
-- 新しいAI開発基盤は [packages/ai](../packages/ai/README.md) のRust Workspaceに置く。フェーズ0は四人リバーシの脱落なしシングルスに限定し、Engine・Agent・Benchmarkを分離する。既存AIを流用せず、比較テストだけが既存TypeScriptルールを参照する。将来の外部AI Serviceも候補手の計算を担い、Game Roomが状態・手番・合法手・勝敗の最終権限を持つ。サーバー・学習・他ゲーム用の雛形は必要になるまで追加しない。
+- 新しいAI開発基盤は [packages/ai](../packages/ai/README.md) のRust Workspaceに置く。フェーズ0〜1は四人リバーシの脱落なしシングルスに限定し、Engine・Agent・Benchmarkを分離する。共通Agentの設定と評価・MaxN探索はagents、対戦組合せ・席順・統計はbenchmarkに置き、Engineの合法手・遷移を共有する。既存AIを流用せず、比較テストだけが既存TypeScriptルールを参照する。将来の外部AI Serviceも候補手の計算を担い、Game Roomが状態・手番・合法手・勝敗の最終権限を持つ。サーバー・学習・他ゲーム用の雛形は必要になるまで追加しない。
 - フロントエンドはVite、React、TypeScriptで作る。
 - 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。

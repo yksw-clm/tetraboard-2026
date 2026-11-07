@@ -67,6 +67,8 @@ fn fixed_fixtures_match_legal_moves_transitions_passes_and_results() {
         serde_json::from_str(include_str!("../../../fixtures/four-reversi-v1.json")).unwrap();
     assert_eq!(file.format_version, 1);
     assert_eq!(file.cases.len(), 8);
+    let mobility: Value =
+        serde_json::from_str(include_str!("../../../fixtures/mobility-v1.json")).unwrap();
     let mut initial = snapshot(&State::initial());
     initial.as_object_mut().unwrap().remove("result");
     assert_eq!(initial, file.cases[0].input);
@@ -75,6 +77,18 @@ fn fixed_fixtures_match_legal_moves_transitions_passes_and_results() {
         input["board"] = json!(decode_board(&input["board"]));
         let setup: PositionSetup = serde_json::from_value(input).unwrap();
         let mut state = State::from_setup(setup).unwrap();
+        let expected_counts = mobility["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["name"] == case.name)
+            .unwrap();
+        assert_eq!(
+            json!(state.legal_move_counts()),
+            expected_counts["counts"],
+            "{}",
+            case.name
+        );
         for step in case.steps {
             assert_eq!(state.legal_moves(), step.legal_moves, "{}", case.name);
             let original = state.clone();

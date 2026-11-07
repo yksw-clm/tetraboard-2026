@@ -1,6 +1,6 @@
 # TetraBoard AI
 
-フェーズ0のRust Workspaceです。四人リバーシの**脱落のない4人シングルス**について、ルールエンジン、固定seedのランダムAI、自動対局Benchmarkを提供します。
+フェーズ0〜1のRust Workspaceです。四人リバーシの**脱落のない4人シングルス**について、ルールエンジン、Lv1〜3のAgent候補、席順を変えた自動対局Benchmarkを提供します。[フェーズ1の設計・比較条件](docs/phase1.md)に評価と探索の定義を記載しています。レベル名は実装候補の識別用で、棋力の順序を保証しません。
 
 ゲームの正本は[四人リバーシルール](../../docs/rules/four-reversi.md)です。[対応ルールと検証範囲](docs/rules-four-player-reversi.md)に確認元コミットと対象範囲を記載しています。既存CPU・探索・評価・Benchmarkの移植や流用は行っていません。TypeScriptのルールエンジンは比較テストだけから参照します。
 
@@ -12,6 +12,7 @@
 # リポジトリルートから実行します。
 bun run --cwd packages/ai check
 bun run --cwd packages/ai bench --games 100 --seed 0 > /tmp/tetraboard-ai-seed0.jsonl
+bun run --cwd packages/ai bench --config configs/phase1.json --rounds 32 --seed 0 > /tmp/tetraboard-ai-phase1.jsonl
 ```
 
 Cargoから直接実行する場合は、このディレクトリで次を実行します。
@@ -25,15 +26,21 @@ cargo run --release --locked -p tetraboard-ai-benchmark -- --games 100 --seed 0
 
 `--games`は1以上のu64整数、`--seed`はu64整数です。既定値は1局・seed 0です。不正・不足・重複した引数は非ゼロ終了し、`--help`は使用方法を表示します。
 
+設定ファイルのパスはCLI実行時の作業ディレクトリから解決します。上記の`bun run --cwd`では実行ディレクトリが`packages/ai`になります。
+
+`--config`モードでは`--rounds`がseedの数です。1roundに各組合せの4回転を実行し、同梱の4組合せでは32roundで512局になります。`--games`とは併用できません。seedはCLI指定を優先し、省略時は設定ファイルの値、roundsは省略時1です。
+
 ## 責務と境界
 
 | crate                     | 責務                                                               |
 | ------------------------- | ------------------------------------------------------------------ |
 | `tetraboard-ai-engine`    | `four_reversi`モジュールの局面、合法手、着手、自動パス、終局と順位 |
-| `tetraboard-ai-agents`    | Engineから得た合法手から一様に抽選する`RandomAgent`                |
-| `tetraboard-ai-benchmark` | 4席のAgentによる完走、処理時間計測、CLIとJSONL出力                 |
+| `tetraboard-ai-agents`    | 共通Agentインターフェース、設定、ランダム・1手評価・MaxN探索       |
+| `tetraboard-ai-benchmark` | 4席のAgentによる完走、席順ローテーション、順位・勝率・速度の集計   |
 
 Engineは乱数・時計・通信に依存しません。局面は8×8の固定長配列、4色の列挙型とし、`State::initial()`、`legal_moves()`、`apply_move()`で進めます。着手は元の局面を変更せず、更新後の局面・反転座標・自動パス色を返します。`PositionSetup`は確認用の局面構築入力で、全4色の存在・手番の合法手・補助情報を検査しますが、初期局面からの到達可能性は保証しません。任意のサービス局面を受信するAPIではありません。
+
+`legal_move_counts()`は全4色の合法手数を返します。Agentは`Agent::decide(&State) -> Decision`を共通入口とし、選択手とノード数・完了深さ・予算中断の診断を返します。`build_agent`は設定を検査してAgentを生成します。壁時計はBenchmarkだけが測定し、探索終了条件には使いません。
 
 Rust内のJSON表現はfixture・計測ログ用です。既存protocolや保存棋譜のJSON契約を置き換えません。将来の外部AI ServiceではGame Roomが対局状態・手番・合法手・勝敗の最終権限を持ち、Rust側は候補手を計算する責務とします。
 
@@ -42,6 +49,8 @@ Rust内のJSON表現はfixture・計測ログ用です。既存protocolや保存
 ## 再現可能なログ
 
 標準出力は1局1行のJSONL、CargoとCLIの診断は標準エラーへ出力します。失敗は非ゼロ終了し、途中までの成功行だけで全局成功とは扱いません。stdoutへの書き込み失敗もエラーです。
+
+これは`--games`モードの版1ログです。設定ファイルを使うモードは版2で、各対局を`record_type: "game"`として`game`内へ記録し、最後に`record_type: "summary"`を出力します。対局レコードは組合せ、round、回転、元のlineup slotとprofileを持ち、summaryには全設定、件数・失敗率、組合せ・profile・色別（color nullは全色合計）の平均順位・1位率・単独/同率1位率・平均石数、意思決定時間の平均・p50・p95・最大、ノード総数・予算中断数を含めます。失敗した席も出場数・失敗率に含め、順位・速度の平均には含めません。全失敗時の平均はnullです。
 
 各行に次の情報を含みます。
 
@@ -63,4 +72,4 @@ Rust内のJSON表現はfixture・計測ログ用です。既存protocolや保存
 
 ルートの`bun run check`とFull CIはこのworkspaceも検証します。`typecheck`はBunの比較テストの型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。Rust・lockfile・fixtureの変更はFull CI対象です。
 
-未確定の対象ルールは現時点でありません。ダブルスと脱落後の進行は既存仕様が確定していますが、今回の実装対象外です。次はフェーズ1として位置・角・機動力などの評価関数、浅い多人数探索、席順と相手構成を変えた比較を行います。共通Agentインターフェースと探索予算はその実装に合わせて設計します。外部Serviceの契約・ホスティング・学習方式・強さの境界は後続フェーズの未決定事項です。
+フェーズ1では評価・探索・設定・席順・統計のテストも追加しています。BunはさらにLv1〜3混在の4組合せ×4回転を再生し、ノード上限とsummaryも確認します。未確定の対象ルールは現時点でありません。ダブルスと脱落後の進行は既存仕様が確定していますが、今回の実装対象外です。次はフェーズ2の外部AI Service最小接続です。通信契約・ホスティング・学習方式・強さの境界は後続フェーズの未決定事項です。

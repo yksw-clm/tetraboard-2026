@@ -2,16 +2,20 @@
 
 use serde::Serialize;
 use std::time::{Duration, Instant};
-use tetraboard_ai_agents::{AGENT_ID, RNG_ID, RandomAgent};
+use tetraboard_ai_agents::{RNG_ID, build_agent, config::AgentConfig as PolicyConfig};
 use tetraboard_ai_engine::four_reversi::{
     COLORS, Color, ENGINE_VERSION, MAX_MOVES, Position, RULESET_VERSION, State,
 };
+
+pub mod tournament;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct AgentSeat {
     pub color: Color,
     pub agent_id: &'static str,
     pub agent_config: AgentConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -19,6 +23,8 @@ pub struct AgentConfig {
     pub rng: &'static str,
     pub seed: u64,
     pub stream: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy: Option<PolicyConfig>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -32,6 +38,10 @@ pub struct MoveLog {
     pub decision_time_ns: u64,
     pub search_nodes: u64,
     pub trials: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_depth: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interrupted: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -62,19 +72,47 @@ pub struct GameLog {
 }
 
 pub fn play_game(seed: u64, game_index: u64) -> Result<GameLog, String> {
+    play(seed, game_index, None)
+}
+
+pub fn play_configured_game(
+    seed: u64,
+    round: u64,
+    configs: &[PolicyConfig; 4],
+    streams: [u64; 4],
+) -> Result<GameLog, String> {
+    play(seed, round, Some((configs, streams)))
+}
+
+fn play(
+    seed: u64,
+    game_index: u64,
+    configured: Option<(&[PolicyConfig; 4], [u64; 4])>,
+) -> Result<GameLog, String> {
     let started = Instant::now();
     let game_seed = seed.wrapping_add(game_index);
+    let defaults = std::array::from_fn(|_| PolicyConfig::Random { seed: 0 });
+    let (configs, streams) = configured.unwrap_or((&defaults, [0, 1, 2, 3]));
     let seat_order = COLORS.map(|color| AgentSeat {
         color,
-        agent_id: AGENT_ID,
+        agent_id: configs[color.index()].id(),
         agent_config: AgentConfig {
-            rng: RNG_ID,
-            seed: game_seed,
-            stream: color.index() as u64,
+            rng: if matches!(configs[color.index()], PolicyConfig::Random { .. }) {
+                RNG_ID
+            } else {
+                "none"
+            },
+            seed: game_seed.wrapping_add(configs[color.index()].seed()),
+            stream: streams[color.index()],
+            policy: configured.map(|_| configs[color.index()].clone()),
         },
+        profile_id: None,
     });
-    let mut agents: [RandomAgent; 4] =
-        std::array::from_fn(|i| RandomAgent::new(game_seed, i as u64));
+    let mut agents = configs
+        .iter()
+        .enumerate()
+        .map(|(i, config)| build_agent(config, game_seed, streams[i]))
+        .collect::<Result<Vec<_>, _>>()?;
     let initial_state = State::initial();
     let mut state = initial_state.clone();
     let mut moves = Vec::new();
@@ -84,8 +122,9 @@ pub fn play_game(seed: u64, game_index: u64) -> Result<GameLog, String> {
         }
         let legal_moves = state.legal_moves();
         let deciding = Instant::now();
-        let position = agents[color.index()]
-            .choose_move(&state)
+        let decision = agents[color.index()].decide(&state);
+        let position = decision
+            .position
             .ok_or("継続中の手番でAgentが着手を返しませんでした")?;
         let decision_time_ns = nanoseconds(deciding.elapsed());
         if !legal_moves.contains(&position) {
@@ -102,8 +141,10 @@ pub fn play_game(seed: u64, game_index: u64) -> Result<GameLog, String> {
             flipped: transition.flipped,
             passed_colors: transition.passed_colors,
             decision_time_ns,
-            search_nodes: 0,
+            search_nodes: decision.stats.nodes,
             trials: 0,
+            completed_depth: configured.map(|_| decision.stats.completed_depth),
+            interrupted: configured.map(|_| decision.stats.interrupted),
         });
         state = transition.state;
     }
@@ -121,10 +162,14 @@ pub fn play_game(seed: u64, game_index: u64) -> Result<GameLog, String> {
         shared_first: standing.rank == 1 && winners > 1,
     });
     Ok(GameLog {
-        format_version: 1,
+        format_version: if configured.is_some() { 2 } else { 1 },
         ruleset_version: RULESET_VERSION,
         engine_version: ENGINE_VERSION,
-        seed_derivation: "game_seed=seed.wrapping_add(game_index); stream=color_index(black,white,red,blue)",
+        seed_derivation: if configured.is_some() {
+            "game_seed=seed.wrapping_add(round); agent_seed=game_seed.wrapping_add(profile.seed); stream=lineup_slot"
+        } else {
+            "game_seed=seed.wrapping_add(game_index); stream=color_index(black,white,red,blue)"
+        },
         tie_policy: "competition-ranking; shared-first-is-win; singles-has-no-draw",
         seed,
         game_index,
@@ -145,6 +190,7 @@ fn nanoseconds(duration: Duration) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tetraboard_ai_agents::RandomAgent;
     use tetraboard_ai_engine::four_reversi::{EndReason, count_stones};
 
     fn without_timings(log: &GameLog) -> serde_json::Value {

@@ -190,6 +190,19 @@ impl State {
             .unwrap_or_default()
     }
 
+    pub fn legal_move_counts(&self) -> [u8; 4] {
+        if self.turn.is_none() {
+            return [0; 4];
+        }
+        let counts = count_stones(&self.board);
+        COLORS.map(|color| {
+            (0..8)
+                .flat_map(|y| (0..8).map(move |x| Position { x, y }))
+                .filter(|&p| check_move_with_counts(&self.board, color, p, counts).is_ok())
+                .count() as u8
+        })
+    }
+
     pub fn apply_move(&self, position: Position) -> Result<Transition, MoveError> {
         let color = self.turn.ok_or(MoveError::GameFinished)?;
         let flipped = check_move(&self.board, color, position)?;
@@ -252,13 +265,23 @@ pub fn count_stones(board: &Board) -> [u8; 4] {
 }
 
 fn legal_moves_for(board: &Board, color: Color) -> Vec<Position> {
+    let counts = count_stones(board);
     (0..8)
         .flat_map(|y| (0..8).map(move |x| Position { x, y }))
-        .filter(|&position| check_move(board, color, position).is_ok())
+        .filter(|&position| check_move_with_counts(board, color, position, counts).is_ok())
         .collect()
 }
 
 fn check_move(board: &Board, color: Color, position: Position) -> Result<Vec<Position>, MoveError> {
+    check_move_with_counts(board, color, position, count_stones(board))
+}
+
+fn check_move_with_counts(
+    board: &Board,
+    color: Color,
+    position: Position,
+    counts: [u8; 4],
+) -> Result<Vec<Position>, MoveError> {
     if !position.in_bounds() {
         return Err(MoveError::OutOfBounds);
     }
@@ -294,7 +317,7 @@ fn check_move(board: &Board, color: Color, position: Position) -> Result<Vec<Pos
         return Err(MoveError::NoCapture);
     }
     // 全方向を同時に返した結果で、各相手色の残数を確認します。
-    let mut remaining = count_stones(board);
+    let mut remaining = counts;
     for p in &flipped {
         if let Some(other) = board[p.y as usize][p.x as usize] {
             remaining[other.index()] -= 1;

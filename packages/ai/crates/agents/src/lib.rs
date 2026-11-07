@@ -4,6 +4,11 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use tetraboard_ai_engine::four_reversi::{Position, State};
 
+pub mod config;
+pub mod evaluation;
+pub mod policy;
+pub use policy::{Agent, Decision, SearchStats, build_agent};
+
 pub const AGENT_ID: &str = "four-reversi-random-v1";
 pub const RNG_ID: &str = "rand_chacha-0.9.0/ChaCha8Rng/rand-0.9.2/u32-range";
 

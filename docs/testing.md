@@ -14,6 +14,8 @@
 
 ## Rust AI基盤の確認
 
+フェーズ1は角・石数・機動力・配置の評価、同点順、MaxNの完了深さ・予算中断、終局評価と3色パス後の本人手番を検証します。比較CLIでは設定を読み、4組合せ×4回転の混在対局をTypeScriptで再生し、探索量の上限・summaryを確認します。全色の合法手数は別の固定fixtureで両言語を比較します。回転ごとの席の均等性、固定seedの再現、同率1位と単独1位の区別、失敗を含む分母と全失敗時のnullもRustで検証します。実時間の上限には依存しません。評価・集計の定義と比較条件は[フェーズ1文書](../packages/ai/docs/phase1.md)を参照してください。
+
 `packages/ai`は全体の`bun run check`とFull CIに含めます。`typecheck`は比較テストのBun型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。通常の検証jobと任意の`ci-benchmark`計測jobの両方で、miseからBun・Node・Rustを導入します。AIのRustソース・lockfile・fixture変更がFullに分類されることをCI選択テストで確認します。
 
 8組の固定fixtureで、初期局面、合法手と拒否理由、複数色・複数方向の反転、全滅禁止、自動パスと解除、本人の連続手番、満盤・全色パス終局、同率順位を両言語で照合します。作成元コミットと期待値は固定し、実行時に生成しません。合成局面は初期局面からの到達を保証しません。
