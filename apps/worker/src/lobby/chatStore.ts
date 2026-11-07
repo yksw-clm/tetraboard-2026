@@ -1,8 +1,8 @@
 import type { LobbyMessage } from "@tetraboard/protocol/general-lobby";
-import { profileAvatarUrl } from "../accounts/auth";
+import { accountAvatarUrl } from "../accounts/auth";
 export const lobbyRetentionMs = 7 * 86400000;
 export const lobbyMessageColumns =
-  "m.id,COALESCE(m.sender_public_id,s.public_id) AS senderId,u.name AS senderName,u.avatarKey,m.body AS text,m.sent_at_ms AS sentAtMs,m.account_id";
+  "m.id,COALESCE(m.sender_public_id,s.public_id) AS senderId,u.name AS senderName,u.avatarKey,u.avatarPresetId,m.body AS text,m.sent_at_ms AS sentAtMs,m.account_id";
 export const lobbyVisible =
   "FROM lobby_chat_messages m JOIN lobby_chat_senders s ON s.account_id=m.account_id JOIN user u ON u.id=m.account_id WHERE NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=m.account_id) AND m.sent_at_ms>?";
 type Row = {
@@ -10,13 +10,18 @@ type Row = {
   senderId: string;
   senderName: string;
   avatarKey: string | null;
+  avatarPresetId: string | null;
   text: string;
   sentAtMs: number;
   account_id: string;
 };
 export function publicMessage(row: Row, viewer?: string): LobbyMessage {
-  const { avatarKey, account_id, ...message } = row;
-  return { ...message, avatarUrl: profileAvatarUrl(avatarKey), own: account_id === viewer };
+  const { avatarKey, avatarPresetId, account_id, ...message } = row;
+  return {
+    ...message,
+    avatarUrl: accountAvatarUrl({ id: account_id, avatarKey, avatarPresetId }),
+    own: account_id === viewer,
+  };
 }
 export async function messageById(
   db: D1Database,

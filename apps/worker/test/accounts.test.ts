@@ -2,7 +2,7 @@ import { legalVersion } from "@tetraboard/protocol/privacy";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
 import { expect, test, vi } from "vitest";
-import { createRoomContract } from "@tetraboard/protocol";
+import { accountAvatarPresetId, avatarPresetUrl, createRoomContract } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { createAuth } from "../src/accounts/auth";
 import { deleteUnusedAvatars, validAvatar } from "../src/accounts/accountRoutes";
@@ -86,7 +86,7 @@ test("初回設定、名前とIDの境界、正規化、重複、更新状態、
   expect(await result.json()).toMatchObject({
     username: id.toLowerCase(),
     profileCompleted: true,
-    avatarUrl: null,
+    avatarUrl: avatarPresetUrl(accountAvatarPresetId(user.id)),
   });
   expect((await write(user.cookie, form("名前", id), true)).status).toBe(409);
   const other = await accountFixture();

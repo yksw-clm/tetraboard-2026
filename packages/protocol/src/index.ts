@@ -1,4 +1,5 @@
 export * from "./games";
+export * from "./avatarPresets";
 export * from "./gameSchemas";
 export { healthzContract } from "./healthz";
 export {

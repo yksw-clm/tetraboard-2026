@@ -151,6 +151,8 @@
 
 ## アカウントの認証と保存
 
+プリセットは固定UUIDの共用静的画像とし、個人のR2アップロードとは分離します。`user.avatarPresetId` に選択を保存し、未選択は内部IDから不変のv1候補へ決定的に割り当てます。APIの画像URLは従来の `/api/avatars/<UUID>` を維持し、入室予約は実効プリセットもスナップショットへ含めます。共用画像を退会や個人画像の削除対象へ含めません。
+
 Better Auth 1.7.5でGoogle・Discord OAuthを処理する。Workerはログイン開始・両プロバイダーのコールバック・ログアウトだけを認証APIから公開し、プロフィールを汎用の認証APIから変更させない。認証用Cookieは `tetraboard-2026` 接頭辞とHttpOnly／SameSiteを使い、本番ではSecureを付ける。認証・プロフィールの応答は `no-store` とし、更新元は設定済み `APP_ORIGIN` と一致するOriginだけを受け付ける。Workerの `nodejs_compat` はBetter Authの実行に使う。
 
 D1の名前・IDは変えず、接続名だけを `LOBBY_DB` から `APP_DB` へ変更する。追加マイグレーションで旧版互換の `user`・`account`・`session`・`verification` と `rateLimit`・`avatar_deletions` を作る。IDの大文字・小文字を無視した一意索引と、Google識別子の一意索引で競合を拒否する。セッションはD1で本人を確認し、プロフィールは毎回DBから取得する。期限切れの認証用一時データは毎時削除する。

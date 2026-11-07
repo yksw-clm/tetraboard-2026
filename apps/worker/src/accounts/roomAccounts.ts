@@ -1,3 +1,4 @@
+import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
 import { profileInputSchema, type RoomError } from "@tetraboard/protocol";
@@ -11,6 +12,7 @@ export type AccountAdmission = {
   playerId: string;
   name: string;
   avatarKey: string | null;
+  avatarPresetId?: string | null;
   isGuest?: boolean;
 };
 export type AccountReservation = AccountAdmission & { createdAtMs: number };
@@ -53,7 +55,7 @@ async function existingReservation(db: D1Database, accountId: string) {
   return db
     .prepare(`SELECT account_id AS accountId, operation_id AS operationId,
     room_id AS roomId, instance_id AS instanceId, player_id AS playerId,
-    name, avatar_key AS avatarKey, created_at_ms AS createdAtMs
+    name, avatar_key AS avatarKey, avatar_preset_id AS avatarPresetId, created_at_ms AS createdAtMs
     FROM account_room_seats WHERE account_id = ?`)
     .bind(accountId)
     .first<AccountReservation>();
@@ -111,6 +113,7 @@ export async function reserveAccountSeat(
       playerId,
       name: user.name,
       ...(user.isAnonymous ? { isGuest: true } : {}),
+      avatarPresetId: accountAvatarPresetId(user.id, user.avatarPresetId),
       avatarKey: user.avatarKey && avatarKeyPattern.test(user.avatarKey) ? user.avatarKey : null,
     };
     // Both the identity snapshot and image retention are registered atomically.
@@ -120,18 +123,20 @@ export async function reserveAccountSeat(
         "DELETE FROM tournament_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
       ).bind(user.id, Date.now()),
       env.APP_DB.prepare(`INSERT OR IGNORE INTO account_room_seats
-        (account_id, operation_id, room_id, instance_id, player_id, name, avatar_key, created_at_ms)
-        SELECT id, ?, ?, ?, ?, name, ?, ? FROM user
-        WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)`).bind(
+        (account_id, operation_id, room_id, instance_id, player_id, name, avatar_key, avatar_preset_id, created_at_ms)
+        SELECT id, ?, ?, ?, ?, name, ?, ?, ? FROM user
+        WHERE id = ? AND profileCompleted = 1 AND name = ? AND avatarKey IS ? AND avatarPresetId IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)`).bind(
         admission.operationId,
         room.id,
         room.instanceId,
         playerId,
         admission.avatarKey,
+        admission.avatarPresetId ?? null,
         Date.now(),
         user.id,
         user.name,
         user.avatarKey,
+        user.avatarPresetId ?? null,
       ),
       env.APP_DB.prepare(`INSERT OR IGNORE INTO room_avatar_refs
         (operation_id, room_id, instance_id, player_id, avatar_key)
@@ -193,7 +198,7 @@ export async function recoverAccountReservations(env: Env) {
   const rows =
     await env.APP_DB.prepare(`SELECT account_id AS accountId, operation_id AS operationId,
     room_id AS roomId, instance_id AS instanceId, player_id AS playerId,
-    name, avatar_key AS avatarKey FROM account_room_seats WHERE created_at_ms <= ? ORDER BY checked_at_ms, created_at_ms LIMIT 100`)
+    name, avatar_key AS avatarKey, avatar_preset_id AS avatarPresetId FROM account_room_seats WHERE created_at_ms <= ? ORDER BY checked_at_ms, created_at_ms LIMIT 100`)
       .bind(Date.now() - pendingGraceMs)
       .all<AccountAdmission>();
   for (const reservation of rows.results) {

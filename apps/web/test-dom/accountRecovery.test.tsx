@@ -263,7 +263,9 @@ test.each(["503", "offline", "timeout"])(
     } finally {
       convert.mockRestore();
     }
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("アイコンを削除");
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain(
+      "アップロード画像を削除",
+    );
     press(card(m.view, "account-replay-card"), "更新");
     historyRequests().at(-1)!.respond({}, 401);
     await flush();

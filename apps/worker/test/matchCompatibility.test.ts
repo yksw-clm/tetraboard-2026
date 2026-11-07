@@ -1,3 +1,4 @@
+import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { applyD1Migrations, runInDurableObject } from "cloudflare:test";
 import { env as bindings } from "cloudflare:workers";
 import { afterEach, beforeAll, expect, test } from "vitest";
@@ -101,6 +102,8 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     const body = getMatchContract.response.parse(await response.json());
     const expected = getMatchContract.response.parse({ match }).match;
     expected.participants.find((player) => player.id === match.selfPlayerId)!.name = "登録名";
+    const self = expected.participants.find((player) => player.id === match.selfPlayerId)!;
+    if (self.kind === "human") self.avatarUrl = avatarPresetUrl(accountAvatarPresetId(user.id));
     expect(body.match).toEqual(expected);
     expect(JSON.stringify(body)).not.toContain(user.id);
     const history = await matchRequest(

@@ -334,7 +334,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
       <AppCard>
         <AppCard.Header>
           <h1 className="text-2xl font-bold">プロフィールを作成</h1>
-          <p className="text-sm text-muted">名前とIDを設定してください。アイコンは任意です。</p>
+          <p className="text-sm text-muted">名前とIDを設定し、好きなアイコンを選んでください。</p>
         </AppCard.Header>
         <AppCard.Content>
           <ProfileForm user={user} setup />

@@ -38,7 +38,7 @@ export function AppNavigation({
   );
   const account = useContext(AccountContext);
   const user = account?.user;
-  const accountAvatar = user && !user.isGuest ? user.avatarUrl : null;
+  const accountAvatar = user?.avatarUrl ?? null;
   const accountTo = user
     ? user.profileCompleted
       ? "/account"

@@ -127,7 +127,10 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         );
         initialRoom.players[0].name = admission.name;
         if (initialRoom.players[0].kind === "human") {
-          initialRoom.players[0].avatarUrl = profileAvatarUrl(admission.avatarKey);
+          initialRoom.players[0].avatarUrl = profileAvatarUrl(
+            admission.avatarKey,
+            admission.avatarPresetId,
+          );
           if (admission.isGuest) initialRoom.players[0].isGuest = true;
         }
       }

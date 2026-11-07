@@ -84,7 +84,7 @@ test("下タブのアカウントは登録者・ゲスト・設定前・未認�
   }
 });
 
-test("下タブは未認証・画像なし登録者・ゲストに従来の仮アイコンを表示する", () => {
+test("下タブは未認証・画像なしの登録者・ゲストに仮アイコンを表示する", () => {
   const images: HTMLImageElement[] = [];
   const NativeImage = window.Image;
   window.Image = class extends NativeImage {
@@ -94,12 +94,7 @@ test("下タブは未認証・画像なし登録者・ゲストに従来の仮�
     }
   };
   try {
-    for (const user of [
-      null,
-      profile,
-      guestProfile(),
-      { ...guestProfile(), avatarUrl: "/api/avatars/guest-image" },
-    ]) {
+    for (const user of [null, profile, guestProfile()]) {
       const view = render(wrap(user)(<AppNavigation mobile />));
       const link = [...view.querySelectorAll<HTMLAnchorElement>("a")].find(
         (item) => item.textContent === "アカウント",
@@ -140,7 +135,12 @@ test("下タブの本人画像は画像変更とアカウント切替に追従�
       )!;
     const originalLink = accountLink();
     let previousUrl: string | undefined;
-    for (const user of [first, changed, other]) {
+    for (const user of [
+      first,
+      changed,
+      other,
+      { ...guestProfile(), avatarUrl: "/api/avatars/guest-image" },
+    ]) {
       rerender(view, wrap(user, "/account")(navigation));
       if (previousUrl) expect(accountLink().querySelector(`img[src="${previousUrl}"]`)).toBeNull();
       const pending = images.at(-1)!;
@@ -162,7 +162,7 @@ test("下タブの本人画像は画像変更とアカウント切替に追従�
       ).toBeNull();
       previousUrl = user.avatarUrl;
     }
-    for (const user of [{ ...guestProfile(), avatarUrl: first.avatarUrl }, null, profile]) {
+    for (const user of [guestProfile(), null, profile]) {
       const count = images.length;
       rerender(view, wrap(user, "/account")(navigation));
       const link = view.querySelector<HTMLAnchorElement>(

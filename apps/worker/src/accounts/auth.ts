@@ -2,7 +2,12 @@ import { guestIdentity, suspendGuestSession } from "./guestAccounts";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
-import type { AccountProfile } from "@tetraboard/protocol";
+import {
+  accountAvatarPresetId,
+  avatarPresetUrl,
+  isAvatarPresetId,
+  type AccountProfile,
+} from "@tetraboard/protocol";
 
 export type AuthEnv = Env & {
   BETTER_AUTH_SECRET?: string;
@@ -80,6 +85,7 @@ export function createAuth(env: AuthEnv) {
         username: { type: "string", required: false, input: false },
         profileCompleted: { type: "boolean", required: false, defaultValue: false, input: false },
         avatarKey: { type: "string", required: false, input: false },
+        avatarPresetId: { type: "string", required: false, input: false },
       },
     },
     databaseHooks: {
@@ -118,7 +124,7 @@ export async function accountSessionIdentity(request: Request, env: AuthEnv) {
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
   const user = await env.APP_DB.prepare(
-    'SELECT id, name, username, image, profileCompleted, avatarKey, isTestUser, publicProfileId, isAnonymous, guestNameCustomized FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
+    'SELECT id, name, username, image, profileCompleted, avatarKey, avatarPresetId, isTestUser, publicProfileId, isAnonymous, guestNameCustomized FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
   )
     .bind(session.user.id)
     .first<StoredProfile>();
@@ -146,6 +152,7 @@ export type StoredProfile = {
   image: string | null;
   profileCompleted: number;
   avatarKey: string | null;
+  avatarPresetId?: string | null;
   isTestUser?: number | null;
   publicProfileId?: string | null;
   isAnonymous?: number | null;
@@ -156,7 +163,8 @@ export function publicProfile(user: StoredProfile): AccountProfile {
     profileId: user.publicProfileId ?? null,
     name: user.name,
     username: user.username,
-    avatarUrl: profileAvatarUrl(user.avatarKey),
+    avatarUrl: accountAvatarUrl(user),
+    avatarPresetId: accountAvatarPresetId(user.id, user.avatarPresetId),
     profileCompleted: Boolean(user.profileCompleted),
     ...(user.isAnonymous
       ? { isGuest: true, nameCustomized: Boolean(user.guestNameCustomized) }
@@ -166,8 +174,19 @@ export function publicProfile(user: StoredProfile): AccountProfile {
 
 export const avatarKeyPattern =
   /^avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
-export function profileAvatarUrl(key: string | null): string | null {
-  return key && avatarKeyPattern.test(key) ? `/api/avatars/${key.slice(8, -5)}` : null;
+export function profileAvatarUrl(key: string | null, presetId?: string | null): string | null {
+  return key && avatarKeyPattern.test(key)
+    ? `/api/avatars/${key.slice(8, -5)}`
+    : isAvatarPresetId(presetId)
+      ? avatarPresetUrl(presetId)
+      : null;
+}
+export function accountAvatarUrl(user: {
+  id: string;
+  avatarKey: string | null;
+  avatarPresetId?: string | null;
+}): string {
+  return profileAvatarUrl(user.avatarKey, accountAvatarPresetId(user.id, user.avatarPresetId))!;
 }
 
 export async function registeredIdentity(request: Request, env: AuthEnv) {
