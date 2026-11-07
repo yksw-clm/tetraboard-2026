@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { useNotificationCenter } from "../notifications/NotificationContext";
 import { type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
@@ -105,11 +107,29 @@ export function UpdatesPage() {
   );
 }
 export function UpdateDetailPage() {
+  const center = useNotificationCenter();
+  const [readError, setReadError] = useState(false);
+  const [readRetry, setReadRetry] = useState(0);
   const { id } = useParams();
   const state = useAnnouncementData(
     `/api/announcements/${encodeURIComponent(id ?? "")}`,
     parseDetail,
   );
+  const markRead = center?.readAnnouncement;
+  useEffect(() => {
+    if (!state.data || !markRead) return;
+    let active = true;
+    void markRead(state.data.id)
+      .then(() => {
+        if (active) setReadError(false);
+      })
+      .catch(() => {
+        if (active) setReadError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [state.data, markRead, readRetry]);
   return (
     <Layout>
       <Status state={state} />
@@ -122,6 +142,14 @@ export function UpdateDetailPage() {
           <h1 className="text-2xl font-bold">{state.data.title}</h1>
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{state.data.body}</p>
         </article>
+      )}
+      {readError && (
+        <p role="alert">
+          既読を保存できませんでした。
+          <AppButton appearance="quiet" onPress={() => setReadRetry((n) => n + 1)}>
+            再試行
+          </AppButton>
+        </p>
       )}
       <AppButtonLink to="/updates">お知らせ一覧へ</AppButtonLink>
     </Layout>

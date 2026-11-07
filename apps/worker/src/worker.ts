@@ -1,3 +1,4 @@
+import { notificationRoutes } from "./notifications/routes";
 import { runScheduledMaintenance } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./accounts/guestLinking";
 import { guestRoutes } from "./accounts/guestAccounts";
@@ -52,6 +53,7 @@ api.route("/", matchRoutes);
 api.route("/", publicMatchRoutes);
 api.route("/", statsRoutes);
 api.route("/", badgeNotificationRoutes);
+api.route("/", notificationRoutes);
 api.route("/", formationStatsRoutes);
 api.route("/", playerProfileRoutes);
 api.route("/", rankingRoutes);

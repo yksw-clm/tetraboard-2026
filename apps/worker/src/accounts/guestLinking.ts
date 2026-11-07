@@ -1,3 +1,4 @@
+import { mergeNotificationStatements } from "../notifications/store";
 import { Hono } from "hono";
 import { accountSessionIdentity, type AuthEnv, type StoredProfile } from "./auth";
 import {
@@ -336,6 +337,7 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
   }
   statements.push(
     ...guestChatMergeStatements(db, g, a),
+    ...mergeNotificationStatements(db, g, a),
     db.prepare("UPDATE account_match_history SET account_id=? WHERE account_id=?").bind(a, g),
     db.prepare("UPDATE match_participant_accounts SET account_id=? WHERE account_id=?").bind(a, g),
     db.prepare("UPDATE tournament_entries SET account_id=? WHERE account_id=?").bind(a, g),

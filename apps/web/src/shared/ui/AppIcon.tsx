@@ -2,6 +2,7 @@ import { cn } from "@heroui/react";
 import { type ComponentPropsWithRef } from "react";
 
 const paths = {
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
   trophy:
     "M8 3h8v6a4 4 0 0 1-8 0V3Zm8 2h4v2a4 4 0 0 1-4 4M8 5H4v2a4 4 0 0 0 4 4m4 2v5m-5 3h10m-8 0v-3h6v3",

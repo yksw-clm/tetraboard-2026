@@ -886,3 +886,13 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 protocolの `avatarPresets.test.ts` は既存IDの割り当て固定と従来URL形式を検証します。Workerの同名テストは既存・新規・ゲストの自動表示、プリセット保存、不正入力とゲストのアップロード・ID変更拒否、通常席の固定と次回入室、R2参照からの分離、退会後の共用画像配信を検証します。既存のaccounts・guestAccounts・accountRooms・tournaments・privacyの統合テストで連携・統合・大会席・匿名化の回帰を確認します。
 
 WebのDOMテストは6選択肢・選択状態・ゲスト権限、プレビュー、保存失敗後の保持、画像変換中の選択拒否、アップロード削除後の保存済みプリセット復帰を確認します。画像ファイルの存在とWebP形式はBunで確認し、実デコード・26〜32pxの見た目・スマホ配置・ネイティブファイル選択は自動検証へ含めず、手動の結果と未確認事項をPRへ記録します。
+
+## ベルのお知らせ・既読の確認
+
+Workerの `notifications.test.ts` で公開・編集・再公開・非公開化、本人限定、Origin・入力、初回全体基準と本人宛未読、20件のページ境界、既読再送、取得済み上限と新着、実対局保存からのバッジ生成とtoastとの独立、同率を含む大会表彰、原子的保存失敗、ゲスト統合の既読維持、退会・遅延保存フェンス、既存DBからのmigrationを確認します。通知API・退会は専用の `NOTIFICATION_TEST_DB`、移行は `NOTIFICATION_MIGRATION_TEST_DB` を使い、他テストの削除待ちジョブや移行検証DBを共有しません。
+
+Webの `notificationCenter.test.tsx` はベルの配置と赤丸、開くだけでは既読にしないこと、詳細表示後と記事の直接閲覧による既読、一覧へ戻る操作、追加取得失敗と再試行、まとめて既読の上限、匿名の初回基準・別タブ同期・保存失敗、非表示中の更新停止、本人切替の古い応答破棄、StrictModeでの継続をBun＋happy-domで確認します。既存のannouncements・badgeNotifications・tournamentResults・guestAccounts・privacyの回帰も維持します。
+
+部分実行は `bun run --cwd apps/worker test test/notifications.test.ts test/announcements.test.ts test/badgeNotifications.test.ts test/tournamentResults.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/notificationCenter.test.tsx ./test-dom/announcements.test.tsx ./test-dom/badgeNotifications.test.tsx` です。
+
+320px・PCでのヘッダーと大会入口、ベルの赤丸、一覧の内部スクロールと復帰、実バッジ画像、実際のキーボード・読み上げ・フォーカス復帰は手動確認対象です。ブラウザ起動型の自動テストは追加せず、PRで手動確認の実施範囲と未確認事項を明記します。

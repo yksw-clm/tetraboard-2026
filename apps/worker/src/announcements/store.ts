@@ -86,7 +86,7 @@ export async function update(
     ),
     db
       .prepare(
-        "UPDATE announcements SET title = ?, body = ?, date = ?, kind = ?, published = ?, updated_at_ms = ?, version = version + 1 WHERE id = ? AND version = ?",
+        "UPDATE announcements SET title = ?, body = ?, date = ?, kind = ?, published = ?, updated_at_ms = ?, version = version + 1 WHERE id = ? AND version = ? RETURNING id",
       )
       .bind(
         input.title,
@@ -99,5 +99,5 @@ export async function update(
         version,
       ),
   ]);
-  return result.at(-1)!.meta.changes === 1;
+  return result.at(-1)!.results.length === 1;
 }
