@@ -4,6 +4,8 @@ import { runInDurableObject, evictDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
 import {
   avatarPresets,
+  avatarPresetUrl,
+  type AvatarPresetId,
   accountProfileSchema,
   createRoomContract,
   joinRoomContract,
@@ -27,7 +29,7 @@ import { cleanupLobbyChat } from "../src/lobby/chatStore";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
-async function guest(name = "ゲスト本人") {
+async function guest(name = "ゲスト本人", avatarPresetId?: AvatarPresetId) {
   const response = await request("/account/guest", {
     method: "POST",
     headers: {
@@ -35,7 +37,7 @@ async function guest(name = "ゲスト本人") {
       "Content-Type": "application/json",
       "CF-Connecting-IP": crypto.randomUUID(),
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, avatarPresetId }),
   });
   expect(response.status).toBe(201);
   const user = accountProfileSchema.parse(await response.json());
@@ -186,7 +188,7 @@ test("ゲスト作成の同意保存に失敗しても利用者・ID・本人資
   const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(id);
   try {
     const response = await withAccountSessionCookies(req, async () => {
-      await expect(createGuestAccount(req, env, "作成失敗")).rejects.toThrow(
+      await expect(createGuestAccount(req, env, "作成失敗", avatarPresets[2].id)).rejects.toThrow(
         "Test guest consent failure",
       );
       return new Response(null, { status: 503 });
@@ -297,10 +299,23 @@ test("自動名と名前設定済みを区別し、180日Cookieで同じゲス�
   const completed = await request("/account/guest", {
     method: "POST",
     headers,
-    body: JSON.stringify({ name: "本人名" }),
+    body: JSON.stringify({ name: "本人名", avatarPresetId: avatarPresets[4].id }),
   });
   expect(completed.status).toBe(200);
-  expect(await completed.json()).toMatchObject({ name: "本人名", nameCustomized: true });
+  expect(await completed.json()).toMatchObject({
+    name: "本人名",
+    nameCustomized: true,
+    avatarPresetId: avatarPresets[4].id,
+  });
+  const repeated = await request("/account/guest", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "別タブ", avatarPresetId: avatarPresets[1].id }),
+  });
+  expect(await repeated.json()).toMatchObject({
+    name: "本人名",
+    avatarPresetId: avatarPresets[4].id,
+  });
   const hash = await guestTokenHash(new Request(origin, { headers }));
   await env.APP_DB.prepare("UPDATE guest_sessions SET expires_at_ms=? WHERE token_hash=?")
     .bind(Date.now() + 1000, hash)
@@ -320,7 +335,9 @@ test("自動名と名前設定済みを区別し、180日Cookieで同じゲス�
 });
 for (const game of gameIds)
   test(`${game}: ゲスト本人として作成し、全ルーム共通1席制限を適用する`, async () => {
-    const g = await guest();
+    const preset = avatarPresets[gameIds.indexOf(game)]!;
+    const g = await guest("ゲスト本人", preset.id);
+    expect(g.user.avatarPresetId).toBe(preset.id);
     const created = await request("/rooms", {
       method: "POST",
       headers: g.headers,
@@ -333,7 +350,11 @@ for (const game of gameIds)
     expect(created.status).toBe(201);
     const result = createRoomContract.response.parse(await created.json());
     createdRooms.add(result.room.id);
-    expect(result.room.players[0]).toMatchObject({ name: g.user.name, isGuest: true });
+    expect(result.room.players[0]).toMatchObject({
+      name: g.user.name,
+      isGuest: true,
+      avatarUrl: avatarPresetUrl(preset.id),
+    });
     const duplicate = await request("/rooms", {
       method: "POST",
       headers: g.headers,
@@ -385,6 +406,7 @@ for (const game of gameIds)
     };
     expect(joined.room.players.find((p) => p.name === g.user.name)).toMatchObject({
       isGuest: true,
+      avatarUrl: avatarPresetUrl(preset.id),
     });
     await request(`/rooms/${host.room.id}/leave`, {
       method: "POST",

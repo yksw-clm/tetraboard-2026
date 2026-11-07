@@ -2,6 +2,7 @@ import {
   accountProfileSchema,
   profileInputSchema,
   type AccountProfile,
+  type AvatarPresetId,
 } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountRequest, readAccount } from "./accountApi";
@@ -12,6 +13,7 @@ let pending: Promise<AccountProfile> | null = null;
 export async function ensureGuestAccount(
   name: string,
   user: AccountProfile | null,
+  avatarPresetId?: AvatarPresetId,
 ): Promise<AccountProfile> {
   if (user && (!user.isGuest || user.nameCustomized)) return user;
   const parsed = profileInputSchema.shape.name.safeParse(name);
@@ -24,7 +26,7 @@ export async function ensureGuestAccount(
       await accountRequest("/api/account/guest", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Legal-Consent": legalVersion },
-        body: JSON.stringify({ name: parsed.data }),
+        body: JSON.stringify({ name: parsed.data, avatarPresetId }),
         signal: AbortSignal.timeout(10000),
       }),
     );
@@ -40,4 +42,23 @@ export async function ensureGuestAccount(
     pending = null;
   });
   return pending;
+}
+
+export const guestIdentityChangedMessage =
+  "別の操作でプロフィールが設定されました。表示された名前とアイコンを確認して、もう一度進んでください。";
+
+export async function prepareRoomGuest(
+  name: string,
+  user: AccountProfile | null,
+  avatarPresetId: AvatarPresetId | undefined,
+  update: (user: AccountProfile) => void,
+): Promise<AccountProfile> {
+  const profile = await ensureGuestAccount(name, user, avatarPresetId);
+  update(profile);
+  if (
+    avatarPresetId !== undefined &&
+    (!profile.isGuest || profile.name !== name.trim() || profile.avatarPresetId !== avatarPresetId)
+  )
+    throw new Error(guestIdentityChangedMessage);
+  return profile;
 }

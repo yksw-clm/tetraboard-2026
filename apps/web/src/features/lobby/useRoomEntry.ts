@@ -1,4 +1,4 @@
-import { ensureGuestAccount } from "../account/guestAccount";
+import { prepareRoomGuest } from "../account/guestAccount";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { createRoomRequests } from "./createRoomRequests";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
@@ -13,6 +13,7 @@ import {
   type RoomError,
   type RoomMode,
   type CpuLevel,
+  type AvatarPresetId,
 } from "@tetraboard/protocol";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -79,6 +80,7 @@ export function useRoomEntry(game: GameId = defaultGameId) {
     intent: RoomEntryIntent,
     selectedRoomCode = roomCode,
     instanceId?: string,
+    avatarPresetId?: AvatarPresetId,
   ): Promise<void> {
     if (submitting.current || account.loading || account.error) return;
     const contract = createRoomContract;
@@ -111,13 +113,12 @@ export function useRoomEntry(game: GameId = defaultGameId) {
       if (intent === "join") {
         const result = await joinRoom(selectedRoomCode, entryName, instanceId, async () => {
           try {
-            user = await ensureGuestAccount(name, user);
+            user = await prepareRoomGuest(name, user, avatarPresetId, account.update);
           } catch (error) {
             throw new RoomEntryError(
               error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
             );
           }
-          account.update(user);
         });
         if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
         await navigate(getRoomContract.pathFor(selectedRoomCode));
@@ -141,14 +142,12 @@ export function useRoomEntry(game: GameId = defaultGameId) {
       }
 
       try {
-        user = await ensureGuestAccount(name, user);
+        user = await prepareRoomGuest(name, user, avatarPresetId, account.update);
       } catch (error) {
         throw new RoomEntryError(
           error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
         );
       }
-      account.update(user);
-
       const path = createRoomContract.path;
       const response = await fetch(`/api${path}`, {
         method: contract.method,

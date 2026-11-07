@@ -5,7 +5,12 @@ import { RecentMatches } from "../matches/RecentMatches";
 import { LobbyBoardPreview } from "./LobbyBoardPreview";
 import { AppButton } from "../../shared/ui/AppButton";
 
-import { type RoomTimeControl, type RoomMode, type CpuLevel } from "@tetraboard/protocol";
+import {
+  type RoomTimeControl,
+  type RoomMode,
+  type CpuLevel,
+  type AvatarPresetId,
+} from "@tetraboard/protocol";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
@@ -45,7 +50,12 @@ type Props = {
   onTimeControlChange: (value: RoomTimeControl) => void;
   onThreePlayerAttackChange?: (prohibited: boolean) => void;
   onClearMessage: () => void;
-  onSubmitRoom?: (intent: RoomEntryIntent, roomId?: string, instanceId?: string) => void;
+  onSubmitRoom?: (
+    intent: RoomEntryIntent,
+    roomId?: string,
+    instanceId?: string,
+    avatarPresetId?: AvatarPresetId,
+  ) => void;
 };
 
 const gameDescriptions = {
@@ -221,7 +231,9 @@ export function LobbyView(props: Props) {
           onRoomCodeChange={props.onRoomCodeChange}
           onModeChange={props.onModeChange}
           onThreePlayerAttackChange={props.onThreePlayerAttackChange}
-          onSubmit={() => props.onSubmitRoom?.(dialog.intent, dialog.roomId, dialog.instanceId)}
+          onSubmit={(avatarPresetId) =>
+            props.onSubmitRoom?.(dialog.intent, dialog.roomId, dialog.instanceId, avatarPresetId)
+          }
           onClose={closeDialog}
         />
       )}

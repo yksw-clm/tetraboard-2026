@@ -16,6 +16,9 @@ import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { type RoomEntryIntent } from "./useRoomEntry";
 import { type AppTheme } from "../../shared/ui/appTheme";
+import { useState } from "react";
+import { type AvatarPresetId } from "@tetraboard/protocol";
+import { randomGuestAvatar } from "../account/guestAvatar";
 import { RoomModeSetting } from "./RoomModeSetting";
 import { ThreePlayerAttackSetting } from "./ThreePlayerAttackSetting";
 
@@ -65,10 +68,11 @@ export function RoomEntryDialog({
   onRoomCodeChange: (value: string) => void;
   onModeChange: (mode: RoomMode) => void;
   onThreePlayerAttackChange?: (prohibited: boolean) => void;
-  onSubmit: () => void;
+  onSubmit: (avatarPresetId?: AvatarPresetId) => void;
   onClose: () => void;
 }) {
   const account = useAccount();
+  const [avatarPresetId, setAvatarPresetId] = useState(randomGuestAvatar);
   const blocked = unavailable || busy || account.loading || Boolean(account.error);
   const title =
     intent === "quick"
@@ -119,11 +123,23 @@ export function RoomEntryDialog({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          if (!blocked) onSubmit();
+          if (!blocked)
+            onSubmit(
+              account.user && (!account.user.isGuest || account.user.nameCustomized)
+                ? undefined
+                : avatarPresetId,
+            );
         }}
       >
         {!compactIntro && visibilityNotice}
-        <RoomIdentityFields name={name} onChange={onNameChange} busy={busy} id="nickname" />
+        <RoomIdentityFields
+          name={name}
+          onChange={onNameChange}
+          busy={busy}
+          id="nickname"
+          avatarPresetId={avatarPresetId}
+          onAvatarChange={setAvatarPresetId}
+        />
 
         {intent === "join" ? (
           selectedRoomId ? (
