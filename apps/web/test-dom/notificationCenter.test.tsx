@@ -62,6 +62,7 @@ test("共通ヘッダーの設定直前にベルを置き、開いただけで�
   await respond(1, page([announcement()]));
   expect(dialog().textContent).toContain("更新情報1");
   expect(dialog().textContent).toContain("未読");
+  expect(dialog().textContent).toContain("運営からのお知らせ");
   expect(requests.some((r) => r.url === "/api/account/notifications/read")).toBe(false);
 });
 
@@ -85,8 +86,12 @@ test("詳細取得・描画が成功してから既読を記録し、一覧に�
   expect(JSON.parse(String(requests[4]!.init.body))).toEqual({ id: 1 });
   await respond(4, { ok: true });
   await respond(5, { hasUnread: false, upperBound: 1 });
-  press(dialog(), "一覧に戻る");
+  const back = dialog().querySelector<HTMLButtonElement>('[aria-label="一覧に戻る"]')!;
+  expect(back.textContent).toBe("");
+  act(() => back.click());
   await flush();
+  act(() => clock.advance(20));
+  expect(document.activeElement?.textContent).toContain("更新情報1");
   expect(dialog().textContent).toContain("更新情報1");
   expect(dialog().textContent).not.toContain("未読");
   act(() => dialog().querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());

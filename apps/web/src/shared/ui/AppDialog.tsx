@@ -1,5 +1,5 @@
 import { Modal, cn } from "@heroui/react";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode, type Ref } from "react";
 import { AppIcon } from "./AppIcon";
 import { appThemeClasses, type AppTheme } from "./appTheme";
 
@@ -12,6 +12,9 @@ export type AppDialogProps = {
   size?: "default" | "compact";
   compactHeader?: boolean;
   theme?: AppTheme;
+  scrollBody?: boolean;
+  bodyRef?: Ref<HTMLDivElement>;
+  footer?: ReactNode;
 };
 
 export function AppDialog({
@@ -23,6 +26,9 @@ export function AppDialog({
   size = "default",
   compactHeader = false,
   theme = "default",
+  scrollBody = false,
+  bodyRef,
+  footer,
 }: AppDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const focusedRef = useRef<HTMLElement | null>(null);
@@ -66,7 +72,8 @@ export function AppDialog({
           <Modal.Dialog
             aria-busy={busy}
             className={cn(
-              "relative box-border min-h-0 w-full max-h-[calc(var(--visual-viewport-height,100dvh)-32px)] overflow-y-auto overscroll-contain rounded-dialog border border-solid border-line bg-white p-7 text-ink shadow-dialog [@media(max-width:650px)]:px-5 [@media(max-width:650px)]:py-6",
+              "relative box-border min-h-0 w-full max-h-[calc(var(--visual-viewport-height,100dvh)-32px)] overscroll-contain rounded-dialog border border-solid border-line bg-white p-7 text-ink shadow-dialog [@media(max-width:650px)]:px-5 [@media(max-width:650px)]:py-6",
+              scrollBody ? "flex flex-col overflow-hidden" : "overflow-y-auto",
               size === "compact" ? "max-w-[480px]" : "max-w-[500px]",
             )}
           >
@@ -89,7 +96,20 @@ export function AppDialog({
                 </Modal.CloseTrigger>
               )}
             </Modal.Header>
-            <Modal.Body className={cn("shrink-0", compactHeader && "mt-0")}>{children}</Modal.Body>
+            <Modal.Body
+              ref={bodyRef}
+              className={cn(
+                scrollBody ? "min-h-0 shrink overflow-y-auto overscroll-contain" : "shrink-0",
+                compactHeader && "mt-0",
+              )}
+            >
+              {children}
+            </Modal.Body>
+            {footer && (
+              <div className="mt-4 flex shrink-0 border-0 border-t border-solid border-line pt-4">
+                {footer}
+              </div>
+            )}
           </Modal.Dialog>
         </div>
       </Modal.Container>

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { Link } from "react-router";
 import { badgeDefinitions, getBadgeIds, type Notification } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
@@ -15,7 +22,7 @@ function title(n: Notification) {
   if (n.kind === "badge") return badgeToastTitle(n.badge);
   return `${n.tournament.name}で${n.tournament.tied ? "同率" : ""}${n.tournament.rank === 1 ? "優勝" : "準優勝"}しました！`;
 }
-const labels = { announcement: "全体", tournament: "大会結果", badge: "バッジ" };
+const labels = { announcement: "運営からのお知らせ", tournament: "大会結果", badge: "バッジ" };
 function NotificationDetails({
   notification: n,
   center,
@@ -132,6 +139,9 @@ function NotificationDialog({
   const scroll = useRef<HTMLDivElement>(null);
   const scrollTop = useRef(0);
   const detailTarget = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (selected && scroll.current) scroll.current.scrollTop = 0;
+  }, [selected]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -199,33 +209,47 @@ function NotificationDialog({
     }
   }
   return (
-    <AppDialog title="お知らせ" onClose={onClose}>
+    <AppDialog
+      title="お知らせ"
+      onClose={onClose}
+      scrollBody
+      bodyRef={scroll}
+      footer={
+        selected && (
+          <AppButton
+            appearance="secondary"
+            isIconOnly
+            aria-label="一覧に戻る"
+            className="size-11 min-w-11 p-0"
+            onPress={() => {
+              const id = selected.id;
+              setSelected(null);
+              requestAnimationFrame(() => {
+                const body = scroll.current;
+                body
+                  ?.querySelector<HTMLButtonElement>(`[data-notification-id="${id}"]`)
+                  ?.focus({ preventScroll: true });
+                if (body) body.scrollTop = scrollTop.current;
+              });
+            }}
+          >
+            <AppIcon name="arrow" className="rotate-180" />
+          </AppButton>
+        )
+      }
+    >
       {center.storageError && (
         <p role="status" className="mb-3 text-sm">
           既読はこの画面で反映されていますが、再読み込み後は保持されない場合があります。
         </p>
       )}
       {selected ? (
-        <>
-          <AppButton
-            appearance="quiet"
-            size="compact"
-            onPress={() => {
-              setSelected(null);
-              requestAnimationFrame(() => {
-                if (scroll.current) scroll.current.scrollTop = scrollTop.current;
-              });
-            }}
-          >
-            一覧に戻る
-          </AppButton>
-          <NotificationDetails
-            notification={selected}
-            center={center}
-            setRows={setRows}
-            onClose={onClose}
-          />
-        </>
+        <NotificationDetails
+          notification={selected}
+          center={center}
+          setRows={setRows}
+          onClose={onClose}
+        />
       ) : (
         <>
           <div className="mb-3 flex flex-wrap gap-2">
@@ -268,19 +292,17 @@ function NotificationDialog({
             </div>
           )}
           {loaded && !rows.length && <p className="text-sm">お知らせはありません。</p>}
-          <div
-            ref={scroll}
-            className="max-h-[55dvh] overflow-y-auto overscroll-contain divide-y divide-line"
-          >
+          <div className="divide-y divide-line">
             {rows.map((n) => (
               <button
                 key={n.id}
+                data-notification-id={n.id}
                 type="button"
                 disabled={pending}
                 onClick={() => void open(n.id)}
                 className="flex w-full flex-col gap-2 border-0 bg-transparent px-1 py-4 text-left text-ink hover:bg-surface-muted focus-visible:outline-[3px] focus-visible:outline-focus disabled:cursor-wait"
               >
-                <span className="flex items-center gap-2 text-xs text-muted">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
                   <span>{labels[n.kind]}</span>
                   <time dateTime={new Date(n.createdAtMs).toISOString()}>
                     {new Date(n.createdAtMs).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
