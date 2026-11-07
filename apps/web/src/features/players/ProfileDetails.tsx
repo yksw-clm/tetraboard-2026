@@ -1,4 +1,7 @@
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
+import { cn } from "@heroui/react";
+import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
+import { gameAccentClasses } from "../../shared/ui/appTheme";
 
 export function ProfileDetails({
   profileMessage,
@@ -28,9 +31,13 @@ export function ProfileDetails({
             {favoriteGames.map((game) => (
               <li
                 key={game}
-                className="max-w-full rounded-full bg-surface-muted px-2 py-1 text-xs wrap-anywhere"
+                className={cn(
+                  gameAccentClasses[game],
+                  "inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--game-accent)_8%,white)] px-2 py-1 text-xs font-semibold text-[var(--game-accent)]",
+                )}
               >
-                {gameCatalog[game].name}
+                <LobbyBoardPreview game={game} compact className="!w-5 !rotate-0 !shadow-none" />
+                <span className="min-w-0 wrap-anywhere">{gameCatalog[game].name}</span>
               </li>
             ))}
           </ul>

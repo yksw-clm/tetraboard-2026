@@ -283,7 +283,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 
 ひとこと・お気に入りゲームはWorkerの `profileDetails.test.ts` と `playerProfiles.test.ts`・`guestAccounts.test.ts` で、30／31書記素・絵文字・空白・改行、0／3／4ゲーム・不正ID・重複、初回設定・旧フォームの省略時保持・明示的な削除・ゲストの拒否を確認します。公開ID・入室済みの部屋・保存棋譜の参照から現在値を取得し、要求がない旧クライアントへの応答形状、統合先の優先、退会後の非公開を検証します。
 
-Webの `profileDetails.test.tsx` は選択上限と解除、通常テキストの表示、未設定項目の省略、保存・失敗・再試行・取消・マイページへの反映をDOMで確認します。`accountRecovery.test.tsx` は認証再確認中の追加項目の下書き保持、`avatarPresets.test.tsx` はゲストに設定欄を提供しないことを確認します。スマホでの配置、吹き出しの先端とアイコンの位置、30文字・絵文字・長い英数字の実寸での折り返しは手動確認とし、未実施の場合はPRに明記します。
+Webの `profileDetails.test.tsx` は選択上限と解除、通常テキストの表示、未設定項目の省略、保存・失敗・再試行・取消・マイページへの反映をDOMで確認します。`accountRecovery.test.tsx` は認証再確認中の追加項目の下書き保持、`avatarPresets.test.tsx` はゲストに設定欄を提供しないことを確認します。お気に入りの各ゲーム色・20／24pxの盤面画像・選択枠とチェック・2列から1列への切替は一時的な画面撮影で確認し、自動テストやworkflowは追加しません。スマホでの配置、吹き出しの先端とアイコンの位置、30文字・絵文字・長い英数字の実寸での折り返しは手動確認とし、未実施の場合はPRに明記します。
 
 `apps/web/test/playerStatsSummary.test.ts` は勝敗分、優勝率、順位の加重平均と丸め、0局、撃破数、旧Workerの不足項目を確認します。`playerProfiles.test.tsx` と `badges.test.tsx` はコンパクトな文章の表示、ゲーム・モード別項目、追加指定、400時の自動再取得抑止、同条件の手動再試行を確認します。戦績表のラベル・数値、先頭行の左右配置と空セルは `presentation.test.tsx`・`formationStats.test.tsx`・`reversi.test.tsx`・`standardShogi.test.tsx` で確認します。Workerの `playerProfiles.test.ts` は追加指定時の全戦績と従来応答の維持、内部IDの非公開、不正指定の拒否を確認します。実寸法での折り返し・罫線・ラベルと数値の間隔は手動確認の対象です。
 

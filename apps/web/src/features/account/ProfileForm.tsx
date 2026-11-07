@@ -13,6 +13,9 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { useProfileDraft } from "./useProfileDraft";
+import { cn } from "@heroui/react";
+import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
+import { gameAccentClasses } from "../../shared/ui/appTheme";
 export function ProfileForm({
   user,
   setup,
@@ -198,21 +201,40 @@ export function ProfileForm({
           </AppTextField>
           <fieldset disabled={busy} className="flex min-w-0 flex-col gap-2">
             <legend className="mb-2 text-[13px] font-semibold">お気に入りゲーム（任意）</legend>
-            <div aria-label="お気に入りゲームの選択" role="group" className="flex flex-wrap gap-2">
+            <div
+              aria-label="お気に入りゲームの選択"
+              role="group"
+              className="grid grid-cols-2 gap-2 [@media(max-width:359px)]:grid-cols-1"
+            >
               {gameIds.map((game) => {
                 const selected = favoriteGames.includes(game);
                 return (
                   <AppButton
                     key={game}
                     type="button"
-                    appearance={selected ? "primary" : "secondary"}
+                    appearance="secondary"
                     size="compact"
-                    className="min-h-11"
+                    className={cn(
+                      gameAccentClasses[game],
+                      "min-h-12 w-full min-w-0 justify-start gap-1.5 border-2 border-transparent bg-[color-mix(in_srgb,var(--game-accent)_8%,white)] px-2 text-[var(--game-accent)] shadow-none aria-pressed:border-[var(--game-accent)] [&:hover:not(:disabled)]:border-[var(--game-accent)] [&:hover:not(:disabled)]:bg-[color-mix(in_srgb,var(--game-accent)_12%,white)] data-[hovered=true]:border-[var(--game-accent)] data-[hovered=true]:bg-[color-mix(in_srgb,var(--game-accent)_12%,white)] disabled:opacity-75 data-[disabled=true]:opacity-75",
+                    )}
                     aria-pressed={selected}
                     isDisabled={busy || (!selected && favoriteGames.length >= 3)}
                     onPress={() => toggleFavoriteGame(game)}
                   >
-                    {gameCatalog[game].name}
+                    <LobbyBoardPreview
+                      game={game}
+                      compact
+                      className="!w-6 !rotate-0 !shadow-none"
+                    />
+                    <span className="min-w-0 flex-1 whitespace-normal text-left">
+                      {gameCatalog[game].name}
+                    </span>
+                    {selected ? (
+                      <AppIcon name="check" className="size-3.5 shrink-0" />
+                    ) : (
+                      <span aria-hidden="true" className="size-3.5 shrink-0" />
+                    )}
                   </AppButton>
                 );
               })}
