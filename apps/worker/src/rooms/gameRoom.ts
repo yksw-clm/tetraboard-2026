@@ -63,7 +63,13 @@ import {
 } from "@tetraboard/protocol";
 import { gameProgress, unreachable, type AnyProgress, type ProgressFor } from "./gameProgress";
 import type { ShogiCpuJob } from "./fourShogiProgress";
-import { fourReversiCpuJobKey } from "./fourReversiProgress";
+import {
+  fourReversiCpuJobKey,
+  fourReversiAiJobKey,
+  supportsExternalAi,
+  type ExternalCpuWork,
+} from "./fourReversiProgress";
+import { aiServiceEnabled, aiServiceTimeout, requestAiMove } from "./aiService";
 import {
   roomStorageKey,
   replayKey,
@@ -1359,6 +1365,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(gomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourReversiCpuJobKey);
+    this.ctx.storage.kv.delete(fourReversiAiJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
@@ -1799,7 +1806,17 @@ export class GameRoom extends DurableObject<Env> {
                   ? this.reversiProgress.cpuJob(room)
                   : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
-        deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
+        const externalJob =
+          isFourReversiRoom(room) && aiServiceEnabled(this.env)
+            ? this.reversiProgress.externalCpuJob(room)
+            : null;
+        deadlines.push(
+          externalJob
+            ? externalJob.expiresAt
+            : job
+              ? Math.max(job.applyAt, earliestCpuMoveAt)
+              : earliestCpuMoveAt,
+        );
       }
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
@@ -2779,6 +2796,7 @@ export class GameRoom extends DurableObject<Env> {
     const now = Date.now();
     const promoted: string[] = [];
     let changed = false;
+    const externalWork: { current: ExternalCpuWork | null } = { current: null };
     const updated = this.withIndexTransaction(() => {
       // 将棋の読取りは従来どおりtransaction内。リバーシは最初の読取りを使用。
       let room: Room | null =
@@ -3046,11 +3064,23 @@ export class GameRoom extends DurableObject<Env> {
           }
         } else if (isFourReversiRoom(room)) {
           if (applyCpu && currentCpu(room) !== null) {
-            const result = this.reversiProgress.cpu(room, now);
-            if (result.kind !== "unchanged") {
-              room = this.applyProgress(result);
-              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
-              changed = true;
+            if (
+              aiServiceEnabled(this.env) &&
+              supportsExternalAi(room) &&
+              this.ctx.storage.kv.get(fourReversiCpuJobKey) === undefined
+            ) {
+              externalWork.current = this.reversiProgress.prepareExternalCpu(
+                room,
+                now,
+                aiServiceTimeout(this.env),
+              );
+            } else {
+              const result = this.reversiProgress.cpu(room, now);
+              if (result.kind !== "unchanged") {
+                room = this.applyProgress(result);
+                if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+                changed = true;
+              }
             }
           }
         } else {
@@ -3076,6 +3106,19 @@ export class GameRoom extends DurableObject<Env> {
     }
     for (const hash of promoted) this.sendCurrentMembership(hash);
     await this.advanceTournamentStart();
+    if (externalWork.current) {
+      // transactionとDOの入力ゲートを保持せず、ネットワーク応答を待ちます。
+      const work = externalWork.current;
+      const response = await requestAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isFourReversiRoom(room))
+          this.reversiProgress.completeExternalCpu(room, work.job, response.position, Date.now());
+      });
+      if (response.reason) console.warn("AI service fallback", { reason: response.reason });
+      await this.syncAlarm(this.readRoom());
+    }
   }
 
   async alarm(): Promise<void> {

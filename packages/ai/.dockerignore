@@ -1,0 +1,8 @@
+target
+results
+node_modules
+.git
+.env
+.env.*
+*.env
+*.env.*

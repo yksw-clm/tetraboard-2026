@@ -64,7 +64,7 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 
 ## Rust AI開発基盤
 
-新しいAI基盤の入口は [packages/ai](../packages/ai/README.md) です。フェーズ0〜1は脱落のない四人リバーシ・シングルスだけを扱い、`engine`、`agents`、`benchmark`の3 crateで構成します。ルールの正本は既存の[四人リバーシルール](rules/four-reversi.md)で、[対応範囲](../packages/ai/docs/rules-four-player-reversi.md)に確認元コミットを記載します。既存CPUの探索・評価・乱数・Benchmarkは流用しません。共通Agent、Lv2の1手評価、Lv3のMaxNと予算、profile設定、席順ローテーションと統計の定義は[フェーズ1](../packages/ai/docs/phase1.md)に集約します。
+新しいAI基盤の入口は [packages/ai](../packages/ai/README.md) です。フェーズ0〜2は脱落のない四人リバーシ・シングルスを対象に、engine・agents・benchmark・serverの4 crateで構成します。ルールの正本は既存の[四人リバーシルール](rules/four-reversi.md)です。[対応範囲](../packages/ai/docs/rules-four-player-reversi.md)、[フェーズ1の評価・探索・比較](../packages/ai/docs/phase1.md)、[フェーズ2のAPI・認証・接続・コンテナ](../packages/ai/docs/phase2.md)を参照してください。GameRoomのAlarmは未完了の要求を保存し、transaction外でHTTPを待ち、照合済み候補を次Alarmで適用します。I/Oの権限をProgressへ渡さず、既存AIを新しいAgentへ流用しません。
 
 Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。Bun Workspace用manifestによって全体check・Full CIへ組み込みます。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
 

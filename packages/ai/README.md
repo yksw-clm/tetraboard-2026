@@ -1,6 +1,6 @@
 # TetraBoard AI
 
-フェーズ0〜1のRust Workspaceです。四人リバーシの**脱落のない4人シングルス**について、ルールエンジン、Lv1〜3のAgent候補、席順を変えた自動対局Benchmarkを提供します。[フェーズ1の設計・比較条件](docs/phase1.md)に評価と探索の定義を記載しています。レベル名は実装候補の識別用で、棋力の順序を保証しません。
+フェーズ0〜2のRust Workspaceです。四人リバーシの**脱落のない4人シングルス**について、ルールエンジン、Lv1〜3のAgent候補、比較Benchmark、外部AI Serviceを提供します。[フェーズ1](docs/phase1.md)に評価と探索、[フェーズ2](docs/phase2.md)にAPI・認証・Worker接続・コンテナの実行方法を記載しています。レベル名は実装候補の識別用で、棋力の順序を保証しません。
 
 ゲームの正本は[四人リバーシルール](../../docs/rules/four-reversi.md)です。[対応ルールと検証範囲](docs/rules-four-player-reversi.md)に確認元コミットと対象範囲を記載しています。既存CPU・探索・評価・Benchmarkの移植や流用は行っていません。TypeScriptのルールエンジンは比較テストだけから参照します。
 
@@ -37,14 +37,15 @@ cargo run --release --locked -p tetraboard-ai-benchmark -- --games 100 --seed 0
 | `tetraboard-ai-engine`    | `four_reversi`モジュールの局面、合法手、着手、自動パス、終局と順位 |
 | `tetraboard-ai-agents`    | 共通Agentインターフェース、設定、ランダム・1手評価・MaxN探索       |
 | `tetraboard-ai-benchmark` | 4席のAgentによる完走、席順ローテーション、順位・勝率・速度の集計   |
+| `tetraboard-ai-server`    | 認証付き候補手API、入力・予算制限、CPU処理の同時実行制御           |
 
 Engineは乱数・時計・通信に依存しません。局面は8×8の固定長配列、4色の列挙型とし、`State::initial()`、`legal_moves()`、`apply_move()`で進めます。着手は元の局面を変更せず、更新後の局面・反転座標・自動パス色を返します。`PositionSetup`は確認用の局面構築入力で、全4色の存在・手番の合法手・補助情報を検査しますが、初期局面からの到達可能性は保証しません。任意のサービス局面を受信するAPIではありません。
 
 `legal_move_counts()`は全4色の合法手数を返します。Agentは`Agent::decide(&State) -> Decision`を共通入口とし、選択手とノード数・完了深さ・予算中断の診断を返します。`build_agent`は設定を検査してAgentを生成します。壁時計はBenchmarkだけが測定し、探索終了条件には使いません。
 
-Rust内のJSON表現はfixture・計測ログ用です。既存protocolや保存棋譜のJSON契約を置き換えません。将来の外部AI ServiceではGame Roomが対局状態・手番・合法手・勝敗の最終権限を持ち、Rust側は候補手を計算する責務とします。
+Engineの局面表現と、serverが管理する版付きHTTP契約を分けます。既存protocolや保存棋譜のJSON契約は維持します。Game Roomが対局状態・手番・合法手・勝敗の最終権限を持ち、Rust Serviceは候補手を計算します。
 
-6ゲームは必要になった時点でゲーム固有モジュールを追加します。汎用Game trait、HTTPサーバー、Python、学習用バインディング、モデル推論の依存はまだ導入しません。
+6ゲームは必要になった時点でゲーム固有モジュールを追加します。HTTPサーバーはAxum + Tokioを使います。汎用Game trait、Python、学習用バインディング、モデル推論の依存はまだ導入しません。
 
 ## 再現可能なログ
 
@@ -70,6 +71,8 @@ Rust内のJSON表現はfixture・計測ログ用です。既存protocolや保存
 
 8組の固定fixtureをRustとBunで照合します。初期局面からの到達を要しない合成局面も含みます。期待値は確認元TypeScriptのルール処理から一度固定し、テスト実行時には再生成しません。Rustでは8方向の反転、局面構築の拒否、Agentの決定性、引数処理、100seedの完走と再現性・石数・順位を検証します。BunではRust CLIが出力した100局をTypeScriptルールで再生し、全着手の合法手・反転・パスと最終結果を比較します。
 
-ルートの`bun run check`とFull CIはこのworkspaceも検証します。`typecheck`はBunの比較テストの型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。Rust・lockfile・fixtureの変更はFull CI対象です。
+ルートの`bun run check`とFull CIはこのworkspaceも検証します。`typecheck`はBunの比較テスト・計測スクリプトとCloudflare入口の型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。Rust・lockfile・fixtureの変更はFull CI対象です。
 
-フェーズ1では評価・探索・設定・席順・統計のテストも追加しています。BunはさらにLv1〜3混在の4組合せ×4回転を再生し、ノード上限とsummaryも確認します。未確定の対象ルールは現時点でありません。ダブルスと脱落後の進行は既存仕様が確定していますが、今回の実装対象外です。次はフェーズ2の外部AI Service最小接続です。通信契約・ホスティング・学習方式・強さの境界は後続フェーズの未決定事項です。
+フェーズ1では評価・探索・設定・席順・統計を検証します。BunはLv1〜3混在の4組合せ×4回転を再生し、ノード上限とsummaryも確認します。フェーズ2では実Rust ServiceとWorkerを別プロセスで起動し、人間1人＋CPU3人の完走、認証、遅延・不正・重複応答、再起動とtimeoutを検証します。接続設定を与える専用WorkerテストはAI workspaceのtestから自動実行し、個人の開発設定は使いません。
+
+未確定の対象ルールは現時点でありません。ダブルスと脱落後の進行はRust側の実装対象外です。ローカルとCloudflare Containersの検証を実施し、[実測と現在の使用量を踏まえた費用](docs/cloudflare-validation.md)を記録しました。独立した検証用Workerは測定後の依頼で削除済みで、本番TetraBoardの接続は有効にしていません。以後のフェーズ3ではLv4〜5候補を比較します。学習方式・強さの境界も後続フェーズの未決定事項です。

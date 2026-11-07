@@ -14,13 +14,15 @@
 
 ## Rust AI基盤の確認
 
+フェーズ2はRustのHTTP境界（認証・版・入力・予算・過負荷）と、実プロセス間のService接続を検証します。`packages/ai/test/service.test.ts`が実Rust serverを起動し、明示したloopback URL・検証用tokenで`vitest.ai-service.config.mts`を実行します。`test-ai-service/`のテストは通常Worker分割と重複せず、AI workspaceから全体check・Full CIに含めます。人間1人＋CPU3人の完走、候補保存後の再起動、重複Alarm・古い世代・時計切れ、再試行・不正/過大応答・timeout・未完了要求の復旧を確認します。開発用の個人設定を読みません。承認済みの[クラウド測定](../packages/ai/docs/cloudflare-validation.md)は独立した検証用Workerに対して別途実施し、通常のcheckは外部クラウドへ接続しません。
+
 フェーズ1は角・石数・機動力・配置の評価、同点順、MaxNの完了深さ・予算中断、終局評価と3色パス後の本人手番を検証します。比較CLIでは設定を読み、4組合せ×4回転の混在対局をTypeScriptで再生し、探索量の上限・summaryを確認します。全色の合法手数は別の固定fixtureで両言語を比較します。回転ごとの席の均等性、固定seedの再現、同率1位と単独1位の区別、失敗を含む分母と全失敗時のnullもRustで検証します。実時間の上限には依存しません。評価・集計の定義と比較条件は[フェーズ1文書](../packages/ai/docs/phase1.md)を参照してください。
 
-`packages/ai`は全体の`bun run check`とFull CIに含めます。`typecheck`は比較テストのBun型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。通常の検証jobと任意の`ci-benchmark`計測jobの両方で、miseからBun・Node・Rustを導入します。AIのRustソース・lockfile・fixture変更がFullに分類されることをCI選択テストで確認します。
+`packages/ai`は全体の`bun run check`とFull CIに含めます。`typecheck`は比較テスト・計測スクリプトのBun型検査、Cloudflare入口の型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。通常の検証jobと任意の`ci-benchmark`計測jobの両方で、miseからBun・Node・Rustを導入します。AIのRustソース・lockfile・fixture変更がFullに分類されることをCI選択テストで確認します。
 
 8組の固定fixtureで、初期局面、合法手と拒否理由、複数色・複数方向の反転、全滅禁止、自動パスと解除、本人の連続手番、満盤・全色パス終局、同率順位を両言語で照合します。作成元コミットと期待値は固定し、実行時に生成しません。合成局面は初期局面からの到達を保証しません。
 
-Rustでは100seedについて各2回対局し、時間以外の棋譜・結果の一致、合法性、1着手1枚の増加、各色の生存、56着手以内の終局、順位と石数を検証します。BunはRust CLIから100局のJSONLを受け取り、全着手を既存TypeScriptルールで再生して合法手一覧・反転・パス・最終局面と結果を確認します。既存CPU・探索・Benchmarkはimportしません。対象は脱落なしシングルスだけで、棋力認定・HTTP・学習・ダブルス・脱落は今回の検証対象外です。部分実行は`bun run --cwd packages/ai check`、計測ログは[AI基盤README](../packages/ai/README.md)を参照してください。
+Rustでは100seedについて各2回対局し、時間以外の棋譜・結果の一致、合法性、1着手1枚の増加、各色の生存、56着手以内の終局、順位と石数を検証します。BunはRust CLIから100局のJSONLを受け取り、全着手を既存TypeScriptルールで再生して合法手一覧・反転・パス・最終局面と結果を確認します。既存CPU・探索・Benchmarkはimportしません。この100局比較は脱落なしシングルスだけを対象とし、棋力認定・学習・ダブルス・脱落は含めません。HTTPの検証は上記のフェーズ2が担当します。部分実行は`bun run --cwd packages/ai check`、計測ログは[AI基盤README](../packages/ai/README.md)を参照してください。
 
 ## Fast CIとFull CI
 

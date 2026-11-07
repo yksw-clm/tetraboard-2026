@@ -6,14 +6,23 @@
   "scripts": {
     "format:check": "cargo fmt --all -- --check",
     "lint": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
-    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all && bun run format:check && bun run lint",
-    "typecheck:tsc": "tsc --noEmit",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun run cf-typegen && bun check --no-script --all && tsc --noEmit -p cloudflare/tsconfig.json && bun run format:check && bun run lint",
+    "typecheck:tsc": "bun run cf-typegen && tsc --noEmit && tsc --noEmit -p cloudflare/tsconfig.json",
+    "cf-typegen": "wrangler types --config cloudflare/wrangler.jsonc cloudflare/worker-configuration.d.ts",
+    "deploy:cloud:dry-run": "wrangler deploy --config cloudflare/wrangler.jsonc --dry-run",
+    "deploy:cloud": "wrangler deploy --config cloudflare/wrangler.jsonc",
+    "measure:cloud": "bun scripts/measureCloud.ts",
     "test": "cargo test --workspace --locked && bun test ./test",
     "bench": "cargo run --release --locked -p tetraboard-ai-benchmark --",
+    "serve": "cargo run --release --locked -p tetraboard-ai-server",
     "check": "bun run typecheck && bun run test"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
-    "typescript": "^5.5.2"
+    "typescript": "^5.5.2",
+    "wrangler": "4.143.0"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "0.3.7"
   }
 }
