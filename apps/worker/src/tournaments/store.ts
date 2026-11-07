@@ -431,6 +431,25 @@ export async function finalizeTournament(db: D1Database, key: string, now = Date
           .prepare(`UPDATE tournament_scores SET final_rank=? WHERE entry_id=? AND ${guard}`)
           .bind(v.rank, v.entryId, ...guardValues),
       ),
+    ...standings
+      .filter((v) => v.games > 0 && v.accountId && (v.rank === 1 || v.rank === 2))
+      .map((v) =>
+        db
+          .prepare(`INSERT OR IGNORE INTO notification_events(kind,source_id,account_id,created_at_ms,payload_json)
+        SELECT 'tournament',?,?,?,? WHERE ${guard}`)
+          .bind(
+            v.entryId,
+            v.accountId,
+            now,
+            JSON.stringify({
+              id: row.public_id,
+              name: row.name,
+              rank: v.rank,
+              tied: standings.filter((other) => other.rank === v.rank).length > 1,
+            }),
+            ...guardValues,
+          ),
+      ),
     db
       .prepare(
         `UPDATE tournaments SET finalized_at_ms=?,updated_at_ms=? WHERE key=? AND ends_at_ms<=? AND finalized_at_ms IS NULL AND ${guard}`,
