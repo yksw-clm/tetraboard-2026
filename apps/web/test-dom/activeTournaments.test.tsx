@@ -157,3 +157,24 @@ test("対局画面へ移ると取得を中止し、古い応答で案内を復�
   expect(loads()).toHaveLength(1);
   expect(view.textContent).not.toContain("大会開催中");
 });
+
+test("全ゲームを1回で取得し、四人五目並べ大会のテーマでホームとヘッダーを表示する", async () => {
+  const view = page();
+  clock.advance(0);
+  expect(loads()[0]!.url).toContain("game=all");
+  const value = {
+    ...tournament(),
+    name: "五目大会",
+    ruleVersion: 2 as const,
+    settings: {
+      game: "four-gomoku" as const,
+      mode: "singles" as const,
+      timeControl: { mainTimeMs: 0 as const, byoyomiMs: 30000 as const },
+    },
+  };
+  await respond([value]);
+  expect(view.querySelector('header a[href="/tournaments/1"]')?.className).toContain(
+    "game-theme-gomoku",
+  );
+  expect(view.querySelector('[aria-label="開催中の大会"]')?.textContent).toContain("五目大会");
+});

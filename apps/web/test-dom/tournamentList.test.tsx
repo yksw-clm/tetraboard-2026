@@ -15,6 +15,7 @@ function tournament(
   return {
     id,
     game: "four-shogi",
+    ruleVersion: 1,
     name: `大会${id}`,
     startsAtMs: Date.UTC(2026, 9, 20, 9),
     endsAtMs: Date.UTC(2026, 9, 20, 10),

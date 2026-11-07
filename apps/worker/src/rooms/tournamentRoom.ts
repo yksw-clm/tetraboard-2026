@@ -1,6 +1,6 @@
 import type { AccountAdmission } from "../accounts/roomAccounts";
 import { z } from "zod";
-import { tournamentRules } from "@tetraboard/protocol";
+import { tournamentSettingsSchema, type TournamentSettings } from "@tetraboard/protocol";
 
 export type TournamentRoomContext = {
   tournamentId: number;
@@ -8,7 +8,8 @@ export type TournamentRoomContext = {
   matchId: string;
   startsAtMs: number;
   endsAtMs: number;
-  ruleVersion: 1;
+  ruleVersion: 1 | 2;
+  settings?: TournamentSettings;
 };
 
 export type PrepareTournamentRoomInput = {
@@ -57,14 +58,17 @@ export type RekeyTournamentPlayerInput = {
 };
 
 export const prepareTournamentRoomSchema = z.strictObject({
-  context: z.strictObject({
-    tournamentId: z.int().positive(),
-    tournamentKey: z.string().min(1).max(200),
-    matchId: z.uuid(),
-    startsAtMs: z.int().nonnegative(),
-    endsAtMs: z.int().nonnegative(),
-    ruleVersion: z.literal(tournamentRules.version),
-  }),
+  context: z
+    .strictObject({
+      tournamentId: z.int().positive(),
+      tournamentKey: z.string().min(1).max(200),
+      matchId: z.uuid(),
+      startsAtMs: z.int().nonnegative(),
+      endsAtMs: z.int().nonnegative(),
+      ruleVersion: z.union([z.literal(1), z.literal(2)]),
+      settings: tournamentSettingsSchema.optional(),
+    })
+    .refine((context) => context.ruleVersion === 1 || context.settings !== undefined),
   roomId: z.string().regex(/^\d{5}$/),
   instanceId: z.uuid(),
   players: z
@@ -111,3 +115,18 @@ export async function writeTournamentState(db: D1Database, job: PendingTournamen
     )
     .run();
 }
+
+export type TournamentGameRoom =
+  | import("@tetraboard/protocol").FourShogiRoom
+  | import("@tetraboard/protocol").FourReversiRoom
+  | import("@tetraboard/protocol").FourGomokuRoom;
+export function isTournamentGameRoom(
+  room: import("@tetraboard/protocol").Room,
+): room is TournamentGameRoom {
+  return (
+    room.settings.game === "four-shogi" ||
+    room.settings.game === "four-reversi" ||
+    room.settings.game === "four-gomoku"
+  );
+}
+export const activeTournamentContextKey = "active-tournament-context";

@@ -30,7 +30,7 @@ export async function readTournament(id: number, signal?: AbortSignal) {
     }),
   );
 }
-export async function readLobbyTournaments(game: GameId, signal?: AbortSignal) {
+export async function readLobbyTournaments(game: GameId | "all", signal?: AbortSignal) {
   const query = new URLSearchParams({ view: "sections", game });
   return parseTournamentData(
     tournamentLobbySectionsSchema,

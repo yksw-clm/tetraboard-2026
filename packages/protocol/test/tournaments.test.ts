@@ -1,3 +1,4 @@
+import { legacyTournamentSettings } from "../src/tournaments";
 import { expect, test } from "bun:test";
 import {
   compareTournamentScores,
@@ -29,6 +30,7 @@ import { fourShogiRoomSchema, roomTimeControl } from "../src/rooms";
 const operationId = "00000000-0000-4000-8000-000000000001";
 const matchId = "00000000-0000-4000-8000-000000000002";
 const input = {
+  settings: legacyTournamentSettings,
   name: "四人将棋大会",
   description: "",
   rulesDescription: "",
@@ -412,7 +414,6 @@ test("ロビーの区分別取得はゲーム指定のオプトインと全件�
     {},
     { view: "sections" },
     { game: "four-shogi" },
-    { view: "sections", game: "all" },
     { view: "sections", game: "four-shogi", private: true },
   ])
     expect(tournamentLobbySectionsQuerySchema.safeParse(query).success).toBe(false);
@@ -495,4 +496,67 @@ test("公開大会一覧はallと各ゲームの20件ページを扱い、優勝
         tournaments: [{ ...item, winners: [{ ...item.winners[0], ...extra }] }],
       }).success,
     ).toBe(false);
+});
+
+test("大会設定は3ゲームのシングルスと既存時計を受理し、対象外設定と版2の欠落を拒否する", () => {
+  for (const game of ["four-reversi", "four-gomoku", "four-shogi"] as const) {
+    const settings = {
+      game,
+      mode: "singles",
+      timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+      ...(game === "four-shogi" ? { threePlayerAttackProhibited: false } : {}),
+    };
+    expect(tournamentInputSchema.safeParse({ ...input, settings }).success).toBe(true);
+    expect(
+      tournamentInputSchema.safeParse({ ...input, settings: { ...settings, mode: "doubles" } })
+        .success,
+    ).toBe(false);
+    expect(
+      tournamentInputSchema.safeParse({
+        ...input,
+        settings: { ...settings, timeControl: { mainTimeMs: 0, byoyomiMs: 0 } },
+      }).success,
+    ).toBe(false);
+    if (game !== "four-shogi")
+      expect(
+        tournamentInputSchema.safeParse({
+          ...input,
+          settings: { ...settings, threePlayerAttackProhibited: true },
+        }).success,
+      ).toBe(false);
+  }
+  expect(tournamentInputSchema.safeParse({ ...input, settings: undefined }).success).toBe(false);
+  expect(
+    tournamentInputSchema.safeParse({ ...input, settings: { ...input.settings, game: "reversi" } })
+      .success,
+  ).toBe(false);
+  const publicValue = {
+    id: 1,
+    name: "大会",
+    description: "",
+    rulesDescription: "",
+    startsAtMs: 1,
+    endsAtMs: 2,
+    status: "finished",
+    entryCount: 0,
+    waitingCount: 0,
+    playingCount: 0,
+    pendingCount: 0,
+    completedCount: 0,
+    finalizedAtMs: 3,
+  };
+  expect(tournamentPublicSchema.safeParse({ ...publicValue, ruleVersion: 1 }).success).toBe(true);
+  expect(tournamentPublicSchema.safeParse({ ...publicValue, ruleVersion: 2 }).success).toBe(false);
+  expect(
+    tournamentLobbySectionsQuerySchema.safeParse({ view: "sections", game: "all" }).success,
+  ).toBe(true);
+});
+test("撃破数による同点比較は四人将棋に限定し、他ゲームは平均順位で比較する", () => {
+  const first = standing({ username: "first", knockouts: 0, rankSum: 1 });
+  const second = standing({ username: "second", knockouts: 3, rankSum: 2 });
+  expect(compareTournamentScores(first, second, "four-shogi")).toBeGreaterThan(0);
+  for (const game of ["four-reversi", "four-gomoku"]) {
+    expect(compareTournamentScores(first, second, game)).toBeLessThan(0);
+    expect(rankTournamentStandings([second, first], game)[0]!.username).toBe("first");
+  }
 });

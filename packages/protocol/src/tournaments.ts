@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { gameIdSchema, gameScopeSchema } from "./gameSchemas";
+import { roomTimeControlSchema } from "./rooms";
+import { gameCatalog } from "./games";
 
 export const tournamentRules = {
   version: 1,
@@ -26,6 +28,50 @@ export const tournamentFixedRules = [
   "開催時間内に始まった大会対局は終了時刻を過ぎても得点対象とし、終了と保存を待って結果を確定します。",
 ] as const;
 
+export const tournamentGameIds = ["four-reversi", "four-gomoku", "four-shogi"] as const;
+export const tournamentGameSchema = z.enum(tournamentGameIds);
+const singlesSettings = { mode: z.literal("singles"), timeControl: roomTimeControlSchema };
+export const tournamentSettingsSchema = z.discriminatedUnion("game", [
+  z.strictObject({ game: z.literal("four-reversi"), ...singlesSettings }),
+  z.strictObject({ game: z.literal("four-gomoku"), ...singlesSettings }),
+  z.strictObject({
+    game: z.literal("four-shogi"),
+    ...singlesSettings,
+    threePlayerAttackProhibited: z.boolean(),
+  }),
+]);
+export type TournamentSettings = z.infer<typeof tournamentSettingsSchema>;
+export const legacyTournamentSettings: TournamentSettings = {
+  game: "four-shogi",
+  mode: "singles",
+  timeControl: { mainTimeMs: 0, byoyomiMs: 30_000 },
+  threePlayerAttackProhibited: true,
+};
+export const tournamentRuleVersionSchema = z.union([z.literal(1), z.literal(2)]);
+export type TournamentDefinition = { ruleVersion: 1 | 2; settings?: TournamentSettings };
+export function getTournamentSettings(value: TournamentDefinition): TournamentSettings {
+  if (value.ruleVersion === 1) return legacyTournamentSettings;
+  return tournamentSettingsSchema.parse(value.settings);
+}
+export function tournamentTimeDescription(settings: TournamentSettings): string {
+  const { mainTimeMs, byoyomiMs } = settings.timeControl;
+  return `持ち時間${mainTimeMs ? `${mainTimeMs / 60_000}分` : "なし"}・秒読み${byoyomiMs ? `${byoyomiMs / 1000}秒` : "なし"}`;
+}
+export function tournamentSettingsDescription(settings: TournamentSettings): string {
+  return `${gameCatalog[settings.game].name}・シングルス・${tournamentTimeDescription(settings)}${settings.game === "four-shogi" ? `・三人攻撃禁止${settings.threePlayerAttackProhibited ? "ON" : "OFF"}` : ""}`;
+}
+export function tournamentRuleDescriptions(settings: TournamentSettings): string[] {
+  return [
+    `${gameCatalog[settings.game].name}・シングルス、人間4人のランダムマッチです。CPU補充はありません。`,
+    tournamentSettingsDescription(settings),
+    ...tournamentFixedRules.slice(2, 4),
+    `勝ち点が同じ場合は${settings.game === "four-shogi" ? "撃破数の多い順、" : ""}平均順位がよい順で比較し、すべて同じなら同順位です。`,
+    tournamentFixedRules[5],
+  ];
+}
+const validDefinition = (value: TournamentDefinition) =>
+  value.ruleVersion === 1 || value.settings !== undefined;
+
 const text = (minimum: number, maximum: number) =>
   z
     .string()
@@ -44,6 +90,7 @@ const inputFields = {
   rulesDescription: text(0, 2000),
   startsAtMs: timestamp.nullable(),
   endsAtMs: timestamp.nullable(),
+  settings: tournamentSettingsSchema,
 };
 export const tournamentInputSchema = z
   .strictObject(inputFields)
@@ -55,7 +102,7 @@ export const tournamentInputSchema = z
 export type TournamentInput = z.infer<typeof tournamentInputSchema>;
 export const tournamentPatchSchema = z.strictObject({ ...inputFields, version: count });
 export const tournamentPublishSchema = z.strictObject({ version: count });
-export const tournamentPublicSchema = z.strictObject({
+const tournamentPublicBaseSchema = z.strictObject({
   id: tournamentIdSchema,
   name: z.string(),
   description: z.string(),
@@ -68,8 +115,12 @@ export const tournamentPublicSchema = z.strictObject({
   playingCount: count,
   pendingCount: count,
   completedCount: count,
-  ruleVersion: z.literal(1),
+  ruleVersion: tournamentRuleVersionSchema,
+  settings: tournamentSettingsSchema.optional(),
   finalizedAtMs: timestamp.nullable(),
+});
+export const tournamentPublicSchema = tournamentPublicBaseSchema.refine(validDefinition, {
+  message: "大会ルール版2には設定が必要です。",
 });
 export type TournamentPublic = z.infer<typeof tournamentPublicSchema>;
 export const tournamentStandingSchema = z.strictObject({
@@ -105,7 +156,7 @@ export const tournamentLobbySchema = z.strictObject({
 });
 export const tournamentLobbySectionsQuerySchema = z.strictObject({
   view: z.literal("sections"),
-  game: gameIdSchema,
+  game: gameScopeSchema,
 });
 export const tournamentLobbySectionsSchema = z.strictObject({
   current: z.array(tournamentPublicSchema),
@@ -126,12 +177,15 @@ export const tournamentWinnerSchema = tournamentStandingSchema.pick({
   avatarUrl: true,
   isGuest: true,
 });
-export const tournamentListItemSchema = tournamentPublicSchema
+export const tournamentListItemSchema = tournamentPublicBaseSchema
   .pick({ id: true, name: true, startsAtMs: true, endsAtMs: true, status: true, entryCount: true })
   .extend({
     game: gameIdSchema,
+    ruleVersion: tournamentRuleVersionSchema.default(1),
+    settings: tournamentSettingsSchema.optional(),
     winners: z.array(tournamentWinnerSchema),
-  });
+  })
+  .refine(validDefinition);
 export const tournamentListSchema = z.strictObject({
   tournaments: z.array(tournamentListItemSchema).max(20),
   nextCursor: z.string().nullable(),
@@ -176,18 +230,21 @@ export const tournamentConfirmationSchema = z.strictObject({
   matchId: z.uuid(),
   accept: z.boolean(),
 });
-export const tournamentRecordSchema = z.strictObject({
-  key: z.uuid(),
-  id: tournamentIdSchema.nullable(),
-  ...inputFields,
-  published: z.boolean(),
-  version: count,
-  ruleVersion: z.literal(1),
-  createdAtMs: timestamp,
-  updatedAtMs: timestamp,
-  entryCount: count,
-  status: z.enum(["draft", "upcoming", "active", "settling", "finished"]),
-});
+export const tournamentRecordSchema = z
+  .strictObject({
+    key: z.uuid(),
+    id: tournamentIdSchema.nullable(),
+    ...inputFields,
+    published: z.boolean(),
+    version: count,
+    ruleVersion: tournamentRuleVersionSchema,
+    settings: tournamentSettingsSchema.optional(),
+    createdAtMs: timestamp,
+    updatedAtMs: timestamp,
+    entryCount: count,
+    status: z.enum(["draft", "upcoming", "active", "settling", "finished"]),
+  })
+  .refine(validDefinition);
 export type TournamentRecord = z.infer<typeof tournamentRecordSchema>;
 export const tournamentAdminListSchema = z.strictObject({
   tournaments: z.array(tournamentRecordSchema),
@@ -227,21 +284,29 @@ export function tournamentRankPointsUnits(rank: number, tiedCount = 1): number {
       .reduce<number>((sum, value) => sum + value, 0) / tiedCount
   );
 }
-export function compareTournamentScores(a: TournamentStanding, b: TournamentStanding): number {
+export function compareTournamentScores(
+  a: TournamentStanding,
+  b: TournamentStanding,
+  game: string = "four-shogi",
+): number {
   return (
     Number(b.games > 0) - Number(a.games > 0) ||
     b.pointsUnits - a.pointsUnits ||
-    b.knockouts - a.knockouts ||
+    (game === "four-shogi" ? b.knockouts - a.knockouts : 0) ||
     a.rankSum * b.games - b.rankSum * a.games
   );
 }
-export function rankTournamentStandings<T extends TournamentStanding>(values: T[]): T[] {
+export function rankTournamentStandings<T extends TournamentStanding>(
+  values: T[],
+  game: string = "four-shogi",
+): T[] {
   const sorted = [...values].sort(
-    (a, b) => compareTournamentScores(a, b) || (a.username ?? "").localeCompare(b.username ?? ""),
+    (a, b) =>
+      compareTournamentScores(a, b, game) || (a.username ?? "").localeCompare(b.username ?? ""),
   );
   let rank = 0;
   return sorted.map((row, index) => {
-    if (row.games && (index === 0 || compareTournamentScores(sorted[index - 1]!, row) !== 0))
+    if (row.games && (index === 0 || compareTournamentScores(sorted[index - 1]!, row, game) !== 0))
       rank = index + 1;
     return { ...row, rank: row.games ? rank : null };
   });

@@ -1,3 +1,6 @@
+import { roomSchema, type TournamentSettings } from "@tetraboard/protocol";
+import { isTournamentGameRoom } from "../src/rooms/tournamentRoom";
+import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, runDurableObjectAlarm, applyD1Migrations } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
@@ -94,7 +97,10 @@ async function token() {
   ).join("");
   return { raw, hash };
 }
-async function fixture(endsAfterMs = 3_600_000): Promise<PreparedFixture> {
+async function fixture(
+  endsAfterMs = 3_600_000,
+  settings?: TournamentSettings,
+): Promise<PreparedFixture> {
   const now = Date.now();
   const tournamentKey = crypto.randomUUID();
   await env.APP_DB.prepare(`INSERT INTO tournaments(key,public_id,name,starts_at_ms,ends_at_ms,published,created_at_ms,updated_at_ms)
@@ -175,6 +181,14 @@ async function fixture(endsAfterMs = 3_600_000): Promise<PreparedFixture> {
         admission.playerId,
       ),
     ]);
+  }
+  if (settings) {
+    await env.APP_DB.prepare(
+      "UPDATE tournaments SET rule_version=2,game=?,settings_json=? WHERE key=?",
+    )
+      .bind(settings.game, JSON.stringify(settings), tournamentKey)
+      .run();
+    input.context = { ...input.context, ruleVersion: 2, settings };
   }
   const prepared = { input, tokens, accounts, stub: env.GAME_ROOM.getByName(roomId) };
   fixtures.push(prepared);
@@ -461,6 +475,8 @@ async function flushSaves(prepared: Awaited<ReturnType<typeof fixture>>) {
       for (const [key, job] of state.storage.kv.list<PendingShogiMatch>({
         prefix: pendingShogiMatchPrefix,
       }))
+        state.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
+      for (const [key, job] of state.storage.kv.list<PendingMatch>({ prefix: pendingMatchPrefix }))
         state.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
       await state.storage.setAlarm(Date.now() + 60_000);
     });
@@ -855,3 +871,116 @@ test("大会待機中の通常ルーム作成をaccount_busyで拒否し、退�
       .first(),
   ).toEqual({ final_rank: 1, points_units: 48 });
 });
+
+for (const game of ["four-reversi", "four-gomoku", "four-shogi"] as const) {
+  test(`${game}の版2大会で設定どおり開始し、終局保存の再試行でも同じ対局へ一度だけ加点する`, async () => {
+    const settings: TournamentSettings =
+      game === "four-shogi"
+        ? {
+            game,
+            mode: "singles",
+            timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+            threePlayerAttackProhibited: false,
+          }
+        : { game, mode: "singles", timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 } };
+    const prepared = await fixture(3600000, settings);
+    expect(await prepared.stub.prepareTournamentRoom(prepared.input)).toEqual({
+      status: "prepared",
+    });
+    const clients = [];
+    for (const credential of prepared.tokens)
+      clients.push(await connect(prepared.input.roomId, credential));
+    let room = roomSchema.parse(await prepared.stub.getRoom());
+    if (!isTournamentGameRoom(room) || room.status !== "waiting")
+      throw new Error("Missing tournament waiting room");
+    expect(room.settings).toEqual(settings);
+    expect(room.tournamentId).toBe(prepared.input.context.tournamentId);
+    const startsAtMs = room.tournamentStartsAtMs!;
+    await alarmAt(prepared, startsAtMs - 1);
+    expect(
+      (await prepared.stub.getTournamentReservationState(prepared.input.context.matchId)).status,
+    ).toBe("waiting");
+    await alarmAt(prepared, startsAtMs);
+    room = roomSchema.parse(await prepared.stub.getRoom());
+    expect(room.status).toBe("playing");
+    expect(room).not.toHaveProperty("tournamentStartsAtMs");
+    // 相手がそろった後の設定変更もサーバーで拒否します。
+    clients[0]!.send({
+      type: "room.time-control.set",
+      timeControl: { mainTimeMs: 60000, byoyomiMs: 30000 },
+    });
+    expect(await clients[0]!.until((message) => message.type === "room.error")).toEqual({
+      type: "room.error",
+      error: "forbidden",
+    });
+    await env.APP_DB.exec(
+      "ALTER TABLE tournament_point_events RENAME TO tournament_points_unavailable",
+    );
+    try {
+      while (room.status === "playing" && isTournamentGameRoom(room)) {
+        const turn = room.game.turn;
+        const player = room.players.find((p) => ("side" in p ? p.side : p.color) === turn)!;
+        const client =
+          clients[prepared.input.players.findIndex((p) => p.admission.playerId === player.id)]!;
+        const previous = room.eliminations.length;
+        client.send({ type: "room.game.resign" });
+        const message = await client.until(
+          (value) =>
+            value.type === "room.snapshot" &&
+            ((value.room.status === "waiting" && value.room.lastRound !== null) ||
+              value.room.eliminations.length > previous),
+        );
+        if (message.type !== "room.snapshot") throw new Error("Missing result");
+        room = message.room;
+      }
+      await vi.waitFor(async () => {
+        const retrying = await runInDurableObject(prepared.stub, (_instance, state) =>
+          [
+            ...state.storage.kv.list<PendingShogiMatch | PendingMatch>({
+              prefix: game === "four-shogi" ? pendingShogiMatchPrefix : pendingMatchPrefix,
+            }),
+          ].some(([, job]) => job.retryAtMs > Date.now()),
+        );
+        expect(retrying).toBe(true);
+      });
+      expect(
+        await env.APP_DB.prepare("SELECT 1 FROM matches WHERE id=?")
+          .bind(prepared.input.context.matchId)
+          .first(),
+      ).toBeNull();
+    } finally {
+      await env.APP_DB.exec(
+        "ALTER TABLE tournament_points_unavailable RENAME TO tournament_point_events",
+      );
+    }
+    await flushSaves(prepared);
+    const saved = await vi.waitFor(async () => {
+      const value = await env.APP_DB.prepare("SELECT game,record_json FROM matches WHERE id=?")
+        .bind(prepared.input.context.matchId)
+        .first<{ game: string; record_json: string }>();
+      if (!value) throw new Error("Match save has not completed");
+      return value;
+    });
+    expect(saved?.game).toBe(game);
+    expect(JSON.parse(saved!.record_json).settings).toEqual(settings);
+    expect(JSON.parse(saved!.record_json).id).toBe(prepared.input.context.matchId);
+    if (game !== "four-shogi")
+      expect(JSON.parse(saved!.record_json).replay.id).toBe(prepared.input.context.matchId);
+    const totals = () =>
+      env.APP_DB.prepare(
+        "SELECT SUM(points_units) AS points,SUM(games) AS games FROM tournament_scores WHERE tournament_key=?",
+      )
+        .bind(prepared.input.context.tournamentKey)
+        .first();
+    expect(await totals()).toEqual({ points: 84, games: 4 });
+    await flushSaves(prepared);
+    expect(await totals()).toEqual({ points: 84, games: 4 });
+    expect(
+      (
+        await env.APP_DB.prepare("SELECT phase FROM tournament_matches WHERE id=?")
+          .bind(prepared.input.context.matchId)
+          .first()
+      )?.phase,
+    ).toBe("saved");
+  });
+}
