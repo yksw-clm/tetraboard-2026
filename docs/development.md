@@ -1601,7 +1601,7 @@ Worker統合テストで保存・公開・掲載先・並び順・カーソル�
 
 仕様は[READMEのベル機能](../README.md#ベルのお知らせ一覧と既読)を正本にします。`notifications/store.ts`・`routes.ts` が一覧・詳細・本人の既読を担当し、Protocolの `notifications.ts` で種類別payload・番号・入出力を共有します。
 
-`0028_notifications.sql` は単調増加番号の `notification_events`、初回全体基準とまとめて既読上限の `account_notification_state`、個別既読の `account_notification_reads` を追加します。全体イベントは記事ID、バッジは本人と対局ID、大会は本人とエントリーIDを一意にします。全体通知は現在の記事を参照し、個別通知は獲得・表彰時のpayloadを保持します。公開状態を全体の一覧・詳細・未読判定へ毎回適用します。
+`0029_notifications.sql` は単調増加番号の `notification_events`、初回全体基準とまとめて既読上限の `account_notification_state`、個別既読の `account_notification_reads` を追加します。全体イベントは記事ID、バッジは本人と対局ID、大会は本人とエントリーIDを一意にします。全体通知は現在の記事を参照し、個別通知は獲得・表彰時のpayloadを保持します。公開状態を全体の一覧・詳細・未読判定へ毎回適用します。
 
 記事のINSERT／公開UPDATEと、バッジtoast台帳のINSERTにD1 triggerで接続し、既存の保存batchと一緒に確定します。大会は `finalizeTournament` の同じ競合ガードを使い、最終順位・表彰イベント・結果確定を同じbatchで保存します。triggerによる副次変更を含むため、記事の更新成功は変更件数ではなく `UPDATE ... RETURNING id` の結果で判定します。移行は既存公開記事をlegacyとして登録し、旧バッジイベントを補完しません。導入時刻より前のtoast台帳を統合しても新たな通知を作りません。
 

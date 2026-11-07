@@ -309,7 +309,7 @@ test("既存公開記事だけを導入時に既読相当とし、過去のバ�
   ).TEST_MIGRATIONS;
   await applyD1Migrations(
     isolated,
-    migrations.filter((m) => m.name < "0028"),
+    migrations.filter((m) => m.name < "0029"),
   );
   const user = await baseAccountFixture(true, crypto.randomUUID(), isolated);
   const published = await create(isolated, input()),
