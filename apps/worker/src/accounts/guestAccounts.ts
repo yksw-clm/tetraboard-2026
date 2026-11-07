@@ -2,7 +2,7 @@ import { authSecret } from "../privacy/tokens";
 import { createGuestUsername, isGuestUsernameCollision } from "./guestUsernames";
 import { readLimitedBody } from "../feedback/images";
 import { Hono } from "hono";
-import { profileInputSchema, isAvatarPresetId } from "@tetraboard/protocol";
+import { profileInputSchema, isAvatarPresetId, type AvatarPresetId } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
 import { accountIdentity, appendSessionCookie, publicProfile, type StoredProfile } from "./auth";
@@ -44,6 +44,7 @@ export async function createGuestAccount(
   request: Request,
   env: Env,
   name?: string,
+  avatarPresetId?: AvatarPresetId,
 ): Promise<StoredProfile> {
   if (
     request.headers.get("Origin") !== env.APP_ORIGIN ||
@@ -59,6 +60,7 @@ export async function createGuestAccount(
     username: null,
     image: null,
     avatarKey: null,
+    avatarPresetId: avatarPresetId ?? null,
     profileCompleted: 1,
     isAnonymous: 1,
     guestNameCustomized: name ? 1 : 0,
@@ -75,8 +77,8 @@ export async function createGuestAccount(
     try {
       // ID・本人資格・同意を同時に確定し、中断時にもID未設定のゲストを残しません。
       await env.APP_DB.batch([
-        env.APP_DB.prepare(`INSERT INTO user(id,name,email,emailVerified,createdAt,updatedAt,isAnonymous,username,profileCompleted,guestNameCustomized,publicProfileId)
-          VALUES(?,?,?,0,?,?,1,?,1,?,?)`).bind(
+        env.APP_DB.prepare(`INSERT INTO user(id,name,email,emailVerified,createdAt,updatedAt,isAnonymous,username,profileCompleted,guestNameCustomized,publicProfileId,avatarPresetId)
+          VALUES(?,?,?,0,?,?,1,?,1,?,?,?)`).bind(
           id,
           user.name,
           `${id}@guest.invalid`,
@@ -85,6 +87,7 @@ export async function createGuestAccount(
           username,
           user.guestNameCustomized,
           user.publicProfileId,
+          user.avatarPresetId,
         ),
         env.APP_DB.prepare(
           "INSERT INTO guest_sessions(token_hash,account_id,expires_at_ms) VALUES(?,?,?)",
@@ -162,17 +165,36 @@ guestRoutes.post("/account/guest", async (c) => {
     );
   const name = profileInputSchema.shape.name.safeParse(data?.name);
   if (!name.success) return c.json({ message: "名前は1〜10文字で入力してください。" }, 400);
+  if (data?.avatarPresetId !== undefined && !isAvatarPresetId(data.avatarPresetId))
+    return c.json({ message: "アイコンの指定が正しくありません。" }, 400);
+  if (
+    data?.username !== undefined ||
+    data?.avatarAction !== undefined ||
+    data?.avatar !== undefined
+  )
+    return c.json(
+      { message: "画像アップロードとID変更にはGoogleまたはDiscordとの連携が必要です。" },
+      403,
+    );
+  const avatarPresetId = isAvatarPresetId(data?.avatarPresetId) ? data.avatarPresetId : undefined;
   const existing = await accountIdentity(c.req.raw, c.env);
   if (existing) {
     if (existing.isAnonymous && !existing.guestNameCustomized) {
       const changed = await c.env.APP_DB.prepare(
-        "UPDATE user SET name=?,guestNameCustomized=1,updatedAt=? WHERE id=? AND isAnonymous=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING id",
+        "UPDATE user SET name=?,avatarPresetId=?,guestNameCustomized=1,updatedAt=? WHERE id=? AND isAnonymous=1 AND guestNameCustomized=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING id",
       )
-        .bind(name.data, Date.now(), existing.id)
+        .bind(name.data, avatarPresetId ?? existing.avatarPresetId ?? null, Date.now(), existing.id)
         .first();
       if (!changed)
         return c.json({ message: "設定状態が変わりました。ページを開き直してください。" }, 409);
-      return c.json(publicProfile({ ...existing, name: name.data, guestNameCustomized: 1 }));
+      return c.json(
+        publicProfile({
+          ...existing,
+          name: name.data,
+          avatarPresetId: avatarPresetId ?? existing.avatarPresetId,
+          guestNameCustomized: 1,
+        }),
+      );
     }
     return c.json(publicProfile(existing));
   }
@@ -193,7 +215,10 @@ guestRoutes.post("/account/guest", async (c) => {
       .first<{ count: number }>();
   if (rate && rate.count > 20)
     return c.json({ message: "作成が多すぎます。1分ほど待ってください。" }, 429);
-  return c.json(publicProfile(await createGuestAccount(c.req.raw, c.env, name.data)), 201);
+  return c.json(
+    publicProfile(await createGuestAccount(c.req.raw, c.env, name.data, avatarPresetId)),
+    201,
+  );
 });
 guestRoutes.patch("/account/guest/name", async (c) => {
   if (c.req.header("Origin") !== c.env.APP_ORIGIN)

@@ -52,8 +52,8 @@ export function GomokuLobbyPage() {
       onModeChange={entry.setMode}
       onTimeControlChange={entry.setTimeControl}
       onClearMessage={entry.clearMessage}
-      onSubmitRoom={(intent, roomId, instanceId) =>
-        void entry.submitRoom(intent, roomId, instanceId)
+      onSubmitRoom={(intent, roomId, instanceId, avatarPresetId) =>
+        void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
       }
     />
   );

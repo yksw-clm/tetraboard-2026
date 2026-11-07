@@ -1,10 +1,10 @@
-import { ensureGuestAccount } from "../account/guestAccount";
+import { prepareRoomGuest } from "../account/guestAccount";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { useAccount } from "../account/useAccount";
 import { readAccount } from "../account/accountApi";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { type Room, type RoomMembership } from "@tetraboard/protocol";
+import { type Room, type RoomMembership, type AvatarPresetId } from "@tetraboard/protocol";
 import {
   joinRoom,
   roomEntryErrorMessage,
@@ -107,7 +107,7 @@ export function useRoomInvitation(
     }
   }
 
-  async function submit(): Promise<void> {
+  async function submit(avatarPresetId?: AvatarPresetId): Promise<void> {
     if (submitting.current || account.loading || account.error) return;
     submitting.current = true;
     setBusy(true);
@@ -123,13 +123,12 @@ export function useRoomInvitation(
       if (user && !user.profileCompleted) return;
       const result = await joinRoom(room.id, user ? undefined : name, room.instanceId, async () => {
         try {
-          user = await ensureGuestAccount(name, user);
+          user = await prepareRoomGuest(name, user, avatarPresetId, account.update);
         } catch (error) {
           throw new RoomEntryError(
             error instanceof Error ? error.message : "ゲスト情報を保存できませんでした。",
           );
         }
-        account.update(user);
       });
       if (result.joined) roomSounds.playJoin(result.room.instanceId, result.membership.playerId);
       // 同じURLでもloaderを再実行し、観戦用の接続を本人の接続へ切り替えます。
