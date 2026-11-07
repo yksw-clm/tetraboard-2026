@@ -2,6 +2,7 @@ import { guestIdentity, suspendGuestSession } from "./guestAccounts";
 import { authSecret } from "../privacy/tokens";
 import { isDeleted } from "../privacy/identity";
 import { betterAuth } from "better-auth";
+import { readProfileDetails } from "./profileDetails";
 import {
   accountAvatarPresetId,
   avatarPresetUrl,
@@ -86,6 +87,8 @@ export function createAuth(env: AuthEnv) {
         profileCompleted: { type: "boolean", required: false, defaultValue: false, input: false },
         avatarKey: { type: "string", required: false, input: false },
         avatarPresetId: { type: "string", required: false, input: false },
+        profileMessage: { type: "string", required: false, input: false },
+        favoriteGames: { type: "string", required: false, input: false },
       },
     },
     databaseHooks: {
@@ -124,7 +127,7 @@ export async function accountSessionIdentity(request: Request, env: AuthEnv) {
   if (!session) return null;
   // CookieキャッシュやOAuthの再ログインによって古いプロフィールを使わないようにします。
   const user = await env.APP_DB.prepare(
-    'SELECT id, name, username, image, profileCompleted, avatarKey, avatarPresetId, isTestUser, publicProfileId, isAnonymous, guestNameCustomized FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
+    'SELECT id, name, username, image, profileCompleted, avatarKey, avatarPresetId, profileMessage, favoriteGames, isTestUser, publicProfileId, isAnonymous, guestNameCustomized FROM "user" WHERE id = ? AND COALESCE(isAnonymous, 0) = 0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id)',
   )
     .bind(session.user.id)
     .first<StoredProfile>();
@@ -153,6 +156,8 @@ export type StoredProfile = {
   profileCompleted: number;
   avatarKey: string | null;
   avatarPresetId?: string | null;
+  profileMessage?: string;
+  favoriteGames?: string;
   isTestUser?: number | null;
   publicProfileId?: string | null;
   isAnonymous?: number | null;
@@ -166,6 +171,7 @@ export function publicProfile(user: StoredProfile): AccountProfile {
     avatarUrl: accountAvatarUrl(user),
     avatarPresetId: accountAvatarPresetId(user.id, user.avatarPresetId),
     profileCompleted: Boolean(user.profileCompleted),
+    ...(!user.isAnonymous ? readProfileDetails(user) : {}),
     ...(user.isAnonymous
       ? { isGuest: true, nameCustomized: Boolean(user.guestNameCustomized) }
       : {}),

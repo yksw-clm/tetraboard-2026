@@ -22,6 +22,7 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { ProfileForm } from "./ProfileForm";
+import { ProfileDetails } from "../players/ProfileDetails";
 import { readGuestRegistration } from "./guestRegistration";
 import { GuestRegistrationCompletion } from "./GuestRegistrationCompletion";
 import { useSocialSignIn } from "./useSocialSignIn";
@@ -374,6 +375,9 @@ function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId
             </p>
           </div>
         </div>
+        {!user.isGuest && (
+          <ProfileDetails profileMessage={user.profileMessage} favoriteGames={user.favoriteGames} />
+        )}
         {notice && (
           <p role="status" className="text-sm text-brand">
             {notice}

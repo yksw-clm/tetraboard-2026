@@ -151,6 +151,8 @@
 
 ## アカウントの認証と保存
 
+任意の公開プロフィール項目はD1の `user.profileMessage` とJSON配列の `user.favoriteGames` に保存します。既存ユーザーの初期値は空文字・空配列です。登録者のプロフィール更新と同じ認証・Origin検証・D1 batchで保存し、旧フォームで省略された項目はSQLで現在値を保持します。共通の現在プロフィール取得から公開カードへ返し、席・棋譜・WebSocketには複製しません。厳密な応答検証を使う既存Webとの互換性のため、公開APIは `includeDetails=1` の要求だけに追加項目を返します。
+
 プリセットは固定UUIDの共用静的画像とし、個人のR2アップロードとは分離します。`user.avatarPresetId` に選択を保存し、未選択は内部IDから不変のv1候補へ決定的に割り当てます。APIの画像URLは従来の `/api/avatars/<UUID>` を維持し、入室予約は実効プリセットもスナップショットへ含めます。共用画像を退会や個人画像の削除対象へ含めません。
 
 Better Auth 1.7.5でGoogle・Discord OAuthを処理する。Workerはログイン開始・両プロバイダーのコールバック・ログアウトだけを認証APIから公開し、プロフィールを汎用の認証APIから変更させない。認証用Cookieは `tetraboard-2026` 接頭辞とHttpOnly／SameSiteを使い、本番ではSecureを付ける。認証・プロフィールの応答は `no-store` とし、更新元は設定済み `APP_ORIGIN` と一致するOriginだけを受け付ける。Workerの `nodejs_compat` はBetter Authの実行に使う。

@@ -18,3 +18,13 @@ export const gameThemes = {
   "four-reversi": "default",
   "four-shogi": "four-shogi",
 } as const satisfies Record<GameId, AppTheme>;
+
+// 表示中のゲームテーマにかかわらず、各ゲームの識別色を使います。
+export const gameAccentClasses = {
+  "four-reversi": "[--game-accent:var(--color-game-four-reversi)]",
+  "four-shogi": "[--game-accent:var(--color-game-four-shogi)]",
+  reversi: "[--game-accent:var(--color-game-reversi)]",
+  shogi: "[--game-accent:var(--color-game-shogi)]",
+  gomoku: "[--game-accent:var(--color-game-gomoku)]",
+  "four-gomoku": "[--game-accent:var(--color-game-gomoku)]",
+} as const satisfies Record<GameId, string>;

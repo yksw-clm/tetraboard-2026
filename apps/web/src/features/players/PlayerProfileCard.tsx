@@ -6,6 +6,7 @@ import { formatPlayerStatsSummary } from "./playerStatsSummary";
 import { AppButton } from "../../shared/ui/AppButton";
 import type { ProfileState } from "./playerProfileStore";
 import { PlayerBadges } from "../badges/PlayerBadges";
+import { ProfileDetails } from "./ProfileDetails";
 export function PlayerProfileCard({
   state,
   localProfile,
@@ -64,6 +65,12 @@ export function PlayerProfileCard({
       </div>
       {profile.kind === "account" ? (
         <>
+          {!profile.isGuest && (
+            <ProfileDetails
+              profileMessage={profile.profileMessage}
+              favoriteGames={profile.favoriteGames}
+            />
+          )}
           <div>
             <p className="m-0 text-xs font-semibold">
               {gameCatalog[game].name}

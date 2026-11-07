@@ -1,4 +1,5 @@
 import { accountAvatarUrl } from "./auth";
+import { readProfileDetails } from "./profileDetails";
 export type CurrentProfile = {
   name: string;
   username: string | null;
@@ -6,6 +7,8 @@ export type CurrentProfile = {
   publicProfileId: string | null;
   profileCompleted: number;
   isAnonymous: number | null;
+  profileMessage: string;
+  favoriteGames: ReturnType<typeof readProfileDetails>["favoriteGames"];
 };
 export async function readCurrentProfiles(
   db: D1Database,
@@ -16,18 +19,23 @@ export async function readCurrentProfiles(
   if (!unique.length) return profiles;
   const rows = await db
     .prepare(
-      `SELECT id, name, username, avatarKey, avatarPresetId, publicProfileId, profileCompleted, isAnonymous FROM user WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND id IN (${unique.map(() => "?").join(",")})`,
+      `SELECT id, name, username, avatarKey, avatarPresetId, publicProfileId, profileCompleted, isAnonymous, profileMessage, favoriteGames FROM user WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND id IN (${unique.map(() => "?").join(",")})`,
     )
     .bind(...unique)
     .all<
-      Omit<CurrentProfile, "avatarUrl"> & {
+      Omit<CurrentProfile, "avatarUrl" | "favoriteGames"> & {
         id: string;
         avatarKey: string | null;
         avatarPresetId: string | null;
+        favoriteGames: string;
       }
     >();
   for (const { id, avatarKey, avatarPresetId, ...row } of rows.results) {
-    profiles.set(id, { ...row, avatarUrl: accountAvatarUrl({ id, avatarKey, avatarPresetId }) });
+    profiles.set(id, {
+      ...row,
+      ...readProfileDetails(row),
+      avatarUrl: accountAvatarUrl({ id, avatarKey, avatarPresetId }),
+    });
   }
   return profiles;
 }

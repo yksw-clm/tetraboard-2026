@@ -21,6 +21,8 @@ test("ゲストも6種類を選べ、保存失敗後も選択を保持し、ア�
   );
   expect(view.querySelectorAll("button[aria-pressed]")).toHaveLength(6);
   expect(view.querySelector('input[type="file"]')).toBeNull();
+  expect(view.querySelector('input[name="profileMessage"]')).toBeNull();
+  expect(view.querySelector('[aria-label="お気に入りゲームの選択"]')).toBeNull();
   expect(view.querySelector<HTMLInputElement>('input[name="username"]')!.readOnly).toBe(true);
   const preset = avatarPresets[2];
   act(() => view.querySelector<HTMLButtonElement>(`[aria-label="${preset.name}"]`)!.click());
