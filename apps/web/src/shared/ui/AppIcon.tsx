@@ -2,6 +2,7 @@ import { cn } from "@heroui/react";
 import { type ComponentPropsWithRef } from "react";
 
 const paths = {
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4",
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
   trophy:
     "M8 3h8v6a4 4 0 0 1-8 0V3Zm8 2h4v2a4 4 0 0 1-4 4M8 5H4v2a4 4 0 0 0 4 4m4 2v5m-5 3h10m-8 0v-3h6v3",
@@ -16,8 +17,12 @@ const paths = {
   rotateClockwise: "M20 7v5h-5M20 12a8 8 0 1 0-2.3 5.7",
   refresh:
     "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5",
+  shuffle:
+    "m18 3 3 3-3 3M3 18h3c5 0 7-12 12-12h3M3 6h3c2 0 3.5 2 5 5m2 3c1.5 2.5 3 4 5 4h3m-3-3 3 3-3 3",
   help: "M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-1.1.8-1.7 1.2-1.7 2.7M12 17h.01",
   close: "m6 6 12 12M6 18 18 6",
+  check: "m5 12 4 4L19 6",
+  lock: "M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5V10Zm7 4v3",
   users:
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.9M15 3.1a4 4 0 0 1 0 7.8",
   copy: "M8 8h13v13H8V8ZM16 8V3H3v13h5",

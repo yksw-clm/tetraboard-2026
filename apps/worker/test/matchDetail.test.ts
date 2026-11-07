@@ -1,3 +1,4 @@
+import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
 import {
@@ -70,7 +71,9 @@ test("名前とアイコンは現在のプロフィールを使う", async () =>
     avatarUrl: `/api/avatars/${key.slice(8, -5)}`,
   });
   await env.APP_DB.prepare("UPDATE user SET avatarKey = NULL WHERE id = ?").bind(user.id).run();
-  expect((await read()).participants[0]).toMatchObject({ avatarUrl: null });
+  expect((await read()).participants[0]).toMatchObject({
+    avatarUrl: avatarPresetUrl(accountAvatarPresetId(user.id)),
+  });
 });
 
 test("未認証・不正IDを拒否し、認証とD1の障害を503にする", async () => {

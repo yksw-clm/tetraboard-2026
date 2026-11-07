@@ -48,7 +48,6 @@ function LiveRoom({ data }: { data: RoomLoaderData }) {
           key={key}
           {...common}
           initialRoom={data.room}
-          initialFormationAnalysisSupported={data.formationAnalysisSupported}
           initialEliminatedHands={data.eliminatedHands}
         />
       );

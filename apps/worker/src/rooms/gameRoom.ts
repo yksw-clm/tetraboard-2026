@@ -1,11 +1,3 @@
-import {
-  FourShogiTrialCpu,
-  trialCpuSettingsKey,
-  trialCpuDiagnosticsKey,
-  type TrialCpuSettings,
-} from "../fourShogiAi/cpu";
-import { gatewayConfig } from "../fourShogiAi/client";
-import type { AiCpuProfile } from "@tetraboard/protocol/four-shogi-ai";
 import { prepareRoomSettings } from "./applyRoomSettings";
 import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
 import { retiredName } from "../privacy/identity";
@@ -193,68 +185,6 @@ export class GameRoom extends DurableObject<Env> {
   private readonly standardProgress = gameProgress.reversi.create(this.progressDependencies);
   private readonly shogiProgress = gameProgress["four-shogi"].create(this.progressDependencies);
   private readonly standardShogiProgress = gameProgress.shogi.create(this.progressDependencies);
-  private readonly trialCpu = new FourShogiTrialCpu({
-    storage: this.ctx.storage,
-    env: this.env,
-    progress: this.shogiProgress,
-    readRoom: () => this.readRoom(),
-    accountId: (playerId) => this.storedAccount(playerId)?.accountId ?? null,
-    changed: () => this.syncAlarm(this.readRoom()),
-    waitUntil: (promise) => this.ctx.waitUntil(promise),
-  });
-  async configureTrialCpu(
-    accountId: string,
-    tokenHash: string,
-    instanceId: string,
-    playerId: string,
-    profile: AiCpuProfile | null,
-  ) {
-    await this.reconcileDeadlines();
-    return this.withIndexTransaction(() => {
-      const room = this.readRoom(),
-        membership = this.readMembership(tokenHash);
-      const config = gatewayConfig(this.env);
-      if (!room || room.instanceId !== instanceId) return { error: "room_not_found" as const };
-      if (
-        !membership ||
-        membership.role !== "host" ||
-        this.storedAccount(membership.playerId)?.accountId !== accountId ||
-        !config.ids.includes(accountId)
-      )
-        return { error: "trial_forbidden" as const };
-      if (!isFourShogiRoom(room) || room.settings.mode !== "singles" || room.status !== "waiting")
-        return { error: "unsupported_room" as const };
-      const cpu = room.players.find((p) => p.id === playerId);
-      if (
-        cpu?.kind !== "cpu" ||
-        cpu.level !== 2 ||
-        !room.players.every(
-          (p) => p.kind === "cpu" || config.ids.includes(this.storedAccount(p.id)?.accountId ?? ""),
-        )
-      )
-        return { error: "trial_forbidden" as const };
-      const saved = this.ctx.storage.kv.get<TrialCpuSettings>(trialCpuSettingsKey);
-      const settings: TrialCpuSettings =
-        saved?.instanceId === instanceId && saved.ownerId === accountId
-          ? saved
-          : { instanceId, ownerId: accountId, players: {} };
-      if (profile) settings.players[playerId] = profile;
-      else delete settings.players[playerId];
-      this.ctx.storage.kv.put(trialCpuSettingsKey, settings);
-      return { settings: { instanceId, players: settings.players } };
-    });
-  }
-  trialCpuDiagnostics(accountId: string, instanceId: string) {
-    const room = this.readRoom();
-    if (
-      !room ||
-      room.instanceId !== instanceId ||
-      !gatewayConfig(this.env).ids.includes(accountId) ||
-      !room.players.some((p) => this.storedAccount(p.id)?.accountId === accountId)
-    )
-      return null;
-    return this.ctx.storage.kv.get<object[]>(trialCpuDiagnosticsKey) ?? [];
-  }
   private analyticsFlush: Promise<void> | null = null;
 
   private pendingAnalytics() {
@@ -412,6 +342,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushMatches(): Promise<void> {
     if (this.matchFlush) return this.matchFlush;
+    if (this.pendingMatches().size === 0) return;
     const flush = async () => {
       for (;;) {
         const next = [...this.pendingMatches()].find(([, job]) => job.retryAtMs <= Date.now());
@@ -643,9 +574,14 @@ export class GameRoom extends DurableObject<Env> {
             own && ["name", "senderName", "hostName"].includes(key)
               ? retiredName
               : own &&
-                  ["accountId", "avatarUrl", "avatarKey", "profileId", "hostAvatarUrl"].includes(
-                    key,
-                  )
+                  [
+                    "accountId",
+                    "avatarUrl",
+                    "avatarKey",
+                    "avatarPresetId",
+                    "profileId",
+                    "hostAvatarUrl",
+                  ].includes(key)
                 ? null
                 : strip(v, own && key === "appearance", scope),
           ]),
@@ -1047,7 +983,7 @@ export class GameRoom extends DurableObject<Env> {
           accountId: admission.accountId,
           isTest: analytics?.isTest ?? false,
         } satisfies AnalyticsIdentity);
-        const avatarUrl = profileAvatarUrl(admission.avatarKey);
+        const avatarUrl = profileAvatarUrl(admission.avatarKey, admission.avatarPresetId);
         this.ctx.storage.kv.put(
           roomStorageKey,
           roomSchema.parse({
@@ -1113,6 +1049,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushAccountCleanup(): Promise<void> {
     if (this.accountFlush) return this.accountFlush;
+    if (!this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey)?.length) return;
     const flush = async () => {
       for (;;) {
         const job = (this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).find(
@@ -1163,7 +1100,7 @@ export class GameRoom extends DurableObject<Env> {
           return { ok: true as const, value: null };
         const reservation =
           await this.env.APP_DB.prepare(`SELECT operation_id FROM account_room_seats
-        WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=account_room_seats.account_id)`)
+        WHERE account_id = ? AND operation_id = ? AND room_id = ? AND instance_id = ? AND player_id = ? AND name = ? AND avatar_key IS ? AND avatar_preset_id IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=account_room_seats.account_id)`)
             .bind(
               admission.accountId,
               admission.operationId,
@@ -1172,6 +1109,7 @@ export class GameRoom extends DurableObject<Env> {
               admission.playerId,
               admission.name,
               admission.avatarKey,
+              admission.avatarPresetId ?? null,
             )
             .first();
         if (!reservation) return { ok: true as const, value: null };
@@ -1213,13 +1151,14 @@ export class GameRoom extends DurableObject<Env> {
           (player) =>
             player.id === admission.playerId &&
             player.kind === "human" &&
-            player.avatarUrl === profileAvatarUrl(admission.avatarKey),
+            player.avatarUrl === profileAvatarUrl(admission.avatarKey, admission.avatarPresetId),
         ) ||
           room.lastRound?.players.some(
             (player) =>
               player.id === admission.playerId &&
               player.appearance?.kind === "human" &&
-              player.appearance.avatarUrl === profileAvatarUrl(admission.avatarKey),
+              player.appearance.avatarUrl ===
+                profileAvatarUrl(admission.avatarKey, admission.avatarPresetId),
           ));
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.kv.put(cancelledAdmissionKey(admission.operationId), true);
@@ -1671,7 +1610,6 @@ export class GameRoom extends DurableObject<Env> {
     instanceId: string,
     roundId: string,
     cursor: number,
-    throughEventCount?: number,
   ): Promise<
     | {
         status: "found";
@@ -1679,40 +1617,19 @@ export class GameRoom extends DurableObject<Env> {
           | import("@tetraboard/protocol").FourShogiReplayPage
           | import("@tetraboard/protocol").ShogiReplayPage;
       }
-    | { status: "not_found" | "room_changed" | "invalid_request" }
+    | { status: "not_found" | "room_changed" }
   > {
     await this.reconcileDeadlines();
     const room = this.readRoom();
     if (!room) return { status: "not_found" };
     if (room.instanceId !== instanceId) return { status: "room_changed" };
     if (!isFourShogiRoom(room) && !isShogiRoom(room)) return { status: "not_found" };
-    const live = throughEventCount !== undefined;
-    if (live && !isFourShogiRoom(room)) return { status: "invalid_request" };
-    const currentRound = room.status === "playing" ? room.roundId : room.lastRound?.roundId;
-    if (
-      live
-        ? currentRound !== roundId
-        : room.status !== "waiting" || room.lastRound?.roundId !== roundId
-    )
+    if (room.status !== "waiting" || room.lastRound?.roundId !== roundId)
       return { status: "not_found" };
     const store = isShogiRoom(room)
       ? this.standardShogiProgress.store()
       : this.shogiProgress.store();
-    if (live) {
-      const count = store.eventCount(roundId);
-      // 観戦snapshotのrevisionを、そのまま欠落のないイベントprefixへ対応させます。
-      if (room.status === "playing" && count !== room.positionRevision)
-        throw new Error("Shogi revision and replay event count disagree");
-      if (
-        !Number.isSafeInteger(throughEventCount) ||
-        !Number.isSafeInteger(cursor) ||
-        cursor < 0 ||
-        throughEventCount < cursor ||
-        throughEventCount > count
-      )
-        return { status: "invalid_request" };
-    }
-    const page = store.getPage(instanceId, roundId, cursor, throughEventCount);
+    const page = store.getPage(instanceId, roundId, cursor);
     return page ? { status: "found", page } : { status: "not_found" };
   }
 
@@ -1800,6 +1717,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushRoomIndex(): Promise<void> {
     if (this.indexFlush !== null) return this.indexFlush;
+    if (this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey) === undefined) return;
     const flush = async () => {
       for (;;) {
         const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
@@ -1849,7 +1767,6 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private async syncAlarm(room: Room | null): Promise<void> {
-    this.trialCpu.maintain(room);
     const deadlines =
       room?.players
         .filter((player) => player.kind === "human" && !this.registrationForPlayer(player.id))
@@ -1875,11 +1792,7 @@ export class GameRoom extends DurableObject<Env> {
                   ? this.reversiProgress.cpuJob(room)
                   : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
-        const trialAt =
-          isFourShogiRoom(room) && this.trialCpu.enabled(room) ? this.trialCpu.alarmAt(room) : null;
-        deadlines.push(
-          trialAt ?? (job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt),
-        );
+        deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
       }
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
@@ -1933,12 +1846,14 @@ export class GameRoom extends DurableObject<Env> {
 
   private async flushTournamentStates(): Promise<void> {
     if (this.tournamentStateFlush) return this.tournamentStateFlush;
+    const pendingStates = [
+      ...this.ctx.storage.kv.list<PendingTournamentState>({
+        prefix: pendingTournamentStatePrefix,
+      }),
+    ];
+    if (pendingStates.length === 0) return;
     const flush = async () => {
-      for (const [key, pending] of [
-        ...this.ctx.storage.kv.list<PendingTournamentState>({
-          prefix: pendingTournamentStatePrefix,
-        }),
-      ]) {
+      for (const [key, pending] of pendingStates) {
         if (pending.retryAtMs > Date.now()) continue;
         try {
           await writeTournamentState(this.env.APP_DB, pending);
@@ -2005,7 +1920,7 @@ export class GameRoom extends DurableObject<Env> {
           JOIN tournament_matches m ON m.id=p.match_id AND m.tournament_key=e.tournament_key
           JOIN tournaments t ON t.key=m.tournament_key
           WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=?
-            AND s.name=? AND s.avatar_key IS ? AND u.profileCompleted=1
+            AND s.name=? AND s.avatar_key IS ? AND s.avatar_preset_id IS ? AND u.profileCompleted=1
             AND m.phase='reserved' AND m.room_id=? AND m.instance_id=?
             AND t.key=? AND t.public_id=? AND t.published=1 AND t.rule_version=?
             AND t.starts_at_ms=? AND t.ends_at_ms=?
@@ -2018,6 +1933,7 @@ export class GameRoom extends DurableObject<Env> {
             admission.playerId,
             admission.name,
             admission.avatarKey,
+            admission.avatarPresetId ?? null,
             roomId,
             instanceId,
             context.tournamentKey,
@@ -2062,7 +1978,7 @@ export class GameRoom extends DurableObject<Env> {
           id: admission.playerId,
           kind: "human",
           name: admission.name,
-          avatarUrl: profileAvatarUrl(admission.avatarKey),
+          avatarUrl: profileAvatarUrl(admission.avatarKey, admission.avatarPresetId),
           ...(admission.isGuest ? { isGuest: true } : {}),
           ready: true,
           side: null,
@@ -2472,7 +2388,8 @@ export class GameRoom extends DurableObject<Env> {
             initialRoom.players[0].id !== admission.playerId ||
             initialRoom.players[0].name !== admission.name ||
             initialRoom.players[0].kind !== "human" ||
-            initialRoom.players[0].avatarUrl !== profileAvatarUrl(admission.avatarKey)
+            initialRoom.players[0].avatarUrl !==
+              profileAvatarUrl(admission.avatarKey, admission.avatarPresetId)
           )
             throw new Error("Admission does not match host");
           this.ctx.storage.kv.put(accountKey(admission.playerId), {
@@ -2609,6 +2526,16 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "unauthorized" }
   > {
     await this.reconcileDeadlines();
+    return this.currentRoomMembership(tokenHash);
+  }
+
+  /** 期限を確認した入口から、awaitを挟まず現在の資格を照合します。 */
+  private currentRoomMembership(
+    tokenHash: string,
+  ):
+    | { status: "found"; membership: RoomMembership }
+    | { status: "not_found" }
+    | { status: "unauthorized" } {
     const room = this.readRoom();
     if (room === null) {
       return { status: "not_found" };
@@ -2680,7 +2607,9 @@ export class GameRoom extends DurableObject<Env> {
               id: playerId,
               name: playerName,
               kind: "human",
-              avatarUrl: admission ? profileAvatarUrl(admission.avatarKey) : null,
+              avatarUrl: admission
+                ? profileAvatarUrl(admission.avatarKey, admission.avatarPresetId)
+                : null,
               ...(admission?.isGuest ? { isGuest: true } : {}),
               ready: false,
               ...(isFourShogiRoom(room) || isShogiRoom(room) ? { side: null } : { color: null }),
@@ -3036,10 +2965,7 @@ export class GameRoom extends DurableObject<Env> {
       ) {
         if (isFourShogiRoom(room)) {
           if (applyCpu && currentCpu(room) !== null) {
-            const trial = this.trialCpu.enabled(room);
-            const proposal = trial
-              ? { kind: "unchanged" as const }
-              : this.shogiProgress.cpuDraw(room, now);
+            const proposal = this.shogiProgress.cpuDraw(room, now);
             if (proposal.kind !== "unchanged") {
               room = this.applyProgress(proposal);
               if (room) this.ctx.storage.kv.put(roomStorageKey, room);
@@ -3047,8 +2973,8 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isFourShogiRoom(room)) throw new Error("Expected Shogi room");
-            const result = trial ? this.trialCpu.cpu(room, now) : this.shogiProgress.cpu(room, now);
-            if (result && result.kind !== "unchanged") {
+            const result = this.shogiProgress.cpu(room, now);
+            if (result.kind !== "unchanged") {
               room = this.applyProgress(result);
               if (room) this.ctx.storage.kv.put(roomStorageKey, room);
               changed = true;
@@ -3110,7 +3036,6 @@ export class GameRoom extends DurableObject<Env> {
       return room;
     });
     await this.syncAlarm(updated);
-    if (applyCpu) this.trialCpu.kick();
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
     await this.flushTournamentStates();
@@ -3877,13 +3802,16 @@ export class GameRoom extends DurableObject<Env> {
     }
 
     try {
+      // hash計算中に復帰期限を越える場合も、照合直前に期限を処理します。
+      const authTokenHash =
+        parsed.data.type === "room.auth" ? await hashMembershipToken(parsed.data.token) : null;
       await this.reconcileDeadlines();
       if (this.readRoom() === null) {
         this.sendSocketError(socket, "not_found");
         return;
       }
       if (parsed.data.type === "room.auth") {
-        const tokenHash = await hashMembershipToken(parsed.data.token);
+        const tokenHash = authTokenHash!;
         const existing: unknown = socket.deserializeAttachment();
         if (
           typeof existing === "object" &&
@@ -3894,7 +3822,7 @@ export class GameRoom extends DurableObject<Env> {
           this.sendSocketError(socket, "unauthorized");
           return;
         }
-        const result = await this.getRoomMembership(tokenHash);
+        const result = this.currentRoomMembership(tokenHash);
         if (result.status !== "found") {
           socket.serializeAttachment(null);
           this.sendSocketError(

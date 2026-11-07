@@ -5,7 +5,7 @@ import {
   profileInputSchema,
 } from "@tetraboard/protocol";
 import { readStoredMatch } from "./matchDataContracts";
-import { readCurrentProfiles, ensurePublicProfileId } from "./currentProfiles";
+import { readCurrentProfiles } from "./currentProfiles";
 import { readAccountStats } from "./statsRoutes";
 import { resolveMatchParticipants } from "./matchClaims";
 export const playerProfileRoutes = new Hono<{ Bindings: Env }>();
@@ -83,8 +83,8 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
       (!profile.isAnonymous && !profileInputSchema.safeParse(profile).success)
     )
       return c.json({ message: "プロフィールを表示できません。" }, 404);
-    const profileId =
-      profile.publicProfileId ?? (await ensurePublicProfileId(c.env.APP_DB, accountId));
+    const profileId = profile.publicProfileId;
+    if (!profileId) throw new Error("Public profile ID is missing");
     const stats = await readAccountStats(c.env.APP_DB, accountId, target.game);
     return c.json(
       getPlayerProfileContract.response.parse({
@@ -94,6 +94,9 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         name: profile.name,
         username: profile.username,
         avatarUrl: profile.avatarUrl,
+        ...(target.includeDetails === "1" && !profile.isAnonymous
+          ? { profileMessage: profile.profileMessage, favoriteGames: profile.favoriteGames }
+          : {}),
         game: target.game,
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:

@@ -69,7 +69,6 @@ export interface RoomTransportOptions<T extends Room> {
   initialMembership: RoomMembership | null;
   initialServerNowMs: number;
   initialPresence: RoomPresence;
-  initialFormationAnalysisSupported?: boolean;
   initialEliminatedHands?: FourShogiEliminatedHands | null;
   initialStampsSupported?: boolean;
 }
@@ -124,7 +123,6 @@ export function useRoomTransport<T extends Room>({
   gameOperationError,
   onGameError,
   readSoundGame,
-  initialFormationAnalysisSupported = false,
   initialEliminatedHands,
   initialStampsSupported = false,
 }: RoomTransportOptions<T>) {
@@ -269,7 +267,6 @@ export function useRoomTransport<T extends Room>({
     let pendingChat: { text: string; ids: Set<string> } | null = null;
     let retryDelay = 1000;
     let currentMembership = initialMembership;
-    let formationAnalysisSupported = initialFormationAnalysisSupported;
     let handsSupported = initialEliminatedHands !== undefined;
     let socketHandsSupported = handsSupported;
     let stampSupported = initialStampsSupported;
@@ -530,8 +527,6 @@ export function useRoomTransport<T extends Room>({
         currentMembership = latestMembership;
         setMembership(latestMembership);
         applySnapshot({ ...latest, room: latest.room }, true);
-        formationAnalysisSupported =
-          latest.room.settings.game === "four-shogi" && latest.formationAnalysis !== undefined;
         handsSupported =
           latest.room.settings.game === "four-shogi" && latest.eliminatedHands !== undefined;
         stampSupported = latest.stampsSupported === true;
@@ -621,7 +616,7 @@ export function useRoomTransport<T extends Room>({
       setAuthenticated(false);
       setSocketError(null);
       const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${formationAnalysisSupported ? "&formationAnalysis=1" : ""}${handsSupported ? "&eliminatedHands=1" : ""}${stampSupported ? "&stamps=1" : ""}`;
+      const url = `${scheme}//${window.location.host}/api${roomSocketContract.pathFor(initialRoom.id)}?instanceId=${initialRoom.instanceId}${handsSupported ? "&eliminatedHands=1" : ""}${stampSupported ? "&stamps=1" : ""}`;
       try {
         socket = new WebSocket(url);
       } catch {
@@ -923,7 +918,6 @@ export function useRoomTransport<T extends Room>({
   }, [
     initialTournamentId,
     navigate,
-    initialFormationAnalysisSupported,
     initialEliminatedHands,
     initialStampsSupported,
     initialServerNowMs,

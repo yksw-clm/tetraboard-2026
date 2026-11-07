@@ -224,6 +224,9 @@ export async function processDeletions(env: AuthEnv) {
         env.APP_DB.prepare("DELETE FROM analytics_pageviews WHERE account_id=?").bind(job.id),
         env.APP_DB.prepare("DELETE FROM analytics_participants WHERE account_id=?").bind(job.id),
         ...[
+          "account_notification_reads",
+          "account_notification_state",
+          "notification_events",
           "account_badge_awards",
           "account_badge_notifications",
           "account_match_history",

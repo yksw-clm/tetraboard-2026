@@ -1,4 +1,5 @@
-import { profileAvatarUrl } from "./auth";
+import { accountAvatarUrl } from "./auth";
+import { readProfileDetails } from "./profileDetails";
 export type CurrentProfile = {
   name: string;
   username: string | null;
@@ -6,6 +7,8 @@ export type CurrentProfile = {
   publicProfileId: string | null;
   profileCompleted: number;
   isAnonymous: number | null;
+  profileMessage: string;
+  favoriteGames: ReturnType<typeof readProfileDetails>["favoriteGames"];
 };
 export async function readCurrentProfiles(
   db: D1Database,
@@ -16,25 +19,23 @@ export async function readCurrentProfiles(
   if (!unique.length) return profiles;
   const rows = await db
     .prepare(
-      `SELECT id, name, username, avatarKey, publicProfileId, profileCompleted, isAnonymous FROM user WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND id IN (${unique.map(() => "?").join(",")})`,
+      `SELECT id, name, username, avatarKey, avatarPresetId, publicProfileId, profileCompleted, isAnonymous, profileMessage, favoriteGames FROM user WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id = user.id) AND id IN (${unique.map(() => "?").join(",")})`,
     )
     .bind(...unique)
-    .all<Omit<CurrentProfile, "avatarUrl"> & { id: string; avatarKey: string | null }>();
-  for (const { id, avatarKey, ...row } of rows.results) {
-    profiles.set(id, { ...row, avatarUrl: profileAvatarUrl(avatarKey) });
+    .all<
+      Omit<CurrentProfile, "avatarUrl" | "favoriteGames"> & {
+        id: string;
+        avatarKey: string | null;
+        avatarPresetId: string | null;
+        favoriteGames: string;
+      }
+    >();
+  for (const { id, avatarKey, avatarPresetId, ...row } of rows.results) {
+    profiles.set(id, {
+      ...row,
+      ...readProfileDetails(row),
+      avatarUrl: accountAvatarUrl({ id, avatarKey, avatarPresetId }),
+    });
   }
   return profiles;
-}
-// Handles accounts completed by the previous Worker between migration and deployment.
-export async function ensurePublicProfileId(
-  db: D1Database,
-  accountId: string,
-): Promise<string | null> {
-  const row = await db
-    .prepare(
-      "UPDATE user SET publicProfileId = COALESCE(publicProfileId, ?) WHERE id = ? AND profileCompleted = 1 AND (COALESCE(isAnonymous,0)=0 OR guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING publicProfileId",
-    )
-    .bind(crypto.randomUUID(), accountId)
-    .first<{ publicProfileId: string }>();
-  return row?.publicProfileId ?? null;
 }

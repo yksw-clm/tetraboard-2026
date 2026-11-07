@@ -20,7 +20,7 @@ const stats = {
   doubles: { total: 6, wins: 3, losses: 2, draws: 1 },
 };
 const rankings = { singles: { first: [], total: [] }, doubles: { wins: [], total: [] } };
-test("cards取得の失敗は同条件で再試行し、ランキングの旧Worker互換を維持する", async () => {
+test("cards・ランキングの400は自動再取得せず、利用者の再試行で同条件を使う", async () => {
   const lobby = renderHook(useLobby, "four-reversi" as const);
   clock.advance(0);
   expect(requests.at(-1)!.url).toBe("/api/lobby/rooms?view=cards&game=four-reversi");
@@ -36,7 +36,12 @@ test("cards取得の失敗は同条件で再試行し、ランキングの旧Wor
   clock.advance(0);
   requests.at(-1)!.respond({}, 400);
   await flush();
-  expect(requests.at(-1)!.url).toBe("/api/games/four-shogi/rankings");
+  expect(ranking.current.error).not.toBeNull();
+  expect(requests).toHaveLength(3);
+  act(() => void ranking.current.refresh());
+  expect(requests.at(-1)!.url).toBe(
+    "/api/games/four-shogi/rankings?profilePreview=1&includeKnockouts=1",
+  );
   requests.at(-1)!.respond(rankings);
   await flush();
   expect(ranking.current.error).toBeNull();

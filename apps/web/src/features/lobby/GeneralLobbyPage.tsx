@@ -124,7 +124,9 @@ export function GeneralLobbyPage() {
           onCpuLevelChange={entry.setCpuLevel}
           onTimeControlChange={entry.setTimeControl}
           onClose={() => setSelected(null)}
-          onSubmit={() => void entry.submitRoom("join", selected.id, selected.instanceId)}
+          onSubmit={(avatarPresetId) =>
+            void entry.submitRoom("join", selected.id, selected.instanceId, avatarPresetId)
+          }
         />
       )}
     </div>

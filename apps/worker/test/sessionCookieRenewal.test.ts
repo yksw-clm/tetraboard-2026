@@ -259,7 +259,6 @@ test.each([true, false])(
       vi.setSystemTime(issuedAt + day);
       const bindings: AdminEnv = {
         ...env,
-        ADMIN_ACCOUNT_ID: allowed ? user.id : "another-admin",
         ADMIN_ACCOUNT_IDS: JSON.stringify([allowed ? user.id : "another-admin"]),
         ASSETS: {
           fetch: async () => new Response("admin asset", { headers: { ETag: '"admin"' } }),
@@ -283,7 +282,6 @@ test("HTTPSではSecureとCookie名を維持し、失効した管理画面の転
   const bindings: AdminEnv = {
     ...env,
     APP_ORIGIN: "https://tetraboard.net",
-    ADMIN_ACCOUNT_ID: user.id,
     ADMIN_ACCOUNT_IDS: JSON.stringify([user.id]),
     ASSETS: { fetch: async () => new Response("admin") } as unknown as Fetcher,
   };

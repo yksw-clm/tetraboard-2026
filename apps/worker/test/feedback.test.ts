@@ -60,7 +60,7 @@ const post = (
 const cookieOf = (r: Response) => r.headers.get("Set-Cookie")!.split(";")[0]!;
 async function admin() {
   const user = await accountFixture();
-  return { user, bindings: { ...env, ADMIN_ACCOUNT_ID: user.id } };
+  return { user, bindings: { ...env, ADMIN_ACCOUNT_IDS: JSON.stringify([user.id]) } };
 }
 const getAdmin = (path: string, a: Awaited<ReturnType<typeof admin>>) =>
   fetchWith(`/api/admin/feedback${path}`, { headers: { Cookie: a.user.cookie } }, a.bindings);

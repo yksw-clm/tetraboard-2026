@@ -3,6 +3,9 @@ import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, evictDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
 import {
+  avatarPresets,
+  avatarPresetUrl,
+  type AvatarPresetId,
   accountProfileSchema,
   createRoomContract,
   joinRoomContract,
@@ -26,7 +29,7 @@ import { cleanupLobbyChat } from "../src/lobby/chatStore";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
-async function guest(name = "ゲスト本人") {
+async function guest(name = "ゲスト本人", avatarPresetId?: AvatarPresetId) {
   const response = await request("/account/guest", {
     method: "POST",
     headers: {
@@ -34,7 +37,7 @@ async function guest(name = "ゲスト本人") {
       "Content-Type": "application/json",
       "CF-Connecting-IP": crypto.randomUUID(),
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, avatarPresetId }),
   });
   expect(response.status).toBe(201);
   const user = accountProfileSchema.parse(await response.json());
@@ -168,7 +171,7 @@ test("ゲストIDは同名でも一意で、登録者IDとの衝突を再試行�
   const renamed = await request("/account/guest/name", {
     method: "PATCH",
     headers: g.headers,
-    body: JSON.stringify({ name: "変更名", username: "changed" }),
+    body: JSON.stringify({ name: "変更名" }),
   });
   expect(await renamed.json()).toMatchObject({ name: "変更名", username: g.user.username });
   expect((await request("/account/profile", { method: "PATCH", headers: g.headers })).status).toBe(
@@ -185,7 +188,7 @@ test("ゲスト作成の同意保存に失敗しても利用者・ID・本人資
   const uuid = vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(id);
   try {
     const response = await withAccountSessionCookies(req, async () => {
-      await expect(createGuestAccount(req, env, "作成失敗")).rejects.toThrow(
+      await expect(createGuestAccount(req, env, "作成失敗", avatarPresets[2].id)).rejects.toThrow(
         "Test guest consent failure",
       );
       return new Response(null, { status: 503 });
@@ -296,10 +299,23 @@ test("自動名と名前設定済みを区別し、180日Cookieで同じゲス�
   const completed = await request("/account/guest", {
     method: "POST",
     headers,
-    body: JSON.stringify({ name: "本人名" }),
+    body: JSON.stringify({ name: "本人名", avatarPresetId: avatarPresets[4].id }),
   });
   expect(completed.status).toBe(200);
-  expect(await completed.json()).toMatchObject({ name: "本人名", nameCustomized: true });
+  expect(await completed.json()).toMatchObject({
+    name: "本人名",
+    nameCustomized: true,
+    avatarPresetId: avatarPresets[4].id,
+  });
+  const repeated = await request("/account/guest", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "別タブ", avatarPresetId: avatarPresets[1].id }),
+  });
+  expect(await repeated.json()).toMatchObject({
+    name: "本人名",
+    avatarPresetId: avatarPresets[4].id,
+  });
   const hash = await guestTokenHash(new Request(origin, { headers }));
   await env.APP_DB.prepare("UPDATE guest_sessions SET expires_at_ms=? WHERE token_hash=?")
     .bind(Date.now() + 1000, hash)
@@ -319,7 +335,9 @@ test("自動名と名前設定済みを区別し、180日Cookieで同じゲス�
 });
 for (const game of gameIds)
   test(`${game}: ゲスト本人として作成し、全ルーム共通1席制限を適用する`, async () => {
-    const g = await guest();
+    const preset = avatarPresets[gameIds.indexOf(game)]!;
+    const g = await guest("ゲスト本人", preset.id);
+    expect(g.user.avatarPresetId).toBe(preset.id);
     const created = await request("/rooms", {
       method: "POST",
       headers: g.headers,
@@ -332,7 +350,11 @@ for (const game of gameIds)
     expect(created.status).toBe(201);
     const result = createRoomContract.response.parse(await created.json());
     createdRooms.add(result.room.id);
-    expect(result.room.players[0]).toMatchObject({ name: g.user.name, isGuest: true });
+    expect(result.room.players[0]).toMatchObject({
+      name: g.user.name,
+      isGuest: true,
+      avatarUrl: avatarPresetUrl(preset.id),
+    });
     const duplicate = await request("/rooms", {
       method: "POST",
       headers: g.headers,
@@ -384,6 +406,7 @@ for (const game of gameIds)
     };
     expect(joined.room.players.find((p) => p.name === g.user.name)).toMatchObject({
       isGuest: true,
+      avatarUrl: avatarPresetUrl(preset.id),
     });
     await request(`/rooms/${host.room.id}/leave`, {
       method: "POST",
@@ -441,6 +464,9 @@ for (const provider of ["google", "discord"])
     const g = await guest(),
       record = humanFixtureRecord(g.id, 1);
     await writeMatch(env.APP_DB, record);
+    await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
+      .bind(avatarPresets[4].id, g.id)
+      .run();
     const { target } = await link(g, false, provider);
     const user = await accountIdentity(new Request(origin, { headers: target.headers }), env);
     expect(user).toMatchObject({
@@ -449,6 +475,7 @@ for (const provider of ["google", "discord"])
       username: g.user.username,
       isAnonymous: 0,
       profileCompleted: 0,
+      avatarPresetId: avatarPresets[4].id,
     });
     expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).toBeNull();
     expect(
@@ -618,6 +645,17 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     record = humanFixtureRecord(g.id, 1);
   await writeMatch(env.APP_DB, record);
   const { target, headers } = await link(g);
+  await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
+    .bind(avatarPresets[1].id, g.id)
+    .run();
+  await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
+    .bind(avatarPresets[2].id, target.id)
+    .run();
+  await env.APP_DB.prepare(
+    "UPDATE user SET profileMessage='統合先のひとこと', favoriteGames='[\"shogi\"]' WHERE id=?",
+  )
+    .bind(target.id)
+    .run();
   expect(await (await request("/account/guest-merge", { headers })).json()).toEqual({
     pending: { guestName: g.user.name },
   });
@@ -650,6 +688,14 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     .bind(record.id)
     .first<{ account_id: string }>();
   expect(saved!.account_id).toBe(target.id);
+  expect(
+    await (await request("/account/session", { headers: target.headers })).json(),
+  ).toMatchObject({ user: { profileMessage: "統合先のひとこと", favoriteGames: ["shogi"] } });
+  expect(
+    await env.APP_DB.prepare("SELECT avatarPresetId FROM user WHERE id=?")
+      .bind(target.id)
+      .first("avatarPresetId"),
+  ).toBe(avatarPresets[2].id);
   const stats = await request("/account/stats?game=four-reversi", { headers: target.headers });
   expect(await stats.json()).toMatchObject({ singles: { total: 1 } });
   expect((await request("/account/guest-merge", { method: "POST", headers })).status).toBe(401);

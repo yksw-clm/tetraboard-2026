@@ -58,7 +58,6 @@ jobs:
         run: |
           cat > apps/worker/.dev.vars <<'VARS'
           APP_ORIGIN=https://personal-settings.example.invalid
-          ADMIN_ACCOUNT_ID=personal-admin
           ADMIN_ACCOUNT_IDS='["personal-admin"]'
           MODERATOR_TOKEN=personal-moderator-token
           FEEDBACK_HASH_SECRET=personal-feedback-secret-at-least-32-characters

@@ -9,8 +9,7 @@ import {
   type PreviewRankings,
   previewRankingsSchema,
 } from "@tetraboard/protocol";
-import { ensurePublicProfileId } from "../accounts/currentProfiles";
-import { profileAvatarUrl } from "../accounts/auth";
+import { accountAvatarUrl } from "../accounts/auth";
 import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
 
@@ -36,7 +35,7 @@ async function queryGameRankings(
       victories AS value FROM totals
     ${includeKnockouts && game === "four-shogi" ? "UNION ALL SELECT account_id, mode, 'knockouts' AS metric, knockouts AS value FROM totals WHERE mode = 'singles'" : ""}
   ), ranked AS (
-    SELECT u.id AS accountId, u.publicProfileId, m.mode, m.metric, m.value, u.username, u.name, u.avatarKey, u.isAnonymous,
+    SELECT u.id AS accountId, u.publicProfileId, m.mode, m.metric, m.value, u.username, u.name, u.avatarKey,u.avatarPresetId, u.isAnonymous,
       RANK() OVER (PARTITION BY m.mode, m.metric ORDER BY m.value DESC) AS rank,
       ROW_NUMBER() OVER (
         PARTITION BY m.mode, m.metric ORDER BY m.value DESC, u.username ASC
@@ -45,7 +44,7 @@ async function queryGameRankings(
     WHERE m.value > 0 AND u.profileCompleted = 1
       AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id) AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
   )
-  SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, isAnonymous, rank
+  SELECT accountId, publicProfileId, mode, metric, value, username, name, avatarKey, avatarPresetId, isAnonymous, rank
   FROM ranked WHERE position <= 10 ORDER BY mode, metric, position`)
     .bind(game)
     .all<{
@@ -58,28 +57,26 @@ async function queryGameRankings(
       isAnonymous: number | null;
       name: string;
       avatarKey: string | null;
+      avatarPresetId: string | null;
       rank: number;
     }>();
   const rankings: PreviewRankings = {
     singles: { first: [], total: [], ...(includeKnockouts ? { knockouts: [] } : {}) },
     doubles: { wins: [], total: [] },
   };
-  const ids = new Map<string, string>();
-  if (preview) {
-    for (const row of rows.results) {
-      if (ids.has(row.accountId)) continue;
-      const id = row.publicProfileId ?? (await ensurePublicProfileId(db, row.accountId));
-      if (id) ids.set(row.accountId, id);
-    }
-  }
   for (const row of rows.results) {
+    if (preview && !row.publicProfileId) throw new Error("Public profile ID is missing");
     const entry = {
-      ...(preview ? { profileId: ids.get(row.accountId) } : {}),
+      ...(preview ? { profileId: row.publicProfileId! } : {}),
       rank: row.rank,
       username: row.username,
       ...(row.isAnonymous ? { isGuest: true } : {}),
       name: row.name,
-      avatarUrl: profileAvatarUrl(row.avatarKey),
+      avatarUrl: accountAvatarUrl({
+        id: row.accountId,
+        avatarKey: row.avatarKey,
+        avatarPresetId: row.avatarPresetId,
+      }),
       value: row.value,
     };
     if (row.metric === "total") rankings[row.mode].total.push(entry);
@@ -100,7 +97,7 @@ async function queryTwoPlayerRankings(
     .prepare(`${matchOutcomesCte(game, false)}, totals AS (
  SELECT account_id,COUNT(*) AS total,COALESCE(SUM(winner=direction),0) AS wins FROM outcomes GROUP BY account_id
  ),metrics AS (SELECT account_id,'total' AS metric,total AS value FROM totals UNION ALL SELECT account_id,'wins' AS metric,wins AS value FROM totals),ranked AS (
- SELECT u.id AS accountId,u.publicProfileId,u.username,u.name,u.avatarKey,u.isAnonymous,m.metric,m.value,
+ SELECT u.id AS accountId,u.publicProfileId,u.username,u.name,u.avatarKey,u.avatarPresetId,u.isAnonymous,m.metric,m.value,
  RANK() OVER(PARTITION BY m.metric ORDER BY m.value DESC) AS rank,
  ROW_NUMBER() OVER(PARTITION BY m.metric ORDER BY m.value DESC,u.username ASC) AS position
  FROM metrics m JOIN user u ON u.id=m.account_id WHERE m.value>0 AND u.profileCompleted=1  AND (COALESCE(u.isAnonymous,0)=0 OR u.guestNameCustomized=1) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=u.id)
@@ -113,21 +110,25 @@ async function queryTwoPlayerRankings(
       isAnonymous: number | null;
       name: string;
       avatarKey: string | null;
+      avatarPresetId: string | null;
       metric: "wins" | "total";
       value: number;
       rank: number;
     }>();
   const result: PreviewReversiRankings = { wins: [], total: [] };
   for (const row of rows.results) {
-    const profileId = preview
-      ? (row.publicProfileId ?? (await ensurePublicProfileId(db, row.accountId)))
-      : undefined;
+    if (preview && !row.publicProfileId) throw new Error("Public profile ID is missing");
+    const profileId = preview ? row.publicProfileId : undefined;
     result[row.metric].push({
       rank: row.rank,
       username: row.username,
       ...(row.isAnonymous ? { isGuest: true } : {}),
       name: row.name,
-      avatarUrl: profileAvatarUrl(row.avatarKey),
+      avatarUrl: accountAvatarUrl({
+        id: row.accountId,
+        avatarKey: row.avatarKey,
+        avatarPresetId: row.avatarPresetId,
+      }),
       value: row.value,
       ...(profileId ? { profileId } : {}),
     });

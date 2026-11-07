@@ -5,7 +5,7 @@ import {
   adminUsersQuerySchema,
   adminUsersSchema,
 } from "@tetraboard/protocol";
-import { profileAvatarUrl, type StoredProfile } from "../accounts/auth";
+import { accountAvatarUrl, type StoredProfile } from "../accounts/auth";
 import { accountCreatedAtMsSql } from "../accounts/timestamps";
 import { adminIdentity, type AdminEnv } from "./auth";
 import { readAnalytics } from "./metrics";
@@ -55,7 +55,7 @@ adminRoutes.get("/admin/users", async (c) => {
   const search = `%${query.data.search.replace(/^@/, "").replace(/[\\%_]/g, "\\$&")}%`;
   const rows = await c.env.APP_DB.prepare(
     `WITH listed_users AS (
-      SELECT id, name, username, avatarKey, ${accountCreatedAtMsSql("createdAt")} AS createdAtMs, profileCompleted,isAnonymous
+      SELECT id, name, username, avatarKey, avatarPresetId, ${accountCreatedAtMsSql("createdAt")} AS createdAtMs, profileCompleted,isAnonymous
       FROM user WHERE COALESCE(isAnonymous, 0) = ? AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id))
     SELECT * FROM listed_users WHERE (name LIKE ? ESCAPE '\\' OR username LIKE ? ESCAPE '\\')
     ${cursor ? "AND (createdAtMs < ? OR (createdAtMs = ? AND id < ?))" : ""}
@@ -72,6 +72,7 @@ adminRoutes.get("/admin/users", async (c) => {
       name: string;
       username: string | null;
       avatarKey: string | null;
+      avatarPresetId: string | null;
       createdAtMs: number;
       profileCompleted: number;
       isAnonymous: number | null;
@@ -83,7 +84,7 @@ adminRoutes.get("/admin/users", async (c) => {
       users: page.map((user) => ({
         name: user.name,
         username: user.username,
-        avatarUrl: profileAvatarUrl(user.avatarKey),
+        avatarUrl: accountAvatarUrl(user),
         createdAtMs: user.createdAtMs,
         profileCompleted: Boolean(user.profileCompleted),
         ...(user.isAnonymous ? { isGuest: true } : {}),

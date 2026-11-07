@@ -98,7 +98,6 @@ export class EventGameStore<Initial, Event> {
     instanceId: string,
     roundId: string,
     cursor: number,
-    throughEventCount?: number,
   ): EventReplayPage<Initial, Event> | null {
     const row = this.sql
       .exec<{ initial_json: string; event_count: number }>(
@@ -106,15 +105,14 @@ export class EventGameStore<Initial, Event> {
         roundId,
       )
       .toArray()[0];
-    const eventCount = throughEventCount ?? row?.event_count;
+    const eventCount = row?.event_count;
     if (
       !row ||
       eventCount === undefined ||
       !Number.isSafeInteger(cursor) ||
       !Number.isSafeInteger(eventCount) ||
       cursor < 0 ||
-      eventCount < cursor ||
-      eventCount > row.event_count
+      eventCount < cursor
     )
       return null;
     const events = this.sql

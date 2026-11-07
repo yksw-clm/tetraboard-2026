@@ -1,3 +1,4 @@
+import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test, vi } from "vitest";
 import { listMatchesContract, type RoomMode } from "@tetraboard/protocol";
@@ -72,7 +73,7 @@ test("本人の対局とモードだけを返し、内部ID・盤面・棋譜・
     expect(body).not.toContain(privateValue);
 });
 
-test("現在の名前とアイコンを返し、削除したアイコンは仮アイコンになる", async () => {
+test("現在の名前とアイコンを返し、削除したアイコンは自動プリセットになる", async () => {
   const user = await accountFixture();
   await writeMatch(env.APP_DB, fixtureRecord(user.id, 1));
   const key = `avatars/${crypto.randomUUID()}.webp`;
@@ -84,7 +85,9 @@ test("現在の名前とアイコンを返し、削除したアイコンは仮�
     avatarUrl: `/api/avatars/${key.slice(8, -5)}`,
   });
   await env.APP_DB.prepare("UPDATE user SET avatarKey = NULL WHERE id = ?").bind(user.id).run();
-  expect((await history(user)).matches[0].participants[0]).toMatchObject({ avatarUrl: null });
+  expect((await history(user)).matches[0].participants[0]).toMatchObject({
+    avatarUrl: avatarPresetUrl(accountAvatarPresetId(user.id)),
+  });
 });
 
 test("実際の終局保存が本人の履歴へつながり、他人の履歴には出ない", async () => {

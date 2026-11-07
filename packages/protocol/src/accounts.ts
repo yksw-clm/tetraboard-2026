@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { countCharacters } from "./rooms";
+import { avatarPresetIdSchema } from "./avatarPresets";
+import { profileDetailsSchema } from "./profileDetails";
 
 export const usernameSchema = z
   .string()
@@ -18,6 +20,9 @@ export const accountProfileSchema = z.object({
   name: z.string(),
   username: z.string().nullable(),
   avatarUrl: z.string().nullable(),
+  avatarPresetId: avatarPresetIdSchema.optional(),
+  profileMessage: profileDetailsSchema.shape.profileMessage.optional(),
+  favoriteGames: profileDetailsSchema.shape.favoriteGames.optional(),
   profileCompleted: z.boolean(),
   isGuest: z.boolean().optional(),
   nameCustomized: z.boolean().optional(),

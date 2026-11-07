@@ -30,8 +30,8 @@ export function FourShogiLobbyPage() {
       onTimeControlChange={entry.setTimeControl}
       onThreePlayerAttackChange={entry.setThreePlayerAttackProhibited}
       onClearMessage={entry.clearMessage}
-      onSubmitRoom={(intent, roomId, instanceId) =>
-        void entry.submitRoom(intent, roomId, instanceId)
+      onSubmitRoom={(intent, roomId, instanceId, avatarPresetId) =>
+        void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
       }
       renderRooms={(onJoin) => (
         <LobbyList

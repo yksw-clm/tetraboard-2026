@@ -247,6 +247,9 @@ test.each(["503", "offline", "timeout"])(
       document.querySelector<HTMLInputElement>('input[name="name"]') ??
       document.querySelector<HTMLInputElement>('[role="dialog"] input');
     enter(input!, "編集中");
+    const messageInput = document.querySelector<HTMLInputElement>('input[name="profileMessage"]')!;
+    enter(messageInput, "再確認中のひとこと");
+    press(document.querySelector<HTMLElement>('[aria-label="お気に入りゲームの選択"]')!, "将棋");
     const imageInput = document.querySelector<HTMLInputElement>(
       '[role="dialog"] input[type="file"]',
     )!;
@@ -263,7 +266,9 @@ test.each(["503", "offline", "timeout"])(
     } finally {
       convert.mockRestore();
     }
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("アイコンを削除");
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain(
+      "アップロード画像を削除",
+    );
     press(card(m.view, "account-replay-card"), "更新");
     historyRequests().at(-1)!.respond({}, 401);
     await flush();
@@ -280,6 +285,8 @@ test.each(["503", "offline", "timeout"])(
     const save = requests.find((r) => r.url === "/api/account/profile")!;
     const draft = save.init.body as FormData;
     expect(draft.get("name")).toBe("編集中");
+    expect(draft.get("profileMessage")).toBe("再確認中のひとこと");
+    expect(draft.get("favoriteGames")).toBe('["shogi"]');
     expect(draft.get("avatarAction")).toBe("replace");
     expect((draft.get("avatar") as File).type).toBe("image/webp");
     save.respond({ message: "保存失敗" }, 503);

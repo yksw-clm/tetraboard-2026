@@ -7,8 +7,22 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { type useRoomInvitation } from "./useRoomInvitation";
 import { type AppTheme } from "../../shared/ui/appTheme";
+import { useState } from "react";
+import { randomGuestAvatar } from "../account/guestAvatar";
 
 export function RoomInvitationDialogs({
+  invitation,
+  ...props
+}: {
+  invitation: ReturnType<typeof useRoomInvitation>;
+  roomId: string;
+  theme?: AppTheme;
+}) {
+  if (invitation.dialog !== "join") return null;
+  return <JoinRoomDialog invitation={invitation} {...props} />;
+}
+
+function JoinRoomDialog({
   invitation,
   roomId,
   theme = "default",
@@ -18,8 +32,8 @@ export function RoomInvitationDialogs({
   theme?: AppTheme;
 }) {
   const account = useAccount();
+  const [avatarPresetId, setAvatarPresetId] = useState(randomGuestAvatar);
   const busy = invitation.busy;
-  if (invitation.dialog !== "join") return null;
   return (
     <AppDialog
       size="compact"
@@ -34,13 +48,23 @@ export function RoomInvitationDialogs({
         onSubmit={(event) => {
           event.preventDefault();
           if (busy) return;
-          void invitation.submit();
+          void invitation.submit(
+            account.user && (!account.user.isGuest || account.user.nameCustomized)
+              ? undefined
+              : avatarPresetId,
+          );
         }}
       >
         <p className="text-sm text-muted">
           {publicRecordNotice} 本名・連絡先は名前に入力しないでください。
         </p>
-        <RoomIdentityFields name={invitation.name} onChange={invitation.setName} busy={busy} />
+        <RoomIdentityFields
+          name={invitation.name}
+          onChange={invitation.setName}
+          busy={busy}
+          avatarPresetId={avatarPresetId}
+          onAvatarChange={setAvatarPresetId}
+        />
 
         {(invitation.message || invitation.unavailableReason) && (
           <p className="text-danger text-xs" role="alert">

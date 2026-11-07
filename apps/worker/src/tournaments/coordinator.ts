@@ -1,3 +1,4 @@
+import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
 import { tournamentRules, type TournamentParticipation } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
@@ -65,15 +66,21 @@ export class TournamentCoordinator extends DurableObject<Env> {
     this.ctx.storage.kv.put("state", state);
   }
   private async valid(accountId: string, key: string) {
-    return this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.isAnonymous,e.id AS entryId FROM user u
+    return this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.avatarPresetId,u.isAnonymous,e.id AS entryId FROM user u
       JOIN tournament_entries e ON e.account_id=u.id AND e.tournament_key=? AND e.deleted=0
       WHERE u.id=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)`)
       .bind(key, accountId)
-      .first<{ id: string; name: string; avatarKey: string | null; entryId: string }>();
+      .first<{
+        id: string;
+        name: string;
+        avatarKey: string | null;
+        avatarPresetId: string | null;
+        entryId: string;
+      }>();
   }
   private async waitingProfiles(key: string) {
     const rows =
-      await this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.isAnonymous,e.id AS entryId,
+      await this.env.APP_DB.prepare(`SELECT u.id,u.name,u.avatarKey,u.avatarPresetId,u.isAnonymous,e.id AS entryId,
       w.operation_id AS operationId FROM tournament_wait_reservations w
       JOIN tournament_entries e ON e.account_id=w.account_id AND e.tournament_key=w.tournament_key AND e.deleted=0
       JOIN user u ON u.id=w.account_id AND u.profileCompleted=1
@@ -85,6 +92,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           name: string;
           isAnonymous: number | null;
           avatarKey: string | null;
+          avatarPresetId: string | null;
           entryId: string;
           operationId: string;
         }>();
@@ -178,15 +186,16 @@ export class TournamentCoordinator extends DurableObject<Env> {
       player.admission.name = profile.name;
       player.admission.avatarKey =
         profile.avatarKey && avatarKeyPattern.test(profile.avatarKey) ? profile.avatarKey : null;
+      player.admission.avatarPresetId = accountAvatarPresetId(profile.id, profile.avatarPresetId);
       const a = player.admission;
       statements.push(
         this.env.APP_DB.prepare(
           "UPDATE tournament_wait_reservations SET match_operation_id=? WHERE account_id=? AND operation_id=?",
         ).bind(a.operationId, a.accountId, player.operationId),
-        this.env.APP_DB.prepare(`INSERT INTO account_room_seats(account_id,operation_id,room_id,instance_id,player_id,name,avatar_key,created_at_ms)
-          SELECT u.id,?,?,?,?,u.name,?,? FROM user u JOIN tournament_wait_reservations w ON w.account_id=u.id
+        this.env.APP_DB.prepare(`INSERT INTO account_room_seats(account_id,operation_id,room_id,instance_id,player_id,name,avatar_key,avatar_preset_id,created_at_ms)
+          SELECT u.id,?,?,?,?,u.name,?,?,? FROM user u JOIN tournament_wait_reservations w ON w.account_id=u.id
           JOIN tournament_entries e ON e.account_id=u.id AND e.tournament_key=w.tournament_key AND e.deleted=0
-          WHERE u.id=? AND w.operation_id=? AND w.tournament_key=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ?
+          WHERE u.id=? AND w.operation_id=? AND w.tournament_key=? AND w.match_operation_id=? AND u.profileCompleted=1 AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ?
             AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
           ON CONFLICT(account_id) DO NOTHING`).bind(
           a.operationId,
@@ -194,6 +203,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           a.instanceId,
           a.playerId,
           a.avatarKey,
+          a.avatarPresetId ?? null,
           Date.now(),
           a.accountId,
           player.operationId,
@@ -201,6 +211,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           a.operationId,
           profile.name,
           profile.avatarKey,
+          profile.avatarPresetId,
         ),
         this.env.APP_DB.prepare(`INSERT OR IGNORE INTO room_avatar_refs(operation_id,room_id,instance_id,player_id,avatar_key)
           SELECT operation_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats WHERE operation_id=? AND avatar_key IS NOT NULL`).bind(
@@ -289,6 +300,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
           playerId: crypto.randomUUID(),
           name: profile.name,
           ...(profile.isAnonymous ? { isGuest: true } : {}),
+          avatarPresetId: accountAvatarPresetId(profile.id, profile.avatarPresetId),
           avatarKey:
             profile.avatarKey && avatarKeyPattern.test(profile.avatarKey)
               ? profile.avatarKey

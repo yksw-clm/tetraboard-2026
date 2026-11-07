@@ -6,17 +6,15 @@
 
 通信経路の整理を進めるときは、[通信パフォーマンスのリファクタリング調査](communication-performance.md) の候補・維持する契約・検証方針も参照します。この調査は未実装の候補を含み、現在仕様の正本を置き換えません。
 
-| 文書                                                     | 主に残す内容                                                                                      |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [README](../README.md)                                   | サービスの目的、利用者向け仕様、ゲーム共通仕様、詳細への入口                                      |
-| [ゲームのルール正本](#変更対象別の案内)                  | ゲーム固有のルールとCPUの現在の採用仕様                                                           |
-| [構成文書](architecture.md)                              | 技術構成、責務と状態の分担、長期参照が必要な設計理由                                              |
-| この開発文書                                             | 実装の入口、変更手順、構造と互換性などの注意点                                                    |
-| [テスト方針](testing.md)                                 | 実行方法、検証範囲、対象別のテストと移管根拠                                                      |
-| [四人将棋AIの測定・採用記録](four-shogi-ai.md)           | 比較条件、対象コミット、結果、採用判断と限界                                                      |
-| [独立Python四人将棋AIの契約](../ai/four-shogi-ai/docs/design.md) | 現行AI計画の初期範囲、データ・ルール／AI境界、TS比較。旧計画を全面置換 |
-| [既存TS AIの契約](four-shogi-ai-engine.md) | 現在残るTS解析・モデル・試用接続の保守契約。新計画の要求にはしない |
-| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録                                      |
+| 文書                                                     | 主に残す内容                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| [README](../README.md)                                   | サービスの目的、利用者向け仕様、ゲーム共通仕様、詳細への入口 |
+| [ゲームのルール正本](#変更対象別の案内)                  | ゲーム固有のルールとCPUの現在の採用仕様                      |
+| [構成文書](architecture.md)                              | 技術構成、責務と状態の分担、長期参照が必要な設計理由         |
+| この開発文書                                             | 実装の入口、変更手順、構造と互換性などの注意点               |
+| [テスト方針](testing.md)                                 | 実行方法、検証範囲、対象別のテストと移管根拠                 |
+| [四人将棋AIの測定・採用記録](four-shogi-ai.md)           | 比較条件、対象コミット、結果、採用判断と限界                 |
+| [四人リバーシAI強化の計画・採用判断](four-reversi-ai.md) | Goal・制約・受入条件・コミット計画、測定条件と採用判断の記録 |
 
 CPUの探索方式・上限・評価値など、現在の採用仕様はルール正本で保守し、実装案内から参照します。APIの使用例や実装の責務はこの文書に残します。測定時の設定や旧方式は測定対象コミットにひも付く条件として保持し、現在仕様へ書き換えません。正本にない実装値を、新しい採用仕様として推測で確定しないでください。
 
@@ -27,6 +25,16 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 3. 下表から必要な仕様・実装・テストを確認します。共通部品や通信・時計・保存を横断する変更では、関連する行の説明と契約も読みます。案内にない対象は見出し・キーワードを検索して参照範囲を広げます。
 4. 仕様と実装に差があれば、承認指示・正本・Git履歴・利用できるIssue／PRを照合し、文書の陳腐化か実装の不具合かを判断します。未決定事項や矛盾を推測で埋めず、開発者に確認します。
 5. 変更に伴う仕様文書と実装案内を更新し、関連文書を検索して現在仕様として旧説明が残っていないか確認します。[PR提出前の検証](#pr提出前の検証) を行い、[PRテンプレート](../.github/pull_request_template.md) に対象コミット・環境・結果・未確認事項を記載します。
+
+## Workerとの互換性と定期処理
+
+Webの最低対応Workerは2026-11-06時点の本番main `35ddc5ee32127425ea875f1e2bc6457c3e09163d` 以降です。ルームの `eliminatedHands`、ランキングの `profilePreview`・`includeKnockouts`、公開プロフィールの `includeBadges`・`includeStats` を受理することを前提とします。ひとこと・お気に入りゲームを表示するWebには、追加の `includeDetails=1` を受理する本変更以降のWorkerが必要です。400を受けてオプションを除去する自動再取得は行いません。古いWorkerへ切り戻す場合は対応するWebも戻し、欠落公開IDや平文トークンを現行環境へ持ち込まない移行・復元確認が必要です。新Workerの省略可能な応答項目は維持するため、既存Webのタブも引き続き利用できます。
+
+`scheduledMaintenance.ts` は定期処理を固定順に実行し、一つのジョブが失敗しても後続を実行します。ジョブ名・成否・所要時間を記録し、すべての実行後に失敗名だけを例外として報告します。ログの成功時刻で各ジョブの最終成功を確認し、失敗は次のcronで再試行します。例外本文・認証値・個人情報は追加ログに含めません。退会などの既存の処理順は保ち、全ジョブを並列化しません。
+
+`0027_lookup_indexes.sql` は退会対象ルームの検索に `(room_id, account_id)`、ゲーム横断の最新対局に `(started_at_ms DESC, id DESC)` の索引を追加します。適用は通常の開発・本番デプロイ手順で行い、データを書き換えません。チャットの本文・受付設定・投稿制限・大会状態は `chatPage` の1回のD1 batchで取得します。
+
+GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い、同期的な資格照合へ進みます。公開RPCの期限処理も維持します。保存待ちが空の索引・席解放・大会反映・対局保存ではAlarmの再同期を省きます。実行中のflushは引き続き待ち、保存や失敗再送が期限を変えた場合はAlarmを再同期します。
 
 ## 変更対象別の案内
 
@@ -46,7 +54,6 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 | 画面・ロビー・共通部品                   | READMEの対象画面、[共通UI](../README.md#共通uiとスタイル)                                                                                                         | [Webの編集先](#webの編集先)、[共通ロビー](#共通ロビーと四人将棋ui)、[LobbyView.tsx](../apps/web/src/features/lobby/LobbyView.tsx)、[RoomLayout.tsx](../apps/web/src/features/room/RoomLayout.tsx)、[shared/ui](../apps/web/src/shared/ui/)                                                    | [lobbyComponents.test.tsx](../apps/web/test-dom/lobbyComponents.test.tsx)、[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)                                                         |
 | ルーム共有                               | [確定した共有仕様](../README.md#ルーム共有の確定仕様)                                                                                                             | [Goal・ContextProviders・Constraints・Done When](#ルーム共有の実装計画)、[useRoomEntry.ts](../apps/web/src/features/lobby/useRoomEntry.ts)、[useRoomInvitation.ts](../apps/web/src/features/room/useRoomInvitation.ts)、[publicAssets.ts](../apps/worker/src/publicAssets.ts)                 | [ルーム共有の確認](testing.md#ルーム共有の確認)                                                                                                                                                        |
 | ゲーム・CPU                              | [四人リバーシ](rules/four-reversi.md)、[四人将棋](rules/four-shogi.md)、[リバーシ](rules/reversi.md)、[将棋](rules/shogi.md)、[五目並べ](rules/gomoku.md)         | [ゲームの必須登録](#ゲームの必須登録と型の対応)、[四人将棋エンジン](#四人将棋エンジン)、[四人将棋CPU](#四人将棋cpu)、[通常リバーシ](#通常リバーシの実装)、[通常将棋](#通常将棋の実装)、[packages](../packages/)、[gameProgress.ts](../apps/worker/src/rooms/gameProgress.ts)                  | 各ゲームの `test/`、[cpuSearch.test.ts](../packages/four-shogi/test/cpuSearch.test.ts)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                   |
-| 四人将棋ローカル検討 | [利用仕様](../README.md#四人将棋のローカル検討アプリ)、[CPU正本](rules/four-shogi.md#ローカル検討用cpu) | [計画・入口](#四人将棋のローカル検討アプリ)、[構成](architecture.md#四人将棋のローカル検討)、`apps/four-shogi-study`・`packages/shogi-ui` | [受入検証](testing.md#四人将棋のローカル検討アプリの確認)、[測定](four-shogi-ai.md#ローカル検討cpuの測定と採否) |
 | 表示・サウンド設定                       | [設定](../README.md#表示サウンド設定)、[効果音](../README.md#効果音)、[時計通知](../README.md#時間切れ5秒前の通知)                                                | [表示・サウンド設定](#表示サウンド設定)、[共通効果音](#ルームの共通効果音)、[browserSettings.ts](../apps/web/src/shared/browserSettings.ts)、[soundPlayer.ts](../apps/web/src/shared/soundPlayer.ts)                                                                                          | [設定の確認](testing.md#表示サウンド設定の確認)、[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)                                                                             |
 | チャット・スタンプ                       | [チャット](../README.md#チャット)、[保存とモデレーション](../README.md#チャットの保存期間とモデレーション)、[スタンプ](../README.md#ルームのスタンプ)             | [スタンプ](#ルームのスタンプ)、[gameRoom.ts](../apps/worker/src/rooms/gameRoom.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts)                                                                  | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                                                      |
 | 戦績・ランキング・戦型・バッジ           | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[accounts](../apps/worker/src/accounts/)                                                                                                                | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
@@ -76,8 +83,6 @@ Workerは四人リバーシのLv1／Lv2をAlarm限定で選択保存し、次Ala
 表示名・選択肢・パスだけが必要な画面は `@tetraboard/protocol/games` を直接参照します。この入口にはZod・React・エンジン・CPUを持ち込まず、検証スキーマは別の `gameSchemas.ts` に置きます。テーマとルール表示、ゲーム固有の処理は各アプリで管理します。カタログへの登録だけで新ゲームの対局機能が実装されるわけではありません。
 
 IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCatalog.test.ts test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` で確認します。軽量入口の依存は `bun build packages/protocol/src/games.ts --target=browser --outfile=/tmp/tetraboard-game-catalog.js --metafile=/tmp/tetraboard-game-catalog.meta.json` の入力一覧で確認できます。
-
-#189のデータ生成は [selfPlayCli.ts](../packages/four-shogi/bench/selfPlayCli.ts) が入口です。[selfPlayData.ts](../packages/four-shogi/bench/selfPlayData.ts) は版付きmanifest/系列/分割/相手/教師の設定、[selfPlayGame.ts](../packages/four-shogi/bench/selfPlayGame.ts) は既存対戦runnerのhookで完全イベント・必要局面・教師を記録します。[selfPlayRun.ts](../packages/four-shogi/bench/selfPlayRun.ts) と [selfPlayWorker.ts](../packages/four-shogi/bench/selfPlayWorker.ts) がBun子プロセスの上限/中断/ACKを、[selfPlayStore.ts](../packages/four-shogi/bench/selfPlayStore.ts) が親だけの原子的保存/lock/容量を担当し、[selfPlayInspect.ts](../packages/four-shogi/bench/selfPlayInspect.ts) が再生/結果/マスク/版/漏れを照合します。[actionEncoding.ts](../packages/four-shogi/src/actionEncoding.ts) はBun/FSへ依存しない固定行動IDです。固定CPUの一時ソースもdataset内scratchへ置き、終了・再開時に回収します。[保存形式と操作手順](four-shogi-ai-engine.md#自己対戦と探索教師データ189)、[テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。#190の学習は以下の専用CLIで実装しました。
 
 ## 通常リバーシの実装
 
@@ -273,7 +278,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## Local Development
 
-リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWeb・Worker・Adminの開発サーバーが同時に起動します。AIサービスはモデル/秘密を別に設定する独立プロセスのため、この一括起動に含めず、`bun run --cwd apps/four-shogi-ai start` で明示的に起動します。
+リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWeb・Worker・Adminの開発サーバーが同時に起動します。
 どちらもLANから接続できます。
 
 スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。ポートは `/5173` ではなく `:5173` とし、例は `http://192.168.68.52:5173/` です。LANのHTTPでは `crypto.randomUUID()` が利用できないため、WebのUUID生成は `shared/createUuid.ts` の `crypto.getRandomValues()` によるUUID v4を使います。フィードバック送信ID、アクセス解析ID、スタンプのrequestIdで共用します。HTTPS限定APIを使う機能は、個別に対応可否を判定します。
@@ -299,7 +304,7 @@ Webの `/` は総合ロビーを表示します。各ゲームロビーの「CPU
 
 ## Checks
 
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` は各workspaceのテストを自動収集し、6エンジン・protocol・共有盤面・Worker・Web・Admin・AI・ローカル検討とCI選択方針を検証します。上限2プロセスで実行し、Workerは別々のMiniflareに分けます。診断用の `bun run test:serial` は同じ全ファイルを直列実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
+ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` は各workspaceのテストを自動収集し、6エンジン・protocol・共有盤面・Worker・Web・AdminとCI選択方針を検証します。上限2プロセスで実行し、Workerは別々のMiniflareに分けます。診断用の `bun run test:serial` は同じ全ファイルを直列実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
 
 `bun run typecheck` は全workspaceの `typecheck` を順番に実行し、Bun内蔵の `bun check --no-script --all` で検査します。workspaceの追加は従来どおり自動で対象になります。Webは `tsconfig.check.json` からapp・node・test・type-tests・buildの5設定、Workerは同名の設定から本体・test・scriptsの3設定を参照します。ほかのworkspaceは各 `tsconfig.json` を使い、従来の検査対象を維持します。CI選択・実行スクリプトも専用tsconfigで検査します。同時に各workspaceから全CPUを使う処理を起動しないよう、workspace間は直列にします。Web・Adminのbuild前の型検査も内蔵チェッカーを使います。Webのbuildは従来どおりapp・node・buildを検査し、共有のBun版確認スクリプトもbuild設定に含めます。
 
@@ -583,7 +588,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 両ゲームで `useLobby` と `useRoomEntry` を使い、ゲーム指定を付けて取得・作成・参加します。省略時はリバーシです。将棋では作成時に三人攻撃禁止を設定できます。ランキングもゲーム別に集計し、リバーシの値を将棋へ流用しません。ダイアログを閉じても入力を保持し、ゲームを切り替えたときは破棄します。
 
-旧ゲームバーは廃止し、`AppHeader` と共通ナビゲーションを使います。PCはホーム・遊び方・直近ゲーム、スマートフォンは上部にロゴと設定、下部にアカウントも含む4タブを固定表示します。アカウントタブはContextの登録者画像を `AppAvatar` に渡し、画像更新・本人切替へ追従します。ゲスト・未ログイン・画像なしでは既存の人型アイコンを使います。`AccountLayout` で対象ページの下余白とゲームロビー訪問の記録を扱い、対局・観戦・棋譜を対象外にします。直近GameIdは `tetraboard:last-lobby-game` に保存し、未保存／破損時は四人リバーシ、保存失敗時はメモリ保持、別タブの `storage` イベントも反映します。ナビの表示だけでは保存しません。大会ページの新ナビも既存の待機取消を通し、取消失敗時は移動せず、成功後に選んだページへ進みます。
+旧ゲームバーは廃止し、`AppHeader` と共通ナビゲーションを使います。PCはホーム・遊び方・直近ゲーム、スマートフォンは上部にロゴと設定、下部にアカウントも含む4タブを固定表示します。アカウントタブはContextのゲスト・登録者の実効画像を `AppAvatar` に渡し、画像更新・本人切替へ追従します。未ログイン・画像読み込み失敗では既存の人型アイコンを使います。`AccountLayout` で対象ページの下余白とゲームロビー訪問の記録を扱い、対局・観戦・棋譜を対象外にします。直近GameIdは `tetraboard:last-lobby-game` に保存し、未保存／破損時は四人リバーシ、保存失敗時はメモリ保持、別タブの `storage` イベントも反映します。ナビの表示だけでは保存しません。大会ページの新ナビも既存の待機取消を通し、取消失敗時は移動せず、成功後に選んだページへ進みます。
 
 共通の `/how-to-play` は[スクリーンショット付きのサイト利用ガイド](#サイトの利用ガイド)を表示します。既存のルーター・WorkerのSPA配信許可・ページtitleを使い、noindexとサイトマップ対象外を維持します。ゲーム別のルールダイアログとは分けます。初期配信HTMLは保存値を読まず、ゲームロビーではそのゲーム、ホームでは四人リバーシを直近枠へ表示し、React起動後に保存値へ同期します。旧ゲームバーだけの `LayoutGroup` は外し、他の用途の `motion`・横スクロール補助は維持します。
 
@@ -792,16 +797,6 @@ WebはHTTP応答の項目の有無で対応を確認し、対応Workerだけに�
 
 ルーム内・保存棋譜は版1のルール再生と表示用枚数を併走させ、フレームの `game` の外側へ `eliminatedHands` を保持します。完全な旧棋譜もイベントから導出でき、選択局面・回転に追従します。最終ルール状態の一致検証、保存JSON、分割イベント、manifest、D1形式、`rulesVersion: 1` を維持し、保存記録を書き換えません。検証と手動確認の境界は [テスト方針](testing.md#四人将棋の脱落後の持ち駒表示) を参照してください。
 
-## 独立Python四人将棋AI
-
-2026-11-06承認の[現行設計契約](../ai/four-shogi-ai/docs/design.md)は `ai/four-shogi-ai` に置きます。旧 #183 の開発計画は廃止し、Pythonのルール独立実装とTS照合へ全面置換しました。既存実装のAPI・試用接続は[保守契約](four-shogi-ai-engine.md)で扱い、新計画の要件にはしません。
-
-`src/four_shogi_ai/replay.py` は版付き初期値・連番イベント・適用位置の形状検証と不変データへの変換を担当します。合法性や状態復元は後続フェーズです。`tests/test_replay.py` は全イベント・ON/OFF・不正入力・入力不変・生成例を確認し、`scripts/ci/validateAiReplay.ts` の実TS入力検査器とも同じ入力を照合します。比較器は開発用で、Python実行時からTSを呼びません。
-
-導入はルートの `mise install` と `mise exec -- uv sync --locked --directory ai/four-shogi-ai`、部分確認は `bun run ai:check` です。Python 3.14とuvの版はmise.toml、依存はuv.lockに固定します。実行時依存は標準ライブラリ、開発依存はRuff・mypy・pytest・Hypothesisです。Pythonの名前はsnake_case、JSONはTSと同じcamelCaseを使います。完全な状態・結果・ルールAPIは設計契約を参照してください。
-
-既存アプリと同じ `bun run check` とFull CIでPythonの品質確認も実行します。ルール正本は共有し、仕様とTS実装が食い違う場合は最小再現と根拠を示して確認します。正本の誤りや未決事項を互換性の名目で確定しません。
-
 ## 四人将棋エンジン
 
 `packages/four-shogi` は `@tetraboard/four-shogi` として利用する独立したパッケージです。ランタイム依存はなく、既存の四人リバーシと同じTypeScript・Bunの構成を使います。`bun run --cwd packages/four-shogi check` で単体の整形・lint・型・テストを確認できます。
@@ -827,7 +822,7 @@ if (result.ok) {
 
 成功時は新状態・捕獲駒・今回の脱落一覧を、失敗時は理由を返し、入力状態を変更しません。詰み・合法手なしは着手や外部脱落に伴って自動処理し、同時脱落の群と理由・順位を保持します。持ち時間、接続期限、プロフィール、ネットワークはエンジンへ持ち込みません。担当方向の抽選は呼び出し側で行います。保存した状態はJSONで復元して同じAPIへ渡せます。外部入力の検証と認証は、将来のルーム接続側で行います。
 
-`@tetraboard/four-shogi/analysis` の [analysis.ts](../packages/four-shogi/src/analysis.ts) は版付き棋譜から完全なシングルス解析状態を復元し、合法手・仮遷移・状態/解析識別を提供します。[入力と識別の契約](four-shogi-ai-engine.md#完全解析状態の復元api186)に従い、表示frameを直接入力しません。[analysisInput.ts](../packages/four-shogi/src/analysisInput.ts) は外部JSONの形状と版を検証し、[replay.ts](../packages/four-shogi/src/replay.ts) は既存エンジンへイベントを渡す裁定をWebと共有します。ランタイム依存・DB/通信・ルール本体を追加せず、HTTPとWorker内部状態の接続は後続Issueで行います。
+`@tetraboard/four-shogi/replay` の [replay.ts](../packages/four-shogi/src/replay.ts) は、着手・外部脱落・引分提案のイベントを既存エンジンへ適用します。Webの棋譜再生もこの裁定を共有します。
 
 ### 四人将棋の引分提案
 
@@ -869,104 +864,6 @@ Lv1の選択をテストで再現するときは、第三引数へ0以上1未満
 ルーム連携の変更では [時計計算と期限選択](#workerの時計計算と期限選択) と [ゲーム進行と共有ライフサイクル](#workerのゲーム進行と共有ライフサイクル) を確認します。ルール状態・通信・保存形式との境界を維持し、思考中の履歴を永続化しない注意点は正本と実装の両方で照合します。
 
 関連確認は [CPU探索](../packages/four-shogi/test/cpuSearch.test.ts)、[評価](../packages/four-shogi/test/cpuEvaluation.test.ts)、[手筋](../packages/four-shogi/test/cpuTactics.test.ts)、[序盤候補](../packages/four-shogi/test/cpuOpenings.test.ts)、[オンラインルーム](../apps/worker/test/fourShogiRoom.test.ts) のテストを使います。パッケージ全体は `bun run --cwd packages/four-shogi check`、ルーム側は `bun run --cwd apps/worker test test/fourShogiRoom.test.ts` で部分確認します。比較条件・測定対象コミット・結果と限界、再測定手順は [四人将棋AIの測定・採用記録](four-shogi-ai.md) を参照します。
-
-#190の [modelFeatures.ts](../packages/four-shogi/src/modelFeatures.ts) は固定の盤面/実手番/攻撃/取り返しと全反復辞書を疎特徴へ変換します。[trainingExport.ts](../packages/four-shogi/bench/trainingExport.ts) は#189の全再生検査後に単一manifestの教師を新規出力先へ出し、元データを書き換えません。[trainingSmokeData.ts](../packages/four-shogi/bench/trainingSmokeData.ts) は通常check外の少数実自己対戦です。Pythonの [dataset.py](../training/four-shogi-ai/dataset.py) がchecksum/分割/ラベルを、[model.py](../training/four-shogi-ai/model.py) が全履歴の共有MLPとPolicy/Valueを、[train.py](../training/four-shogi-ai/train.py) と [checkpoint.py](../training/four-shogi-ai/checkpoint.py) が決定的なCPU学習・MPS・再開契約・原子的保存を担当します。依存は [requirements.txt](../training/four-shogi-ai/requirements.txt) に固定し、通常のBun/Web/WorkerにPyTorchを含めません。[セットアップと再現コマンド](four-shogi-ai-engine.md#軽量policyvalueの学習とチェックポイント190)を使い、Linux CPU推論は#191、共通探索での実使用は下記#192を参照します。
-
-#191の [modelInference.ts](../packages/four-shogi/src/modelInference.ts) はサーバー専用の `/model-inference` 入口です。正本から疎特徴/合法手を作り、同一ホストの永続プロセスへまとめて送り、版/要求ID/実使用モデルID/数値/合法手/脱落者の席を検査します。通信/推論タイムアウト・不正応答でプロセスを停止し、理由を呼出側へ返します。手番予算/取消ではその要求の待ちを解き、遅い応答を排出して常駐プロセスを再利用します。[inference.py](../training/four-shogi-ai/inference.py) が推論用配布物・Mac基準fixtureの照合・候補の起動/切替を、[inferenceSmoke.py](../training/four-shogi-ai/inferenceSmoke.py) が単発/バッチ/IPC/RSS/異環境比較を担当します。[Dockerfile](../training/four-shogi-ai/Dockerfile) は既存のPyTorchだけをCPU版で入れたLinux再現環境です。[再現手順と制限](four-shogi-ai-engine.md#linux-cpu推論とmac出力の照合191)を参照し、HTTP/Workerや現行同期CPUへ推論を混ぜません。
-
-#192の [aiModel.ts](../packages/four-shogi/src/aiModel.ts) は評価器のID/要求/応答の固定、合法手/席/有限値検査、推論待ちと期限を担当します。[aiSearchContext.ts](../packages/four-shogi/src/aiSearchContext.ts) が元の反復辞書と枝差分を合わせ、内部の [modelFeatureEncoding.ts](../packages/four-shogi/src/modelFeatureEncoding.ts) で同じ特徴版へ変換します。公開 `modelFeatures.ts` の信頼済み局面検査は維持します。共通MaxⁿへPolicy順序とValue葉評価を接続し、根の次局面を16件以下でまとめます。`ModelInferenceClient.asEvaluator()` で同じ常駐プロセスをCPU用の推奨手・長時間解析・教師生成へ使います。`AiResult.model` のloaded/used/利用件数とfallback理由を確認してください。
-
-比較は [modelSearchCli.ts](../packages/four-shogi/bench/modelSearchCli.ts)（`bench:model`）、独立worker用のモデル起動/識別は [modelRuntime.ts](../packages/four-shogi/bench/modelRuntime.ts)。モデルを使う自己対戦はconfig.modelのID/artifact/code hashと、実行環境側のpython/model-dirを分けます。旧datasetと公開Lv2を切り替えず、モデルを実使用できない教師は保存しません。[再現手順](four-shogi-ai-engine.md#policyvalueを使う共通探索192)を参照してください。
-
-### 四人将棋シングルスAIの実装前整理
-
-旧 #183／#184 の開発計画は2026-11-06に廃止し、[独立Python四人将棋AI](#独立python四人将棋ai)へ全面置換しました。旧D01〜D05は既存実装を保守するための根拠で、新計画の開始条件・探索目的・公開条件にはしません。以下は現在も存在するTS AI・試用接続の実装案内です。
-
-#187の `@tetraboard/four-shogi/ai` は [ai.ts](../packages/four-shogi/src/ai.ts) が版/条件の解決と識別、時間/取消/ホストへのyield、完成結果の凍結を担当します。[aiSearch.ts](../packages/four-shogi/src/aiSearch.ts) は旧Maxⁿの反復深化・並べ替えを起点に、既存の合法手/確定遷移/基底反復参照を共有し、各手番者自身の値・PVを伝播します。[aiEvaluation.ts](../packages/four-shogi/src/aiEvaluation.ts) がD01の単独1位/副順位、[aiTypes.ts](../packages/four-shogi/src/aiTypes.ts) が出力と版です。旧 `cpuSearch.ts` の並べ替え関数を共有しますが、Lv2の選択結果・初期設定は変えません。[共通APIの使用例と診断](four-shogi-ai-engine.md#共通ai解析api187)、[部分テスト](testing.md#四人将棋シングルスaiの契約確認)を参照してください。性能CLIは [analysisCli.ts](../packages/four-shogi/bench/analysisCli.ts) と既存 `singlesPerformance.ts` を使い、#185の初期/開始系列だけを完全状態復元から測定します。
-
-#188では [aiSearchContext.ts](../packages/four-shogi/src/aiSearchContext.ts) に実行内の参照キャッシュと合法手/遷移/評価/並べ替えを共有し、[aiBudget.ts](../packages/four-shogi/src/aiBudget.ts) を共通APIと局面実験の同じ時計/取消/処理量運転に使います。[aiMcts.ts](../packages/four-shogi/src/aiMcts.ts) は4方向のUCT試行と平均/合法PV、[aiTactics.ts](../packages/four-shogi/src/aiTactics.ts) は次の実自手番までの別応手の証拠です。通常の `getCheckState` も駒一覧を一度の走査で共有し、旧単独判定と照合します。[searchExperimentCli.ts](../packages/four-shogi/bench/searchExperimentCli.ts) と [searchExperiment.ts](../packages/four-shogi/bench/searchExperiment.ts) が一要因の設定・同時間/処理量・固定Lv2との対戦を記録し、[searchTactics.ts](../packages/four-shogi/bench/searchTactics.ts) を新しい調整構図として使います。[契約](four-shogi-ai-engine.md#探索の戦術速度とmcts比較188)と[測定・採否](four-shogi-ai.md#シングルス専用aiの限定探索実験188)を参照し、旧基準と最終評価を調整へ流用しません。
-
-### 四人将棋AIのジョブサービス
-
-[契約と運用](four-shogi-ai-engine.md#vpsサービスの実装と運用193)に従い、[protocol](../packages/protocol/src/fourShogiAi.ts)が通信の厳密な入力・起動/入力識別を、[jobs.ts](../apps/four-shogi-ai/src/jobs.ts)がCPU優先/予約枠・重複・期限・利用量・TTLを管理します。[processPool.ts](../apps/four-shogi-ai/src/processPool.ts)は独立プロセスと強制終了、[compute.ts](../apps/four-shogi-ai/src/compute.ts)は完全復元と同じモデル/共通探索を担当します。受付を重い計算から分離し、[http.ts](../apps/four-shogi-ai/src/http.ts)で認証後に有限の本文を読みます。Workerの[fourShogiAi](../apps/worker/src/fourShogiAi/routes.ts)は開発用の許可アカウント/Originと公開保存済み終局棋譜を検査し、本人ID・Cookieを転送しません。使用量の回数/予約time予算はVPSのメモリ内で原子的に判定し、Workerでも要求プロファイルと結果の版/入力を照合します。未設定と本番は拒否し、対局CPU/解析UIへは#194/#195で接続します。
-
-`bun run --cwd apps/four-shogi-ai test` とWorkerの `test/fourShogiAi.test.ts` は通常checkに含め、実PyTorch/30秒解析は `bench:service` で分離します。実行方法・全環境変数・配布/health/切り戻しは上記契約と[設定例](../apps/four-shogi-ai/.env.example)を参照します。数値は設定可能な試用値で、実VPS/正式な利用上限/保持期間を確定しません。秘密は追跡対象外とし、Docker contextからも除外します。
-
-## 四人将棋のローカル検討アプリ
-
-2026-10-28に開発者がローカル専用の実装計画を承認し、実装を指示しました。既存の試作を保全して最新developへ追従し、`feat/four-shogi-study` で以下を実装します。利用者向けの正本は[README](../README.md#四人将棋のローカル検討アプリ)、CPUの採用仕様は[ルール正本](rules/four-shogi.md#ローカル検討用cpu)、責務は[構成](architecture.md#四人将棋のローカル検討)、確認範囲は[テスト方針](testing.md#四人将棋のローカル検討アプリの確認)です。
-
-### Goal
-
-Macで四人将棋シングルス・三人攻撃禁止ON/OFFを検討できるローカルアプリを完成させます。時間可変の並列CPU、4人分の評価と読み筋・推奨手、マジック・右攻め・駒損と他者間の争いを踏まえた単独1位の追求、公開棋譜・分岐・コメント・席別CPU・自己対戦・ライブ観戦を統合します。追加指示により、他者の手番でも特定席の次の実手番を予測して解析するフォーカスを加えます。既存試作の局面編集も、履歴をリセットする別の検討として保ちます。
-
-機能・戦術・既存画面の回帰と必須検証を確認し、下記のDone Whenを満たした差分・結果・未確認事項をレビューできる状態にします。2026-10-28の追加指示により、棋力向上・正式再計測・棋力合格は別作業へ保留し、今回の機能実装の完了条件から外します。過去の未完了/中断記録や採否条件は測定記録に保ち、機能完成を棋力の合格と扱いません。アプリのデプロイ、PRマージ、読取りAPIの公開は実施しません。提出する場合はdevelop向けPRとし、GitHub CIの成功をローカル結果で代替しません。
-
-### ContextProviders
-
-1. 本会話の開発者の指示と承認済み計画。ローカル専用、対象機能、右の定義、フォーカス追加、棋力作業の保留、非デプロイを優先します。
-2. [AGENTS.md](../AGENTS.md)と[README](../README.md#四人将棋のローカル検討アプリ)。作業・承認・保存と利用者向けの契約です。
-3. [四人将棋のルール正本](rules/four-shogi.md)。三人攻撃・実手番・脱落・反復・順位と公開CPUの現在仕様を確認します。
-4. [シングルスAIの契約](four-shogi-ai-engine.md)。完全状態の復元、4人効用、未校正評価、単独勝ち目的と既存APIを確認します。オンラインVPSの配置契約と今回のローカル配置は分けます。
-5. この開発文書、[構成](architecture.md)、[テスト方針](testing.md)、[AIの測定記録](four-shogi-ai.md)。責務と測定の再現条件を確認します。
-6. 最新developのAPI・コード・固定棋譜・テスト・Git履歴と保全した試作。試作にだけ存在する機能を採用済み仕様と推測しません。
-
-### Constraints
-
-- アプリはBun/TypeScript・React・HeroUIと既存ルール/解析APIを使い、Cloudflareの配布物へ含めません。新規学習、GPU最適化、新しい主要依存・外部サービスは追加しません。公開Lv1/Lv2、対局ルール、戦績/保存棋譜互換を維持します。
-- `bun run study` でビルドして `127.0.0.1:5198` だけへbindし、同一Originの操作だけを受けます。既定保存先は `~/Library/Application Support/Tetraboard Study`。ポート・保存先は専用環境変数で変更でき、通常のオンライン開発設定を読み込みません。
-- 初期5秒、1/5/15/30/60秒・任意・無制限の予算を扱います。手動検討と各CPU席の思考予算を分離し、初期の席は南が人間、他3席がCPUです。取消は旧結果を適用せず、停止は最後に完成した比較を保持します。新予算の再解析は新しい探索IDで開始します。
-- プロセス数の既定は `min(4, max(1, logicalCpu - 2))`、メモリの既定は搭載量の1/3・最大8GiBです。上限は `max(1, logicalCpu - 2)` と搭載メモリの75%以下にします。観測RSSの合計とOSの厳密なメモリ制限を混同しません。異常・メモリ超過では子プロセスを終了します。
-- 探索v4では、全選択根候補の即脱落検査は深さ2前に維持し、表示用の資産危険検査を通常深さ2の完成・公開後へ移します。対象は深さ1の浅い全体評価で決めた先頭5候補に固定し、未検査は未確認のまま表示します。評価・効用・ゲームルールは変更しません。
-- 右は南→東、西→南、北→西、東→北の元の席に固定し、右の相手の脱落後は優先を解除します。全員が自分の効用を選ぶMaxⁿとし、協力する敵3人や仮の手番を既定にしません。評価の勝率表示・棋力の自動認定を行いません。手番外の人の推奨は同じPV中の次の実手番の想定手として示します。
-- 完成した結果には局面hash・版・予算・資源条件を残し、元棋譜・分岐・コメントとともに保存します。破損や保存失敗時は旧版を保ちます。局面編集で失う攻撃/反復履歴を推測で補わず、新しい検討の初期履歴にします。
-- ライブのための変更は既存Workerの読取りAPI拡張に限ります。GET replayの `throughEventCount` で100件ずつ固定prefixを取り、引数を省略した既存取得を維持します。観戦WSのrevisionと確定イベント数、世代・対局ID・復元状態を照合し、再接続と同じ対局の終局保存棋譜への引継ぎを扱います。接続先へのAPI配信は別途承認後で、未対応時は解析失敗を隠しません。
-- フォーカスは現在の完全状態から小予算の相手予測を正本で進め、対象の最初の実手番だけを解析します。元局面と解析対象のhash、予測prefixと候補PV、直接採用できる推奨と未来の想定手を分けます。投射を全体の時間枠に含め、取消/置換で古い結果を捨て、脱落・終局・予測上限で未到達なら未解析を明示します。
-- 共有UI抽出では既存オンライン画面の盤・持ち駒・成り・回転・画像と操作を回帰確認し、ロビーの軽量読込みとCPU/モデル/ローカル探索の配布物への混入防止を維持します。アプリが非デプロイでも、develop/mainのマージは既存オンラインCIのデプロイを起動するため、マージしません。
-- 自動確認はBunの純粋関数・happy-domの部品/hook・Worker統合へ集約し、ブラウザ自動テストを追加しません。重い戦術/性能/正式棋力測定は通常checkから分離し、画面寸法・実画像・ネイティブ入力・Mac実機操作は手動結果または未確認事項を記録します。
-- 正式測定は未使用holdoutを事前固定し、時間/資源・席・相手・途中打切り・コード識別を残します。未終局は分母から落とさず、引き分けへ置換しません。未達時は原因を調整用で調べ、新しいholdoutで再判定します。過去結果を新しい条件へ書き換えません。
-
-### Done When
-
-- 新規検討、公開棋譜/JSONの入出力、前後移動・分岐・コメント・保存/再読込み・破損回復、元棋譜を保つ局面編集、各席CPU/人間・自己対戦、時間設定・開始/停止/再解析・候補採用が機能します。
-- 全方向と4/3/2人生存・三人攻撃ON/OFF、右への王手/逆王手/複数王手・同時詰み・千日手・引分提案・手番外脱落、マジック/駒損/自王安全の重要戦術が正本と一致し、重要戦術の全問に合格します。評価・候補/PVは同じ局面と尺度を保ち、未完了と証拠の地平を表示します。
-- 戦術fixtureの説明と合法手・期待手の整合を確認します。強制成りは `four-shogi-tactics-v2` の唯一合法な王手応手で検証し、重要指定と成りの期待条件を維持します。旧fixtureの39/40という15秒結果と診断を保全し、新fixtureの結果と混同しません。測定reportへfixture版・ソース識別・未達時の全候補評価/PVを残します。
-- 独立プロセスの並列/逐次が同じ完成深さで一致し、取消・起動失敗・異常終了・メモリ/時間・無応答時の強制停止、保存障害、古い局面/revision/世代の結果破棄を検証します。
-- 公開棋譜とライブのローカルWorker統合で固定prefix・101件以上のページ・対局進行中の取得・再接続・局/世代切替・終局保存への移行・未配信APIを確認し、実対局の状態へ書き込みません。
-- ライブで席を選び、他者の手番でも対象の次実手番を継続解析します。正本の手番飛ばしと予測後の脱落/終局を保ち、確定イベント到着で再解析し、未到達/条件付き評価を表示します。現在と未来の手を混用せず、元局面・解析対象・予測手順を照合した場合だけ分岐へ反映します。
-- 棋力向上・正式再計測・合格判定は別作業へ保留し、今回のDone Whenには含めません。[事前固定の正式条件と過去記録](four-shogi-ai.md#ローカル検討cpuの測定と採否)は変更せず保管し、未達・未完了の棋力を合格とは記載しません。
-- 共有UIの既存画面回帰、通常Webへの探索コード非混入、必須5コマンドと `bun run study:build`、文書整形・`git diff --check` が成功します。PR提出時はGitHub CIも成功し、検証対象コミット・実行環境・各結果・所要時間・未確認事項を記録します。Macの実表示/入力と公開先ライブAPIの未配信は独立して報告します。
-
-### コミット計画
-
-初回承認時の10コミット計画です。追加指示で棋力向上と正式再計測を別作業へ保留したため、9番の棋力検証を今回の完了条件には含めません。フォーカスの実装・回帰と保留した確認を最終報告で区別します。
-
-1. `docs: ローカル検討アプリの仕様と完了条件を定める`
-2. `refactor: 将棋盤面の表示部品を検討アプリと共有する`
-3. `feat: ローカル検討アプリの起動と棋譜保存を追加する`
-4. `feat: 思考時間と資源制限付きの並列探索を追加する`
-5. `feat: 実手番に基づくマジックと駒損対策を強化する`
-6. `feat: 四人の形勢と読み筋およびCPU対局を表示する`
-7. `feat: 進行中の四人将棋の確定棋譜を取得できるようにする`
-8. `feat: 公開棋譜とライブ対局をローカル検討へ接続する`
-9. `test: ローカルCPUの戦術と棋力および資源使用を検証する`
-10. `docs: ローカル検討アプリの利用手順と検証結果を記録する`
-
-### 実装の入口
-
-| 対象 | 主なファイル |
-| --- | --- |
-| 盤・駒と既存画面の共有 | `packages/shogi-ui/src/`、Webの `features/room` の互換ラッパー |
-| 起動・ローカルHTTP・操作 | `apps/four-shogi-study/src/server/main.ts`・`http.ts`・`application.ts` |
-| 検討ツリー・完全状態・保存 | 同 `domain/study.ts`・`store.ts`、`shared/model.ts`、`packages/four-shogi/src/analysisSetup.ts` |
-| 並列・時間・資源・停止 | 同 `search/runtime.ts`・`worker.ts`・`messages.ts` |
-| 席のフォーカスと予測手順 | 同 `search/focus.ts`、runtimeの元局面/解析対象と条件付き推奨の管理 |
-| 戦術・4人効用と右の扱い | `packages/four-shogi/src/studySearch.ts`、既存 `aiSearchContext.ts` |
-| 指標・読み筋・設定・入力 | 同アプリの `client/StudyApp.tsx`・`EvaluationPanel.tsx`・`StudyDialogs.tsx`・`useStudySession.ts` |
-| 公開棋譜とライブ | 同 `server/publicImport.ts`・`liveRoom.ts`、`domain/publicReplay.ts`・`liveReplay.ts`、既存protocol/Worker replay経路 |
-| 戦術・性能・正式棋力 | 同 `bench/search.ts`・`strength.ts` と独立対局親のIPC制御。[測定記録](four-shogi-ai.md#ローカル検討cpuの測定と採否)へ条件と結果を残します。 |
-
-部分確認は `bun run study:check`、ビルドは `bun run study:build`。rootの `check` に通常テスト・型確認を含め、rootの公開 `build` には検討アプリを含めません。CIでも検討UIは配布資産へ混ぜず、選択対象のbuildとして確認します。
 
 ## 軽量テスト
 
@@ -1142,7 +1039,6 @@ CSSを追加できる範囲は `shared/theme.css` の共通テーマ／最小リ
 
 ## Naming
 
-- 独立Python AIのモジュール・関数・変数はsnake_case、クラスはPascalCaseとします。交換JSONは既存のcamelCaseを維持します。以下はTypeScriptの命名です。
 - ファイル名: camelCase（Reactコンポーネントファイルは基本PascalCase）
 - クラス名: PascalCase
 - 型名: PascalCase
@@ -1355,7 +1251,7 @@ PR提出・レビュー可能な状態の条件は次のすべてです。
 
 Googleの要求は `openid email profile`、`access_type=online`、Discordは `identify email` です。退会と画像アップロードの競合では先にアップロード待ちをD1へ登録し、受付が新しい画像の削除先も取得します。進行中は削除を完了にせず、終了または10分の中断判定後に回収します。期限後に遅れてアップロードが終わった場合も削除キューへ戻し、失敗した画像削除を再試行します。
 
-新しいトークンは暗号化し、導入前の平文access tokenは `migrateOAuthTokens` が毎時最大100件ずつ、元の値が変わっていない場合だけ暗号化します。初回導入では全件の変換が完了したことを公開前に確認します。解除用の暗号化キーを、未完了ジョブがある間に破棄しません。現行のトークン取扱いは [Google OAuthポリシー](https://developers.google.com/identity/protocols/oauth2/policies) と照合しています。
+OAuthトークンは認証ライブラリで暗号化して保存し、解除時も暗号化形式だけを復号します。2026-11-06に本番・開発の平文候補と退会待ちの平文取消トークンが0件であることを再確認し、平文の定期移行と受理を撤去しました。古いバックアップの復元時は公開前に欠落公開IDと平文候補を検査し、旧版の移行処理を隔離環境で実行して0件を確認してから現行Workerへ渡します。解除用の暗号化キーを、未完了ジョブがある間に破棄しません。現行のトークン取扱いは [Google OAuthポリシー](https://developers.google.com/identity/protocols/oauth2/policies) と照合しています。
 
 退会APIの入口は [deletionRoutes.ts](../apps/worker/src/privacy/deletionRoutes.ts)、段階処理は [deletion.ts](../apps/worker/src/privacy/deletion.ts) です。`POST /api/account/deletion/reauth` →同じproviderのコールバック→ `GET /api/account/deletion/confirmation` → `POST /api/account/deletion/confirm` を使います。challengeはHttpOnly Cookie、同じ本人・新しいセッション・OAuth state・provider・10分期限を照合し、開始を1分5回までに制限し、取消や在室拒否でも直近の試行回数を消しません。削除対象をflowで固定し、別人で再認証した後に対象を切り替えません。手続きの取消は `POST /api/account/deletion/cancel` を使い、アカウントを削除せず確認資格を失効させてflowを破棄します。最終操作は同一Origin・`confirm: true`・一回用challengeと在室の再検査が必要です。202で受付資格を返し、セッションを失効させた後は `POST /api/account/deletion/status` が資格ハッシュで状態だけを返します。
 
@@ -1382,9 +1278,36 @@ migration 0023は過去の公開チャット投稿の送信者識別子を `send
 
 migration 0021はゲストセッション、OAuth対応、統合済み内部IDの対応とfenceを追加します。統合は棋譜の本人参照・履歴索引・バッジ・大会参加者・プライバシー対応を一括で移し、ゲーム手順・日時・結果を変更しません。統合済みゲストの認証を失効させ、再送のため最小限の内部ID対応を保持します。遅延した棋譜保存・本人索引にもDB triggerで統合先を適用し、同じ参加の二重計上を防ぎます。大会のentry IDと得点イベントは保持します。計測の開始時ゲスト区分は `analytics_participants.is_guest` に保持し、登録者への連携後も過去の参加区分を登録者にしません。統合時の計測・フィードバックの本人参照は統合先へ移し、退会時の対象に含めます。登録者へ切り替わった日時は `guestRegisteredAt` とし、ゲストの作成日とは区別します。
 
-管理・試用AIは登録者専用の本人確認を維持し、公開チャットの投稿・通報はゲストの本人確認にも対応します。本人の戦績・履歴・バッジ・大会はゲストの本人確認にも対応し、ランキングと公開カードは公開用UUIDで参照します。ゲスト用認証情報はログや公開応答へ出しません。ゲスト作成はIPを秘密鍵付きでハッシュしたキーで毎分20回までに制限し、IPそのものをこの制限用DBに残しません。OAuth中に別タブの参加が届いた場合は認証応答を保ち、退室後に同じ本人対応で連携を再試行できます。統合先が退会した後も最小限の統合ID対応を残し、元ゲストの保存待ちを正規化・削除済みとして扱います。
+管理は登録者専用の本人確認を維持し、公開チャットの投稿・通報はゲストの本人確認にも対応します。本人の戦績・履歴・バッジ・大会はゲストの本人確認にも対応し、ランキングと公開カードは公開用UUIDで参照します。ゲスト用認証情報はログや公開応答へ出しません。ゲスト作成はIPを秘密鍵付きでハッシュしたキーで毎分20回までに制限し、IPそのものをこの制限用DBに残しません。OAuth中に別タブの参加が届いた場合は認証応答を保ち、退室後に同じ本人対応で連携を再試行できます。統合先が退会した後も最小限の統合ID対応を残し、元ゲストの保存待ちを正規化・削除済みとして扱います。
 
 ## Google認証とアカウント移行
+
+### 自動アイコンとプリセット
+
+ルームの初回名前入力では `RoomEntryDialog` と `RoomInvitationDialogs` の参加ダイアログがプリセットの下書きを持ちます。`RoomIdentityFields` はアイコン・44pxのシャッフル操作・変更結果の読み上げを共有し、`guestAvatar.ts` は現在の画像を除いた候補から選択します。閉鎖時はダイアログとともに下書きを破棄します。全6ゲームの作成・CPU・通常参加と招待／観戦からの参加は、選択IDを `ensureGuestAccount` の作成JSONへ渡します。`prepareRoomGuest` は保存結果を画面へ反映し、下書きと異なるプロフィールを別の操作が先に確定していた場合は入室前に再確認を案内します。大会・公開チャットは既存の名前入力を維持します。
+
+`POST /api/account/guest` は任意の `avatarPresetId` を検証し、新規作成では名前・選択ID・本人資格・同意を同じD1 batchで保存します。名前未設定の既存ゲストも名前と選択IDを一つのUPDATEで確定し、設定済みへの変更を条件に含めて遅れた要求による上書きを防ぎます。設定済みの本人には保存済みプロフィールを返し、作成要求での名前・アイコン変更は行いません。選択IDを省略する既存の経路は固定の自動割り当てを維持します。
+
+共通カタログ `packages/protocol/src/avatarPresets.ts` は6種類の固定UUID・表示名・画像名を定義します。v1の内部IDによる割り当てを固定し、`user.avatarPresetId` が未設定の既存ユーザーも取得時に解決します。migration 0027は選択用列と `account_room_seats.avatar_preset_id` を追加し、一括データ更新やR2コピーは行いません。
+
+アップロード画像を優先する解決処理を全プロフィール表示で共有します。プリセットの固定UUIDは既存の `/api/avatars/<UUID>` と同じ形式で、WorkerのASSETSから `/assets/avatar-presets/v1/` のWebPを配信します。ASSETSのないHTTPのローカル開発では同一オリジンのViteの画像パスへ302で転送し、転送をキャッシュしません。プリセットを個人用 `avatarKey`・R2画像参照・削除待ちへ保存しません。アカウント応答の任意 `avatarPresetId` は実効値です。登録者のmultipartは `avatarAction=preset` とカタログ内IDを受け付け、removeはアップロードだけを解除します。ゲストの名前更新JSONも任意のカタログ内IDを受け付け、ID変更・画像アップロード指定は拒否します。
+
+通常・大会の入室予約は実効プリセットを保存し、プロフィールの同時変更を検知します。入室済みの席は固定し、新しい入室だけ最新設定を使います。プリセット項目がない導入前の席は当時の表示を保持します。退会者・参照先なしへ内部IDからアイコンを補完しません。
+
+
+### ひとこととお気に入りゲーム
+
+`0028_profile_details.sql` は `user.profileMessage`（空文字）と `favoriteGames`（JSONの空配列）を追加し、旧INSERTと互換な既定値を持たせます。共通の `profileDetailsSchema` で改行なし・30書記素以内、既知のゲームID最大3つ・重複なしを検証し、ゲーム一覧順へ正規化します。ゲストの作成・名前更新APIでは新項目を拒否します。
+
+登録者の初回設定・プロフィール更新multipartは `profileMessage` とJSON配列文字列の `favoriteGames` を受け付けます。全入力を画像アップロード前に検証し、既存項目と一緒にD1 batchで保存します。省略項目はSQLの `COALESCE` でDBの現在値を保持し、空文字・空配列は削除に使います。保存応答には更新後の値を返します。本人応答の追加項目は省略可能で、旧応答ではフォームが空欄で初期化します。
+
+公開カードは `includeDetails=1` の場合だけ登録者の現在値を返し、指定しない旧Webへの応答形状を維持します。ゲスト・CPU・退会者には返しません。`ProfileDetails` をホバーカードとマイページで共有し、既存のアイコン・名前・IDの下に吹き出しとゲームのタグを並べます。タグには20px、選択ボタンには24pxの `LobbyBoardPreview` を影・回転なしで使います。`gameAccentClasses` が共通パレットの識別色を指定し、親のゲームテーマへ依存しない淡い背景・文字色を表示します。選択画面は2列（359px以下は1列）で、ゲーム色の枠とチェック・`aria-pressed` を組み合わせます。編集の保存・破棄・下書き保持・本人キャッシュ無効化は既存の共有フォームの仕組みを使います。公開項目の説明は規約・ポリシーにも追記し、既存の同意方式と版を維持します。
+
+### 共通のアカウント連携ダイアログ
+
+`features/account/AccountLinkDialog.tsx` は機能名・テーマ・閉じる操作を受け取り、どの画面からも使える共通の連携案内です。任意の `beforeSignIn` と `beforeSignInNotice` で、事前処理とその説明を渡せます。任意の `destination` は既存の登録復帰情報で扱えるアプリ内の遷移先に限定します。Google・Discordの認証開始と同意表示を共用し、事前処理の失敗ではOAuthへ進みません。`onBusyChange` で親の操作・閉鎖をロックできます。
+
+ゲストの `ProfileForm` は全プロフィール項目を表示し、制限操作から案内を重ねます。`saveBeforeLink` は名前・選択プリセットを保存してセッション表示・本人プロフィールのキャッシュを更新しますが、編集ダイアログを閉じません。通常の「保存」と取消の動作は維持します。案内は `AppDialog` の既存のModalスタックを使い、Escape・外側操作・フォーカスの復帰は最上段だけで処理します。案内を開く・閉じるだけでプロフィールを保存しません。本人の切替やunmount後の事前処理・OAuth応答から更新や遷移を行いません。Workerの権限・API・DBは変更しません。
 
 ### セッション更新Cookie
 
@@ -1427,7 +1350,7 @@ Google CloudのOAuthクライアントはWebアプリケーション用を使い
 
 マイページのページ枠は `AccountPageShell` の `layout="profile"` を使います。最大幅・左右余白は共通の `shared/ui/pageLayout.ts` にまとめ、ヘッダーと一致させます。プロフィールカードは本文の先頭に置きます。ゲーム切替は `AppButton` とロビーの盤面画像を共用し、選択中のボタンには `aria-pressed` を設定します。ボタンは横に並べ、画面幅に応じて折り返します。次の段にモードタブを配置し、651px以上は幅240pxで左にそろえ、650px以下は本文幅いっぱいにします。戦績・棋譜カードは1024px以上で左560px・間隔20px・右は残り幅、それ未満では同幅の縦並びです。本文とプロフィール編集の `AppDialog` は選択中ゲームのテーマを使い、共通ヘッダーはテーマ範囲の外に置きます。ログインは `AccountPageShell` の `layout="login"` でヘッダー下の残り領域を使い、左右20px余白・カード最大560pxの中央配置にします。内容が高い場合は自然に画面を伸ばしてスクロールし、上部が欠けないようにします。初回設定は従来のフォーム用幅を維持し、下部のロビーリンクは両方に残します。登録メリットとバッジ例をログインでも共用します。一般向けログインでは「バッジを集めよう」の説明の直下にバッジ例を置き、管理画面向けでは登録メリットとバッジ例を省略します。
 
-Webの編集先は `features/account/`、プロフィールの共通フォームは `ProfileForm.tsx`、認証処理はWorkerの `src/accounts/` です。初回設定はページ内、マイページの編集は共通 `AppDialog` 内に同じフォームを表示します。ゲストの編集では現在のアイコンと読み取り専用のIDを表示します。保存時は `PATCH /api/account/guest/name` に名前を送ります。登録者は名前・ID・任意アイコンをmultipartでまとめて保存します。カメラボタンから画像を選択してプレビューし、「保存」（初回設定は「プロフィールを作成」）で反映します。アイコンの削除も同じです。フォームの `onBusyChange` で画像変換・保存中の閉鎖を防ぎ、`onSaved` で成功時にダイアログを閉じてページに通知します。閉じた未保存フォームは破棄し、再度開くと保存済みプロフィールで初期化します。 ファイル選択や別タブから戻った際のログイン再確認では、取得済みのプロフィールと編集中のフォームを保持します。再確認の通信失敗は再試行案内を追加し、名前・ID・画像の下書きを保持します。セッション失効が確認された場合はログインへ誘導します。
+Webの編集先は `features/account/`、プロフィールの共通フォームは `ProfileForm.tsx`、認証処理はWorkerの `src/accounts/` です。初回設定はページ内、マイページの編集は共通 `AppDialog` 内に同じフォームを表示します。ゲストの編集では名前とプリセットを選択でき、IDは読み取り専用です。保存時は `PATCH /api/account/guest/name` に名前と選択時だけ `avatarPresetId` を送ります。登録者は名前・ID・任意アイコンをmultipartでまとめて保存します。カメラボタンから画像を選択してプレビューし、「保存」（初回設定は「プロフィールを作成」）で反映します。アイコンの削除も同じです。フォームの `onBusyChange` で画像変換・保存中の閉鎖を防ぎ、`onSaved` で成功時にダイアログを閉じてページに通知します。閉じた未保存フォームは破棄し、再度開くと保存済みプロフィールで初期化します。 ファイル選択や別タブから戻った際のログイン再確認では、取得済みのプロフィールと編集中のフォームを保持します。再確認の通信失敗は再試行案内を追加し、名前・ID・画像の下書きを保持します。セッション失効が確認された場合はログインへ誘導します。
 
 `bun run check` にCookie本人確認、期限切れ、ログアウト、Originチェック、入力境界、ID競合、画像変更・削除、移行計画、Google通信を差し替えたOAuth往復を含めます。プロフィール入力・保存・破棄・画像処理中のロックはDOMテストで確認します。WebKitでCanvasのWebP出力が使えない場合は、承認済みの `@jsquash/webp` を遅延読み込みします。Viteではこの依存をprebundleから除外し、WASMは明示的なasset URLで読み込みます。
 
@@ -1473,7 +1396,7 @@ GameRoomは対局開始時に棋譜と共通のUUID・開始日時・参加者�
 
 Workerテストは通常終局の棋譜再現、投了・退室・時間切れ・通信切れ、人間不在で未決着の打ち切り・非保存、退室による即時終局の保存、ゲストのみの保存、D1本体／索引の一括保存、複数局の保存失敗・再戦・閉鎖・番号再利用・再送、導入前の対局の除外を確認します。履歴APIは本人限定、両モード、0・20・21・41件、同時刻のページング、名前・画像変更、認証・D1障害を確認します。Webは履歴カードの値とリンク、空一覧、取得失敗と再試行、追加取得、共通のゲーム・モード、保持と遅延応答、更新をDOMテストで確認します。履歴の期限削除は行いません。
 
-保存参加者へ `match_participant_accounts` の適用済み帰属を重ねてから内部アカウントIDを重複排除し、`participantProfiles` で現在の名前・アイコンを一括取得します。本人用・公開用の一覧と詳細は同じ変換処理を使い、通常のプロフィール変更では応答項目と保存JSONを変更しません。退会時の保存名・本人参照の除去と退会者表示は [退会計画](#プライバシー規約退会の実装計画) の対象です。画像未設定・参照先なしは仮アバターとし、プロフィール取得障害は503です。プロフィール変更は次回取得時に反映し、表示中の自動同期は行いません。ルーム内の直前局の結果は当時の表示情報を保持し、結果からの席切替成功時だけ本人の名前・アイコンを更新します。
+保存参加者へ `match_participant_accounts` の適用済み帰属を重ねてから内部アカウントIDを重複排除し、`participantProfiles` で現在の名前・アイコンを一括取得します。本人用・公開用の一覧と詳細は同じ変換処理を使い、通常のプロフィール変更では応答項目と保存JSONを変更しません。退会時の保存名・本人参照の除去と退会者表示は [退会計画](#プライバシー規約退会の実装計画) の対象です。アカウントの画像未設定は自動プリセット、参照先なしは仮アバターとし、プロフィール取得障害は503です。プロフィール変更は次回取得時に反映し、表示中の自動同期は行いません。ルーム内の直前局の結果は当時の表示情報を保持し、結果からの席切替成功時だけ本人の名前・アイコンを更新します。
 
 ## 最近の対局一覧と公開棋譜
 
@@ -1543,13 +1466,13 @@ Workerテストで両ゲーム・両モードの人間4人、CPU1〜3人の過�
 
 公開・総合・本人の対局一覧と棋譜詳細では、`resolveMatchParticipantList` が最大20局の登録引き継ぎ（applied）と退会済みの参加関係（retired）を1回で取得し、引き継ぎ後の内部IDを重複排除して退会状態も1回で取得します。現在プロフィールの取得と合わせて最大3回とし、対局ごとのD1往復を行いません。20局・各4人でも1クエリのバインド数は最大80個です。空の一覧は問い合わせません。参加者IDは対局IDごとに解決し、pending・rejectedは反映せず、保存参加者と引き継ぎ先が矛盾する場合は取得を失敗させます。保存時と読取り時の退会者表示は `redactRetiredParticipants` の共通変換を使い、既に退会した参加者・退会済みの引き継ぎ先を旧名や現在プロフィールで復活させません。単独の公開プレイヤー参照も同じ解決処理を使います。
 
-`0010_player_profiles.sql` は `user.publicProfileId` の一意UUIDと `room_index` の部屋世代・ホストID列を追加します。内部アカウントIDと変更可能な公開IDから独立した参照キーを既存ユーザーへ付与し、プロフィール保存では未設定の場合だけ生成します。デプロイの間に未付与の登録者が生じても、参照の返却時に条件付きUPDATEで補完します。旧Workerの動作は追加migration後も維持できます。
+`0010_player_profiles.sql` は `user.publicProfileId` の一意UUIDと `room_index` の部屋世代・ホストID列を追加します。内部アカウントIDと変更可能な公開IDから独立した参照キーを既存ユーザーへ付与し、プロフィール保存では未設定の場合だけ生成します。ゲスト作成・プロフィール完了時に公開参照IDを確定し、プロフィール・ランキングGETでは補完UPDATEを行いません。公開対象のID欠落はデータ不整合として503にします。2026-11-06に本番232件・開発12件とも欠落0件を確認しています。
 
 `GET /api/player-profile` はゲームと参照種別を必須にします。`source=room` は `roomId, instanceId, playerId`、`source=match` は `matchId, playerId`、`source=profile` は `profileId` を渡します。GameRoom内部の参加者・アカウント対応、保存記録、公開参照キーをサーバーで照合します。名前や画像で本人を判定せず、内部IDはHTTP・WebSocketへ返しません。省略可能な `includeStats=1` を指定した場合は、平均順位・勝敗分・撃破数の表示に必要な既存 `AccountStats` の全項目を返します。追加指定がない場合、登録者には現在のプロフィールと対象ゲームの `{ singles: { total, first }, doubles: { total, wins } }` だけを返し、既存の `readAccountStats` を呼びます。ゲスト・CPUを区別し、不正400、対象なし404、部屋世代変更410、障害503、全応答no-storeです。対局のWebSocket配信へD1取得を追加しません。
 
 ロビー・ランキングは `profilePreview=1` の要求にだけ参照情報を追加します。通常の応答は従来の形で、旧Workerの400では通常取得へ戻ります。ロビーの古い索引で参照情報がない行は `getPublicMetadata` で現在の部屋世代とホストへ補完し、閉鎖済みを除外します。参照のない旧応答をゲストと判断しません。
 
-Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1` と `includeBadges=1` を指定し、400時は両方を外して一度だけ再取得します。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。HeroUIのPopoverは非モーダルで位置・Portalを再利用し、開閉・フォーカスは操作種別に応じて制御します。ランキング内ではPortalを所属ダイアログへ置き、Escapeの伝播を止めて外側を閉じません。
+Webのプレイヤー機能は取得store、Provider、表示カード、トリガーに分離します。storeは `includeStats=1`・`includeBadges=1`・`includeDetails=1` を指定し、400時にオプションを除去する自動再取得は行いません。旧応答の不足項目は補完せず、`playerStatsSummary.ts` で取得済み値だけを文章にまとめます。成功結果を60秒再利用し、解決した公開参照キーとゲームで共有します。プロフィール保存・終局・画面遷移で無効化し、abort後や旧要求の完了を採用しません。HeroUIのPopoverは非モーダルで位置・Portalを再利用し、開閉・フォーカスは操作種別に応じて制御します。ランキング内ではPortalを所属ダイアログへ置き、Escapeの伝播を止めて外側を閉じません。
 
 Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テスト、Webの `playerProfiles.test.tsx` で未ログインでの取得、別人への誤紐付け防止、ゲスト・CPU・参照先なし、旧応答、取得障害、開閉、再試行、キャッシュ期限・無効化・遅延応答を確認します。実寸法・ネイティブ入力・画像デコードは手動確認し、PRへ結果と未確認を記載します。
 
@@ -1591,7 +1514,7 @@ Workerテストで未ログインアクセス・全色・同率優勝・両チ�
 
 ### 管理者設定
 
-ローカルの追跡対象外 `.dev.vars` に `ADMIN_ACCOUNT_IDS` をJSON配列（例：`["owner-id-1","owner-id-2"]`）で設定します。値は本人の内部 `user.id` で、公開IDの `username`・Googleの識別子・メールとは異なります。本人のプロフィールを公開IDまたはメールで検索したD1の行から確認してください。IDをソースやフロントエンドの環境変数へ埋め込みません。設定なし・空配列・不正な配列は503で閉じ、開発者用の認証回避は設けません。従来の `ADMIN_ACCOUNT_ID` は配列が未設定の場合だけ利用し、不正な配列からはフォールバックしません。
+ローカルの追跡対象外 `.dev.vars` に `ADMIN_ACCOUNT_IDS` をJSON配列（例：`["owner-id-1","owner-id-2"]`）で設定します。値は本人の内部 `user.id` で、公開IDの `username`・Googleの識別子・メールとは異なります。本人のプロフィールを公開IDまたはメールで検索したD1の行から確認してください。IDをソースやフロントエンドの環境変数へ埋め込みません。設定なし・空配列・不正な配列は503で閉じ、開発者用の認証回避は設けません。単一管理者の設定でも配列を使います。
 
 本番は開発者の指示に基づき、`apps/worker` で `bunx wrangler secret put ADMIN_ACCOUNT_IDS --env production` から本人のIDのJSON配列を設定します。secretに保存したIDは認証と本人利用の除外で共通に使います。公開・マージは差分と確認結果をレビューした開発者の承認後に行います。既存の `MODERATOR_TOKEN` は通報API用で、管理画面には使いません。ログイン画面の `destination=admin` はサーバー固定の `/admin` へだけ戻し、任意の外部URLをOAuthの遷移先にしません。
 
@@ -1680,6 +1603,29 @@ Worker統合テストはHTTP・実D1・R2で権限、並行再送、保存失敗
 
 Worker統合テストで保存・公開・掲載先・並び順・カーソル・権限・競合・batchロールバック・移行を確認します。Bun＋happy-domでフォーム・入力保持・プレビュー・権限喪失・ヘッダー・一覧・詳細・ロビー切り替えを確認します。幅・折り返し・キーボード操作は手動確認とし、ブラウザを起動する自動テストは追加しません。通常の必須コマンドとCIの成功を確認し、開発者のマージ承認後に既存CI/CDでマイグレーションと配信を行います。公開後は既存記事の閲覧と、検証用非公開記事の管理保存・再取得を確認します。
 
+### ベルのお知らせ・既読の実装
+
+仕様は[READMEのベル機能](../README.md#ベルのお知らせ一覧と既読)を正本にします。`notifications/store.ts`・`routes.ts` が一覧・詳細・本人の既読を担当し、Protocolの `notifications.ts` で種類別payload・番号・入出力を共有します。
+
+`0029_notifications.sql` は単調増加番号の `notification_events`、初回全体基準とまとめて既読上限の `account_notification_state`、個別既読の `account_notification_reads` を追加します。全体イベントは記事ID、バッジは本人と対局ID、大会は本人とエントリーIDを一意にします。全体通知は現在の記事を参照し、個別通知は獲得・表彰時のpayloadを保持します。公開状態を全体の一覧・詳細・未読判定へ毎回適用します。
+
+記事のINSERT／公開UPDATEと、バッジtoast台帳のINSERTにD1 triggerで接続し、既存の保存batchと一緒に確定します。大会は `finalizeTournament` の同じ競合ガードを使い、最終順位・表彰イベント・結果確定を同じbatchで保存します。triggerによる副次変更を含むため、記事の更新成功は変更件数ではなく `UPDATE ... RETURNING id` の結果で判定します。移行は既存公開記事をlegacyとして登録し、旧バッジイベントを補完しません。導入時刻より前のtoast台帳を統合しても新たな通知を作りません。
+
+APIはすべてno-storeです。
+
+- `GET /api/notifications?cursor=番号&after=番号&announcementId=記事ID` は公開通知と本人宛を20件ずつ返し、`nextCursor` と取得時点の `upperBound` を含めます。`after` は匿名の未読照合、`announcementId` は既存の記事詳細から既読を付けるために使います。
+- `GET /api/notifications/:id` は閲覧可能な詳細だけを返します。他人宛・非公開記事は404です。
+- `GET /api/account/notifications/unread` は本人の未読有無と上限を返します。初回の本人取得で全体記事の基準だけを一度保存します。
+- `POST /api/account/notifications/read` は `{ id }`、`read-all` は `{ through }` を受け、Cookieと同一Originを確認します。既読記録は再送可能で、未来の未発行番号をまとめて既読にする指定は拒否します。入力不備400、未認証401、Origin不正403、取得・保存障害503です。
+
+`NotificationProvider` はAccountLayout配下で本人・認証世代ごとの取得を管理し、ヘッダーの登録中だけ30秒更新します。表示復帰・focus・online・storageで再確認し、取得競合では新しい結果を優先します。通知ごとの通信は10秒で中止します。`NotificationBell` は共通ヘッダーだけに置き、共通AppDialogで一覧・詳細・既読失敗の再試行を表示します。全体記事の表示ラベルは「運営からのお知らせ」です。一覧の更新は読み上げ名「お知らせを更新」のアイコン専用ボタン、すべて既読は文字付きのボタンとし、どちらもsecondaryの枠付き表示で操作中のスピナーと重複操作の抑止を維持します。更新・一括既読・戻るのボタンは高さ36pxにそろえ、更新・戻るは36px角と16pxのアイコンで表示します。一括既読は左右のpaddingも12pxに抑えます。AppDialogの `scrollBody`・`bodyRef`・`footer` を使い、ヘッダーと詳細の下部にある戻るアイコンボタンを残して本文だけをスクロールします。詳細は先頭から表示し、一覧へ戻ると本文のスクロール位置と選択項目のフォーカスを復元します。匿名は専用localStorageにまとめて既読上限と個別IDを保存し、保存不可時はメモリで保持します。
+
+`notificationCache.ts` は本人ごとの最新1ページをメモリに保持します。ヘッダー登録後に未読確認と一覧先読みを並行して開始し、開くときは取得済み一覧を初期表示しつつ再取得します。未読確認の番号上限が変わった場合も先読みを更新します。匿名は従来の未読確認に使う一覧をそのまま先読みに共用します。進行中のGETは認証世代とURLごとに共用し、StrictMode・先読み中のベル操作・更新の重複通信を抑えます。失敗してもキャッシュは保持し、データなしと取得失敗を区別します。追加取得したページとスクロールはダイアログ内だけに保持します。
+
+キャッシュは安定したprofileId（互換時はusername）を本人キーとし、同じ本人の認証再確認では保持します。取得の中止と表示は認証世代で管理し、確認中は非表示、ログアウト・本人切替では新しいキャッシュへ切り替えて旧応答を破棄します。個別本文をlocalStorageへ保存しません。一覧に含まれる全文から詳細を表示し、その表示後に既読を保存するため、項目選択時の詳細GETは不要です。既存記事の直接閲覧も先読み内の通知IDを優先し、未取得記事だけ `announcementId` で照会します。成功した個別既読・一括既読はキャッシュへ反映し、古い取得応答で巻き戻しません。既読保存が404なら表示から除外し、それ以前に開始した一覧応答を無効にします。401は既存の本人再確認へつなぎます。未読APIの `hasUnread: false` だけを根拠に通知を既読へ変更しません。
+
+ゲスト統合は各アカウントの基準・まとめて既読を個別記録へ実体化してから宛先を移し、元イベントが重なる場合は既読を優先します。バッジ台帳の移行より先に実行して再生成を防ぎます。退会処理と削除済みアカウントのINSERT／UPDATEフェンスにも通知を含めます。新しい外部サービス・WebSocket配信は追加しません。
+
 ## 任意登録の案内と画面復帰
 
 利用者向けの正本は [終局後の登録と継続再戦](../README.md#終局後の登録と継続再戦) です。登録案内は参加フォームから除き、全体が終局したゲスト本人の結果だけに表示します。結果自体の自動表示は `useAutoGameResult` の既存条件と1,000msの遅延を維持し、案内対象の判定とは分離します。登録済み席をログアウトしてもゲスト扱いにしないよう、本人用の参加資格応答で席のアカウント対応を確認します。
@@ -1735,7 +1681,7 @@ Workerの `matchDataContracts` は `GameId` ごとの保存記録読取り・公
 
 HTTPの `GET /rooms/:id?formationAnalysis=1` とWebSocketの `/rooms/:id/ws?instanceId=...&formationAnalysis=1` は、通常の応答の `room` の外側へ任意の `formationAnalysis` を付加します。将棋の待機中は `null`、対局中は `{ analyzerId, analysisVersion, rulesVersion, roundId, positionRevision, matches: { south, west, north, east } }`。要求なしとリバーシには項目を付加しません。`protocol` は通信スキーマだけを管理し、戦型IDの列挙と判定条件はエンジンに置きます。エンジンへのprotocol依存追加はありません。成立一覧の上限は17件、根拠座標は各9件で、同時成立も別項目として返します。要求クエリと接続タグは解析版とは独立し、版3でも従来の形式を使います。受信上限17件は旧版との通信互換性のため維持します。
 
-WorkerはWebSocketの要求を `formation-analysis-v1` 接続タグで保持し、従来の認証attachmentを維持します。配信ごとに通常応答と付加応答を各1回だけ生成して共有します。HTTP・WebSocketとも確定したルーム状態の4陣営を判定します。付加解析結果をルーム状態・棋譜・保存対局JSONへ含めません。本人戦績用の成立履歴は下記の専用処理・別テーブルで保存します。WebはHTTPで付加項目の有無を確認し、対応Workerの場合だけWebSocketでも要求します。再接続時にHTTPで再確認するため、旧Workerへの切替も従来形式で動作します。
+WorkerはWebSocketの要求を `formation-analysis-v1` 接続タグで保持し、従来の認証attachmentを維持します。配信ごとに通常応答と付加応答を各1回だけ生成して共有します。HTTP・WebSocketとも確定したルーム状態の4陣営を判定します。付加解析結果をルーム状態・棋譜・保存対局JSONへ含めません。本人戦績用の成立履歴は下記の専用処理・別テーブルで保存します。現在のWebはHTTP・WebSocketともこの派生結果を要求せず、対応有無のフラグも保持しません。APIは既存タブ向けに維持します。
 
 `useShogiFormationNotice` は `room.game` を共有関数で照合し、楽観表示用の `session.displayGame` とサーバーの派生結果を通知判定に使いません。認証・接続済みの本人について、同じ局の連続revision・連続手数・本人の直前手と不成立→成立を確認します。未通知の新規成立をすべて取り出し、通知データ `{ ids, name }` の名称を定義順に「・」で連結します。初回・再接続・飛んだrevisionは基準とし、既に成立している戦型も既知IDへ含めます。部屋世代・本人ごとの `sessionStorage` キーに局ID・解析版を含むscopeと通知済みIDを保存し、次局で置き換えます。保存値は全16種類の既知IDだけを受け付け、解析版1・2のscopeは引き継がず初回局面を基準にします。まとめ通知の全IDを通知済みにします。保存エラーはメモリ内の抑止へ退避します。別タブ同期は行いません。
 
@@ -1747,7 +1693,7 @@ WorkerはWebSocketの要求を `formation-analysis-v1` 接続タグで保持し�
 
 囲いなどの派生解析は復元済みの読取り専用局面を入力とする純粋な処理として設計します。入力の出所はゲーム・対局ID・局面位置・保存形式・ルール版で識別し、結果は解析器ID・解析バージョン・対象局面・判定根拠を持つ別データとします。保存された盤面・棋譜・勝敗・撃破数は記録の正本であり、解析結果によって変更しません。解析からGameRoom、storage、D1の更新、戦績SQLを呼びません。解析の再実行も元データを変更せず、版ごとの結果を比較できる構成にします。
 
-16戦型の判定と通信・通知は上記の専用処理で実装しています。シングルス専用AIの入力復元は [独立API](four-shogi-ai-engine.md#完全解析状態の復元api186) で扱い、戦型の公開指標を追加するものではありません。本人戦績用の専用成立履歴テーブルは下記の範囲で使用します。戦型別ランキングなど新しい指標とバックフィルは仕様承認、比較検証、再実行可能な移行計画を別途必要とし、Admin KPIは #43 の範囲です。
+16戦型の判定と通信・通知は上記の専用処理で実装しています。本人戦績用の専用成立履歴テーブルは下記の範囲で使用します。戦型別ランキングなど新しい指標とバックフィルは仕様承認、比較検証、再実行可能な移行計画を別途必要とし、Admin KPIは #43 の範囲です。
 
 ### 四人将棋シングルスの拡張戦績
 
@@ -1767,7 +1713,7 @@ Webは通常戦績と戦法別戦績の取得状態を分け、将棋シング�
 
 Protocolの `badges.ts` に種類・名称・単位・閾値・表示順と純粋な判定関数をまとめます。ゲーム別シングルスの `AccountStats` から星0〜3、現在値、次の目標を導出します。バッジの現在表示は通常戦績の保存済み対局から導出します。獲得通知だけを下記の専用記録で管理し、WebSocket配信は追加しません。
 
-Webの `AccountStats` は既存hookの結果をバッジ欄と戦績で共有します。公開カードは既存 `readAccountStats` の結果から獲得済みだけを返します。`GET /api/player-profile` は省略可能な `includeBadges=1` を受け、この指定時だけ登録者の応答へ `badges: { id, tier, value }[]` を追加します。未獲得は含めず、ゲスト・CPUには追加しません。無指定時の応答は従来どおりです。新Webは400時に一度だけ追加指定を外して再取得し、旧応答のバッジ情報不足を未獲得と判定せず欄を省略します。既存のキャッシュ期限・無効化・abortと内部ID非公開を維持します。利用可能な高さを超える情報はカード内でスクロールし、カード内のスクロールでは閉じません。
+Webの `AccountStats` は既存hookの結果をバッジ欄と戦績で共有します。公開カードは既存 `readAccountStats` の結果から獲得済みだけを返します。`GET /api/player-profile` は省略可能な `includeBadges=1` を受け、この指定時だけ登録者の応答へ `badges: { id, tier, value }[]` を追加します。未獲得は含めず、ゲスト・CPUには追加しません。無指定時の応答は従来どおりです。Webは追加指定を含めて取得し、400時は通常の取得失敗として扱います。省略可能なバッジ情報がない応答は未獲得と判定せず欄を省略します。既存のキャッシュ期限・無効化・abortと内部ID非公開を維持します。利用可能な高さを超える情報はカード内でスクロールし、カード内のスクロールでは閉じません。
 
 配信用画像は `apps/web/public/assets/badges/` のゲーム別ディレクトリに、種類と星を含む名前の透過256px WebPを18枚置きます。生成原本・修正前の画像は配信に含めません。星3の数字はWeb側で重ね、画像ごとのプレート座標と桁数・描画幅に応じた文字サイズを使います。バッジは再生成せず、元の透過・形・色を保って配信形式へ変換します。
 
@@ -1775,7 +1721,7 @@ Webの `AccountStats` は既存hookの結果をバッジ欄と戦績で共有し
 
 共通 `PlayerBadges` は獲得済み画像だけを56px・間隔4pxの折り返し可能な横並びで表示します。見出し・キャプション・条件の開閉欄・title属性のツールチップは設けません。画像内の星3累計を保持し、画像のaria-labelにはバッジ名・ランク・累計を付けます。各画面のプレイヤー情報カードで同じ部品を使います。
 
-純粋関数テストは閾値直前・到達・超過と星3以降の累計、Workerは過去分・対人戦・ゲーム別集計・同率優勝・完全優勝とAPI互換性、DOMテストは未獲得・獲得済み・モード切替・更新失敗・旧Workerへのフォールバックを確認します。実画像・縮小表示・数字位置・スマートフォン配置・ネイティブ操作は手動確認します。
+純粋関数テストは閾値直前・到達・超過と星3以降の累計、Workerは過去分・対人戦・ゲーム別集計・同率優勝・完全優勝とAPI互換性、DOMテストは未獲得・獲得済み・モード切替・更新失敗・400時の再取得抑止と手動再試行を確認します。実画像・縮小表示・数字位置・スマートフォン配置・ネイティブ操作は手動確認します。
 
 ### バッジ獲得イベントとtoast
 
@@ -1794,9 +1740,3 @@ D1 migration `0013_badge_notifications.sql` は `account_badge_awards` と `acco
 `AppToastRegion` は既存のHeroUI外観・位置・幅と既定の積み重ねを共有します。バッジは既存toastが終わってから取得し、同じ対局の全種類を1つにまとめ、別対局は順に取得します。バッジのタイトル・ゲーム名・画像列は中央揃えとし、折り返した行も中央に並べます。バッジは5秒、既存チャット・コピーは3秒です。HeroUIが非表示・ホバー・フォーカスを独立した停止理由として残り時間を管理します。バッジ内容のrole=status・aria-live=politeを指定し、画像は装飾として扱い、文字でゲーム名・種類・星・累計を伝えます。アカウント切替時は退出アニメーション中も本人内容を隠し、取得を中止して古い応答を無視します。新しい依存・外部サービス・通知音は追加しません。
 
 Workerの `badgeNotifications.test.ts` は全段階、ゲーム別集計、同時4種類、過去基準、保存ロールバック・再送、取得競合・失効・解放、Cookie・Origin・入力・本人制限を確認します。Webの同名DOMテストは画像と順序、初獲得・昇格文言、表示後の記録、5秒境界、非表示・表示復帰・フォーカス停止、別対局の順次表示、認証確認待ち、遷移、通信失敗、失効からの復旧、ログアウト・切替・StrictModeの古い応答、既存通知との共用を確認します。
-
-### 四人将棋シングルスAIの対局CPU接続
-
-[試用契約](four-shogi-ai-engine.md#対局cpuの試用接続194)のAPIは `fourShogiAi/routes.ts` とGameRoomの資格検査へ接続します。`fourShogiAi/cpu.ts` が部屋内の有限設定/ジョブ/診断、非同期通信、現在文脈の照合、代替を担当します。GameRoomは既存の期限処理を先に行い、試用の場合だけ同期CPUの選択/引分同意を置き換え、外部通信をtransactionへ入れません。候補適用は `FourShogiProgress.cpuAction` →既存accept/保存です。要求時の完全状態hashは `/analysis` の照合用関数を共用し、Workerで棋譜全体を毎回再生しません。既存CPU、入力/保存スキーマ、時計/配信/保存再試行の正本は維持します。
-
-通常の部分確認は `bun run --cwd apps/worker test test/fourShogiAiCpu.test.ts test/fourShogiAi.test.ts test/fourShogiRoom.test.ts test/timeControl.test.ts test/cpuRoom.test.ts test/matchCompatibility.test.ts`。実Linuxモデルは契約の `test:ai-cpu-model` を明示して別実行します。通常設定はプロセス環境変数を取り込まず、専用設定だけが4つのSMOKE値を読みます。UIの公開レベル追加や本番/VPSの有効化は行いません。

@@ -12,7 +12,6 @@ test("Workerの設定は開発用ファイルやプロセス環境変数から�
     DISCORD_CLIENT_ID: "test-discord",
     DISCORD_CLIENT_SECRET: "test-discord-secret",
   });
-  expect(env).not.toHaveProperty("ADMIN_ACCOUNT_ID");
   expect(env).not.toHaveProperty("ADMIN_ACCOUNT_IDS");
   for (const key of [
     "TETRABOARD_DEV_VARS_LEAK",

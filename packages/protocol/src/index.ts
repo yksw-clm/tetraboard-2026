@@ -1,4 +1,6 @@
 export * from "./games";
+export * from "./avatarPresets";
+export * from "./profileDetails";
 export * from "./gameSchemas";
 export { healthzContract } from "./healthz";
 export {
@@ -293,3 +295,5 @@ export { fourShogiEliminatedHandsSchema, type FourShogiEliminatedHands } from ".
 
 export * from "./registration";
 export * from "./tournaments";
+
+export * from "./notifications";

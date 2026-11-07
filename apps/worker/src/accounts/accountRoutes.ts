@@ -20,7 +20,13 @@ import {
   type RegistrationFlow,
 } from "./registrationFlows";
 import { Hono } from "hono";
-import { accountSessionSchema, profileInputSchema } from "@tetraboard/protocol";
+import {
+  accountSessionSchema,
+  profileInputSchema,
+  avatarPresets,
+  isAvatarPresetId,
+  profileDetailsSchema,
+} from "@tetraboard/protocol";
 import {
   accountIdentity,
   avatarKeyPattern,
@@ -167,6 +173,23 @@ accountRoutes.get("/account/session", async (c) => {
   return c.json(accountSessionSchema.parse({ user: user ? publicProfile(user) : null }));
 });
 accountRoutes.get("/avatars/:id", async (c) => {
+  const preset = avatarPresets.find((candidate) => candidate.id === c.req.param("id"));
+  if (preset) {
+    const path = `/assets/avatar-presets/v1/${preset.file}`;
+    if (!c.env.ASSETS) {
+      if (new URL(c.env.APP_ORIGIN).protocol !== "http:") return c.notFound();
+      // ローカル開発では同一オリジンのViteがpublic配下の画像を配信します。
+      c.header("Cache-Control", "no-store");
+      return c.redirect(path);
+    }
+    const url = new URL(path, c.req.url);
+    const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
+    const headers = new Headers(response.headers);
+    headers.set("Content-Type", "image/webp");
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("Cache-Control", response.ok ? "public, max-age=3600" : "no-store");
+    return new Response(response.body, { status: response.status, headers });
+  }
   const key = `avatars/${c.req.param("id")}.webp`;
   if (!avatarKeyPattern.test(key)) return c.notFound();
   const blocked = await c.env.APP_DB.prepare(
@@ -265,11 +288,39 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
   });
   if (!input.success)
     return c.json(error("名前は1〜10文字、IDは半角英数字と_の3〜20文字にしてください。"), 400);
+  let favoriteGames: unknown;
+  if (data.has("favoriteGames")) {
+    try {
+      const value = data.get("favoriteGames");
+      if (typeof value !== "string") throw new Error();
+      favoriteGames = JSON.parse(value);
+    } catch {
+      return c.json(error("お気に入りゲームは一覧から3つまで選んでください。"), 400);
+    }
+  }
+  const details = profileDetailsSchema.partial().safeParse({
+    ...(data.has("profileMessage") ? { profileMessage: data.get("profileMessage") } : {}),
+    ...(data.has("favoriteGames") ? { favoriteGames } : {}),
+  });
+  if (!details.success)
+    return c.json(
+      error("ひとことは改行なしの30文字以内、お気に入りゲームは一覧から3つまで指定してください。"),
+      400,
+    );
   const avatarAction = data.get("avatarAction");
-  if (!["keep", "replace", "remove"].includes(String(avatarAction)))
+  if (data.has("avatarPresetId") && !isAvatarPresetId(data.get("avatarPresetId")))
     return c.json(error("アイコンの指定が正しくありません。"), 400);
+  if (!["keep", "replace", "remove", "preset"].includes(String(avatarAction)))
+    return c.json(error("アイコンの指定が正しくありません。"), 400);
+  let avatarPresetId = user.avatarPresetId ?? null;
+  if (avatarAction === "preset") {
+    const selected = data.get("avatarPresetId");
+    if (!isAvatarPresetId(selected))
+      return c.json(error("アイコンの指定が正しくありません。"), 400);
+    avatarPresetId = selected;
+  }
   let avatarKey = user.avatarKey;
-  let image = publicProfile(user).avatarUrl;
+  let image = user.avatarKey ? publicProfile(user).avatarUrl : null;
   let uploadedKey: string | null = null;
   if (avatarAction === "replace") {
     const file = data.get("avatar");
@@ -278,7 +329,8 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     const avatarBytes = new Uint8Array(await file.arrayBuffer());
     if (!validAvatar(avatarBytes))
       return c.json(error("256pxの正方形WebP画像に変換できませんでした。"), 400);
-    const id = crypto.randomUUID();
+    let id = crypto.randomUUID();
+    while (isAvatarPresetId(id)) id = crypto.randomUUID();
     uploadedKey = avatarKey = `avatars/${id}.webp`;
     image = `/api/avatars/${id}`;
     if (!(await reserveAvatarUpload(c.env, user.id, avatarKey)))
@@ -291,33 +343,46 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
       await finishAvatarUpload(c.env, user.id, avatarKey);
       throw e;
     }
-  } else if (avatarAction === "remove") {
+  } else if (avatarAction === "remove" || avatarAction === "preset") {
     avatarKey = null;
     image = null;
   }
   let publicProfileId = user.publicProfileId ?? crypto.randomUUID();
   let changed = false;
+  let savedDetails: Pick<StoredProfile, "profileMessage" | "favoriteGames"> = {};
   try {
     // 同時編集で参照中の画像を消さず、旧画像の削除待ちをプロフィールと同時に保存します。
-    const results = await c.env.APP_DB.batch<{ id: string; publicProfileId: string }>([
-      c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
-        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)
+    const results = await c.env.APP_DB.batch<{
+      id: string;
+      publicProfileId: string;
+      profileMessage: string;
+      favoriteGames: string;
+    }>([
+      // 旧フォームの省略項目はDBの現在値を保持し、空文字・空配列は明示的な削除にします。
+      c.env.APP_DB.prepare(`UPDATE user SET name = ?, username = ?, profileCompleted = 1, image = ?, avatarKey = ?, avatarPresetId = ?, profileMessage = COALESCE(?, profileMessage), favoriteGames = COALESCE(?, favoriteGames), updatedAt = ?, publicProfileId = COALESCE(publicProfileId, ?)
+        WHERE id = ? AND COALESCE(profileCompleted, 0) = ? AND avatarKey IS ? AND avatarPresetId IS ? AND NOT EXISTS (SELECT 1 FROM deleted_accounts d WHERE d.id=user.id)
         ${
           registration
             ? `AND EXISTS (SELECT 1 FROM registration_flows f JOIN session s ON s.id=f.session_id AND s.userId=f.account_id
           WHERE f.id=? AND f.account_id=user.id AND f.session_id=? AND f.cancelled_at_ms IS NULL AND f.claim_until_ms>? AND s.expiresAt>?)`
             : ""
         }
-        RETURNING id, publicProfileId`).bind(
+        RETURNING id, publicProfileId, profileMessage, favoriteGames`).bind(
         input.data.name,
         input.data.username,
         image,
         avatarKey,
+        avatarPresetId,
+        details.data.profileMessage ?? null,
+        details.data.favoriteGames === undefined
+          ? null
+          : JSON.stringify(details.data.favoriteGames),
         Date.now(),
         publicProfileId,
         user.id,
         expectedCompleted,
         user.avatarKey,
+        user.avatarPresetId ?? null,
         ...(registration ? [registration.id, registration.session_id, Date.now(), Date.now()] : []),
       ),
       c.env.APP_DB.prepare(
@@ -335,7 +400,11 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
         : []),
     ]);
     changed = results[0].results.length === 1;
-    if (changed) publicProfileId = String(results[0].results[0]!.publicProfileId);
+    if (changed) {
+      const row = results[0].results[0]!;
+      publicProfileId = row.publicProfileId;
+      savedDetails = { profileMessage: row.profileMessage, favoriteGames: row.favoriteGames };
+    }
   } catch (err) {
     if (uploadedKey) {
       await finishAvatarUpload(c.env, user.id, uploadedKey);
@@ -358,9 +427,11 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     publicProfile({
       ...user,
       ...input.data,
+      ...savedDetails,
       profileCompleted: 1,
       image,
       avatarKey,
+      avatarPresetId,
       publicProfileId,
     }),
   );

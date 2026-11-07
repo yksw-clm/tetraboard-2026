@@ -46,18 +46,17 @@ export class PlayerProfileStore {
     this.states.set(key, { ...state, loading: true, error: null });
     this.emit();
     try {
-      const query = new URLSearchParams({ ...target, game, includeBadges: "1", includeStats: "1" });
-      const fetchProfile = () =>
-        fetch(`/api${getPlayerProfileContract.path}?${query}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-      let response = await fetchProfile();
-      if (response.status === 400 && !controller.signal.aborted) {
-        query.delete("includeBadges");
-        query.delete("includeStats");
-        response = await fetchProfile();
-      }
+      const query = new URLSearchParams({
+        ...target,
+        game,
+        includeBadges: "1",
+        includeStats: "1",
+        includeDetails: "1",
+      });
+      const response = await fetch(`/api${getPlayerProfileContract.path}?${query}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       if (!response.ok)
         throw new Error(
           response.status === 404 || response.status === 410

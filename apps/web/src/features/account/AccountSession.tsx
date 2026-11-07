@@ -1,3 +1,4 @@
+import { NotificationProvider } from "../notifications/NotificationProvider";
 import { GuestMergeConfirmation } from "./GuestAccountControls";
 import { accountPrivacyEvent } from "./accountPrivacy";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -177,51 +178,53 @@ export function AccountLayout() {
     <AccountContext.Provider value={{ ...state, refresh, update, recoverUnauthorized }}>
       <LastLobbyGameTracker />
       <GuestMergeConfirmation />
-      <BadgeNotificationProvider>
-        <div
-          className={
-            isGameViewPath(location.pathname)
-              ? "contents"
-              : "[@media(max-width:767px)]:pb-[calc(64px+env(safe-area-inset-bottom))]"
-          }
-        >
-          {state.user &&
-          !state.user.profileCompleted &&
-          location.pathname !== "/account/setup" &&
-          location.pathname !== "/" &&
-          !["/privacy", "/terms", "/account/deletion", "/how-to-play", "/how-to-play/"].includes(
-            location.pathname,
-          ) &&
-          location.pathname !== "/feedback" &&
-          !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
-          !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
-          !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
-          !(
-            location.pathname === "/login" &&
-            new URLSearchParams(location.search).get("destination") === "admin"
-          ) ? (
-            <Navigate
-              to={guestMergePending ? "/account/setup?guestMerge=1" : "/account/setup"}
-              replace
-            />
-          ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
-            <RegistrationCompletion
-              guestMergePending={guestMergePending}
-              enabled={Boolean(
-                state.user?.profileCompleted &&
-                !state.user.isGuest &&
-                !guestMergePending &&
-                !state.loading &&
-                !state.error,
-              )}
-            >
+      <NotificationProvider>
+        <BadgeNotificationProvider>
+          <div
+            className={
+              isGameViewPath(location.pathname)
+                ? "contents"
+                : "[@media(max-width:767px)]:pb-[calc(64px+env(safe-area-inset-bottom))]"
+            }
+          >
+            {state.user &&
+            !state.user.profileCompleted &&
+            location.pathname !== "/account/setup" &&
+            location.pathname !== "/" &&
+            !["/privacy", "/terms", "/account/deletion", "/how-to-play", "/how-to-play/"].includes(
+              location.pathname,
+            ) &&
+            location.pathname !== "/feedback" &&
+            !/^\/tournaments\/[1-9]\d*\/?$/.test(location.pathname) &&
+            !/^\/updates(?:\/[^/]+)?\/?$/.test(location.pathname) &&
+            !/^\/matches\/[^/]+\/?$/.test(location.pathname) &&
+            !(
+              location.pathname === "/login" &&
+              new URLSearchParams(location.search).get("destination") === "admin"
+            ) ? (
+              <Navigate
+                to={guestMergePending ? "/account/setup?guestMerge=1" : "/account/setup"}
+                replace
+              />
+            ) : location.pathname === "/account" || location.pathname === "/account/setup" ? (
+              <RegistrationCompletion
+                guestMergePending={guestMergePending}
+                enabled={Boolean(
+                  state.user?.profileCompleted &&
+                  !state.user.isGuest &&
+                  !guestMergePending &&
+                  !state.loading &&
+                  !state.error,
+                )}
+              >
+                <Outlet />
+              </RegistrationCompletion>
+            ) : (
               <Outlet />
-            </RegistrationCompletion>
-          ) : (
-            <Outlet />
-          )}
-        </div>
-      </BadgeNotificationProvider>
+            )}
+          </div>
+        </BadgeNotificationProvider>
+      </NotificationProvider>
     </AccountContext.Provider>
   );
 }

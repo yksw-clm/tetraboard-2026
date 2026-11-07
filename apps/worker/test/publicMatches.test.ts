@@ -1,3 +1,4 @@
+import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { applyD1Migrations } from "cloudflare:test";
 import worker from "../src/worker";
@@ -313,7 +314,7 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       for (const player of expected) {
         if (player.kind === "human" && player.id === record.participants[0]!.id) {
           player.name = "再変更後";
-          player.avatarUrl = null;
+          player.avatarUrl = avatarPresetUrl(accountAvatarPresetId(user.id));
         }
       }
       for (const participants of await profileParticipants(game, mode, user, record.id))
@@ -360,7 +361,12 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
       ]);
       expect(
         participants.map((player) => (player.kind === "human" ? player.avatarUrl : undefined)),
-      ).toEqual([`/api/avatars/${key.slice(8, -5)}`, null, null, null]);
+      ).toEqual([
+        `/api/avatars/${key.slice(8, -5)}`,
+        avatarPresetUrl(accountAvatarPresetId(other.id)),
+        null,
+        null,
+      ]);
     }
     expect(await storedProfileFixture(record.id)).toEqual(before);
     expect(await readStats()).toEqual(stats);

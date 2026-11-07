@@ -1,3 +1,4 @@
+import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import { getFourReversiRankingsContract } from "@tetraboard/protocol";
@@ -146,7 +147,9 @@ test("全履歴を集計し、再送を重複させず、最新の名前・公�
     value: 41,
   });
   await env.APP_DB.prepare("UPDATE user SET avatarKey = NULL WHERE id = ?").bind(user.id).run();
-  expect((await rankings()).singles.first[0]?.avatarUrl).toBeNull();
+  expect((await rankings()).singles.first[0]?.avatarUrl).toBe(
+    avatarPresetUrl(accountAvatarPresetId(user.id)),
+  );
 });
 
 test("実際の未終局は含めず、終局保存後に対局数を反映する", async () => {

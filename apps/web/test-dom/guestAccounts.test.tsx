@@ -99,13 +99,13 @@ test("ゲストは連携ボタンがあるマイページから共通ダイア�
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
   expect(dialog.textContent).toContain("プロフィールを編集");
   expect(dialog.querySelector('[data-slot="avatar-fallback"] svg')).not.toBeNull();
-  expect(dialog.querySelector('[aria-label="アイコン画像を選択"]')).toBeNull();
+  expect(dialog.querySelector('[aria-label="アイコン画像を選択"]')).not.toBeNull();
   expect(dialog.querySelector('input[type="file"]')).toBeNull();
   const username = dialog.querySelector<HTMLInputElement>('input[name="username"]')!;
   expect(username.value).toBe(`@${user.username}`);
   expect(username.readOnly).toBe(true);
   expect(dialog.textContent).toContain(
-    "アイコンとIDを変更するには、GoogleまたはDiscordとの連携が必要です。",
+    "画像アップロード・ID変更・ひとこと・お気に入りゲームの設定には、GoogleまたはDiscordとの連携が必要です。",
   );
   const name = dialog.querySelector<HTMLInputElement>('input[name="name"]')!;
   expect(name.value).toBe(user.name);

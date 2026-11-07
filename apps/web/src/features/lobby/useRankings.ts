@@ -28,15 +28,10 @@ export function useRankings(game: MatchGame = defaultGameId) {
         const contract = gameRankingContracts[game];
         const query = new URLSearchParams({ profilePreview: "1" });
         if (game === "four-shogi") query.set("includeKnockouts", "1");
-        let response = await fetch(`/api${contract.path}?${query}`, {
+        const response = await fetch(`/api${contract.path}?${query}`, {
           cache: "no-store",
           signal: controller.signal,
         });
-        if (response.status === 400)
-          response = await fetch(`/api${contract.path}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          });
         if (!response.ok) throw new Error("Rankings request failed");
         const result = (
           !gameCatalog[game].hasModes ? previewReversiRankingsSchema : previewRankingsSchema

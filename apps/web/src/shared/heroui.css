@@ -34,6 +34,7 @@
 
 @import "@heroui/styles/components/dropdown.css" layer(components);
 @import "@heroui/styles/components/popover.css" layer(components);
+@import "@heroui/styles/components/tooltip.css" layer(components);
 @import "./theme.css";
 
 @import "./effects.css" layer(components);

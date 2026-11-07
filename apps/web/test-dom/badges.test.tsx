@@ -148,30 +148,27 @@ test("profile shows only earned badge images in catalog order, with accessible n
   expect(view.querySelector('[aria-label="獲得済みバッジ"]')).toBeNull();
 });
 
-test("profile opt-in falls back once on old Worker and does not fabricate badges", async () => {
+test("プロフィールの400は再取得せず、利用者の再試行で同じ表示項目を要求する", async () => {
   const store = new PlayerProfileStore();
   const pending = store.load(target, "four-shogi");
-  expect(requests[0]!.url).toContain("includeBadges=1");
-  expect(requests[0]!.url).toContain("includeStats=1");
+  const url = requests[0]!.url;
+  expect(url).toContain("includeBadges=1");
+  expect(url).toContain("includeStats=1");
   requests[0]!.respond({}, 400);
-  await flush();
-  expect(requests).toHaveLength(2);
-  expect(requests[1]!.url).not.toContain("includeBadges");
-  expect(requests[1]!.url).not.toContain("includeStats");
-  const { badges: _badges, ...legacy } = profile;
-  requests[1]!.respond(legacy);
   await pending;
-  expect(store.get(profileKey(target, "four-shogi")).profile).toEqual(legacy);
+  expect(requests).toHaveLength(1);
+  expect(store.get(profileKey(target, "four-shogi")).error).not.toBeNull();
+  expect(store.get(profileKey(target, "four-shogi")).profile).toBeNull();
   const update = store.load(target, "four-shogi", true);
-  requests[2]!.respond(profile);
+  expect(requests[1]!.url).toBe(url);
+  requests[1]!.respond(profile);
   await update;
   expect(store.get(profileKey(target, "four-shogi")).profile).toEqual(profile);
+  expect(store.get(profileKey(target, "four-shogi")).error).toBeNull();
   const failed = store.load(target, "four-shogi", true);
-  requests[3]!.respond({}, 400);
-  await flush();
-  requests[4]!.respond({}, 400);
+  requests[2]!.respond({}, 400);
   await failed;
-  expect(requests).toHaveLength(5);
+  expect(requests).toHaveLength(3);
   expect(store.get(profileKey(target, "four-shogi")).error).not.toBeNull();
 });
 

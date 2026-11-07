@@ -22,6 +22,7 @@ import { appPageWidthClasses } from "../../shared/ui/pageLayout";
 import { AccountMenu } from "./AccountMenu";
 import { useAccount } from "./useAccount";
 import { ProfileForm } from "./ProfileForm";
+import { ProfileDetails } from "../players/ProfileDetails";
 import { readGuestRegistration } from "./guestRegistration";
 import { GuestRegistrationCompletion } from "./GuestRegistrationCompletion";
 import { useSocialSignIn } from "./useSocialSignIn";
@@ -334,7 +335,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
       <AppCard>
         <AppCard.Header>
           <h1 className="text-2xl font-bold">プロフィールを作成</h1>
-          <p className="text-sm text-muted">名前とIDを設定してください。アイコンは任意です。</p>
+          <p className="text-sm text-muted">名前とIDを設定し、好きなアイコンを選んでください。</p>
         </AppCard.Header>
         <AppCard.Content>
           <ProfileForm user={user} setup />
@@ -374,6 +375,9 @@ function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId
             </p>
           </div>
         </div>
+        {!user.isGuest && (
+          <ProfileDetails profileMessage={user.profileMessage} favoriteGames={user.favoriteGames} />
+        )}
         {notice && (
           <p role="status" className="text-sm text-brand">
             {notice}
@@ -391,6 +395,7 @@ function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId
           <ProfileForm
             user={user}
             setup={false}
+            theme={gameThemes[game]}
             onBusyChange={setBusy}
             onSaved={() => {
               setEditing(false);
