@@ -23,8 +23,8 @@ export function ActiveTournamentProvider({ children }: { children: ReactNode }) 
       const controller = new AbortController();
       request = controller;
       try {
-        // 現在の大会対象は四人将棋だけです。参加状態はこの案内では取得しません。
-        const data = await readLobbyTournaments("four-shogi", controller.signal);
+        // 全ゲームの公開情報をまとめて取得し、本人の参加状態は取得しません。
+        const data = await readLobbyTournaments("all", controller.signal);
         if (!disposed && !controller.signal.aborted) {
           const receivedAt = performance.now();
           setSnapshot({ data, receivedAt });

@@ -6,8 +6,9 @@ import { AppButton } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppHorizontalScrollButtons } from "../../shared/ui/AppHorizontalScrollButtons";
 import { AppSkeletonCard } from "../../shared/ui/AppSkeleton";
-import { TournamentStatus } from "./TournamentStatus";
-import { tournamentDate } from "./tournamentPresentation";
+import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
+import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
+import { tournamentListDate } from "./tournamentPresentation";
 import { useTournamentList } from "./useTournamentList";
 
 export function TournamentList({ game }: { game: GameId | "all" }) {
@@ -62,30 +63,40 @@ export function TournamentList({ game }: { game: GameId | "all" }) {
                 role="article"
                 aria-labelledby={`tournament-list-${tournament.id}-name`}
                 density="compact"
-                className="h-full min-w-0 gap-3 p-4"
+                className={`${appThemeClasses[gameThemes[tournament.game]]} h-full min-w-0 gap-3 p-4`}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3
-                    id={`tournament-list-${tournament.id}-name`}
-                    className="min-w-0 text-base font-bold break-words"
-                  >
-                    {tournament.name}
-                  </h3>
-                  <TournamentStatus stage={tournament.status} game={tournament.game} />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-control bg-surface-muted">
+                    <LobbyBoardPreview
+                      game={tournament.game}
+                      compact
+                      className="!w-10 !rotate-0 !shadow-none"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="mb-1 text-xs font-semibold text-brand">
+                      {gameCatalog[tournament.game].name}
+                    </p>
+                    <h3
+                      id={`tournament-list-${tournament.id}-name`}
+                      className="min-w-0 text-base font-bold wrap-anywhere"
+                    >
+                      {tournament.name}
+                    </h3>
+                  </div>
                 </div>
-                <p className="text-xs text-muted">
-                  {game === "all" && <span>{gameCatalog[tournament.game].name} · </span>}
-                  {tournamentDate(tournament.startsAtMs, tournament.endsAtMs, {
-                    showTimeZone: false,
-                  })}
+                <p className="text-xs text-muted tabular-nums">
+                  {tournamentListDate(tournament.startsAtMs, tournament.endsAtMs)}
                 </p>
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
-                  {tournament.status === "upcoming" && (
-                    <p className="inline-flex items-baseline gap-1 text-xs text-muted">
-                      <strong className="text-[30px] leading-none font-bold text-ink tabular-nums">
-                        {tournament.entryCount}
+                  {tournament.status !== "finished" && (
+                    <p className="flex flex-wrap items-baseline gap-x-1 text-xs text-muted">
+                      {tournament.status === "active" && <span>開催中 · </span>}
+                      {tournament.status === "settling" && <span>結果集計中 · </span>}
+                      <span>エントリー </span>
+                      <strong className="text-base font-bold text-ink tabular-nums">
+                        {tournament.entryCount}人
                       </strong>
-                      <span>人がエントリー中</span>
                     </p>
                   )}
                   {tournament.status === "finished" && (
@@ -99,13 +110,8 @@ export function TournamentList({ game }: { game: GameId | "all" }) {
                             {tournament.winners.map((winner, index) => (
                               <li key={index} className="flex min-w-0 items-center gap-2">
                                 <AppAvatar src={winner.avatarUrl} className="size-7" />
-                                <span className="min-w-0 text-sm font-semibold break-words">
+                                <span className="min-w-0 text-sm font-semibold wrap-anywhere">
                                   {winner.name}
-                                  {winner.isGuest && (
-                                    <span className="ml-1 text-xs font-normal text-muted">
-                                      ゲスト
-                                    </span>
-                                  )}
                                 </span>
                               </li>
                             ))}

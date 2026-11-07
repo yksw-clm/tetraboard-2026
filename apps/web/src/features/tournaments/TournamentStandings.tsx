@@ -1,3 +1,5 @@
+import { gameThemes } from "../../shared/ui/appTheme";
+import { getTournamentSettings, type TournamentSettings } from "@tetraboard/protocol";
 import { useEffect, useId, useRef, useState } from "react";
 import type { TournamentDetail, TournamentStanding } from "@tetraboard/protocol";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -11,16 +13,18 @@ import { readTournamentStandings } from "./tournamentApi";
 export function TournamentPlayer({
   row,
   large = false,
+  game = "four-shogi",
 }: {
   row: TournamentStanding;
   large?: boolean;
+  game?: TournamentSettings["game"];
 }) {
   return (
     <PlayerProfileTrigger
       target={row.profileId ? { source: "profile", profileId: row.profileId } : null}
-      game="four-shogi"
+      game={game}
       mode="singles"
-      theme="four-shogi"
+      theme={gameThemes[game]}
       label={row.name}
       className="min-h-11 max-w-full"
     >
@@ -34,7 +38,7 @@ export function TournamentPlayer({
     </PlayerProfileTrigger>
   );
 }
-function StandingRow({ row }: { row: TournamentStanding }) {
+function StandingRow({ row, game }: { row: TournamentStanding; game: TournamentSettings["game"] }) {
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   const stats = [
@@ -45,7 +49,7 @@ function StandingRow({ row }: { row: TournamentStanding }) {
     ["4位数", row.fourth],
     ["撃破数", row.knockouts],
     ["平均順位", row.games ? (row.rankSum / row.games).toFixed(2) : "—"],
-  ] as const;
+  ].filter(([label]) => game === "four-shogi" || label !== "撃破数");
   const rankColor =
     row.rank === 1
       ? "text-[#876100]"
@@ -66,7 +70,7 @@ function StandingRow({ row }: { row: TournamentStanding }) {
           {row.self && <span className="block text-[9px] font-normal text-muted">あなた</span>}
         </td>
         <th scope="row" className="py-2 pr-1.5 font-normal [@media(max-width:400px)]:text-[11px]">
-          <TournamentPlayer row={row} />
+          <TournamentPlayer row={row} game={game} />
         </th>
         <td className="px-1 py-2 text-right whitespace-nowrap tabular-nums [@media(max-width:400px)]:px-0.5">
           <strong className="text-base font-bold">{tournamentPoints(row.pointsUnits)}</strong>
@@ -98,7 +102,10 @@ function StandingRow({ row }: { row: TournamentStanding }) {
         hidden={!expanded}
         className={`[@media(min-width:768px)]:hidden ${row.self ? "bg-surface-muted" : ""}`}
       >
-        <td colSpan={11} className="border-b border-solid border-line px-3 py-3">
+        <td
+          colSpan={game === "four-shogi" ? 11 : 10}
+          className="border-b border-solid border-line px-3 py-3"
+        >
           <dl
             id={detailsId}
             aria-label={`${row.name}の大会成績`}
@@ -117,6 +124,7 @@ function StandingRow({ row }: { row: TournamentStanding }) {
   );
 }
 export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
+  const game = getTournamentSettings(detail.tournament).game;
   const [showAll, setShowAll] = useState(false);
   const [all, setAll] = useState<{
     rows: TournamentStanding[];
@@ -246,7 +254,8 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
         <div className="overflow-x-auto" role="region" aria-label="大会順位表" tabIndex={0}>
           <table className="w-full border-collapse text-left text-xs [@media(min-width:768px)]:min-w-[560px]">
             <caption className="sr-only">
-              大会順位と成績。勝ち点、撃破数、平均順位の順に順位を決定します。
+              大会順位と成績。勝ち点、{game === "four-shogi" ? "撃破数、" : ""}
+              平均順位の順に順位を決定します。
             </caption>
             <thead className="border-b border-solid border-line text-[11px] text-muted">
               <tr>
@@ -259,24 +268,17 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
                 >
                   プレイヤー
                 </th>
-                {[
-                  "勝ち点",
-                  "対局数",
-                  "優勝数",
-                  "2位数",
-                  "3位数",
-                  "4位数",
-                  "撃破数",
-                  "平均順位",
-                ].map((label) => (
-                  <th
-                    scope="col"
-                    key={label}
-                    className={`px-1 py-2 text-right font-medium whitespace-nowrap [@media(max-width:400px)]:px-0.5 ${label === "勝ち点" ? "" : "[@media(max-width:767px)]:hidden"}`}
-                  >
-                    {label}
-                  </th>
-                ))}
+                {["勝ち点", "対局数", "優勝数", "2位数", "3位数", "4位数", "撃破数", "平均順位"]
+                  .filter((label) => game === "four-shogi" || label !== "撃破数")
+                  .map((label) => (
+                    <th
+                      scope="col"
+                      key={label}
+                      className={`px-1 py-2 text-right font-medium whitespace-nowrap [@media(max-width:400px)]:px-0.5 ${label === "勝ち点" ? "" : "[@media(max-width:767px)]:hidden"}`}
+                    >
+                      {label}
+                    </th>
+                  ))}
                 <th scope="col" className="[@media(min-width:768px)]:hidden">
                   <span className="sr-only">成績詳細</span>
                 </th>
@@ -285,7 +287,7 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
             <tbody>
               {!hasGames && (!showAll || all) && (
                 <tr>
-                  <td colSpan={11} className="p-0">
+                  <td colSpan={game === "four-shogi" ? 11 : 10} className="p-0">
                     <p
                       className={`sticky left-0 flex w-[100cqw] max-w-full items-center justify-center rounded-control bg-surface-muted p-5 text-center text-sm text-muted ${showAll ? "" : "min-h-60"}`}
                     >
@@ -297,16 +299,23 @@ export function TournamentStandings({ detail }: { detail: TournamentDetail }) {
                 </tr>
               )}
               {rows.map((row, index) => (
-                <StandingRow key={row.profileId ?? row.username ?? `deleted-${index}`} row={row} />
+                <StandingRow
+                  key={row.profileId ?? row.username ?? `deleted-${index}`}
+                  row={row}
+                  game={game}
+                />
               ))}
               {separateSelf && (
                 <>
                   <tr>
-                    <td colSpan={11} className="py-2 text-center text-xs text-muted">
+                    <td
+                      colSpan={game === "four-shogi" ? 11 : 10}
+                      className="py-2 text-center text-xs text-muted"
+                    >
                       ⋯
                     </td>
                   </tr>
-                  <StandingRow row={self} />
+                  <StandingRow row={self} game={game} />
                 </>
               )}
             </tbody>

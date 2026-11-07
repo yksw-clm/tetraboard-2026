@@ -22,6 +22,41 @@ export function tournamentDate(
 ) {
   return `${dateFormatter.format(startsAtMs)} 〜 ${dateFormatter.format(endsAtMs)}${showTimeZone ? "〈日本時間〉" : ""}`;
 }
+
+const listDateOptions: Intl.DateTimeFormatOptions = {
+  timeZone: "Asia/Tokyo",
+  month: "numeric",
+  day: "numeric",
+  weekday: "short",
+};
+const listDateFormatter = new Intl.DateTimeFormat("ja-JP", listDateOptions);
+const listYearDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  ...listDateOptions,
+  year: "numeric",
+});
+const yearFormatter = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+});
+const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+export function tournamentListDate(startsAtMs: number, endsAtMs: number, now = Date.now()) {
+  const currentYear = yearFormatter.format(now);
+  const formatter =
+    yearFormatter.format(startsAtMs) === currentYear &&
+    yearFormatter.format(endsAtMs) === currentYear
+      ? listDateFormatter
+      : listYearDateFormatter;
+  const startDate = formatter.format(startsAtMs);
+  const endDate = formatter.format(endsAtMs);
+  return `${startDate} ${timeFormatter.format(startsAtMs)}〜${startDate === endDate ? "" : `${endDate} `}${timeFormatter.format(endsAtMs)}`;
+}
+
 export function tournamentRemaining(tournament: TournamentPublic, now = Date.now()) {
   const minutes = Math.max(0, Math.ceil((tournament.endsAtMs - now) / 60_000));
   const remaining =

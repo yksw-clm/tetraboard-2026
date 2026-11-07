@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { TournamentPublic } from "@tetraboard/protocol";
 import {
   tournamentDate,
+  tournamentListDate,
   tournamentRemaining,
 } from "../src/features/tournaments/tournamentPresentation";
 
@@ -14,6 +15,29 @@ test("日本時間の注釈を省略しても、日時の変換と既定の表�
   expect(lobby).toContain("01:00");
   expect(lobby).not.toContain("日本時間");
   expect(tournamentDate(starts, ends)).toBe(`${lobby}〈日本時間〉`);
+});
+
+test("大会一覧は日本時間の同日なら終了日を省略し、日付をまたぐ場合は両日を表示する", () => {
+  const now = Date.parse("2026-11-07T00:00:00Z");
+  expect(
+    tournamentListDate(Date.parse("2026-10-31T09:35:00Z"), Date.parse("2026-10-31T10:35:00Z"), now),
+  ).toBe("10/31(土) 18:35〜19:35");
+  expect(
+    tournamentListDate(Date.parse("2026-11-07T14:30:00Z"), Date.parse("2026-11-07T15:30:00Z"), now),
+  ).toBe("11/7(土) 23:30〜11/8(日) 00:30");
+  expect(
+    tournamentListDate(Date.parse("2026-11-07T15:00:00Z"), Date.parse("2026-11-07T16:00:00Z"), now),
+  ).toBe("11/8(日) 00:00〜01:00");
+});
+
+test("大会一覧は今年以外や年をまたぐ大会に日本時間の年を表示する", () => {
+  const now = Date.parse("2026-12-31T15:00:00Z");
+  expect(
+    tournamentListDate(Date.parse("2026-10-31T09:35:00Z"), Date.parse("2026-10-31T10:35:00Z"), now),
+  ).toBe("2026/10/31(土) 18:35〜19:35");
+  expect(
+    tournamentListDate(Date.parse("2026-12-31T14:30:00Z"), Date.parse("2026-12-31T15:30:00Z"), now),
+  ).toBe("2026/12/31(木) 23:30〜2027/1/1(金) 00:30");
 });
 
 const tournament: TournamentPublic = {

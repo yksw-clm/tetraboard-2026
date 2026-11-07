@@ -1,3 +1,4 @@
+import { roomSchema, tournamentSettingsSchema } from "@tetraboard/protocol";
 import { env, exports } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, test } from "vitest";
@@ -871,3 +872,32 @@ test("ルーム準備が失敗していても本人状態の確認と待機継�
   await f.stub.refresh(f.key);
   for (let i = 0; i < 4; i++) expect((await f.status(i)).status).toBe("matched");
 });
+
+for (const game of ["four-reversi", "four-gomoku"] as const) {
+  test(`${game}の大会待機から公開設定を持つ専用ルームを作成し、DO再起動後も同じ組へ復帰する`, async () => {
+    const f = await fixture();
+    const settings = tournamentSettingsSchema.parse({
+      game,
+      mode: "singles",
+      timeControl: { mainTimeMs: 60000, byoyomiMs: 10000 },
+    });
+    await env.APP_DB.prepare(
+      "UPDATE tournaments SET rule_version=2,game=?,settings_json=? WHERE key=?",
+    )
+      .bind(game, JSON.stringify(settings), f.key)
+      .run();
+    for (let i = 0; i < 4; i++) expect((await f.queue(i)).status).toBe(200);
+    const matched = await f.status(0);
+    expect(matched.status).toBe("matched");
+    const room = roomSchema.parse(await env.GAME_ROOM.getByName(matched.roomId!).getRoom());
+    expect(room.settings).toEqual(settings);
+    expect(room).toHaveProperty("tournamentId", f.id);
+    await evictDurableObject(f.stub);
+    expect(await f.status(0)).toMatchObject({
+      status: "matched",
+      roomId: matched.roomId,
+      matchId: matched.matchId,
+      instanceId: matched.instanceId,
+    });
+  });
+}

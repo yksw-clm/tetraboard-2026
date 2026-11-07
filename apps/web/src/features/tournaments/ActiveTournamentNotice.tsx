@@ -1,3 +1,4 @@
+import { getTournamentSettings } from "@tetraboard/protocol";
 import { AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { TournamentStatus } from "./TournamentStatus";
@@ -18,7 +19,7 @@ export function ActiveTournamentNotice() {
           <div className="min-w-0 flex-1 basis-40">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-bold break-words">{tournament.name}</h2>
-              <TournamentStatus stage="active" />
+              <TournamentStatus stage="active" game={getTournamentSettings(tournament).game} />
             </div>
             <p className="mt-0.5 text-xs text-muted">
               {tournamentRemaining(tournament, serverNowMs)}

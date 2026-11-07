@@ -1,3 +1,5 @@
+import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
+import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
 import { prepareRoomSettings } from "./applyRoomSettings";
 import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
 import { retiredName } from "../privacy/identity";
@@ -39,6 +41,7 @@ import {
   roomMembershipSchema,
   roomPublicMetadataSchema,
   tournamentRules,
+  getTournamentSettings,
   fourShogiRoomSchema,
   roomSchema,
   roomSocketContract,
@@ -349,7 +352,11 @@ export class GameRoom extends DurableObject<Env> {
         if (!next) break;
         const [key, job] = next;
         try {
-          await writeMatch(this.env.APP_DB, job.record);
+          await writeMatch(
+            this.env.APP_DB,
+            job.record,
+            "tournament" in job ? job.tournament : undefined,
+          );
           this.ctx.storage.kv.delete(key);
         } catch {
           console.error("Match save will be retried", job.record.id);
@@ -1371,6 +1378,12 @@ export class GameRoom extends DurableObject<Env> {
       case "playing":
         return result.room;
       case "finished": {
+        const tournament = this.tournamentReservation(result.room);
+        if (tournament) {
+          const closed = { ...tournament, status: "closed" as const };
+          this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
+          this.recordTournamentState(closed, "saving");
+        }
         this.endAnalyticsMatch("completed", result.at);
         switch (result.gameId) {
           case "four-gomoku": {
@@ -1403,12 +1416,6 @@ export class GameRoom extends DurableObject<Env> {
           }
           case "four-shogi": {
             const lastRound = this.shogiProgress.finalize(result);
-            const tournament = this.tournamentReservation(result.room);
-            if (tournament) {
-              const closed = { ...tournament, status: "closed" as const };
-              this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
-              this.recordTournamentState(closed, "saving");
-            }
             const players = this.rematchPlayers(result.room.players, result.at);
             return players === null
               ? null
@@ -1660,7 +1667,7 @@ export class GameRoom extends DurableObject<Env> {
       })),
       ...roomPublicMetadataSchema.parse({
         id: room.id,
-        ...(isFourShogiRoom(room) && room.tournamentId !== undefined
+        ...(isTournamentGameRoom(room) && room.tournamentId !== undefined
           ? { tournamentId: room.tournamentId }
           : {}),
         game: room.settings.game,
@@ -1816,7 +1823,12 @@ export class GameRoom extends DurableObject<Env> {
           tournament.context.endsAtMs,
         ),
       );
-    if (room && isFourShogiRoom(room) && room.status === "waiting" && room.tournamentStartsAtMs)
+    if (
+      room &&
+      isTournamentGameRoom(room) &&
+      room.status === "waiting" &&
+      room.tournamentStartsAtMs
+    )
       deadlines.push(room.tournamentStartsAtMs);
     const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
@@ -1938,7 +1950,7 @@ export class GameRoom extends DurableObject<Env> {
             instanceId,
             context.tournamentKey,
             context.tournamentId,
-            tournamentRules.version,
+            context.ruleVersion,
             context.startsAtMs,
             context.endsAtMs,
           ),
@@ -1955,22 +1967,30 @@ export class GameRoom extends DurableObject<Env> {
         )
       )
         return { status: "invalid_reservation" as const };
+      const definition = await readTournament(this.env.APP_DB, context.tournamentKey);
+      if (!definition || !tournamentSettingsMatch(definition, context))
+        return { status: "invalid_reservation" as const };
+      const settings = getTournamentSettings(context);
       const now = Date.now();
-      const base = waitingRoomFactories["four-shogi"]({
-        code: roomId,
-        name: players[0].admission.name,
-        request: {
-          game: tournamentRules.game,
-          mode: tournamentRules.mode,
-          quickPlay: false,
-          timeControl: {
-            mainTimeMs: tournamentRules.mainTimeMs,
-            byoyomiMs: tournamentRules.byoyomiMs,
-          },
-          threePlayerAttackProhibited: tournamentRules.threePlayerAttackProhibited,
-        },
-      });
-      const room = fourShogiRoomSchema.parse({
+      const base =
+        settings.game === "four-shogi"
+          ? waitingRoomFactories["four-shogi"]({
+              code: roomId,
+              name: players[0].admission.name,
+              request: { ...settings, quickPlay: false },
+            })
+          : settings.game === "four-gomoku"
+            ? waitingRoomFactories["four-gomoku"]({
+                code: roomId,
+                name: players[0].admission.name,
+                request: { ...settings, quickPlay: false },
+              })
+            : waitingRoomFactories["four-reversi"]({
+                code: roomId,
+                name: players[0].admission.name,
+                request: { ...settings, quickPlay: false },
+              });
+      const room = roomSchema.parse({
         ...base,
         instanceId,
         tournamentId: context.tournamentId,
@@ -1981,7 +2001,7 @@ export class GameRoom extends DurableObject<Env> {
           avatarUrl: profileAvatarUrl(admission.avatarKey, admission.avatarPresetId),
           ...(admission.isGuest ? { isGuest: true } : {}),
           ready: true,
-          side: null,
+          ...(settings.game === "four-shogi" ? { side: null } : { color: null }),
           reconnectDeadline: Math.min(now + tournamentRules.connectionGraceMs, context.endsAtMs),
         })),
       });
@@ -2097,14 +2117,16 @@ export class GameRoom extends DurableObject<Env> {
         const seat = this.storedAccount(input.playerId);
         const resultWaiting =
           initial &&
-          isFourShogiRoom(initial) &&
+          isTournamentGameRoom(initial) &&
           initial.status === "waiting" &&
-          initial.lastRound?.roundId === input.matchId &&
+          (isFourShogiRoom(initial)
+            ? initial.lastRound?.roundId
+            : initial.lastRound?.replay?.id) === input.matchId &&
           reservation?.startedAtMs !== undefined;
         if (
           !reservation ||
           !initial ||
-          !isFourShogiRoom(initial) ||
+          !isTournamentGameRoom(initial) ||
           initial.instanceId !== input.instanceId ||
           reservation.instanceId !== input.instanceId ||
           (reservation.status === "closed" && !resultWaiting) ||
@@ -2160,7 +2182,7 @@ export class GameRoom extends DurableObject<Env> {
             initial.status === "waiting"
               ? initial
               : { ...initial, tournamentStartsAtMs: undefined };
-          const next = fourShogiRoomSchema.parse({
+          const next = roomSchema.parse({
             ...waiting,
             publicUpdatedAtMs: nextPublicUpdateAt(initial),
             players: initial.players.map((player) =>
@@ -2215,7 +2237,7 @@ export class GameRoom extends DurableObject<Env> {
     return result;
   }
 
-  private tournamentPlayersConnected(room: FourShogiRoom): boolean {
+  private tournamentPlayersConnected(room: TournamentGameRoom): boolean {
     return (
       room.players.length === 4 &&
       room.players.every((player) => {
@@ -2232,19 +2254,19 @@ export class GameRoom extends DurableObject<Env> {
       !reservation ||
       reservation.status !== "waiting" ||
       !initial ||
-      !isFourShogiRoom(initial) ||
+      !isTournamentGameRoom(initial) ||
       initial.status !== "waiting"
     )
       return;
     let countdownChanged = false;
     const countdown = this.withIndexTransaction(() => {
       const room = this.readRoom();
-      if (!room || !isFourShogiRoom(room) || room.status !== "waiting") return null;
+      if (!room || !isTournamentGameRoom(room) || room.status !== "waiting") return null;
       const connected = this.tournamentPlayersConnected(room);
       if (connected && room.tournamentStartsAtMs !== undefined) return room;
       if (!connected && room.tournamentStartsAtMs === undefined) return null;
       const { tournamentStartsAtMs: _deadline, ...waiting } = room;
-      const next = fourShogiRoomSchema.parse({
+      const next = roomSchema.parse({
         ...waiting,
         ...(connected
           ? { tournamentStartsAtMs: Date.now() + tournamentRules.startCountdownMs }
@@ -2253,7 +2275,7 @@ export class GameRoom extends DurableObject<Env> {
       });
       this.ctx.storage.kv.put(roomStorageKey, next);
       countdownChanged = true;
-      return next.status === "waiting" && connected ? next : null;
+      return next.status === "waiting" && isTournamentGameRoom(next) && connected ? next : null;
     });
     if (countdownChanged) {
       const room = this.readRoom();
@@ -2285,13 +2307,16 @@ export class GameRoom extends DurableObject<Env> {
             reservation.roomId,
             reservation.instanceId,
             reservation.context.tournamentId,
-            tournamentRules.version,
+            reservation.context.ruleVersion,
             reservation.context.startsAtMs,
             reservation.context.endsAtMs,
           )
           .first<{ count: number }>();
+      const definition = await readTournament(this.env.APP_DB, reservation.context.tournamentKey);
       const now = Date.now();
       if (
+        !definition ||
+        !tournamentSettingsMatch(definition, reservation.context) ||
         active?.count !== 4 ||
         now < reservation.context.startsAtMs ||
         now >= reservation.context.endsAtMs ||
@@ -2310,7 +2335,7 @@ export class GameRoom extends DurableObject<Env> {
         const room = this.readRoom();
         if (
           !room ||
-          !isFourShogiRoom(room) ||
+          !isTournamentGameRoom(room) ||
           room.status !== "waiting" ||
           room.instanceId !== reservation.instanceId
         )
@@ -2336,7 +2361,11 @@ export class GameRoom extends DurableObject<Env> {
           this.closeRoom();
           return;
         }
-        const started = this.shogiProgress.start(room, reservation.context);
+        const started = isFourShogiRoom(room)
+          ? this.shogiProgress.start(room, reservation.context)
+          : isFourGomokuRoom(room)
+            ? this.fourGomokuProgress.start(room, reservation.context)
+            : this.reversiProgress.start(room, reservation.context);
         const playing: TournamentRoomReservation = {
           ...reservation,
           status: "playing",
@@ -2579,7 +2608,7 @@ export class GameRoom extends DurableObject<Env> {
         if (instanceId !== undefined && room.instanceId !== instanceId) {
           return { status: "room_changed" } as const;
         }
-        if (isFourShogiRoom(room) && room.tournamentId !== undefined)
+        if (isTournamentGameRoom(room) && room.tournamentId !== undefined)
           return { status: "tournament_required" } as const;
         if (room.status !== "waiting") {
           return { status: "room_started" } as const;
@@ -2758,7 +2787,7 @@ export class GameRoom extends DurableObject<Env> {
       const tournament = this.tournamentReservation(room);
       if (
         tournament?.status === "waiting" &&
-        isFourShogiRoom(room) &&
+        isTournamentGameRoom(room) &&
         room.status === "waiting" &&
         room.tournamentStartsAtMs !== undefined &&
         !this.tournamentPlayersConnected(room)
@@ -3901,7 +3930,7 @@ export class GameRoom extends DurableObject<Env> {
       const tournamentRoom = this.readRoom();
       if (
         tournamentRoom &&
-        isFourShogiRoom(tournamentRoom) &&
+        isTournamentGameRoom(tournamentRoom) &&
         tournamentRoom.tournamentId !== undefined &&
         [
           "room.ready.set",

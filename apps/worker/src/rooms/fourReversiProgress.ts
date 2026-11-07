@@ -1,3 +1,4 @@
+import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
 import {
   fourReversiStateSchema,
   fourReversiRoomSchema,
@@ -76,13 +77,19 @@ export class FourReversiProgress {
     this.accountId = dependencies.accountId;
   }
 
-  start(room: WaitingFor<"four-reversi">): { room: Playing; roundId: string; at: number } {
+  start(
+    room: WaitingFor<"four-reversi">,
+    tournament?: TournamentRoomContext,
+  ): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(fourReversiCpuJobKey);
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
-    const matchId = crypto.randomUUID();
+    const matchId = tournament?.matchId ?? crypto.randomUUID();
+    if (tournament) this.storage.kv.put(activeTournamentContextKey, tournament);
+    else this.storage.kv.delete(activeTournamentContextKey);
+    const { tournamentStartsAtMs: _countdown, ...waiting } = room;
     const startedRoom = fourReversiRoomSchema.parse({
-      ...room,
+      ...waiting,
       status: "playing",
       eliminations: [],
       publicUpdatedAtMs: nextPublicUpdateAt(room),
@@ -409,10 +416,12 @@ export class FourReversiProgress {
     if (start && replay && start.id === replay.id) {
       this.storage.kv.put(`${pendingMatchPrefix}${start.id}`, {
         record: { ...start, endedAtMs: at, game, eliminations: room.eliminations, replay },
+        tournament: this.storage.kv.get<TournamentRoomContext>(activeTournamentContextKey),
         retryAtMs: Date.now(),
       } satisfies PendingMatch);
     }
     this.storage.kv.delete(matchStartKey);
+    this.storage.kv.delete(activeTournamentContextKey);
     const lastRound: LastRound = {
       game,
       replay: this.storage.kv.get<RoundReplay>(replayKey) ?? null,

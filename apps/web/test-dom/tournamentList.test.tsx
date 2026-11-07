@@ -15,6 +15,7 @@ function tournament(
   return {
     id,
     game: "four-shogi",
+    ruleVersion: 1,
     name: `大会${id}`,
     startsAtMs: Date.UTC(2026, 9, 20, 9),
     endsAtMs: Date.UTC(2026, 9, 20, 10),
@@ -64,15 +65,13 @@ test("全公開状態の大会を表示し、確定した優勝者全員の名�
     );
     await flush();
     expect(titles(view)).toEqual(["大会5", "大会4", "大会3", "大会2", "大会1"]);
-    expect(card(view, 5).textContent).toContain("エントリー受付中");
-    expect(card(view, 5).textContent).toContain("12人がエントリー中");
-    expect(card(view, 4).textContent).not.toContain("人がエントリー中");
-    expect(card(view, 4).textContent).toContain("開催中");
-    expect(card(view, 3).textContent).toContain("結果発表待ち");
-    expect(card(view, 2).textContent).toContain("結果発表");
+    expect(card(view, 5).textContent).toContain("エントリー 12人");
+    expect(card(view, 4).textContent).toContain("開催中 · エントリー 12人");
+    expect(card(view, 3).textContent).toContain("結果集計中 · エントリー 12人");
     expect(card(view, 2).textContent).toContain("同率優勝");
     expect(card(view, 2).textContent).toContain("優勝者いち");
-    expect(card(view, 2).textContent).toContain("優勝者にゲスト");
+    expect(card(view, 2).textContent).toContain("優勝者に");
+    expect(card(view, 2).textContent).not.toContain("ゲスト");
     expect(card(view, 2).querySelectorAll("li")).toHaveLength(2);
     expect(images).toHaveLength(1);
     expect(images[0]!.src).toBe("https://tetraboard.test/api/avatars/winner-one.webp");
@@ -94,14 +93,61 @@ test("全公開状態の大会を表示し、確定した優勝者全員の名�
     expect(card(view, 2).querySelector("a")?.textContent).toBe("結果を見る");
     expect(view.textContent).toContain("四人将棋");
     expect(view.textContent).not.toContain("日本時間");
+    for (const label of ["シングルス", "持ち時間", "秒読み", "三人攻撃禁止", "結果発表"]) {
+      expect(view.textContent).not.toContain(label);
+    }
     expect(view.querySelectorAll("button")).toHaveLength(0);
     expect(requests).toHaveLength(1);
     clock.advance(5000);
     latest().respond(page([{ ...tournament(5, "upcoming"), entryCount: 0 }]));
     await flush();
-    expect(card(view, 5).textContent).toContain("0人がエントリー中");
+    expect(card(view, 5).textContent).toContain("エントリー 0人");
   } finally {
     window.Image = NativeImage;
+  }
+});
+
+test("ゲームごとの盤面画像・名前・テーマを同じ一覧に表示する", async () => {
+  const view = render(wrap()(<TournamentList game="all" />));
+  clock.advance(0);
+  latest().respond(
+    page([
+      tournament(3),
+      {
+        ...tournament(2),
+        game: "four-reversi",
+        ruleVersion: 2,
+        settings: {
+          game: "four-reversi",
+          mode: "singles",
+          timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+        },
+      },
+      {
+        ...tournament(1),
+        game: "four-gomoku",
+        ruleVersion: 2,
+        settings: {
+          game: "four-gomoku",
+          mode: "singles",
+          timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+        },
+      },
+    ]),
+  );
+  await flush();
+  for (const [id, name, image, theme] of [
+    [3, "四人将棋", "four-shogi.webp", "game-theme-four-shogi"],
+    [2, "四人リバーシ", "four-reversi.webp", null],
+    [1, "四人五目並べ", "gomoku.webp", "game-theme-gomoku"],
+  ] as const) {
+    const article = card(view, id);
+    expect(article.textContent).toContain(name);
+    const preview = article.querySelector('img[data-testid="lobby-board-preview"]');
+    expect(preview?.getAttribute("src")).toEndWith(image);
+    expect(preview?.getAttribute("alt")).toBe("");
+    if (theme) expect(article.classList.contains(theme)).toBe(true);
+    else expect(article.className).not.toContain("game-theme-");
   }
 });
 
@@ -214,7 +260,7 @@ test("game変更時は旧リクエストと一覧を破棄し、別gameの応答
   latest().respond(page([{ ...tournament(2), game: "reversi" }]));
   await flush();
   expect(titles(view)).toEqual(["大会2"]);
-  expect(card(view, 2).textContent).not.toContain("リバーシ");
+  expect(card(view, 2).textContent).toContain("リバーシ");
   rerender(view, wrap()(<TournamentList game="shogi" />));
   expect(titles(view)).toHaveLength(0);
   clock.advance(0);

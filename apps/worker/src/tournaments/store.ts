@@ -1,7 +1,9 @@
 import {
   rankTournamentStandings,
   tournamentRankPointsUnits,
-  tournamentRules,
+  getTournamentSettings,
+  tournamentSettingsSchema,
+  type TournamentSettings,
   type TournamentInput,
   type TournamentPublic,
   type TournamentRecord,
@@ -10,7 +12,7 @@ import {
   type TournamentList,
   type TournamentListItem,
 } from "@tetraboard/protocol";
-import type { GameId, GameScope } from "@tetraboard/protocol/games";
+import type { GameScope } from "@tetraboard/protocol/games";
 import { accountAvatarUrl } from "../accounts/auth";
 import type { ShogiMatchRecord } from "../rooms/shogiMatchStore";
 import type { TournamentRoomContext } from "../rooms/tournamentRoom";
@@ -25,11 +27,41 @@ export type TournamentRow = {
   ends_at_ms: number | null;
   published: number;
   version: number;
-  rule_version: 1;
+  rule_version: 1 | 2;
+  game: TournamentSettings["game"];
+  settings_json: string | null;
   finalized_at_ms: number | null;
   created_at_ms: number;
   updated_at_ms: number;
 };
+export function settingsForTournament(row: TournamentRow): TournamentSettings {
+  const settings = getTournamentSettings({
+    ruleVersion: row.rule_version,
+    ...(row.rule_version === 2
+      ? { settings: tournamentSettingsSchema.parse(JSON.parse(row.settings_json!)) }
+      : {}),
+  });
+  if (settings.game !== (row.game ?? "four-shogi"))
+    throw new Error("Tournament game does not match settings");
+  return settings;
+}
+export function tournamentSettingsMatch(
+  row: TournamentRow,
+  definition: import("@tetraboard/protocol").TournamentDefinition,
+): boolean {
+  const actual = settingsForTournament(row),
+    expected = getTournamentSettings(definition);
+  return (
+    row.rule_version === definition.ruleVersion &&
+    actual.game === expected.game &&
+    actual.mode === expected.mode &&
+    actual.timeControl.mainTimeMs === expected.timeControl.mainTimeMs &&
+    actual.timeControl.byoyomiMs === expected.timeControl.byoyomiMs &&
+    (actual.game !== "four-shogi" ||
+      (expected.game === "four-shogi" &&
+        actual.threePlayerAttackProhibited === expected.threePlayerAttackProhibited))
+  );
+}
 export function readTournament(db: D1Database, key: string) {
   return db.prepare("SELECT * FROM tournaments WHERE key=?").bind(key).first<TournamentRow>();
 }
@@ -63,6 +95,7 @@ export async function record(db: D1Database, row: TournamentRow): Promise<Tourna
     published: !!row.published,
     version: row.version,
     ruleVersion: row.rule_version,
+    settings: settingsForTournament(row),
     createdAtMs: row.created_at_ms,
     updatedAtMs: row.updated_at_ms,
     entryCount: await entryCount(db, row.key),
@@ -84,7 +117,8 @@ function summarize(row: TournamentRow, counts: PublicCounts, now: number): Tourn
     endsAtMs: row.ends_at_ms!,
     status: stage(row, now) as TournamentPublic["status"],
     ...counts,
-    ruleVersion: 1,
+    ruleVersion: row.rule_version,
+    settings: settingsForTournament(row),
     finalizedAtMs: row.finalized_at_ms,
   };
 }
@@ -122,10 +156,9 @@ export async function publicSummary(
 }
 export async function lobbySections(
   db: D1Database,
-  game: GameId,
+  game: GameScope,
   now: number,
 ): Promise<TournamentLobbySections> {
-  if (game !== tournamentRules.game) return { current: [], upcoming: [], serverTimeMs: now };
   const cutoff = now - 86_400_000;
   // 全件掲載でも、大会ごとの人数取得でD1との往復を増やしません。
   const rows = await db
@@ -138,9 +171,9 @@ export async function lobbySections(
     (SELECT COUNT(*) FROM tournament_matches m WHERE m.tournament_key=t.key AND m.phase='playing') AS playingCount,
     (SELECT COUNT(*) FROM tournament_matches m WHERE m.tournament_key=t.key AND m.phase IN ('reserved','saving')) AS pendingCount,
     (SELECT COUNT(*) FROM tournament_matches m WHERE m.tournament_key=t.key AND m.phase='saved') AS completedCount
-    FROM tournaments t WHERE t.published=1 AND t.ends_at_ms>?
+    FROM tournaments t WHERE t.published=1 AND t.ends_at_ms>? AND (?='all' OR t.game=?)
     ORDER BY t.starts_at_ms,t.public_id`)
-    .bind(now, cutoff)
+    .bind(now, cutoff, game, game)
     .all<TournamentRow & PublicCounts>();
   const current: TournamentPublic[] = [],
     upcoming: TournamentPublic[] = [];
@@ -174,16 +207,14 @@ export async function publicTournamentList(
   cursor: string | undefined,
   now: number,
 ): Promise<TournamentList> {
-  if (game !== "all" && game !== tournamentRules.game)
-    return { tournaments: [], nextCursor: null, serverTimeMs: now };
   const [at, id] = cursor?.split(":") ?? [];
   const result = await db
     .prepare(`SELECT t.*,
       (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_key=t.key AND e.deleted=0) AS entryCount
-    FROM tournaments t WHERE t.published=1
+    FROM tournaments t WHERE t.published=1 AND (?='all' OR t.game=?)
     ${cursor ? "AND (t.starts_at_ms<? OR (t.starts_at_ms=? AND t.public_id<?))" : ""}
     ORDER BY t.starts_at_ms DESC,t.public_id DESC LIMIT 21`)
-    .bind(...(cursor ? [Number(at), Number(at), Number(id)] : []))
+    .bind(game, game, ...(cursor ? [Number(at), Number(at), Number(id)] : []))
     .all<TournamentRow & { entryCount: number }>();
   const rows = result.results.slice(0, 20);
   const finalized = rows.filter((row) => row.finalized_at_ms !== null).map((row) => row.key);
@@ -207,7 +238,9 @@ export async function publicTournamentList(
   }
   const tournaments: TournamentListItem[] = rows.map((row) => ({
     id: row.public_id!,
-    game: tournamentRules.game,
+    game: settingsForTournament(row).game,
+    ruleVersion: row.rule_version,
+    settings: settingsForTournament(row),
     name: row.name,
     entryCount: row.entryCount,
     startsAtMs: row.starts_at_ms!,
@@ -236,7 +269,7 @@ export async function createDraft(db: D1Database, input: TournamentInput) {
     now = Date.now();
   await db
     .prepare(
-      `INSERT INTO tournaments(key,name,description,rules_description,starts_at_ms,ends_at_ms,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?)`,
+      `INSERT INTO tournaments(key,name,description,rules_description,starts_at_ms,ends_at_ms,created_at_ms,updated_at_ms,rule_version,game,settings_json) VALUES(?,?,?,?,?,?,?,?,2,?,?)`,
     )
     .bind(
       key,
@@ -247,6 +280,8 @@ export async function createDraft(db: D1Database, input: TournamentInput) {
       input.endsAtMs,
       now,
       now,
+      input.settings.game,
+      JSON.stringify(input.settings),
     )
     .run();
   return key;
@@ -260,8 +295,8 @@ export async function updateDraft(
   return (
     (
       await db
-        .prepare(`UPDATE tournaments SET name=?,description=?,rules_description=?,starts_at_ms=?,ends_at_ms=?,version=version+1,updated_at_ms=?
-    WHERE key=? AND version=? AND (published=0 OR (starts_at_ms IS ? AND ends_at_ms IS ?))`)
+        .prepare(`UPDATE tournaments SET name=?,description=?,rules_description=?,starts_at_ms=?,ends_at_ms=?,version=version+1,updated_at_ms=?,rule_version=CASE WHEN published=0 THEN 2 ELSE rule_version END,game=?,settings_json=?
+    WHERE key=? AND version=? AND (published=0 OR (starts_at_ms IS ? AND ends_at_ms IS ? AND game=? AND (rule_version=1 OR settings_json=?)))`)
         .bind(
           input.name,
           input.description,
@@ -269,10 +304,14 @@ export async function updateDraft(
           input.startsAtMs,
           input.endsAtMs,
           Date.now(),
+          input.settings.game,
+          JSON.stringify(input.settings),
           key,
           version,
           input.startsAtMs,
           input.endsAtMs,
+          input.settings.game,
+          JSON.stringify(input.settings),
         )
         .run()
     ).meta.changes === 1
@@ -370,7 +409,7 @@ export async function allStandings(
     .all<ScoreRow>();
   const standings = values.results.map(standingFromRow);
   return row.finalized_at_ms === null
-    ? rankTournamentStandings(standings)
+    ? rankTournamentStandings(standings, settingsForTournament(row).game)
     : standings.sort(
         (a, b) =>
           (a.rank ?? Infinity) - (b.rank ?? Infinity) ||
@@ -462,11 +501,15 @@ export async function finalizeTournament(db: D1Database, key: string, now = Date
 export function tournamentMatchStatements(
   db: D1Database,
   context: TournamentRoomContext,
-  record: ShogiMatchRecord,
+  record:
+    | ShogiMatchRecord
+    | import("../rooms/matchStore").MatchRecord
+    | import("../rooms/fourGomokuMatchStore").MatchRecord,
 ): D1PreparedStatement[] {
+  const settings = getTournamentSettings(context);
   if (
     record.id !== context.matchId ||
-    record.settings.game !== "four-shogi" ||
+    JSON.stringify(tournamentSettingsSchema.parse(record.settings)) !== JSON.stringify(settings) ||
     record.game.result?.mode !== "singles" ||
     record.participants.length !== 4 ||
     record.participants.some((p) => p.kind !== "human") ||
@@ -476,7 +519,8 @@ export function tournamentMatchStatements(
     throw new Error("Invalid tournament result");
   const standings = record.game.result.standings;
   const statements = record.participants.map((p) => {
-    const rank = standings.find((s) => s.side === p.side)?.rank;
+    const side = "side" in p ? p.side : p.color;
+    const rank = standings.find((s) => ("side" in s ? s.side : s.color) === side)?.rank;
     if (!rank) throw new Error("Missing tournament rank");
     const units = tournamentRankPointsUnits(rank, standings.filter((s) => s.rank === rank).length);
     return db
@@ -486,17 +530,18 @@ export function tournamentMatchStatements(
       JOIN tournaments t ON t.key=m.tournament_key
       WHERE m.id=? AND m.tournament_key=? AND m.room_id=? AND m.instance_id=? AND p.player_id=?
         AND m.phase IN ('reserved','playing','saving','saved') AND t.finalized_at_ms IS NULL
-        AND EXISTS(SELECT 1 FROM matches WHERE id=m.id AND game='four-shogi')
+        AND EXISTS(SELECT 1 FROM matches WHERE id=m.id AND game=?)
       ON CONFLICT(match_id,entry_id) DO NOTHING`)
       .bind(
         rank,
-        record.knockouts[p.side],
+        "knockouts" in record && "side" in p ? record.knockouts[p.side] : 0,
         units,
         context.matchId,
         context.tournamentKey,
         record.roomId,
         record.instanceId,
         p.id,
+        settings.game,
       );
   });
   statements.push(

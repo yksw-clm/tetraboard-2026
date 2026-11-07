@@ -1,3 +1,12 @@
+import {
+  getTournamentSettings,
+  legacyTournamentSettings,
+  tournamentSettingsDescription,
+  tournamentTimeDescription,
+  type TournamentSettings,
+} from "@tetraboard/protocol";
+import { gameCatalog } from "@tetraboard/protocol/games";
+import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { RoomIdentityFields } from "../account/RoomIdentityFields";
 import { useEffect, useState, type MouseEventHandler, type ReactNode } from "react";
 import { useParams } from "react-router";
@@ -59,9 +68,11 @@ function EntryAction({ state }: { state: TournamentState }) {
 function PersonalStanding({
   row,
   finished,
+  game,
 }: {
   row: TournamentStanding | null;
   finished: boolean;
+  game: TournamentSettings["game"];
 }) {
   if (!row) return null;
   return (
@@ -76,12 +87,14 @@ function PersonalStanding({
           ["勝ち点", `${tournamentPoints(row.pointsUnits)}点`],
           ["対局数", `${row.games}局`],
           ["撃破数", `${row.knockouts}人`],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-xs text-muted">{label}</dt>
-            <dd className="mt-1 text-xl font-bold tabular-nums">{value}</dd>
-          </div>
-        ))}
+        ]
+          .filter(([label]) => game === "four-shogi" || label !== "撃破数")
+          .map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-muted">{label}</dt>
+              <dd className="mt-1 text-xl font-bold tabular-nums">{value}</dd>
+            </div>
+          ))}
       </dl>
     </AppCard>
   );
@@ -102,11 +115,18 @@ function Awards({ detail }: { detail: TournamentDetail }) {
             {row.rank === 1 ? (tied ? "同率優勝" : "優勝") : "準優勝"}
           </span>
           <div className="text-xl">
-            <TournamentPlayer row={row} large />
+            <TournamentPlayer
+              row={row}
+              large
+              game={getTournamentSettings(detail.tournament).game}
+            />
           </div>
           <p className="text-sm text-muted">
             <strong className="text-ink">{tournamentPoints(row.pointsUnits)}点</strong> ·{" "}
-            {row.games}局 · {row.knockouts}撃破
+            {row.games}局
+            {getTournamentSettings(detail.tournament).game === "four-shogi"
+              ? ` · ${row.knockouts}撃破`
+              : ""}
           </p>
         </AppCard>
       ))}
@@ -194,10 +214,12 @@ function TournamentMatchedDialog({
   onEnter,
   message,
   unavailable,
+  game,
 }: {
   onEnter: () => void;
   message: string | null;
   unavailable: boolean;
+  game: TournamentSettings["game"];
 }) {
   const [readyAt] = useState(() => performance.now() + tournamentRules.entryDelayMs);
   useEffect(() => {
@@ -209,7 +231,7 @@ function TournamentMatchedDialog({
     <AppDialog
       title="対戦相手が集まりました"
       size="compact"
-      theme="four-shogi"
+      theme={gameThemes[game]}
       dismissible={false}
       onClose={() => {}}
     >
@@ -230,11 +252,15 @@ function TournamentContent({ id }: { id: number }) {
   const account = useAccount();
   const detail = state.data;
   const tournament = detail?.tournament;
+  const settings = tournament ? getTournamentSettings(tournament) : legacyTournamentSettings;
+  const game = settings.game;
+  const lobbyPath = gameCatalog[game].lobbyPath;
   useEffect(() => {
     if (tournament) document.title = `${tournament.name} | TetraBoard`;
   }, [tournament]);
   return (
     <TournamentPageLayout
+      game={game}
       onNavigate={(to, navigationState) => void state.returnToLobby(to, navigationState)}
       onLogoClick={(event) => {
         if (
@@ -247,17 +273,17 @@ function TournamentContent({ id }: { id: number }) {
         )
           return;
         event.preventDefault();
-        void state.returnToLobby();
+        void state.returnToLobby(lobbyPath);
       }}
     >
       <main className={`${appPageWidthClasses} flex flex-col gap-5 py-6 max-sm:gap-4`}>
         <AppButton
-          onPress={() => void state.returnToLobby()}
+          onPress={() => void state.returnToLobby(lobbyPath)}
           appearance="quiet"
           className="self-start px-0"
         >
           <AppIcon name="arrow" className="rotate-180" />
-          四人将棋ロビーへ
+          {gameCatalog[game].name}ロビーへ
         </AppButton>
         {state.returnReason === "unavailable" && (
           <p role="status" className="text-sm text-muted">
@@ -295,7 +321,7 @@ function TournamentContent({ id }: { id: number }) {
           <>
             <AppCard className="gap-5 p-6 max-sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <TournamentStatus stage={tournament.status} />
+                <TournamentStatus stage={tournament.status} game={game} />
                 <span className="text-xs text-muted">大会 #{tournament.id}</span>
               </div>
               <div className="grid items-center gap-5 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -303,6 +329,9 @@ function TournamentContent({ id }: { id: number }) {
                   <h1 className="text-[28px] leading-[1.5] wrap-anywhere max-sm:text-[23px]">
                     {tournament.name}
                   </h1>
+                  <p className="mt-2 text-sm text-muted">
+                    {tournamentSettingsDescription(settings)}
+                  </p>
                   <p className="mt-2 flex items-center gap-2 text-sm text-muted">
                     <AppIcon name="clock" className="size-4" />
                     <span>
@@ -336,7 +365,7 @@ function TournamentContent({ id }: { id: number }) {
                   <AppIcon name="users" className="size-4" />
                   ランダムマッチ
                 </span>
-                <span>持ち時間なし・秒読み30秒</span>
+                <span>{tournamentTimeDescription(settings)}</span>
                 <span>途中参加OK</span>
               </div>
               {tournament.description && (
@@ -376,7 +405,7 @@ function TournamentContent({ id }: { id: number }) {
               <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                 <div className="flex min-w-0 flex-col gap-5">
                   <TournamentPlay state={state} />
-                  <PersonalStanding row={detail.self} finished={false} />
+                  <PersonalStanding game={game} row={detail.self} finished={false} />
                 </div>
                 <TournamentStandings
                   key={`${id}:${account.user?.username ?? "guest"}`}
@@ -385,19 +414,19 @@ function TournamentContent({ id }: { id: number }) {
               </div>
             )}
             {(tournament.status === "active" || tournament.status === "settling") && (
-              <TournamentRooms key={`rooms:${id}`} tournamentId={tournament.id} />
+              <TournamentRooms key={`rooms:${id}`} tournamentId={tournament.id} game={game} />
             )}
             {tournament.status === "finished" && (
               <>
                 <Awards detail={detail} />
-                <PersonalStanding row={detail.self} finished />
+                <PersonalStanding game={game} row={detail.self} finished />
                 <TournamentStandings
                   key={`${id}:${account.user?.username ?? "guest"}`}
                   detail={detail}
                 />
               </>
             )}
-            <TournamentRules description={tournament.rulesDescription} />
+            <TournamentRules description={tournament.rulesDescription} settings={settings} />
             <LobbyChat
               key={id}
               tournament={{
@@ -424,8 +453,8 @@ function TournamentContent({ id }: { id: number }) {
                     次回大会の詳細へ
                   </AppButtonLink>
                 )}
-                <AppButtonLink to="/games/four-shogi" className="mt-2">
-                  四人将棋ロビーへ
+                <AppButtonLink to={lobbyPath} className="mt-2">
+                  {gameCatalog[game].name}ロビーへ
                   <AppIcon name="arrow" className="size-4" />
                 </AppButtonLink>
               </AppCard>
@@ -436,11 +465,12 @@ function TournamentContent({ id }: { id: number }) {
           <AppDialog
             title="大会にエントリー"
             size="compact"
-            theme="four-shogi"
+            theme={gameThemes[game]}
             busy={state.pending === "entry"}
             onClose={state.closeEntryDialog}
           >
             <p className="mb-3 text-sm font-bold">{tournament?.name}</p>
+            <p className="mb-3 text-sm">{tournamentSettingsDescription(settings)}</p>
             <RoomIdentityFields
               name={state.guestName}
               onChange={state.setGuestName}
@@ -469,6 +499,7 @@ function TournamentContent({ id }: { id: number }) {
         )}
         {state.participation.status === "matched" && state.canEnterRoom && (
           <TournamentMatchedDialog
+            game={game}
             key={`${account.user?.profileId ?? account.user?.username}:${state.participation.operationId}:${state.participation.matchId}:${state.participation.roomId}`}
             onEnter={state.enterRoom}
             message={state.message}
@@ -484,23 +515,27 @@ function TournamentPageLayout({
   children,
   onLogoClick,
   onNavigate,
+  game = "four-shogi",
 }: {
   children: ReactNode;
+  game?: TournamentSettings["game"];
   onLogoClick?: MouseEventHandler<HTMLAnchorElement>;
   onNavigate?: AppNavigationHandler;
 }) {
   return (
     <div className="app-theme min-h-dvh text-[15px] leading-[1.6] text-ink">
       <AppHeader
-        homeTo="/games/four-shogi"
-        homeLabel="TetraBoard 四人将棋のロビー"
-        theme="four-shogi"
+        homeTo={gameCatalog[game].lobbyPath}
+        homeLabel={`TetraBoard ${gameCatalog[game].name}のロビー`}
+        theme={gameThemes[game]}
         onLogoClick={onLogoClick}
         onNavigate={onNavigate}
       >
-        <AccountMenu lobbyGame="four-shogi" />
+        <AccountMenu lobbyGame={game} />
       </AppHeader>
-      <div className="game-theme-four-shogi lobby-background min-h-[calc(100dvh-69px)] text-ink">
+      <div
+        className={`${appThemeClasses[gameThemes[game]]} lobby-background min-h-[calc(100dvh-69px)] text-ink`}
+      >
         {children}
       </div>
     </div>
