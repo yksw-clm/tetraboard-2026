@@ -1,11 +1,18 @@
+import type { TournamentSettings } from "@tetraboard/protocol";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { LobbyRoomCard } from "../lobby/LobbyRoomCard";
 import { useGeneralLobbyRooms } from "../lobby/useGeneralLobbyRooms";
 
-export function TournamentRooms({ tournamentId }: { tournamentId: number }) {
-  const page = useGeneralLobbyRooms("four-shogi");
+export function TournamentRooms({
+  tournamentId,
+  game = "four-shogi",
+}: {
+  tournamentId: number;
+  game?: TournamentSettings["game"];
+}) {
+  const page = useGeneralLobbyRooms(game);
   const rooms = page.rooms.filter(
     (room) => room.tournamentId === tournamentId && room.status === "playing",
   );

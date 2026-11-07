@@ -1478,3 +1478,25 @@ test("本人状態の失敗が先に届いても後続の公開情報を表示�
   await respond(detail("active"));
   expect(view.textContent).not.toContain("本人状態の取得失敗");
 });
+
+for (const game of ["four-reversi", "four-gomoku"] as const) {
+  test(`${game}大会のルール・成績・ロビー導線を対象ゲームへ切り替える`, async () => {
+    const view = page();
+    clock.advance(0);
+    const value = detail("finished");
+    value.tournament = {
+      ...value.tournament,
+      name: "新しい大会",
+      ruleVersion: 2,
+      settings: { game, mode: "singles", timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 } },
+    };
+    await respond(value);
+    expect(view.textContent).toContain("持ち時間3分・秒読み10秒");
+    expect(view.textContent).not.toContain("撃破");
+    expect(view.textContent).not.toContain("三人攻撃禁止");
+    expect(view.querySelector(`header a[href="/games/${game}"]`)).not.toBeNull();
+    press(view, game === "four-reversi" ? "四人リバーシロビーへ" : "四人五目並べロビーへ");
+    await flush();
+    expect(view.querySelector("[data-path]")?.textContent).toBe(`/games/${game}`);
+  });
+}

@@ -196,6 +196,8 @@ const cpuPlayerSchema = playerBaseSchema.extend({
   reconnectDeadline: z.null(),
 });
 const waitingRoomSchema = z.strictObject({
+  tournamentId: z.int().positive().optional(),
+  tournamentStartsAtMs: serverNowMsSchema.optional(),
   eliminations: z.array(eliminationSchema).length(0).default([]),
   id: roomCodeSchema,
   instanceId: z.uuid(),
@@ -216,6 +218,7 @@ const waitingRoomSchema = z.strictObject({
 
 const activeRoomBaseSchema = z
   .strictObject({
+    tournamentId: z.int().positive().optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     settings: fourReversiRoomSettingsSchema,
@@ -578,6 +581,7 @@ const fourGomokuWaitingSchema = waitingRoomSchema.extend({
 });
 const fourGomokuPlayingRoomSchema = z
   .strictObject({
+    tournamentId: z.int().positive().optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     status: z.literal("playing"),
@@ -842,7 +846,8 @@ export const roomPublicMetadataSchema = z
   })
   .refine(
     (metadata) =>
-      (metadata.tournamentId === undefined || metadata.game === "four-shogi") &&
+      (metadata.tournamentId === undefined ||
+        ["four-shogi", "four-reversi", "four-gomoku"].includes(metadata.game)) &&
       metadata.capacity === gameCatalog[metadata.game].capacity &&
       (gameCatalog[metadata.game].hasModes
         ? metadata.mode !== undefined

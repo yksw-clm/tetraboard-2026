@@ -1,3 +1,4 @@
+import type { TournamentRoomContext } from "./tournamentRoom";
 import {
   type FourGomokuRoom as Room,
   type FourGomokuReplay,
@@ -27,6 +28,10 @@ export type MatchRecord = MatchStart & {
   eliminations: Room["eliminations"];
   replay: FourGomokuReplay;
 };
-export type PendingMatch = { record: MatchRecord; retryAtMs: number };
+export type PendingMatch = {
+  record: MatchRecord;
+  tournament?: TournamentRoomContext;
+  retryAtMs: number;
+};
 export const matchStartKey = "match-start";
 export const pendingMatchPrefix = "match-pending:";

@@ -34,6 +34,7 @@ import {
   record,
   standingsPage,
   updateDraft,
+  settingsForTournament,
   type TournamentRow,
 } from "./store";
 
@@ -96,6 +97,11 @@ tournamentAdminRoutes.patch("/admin/tournaments/:key", async (c) => {
     (row.starts_at_ms !== input.data.startsAtMs || row.ends_at_ms !== input.data.endsAtMs)
   )
     return c.json({ message: "公開後の開催日時は変更できません。" }, 400);
+  if (
+    row.published &&
+    JSON.stringify(settingsForTournament(row)) !== JSON.stringify(input.data.settings)
+  )
+    return c.json({ message: "公開後のゲームと対局ルールは変更できません。" }, 400);
   if (!(await updateDraft(c.env.APP_DB, row.key, input.data, version)))
     return c.json({ message: "別の操作で更新されました。最新データを読み直してください。" }, 409);
   return c.json(await record(c.env.APP_DB, (await readTournament(c.env.APP_DB, row.key))!));

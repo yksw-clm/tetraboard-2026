@@ -1,3 +1,4 @@
+import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
 import { chooseCpuMove } from "@tetraboard/four-gomoku/cpu";
 import {
   fourGomokuStateSchema,
@@ -73,13 +74,19 @@ export class FourGomokuProgress {
     room.game.lastMoves = lastMoves;
   }
 
-  start(room: WaitingFor<"four-gomoku">): { room: Playing; roundId: string; at: number } {
+  start(
+    room: WaitingFor<"four-gomoku">,
+    tournament?: TournamentRoomContext,
+  ): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(fourGomokuCpuJobKey);
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
-    const matchId = crypto.randomUUID();
+    const matchId = tournament?.matchId ?? crypto.randomUUID();
+    if (tournament) this.storage.kv.put(activeTournamentContextKey, tournament);
+    else this.storage.kv.delete(activeTournamentContextKey);
+    const { tournamentStartsAtMs: _countdown, ...waiting } = room;
     const startedRoom = fourGomokuRoomSchema.parse({
-      ...room,
+      ...waiting,
       status: "playing",
       roundId: matchId,
       positionRevision: 0,
@@ -375,10 +382,12 @@ export class FourGomokuProgress {
     if (start && replay && start.id === replay.id) {
       this.storage.kv.put(`${pendingMatchPrefix}${start.id}`, {
         record: { ...start, endedAtMs: at, game, eliminations: room.eliminations, replay },
+        tournament: this.storage.kv.get<TournamentRoomContext>(activeTournamentContextKey),
         retryAtMs: Date.now(),
       } satisfies PendingMatch);
     }
     this.storage.kv.delete(matchStartKey);
+    this.storage.kv.delete(activeTournamentContextKey);
     const lastRound: LastRound = {
       settings: room.settings,
       game,

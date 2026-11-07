@@ -128,7 +128,7 @@ export function useRoomTransport<T extends Room>({
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
-  const initialTournamentId = isFourShogiRoom(initialRoom) ? initialRoom.tournamentId : undefined;
+  const initialTournamentId = "tournamentId" in initialRoom ? initialRoom.tournamentId : undefined;
   const [room, setRoom] = useState(initialRoom);
   const [eliminatedHands, setEliminatedHands] = useState(initialEliminatedHands ?? null);
   const profileStore = usePlayerProfiles()?.store;
@@ -1092,7 +1092,7 @@ export function useRoomTransport<T extends Room>({
       await leaveRoom(room.id, token);
       clearRoomMembershipToken(room.id);
       void navigate(
-        isFourShogiRoom(room) && room.tournamentId !== undefined
+        "tournamentId" in room && room.tournamentId !== undefined
           ? `/tournaments/${room.tournamentId}`
           : gameCatalog[room.settings.game].lobbyPath,
       );

@@ -1,3 +1,6 @@
+import { tournamentMatchStatements } from "../tournaments/store";
+import { readStoredMatch } from "../accounts/matchDataContracts";
+import type { TournamentRoomContext } from "./tournamentRoom";
 import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "./fourGomokuMatchStore";
@@ -33,15 +36,37 @@ export type MatchRecord = MatchStart & {
   eliminations: Room["eliminations"];
   replay: RoundReplay;
 };
-export type PendingMatch = { record: MatchRecord; retryAtMs: number };
+export type PendingMatch = {
+  record: MatchRecord;
+  tournament?: TournamentRoomContext;
+  retryAtMs: number;
+};
 export const matchStartKey = "match-start";
 export const pendingMatchPrefix = "match-pending:";
 
 export async function writeMatch(
   db: D1Database,
   record: MatchRecord | ReversiMatchRecord | GomokuMatchRecord | FourGomokuMatchRecord,
+  tournament?: TournamentRoomContext,
 ): Promise<void> {
   record = await redactParticipants(db, record);
+  let tournamentStatements: D1PreparedStatement[] = [];
+  if (tournament) {
+    const saved = await db
+      .prepare("SELECT game,record_json FROM matches WHERE id=?")
+      .bind(record.id)
+      .first<{ game: string; record_json: string }>();
+    if (saved && saved.game !== record.settings.game)
+      throw new Error("Match ID belongs to another game");
+    const canonical = readStoredMatch(
+      saved?.record_json ?? JSON.stringify(record),
+      record.settings.game,
+    );
+    if (canonical.game !== "four-reversi" && canonical.game !== "four-gomoku")
+      throw new Error("Invalid tournament game");
+    record = canonical.record;
+    tournamentStatements = tournamentMatchStatements(db, tournament, canonical.record);
+  }
   const statements = [
     db
       .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
@@ -68,6 +93,15 @@ export async function writeMatch(
       .bind(record.id),
   );
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
+  statements.push(...tournamentStatements);
   await db.batch(statements);
+  if (
+    tournament &&
+    !(await db
+      .prepare("SELECT 1 FROM tournament_matches WHERE id=? AND tournament_key=? AND phase='saved'")
+      .bind(record.id, tournament.tournamentKey)
+      .first())
+  )
+    throw new Error("Tournament result publication was incomplete");
   await applyMatchClaims(db, record.id);
 }

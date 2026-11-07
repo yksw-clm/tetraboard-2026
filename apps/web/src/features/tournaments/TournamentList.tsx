@@ -1,3 +1,4 @@
+import { getTournamentSettings, tournamentSettingsDescription } from "@tetraboard/protocol";
 import { Link } from "react-router";
 import { useRef } from "react";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
@@ -71,6 +72,9 @@ export function TournamentList({ game }: { game: GameId | "all" }) {
                   >
                     {tournament.name}
                   </h3>
+                  <p className="text-xs text-muted">
+                    {tournamentSettingsDescription(getTournamentSettings(tournament))}
+                  </p>
                   <TournamentStatus stage={tournament.status} game={tournament.game} />
                 </div>
                 <p className="text-xs text-muted">

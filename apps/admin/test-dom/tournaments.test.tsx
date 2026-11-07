@@ -96,6 +96,7 @@ test("新規下書きは日時なしで保存でき、文字数・日時順を�
     "endsAtMs",
     "name",
     "rulesDescription",
+    "settings",
     "startsAtMs",
   ]);
   requests[0]!.respond({ ...record, ...value }, 201);
@@ -121,6 +122,11 @@ test("保存とプレビュー後の明示公開で版を送り、公開後は�
   expect(view.textContent).toContain("公開しました");
   expect(input(view, "開始日時（日本時間）").disabled).toBe(true);
   expect(input(view, "終了日時（日本時間）").disabled).toBe(true);
+  expect(
+    view
+      .querySelector<HTMLFieldSetElement>('select[aria-label="ゲーム"]')!
+      .closest<HTMLFieldSetElement>("fieldset")!.disabled,
+  ).toBe(true);
   expect(view.querySelector('a[href="/tournaments/1"]')).not.toBeNull();
   enter(input(view, "大会名"), "表記を修正");
   press(view, "保存");
@@ -261,4 +267,27 @@ test("管理名簿は未対局者も追加表示し、名前・公開ID検索で
   expect(view.textContent).not.toContain(entry.name);
   expect(view.textContent).not.toContain(record.name);
   expect(view.textContent).not.toContain("破棄する入力");
+});
+
+test("ゲームを変更しても時計を保持し、三人攻撃禁止を除外して保存とプレビューへ反映する", async () => {
+  const view = render(route("/tournaments/new"));
+  enter(input(view, "大会名"), "四人リバーシ大会");
+  const select = (label: string, value: string) =>
+    act(() => {
+      const field = view.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+      field.value = value;
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  select("持ち時間", "180000");
+  select("秒読み", "10000");
+  select("ゲーム", "four-reversi");
+  expect(view.querySelector('[aria-label="三人攻撃禁止"]')).toBeNull();
+  press(view, "プレビュー");
+  expect(view.textContent).toContain("持ち時間3分・秒読み10秒");
+  press(view, "保存");
+  expect(JSON.parse(String(requests[0]!.init.body)).settings).toEqual({
+    game: "four-reversi",
+    mode: "singles",
+    timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+  });
 });

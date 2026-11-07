@@ -1,3 +1,8 @@
+import {
+  getTournamentSettings,
+  tournamentSettingsDescription,
+  tournamentGameIds,
+} from "@tetraboard/protocol";
 import type { TournamentPublic } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { AppCard } from "../../shared/ui/AppCard";
@@ -50,7 +55,13 @@ function TournamentEntranceCard({
             <h3 id={`tournament-${tournament.id}-entrance-title`} className="text-sm font-bold">
               {tournament.name}
             </h3>
-            <TournamentStatus stage={tournament.status} />
+            <TournamentStatus
+              stage={tournament.status}
+              game={getTournamentSettings(tournament).game}
+            />
+            <span className="text-xs text-muted">
+              {tournamentSettingsDescription(getTournamentSettings(tournament))}
+            </span>
           </div>
           <p className="text-xs text-muted">
             {tournament.status === "finished"
@@ -106,7 +117,7 @@ function TournamentEntranceCard({
 export function TournamentEntrance({ game = "four-shogi" }: { game?: GameId }) {
   const account = useAccount();
   const state = useLobbyTournaments(game);
-  if (game === "four-shogi" && state.isInitialLoading) {
+  if ((tournamentGameIds as readonly string[]).includes(game) && state.isInitialLoading) {
     return (
       <div>
         <p role="status" className="sr-only">

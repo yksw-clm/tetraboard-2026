@@ -1,3 +1,4 @@
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Avatar, Button, Card, Spinner } from "@heroui/react";
@@ -6,7 +7,13 @@ import {
   tournamentAdminEntriesSchema,
   tournamentInputSchema,
   tournamentRecordSchema,
-  tournamentFixedRules,
+  getTournamentSettings,
+  legacyTournamentSettings,
+  tournamentRuleDescriptions,
+  tournamentGameIds,
+  roomMainTimePresets,
+  roomByoyomiPresets,
+  type TournamentSettings,
   formatTournamentPoints,
   type TournamentInput,
   type TournamentRecord,
@@ -156,6 +163,7 @@ type TournamentDraft = Omit<TournamentInput, "startsAtMs" | "endsAtMs"> & {
 };
 function draftFromRecord(record?: TournamentRecord): TournamentDraft {
   return {
+    settings: record ? getTournamentSettings(record) : legacyTournamentSettings,
     name: record?.name ?? "",
     description: record?.description ?? "",
     rulesDescription: record?.rulesDescription ?? "",
@@ -189,6 +197,7 @@ function TournamentEditor({
   function input(): TournamentInput | null {
     if (!draft) return null;
     const parsed = tournamentInputSchema.safeParse({
+      settings: draft.settings,
       name: draft.name,
       description: draft.description,
       rulesDescription: draft.rulesDescription,
@@ -290,6 +299,120 @@ function TournamentEditor({
               </a>
             )}
             <fieldset disabled={busy !== null} className="space-y-4">
+              <fieldset disabled={Boolean(saved?.published)} className="space-y-4">
+                <legend className="font-bold">ゲーム・対局ルール</legend>
+                <label className="block space-y-2">
+                  <span>ゲーム</span>
+                  <select
+                    aria-label="ゲーム"
+                    className={field}
+                    value={draft.settings.game}
+                    onChange={(event) => {
+                      const game = event.target.value as TournamentSettings["game"];
+                      change({
+                        settings:
+                          game === "four-shogi"
+                            ? {
+                                game,
+                                mode: "singles",
+                                timeControl: draft.settings.timeControl,
+                                threePlayerAttackProhibited: true,
+                              }
+                            : { game, mode: "singles", timeControl: draft.settings.timeControl },
+                      });
+                    }}
+                  >
+                    {tournamentGameIds.map((game) => (
+                      <option key={game} value={game}>
+                        {gameCatalog[game].name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="text-sm">シングルス・人間4人（CPU補充なし）</p>
+                <label className="block space-y-2">
+                  <span>持ち時間</span>
+                  <select
+                    aria-label="持ち時間"
+                    className={field}
+                    value={draft.settings.timeControl.mainTimeMs}
+                    onChange={(event) => {
+                      const mainTimeMs = Number(
+                        event.target.value,
+                      ) as TournamentSettings["timeControl"]["mainTimeMs"];
+                      change({
+                        settings: {
+                          ...draft.settings,
+                          timeControl: {
+                            mainTimeMs,
+                            byoyomiMs:
+                              mainTimeMs === 0 && draft.settings.timeControl.byoyomiMs === 0
+                                ? 30000
+                                : draft.settings.timeControl.byoyomiMs,
+                          },
+                        },
+                      });
+                    }}
+                  >
+                    {roomMainTimePresets.map((value) => (
+                      <option key={value} value={value}>
+                        {value ? `${value / 60000}分` : "なし"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block space-y-2">
+                  <span>秒読み</span>
+                  <select
+                    aria-label="秒読み"
+                    className={field}
+                    value={draft.settings.timeControl.byoyomiMs}
+                    onChange={(event) =>
+                      change({
+                        settings: {
+                          ...draft.settings,
+                          timeControl: {
+                            ...draft.settings.timeControl,
+                            byoyomiMs: Number(
+                              event.target.value,
+                            ) as TournamentSettings["timeControl"]["byoyomiMs"],
+                          },
+                        },
+                      })
+                    }
+                  >
+                    {roomByoyomiPresets.map((value) => (
+                      <option
+                        key={value}
+                        value={value}
+                        disabled={value === 0 && draft.settings.timeControl.mainTimeMs === 0}
+                      >
+                        {value ? `${value / 1000}秒` : "なし"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {draft.settings.game === "four-shogi" && (
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      aria-label="三人攻撃禁止"
+                      checked={draft.settings.threePlayerAttackProhibited}
+                      onChange={(event) => {
+                        if (draft.settings.game === "four-shogi")
+                          change({
+                            settings: {
+                              ...draft.settings,
+                              threePlayerAttackProhibited: event.target.checked,
+                            },
+                          });
+                      }}
+                    />
+                    三人攻撃禁止
+                  </label>
+                )}
+              </fieldset>
+
               <label className="block space-y-2">
                 <span>大会名（必須・80文字まで）</span>
                 <input
@@ -335,7 +458,7 @@ function TournamentEditor({
               </div>
               <p className="text-sm text-gray-600">
                 {saved?.published
-                  ? "公開後の開催日時は固定です。大会名・詳細・説明文は修正できます。"
+                  ? "公開後の開催日時・ゲーム・対局ルールは固定です。大会名・詳細・説明文は修正できます。"
                   : "下書きでは日時を空欄にできます。公開時は未来の開催日時が必要です。"}
               </p>
               <label className="block space-y-2">
@@ -349,10 +472,10 @@ function TournamentEditor({
                 />
               </label>
               <p className="text-sm text-gray-600">
-                詳細・説明文は改行を保持するプレーンテキストです。固定ルールの対局・集計条件は変更できません。
+                詳細・説明文は改行を保持するプレーンテキストです。説明文で対局ルール・配点・順位判定を上書きすることはできません。
               </p>
             </fieldset>
-            <FixedRules />
+            <FixedRules settings={draft.settings} />
             {status === 409 && reload && (
               <div className="space-y-3">
                 <p className="text-sm">
@@ -400,7 +523,7 @@ function TournamentEditor({
               </p>
               <p>エントリー {saved?.entryCount ?? 0}人</p>
               {preview.description && <p className="whitespace-pre-wrap">{preview.description}</p>}
-              <FixedRules />
+              <FixedRules settings={preview.settings} />
               {preview.rulesDescription && (
                 <section className="space-y-2">
                   <h3 className="font-bold">大会ごとの説明</h3>
@@ -410,7 +533,7 @@ function TournamentEditor({
               {!saved?.published && (
                 <>
                   <p className="text-sm">
-                    公開すると大会番号・開催日時・固定ルールが確定し、エントリー受付を開始します。公開後の非公開化・削除はできません。
+                    公開すると大会番号・開催日時・対局ルールが確定し、エントリー受付を開始します。公開後の非公開化・削除はできません。
                   </p>
                   <Button
                     onPress={() => void mutate("publish")}
@@ -436,11 +559,11 @@ function TournamentEditor({
     </div>
   );
 }
-function FixedRules() {
+function FixedRules({ settings }: { settings: TournamentSettings }) {
   return (
     <section aria-label="固定ルール" className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm">
-      <h3 className="font-bold">固定ルール（大会ルール版1）</h3>
-      {tournamentFixedRules.map((line) => (
+      <h3 className="font-bold">大会ルール（シングルス）</h3>
+      {tournamentRuleDescriptions(settings).map((line) => (
         <p key={line}>{line}</p>
       ))}
     </section>

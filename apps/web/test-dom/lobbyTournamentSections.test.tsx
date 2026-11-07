@@ -69,7 +69,7 @@ test.each([...gameIds])(
     const loading = [...main.querySelectorAll('[role="status"]')].find(
       (status) => status.textContent === "大会の情報を読み込んでいます…",
     );
-    if (game === "four-shogi") {
+    if (["four-shogi", "four-reversi", "four-gomoku"].includes(game)) {
       expect(loading).toBeDefined();
       expect(loading!.parentElement!.querySelector(".skeleton")).not.toBeNull();
     } else expect(loading).toBeUndefined();

@@ -56,15 +56,20 @@ export function RoomStatus({
       ? `${room.instanceId}:${"roundId" in round ? round.roundId : (round.replay?.id ?? "legacy")}`
       : null;
   const replayOpen = mobileReplayKey !== null && openReplayKey === mobileReplayKey;
-  const tournamentId = isFourShogiRoom(room) ? room.tournamentId : undefined;
+  const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
   const nextTournamentRound =
     tournamentId !== undefined &&
-    isFourShogiRoom(room) &&
     ((room.status === "waiting" && room.lastRound !== null) ||
       (room.status === "playing" &&
         self &&
-        "side" in self &&
-        room.game.eliminations.some((entry) => entry.side === self.side)));
+        (isFourShogiRoom(room) && "side" in self
+          ? room.game.eliminations.some((entry) => entry.side === self.side)
+          : "color" in self &&
+            self.color !== null &&
+            "eliminatedColors" in room.game &&
+            (room.game.eliminatedColors.some((color) => color === self.color) ||
+              ("completedColors" in room.game &&
+                room.game.completedColors.some((color) => color === self.color))))));
   const myTurn = turn !== undefined && turn.id === self?.id;
   const available =
     authenticated &&

@@ -1,3 +1,8 @@
+import {
+  legacyTournamentSettings,
+  getTournamentSettings,
+  tournamentSettingsSchema,
+} from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { beforeEach, expect, test, vi } from "vitest";
 import { legalVersion } from "@tetraboard/protocol/privacy";
@@ -22,6 +27,7 @@ const context = { waitUntil: () => {} } as unknown as ExecutionContext;
 const fetchWith = (path: string, init?: RequestInit, bindings: AdminEnv = env) =>
   worker.fetch(new Request(origin + path, init), bindings as Env, context);
 const input = (overrides: Partial<TournamentInput> = {}): TournamentInput => ({
+  settings: legacyTournamentSettings,
   name: "第一回 四人将棋大会",
   description: "初参加も歓迎します。\r\n途中参加できます。",
   rulesDescription: "気軽に参加してください。",
@@ -67,6 +73,7 @@ const entry = (id: number, headers: Record<string, string>) =>
     headers: { ...headers, "X-Legal-Consent": legalVersion },
   });
 const editInput = (record: TournamentRecord): TournamentInput => ({
+  settings: getTournamentSettings(record),
   name: record.name,
   description: record.description,
   rulesDescription: record.rulesDescription,
@@ -225,7 +232,7 @@ test("公開は未来日時を要求し、開催順の連番・非重複と一�
     published: true,
     version: 2,
     status: "upcoming",
-    ruleVersion: 1,
+    ruleVersion: 2,
   });
   const overlap = await create(
     a,
@@ -770,7 +777,6 @@ test("ゲーム別大会ロビーは開催中と終了24時間未満・全開催
     for (const suffix of [
       "?view=sections",
       "?game=four-shogi",
-      "?view=sections&game=all",
       "?view=other&game=four-shogi",
       "?view=sections&game=four-shogi&extra=1",
     ])
@@ -911,4 +917,47 @@ test("区分別の人数と状態は同じサーバー時刻を使い、既存su
   } finally {
     time.mockRestore();
   }
+});
+
+test("3ゲームの大会設定を公開し、ゲーム別と総合一覧へ載せ、公開後の設定変更を拒否する", async () => {
+  const a = await admin();
+  for (const [index, game] of (["four-reversi", "four-gomoku", "four-shogi"] as const).entries()) {
+    const settings = tournamentSettingsSchema.parse({
+      game,
+      mode: "singles",
+      timeControl: { mainTimeMs: 180000, byoyomiMs: 10000 },
+      ...(game === "four-shogi" ? { threePlayerAttackProhibited: false } : {}),
+    });
+    const draft = await create(
+      a,
+      input({
+        settings,
+        startsAtMs: Date.now() + (index + 1) * 3600000,
+        endsAtMs: Date.now() + (index + 1) * 3600000 + 1800000,
+      }),
+    );
+    const published = await publish(a, draft);
+    expect(published).toMatchObject({ ruleVersion: 2, settings });
+    const list = (await (await fetchWith(`/api/tournaments?game=${game}`)).json()) as {
+      tournaments: { id: number; game: string }[];
+    };
+    expect(list.tournaments).toMatchObject([{ id: published.id, game }]);
+    expect((await lobbySections(env.APP_DB, game, Date.now())).upcoming.map((t) => t.id)).toEqual([
+      published.id,
+    ]);
+    expect(
+      (
+        await adminFetch(a, `/api/admin/tournaments/${published.key}`, "PATCH", {
+          ...editInput(published),
+          settings: { ...settings, timeControl: { mainTimeMs: 60000, byoyomiMs: 30000 } },
+          version: published.version,
+        })
+      ).status,
+    ).toBe(400);
+  }
+  expect((await lobbySections(env.APP_DB, "all", Date.now())).upcoming).toHaveLength(3);
+  const list = (await (await fetchWith("/api/tournaments?game=all")).json()) as {
+    tournaments: unknown[];
+  };
+  expect(list.tournaments).toHaveLength(3);
 });

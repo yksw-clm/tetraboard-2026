@@ -1,3 +1,4 @@
+import { settingsForTournament } from "./store";
 import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
 import { tournamentRules, type TournamentParticipation } from "@tetraboard/protocol";
@@ -234,7 +235,8 @@ export class TournamentCoordinator extends DurableObject<Env> {
         matchId: group.id,
         startsAtMs: row.starts_at_ms!,
         endsAtMs: row.ends_at_ms!,
-        ruleVersion: 1,
+        ruleVersion: row.rule_version,
+        ...(row.rule_version === 2 ? { settings: settingsForTournament(row) } : {}),
       },
       roomId: group.roomId,
       instanceId: group.instanceId,
