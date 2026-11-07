@@ -1,7 +1,14 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { countCharacters, usernameSchema, type AccountProfile } from "@tetraboard/protocol";
+import {
+  avatarPresetUrl,
+  avatarPresets,
+  countCharacters,
+  usernameSchema,
+  type AccountProfile,
+  type AvatarPresetId,
+} from "@tetraboard/protocol";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 import { useAccount } from "./useAccount";
 import { convertAvatar, saveGuestName, saveProfile } from "./accountApi";
@@ -23,7 +30,10 @@ export function useProfileDraft({
   const [name, setName] = useState(user.name);
   const [username, setUsername] = useState(user.username ?? "");
   const [avatar, setAvatar] = useState<Blob | null>(null);
-  const [avatarAction, setAvatarAction] = useState<"keep" | "replace" | "remove">("keep");
+  const [avatarAction, setAvatarAction] = useState<"keep" | "replace" | "remove" | "preset">(
+    "keep",
+  );
+  const [presetId, setPresetId] = useState<AvatarPresetId | undefined>(user.avatarPresetId);
   const [preview, setPreview] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +51,7 @@ export function useProfileDraft({
     [preview],
   );
   async function selectImage(file: File) {
+    if (busy || user.isGuest) return;
     setProcessing(true);
     onBusyChange?.(true);
     setError(null);
@@ -69,13 +80,14 @@ export function useProfileDraft({
     try {
       let saved: AccountProfile;
       if (user.isGuest) {
-        saved = await saveGuestName(name);
+        saved = await saveGuestName(name, avatarAction === "preset" ? presetId : undefined);
       } else {
         const data = new FormData();
         if (setup) data.set("consentVersion", legalVersion);
         data.set("name", name);
         data.set("username", username);
         data.set("avatarAction", avatarAction);
+        if (avatarAction === "preset" && presetId) data.set("avatarPresetId", presetId);
         if (avatarAction === "replace" && avatar) data.set("avatar", avatar, "avatar.webp");
         saved = await saveProfile(setup, data);
       }
@@ -85,6 +97,7 @@ export function useProfileDraft({
       setUsername(saved.username ?? "");
       setAvatar(null);
       setAvatarAction("keep");
+      setPresetId(saved.avatarPresetId);
       setPreview(null);
       setSubmitted(false);
       if (setup) navigate("/account", { replace: true });
@@ -97,8 +110,15 @@ export function useProfileDraft({
       onBusyChange?.(false);
     }
   }
+  const fallback = user.avatarPresetId ? avatarPresetUrl(user.avatarPresetId) : null;
   const image =
-    avatarAction === "remove" ? null : avatarAction === "replace" ? preview : user.avatarUrl;
+    avatarAction === "remove"
+      ? fallback
+      : avatarAction === "preset" && presetId
+        ? avatarPresetUrl(presetId)
+        : avatarAction === "replace"
+          ? preview
+          : user.avatarUrl;
   return {
     name,
     setName,
@@ -114,8 +134,21 @@ export function useProfileDraft({
     error,
     image,
     selectImage,
+    selectedPresetId: avatarPresets.find((preset) => avatarPresetUrl(preset.id) === image)?.id,
+    canRemoveImage: Boolean(
+      image && !avatarPresets.some((preset) => avatarPresetUrl(preset.id) === image),
+    ),
+    selectPreset(id: AvatarPresetId) {
+      if (busy) return;
+      setPresetId(id);
+      setAvatarAction("preset");
+      setAvatar(null);
+      setPreview(null);
+      setError(null);
+    },
     submit,
     removeImage() {
+      if (busy || user.isGuest) return;
       setAvatarAction("remove");
       setAvatar(null);
       setPreview(null);

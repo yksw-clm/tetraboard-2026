@@ -1,6 +1,6 @@
 import { LegalNotice } from "../privacy/LegalNotice";
 import { PrivacyLinks } from "../privacy/PrivacyLinks";
-import { type AccountProfile } from "@tetraboard/protocol";
+import { avatarPresets, avatarPresetUrl, type AccountProfile } from "@tetraboard/protocol";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
 import { AppButton } from "../../shared/ui/AppButton";
 import { AppTextField } from "../../shared/ui/AppTextField";
@@ -34,6 +34,9 @@ export function ProfileForm({
     selectImage,
     submit,
     removeImage,
+    selectPreset,
+    selectedPresetId,
+    canRemoveImage,
   } = useProfileDraft({ user, setup, onSaved, onBusyChange });
   return (
     <form onSubmit={(e) => void submit(e)} noValidate className="flex flex-col gap-6">
@@ -53,9 +56,39 @@ export function ProfileForm({
             </AppButton>
           )}
         </div>
+        <fieldset className="flex max-w-full flex-col items-center gap-2" disabled={busy}>
+          <legend className="mb-2 text-center text-sm">プリセットから選ぶ</legend>
+          <div className="flex flex-wrap justify-center gap-2">
+            {avatarPresets.map((preset) => (
+              <AppButton
+                key={preset.id}
+                type="button"
+                appearance="quiet"
+                aria-label={preset.name}
+                aria-pressed={selectedPresetId === preset.id}
+                isDisabled={busy}
+                onPress={() => selectPreset(preset.id)}
+                className="relative size-14 min-h-14 rounded-full p-1 aria-pressed:border-2 aria-pressed:border-brand"
+              >
+                <AppAvatar src={avatarPresetUrl(preset.id)} label="" className="size-11" />
+                {selectedPresetId === preset.id && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full bg-brand text-xs text-white"
+                  >
+                    ✓
+                  </span>
+                )}
+              </AppButton>
+            ))}
+          </div>
+        </fieldset>
+        <p className="text-center text-xs text-muted">
+          アイコンの変更はプロフィールの保存で反映されます。
+        </p>
         {!user.isGuest && (
           <>
-            {image && (
+            {canRemoveImage && (
               <AppButton
                 type="button"
                 appearance="quiet"
@@ -63,7 +96,7 @@ export function ProfileForm({
                 isDisabled={busy || !image}
                 onPress={removeImage}
               >
-                アイコンを削除
+                アップロード画像を削除
               </AppButton>
             )}
             <input
@@ -124,7 +157,7 @@ export function ProfileForm({
         />
         <AppTextField.Description>
           {user.isGuest
-            ? "アイコンとIDを変更するには、GoogleまたはDiscordとの連携が必要です。"
+            ? "画像アップロードとID変更には、GoogleまたはDiscordとの連携が必要です。"
             : "英数字・_の3〜20文字。大文字は小文字になり、@を付けて表示します。他の人と同じIDは使えません。"}
         </AppTextField.Description>
         <AppTextField.Error>IDは英数字・_の3〜20文字で入力してください。</AppTextField.Error>

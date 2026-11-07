@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
   startRegistrationSchema,
@@ -170,14 +171,23 @@ async function completeLinkedGuestSeat(env: Env, flow: RegistrationFlow, user: S
   if (held?.state !== "pending" || !flow.player_id) return;
   const db = env.APP_DB;
   const avatarKey = user.avatarKey && avatarKeyPattern.test(user.avatarKey) ? user.avatarKey : null;
+  const avatarPresetId = accountAvatarPresetId(user.id, user.avatarPresetId);
   const seat = [user.id, flow.room_id, flow.instance_id, flow.player_id] as const;
   const where = "account_id=? AND room_id=? AND instance_id=? AND player_id=?";
   const updated = await db.batch<{ operation_id: string }>([
     db
-      .prepare(`UPDATE account_room_seats SET name=?,avatar_key=? WHERE ${where}
-      AND EXISTS (SELECT 1 FROM user u WHERE u.id=account_room_seats.account_id AND u.name=? AND u.avatarKey IS ?
+      .prepare(`UPDATE account_room_seats SET name=?,avatar_key=?,avatar_preset_id=? WHERE ${where}
+      AND EXISTS (SELECT 1 FROM user u WHERE u.id=account_room_seats.account_id AND u.name=? AND u.avatarKey IS ? AND u.avatarPresetId IS ?
         AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)) RETURNING operation_id`)
-      .bind(user.name, avatarKey, ...seat, user.name, user.avatarKey),
+      .bind(
+        user.name,
+        avatarKey,
+        avatarPresetId,
+        ...seat,
+        user.name,
+        user.avatarKey,
+        user.avatarPresetId ?? null,
+      ),
     db
       .prepare(`INSERT OR REPLACE INTO room_avatar_refs
       SELECT operation_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats
@@ -203,6 +213,7 @@ async function completeLinkedGuestSeat(env: Env, flow: RegistrationFlow, user: S
       playerId: flow.player_id,
       name: user.name,
       avatarKey,
+      avatarPresetId,
     },
     { visitorId: null, accountId: user.id, isTest: Boolean(user.isTestUser) },
   );

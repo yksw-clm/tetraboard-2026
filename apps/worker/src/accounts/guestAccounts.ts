@@ -2,7 +2,7 @@ import { authSecret } from "../privacy/tokens";
 import { createGuestUsername, isGuestUsernameCollision } from "./guestUsernames";
 import { readLimitedBody } from "../feedback/images";
 import { Hono } from "hono";
-import { profileInputSchema } from "@tetraboard/protocol";
+import { profileInputSchema, isAvatarPresetId } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
 import { accountIdentity, appendSessionCookie, publicProfile, type StoredProfile } from "./auth";
@@ -118,11 +118,18 @@ export async function suspendGuestSession(request: Request, env: Env) {
       .bind(Date.now(), hash)
       .run();
 }
-async function guestInput(request: Request): Promise<{ name?: unknown } | null> {
+async function guestInput(request: Request): Promise<{
+  name?: unknown;
+  avatarPresetId?: unknown;
+  username?: unknown;
+  avatarAction?: unknown;
+  avatar?: unknown;
+} | null> {
   const bytes = await readLimitedBody(request, 4096);
   if (!bytes) return null;
   try {
-    return JSON.parse(new TextDecoder().decode(bytes)) as { name?: unknown };
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
   } catch {
     return null;
   }
@@ -187,14 +194,30 @@ guestRoutes.patch("/account/guest/name", async (c) => {
   const user = await accountIdentity(c.req.raw, c.env);
   if (!user?.isAnonymous) return c.json({ message: "ゲストとして参加してください。" }, 401);
   const data = await guestInput(c.req.raw);
+  if (
+    data?.username !== undefined ||
+    data?.avatarAction !== undefined ||
+    data?.avatar !== undefined
+  )
+    return c.json(
+      { message: "画像アップロードとID変更にはGoogleまたはDiscordとの連携が必要です。" },
+      403,
+    );
+  if (data?.avatarPresetId !== undefined && !isAvatarPresetId(data.avatarPresetId))
+    return c.json({ message: "アイコンの指定が正しくありません。" }, 400);
+  const avatarPresetId = isAvatarPresetId(data?.avatarPresetId)
+    ? data.avatarPresetId
+    : (user.avatarPresetId ?? null);
   const name = profileInputSchema.shape.name.safeParse(data?.name);
   if (!name.success) return c.json({ message: "名前は1〜10文字で入力してください。" }, 400);
   const changed = await c.env.APP_DB.prepare(
-    "UPDATE user SET name=?,guestNameCustomized=1,updatedAt=? WHERE id=? AND isAnonymous=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING id",
+    "UPDATE user SET name=?,avatarPresetId=?,guestNameCustomized=1,updatedAt=? WHERE id=? AND isAnonymous=1 AND avatarPresetId IS ? AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING id",
   )
-    .bind(name.data, Date.now(), user.id)
+    .bind(name.data, avatarPresetId, Date.now(), user.id, user.avatarPresetId ?? null)
     .first();
   if (!changed)
     return c.json({ message: "設定状態が変わりました。ページを開き直してください。" }, 409);
-  return c.json(publicProfile({ ...user, name: name.data, guestNameCustomized: 1 }));
+  return c.json(
+    publicProfile({ ...user, name: name.data, avatarPresetId, guestNameCustomized: 1 }),
+  );
 });

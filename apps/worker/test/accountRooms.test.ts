@@ -5,6 +5,8 @@ import { runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
 import { createInitialState, colors } from "@tetraboard/four-reversi";
 import {
+  accountAvatarPresetId,
+  avatarPresetUrl,
   createRoomContract,
   joinRoomContract,
   getRoomContract,
@@ -161,10 +163,12 @@ test("入室時に本人の名前・画像を取得し、偽装入力と初回�
   ).toBe(400);
   expect((await create(undefined, { name: undefined })).status).toBe(400);
   const other = await created();
-  const joined = joinRoomContract.response.parse(
-    await (await join(other.room.id, await accountFixture())).json(),
-  );
-  expect(joined.room.players.at(-1)).toMatchObject({ name: "登録名", avatarUrl: null });
+  const joining = await accountFixture();
+  const joined = joinRoomContract.response.parse(await (await join(other.room.id, joining)).json());
+  expect(joined.room.players.at(-1)).toMatchObject({
+    name: "登録名",
+    avatarUrl: avatarPresetUrl(accountAvatarPresetId(joining.id)),
+  });
 });
 
 test("同じアカウントの同一・別ルームへの参加と作成を拒否する", async () => {
@@ -372,9 +376,11 @@ test("外部画像は公開せず、移行では未設定にする", async () =>
     new AcceptedGameRequest(origin, { headers: user.headers }),
     env,
   );
-  expect(publicProfile(identity!).avatarUrl).toBeNull();
+  expect(publicProfile(identity!).avatarUrl).toBe(avatarPresetUrl(accountAvatarPresetId(user.id)));
   const result = await created(user);
-  expect(result.room.players[0]).toMatchObject({ avatarUrl: null });
+  expect(result.room.players[0]).toMatchObject({
+    avatarUrl: avatarPresetUrl(accountAvatarPresetId(user.id)),
+  });
   const legacy = {
     ...identity!,
     email: `${user.id}@example.test`,

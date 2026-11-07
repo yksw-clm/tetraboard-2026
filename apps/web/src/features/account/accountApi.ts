@@ -12,12 +12,12 @@ export async function accountRequest(path: string, init?: RequestInit): Promise<
 export async function readAccount(signal?: AbortSignal) {
   return accountSessionSchema.parse(await accountRequest("/api/account/session", { signal })).user;
 }
-export async function saveGuestName(name: string) {
+export async function saveGuestName(name: string, avatarPresetId?: string) {
   return accountProfileSchema.parse(
     await accountRequest("/api/account/guest/name", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...(avatarPresetId ? { avatarPresetId } : {}) }),
     }),
   );
 }

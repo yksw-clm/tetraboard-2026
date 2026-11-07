@@ -3,6 +3,7 @@ import { env, exports } from "cloudflare:workers";
 import { runInDurableObject, evictDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
 import {
+  avatarPresets,
   accountProfileSchema,
   createRoomContract,
   joinRoomContract,
@@ -168,7 +169,7 @@ test("ゲストIDは同名でも一意で、登録者IDとの衝突を再試行�
   const renamed = await request("/account/guest/name", {
     method: "PATCH",
     headers: g.headers,
-    body: JSON.stringify({ name: "変更名", username: "changed" }),
+    body: JSON.stringify({ name: "変更名" }),
   });
   expect(await renamed.json()).toMatchObject({ name: "変更名", username: g.user.username });
   expect((await request("/account/profile", { method: "PATCH", headers: g.headers })).status).toBe(
@@ -441,6 +442,9 @@ for (const provider of ["google", "discord"])
     const g = await guest(),
       record = humanFixtureRecord(g.id, 1);
     await writeMatch(env.APP_DB, record);
+    await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
+      .bind(avatarPresets[4].id, g.id)
+      .run();
     const { target } = await link(g, false, provider);
     const user = await accountIdentity(new Request(origin, { headers: target.headers }), env);
     expect(user).toMatchObject({
@@ -449,6 +453,7 @@ for (const provider of ["google", "discord"])
       username: g.user.username,
       isAnonymous: 0,
       profileCompleted: 0,
+      avatarPresetId: avatarPresets[4].id,
     });
     expect(await accountIdentity(new Request(origin, { headers: g.headers }), env)).toBeNull();
     expect(
@@ -618,6 +623,12 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     record = humanFixtureRecord(g.id, 1);
   await writeMatch(env.APP_DB, record);
   const { target, headers } = await link(g);
+  await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
+    .bind(avatarPresets[1].id, g.id)
+    .run();
+  await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
+    .bind(avatarPresets[2].id, target.id)
+    .run();
   expect(await (await request("/account/guest-merge", { headers })).json()).toEqual({
     pending: { guestName: g.user.name },
   });
@@ -650,6 +661,11 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     .bind(record.id)
     .first<{ account_id: string }>();
   expect(saved!.account_id).toBe(target.id);
+  expect(
+    await env.APP_DB.prepare("SELECT avatarPresetId FROM user WHERE id=?")
+      .bind(target.id)
+      .first("avatarPresetId"),
+  ).toBe(avatarPresets[2].id);
   const stats = await request("/account/stats?game=four-reversi", { headers: target.headers });
   expect(await stats.json()).toMatchObject({ singles: { total: 1 } });
   expect((await request("/account/guest-merge", { method: "POST", headers })).status).toBe(401);

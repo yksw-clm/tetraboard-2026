@@ -155,7 +155,9 @@ async function fixture(endsAfterMs = 3_600_000): Promise<PreparedFixture> {
         admission.playerId,
         admission.operationId,
       ),
-      env.APP_DB.prepare("INSERT INTO account_room_seats VALUES(?,?,?,?,?,?,?,?,0)").bind(
+      env.APP_DB.prepare(
+        "INSERT INTO account_room_seats(account_id,operation_id,room_id,instance_id,player_id,name,avatar_key,created_at_ms,checked_at_ms) VALUES(?,?,?,?,?,?,?,?,0)",
+      ).bind(
         account.id,
         admission.operationId,
         roomId,

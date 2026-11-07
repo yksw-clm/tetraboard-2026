@@ -81,6 +81,7 @@ export const prepareTournamentRoomSchema = z.strictObject({
           isGuest: z.boolean().optional(),
           name: z.string().min(1),
           avatarKey: z.string().nullable(),
+          avatarPresetId: z.string().nullable().optional(),
         }),
       }),
     )

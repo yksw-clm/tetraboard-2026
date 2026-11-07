@@ -105,7 +105,7 @@ test("ゲストは連携ボタンがあるマイページから共通ダイア�
   expect(username.value).toBe(`@${user.username}`);
   expect(username.readOnly).toBe(true);
   expect(dialog.textContent).toContain(
-    "アイコンとIDを変更するには、GoogleまたはDiscordとの連携が必要です。",
+    "画像アップロードとID変更には、GoogleまたはDiscordとの連携が必要です。",
   );
   const name = dialog.querySelector<HTMLInputElement>('input[name="name"]')!;
   expect(name.value).toBe(user.name);

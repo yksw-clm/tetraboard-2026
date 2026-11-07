@@ -1,3 +1,4 @@
+import { accountAvatarPresetId, avatarPresetUrl } from "@tetraboard/protocol";
 import { env } from "cloudflare:workers";
 import { afterEach, expect, test } from "vitest";
 import { participantProfiles } from "../src/accounts/matchProfiles";
@@ -47,7 +48,10 @@ for (const count of [1, 20]) {
 
     const profiles = await participantProfiles(measured.db, records);
 
-    expect(profiles.get(user.id)).toEqual({ name: "登録名", avatarUrl: null });
+    expect(profiles.get(user.id)).toEqual({
+      name: "登録名",
+      avatarUrl: avatarPresetUrl(accountAvatarPresetId(user.id)),
+    });
     for (const record of records) {
       expect(matchSummary(record, profiles).participants.map((p) => p.name)).toEqual([
         "登録名",

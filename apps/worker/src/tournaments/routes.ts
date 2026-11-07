@@ -15,7 +15,7 @@ import {
   tournamentListQuerySchema,
   tournamentListSchema,
 } from "@tetraboard/protocol";
-import { accountIdentity, profileAvatarUrl, type StoredProfile } from "../accounts/auth";
+import { accountIdentity, accountAvatarUrl, type StoredProfile } from "../accounts/auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { consentStatement } from "../privacy/consent";
 import { adminIdentity } from "../admin/auth";
@@ -130,7 +130,7 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
     AND (?='' OR instr(lower(u.name),lower(?))>0 OR instr(lower(u.username),lower(?))>0)`;
   const [rows, total] = await Promise.all([
     c.env.APP_DB.prepare(
-      `SELECT e.id,e.account_id,e.entered_at_ms,u.name,u.username,u.avatarKey,u.isAnonymous ${query} ORDER BY e.entered_at_ms,e.id LIMIT 51 OFFSET ?`,
+      `SELECT e.id,e.account_id,e.entered_at_ms,u.name,u.username,u.avatarKey,u.avatarPresetId,u.isAnonymous ${query} ORDER BY e.entered_at_ms,e.id LIMIT 51 OFFSET ?`,
     )
       .bind(row.key, search, search, search, offset)
       .all<{
@@ -141,6 +141,7 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
         username: string | null;
         isAnonymous: number | null;
         avatarKey: string | null;
+        avatarPresetId: string | null;
       }>(),
     c.env.APP_DB.prepare(`SELECT COUNT(*) AS n ${query}`)
       .bind(row.key, search, search, search)
@@ -151,7 +152,11 @@ tournamentAdminRoutes.get("/admin/tournaments/:key/entries", async (c) => {
       name: e.name,
       ...(e.isAnonymous ? { isGuest: true } : {}),
       username: e.username,
-      avatarUrl: profileAvatarUrl(e.avatarKey),
+      avatarUrl: accountAvatarUrl({
+        id: e.account_id,
+        avatarKey: e.avatarKey,
+        avatarPresetId: e.avatarPresetId,
+      }),
       enteredAtMs: e.entered_at_ms,
       status: statuses[e.account_id] ?? "idle",
       games: byId.get(e.id)?.games ?? 0,
