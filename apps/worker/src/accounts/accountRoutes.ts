@@ -174,8 +174,14 @@ accountRoutes.get("/account/session", async (c) => {
 accountRoutes.get("/avatars/:id", async (c) => {
   const preset = avatarPresets.find((candidate) => candidate.id === c.req.param("id"));
   if (preset) {
-    if (!c.env.ASSETS) return c.notFound();
-    const url = new URL(`/assets/avatar-presets/v1/${preset.file}`, c.req.url);
+    const path = `/assets/avatar-presets/v1/${preset.file}`;
+    if (!c.env.ASSETS) {
+      if (new URL(c.env.APP_ORIGIN).protocol !== "http:") return c.notFound();
+      // ローカル開発では同一オリジンのViteがpublic配下の画像を配信します。
+      c.header("Cache-Control", "no-store");
+      return c.redirect(path);
+    }
+    const url = new URL(path, c.req.url);
     const response = await c.env.ASSETS.fetch(new Request(url, c.req.raw));
     const headers = new Headers(response.headers);
     headers.set("Content-Type", "image/webp");

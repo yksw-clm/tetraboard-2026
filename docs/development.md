@@ -1286,7 +1286,7 @@ migration 0021はゲストセッション、OAuth対応、統合済み内部ID�
 
 共通カタログ `packages/protocol/src/avatarPresets.ts` は6種類の固定UUID・表示名・画像名を定義します。v1の内部IDによる割り当てを固定し、`user.avatarPresetId` が未設定の既存ユーザーも取得時に解決します。migration 0027は選択用列と `account_room_seats.avatar_preset_id` を追加し、一括データ更新やR2コピーは行いません。
 
-アップロード画像を優先する解決処理を全プロフィール表示で共有します。プリセットの固定UUIDは既存の `/api/avatars/<UUID>` と同じ形式で、WorkerのASSETSから `/assets/avatar-presets/v1/` のWebPを配信します。プリセットを個人用 `avatarKey`・R2画像参照・削除待ちへ保存しません。アカウント応答の任意 `avatarPresetId` は実効値です。登録者のmultipartは `avatarAction=preset` とカタログ内IDを受け付け、removeはアップロードだけを解除します。ゲストの名前更新JSONも任意のカタログ内IDを受け付け、ID変更・画像アップロード指定は拒否します。
+アップロード画像を優先する解決処理を全プロフィール表示で共有します。プリセットの固定UUIDは既存の `/api/avatars/<UUID>` と同じ形式で、WorkerのASSETSから `/assets/avatar-presets/v1/` のWebPを配信します。ASSETSのないHTTPのローカル開発では同一オリジンのViteの画像パスへ302で転送し、転送をキャッシュしません。プリセットを個人用 `avatarKey`・R2画像参照・削除待ちへ保存しません。アカウント応答の任意 `avatarPresetId` は実効値です。登録者のmultipartは `avatarAction=preset` とカタログ内IDを受け付け、removeはアップロードだけを解除します。ゲストの名前更新JSONも任意のカタログ内IDを受け付け、ID変更・画像アップロード指定は拒否します。
 
 通常・大会の入室予約は実効プリセットを保存し、プロフィールの同時変更を検知します。入室済みの席は固定し、新しい入室だけ最新設定を使います。プリセット項目がない導入前の席は当時の表示を保持します。退会者・参照先なしへ内部IDからアイコンを補完しません。
 

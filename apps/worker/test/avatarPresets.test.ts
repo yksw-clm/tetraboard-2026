@@ -17,6 +17,20 @@ import worker from "../src/worker";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
+test("ASSETSがないローカル開発ではViteの同一オリジン画像へ転送する", async () => {
+  for (const preset of avatarPresets) {
+    const context = createExecutionContext();
+    const response = await worker.fetch(
+      new Request(`${origin}${avatarPresetUrl(preset.id)}`, { redirect: "manual" }),
+      { ...env, ASSETS: undefined },
+      context,
+    );
+    await waitOnExecutionContext(context);
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`/assets/avatar-presets/v1/${preset.file}`);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  }
+});
 async function session(cookie: string) {
   const data = (await (
     await request("/account/session", { headers: { Cookie: cookie } })
@@ -181,7 +195,9 @@ test("共用画像は退会で消えず、プリセットの配信先とキャ�
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/webp");
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=3600");
-    expect(await response.text()).toBe("preset");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new TextEncoder().encode("preset"),
+    );
     expect(calls.at(-1)).toBe(`/assets/avatar-presets/v1/${preset.file}`);
   }
 });
