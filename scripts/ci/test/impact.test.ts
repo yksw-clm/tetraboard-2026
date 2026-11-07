@@ -27,6 +27,9 @@ test.each([
 test.each([
   "packages/protocol/src/index.ts",
   "packages/four-shogi/src/movement.ts",
+  "packages/ai/crates/engine/src/four_reversi.rs",
+  "packages/ai/Cargo.lock",
+  "packages/ai/fixtures/four-reversi-v1.json",
   "apps/worker/src/accounts/auth.ts",
   "apps/worker/migrations/001.sql",
   "mise.toml",

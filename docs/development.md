@@ -62,6 +62,12 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 | 五目並べ                                 | [追加範囲](../README.md#五目並べ)、[ルール正本](rules/gomoku.md)                                                                                                  | [実装](#五目並べの実装)・[計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応)                                                                                                                                                                                         | [エンジン](../packages/gomoku/test/)、[Worker](../apps/worker/test/gomokuRoom.test.ts)、[DOM](../apps/web/test-dom/gomoku.test.tsx)                                                                    |
 | 四人五目並べ                             | [追加範囲](../README.md#四人五目並べ)、[ルール正本](rules/four-gomoku.md)                                                                                         | [実装](#四人五目並べの実装)・[計画と完了条件](#四人五目並べの実装計画)                                                                                                                                                                                                                        | [エンジン](../packages/four-gomoku/test/)、[Worker](../apps/worker/test/fourGomokuRoom.test.ts)、[DOM](../apps/web/test-dom/fourGomoku.test.tsx)                                                       |
 
+## Rust AI開発基盤
+
+新しいAI基盤の入口は [packages/ai](../packages/ai/README.md) です。フェーズ0は脱落のない四人リバーシ・シングルスだけを扱い、`engine`、`agents`、`benchmark`の3 crateで構成します。ルールの正本は既存の[四人リバーシルール](rules/four-reversi.md)で、[対応範囲](../packages/ai/docs/rules-four-player-reversi.md)に確認元コミットを記載します。既存CPUの探索・評価・乱数・Benchmarkは流用しません。
+
+Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。Bun Workspace用manifestによって全体check・Full CIへ組み込みます。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
+
 ## 四人リバーシCPU
 
 現行APIは `@tetraboard/four-reversi` の `chooseCpuMove(state, level, random = Math.random): Position | null` です。合法手・公開API・採用したCPU方式は [ルール正本のCPU節](rules/four-reversi.md#cpu) を確認してください。

@@ -12,6 +12,14 @@
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsは検証範囲・工程別の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
+## Rust AI基盤の確認
+
+`packages/ai`は全体の`bun run check`とFull CIに含めます。`typecheck`は比較テストのBun型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。通常の検証jobと任意の`ci-benchmark`計測jobの両方で、miseからBun・Node・Rustを導入します。AIのRustソース・lockfile・fixture変更がFullに分類されることをCI選択テストで確認します。
+
+8組の固定fixtureで、初期局面、合法手と拒否理由、複数色・複数方向の反転、全滅禁止、自動パスと解除、本人の連続手番、満盤・全色パス終局、同率順位を両言語で照合します。作成元コミットと期待値は固定し、実行時に生成しません。合成局面は初期局面からの到達を保証しません。
+
+Rustでは100seedについて各2回対局し、時間以外の棋譜・結果の一致、合法性、1着手1枚の増加、各色の生存、56着手以内の終局、順位と石数を検証します。BunはRust CLIから100局のJSONLを受け取り、全着手を既存TypeScriptルールで再生して合法手一覧・反転・パス・最終局面と結果を確認します。既存CPU・探索・Benchmarkはimportしません。対象は脱落なしシングルスだけで、棋力認定・HTTP・学習・ダブルス・脱落は今回の検証対象外です。部分実行は`bun run --cwd packages/ai check`、計測ログは[AI基盤README](../packages/ai/README.md)を参照してください。
+
 ## Fast CIとFull CI
 
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。

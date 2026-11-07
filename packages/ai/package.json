@@ -1,0 +1,19 @@
+{
+  "name": "@tetraboard/ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format:check": "cargo fmt --all -- --check",
+    "lint": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all && bun run format:check && bun run lint",
+    "typecheck:tsc": "tsc --noEmit",
+    "test": "cargo test --workspace --locked && bun test ./test",
+    "bench": "cargo run --release --locked -p tetraboard-ai-benchmark --",
+    "check": "bun run typecheck && bun run test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.5.2"
+  }
+}
