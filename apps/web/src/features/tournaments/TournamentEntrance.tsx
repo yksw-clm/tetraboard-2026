@@ -59,9 +59,11 @@ function TournamentEntranceCard({
               stage={tournament.status}
               game={getTournamentSettings(tournament).game}
             />
-            <span className="text-xs text-muted">
-              {tournamentSettingsDescription(getTournamentSettings(tournament))}
-            </span>
+            {tournament.status !== "upcoming" && (
+              <span className="text-xs text-muted">
+                {tournamentSettingsDescription(getTournamentSettings(tournament))}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted">
             {tournament.status === "finished"
