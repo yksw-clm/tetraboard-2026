@@ -1284,6 +1284,10 @@ migration 0021はゲストセッション、OAuth対応、統合済み内部ID�
 
 ### 自動アイコンとプリセット
 
+ルームの初回名前入力では `RoomEntryDialog` と `RoomInvitationDialogs` の参加ダイアログがプリセットの下書きを持ちます。`RoomIdentityFields` はアイコン・44pxのシャッフル操作・変更結果の読み上げを共有し、`guestAvatar.ts` は現在の画像を除いた候補から選択します。閉鎖時はダイアログとともに下書きを破棄します。全6ゲームの作成・CPU・通常参加と招待／観戦からの参加は、選択IDを `ensureGuestAccount` の作成JSONへ渡します。`prepareRoomGuest` は保存結果を画面へ反映し、下書きと異なるプロフィールを別の操作が先に確定していた場合は入室前に再確認を案内します。大会・公開チャットは既存の名前入力を維持します。
+
+`POST /api/account/guest` は任意の `avatarPresetId` を検証し、新規作成では名前・選択ID・本人資格・同意を同じD1 batchで保存します。名前未設定の既存ゲストも名前と選択IDを一つのUPDATEで確定し、設定済みへの変更を条件に含めて遅れた要求による上書きを防ぎます。設定済みの本人には保存済みプロフィールを返し、作成要求での名前・アイコン変更は行いません。選択IDを省略する既存の経路は固定の自動割り当てを維持します。
+
 共通カタログ `packages/protocol/src/avatarPresets.ts` は6種類の固定UUID・表示名・画像名を定義します。v1の内部IDによる割り当てを固定し、`user.avatarPresetId` が未設定の既存ユーザーも取得時に解決します。migration 0027は選択用列と `account_room_seats.avatar_preset_id` を追加し、一括データ更新やR2コピーは行いません。
 
 アップロード画像を優先する解決処理を全プロフィール表示で共有します。プリセットの固定UUIDは既存の `/api/avatars/<UUID>` と同じ形式で、WorkerのASSETSから `/assets/avatar-presets/v1/` のWebPを配信します。ASSETSのないHTTPのローカル開発では同一オリジンのViteの画像パスへ302で転送し、転送をキャッシュしません。プリセットを個人用 `avatarKey`・R2画像参照・削除待ちへ保存しません。アカウント応答の任意 `avatarPresetId` は実効値です。登録者のmultipartは `avatarAction=preset` とカタログ内IDを受け付け、removeはアップロードだけを解除します。ゲストの名前更新JSONも任意のカタログ内IDを受け付け、ID変更・画像アップロード指定は拒否します。

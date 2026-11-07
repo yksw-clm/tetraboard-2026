@@ -58,6 +58,27 @@ async function select(
     body: await encoded.arrayBuffer(),
   });
 }
+test("初回ゲストの不正なアイコン指定を作成前に拒否する", async () => {
+  const count = () => env.APP_DB.prepare("SELECT count(*) AS n FROM guest_sessions").first("n");
+  const before = await count();
+  for (const extra of [
+    { avatarPresetId: "unknown" },
+    { avatarPresetId: null },
+    { avatarPresetId: 1 },
+    { username: "custom" },
+    { avatarAction: "replace" },
+    { avatar: "image" },
+  ]) {
+    const response = await request("/account/guest", {
+      method: "POST",
+      headers: { Origin: origin },
+      body: JSON.stringify({ name: "ゲスト", ...extra }),
+    });
+    expect(response.status).toBe("avatarPresetId" in extra ? 400 : 403);
+    expect(response.headers.getSetCookie()).toEqual([]);
+  }
+  expect(await count()).toBe(before);
+});
 test("既存の画像未設定アカウントはDBを書き換えず固定アイコンを取得し、アップロードを優先する", async () => {
   const user = await accountFixture();
   const first = await session(user.cookie);
