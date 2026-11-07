@@ -629,6 +629,11 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
   await env.APP_DB.prepare("UPDATE user SET avatarPresetId=? WHERE id=?")
     .bind(avatarPresets[2].id, target.id)
     .run();
+  await env.APP_DB.prepare(
+    "UPDATE user SET profileMessage='統合先のひとこと', favoriteGames='[\"shogi\"]' WHERE id=?",
+  )
+    .bind(target.id)
+    .run();
   expect(await (await request("/account/guest-merge", { headers })).json()).toEqual({
     pending: { guestName: g.user.name },
   });
@@ -661,6 +666,9 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     .bind(record.id)
     .first<{ account_id: string }>();
   expect(saved!.account_id).toBe(target.id);
+  expect(
+    await (await request("/account/session", { headers: target.headers })).json(),
+  ).toMatchObject({ user: { profileMessage: "統合先のひとこと", favoriteGames: ["shogi"] } });
   expect(
     await env.APP_DB.prepare("SELECT avatarPresetId FROM user WHERE id=?")
       .bind(target.id)

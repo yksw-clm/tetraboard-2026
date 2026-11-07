@@ -46,7 +46,13 @@ export class PlayerProfileStore {
     this.states.set(key, { ...state, loading: true, error: null });
     this.emit();
     try {
-      const query = new URLSearchParams({ ...target, game, includeBadges: "1", includeStats: "1" });
+      const query = new URLSearchParams({
+        ...target,
+        game,
+        includeBadges: "1",
+        includeStats: "1",
+        includeDetails: "1",
+      });
       const response = await fetch(`/api${getPlayerProfileContract.path}?${query}`, {
         cache: "no-store",
         signal: controller.signal,

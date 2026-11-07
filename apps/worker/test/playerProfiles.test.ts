@@ -176,7 +176,9 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     for (const secret of [user.id, "accountId", "email", "second", "knockouts", "replay", "token"])
       expect(JSON.stringify(profile)).not.toContain(secret);
     await db
-      .prepare("UPDATE user SET name = ?, username = ? WHERE id = ?")
+      .prepare(
+        "UPDATE user SET profileMessage='次も遊ぼう', favoriteGames='[\"gomoku\"]', name = ?, username = ? WHERE id = ?",
+      )
       .bind("新しい名前", `new_${user.username.slice(2)}`, user.id)
       .run();
     await db
@@ -194,6 +196,14 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
     expect(
       getPlayerProfileContract.response.parse(await (await lookup(target, game)).json()),
     ).toEqual(current);
+    const details = await request(
+      `/player-profile?${new URLSearchParams({ ...target, game, includeDetails: "1" })}`,
+    );
+    expect(details.status).toBe(200);
+    expect(await details.json()).toMatchObject({
+      profileMessage: "次も遊ぼう",
+      favoriteGames: ["gomoku"],
+    });
     expect(
       (await lookup(target, game === "four-reversi" ? "four-shogi" : "four-reversi")).status,
     ).toBe(400);
