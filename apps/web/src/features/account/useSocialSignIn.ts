@@ -1,5 +1,5 @@
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { accountRequest } from "./accountApi";
 import type { RegistrationCredential } from "@tetraboard/protocol";
 import {
@@ -12,6 +12,8 @@ export type SocialProvider = "google" | "discord";
 
 export function useSocialSignIn() {
   const submitting = useRef(false);
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), []);
   const [busy, setBusy] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -25,13 +27,15 @@ export function useSocialSignIn() {
     setBusy(true);
     setPendingProvider(provider);
     setMessage(null);
+    const request = new AbortController();
+    controller.current = request;
     const registrationDestination = typeof destination === "object" ? destination : undefined;
     if (registrationDestination) saveRegistrationReturn(registrationDestination, true);
     else clearRegistrationReturn();
     try {
       const result = (await accountRequest("/api/auth/sign-in/social", {
         method: "POST",
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.any([request.signal, AbortSignal.timeout(10000)]),
         headers: {
           "Content-Type": "application/json",
           "X-Legal-Consent": legalVersion,
@@ -49,6 +53,7 @@ export function useSocialSignIn() {
             : {}),
         }),
       })) as { url?: string } | null;
+      if (request.signal.aborted) return false;
       if (
         !result?.url ||
         new URL(result.url).origin !==
@@ -60,6 +65,7 @@ export function useSocialSignIn() {
       window.location.assign(result.url);
       return true;
     } catch (err) {
+      if (request.signal.aborted) return false;
       if (registrationDestination) saveRegistrationReturn(registrationDestination, false);
       else clearRegistrationReturn();
       setMessage(

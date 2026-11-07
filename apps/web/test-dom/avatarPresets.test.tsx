@@ -13,16 +13,16 @@ const initial: AccountProfile = {
   avatarUrl: avatarPresetUrl(avatarPresets[0].id),
 };
 const event = { preventDefault() {} } as FormEvent;
-test("ゲストも6種類を選べ、保存失敗後も選択を保持し、アップロードとID編集は提供しない", async () => {
+test("ゲストも6種類を選べ、保存失敗後も選択を保持し、連携が必要な入力は読み取り専用にする", async () => {
   const user = { ...initial, isGuest: true };
   const saved: AccountProfile[] = [];
   const view = render(
     wrap(user)(<ProfileForm user={user} setup={false} onSaved={(value) => saved.push(value)} />),
   );
-  expect(view.querySelectorAll("button[aria-pressed]")).toHaveLength(6);
+  expect(view.querySelector("fieldset")!.querySelectorAll("button[aria-pressed]")).toHaveLength(6);
   expect(view.querySelector('input[type="file"]')).toBeNull();
-  expect(view.querySelector('input[name="profileMessage"]')).toBeNull();
-  expect(view.querySelector('[aria-label="お気に入りゲームの選択"]')).toBeNull();
+  expect(view.querySelector<HTMLInputElement>('input[name="profileMessage"]')!.readOnly).toBe(true);
+  expect(view.querySelector('[aria-label="お気に入りゲームの選択"]')).not.toBeNull();
   expect(view.querySelector<HTMLInputElement>('input[name="username"]')!.readOnly).toBe(true);
   const preset = avatarPresets[2];
   act(() => view.querySelector<HTMLButtonElement>(`[aria-label="${preset.name}"]`)!.click());

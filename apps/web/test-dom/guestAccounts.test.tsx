@@ -99,7 +99,7 @@ test("ゲストは連携ボタンがあるマイページから共通ダイア�
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
   expect(dialog.textContent).toContain("プロフィールを編集");
   expect(dialog.querySelector('[data-slot="avatar-fallback"] svg')).not.toBeNull();
-  expect(dialog.querySelector('[aria-label="アイコン画像を選択"]')).toBeNull();
+  expect(dialog.querySelector('[aria-label="アイコン画像を選択"]')).not.toBeNull();
   expect(dialog.querySelector('input[type="file"]')).toBeNull();
   const username = dialog.querySelector<HTMLInputElement>('input[name="username"]')!;
   expect(username.value).toBe(`@${user.username}`);
