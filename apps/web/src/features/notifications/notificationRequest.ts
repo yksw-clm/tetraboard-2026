@@ -1,3 +1,13 @@
+import { checkAccountPrivacy } from "../account/accountPrivacy";
+
+export class NotificationRequestError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super("お知らせを取得・更新できませんでした。再試行してください。");
+    this.status = status;
+  }
+}
+
 /** 本人切替・タイムアウトのどちらでも通知だけを中止します。 */
 export async function notificationRequest(
   path: string,
@@ -22,7 +32,8 @@ export async function notificationRequest(
             body: JSON.stringify(body),
           }),
     });
-    if (!response.ok) throw new Error("お知らせを取得・更新できませんでした。再試行してください。");
+    if (response.status === 401) checkAccountPrivacy();
+    if (!response.ok) throw new NotificationRequestError(response.status);
     const value: unknown = await response.json();
     if (controller.signal.aborted)
       throw new DOMException("Notification request canceled", "AbortError");

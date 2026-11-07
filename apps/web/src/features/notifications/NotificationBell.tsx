@@ -1,3 +1,4 @@
+import { NotificationRequestError } from "./notificationRequest";
 import {
   useEffect,
   useLayoutEffect,
@@ -36,6 +37,7 @@ function NotificationDetails({
 }) {
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [unavailable, setUnavailable] = useState(false);
   const markRead = center.read;
   useEffect(() => {
     let active = true;
@@ -48,13 +50,23 @@ function NotificationDetails({
           );
         }
       })
-      .catch(() => {
-        if (active) setError(true);
+      .catch((error) => {
+        if (!active) return;
+        if (error instanceof NotificationRequestError && error.status === 404) {
+          setUnavailable(true);
+          setRows((previous) => previous.filter((row) => row.id !== n.id));
+        } else setError(true);
       });
     return () => {
       active = false;
     };
   }, [n, markRead, retry, setRows]);
+  if (unavailable)
+    return (
+      <p role="alert" className="text-sm">
+        このお知らせは現在表示できません。一覧を更新してください。
+      </p>
+    );
   const target =
     n.kind === "announcement"
       ? `/updates/${n.announcement.id}`
@@ -126,10 +138,10 @@ function NotificationDialog({
   center: NotificationCenter;
   onClose: () => void;
 }) {
-  const [rows, setRows] = useState<Notification[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [upperBound, setUpperBound] = useState(0);
-  const [loaded, setLoaded] = useState(false);
+  const [rows, setRows] = useState<Notification[]>(() => center.cachedPage?.notifications ?? []);
+  const [cursor, setCursor] = useState<string | null>(() => center.cachedPage?.nextCursor ?? null);
+  const [upperBound, setUpperBound] = useState(() => center.cachedPage?.upperBound ?? 0);
+  const [loaded, setLoaded] = useState(() => center.cachedPage !== null);
   const [pending, setPending] = useState(false);
   const [pendingSource, setPendingSource] = useState("initial");
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +150,6 @@ function NotificationDialog({
   const requestVersion = useRef(0);
   const scroll = useRef<HTMLDivElement>(null);
   const scrollTop = useRef(0);
-  const detailTarget = useRef<number | null>(null);
   useLayoutEffect(() => {
     if (selected && scroll.current) scroll.current.scrollTop = 0;
   }, [selected]);
@@ -148,10 +159,11 @@ function NotificationDialog({
       mounted.current = false;
     };
   }, []);
-  async function load(next?: string) {
+  async function load(next?: string, background = false) {
+    const blocking = !background || !loaded;
     setPendingSource(next ? "more" : "refresh");
     const version = ++requestVersion.current;
-    setPending(true);
+    if (blocking) setPending(true);
     setError(null);
     try {
       const page = await center.list(next);
@@ -168,31 +180,21 @@ function NotificationDialog({
       if (mounted.current && version === requestVersion.current)
         setError("お知らせを取得できませんでした。");
     } finally {
-      if (mounted.current && version === requestVersion.current) setPending(false);
+      if (blocking && mounted.current && version === requestVersion.current) setPending(false);
     }
   }
   useEffect(() => {
-    void load();
+    void load(undefined, true);
     void center.refresh();
-    // ダイアログを開いたときだけ初期一覧を取得し、戻るときは保持します。
+    // 先読み結果を表示しながら再確認し、詳細から戻るときは一覧を保持します。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  async function open(id: number) {
-    detailTarget.current = id;
-    setPendingSource("detail");
-    const version = ++requestVersion.current;
+  function open(notification: Notification) {
+    requestVersion.current++;
     scrollTop.current = scroll.current?.scrollTop ?? 0;
-    setPending(true);
+    setPending(false);
     setError(null);
-    try {
-      const detail = await center.detail(id);
-      if (mounted.current && version === requestVersion.current) setSelected(detail);
-    } catch {
-      if (mounted.current && version === requestVersion.current)
-        setError("詳細を取得できませんでした。項目を選び直してください。");
-    } finally {
-      if (mounted.current && version === requestVersion.current) setPending(false);
-    }
+    setSelected(notification);
   }
   async function allRead() {
     setPendingSource("read-all");
@@ -286,8 +288,6 @@ function NotificationDialog({
                 isDisabled={pending}
                 onPress={() => {
                   if (pendingSource === "read-all") void allRead();
-                  else if (pendingSource === "detail" && detailTarget.current !== null)
-                    void open(detailTarget.current);
                   else void load(pendingSource === "more" && cursor ? cursor : undefined);
                 }}
               >
@@ -303,7 +303,7 @@ function NotificationDialog({
                 data-notification-id={n.id}
                 type="button"
                 disabled={pending}
-                onClick={() => void open(n.id)}
+                onClick={() => open(n)}
                 className="flex w-full flex-col gap-2 border-0 bg-transparent px-1 py-4 text-left text-ink hover:bg-surface-muted focus-visible:outline-[3px] focus-visible:outline-focus disabled:cursor-wait"
               >
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">

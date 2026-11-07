@@ -903,6 +903,8 @@ Workerの `notifications.test.ts` で公開・編集・再公開・非公開化�
 
 Webの `notificationCenter.test.tsx` はベルの配置と赤丸、更新アイコンの読み上げ名と処理中の操作抑止、開くだけでは既読にしないこと、詳細表示後と記事の直接閲覧による既読、「運営からのお知らせ」のラベル、アイコンボタンによる一覧への復帰と選択項目へのフォーカス、追加取得失敗と再試行、まとめて既読の上限、匿名の初回基準・別タブ同期・保存失敗、非表示中の更新停止、本人切替の古い応答破棄、StrictModeでの継続をBun＋happy-domで確認します。既存のannouncements・badgeNotifications・tournamentResults・guestAccounts・privacyの回帰も維持します。
 
+先読みは同じDOMテストでfetch応答を保留し、ベルを押す前の取得・開いた直後のキャッシュ表示・再表示・初回取得中の表示・裏の再取得中の詳細操作・詳細GETなしの本文表示を確認します。新着なしの30秒確認で一覧を余分に取得しないこと、新着時の先読み更新、先読み／更新失敗と再試行、進行中GETの共用、既読保存後に返る古い応答、非公開化の404、匿名の取得共用、同じ本人の認証再確認と画面遷移での保持、別本人・ログアウトでの破棄も通信境界と偽時計で確認します。実通信の速さはDOMテストの保証に含めません。
+
 部分実行は `bun run --cwd apps/worker test test/notifications.test.ts test/announcements.test.ts test/badgeNotifications.test.ts test/tournamentResults.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/notificationCenter.test.tsx ./test-dom/announcements.test.tsx ./test-dom/badgeNotifications.test.tsx` です。
 
 320px・PCでのヘッダーと大会入口、ベルの赤丸、長い本文のスクロール中もダイアログのヘッダー・戻るボタンが残ること、一覧のスクロール位置の復帰、実バッジ画像、実際のキーボード・読み上げ・フォーカス復帰は手動確認対象です。ブラウザ起動型の自動テストは追加せず、PRで手動確認の実施範囲と未確認事項を明記します。

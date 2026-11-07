@@ -5,10 +5,10 @@ export type NotificationCenter = {
   hasUnread: boolean;
   error: string | null;
   storageError: boolean;
+  cachedPage: NotificationList | null;
   registerHeader: () => () => void;
   refresh: () => Promise<void>;
   list: (cursor?: string) => Promise<NotificationList>;
-  detail: (id: number) => Promise<Notification>;
   read: (notification: Notification) => Promise<void>;
   readAll: (through: number) => Promise<void>;
   readAnnouncement: (id: string) => Promise<void>;
