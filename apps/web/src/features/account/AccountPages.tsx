@@ -395,6 +395,7 @@ function AccountProfileCard({ user, game }: { user: AccountProfile; game: GameId
           <ProfileForm
             user={user}
             setup={false}
+            theme={gameThemes[game]}
             onBusyChange={setBusy}
             onSaved={() => {
               setEditing(false);

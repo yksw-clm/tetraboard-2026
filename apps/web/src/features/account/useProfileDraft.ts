@@ -47,6 +47,13 @@ export function useProfileDraft({
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const submission = useRef(false);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const busy = processing || saving;
   const nameInvalid = countCharacters(name.trim()) < 1 || countCharacters(name.trim()) > 10;
   const usernameInvalid = !user.isGuest && !usernameSchema.safeParse(username).success;
@@ -104,21 +111,45 @@ export function useProfileDraft({
         if (avatarAction === "replace" && avatar) data.set("avatar", avatar, "avatar.webp");
         saved = await saveProfile(setup, data);
       }
-      profiles?.store.invalidate(saved.profileId ? { profileId: saved.profileId } : {});
-      update(saved);
-      setName(saved.name);
-      setUsername(saved.username ?? "");
-      setProfileMessage(saved.profileMessage ?? "");
-      setFavoriteGames(saved.favoriteGames ?? []);
-      setAvatar(null);
-      setAvatarAction("keep");
-      setPresetId(saved.avatarPresetId);
-      setPreview(null);
-      setSubmitted(false);
+      if (!active.current) return;
+      acceptSaved(saved);
       if (setup) navigate("/account", { replace: true });
       else onSaved?.(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存できませんでした。");
+    } finally {
+      submission.current = false;
+      setSaving(false);
+      onBusyChange?.(false);
+    }
+  }
+  function acceptSaved(saved: AccountProfile) {
+    profiles?.store.invalidate(saved.profileId ? { profileId: saved.profileId } : {});
+    update(saved);
+    setName(saved.name);
+    setUsername(saved.username ?? "");
+    setProfileMessage(saved.profileMessage ?? "");
+    setFavoriteGames(saved.favoriteGames ?? []);
+    setAvatar(null);
+    setAvatarAction("keep");
+    setPresetId(saved.avatarPresetId);
+    setPreview(null);
+    setSubmitted(false);
+  }
+  async function saveBeforeLink() {
+    if (!user.isGuest) return;
+    setSubmitted(true);
+    if (nameInvalid) throw new Error("名前は1〜10文字で入力してから連携してください。");
+    if (busy || submission.current) throw new Error("保存が終わってから連携してください。");
+    submission.current = true;
+    setSaving(true);
+    onBusyChange?.(true);
+    try {
+      const saved = await saveGuestName(name, avatarAction === "preset" ? presetId : undefined);
+      if (!active.current) return;
+      if (user.profileId && saved.profileId !== user.profileId)
+        throw new Error("アカウントが変わりました。プロフィールを開き直してください。");
+      acceptSaved(saved);
     } finally {
       submission.current = false;
       setSaving(false);
@@ -176,6 +207,7 @@ export function useProfileDraft({
       setError(null);
     },
     submit,
+    saveBeforeLink,
     removeImage() {
       if (busy || user.isGuest) return;
       setAvatarAction("remove");
