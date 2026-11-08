@@ -68,6 +68,14 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 
 Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。Bun Workspace用manifestによって全体check・Full CIへ組み込みます。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
 
+## ローカルAI解析widgetの実装
+
+仕様は [README](../README.md#ローカルai解析widget)、導入は [拡張の案内](../apps/local-ai-widget/README.md)、ローカルAPIは [AI案内](../packages/ai/README.md#ローカル解析サービス) を参照します。`apps/local-ai-widget`は独立Bun workspaceで、ビルド成果物を本番Web資産へ含めません。Manifest V3のMAIN側bridgeが既存WebSocket・fetchの受信を監視し、ISOLATED側のcontroller・widgetが局面の世代管理と盤上表示、service workerがloopback通信とタブ排他を担当します。秘密値は拡張の信頼された保存領域へ置き、ページ・content scriptへ返しません。
+
+四人リバーシの進行中RoomにはroundIdがないため、接続先・部屋ID・instanceId・接続世代・局の世代・本人と色対応・ルール状態・手番開始時刻で解析対象を識別します。時計残時間・チャット・更新時刻だけでは再解析しません。古い受信時刻のsnapshotも破棄します。局面のSHA-256と要求IDを応答・描画前に照合します。DOMは既存aria-labelの座標と石色で64マスを照合し、位置取得に失敗した場合は番号表示を止めます。復帰・遷移はbridgeの最新確定状態を再要求します。
+
+`packages/ai`のMCTSは通常選択経路を維持したまま任意の根候補収集を追加し、server crateの別バイナリにローカルルーターを置きます。既存Serviceのrouterへ解析APIを追加しません。固定fixtureの改修前コミットに対する選択手・探索診断・連続呼び出しを回帰確認します。検証分担は [テスト方針](testing.md#ローカルai解析widgetの確認) を参照します。
+
 ## ランダムマッチの実装
 
 採用仕様は[ランダムマッチング](matchmaking.md)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。

@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "TetraBoard Local AI",
+  "version": "0.1.0",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "TetraBoard Local AI 設定"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://tetraboard.net/*",
+        "https://tetraboard-dev.chaossi-lab.workers.dev/*",
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://tetraboard.net/*",
+        "https://tetraboard-dev.chaossi-lab.workers.dev/*",
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja">
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>
+    TetraBoard Local AI 設定
+  </title>
+  <body>
+    <main>
+      <h1>TetraBoard Local AI</h1>
+      <p>Mac上の解析サービスを起動し、ローカル専用tokenを登録してください。</p>
+      <form>
+        <label for="token">ローカル専用token</label
+        ><input
+          id="token"
+          type="password"
+          minlength="32"
+          maxlength="256"
+          autocomplete="off"
+          required
+        /><button>保存</button>
+      </form>
+      <p role="status"></p>
+      <p>接続先：127.0.0.1:3002。設定後、対局ページを再読み込みしてください。</p>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -26,6 +26,18 @@ pub struct MctsStats {
     pub stop_reason: StopReason,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RootCandidate {
+    pub position: Position,
+    pub visits: u64,
+    pub solo_wins: [u64; 4],
+}
+
+pub struct MctsAnalysis {
+    pub decision: Decision,
+    pub candidates: Vec<RootCandidate>,
+}
+
 pub struct MctsAgent {
     rng: ChaCha8Rng,
     weights: EvaluationWeights,
@@ -112,6 +124,33 @@ impl MctsAgent {
     }
 
     fn search(&mut self, state: &State, cancelled: &mut dyn FnMut() -> bool) -> Decision {
+        self.search_with_candidates(state, cancelled, None)
+    }
+
+    /// 元の探索と同じ乱数列で根候補を収集し、外部の停止要求も確認します。
+    pub fn analyze(&mut self, state: &State, cancelled: &mut dyn FnMut() -> bool) -> MctsAnalysis {
+        let deadline = self
+            .budget
+            .max_time_ms
+            .map(|ms| Instant::now() + Duration::from_millis(ms));
+        let mut candidates = Vec::new();
+        let decision = self.search_with_candidates(
+            state,
+            &mut || cancelled() || deadline.is_some_and(|end| Instant::now() >= end),
+            Some(&mut candidates),
+        );
+        MctsAnalysis {
+            decision,
+            candidates,
+        }
+    }
+
+    fn search_with_candidates(
+        &mut self,
+        state: &State,
+        cancelled: &mut dyn FnMut() -> bool,
+        candidates: Option<&mut Vec<RootCandidate>>,
+    ) -> Decision {
         let legal = state.legal_moves();
         let Some(player) = state.turn() else {
             return Decision {
@@ -230,6 +269,28 @@ impl MctsAgent {
             })
             .map(|(p, _)| *p)
             .or_else(|| legal.first().copied());
+        if let Some(candidates) = candidates {
+            candidates.extend(
+                tree[0]
+                    .children
+                    .iter()
+                    .filter(|(_, index)| tree[*index].visits > 0)
+                    .map(|(position, index)| RootCandidate {
+                        position: *position,
+                        visits: tree[*index].visits,
+                        solo_wins: tree[*index].wins,
+                    }),
+            );
+            candidates.sort_by(|a, b| {
+                b.visits
+                    .cmp(&a.visits)
+                    .then_with(|| {
+                        (u128::from(b.solo_wins[player.index()]) * u128::from(a.visits))
+                            .cmp(&(u128::from(a.solo_wins[player.index()]) * u128::from(b.visits)))
+                    })
+                    .then_with(|| position_key(a.position).cmp(&position_key(b.position)))
+            });
+        }
         let interrupted = matches!(
             stats.stop_reason,
             StopReason::NodeLimit | StopReason::Deadline
@@ -359,5 +420,56 @@ mod tests {
             let reward = terminal_reward(&finished);
             assert_eq!(reward, if shared { [0; 4] } else { [1, 0, 0, 0] });
         }
+    }
+    #[test]
+    fn baseline_preserves_moves_work_and_rng_streams() {
+        let baseline: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fixtures/local-analysis-baseline.json"
+        ))
+        .unwrap();
+        let profiles = crate::profiles::builtin_profiles().unwrap();
+        for pair in baseline["cases"].as_array().unwrap().chunks(2) {
+            let seed = pair[0]["seed"].as_u64().unwrap();
+            let mut analyzer = MctsAgent::new(&profiles[4].config, seed, 0);
+            for row in pair {
+                let mut setup = row["state"].clone();
+                setup.as_object_mut().unwrap().remove("result");
+                let state = State::from_setup(serde_json::from_value(setup).unwrap()).unwrap();
+                let report = analyzer.analyze(&state, &mut || false);
+                let decision = &report.decision;
+                assert_eq!(
+                    serde_json::to_value(decision.position).unwrap(),
+                    row["position"]
+                );
+                assert_eq!(serde_json::to_value(&decision.stats).unwrap(), row["stats"]);
+                assert_eq!(
+                    report.candidates.first().map(|c| c.position),
+                    decision.position
+                );
+                assert!(
+                    report
+                        .candidates
+                        .iter()
+                        .all(|c| state.legal_moves().contains(&c.position)
+                            && c.solo_wins.iter().sum::<u64>() <= c.visits)
+                );
+                assert_eq!(
+                    report.candidates.iter().map(|c| c.visits).sum::<u64>(),
+                    decision.stats.mcts.as_ref().unwrap().trials
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn analysis_does_not_rank_unfinished_playouts() {
+        let state = State::initial();
+        let report = MctsAgent::new(&cfg(), 0, 0).analyze(&state, &mut || true);
+        assert!(report.candidates.is_empty());
+        assert_eq!(report.decision.stats.nodes, 0);
+        assert_eq!(
+            report.decision.stats.mcts.unwrap().stop_reason,
+            StopReason::Deadline
+        );
     }
 }

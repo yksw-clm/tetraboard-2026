@@ -4,6 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+default-run = "tetraboard-ai-server"
+
+[[bin]]
+name = "tetraboard-ai-local"
+path = "src/bin/local_analysis.rs"
 
 [dependencies]
 tetraboard-ai-engine.workspace = true
