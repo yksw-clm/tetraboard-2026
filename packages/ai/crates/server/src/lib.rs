@@ -1,5 +1,7 @@
 //! 認証された局面から候補手だけを計算します。対局状態は保存しません。
 
+pub mod local_analysis;
+
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Request, State as AppState, rejection::JsonRejection},

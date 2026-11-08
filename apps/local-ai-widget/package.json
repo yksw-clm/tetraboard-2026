@@ -1,0 +1,20 @@
+{
+  "name": "@tetraboard/local-ai-widget",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build.ts",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
+    "typecheck:tsc": "tsc --noEmit",
+    "test": "bun run build && bun test --preload ../../test-support/dom.ts ./test"
+  },
+  "dependencies": {
+    "@tetraboard/four-reversi": "workspace:*",
+    "@tetraboard/protocol": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "@types/chrome": "^0.1.32"
+  }
+}
