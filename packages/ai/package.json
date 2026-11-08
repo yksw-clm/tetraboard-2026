@@ -14,7 +14,7 @@
     "deploy:cloud:development": "wrangler deploy --config cloudflare/wrangler.jsonc --env development",
     "deploy:cloud:dry-run:development": "wrangler deploy --config cloudflare/wrangler.jsonc --env development --dry-run",
     "measure:cloud": "bun scripts/measureCloud.ts",
-    "test": "cargo test --workspace --locked && bun test ./test",
+    "test": "cargo test --workspace --locked && cargo build --release --locked -p tetraboard-ai-server && bun test ./test",
     "bench": "cargo run --release --locked -p tetraboard-ai-benchmark --",
     "serve": "cargo run --release --locked -p tetraboard-ai-server",
     "check": "bun run typecheck && bun run test",

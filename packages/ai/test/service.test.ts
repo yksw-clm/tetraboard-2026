@@ -4,17 +4,20 @@ const token = "test-ai-service-token-at-least-32-characters";
 let server: ReturnType<typeof Bun.spawn>;
 let baseUrl = "";
 beforeAll(async () => {
-  server = Bun.spawn(["cargo", "run", "--quiet", "--locked", "-p", "tetraboard-ai-server"], {
-    cwd: new URL("..", import.meta.url).pathname,
-    env: {
-      ...process.env,
-      AI_SERVICE_TOKEN: token,
-      AI_SERVICE_LISTEN: "127.0.0.1:0",
-      AI_SERVICE_CONCURRENCY: "2",
+  server = Bun.spawn(
+    ["cargo", "run", "--release", "--quiet", "--locked", "-p", "tetraboard-ai-server"],
+    {
+      cwd: new URL("..", import.meta.url).pathname,
+      env: {
+        ...process.env,
+        AI_SERVICE_TOKEN: token,
+        AI_SERVICE_LISTEN: "127.0.0.1:0",
+        AI_SERVICE_CONCURRENCY: "2",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  );
   const reader = (server.stdout as ReadableStream<Uint8Array>).getReader();
   let text = "";
   for (;;) {
