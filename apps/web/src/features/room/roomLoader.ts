@@ -1,3 +1,5 @@
+import { recoverMatchmakingRoom } from "../matchmaking/matchmakingRecovery";
+import { readMatchmakingRoom } from "../matchmaking/matchmakingStorage";
 import {
   roomCodeSchema,
   isFourReversiRoom,
@@ -39,6 +41,10 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
   }
   const url = new URL(request.url);
   const instanceId = invitationInstance(url);
+  const matchingReference =
+    url.searchParams.get("watch") === "1" ? null : readMatchmakingRoom(id!, instanceId);
+  if (matchingReference && instanceId)
+    await recoverMatchmakingRoom(id!, instanceId, request.signal);
   const tournamentReference =
     url.searchParams.get("watch") === "1" ? null : readTournamentRoom(id!, instanceId);
   if (tournamentReference && instanceId)
@@ -48,6 +54,8 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     request.signal,
     instanceId,
   ).catch((error: unknown) => {
+    if (matchingReference && error instanceof Response && [404, 410].includes(error.status))
+      throw redirect("/games/four-reversi/matchmaking");
     const reference = tournamentReference;
     if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
       throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);
@@ -55,6 +63,8 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
   });
   if (tournamentReference && !instanceId && room.instanceId === tournamentReference.instanceId)
     await recoverTournamentRoom(id!, room.instanceId, request.signal);
+  if (matchingReference && !instanceId && room.instanceId === matchingReference.instanceId)
+    await recoverMatchmakingRoom(id!, room.instanceId, request.signal);
   const membership = await fetchRoomMembership(room.id, request.signal);
   if (membership !== null && !room.players.some((player) => player.id === membership.playerId)) {
     throw new Response("本人確認の結果がルーム情報と一致しません。", { status: 503 });

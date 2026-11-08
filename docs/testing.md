@@ -26,6 +26,16 @@
 
 Rustでは100seedについて各2回対局し、時間以外の棋譜・結果の一致、合法性、1着手1枚の増加、各色の生存、56着手以内の終局、順位と石数を検証します。BunはRust CLIから100局のJSONLを受け取り、全着手を既存TypeScriptルールで再生して合法手一覧・反転・パス・最終局面と結果を確認します。既存CPU・探索・Benchmarkはimportしません。この100局比較は脱落なしシングルスだけを対象とし、棋力認定・学習・ダブルス・脱落は含めません。HTTPの検証は上記のフェーズ2が担当します。部分実行は`bun run --cwd packages/ai check`、計測ログは[AI基盤README](../packages/ai/README.md)を参照してください。
 
+## ランダムマッチの確認
+
+採用仕様と公開条件は[ランダムマッチング](matchmaking.md)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
+
+`packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存まで確認します。このテストはAI workspaceから全体check・Full CIに含まれます。
+
+`apps/web/test-dom/matchmaking.test.tsx`はWeb Locks非対応の明示参加、取消と遅延heartbeat、別操作元の確認・引継ぎ、ポーリングで延期されない入室、サーバー時刻による待機表示を検証します。`matchmakingRoom.test.tsx`は手動開始・設定の非表示、同期した開始予告、旧席解放後の再マッチングとロビーへの移動を確認します。CPUの名前・ロボット・CPUタグ・実際のレベルはプレイヤー情報のDOMテストで確認します。画面寸法・ネイティブ入力は従来どおり手動確認です。
+
+部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番の公開フラグは無効です。開発ServiceのWrangler dry-runはFull CIに含め、クラウド接続と実機確認は開発への反映後に別途確認します。
+
 ## Fast CIとFull CI
 
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。

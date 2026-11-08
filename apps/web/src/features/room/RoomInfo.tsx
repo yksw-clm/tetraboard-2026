@@ -1,3 +1,4 @@
+import { managedRoomPath, isMatchmakingRoom } from "../matchmaking/managedRoom";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import type { ReactNode, RefObject } from "react";
@@ -37,7 +38,7 @@ export function RoomInfo({
   feedbackButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { room, membership } = session;
-  const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
+  const managedPath = managedRoomPath(room);
   return (
     <RoomInfoCard
       roomId={room.id}
@@ -72,7 +73,7 @@ export function RoomInfo({
         ルームを共有
       </AppButton>
       {membership === null && <p className="text-muted text-xs">観戦中です</p>}
-      {tournamentId === undefined && room.status === "waiting" && membership?.role === "host" && (
+      {managedPath === null && room.status === "waiting" && membership?.role === "host" && (
         <AppButton
           appearance="secondary"
           size="compact"
@@ -102,13 +103,13 @@ export function RoomInfo({
         <AppButtonLink
           size="compact"
           className="w-full"
-          to={
-            tournamentId !== undefined
-              ? `/tournaments/${tournamentId}`
-              : gameCatalog[room.settings.game].lobbyPath
-          }
+          to={managedPath !== null ? managedPath : gameCatalog[room.settings.game].lobbyPath}
         >
-          {tournamentId !== undefined ? "大会へ戻る" : "ロビーへ戻る"}
+          {managedPath !== null
+            ? isMatchmakingRoom(room)
+              ? "マッチングへ"
+              : "大会へ戻る"
+            : "ロビーへ戻る"}
         </AppButtonLink>
       )}
     </RoomInfoCard>

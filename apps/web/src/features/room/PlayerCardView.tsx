@@ -67,7 +67,15 @@ export function PlayerCardView({
   const preview = {
     target: player?.kind === "human" && player.retired ? null : profileTarget,
     localProfile:
-      player?.kind === "cpu" ? { kind: "cpu" as const, level: player.level } : undefined,
+      player?.kind === "cpu"
+        ? {
+            kind: "cpu" as const,
+            level: player.level,
+            ...("cpuProfile" in player && player.cpuProfile
+              ? { cpuProfile: player.cpuProfile, name: player.name }
+              : {}),
+          }
+        : undefined,
     game,
     mode: profileMode,
     theme: gameThemes[game],
@@ -200,6 +208,9 @@ export function PlayerCardView({
             </PlayerProfileTrigger>
           ) : (
             name
+          )}
+          {player?.kind === "cpu" && "cpuProfile" in player && player.cpuProfile && (
+            <span className="ml-1 rounded bg-surface-muted px-1 text-[10px] font-normal">CPU</span>
           )}
           {host && (
             <span className="inline-flex ml-[0.28em] text-[#b58a28]" title="ホスト">

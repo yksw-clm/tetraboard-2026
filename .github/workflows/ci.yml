@@ -101,6 +101,7 @@ jobs:
           bun run --cwd apps/admin build:assets
           bun scripts/buildAssets.ts
           bun run --cwd apps/worker deploy:dry-run:development
+          bun run --cwd packages/ai deploy:cloud:dry-run:development
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         with:

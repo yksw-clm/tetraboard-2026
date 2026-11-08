@@ -1,3 +1,4 @@
+import { cpuProfileSchema } from "./cpuProfiles";
 import { z } from "zod";
 import { gameIdSchema } from "./gameSchemas";
 import { usernameSchema } from "./accounts";
@@ -72,7 +73,12 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
     ]),
   }),
   z.strictObject({ kind: z.literal("guest"), name: z.string(), avatarUrl: z.null() }),
-  z.strictObject({ kind: z.literal("cpu"), level: z.union([z.literal(1), z.literal(2)]) }),
+  z.strictObject({
+    kind: z.literal("cpu"),
+    level: z.union([z.literal(1), z.literal(2)]),
+    cpuProfile: cpuProfileSchema.optional(),
+    name: z.string().optional(),
+  }),
 ]);
 export type PlayerProfile = z.infer<typeof playerProfileSchema>;
 export const getPlayerProfileContract = {

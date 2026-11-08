@@ -1,9 +1,10 @@
-//! 脱落のない四人リバーシ・シングルスを扱います。
+//! 四人リバーシ・シングルスの着手と外部脱落を扱います。
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub const RULESET_VERSION: &str = "four-reversi-singles-v1";
+pub const ELIMINATION_RULESET_VERSION: &str = "four-reversi-singles-v2";
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const BOARD_SIZE: usize = 8;
 pub const MAX_MOVES: u8 = 56;
@@ -51,6 +52,8 @@ pub struct PositionSetup {
     pub last_move: Option<Position>,
     #[serde(default)]
     pub consecutive_passes: Vec<Color>,
+    #[serde(default)]
+    pub eliminated_colors: Vec<Color>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +61,7 @@ pub struct PositionSetup {
 pub enum EndReason {
     BoardFull,
     AllPassed,
+    LastPlayer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,7 +69,8 @@ pub enum EndReason {
 pub struct Standing {
     pub color: Color,
     pub rank: u8,
-    pub stone_count: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stone_count: Option<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +87,8 @@ pub struct State {
     move_number: u8,
     last_move: Option<Position>,
     consecutive_passes: Vec<Color>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    eliminated_colors: Vec<Color>,
     result: Option<GameResult>,
 }
 
@@ -101,6 +108,13 @@ pub enum MoveError {
     Occupied,
     NoCapture,
     EliminatesPlayer,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EliminationError {
+    GameFinished,
+    AlreadyEliminated,
 }
 
 impl fmt::Display for MoveError {
@@ -130,28 +144,44 @@ impl State {
             move_number: 0,
             last_move: None,
             consecutive_passes: Vec::new(),
+            eliminated_colors: Vec::new(),
             result: None,
         }
     }
 
     /// 構造と継続条件を確認します。初期局面からの到達可能性は保証しません。
     pub fn from_setup(setup: PositionSetup) -> Result<Self, &'static str> {
-        if count_stones(&setup.board).contains(&0) {
-            return Err("脱落なしの局面には全4色の石が必要です");
+        let active: Vec<_> = COLORS
+            .into_iter()
+            .filter(|c| !setup.eliminated_colors.contains(c))
+            .collect();
+        if active.len() < 2
+            || active
+                .iter()
+                .any(|c| count_stones(&setup.board)[c.index()] == 0)
+            || setup
+                .eliminated_colors
+                .iter()
+                .enumerate()
+                .any(|(i, c)| setup.eliminated_colors[..i].contains(c))
+            || !active.contains(&setup.turn)
+        {
+            return Err("継続色・脱落順が不正です");
         }
         if setup.move_number > MAX_MOVES
             || setup.last_move.is_some_and(|p| !p.in_bounds())
-            || setup.consecutive_passes.len() >= COLORS.len()
+            || setup.consecutive_passes.len() >= active.len()
             || setup.consecutive_passes.contains(&setup.turn)
+            || setup.consecutive_passes.iter().any(|c| !active.contains(c))
             || setup
                 .consecutive_passes
                 .iter()
                 .enumerate()
-                .any(|(i, color)| setup.consecutive_passes[..i].contains(color))
+                .any(|(i, c)| setup.consecutive_passes[..i].contains(c))
         {
             return Err("局面の補助情報が不正です");
         }
-        if legal_moves_for(&setup.board, setup.turn).is_empty() {
+        if legal_moves_for(&setup.board, setup.turn, &setup.eliminated_colors).is_empty() {
             return Err("手番には合法手のある色を指定してください");
         }
         Ok(Self {
@@ -160,6 +190,7 @@ impl State {
             move_number: setup.move_number,
             last_move: setup.last_move,
             consecutive_passes: setup.consecutive_passes,
+            eliminated_colors: setup.eliminated_colors,
             result: None,
         })
     }
@@ -186,7 +217,7 @@ impl State {
 
     pub fn legal_moves(&self) -> Vec<Position> {
         self.turn
-            .map(|color| legal_moves_for(&self.board, color))
+            .map(|color| legal_moves_for(&self.board, color, &self.eliminated_colors))
             .unwrap_or_default()
     }
 
@@ -198,14 +229,30 @@ impl State {
         COLORS.map(|color| {
             (0..8)
                 .flat_map(|y| (0..8).map(move |x| Position { x, y }))
-                .filter(|&p| check_move_with_counts(&self.board, color, p, counts).is_ok())
+                .filter(|&p| {
+                    !self.eliminated_colors.contains(&color)
+                        && check_move_with_counts(
+                            &self.board,
+                            color,
+                            p,
+                            counts,
+                            &self.eliminated_colors,
+                        )
+                        .is_ok()
+                })
                 .count() as u8
         })
     }
 
     pub fn apply_move(&self, position: Position) -> Result<Transition, MoveError> {
         let color = self.turn.ok_or(MoveError::GameFinished)?;
-        let flipped = check_move(&self.board, color, position)?;
+        let flipped = check_move_with_counts(
+            &self.board,
+            color,
+            position,
+            count_stones(&self.board),
+            &self.eliminated_colors,
+        )?;
         let mut next = self.clone();
         next.board[position.y as usize][position.x as usize] = Some(color);
         for p in &flipped {
@@ -218,19 +265,7 @@ impl State {
         if next.board.iter().flatten().all(Option::is_some) {
             next.finish(EndReason::BoardFull);
         } else {
-            // 着手後の盤面から次の手番を探し、本人の連続手番も許可します。
-            for offset in 1..=COLORS.len() {
-                let candidate = COLORS[(color.index() + offset) % COLORS.len()];
-                if !legal_moves_for(&next.board, candidate).is_empty() {
-                    next.turn = Some(candidate);
-                    break;
-                }
-                passed_colors.push(candidate);
-            }
-            next.consecutive_passes.clone_from(&passed_colors);
-            if passed_colors.len() == COLORS.len() {
-                next.finish(EndReason::AllPassed);
-            }
+            passed_colors = next.advance(color);
         }
         Ok(Transition {
             state: next,
@@ -239,20 +274,85 @@ impl State {
         })
     }
 
+    pub fn eliminated_colors(&self) -> &[Color] {
+        &self.eliminated_colors
+    }
+
+    pub fn eliminate(&self, color: Color) -> Result<Transition, EliminationError> {
+        let turn = self.turn.ok_or(EliminationError::GameFinished)?;
+        if self.eliminated_colors.contains(&color) {
+            return Err(EliminationError::AlreadyEliminated);
+        }
+        let mut next = self.clone();
+        next.eliminated_colors.push(color);
+        next.consecutive_passes.retain(|c| *c != color);
+        let passed_colors = if next.eliminated_colors.len() == 3 {
+            next.finish(EndReason::LastPlayer);
+            Vec::new()
+        } else if turn == color {
+            next.advance(color)
+        } else {
+            Vec::new()
+        };
+        Ok(Transition {
+            state: next,
+            flipped: Vec::new(),
+            passed_colors,
+        })
+    }
+
+    fn advance(&mut self, after: Color) -> Vec<Color> {
+        let active = 4 - self.eliminated_colors.len();
+        let mut passed = Vec::new();
+        for offset in 1.. {
+            let color = COLORS[(after.index() + offset) % 4];
+            if self.eliminated_colors.contains(&color) {
+                continue;
+            }
+            if !legal_moves_for(&self.board, color, &self.eliminated_colors).is_empty() {
+                self.turn = Some(color);
+                break;
+            }
+            passed.push(color);
+            self.consecutive_passes.push(color);
+            if self.consecutive_passes.len() == active {
+                self.finish(EndReason::AllPassed);
+                break;
+            }
+        }
+        passed
+    }
+
     fn finish(&mut self, reason: EndReason) {
         let counts = count_stones(&self.board);
-        let mut ordered = COLORS;
-        ordered.sort_by_key(|color| std::cmp::Reverse(counts[color.index()]));
-        let standings = ordered.map(|color| Standing {
-            color,
-            rank: 1 + counts
-                .iter()
-                .filter(|&&count| count > counts[color.index()])
-                .count() as u8,
-            stone_count: counts[color.index()],
-        });
+        let mut active: Vec<_> = COLORS
+            .into_iter()
+            .filter(|c| !self.eliminated_colors.contains(c))
+            .collect();
+        active.sort_by_key(|c| std::cmp::Reverse(counts[c.index()]));
+        let mut standings: Vec<_> = active
+            .iter()
+            .map(|&color| Standing {
+                color,
+                rank: 1 + active
+                    .iter()
+                    .filter(|c| counts[c.index()] > counts[color.index()])
+                    .count() as u8,
+                stone_count: Some(counts[color.index()]),
+            })
+            .collect();
+        for &color in self.eliminated_colors.iter().rev() {
+            standings.push(Standing {
+                color,
+                rank: (standings.len() + 1) as u8,
+                stone_count: None,
+            });
+        }
         self.turn = None;
-        self.result = Some(GameResult { reason, standings });
+        self.result = Some(GameResult {
+            reason,
+            standings: standings.try_into().expect("4色の順位を保持します"),
+        });
     }
 }
 
@@ -264,16 +364,14 @@ pub fn count_stones(board: &Board) -> [u8; 4] {
     counts
 }
 
-fn legal_moves_for(board: &Board, color: Color) -> Vec<Position> {
+fn legal_moves_for(board: &Board, color: Color, eliminated: &[Color]) -> Vec<Position> {
     let counts = count_stones(board);
     (0..8)
         .flat_map(|y| (0..8).map(move |x| Position { x, y }))
-        .filter(|&position| check_move_with_counts(board, color, position, counts).is_ok())
+        .filter(|&position| {
+            check_move_with_counts(board, color, position, counts, eliminated).is_ok()
+        })
         .collect()
-}
-
-fn check_move(board: &Board, color: Color, position: Position) -> Result<Vec<Position>, MoveError> {
-    check_move_with_counts(board, color, position, count_stones(board))
 }
 
 fn check_move_with_counts(
@@ -281,6 +379,7 @@ fn check_move_with_counts(
     color: Color,
     position: Position,
     counts: [u8; 4],
+    eliminated: &[Color],
 ) -> Result<Vec<Position>, MoveError> {
     if !position.in_bounds() {
         return Err(MoveError::OutOfBounds);
@@ -323,10 +422,9 @@ fn check_move_with_counts(
             remaining[other.index()] -= 1;
         }
     }
-    if COLORS
-        .iter()
-        .any(|&other| other != color && remaining[other.index()] == 0)
-    {
+    if COLORS.iter().any(|&other| {
+        other != color && !eliminated.contains(&other) && remaining[other.index()] == 0
+    }) {
         return Err(MoveError::EliminatesPlayer);
     }
     Ok(flipped)

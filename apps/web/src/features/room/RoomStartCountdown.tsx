@@ -1,23 +1,22 @@
-import { tournamentRules } from "@tetraboard/protocol";
-
-export function TournamentRoomCountdown({
+export function RoomStartCountdown({
   startsAtMs,
   serverNowMs,
+  durationMs,
+  label,
 }: {
   startsAtMs: number;
   serverNowMs: number;
+  durationMs: number;
+  label: string;
 }) {
   const seconds = Math.max(
     0,
-    Math.min(
-      Math.ceil(tournamentRules.startCountdownMs / 1000),
-      Math.ceil((startsAtMs - serverNowMs) / 1000),
-    ),
+    Math.min(Math.ceil(durationMs / 1000), Math.ceil((startsAtMs - serverNowMs) / 1000)),
   );
   return (
     <div
       role="status"
-      aria-label="大会対局の開始カウントダウン"
+      aria-label={label}
       className="absolute inset-0 z-40 grid place-items-center bg-black/70 text-white"
     >
       <div className="space-y-4 px-5 text-center">

@@ -32,6 +32,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
           compatibilityFlags: config.compatibility_flags,
           durableObjects: {
             GAME_ROOM: { className: "GameRoom", useSQLite: true },
+            MATCHMAKING_COORDINATOR: { className: "MatchmakingCoordinator", useSQLite: true },
             TOURNAMENT_COORDINATOR: { className: "TournamentCoordinator", useSQLite: true },
           },
           r2Buckets: ["OBJECT_STORAGE"],

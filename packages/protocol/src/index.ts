@@ -297,3 +297,6 @@ export * from "./registration";
 export * from "./tournaments";
 
 export * from "./notifications";
+
+export * from "./cpuProfiles";
+export * from "./matchmaking";

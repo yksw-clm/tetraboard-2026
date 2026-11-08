@@ -352,6 +352,7 @@ mod tests {
                 move_number: 55,
                 last_move: None,
                 consecutive_passes: Vec::new(),
+                eliminated_colors: Vec::new(),
             })
             .unwrap();
             let finished = state.apply_move(Position { x: 0, y: 0 }).unwrap().state;

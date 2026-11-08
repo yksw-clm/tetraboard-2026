@@ -1,3 +1,4 @@
+import { matchmakingRoutes } from "./matchmaking/routes";
 import { notificationRoutes } from "./notifications/routes";
 import { runScheduledMaintenance } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./accounts/guestLinking";
@@ -29,6 +30,7 @@ import { servePublicAssets } from "./publicAssets";
 import { tournamentRoutes, tournamentAdminRoutes } from "./tournaments/routes";
 
 export { GameRoom } from "./rooms/gameRoom";
+export { MatchmakingCoordinator } from "./matchmaking/coordinator";
 export { TournamentCoordinator } from "./tournaments/coordinator";
 
 const api = new Hono<{ Bindings: Env }>();
@@ -41,6 +43,7 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 
 api.route("/", generalLobbyRoutes);
 api.route("/", tournamentRoutes);
+api.route("/", matchmakingRoutes);
 api.route("/", tournamentAdminRoutes);
 api.route("/", lobbyChatRoutes);
 api.route("/", adminRoutes);

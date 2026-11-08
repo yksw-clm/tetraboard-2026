@@ -20,7 +20,10 @@ export type MatchParticipant = {
   name: string;
   color: NonNullable<Room["players"][number]["color"]>;
   seat: number;
-} & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
+} & (
+  | { kind: "human"; accountId: string | null; retired?: true }
+  | { kind: "cpu"; level: 1 | 2; cpuProfile?: import("@tetraboard/protocol").CpuProfile }
+);
 
 export type MatchStart = {
   id: string;

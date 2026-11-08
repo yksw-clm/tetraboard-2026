@@ -41,7 +41,7 @@ export function PlayerProfileCard({
         )}
       </div>
     );
-  const name = profile.kind === "cpu" ? `CPU Lv${profile.level}` : profile.name;
+  const name = profile.kind === "cpu" ? (profile.name ?? `CPU Lv${profile.level}`) : profile.name;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 items-center gap-3 pr-8">
@@ -63,6 +63,11 @@ export function PlayerProfileCard({
           )}
         </div>
       </div>
+      {profile.kind === "cpu" && profile.cpuProfile && (
+        <p className="m-0 text-sm">
+          CPU Lv{profile.cpuProfile.level}・{profile.cpuProfile.style}
+        </p>
+      )}
       {profile.kind === "account" ? (
         <>
           {!profile.isGuest && (

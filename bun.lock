@@ -95,7 +95,7 @@
     },
     "packages/ai": {
       "name": "@tetraboard/ai",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "@cloudflare/containers": "0.3.7",
       },

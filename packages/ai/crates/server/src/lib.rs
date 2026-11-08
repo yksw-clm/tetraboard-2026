@@ -20,7 +20,8 @@ use tetraboard_ai_agents::{
     evaluation::EvaluationWeights,
 };
 use tetraboard_ai_engine::four_reversi::{
-    ENGINE_VERSION, Position, PositionSetup, RULESET_VERSION, State, count_stones,
+    ELIMINATION_RULESET_VERSION, ENGINE_VERSION, Position, PositionSetup, RULESET_VERSION, State,
+    count_stones,
 };
 use tokio::sync::Semaphore;
 
@@ -154,13 +155,18 @@ async fn choose_profile_move(
             "invalid_request",
         )
     })?;
-    if request.api_version != 2
-        || request.game_id != "four-reversi"
-        || request.ruleset_version != RULESET_VERSION
-        || request.state_version != 1
-    {
+    let supported = (request.ruleset_version == RULESET_VERSION
+        && request.state_version == 1
+        && request.state.eliminated_colors.is_empty())
+        || (request.ruleset_version == ELIMINATION_RULESET_VERSION && request.state_version == 2);
+    if request.api_version != 2 || request.game_id != "four-reversi" || !supported {
         return Err(ApiError(StatusCode::BAD_REQUEST, "unsupported_version"));
     }
+    let ruleset_version = if request.state_version == 2 {
+        ELIMINATION_RULESET_VERSION
+    } else {
+        RULESET_VERSION
+    };
     if !valid_identity(&request.request_id, &request.position_revision) {
         return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_request"));
     }
@@ -203,8 +209,8 @@ async fn choose_profile_move(
     Ok(Json(ProfileMoveResponse {
         api_version: 2,
         game_id: "four-reversi",
-        ruleset_version: RULESET_VERSION,
-        state_version: 1,
+        ruleset_version,
+        state_version: request.state_version,
         request_id: request.request_id,
         position_revision: request.position_revision,
         profile_id: request.profile_id,
@@ -293,6 +299,9 @@ async fn choose_move(
         .sum::<u16>()
         != 8 + u16::from(request.state.move_number)
     {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_state"));
+    }
+    if !request.state.eliminated_colors.is_empty() {
         return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_state"));
     }
     let config = profile(&request)?;
@@ -533,5 +542,35 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["reproducible"], false);
         assert_eq!(body["effective_limits"]["max_time_ms"], 1);
+    }
+    #[tokio::test]
+    async fn version_two_state_supports_eliminated_players_without_changing_v1() {
+        use tetraboard_ai_engine::four_reversi::Color;
+        let app = router(TOKEN.into(), 2).unwrap();
+        let state = State::initial()
+            .eliminate(Color::White)
+            .unwrap()
+            .state
+            .eliminate(Color::Red)
+            .unwrap()
+            .state;
+        let mut request = profile_request("lv3-v1");
+        request["state"] = serde_json::to_value(&state).unwrap();
+        request["state"].as_object_mut().unwrap().remove("result");
+        assert_eq!(
+            send(app.clone(), request.clone(), Some(TOKEN)).await.0,
+            StatusCode::BAD_REQUEST
+        );
+        request["state_version"] = json!(2);
+        request["ruleset_version"] = json!(ELIMINATION_RULESET_VERSION);
+        let (status, body) = send(app, request, Some(TOKEN)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["state_version"], 2);
+        assert_eq!(body["ruleset_version"], ELIMINATION_RULESET_VERSION);
+        assert!(
+            state
+                .legal_moves()
+                .contains(&serde_json::from_value(body["position"].clone()).unwrap())
+        );
     }
 }

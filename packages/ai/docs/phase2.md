@@ -1,5 +1,7 @@
 # フェーズ2：AI ServiceとGame Roomの最小接続
 
+現在のランダムマッチと脱落後の接続は[フェーズ4](../../../docs/matchmaking.md)を参照してください。以下の測定条件・結果は各フェーズの対象コミットに対する記録です。
+
 Rustの`server` crateにAxum + TokioのHTTP Serviceを追加し、既存Game Roomの四人リバーシCPUから接続します。対象は引き続き**脱落なしの4人シングルス**です。Game Roomが局面・手番・合法手・時計・棋譜・勝敗の正本を持ち、Serviceは候補手だけを計算します。Serviceは対局状態・参加者・レーティングを保存しません。
 
 ## 実行と接続設定

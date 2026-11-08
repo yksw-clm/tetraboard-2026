@@ -62,6 +62,7 @@ const cpuJobSchema = z.object({
   source: z.enum(["external", "fallback"]).optional(),
   requestId: z.string().uuid().optional(),
   serviceProfile: serviceProfileSchema.optional(),
+  extendedRules: z.literal(true).optional(),
 });
 export type FourReversiCpuJob = z.infer<typeof cpuJobSchema>;
 const externalJobSchema = cpuJobSchema
@@ -73,7 +74,8 @@ const externalJobSchema = cpuJobSchema
 type ExternalCpuJob = z.infer<typeof externalJobSchema>;
 export type ExternalCpuWork = { job: ExternalCpuJob; game: Playing["game"] };
 export const supportsExternalAi = (room: Playing) =>
-  room.game.mode === "singles" && room.game.eliminatedColors.length === 0;
+  room.game.mode === "singles" &&
+  (room.game.eliminatedColors.length === 0 || room.matchmaking !== undefined);
 const cpuPositionKey = (game: FourReversiState) =>
   JSON.stringify([
     game.mode,
@@ -102,7 +104,7 @@ export class FourReversiProgress {
     this.storage.kv.delete(fourReversiAiJobKey);
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
-    const matchId = tournament?.matchId ?? crypto.randomUUID();
+    const matchId = tournament?.matchId ?? room.matchmaking?.id ?? crypto.randomUUID();
     if (tournament) this.storage.kv.put(activeTournamentContextKey, tournament);
     else this.storage.kv.delete(activeTournamentContextKey);
     const { tournamentStartsAtMs: _countdown, ...waiting } = room;
@@ -143,7 +145,11 @@ export class FourReversiProgress {
         color: player.color,
         seat,
         ...(player.kind === "cpu"
-          ? { kind: "cpu" as const, level: player.level }
+          ? {
+              kind: "cpu" as const,
+              level: player.level,
+              ...(player.cpuProfile ? { cpuProfile: player.cpuProfile } : {}),
+            }
           : {
               kind: "human" as const,
               accountId: this.accountId(player.id),
@@ -340,7 +346,9 @@ export class FourReversiProgress {
         }
       }
     } else {
-      const move = chooseCpuMove(room.game, cpu.level);
+      const move = cpu.cpuProfile
+        ? (getLegalMoves(room.game)[0] ?? null)
+        : chooseCpuMove(room.game, cpu.level);
       if (move === null) throw new Error("CPU has no legal move");
       // Workersの同期計算中は時刻が進まないため、別イベントで期限を読み直します。
       this.storage.kv.put(fourReversiCpuJobKey, {
@@ -409,6 +417,7 @@ export class FourReversiProgress {
       positionKey: cpuPositionKey(room.game),
       requestId: crypto.randomUUID(),
       ...(cpu.level === 2 && serviceProfile ? { serviceProfile } : {}),
+      ...(room.matchmaking ? { extendedRules: true as const } : {}),
       expiresAt: Math.min(room.clock.turnExpiresAt, now + timeoutMs + 250),
     };
     this.storage.kv.put(fourReversiAiJobKey, job);

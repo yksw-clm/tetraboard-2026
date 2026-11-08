@@ -331,6 +331,8 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
     if (result.status === "room_started") {
       return context.json(roomError("room_started"), 409);
     }
+    if (result.status === "matchmaking_required")
+      return context.json(roomError("matchmaking_required"), 409);
     if (result.status === "tournament_required")
       return context.json(roomError("tournament_required"), 409);
     context.header("Cache-Control", "no-store");

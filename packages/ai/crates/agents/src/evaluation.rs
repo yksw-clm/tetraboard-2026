@@ -27,8 +27,8 @@ pub fn evaluate(state: &State, weights: &EvaluationWeights) -> [i32; 4] {
     if let Some(result) = state.result() {
         let mut values = [0; 4];
         for standing in &result.standings {
-            values[standing.color.index()] =
-                (5 - 2 * i32::from(standing.rank)) * 1_000_000 + i32::from(standing.stone_count);
+            values[standing.color.index()] = (5 - 2 * i32::from(standing.rank)) * 1_000_000
+                + i32::from(standing.stone_count.unwrap_or(0));
         }
         return values;
     }
@@ -58,8 +58,20 @@ pub fn evaluate(state: &State, weights: &EvaluationWeights) -> [i32; 4] {
             }
         }
     }
-    let total: i64 = raw.iter().sum();
-    raw.map(|value| (4 * value - total).clamp(-100_000, 100_000) as i32)
+    let active: Vec<_> = COLORS
+        .into_iter()
+        .filter(|c| !state.eliminated_colors().contains(c))
+        .collect();
+    let total: i64 = active.iter().map(|c| raw[c.index()]).sum();
+    for color in COLORS {
+        raw[color.index()] =
+            if let Some(index) = state.eliminated_colors().iter().position(|c| *c == color) {
+                i64::from(5 - 2 * (4 - index as i32)) * 1_000_000
+            } else {
+                (active.len() as i64 * raw[color.index()] - total).clamp(-100_000, 100_000)
+            };
+    }
+    raw.map(|v| v as i32)
 }
 
 fn position_value(board: &Board, x: usize, y: usize) -> i32 {
@@ -93,6 +105,7 @@ mod tests {
             move_number: 0,
             last_move: None,
             consecutive_passes: vec![],
+            eliminated_colors: Vec::new(),
         })
         .unwrap()
     }
@@ -153,6 +166,7 @@ mod tests {
             move_number: 0,
             last_move: None,
             consecutive_passes: vec![],
+            eliminated_colors: Vec::new(),
         })
         .unwrap();
         let weights = EvaluationWeights {

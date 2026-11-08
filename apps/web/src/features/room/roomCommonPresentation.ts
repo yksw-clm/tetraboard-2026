@@ -1,6 +1,10 @@
 import type { Room, MatchHistoryParticipant, PlayerAppearance } from "@tetraboard/protocol";
 export const playerName = (player: Room["players"][number] | MatchHistoryParticipant): string =>
-  player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
+  player.kind === "cpu"
+    ? "cpuProfile" in player && player.cpuProfile
+      ? player.name
+      : `CPU Lv${player.level}`
+    : player.name;
 
 export { formatClock } from "./roomClockPresentation";
 
@@ -23,7 +27,13 @@ export function playerAppearance(
   player: Room["players"][number] | MatchHistoryParticipant,
 ): PlayerAppearance {
   return player.kind === "cpu"
-    ? { kind: "cpu", level: player.level }
+    ? {
+        kind: "cpu",
+        level: player.level,
+        ...("cpuProfile" in player && player.cpuProfile
+          ? { cpuProfile: player.cpuProfile, name: player.name }
+          : {}),
+      }
     : {
         kind: "human",
         avatarUrl: player.avatarUrl,

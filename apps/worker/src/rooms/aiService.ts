@@ -41,6 +41,8 @@ const responseSchema = z.strictObject({
 
 const profileResponseSchema = responseSchema.extend({
   api_version: z.literal(2),
+  ruleset_version: z.enum(["four-reversi-singles-v1", "four-reversi-singles-v2"]),
+  state_version: z.union([z.literal(1), z.literal(2)]),
   agent_id: z.enum([
     "four-reversi-random-v1",
     "four-reversi-greedy-v1",
@@ -103,23 +105,8 @@ async function responseJson(response: Response): Promise<unknown> {
   }
 }
 
-export async function requestAiMove(
-  bindings: AiServiceBindings,
-  work: ExternalCpuWork,
-): Promise<{ position: Position | null; reason?: string }> {
+function configuredUrl(bindings: AiServiceBindings): URL | null {
   const token = bindings.AI_SERVICE_TOKEN;
-  const selectedProfile = work.job.serviceProfile;
-  if (selectedProfile && "configuration_error" in selectedProfile)
-    return { position: null, reason: "configuration" };
-  let expectedLimits: ReturnType<typeof expectedProfileLimits> = null;
-  if (selectedProfile) {
-    if (!selectedProfile.profile_hash) return { position: null, reason: "configuration" };
-    try {
-      expectedLimits = expectedProfileLimits(selectedProfile);
-    } catch {
-      return { position: null, reason: "configuration" };
-    }
-  }
   let url: URL;
   try {
     url = new URL(bindings.AI_SERVICE_URL ?? "");
@@ -140,8 +127,32 @@ export async function requestAiMove(
     )
       throw Error();
   } catch {
-    return { position: null, reason: "configuration" };
+    return null;
   }
+  return url;
+}
+export const aiServiceConfigured = (bindings: AiServiceBindings) =>
+  configuredUrl(bindings) !== null;
+
+export async function requestAiMove(
+  bindings: AiServiceBindings,
+  work: ExternalCpuWork,
+): Promise<{ position: Position | null; reason?: string }> {
+  const token = bindings.AI_SERVICE_TOKEN;
+  const selectedProfile = work.job.serviceProfile;
+  if (selectedProfile && "configuration_error" in selectedProfile)
+    return { position: null, reason: "configuration" };
+  let expectedLimits: ReturnType<typeof expectedProfileLimits> = null;
+  if (selectedProfile) {
+    if (!selectedProfile.profile_hash) return { position: null, reason: "configuration" };
+    try {
+      expectedLimits = expectedProfileLimits(selectedProfile);
+    } catch {
+      return { position: null, reason: "configuration" };
+    }
+  }
+  const url = configuredUrl(bindings);
+  if (!url) return { position: null, reason: "configuration" };
   const { requestId, expiresAt, ...context } = work.job;
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -155,11 +166,15 @@ export async function requestAiMove(
     : work.job.level === 1
       ? "four-reversi-random-v1"
       : "four-reversi-greedy-v1";
+  const rulesetVersion = work.job.extendedRules
+    ? "four-reversi-singles-v2"
+    : "four-reversi-singles-v1";
+  const stateVersion = work.job.extendedRules ? 2 : 1;
   const body = JSON.stringify({
     api_version: selectedProfile ? 2 : 1,
     game_id: "four-reversi",
-    ruleset_version: "four-reversi-singles-v1",
-    state_version: 1,
+    ruleset_version: rulesetVersion,
+    state_version: stateVersion,
     request_id: requestId,
     position_revision: revision,
     ...(selectedProfile
@@ -171,6 +186,7 @@ export async function requestAiMove(
     seed: Number.parseInt(revision.slice(0, 8), 16),
     state: {
       board: work.game.board,
+      ...(work.job.extendedRules ? { eliminatedColors: work.game.eliminatedColors } : {}),
       turn: work.game.turn,
       moveNumber: work.game.moveNumber,
       lastMove: work.game.lastMove,
@@ -207,7 +223,9 @@ export async function requestAiMove(
           !parsed.success ||
           parsed.data.request_id !== requestId ||
           parsed.data.position_revision !== revision ||
-          parsed.data.agent_id !== agentId
+          parsed.data.agent_id !== agentId ||
+          parsed.data.ruleset_version !== rulesetVersion ||
+          parsed.data.state_version !== stateVersion
         )
           throw new ServiceError("invalid_response");
         if (selectedProfile) {
@@ -217,6 +235,8 @@ export async function requestAiMove(
           if (
             profile.profile_id !== selectedProfile.profile_id ||
             profile.profile_hash !== selectedProfile.profile_hash ||
+            (selectedProfile.engine_version !== undefined &&
+              profile.engine_version !== selectedProfile.engine_version) ||
             (limits === null) !== (expectedLimits === null) ||
             (["max_iterations", "max_nodes", "max_time_ms"] as const).some(
               (key) => limits?.[key] !== expectedLimits?.[key],

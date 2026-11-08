@@ -163,7 +163,7 @@ fn play(
         .count();
     let outcomes = result.standings.clone().map(|standing| Outcome {
         color: standing.color,
-        score: standing.stone_count,
+        score: standing.stone_count.unwrap_or(0),
         rank: standing.rank,
         won: standing.rank == 1,
         shared_first: standing.rank == 1 && winners > 1,
@@ -243,13 +243,17 @@ mod tests {
             let result = state.result().unwrap();
             let counts = count_stones(state.board());
             for standing in &result.standings {
-                assert_eq!(standing.stone_count, counts[standing.color.index()]);
+                assert_eq!(standing.stone_count, Some(counts[standing.color.index()]));
                 assert_eq!(
                     standing.rank,
-                    1 + counts.iter().filter(|&&n| n > standing.stone_count).count() as u8
+                    1 + counts
+                        .iter()
+                        .filter(|&&n| n > standing.stone_count.unwrap())
+                        .count() as u8
                 );
             }
             match result.reason {
+                EndReason::LastPlayer => panic!("外部脱落のない対局です"),
                 EndReason::BoardFull => assert_eq!(counts.iter().sum::<u8>(), 64),
                 EndReason::AllPassed => {
                     assert!(

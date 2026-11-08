@@ -12,6 +12,7 @@ fn setup(board: Board, turn: Color, move_number: u8) -> State {
         move_number,
         last_move: None,
         consecutive_passes: vec![],
+        eliminated_colors: Vec::new(),
     })
     .unwrap()
 }
@@ -165,7 +166,7 @@ fn maxn_finds_second_place_after_three_passes_instead_of_third_place() {
         .iter()
         .find(|s| s.color == Color::Red)
         .unwrap();
-    assert_eq!((standing.rank, standing.stone_count), (2, 19));
+    assert_eq!((standing.rank, standing.stone_count), (2, Some(19)));
     let bad = state.apply_move(Position { x: 7, y: 1 }).unwrap().state;
     let bad = bad.apply_move(Position { x: 6, y: 2 }).unwrap().state;
     assert_eq!(

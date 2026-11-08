@@ -5,7 +5,8 @@
   "compatibility_date": "2026-09-25",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "APP_ORIGIN": "http://localhost:5173"
+    "APP_ORIGIN": "http://localhost:5173",
+    "MATCHMAKING_ENABLED": "false"
   },
   "r2_buckets": [
     {
@@ -26,7 +27,8 @@
       {
         "name": "TOURNAMENT_COORDINATOR",
         "class_name": "TournamentCoordinator"
-      }
+      },
+      { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" }
     ]
   },
   "d1_databases": [
@@ -45,7 +47,8 @@
     "TournamentCoordinator": {
       "type": "durable-object",
       "storage": "sqlite"
-    }
+    },
+    "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" }
   },
   "observability": {
     "enabled": true
@@ -57,7 +60,8 @@
     "production": {
       "name": "tetraboard-2026",
       "vars": {
-        "APP_ORIGIN": "https://tetraboard.net"
+        "APP_ORIGIN": "https://tetraboard.net",
+        "MATCHMAKING_ENABLED": "false"
       },
       "routes": [
         {
@@ -90,7 +94,8 @@
           {
             "name": "TOURNAMENT_COORDINATOR",
             "class_name": "TournamentCoordinator"
-          }
+          },
+          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" }
         ]
       },
       "d1_databases": [
@@ -110,7 +115,8 @@
         "TournamentCoordinator": {
           "type": "durable-object",
           "storage": "sqlite"
-        }
+        },
+        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" }
       },
       "observability": {
         "enabled": true
@@ -122,7 +128,10 @@
     "development": {
       "name": "tetraboard-dev",
       "vars": {
-        "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev"
+        "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev",
+        "MATCHMAKING_ENABLED": "true",
+        "AI_SERVICE_URL": "https://tetraboard-ai-dev.chaossi-lab.workers.dev",
+        "AI_SERVICE_TIMEOUT_MS": "5000"
       },
       "routes": [],
       "r2_buckets": [
@@ -150,7 +159,8 @@
           {
             "name": "TOURNAMENT_COORDINATOR",
             "class_name": "TournamentCoordinator"
-          }
+          },
+          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" }
         ]
       },
       "d1_databases": [
@@ -170,7 +180,8 @@
         "TournamentCoordinator": {
           "type": "durable-object",
           "storage": "sqlite"
-        }
+        },
+        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" }
       },
       "observability": {
         "enabled": true

@@ -64,9 +64,19 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 
 ## Rust AI開発基盤
 
-新しいAI基盤の入口は [packages/ai](../packages/ai/README.md) です。フェーズ0〜3は脱落のない四人リバーシ・シングルスを対象に、engine・agents・benchmark・serverの4 crateで構成します。ルールの正本は既存の[四人リバーシルール](rules/four-reversi.md)です。[対応範囲](../packages/ai/docs/rules-four-player-reversi.md)、[フェーズ1の評価・探索・比較](../packages/ai/docs/phase1.md)、[フェーズ2のAPI・認証・接続・コンテナ](../packages/ai/docs/phase2.md)を参照してください。[フェーズ3のMCTS・API v2・採用基準](../packages/ai/docs/phase3.md)も参照してください。GameRoomのAlarmは未完了の要求を保存し、transaction外でHTTPを待ち、照合済み候補を次Alarmで適用します。I/Oの権限をProgressへ渡さず、既存AIを新しいAgentへ流用しません。
+新しいAI基盤の入口は [packages/ai](../packages/ai/README.md) です。フェーズ4で脱落後を含む四人リバーシ・シングルスを対象に、engine・agents・benchmark・serverの4 crateで構成します。ルールの正本は既存の[四人リバーシルール](rules/four-reversi.md)です。[対応範囲](../packages/ai/docs/rules-four-player-reversi.md)、[フェーズ1の評価・探索・比較](../packages/ai/docs/phase1.md)、[フェーズ2のAPI・認証・接続・コンテナ](../packages/ai/docs/phase2.md)を参照してください。[フェーズ3のMCTS・API v2・採用基準](../packages/ai/docs/phase3.md)も参照してください。GameRoomのAlarmは未完了の要求を保存し、transaction外でHTTPを待ち、照合済み候補を次Alarmで適用します。I/Oの権限をProgressへ渡さず、既存AIを新しいAgentへ流用しません。
 
 Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。Bun Workspace用manifestによって全体check・Full CIへ組み込みます。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
+
+## ランダムマッチの実装
+
+採用仕様は[ランダムマッチング](matchmaking.md)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
+
+Webの`features/matchmaking`は登録者・設定済みゲストの参加、10秒の継続、再読み込み・明示引継ぎと入室を担当します。`QueueDocumentController`は大会と共用し、scopeを分離します。Web Locks非対応時も明示参加・引継ぎは可能とし、自動の資格引継ぎはしません。非同期応答は本人・操作元・要求世代で破棄し、経過時間は受信したサーバー時刻と単調時計から表示します。
+
+Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v1.json`、探索設定とhashは既存の`profiles-v1.json`に分けます。旧CPUのlevel 1/2フィールドは互換用に維持し、実際のレベルとprofileは省略可能なcpuProfileへ保存・表示します。専用ルームはこれをLv2として表示しません。Engine 0.2.0はAPI v2のルール識別子v2／局面版2を受理し、旧契約も維持します。
+
+`MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。開発専用Serviceは`packages/ai/cloudflare/wrangler.jsonc`のdevelopment環境（`tetraboard-ai-dev`）です。lite・上限1台・10秒停止を使い、公開前に同じ新規tokenを両WorkerのSecretへ登録してEngine版・profile hashを照合します。Service更新は`bun run --cwd packages/ai deploy:cloud:development`で明示的に行い、アプリは既存のdevelop向けCI/CDで反映します。削除済みの検証Workerは再作成しません。検証の入口は[テスト文書](testing.md#ランダムマッチの確認)です。
 
 ## 四人リバーシCPU
 

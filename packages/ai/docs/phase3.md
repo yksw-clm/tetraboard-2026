@@ -1,5 +1,7 @@
 # フェーズ3：多人数MCTSとLv4・Lv5の評価
 
+現在のランダムマッチと脱落後の接続は[フェーズ4](../../../docs/matchmaking.md)を参照してください。以下の測定条件・結果は各フェーズの対象コミットに対する記録です。
+
 対象は引き続き脱落なし・4人シングルスです。[ルール正本](../../../docs/rules/four-reversi.md)と[対応範囲](rules-four-player-reversi.md)を維持し、既存TypeScript CPUを探索・評価へ流用しません。一般向けUIと共通protocolのCPUレベルは1・2のままです。API v2と開発用設定で候補を呼び分けます。削除済みのCloudflare検証環境は再公開していません。
 
 ## 多人数MCTS

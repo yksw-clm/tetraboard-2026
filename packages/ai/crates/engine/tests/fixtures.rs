@@ -139,6 +139,7 @@ fn eight_capture_directions_do_not_wrap_or_drop_a_ray() {
         move_number: 0,
         last_move: None,
         consecutive_passes: Vec::new(),
+        eliminated_colors: Vec::new(),
     })
     .unwrap();
     let moved = state.apply_move(Position { x: 3, y: 3 }).unwrap();
@@ -160,6 +161,7 @@ fn setup_rejects_absent_colors_invalid_metadata_and_unplayable_turns() {
         move_number: 0,
         last_move: None,
         consecutive_passes: Vec::new(),
+        eliminated_colors: Vec::new(),
     };
     let mut missing = setup();
     for cell in missing.board.iter_mut().flatten() {

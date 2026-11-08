@@ -13,6 +13,7 @@ if (!allowed || !token)
   );
 const base = workerTestConfig({
   AI_SERVICE_URL: url,
+  MATCHMAKING_ENABLED: "true",
   AI_SERVICE_TOKEN: token,
   AI_SERVICE_TIMEOUT_MS: cloud ? "5000" : "2000",
 });

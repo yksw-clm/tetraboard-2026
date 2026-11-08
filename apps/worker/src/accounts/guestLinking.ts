@@ -15,12 +15,13 @@ import { readRegistrationFlow, type RegistrationFlow } from "./registrationFlows
 export class GuestLinkError extends Error {}
 export async function requireGuestIdle(env: Env, id: string) {
   const busy = await env.APP_DB.prepare(`SELECT 1 FROM account_room_seats WHERE account_id=?
-    UNION ALL SELECT 1 FROM tournament_wait_reservations WHERE account_id=? LIMIT 1`)
-    .bind(id, id)
+    UNION ALL SELECT 1 FROM tournament_wait_reservations WHERE account_id=?
+ UNION ALL SELECT 1 FROM matchmaking_wait_reservations WHERE account_id=? LIMIT 1`)
+    .bind(id, id, id)
     .first();
   if (busy)
     throw new GuestLinkError(
-      "参加中のルームを退室し、大会の待機を取り消してから連携してください。",
+      "参加中のルームを退室し、大会・ランダムマッチの待機を取り消してから連携してください。",
     );
 }
 export async function prepareGuestLink(

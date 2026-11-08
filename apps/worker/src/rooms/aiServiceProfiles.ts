@@ -14,6 +14,7 @@ const chosenProfileSchema = z.strictObject({
     .regex(/^[a-f0-9]{64}$/)
     .optional(),
   limits: profileLimitsSchema.optional(),
+  engine_version: z.string().min(1).max(40).optional(),
 });
 export const serviceProfileSchema = z.union([
   chosenProfileSchema,
@@ -31,6 +32,7 @@ export function sameServiceProfile(
   return (
     a.profile_id === b.profile_id &&
     a.profile_hash === b.profile_hash &&
+    a.engine_version === b.engine_version &&
     (["max_iterations", "max_nodes", "max_time_ms"] as const).every(
       (key) => a.limits?.[key] === b.limits?.[key],
     )
