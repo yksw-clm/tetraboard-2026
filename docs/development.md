@@ -78,6 +78,14 @@ Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v
 
 `MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。開発専用Serviceは`packages/ai/cloudflare/wrangler.jsonc`のdevelopment環境（`tetraboard-ai-dev`）です。lite・上限1台・10秒停止を使い、公開前に同じ新規tokenを両WorkerのSecretへ登録してEngine版・profile hashを照合します。Service更新は`bun run --cwd packages/ai deploy:cloud:development`で明示的に行い、アプリは既存のdevelop向けCI/CDで反映します。削除済みの検証Workerは再作成しません。検証の入口は[テスト文書](testing.md#ランダムマッチの確認)です。
 
+## フェーズ4.5の文書・評価仕様
+
+2026-11-08に承認されたフェーズ4.5-Aは、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)と[ランダムマッチの追加仕様](matchmaking.md#フェーズ45仕様承認済み未実装)の文書化までです。いずれも承認済み・未実装で、現在のフェーズ4の動作や過去の測定条件を置き換えません。Aでは測定・依存追加・機能実装・公開設定を変更しません。
+
+後続はCPU測定（B）、非公開推定と記録（C）、組合せ・CPU選択・集計への接続（D）、開発環境の総合検証（E）、公開準備と承認（F）、本番公開と確認（G）の順です。測定条件・上限・区間・判定保留・採用条件は較正仕様、待機・暫定参加者・CPU補充・戦績・ランキング・バッジの追加対象はランダムマッチの仕様を参照します。棋譜解析は元のフェーズ5として後に置きます。
+
+B以降では現在のEngine・profile・設定hash・実効予算・source/binaryを固定して結果をひも付け、旧測定を現在版の較正へ読み替えません。OpenSkill 5.0.1の導入・Workers互換性・予測精度は後続で検証し、未達を別方式の無断採用で補いません。通常ルーム・他ゲームへの集計や外部AI接続の波及も回帰対象にします。既定のローカル検証・Full CIと、差分・結果を確認した後のマージ・公開承認を維持します。
+
 ## 四人リバーシCPU
 
 現行APIは `@tetraboard/four-reversi` の `chooseCpuMove(state, level, random = Math.random): Position | null` です。合法手・公開API・採用したCPU方式は [ルール正本のCPU節](rules/four-reversi.md#cpu) を確認してください。
