@@ -203,7 +203,15 @@ export function LobbyList({
                       <AppIcon name="eye" className="size-4" />
                       観戦
                     </AppButton>
-                    {room.tournamentId ? (
+                    {room.matchmaking ? (
+                      <AppButtonLink
+                        size="compact"
+                        className="min-h-11 px-3 text-xs"
+                        to="/games/four-reversi/matchmaking"
+                      >
+                        マッチングへ
+                      </AppButtonLink>
+                    ) : room.tournamentId ? (
                       <AppButtonLink
                         size="compact"
                         className="min-h-11 px-3 text-xs"

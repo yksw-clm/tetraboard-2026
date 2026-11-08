@@ -1,3 +1,4 @@
+import { isMatchmakingRoom, managedRoomPath } from "../matchmaking/managedRoom";
 import { checkAccountPrivacy } from "../account/accountPrivacy";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
@@ -128,6 +129,7 @@ export function useRoomTransport<T extends Room>({
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
+  const initialMatchmaking = isMatchmakingRoom(initialRoom);
   const initialTournamentId = "tournamentId" in initialRoom ? initialRoom.tournamentId : undefined;
   const [room, setRoom] = useState(initialRoom);
   const [eliminatedHands, setEliminatedHands] = useState(initialEliminatedHands ?? null);
@@ -220,9 +222,13 @@ export function useRoomTransport<T extends Room>({
   > | null>(null);
 
   const tournamentCountdown =
-    room.status === "waiting" &&
-    "tournamentStartsAtMs" in room &&
-    typeof room.tournamentStartsAtMs === "number";
+    (room.status === "waiting" &&
+      "tournamentStartsAtMs" in room &&
+      typeof room.tournamentStartsAtMs === "number") ||
+    (room.status === "waiting" &&
+      !room.lastRound &&
+      "matchmaking" in room &&
+      room.matchmaking?.startsAtMs !== undefined);
   useEffect(() => {
     if (room.status !== "playing" && !tournamentCountdown) return;
     const update = () => {
@@ -411,6 +417,8 @@ export function useRoomTransport<T extends Room>({
     }
 
     function stopUnavailable(message: string): void {
+      if (initialMatchmaking && initialMembership)
+        void navigate("/games/four-reversi/matchmaking", { replace: true });
       if (initialTournamentId !== undefined && initialMembership) {
         void navigate(`/tournaments/${initialTournamentId}`, {
           replace: true,
@@ -917,6 +925,7 @@ export function useRoomTransport<T extends Room>({
     };
   }, [
     initialTournamentId,
+    initialMatchmaking,
     navigate,
     initialEliminatedHands,
     initialStampsSupported,
@@ -1078,7 +1087,7 @@ export function useRoomTransport<T extends Room>({
     sendSettingsMessage({ type: "room.cpu.remove", playerId });
   }
 
-  async function handleLeaveClick(): Promise<void> {
+  async function handleLeaveClick(nextMatch = false): Promise<void> {
     if (membership === null || leaving) return;
     const token = readRoomMembershipToken(room.id);
     if (token === null) {
@@ -1092,9 +1101,12 @@ export function useRoomTransport<T extends Room>({
       await leaveRoom(room.id, token);
       clearRoomMembershipToken(room.id);
       void navigate(
-        "tournamentId" in room && room.tournamentId !== undefined
-          ? `/tournaments/${room.tournamentId}`
-          : gameCatalog[room.settings.game].lobbyPath,
+        isMatchmakingRoom(room) && !nextMatch
+          ? gameCatalog[room.settings.game].lobbyPath
+          : (managedRoomPath(room) ?? gameCatalog[room.settings.game].lobbyPath),
+        nextMatch === true && isMatchmakingRoom(room)
+          ? { state: { matchmakingRejoin: true } }
+          : undefined,
       );
     } catch {
       setSocketError("退室できませんでした。再度お試しください。");

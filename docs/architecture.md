@@ -6,7 +6,8 @@
 
 ## 採用する構成
 
-- Bun Workspaceでフロントエンド、サーバー、共有コードを管理し、miseでBun・Node.jsの版を固定する。各ゲームの純粋なルールとCPUは `packages/` 配下へ分離する。
+- Bun Workspaceでフロントエンド、サーバー、共有コードを管理し、miseでBun・Node.js・AI開発用Rustの版を固定する。各ゲームの純粋なルールとCPUは `packages/` 配下へ分離する。
+- 新しいAI開発基盤は [packages/ai](../packages/ai/README.md) のRust Workspaceに置く。Engine・Agent・Benchmark・HTTP serverを分離し、対象は脱落後を含む四人リバーシ・シングルスとする。Axum + TokioのServiceはBearer認証と入力・予算・同時実行の制限を持ち、候補手だけを返す。設定時にだけGame Roomから呼び、Game Roomが状態・手番・合法手・時計・勝敗を確定する。未完了要求と候補をDOへ保存し、ネットワークI/Oをtransaction外に置き、局面・期限照合と次Alarmでの適用により重複・古い応答を捨てる。開発用API v2では共有profileのID・設定hash・削減予算も要求時に固定して照合する。多人数MCTS・比較条件・採用基準は[フェーズ3](../packages/ai/docs/phase3.md)を参照する。ホスティングは未決定で、ローカルのlinux/amd64コンテナを検証済み。既存AIを新しいAgentへ流用せず、学習・他ゲームの雛形は追加しない。
 - フロントエンドはVite、React、TypeScriptで作る。
 - 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。
@@ -21,6 +22,14 @@
 
 - 四人五目並べは `packages/four-gomoku` で4色・混色の連と順位を判定する。勝ち抜け、外部脱落、全体終局を別に保持し、部分順位を盤面・棋譜とともにDOへ保存する。途中順位では終局保存へ進まず、全順位確定時だけ共通の保存・再戦処理へ渡す。時計・席保持は既存4色の仕組みを使い、確定順位は切断・退室で上書きしない。CPU候補の保存と次Alarmでの期限照合も五目並べと同様に行う。
 - 四人五目並べの保存棋譜は規則版1で全着手を再実行し、途中順位・完成線・外部脱落理由・最終状態を照合する。D1の既存テーブルに `four-gomoku` とモードを保存し、全人間の結果だけを順位／チーム別に集計する。新しい外部依存・サービス・マイグレーションは追加しない。
+
+## ランダムマッチの状態分担
+
+[ランダムマッチ](matchmaking.md)では既存のWorkers・D1・Durable Objectsを使います。待機列のDOはゲーム・ルール版・固定時計・casual種別のキーで分離し、初回は1列です。待機のFIFO・lease・操作元・世代・割当はCoordinator、全ゲームとの同時参加禁止はD1の条件付き予約とtrigger、開始・時計・合法手・勝敗はGameRoomへ置きます。AI Serviceには盤面と探索条件だけを渡します。
+
+D1とDOの間を単一transactionと見なさず、永続化した割当IDから転送・ルーム準備・取消を再実行します。取消はGameRoomの開始確定と競合を判定してから席を解放し、未開始の部分失敗は同じ待機優先度へ戻します。引継ぎは世代と資格hashを先に保存し、ルームへの配送に失敗してもAlarmから復旧します。状態GETは本人の待機または席だけを参照し、全対局へのRPCや期限処理を実行しません。playing確定後のGameRoomへ全体巡回のRPCは行いません。解放済みの割当情報は毎時保守でD1の席予約をまとめて照合して消去します。
+
+Webは同じタブの待機とルーム参照をsessionStorageへ保存します。別タブの自動取得を防ぎ、明示引継ぎは期待世代を照合して旧資格を失効します。固有名CPUのprofileは参加者・保存棋譜にスナップショットとして残し、旧CPUのlevel契約を維持します。
 
 ## 将棋の共有盤面
 

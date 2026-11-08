@@ -101,6 +101,7 @@ jobs:
           bun run --cwd apps/admin build:assets
           bun scripts/buildAssets.ts
           bun run --cwd apps/worker deploy:dry-run:development
+          bun run --cwd packages/ai deploy:cloud:dry-run:development
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         with:
@@ -122,12 +123,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
+      - uses: jdx/mise-action@v5
       - run: bun install --frozen-lockfile
       - name: Compare on the same runner
         env:

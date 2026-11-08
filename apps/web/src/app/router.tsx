@@ -88,6 +88,13 @@ export const router = createBrowserRouter([
           <AppPageLoading message="大会を読み込んでいます…" theme="four-shogi" />
         ),
       },
+      {
+        path: "/games/four-reversi/matchmaking",
+        lazy: async () => ({
+          Component: (await import("../features/matchmaking/MatchmakingPage")).MatchmakingPage,
+        }),
+        hydrateFallbackElement: <AppPageLoading message="マッチングを読み込んでいます…" />,
+      },
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },

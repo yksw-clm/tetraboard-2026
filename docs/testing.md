@@ -12,6 +12,32 @@
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsは検証範囲・工程別の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
 
+## Rust AI基盤の確認
+
+フェーズ3は[MCTSと採用基準](../packages/ai/docs/phase3.md)に従い、単独1位報酬・予算中断・再現性・全24席順を検証します。API v2の全5profileでローカルの実Serviceとの完走・復元、不正profile/予算/応答・同じ要求IDでの保存profile変更を確認します。大量対局と速度・CPU測定は専用コマンドで行い、通常のcheckでは低い予算を使います。
+
+フェーズ2はRustのHTTP境界（認証・版・入力・予算・過負荷）と、実プロセス間のService接続を検証します。`packages/ai/test/service.test.ts`が実Rust serverを起動し、明示したloopback URL・検証用tokenで`vitest.ai-service.config.mts`を実行します。`test-ai-service/`のテストは通常Worker分割と重複せず、AI workspaceから全体check・Full CIに含めます。人間1人＋CPU3人の完走、候補保存後の再起動、重複Alarm・古い世代・時計切れ、再試行・不正/過大応答・timeout・未完了要求の復旧を確認します。開発用の個人設定を読みません。承認済みの[クラウド測定](../packages/ai/docs/cloudflare-validation.md)は独立した検証用Workerに対して別途実施し、通常のcheckは外部クラウドへ接続しません。
+
+フェーズ1は角・石数・機動力・配置の評価、同点順、MaxNの完了深さ・予算中断、終局評価と3色パス後の本人手番を検証します。比較CLIでは設定を読み、4組合せ×4回転の混在対局をTypeScriptで再生し、探索量の上限・summaryを確認します。全色の合法手数は別の固定fixtureで両言語を比較します。回転ごとの席の均等性、固定seedの再現、同率1位と単独1位の区別、失敗を含む分母と全失敗時のnullもRustで検証します。実時間の上限には依存しません。評価・集計の定義と比較条件は[フェーズ1文書](../packages/ai/docs/phase1.md)を参照してください。
+
+`packages/ai`は全体の`bun run check`とFull CIに含めます。`typecheck`は比較テスト・計測スクリプトのBun型検査、Cloudflare入口の型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。通常の検証jobと任意の`ci-benchmark`計測jobの両方で、miseからBun・Node・Rustを導入します。AIのRustソース・lockfile・fixture変更がFullに分類されることをCI選択テストで確認します。
+
+8組の固定fixtureで、初期局面、合法手と拒否理由、複数色・複数方向の反転、全滅禁止、自動パスと解除、本人の連続手番、満盤・全色パス終局、同率順位を両言語で照合します。作成元コミットと期待値は固定し、実行時に生成しません。合成局面は初期局面からの到達を保証しません。
+
+Rustでは100seedについて各2回対局し、時間以外の棋譜・結果の一致、合法性、1着手1枚の増加、各色の生存、56着手以内の終局、順位と石数を検証します。BunはRust CLIから100局のJSONLを受け取り、全着手を既存TypeScriptルールで再生して合法手一覧・反転・パス・最終局面と結果を確認します。既存CPU・探索・Benchmarkはimportしません。この100局比較は脱落なしシングルスだけを対象とし、棋力認定・学習・ダブルス・脱落は含めません。HTTPの検証は上記のフェーズ2が担当します。部分実行は`bun run --cwd packages/ai check`、計測ログは[AI基盤README](../packages/ai/README.md)を参照してください。
+
+HTTP統合は、コンテナ・通常のserveと同じrelease版Rust Serviceを使います。workspaceのtestコマンドで先にビルドし、テストの30秒制限へコンパイル時間を含めません。Rust自体の単体テストは従来のdebug版でも実行します。Workerの子プロセスはverbose出力を直接記録し、ケースの失敗や終了停滞をCIログから区別します。ケースの削除・タイムアウトの延長は行いません。
+
+## ランダムマッチの確認
+
+採用仕様と公開条件は[ランダムマッチング](matchmaking.md)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
+
+`packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存まで確認します。このテストはAI workspaceから全体check・Full CIに含まれます。
+
+`apps/web/test-dom/matchmaking.test.tsx`はWeb Locks非対応の明示参加、取消と遅延heartbeat、別操作元の確認・引継ぎ、ポーリングで延期されない入室、サーバー時刻による待機表示を検証します。`matchmakingRoom.test.tsx`は手動開始・設定の非表示、同期した開始予告、旧席解放後の再マッチングとロビーへの移動を確認します。CPUの名前・ロボット・CPUタグ・実際のレベルはプレイヤー情報のDOMテストで確認します。画面寸法・ネイティブ入力は従来どおり手動確認です。
+
+部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番の公開フラグは無効です。開発ServiceのWrangler dry-runはFull CIに含め、クラウド接続と実機確認は開発への反映後に別途確認します。
+
 ## Fast CIとFull CI
 
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。

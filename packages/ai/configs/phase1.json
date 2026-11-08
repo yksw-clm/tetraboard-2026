@@ -1,0 +1,36 @@
+{
+  "format_version": 1,
+  "seed": 0,
+  "profiles": [
+    { "id": "lv1", "config": { "agent_id": "four-reversi-random-v1", "seed": 0 } },
+    {
+      "id": "lv2",
+      "config": {
+        "agent_id": "four-reversi-greedy-v1",
+        "seed": 0,
+        "weights": { "stones": 1, "endgame_stones": 6, "mobility": 4, "corners": 32, "position": 2 }
+      }
+    },
+    {
+      "id": "lv3",
+      "config": {
+        "agent_id": "four-reversi-maxn-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "budget": { "max_depth": 3, "max_nodes": 1024 }
+      }
+    }
+  ],
+  "matchups": [
+    { "id": "lv2-vs-random", "lineup": ["lv2", "lv1", "lv1", "lv1"] },
+    { "id": "lv3-vs-random", "lineup": ["lv3", "lv1", "lv1", "lv1"] },
+    { "id": "lv3-vs-greedy", "lineup": ["lv3", "lv2", "lv2", "lv2"] },
+    { "id": "mixed", "lineup": ["lv1", "lv2", "lv3", "lv3"] }
+  ]
+}

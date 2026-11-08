@@ -19,7 +19,17 @@ function Participant({ player, match }: { player: MatchHistoryParticipant; match
           ? null
           : { source: "match", matchId: match.id, playerId: player.id }
       }
-      localProfile={player.kind === "cpu" ? { kind: "cpu", level: player.level } : undefined}
+      localProfile={
+        player.kind === "cpu"
+          ? {
+              kind: "cpu",
+              level: player.level,
+              ...("cpuProfile" in player && player.cpuProfile
+                ? { cpuProfile: player.cpuProfile, name: player.name }
+                : {}),
+            }
+          : undefined
+      }
       game={match.game}
       mode={match.mode ?? "singles"}
       theme={gameThemes[match.game]}

@@ -106,7 +106,13 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
       <PlayerAvatar
         appearance={
           first?.kind === "cpu"
-            ? { kind: "cpu", level: first.level }
+            ? {
+                kind: "cpu",
+                level: first.level,
+                ...("cpuProfile" in first && first.cpuProfile
+                  ? { cpuProfile: first.cpuProfile, name: first.name }
+                  : {}),
+              }
             : { kind: "human", avatarUrl: first?.avatarUrl ?? null }
         }
         className="size-8 shrink-0"

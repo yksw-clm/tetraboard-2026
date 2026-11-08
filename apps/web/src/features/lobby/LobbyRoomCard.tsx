@@ -97,7 +97,9 @@ export function LobbyRoomCard({
                 theme={gameThemes[room.game]}
                 label={
                   appearance.kind === "cpu"
-                    ? `CPU Lv${appearance.level}`
+                    ? appearance.cpuProfile
+                      ? (appearance.name ?? appearance.cpuProfile.name) + " CPU"
+                      : `CPU Lv${appearance.level}`
                     : `ルーム${room.id}の参加者${index + 1}`
                 }
               >

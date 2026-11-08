@@ -59,6 +59,7 @@ export async function servePublicAssets(
       "/feedback",
       "/updates",
       "/how-to-play",
+      "/games/four-reversi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
     /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||

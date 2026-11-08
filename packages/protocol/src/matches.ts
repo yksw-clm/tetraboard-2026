@@ -1,3 +1,4 @@
+import { cpuProfileSchema } from "./cpuProfiles";
 import {
   fourGomokuSettingsSchema,
   fourGomokuResultSchema,
@@ -65,7 +66,11 @@ export const matchParticipantSchema = z.discriminatedUnion("kind", [
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
       .nullable(),
   }),
-  participantBase.extend({ kind: z.literal("cpu"), level: cpuLevelSchema }),
+  participantBase.extend({
+    kind: z.literal("cpu"),
+    level: cpuLevelSchema,
+    cpuProfile: cpuProfileSchema.optional(),
+  }),
 ]);
 export const fourReversiMatchSummarySchema = z
   .strictObject({

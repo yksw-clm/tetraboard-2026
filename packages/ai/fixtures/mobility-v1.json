@@ -1,0 +1,37 @@
+{
+  "sourceCommit": "5c39ead7e5335a7a2da32aeec54f9ab209ff4275",
+  "cases": [
+    {
+      "name": "initial-and-invalid-moves",
+      "counts": [5, 5, 5, 5]
+    },
+    {
+      "name": "mixed-colors-and-three-directions",
+      "counts": [2, 3, 4, 2]
+    },
+    {
+      "name": "protect-last-opponent-stone",
+      "counts": [3, 3, 4, 3]
+    },
+    {
+      "name": "protect-two-opponents-simultaneously",
+      "counts": [1, 0, 1, 1]
+    },
+    {
+      "name": "automatic-passes-and-reset",
+      "counts": [1, 1, 0, 1]
+    },
+    {
+      "name": "full-board-and-shared-ranks",
+      "counts": [1, 1, 1, 1]
+    },
+    {
+      "name": "all-passed-with-empty-square",
+      "counts": [1, 0, 0, 0]
+    },
+    {
+      "name": "same-player-after-three-passes",
+      "counts": [1, 0, 2, 2]
+    }
+  ]
+}

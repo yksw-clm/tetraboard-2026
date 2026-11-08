@@ -103,13 +103,24 @@ const shogiRecordSchema = z
 function publicIdentity(
   player: { name: string } & (
     | { kind: "human"; accountId: string | null; retired?: true }
-    | { kind: "cpu"; level: 1 | 2 }
+    | { kind: "cpu"; level: 1 | 2; cpuProfile?: import("@tetraboard/protocol").CpuProfile }
   ),
   profiles: ParticipantProfiles,
 ):
   | { name: string; kind: "human"; avatarUrl: string | null; retired?: true }
-  | { name: string; kind: "cpu"; level: 1 | 2 } {
-  if (player.kind === "cpu") return { name: player.name, kind: "cpu", level: player.level };
+  | {
+      name: string;
+      kind: "cpu";
+      level: 1 | 2;
+      cpuProfile?: import("@tetraboard/protocol").CpuProfile;
+    } {
+  if (player.kind === "cpu")
+    return {
+      name: player.name,
+      kind: "cpu",
+      level: player.level,
+      ...(player.cpuProfile ? { cpuProfile: player.cpuProfile } : {}),
+    };
   const profile = player.accountId ? profiles.get(player.accountId) : undefined;
   return {
     name: profile?.name ?? player.name,

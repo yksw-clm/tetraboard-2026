@@ -1,0 +1,8 @@
+/target/
+/.wrangler/
+/cloudflare/.wrangler/
+/cloudflare/worker-configuration.d.ts
+/results/
+.env
+.env.*
+*.env

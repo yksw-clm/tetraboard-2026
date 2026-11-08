@@ -1,3 +1,4 @@
+import { managedRoomPath, isMatchmakingRoom } from "../matchmaking/managedRoom";
 import { RoomStampContext } from "./roomStampContext";
 import { useRoomStamps } from "./useRoomStamps";
 import { RoomStampPicker } from "./RoomStampPicker";
@@ -38,7 +39,8 @@ import { FeedbackForm } from "../feedback/FeedbackForm";
 import { usePostGameFeedback } from "../feedback/usePostGameFeedback";
 import { PostGameFeedbackDialog } from "../feedback/PostGameFeedbackDialog";
 import { RoomShareDialog } from "./RoomShareDialog";
-import { TournamentRoomCountdown } from "./TournamentRoomCountdown";
+import { RoomStartCountdown } from "./RoomStartCountdown";
+import { matchmakingRules, tournamentRules } from "@tetraboard/protocol";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 
 export function RoomViewShell({
@@ -113,14 +115,16 @@ export function RoomViewShell({
         : room.players.find((player) => player.color === room.game.turn)
       : undefined;
   const myTurn = turn !== undefined && turn.id === session.self?.id;
-  const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
+  const managedPath = managedRoomPath(room);
   const tournamentStartsAtMs =
-    tournamentId !== undefined &&
+    managedPath !== null &&
     room.status === "waiting" &&
     "tournamentStartsAtMs" in room &&
     typeof room.tournamentStartsAtMs === "number"
       ? room.tournamentStartsAtMs
-      : undefined;
+      : room.status === "waiting" && !room.lastRound && "matchmaking" in room
+        ? room.matchmaking?.startsAtMs
+        : undefined;
   const profiles = usePlayerProfiles();
   const activeProfileId = profiles?.active?.id;
   const closeProfile = profiles?.close;
@@ -200,7 +204,7 @@ export function RoomViewShell({
   const invitation = useRoomInvitation(
     room,
     membership,
-    invited && tournamentId === undefined,
+    invited && managedPath === null,
     () => (joinButtonRef.current ?? fallbackFocusRef.current)?.focus(),
     () => {
       const button = shareButtonRef.current;
@@ -309,16 +313,16 @@ export function RoomViewShell({
       openReplayKey={openReplayKey}
       onReplayChange={setOpenReplayKey}
       onJoin={
-        tournamentId !== undefined
+        managedPath !== null
           ? () => {
-              void navigate(`/tournaments/${tournamentId}`);
+              void navigate(managedPath!);
             }
           : invitation.openJoin
       }
       onTournamentNext={
-        tournamentId !== undefined
+        managedPath !== null
           ? () => {
-              void session.handleLeaveClick();
+              void session.handleLeaveClick(isMatchmakingRoom(room));
             }
           : undefined
       }
@@ -391,7 +395,7 @@ export function RoomViewShell({
             boardOverlay={
               room.status === "waiting" &&
               room.lastRound === null &&
-              tournamentId === undefined && (
+              managedPath === null && (
                 <div className="rounded-xl bg-[#17241de0] px-5 py-2 text-center text-xs text-white shadow-md">
                   <strong className="block text-sm">待機中</strong>
                   <span>
@@ -409,9 +413,17 @@ export function RoomViewShell({
         </RoomStampContext.Provider>
       </div>
       {tournamentStartsAtMs !== undefined && (
-        <TournamentRoomCountdown
+        <RoomStartCountdown
           startsAtMs={tournamentStartsAtMs}
           serverNowMs={session.serverNowMs}
+          durationMs={
+            isMatchmakingRoom(room)
+              ? matchmakingRules.countdownMs
+              : tournamentRules.startCountdownMs
+          }
+          label={
+            isMatchmakingRoom(room) ? "対局の開始カウントダウン" : "大会対局の開始カウントダウン"
+          }
         />
       )}
       {tournamentStartsAtMs === undefined && (
@@ -465,21 +477,43 @@ export function RoomViewShell({
               busy={signIn.busy || session.leaving}
             >
               {result}
-              {tournamentId !== undefined &&
-                membership &&
-                !guestLinkResult &&
-                !linkedGuestResult && (
+              {managedPath !== null && membership && !guestLinkResult && !linkedGuestResult && (
+                <AppButton
+                  className="mt-4 w-full"
+                  isDisabled={session.leaving}
+                  isPending={session.leaving}
+                  onPress={() => {
+                    void session.handleLeaveClick(isMatchmakingRoom(room));
+                  }}
+                >
+                  {isMatchmakingRoom(room) ? "もう一度マッチング" : "次の対局"}
+                </AppButton>
+              )}
+              {isMatchmakingRoom(room) && membership && (
+                <div className="mt-3 flex flex-wrap gap-2">
                   <AppButton
-                    className="mt-4 w-full"
-                    isDisabled={session.leaving}
-                    isPending={session.leaving}
-                    onPress={() => {
-                      void session.handleLeaveClick();
-                    }}
+                    appearance="secondary"
+                    size="compact"
+                    isDisabled={session.leaving || signIn.busy}
+                    onPress={() => void session.handleLeaveClick()}
                   >
-                    次の対局
+                    ロビーへ
                   </AppButton>
-                )}
+                  {!guestLinkResult && !linkedGuestResult && (
+                    <AppButton
+                      appearance="secondary"
+                      size="compact"
+                      onPress={() => {
+                        setTab("board");
+                        setOpenReplayKey(`${room.instanceId}:${resultMatchId}`);
+                        closeResult(false);
+                      }}
+                    >
+                      棋譜を見る
+                    </AppButton>
+                  )}
+                </div>
+              )}
               {registrationCancelled && (
                 <p role="status" className="mt-4 text-sm">
                   登録手続きを中止しました。
@@ -542,14 +576,19 @@ export function RoomViewShell({
                     size="compact"
                     isDisabled={signIn.busy || session.leaving || session.connection !== "接続済み"}
                     onPress={() => {
-                      if (tournamentId !== undefined) void session.handleLeaveClick();
+                      if (managedPath !== null)
+                        void session.handleLeaveClick(isMatchmakingRoom(room));
                       else {
                         if (!session.self?.ready) session.handleReadyClick();
                         closeResult(false);
                       }
                     }}
                   >
-                    {tournamentId === undefined ? "再戦" : "次の対局"}
+                    {managedPath === null
+                      ? "再戦"
+                      : isMatchmakingRoom(room)
+                        ? "もう一度マッチング"
+                        : "次の対局"}
                   </AppButton>
                   <AppButton
                     size="compact"

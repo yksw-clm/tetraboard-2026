@@ -1,3 +1,4 @@
+import { cpuProfileSchema } from "./cpuProfiles";
 import { roomStampSendSchema, roomStampReceivedSchema, roomStampErrorSchema } from "./stamps";
 import { gameCatalog } from "./games";
 import {
@@ -43,7 +44,12 @@ export const playerAppearanceSchema = z.discriminatedUnion("kind", [
     retired: z.literal(true).optional(),
     isGuest: z.boolean().optional(),
   }),
-  z.strictObject({ kind: z.literal("cpu"), level: cpuLevelSchema }),
+  z.strictObject({
+    kind: z.literal("cpu"),
+    level: cpuLevelSchema,
+    cpuProfile: cpuProfileSchema.optional(),
+    name: z.string().optional(),
+  }),
 ]);
 export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
 
@@ -192,10 +198,18 @@ const humanPlayerSchema = playerBaseSchema.extend({
 const cpuPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("cpu"),
   level: cpuLevelSchema,
+  cpuProfile: cpuProfileSchema.optional(),
   ready: z.literal(true),
   reconnectDeadline: z.null(),
 });
 const waitingRoomSchema = z.strictObject({
+  matchmaking: z
+    .strictObject({
+      id: z.uuid(),
+      preparedAtMs: serverNowMsSchema,
+      startsAtMs: serverNowMsSchema.optional(),
+    })
+    .optional(),
   tournamentId: z.int().positive().optional(),
   tournamentStartsAtMs: serverNowMsSchema.optional(),
   eliminations: z.array(eliminationSchema).length(0).default([]),
@@ -218,6 +232,13 @@ const waitingRoomSchema = z.strictObject({
 
 const activeRoomBaseSchema = z
   .strictObject({
+    matchmaking: z
+      .strictObject({
+        id: z.uuid(),
+        preparedAtMs: serverNowMsSchema,
+        startsAtMs: serverNowMsSchema.optional(),
+      })
+      .optional(),
     tournamentId: z.int().positive().optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
@@ -826,6 +847,7 @@ export function isFourReversiRoom(room: Room): room is FourReversiRoom {
 
 export const roomPublicMetadataSchema = z
   .strictObject({
+    matchmaking: z.literal(true).optional(),
     id: roomCodeSchema,
     tournamentId: z.int().positive().optional(),
     game: roomGameSchema,
@@ -919,6 +941,7 @@ const roomErrorSchema = z.strictObject({
     "account_seated",
     "account_busy",
     "tournament_required",
+    "matchmaking_required",
     "profile_required",
     "consent_required",
     "room_started",

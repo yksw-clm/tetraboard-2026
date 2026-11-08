@@ -1,3 +1,6 @@
+import { matchmakingRules } from "@tetraboard/protocol";
+import { namedCpuProfile } from "../matchmaking/cpuProfiles";
+import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchmaking/coordinator";
 import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
 import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
 import { prepareRoomSettings } from "./applyRoomSettings";
@@ -63,7 +66,14 @@ import {
 } from "@tetraboard/protocol";
 import { gameProgress, unreachable, type AnyProgress, type ProgressFor } from "./gameProgress";
 import type { ShogiCpuJob } from "./fourShogiProgress";
-import { fourReversiCpuJobKey } from "./fourReversiProgress";
+import {
+  fourReversiCpuJobKey,
+  fourReversiAiJobKey,
+  supportsExternalAi,
+  type ExternalCpuWork,
+} from "./fourReversiProgress";
+import { aiServiceEnabled, aiServiceTimeout, requestAiMove } from "./aiService";
+import { serviceProfile } from "./aiServiceProfiles";
 import {
   roomStorageKey,
   replayKey,
@@ -1242,7 +1252,11 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private playerLabel(player: Room["players"][number]): string {
-    return player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
+    return player.kind === "cpu"
+      ? player.cpuProfile
+        ? player.name
+        : `CPU Lv${player.level}`
+      : player.name;
   }
 
   private recordDeparture(player: Room["players"][number]): void {
@@ -1300,6 +1314,20 @@ export class GameRoom extends DurableObject<Env> {
 
   private closeRoom(): void {
     const room = this.readRoom();
+    if (room && isFourReversiRoom(room) && room.matchmaking) {
+      const key = `matchmaking:${room.matchmaking.id}`;
+      const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
+      if (saved && saved.phase !== "playing")
+        this.ctx.storage.kv.put(key, {
+          ...saved,
+          phase: "closed",
+          connectedPlayerIds: room.players
+            .filter(
+              (p) => p.kind === "human" && this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""),
+            )
+            .map((p) => p.id),
+        });
+    }
     const tournament = this.tournamentReservation(room);
     if (tournament) {
       const excluded = tournament.excludedPlayerIds ?? [];
@@ -1359,6 +1387,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(gomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourReversiCpuJobKey);
+    this.ctx.storage.kv.delete(fourReversiAiJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
@@ -1658,7 +1687,11 @@ export class GameRoom extends DurableObject<Env> {
         playerId: player.id,
         appearance:
           player.kind === "cpu"
-            ? { kind: "cpu", level: player.level }
+            ? {
+                kind: "cpu",
+                level: player.level,
+                ...(player.cpuProfile ? { cpuProfile: player.cpuProfile, name: player.name } : {}),
+              }
             : {
                 kind: "human",
                 avatarUrl: player.retired ? null : player.avatarUrl,
@@ -1667,6 +1700,7 @@ export class GameRoom extends DurableObject<Env> {
       })),
       ...roomPublicMetadataSchema.parse({
         id: room.id,
+        ...(isFourReversiRoom(room) && room.matchmaking ? { matchmaking: true } : {}),
         ...(isTournamentGameRoom(room) && room.tournamentId !== undefined
           ? { tournamentId: room.tournamentId }
           : {}),
@@ -1799,7 +1833,17 @@ export class GameRoom extends DurableObject<Env> {
                   ? this.reversiProgress.cpuJob(room)
                   : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
-        deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
+        const externalJob =
+          isFourReversiRoom(room) && aiServiceEnabled(this.env)
+            ? this.reversiProgress.externalCpuJob(room)
+            : null;
+        deadlines.push(
+          externalJob
+            ? externalJob.expiresAt
+            : job
+              ? Math.max(job.applyAt, earliestCpuMoveAt)
+              : earliestCpuMoveAt,
+        );
       }
     }
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
@@ -1830,6 +1874,16 @@ export class GameRoom extends DurableObject<Env> {
       room.tournamentStartsAtMs
     )
       deadlines.push(room.tournamentStartsAtMs);
+    if (
+      room &&
+      isFourReversiRoom(room) &&
+      room.matchmaking &&
+      room.status === "waiting" &&
+      !room.lastRound
+    ) {
+      deadlines.push(room.matchmaking.preparedAtMs + matchmakingRules.connectionGraceMs);
+      if (room.matchmaking.startsAtMs !== undefined) deadlines.push(room.matchmaking.startsAtMs);
+    }
     const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -2381,6 +2435,296 @@ export class GameRoom extends DurableObject<Env> {
     if (room) this.broadcastRoom(room);
   }
 
+  async prepareMatchmakingRoom(input: MatchmakingRoomInput) {
+    await this.reconcileDeadlines();
+    return this.ctx.blockConcurrencyWhile(async () => {
+      if (
+        input.roomId !== this.ctx.id.name ||
+        input.players.length < 1 ||
+        input.players.length > 4 ||
+        new Set(input.players.map((p) => p.admission.accountId)).size !== input.players.length ||
+        Date.now() >= input.expiresAtMs ||
+        input.expiresAtMs !== input.preparedAtMs + matchmakingRules.connectionGraceMs
+      )
+        return { status: "invalid" as const };
+      const existing = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+        `matchmaking:${input.matchId}`,
+      );
+      if (existing)
+        return existing.phase === "closed"
+          ? { status: "cancelled" as const }
+          : { status: "prepared" as const };
+      if (this.ctx.storage.kv.get(`matchmaking-cancelled:${input.matchId}`))
+        return { status: "cancelled" as const };
+      if (this.readRoom()) return { status: "room_in_use" as const };
+      for (const { admission: a } of input.players) {
+        const valid = await this.env.APP_DB.prepare(
+          `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN matchmaking_wait_reservations w ON w.account_id=s.account_id WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=? AND w.match_operation_id=s.operation_id AND w.queue_key=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)`,
+        )
+          .bind(
+            a.accountId,
+            a.operationId,
+            input.roomId,
+            input.instanceId,
+            a.playerId,
+            matchmakingRules.key,
+          )
+          .first();
+        if (!valid || this.ctx.storage.kv.get(cancelledAdmissionKey(a.operationId)))
+          return { status: "invalid" as const };
+      }
+      const base = waitingRoomFactories["four-reversi"]({
+        code: input.roomId,
+        name: input.players[0]!.admission.name,
+        request: {
+          game: "four-reversi",
+          mode: "singles",
+          quickPlay: false,
+          timeControl: matchmakingRules.timeControl,
+        },
+      });
+      const profile = namedCpuProfile("lv3-v1");
+      const room = roomSchema.parse({
+        ...base,
+        instanceId: input.instanceId,
+        matchmaking: { id: input.matchId, preparedAtMs: input.preparedAtMs },
+        players: [
+          ...input.players.map(({ admission: a }) => ({
+            id: a.playerId,
+            name: a.name,
+            kind: "human",
+            avatarUrl: profileAvatarUrl(a.avatarKey, a.avatarPresetId),
+            ...(a.isGuest ? { isGuest: true } : {}),
+            ready: true,
+            color: null,
+            reconnectDeadline: input.expiresAtMs,
+          })),
+          ...Array.from({ length: 4 - input.players.length }, (_, i) => ({
+            id: crypto.randomUUID(),
+            name: `${profile.name}${i + 1}`,
+            kind: "cpu",
+            level: 2,
+            cpuProfile: profile,
+            ready: true,
+            color: null,
+            reconnectDeadline: null,
+          })),
+        ],
+      });
+      this.withIndexTransaction(() => {
+        this.ctx.storage.kv.put(roomStorageKey, room);
+        this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
+          ...input,
+          phase: "waiting",
+        } satisfies MatchmakingRoomReservation);
+        for (const [index, { admission: a, tokenHash, version }] of input.players.entries()) {
+          this.ctx.storage.kv.put(accountKey(a.playerId), { ...a, occupying: true });
+          this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
+            playerId: a.playerId,
+            role: index === 0 ? "host" : "player",
+          });
+          this.ctx.storage.kv.put(playerTokenKey(a.playerId), tokenHash);
+          this.ctx.storage.kv.put(`matchmaking-version:${a.playerId}`, version);
+          this.ctx.storage.kv.put(disconnectedAtKey(a.playerId), Date.now());
+          this.ctx.storage.kv.put(analyticsPlayerKey(a.playerId), {
+            accountId: a.accountId,
+            visitorId: null,
+            isGuest: Boolean(a.isGuest),
+            isTest: false,
+          });
+        }
+        for (const p of room.players)
+          this.appendSystem("joined", `${this.playerLabel(p)}が入室しました`);
+        this.ctx.storage.kv.put(
+          viewerSecretKey,
+          bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
+        );
+      });
+      await this.syncAlarm(room);
+      return { status: "prepared" as const };
+    });
+  }
+  async getMatchmakingState(matchId: string, instanceId: string) {
+    await this.reconcileDeadlines();
+    const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${matchId}`);
+    const room = this.readRoom();
+    const same = Boolean(
+      room &&
+      isFourReversiRoom(room) &&
+      room.matchmaking?.id === matchId &&
+      room.instanceId === instanceId,
+    );
+    const occupiedPlayerIds = same
+      ? room!.players
+          .filter((p) => p.kind === "human" && this.storedAccount(p.id)?.occupying)
+          .map((p) => p.id)
+      : [];
+    const connectedPlayerIds = same
+      ? room!.players
+          .filter(
+            (p) => p.kind === "human" && this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""),
+          )
+          .map((p) => p.id)
+      : (saved?.connectedPlayerIds ?? []);
+    return {
+      phase: same ? (saved?.phase ?? "closed") : "closed",
+      started: saved?.phase === "playing",
+      occupiedPlayerIds,
+      connectedPlayerIds,
+    };
+  }
+  async abortMatchmakingRoom(matchId: string, instanceId: string) {
+    await this.reconcileDeadlines();
+    const reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+      `matchmaking:${matchId}`,
+    );
+    if (reservation?.phase === "playing") return { status: "already_started" as const };
+    this.withIndexTransaction(() => {
+      this.ctx.storage.kv.put(`matchmaking-cancelled:${matchId}`, true);
+      const room = this.readRoom();
+      if (
+        room &&
+        isFourReversiRoom(room) &&
+        room.matchmaking?.id === matchId &&
+        room.instanceId === instanceId
+      )
+        this.closeRoom();
+    });
+    this.closeSockets();
+    await this.syncAlarm(this.readRoom());
+    return { status: "aborted" as const };
+  }
+  async rekeyMatchmakingPlayer(
+    matchId: string,
+    instanceId: string,
+    playerId: string,
+    version: number,
+    tokenHash: string,
+  ) {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (
+      !room ||
+      !isFourReversiRoom(room) ||
+      room.matchmaking?.id !== matchId ||
+      room.instanceId !== instanceId ||
+      !this.storedAccount(playerId)?.occupying
+    )
+      return false;
+    const current = this.ctx.storage.kv.get<number>(`matchmaking-version:${playerId}`) ?? 0;
+    if (version < current) return false;
+    const old = this.playerTokenHash(playerId);
+    if (version === current) {
+      if (old !== tokenHash) return false;
+      await this.advanceMatchmakingStart();
+      await this.syncAlarm(this.readRoom());
+      return true;
+    }
+    this.ctx.storage.transactionSync(() => {
+      const membership = old ? this.readMembership(old) : null;
+      if (old) this.ctx.storage.kv.delete(membershipStorageKey(old));
+      this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
+      this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
+        playerId,
+        role: membership?.role ?? "player",
+      });
+      this.ctx.storage.kv.put(`matchmaking-version:${playerId}`, version);
+      this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
+      const updated = roomSchema.parse({
+        ...room,
+        players: room.players.map((p) =>
+          p.id === playerId
+            ? {
+                ...p,
+                reconnectDeadline:
+                  p.reconnectDeadline ??
+                  (room.status === "waiting" && !room.lastRound
+                    ? room.matchmaking!.preparedAtMs + matchmakingRules.connectionGraceMs
+                    : Date.now() + reconnectGraceMs),
+              }
+            : p,
+        ),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+    });
+    for (const socket of this.ctx.getWebSockets())
+      if (
+        old &&
+        (socket.deserializeAttachment() as { tokenHash?: string } | null)?.tokenHash === old
+      )
+        socket.close(1000, "操作元が変わりました");
+    await this.advanceMatchmakingStart();
+    await this.syncAlarm(this.readRoom());
+    return true;
+  }
+  private async advanceMatchmakingStart() {
+    const current = this.readRoom();
+    if (
+      !current ||
+      !isFourReversiRoom(current) ||
+      !current.matchmaking ||
+      current.status !== "waiting" ||
+      current.lastRound
+    )
+      return;
+    const reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+      `matchmaking:${current.matchmaking.id}`,
+    );
+    if (!reservation || reservation.phase !== "waiting") return;
+    this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (
+        !room ||
+        !isFourReversiRoom(room) ||
+        !room.matchmaking ||
+        room.status !== "waiting" ||
+        room.lastRound
+      )
+        return;
+      if (Date.now() >= reservation.expiresAtMs || room.players.length !== 4) {
+        this.closeRoom();
+        return;
+      }
+      const connected = room.players
+        .filter((p) => p.kind === "human")
+        .every((p) => this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""));
+      if (!connected) {
+        if (room.matchmaking.startsAtMs !== undefined) {
+          const { startsAtMs: _deadline, ...metadata } = room.matchmaking;
+          this.ctx.storage.kv.put(roomStorageKey, {
+            ...room,
+            matchmaking: metadata,
+            publicUpdatedAtMs: nextPublicUpdateAt(room),
+          });
+        }
+        return;
+      }
+      const deadline = room.matchmaking.startsAtMs;
+      if (deadline === undefined) {
+        this.ctx.storage.kv.put(roomStorageKey, {
+          ...room,
+          matchmaking: {
+            ...room.matchmaking,
+            startsAtMs: Date.now() + matchmakingRules.countdownMs,
+          },
+          publicUpdatedAtMs: nextPublicUpdateAt(room),
+        });
+        return;
+      }
+      if (Date.now() < deadline) return;
+      const started = this.reversiProgress.start(room);
+      this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {
+        ...reservation,
+        phase: "playing",
+      } satisfies MatchmakingRoomReservation);
+      this.startAnalyticsMatch(started.roundId, started.room, started.at);
+    });
+    const room = this.readRoom();
+    await this.syncAlarm(room);
+    if (room) this.broadcastRoom(room);
+    else this.closeSockets();
+  }
+
   async createRoom(
     room: Room,
     tokenHash: string,
@@ -2596,6 +2940,7 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "room_changed" }
     | { status: "account_reservation_invalid" }
     | { status: "tournament_required" }
+    | { status: "matchmaking_required" }
   > {
     await this.reconcileDeadlines();
     const playerName = joinRoomContract.request.parse({ name }).name!;
@@ -2608,6 +2953,8 @@ export class GameRoom extends DurableObject<Env> {
         if (instanceId !== undefined && room.instanceId !== instanceId) {
           return { status: "room_changed" } as const;
         }
+        if (isFourReversiRoom(room) && room.matchmaking)
+          return { status: "matchmaking_required" } as const;
         if (isTournamentGameRoom(room) && room.tournamentId !== undefined)
           return { status: "tournament_required" } as const;
         if (room.status !== "waiting") {
@@ -2779,6 +3126,7 @@ export class GameRoom extends DurableObject<Env> {
     const now = Date.now();
     const promoted: string[] = [];
     let changed = false;
+    const externalWork: { current: ExternalCpuWork | null } = { current: null };
     const updated = this.withIndexTransaction(() => {
       // 将棋の読取りは従来どおりtransaction内。リバーシは最初の読取りを使用。
       let room: Room | null =
@@ -3046,11 +3394,30 @@ export class GameRoom extends DurableObject<Env> {
           }
         } else if (isFourReversiRoom(room)) {
           if (applyCpu && currentCpu(room) !== null) {
-            const result = this.reversiProgress.cpu(room, now);
-            if (result.kind !== "unchanged") {
-              room = this.applyProgress(result);
-              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
-              changed = true;
+            if (
+              aiServiceEnabled(this.env) &&
+              supportsExternalAi(room) &&
+              this.ctx.storage.kv.get(fourReversiCpuJobKey) === undefined
+            ) {
+              externalWork.current = this.reversiProgress.prepareExternalCpu(
+                room,
+                now,
+                aiServiceTimeout(this.env),
+                currentCpu(room)?.cpuProfile
+                  ? {
+                      profile_id: currentCpu(room)!.cpuProfile!.id,
+                      profile_hash: currentCpu(room)!.cpuProfile!.hash,
+                      engine_version: currentCpu(room)!.cpuProfile!.engineVersion,
+                    }
+                  : serviceProfile(this.env),
+              );
+            } else {
+              const result = this.reversiProgress.cpu(room, now);
+              if (result.kind !== "unchanged") {
+                room = this.applyProgress(result);
+                if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+                changed = true;
+              }
             }
           }
         } else {
@@ -3076,6 +3443,20 @@ export class GameRoom extends DurableObject<Env> {
     }
     for (const hash of promoted) this.sendCurrentMembership(hash);
     await this.advanceTournamentStart();
+    await this.advanceMatchmakingStart();
+    if (externalWork.current) {
+      // transactionとDOの入力ゲートを保持せず、ネットワーク応答を待ちます。
+      const work = externalWork.current;
+      const response = await requestAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isFourReversiRoom(room))
+          this.reversiProgress.completeExternalCpu(room, work.job, response.position, Date.now());
+      });
+      if (response.reason) console.warn("AI service fallback", { reason: response.reason });
+      await this.syncAlarm(this.readRoom());
+    }
   }
 
   async alarm(): Promise<void> {
@@ -3886,6 +4267,7 @@ export class GameRoom extends DurableObject<Env> {
         if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
         socket.send(JSON.stringify(this.authenticationMessage(socket, result.membership)));
         await this.advanceTournamentStart();
+        await this.advanceMatchmakingStart();
         return;
       }
 
@@ -3930,8 +4312,8 @@ export class GameRoom extends DurableObject<Env> {
       const tournamentRoom = this.readRoom();
       if (
         tournamentRoom &&
-        isTournamentGameRoom(tournamentRoom) &&
-        tournamentRoom.tournamentId !== undefined &&
+        ((isTournamentGameRoom(tournamentRoom) && tournamentRoom.tournamentId !== undefined) ||
+          (isFourReversiRoom(tournamentRoom) && tournamentRoom.matchmaking)) &&
         [
           "room.ready.set",
           "room.settings.apply",

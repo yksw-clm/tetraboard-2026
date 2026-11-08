@@ -7,11 +7,19 @@ export function nextPublicUpdateAt(room: Room): number {
   return Math.max(Date.now(), room.publicUpdatedAtMs + 1);
 }
 export function playerLabel(player: Room["players"][number]): string {
-  return player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
+  return player.kind === "cpu"
+    ? player.cpuProfile
+      ? player.name
+      : `CPU Lv${player.level}`
+    : player.name;
 }
 export function playerAppearance(player: Room["players"][number]): PlayerAppearance {
   return player.kind === "cpu"
-    ? { kind: "cpu", level: player.level }
+    ? {
+        kind: "cpu",
+        level: player.level,
+        ...(player.cpuProfile ? { cpuProfile: player.cpuProfile, name: player.name } : {}),
+      }
     : {
         kind: "human",
         avatarUrl: player.avatarUrl,

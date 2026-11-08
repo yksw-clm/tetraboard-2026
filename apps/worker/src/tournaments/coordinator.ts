@@ -634,6 +634,9 @@ export class TournamentCoordinator extends DurableObject<Env> {
       try {
         await this.env.APP_DB.batch([
           this.env.APP_DB.prepare(
+            "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
+          ).bind(accountId, Date.now()),
+          this.env.APP_DB.prepare(
             "DELETE FROM tournament_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
           ).bind(accountId, Date.now()),
           this.env.APP_DB.prepare(

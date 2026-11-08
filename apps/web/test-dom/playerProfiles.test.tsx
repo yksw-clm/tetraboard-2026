@@ -6,6 +6,8 @@ import { PlayerProfileCard } from "../src/features/players/PlayerProfileCard";
 import type { PlayerProfile } from "@tetraboard/protocol";
 import { PlayerProfileStore, profileKey } from "../src/features/players/playerProfileStore";
 import { AppDialog } from "../src/shared/ui/AppDialog";
+import { PlayerCardView } from "../src/features/room/PlayerCardView";
+import { PlayerAvatar } from "../src/features/room/PlayerAvatar";
 import { act, clock, flush, render, rerender, requests } from "./harness";
 const id = "10000000-0000-4000-8000-000000000001";
 const target = { source: "profile" as const, profileId: id };
@@ -35,6 +37,55 @@ const trigger = (label = "プレイヤー", cpu = false) => (
   </PlayerProfileTrigger>
 );
 const region = () => document.querySelector<HTMLElement>('[role="region"]');
+test("固有名CPUはロボット・CPU表記を併用し、互換用レベルでなく実際のLv3と判断方法を表示する", async () => {
+  const cpuProfile = {
+    id: "lv3-v1" as const,
+    engineVersion: "0.2.0",
+    rulesetVersion: "four-reversi-singles-v2" as const,
+    stateVersion: 2 as const,
+    hash: "a".repeat(64),
+    agentId: "maxn-v1",
+    level: 3,
+    name: "ヨミ",
+    style: "多人数の先読み",
+  };
+  const player = {
+    id: crypto.randomUUID(),
+    name: "ヨミ1",
+    kind: "cpu" as const,
+    level: 2 as const,
+    ready: true as const,
+    color: null,
+    reconnectDeadline: null,
+    cpuProfile,
+  };
+  const view = render(
+    wrap(
+      <PlayerCardView
+        player={player}
+        self={false}
+        host={false}
+        position="bottom"
+        score={null}
+        rank={null}
+        clock={null}
+      />,
+    ),
+  );
+  expect(view.querySelector('[data-testid="player-name"]')?.textContent).toContain("ヨミ1CPU");
+  const avatar = view.querySelector('[data-testid="player-avatar"]');
+  expect(avatar?.getAttribute("title")).toBe("CPU");
+  const robot = render(<PlayerAvatar appearance={{ kind: "cpu", level: 2 }} />);
+  expect(avatar?.querySelector("svg")?.innerHTML).toBe(robot.querySelector("svg")?.innerHTML);
+  expect(avatar?.querySelector("svg")).not.toBeNull();
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label="ヨミ1のプレイヤー情報"]')!.click());
+  await flush();
+  expect(region()?.textContent).toContain("ヨミ1");
+  expect(region()?.textContent).toContain("CPU Lv3");
+  expect(region()?.textContent).toContain("多人数の先読み");
+  expect(region()?.textContent).not.toContain("CPU Lv2");
+  expect(requests).toHaveLength(0);
+});
 test("全ゲームの戦績をモードに応じたコンパクトな文章で表示する", () => {
   const singles = { total: 83, first: 22, second: 36, third: 17, fourth: 8 };
   const shogiSingles = { ...singles, knockouts: 51, perfectWins: 2 };
