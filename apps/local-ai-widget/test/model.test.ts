@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { observationSchema, positionIdentity, validateResult, supportedUrl } from "../src/model";
+import {
+  observationSchema,
+  positionIdentity,
+  validateResult,
+  supportedUrl,
+  analysisRequestSchema,
+} from "../src/model";
+import { localProfileIds, localProfile } from "../src/profiles";
 import { observation, requestFor, responseFor } from "./fixtures";
 test("観測情報は局面と識別子だけを保持しプロフィール・tokenを除く", () => {
   const o = observationSchema.parse({ ...observation(), token: "secret", chat: ["private"] });
@@ -41,4 +48,32 @@ test("許可する接続先を固定し類似ドメインを拒否する", () =>
     "http://127.0.0.1:9999/",
   ])
     expect(supportedUrl(url)).toBe(false);
+});
+test("許可したprofileだけ要求でき、応答のprofile・hash・実効予算をすべて照合する", () => {
+  for (const id of localProfileIds) {
+    const request = { ...requestFor(), profile_id: id };
+    const result = responseFor(request);
+    expect(analysisRequestSchema.parse(request).profile_id).toBe(id);
+    expect(validateResult(result, request)).toEqual(result);
+    const other = localProfileIds.find((p) => p !== id)!;
+    for (const invalid of [
+      {
+        ...result,
+        profile_id: other,
+        profile_hash: localProfile(other).hash,
+        effective_limits: localProfile(other).limits,
+      },
+      { ...result, profile_hash: "a".repeat(64) },
+      { ...result, effective_limits: { ...result.effective_limits, max_iterations: 1 } },
+      { ...result, effective_limits: { ...result.effective_limits, max_nodes: 1 } },
+      { ...result, effective_limits: { ...result.effective_limits, max_time_ms: 5000 } },
+    ])
+      expect(() => validateResult(invalid, request)).toThrow();
+  }
+  for (const invalid of [
+    { ...requestFor(), profile_id: "lv6-v1" },
+    { ...requestFor(), seed: 1 },
+    { ...requestFor(), limits: { max_nodes: 999999 } },
+  ])
+    expect(analysisRequestSchema.safeParse(invalid).success).toBe(false);
 });

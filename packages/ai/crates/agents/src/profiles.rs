@@ -45,6 +45,48 @@ pub fn builtin_profiles() -> Result<Vec<ServedProfile>, String> {
     Ok(registry.profiles)
 }
 
+/// 実験候補は公開Serviceのprofile一覧と分けて読み込みます。
+pub fn local_analysis_profiles() -> Result<Vec<ServedProfile>, String> {
+    let registry: Registry = serde_json::from_str(include_str!(
+        "../../../configs/local-analysis-profiles-v1.json"
+    ))
+    .map_err(|e| e.to_string())?;
+    if registry.format_version != 1
+        || registry.profiles.len() != 1
+        || registry.profiles[0].id != "lv6-candidate-a-v1"
+    {
+        return Err("ローカルprofile一覧の版・ID・件数が不正です".into());
+    }
+    let mut baseline = builtin_profiles()?.remove(4);
+    if let AgentConfig::Mcts { budget, .. } = &mut baseline.config {
+        budget.max_time_ms = Some(2000);
+    }
+    let mut profiles = vec![baseline];
+    for profile in registry.profiles {
+        profile.config.validate()?;
+        if !matches!(
+            profile.config,
+            AgentConfig::Mcts {
+                budget: MctsBudget {
+                    max_iterations: 8192,
+                    max_nodes: 262144,
+                    max_time_ms: Some(2000),
+                },
+                ..
+            }
+        ) || profile.profile_hash.len() != 64
+            || !profile
+                .profile_hash
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err("ローカルprofileの設定・hashが不正です".into());
+        }
+        profiles.push(profile);
+    }
+    Ok(profiles)
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProfileLimits {
@@ -135,6 +177,21 @@ pub fn effective_limits(config: &AgentConfig) -> Option<ProfileLimits> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn local_candidates_do_not_change_public_profiles() {
+        let public = builtin_profiles().unwrap();
+        assert_eq!(public.len(), 5);
+        assert!(public.iter().all(|p| p.id != "lv6-candidate-a-v1"));
+        let local = local_analysis_profiles().unwrap();
+        assert_eq!(local.len(), 2);
+        assert_eq!(local[0].profile_hash, public[4].profile_hash);
+        let mut expected = public[4].config.clone();
+        if let AgentConfig::Mcts { budget, .. } = &mut expected {
+            budget.max_time_ms = Some(2000);
+        }
+        assert_eq!(local[0].config, expected);
+        assert!(configured(&local[1], 0, None).is_ok());
+    }
     #[test]
     fn profiles_are_bounded_and_overrides_only_reduce_work() {
         let profiles = builtin_profiles().unwrap();

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getLegalMoves, type FourReversiState } from "@tetraboard/four-reversi";
+import { localProfile, localProfileIds } from "./profiles";
 export const channel = "tetraboard-local-ai-v1";
 export const colors = ["black", "white", "red", "blue"] as const;
 export const colorNames = { black: "黒", white: "白", red: "赤", blue: "青" };
@@ -30,33 +31,35 @@ export const observationSchema = z.object({
   turnStartedAt: z.number().nullable(),
 });
 export type Observation = z.infer<typeof observationSchema>;
-export const analysisRequestSchema = z.object({
-  api_version: z.literal(1),
-  ruleset_version: z.literal("four-reversi-singles-v2"),
-  state_version: z.literal(2),
-  request_id: z.uuid(),
-  position_revision: z.string().regex(/^[a-f0-9]{64}$/),
-  profile_id: z.literal("lv5-v1"),
-  state: z.object({
-    board: gameSchema.shape.board,
-    turn: color,
-    moveNumber: gameSchema.shape.moveNumber,
-    lastMove: positionSchema.nullable(),
-    eliminatedColors: z.array(color).max(3),
-    consecutivePasses: z.array(color).max(4),
-  }),
-});
+export const analysisRequestSchema = z
+  .object({
+    api_version: z.literal(1),
+    ruleset_version: z.literal("four-reversi-singles-v2"),
+    state_version: z.literal(2),
+    request_id: z.uuid(),
+    position_revision: z.string().regex(/^[a-f0-9]{64}$/),
+    profile_id: z.enum(localProfileIds),
+    state: z.object({
+      board: gameSchema.shape.board,
+      turn: color,
+      moveNumber: gameSchema.shape.moveNumber,
+      lastMove: positionSchema.nullable(),
+      eliminatedColors: z.array(color).max(3),
+      consecutivePasses: z.array(color).max(4),
+    }),
+  })
+  .strict();
 export type AnalysisRequest = z.infer<typeof analysisRequestSchema>;
 export const analysisResponseSchema = z.object({
   api_version: z.literal(1),
   request_id: z.uuid(),
   position_revision: z.string(),
-  profile_id: z.literal("lv5-v1"),
+  profile_id: z.enum(localProfileIds),
   profile_hash: z.string().regex(/^[a-f0-9]{64}$/),
   engine_version: z.string(),
   effective_limits: z.object({
-    max_iterations: z.literal(2048),
-    max_nodes: z.literal(65536),
+    max_iterations: z.int().positive().max(8192),
+    max_nodes: z.int().positive().max(262144),
     max_time_ms: z.literal(2000),
   }),
   reproducible: z.literal(false),
@@ -137,10 +140,18 @@ export async function revision(identity: string): Promise<string> {
 }
 export function validateResult(value: unknown, request: AnalysisRequest): AnalysisResponse {
   const result = analysisResponseSchema.parse(value);
+  const expected = localProfile(request.profile_id);
   if (
     result.request_id !== request.request_id ||
     result.position_revision !== request.position_revision ||
-    result.cancelled
+    result.cancelled ||
+    result.profile_id !== request.profile_id ||
+    result.profile_hash !== expected.hash ||
+    result.effective_limits.max_iterations !== expected.limits.max_iterations ||
+    result.effective_limits.max_nodes !== expected.limits.max_nodes ||
+    result.effective_limits.max_time_ms !== expected.limits.max_time_ms ||
+    result.diagnostics.nodes > result.effective_limits.max_nodes ||
+    result.diagnostics.mcts.trials > result.effective_limits.max_iterations
   )
     throw Error("解析対象が一致しません");
   const legal = getLegalMoves({

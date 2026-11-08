@@ -32,7 +32,7 @@ HTTP統合は、コンテナ・通常のserveと同じrelease版Rust Serviceを�
 
 `bun run --cwd apps/local-ai-widget test`は配布物をビルドし、Bun＋happy-domで受信監視、局面識別・非同期応答、盤面の座標照合、service workerの権限・タブ排他・再生成、manifestを確認します。WebSocketの引数・型・例外、fetchの元Promiseと本文保持、名前・チャット・tokenの除外を検証します。停止・着手・手番外の脱落・次局・切断・本人変更・遷移・非表示・復帰、遅延／不正応答と再試行も対象です。既存の全体check・Full CIへworkspace単位で含めます。
 
-RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analysis-baseline.json`にある対象コミット・固定局面・seed・連続選択の一致を確認します。期待値は実行時に再生成しません。ローカルAPIでは認証、版・profile・予算指定の拒否、合法候補、脱落、取消の先着・重複・実行中停止・枠解放、公開routerに解析経路がないことを検証します。
+RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analysis-baseline.json`にある対象コミット・固定局面・seed・連続選択の一致を確認します。期待値は実行時に再生成しません。ローカルAPIでは認証、版・profile・予算指定の拒否、合法候補、脱落、取消の先着・重複・実行中停止・枠解放、公開routerに解析経路がないことを検証します。Lv6候補AとLv5のprofile・hash・実効予算、候補切替中の遅延応答、Lv5への復帰、相手手番の手動解析と停止も確認します。`lv6Statistics.test.ts` は同席の同一profileを焦点席へ合算しない集計を確認します。予備対局は通常checkへ含めず、`bun run --cwd packages/ai study:lv6:preliminary` で明示的に実行します。
 
 実ブラウザの単発確認は通常・CPU・大会の参加者画面、候補位置、クリック透過、スクロール・ズーム・画面寸法変更、widgetの移動・折り畳み、AI停止、拡張無効化を対象とします。実ブラウザの確認環境と実施範囲をPRへ記録し、本番大会を未確認のまま成功扱いしません。画面寸法・実際の入力は自動検証へ追加せず、ブラウザ起動テスト・workflowも追加しません。
 

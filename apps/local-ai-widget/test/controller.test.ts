@@ -30,6 +30,55 @@ function harness() {
     },
   };
 }
+test("解析中のprofile切替は旧応答を破棄し、Lv5へ戻して同じ局面を再解析できる", async () => {
+  const h = harness();
+  expect(h.controller.profileId).toBe("lv5-v1");
+  h.controller.observe(observation());
+  await h.controller.toggle();
+  await settle();
+  h.controller.selectProfile("lv6-candidate-a-v1");
+  await settle();
+  expect(h.pending).toHaveLength(2);
+  expect(h.pending[1].request.profile_id).toBe("lv6-candidate-a-v1");
+  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
+  await settle();
+  expect(h.controller.result).toBeNull();
+  expect(h.controller.busy).toBe(true);
+  h.pending[1].resolve({ ok: true, data: responseFor(h.pending[1].request) });
+  await settle();
+  expect(h.controller.result?.profile_id).toBe("lv6-candidate-a-v1");
+  h.controller.selectProfile("lv5-v1");
+  expect(h.controller.result).toBeNull();
+  await settle();
+  expect(h.pending[2].request.profile_id).toBe("lv5-v1");
+  h.pending[2].resolve({ ok: true, data: responseFor(h.pending[2].request) });
+  await settle();
+  expect(h.controller.result?.profile_id).toBe("lv5-v1");
+  expect(h.messages).toContainEqual({ type: "cancel" });
+  expect(harness().controller.profileId).toBe("lv5-v1");
+});
+test("相手手番のprofile切替は自動解析せず、停止・非表示中の旧候補も表示しない", async () => {
+  const h = harness(),
+    o = observation();
+  o.players[0].color = "white";
+  h.controller.observe(o);
+  await h.controller.toggle();
+  h.controller.selectProfile("lv6-candidate-a-v1");
+  await settle();
+  expect(h.pending).toHaveLength(0);
+  void h.controller.analyze();
+  await settle();
+  h.controller.stop();
+  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
+  await settle();
+  expect(h.controller.result).toBeNull();
+  void h.controller.analyze();
+  await settle();
+  h.controller.setVisible(false);
+  h.pending[1].resolve({ ok: true, data: responseFor(h.pending[1].request) });
+  await settle();
+  expect(h.controller.result).toBeNull();
+});
 test("初期は無効、有効化後の本人手番だけ自動解析し時計更新で再実行しない", async () => {
   const h = harness(),
     o = observation();

@@ -17,9 +17,8 @@ use std::sync::{
 use subtle::ConstantTimeEq;
 use tetraboard_ai_agents::{
     SearchStats,
-    config::AgentConfig,
     mcts::{MctsAgent, RootCandidate},
-    profiles::{ProfileLimits, ServedProfile, builtin_profiles, effective_limits},
+    profiles::{ProfileLimits, ServedProfile, effective_limits, local_analysis_profiles},
 };
 use tetraboard_ai_engine::four_reversi::{
     ELIMINATION_RULESET_VERSION, ENGINE_VERSION, PositionSetup, State, count_stones,
@@ -29,7 +28,7 @@ use tokio::sync::Notify;
 #[derive(Clone)]
 struct LocalState {
     token: Arc<String>,
-    profile: Arc<ServedProfile>,
+    profiles: Arc<Vec<ServedProfile>>,
     jobs: Arc<Mutex<Jobs>>,
 }
 #[derive(Default)]
@@ -102,14 +101,10 @@ pub fn router(token: String) -> Result<Router, &'static str> {
     if !(32..=256).contains(&token.len()) || !token.bytes().all(|b| b.is_ascii_graphic()) {
         return Err("AI_LOCAL_TOKENには32〜256文字のASCII秘密値が必要です");
     }
-    let profile = builtin_profiles()
-        .map_err(|_| "profile一覧が不正です")?
-        .into_iter()
-        .find(|p| p.id == "lv5-v1")
-        .ok_or("Lv5が見つかりません")?;
+    let profiles = local_analysis_profiles().map_err(|_| "ローカルprofile一覧が不正です")?;
     let state = LocalState {
         token: Arc::new(token),
-        profile: Arc::new(profile),
+        profiles: Arc::new(profiles),
         jobs: Arc::new(Mutex::new(Jobs::default())),
     };
     Ok(Router::new()
@@ -159,13 +154,20 @@ async fn analyze(
     if request.api_version != 1
         || request.state_version != 2
         || request.ruleset_version != ELIMINATION_RULESET_VERSION
-        || request.profile_id != "lv5-v1"
     {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
             "unsupported_version_or_profile",
         ));
     }
+    let profile = service
+        .profiles
+        .iter()
+        .find(|p| p.id == request.profile_id)
+        .ok_or(ApiError(
+            StatusCode::BAD_REQUEST,
+            "unsupported_version_or_profile",
+        ))?;
     if !valid_id(&request.request_id)
         || !super::valid_identity(&request.request_id, &request.position_revision)
     {
@@ -181,10 +183,7 @@ async fn analyze(
     }
     let state = State::from_setup(request.state)
         .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_state"))?;
-    let mut config = service.profile.config.clone();
-    if let AgentConfig::Mcts { budget, .. } = &mut config {
-        budget.max_time_ms = Some(2000);
-    }
+    let config = profile.config.clone();
     let limits = effective_limits(&config);
     let job = Arc::new(Job {
         id: request.request_id.clone(),
@@ -225,8 +224,8 @@ async fn analyze(
         api_version: 1,
         request_id: request.request_id,
         position_revision: request.position_revision,
-        profile_id: service.profile.id.clone(),
-        profile_hash: service.profile.profile_hash.clone(),
+        profile_id: profile.id.clone(),
+        profile_hash: profile.profile_hash.clone(),
         engine_version: ENGINE_VERSION,
         effective_limits: limits,
         reproducible: false,
@@ -363,42 +362,51 @@ mod tests {
     }
     #[tokio::test]
     async fn returns_legal_candidates_and_effective_local_budget() {
-        let app = router(TOKEN.into()).unwrap();
-        let (status, body) = send(app.clone(), "POST", "/v1/analysis", payload(), true).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["effective_limits"]["max_time_ms"], 2000);
-        assert_eq!(body["reproducible"], false);
-        let legal = State::initial().legal_moves();
-        let candidates = body["candidates"].as_array().unwrap();
-        assert!(!candidates.is_empty());
-        assert!(candidates.len() <= 3);
-        for c in candidates {
-            let position = serde_json::from_value(c["position"].clone()).unwrap();
-            assert!(legal.contains(&position));
-            assert!(
-                c["solo_wins"]
-                    .as_array()
+        for profile in local_analysis_profiles().unwrap() {
+            let app = router(TOKEN.into()).unwrap();
+            let mut p = payload();
+            p["profile_id"] = json!(profile.id);
+            let (status, body) = send(app.clone(), "POST", "/v1/analysis", p.clone(), true).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(body["profile_id"], profile.id);
+            assert_eq!(body["profile_hash"], profile.profile_hash);
+            assert_eq!(
+                body["effective_limits"],
+                serde_json::to_value(effective_limits(&profile.config)).unwrap()
+            );
+            assert_eq!(body["effective_limits"]["max_time_ms"], 2000);
+            assert_eq!(body["reproducible"], false);
+            let legal = State::initial().legal_moves();
+            let candidates = body["candidates"].as_array().unwrap();
+            assert!(!candidates.is_empty());
+            assert!(candidates.len() <= 3);
+            for c in candidates {
+                let position = serde_json::from_value(c["position"].clone()).unwrap();
+                assert!(legal.contains(&position));
+                assert!(
+                    c["solo_wins"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_u64().unwrap())
+                        .sum::<u64>()
+                        <= c["visits"].as_u64().unwrap()
+                );
+            }
+            let mut state = serde_json::to_value(
+                State::initial()
+                    .eliminate(tetraboard_ai_engine::four_reversi::Color::Blue)
                     .unwrap()
-                    .iter()
-                    .map(|v| v.as_u64().unwrap())
-                    .sum::<u64>()
-                    <= c["visits"].as_u64().unwrap()
+                    .state,
+            )
+            .unwrap();
+            state.as_object_mut().unwrap().remove("result");
+            p["state"] = state;
+            assert_eq!(
+                send(app, "POST", "/v1/analysis", p, true).await.0,
+                StatusCode::OK
             );
         }
-        let mut p = payload();
-        let mut state = serde_json::to_value(
-            State::initial()
-                .eliminate(tetraboard_ai_engine::four_reversi::Color::Blue)
-                .unwrap()
-                .state,
-        )
-        .unwrap();
-        state.as_object_mut().unwrap().remove("result");
-        p["state"] = state;
-        assert_eq!(
-            send(app, "POST", "/v1/analysis", p, true).await.0,
-            StatusCode::OK
-        );
     }
     #[tokio::test]
     async fn cancellation_before_post_is_idempotent_and_does_not_block_new_request() {
@@ -435,7 +443,7 @@ mod tests {
         });
         let state = LocalState {
             token: Arc::new(TOKEN.into()),
-            profile: Arc::new(builtin_profiles().unwrap().remove(4)),
+            profiles: Arc::new(local_analysis_profiles().unwrap()),
             jobs: Arc::new(Mutex::new(Jobs {
                 active: Some(job.clone()),
                 cancelled: VecDeque::new(),

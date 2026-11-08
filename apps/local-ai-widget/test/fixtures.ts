@@ -5,6 +5,7 @@ import {
   type AnalysisRequest,
   type AnalysisResponse,
 } from "../src/model";
+import { localProfile } from "../src/profiles";
 export const playerId = "00000000-0000-4000-8000-000000000001";
 export function observation(): Observation {
   return {
@@ -45,10 +46,10 @@ export function responseFor(r: AnalysisRequest): AnalysisResponse {
     api_version: 1,
     request_id: r.request_id,
     position_revision: r.position_revision,
-    profile_id: "lv5-v1",
-    profile_hash: "a".repeat(64),
+    profile_id: r.profile_id,
+    profile_hash: localProfile(r.profile_id).hash,
     engine_version: "0.2.0",
-    effective_limits: { max_iterations: 2048, max_nodes: 65536, max_time_ms: 2000 },
+    effective_limits: localProfile(r.profile_id).limits,
     reproducible: false,
     cancelled: false,
     candidates: [

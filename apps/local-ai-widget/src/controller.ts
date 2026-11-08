@@ -9,6 +9,7 @@ import {
   type AnalysisResponse,
   type Observation,
 } from "./model";
+import { type LocalProfileId } from "./profiles";
 export type Reply = { ok: boolean; error?: string; data?: unknown };
 export type Transport = (message: unknown) => Promise<Reply>;
 export class WidgetController {
@@ -18,6 +19,7 @@ export class WidgetController {
   switching = false;
   error = "";
   result: AnalysisResponse | null = null;
+  profileId: LocalProfileId = "lv5-v1";
   private version = 0;
   private epoch = 0;
   private identity = "";
@@ -148,6 +150,15 @@ export class WidgetController {
     this.error = "解析を停止しました";
     this.changed();
   }
+  selectProfile(profileId: LocalProfileId) {
+    if (this.switching || profileId === this.profileId) return;
+    this.profileId = profileId;
+    this.invalidate();
+    this.lastAuto = "";
+    this.error = "";
+    this.changed();
+    this.maybeAuto();
+  }
   private maybeAuto() {
     if (
       this.canAnalyze &&
@@ -178,7 +189,7 @@ export class WidgetController {
         state_version: 2,
         request_id: crypto.randomUUID(),
         position_revision: hash,
-        profile_id: "lv5-v1",
+        profile_id: this.profileId,
         state: {
           board: game.board,
           turn: game.turn,

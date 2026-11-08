@@ -1,0 +1,27 @@
+{
+  "format_version": 1,
+  "profiles": [
+    {
+      "id": "lv6-candidate-a-v1",
+      "config": {
+        "agent_id": "four-reversi-mcts-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "rollout": "uniform",
+        "exploration_milli": 1414,
+        "budget": {
+          "max_iterations": 8192,
+          "max_nodes": 262144,
+          "max_time_ms": 2000
+        }
+      },
+      "profile_hash": "eb436acc1c17c588c6e1b31ffe363bada57de1c49b5ede32339809849a7fd190"
+    }
+  ]
+}

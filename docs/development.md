@@ -74,7 +74,7 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 四人リバーシの進行中RoomにはroundIdがないため、接続先・部屋ID・instanceId・接続世代・局の世代・本人と色対応・ルール状態・手番開始時刻で解析対象を識別します。時計残時間・チャット・更新時刻だけでは再解析しません。古い受信時刻のsnapshotも破棄します。局面のSHA-256と要求IDを応答・描画前に照合します。DOMは既存aria-labelの座標と石色で64マスを照合し、位置取得に失敗した場合は番号表示を止めます。復帰・遷移はbridgeの最新確定状態を再要求します。
 
-`packages/ai`のMCTSは通常選択経路を維持したまま任意の根候補収集を追加し、server crateの別バイナリにローカルルーターを置きます。既存Serviceのrouterへ解析APIを追加しません。固定fixtureの改修前コミットに対する選択手・探索診断・連続呼び出しを回帰確認します。検証分担は [テスト方針](testing.md#ローカルai解析widgetの確認) を参照します。
+`packages/ai`のMCTSは通常選択経路を維持したまま任意の根候補収集を追加し、server crateの別バイナリにローカルルーターを置きます。既存Serviceのrouterへ解析APIを追加しません。ローカル専用候補は `packages/ai/configs/local-analysis-profiles-v1.json` に定義し、agentsの `local_analysis_profiles` と拡張の `profiles.ts` から読みます。公開Lv1〜5の一覧は維持し、要求・応答でprofile・設定hash・実効予算を照合します。widgetの `selectProfile` は世代を更新して結果を破棄し、本人手番の自動解析を再開します。[Lv6候補の比較計画](../packages/ai/docs/lv6-candidate.md)を参照してください。固定fixtureの改修前コミットに対する選択手・探索診断・連続呼び出しを回帰確認します。検証分担は [テスト方針](testing.md#ローカルai解析widgetの確認) を参照します。
 
 ## ランダムマッチの実装
 
