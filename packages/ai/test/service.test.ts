@@ -48,18 +48,19 @@ test("実HTTPのhealthと認証境界を確認する", async () => {
 });
 
 test("実AI Serviceへ接続したWorkerで完走・再起動・重複・失敗を検証する", async () => {
-  const child = Bun.spawn(["bun", "run", "test", "--config", "vitest.ai-service.config.mts"], {
-    cwd: new URL("../../../apps/worker", import.meta.url).pathname,
-    env: { ...process.env, TETRABOARD_AI_TEST_URL: baseUrl, TETRABOARD_AI_TEST_TOKEN: token },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (code !== 0) throw Error(`Worker AI Service integration failed\n${stdout}\n${stderr}`);
-  console.log(stdout);
-  expect(stdout).toContain("passed");
+  const child = Bun.spawn(
+    ["bun", "run", "test", "--config", "vitest.ai-service.config.mts", "--reporter=verbose"],
+    {
+      cwd: new URL("../../../apps/worker", import.meta.url).pathname,
+      env: { ...process.env, TETRABOARD_AI_TEST_URL: baseUrl, TETRABOARD_AI_TEST_TOKEN: token },
+      stdout: "inherit",
+      stderr: "inherit",
+    },
+  );
+  try {
+    expect(await child.exited).toBe(0);
+  } finally {
+    child.kill("SIGTERM");
+    await child.exited;
+  }
 }, 30000);
