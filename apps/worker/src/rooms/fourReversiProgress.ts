@@ -44,6 +44,7 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import { z } from "zod";
+import { sameServiceProfile, serviceProfileSchema, type ServiceProfile } from "./aiServiceProfiles";
 type Playing = PlayingFor<"four-reversi">;
 type Result = ProgressFor<"four-reversi">;
 export const fourReversiCpuJobKey = "four-reversi-cpu-job";
@@ -60,6 +61,7 @@ const cpuJobSchema = z.object({
   applyAt: z.number().finite().nonnegative(),
   source: z.enum(["external", "fallback"]).optional(),
   requestId: z.string().uuid().optional(),
+  serviceProfile: serviceProfileSchema.optional(),
 });
 export type FourReversiCpuJob = z.infer<typeof cpuJobSchema>;
 const externalJobSchema = cpuJobSchema
@@ -377,7 +379,12 @@ export class FourReversiProgress {
     );
   }
 
-  prepareExternalCpu(room: Playing, now: number, timeoutMs: number): ExternalCpuWork | null {
+  prepareExternalCpu(
+    room: Playing,
+    now: number,
+    timeoutMs: number,
+    serviceProfile?: ServiceProfile,
+  ): ExternalCpuWork | null {
     if (
       !supportsExternalAi(room) ||
       room.clock.turnStartedAt + cpuMoveDelayMs > now ||
@@ -401,6 +408,7 @@ export class FourReversiProgress {
       turnStartedAt: room.clock.turnStartedAt,
       positionKey: cpuPositionKey(room.game),
       requestId: crypto.randomUUID(),
+      ...(cpu.level === 2 && serviceProfile ? { serviceProfile } : {}),
       expiresAt: Math.min(room.clock.turnExpiresAt, now + timeoutMs + 250),
     };
     this.storage.kv.put(fourReversiAiJobKey, job);
@@ -417,6 +425,7 @@ export class FourReversiProgress {
     if (
       !current ||
       current.requestId !== job.requestId ||
+      !sameServiceProfile(current.serviceProfile, job.serviceProfile) ||
       !this.matchesExternal(room, job) ||
       isClockExpired(room.clock, now) ||
       this.storage.kv.get(fourReversiCpuJobKey) !== undefined

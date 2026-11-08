@@ -1,11 +1,19 @@
 import { z } from "zod";
 import type { ExternalCpuWork } from "./fourReversiProgress";
 import type { Position } from "@tetraboard/four-reversi";
+import {
+  expectedProfileLimits,
+  profileIdSchema,
+  profileLimitsSchema,
+  profileMetadata,
+} from "./aiServiceProfiles";
 
 export interface AiServiceBindings {
   AI_SERVICE_URL?: string;
   AI_SERVICE_TOKEN?: string;
   AI_SERVICE_TIMEOUT_MS?: string;
+  AI_SERVICE_LEVEL2_PROFILE?: string;
+  AI_SERVICE_LEVEL2_LIMITS?: string;
 }
 
 export const aiServiceEnabled = (bindings: AiServiceBindings) => !!bindings.AI_SERVICE_URL;
@@ -28,6 +36,33 @@ const responseSchema = z.strictObject({
     nodes: z.int().min(0).max(4096),
     completed_depth: z.int().min(0).max(4),
     interrupted: z.boolean(),
+  }),
+});
+
+const profileResponseSchema = responseSchema.extend({
+  api_version: z.literal(2),
+  agent_id: z.enum([
+    "four-reversi-random-v1",
+    "four-reversi-greedy-v1",
+    "four-reversi-maxn-v1",
+    "four-reversi-mcts-v1",
+  ]),
+  profile_id: profileIdSchema,
+  profile_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  effective_limits: profileLimitsSchema.nullable(),
+  reproducible: z.boolean(),
+  diagnostics: z.strictObject({
+    nodes: z.int().min(0).max(65536),
+    completed_depth: z.int().min(0).max(6),
+    interrupted: z.boolean(),
+    mcts: z
+      .strictObject({
+        iterations_started: z.int().min(0).max(4096),
+        trials: z.int().min(0).max(4096),
+        max_tree_depth: z.int().min(0).max(56),
+        stop_reason: z.enum(["terminal", "iteration_limit", "node_limit", "deadline"]),
+      })
+      .optional(),
   }),
 });
 
@@ -73,6 +108,18 @@ export async function requestAiMove(
   work: ExternalCpuWork,
 ): Promise<{ position: Position | null; reason?: string }> {
   const token = bindings.AI_SERVICE_TOKEN;
+  const selectedProfile = work.job.serviceProfile;
+  if (selectedProfile && "configuration_error" in selectedProfile)
+    return { position: null, reason: "configuration" };
+  let expectedLimits: ReturnType<typeof expectedProfileLimits> = null;
+  if (selectedProfile) {
+    if (!selectedProfile.profile_hash) return { position: null, reason: "configuration" };
+    try {
+      expectedLimits = expectedProfileLimits(selectedProfile);
+    } catch {
+      return { position: null, reason: "configuration" };
+    }
+  }
   let url: URL;
   try {
     url = new URL(bindings.AI_SERVICE_URL ?? "");
@@ -103,15 +150,24 @@ export async function requestAiMove(
   const revision = Array.from(new Uint8Array(digest), (value) =>
     value.toString(16).padStart(2, "0"),
   ).join("");
-  const agentId = work.job.level === 1 ? "four-reversi-random-v1" : "four-reversi-greedy-v1";
+  const agentId = selectedProfile
+    ? profileMetadata(selectedProfile.profile_id).config.agent_id
+    : work.job.level === 1
+      ? "four-reversi-random-v1"
+      : "four-reversi-greedy-v1";
   const body = JSON.stringify({
-    api_version: 1,
+    api_version: selectedProfile ? 2 : 1,
     game_id: "four-reversi",
     ruleset_version: "four-reversi-singles-v1",
     state_version: 1,
     request_id: requestId,
     position_revision: revision,
-    agent_id: agentId,
+    ...(selectedProfile
+      ? {
+          profile_id: selectedProfile.profile_id,
+          ...(selectedProfile.limits ? { limits: selectedProfile.limits } : {}),
+        }
+      : { agent_id: agentId }),
     seed: Number.parseInt(revision.slice(0, 8), 16),
     state: {
       board: work.game.board,
@@ -129,7 +185,7 @@ export async function requestAiMove(
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const response = await fetch(new URL("/v1/move", url), {
+        const response = await fetch(new URL(selectedProfile ? "/v2/move" : "/v1/move", url), {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body,
@@ -143,7 +199,10 @@ export async function requestAiMove(
             response.status === 429 || response.status >= 500,
           );
         }
-        const parsed = responseSchema.safeParse(await responseJson(response));
+        const data = await responseJson(response);
+        const parsed = selectedProfile
+          ? profileResponseSchema.safeParse(data)
+          : responseSchema.safeParse(data);
         if (
           !parsed.success ||
           parsed.data.request_id !== requestId ||
@@ -151,6 +210,32 @@ export async function requestAiMove(
           parsed.data.agent_id !== agentId
         )
           throw new ServiceError("invalid_response");
+        if (selectedProfile) {
+          const profile = profileResponseSchema.parse(data);
+          const limits = profile.effective_limits;
+          const mcts = profile.diagnostics.mcts;
+          if (
+            profile.profile_id !== selectedProfile.profile_id ||
+            profile.profile_hash !== selectedProfile.profile_hash ||
+            (limits === null) !== (expectedLimits === null) ||
+            (["max_iterations", "max_nodes", "max_time_ms"] as const).some(
+              (key) => limits?.[key] !== expectedLimits?.[key],
+            ) ||
+            profile.reproducible !== !limits?.max_time_ms ||
+            (limits?.max_nodes !== undefined && profile.diagnostics.nodes > limits.max_nodes) ||
+            (selectedProfile.limits?.max_nodes !== undefined &&
+              (limits?.max_nodes ?? Infinity) > selectedProfile.limits.max_nodes) ||
+            (selectedProfile.limits?.max_iterations !== undefined &&
+              (limits?.max_iterations ?? Infinity) > selectedProfile.limits.max_iterations) ||
+            limits?.max_time_ms !== selectedProfile.limits?.max_time_ms ||
+            (agentId === "four-reversi-mcts-v1" &&
+              (!mcts ||
+                !limits?.max_iterations ||
+                mcts.trials > mcts.iterations_started ||
+                mcts.iterations_started > limits.max_iterations))
+          )
+            throw new ServiceError("invalid_response");
+        }
         return { position: parsed.data.position };
       } catch (error) {
         if (controller.signal.aborted) return { position: null, reason: "timeout" };

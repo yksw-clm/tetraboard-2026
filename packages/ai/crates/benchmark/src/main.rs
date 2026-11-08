@@ -3,7 +3,7 @@ use std::io::{self, BufWriter, Write};
 use std::process::{Command, ExitCode};
 use tetraboard_ai_benchmark::{
     play_game,
-    tournament::{TournamentConfig, run_tournament},
+    tournament::{TournamentConfig, run_tournament_with_jobs},
 };
 
 const USAGE: &str = "Usage: tetraboard-ai-benchmark [--games <positive-u64>] [--seed <u64>]\n       tetraboard-ai-benchmark --config <path> [--rounds <positive-u64>] [--seed <u64>]\nDefaults: random mode 1 game, seed 0; config mode 1 round with 4 rotations per matchup and config.seed. Outputs JSONL.";
@@ -14,6 +14,7 @@ struct Options {
     seed: Option<u64>,
     config: Option<String>,
     rounds: u64,
+    jobs: usize,
 }
 
 fn parse_options(args: impl IntoIterator<Item = String>) -> Result<Option<Options>, String> {
@@ -23,13 +24,14 @@ fn parse_options(args: impl IntoIterator<Item = String>) -> Result<Option<Option
         seed: None,
         config: None,
         rounds: 1,
+        jobs: 1,
     };
     let mut seen = Vec::new();
     while let Some(flag) = args.next() {
         if flag == "--help" || flag == "-h" {
             return Ok(None);
         }
-        if !["--games", "--seed", "--config", "--rounds"].contains(&flag.as_str())
+        if !["--games", "--seed", "--config", "--rounds", "--jobs"].contains(&flag.as_str())
             || seen.contains(&flag)
         {
             return Err(format!("不明または重複した引数: {flag}"));
@@ -49,12 +51,13 @@ fn parse_options(args: impl IntoIterator<Item = String>) -> Result<Option<Option
             "--games" if number > 0 => options.games = number,
             "--seed" => options.seed = Some(number),
             "--rounds" if number > 0 => options.rounds = number,
+            "--jobs" if (1..=4).contains(&number) => options.jobs = number as usize,
             _ => return Err("--gamesと--roundsは1以上にしてください".into()),
         }
         seen.push(flag);
     }
     if (options.config.is_some() && seen.iter().any(|s| s == "--games"))
-        || (options.config.is_none() && seen.iter().any(|s| s == "--rounds"))
+        || (options.config.is_none() && seen.iter().any(|s| s == "--rounds" || s == "--jobs"))
     {
         return Err("--gamesはランダム対局専用、--roundsは--configと併用してください".into());
     }
@@ -105,10 +108,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut output = BufWriter::new(io::stdout().lock());
     if let Some(path) = options.config {
         let config: TournamentConfig = serde_json::from_str(&std::fs::read_to_string(path)?)?;
-        let summary = run_tournament(
+        let summary = run_tournament_with_jobs(
             &config,
             options.rounds,
             options.seed.unwrap_or(config.seed),
+            options.jobs,
             |record| emit(&mut output, &environment, record).map_err(|error| error.to_string()),
         )?;
         emit(&mut output, &environment, &summary)?;
@@ -167,7 +171,8 @@ mod tests {
                 games: 1,
                 seed: None,
                 config: None,
-                rounds: 1
+                rounds: 1,
+                jobs: 1
             })
         );
         assert_eq!(
@@ -176,7 +181,8 @@ mod tests {
                 games: 100,
                 seed: Some(u64::MAX),
                 config: None,
-                rounds: 1
+                rounds: 1,
+                jobs: 1
             })
         );
         assert_eq!(parse(&["--help"]).unwrap(), None);

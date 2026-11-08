@@ -6,7 +6,9 @@ use tetraboard_ai_engine::four_reversi::{Position, State};
 
 pub mod config;
 pub mod evaluation;
+pub mod mcts;
 pub mod policy;
+pub mod profiles;
 pub use policy::{Agent, Decision, SearchStats, build_agent};
 
 pub const AGENT_ID: &str = "four-reversi-random-v1";

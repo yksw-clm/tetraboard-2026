@@ -1,0 +1,89 @@
+{
+  "format_version": 1,
+  "profiles": [
+    {
+      "id": "lv1-v1",
+      "config": {
+        "agent_id": "four-reversi-random-v1",
+        "seed": 0
+      },
+      "profile_hash": "efa9502656a959bcfd993e7ba42ac0c705d4b20ee53fda63316e9538097271f0"
+    },
+    {
+      "id": "lv2-v1",
+      "config": {
+        "agent_id": "four-reversi-greedy-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        }
+      },
+      "profile_hash": "e9d73d9f70c9784667348f31b732ac396e1fba8422d37828698a61e311ee3305"
+    },
+    {
+      "id": "lv3-v1",
+      "config": {
+        "agent_id": "four-reversi-maxn-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "budget": {
+          "max_depth": 3,
+          "max_nodes": 1024
+        }
+      },
+      "profile_hash": "c2b327ed2e4beebdaee84931b35cea50bf8cbaf54831e6e116219a5913cbc748"
+    },
+    {
+      "id": "lv4-v1",
+      "config": {
+        "agent_id": "four-reversi-mcts-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "rollout": "uniform",
+        "exploration_milli": 1414,
+        "budget": {
+          "max_iterations": 512,
+          "max_nodes": 65536
+        }
+      },
+      "profile_hash": "08fb4ce036bb195dbe803848db086ba36db8a2c5cf76d79f3690c40c2511e6f4"
+    },
+    {
+      "id": "lv5-v1",
+      "config": {
+        "agent_id": "four-reversi-mcts-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "rollout": "uniform",
+        "exploration_milli": 1414,
+        "budget": {
+          "max_iterations": 2048,
+          "max_nodes": 65536
+        }
+      },
+      "profile_hash": "c16ee482750b7ba37e554beaa776317dd4b00fe071a9c47f66f186adab575163"
+    }
+  ]
+}

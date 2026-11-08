@@ -2,6 +2,7 @@ FROM rust:1.99.1-slim-bookworm AS build
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+COPY configs ./configs
 RUN cargo build --release --locked --jobs 2 -p tetraboard-ai-server
 
 FROM debian:bookworm-slim

@@ -15,7 +15,12 @@
     "test": "cargo test --workspace --locked && bun test ./test",
     "bench": "cargo run --release --locked -p tetraboard-ai-benchmark --",
     "serve": "cargo run --release --locked -p tetraboard-ai-server",
-    "check": "bun run typecheck && bun run test"
+    "check": "bun run typecheck && bun run test",
+    "study:build": "cargo build --release --locked --bins",
+    "study:tune": "bun run study:build && bun scripts/phase3Study.ts",
+    "study:evaluate": "bun run study:build && bun scripts/phase3Evaluate.ts",
+    "study:performance": "bun run study:build && bun scripts/phase3Performance.ts",
+    "study:analyze": "cargo run --release --locked -p tetraboard-ai-benchmark --bin study -- analyze"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

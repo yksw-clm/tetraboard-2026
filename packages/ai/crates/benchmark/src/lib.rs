@@ -7,6 +7,7 @@ use tetraboard_ai_engine::four_reversi::{
     COLORS, Color, ENGINE_VERSION, MAX_MOVES, Position, RULESET_VERSION, State,
 };
 
+pub mod study;
 pub mod tournament;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -42,6 +43,8 @@ pub struct MoveLog {
     pub completed_depth: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interrupted: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcts: Option<tetraboard_ai_agents::mcts::MctsStats>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -97,7 +100,10 @@ fn play(
         color,
         agent_id: configs[color.index()].id(),
         agent_config: AgentConfig {
-            rng: if matches!(configs[color.index()], PolicyConfig::Random { .. }) {
+            rng: if matches!(
+                configs[color.index()],
+                PolicyConfig::Random { .. } | PolicyConfig::Mcts { .. }
+            ) {
                 RNG_ID
             } else {
                 "none"
@@ -142,9 +148,10 @@ fn play(
             passed_colors: transition.passed_colors,
             decision_time_ns,
             search_nodes: decision.stats.nodes,
-            trials: 0,
+            trials: decision.stats.mcts.as_ref().map_or(0, |m| m.trials),
             completed_depth: configured.map(|_| decision.stats.completed_depth),
             interrupted: configured.map(|_| decision.stats.interrupted),
+            mcts: decision.stats.mcts,
         });
         state = transition.state;
     }

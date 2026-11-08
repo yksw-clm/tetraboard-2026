@@ -7,7 +7,7 @@
 ## 採用する構成
 
 - Bun Workspaceでフロントエンド、サーバー、共有コードを管理し、miseでBun・Node.js・AI開発用Rustの版を固定する。各ゲームの純粋なルールとCPUは `packages/` 配下へ分離する。
-- 新しいAI開発基盤は [packages/ai](../packages/ai/README.md) のRust Workspaceに置く。Engine・Agent・Benchmark・HTTP serverを分離し、対象は脱落のない四人リバーシ・シングルスとする。Axum + TokioのServiceはBearer認証と入力・予算・同時実行の制限を持ち、候補手だけを返す。設定時にだけGame Roomから呼び、Game Roomが状態・手番・合法手・時計・勝敗を確定する。未完了要求と候補をDOへ保存し、ネットワークI/Oをtransaction外に置き、局面・期限照合と次Alarmでの適用により重複・古い応答を捨てる。ホスティングは未決定で、ローカルのlinux/amd64コンテナを検証済み。既存AIを新しいAgentへ流用せず、学習・他ゲームの雛形は追加しない。
+- 新しいAI開発基盤は [packages/ai](../packages/ai/README.md) のRust Workspaceに置く。Engine・Agent・Benchmark・HTTP serverを分離し、対象は脱落のない四人リバーシ・シングルスとする。Axum + TokioのServiceはBearer認証と入力・予算・同時実行の制限を持ち、候補手だけを返す。設定時にだけGame Roomから呼び、Game Roomが状態・手番・合法手・時計・勝敗を確定する。未完了要求と候補をDOへ保存し、ネットワークI/Oをtransaction外に置き、局面・期限照合と次Alarmでの適用により重複・古い応答を捨てる。開発用API v2では共有profileのID・設定hash・削減予算も要求時に固定して照合する。多人数MCTS・比較条件・採用基準は[フェーズ3](../packages/ai/docs/phase3.md)を参照する。ホスティングは未決定で、ローカルのlinux/amd64コンテナを検証済み。既存AIを新しいAgentへ流用せず、学習・他ゲームの雛形は追加しない。
 - フロントエンドはVite、React、TypeScriptで作る。
 - 本番の `tetraboard-2026` WorkerでViteのビルド成果物をStatic Assetsとして配信する。画面はSPAフォールバックを使い、`/api` と `/api/*` はWorkerを先に実行する。Honoは `/api` 接頭辞付きと既存のWorker直接アクセスの両方を扱う。HTTP APIとWebSocketは画面と同じオリジンを使う。
 - サーバーはCloudflare Workers上のTypeScriptで作る。HTTPのルーティングにはHonoを使う。HTTPとWebSocketの入口を担当し、ルームIDに対応するDurable Objectへ処理を渡す。

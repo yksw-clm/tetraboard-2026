@@ -14,6 +14,8 @@
 
 ## Rust AI基盤の確認
 
+フェーズ3は[MCTSと採用基準](../packages/ai/docs/phase3.md)に従い、単独1位報酬・予算中断・再現性・全24席順を検証します。API v2の全5profileでローカルの実Serviceとの完走・復元、不正profile/予算/応答・同じ要求IDでの保存profile変更を確認します。大量対局と速度・CPU測定は専用コマンドで行い、通常のcheckでは低い予算を使います。
+
 フェーズ2はRustのHTTP境界（認証・版・入力・予算・過負荷）と、実プロセス間のService接続を検証します。`packages/ai/test/service.test.ts`が実Rust serverを起動し、明示したloopback URL・検証用tokenで`vitest.ai-service.config.mts`を実行します。`test-ai-service/`のテストは通常Worker分割と重複せず、AI workspaceから全体check・Full CIに含めます。人間1人＋CPU3人の完走、候補保存後の再起動、重複Alarm・古い世代・時計切れ、再試行・不正/過大応答・timeout・未完了要求の復旧を確認します。開発用の個人設定を読みません。承認済みの[クラウド測定](../packages/ai/docs/cloudflare-validation.md)は独立した検証用Workerに対して別途実施し、通常のcheckは外部クラウドへ接続しません。
 
 フェーズ1は角・石数・機動力・配置の評価、同点順、MaxNの完了深さ・予算中断、終局評価と3色パス後の本人手番を検証します。比較CLIでは設定を読み、4組合せ×4回転の混在対局をTypeScriptで再生し、探索量の上限・summaryを確認します。全色の合法手数は別の固定fixtureで両言語を比較します。回転ごとの席の均等性、固定seedの再現、同率1位と単独1位の区別、失敗を含む分母と全失敗時のnullもRustで検証します。実時間の上限には依存しません。評価・集計の定義と比較条件は[フェーズ1文書](../packages/ai/docs/phase1.md)を参照してください。

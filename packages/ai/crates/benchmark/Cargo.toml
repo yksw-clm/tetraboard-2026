@@ -1,5 +1,6 @@
 [package]
 name = "tetraboard-ai-benchmark"
+default-run = "tetraboard-ai-benchmark"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +11,8 @@ tetraboard-ai-engine.workspace = true
 tetraboard-ai-agents.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
 
 [lints]
 workspace = true

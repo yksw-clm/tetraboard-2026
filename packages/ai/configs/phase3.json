@@ -1,0 +1,112 @@
+{
+  "format_version": 2,
+  "seed": 1000000,
+  "seat_orders": "all_permutations",
+  "profiles": [
+    {
+      "id": "lv1-v1",
+      "config": {
+        "agent_id": "four-reversi-random-v1",
+        "seed": 0
+      }
+    },
+    {
+      "id": "lv2-v1",
+      "config": {
+        "agent_id": "four-reversi-greedy-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        }
+      }
+    },
+    {
+      "id": "lv3-v1",
+      "config": {
+        "agent_id": "four-reversi-maxn-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "budget": {
+          "max_depth": 3,
+          "max_nodes": 1024
+        }
+      }
+    },
+    {
+      "id": "lv4-v1",
+      "config": {
+        "agent_id": "four-reversi-mcts-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "rollout": "uniform",
+        "exploration_milli": 1414,
+        "budget": {
+          "max_iterations": 512,
+          "max_nodes": 65536
+        }
+      }
+    },
+    {
+      "id": "lv5-v1",
+      "config": {
+        "agent_id": "four-reversi-mcts-v1",
+        "seed": 0,
+        "weights": {
+          "stones": 1,
+          "endgame_stones": 6,
+          "mobility": 4,
+          "corners": 32,
+          "position": 2
+        },
+        "rollout": "uniform",
+        "exploration_milli": 1414,
+        "budget": {
+          "max_iterations": 2048,
+          "max_nodes": 65536
+        }
+      }
+    }
+  ],
+  "matchups": [
+    {
+      "id": "lv4-v1-vs-lv3-v1-0",
+      "lineup": ["lv4-v1", "lv3-v1", "lv1-v1", "lv2-v1"]
+    },
+    {
+      "id": "lv4-v1-vs-lv3-v1-1",
+      "lineup": ["lv4-v1", "lv3-v1", "lv2-v1", "lv3-v1"]
+    },
+    {
+      "id": "lv4-v1-vs-lv3-v1-2",
+      "lineup": ["lv4-v1", "lv3-v1", "lv3-v1", "lv3-v1"]
+    },
+    {
+      "id": "lv5-v1-vs-lv4-v1-0",
+      "lineup": ["lv5-v1", "lv4-v1", "lv1-v1", "lv2-v1"]
+    },
+    {
+      "id": "lv5-v1-vs-lv4-v1-1",
+      "lineup": ["lv5-v1", "lv4-v1", "lv2-v1", "lv3-v1"]
+    },
+    {
+      "id": "lv5-v1-vs-lv4-v1-2",
+      "lineup": ["lv5-v1", "lv4-v1", "lv3-v1", "lv3-v1"]
+    }
+  ]
+}

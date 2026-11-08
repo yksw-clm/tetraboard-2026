@@ -17,6 +17,7 @@ import {
 import fixtures from "../fixtures/four-reversi-v1.json";
 import mobility from "../fixtures/mobility-v1.json";
 import phase1 from "../configs/phase1.json";
+import registry from "../configs/profiles-v1.json";
 
 const symbols: Record<Color, string> = { black: "K", white: "W", red: "R", blue: "B" };
 const cells: Record<string, Cell> = { ".": null, K: "black", W: "white", R: "red", B: "blue" };
@@ -106,6 +107,12 @@ type GameLog = {
     trials: number;
     completed_depth?: number;
     interrupted?: boolean;
+    mcts?: {
+      trials: number;
+      iterations_started: number;
+      max_tree_depth: number;
+      stop_reason: string;
+    };
   }[];
   final_state: LoggedState;
   outcomes: { color: Color; score: number; rank: number; won: boolean; shared_first: boolean }[];
@@ -160,7 +167,10 @@ function verifyGame(log: GameLog) {
   for (const entry of log.moves) {
     expect(state.turn).toBe(entry.color);
     expect(getLegalMoves(state)).toEqual(entry.legal_moves);
-    expect(entry.trials).toBe(0);
+    if (entry.mcts) {
+      expect(entry.trials).toBe(entry.mcts.trials);
+      expect(entry.trials).toBeLessThanOrEqual(entry.mcts.iterations_started);
+    } else expect(entry.trials).toBe(0);
     const result = applyAction(state, { type: "placeStone", position: entry.position });
     if (!result.ok) throw new Error(`Rustの着手を拒否しました: ${result.reason}`);
     expect(result.flipped).toEqual(entry.flipped);
@@ -265,3 +275,69 @@ test("設定ファイルでLv1〜3を混在させた全組合せ・席順とsumm
     rmSync(directory, { recursive: true, force: true });
   }
 }, 15000);
+
+test("MCTSを含む全24席順の棋譜と診断をTypeScriptルールで照合する", () => {
+  const directory = mkdtempSync(join(tmpdir(), "tetraboard-ai-phase3-"));
+  try {
+    const profiles = registry.profiles.map((p) => {
+      const config = structuredClone(p.config) as Record<string, unknown>;
+      if (config.agent_id === "four-reversi-mcts-v1")
+        config.budget = { max_iterations: 2, max_nodes: 128 };
+      if (config.agent_id === "four-reversi-maxn-v1")
+        config.budget = { max_depth: 2, max_nodes: 32 };
+      return { id: p.id, config };
+    });
+    const config = {
+      format_version: 2,
+      seed: 17,
+      seat_orders: "all_permutations",
+      profiles,
+      matchups: [{ id: "mixed", lineup: ["lv1-v1", "lv2-v1", "lv4-v1", "lv5-v1"] }],
+    };
+    const path = join(directory, "config.json");
+    writeFileSync(path, JSON.stringify(config));
+    const result = Bun.spawnSync(
+      [
+        "cargo",
+        "run",
+        "--quiet",
+        "--locked",
+        "-p",
+        "tetraboard-ai-benchmark",
+        "--",
+        "--config",
+        path,
+        "--rounds",
+        "1",
+        "--jobs",
+        "4",
+      ],
+      { cwd: new URL("..", import.meta.url).pathname },
+    );
+    expect(result.exitCode).toBe(0);
+    const rows = result.stdout
+      .toString()
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const summary = rows.pop();
+    expect(summary.format_version).toBe(3);
+    expect(summary.completed_games).toBe(24);
+    expect(summary.failed_games).toBe(0);
+    expect(new Set(rows.map((row) => JSON.stringify(row.lineup_slots))).size).toBe(24);
+    let simulations = 0;
+    for (const row of rows) {
+      verifyGame(row.game as GameLog);
+      expect(row.game.format_version).toBe(3);
+      for (const move of row.game.moves)
+        if (move.mcts) {
+          simulations += move.trials;
+          expect(move.search_nodes).toBeLessThanOrEqual(128);
+          expect(move.trials).toBeLessThanOrEqual(2);
+        }
+    }
+    expect(simulations).toBeGreaterThan(0);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}, 30000);

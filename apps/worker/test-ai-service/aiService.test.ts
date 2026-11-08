@@ -16,6 +16,7 @@ import {
   type FourReversiCpuJob,
 } from "../src/rooms/fourReversiProgress";
 import { aiServiceTimeout, requestAiMove } from "../src/rooms/aiService";
+import { profileIdSchema, profileMetadata } from "../src/rooms/aiServiceProfiles";
 
 let fixtures = new RoomBoundaryFixtures();
 let now = 0;
@@ -45,8 +46,8 @@ async function setup(level = 1, mode: GameMode = "singles") {
   return { host, stub, read };
 }
 
-async function cpuSetup(mode: GameMode = "singles") {
-  const input = await setup(1, mode);
+async function cpuSetup(mode: GameMode = "singles", level = 1) {
+  const input = await setup(level, mode);
   await runInDurableObject(input.stub, (_, ctx) => {
     const room = fourReversiRoomSchema.parse(ctx.storage.kv.get("room"));
     if (room.status !== "playing") throw Error("Expected playing");
@@ -81,54 +82,94 @@ test("WorkerのHTTP境界から実Serviceのhealthへ到達する", async () => 
   expect(withRedirect.status).toBe(200);
 });
 
-for (const level of [1, 2])
-  test(`実Rust Serviceと人間1人・CPU3人のLv${level}対局を終局まで進める`, async () => {
-    const { host, stub, read } = await setup(level);
-    let cpuMoves = 0;
-    for (let step = 0; step < 57; step++) {
-      const room = await read();
-      if (room.status !== "playing") {
-        const replay = roundReplaySchema.parse(room.lastRound?.replay);
-        let game = createInitialState("singles");
-        for (const entry of replay.steps) {
-          if (entry.action.type !== "place") throw Error("Unexpected elimination");
-          const next = applyAction(game, { type: "placeStone", position: entry.action.position });
-          if (!next.ok) throw Error("Invalid saved move");
-          expect(next.state).toEqual(entry.game);
-          game = next.state;
-        }
-        expect(game.status).toBe("finished");
-        expect(cpuMoves).toBeGreaterThan(0);
-        return;
-      }
-      const player = room.players.find((p) => p.color === room.game.turn)!;
-      if (player.kind === "human") {
-        now = Math.max(now, room.clock.turnStartedAt) + 1;
-        host.send({
-          type: "room.game.action",
-          action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
-        });
-        await host.waitFor(
-          "room.snapshot",
-          (m) =>
-            m.room.status === "waiting" || (m.room.game?.moveNumber ?? 0) > room.game.moveNumber,
-        );
-      } else {
-        now = room.clock.turnStartedAt + 2000;
-        await runInDurableObject(stub, (instance) => instance.alarm());
-        const job = await runInDurableObject(stub, (_, ctx) =>
-          ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
-        );
-        expect(job?.source).toBe("external");
-        expect((await read()).game?.moveNumber).toBe(room.game.moveNumber);
-        if (cpuMoves === 2) await evictDurableObject(stub, { webSockets: "hibernate" });
-        now++;
-        await runInDurableObject(stub, (instance) => instance.alarm());
-        cpuMoves++;
-      }
+async function alarmWithProfile(
+  stub: ReturnType<typeof env.GAME_ROOM.getByName>,
+  selected?: { profile_id: string; limits?: { max_iterations: number; max_nodes: number } },
+) {
+  await runInDurableObject(stub, async (instance) => {
+    const original = Reflect.get(instance, "env");
+    if (selected)
+      Reflect.set(instance, "env", {
+        ...original,
+        AI_SERVICE_LEVEL2_PROFILE: selected.profile_id,
+        AI_SERVICE_LEVEL2_LIMITS: selected.limits ? JSON.stringify(selected.limits) : "",
+      });
+    try {
+      await instance.alarm();
+    } finally {
+      if (selected) Reflect.set(instance, "env", original);
     }
-    throw Error("56着手以内に終局しませんでした");
-  }, 20000);
+  });
+}
+
+async function completeGame(
+  level: number,
+  selected?: { profile_id: string; limits?: { max_iterations: number; max_nodes: number } },
+) {
+  const { host, stub, read } = await setup(level);
+  let cpuMoves = 0;
+  for (let step = 0; step < 57; step++) {
+    const room = await read();
+    if (room.status !== "playing") {
+      const replay = roundReplaySchema.parse(room.lastRound?.replay);
+      let game = createInitialState("singles");
+      for (const entry of replay.steps) {
+        if (entry.action.type !== "place") throw Error("Unexpected elimination");
+        const next = applyAction(game, { type: "placeStone", position: entry.action.position });
+        if (!next.ok) throw Error("Invalid saved move");
+        expect(next.state).toEqual(entry.game);
+        game = next.state;
+      }
+      expect(game.status).toBe("finished");
+      expect(cpuMoves).toBeGreaterThan(0);
+      return;
+    }
+    const player = room.players.find((p) => p.color === room.game.turn)!;
+    if (player.kind === "human") {
+      now = Math.max(now, room.clock.turnStartedAt) + 1;
+      host.send({
+        type: "room.game.action",
+        action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
+      });
+      await host.waitFor(
+        "room.snapshot",
+        (m) => m.room.status === "waiting" || (m.room.game?.moveNumber ?? 0) > room.game.moveNumber,
+      );
+    } else {
+      now = room.clock.turnStartedAt + 2000;
+      await alarmWithProfile(stub, selected);
+      const job = await runInDurableObject(stub, (_, ctx) =>
+        ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
+      );
+      expect(job?.source).toBe("external");
+      if (selected) expect(job?.serviceProfile).toEqual(expect.objectContaining(selected));
+      expect((await read()).game?.moveNumber).toBe(room.game.moveNumber);
+      if (cpuMoves === 2) await evictDurableObject(stub, { webSockets: "hibernate" });
+      now++;
+      await runInDurableObject(stub, (instance) => instance.alarm());
+      cpuMoves++;
+    }
+  }
+  throw Error("56着手以内に終局しませんでした");
+}
+for (const level of [1, 2])
+  test(
+    `実Rust Serviceと人間1人・CPU3人のLv${level}対局を終局まで進める`,
+    () => completeGame(level),
+    20000,
+  );
+for (const profile of ["lv1-v1", "lv2-v1", "lv3-v1", "lv4-v1", "lv5-v1"])
+  test(
+    `API v2の${profile}をGameRoomから指定し、復元を挟んで完走する`,
+    () =>
+      completeGame(2, {
+        profile_id: profile,
+        ...(profile === "lv4-v1" || profile === "lv5-v1"
+          ? { limits: { max_iterations: 4, max_nodes: 256 } }
+          : {}),
+      }),
+    20000,
+  );
 
 for (const kind of [
   "http_503",
@@ -307,4 +348,86 @@ test("対象外のダブルスは外部AIを呼ばず現行CPUを維持する", 
   );
   expect(job).toBeDefined();
   expect(job?.source).toBeUndefined();
+});
+
+function profileReply(body: Record<string, unknown>, position: { x: number; y: number }) {
+  return {
+    ...reply(body, position),
+    api_version: 2,
+    profile_id: body.profile_id,
+    profile_hash: profileMetadata(profileIdSchema.parse(body.profile_id)).profile_hash,
+    agent_id: "four-reversi-mcts-v1",
+    effective_limits: { max_iterations: 4, max_nodes: 256 },
+    reproducible: true,
+    diagnostics: {
+      nodes: 1,
+      completed_depth: 0,
+      interrupted: true,
+      mcts: { iterations_started: 1, trials: 0, max_tree_depth: 1, stop_reason: "node_limit" },
+    },
+  };
+}
+
+for (const kind of ["profile", "hash", "limits", "reproducible", "trials"])
+  test(`API v2の不正な${kind}を適用せず合法手へ退避する`, async () => {
+    const { stub, before } = await cpuSetup("singles", 2);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
+      const body = JSON.parse(String(init?.body));
+      const response = profileReply(body, getLegalMoves(before.game)[0]!);
+      if (kind === "profile") response.profile_id = "lv4-v1";
+      if (kind === "hash") response.profile_hash = "0".repeat(64);
+      if (kind === "limits") response.effective_limits.max_nodes = 65536;
+      if (kind === "reproducible") response.reproducible = false;
+      if (kind === "trials") response.diagnostics.mcts.trials = 2;
+      return Response.json(response);
+    });
+    await alarmWithProfile(stub, {
+      profile_id: "lv5-v1",
+      limits: { max_iterations: 4, max_nodes: 256 },
+    });
+    const job = await runInDurableObject(stub, (_, ctx) =>
+      ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
+    );
+    expect(job?.source).toBe("fallback");
+    expect(job?.move).toEqual(getLegalMoves(before.game)[0]);
+  });
+
+test("不正な開発用profile設定ではHTTP送信せず合法手へ退避する", async () => {
+  const { stub } = await cpuSetup("singles", 2);
+  const mock = vi.spyOn(globalThis, "fetch");
+  await alarmWithProfile(stub, { profile_id: "unknown" });
+  expect(mock).not.toHaveBeenCalled();
+  const job = await runInDurableObject(stub, (_, ctx) =>
+    ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
+  );
+  expect(job?.source).toBe("fallback");
+});
+
+test("同じ要求IDでも保存profileが変わった応答は適用しない", async () => {
+  const { stub, before } = await cpuSetup("singles", 2);
+  await runInDurableObject(stub, async (instance, ctx) => {
+    const original = Reflect.get(instance, "env");
+    Reflect.set(instance, "env", {
+      ...original,
+      AI_SERVICE_LEVEL2_PROFILE: "lv5-v1",
+      AI_SERVICE_LEVEL2_LIMITS: JSON.stringify({ max_iterations: 4, max_nodes: 256 }),
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
+      const pending = ctx.storage.kv.get<Record<string, unknown>>(fourReversiAiJobKey)!;
+      ctx.storage.kv.put(fourReversiAiJobKey, {
+        ...pending,
+        serviceProfile: { profile_id: "lv4-v1" },
+      });
+      return Response.json(
+        profileReply(JSON.parse(String(init?.body)), getLegalMoves(before.game)[0]!),
+      );
+    });
+    try {
+      await instance.alarm();
+      expect(ctx.storage.kv.get(fourReversiCpuJobKey)).toBeUndefined();
+    } finally {
+      Reflect.set(instance, "env", original);
+      ctx.storage.kv.delete(fourReversiAiJobKey);
+    }
+  });
 });

@@ -32,7 +32,8 @@ export default {
     const container = env.AI_CONTAINER.getByName("shared-v1");
     if (path === "/admin/status" && request.method === "GET")
       return reply(await container.getState());
-    if (path !== "/v1/move" || request.method !== "POST") return reply({ error: "not_found" }, 404);
+    if (!["/v1/move", "/v2/move"].includes(path) || request.method !== "POST")
+      return reply({ error: "not_found" }, 404);
     try {
       return await container.fetch(request);
     } catch {

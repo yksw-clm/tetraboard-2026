@@ -11,6 +11,8 @@ pub struct SearchStats {
     pub nodes: u64,
     pub completed_depth: u8,
     pub interrupted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcts: Option<crate::mcts::MctsStats>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,6 +48,9 @@ pub fn build_agent(
         AgentConfig::Random { seed } => {
             Box::new(RandomAgent::new(game_seed.wrapping_add(*seed), stream))
         }
+        AgentConfig::Mcts { .. } => {
+            Box::new(crate::mcts::MctsAgent::new(config, game_seed, stream))
+        }
         _ => Box::new(EvaluatingAgent {
             config: config.clone(),
         }),
@@ -66,7 +71,7 @@ impl Agent for EvaluatingAgent {
             AgentConfig::MaxN {
                 weights, budget, ..
             } => (weights, budget.max_depth, budget.max_nodes),
-            AgentConfig::Random { .. } => unreachable!(),
+            AgentConfig::Random { .. } | AgentConfig::Mcts { .. } => unreachable!(),
         };
         let mut decision = Decision {
             position: legal.first().copied(),

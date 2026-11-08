@@ -25,12 +25,54 @@ pub struct TournamentConfig {
     pub seed: u64,
     pub profiles: Vec<Profile>,
     pub matchups: Vec<Matchup>,
+    #[serde(default, skip_serializing_if = "SeatOrders::is_cyclic")]
+    pub seat_orders: SeatOrders,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SeatOrders {
+    #[default]
+    Cyclic,
+    AllPermutations,
+}
+impl SeatOrders {
+    fn is_cyclic(&self) -> bool {
+        *self == Self::Cyclic
+    }
+    pub fn orders(self) -> Vec<[usize; 4]> {
+        if self == Self::Cyclic {
+            return (0..4)
+                .map(|r| std::array::from_fn(|i| (i + r) % 4))
+                .collect();
+        }
+        let mut result = Vec::new();
+        for a in 0..4 {
+            for b in 0..4 {
+                for c in 0..4 {
+                    for d in 0..4 {
+                        let order = [a, b, c, d];
+                        if order.iter().copied().collect::<BTreeSet<_>>().len() == 4 {
+                            result.push(order);
+                        }
+                    }
+                }
+            }
+        }
+        result
+    }
 }
 
 impl TournamentConfig {
     pub fn validate(&self) -> Result<(), String> {
-        if self.format_version != 1 || self.profiles.is_empty() || self.matchups.is_empty() {
+        if ![1, 2].contains(&self.format_version)
+            || self.profiles.is_empty()
+            || self.matchups.is_empty()
+        {
             return Err("設定版1でprofileとmatchupを1件以上指定してください".into());
+        }
+        if self.format_version == 1 && self.seat_orders != SeatOrders::Cyclic {
+            return Err("全席順は設定版2を使ってください".into());
         }
         let mut profiles = BTreeSet::new();
         for profile in &self.profiles {
@@ -59,11 +101,14 @@ pub struct TournamentGame {
     pub trial_index: u64,
     pub matchup_id: String,
     pub round: u64,
-    pub rotation: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<u8>,
     pub lineup_slots: [usize; 4],
     pub profile_ids: [String; 4],
     pub game: Option<GameLog>,
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seat_order_index: Option<u8>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -80,6 +125,8 @@ pub struct Summary {
     pub distinct_game_traces: usize,
     pub failure_rate: f64,
     pub statistics: Vec<Statistics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jobs: Option<usize>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -104,6 +151,8 @@ pub struct Statistics {
     pub max_decision_time_ns: Option<u64>,
     pub search_nodes: u64,
     pub interrupted_decisions: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trials: Option<u64>,
 }
 
 #[derive(Default)]
@@ -119,6 +168,7 @@ struct Accumulator {
     nodes: u64,
     interrupted: u64,
     traces: BTreeSet<String>,
+    trials: Option<u64>,
 }
 
 type Group = (String, String, Option<usize>);
@@ -143,6 +193,9 @@ impl Accumulator {
                 self.timings.push(entry.decision_time_ns);
                 self.nodes += entry.search_nodes;
                 self.interrupted += u64::from(entry.interrupted.unwrap_or(false));
+                if entry.mcts.is_some() {
+                    *self.trials.get_or_insert(0) += entry.trials;
+                }
             }
         }
     }
@@ -173,6 +226,7 @@ impl Accumulator {
             max_decision_time_ns: self.timings.last().copied(),
             search_nodes: self.nodes,
             interrupted_decisions: self.interrupted,
+            trials: self.trials,
         }
     }
 }
@@ -196,79 +250,110 @@ pub fn run_tournament(
     config: &TournamentConfig,
     rounds: u64,
     seed: u64,
+    output: impl FnMut(&TournamentGame) -> Result<(), String>,
+) -> Result<Summary, String> {
+    run_tournament_with_jobs(config, rounds, seed, 1, output)
+}
+
+pub fn run_tournament_with_jobs(
+    config: &TournamentConfig,
+    rounds: u64,
+    seed: u64,
+    jobs: usize,
     mut output: impl FnMut(&TournamentGame) -> Result<(), String>,
 ) -> Result<Summary, String> {
     config.validate()?;
+    let orders = config.seat_orders.orders();
     if rounds == 0
+        || !(1..=4).contains(&jobs)
         || rounds
-            .checked_mul(4)
+            .checked_mul(orders.len() as u64)
             .and_then(|n| n.checked_mul(config.matchups.len() as u64))
             .is_none()
     {
-        return Err("roundsは1以上で、総対局数がu64に収まる値にしてください".into());
+        return Err("roundsは1以上・総件数はu64以内、jobsは1〜4にしてください".into());
     }
+    let version = if config.format_version == 2 { 3 } else { 2 };
     let mut attempted_games = 0;
     let mut failed_games = 0;
     let mut groups: BTreeMap<Group, Accumulator> = BTreeMap::new();
     let mut traces = BTreeSet::new();
     for matchup in &config.matchups {
-        let profiles = matchup.lineup.each_ref().map(|id| {
-            config
-                .profiles
-                .iter()
-                .find(|profile| &profile.id == id)
-                .expect("検証済みのprofileです")
-        });
+        let profiles = matchup
+            .lineup
+            .each_ref()
+            .map(|id| config.profiles.iter().find(|p| &p.id == id).unwrap());
+        // 同時に保持する棋譜をjobs件までに抑え、結果の出力順も固定します。
         for round in 0..rounds {
-            for rotation in 0..4u8 {
-                let slots = std::array::from_fn(|i| (i + usize::from(rotation)) % 4);
-                let configs = slots.map(|slot| profiles[slot].config.clone());
-                let profile_ids = slots.map(|slot| profiles[slot].id.clone());
-                let result = play_configured_game(seed, round, &configs, slots.map(|i| i as u64));
-                let (game, error) = match result {
-                    Ok(mut game) => {
-                        traces.insert(game_trace(&game));
-                        for (seat, id) in game.seat_order.iter_mut().zip(&profile_ids) {
-                            seat.profile_id = Some(id.clone());
+            for (chunk_index, chunk) in orders.chunks(jobs).enumerate() {
+                let games = std::thread::scope(|scope| {
+                    let handles: Vec<_> = chunk
+                        .iter()
+                        .map(|slots| {
+                            let configs = slots.map(|i| profiles[i].config.clone());
+                            let streams = slots.map(|i| i as u64);
+                            scope
+                                .spawn(move || play_configured_game(seed, round, &configs, streams))
+                        })
+                        .collect();
+                    handles
+                        .into_iter()
+                        .map(|h| {
+                            h.join()
+                                .unwrap_or_else(|_| Err("対局処理がpanicしました".into()))
+                        })
+                        .collect::<Vec<_>>()
+                });
+                for (offset, (slots, result)) in chunk.iter().zip(games).enumerate() {
+                    let index = (chunk_index * jobs + offset) as u8;
+                    let profile_ids = slots.map(|i| profiles[i].id.clone());
+                    let (game, error) = match result {
+                        Ok(mut game) => {
+                            game.format_version = version;
+                            traces.insert(game_trace(&game));
+                            for (seat, id) in game.seat_order.iter_mut().zip(&profile_ids) {
+                                seat.profile_id = Some(id.clone());
+                            }
+                            (Some(game), None)
                         }
-                        (Some(game), None)
+                        Err(error) => {
+                            failed_games += 1;
+                            (None, Some(error))
+                        }
+                    };
+                    let record = TournamentGame {
+                        record_type: "game",
+                        format_version: version,
+                        trial_index: attempted_games,
+                        matchup_id: matchup.id.clone(),
+                        round,
+                        rotation: (config.seat_orders == SeatOrders::Cyclic).then_some(index),
+                        lineup_slots: *slots,
+                        profile_ids,
+                        game,
+                        error,
+                        seat_order_index: (version == 3).then_some(index),
+                    };
+                    for (i, id) in record.profile_ids.iter().enumerate() {
+                        for color in [None, Some(i)] {
+                            groups
+                                .entry((matchup.id.clone(), id.clone(), color))
+                                .or_default()
+                                .record(record.game.as_ref(), COLORS[i]);
+                        }
                     }
-                    Err(error) => {
-                        failed_games += 1;
-                        (None, Some(error))
-                    }
-                };
-                let record = TournamentGame {
-                    record_type: "game",
-                    format_version: 2,
-                    trial_index: attempted_games,
-                    matchup_id: matchup.id.clone(),
-                    round,
-                    rotation,
-                    lineup_slots: slots,
-                    profile_ids,
-                    game,
-                    error,
-                };
-                for (i, profile_id) in record.profile_ids.iter().enumerate() {
-                    for color in [None, Some(i)] {
-                        groups
-                            .entry((matchup.id.clone(), profile_id.clone(), color))
-                            .or_default()
-                            .record(record.game.as_ref(), COLORS[i]);
-                    }
+                    output(&record)?;
+                    attempted_games += 1;
                 }
-                output(&record)?;
-                attempted_games += 1;
             }
         }
     }
     Ok(Summary {
         record_type: "summary",
-        format_version: 2,
+        format_version: version,
         seed,
         rounds,
-        rotations: 4,
+        rotations: orders.len() as u8,
         config: config.clone(),
         attempted_games,
         completed_games: attempted_games - failed_games,
@@ -279,6 +364,7 @@ pub fn run_tournament(
             .into_iter()
             .map(|(key, value)| value.finish(key))
             .collect(),
+        jobs: (version == 3).then_some(jobs),
     })
 }
 
@@ -388,5 +474,65 @@ mod tests {
                 .iter()
                 .all(|stats| stats.distinct_game_traces == 1)
         );
+    }
+    #[test]
+    fn all_seat_orders_preserve_fixed_budget_games_across_parallelism() {
+        let mut config: TournamentConfig =
+            serde_json::from_str(include_str!("../../../configs/phase1.json")).unwrap();
+        config.format_version = 2;
+        config.seat_orders = SeatOrders::AllPermutations;
+        config.matchups = vec![Matchup {
+            id: "parallel".into(),
+            lineup: ["lv1".into(), "lv1".into(), "lv1".into(), "lv3".into()],
+        }];
+        config.profiles[2].config = AgentConfig::Mcts {
+            seed: 0,
+            weights: Default::default(),
+            rollout: tetraboard_ai_agents::config::RolloutPolicy::Uniform,
+            exploration_milli: 1000,
+            budget: tetraboard_ai_agents::config::MctsBudget {
+                max_iterations: 2,
+                max_nodes: 256,
+                max_time_ms: None,
+            },
+        };
+        let mut first = Vec::new();
+        let summary = run_tournament_with_jobs(&config, 1, 7, 1, |r| {
+            first.push(r.clone());
+            Ok(())
+        })
+        .unwrap();
+        let mut second = Vec::new();
+        run_tournament_with_jobs(&config, 1, 7, 4, |r| {
+            second.push(r.clone());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(summary.completed_games, 24);
+        assert_eq!(
+            first
+                .iter()
+                .map(|r| r.lineup_slots)
+                .collect::<BTreeSet<_>>()
+                .len(),
+            24
+        );
+        for (a, b) in first.iter().zip(second) {
+            assert_eq!(a.trial_index, b.trial_index);
+            assert_eq!(a.seat_order_index, b.seat_order_index);
+            let a = a.game.as_ref().unwrap();
+            let b = b.game.as_ref().unwrap();
+            assert_eq!(a.final_state, b.final_state);
+            assert_eq!(
+                a.moves
+                    .iter()
+                    .map(|m| (m.position, m.trials, m.search_nodes))
+                    .collect::<Vec<_>>(),
+                b.moves
+                    .iter()
+                    .map(|m| (m.position, m.trials, m.search_nodes))
+                    .collect::<Vec<_>>()
+            );
+        }
     }
 }

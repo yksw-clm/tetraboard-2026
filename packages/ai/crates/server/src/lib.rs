@@ -11,6 +11,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
+use tetraboard_ai_agents::profiles::{
+    ProfileLimits, ServedProfile, builtin_profiles, configured, effective_limits,
+};
 use tetraboard_ai_agents::{
     AGENT_ID, SearchStats, build_agent,
     config::{AgentConfig, GREEDY_ID, MAXN_ID, SearchBudget},
@@ -30,6 +33,40 @@ pub const MAX_DEPTH: u8 = 4;
 struct ServiceState {
     token: Arc<String>,
     permits: Arc<Semaphore>,
+    profiles: Arc<Vec<ServedProfile>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileMoveRequest {
+    pub api_version: u32,
+    pub game_id: String,
+    pub ruleset_version: String,
+    pub state_version: u32,
+    pub request_id: String,
+    pub position_revision: String,
+    pub profile_id: String,
+    pub seed: u64,
+    pub limits: Option<ProfileLimits>,
+    pub state: PositionSetup,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProfileMoveResponse {
+    pub api_version: u32,
+    pub game_id: &'static str,
+    pub ruleset_version: &'static str,
+    pub state_version: u32,
+    pub request_id: String,
+    pub position_revision: String,
+    pub profile_id: String,
+    pub profile_hash: String,
+    pub agent_id: &'static str,
+    pub engine_version: &'static str,
+    pub effective_limits: Option<ProfileLimits>,
+    pub reproducible: bool,
+    pub position: Position,
+    pub diagnostics: SearchStats,
 }
 
 #[derive(Deserialize)]
@@ -84,16 +121,114 @@ pub fn router(token: String, concurrency: usize) -> Result<Router, &'static str>
     Ok(app(ServiceState {
         token: Arc::new(token),
         permits: Arc::new(Semaphore::new(concurrency)),
+        profiles: Arc::new(builtin_profiles().map_err(|_| "Service profile一覧が不正です")?),
     }))
 }
 
 fn app(state: ServiceState) -> Router {
     Router::new()
         .route("/v1/move",post(choose_move))
+        .route("/v2/move",post(choose_profile_move))
         .route_layer(middleware::from_fn_with_state(state.clone(),authenticate))
         .route("/health", get(|| async { ([(header::CACHE_CONTROL,"no-store")],Json(serde_json::json!({"status":"ok","api_version":API_VERSION,"engine_version":ENGINE_VERSION}))) }))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .with_state(state)
+}
+
+async fn choose_profile_move(
+    AppState(service): AppState<ServiceState>,
+    payload: Result<Json<ProfileMoveRequest>, JsonRejection>,
+) -> Result<Json<ProfileMoveResponse>, ApiError> {
+    let Json(request) = payload.map_err(|error| {
+        ApiError(
+            if [
+                StatusCode::PAYLOAD_TOO_LARGE,
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            ]
+            .contains(&error.status())
+            {
+                error.status()
+            } else {
+                StatusCode::BAD_REQUEST
+            },
+            "invalid_request",
+        )
+    })?;
+    if request.api_version != 2
+        || request.game_id != "four-reversi"
+        || request.ruleset_version != RULESET_VERSION
+        || request.state_version != 1
+    {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "unsupported_version"));
+    }
+    if !valid_identity(&request.request_id, &request.position_revision) {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_request"));
+    }
+    let profile = service
+        .profiles
+        .iter()
+        .find(|p| p.id == request.profile_id)
+        .ok_or(ApiError(
+            StatusCode::BAD_REQUEST,
+            "invalid_profile_or_limits",
+        ))?;
+    let config = configured(profile, request.seed, request.limits)
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_profile_or_limits"))?;
+    if count_stones(&request.state.board)
+        .iter()
+        .map(|&n| u16::from(n))
+        .sum::<u16>()
+        != 8 + u16::from(request.state.move_number)
+    {
+        return Err(ApiError(StatusCode::BAD_REQUEST, "invalid_state"));
+    }
+    let state = State::from_setup(request.state)
+        .map_err(|_| ApiError(StatusCode::BAD_REQUEST, "invalid_state"))?;
+    let permit = service
+        .permits
+        .try_acquire_owned()
+        .map_err(|_| ApiError(StatusCode::SERVICE_UNAVAILABLE, "busy"))?;
+    let profile_hash = profile.profile_hash.clone();
+    let agent_id = config.id();
+    let limits = effective_limits(&config);
+    let reproducible = limits.is_none_or(|l| l.max_time_ms.is_none());
+    let decision = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        build_agent(&config, 0, 0)
+            .expect("検証済みのprofileです")
+            .decide(&state)
+    })
+    .await
+    .map_err(|_| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "computation_failed"))?;
+    Ok(Json(ProfileMoveResponse {
+        api_version: 2,
+        game_id: "four-reversi",
+        ruleset_version: RULESET_VERSION,
+        state_version: 1,
+        request_id: request.request_id,
+        position_revision: request.position_revision,
+        profile_id: request.profile_id,
+        profile_hash,
+        agent_id,
+        engine_version: ENGINE_VERSION,
+        effective_limits: limits,
+        reproducible,
+        position: decision
+            .position
+            .ok_or(ApiError(StatusCode::BAD_REQUEST, "invalid_state"))?,
+        diagnostics: decision.stats,
+    }))
+}
+
+fn valid_identity(request_id: &str, revision: &str) -> bool {
+    (16..=64).contains(&request_id.len())
+        && request_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        && revision.len() == 64
+        && revision
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 async fn authenticate(
@@ -241,8 +376,12 @@ mod tests {
     }
 
     async fn send(app: Router, value: Value, token: Option<&str>) -> (StatusCode, Value) {
-        let mut request =
-            Request::post("/v1/move").header(header::CONTENT_TYPE, "application/json");
+        let mut request = Request::post(if value.get("profile_id").is_some() {
+            "/v2/move"
+        } else {
+            "/v1/move"
+        })
+        .header(header::CONTENT_TYPE, "application/json");
         if let Some(token) = token {
             request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }
@@ -313,6 +452,7 @@ mod tests {
         let state = ServiceState {
             token: Arc::new(TOKEN.into()),
             permits: Arc::new(Semaphore::new(1)),
+            profiles: Arc::new(builtin_profiles().unwrap()),
         };
         let _permit = state.permits.clone().acquire_owned().await.unwrap();
         assert_eq!(
@@ -333,5 +473,65 @@ mod tests {
             send(app, value, Some(TOKEN)).await.0,
             StatusCode::PAYLOAD_TOO_LARGE
         );
+    }
+    fn profile_request(id: &str) -> Value {
+        let mut value = request();
+        value.as_object_mut().unwrap().remove("agent_id");
+        value["api_version"] = json!(2);
+        value["profile_id"] = json!(id);
+        if id == "lv4-v1" || id == "lv5-v1" {
+            value["limits"] = json!({"max_iterations":4,"max_nodes":256});
+        }
+        value
+    }
+
+    #[tokio::test]
+    async fn profile_api_calls_all_five_agents_and_preserves_fixed_budget_reproducibility() {
+        let app = router(TOKEN.into(), 2).unwrap();
+        for profile in builtin_profiles().unwrap() {
+            let request = profile_request(&profile.id);
+            let (status, body) = send(app.clone(), request.clone(), Some(TOKEN)).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(body["api_version"], 2);
+            assert_eq!(body["profile_id"], profile.id);
+            assert_eq!(body["profile_hash"], profile.profile_hash);
+            assert_eq!(body["reproducible"], true);
+            let position = serde_json::from_value(body["position"].clone()).unwrap();
+            assert!(State::initial().legal_moves().contains(&position));
+            assert_eq!(body, send(app.clone(), request, Some(TOKEN)).await.1);
+        }
+    }
+
+    #[tokio::test]
+    async fn profile_api_rejects_unknown_profiles_excessive_limits_and_bad_identity() {
+        let app = router(TOKEN.into(), 2).unwrap();
+        let request = profile_request("lv5-v1");
+        assert_eq!(
+            send(app.clone(), request.clone(), None).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+        for (key, value) in [
+            ("profile_id", json!("unknown")),
+            ("limits", json!({"max_nodes":65537})),
+            ("limits", json!({"max_iterations":4097})),
+            ("limits", json!({"max_time_ms":501})),
+            ("limits", json!({"max_nodes":0})),
+            ("position_revision", json!("bad")),
+            ("api_version", json!(1)),
+            ("limits", json!({"unknown":1})),
+        ] {
+            let mut invalid = request.clone();
+            invalid[key] = value;
+            assert_eq!(
+                send(app.clone(), invalid, Some(TOKEN)).await.0,
+                StatusCode::BAD_REQUEST
+            );
+        }
+        let mut timed = request;
+        timed["limits"] = json!({"max_time_ms":1});
+        let (status, body) = send(app, timed, Some(TOKEN)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["reproducible"], false);
+        assert_eq!(body["effective_limits"]["max_time_ms"], 1);
     }
 }

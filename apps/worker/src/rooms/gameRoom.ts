@@ -70,6 +70,7 @@ import {
   type ExternalCpuWork,
 } from "./fourReversiProgress";
 import { aiServiceEnabled, aiServiceTimeout, requestAiMove } from "./aiService";
+import { serviceProfile } from "./aiServiceProfiles";
 import {
   roomStorageKey,
   replayKey,
@@ -3073,6 +3074,7 @@ export class GameRoom extends DurableObject<Env> {
                 room,
                 now,
                 aiServiceTimeout(this.env),
+                serviceProfile(this.env),
               );
             } else {
               const result = this.reversiProgress.cpu(room, now);
