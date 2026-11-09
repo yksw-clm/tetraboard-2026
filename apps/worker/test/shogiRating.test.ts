@@ -90,6 +90,13 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
       ).json(),
     );
   const resultPath = (id: string) => `/matchmaking/shogi/results/${id}`;
+  const summaryPath = "/matchmaking/shogi/rating";
+  const summary = async (headers: HeadersInit) => {
+    const response = await boundaryRequest(summaryPath, { headers });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    return response.json();
+  };
   const read = async (id: string) => {
     const response = await boundaryRequest(resultPath(id), { headers: user.headers });
     expect(response.status).toBe(200);
@@ -97,7 +104,11 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
     return shogiRatingResultSchema.parse(await response.json());
   };
   const first = ratedCpuRecord(user.id, "draw");
+  expect(await summary(user.headers)).toEqual({ status: "placement", games: 0 });
+  expect((await boundaryRequest(summaryPath)).status).toBe(401);
   await saveStandardShogiFixture(first);
+  expect(await summary(user.headers)).toEqual({ status: "placement", games: 1 });
+  expect(await summary(other.headers)).toEqual({ status: "placement", games: 0 });
   expect(await read(first.record.id)).toEqual({ status: "placement", games: 1 });
   expect(await publicProfile()).not.toHaveProperty("shogiRating");
   expect(
@@ -112,6 +123,7 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
     .run();
   expect(await read(fifth.record.id)).toEqual({ status: "pending" });
   await saveStandardShogiFixture(fifth);
+  expect(await summary(user.headers)).toEqual({ status: "rated", rating: 1524 });
   expect(await read(fifth.record.id)).toEqual({
     status: "rated",
     rating: 1524,

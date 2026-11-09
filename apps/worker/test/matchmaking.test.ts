@@ -59,6 +59,12 @@ test("閲覧だけでゲストを作らず、名前確定したゲストは登�
   );
   expect(rated.status).toBe(403);
   expect(await rated.text()).toContain("登録アカウントが必要");
+  const summary = await exports.default.fetch(
+    new AcceptedGameRequest(`${origin}/api/matchmaking/shogi/rating`, {
+      headers: { Cookie: cookie },
+    }),
+  );
+  expect(summary.status).toBe(401);
   const operationId = crypto.randomUUID(),
     controllerId = crypto.randomUUID();
   expect((await stub().join(user!.id, operationId, controllerId)).ok).toBe(true);
@@ -398,28 +404,45 @@ test("将棋の待機APIは別キューを使い、四人リバーシとの二�
   expect(matchmakingStateSchema.parse(await response.json()).status).toBe("waiting");
 });
 
-test("将棋の開始前取消は保存待ちを残さず、新しい操作で再参加できる", async () => {
-  let now = Date.now() + 60000;
-  vi.spyOn(Date, "now").mockImplementation(() => now);
+test("将棋の成立前取消は保存待ちを残さず、新しい操作で再参加できる", async () => {
   const queue = shogiQueue();
   const [user] = await fixture(1, queue);
-  now += 15000;
-  await runInDurableObject(queue, (instance) => instance.alarm());
-  const state = await queue.status(user!.account.id, user!.controllerId);
-  const assignment = state.assignment!;
-  rooms.add(assignment.roomId);
+  const { account, operationId, controllerId } = user!;
   expect(
-    await queue.control(
-      user!.account.id,
-      { operationId: user!.operationId, controllerId: user!.controllerId, version: state.version! },
-      "cancel",
-    ),
+    await queue.control(account.id, { operationId, controllerId, version: 1 }, "cancel"),
   ).toMatchObject({ ok: true, state: { status: "idle" } });
-  expect(await env.GAME_ROOM.getByName(assignment.roomId).getRoom()).toBeNull();
-  expect((await queue.join(user!.account.id, crypto.randomUUID(), user!.controllerId)).ok).toBe(
-    true,
-  );
+  expect((await queue.join(account.id, crypto.randomUUID(), controllerId)).ok).toBe(true);
 });
+
+test.each(["human", "cpu"] as const)(
+  "成立した将棋の%s戦は取消と競合しても入室できる",
+  async (opponent) => {
+    let now = Date.now() + 60000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = shogiQueue();
+    const [user] = await fixture(opponent === "human" ? 2 : 1, queue);
+    if (opponent === "cpu") {
+      expect((await queue.status(user!.account.id, user!.controllerId)).status).toBe("waiting");
+      now += shogiMatchmakingRules.fillAfterMs;
+    }
+    const result = await queue.control(
+      user!.account.id,
+      { operationId: user!.operationId, controllerId: user!.controllerId, version: 1 },
+      "cancel",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      state: { status: "matched", assignment: { opponent } },
+    });
+    if (!result.ok || !result.state.assignment) throw Error("Expected assignment");
+    const { assignment } = result.state;
+    rooms.add(assignment.roomId);
+    expect(await queue.status(user!.account.id, user!.controllerId)).toMatchObject({
+      assignment,
+    });
+    expect(await env.GAME_ROOM.getByName(assignment.roomId).getRoom()).not.toBeNull();
+  },
+);
 
 test("参照だけでは期限処理や組合せを実行せず、30秒のAlarmで成立する", async () => {
   let now = Date.now() + 60000;

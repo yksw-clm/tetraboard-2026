@@ -6,7 +6,8 @@ import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider
 import { ActiveTournamentProvider } from "../features/tournaments/ActiveTournamentProvider";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
-import { createBrowserRouter, Link } from "react-router";
+import { createBrowserRouter, Link, replace } from "react-router";
+import { matchmakingPath } from "../features/matchmaking/paths";
 import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
 
@@ -97,12 +98,9 @@ export const router = createBrowserRouter([
       },
       {
         path: "/games/shogi/matchmaking",
-        lazy: async () => {
-          const { MatchmakingPage } = await import("../features/matchmaking/MatchmakingPage");
-          return { Component: () => <MatchmakingPage game="shogi" /> };
-        },
+        loader: () => replace(matchmakingPath("shogi")),
         hydrateFallbackElement: (
-          <AppPageLoading message="マッチングを読み込んでいます…" theme="shogi" />
+          <AppPageLoading message="将棋ロビーを読み込んでいます…" theme="shogi" />
         ),
       },
       { path: "/login", Component: LoginPage },

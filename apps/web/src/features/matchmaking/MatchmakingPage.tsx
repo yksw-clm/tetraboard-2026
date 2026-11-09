@@ -11,16 +11,15 @@ import { useAccount } from "../account/useAccount";
 import { LegalNotice } from "../privacy/LegalNotice";
 import { readGuestName, saveGuestName } from "../../shared/guestName";
 import { useMatchmaking } from "./useMatchmaking";
-import type { MatchmakingGame } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 
-export function MatchmakingPage({ game = "four-reversi" }: { game?: MatchmakingGame }) {
+export function MatchmakingPage() {
+  const game = "four-reversi";
   const account = useAccount(),
     matching = useMatchmaking(game),
     navigate = useNavigate();
-  const rated = game === "shogi";
-  const title = rated ? "将棋レートマッチ" : "ランダムマッチ";
+  const title = "ランダムマッチ";
   const lobby = gameCatalog[game].lobbyPath;
   const theme = gameThemes[game];
   const location = useLocation();
@@ -82,10 +81,6 @@ export function MatchmakingPage({ game = "four-reversi" }: { game?: MatchmakingG
     busy = preparing || matching.pending || account.loading || Boolean(account.error);
   async function start() {
     if (busy) return;
-    if (rated) {
-      await join();
-      return;
-    }
     setPreparing(true);
     setMessage(null);
     try {
@@ -117,61 +112,42 @@ export function MatchmakingPage({ game = "four-reversi" }: { game?: MatchmakingG
     void navigate(lobby);
   }
   return (
-    <div
-      className={`app-theme min-h-dvh text-ink ${appThemeClasses[theme]} ${rated ? "lobby-background" : "bg-[#f0f6f2]"}`}
-    >
+    <div className={`app-theme min-h-dvh text-ink ${appThemeClasses[theme]} bg-[#f0f6f2]`}>
       <AppHeader homeTo="/" homeLabel="TetraBoard" theme={theme}>
         <AccountMenu lobbyGame={game} />
       </AppHeader>
       <main className="mx-auto flex max-w-xl flex-col gap-5 px-5 py-8">
         <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="text-sm text-muted">
-          {rated ? "1人5分＋30秒の秒読み" : "四人リバーシ・シングルス／レートなし／1人3分切れ負け"}
-        </p>
+        <p className="text-sm text-muted">四人リバーシ・シングルス／レートなし／1人3分切れ負け</p>
         <AppCard className="gap-4 p-5">
           {status === "idle" ? (
             <>
               <p className="text-sm">
-                {rated
-                  ? "レートの近い人を優先します。15秒で相手が見つからない場合は、実力の近いCPUと対局します。"
-                  : "人間同士を優先して対戦相手を探します。30秒で4人に満たない場合は、CPU「ヨミ」（Lv3）が不足席に参加します。"}
+                人間同士を優先して対戦相手を探します。30秒で4人に満たない場合は、CPU「ヨミ」（Lv3）が不足席に参加します。
               </p>
               <p className="text-xs text-muted">
-                {rated
-                  ? "対人戦・CPU戦ともにレートの対象です。有効な5局で認定され、対局・棋譜は公開されます。"
-                  : "秒読みはありません。CPUを含む対局は履歴・棋譜に残り、対人戦績には反映されません。対局・棋譜は公開されます。"}
+                秒読みはありません。CPUを含む対局は履歴・棋譜に残り、対人戦績には反映されません。対局・棋譜は公開されます。
               </p>
-              {!rated && (
-                <RoomIdentityFields
-                  name={name}
-                  onChange={setName}
-                  busy={busy}
-                  avatarPresetId={avatar}
-                  onAvatarChange={setAvatar}
-                />
-              )}
+              <RoomIdentityFields
+                name={name}
+                onChange={setName}
+                busy={busy}
+                avatarPresetId={avatar}
+                onAvatarChange={setAvatar}
+              />
               <LegalNotice />
               {matching.data.enabled === false && (
                 <p role="status" className="text-sm text-muted">
                   {title}は準備中です。
                 </p>
               )}
-              {rated && matching.data.enabled === true && !busy && !matchingIdentity ? (
-                <>
-                  <p className="text-sm">参加には登録アカウントが必要です。</p>
-                  <AppButtonLink to="/login">ログイン・登録</AppButtonLink>
-                </>
-              ) : rated && matchingIdentity && !account.user?.profileCompleted ? (
-                <AppButtonLink to="/account/setup">プロフィールを設定する</AppButtonLink>
-              ) : (
-                <AppButton
-                  isDisabled={busy || matching.data.enabled !== true}
-                  isPending={busy}
-                  onPress={() => void start()}
-                >
-                  対戦相手を探す
-                </AppButton>
-              )}
+              <AppButton
+                isDisabled={busy || matching.data.enabled !== true}
+                isPending={busy}
+                onPress={() => void start()}
+              >
+                対戦相手を探す
+              </AppButton>
             </>
           ) : matching.owned ? (
             <>
@@ -186,19 +162,11 @@ export function MatchmakingPage({ game = "four-reversi" }: { game?: MatchmakingG
                 <>
                   <p className="text-sm tabular-nums">待機時間：{elapsed}秒</p>
                   <p className="text-xs text-muted">
-                    {rated
-                      ? "条件に合う人がいなければ、15秒でCPUと組み合わせます。"
-                      : "4人がそろうか、30秒経過すると組合せを決めます。"}
+                    4人がそろうか、30秒経過すると組合せを決めます。
                   </p>
                 </>
               ) : (
                 <>
-                  {rated && matching.data.assignment?.opponent && (
-                    <p className="text-sm font-semibold">
-                      {matching.data.assignment?.opponent === "cpu" ? "CPU戦" : "対人戦"}
-                      ・5分＋30秒・レート対象
-                    </p>
-                  )}
                   <p className="text-sm">入室後、全員の接続を確認して5秒後に開始します。</p>
                   <AppButton onPress={() => void matching.enter()} isDisabled={busy}>
                     入室する

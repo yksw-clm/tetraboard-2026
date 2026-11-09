@@ -21,6 +21,13 @@ export const matchmakingQueues = {
 } as const;
 export type MatchmakingGame = keyof typeof matchmakingQueues;
 export const shogiPlacementGames = 5;
+export const shogiRatingSummarySchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("placement"),
+    games: z.int().nonnegative().lt(shogiPlacementGames),
+  }),
+  z.strictObject({ status: z.literal("rated"), rating: z.number() }),
+]);
 export const publicShogiRatingSchema = z.strictObject({
   rating: z.number(),
   humanPlayed: z.boolean(),
