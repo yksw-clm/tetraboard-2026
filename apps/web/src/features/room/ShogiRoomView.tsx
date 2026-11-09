@@ -187,7 +187,15 @@ export function ShogiRoomView({
       invited={invited}
       board={board}
       replayCard={replay.frame ? <ReplayCard replay={replay} theme="shogi" /> : null}
-      result={room.lastRound && <ShogiResult lastRound={room.lastRound} />}
+      result={(ratingResult) =>
+        room.lastRound && (
+          <ShogiResult
+            lastRound={room.lastRound}
+            selfId={membership?.playerId}
+            ratingResult={ratingResult}
+          />
+        )
+      }
       selfEliminated={
         room.status === "playing" &&
         !!session.self?.side &&

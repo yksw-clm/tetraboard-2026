@@ -97,8 +97,8 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     return response.json();
   };
-  const read = async (id: string) => {
-    const response = await boundaryRequest(resultPath(id), { headers: user.headers });
+  const read = async (id: string, query = "") => {
+    const response = await boundaryRequest(resultPath(id) + query, { headers: user.headers });
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     return shogiRatingResultSchema.parse(await response.json());
@@ -110,9 +110,18 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
   expect(await summary(user.headers)).toEqual({ status: "placement", games: 1 });
   expect(await summary(other.headers)).toEqual({ status: "placement", games: 0 });
   expect(await read(first.record.id)).toEqual({ status: "placement", games: 1 });
+  expect(await read(first.record.id, "?includeOpponent=1")).toEqual({
+    status: "placement",
+    games: 1,
+    opponent: { status: "cpu", rating: 1500 },
+  });
   expect(await publicProfile()).not.toHaveProperty("shogiRating");
   expect(
-    (await boundaryRequest(resultPath(first.record.id), { headers: other.headers })).status,
+    (
+      await boundaryRequest(resultPath(first.record.id) + "?includeOpponent=1", {
+        headers: other.headers,
+      })
+    ).status,
   ).toBe(404);
   expect((await boundaryRequest(resultPath(first.record.id))).status).toBe(401);
 
@@ -138,12 +147,15 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
   const excluded = ratedCpuRecord(user.id);
   excluded.record.rating = { ...cpuProfile, usedFallback: true };
   await saveStandardShogiFixture(excluded);
-  expect(await read(excluded.record.id)).toEqual({ status: "excluded", reason: "ai_fallback" });
+  expect(await read(excluded.record.id, "?includeOpponent=1")).toEqual({
+    status: "excluded",
+    reason: "ai_fallback",
+  });
 });
 
 test("対人戦では両者の更新前レートを使い、認定状態に応じてそれぞれ更新する", async () => {
-  const { id: south } = await accountFixture();
-  const { id: north } = await accountFixture();
+  const { id: south, headers: southHeaders } = await accountFixture();
+  const { id: north, headers: northHeaders } = await accountFixture();
   for (let i = 0; i < 5; i++) await saveStandardShogiFixture(ratedCpuRecord(south, "draw"));
 
   const win = ratedHumanRecord(south, north);
@@ -166,6 +178,20 @@ test("対人戦では両者の更新前レートを使い、認定状態に応�
       },
     ]),
   );
+  const resultPath = `/matchmaking/shogi/results/${win.record.id}?includeOpponent=1`;
+  expect(await (await boundaryRequest(resultPath, { headers: southHeaders })).json()).toEqual({
+    status: "rated",
+    rating: 1516,
+    previousRating: 1500,
+    humanPlayed: true,
+    placementCompleted: false,
+    opponent: { status: "placement" },
+  });
+  expect(await (await boundaryRequest(resultPath, { headers: northHeaders })).json()).toEqual({
+    status: "placement",
+    games: 1,
+    opponent: { status: "rated", rating: 1516, previousRating: 1500 },
+  });
 
   const draw = ratedHumanRecord(south, north, "draw");
   await saveStandardShogiFixture(draw);

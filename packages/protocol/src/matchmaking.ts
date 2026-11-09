@@ -32,19 +32,27 @@ export const publicShogiRatingSchema = z.strictObject({
   rating: z.number(),
   humanPlayed: z.boolean(),
 });
+const shogiRatingOpponentSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("placement") }),
+  z.strictObject({ status: z.literal("rated"), rating: z.number(), previousRating: z.number() }),
+  z.strictObject({ status: z.literal("cpu"), rating: z.number() }),
+]);
 export const shogiRatingResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("pending") }),
   z.strictObject({ status: z.literal("excluded"), reason: z.enum(["ai_fallback", "unavailable"]) }),
   z.strictObject({
     status: z.literal("placement"),
     games: z.int().positive().lt(shogiPlacementGames),
+    opponent: shogiRatingOpponentSchema.optional(),
   }),
   publicShogiRatingSchema.extend({
     status: z.literal("rated"),
     previousRating: z.number(),
     placementCompleted: z.boolean(),
+    opponent: shogiRatingOpponentSchema.optional(),
   }),
 ]);
+export type ShogiRatingResult = z.infer<typeof shogiRatingResultSchema>;
 export const matchmakingInputSchema = z.strictObject({
   controllerId: z.uuid(),
   operationId: z.uuid(),

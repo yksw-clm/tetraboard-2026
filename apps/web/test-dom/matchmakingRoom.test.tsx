@@ -123,82 +123,116 @@ for (const action of ["もう一度マッチング", "ロビーへ"])
     );
   });
 
-test("将棋はレート保存完了後に認定結果を表示し、将棋の待機列に戻る", async () => {
-  const saved = standardSavedRound().match;
-  const room = shogiRoomSchema.parse({
-    ...standardWaitingRoom(),
-    matchmaking: { id: saved.id, opponent: "cpu", preparedAtMs: now },
-    lastRound: {
-      roundId: saved.id,
-      game: saved.game,
-      eventCount: saved.replay.eventCount,
-      players: saved.participants.map(({ id, name, side }) => ({ id, name, side })),
+test.each([
+  {
+    opponent: "cpu",
+    rating: {
+      status: "rated",
+      rating: 1524,
+      previousRating: 1500,
+      placementCompleted: true,
+      humanPlayed: false,
+      opponent: { status: "cpu", rating: 1500 },
     },
-  });
-  const initialMembership = { ...membership, accountLinked: true };
-  saveRoomMembershipToken(room.id, token);
-  function View() {
-    const location = useLocation();
-    const session = useShogiRoomSession({
-      initialRoom: room,
-      initialMembership,
-      initialServerNowMs: now,
-      initialPresence: { hostPlayerId: playerIds[0]!, connectedPlayerIds: playerIds.slice(0, 2) },
+    labels: ["1524 (+24)", "1500"],
+  },
+  {
+    opponent: "human",
+    rating: {
+      status: "rated",
+      rating: 1542,
+      previousRating: 1555,
+      placementCompleted: false,
+      humanPlayed: true,
+      opponent: { status: "rated", rating: 1513, previousRating: 1500 },
+    },
+    labels: ["1542 (-13)", "1513 (+13)"],
+  },
+  {
+    opponent: "human",
+    rating: { status: "placement", games: 3, opponent: { status: "placement" } },
+    labels: ["認定戦 3 / 5局", "認定中"],
+  },
+])(
+  "将棋はレート保存完了後に各行に結果を表示し、将棋の待機列に戻る (%j)",
+  async ({ opponent, rating, labels }) => {
+    const saved = standardSavedRound().match;
+    const room = shogiRoomSchema.parse({
+      ...standardWaitingRoom(),
+      matchmaking: { id: saved.id, opponent, preparedAtMs: now },
+      lastRound: {
+        roundId: saved.id,
+        game: saved.game,
+        eventCount: saved.replay.eventCount,
+        players: saved.participants.map(({ id, name, side }) => ({ id, name, side })),
+      },
     });
-    const chat = useRoomChat({
-      room: session.room,
-      membership: session.membership,
-      remoteError: session.chatError,
-      sendChat: session.sendChat,
-      clearRemoteError: session.clearChatError,
-      notifications: session.chatNotifications,
-      messages: session.chatMessages,
-      connected: true,
-    });
-    return (
-      <>
-        <output data-path>{location.pathname + location.search}</output>
-        <ShogiRoomView session={session} chat={chat} invited={false} />
-      </>
+    const initialMembership = { ...membership, accountLinked: true };
+    saveRoomMembershipToken(room.id, token);
+    function View() {
+      const location = useLocation();
+      const session = useShogiRoomSession({
+        initialRoom: room,
+        initialMembership,
+        initialServerNowMs: now,
+        initialPresence: { hostPlayerId: playerIds[0]!, connectedPlayerIds: playerIds.slice(0, 2) },
+      });
+      const chat = useRoomChat({
+        room: session.room,
+        membership: session.membership,
+        remoteError: session.chatError,
+        sendChat: session.sendChat,
+        clearRemoteError: session.clearChatError,
+        notifications: session.chatNotifications,
+        messages: session.chatMessages,
+        connected: true,
+      });
+      return (
+        <>
+          <output data-path>{location.pathname + location.search}</output>
+          <ShogiRoomView session={session} chat={chat} invited={false} />
+        </>
+      );
+    }
+    const view = render(
+      wrap({ ...profile, profileId: crypto.randomUUID() }, "/rooms/12345")(<View />),
     );
-  }
-  const view = render(
-    wrap({ ...profile, profileId: crypto.randomUUID() }, "/rooms/12345")(<View />),
-  );
-  const socket = Socket.instances.at(-1)!;
-  socket.open();
-  socket.snapshot(room);
-  socket.receive({ type: "room.authenticated", membership: initialMembership });
-  await flush();
-  press(view, "結果");
-  await flush();
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
-  const ratingRequest = () =>
-    requests.filter((r) => r.url.endsWith(`/results/${saved.id}`)).at(-1)!;
-  const rejoin = () =>
-    [...dialog.querySelectorAll("button")].find((b) =>
-      b.textContent?.includes("もう一度マッチング"),
-    )!;
-  ratingRequest().respond({ status: "pending" });
-  await flush();
-  expect(rejoin().disabled).toBe(true);
-  expect(dialog.textContent).toContain("レート結果を保存しています");
-  clock.advance(1000);
-  await flush();
-  ratingRequest().respond({
-    status: "rated",
-    rating: 1524,
-    previousRating: 1500,
-    placementCompleted: true,
-    humanPlayed: false,
-  });
-  await flush();
-  expect(dialog.textContent).toContain("認定完了");
-  expect(dialog.textContent).toContain("レート 1524（+24）");
-  expect(dialog.textContent).toContain("対人戦未経験");
-  expect(rejoin().disabled).toBe(false);
-  press(dialog, "もう一度マッチング");
-  requests.find((r) => r.url.endsWith("/leave"))!.respond(null, 204);
-  await flush();
-  expect(view.querySelector("[data-path]")?.textContent).toBe("/games/shogi?matchmaking=1");
-});
+    const socket = Socket.instances.at(-1)!;
+    socket.open();
+    socket.snapshot(room);
+    socket.receive({ type: "room.authenticated", membership: initialMembership });
+    await flush();
+    press(view, "結果");
+    await flush();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const ratingRequest = () =>
+      requests.filter((r) => r.url.endsWith(`/results/${saved.id}?includeOpponent=1`)).at(-1)!;
+    const rejoin = () =>
+      [...dialog.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("もう一度マッチング"),
+      )!;
+    ratingRequest().respond({ status: "pending" });
+    await flush();
+    expect(rejoin().disabled).toBe(true);
+    expect(dialog.textContent).toContain("レート結果を保存しています");
+    clock.advance(1000);
+    await flush();
+    ratingRequest().respond(rating);
+    await flush();
+    const spans = [...dialog.querySelectorAll("span")];
+    for (const [index, player] of saved.participants.entries()) {
+      const name = spans.find((span) => span.textContent === player.name);
+      expect(name?.nextElementSibling?.textContent).toBe(labels[index]);
+    }
+    expect(dialog.textContent).not.toContain("レート 1524");
+    if (opponent === "cpu") {
+      expect(dialog.textContent).toContain("認定完了");
+      expect(dialog.textContent).toContain("対人戦未経験");
+    }
+    expect(rejoin().disabled).toBe(false);
+    press(dialog, "もう一度マッチング");
+    requests.find((r) => r.url.endsWith("/leave"))!.respond(null, 204);
+    await flush();
+    expect(view.querySelector("[data-path]")?.textContent).toBe("/games/shogi?matchmaking=1");
+  },
+);

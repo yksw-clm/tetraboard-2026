@@ -40,7 +40,7 @@ export async function matchmakingOperation(
 
 export async function readShogiRatingResult(matchId: string, signal: AbortSignal) {
   return shogiRatingResultSchema.parse(
-    await accountRequest(`${api("shogi")}/results/${matchId}`, {
+    await accountRequest(`${api("shogi")}/results/${matchId}?includeOpponent=1`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
     }),
   );
