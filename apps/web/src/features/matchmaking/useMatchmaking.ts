@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } fr
 import { useNavigate } from "react-router";
 import {
   matchmakingQueues,
+  isRatedMatchmakingGame,
   type MatchmakingGame,
   type MatchmakingState,
 } from "@tetraboard/protocol";
@@ -22,8 +23,8 @@ export function useMatchmaking(game: MatchmakingGame) {
   const account = useAccount(),
     navigate = useNavigate();
   const { controller, controllerId } = useQueueController();
-  const identity =
-    game === "shogi" && account.user?.isGuest ? null : (account.user?.profileId ?? null);
+  const rated = isRatedMatchmakingGame(game);
+  const identity = rated && account.user?.isGuest ? null : (account.user?.profileId ?? null);
   const scope = matchmakingScope(identity ?? "visitor", game);
   const epoch = useMemo(() => Symbol(`${scope}:${controllerId}`), [scope, controllerId]);
   const [visible, setVisible] = useState<{
@@ -277,7 +278,7 @@ export function useMatchmaking(game: MatchmakingGame) {
       return;
     active.current.busy = true;
     ++active.current.sequence;
-    if (game === "shogi") setVisible((previous) => ({ ...previous, pending: true, error: null }));
+    if (rated) setVisible((previous) => ({ ...previous, pending: true, error: null }));
     try {
       const latest = await readMatchmaking(game, controllerId);
       if (
@@ -298,12 +299,12 @@ export function useMatchmaking(game: MatchmakingGame) {
           version: latest.version!,
           roomId: a.roomId,
           instanceId: a.instanceId,
-          ...(game === "shogi" ? { game } : {}),
+          ...(rated ? { game } : {}),
         })
       )
         throw Error("ルームの参加資格を保存できません。");
       active.current.moving = true;
-      void navigate(`/rooms/${a.roomId}?invite=${a.instanceId}`, { replace: game === "shogi" });
+      void navigate(`/rooms/${a.roomId}?invite=${a.instanceId}`, { replace: rated });
     } catch (error) {
       if (valid())
         setVisible((previous) => ({
@@ -314,11 +315,11 @@ export function useMatchmaking(game: MatchmakingGame) {
     } finally {
       if (valid()) {
         active.current.busy = false;
-        if (game === "shogi" && !active.current.moving)
+        if (rated && !active.current.moving)
           setVisible((previous) => ({ ...previous, pending: false }));
       }
     }
-  }, [identity, valid, controllerId, controller, scope, navigate, game]);
+  }, [identity, valid, controllerId, controller, scope, navigate, game, rated]);
   const data = visible.scope === scope ? visible.data : idle;
   const owned =
     data.controllerId === controllerId &&
@@ -326,7 +327,7 @@ export function useMatchmaking(game: MatchmakingGame) {
   const assignedMatchId = data.assignment?.matchId;
   useEffect(() => {
     if (!owned || !assignedMatchId) return;
-    if (game === "shogi") {
+    if (rated) {
       void enter();
       return;
     }
@@ -337,7 +338,7 @@ export function useMatchmaking(game: MatchmakingGame) {
       data.status === "playing" ? 0 : 5000,
     );
     return () => window.clearTimeout(timer);
-  }, [owned, assignedMatchId, data.status, enter, game]);
+  }, [owned, assignedMatchId, data.status, enter, rated]);
   const join = useCallback(() => perform("join"), [perform]);
   const cancel = useCallback(() => perform("cancel"), [perform]);
   const takeover = useCallback(() => perform("takeover"), [perform]);

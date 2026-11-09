@@ -8,7 +8,7 @@ import {
   useLocation,
 } from "react-router";
 import { MatchmakingPage } from "../src/features/matchmaking/MatchmakingPage";
-import { ShogiMatchmakingDialog } from "../src/features/matchmaking/ShogiMatchmakingDialog";
+import { RatedMatchmakingDialog } from "../src/features/matchmaking/RatedMatchmakingDialog";
 import { AccountContext } from "../src/features/account/useAccount";
 import {
   QueueControllerContext,
@@ -62,7 +62,7 @@ function shogiPage(viewer = user, rejoin = false) {
   });
   function Lobby() {
     const { search } = useLocation();
-    return search === "?matchmaking=1" ? <ShogiMatchmakingDialog /> : null;
+    return search === "?matchmaking=1" ? <RatedMatchmakingDialog game="shogi" /> : null;
   }
   const router = createMemoryRouter(
     [

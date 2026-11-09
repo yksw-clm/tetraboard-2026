@@ -2,6 +2,7 @@ import { z } from "zod";
 import { roomMembershipSchema, roomCodeSchema } from "./rooms";
 export const matchmakingRules = {
   key: "four-reversi:singles:v2:180000:0:casual-v1",
+  seats: 4,
   fillAfterMs: 30_000,
   heartbeatMs: 10_000,
   leaseMs: 30_000,
@@ -12,6 +13,7 @@ export const matchmakingRules = {
 export const shogiMatchmakingRules = {
   ...matchmakingRules,
   key: "shogi:300000:30000:rated-v1",
+  seats: 2,
   fillAfterMs: 15_000,
   timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
 } as const;
@@ -20,37 +22,67 @@ export const matchmakingQueues = {
   shogi: shogiMatchmakingRules,
 } as const;
 export type MatchmakingGame = keyof typeof matchmakingQueues;
-export const shogiPlacementGames = 5;
-export const shogiRatingSummarySchema = z.discriminatedUnion("status", [
+export function isMatchmakingGame(game: string): game is MatchmakingGame {
+  return Object.hasOwn(matchmakingQueues, game);
+}
+export const ratedMatchmakingRules = {
+  shogi: { placementGames: 5 },
+} as const satisfies Partial<Record<MatchmakingGame, { placementGames: number }>>;
+export type RatedMatchmakingGame = keyof typeof ratedMatchmakingRules;
+export function isRatedMatchmakingGame(game: string): game is RatedMatchmakingGame {
+  return Object.hasOwn(ratedMatchmakingRules, game);
+}
+export const shogiPlacementGames = ratedMatchmakingRules.shogi.placementGames;
+export const ratingSummarySchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("placement"),
-    games: z.int().nonnegative().lt(shogiPlacementGames),
+    games: z.int().nonnegative(),
   }),
   z.strictObject({ status: z.literal("rated"), rating: z.number() }),
 ]);
-export const publicShogiRatingSchema = z.strictObject({
+export const shogiRatingSummarySchema = ratingSummarySchema.refine(
+  (summary) => summary.status !== "placement" || summary.games < shogiPlacementGames,
+);
+const publicRatingSchema = z.strictObject({
   rating: z.number(),
   humanPlayed: z.boolean(),
 });
-const shogiRatingOpponentSchema = z.discriminatedUnion("status", [
+export const publicShogiRatingSchema = publicRatingSchema;
+const ratingOpponentSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("placement") }),
   z.strictObject({ status: z.literal("rated"), rating: z.number(), previousRating: z.number() }),
   z.strictObject({ status: z.literal("cpu"), rating: z.number() }),
 ]);
+export type RatingOpponent = z.infer<typeof ratingOpponentSchema>;
+const pendingRating = z.strictObject({ status: z.literal("pending") });
+const excludedRating = z.strictObject({
+  status: z.literal("excluded"),
+  reason: z.enum(["ai_fallback", "unavailable"]),
+});
+const placementRating = z.strictObject({
+  status: z.literal("placement"),
+  games: z.int().positive(),
+});
+const appliedRating = publicRatingSchema.extend({
+  status: z.literal("rated"),
+  previousRating: z.number(),
+  placementCompleted: z.boolean(),
+});
+const ratingResultSchema = z.discriminatedUnion("status", [
+  pendingRating,
+  excludedRating,
+  placementRating,
+  appliedRating,
+]);
+export type RatingResult = z.infer<typeof ratingResultSchema>;
 export const shogiRatingResultSchema = z.discriminatedUnion("status", [
-  z.strictObject({ status: z.literal("pending") }),
-  z.strictObject({ status: z.literal("excluded"), reason: z.enum(["ai_fallback", "unavailable"]) }),
-  z.strictObject({
-    status: z.literal("placement"),
+  pendingRating,
+  excludedRating,
+  placementRating.extend({
     games: z.int().positive().lt(shogiPlacementGames),
-    opponent: shogiRatingOpponentSchema.optional(),
+    opponent: ratingOpponentSchema.optional(),
   }),
-  publicShogiRatingSchema.extend({
-    status: z.literal("rated"),
-    previousRating: z.number(),
-    placementCompleted: z.boolean(),
-    opponent: shogiRatingOpponentSchema.optional(),
-  }),
+  appliedRating.extend({ opponent: ratingOpponentSchema.optional() }),
 ]);
 export type ShogiRatingResult = z.infer<typeof shogiRatingResultSchema>;
 export const matchmakingInputSchema = z.strictObject({
@@ -88,7 +120,7 @@ export const matchmakingQueueReferenceSchema = z.strictObject({
   version: z.int().positive(),
 });
 export const matchmakingRoomReferenceSchema = matchmakingQueueReferenceSchema.extend({
-  game: z.literal("shogi").optional(),
+  game: z.enum(["shogi", "four-reversi"]).optional(),
   identity: z.string().min(1),
   roomId: z.string().regex(/^\d{5}$/),
   instanceId: z.uuid(),

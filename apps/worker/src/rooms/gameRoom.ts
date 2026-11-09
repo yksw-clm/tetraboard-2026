@@ -1,6 +1,6 @@
-import { matchmakingRules, shogiMatchmakingRules } from "@tetraboard/protocol";
+import { matchmakingQueues, matchmakingRules } from "@tetraboard/protocol";
+import { ratedMatchmakingPolicy } from "../matchmaking/ratedMatchmaking";
 import { namedCpuProfile } from "../matchmaking/cpuProfiles";
-import { shogiCpuNodes } from "../matchmaking/shogiCpuProfiles";
 import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchmaking/coordinator";
 import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
 import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
@@ -2449,14 +2449,16 @@ export class GameRoom extends DurableObject<Env> {
     await this.reconcileDeadlines();
     return this.ctx.blockConcurrencyWhile(async () => {
       const rating = input.rating;
-      const rules = rating ? shogiMatchmakingRules : matchmakingRules;
+      const game = input.game ?? (rating ? "shogi" : "four-reversi");
+      const rules = matchmakingQueues[game];
+      const policy = ratedMatchmakingPolicy(game);
       if (
         input.roomId !== this.ctx.id.name ||
         input.players.length < 1 ||
-        input.players.length > 4 ||
-        (rating?.kind === "human" && input.players.length !== 2) ||
-        (rating?.kind === "cpu" &&
-          (input.players.length !== 1 || !shogiCpuNodes(rating.profileId))) ||
+        input.players.length > rules.seats ||
+        (rating
+          ? !policy?.validParticipants(rating, input.players.length)
+          : policy !== undefined) ||
         new Set(input.players.map((p) => p.admission.accountId)).size !== input.players.length ||
         Date.now() >= input.expiresAtMs ||
         input.expiresAtMs !== input.preparedAtMs + rules.connectionGraceMs
@@ -2475,9 +2477,13 @@ export class GameRoom extends DurableObject<Env> {
       for (const { admission: a } of input.players) {
         const valid = await this.env.APP_DB.prepare(
           `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN matchmaking_wait_reservations w ON w.account_id=s.account_id WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=? AND w.match_operation_id=s.operation_id AND w.queue_key=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)
-            AND (?=0 OR (COALESCE(u.isAnonymous,0)=0 AND EXISTS (
-              SELECT 1 FROM shogi_rating_pending p WHERE p.account_id=s.account_id AND p.match_id=?
-            )))`,
+            ${
+              policy
+                ? `AND COALESCE(u.isAnonymous,0)=0 AND EXISTS (
+              SELECT 1 FROM ${policy.store.pendingTable} p WHERE p.account_id=s.account_id AND p.match_id=?
+            )`
+                : ""
+            }`,
         )
           .bind(
             a.accountId,
@@ -2486,35 +2492,35 @@ export class GameRoom extends DurableObject<Env> {
             input.instanceId,
             a.playerId,
             rules.key,
-            Number(Boolean(rating)),
-            input.matchId,
+            ...(policy ? [input.matchId] : []),
           )
           .first();
         if (!valid || this.ctx.storage.kv.get(cancelledAdmissionKey(a.operationId)))
           return { status: "invalid" as const };
       }
       const entry = { code: input.roomId, name: input.players[0]!.admission.name };
-      const base = rating
-        ? waitingRoomFactories.shogi({
-            ...entry,
-            request: {
-              game: "shogi",
-              quickPlay: false,
-              timeControl: shogiMatchmakingRules.timeControl,
-            },
-          })
-        : waitingRoomFactories["four-reversi"]({
-            ...entry,
-            request: {
-              game: "four-reversi",
-              mode: "singles",
-              quickPlay: false,
-              timeControl: matchmakingRules.timeControl,
-            },
-          });
-      const profile = rating ? undefined : namedCpuProfile("lv3-v1");
-      const seat = rating ? { side: null } : { color: null };
-      const cpuCount = gameCapacity(base.settings.game) - input.players.length;
+      const base =
+        game === "shogi"
+          ? waitingRoomFactories.shogi({
+              ...entry,
+              request: {
+                game: "shogi",
+                quickPlay: false,
+                timeControl: rules.timeControl,
+              },
+            })
+          : waitingRoomFactories["four-reversi"]({
+              ...entry,
+              request: {
+                game: "four-reversi",
+                mode: "singles",
+                quickPlay: false,
+                timeControl: rules.timeControl,
+              },
+            });
+      const profile = game === "shogi" ? undefined : namedCpuProfile("lv3-v1");
+      const seat = game === "shogi" ? { side: null } : { color: null };
+      const cpuCount = rules.seats - input.players.length;
       const room = roomSchema.parse({
         ...base,
         instanceId: input.instanceId,

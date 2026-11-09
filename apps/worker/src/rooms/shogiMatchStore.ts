@@ -3,7 +3,7 @@ import { applyMatchClaims } from "../accounts/matchClaims";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import { tournamentMatchStatements } from "../tournaments/store";
-import { shogiRatingStatement, type ShogiRatingSource } from "./shogiRating";
+import { shogiRatingStatement, shogiRatingStore, type ShogiRatingSource } from "./shogiRating";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import {
   fourShogiReplayEventSchema,
@@ -251,13 +251,7 @@ export async function advanceShogiMatchSave(
       : []),
     ...badgeAwardStatements(db, game, record.id),
     ...("rating" in record && record.rating
-      ? [
-          shogiRatingStatement(db, record.id),
-          db
-            .prepare(`DELETE FROM shogi_rating_pending WHERE match_id = ?
-              AND EXISTS (SELECT 1 FROM matches WHERE id = ? AND game = 'shogi')`)
-            .bind(record.id, record.id),
-        ]
+      ? shogiRatingStore.finalize(db, record.id, shogiRatingStatement(db, record.id))
       : []),
     ...(tournament && game === "four-shogi"
       ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)

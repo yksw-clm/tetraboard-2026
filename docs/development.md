@@ -88,9 +88,9 @@ Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v
 
 ## 四人リバーシのレート戦の実装順序
 
-登録者向けの[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦未実装)へ切り替えます。2026-11-08に文書化したフェーズ4.5-Aのうち、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)を引き継ぎます。この段階の変更は文書化です。
+登録者向けの[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦未実装)へ切り替えます。2026-11-08に文書化したフェーズ4.5-Aのうち、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)を引き継ぎます。
 
-1. 将棋で使っているロビーダイアログ、待機・取消・自動入室・再参加、認定と対局結果の表示、終局時の二重反映防止を共通化します。ゲーム別に参加人数・持ち時間・待機上限・組合せ・レート計算を指定できる形にし、将棋の15秒の待機、既存レートとAPI、対人戦・CPU戦の終局と再参加を回帰テストします。
+1. 将棋で使っているロビーダイアログ、待機・取消・自動入室・再参加、認定と対局結果の表示、終局時の二重反映防止を共通化しました。ゲーム別の参加人数・持ち時間・待機上限はprotocolの `matchmakingQueues`、相手選びとレート保存はWorkerの `matchmaking/ratedMatchmaking.ts` のゲーム別設定から参照します。将棋は既存のD1テーブルとAPI形式でレートを読み書きします。
 2. 四人リバーシのCPUを較正し、順位ベースのレート計算と保存を追加します。同順位、認定5局目、CPU混在、代替手使用時の除外、再試行を確認します。開発環境で試験し、公開レートの換算式とランク境界を決めます。
 3. 四人リバーシを共通の導線に接続します。最長20秒で人間を優先して不足席を補充し、旧ランダムマッチの新規受付を切り替えます。旧対局の完走・保存、旧URLと切り替え前に待機していた利用者の扱いを確認します。
 4. 必須ローカル検証とFull CIを通し、開発環境で人間1〜4人、20秒前後の参加・取消、AI障害、終局後の再参加を確認します。対人戦とCPU入りの局でのレートの推移、稼働費用、受付停止手順をまとめ、本番公開は別途承認を得て実施します。
@@ -132,6 +132,8 @@ Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に�
 ## 通常将棋の実装
 
 [将棋のレート戦](shogi-rated-match.md)には、専用待機列、終局時のレート保存、CPUの採用前に行う検証を記載しています。Webの `features/matchmaking` をWorkerの `matchmaking/routes.ts` と `matchmaking/coordinator.ts` から通常将棋のGameRoomへ接続します。対人戦とCPU戦の待機・入室・終局は `apps/worker/test/matchmaking.test.ts`、Elo計算と認定情報の公開範囲は `apps/worker/test/shogiRating.test.ts`、画面は `apps/web/test-dom/matchmaking*.test.tsx` で確認します。
+
+Webの `RatedMatchmakingDialog` とレート表示は対象ゲームを受け取ります。将棋の対局結果は既存APIの `opponent` を使い、名前の横のレート表示を `RatingResultLabel` に渡します。Workerの `matchmaking/ratingStore.ts` はレート保存待ちの予約・解除、適用済み対局の照合、確定時に使うSQL文を提供します。将棋のElo計算は `rooms/shogiRating.ts` が持ち、棋譜確定と同じD1バッチで更新します。
 
 開発環境の外部AI接続は `standardShogiProgress.ts` が棋譜からUSI要求を準備し、GameRoomがストレージのトランザクションを抜けてから `aiService.ts` を呼びます。起動・探索はAI Serviceの `shogi.rs` が担当します。`apps/worker/test-ai-service/shogiAiService.test.ts` で応答とタイムアウトを確認できます。コンテナの実エンジンを使う場合は、既存のAI Service統合テストに `TETRABOARD_SHOGI_TEST_REAL=1` を指定します。
 

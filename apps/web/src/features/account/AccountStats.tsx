@@ -1,13 +1,13 @@
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { lazy, Suspense, useState } from "react";
-import { type MatchGame, type RoomMode } from "@tetraboard/protocol";
+import { isRatedMatchmakingGame, type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { formatStatsRate } from "./statsPresentation";
 import { StatsTable, type StatsRow } from "./StatsTable";
 import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
 import { AccountBadges } from "../badges/AccountBadges";
-import { ShogiRatingSummary } from "../matchmaking/ShogiRatingSummary";
+import { RatingSummary } from "../matchmaking/RatingSummary";
 const FormationStats = lazy(() => import("./FormationStats"));
 
 export function AccountStats({
@@ -22,7 +22,7 @@ export function AccountStats({
   const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
   const showFormations = game === "four-shogi" && mode === "singles";
   const formations = useFormationStats(showFormations);
-  const showShogiRating = game === "shogi" && registered;
+  const showRating = registered && isRatedMatchmakingGame(game);
   const [ratingRefresh, setRatingRefresh] = useState(0);
   const rows: StatsRow[] = [];
   if (stats) {
@@ -76,13 +76,13 @@ export function AccountStats({
             onPress={() => {
               void refresh("refresh");
               void formations.refresh("refresh");
-              if (showShogiRating) setRatingRefresh((current) => current + 1);
+              if (showRating) setRatingRefresh((current) => current + 1);
             }}
           >
             更新
           </AppButton>
         </div>
-        {showShogiRating && <ShogiRatingSummary key={ratingRefresh} compact />}
+        {showRating && <RatingSummary key={`${game}:${ratingRefresh}`} game={game} compact />}
         <p className="text-xs text-muted">対人戦のみ集計</p>
         <div className="flex flex-col gap-3">
           {loading && !pendingSource && (

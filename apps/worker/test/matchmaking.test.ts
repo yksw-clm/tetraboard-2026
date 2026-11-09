@@ -151,16 +151,50 @@ afterEach(async () => {
     });
 });
 
-async function ratedAccount(rating: number) {
+async function ratedAccount(rating: number, ratedGames = 1) {
   const account = await accountFixture();
   accounts.push(account.id);
   const previous = standardShogiRecord(account.id, "win", true);
   await saveStandardShogiFixture(previous);
-  await env.APP_DB.prepare("INSERT INTO shogi_rating_changes VALUES (?,?,1500,?,1,0)")
-    .bind(previous.record.id, account.id, rating)
+  await env.APP_DB.prepare("INSERT INTO shogi_rating_changes VALUES (?,?,1500,?,?,0)")
+    .bind(previous.record.id, account.id, rating, ratedGames)
     .run();
   return account;
 }
+
+test("保存済みの将棋レートを引き継ぎ、単独待機は15秒でCPU戦になる", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const account = await ratedAccount(1764.125, 5);
+  const queue = shogiQueue();
+  const controllerId = crypto.randomUUID();
+  const rating = await exports.default.fetch(
+    new AcceptedGameRequest(`${origin}/api/matchmaking/shogi/rating`, {
+      headers: account.headers,
+    }),
+  );
+  expect(rating.status).toBe(200);
+  expect(await rating.json()).toEqual({ status: "rated", rating: 1764.125 });
+
+  const joined = await queue.join(account.id, crypto.randomUUID(), controllerId);
+  expect(joined).toMatchObject({ ok: true, state: { status: "waiting" } });
+  now += 14_999;
+  await runInDurableObject(queue, (instance) => instance.alarm());
+  expect(await queue.status(account.id, controllerId)).toMatchObject({ status: "waiting" });
+  expect(await runInDurableObject(queue, (_, ctx) => ctx.storage.getAlarm())).toBe(now + 1);
+
+  now++;
+  await runInDurableObject(queue, (instance) => instance.alarm());
+  const matched = await queue.status(account.id, controllerId);
+  expect(matched).toMatchObject({ status: "matched", assignment: { opponent: "cpu" } });
+  const assignment = matched.assignment!;
+  rooms.add(assignment.roomId);
+  const room = env.GAME_ROOM.getByName(assignment.roomId);
+  const reservation = await runInDurableObject(room, (_, ctx) =>
+    ctx.storage.kv.get(`matchmaking:${assignment.matchId}`),
+  );
+  expect(reservation).toMatchObject({ rating: { kind: "cpu", referenceRating: 1764 } });
+});
 
 test.each([
   { difference: 101, deadline: 5000, opponent: "human" },

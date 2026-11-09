@@ -44,6 +44,8 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 `apps/web/test-dom/matchmaking.test.tsx`はWeb Locks非対応の明示参加、取消と遅延heartbeat、別操作元の確認・引継ぎ、ポーリングで延期されない入室、サーバー時刻による待機表示を検証します。`matchmakingRoom.test.tsx`は手動開始・設定の非表示、同期した開始予告、旧席解放後の再マッチングとロビーへの移動を確認します。CPUの名前・ロボット・CPUタグ・実際のレベルはプレイヤー情報のDOMテストで確認します。画面寸法・ネイティブ入力は従来どおり手動確認です。
 
+将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
+
 部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番の公開フラグは無効です。開発ServiceのWrangler dry-runはFull CIに含め、クラウド接続と実機確認は開発への反映後に別途確認します。
 
 ## Fast CIとFull CI
