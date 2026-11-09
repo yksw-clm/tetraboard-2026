@@ -98,13 +98,14 @@ test("旧解析の取消完了後に新解析を開始する", async () => {
   await handle({ type: "enable" }, sender(1));
   f.hold = true;
   const firstRequest = requestFor(),
-    secondRequest = requestFor();
+    secondRequest = { ...requestFor(), profile_id: "lv6-candidate-a-v1" as const };
   const first = handle({ type: "analyze", request: firstRequest }, sender(1));
   await settle();
   const second = handle({ type: "analyze", request: secondRequest }, sender(1));
   await settle();
   expect(f.requests.map((r) => r.init?.method)).toEqual(["POST", "DELETE", "POST"]);
   expect(f.requests[1].url).toEndWith(firstRequest.request_id);
+  expect(JSON.parse(String(f.requests[2].init?.body)).profile_id).toBe("lv6-candidate-a-v1");
   f.responses[0](Response.json(responseFor(firstRequest)));
   f.responses[1](Response.json(responseFor(secondRequest)));
   await Promise.all([first, second]);

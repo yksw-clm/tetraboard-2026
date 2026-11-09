@@ -23,6 +23,7 @@
     "study:evaluate": "bun run study:build && bun scripts/phase3Evaluate.ts",
     "study:performance": "bun run study:build && bun scripts/phase3Performance.ts",
     "study:analyze": "cargo run --release --locked -p tetraboard-ai-benchmark --bin study -- analyze",
+    "study:lv6:preliminary": "cargo build --release --locked -p tetraboard-ai-benchmark && bun scripts/lv6Preliminary.ts",
     "serve:local": "bun scripts/serveLocal.ts",
     "setup:local": "bun scripts/setupLocal.ts"
   },

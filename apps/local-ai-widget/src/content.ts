@@ -1,6 +1,7 @@
 import { channel, observationSchema, roomIdFromUrl, eligible, colorNames } from "./model";
 import { paintOverlay } from "./overlay";
 import { WidgetController, type Reply } from "./controller";
+import { localProfileIds, profileNames } from "./profiles";
 let collapsed = false;
 let overlayError = "";
 const controller = new WidgetController(
@@ -71,6 +72,23 @@ function render() {
   fold.textContent = collapsed ? "開く" : "折り畳む";
   section.hidden = collapsed;
   section.replaceChildren();
+  const label = document.createElement("label"),
+    select = document.createElement("select");
+  label.textContent = "解析AI ";
+  for (const id of localProfileIds) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = profileNames[id];
+    select.append(option);
+  }
+  select.value = controller.profileId;
+  select.disabled = controller.switching;
+  select.addEventListener("change", () => {
+    const id = localProfileIds.find((id) => id === select.value);
+    if (id) controller.selectProfile(id);
+  });
+  label.append(select);
+  section.append(label, document.createElement("br"));
   button(
     enabled ? "無効にする" : "有効にする",
     () => {
@@ -103,7 +121,7 @@ function render() {
     return;
   }
   paragraph(
-    `Lv5 ノヴァ · ${colorNames[observation.game.turn]}の候補手 · ${observation.game.moveNumber}手目`,
+    `${profileNames[controller.profileId]} · ${colorNames[observation.game.turn]}の候補手 · ${observation.game.moveNumber}手目`,
   );
   if (busy) paragraph("解析中…").setAttribute("role", "status");
   if (result) {

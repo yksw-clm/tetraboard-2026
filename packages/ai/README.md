@@ -36,11 +36,13 @@ Chromeの個人用widgetには、公開Serviceと別の`bun run --cwd packages/a
 
 ローカル専用バイナリ`tetraboard-ai-local`は`127.0.0.1:3002`固定で待ち受けます。`GET /health`、`POST /v1/analysis`、`DELETE /v1/analysis/:requestId`はすべて専用Bearer tokenが必要です。任意ホストの指定・CORS許可・公開APIの時間上限緩和は行いません。通常の`serve`・Dockerの起動バイナリ・`/v1/move`・`/v2/move`は従来どおりです。
 
-解析契約は`api_version: 1`、`ruleset_version: four-reversi-singles-v2`、`state_version: 2`、UUIDの`request_id`、64桁小文字hexの`position_revision`、`profile_id: lv5-v1`と既存`PositionSetup`の`state`です。局面はcamelCaseで、盤面・手番・手数・直前手・連続パス・脱落順を渡します。任意の予算・seedは受理しません。
+解析契約は`api_version: 1`、`ruleset_version: four-reversi-singles-v2`、`state_version: 2`、UUIDの`request_id`、64桁小文字hexの`position_revision`、`profile_id: lv5-v1` または `lv6-candidate-a-v1`と既存`PositionSetup`の`state`です。局面はcamelCaseで、盤面・手番・手数・直前手・連続パス・脱落順を渡します。任意の予算・seedは受理しません。
 
 応答は対象識別子、profile ID/hash、Engine版、実効予算、`reproducible: false`、`cancelled`、最大3件の`candidates: { position, visits, solo_wins: [黒,白,赤,青] }[]`と既存の`diagnostics`です。Lv5の探索と乱数列は維持し、根候補を訪問数、手番色の単独1位率、行・列順で並べます。時間上限2000msをローカルだけで追加するため、時間中断時の再現性は保証しません。評価の意味は [widget仕様](../../README.md#ローカルai解析widget) を参照します。
 
 同時実行は1件です。DELETEは協調停止と実行枠の解放を待って204を返し、POSTより先に届いた取消も直近128要求まで記録します。HTTP中断でも探索へ停止を伝えます。認証不正401、版・profile・局面不正400、JSON型不正422、取消済み409、繁忙503です。応答はno-storeで、対局状態や棋譜は保存しません。
+
+ローカル専用Lv6は、候補Aの測定結果との対応とAPI互換性を維持するため `lv6-candidate-a-v1` を内部IDとして引き続き使います。設定は `configs/local-analysis-profiles-v1.json` に定義します。最大8192試行・262144着手適用・2000msで、Lv5と同じMCTS・単独1位報酬です。公開Serviceのprofile一覧と上限は維持します。拡張とServiceを両方更新し、選択したprofile・hash・実効予算を照合します。[Lv6の仕様・採用と測定の記録](docs/lv6-candidate.md)を参照してください。
 
 ## 責務と境界
 

@@ -52,3 +52,20 @@ test("CPUの名前は実profileと対応し、実行するEngine版と状態版�
   ]);
   expect(new Set(characters.characters.map((c: { name: string }) => c.name)).size).toBe(5);
 });
+
+test("ローカル実験候補は公開profileと別のhash・予算で識別する", async () => {
+  const file = JSON.parse(
+    await readFile(new URL("../configs/local-analysis-profiles-v1.json", import.meta.url), "utf8"),
+  );
+  expect(file.format_version).toBe(1);
+  expect(file.profiles.map((p: { id: string }) => p.id)).toEqual(["lv6-candidate-a-v1"]);
+  const profile = file.profiles[0];
+  expect(Bun.CryptoHasher.hash("sha256", JSON.stringify(canonical(profile.config)), "hex")).toBe(
+    profile.profile_hash,
+  );
+  expect(profile.config.budget).toEqual({
+    max_iterations: 8192,
+    max_nodes: 262144,
+    max_time_ms: 2000,
+  });
+});
