@@ -1,63 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router";
-import { shogiPlacementGames } from "@tetraboard/protocol";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { useAccount } from "../account/useAccount";
-import { LegalNotice } from "../privacy/LegalNotice";
-import { readShogiRatingSummary } from "./matchmakingApi";
+import { ShogiRatingSummary } from "./ShogiRatingSummary";
 import { useMatchmaking } from "./useMatchmaking";
-
-function ShogiRatingSummary() {
-  const [result, setResult] = useState<
-    Awaited<ReturnType<typeof readShogiRatingSummary>> | "error" | null
-  >(null);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void readShogiRatingSummary(controller.signal).then(
-      (summary) => {
-        if (!controller.signal.aborted) setResult(summary);
-      },
-      () => {
-        if (!controller.signal.aborted) setResult("error");
-      },
-    );
-    return () => controller.abort();
-  }, [attempt]);
-
-  if (result === null) return <p role="status">レートを読み込んでいます…</p>;
-  if (result === "error")
-    return (
-      <div className="flex flex-col items-center gap-2">
-        <p role="alert">レートを取得できませんでした。</p>
-        <AppButton
-          appearance="secondary"
-          size="compact"
-          onPress={() => {
-            setResult(null);
-            setAttempt((current) => current + 1);
-          }}
-        >
-          レートを再取得する
-        </AppButton>
-      </div>
-    );
-  return (
-    <div className="text-center">
-      <p className="text-sm text-muted">現在のレート</p>
-      <p className="mt-1 text-4xl font-bold tabular-nums">
-        {result.status === "rated" ? Math.round(result.rating) : "認定中"}
-      </p>
-      {result.status === "placement" && (
-        <p className="mt-1 text-sm tabular-nums">
-          {result.games} / {shogiPlacementGames}局
-        </p>
-      )}
-    </div>
-  );
-}
 
 export function ShogiMatchmakingDialog() {
   const account = useAccount();
@@ -143,17 +90,11 @@ export function ShogiMatchmakingDialog() {
   }
 
   return (
-    <AppDialog title="将棋レートマッチ" theme="shogi" busy={entering} onClose={requestClose}>
+    <AppDialog title="将棋のレート戦" theme="shogi" busy={entering} onClose={requestClose}>
       <div className="flex flex-col gap-4">
         {identity && <ShogiRatingSummary key={identity} />}
-        {data.status === "idle" && !pending && (
-          <>
-            <p className="text-sm">
-              1人5分＋30秒。レートの近い人を優先し、15秒で相手が見つからなければCPUと組み合わせます。
-            </p>
-            <LegalNotice />
-            {data.enabled === false && <p role="status">将棋レートマッチは準備中です。</p>}
-          </>
+        {data.status === "idle" && !pending && data.enabled === false && (
+          <p role="status">将棋のレート戦は準備中です。</p>
         )}
         {searching && <p role="status">対戦相手を探しています…</p>}
         {assigned && owned && (
@@ -167,10 +108,7 @@ export function ShogiMatchmakingDialog() {
             {matching.error ?? account.error}
           </p>
         )}
-        <div className="flex flex-wrap justify-end gap-2">
-          <AppButton appearance="secondary" isDisabled={entering} onPress={requestClose}>
-            戻る
-          </AppButton>
+        <div className="flex flex-col gap-2">
           {data.status === "idle" &&
             !pending &&
             (data.enabled && !account.loading && !account.error && !identity ? (
@@ -178,7 +116,7 @@ export function ShogiMatchmakingDialog() {
             ) : data.enabled && identity && !account.user?.profileCompleted ? (
               <AppButtonLink to="/account/setup">プロフィールを設定する</AppButtonLink>
             ) : (
-              <AppButton isDisabled={!ready} onPress={() => void join()}>
+              <AppButton className="w-full" isDisabled={!ready} onPress={() => void join()}>
                 対戦相手を探す
               </AppButton>
             ))}
@@ -195,6 +133,14 @@ export function ShogiMatchmakingDialog() {
               状態を確認する
             </AppButton>
           )}
+          <AppButton
+            className="w-full"
+            appearance="secondary"
+            isDisabled={entering}
+            onPress={requestClose}
+          >
+            戻る
+          </AppButton>
         </div>
       </div>
       {showConfirm && (

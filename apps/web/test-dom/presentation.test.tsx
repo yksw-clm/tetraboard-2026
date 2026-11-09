@@ -54,6 +54,37 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
   expect(requests).toHaveLength(1);
   await flush();
 });
+test("登録者の将棋戦績は対人戦の注記の上にレートを表示し、更新で再取得する", async () => {
+  const view = render(
+    <MemoryRouter>
+      <AccountStats game="shogi" mode="singles" registered />
+    </MemoryRouter>,
+  );
+  clock.advance(0);
+  const rating = () => requests.filter(({ url }) => url.endsWith("/shogi/rating")).at(-1)!;
+  requests
+    .find(({ url }) => url.includes("/account/stats"))!
+    .respond({
+      total: 1,
+      wins: 1,
+      losses: 0,
+      draws: 0,
+    });
+  const first = rating();
+  first.respond({ status: "rated", rating: 1542.4 });
+  await flush();
+  const note = [...view.querySelectorAll("p")].find(
+    (node) => node.textContent === "対人戦のみ集計",
+  )!;
+  expect(note.previousElementSibling?.textContent).toBe("レート戦のレート1542");
+  press(view, "更新");
+  await flush();
+  expect(rating()).not.toBe(first);
+  rating().respond({ status: "rated", rating: 1551 });
+  await flush();
+  expect(note.previousElementSibling?.textContent).toBe("レート戦のレート1551");
+});
+
 test("棋譜カードは同順位・CPU・日時・チーム結果・本人棋譜リンクを表示", () => {
   const detail = match(2);
   detail.moveCount = 60;

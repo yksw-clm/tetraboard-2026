@@ -321,7 +321,7 @@ export function ProfilePage({ setup = false }: { setup?: boolean }) {
               className="grid min-w-0 grid-cols-1 items-start gap-5 [@media(min-width:1024px)]:grid-cols-[560px_minmax(0,1fr)]"
             >
               <AppCard>
-                <AccountStats game={game} mode={mode} />
+                <AccountStats game={game} mode={mode} registered={!user.isGuest} />
               </AppCard>
               <MatchHistory game={game} mode={mode} />
             </div>
