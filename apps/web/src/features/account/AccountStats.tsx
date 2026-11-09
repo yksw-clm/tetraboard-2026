@@ -1,5 +1,5 @@
 import { gameCatalog } from "@tetraboard/protocol/games";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import { formatStatsRate } from "./statsPresentation";
@@ -7,12 +7,23 @@ import { StatsTable, type StatsRow } from "./StatsTable";
 import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
 import { AccountBadges } from "../badges/AccountBadges";
+import { ShogiRatingSummary } from "../matchmaking/ShogiRatingSummary";
 const FormationStats = lazy(() => import("./FormationStats"));
 
-export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }) {
+export function AccountStats({
+  game,
+  mode,
+  registered = false,
+}: {
+  game: MatchGame;
+  mode: RoomMode;
+  registered?: boolean;
+}) {
   const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
   const showFormations = game === "four-shogi" && mode === "singles";
   const formations = useFormationStats(showFormations);
+  const showShogiRating = game === "shogi" && registered;
+  const [ratingRefresh, setRatingRefresh] = useState(0);
   const rows: StatsRow[] = [];
   if (stats) {
     const selected = "wins" in stats ? stats : stats[mode];
@@ -65,11 +76,13 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
             onPress={() => {
               void refresh("refresh");
               void formations.refresh("refresh");
+              if (showShogiRating) setRatingRefresh((current) => current + 1);
             }}
           >
             更新
           </AppButton>
         </div>
+        {showShogiRating && <ShogiRatingSummary key={ratingRefresh} compact />}
         <p className="text-xs text-muted">対人戦のみ集計</p>
         <div className="flex flex-col gap-3">
           {loading && !pendingSource && (

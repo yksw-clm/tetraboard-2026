@@ -140,6 +140,13 @@ test("将棋ダイアログに認定進捗を表示し、開き直すと最新�
   await flush();
   expect(activeDialog().textContent).toContain("認定中");
   expect(activeDialog().textContent).toContain("2 / 5局");
+  expect(activeDialog().textContent).toContain("将棋のレート戦");
+  expect(activeDialog().textContent).not.toContain("15秒で相手が見つからなければ");
+  expect(activeDialog().textContent).not.toContain("13歳以上");
+  const searchButton = [...activeDialog().querySelectorAll("button")].find(
+    (button) => button.textContent === "対戦相手を探す",
+  );
+  expect(searchButton?.nextElementSibling?.textContent).toBe("戻る");
   press(activeDialog(), "戻る");
   await flush();
   expect(router.state.location.search).toBe("");
@@ -158,7 +165,7 @@ test("将棋ダイアログに認定進捗を表示し、開き直すと最新�
   expect(activeDialog().textContent).toContain("1524");
 });
 
-test("ゲストには将棋レートマッチのログイン案内を表示する", async () => {
+test("ゲストには将棋のレート戦のログイン案内を表示する", async () => {
   shogiPage({ ...user, isGuest: true });
   latest(shogiStatusUrl).respond(shogiIdle());
   await flush();

@@ -217,7 +217,7 @@ export function LobbyView(props: Props) {
               {supportsRandomMatch && (
                 <AppButton className="col-span-full w-full min-h-12" onPress={openMatchmaking}>
                   <AppIcon name="shuffle" />
-                  {props.game === "shogi" ? "レートマッチ" : "ランダムマッチ"}
+                  {props.game === "shogi" ? "レート戦" : "ランダムマッチ"}
                 </AppButton>
               )}
             </section>
