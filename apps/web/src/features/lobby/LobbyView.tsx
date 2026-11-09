@@ -105,6 +105,7 @@ export function LobbyView(props: Props) {
     description: gameDescriptions[props.game],
     theme: gameThemes[props.game],
   };
+  const supportsRandomMatch = props.game === "four-reversi";
 
   function openEntry(
     intent: RoomEntryIntent,
@@ -178,17 +179,8 @@ export function LobbyView(props: Props) {
             </div>
             <section
               aria-label="対局を始める"
-              className="grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 [@media(max-width:400px)]:grid-cols-1"
+              className={`grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 ${supportsRandomMatch ? "" : "[@media(max-width:400px)]:grid-cols-1"}`}
             >
-              {props.game === "four-reversi" && (
-                <AppButton
-                  className="col-span-full min-h-12"
-                  onPress={() => void navigate("/games/four-reversi/matchmaking")}
-                >
-                  <AppIcon name="shuffle" />
-                  ランダムマッチ
-                </AppButton>
-              )}
               <AppButton
                 className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
                 onPress={() => openEntry("quick")}
@@ -204,6 +196,15 @@ export function LobbyView(props: Props) {
                 <AppIcon name="plus" />
                 公開ルームを作る
               </AppButton>
+              {supportsRandomMatch && (
+                <AppButton
+                  className="col-span-full w-full min-h-12"
+                  onPress={() => void navigate("/games/four-reversi/matchmaking")}
+                >
+                  <AppIcon name="shuffle" />
+                  ランダムマッチ
+                </AppButton>
+              )}
             </section>
           </div>
 
