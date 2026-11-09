@@ -9,7 +9,8 @@ interface Bindings {
 
 export class AiContainer extends Container<Bindings> {
   defaultPort = 3001;
-  sleepAfter = "10s";
+  // 通常将棋の最大10分＋30秒の手番と、次のAI要求までの待ち時間をカバーします。
+  sleepAfter = this.env.AI_SHOGI_ENABLED === "true" ? "11m" : "10s";
   enableInternet = false;
   envVars = {
     AI_SERVICE_TOKEN: this.env.AI_SERVICE_TOKEN ?? "",
