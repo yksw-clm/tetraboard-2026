@@ -5,7 +5,7 @@ export const localProfileIds = ["lv5-v1", "lv6-candidate-a-v1"] as const;
 export type LocalProfileId = (typeof localProfileIds)[number];
 export const profileNames: Record<LocalProfileId, string> = {
   "lv5-v1": "Lv5 ノヴァ",
-  "lv6-candidate-a-v1": "Lv6候補A（未採用）",
+  "lv6-candidate-a-v1": "Lv6",
 };
 export function localProfile(id: LocalProfileId) {
   const profile = [...builtin.profiles, ...local.profiles].find((p) => p.id === id);

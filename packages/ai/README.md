@@ -42,7 +42,7 @@ Chromeの個人用widgetには、公開Serviceと別の`bun run --cwd packages/a
 
 同時実行は1件です。DELETEは協調停止と実行枠の解放を待って204を返し、POSTより先に届いた取消も直近128要求まで記録します。HTTP中断でも探索へ停止を伝えます。認証不正401、版・profile・局面不正400、JSON型不正422、取消済み409、繁忙503です。応答はno-storeで、対局状態や棋譜は保存しません。
 
-ローカル専用の `lv6-candidate-a-v1` は `configs/local-analysis-profiles-v1.json` に定義します。最大8192試行・262144着手適用・2000msで、Lv5と同じMCTS・単独1位報酬です。公開Serviceのprofile一覧と上限は維持します。拡張とServiceを両方更新し、選択したprofile・hash・実効予算を照合します。[候補の仕様・比較計画・予備測定](docs/lv6-candidate.md)を参照してください。
+ローカル専用Lv6は、候補Aの測定結果との対応とAPI互換性を維持するため `lv6-candidate-a-v1` を内部IDとして引き続き使います。設定は `configs/local-analysis-profiles-v1.json` に定義します。最大8192試行・262144着手適用・2000msで、Lv5と同じMCTS・単独1位報酬です。公開Serviceのprofile一覧と上限は維持します。拡張とServiceを両方更新し、選択したprofile・hash・実効予算を照合します。[Lv6の仕様・採用と測定の記録](docs/lv6-candidate.md)を参照してください。
 
 ## 責務と境界
 
