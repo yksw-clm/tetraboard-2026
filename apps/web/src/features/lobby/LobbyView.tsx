@@ -108,6 +108,23 @@ export function LobbyView(props: Props) {
   };
   const supportsRandomMatch = props.game === "four-reversi" || props.game === "shogi";
 
+  function openMatchmaking(): void {
+    if (props.game === "shogi") {
+      const search = new URLSearchParams(location.search);
+      search.set("matchmaking", "1");
+      void navigate(
+        {
+          pathname: location.pathname,
+          search: search.toString(),
+          hash: location.hash,
+        },
+        { state: { shogiMatchmakingFromLobby: true } },
+      );
+    } else {
+      void navigate(matchmakingPath(props.game));
+    }
+  }
+
   function openEntry(
     intent: RoomEntryIntent,
     roomId?: string,
@@ -198,10 +215,7 @@ export function LobbyView(props: Props) {
                 公開ルームを作る
               </AppButton>
               {supportsRandomMatch && (
-                <AppButton
-                  className="col-span-full w-full min-h-12"
-                  onPress={() => void navigate(matchmakingPath(props.game))}
-                >
+                <AppButton className="col-span-full w-full min-h-12" onPress={openMatchmaking}>
                   <AppIcon name="shuffle" />
                   {props.game === "shogi" ? "レートマッチ" : "ランダムマッチ"}
                 </AppButton>

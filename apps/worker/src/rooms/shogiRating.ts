@@ -52,13 +52,25 @@ export async function readShogiRatingResult(db: D1Database, accountId: string, m
   });
 }
 
+function readLatestShogiRating(db: D1Database, accountId: string) {
+  return db
+    .prepare(`SELECT rating_after, rated_games, human_games FROM shogi_rating_changes
+    WHERE account_id = ? ORDER BY rated_games DESC LIMIT 1`)
+    .bind(accountId)
+    .first<{ rating_after: number; rated_games: number; human_games: number }>();
+}
+
 export async function readPublicShogiRating(db: D1Database, accountId: string) {
-  const row = await db
-    .prepare(`SELECT rating_after, human_games FROM shogi_rating_changes
-    WHERE account_id = ? AND rated_games >= ? ORDER BY rated_games DESC LIMIT 1`)
-    .bind(accountId, shogiPlacementGames)
-    .first<{ rating_after: number; human_games: number }>();
-  return row ? { rating: row.rating_after, humanPlayed: row.human_games > 0 } : undefined;
+  const row = await readLatestShogiRating(db, accountId);
+  if (row && row.rated_games >= shogiPlacementGames)
+    return { rating: row.rating_after, humanPlayed: row.human_games > 0 };
+}
+
+export async function readShogiRatingSummary(db: D1Database, accountId: string) {
+  const row = await readLatestShogiRating(db, accountId);
+  return row && row.rated_games >= shogiPlacementGames
+    ? { status: "rated" as const, rating: row.rating_after }
+    : { status: "placement" as const, games: row?.rated_games ?? 0 };
 }
 
 /** 両者の更新前レートを確定してから、対局ごとの更新履歴をまとめて挿入します。 */

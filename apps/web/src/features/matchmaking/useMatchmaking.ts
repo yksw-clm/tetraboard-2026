@@ -277,6 +277,7 @@ export function useMatchmaking(game: MatchmakingGame) {
       return;
     active.current.busy = true;
     ++active.current.sequence;
+    if (game === "shogi") setVisible((previous) => ({ ...previous, pending: true, error: null }));
     try {
       const latest = await readMatchmaking(game, controllerId);
       if (
@@ -302,7 +303,7 @@ export function useMatchmaking(game: MatchmakingGame) {
       )
         throw Error("ルームの参加資格を保存できません。");
       active.current.moving = true;
-      void navigate(`/rooms/${a.roomId}?invite=${a.instanceId}`);
+      void navigate(`/rooms/${a.roomId}?invite=${a.instanceId}`, { replace: game === "shogi" });
     } catch (error) {
       if (valid())
         setVisible((previous) => ({
@@ -311,7 +312,11 @@ export function useMatchmaking(game: MatchmakingGame) {
           pending: false,
         }));
     } finally {
-      if (valid()) active.current.busy = false;
+      if (valid()) {
+        active.current.busy = false;
+        if (game === "shogi" && !active.current.moving)
+          setVisible((previous) => ({ ...previous, pending: false }));
+      }
     }
   }, [identity, valid, controllerId, controller, scope, navigate, game]);
   const data = visible.scope === scope ? visible.data : idle;
@@ -321,6 +326,10 @@ export function useMatchmaking(game: MatchmakingGame) {
   const assignedMatchId = data.assignment?.matchId;
   useEffect(() => {
     if (!owned || !assignedMatchId) return;
+    if (game === "shogi") {
+      void enter();
+      return;
+    }
     const timer = window.setTimeout(
       () => {
         void enter();
@@ -328,7 +337,7 @@ export function useMatchmaking(game: MatchmakingGame) {
       data.status === "playing" ? 0 : 5000,
     );
     return () => window.clearTimeout(timer);
-  }, [owned, assignedMatchId, data.status, enter]);
+  }, [owned, assignedMatchId, data.status, enter, game]);
   const join = useCallback(() => perform("join"), [perform]);
   const cancel = useCallback(() => perform("cancel"), [perform]);
   const takeover = useCallback(() => perform("takeover"), [perform]);

@@ -628,6 +628,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       )
         return { ok: false as const, message: "待機の操作元が変わったか、有効期限が切れました。" };
       if (action === "cancel") {
+        if (this.isRatedShogi && (group?.phase === "matched" || group?.phase === "playing"))
+          return {
+            ok: true as const,
+            state: await this.snapshot(state, accountId, input.controllerId),
+          };
         if (group?.phase === "playing")
           return {
             ok: false as const,

@@ -157,7 +157,7 @@ test("将棋はレート保存完了後に認定結果を表示し、将棋の�
     });
     return (
       <>
-        <output data-path>{location.pathname}</output>
+        <output data-path>{location.pathname + location.search}</output>
         <ShogiRoomView session={session} chat={chat} invited={false} />
       </>
     );
@@ -200,5 +200,5 @@ test("将棋はレート保存完了後に認定結果を表示し、将棋の�
   press(dialog, "もう一度マッチング");
   requests.find((r) => r.url.endsWith("/leave"))!.respond(null, 204);
   await flush();
-  expect(view.querySelector("[data-path]")?.textContent).toBe("/games/shogi/matchmaking");
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/games/shogi?matchmaking=1");
 });

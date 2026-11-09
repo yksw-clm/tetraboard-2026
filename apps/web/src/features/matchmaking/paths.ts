@@ -1,7 +1,7 @@
 import type { GameId } from "@tetraboard/protocol/games";
 
 export function matchmakingPath(game: GameId) {
-  return game === "shogi" ? "/games/shogi/matchmaking" : "/games/four-reversi/matchmaking";
+  return game === "shogi" ? "/games/shogi?matchmaking=1" : "/games/four-reversi/matchmaking";
 }
 
 export function matchmakingScope(identity: string, game: GameId) {

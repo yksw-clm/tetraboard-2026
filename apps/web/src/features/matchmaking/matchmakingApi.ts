@@ -1,6 +1,7 @@
 import {
   matchmakingStateSchema,
   shogiRatingResultSchema,
+  shogiRatingSummarySchema,
   type MatchmakingGame,
 } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
@@ -40,6 +41,14 @@ export async function matchmakingOperation(
 export async function readShogiRatingResult(matchId: string, signal: AbortSignal) {
   return shogiRatingResultSchema.parse(
     await accountRequest(`${api("shogi")}/results/${matchId}`, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
+    }),
+  );
+}
+
+export async function readShogiRatingSummary(signal: AbortSignal) {
+  return shogiRatingSummarySchema.parse(
+    await accountRequest(`${api("shogi")}/rating`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
     }),
   );
