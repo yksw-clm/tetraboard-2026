@@ -13,6 +13,7 @@ if (!allowed || !token)
   );
 const base = workerTestConfig({
   AI_SERVICE_URL: url,
+  AI_SHOGI_ENABLED: process.env.TETRABOARD_SHOGI_TEST_REAL === "1" ? "true" : "false",
   MATCHMAKING_ENABLED: "true",
   AI_SERVICE_TOKEN: token,
   AI_SERVICE_TIMEOUT_MS: cloud ? "5000" : "2000",

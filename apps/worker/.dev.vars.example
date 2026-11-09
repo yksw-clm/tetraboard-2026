@@ -13,6 +13,7 @@ ADMIN_ACCOUNT_IDS='["replace-with-owner-internal-account-id","replace-with-secon
 
 # 外部AI Service（URL未設定なら現行CPU、秘密値は実際の .dev.vars / Secretsへ設定します）
 AI_SERVICE_URL=""
+AI_SHOGI_ENABLED=""
 AI_SERVICE_TOKEN=""
 AI_SERVICE_TIMEOUT_MS="5000"
 AI_SERVICE_LEVEL2_PROFILE=""

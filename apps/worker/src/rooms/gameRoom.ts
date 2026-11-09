@@ -72,7 +72,14 @@ import {
   supportsExternalAi,
   type ExternalCpuWork,
 } from "./fourReversiProgress";
-import { aiServiceEnabled, aiServiceTimeout, requestAiMove } from "./aiService";
+import {
+  aiServiceEnabled,
+  aiServiceTimeout,
+  requestAiMove,
+  requestShogiAiMove,
+  shogiAiEnabled,
+  type ShogiAiWork,
+} from "./aiService";
 import { serviceProfile } from "./aiServiceProfiles";
 import {
   roomStorageKey,
@@ -1836,7 +1843,9 @@ export class GameRoom extends DurableObject<Env> {
         const externalJob =
           isFourReversiRoom(room) && aiServiceEnabled(this.env)
             ? this.reversiProgress.externalCpuJob(room)
-            : null;
+            : isShogiRoom(room) && shogiAiEnabled(this.env)
+              ? this.standardShogiProgress.externalCpuJob(room)
+              : null;
         deadlines.push(
           externalJob
             ? externalJob.expiresAt
@@ -3127,6 +3136,7 @@ export class GameRoom extends DurableObject<Env> {
     const promoted: string[] = [];
     let changed = false;
     const externalWork: { current: ExternalCpuWork | null } = { current: null };
+    const shogiWork: { current: ShogiAiWork | null } = { current: null };
     const updated = this.withIndexTransaction(() => {
       // 将棋の読取りは従来どおりtransaction内。リバーシは最初の読取りを使用。
       let room: Room | null =
@@ -3367,6 +3377,15 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isShogiRoom(room)) throw new Error("Expected Shogi room");
+            if (shogiAiEnabled(this.env)) {
+              shogiWork.current = this.standardShogiProgress.prepareExternalCpu(
+                room,
+                now,
+                aiServiceTimeout(this.env),
+              );
+              const pending = this.standardShogiProgress.externalCpuJob(room);
+              if (pending && pending.expiresAt > now) return room;
+            }
             const result = this.standardShogiProgress.cpu(room, now);
             if (result.kind !== "unchanged") {
               room = this.applyProgress(result);
@@ -3455,6 +3474,17 @@ export class GameRoom extends DurableObject<Env> {
           this.reversiProgress.completeExternalCpu(room, work.job, response.position, Date.now());
       });
       if (response.reason) console.warn("AI service fallback", { reason: response.reason });
+      await this.syncAlarm(this.readRoom());
+    }
+    if (shogiWork.current) {
+      const work = shogiWork.current;
+      const move = await requestShogiAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isShogiRoom(room))
+          this.standardShogiProgress.completeExternalCpu(room, work, move, Date.now());
+      });
       await this.syncAlarm(this.readRoom());
     }
   }

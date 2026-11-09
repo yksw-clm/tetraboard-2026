@@ -1,6 +1,7 @@
 //! 認証された局面から候補手だけを計算します。対局状態は保存しません。
 
 pub mod local_analysis;
+mod shogi;
 
 use axum::{
     Json, Router,
@@ -37,6 +38,7 @@ struct ServiceState {
     token: Arc<String>,
     permits: Arc<Semaphore>,
     profiles: Arc<Vec<ServedProfile>>,
+    shogi: Option<Arc<shogi::Engine>>,
 }
 
 #[derive(Deserialize)]
@@ -115,6 +117,14 @@ impl IntoResponse for ApiError {
 }
 
 pub fn router(token: String, concurrency: usize) -> Result<Router, &'static str> {
+    router_with_shogi(token, concurrency, None)
+}
+
+pub fn router_with_shogi(
+    token: String,
+    concurrency: usize,
+    shogi_path: Option<std::path::PathBuf>,
+) -> Result<Router, &'static str> {
     if !(32..=256).contains(&token.len()) || !token.bytes().all(|byte| byte.is_ascii_graphic()) {
         return Err("AI_SERVICE_TOKENには32〜256文字のASCII秘密値が必要です");
     }
@@ -125,6 +135,7 @@ pub fn router(token: String, concurrency: usize) -> Result<Router, &'static str>
         token: Arc::new(token),
         permits: Arc::new(Semaphore::new(concurrency)),
         profiles: Arc::new(builtin_profiles().map_err(|_| "Service profile一覧が不正です")?),
+        shogi: shogi_path.map(shogi::Engine::new).map(Arc::new),
     }))
 }
 
@@ -132,6 +143,7 @@ fn app(state: ServiceState) -> Router {
     Router::new()
         .route("/v1/move",post(choose_move))
         .route("/v2/move",post(choose_profile_move))
+        .route("/v1/shogi/move",post(shogi::choose_move))
         .route_layer(middleware::from_fn_with_state(state.clone(),authenticate))
         .route("/health", get(|| async { ([(header::CACHE_CONTROL,"no-store")],Json(serde_json::json!({"status":"ok","api_version":API_VERSION,"engine_version":ENGINE_VERSION}))) }))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
@@ -464,6 +476,7 @@ mod tests {
             token: Arc::new(TOKEN.into()),
             permits: Arc::new(Semaphore::new(1)),
             profiles: Arc::new(builtin_profiles().unwrap()),
+            shogi: None,
         };
         let _permit = state.permits.clone().acquire_owned().await.unwrap();
         assert_eq!(
