@@ -8,6 +8,7 @@ import { readStoredMatch } from "./matchDataContracts";
 import { readCurrentProfiles } from "./currentProfiles";
 import { readAccountStats } from "./statsRoutes";
 import { resolveMatchParticipants } from "./matchClaims";
+import { readPublicShogiRating } from "../rooms/shogiRating";
 export const playerProfileRoutes = new Hono<{ Bindings: Env }>();
 playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
   c.header("Cache-Control", "no-store");
@@ -92,6 +93,10 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
     const profileId = profile.publicProfileId;
     if (!profileId) throw new Error("Public profile ID is missing");
     const stats = await readAccountStats(c.env.APP_DB, accountId, target.game);
+    const shogiRating =
+      target.game === "shogi" && target.includeShogiRating === "1" && !profile.isAnonymous
+        ? await readPublicShogiRating(c.env.APP_DB, accountId)
+        : undefined;
     return c.json(
       getPlayerProfileContract.response.parse({
         kind: "account",
@@ -104,6 +109,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
           ? { profileMessage: profile.profileMessage, favoriteGames: profile.favoriteGames }
           : {}),
         game: target.game,
+        ...(shogiRating ? { shogiRating } : {}),
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:
           target.includeStats === "1" || "wins" in stats

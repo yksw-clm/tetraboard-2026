@@ -128,7 +128,7 @@ Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に�
 
 ## 通常将棋の実装
 
-承認済み・未実装の[将棋レートマッチ](shogi-rated-match.md)には、レート仕様とCPUの採用前に行う検証を記載しています。
+[将棋レートマッチ](shogi-rated-match.md)には、専用待機列、終局時のレート保存、CPUの採用前に行う検証を記載しています。Webの `features/matchmaking` をWorkerの `matchmaking/routes.ts` と `matchmaking/coordinator.ts` から通常将棋のGameRoomへ接続します。対人戦とCPU戦の待機・入室・終局は `apps/worker/test/matchmaking.test.ts`、Elo計算と認定情報の公開範囲は `apps/worker/test/shogiRating.test.ts`、画面は `apps/web/test-dom/matchmaking*.test.tsx` で確認します。
 
 開発環境の外部AI接続は `standardShogiProgress.ts` が棋譜からUSI要求を準備し、GameRoomがストレージのトランザクションを抜けてから `aiService.ts` を呼びます。起動・探索はAI Serviceの `shogi.rs` が担当します。`apps/worker/test-ai-service/shogiAiService.test.ts` で応答とタイムアウトを確認できます。コンテナの実エンジンを使う場合は、既存のAI Service統合テストに `TETRABOARD_SHOGI_TEST_REAL=1` を指定します。
 

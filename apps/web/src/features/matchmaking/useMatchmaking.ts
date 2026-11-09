@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { matchmakingRules as rules, type MatchmakingState } from "@tetraboard/protocol";
+import {
+  matchmakingQueues,
+  type MatchmakingGame,
+  type MatchmakingState,
+} from "@tetraboard/protocol";
 import { useQueueController } from "../../shared/QueueDocumentController";
 import { canStoreRoomMembership, saveRoomMembershipToken } from "../../shared/roomMembership";
 import { useAccount } from "../account/useAccount";
@@ -11,14 +15,16 @@ import {
   clearMatchmakingQueue,
   saveMatchmakingRoom,
 } from "./matchmakingStorage";
+import { matchmakingScope } from "./paths";
 type ObservedState = MatchmakingState & { receivedAtMs: number };
 const idle: ObservedState = { status: "idle", serverNowMs: 0, receivedAtMs: 0 };
-export function useMatchmaking() {
+export function useMatchmaking(game: MatchmakingGame) {
   const account = useAccount(),
     navigate = useNavigate();
   const { controller, controllerId } = useQueueController();
-  const identity = account.user?.profileId ?? null,
-    scope = `matchmaking:${identity ?? "visitor"}`;
+  const identity =
+    game === "shogi" && account.user?.isGuest ? null : (account.user?.profileId ?? null);
+  const scope = matchmakingScope(identity ?? "visitor", game);
   const epoch = useMemo(() => Symbol(`${scope}:${controllerId}`), [scope, controllerId]);
   const [visible, setVisible] = useState<{
     scope: string;
@@ -70,7 +76,8 @@ export function useMatchmaking() {
       const ended =
         !fromAction &&
         data.status === "idle" &&
-        (active.current.data.status !== "idle" || (identity && readMatchmakingQueue(identity)));
+        (active.current.data.status !== "idle" ||
+          (identity && readMatchmakingQueue(identity, game)));
       const observed = { ...data, receivedAtMs: performance.now() };
       active.current.data = observed;
       setVisible((previous) => ({
@@ -85,20 +92,24 @@ export function useMatchmaking() {
       }));
       if (!identity) return;
       if (data.status === "idle") {
-        clearMatchmakingQueue(identity);
+        clearMatchmakingQueue(identity, game);
         controller.forget(scope);
         return;
       }
       if (data.controllerId === controllerId && data.operationId && data.version) {
-        saveMatchmakingQueue(identity, {
-          operationId: data.operationId,
-          controllerId,
-          version: data.version,
-        });
+        saveMatchmakingQueue(
+          identity,
+          {
+            operationId: data.operationId,
+            controllerId,
+            version: data.version,
+          },
+          game,
+        );
         controller.remember(scope, data.operationId, data.version);
       }
     },
-    [valid, scope, identity, controller, controllerId],
+    [valid, scope, identity, controller, controllerId, game],
   );
   const refresh = useCallback(async () => {
     if (
@@ -112,9 +123,9 @@ export function useMatchmaking() {
     active.current.reading = true;
     const sequence = ++active.current.sequence;
     try {
-      let data = await readMatchmaking(controllerId);
+      let data = await readMatchmaking(game, controllerId);
       if (!valid() || sequence !== active.current.sequence) return;
-      const local = identity ? readMatchmakingQueue(identity) : null;
+      const local = identity ? readMatchmakingQueue(identity, game) : null;
       if (
         data.status !== "idle" &&
         data.controllerId !== controllerId &&
@@ -123,7 +134,7 @@ export function useMatchmaking() {
         (await controller.acquire(scope))
       ) {
         if (!valid() || sequence !== active.current.sequence) return;
-        data = await matchmakingOperation("takeover", {
+        data = await matchmakingOperation(game, "takeover", {
           operationId: data.operationId!,
           controllerId,
           version: data.version!,
@@ -143,7 +154,17 @@ export function useMatchmaking() {
     } finally {
       if (valid()) active.current.reading = false;
     }
-  }, [account.loading, account.error, valid, controllerId, identity, controller, scope, accept]);
+  }, [
+    account.loading,
+    account.error,
+    valid,
+    controllerId,
+    identity,
+    controller,
+    scope,
+    accept,
+    game,
+  ]);
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => {
@@ -155,7 +176,7 @@ export function useMatchmaking() {
     async (action: "join" | "heartbeat" | "cancel" | "takeover") => {
       if (!identity || !valid() || account.loading || account.error || active.current.busy) return;
       const data = active.current.data,
-        local = readMatchmakingQueue(identity);
+        local = readMatchmakingQueue(identity, game);
       const operationId =
         action === "join" ? (local?.operationId ?? crypto.randomUUID()) : data.operationId;
       if (!operationId) return;
@@ -170,7 +191,7 @@ export function useMatchmaking() {
         active.current.heartbeat = true;
         const sequence = active.current.sequence;
         try {
-          const result = await matchmakingOperation("heartbeat", {
+          const result = await matchmakingOperation(game, "heartbeat", {
             operationId,
             controllerId,
             version: data.version!,
@@ -203,11 +224,11 @@ export function useMatchmaking() {
         if (action === "join") {
           if (!canStoreRoomMembership())
             throw Error("参加資格を保存できません。ブラウザの保存領域を確認してください。");
-          saveMatchmakingQueue(identity, { operationId, controllerId, version: 1 });
+          saveMatchmakingQueue(identity, { operationId, controllerId, version: 1 }, game);
         }
         if (action === "join" || action === "takeover") await controller.acquire(scope, true);
         if (!valid()) return;
-        const result = await matchmakingOperation(action, {
+        const result = await matchmakingOperation(game, action, {
           operationId,
           controllerId,
           ...(action === "cancel" || action === "takeover" ? { version: data.version! } : {}),
@@ -227,14 +248,24 @@ export function useMatchmaking() {
         if (valid()) active.current.busy = false;
       }
     },
-    [identity, valid, account.loading, account.error, controllerId, controller, scope, accept],
+    [
+      identity,
+      valid,
+      account.loading,
+      account.error,
+      controllerId,
+      controller,
+      scope,
+      accept,
+      game,
+    ],
   );
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (active.current.data.status === "waiting") void perform("heartbeat");
-    }, rules.heartbeatMs);
+    }, matchmakingQueues[game].heartbeatMs);
     return () => window.clearInterval(timer);
-  }, [perform]);
+  }, [perform, game]);
   const enter = useCallback(async () => {
     if (!identity || !valid() || active.current.busy || active.current.moving) return;
     const data = active.current.data;
@@ -247,7 +278,7 @@ export function useMatchmaking() {
     active.current.busy = true;
     ++active.current.sequence;
     try {
-      const latest = await readMatchmaking(controllerId);
+      const latest = await readMatchmaking(game, controllerId);
       if (
         !valid() ||
         !latest.assignment ||
@@ -266,6 +297,7 @@ export function useMatchmaking() {
           version: latest.version!,
           roomId: a.roomId,
           instanceId: a.instanceId,
+          ...(game === "shogi" ? { game } : {}),
         })
       )
         throw Error("ルームの参加資格を保存できません。");
@@ -281,7 +313,7 @@ export function useMatchmaking() {
     } finally {
       if (valid()) active.current.busy = false;
     }
-  }, [identity, valid, controllerId, controller, scope, navigate]);
+  }, [identity, valid, controllerId, controller, scope, navigate, game]);
   const data = visible.scope === scope ? visible.data : idle;
   const owned =
     data.controllerId === controllerId &&

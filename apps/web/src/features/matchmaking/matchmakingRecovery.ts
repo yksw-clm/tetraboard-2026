@@ -7,6 +7,7 @@ import {
   saveMatchmakingRoom,
 } from "./matchmakingStorage";
 import { readMatchmaking, matchmakingOperation } from "./matchmakingApi";
+import { matchmakingScope } from "./paths";
 export async function recoverMatchmakingRoom(
   roomId: string,
   instanceId: string,
@@ -19,9 +20,10 @@ export async function recoverMatchmakingRoom(
     clearRoomMembershipToken(roomId);
     return;
   }
-  const scope = `matchmaking:${stored.identity}`,
+  const game = stored.game ?? "four-reversi";
+  const scope = matchmakingScope(stored.identity, game),
     id = controller.getIdentity();
-  let state = await readMatchmaking(id, signal);
+  let state = await readMatchmaking(game, id, signal);
   if (state.operationId !== stored.operationId) {
     clearRoomMembershipToken(roomId);
     return;
@@ -32,6 +34,7 @@ export async function recoverMatchmakingRoom(
       return;
     }
     state = await matchmakingOperation(
+      game,
       "takeover",
       { operationId: stored.operationId, controllerId: id, version: state.version! },
       signal,
@@ -49,10 +52,10 @@ export async function recoverMatchmakingRoom(
   controller.remember(scope, stored.operationId, state.version!);
   controller.announce(scope);
   const credential = { operationId: stored.operationId, controllerId: id, version: state.version! };
-  saveMatchmakingQueue(stored.identity, credential);
+  saveMatchmakingQueue(stored.identity, credential, game);
   if (
     !saveRoomMembershipToken(roomId, state.assignment.membership.token) ||
-    !saveMatchmakingRoom({ ...credential, identity: stored.identity, roomId, instanceId })
+    !saveMatchmakingRoom({ ...stored, ...credential })
   )
     throw Error("参加資格を保存できません。");
 }

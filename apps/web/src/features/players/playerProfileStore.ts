@@ -52,6 +52,7 @@ export class PlayerProfileStore {
         includeBadges: "1",
         includeStats: "1",
         includeDetails: "1",
+        ...(game === "shogi" ? { includeShogiRating: "1" } : {}),
       });
       const response = await fetch(`/api${getPlayerProfileContract.path}?${query}`, {
         cache: "no-store",

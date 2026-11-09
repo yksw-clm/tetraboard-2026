@@ -86,6 +86,16 @@ export function PlayerProfileCard({
           <p className="m-0 text-xs tabular-nums wrap-anywhere">
             {formatPlayerStatsSummary(profile.stats, mode)}
           </p>
+          {profile.shogiRating && (
+            <div className="text-sm">
+              <p className="m-0 font-semibold tabular-nums">
+                将棋レート {Math.round(profile.shogiRating.rating)}
+              </p>
+              {!profile.shogiRating.humanPlayed && (
+                <p className="m-0 text-xs text-muted">対人戦未経験</p>
+              )}
+            </div>
+          )}
           {gameCatalog[game].hasModes && mode === "singles" && (
             <PlayerBadges game={game} badges={profile.badges} />
           )}

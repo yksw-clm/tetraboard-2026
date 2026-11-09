@@ -5,6 +5,8 @@ import {
   matchmakingRules as rules,
   matchmakingStateSchema,
   roomSchema,
+  shogiMatchmakingRules,
+  shogiRoomSchema,
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
@@ -12,7 +14,11 @@ import { matchmakingCredential } from "../src/matchmaking/coordinator";
 import { requestDeletion } from "../src/privacy/deletion";
 import { requireGuestIdle } from "../src/accounts/guestLinking";
 import { accountIdentity } from "../src/accounts/auth";
+import { matchmakingRoutes } from "../src/matchmaking/routes";
+import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
+import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 const stub = () => env.MATCHMAKING_COORDINATOR.getByName(rules.key);
+const shogiQueue = () => env.MATCHMAKING_COORDINATOR.getByName(shogiMatchmakingRules.key);
 const accounts: string[] = [];
 const rooms = new Set<string>();
 const sockets: WebSocket[] = [];
@@ -45,6 +51,14 @@ test("閲覧だけでゲストを作らず、名前確定したゲストは登�
   const user = await accountIdentity(new Request(origin, { headers: { Cookie: cookie } }), env);
   expect(user?.guestNameCustomized).toBeTruthy();
   accounts.push(user!.id);
+  const rated = await exports.default.fetch(
+    new AcceptedGameRequest(`${origin}/api/matchmaking/shogi/join`, {
+      method: "POST",
+      headers: { Origin: origin, Cookie: cookie },
+    }),
+  );
+  expect(rated.status).toBe(403);
+  expect(await rated.text()).toContain("登録アカウントが必要");
   const operationId = crypto.randomUUID(),
     controllerId = crypto.randomUUID();
   expect((await stub().join(user!.id, operationId, controllerId)).ok).toBe(true);
@@ -62,7 +76,7 @@ test("閲覧だけでゲストを作らず、名前確定したゲストは登�
     (await stub().status(registered.account.id, registered.controllerId)).assignment?.matchId,
   ).toBe(matched.assignment!.matchId);
 });
-async function fixture(count: number) {
+async function fixture(count: number, queue = stub()) {
   const users = [];
   for (let i = 0; i < count; i++) {
     const account = await accountFixture();
@@ -70,7 +84,7 @@ async function fixture(count: number) {
     users.push({ account, operationId: crypto.randomUUID(), controllerId: crypto.randomUUID() });
   }
   for (const user of users) {
-    const result = await stub().join(user.account.id, user.operationId, user.controllerId);
+    const result = await queue.join(user.account.id, user.operationId, user.controllerId);
     expect(result.ok).toBe(true);
   }
   return users;
@@ -111,6 +125,7 @@ afterEach(async () => {
   }
   rooms.clear();
   for (const id of accounts.splice(0)) {
+    await env.APP_DB.prepare("DELETE FROM shogi_rating_pending WHERE account_id=?").bind(id).run();
     await env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE account_id=?")
       .bind(id)
       .run();
@@ -124,9 +139,286 @@ afterEach(async () => {
       .run();
     await env.APP_DB.prepare("DELETE FROM account_room_seats WHERE account_id=?").bind(id).run();
   }
-  await runInDurableObject(stub(), async (_instance, state) => {
-    await state.storage.deleteAll();
+  for (const queue of [stub(), shogiQueue()])
+    await runInDurableObject(queue, async (_instance, state) => {
+      await state.storage.deleteAll();
+    });
+});
+
+async function ratedAccount(rating: number) {
+  const account = await accountFixture();
+  accounts.push(account.id);
+  const previous = standardShogiRecord(account.id, "win", true);
+  await saveStandardShogiFixture(previous);
+  await env.APP_DB.prepare("INSERT INTO shogi_rating_changes VALUES (?,?,1500,?,1,0)")
+    .bind(previous.record.id, account.id, rating)
+    .run();
+  return account;
+}
+
+test.each([
+  { difference: 101, deadline: 5000, opponent: "human" },
+  { difference: 201, deadline: 10000, opponent: "human" },
+  { difference: 250, deadline: 15000, opponent: "human" },
+  { difference: 301, deadline: 15000, opponent: "cpu" },
+])(
+  "将棋の待機幅とCPUへの切替を照合する ($difference, $deadline)",
+  async ({ difference, deadline, opponent }) => {
+    let now = Date.now() + 60000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = shogiQueue();
+    const [[oldest], other] = await Promise.all([
+      fixture(1, queue),
+      ratedAccount(1500 + difference),
+    ]);
+    const joinedAt = now;
+    now += 1000;
+    const control = crypto.randomUUID();
+    expect((await queue.join(other.id, crypto.randomUUID(), control)).ok).toBe(true);
+    now = joinedAt + (difference === 250 ? 10000 : deadline) - 1;
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    expect(await runInDurableObject(queue, (_, ctx) => ctx.storage.getAlarm())).toBe(now + 1);
+    expect((await queue.status(oldest!.account.id, oldest!.controllerId)).status).toBe("waiting");
+    now = joinedAt + deadline;
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    const matched = (await queue.status(oldest!.account.id, oldest!.controllerId)).assignment!;
+    rooms.add(matched.roomId);
+    const room = shogiRoomSchema.parse(await env.GAME_ROOM.getByName(matched.roomId).getRoom());
+    expect(room.matchmaking?.opponent).toBe(opponent);
+    expect(room.settings.timeControl).toEqual(shogiMatchmakingRules.timeControl);
+    const second = await queue.status(other.id, control);
+    if (opponent === "human") expect(second.assignment?.matchId).toBe(matched.matchId);
+    else expect(second.status).toBe("waiting");
+  },
+);
+
+test("将棋の対人マッチは認証接続後だけ開始し、終局で両者のレートを保存する", async () => {
+  let now = Date.now() + 60000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const users = await fixture(2, queue);
+  const assignments = await Promise.all(
+    users.map(async (u) => (await queue.status(u.account.id, u.controllerId)).assignment!),
+  );
+  const first = assignments[0]!;
+  rooms.add(first.roomId);
+  const room = env.GAME_ROOM.getByName(first.roomId);
+  await connect(first.roomId, first.membership.token);
+  now += 5000;
+  expect(shogiRoomSchema.parse(await room.getRoom()).matchmaking?.startsAtMs).toBeUndefined();
+  await connect(first.roomId, assignments[1]!.membership.token);
+  const waiting = shogiRoomSchema.parse(await room.getRoom());
+  expect(waiting.matchmaking?.startsAtMs).toBe(now + 5000);
+  now += 5000;
+  const started = shogiRoomSchema.parse(await room.getRoom());
+  if (started.status !== "playing") throw Error("Expected playing");
+  expect(started.roundId).toBe(first.matchId);
+  expect(started.clock.turnExpiresAt).toBe(now + 330000);
+  const credential = await matchmakingCredential(
+    env,
+    {
+      accountId: users[0]!.account.id,
+      operationId: users[0]!.operationId,
+      controllerId: users[0]!.controllerId,
+      version: 1,
+      joinedAtMs: 0,
+      expiresAtMs: 0,
+      sequence: 0,
+    },
+    shogiMatchmakingRules.key,
+  );
+  expect(await room.leaveRoom(credential.tokenHash)).toBe("left");
+  const seats = () =>
+    env.APP_DB.prepare("SELECT 1 FROM account_room_seats WHERE account_id=?")
+      .bind(users[0]!.account.id)
+      .first();
+  await vi.waitFor(async () => expect(await seats()).toBeNull());
+  const nextOperation = crypto.randomUUID();
+  expect(
+    await queue.join(users[0]!.account.id, nextOperation, users[0]!.controllerId),
+  ).toMatchObject({
+    ok: false,
+    message: expect.stringContaining("保存中"),
   });
+  await vi.waitFor(async () =>
+    expect(
+      await env.APP_DB.prepare("SELECT 1 FROM shogi_match_uploads WHERE id=?")
+        .bind(first.matchId)
+        .first(),
+    ).toBeTruthy(),
+  );
+  const changes = () =>
+    env.APP_DB.prepare(
+      "SELECT account_id,rating_after,rated_games,human_games FROM shogi_rating_changes WHERE match_id=?",
+    )
+      .bind(first.matchId)
+      .all();
+  await vi.waitFor(async () => {
+    now++;
+    await room.getRoom();
+    expect((await changes()).results).toHaveLength(2);
+  });
+  expect((await changes()).results).toEqual(
+    expect.arrayContaining([
+      { account_id: users[0]!.account.id, rating_after: 1468, rated_games: 1, human_games: 1 },
+      { account_id: users[1]!.account.id, rating_after: 1532, rated_games: 1, human_games: 1 },
+    ]),
+  );
+  expect((await queue.join(users[0]!.account.id, nextOperation, users[0]!.controllerId)).ok).toBe(
+    true,
+  );
+  expect(
+    await runInDurableObject(
+      queue,
+      (_, ctx) =>
+        ctx.storage.kv.get<{ waiting: { rating: number }[] }>("state")?.waiting[0]?.rating,
+    ),
+  ).toBe(1468);
+});
+
+test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レートで結果を保存する", async () => {
+  let now = Date.now() + 60000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const account = await ratedAccount(1764);
+  const operationId = crypto.randomUUID();
+  const controllerId = crypto.randomUUID();
+  expect((await queue.join(account.id, operationId, controllerId)).ok).toBe(true);
+  now += 15000;
+  await runInDurableObject(queue, (instance) => instance.alarm());
+  const assignment = (await queue.status(account.id, controllerId)).assignment!;
+  rooms.add(assignment.roomId);
+  const room = env.GAME_ROOM.getByName(assignment.roomId);
+  const socket = await connect(assignment.roomId, assignment.membership.token);
+  now += 5000;
+  const started = shogiRoomSchema.parse(await room.getRoom());
+  if (started.status !== "playing") throw Error("Expected playing");
+  expect(started.matchmaking?.opponent).toBe("cpu");
+  const humanSide =
+    started.game.players.south === assignment.membership.playerId ? "south" : "north";
+  if (humanSide === "south")
+    socket.send(
+      JSON.stringify({
+        type: "room.game.action",
+        roundId: started.roundId,
+        positionRevision: started.positionRevision,
+        action: started.legalActions[0],
+      }),
+    );
+  const cpuPly = humanSide === "south" ? 1 : 0;
+  await vi.waitFor(async () =>
+    expect(shogiRoomSchema.parse(await room.getRoom()).game?.moveNumber).toBe(cpuPly),
+  );
+  now += 2000;
+  const fetchAi = vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
+    const input = JSON.parse(String(init?.body));
+    return Response.json({
+      request_id: input.request_id,
+      position_revision: input.position_revision,
+      engine_version: "yaneuraou-material-faeb37f0",
+      nodes: input.nodes,
+      best_move: humanSide === "south" ? "3c3d" : "7g7f",
+    });
+  });
+  await runInDurableObject(room, async (instance, ctx) => {
+    const original = Reflect.get(instance, "env");
+    Reflect.set(instance, "env", {
+      ...original,
+      AI_SHOGI_ENABLED: "true",
+      AI_SERVICE_URL: "https://ai.example.test",
+      AI_SERVICE_TOKEN: "test-token-with-at-least-32-bytes",
+    });
+    try {
+      await instance.alarm();
+      expect(fetchAi).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(fetchAi.mock.calls[0]?.[1]?.body)).nodes).toBe(1024);
+      const job = ctx.storage.kv.get<ShogiCpuJob>("standard-shogi-cpu-job")!;
+      expect(job.external).toBe(true);
+      now = job.applyAt;
+      await instance.alarm();
+    } finally {
+      Reflect.set(instance, "env", original);
+      fetchAi.mockRestore();
+    }
+  });
+  expect(shogiRoomSchema.parse(await room.getRoom()).game?.moveNumber).toBe(cpuPly + 1);
+  const tokenHash = Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(assignment.membership.token)),
+    ),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+  expect(await room.leaveRoom(tokenHash)).toBe("left");
+  await vi.waitFor(async () => {
+    now++;
+    await room.getRoom();
+    expect(
+      await env.APP_DB.prepare(
+        "SELECT rating_before,rating_after,rated_games,human_games FROM shogi_rating_changes WHERE match_id=?",
+      )
+        .bind(assignment.matchId)
+        .first(),
+    ).toEqual({
+      rating_before: 1764,
+      rating_after: 1740,
+      rated_games: 2,
+      human_games: 0,
+    });
+  });
+});
+
+test("将棋の待機APIは別キューを使い、四人リバーシとの二重待機を拒否する", async () => {
+  const [user] = await fixture(1);
+  const join = (account: Awaited<ReturnType<typeof accountFixture>>, enabled: "true" | "false") =>
+    matchmakingRoutes.request(
+      new AcceptedGameRequest(`${origin}/matchmaking/shogi/join`, {
+        method: "POST",
+        headers: account.headers,
+        body: JSON.stringify({
+          operationId: crypto.randomUUID(),
+          controllerId: crypto.randomUUID(),
+        }),
+      }),
+      undefined,
+      {
+        ...env,
+        APP_ORIGIN: origin,
+        SHOGI_MATCHMAKING_ENABLED: enabled,
+        AI_SHOGI_ENABLED: "true",
+        AI_SERVICE_URL: "https://ai.example.test",
+        AI_SERVICE_TOKEN: "test-token-with-at-least-32-bytes",
+      },
+    );
+  const disabled = await join(user!.account, "false");
+  expect(disabled.status, await disabled.text()).toBe(503);
+  expect((await join(user!.account, "true")).status).toBe(409);
+  await stub().leaveAccount(user!.account.id);
+  const response = await join(user!.account, "true");
+  expect(response.status).toBe(200);
+  expect(matchmakingStateSchema.parse(await response.json()).status).toBe("waiting");
+});
+
+test("将棋の開始前取消は保存待ちを残さず、新しい操作で再参加できる", async () => {
+  let now = Date.now() + 60000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const [user] = await fixture(1, queue);
+  now += 15000;
+  await runInDurableObject(queue, (instance) => instance.alarm());
+  const state = await queue.status(user!.account.id, user!.controllerId);
+  const assignment = state.assignment!;
+  rooms.add(assignment.roomId);
+  expect(
+    await queue.control(
+      user!.account.id,
+      { operationId: user!.operationId, controllerId: user!.controllerId, version: state.version! },
+      "cancel",
+    ),
+  ).toMatchObject({ ok: true, state: { status: "idle" } });
+  expect(await env.GAME_ROOM.getByName(assignment.roomId).getRoom()).toBeNull();
+  expect((await queue.join(user!.account.id, crypto.randomUUID(), user!.controllerId)).ok).toBe(
+    true,
+  );
 });
 
 test("参照だけでは期限処理や組合せを実行せず、30秒のAlarmで成立する", async () => {

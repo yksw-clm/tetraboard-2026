@@ -60,6 +60,7 @@ export async function servePublicAssets(
       "/updates",
       "/how-to-play",
       "/games/four-reversi/matchmaking",
+      "/games/shogi/matchmaking",
     ].includes(path.replace(/\/$/, "")) ||
     /^\/(?:rooms|matches|updates)\/[^/]+\/?$/.test(path) ||
     /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||

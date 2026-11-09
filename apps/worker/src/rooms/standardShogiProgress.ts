@@ -47,6 +47,8 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import type { ShogiAiWork } from "./aiService";
+import type { ShogiRatingSource } from "./shogiRating";
+import { shogiCpuNodes } from "../matchmaking/shogiCpuProfiles";
 const shogiCpuJobKey = "standard-shogi-cpu-job";
 const externalShogiCpuJobKey = "standard-shogi-external-cpu-job";
 type ActiveShogiMatch = { start: Omit<StandardShogiMatchRecord, "endedAtMs" | "game" | "replay"> };
@@ -58,6 +60,7 @@ export type ShogiCpuJob = {
   side: Side;
   action: ShogiAction | "declaration";
   applyAt: number;
+  external?: true;
 };
 
 function usiMove(action: ShogiAction): string {
@@ -186,11 +189,24 @@ export class ShogiProgress {
     return this.accept(room, result.state, { type: "declaration", side: player.side }, at, false);
   }
 
-  start(room: Extract<ShogiRoom, { status: "waiting" }>): {
+  start(
+    room: Extract<ShogiRoom, { status: "waiting" }>,
+    rating?: ShogiRatingSource,
+  ): {
     room: Playing;
     roundId: string;
     at: number;
   } {
+    if (rating) {
+      const { mainTimeMs, byoyomiMs } = room.settings.timeControl;
+      const cpuCount = room.players.filter((player) => player.kind === "cpu").length;
+      if (
+        mainTimeMs !== 300000 ||
+        byoyomiMs !== 30000 ||
+        cpuCount !== Number(rating.kind === "cpu")
+      )
+        throw new Error("Invalid rated Shogi room");
+    }
     const assignments = shuffledAssignments(sides);
     const players = room.players.map((player, index) => ({
       ...player,
@@ -209,7 +225,7 @@ export class ShogiProgress {
       },
     };
     const state = createShogiState(initial);
-    const roundId = crypto.randomUUID();
+    const roundId = room.matchmaking?.id ?? crypto.randomUUID();
     const at = Date.now();
     this.store().startReplay(roundId, initial);
     this.storage.kv.delete(shogiCpuJobKey);
@@ -246,6 +262,7 @@ export class ShogiProgress {
         instanceId: room.instanceId,
         startedAtMs: at,
         settings: room.settings,
+        ...(rating ? { rating } : {}),
         participants: started.players.map((player, seat) => ({
           id: player.id,
           name: playerLabel(player),
@@ -403,6 +420,10 @@ export class ShogiProgress {
       this.externalCpuJob(room)
     )
       return null;
+    const rating = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)?.start.rating;
+    const nodes =
+      room.matchmaking && rating?.kind === "cpu" ? shogiCpuNodes(rating.profileId) : undefined;
+    if (room.matchmaking && nodes === undefined) return null;
     const { state } = this.store().loadTransition(room.roundId, room.game);
     if (declarationStatus(state, cpu.side).outcome === "win" || state.moveNumber > 1024)
       return null;
@@ -420,7 +441,7 @@ export class ShogiProgress {
       expiresAt: Math.min(now + timeout, room.clock.turnExpiresAt),
     };
     this.storage.kv.put(externalShogiCpuJobKey, job);
-    return { job, moves };
+    return { job, moves, ...(nodes === undefined ? {} : { nodes }) };
   }
 
   completeExternalCpu(room: Playing, work: ShogiAiWork, move: string | null, now: number) {
@@ -452,6 +473,13 @@ export class ShogiProgress {
             ? declareEnteringKing(state, job.side)
             : applyShogiAction(state, job.side, job.action, repetitionLookup);
         if (!result.ok) throw new Error("Saved CPU action is no longer legal");
+        if (job.action !== "declaration" && !job.external) {
+          const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
+          if (active?.start.id === room.roundId && active.start.rating?.kind === "cpu") {
+            active.start.rating.usedFallback = true;
+            this.storage.kv.put(shogiMatchStartKey, active);
+          }
+        }
         return this.accept(
           room,
           result.state,
@@ -466,12 +494,13 @@ export class ShogiProgress {
       this.storage.kv.delete(externalShogiCpuJobKey);
       const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
       const status = declarationStatus(state, cpu.side);
+      const externalAction = externalMove
+        ? room.legalActions.find((action) => usiMove(action) === externalMove)
+        : undefined;
       const action =
         status.eligible && status.outcome === "win"
           ? "declaration"
-          : ((externalMove
-              ? room.legalActions.find((action) => usiMove(action) === externalMove)
-              : undefined) ?? chooseCpuAction(state, cpu.level, Math.random, repetitionLookup));
+          : (externalAction ?? chooseCpuAction(state, cpu.level, Math.random, repetitionLookup));
       if (!action) throw new Error("Shogi CPU has no legal action");
       this.storage.kv.put(shogiCpuJobKey, {
         roundId: room.roundId,
@@ -479,6 +508,7 @@ export class ShogiProgress {
         side: room.game.turn,
         action,
         applyAt: Date.now() + 1,
+        ...(externalAction ? { external: true } : {}),
       } satisfies ShogiCpuJob);
     }
     return { kind: "unchanged", gameId: "shogi", room };

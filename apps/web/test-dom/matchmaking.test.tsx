@@ -13,7 +13,8 @@ function Path() {
   const location = useLocation();
   return <p data-path>{location.pathname}</p>;
 }
-function page() {
+function page(game: "four-reversi" | "shogi" = "four-reversi", viewer = user) {
+  const path = `/games/${game}/matchmaking`;
   const controller = new QueueDocumentController({
     isReload: () => false,
     locks: () => undefined,
@@ -22,11 +23,11 @@ function page() {
   const view = render(
     <QueueControllerContext value={controller}>
       {wrap(
-        user,
-        "/games/four-reversi/matchmaking",
+        viewer,
+        path,
       )(
         <Routes>
-          <Route path="/games/four-reversi/matchmaking" element={<MatchmakingPage />} />
+          <Route path={path} element={<MatchmakingPage game={game} />} />
           <Route path="*" element={<Path />} />
         </Routes>,
       )}
@@ -35,6 +36,62 @@ function page() {
   return { view, controller };
 }
 const latest = (path: string) => requests.filter((r) => r.url.includes(path)).at(-1)!;
+test("将棋は専用の待機列を使い、CPU戦の条件を入室前に表示する", async () => {
+  const { view, controller } = page("shogi");
+  latest("/api/matchmaking/shogi?").respond({
+    status: "idle",
+    serverNowMs: Date.now(),
+    enabled: true,
+  });
+  await flush();
+  expect(view.textContent).toContain("15秒");
+  press(view, "対戦相手を探す");
+  await flush();
+  const join = latest("/api/matchmaking/shogi/join");
+  const { operationId } = JSON.parse(String(join.init.body));
+  const roomId = "12345",
+    instanceId = crypto.randomUUID();
+  const assigned = {
+    status: "matched",
+    operationId,
+    controllerId: controller.getIdentity(),
+    version: 1,
+    serverNowMs: Date.now(),
+    enabled: true,
+    assignment: {
+      opponent: "cpu",
+      matchId: crypto.randomUUID(),
+      roomId,
+      instanceId,
+      expiresAtMs: Date.now() + 30000,
+      membership: { playerId: crypto.randomUUID(), role: "host", token: "a".repeat(64) },
+    },
+  };
+  join.respond(assigned);
+  await flush();
+  expect(view.textContent).toContain("CPU戦・5分＋30秒・レート対象");
+  press(view, "入室する");
+  await flush();
+  latest("/api/matchmaking/shogi?").respond(assigned);
+  await flush();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
+  expect(JSON.parse(sessionStorage.getItem("tetraboard:matchmaking-room:12345")!).game).toBe(
+    "shogi",
+  );
+});
+
+test("ゲストには将棋レートマッチの登録案内を表示する", async () => {
+  const { view } = page("shogi", { ...user, isGuest: true });
+  latest("/api/matchmaking/shogi?").respond({
+    status: "idle",
+    serverNowMs: Date.now(),
+    enabled: true,
+  });
+  await flush();
+  expect(view.textContent).toContain("参加には登録アカウントが必要");
+  expect(view.querySelector('a[href="/login"]')).not.toBeNull();
+  expect(view.textContent).not.toContain("対戦相手を探す");
+});
 test("Web Locksがなくても明示参加でき、再読み込み用の待機とCPU補充の案内を保持する", async () => {
   const { view, controller } = page();
   latest("/api/matchmaking/four-reversi?").respond({
