@@ -41,7 +41,13 @@ const pairs = profileIds.flatMap((a, i) =>
   })),
 );
 const available = availableParallelism();
-const processes = Number(process.env.TETRABOARD_CALIBRATION_PROCESSES ?? available);
+const jobsPerProcess = Number(process.env.TETRABOARD_CALIBRATION_JOBS_PER_PROCESS ?? 1);
+if (!Number.isInteger(jobsPerProcess) || jobsPerProcess < 1 || jobsPerProcess > 4)
+  throw Error("プロセス内の並列局数は1〜4の整数にしてください");
+const processes = Number(
+  process.env.TETRABOARD_CALIBRATION_PROCESSES ??
+    Math.max(1, Math.floor(available / jobsPerProcess)),
+);
 if (!Number.isInteger(processes) || processes < 1 || processes > available)
   throw Error(`プロセス数は1〜${available}の整数にしてください`);
 const maxWallMs = 12 * 60 * 60 * 1000;
@@ -159,7 +165,7 @@ try {
     JSON.stringify({
       startedAt: new Date().toISOString(),
       processes,
-      jobsPerProcess: 1,
+      jobsPerProcess,
       schedulerHash: identity.files["scripts/fourReversiCalibration.ts"],
       resumedWith: Object.keys(progress.completed).length,
     }) + "\n",
@@ -244,7 +250,15 @@ try {
             });
             await runUnit(
               name,
-              [file("benchmark"), "--config", config, "--rounds", "1", "--jobs", "1"],
+              [
+                file("benchmark"),
+                "--config",
+                config,
+                "--rounds",
+                "1",
+                "--jobs",
+                String(jobsPerProcess),
+              ],
               output,
               () => readCalibrationUnit(output, seed, pair.matchups, stage.seats),
             );
