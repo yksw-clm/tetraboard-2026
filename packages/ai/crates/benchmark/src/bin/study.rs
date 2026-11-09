@@ -1,3 +1,5 @@
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use serde_json::json;
 use std::{
     io::{self, Write},
@@ -13,6 +15,23 @@ use tetraboard_ai_engine::four_reversi::State;
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("calibration-samples") if args.len() == 3 => {
+            let seed = args[1].parse::<u64>().map_err(|e| e.to_string())?;
+            let samples = args[2].parse::<usize>().map_err(|e| e.to_string())?;
+            if !matches!(samples, 2_000 | 100_000) {
+                return Err("較正の再標本化回数は2000または100000です".into());
+            }
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            let mut out = io::BufWriter::new(io::stdout().lock());
+            for _ in 0..samples {
+                let mut counts = [0u8; 32];
+                for _ in 0..32 {
+                    counts[rng.random_range(0..32u32) as usize] += 1;
+                }
+                out.write_all(&counts).map_err(|e| e.to_string())?;
+            }
+            out.flush().map_err(|e| e.to_string())?;
+        }
         Some("analyze") if args.len() == 2 => {
             let result = tetraboard_ai_benchmark::study::analyze(Path::new(&args[1]))?;
             println!("{}", serde_json::to_string_pretty(&result).unwrap());
@@ -78,7 +97,7 @@ fn run() -> Result<(), String> {
                 writeln!(out,"{}",json!({"record_type":"performance_summary","profile_id":profile.id,"profile_hash":profile.profile_hash,"config":profile.config,"reproducible":reproducible,"samples":times.len(),"positions":positions.len(),"p50_ms":times[(times.len()*50).div_ceil(100)-1] as f64/1e6,"p95_ms":times[(times.len()*95).div_ceil(100)-1] as f64/1e6,"max_ms":*times.last().unwrap() as f64/1e6,"mean_ms":times.iter().map(|n|*n as f64).sum::<f64>()/times.len() as f64/1e6})).map_err(|e|e.to_string())?;
             }
         }
-        _ => return Err("Usage: study analyze <run-directory> | study performance".into()),
+        _ => return Err("Usage: study analyze <run-directory> | study performance | study calibration-samples <seed> <samples>".into()),
     }
     Ok(())
 }

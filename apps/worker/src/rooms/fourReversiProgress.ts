@@ -338,6 +338,14 @@ export class FourReversiProgress {
         const result = applyAction(room.game, { type: "placeStone", position: job.move });
         if (!result.ok) this.storage.kv.delete(fourReversiCpuJobKey);
         else {
+          if (job.source !== "external") {
+            const start = this.storage.kv.get<MatchStart>(matchStartKey);
+            if (start?.fourReversiRating && !start.fourReversiRating.usedFallback)
+              this.storage.kv.put(matchStartKey, {
+                ...start,
+                fourReversiRating: { ...start.fourReversiRating, usedFallback: true },
+              } satisfies MatchStart);
+          }
           this.recordReplayStep(
             { type: "place", color: room.game.turn, position: job.move },
             result,

@@ -1,0 +1,150 @@
+import { z } from "zod";
+import { colors } from "@tetraboard/four-reversi";
+import {
+  fourReversiPlacementGames,
+  fourReversiRatingMethod,
+  initialFourReversiRating,
+  rateFourReversi,
+} from "../../../../packages/ai/fourReversiRating";
+import type { MatchRecord } from "./matchStore";
+
+const cpuRating = z.strictObject({
+  mu: z.number(),
+  sigma: z.number().positive(),
+  profileId: z.string().min(1),
+  profileHash: z.string().min(1),
+});
+export const fourReversiRatedMatchSchema = z.strictObject({
+  method: z.literal(fourReversiRatingMethod),
+  calibrationVersion: z.string().min(1),
+  cpu: z.partialRecord(z.enum(colors), cpuRating),
+  usedFallback: z.literal(true).optional(),
+});
+export type FourReversiRatedMatch = z.infer<typeof fourReversiRatedMatchSchema>;
+
+type CurrentRating = {
+  account_id: string;
+  mu: number;
+  sigma: number;
+  rated_games: number;
+  human_games: number;
+};
+
+export async function readFourReversiPlacement(db: D1Database, accountId: string) {
+  const row = await db
+    .prepare(`SELECT rated_games, human_games FROM four_reversi_rating_changes
+      WHERE account_id=? ORDER BY rated_games DESC LIMIT 1`)
+    .bind(accountId)
+    .first<Pick<CurrentRating, "rated_games" | "human_games">>();
+  const games = row?.rated_games ?? 0;
+  return games < fourReversiPlacementGames
+    ? { status: "placement" as const, games }
+    : { status: "rated" as const, humanPlayed: (row?.human_games ?? 0) > 0 };
+}
+
+/** 保存済みの対局と更新前の全参加者の状態を使って、レートをまとめて確定します。 */
+export async function applyFourReversiRating(db: D1Database, record: MatchRecord) {
+  const source = record.fourReversiRating;
+  const result = record.game.result;
+  const clock = record.settings.timeControl;
+  if (
+    !source ||
+    source.usedFallback ||
+    result.mode !== "singles" ||
+    record.settings.mode !== "singles" ||
+    clock?.mainTimeMs !== 180_000 ||
+    clock.byoyomiMs !== 0
+  )
+    return;
+  const players = record.participants;
+  const humans = players.filter((player) => player.kind === "human");
+  const ids = humans.map((player) => player.accountId);
+  const cpus = players.filter((player) => player.kind === "cpu");
+  const ranks = players.map(
+    (player) => result.standings.find(({ color }) => color === player.color)?.rank,
+  );
+  if (
+    players.length !== 4 ||
+    new Set(players.map(({ color }) => color)).size !== 4 ||
+    ranks.some((rank) => rank === undefined) ||
+    !ids.length ||
+    ids.some((id) => !id) ||
+    new Set(ids).size !== ids.length ||
+    cpus.length !== Object.keys(source.cpu).length ||
+    cpus.some(({ color, cpuProfile }) => {
+      const reference = source.cpu[color];
+      return (
+        !reference ||
+        !cpuProfile ||
+        reference.profileId !== cpuProfile.id ||
+        reference.profileHash !== cpuProfile.hash
+      );
+    })
+  )
+    return;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (
+      await db
+        .prepare("SELECT 1 FROM four_reversi_rating_changes WHERE match_id=?")
+        .bind(record.id)
+        .first()
+    )
+      return;
+    const { results } = await db
+      .prepare(`
+      SELECT u.id AS account_id, COALESCE(r.mu_after, ?2) AS mu, COALESCE(r.sigma_after, ?3) AS sigma,
+        COALESCE(r.rated_games, 0) AS rated_games, COALESCE(r.human_games, 0) AS human_games
+      FROM json_each(?1) ids JOIN user u ON u.id=ids.value
+      LEFT JOIN four_reversi_rating_changes r ON r.account_id=u.id AND r.rated_games=(
+        SELECT MAX(rated_games) FROM four_reversi_rating_changes WHERE account_id=u.id
+      )
+      WHERE COALESCE(u.isAnonymous, 0)=0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=u.id)
+    `)
+      .bind(JSON.stringify(ids), initialFourReversiRating.mu, initialFourReversiRating.sigma)
+      .all<CurrentRating>();
+    if (results.length !== humans.length) return;
+    const before = new Map(results.map((row) => [row.account_id, row]));
+    const ratings = players.map((player) =>
+      player.kind === "human" ? before.get(player.accountId!)! : source.cpu[player.color]!,
+    );
+    const updated = rateFourReversi(ratings, ranks as number[]);
+    const changes = players.flatMap((player, index) => {
+      if (player.kind !== "human") return [];
+      const row = before.get(player.accountId!)!;
+      return [
+        {
+          accountId: row.account_id,
+          muBefore: row.mu,
+          sigmaBefore: row.sigma,
+          muAfter: updated[index]!.mu,
+          sigmaAfter: updated[index]!.sigma,
+          ratedGames: row.rated_games + 1,
+          humanGames: row.human_games + Number(humans.length > 1),
+        },
+      ];
+    });
+    const saved = await db
+      .prepare(`
+      WITH changes AS MATERIALIZED (SELECT value AS row FROM json_each(?2))
+      INSERT INTO four_reversi_rating_changes
+        (match_id, account_id, mu_before, sigma_before, mu_after, sigma_after, rated_games, human_games)
+      SELECT ?1, row->>'$.accountId', row->>'$.muBefore', row->>'$.sigmaBefore',
+        row->>'$.muAfter', row->>'$.sigmaAfter', row->>'$.ratedGames', row->>'$.humanGames'
+      FROM changes
+      WHERE NOT EXISTS (SELECT 1 FROM four_reversi_rating_changes WHERE match_id=?1)
+        AND NOT EXISTS (
+          SELECT 1 FROM changes c WHERE c.row->>'$.ratedGames' - 1 <> COALESCE((
+            SELECT MAX(r.rated_games) FROM four_reversi_rating_changes r WHERE r.account_id=c.row->>'$.accountId'
+          ), 0) OR NOT EXISTS (
+            SELECT 1 FROM user u WHERE u.id=c.row->>'$.accountId' AND COALESCE(u.isAnonymous, 0)=0
+              AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=u.id)
+          )
+        )
+    `)
+      .bind(record.id, JSON.stringify(changes))
+      .run();
+    if (saved.meta.changes === humans.length) return;
+  }
+  throw Error("四人リバーシのレート更新を再試行してください");
+}
