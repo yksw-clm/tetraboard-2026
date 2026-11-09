@@ -95,6 +95,16 @@ export const router = createBrowserRouter([
         }),
         hydrateFallbackElement: <AppPageLoading message="マッチングを読み込んでいます…" />,
       },
+      {
+        path: "/games/shogi/matchmaking",
+        lazy: async () => {
+          const { MatchmakingPage } = await import("../features/matchmaking/MatchmakingPage");
+          return { Component: () => <MatchmakingPage game="shogi" /> };
+        },
+        hydrateFallbackElement: (
+          <AppPageLoading message="マッチングを読み込んでいます…" theme="shogi" />
+        ),
+      },
       { path: "/login", Component: LoginPage },
       { path: "/account/setup", element: <ProfilePage setup /> },
       { path: "/account", Component: ProfilePage },

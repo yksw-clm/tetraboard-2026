@@ -1,4 +1,4 @@
-import { matchmakingRules } from "@tetraboard/protocol";
+import { matchmakingQueues } from "@tetraboard/protocol";
 import {
   prepareGuestLink,
   rememberGuestLink,
@@ -74,7 +74,8 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     const user = await accountIdentity(c.req.raw, c.env);
     if (user?.isAnonymous) return c.json(error("ゲストはログアウトできません。"), 403);
     if (user) {
-      await c.env.MATCHMAKING_COORDINATOR.getByName(matchmakingRules.key).leaveAccount(user.id);
+      for (const { key } of Object.values(matchmakingQueues))
+        await c.env.MATCHMAKING_COORDINATOR.getByName(key).leaveAccount(user.id);
       const tournaments = await c.env.APP_DB.prepare(`SELECT DISTINCT e.tournament_key
         FROM tournament_entries e JOIN tournaments t ON t.key=e.tournament_key
         WHERE e.account_id=? AND t.published=1 AND t.finalized_at_ms IS NULL`)

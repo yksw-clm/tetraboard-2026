@@ -9,6 +9,35 @@ export const matchmakingRules = {
   countdownMs: 5_000,
   timeControl: { mainTimeMs: 180_000, byoyomiMs: 0 },
 } as const;
+export const shogiMatchmakingRules = {
+  ...matchmakingRules,
+  key: "shogi:300000:30000:rated-v1",
+  fillAfterMs: 15_000,
+  timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+} as const;
+export const matchmakingQueues = {
+  "four-reversi": matchmakingRules,
+  shogi: shogiMatchmakingRules,
+} as const;
+export type MatchmakingGame = keyof typeof matchmakingQueues;
+export const shogiPlacementGames = 5;
+export const publicShogiRatingSchema = z.strictObject({
+  rating: z.number(),
+  humanPlayed: z.boolean(),
+});
+export const shogiRatingResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("pending") }),
+  z.strictObject({ status: z.literal("excluded"), reason: z.enum(["ai_fallback", "unavailable"]) }),
+  z.strictObject({
+    status: z.literal("placement"),
+    games: z.int().positive().lt(shogiPlacementGames),
+  }),
+  publicShogiRatingSchema.extend({
+    status: z.literal("rated"),
+    previousRating: z.number(),
+    placementCompleted: z.boolean(),
+  }),
+]);
 export const matchmakingInputSchema = z.strictObject({
   controllerId: z.uuid(),
   operationId: z.uuid(),
@@ -31,6 +60,7 @@ export const matchmakingStateSchema = z.strictObject({
       roomId: roomCodeSchema,
       instanceId: z.uuid(),
       expiresAtMs: z.int().nonnegative(),
+      opponent: z.enum(["human", "cpu"]).optional(),
       membership: roomMembershipSchema.extend({ token: z.string().regex(/^[a-f0-9]{64}$/) }),
     })
     .optional(),
@@ -43,6 +73,7 @@ export const matchmakingQueueReferenceSchema = z.strictObject({
   version: z.int().positive(),
 });
 export const matchmakingRoomReferenceSchema = matchmakingQueueReferenceSchema.extend({
+  game: z.literal("shogi").optional(),
   identity: z.string().min(1),
   roomId: z.string().regex(/^\d{5}$/),
   instanceId: z.uuid(),

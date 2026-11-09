@@ -3,6 +3,7 @@ import { applyMatchClaims } from "../accounts/matchClaims";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import { tournamentMatchStatements } from "../tournaments/store";
+import { shogiRatingStatement, type ShogiRatingSource } from "./shogiRating";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import {
   fourShogiReplayEventSchema,
@@ -81,6 +82,7 @@ export type StandardShogiMatchRecord = {
   ))[];
   game: ShogiMatchDetail["game"];
   replay: ShogiMatchDetail["replay"];
+  rating?: ShogiRatingSource;
 };
 export const standardShogiMatchStartKey = "standard-shogi-match-start";
 export const pendingStandardShogiMatchPrefix = "standard-shogi-match-pending:";
@@ -212,7 +214,7 @@ export async function advanceShogiMatchSave(
       throw new Error("Shogi chunk content mismatch");
   }
   if (end < chunkCount) return { phase: "verify", cursor: end };
-  // 不変の棋譜行をすべて検証した後、本体と全アカウント索引を一緒に確定します。
+  // 棋譜の検証後、本体・アカウント索引・レートを一緒に確定します。
   await db.batch([
     db
       .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
@@ -248,6 +250,15 @@ export async function advanceShogiMatchSave(
         ]
       : []),
     ...badgeAwardStatements(db, game, record.id),
+    ...("rating" in record && record.rating
+      ? [
+          shogiRatingStatement(db, record.id),
+          db
+            .prepare(`DELETE FROM shogi_rating_pending WHERE match_id = ?
+              AND EXISTS (SELECT 1 FROM matches WHERE id = ? AND game = 'shogi')`)
+            .bind(record.id, record.id),
+        ]
+      : []),
     ...(tournament && game === "four-shogi"
       ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)
       : []),

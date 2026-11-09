@@ -30,6 +30,7 @@ export function RoomStatus({
   onReplayChange,
   onRotate,
   onTournamentNext,
+  nextMatchPending = false,
 }: {
   session: SharedRoomSession & { canPlay: boolean };
   turn: Room["players"][number] | undefined;
@@ -46,6 +47,7 @@ export function RoomStatus({
   onReplayChange: (key: string | null) => void;
   onRotate: () => void;
   onTournamentNext?: () => void;
+  nextMatchPending?: boolean;
 }) {
   const { room, self, membership, presence, authenticated, connection } = session;
   const waiting = room.status === "waiting";
@@ -181,7 +183,7 @@ export function RoomStatus({
       {nextTournamentRound && membership && onTournamentNext && (
         <AppButton
           size="compact"
-          isDisabled={session.leaving}
+          isDisabled={session.leaving || nextMatchPending}
           isPending={session.leaving}
           onPress={onTournamentNext}
         >

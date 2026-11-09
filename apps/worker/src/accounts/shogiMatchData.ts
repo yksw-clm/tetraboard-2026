@@ -7,6 +7,7 @@ import {
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
 import type { StandardShogiMatchRecord } from "../rooms/shogiMatchStore";
+import { shogiRatingSourceSchema } from "../rooms/shogiRating";
 import type { ParticipantProfiles } from "./matchProfiles";
 const participants = z
   .array(
@@ -19,7 +20,12 @@ const participants = z
   )
   .length(2);
 const recordSchema = z
-  .strictObject({ ...shogiMatchDetailSchema.shape, instanceId: z.uuid(), participants })
+  .strictObject({
+    ...shogiMatchDetailSchema.shape,
+    instanceId: z.uuid(),
+    participants,
+    rating: shogiRatingSourceSchema.optional(),
+  })
   .omit({ selfPlayerId: true });
 function publicPlayers(record: StandardShogiMatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
@@ -41,7 +47,7 @@ function detail(
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const { instanceId: _instance, ...data } = record;
+  const { instanceId: _instance, rating: _rating, ...data } = record;
   return shogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

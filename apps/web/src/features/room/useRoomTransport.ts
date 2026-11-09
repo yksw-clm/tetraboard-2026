@@ -1,4 +1,5 @@
 import { isMatchmakingRoom, managedRoomPath } from "../matchmaking/managedRoom";
+import { matchmakingPath } from "../matchmaking/paths";
 import { checkAccountPrivacy } from "../account/accountPrivacy";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
@@ -418,7 +419,7 @@ export function useRoomTransport<T extends Room>({
 
     function stopUnavailable(message: string): void {
       if (initialMatchmaking && initialMembership)
-        void navigate("/games/four-reversi/matchmaking", { replace: true });
+        void navigate(matchmakingPath(initialRoom.settings.game), { replace: true });
       if (initialTournamentId !== undefined && initialMembership) {
         void navigate(`/tournaments/${initialTournamentId}`, {
           replace: true,

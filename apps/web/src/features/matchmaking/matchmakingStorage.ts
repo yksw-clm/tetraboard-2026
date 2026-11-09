@@ -2,27 +2,36 @@ import {
   matchmakingQueueReferenceSchema as schema,
   matchmakingRoomReferenceSchema as roomSchema,
 } from "@tetraboard/protocol";
+import type { MatchmakingGame } from "@tetraboard/protocol";
+import { matchmakingScope } from "./paths";
 
-const key = (identity: string) => `tetraboard:matchmaking:${identity}`;
-export function readMatchmakingQueue(identity: string) {
+const key = (identity: string, game: MatchmakingGame) =>
+  `tetraboard:${matchmakingScope(identity, game)}`;
+export function readMatchmakingQueue(identity: string, game: MatchmakingGame = "four-reversi") {
   try {
-    const parsed = schema.safeParse(JSON.parse(sessionStorage.getItem(key(identity)) ?? "null"));
+    const parsed = schema.safeParse(
+      JSON.parse(sessionStorage.getItem(key(identity, game)) ?? "null"),
+    );
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
 }
-export function saveMatchmakingQueue(identity: string, value: ReturnType<typeof schema.parse>) {
+export function saveMatchmakingQueue(
+  identity: string,
+  value: ReturnType<typeof schema.parse>,
+  game: MatchmakingGame = "four-reversi",
+) {
   try {
-    sessionStorage.setItem(key(identity), JSON.stringify(schema.parse(value)));
-    if (readMatchmakingQueue(identity)?.operationId !== value.operationId) throw Error();
+    sessionStorage.setItem(key(identity, game), JSON.stringify(schema.parse(value)));
+    if (readMatchmakingQueue(identity, game)?.operationId !== value.operationId) throw Error();
   } catch {
     throw Error("待機情報を保存できません。ブラウザの保存領域を確認してください。");
   }
 }
-export function clearMatchmakingQueue(identity: string) {
+export function clearMatchmakingQueue(identity: string, game: MatchmakingGame = "four-reversi") {
   try {
-    sessionStorage.removeItem(key(identity));
+    sessionStorage.removeItem(key(identity, game));
   } catch {
     /* 有効期限でも回収します。 */
   }

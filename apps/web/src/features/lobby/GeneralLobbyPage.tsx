@@ -1,3 +1,5 @@
+import { matchmakingPath } from "../matchmaking/paths";
+
 import { useState, useSyncExternalStore } from "react";
 import { Link, useNavigate } from "react-router";
 import type { LobbyRoomCard } from "@tetraboard/protocol/general-lobby";
@@ -49,7 +51,7 @@ export function GeneralLobbyPage() {
       return;
     }
     if (room.matchmaking) {
-      void navigate("/games/four-reversi/matchmaking");
+      void navigate(matchmakingPath(room.game));
       return;
     }
     if (room.tournamentId) {

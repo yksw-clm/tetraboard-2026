@@ -6,7 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
-    "MATCHMAKING_ENABLED": "false"
+    "MATCHMAKING_ENABLED": "false",
+    "SHOGI_MATCHMAKING_ENABLED": "false"
   },
   "r2_buckets": [
     {
@@ -61,7 +62,8 @@
       "name": "tetraboard-2026",
       "vars": {
         "APP_ORIGIN": "https://tetraboard.net",
-        "MATCHMAKING_ENABLED": "false"
+        "MATCHMAKING_ENABLED": "false",
+        "SHOGI_MATCHMAKING_ENABLED": "false"
       },
       "routes": [
         {
@@ -130,6 +132,7 @@
       "vars": {
         "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev",
         "MATCHMAKING_ENABLED": "true",
+        "SHOGI_MATCHMAKING_ENABLED": "true",
         "AI_SERVICE_URL": "https://tetraboard-ai-dev.chaossi-lab.workers.dev",
         "AI_SHOGI_ENABLED": "true",
         "AI_SERVICE_TIMEOUT_MS": "5000"

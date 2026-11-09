@@ -7,7 +7,7 @@ import { deleteExpiredReports } from "./rooms/reportStore";
 import { cleanupFeedback } from "./feedback/store";
 import { deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { recoverTournaments } from "./tournaments/routes";
-import { matchmakingRules } from "@tetraboard/protocol";
+import { matchmakingQueues } from "@tetraboard/protocol";
 
 export type MaintenanceTask = { name: string; run: () => Promise<unknown> };
 
@@ -43,8 +43,10 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     { name: "account-reservations", run: () => recoverAccountReservations(env) },
     {
       name: "matchmaking",
-      run: () =>
-        env.MATCHMAKING_COORDINATOR.getByName(matchmakingRules.key).cleanupReleasedGroups(),
+      run: async () => {
+        for (const { key } of Object.values(matchmakingQueues))
+          await env.MATCHMAKING_COORDINATOR.getByName(key).cleanupReleasedGroups();
+      },
     },
     { name: "tournaments", run: () => recoverTournaments(env) },
     { name: "match-claims", run: () => retryPendingMatchClaims(env.APP_DB) },

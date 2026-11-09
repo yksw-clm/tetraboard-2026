@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { useLocation } from "react-router";
-import { fourReversiRoomSchema, type FourReversiRoom } from "@tetraboard/protocol";
+import { fourReversiRoomSchema, shogiRoomSchema, type FourReversiRoom } from "@tetraboard/protocol";
 import { RoomView } from "../src/features/room/RoomView";
 import { useRoomSession } from "../src/features/room/useRoomSession";
 import { useRoomChat } from "../src/features/room/useRoomChat";
@@ -10,6 +10,9 @@ import { replayMatch } from "../test/fixtures/matchReplayFixtures";
 import { profile } from "../test/fixtures/account";
 import { clock, flush, press, render, requests, wrap } from "./harness";
 import { installSocket, Socket } from "./socket";
+import { ShogiRoomView } from "../src/features/room/ShogiRoomView";
+import { useShogiRoomSession } from "../src/features/room/useShogiRoomSession";
+import { standardSavedRound, standardWaitingRoom } from "../test/fixtures/standardShogiFixtures";
 let restore: () => void;
 beforeEach(() => {
   restore = installSocket();
@@ -119,3 +122,83 @@ for (const action of ["もう一度マッチング", "ロビーへ"])
       String(action === "もう一度マッチング"),
     );
   });
+
+test("将棋はレート保存完了後に認定結果を表示し、将棋の待機列に戻る", async () => {
+  const saved = standardSavedRound().match;
+  const room = shogiRoomSchema.parse({
+    ...standardWaitingRoom(),
+    matchmaking: { id: saved.id, opponent: "cpu", preparedAtMs: now },
+    lastRound: {
+      roundId: saved.id,
+      game: saved.game,
+      eventCount: saved.replay.eventCount,
+      players: saved.participants.map(({ id, name, side }) => ({ id, name, side })),
+    },
+  });
+  const initialMembership = { ...membership, accountLinked: true };
+  saveRoomMembershipToken(room.id, token);
+  function View() {
+    const location = useLocation();
+    const session = useShogiRoomSession({
+      initialRoom: room,
+      initialMembership,
+      initialServerNowMs: now,
+      initialPresence: { hostPlayerId: playerIds[0]!, connectedPlayerIds: playerIds.slice(0, 2) },
+    });
+    const chat = useRoomChat({
+      room: session.room,
+      membership: session.membership,
+      remoteError: session.chatError,
+      sendChat: session.sendChat,
+      clearRemoteError: session.clearChatError,
+      notifications: session.chatNotifications,
+      messages: session.chatMessages,
+      connected: true,
+    });
+    return (
+      <>
+        <output data-path>{location.pathname}</output>
+        <ShogiRoomView session={session} chat={chat} invited={false} />
+      </>
+    );
+  }
+  const view = render(
+    wrap({ ...profile, profileId: crypto.randomUUID() }, "/rooms/12345")(<View />),
+  );
+  const socket = Socket.instances.at(-1)!;
+  socket.open();
+  socket.snapshot(room);
+  socket.receive({ type: "room.authenticated", membership: initialMembership });
+  await flush();
+  press(view, "結果");
+  await flush();
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  const ratingRequest = () =>
+    requests.filter((r) => r.url.endsWith(`/results/${saved.id}`)).at(-1)!;
+  const rejoin = () =>
+    [...dialog.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("もう一度マッチング"),
+    )!;
+  ratingRequest().respond({ status: "pending" });
+  await flush();
+  expect(rejoin().disabled).toBe(true);
+  expect(dialog.textContent).toContain("レート結果を保存しています");
+  clock.advance(1000);
+  await flush();
+  ratingRequest().respond({
+    status: "rated",
+    rating: 1524,
+    previousRating: 1500,
+    placementCompleted: true,
+    humanPlayed: false,
+  });
+  await flush();
+  expect(dialog.textContent).toContain("認定完了");
+  expect(dialog.textContent).toContain("レート 1524（+24）");
+  expect(dialog.textContent).toContain("対人戦未経験");
+  expect(rejoin().disabled).toBe(false);
+  press(dialog, "もう一度マッチング");
+  requests.find((r) => r.url.endsWith("/leave"))!.respond(null, 204);
+  await flush();
+  expect(view.querySelector("[data-path]")?.textContent).toBe("/games/shogi/matchmaking");
+});

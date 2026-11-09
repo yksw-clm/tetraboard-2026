@@ -1,7 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
-import { matchmakingRules as rules, type MatchmakingState } from "@tetraboard/protocol";
+import {
+  matchmakingRules as rules,
+  shogiMatchmakingRules,
+  type MatchmakingState,
+} from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
+import type { ShogiRatingSource } from "../rooms/shogiRating";
+import { selectShogiCpu } from "./shogiCpuProfiles";
 
 type Wait = {
   accountId: string;
@@ -11,6 +17,7 @@ type Wait = {
   joinedAtMs: number;
   sequence: number;
   retryAtMs?: number;
+  rating?: number;
   expiresAtMs: number;
 };
 type Player = Wait & {
@@ -29,6 +36,7 @@ type Group = {
   players: Player[];
   remove?: string[];
   retryDelayMs?: number;
+  rating?: ShogiRatingSource;
 };
 type State = { key: string; waiting: Wait[]; groups: Group[]; nextSequence?: number };
 type Profile = {
@@ -38,6 +46,9 @@ type Profile = {
   avatarPresetId: string | null;
   isAnonymous: number | null;
 };
+function compareWaits(a: Wait, b: Wait) {
+  return (a.sequence ?? 0) - (b.sequence ?? 0) || a.joinedAtMs - b.joinedAtMs;
+}
 export type MatchmakingRoomInput = {
   matchId: string;
   roomId: string;
@@ -45,6 +56,7 @@ export type MatchmakingRoomInput = {
   preparedAtMs: number;
   expiresAtMs: number;
   players: { admission: AccountAdmission; tokenHash: string; version: number }[];
+  rating?: ShogiRatingSource;
 };
 export type MatchmakingRoomReservation = MatchmakingRoomInput & {
   phase: "waiting" | "playing" | "closed";
@@ -53,7 +65,7 @@ export type MatchmakingRoomReservation = MatchmakingRoomInput & {
 };
 const hex = (bytes: ArrayBuffer) =>
   Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
-export async function matchmakingCredential(env: Env, wait: Wait) {
+export async function matchmakingCredential(env: Env, wait: Wait, queueKey: string = rules.key) {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(authSecret(env)),
@@ -63,7 +75,7 @@ export async function matchmakingCredential(env: Env, wait: Wait) {
   );
   const data = JSON.stringify([
     "tetraboard:matchmaking-membership:v1",
-    rules.key,
+    queueKey,
     wait.accountId,
     wait.operationId,
     wait.controllerId,
@@ -76,8 +88,20 @@ export async function matchmakingCredential(env: Env, wait: Wait) {
   };
 }
 export class MatchmakingCoordinator extends DurableObject<Env> {
+  private get isRatedShogi() {
+    return this.ctx.id.name === shogiMatchmakingRules.key;
+  }
+  private get queueRules() {
+    return this.isRatedShogi ? shogiMatchmakingRules : rules;
+  }
   private load(): State {
-    return this.ctx.storage.kv.get<State>("state") ?? { key: rules.key, waiting: [], groups: [] };
+    return (
+      this.ctx.storage.kv.get<State>("state") ?? {
+        key: this.queueRules.key,
+        waiting: [],
+        groups: [],
+      }
+    );
   }
   private save(state: State) {
     this.ctx.storage.kv.put("state", state);
@@ -87,26 +111,45 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(Date.now() + 5000);
       const state = this.load();
       const result = await run(state);
+      if (this.isRatedShogi) state.waiting.sort(compareWaits);
       this.save(state);
-      const deadlines = state.waiting.flatMap((w) => [
-        w.expiresAtMs,
-        Math.max(w.joinedAtMs + rules.fillAfterMs, w.retryAtMs ?? 0),
-      ]);
+      const now = Date.now();
+      const deadlines = state.waiting.map((w) => w.expiresAtMs);
+      if (this.isRatedShogi) {
+        const oldest = state.waiting.find((w) => (w.retryAtMs ?? 0) <= now);
+        if (oldest) {
+          const elapsed = now - oldest.joinedAtMs;
+          const next =
+            elapsed < 5000 ? 5000 : elapsed < 10_000 ? 10_000 : shogiMatchmakingRules.fillAfterMs;
+          deadlines.push(oldest.joinedAtMs + next);
+        }
+        for (const w of state.waiting) if ((w.retryAtMs ?? 0) > now) deadlines.push(w.retryAtMs!);
+      } else {
+        for (const w of state.waiting)
+          deadlines.push(Math.max(w.joinedAtMs + rules.fillAfterMs, w.retryAtMs ?? 0));
+      }
       for (const group of state.groups) {
         if (group.phase !== "playing") deadlines.push(Date.now() + 1000, group.expiresAtMs);
         else if (group.players.some((p) => p.credentialPending)) deadlines.push(Date.now() + 1000);
       }
-      if (deadlines.length)
-        await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, Math.min(...deadlines)));
-      else await this.ctx.storage.deleteAlarm();
+      if (deadlines.length) {
+        const deadline = Math.min(...deadlines);
+        const currentTime = Date.now();
+        // 将棋の待機期限が目前でも、未来の期限を後ろへずらさずに通知します。
+        await this.ctx.storage.setAlarm(
+          this.isRatedShogi && deadline > currentTime
+            ? deadline
+            : Math.max(currentTime + 100, deadline),
+        );
+      } else await this.ctx.storage.deleteAlarm();
       return result;
     });
   }
   private async profile(accountId: string) {
     return this.env.APP_DB.prepare(
-      `SELECT id,name,avatarKey,avatarPresetId,isAnonymous FROM user WHERE id=? AND profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)`,
+      `SELECT id,name,avatarKey,avatarPresetId,isAnonymous FROM user WHERE id=? AND profileCompleted=1 AND (?=0 OR COALESCE(isAnonymous,0)=0) AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)`,
     )
-      .bind(accountId)
+      .bind(accountId, Number(this.isRatedShogi))
       .first<Profile>();
   }
   private locate(state: State, id: string) {
@@ -150,6 +193,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       return;
     }
     for (const player of group.players) await releaseReservation(this.env, player.admission, true);
+    if (group.rating)
+      await this.env.APP_DB.prepare("DELETE FROM shogi_rating_pending WHERE match_id=?")
+        .bind(group.id)
+        .run();
     for (const player of group.players) {
       if (
         remove.includes(player.accountId) ||
@@ -173,6 +220,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             version: player.version,
             joinedAtMs: player.joinedAtMs,
             sequence: player.sequence,
+            ...(player.rating === undefined ? {} : { rating: player.rating }),
             expiresAtMs: player.expiresAtMs,
             retryAtMs: player.retryAtMs,
           });
@@ -193,7 +241,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
   private async recoverCredentials(state: State, group: Group) {
     for (const player of group.players) {
       if (!player.credentialPending || player.released) continue;
-      player.tokenHash = (await matchmakingCredential(this.env, player)).tokenHash;
+      player.tokenHash = (await matchmakingCredential(this.env, player, state.key)).tokenHash;
       this.save(state);
       const updated = await this.env.GAME_ROOM.getByName(group.roomId).rekeyMatchmakingPlayer(
         group.id,
@@ -238,7 +286,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         avatarPresetId: profile.avatarPresetId,
         ...(profile.isAnonymous ? { isGuest: true } : {}),
       };
-      player.tokenHash = (await matchmakingCredential(this.env, player)).tokenHash;
+      player.tokenHash = (await matchmakingCredential(this.env, player, state.key)).tokenHash;
       const a = player.admission;
       statements.push(
         this.env.APP_DB.prepare(
@@ -270,6 +318,12 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           "INSERT OR IGNORE INTO privacy_room_players SELECT account_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats WHERE operation_id=?",
         ).bind(a.operationId),
       );
+      if (group.rating)
+        statements.push(
+          this.env.APP_DB.prepare(`INSERT INTO shogi_rating_pending(account_id,match_id)
+            SELECT account_id,? FROM account_room_seats WHERE account_id=? AND operation_id=?
+            ON CONFLICT(account_id) DO NOTHING`).bind(group.id, a.accountId, a.operationId),
+        );
     }
     this.save(state);
     try {
@@ -284,6 +338,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       instanceId: group.instanceId,
       preparedAtMs: group.preparedAtMs,
       expiresAtMs: group.expiresAtMs,
+      ...(group.rating ? { rating: group.rating } : {}),
       players: group.players.map((p) => ({
         admission: p.admission,
         tokenHash: p.tokenHash,
@@ -343,7 +398,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       ? await this.env.APP_DB.prepare(
           `SELECT w.operation_id AS operationId FROM matchmaking_wait_reservations w JOIN user u ON u.id=w.account_id WHERE w.queue_key=? AND w.lease_until_ms>? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges m WHERE m.guest_id=u.id)`,
         )
-          .bind(rules.key, Date.now())
+          .bind(state.key, Date.now())
           .all<{ operationId: string }>()
       : { results: [] };
     const valid = new Set(validRows.results.map((row) => row.operationId));
@@ -357,18 +412,31 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
       }
     }
-    state.waiting.sort(
-      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0) || a.joinedAtMs - b.joinedAtMs,
-    );
+    state.waiting.sort(compareWaits);
     let remaining = 4;
     while (remaining-- > 0) {
       const eligible = state.waiting.filter((w) => (w.retryAtMs ?? 0) <= Date.now());
-      if (
-        !eligible.length ||
-        (eligible.length < 4 && eligible[0]!.joinedAtMs + rules.fillAfterMs > Date.now())
-      )
-        break;
-      const selected = eligible.slice(0, 4);
+      const oldest = eligible[0];
+      if (!oldest) break;
+      const now = Date.now();
+      const elapsed = now - oldest.joinedAtMs;
+      let selected: Wait[];
+      let rating: ShogiRatingSource | undefined;
+      if (this.isRatedShogi) {
+        const allowedDifference = elapsed < 5000 ? 100 : elapsed < 10_000 ? 200 : 300;
+        const anchorRating = oldest.rating ?? 1500;
+        const opponent = eligible
+          .slice(1)
+          .find(
+            (candidate) => Math.abs((candidate.rating ?? 1500) - anchorRating) <= allowedDifference,
+          );
+        if (!opponent && elapsed < shogiMatchmakingRules.fillAfterMs) break;
+        selected = opponent ? [oldest, opponent] : [oldest];
+        rating = opponent ? { kind: "human" } : selectShogiCpu(anchorRating);
+      } else {
+        if (eligible.length < 4 && elapsed < rules.fillAfterMs) break;
+        selected = eligible.slice(0, 4);
+      }
       const ids = new Set(selected.map((w) => w.operationId));
       state.waiting = state.waiting.filter((w) => !ids.has(w.operationId));
       const id = crypto.randomUUID(),
@@ -378,9 +446,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         id,
         roomId,
         instanceId,
-        preparedAtMs: Date.now(),
-        expiresAtMs: Date.now() + rules.connectionGraceMs,
+        preparedAtMs: now,
+        expiresAtMs: now + rules.connectionGraceMs,
         phase: "preparing",
+        ...(rating ? { rating } : {}),
         players: selected.map((w) => ({
           ...w,
           released: false,
@@ -455,12 +524,13 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       !("credentialPending" in wait && wait.credentialPending)
     ) {
       const player = group.players.find((p) => p.accountId === accountId)!;
-      const credential = await matchmakingCredential(this.env, wait);
+      const credential = await matchmakingCredential(this.env, wait, state.key);
       result.assignment = {
         matchId: group.id,
         roomId: group.roomId,
         instanceId: group.instanceId,
         expiresAtMs: group.expiresAtMs,
+        ...(group.rating ? { opponent: group.rating.kind } : {}),
         membership: {
           playerId: player.admission.playerId,
           role: group.players[0]?.accountId === accountId ? "host" : "player",
@@ -498,7 +568,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         expiresAtMs: Date.now() + rules.leaseMs,
       };
       try {
-        await this.env.APP_DB.batch([
+        const results = await this.env.APP_DB.batch<{ rating_after: number }>([
           this.env.APP_DB.prepare(
             "DELETE FROM tournament_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
           ).bind(accountId, Date.now()),
@@ -506,9 +576,30 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
           ).bind(accountId, Date.now()),
           this.env.APP_DB.prepare(
-            "INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms) VALUES(?,?,?,?)",
-          ).bind(accountId, rules.key, operationId, wait.expiresAtMs),
+            `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
+            SELECT ?,?,?,? WHERE ?=0 OR NOT EXISTS (SELECT 1 FROM shogi_rating_pending WHERE account_id=?)`,
+          ).bind(
+            accountId,
+            state.key,
+            operationId,
+            wait.expiresAtMs,
+            Number(this.isRatedShogi),
+            accountId,
+          ),
+          ...(this.isRatedShogi
+            ? [
+                this.env.APP_DB.prepare(
+                  "SELECT rating_after FROM shogi_rating_changes WHERE account_id=? ORDER BY rated_games DESC LIMIT 1",
+                ).bind(accountId),
+              ]
+            : []),
         ]);
+        if (!results[2]?.meta.changes)
+          return {
+            ok: false as const,
+            message: "前局のレート結果を保存中です。少し待ってから再試行してください。",
+          };
+        if (this.isRatedShogi) wait.rating = results[3]?.results[0]?.rating_after ?? 1500;
       } catch {
         return {
           ok: false as const,

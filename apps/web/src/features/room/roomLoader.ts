@@ -1,5 +1,6 @@
 import { recoverMatchmakingRoom } from "../matchmaking/matchmakingRecovery";
 import { readMatchmakingRoom } from "../matchmaking/matchmakingStorage";
+import { matchmakingPath } from "../matchmaking/paths";
 import {
   roomCodeSchema,
   isFourReversiRoom,
@@ -55,7 +56,7 @@ export async function roomLoader({ params, request }: LoaderFunctionArgs): Promi
     instanceId,
   ).catch((error: unknown) => {
     if (matchingReference && error instanceof Response && [404, 410].includes(error.status))
-      throw redirect("/games/four-reversi/matchmaking");
+      throw redirect(matchmakingPath(matchingReference.game ?? "four-reversi"));
     const reference = tournamentReference;
     if (reference && instanceId && error instanceof Response && [404, 410].includes(error.status))
       throw redirect(`/tournaments/${reference.tournamentId}?return=unavailable`);

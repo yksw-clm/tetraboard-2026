@@ -25,6 +25,7 @@ import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { useLocation, useNavigate } from "react-router";
 import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
+import { matchmakingPath } from "../matchmaking/paths";
 
 type Props = {
   registrationDraft?: RegistrationEntryDraft;
@@ -105,7 +106,7 @@ export function LobbyView(props: Props) {
     description: gameDescriptions[props.game],
     theme: gameThemes[props.game],
   };
-  const supportsRandomMatch = props.game === "four-reversi";
+  const supportsRandomMatch = props.game === "four-reversi" || props.game === "shogi";
 
   function openEntry(
     intent: RoomEntryIntent,
@@ -199,10 +200,10 @@ export function LobbyView(props: Props) {
               {supportsRandomMatch && (
                 <AppButton
                   className="col-span-full w-full min-h-12"
-                  onPress={() => void navigate("/games/four-reversi/matchmaking")}
+                  onPress={() => void navigate(matchmakingPath(props.game))}
                 >
                   <AppIcon name="shuffle" />
-                  ランダムマッチ
+                  {props.game === "shogi" ? "レートマッチ" : "ランダムマッチ"}
                 </AppButton>
               )}
             </section>

@@ -202,14 +202,16 @@ const cpuPlayerSchema = playerBaseSchema.extend({
   ready: z.literal(true),
   reconnectDeadline: z.null(),
 });
+const roomMatchmakingSchema = z.strictObject({
+  id: z.uuid(),
+  preparedAtMs: serverNowMsSchema,
+  startsAtMs: serverNowMsSchema.optional(),
+});
+const shogiRoomMatchmakingSchema = roomMatchmakingSchema.extend({
+  opponent: z.enum(["human", "cpu"]),
+});
 const waitingRoomSchema = z.strictObject({
-  matchmaking: z
-    .strictObject({
-      id: z.uuid(),
-      preparedAtMs: serverNowMsSchema,
-      startsAtMs: serverNowMsSchema.optional(),
-    })
-    .optional(),
+  matchmaking: roomMatchmakingSchema.optional(),
   tournamentId: z.int().positive().optional(),
   tournamentStartsAtMs: serverNowMsSchema.optional(),
   eliminations: z.array(eliminationSchema).length(0).default([]),
@@ -232,13 +234,7 @@ const waitingRoomSchema = z.strictObject({
 
 const activeRoomBaseSchema = z
   .strictObject({
-    matchmaking: z
-      .strictObject({
-        id: z.uuid(),
-        preparedAtMs: serverNowMsSchema,
-        startsAtMs: serverNowMsSchema.optional(),
-      })
-      .optional(),
+    matchmaking: roomMatchmakingSchema.optional(),
     tournamentId: z.int().positive().optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
@@ -771,6 +767,7 @@ const standardShogiCheckStateSchema = z.strictObject({
   north: z.boolean(),
 });
 const standardShogiWaitingSchema = z.strictObject({
+  matchmaking: shogiRoomMatchmakingSchema.optional(),
   id: roomCodeSchema,
   instanceId: z.uuid(),
   status: z.literal("waiting"),
@@ -794,6 +791,7 @@ const standardShogiWaitingSchema = z.strictObject({
 });
 const standardShogiPlayingSchema = z
   .strictObject({
+    matchmaking: shogiRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     status: z.literal("playing"),

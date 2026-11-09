@@ -1,4 +1,4 @@
-import { matchmakingRules } from "@tetraboard/protocol";
+import { matchmakingQueues } from "@tetraboard/protocol";
 import { adminAccountIds } from "../admin/auth";
 import { accountRegisteredAtMsSql } from "../accounts/timestamps";
 import { unsealToken } from "./tokens";
@@ -146,7 +146,8 @@ export async function processDeletions(env: AuthEnv) {
           .first()
       )
         continue;
-      await env.MATCHMAKING_COORDINATOR.getByName(matchmakingRules.key).purgeAccount(job.id);
+      for (const { key } of Object.values(matchmakingQueues))
+        await env.MATCHMAKING_COORDINATOR.getByName(key).purgeAccount(job.id);
       const tournaments = await env.APP_DB.prepare(
         "SELECT DISTINCT tournament_key FROM tournament_entries WHERE account_id=?",
       )

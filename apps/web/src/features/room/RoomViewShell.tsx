@@ -1,4 +1,6 @@
 import { managedRoomPath, isMatchmakingRoom } from "../matchmaking/managedRoom";
+import { ShogiRatingResult } from "../matchmaking/ShogiRatingResult";
+import { useShogiRatingResult } from "../matchmaking/useShogiRatingResult";
 import { RoomStampContext } from "./roomStampContext";
 import { useRoomStamps } from "./useRoomStamps";
 import { RoomStampPicker } from "./RoomStampPicker";
@@ -100,8 +102,18 @@ export function RoomViewShell({
     "result" | "leave" | "resign" | "feedback" | "settings" | "room-settings" | null
   >(registrationResult || registrationCancelled ? "result" : null);
   const { room, membership } = session;
+  const shogiMatchmaking = isShogiRoom(room) ? room.matchmaking : undefined;
   const resultMatchId = registrationMatchId(room);
   const participated = room.lastRound?.players.some((player) => player.id === membership?.playerId);
+  const showShogiRating = Boolean(shogiMatchmaking && room.lastRound && participated);
+  const shogiRating = useShogiRatingResult(
+    showShogiRating ? shogiMatchmaking?.id : undefined,
+    session.authenticated && account.user && !account.user.isGuest
+      ? (account.user.profileId ?? undefined)
+      : undefined,
+  );
+  const shogiResultPending =
+    showShogiRating && (!shogiRating.result || shogiRating.result.status === "pending");
   const humanOnly =
     room.lastRound?.players.every(
       (player) =>
@@ -126,6 +138,12 @@ export function RoomViewShell({
         ? room.matchmaking?.startsAtMs
         : undefined;
   const profiles = usePlayerProfiles();
+  const profileStore = profiles?.store;
+  const publishedShogiResult =
+    shogiRating.result?.status === "rated" ? shogiMatchmaking?.id : undefined;
+  useEffect(() => {
+    if (publishedShogiResult) profileStore?.invalidate({ game: "shogi" });
+  }, [publishedShogiResult, profileStore]);
   const activeProfileId = profiles?.active?.id;
   const closeProfile = profiles?.close;
   useEffect(() => {
@@ -326,6 +344,7 @@ export function RoomViewShell({
             }
           : undefined
       }
+      nextMatchPending={shogiResultPending}
       joinButtonRef={joinButtonRef}
       resultButtonRef={resultButtonRef}
       joinUnavailable={invitation.unavailableReason}
@@ -424,6 +443,13 @@ export function RoomViewShell({
           label={
             isMatchmakingRoom(room) ? "対局の開始カウントダウン" : "大会対局の開始カウントダウン"
           }
+          details={
+            shogiMatchmaking && (
+              <p>
+                {shogiMatchmaking.opponent === "cpu" ? "CPU戦" : "対人戦"}・5分＋30秒・レート対象
+              </p>
+            )
+          }
         />
       )}
       {tournamentStartsAtMs === undefined && (
@@ -477,10 +503,11 @@ export function RoomViewShell({
               busy={signIn.busy || session.leaving}
             >
               {result}
+              {showShogiRating && <ShogiRatingResult {...shogiRating} />}
               {managedPath !== null && membership && !guestLinkResult && !linkedGuestResult && (
                 <AppButton
                   className="mt-4 w-full"
-                  isDisabled={session.leaving}
+                  isDisabled={session.leaving || shogiResultPending}
                   isPending={session.leaving}
                   onPress={() => {
                     void session.handleLeaveClick(isMatchmakingRoom(room));

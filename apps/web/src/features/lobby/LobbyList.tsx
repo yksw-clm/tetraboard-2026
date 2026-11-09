@@ -1,3 +1,5 @@
+import { matchmakingPath } from "../matchmaking/paths";
+
 import { useRef, useState } from "react";
 import type { LobbyRoomCard as RoomCardData } from "@tetraboard/protocol/general-lobby";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
@@ -207,7 +209,7 @@ export function LobbyList({
                       <AppButtonLink
                         size="compact"
                         className="min-h-11 px-3 text-xs"
-                        to="/games/four-reversi/matchmaking"
+                        to={matchmakingPath(room.game)}
                       >
                         マッチングへ
                       </AppButtonLink>
