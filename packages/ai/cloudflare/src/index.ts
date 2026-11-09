@@ -4,6 +4,7 @@ import { authorized, validToken } from "./access";
 interface Bindings {
   AI_CONTAINER: DurableObjectNamespace<AiContainer>;
   AI_SERVICE_TOKEN?: string;
+  AI_SHOGI_ENABLED?: string;
 }
 
 export class AiContainer extends Container<Bindings> {
@@ -13,6 +14,9 @@ export class AiContainer extends Container<Bindings> {
   envVars = {
     AI_SERVICE_TOKEN: this.env.AI_SERVICE_TOKEN ?? "",
     AI_SERVICE_CONCURRENCY: "2",
+    ...(this.env.AI_SHOGI_ENABLED === "true"
+      ? { AI_SHOGI_ENGINE: "/usr/local/bin/yaneuraou" }
+      : {}),
   };
 }
 
@@ -32,7 +36,8 @@ export default {
     const container = env.AI_CONTAINER.getByName("shared-v1");
     if (path === "/admin/status" && request.method === "GET")
       return reply(await container.getState());
-    if (!["/v1/move", "/v2/move"].includes(path) || request.method !== "POST")
+    const shogi = path === "/v1/shogi/move" && env.AI_SHOGI_ENABLED === "true";
+    if ((!shogi && !["/v1/move", "/v2/move"].includes(path)) || request.method !== "POST")
       return reply({ error: "not_found" }, 404);
     try {
       return await container.fetch(request);

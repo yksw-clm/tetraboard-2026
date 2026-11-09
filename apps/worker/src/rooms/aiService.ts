@@ -14,6 +14,7 @@ export interface AiServiceBindings {
   AI_SERVICE_TIMEOUT_MS?: string;
   AI_SERVICE_LEVEL2_PROFILE?: string;
   AI_SERVICE_LEVEL2_LIMITS?: string;
+  AI_SHOGI_ENABLED?: string;
 }
 
 export const aiServiceEnabled = (bindings: AiServiceBindings) => !!bindings.AI_SERVICE_URL;
@@ -133,6 +134,72 @@ function configuredUrl(bindings: AiServiceBindings): URL | null {
 }
 export const aiServiceConfigured = (bindings: AiServiceBindings) =>
   configuredUrl(bindings) !== null;
+
+export const shogiAiEnabled = (bindings: AiServiceBindings) =>
+  bindings.AI_SHOGI_ENABLED === "true" && aiServiceConfigured(bindings);
+
+export type ShogiAiWork = {
+  job: { requestId: string; roundId: string; positionRevision: number; expiresAt: number };
+  moves: string[];
+};
+
+const shogiNodes = 256;
+const shogiResponseSchema = z.strictObject({
+  request_id: z.string().uuid(),
+  position_revision: z.string().length(64),
+  engine_version: z.literal("yaneuraou-material-faeb37f0"),
+  nodes: z.literal(shogiNodes),
+  best_move: z.string().min(4).max(5),
+});
+
+export async function requestShogiAiMove(bindings: AiServiceBindings, work: ShogiAiWork) {
+  const url = configuredUrl(bindings);
+  if (!url || bindings.AI_SHOGI_ENABLED !== "true") return null;
+  const { requestId, roundId, positionRevision, expiresAt } = work.job;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([roundId, positionRevision, work.moves])),
+  );
+  const revision = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), remaining);
+  try {
+    const response = await fetch(new URL("/v1/shogi/move", url), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: requestId,
+        position_revision: revision,
+        nodes: shogiNodes,
+        moves: work.moves,
+      }),
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+    const parsed = shogiResponseSchema.safeParse(await responseJson(response));
+    return parsed.success &&
+      parsed.data.request_id === requestId &&
+      parsed.data.position_revision === revision
+      ? parsed.data.best_move
+      : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
 
 export async function requestAiMove(
   bindings: AiServiceBindings,
