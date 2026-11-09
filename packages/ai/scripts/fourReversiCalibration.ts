@@ -1,5 +1,5 @@
-import { copyFile, mkdir, readFile, rename, rmdir } from "node:fs/promises";
-import { cpus, release } from "node:os";
+import { appendFile, copyFile, mkdir, readFile, rename, rmdir } from "node:fs/promises";
+import { availableParallelism, cpus, release } from "node:os";
 import { join, resolve } from "node:path";
 import profilesFile from "../configs/profiles-v1.json";
 import charactersFile from "../configs/characters-v1.json";
@@ -40,7 +40,10 @@ const pairs = profileIds.flatMap((a, i) =>
     })),
   })),
 );
-const jobs = 4;
+const available = availableParallelism();
+const processes = Number(process.env.TETRABOARD_CALIBRATION_PROCESSES ?? available);
+if (!Number.isInteger(processes) || processes < 1 || processes > available)
+  throw Error(`プロセス数は1〜${available}の整数にしてください`);
 const maxWallMs = 12 * 60 * 60 * 1000;
 const digest = async (path: string) => Bun.CryptoHasher.hash("sha256", await readFile(path), "hex");
 const identity = {
@@ -66,7 +69,6 @@ const identity = {
   benchmarkRules: "four-reversi-singles-v1",
   serviceRules: charactersFile.ruleset_version,
   serviceStateVersion: charactersFile.state_version,
-  jobs,
   maxWallMs,
   stages,
   pairs,
@@ -79,11 +81,17 @@ const writeJson = async (path: string, value: unknown) => {
 await mkdir(directory, { recursive: true });
 await mkdir(file(".lock"));
 let stopping = false;
-let child: Bun.Subprocess | undefined;
+const children = new Set<Bun.Subprocess>();
 const stop = () => {
   stopping = true;
-  child?.kill("SIGTERM");
+  for (const child of children) child.kill("SIGTERM");
 };
+function datasetIdentity(value: typeof identity & { jobs?: number }) {
+  // 予備測定と本測定で対局内容を照合し、実行方式の変更後も同じデータを使います。
+  const { files, source_hash: _sourceHash, jobs: _jobs, ...inputs } = value;
+  const { "scripts/fourReversiCalibration.ts": _scheduler, ...measuredFiles } = files;
+  return { ...inputs, files: measuredFiles };
+}
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 try {
@@ -91,7 +99,9 @@ try {
   let importedPreliminary = false;
   if (await Bun.file(manifestPath).exists()) {
     const saved = await Bun.file(manifestPath).json();
-    if (JSON.stringify(saved.identity) !== JSON.stringify(identity))
+    if (
+      JSON.stringify(datasetIdentity(saved.identity)) !== JSON.stringify(datasetIdentity(identity))
+    )
       throw Error("再開時の測定条件がmanifestと一致しません");
     importedPreliminary = saved.preliminary.logs.length > 0;
   } else {
@@ -135,77 +145,131 @@ try {
     (await digest(file("summarize.js"))) !== identity.summaryScript
   )
     throw Error("保存した実行ファイルがmanifestと一致しません");
-  const progress = (await Bun.file(file("progress.json")).json()) as {
+  const progressPath = file("progress.json");
+  const progress = (await Bun.file(progressPath).json()) as {
     elapsedMs: number;
     completed: Record<string, string>;
-    active?: string;
+    active?: string | string[];
   };
   if (progress.active)
     throw Error("前回の強制終了で実行時間を確定できません。progress.jsonを確認してください");
+  const active = new Set<string>();
+  await appendFile(
+    file("execution-log.jsonl"),
+    JSON.stringify({
+      startedAt: new Date().toISOString(),
+      processes,
+      jobsPerProcess: 1,
+      schedulerHash: identity.files["scripts/fourReversiCalibration.ts"],
+      resumedWith: Object.keys(progress.completed).length,
+    }) + "\n",
+  );
+
+  let lastCheckpoint = performance.now();
+  const remaining = maxWallMs - progress.elapsedMs;
+  if (remaining <= 0) throw Error("測定時間の上限に達しました");
+  const deadline = lastCheckpoint + remaining;
+  const timeout = setTimeout(stop, remaining);
+  let checkpointQueue = Promise.resolve();
+  function checkpoint(update: () => void) {
+    const write = checkpointQueue.then(async () => {
+      update();
+      const now = performance.now();
+      // 複数プロセスが同時に動いた時間も、経過した壁時計時間を一度だけ加算します。
+      progress.elapsedMs += now - lastCheckpoint;
+      lastCheckpoint = now;
+      if (active.size) progress.active = [...active];
+      else delete progress.active;
+      await writeJson(progressPath, progress);
+    });
+    checkpointQueue = write;
+    return write;
+  }
+
   async function runUnit(
     name: string,
     args: string[],
     output: string,
     verify: () => Promise<unknown>,
   ) {
-    const remaining = maxWallMs - progress.elapsedMs;
-    if (remaining <= 0 || stopping) throw Error("測定を中断しました");
-    progress.active = name;
-    await writeJson(file("progress.json"), progress);
-    const started = performance.now();
-    const timeout = setTimeout(stop, remaining);
+    await checkpoint(() => active.add(name));
+    let child: Bun.Subprocess | undefined;
     try {
+      if (stopping) throw Error("測定を中断しました");
       child = Bun.spawn(args, { stdout: Bun.file(output), stderr: "inherit" });
+      children.add(child);
       if ((await child.exited) !== 0 || stopping) throw Error(`${name} が完了しませんでした`);
       await verify();
       const hash = await digest(output);
+      if (performance.now() >= deadline) throw Error("測定時間の上限に達しました");
       await rename(output, file(name));
-      progress.completed[name] = hash;
+      await checkpoint(() => {
+        progress.completed[name] = hash;
+      });
+      console.log(JSON.stringify({ unit: name, elapsedMs: progress.elapsedMs }));
     } finally {
-      clearTimeout(timeout);
-      child = undefined;
-      progress.elapsedMs += Math.ceil(performance.now() - started);
-      delete progress.active;
-      await writeJson(file("progress.json"), progress);
+      if (child) children.delete(child);
+      await checkpoint(() => active.delete(name));
     }
-    console.log(JSON.stringify({ unit: name, elapsedMs: progress.elapsedMs }));
   }
-  for (const stage of stages) {
-    if (stage.name === "preliminary" && importedPreliminary) continue;
-    for (let seed = stage.seed; seed < stage.seed + stage.seedCount; seed++) {
-      for (const pair of pairs) {
-        const name = `${stage.name}-${seed}-${pair.id}.jsonl`;
-        if (progress.completed[name]) {
-          if ((await digest(file(name))) !== progress.completed[name])
-            throw Error(`${name} が保存済みハッシュと一致しません`);
-          continue;
+
+  try {
+    for (const stage of stages) {
+      if (stage.name === "preliminary" && importedPreliminary) continue;
+      const queue = Array.from({ length: stage.seedCount }, (_, i) => stage.seed + i).flatMap(
+        (seed) => pairs.map((pair) => ({ seed, pair })),
+      );
+      let next = 0;
+      let failure: unknown;
+      async function runPairs() {
+        try {
+          while (!stopping) {
+            const task = queue[next++];
+            if (!task) return;
+            const { seed, pair } = task;
+            const name = `${stage.name}-${seed}-${pair.id}.jsonl`;
+            if (progress.completed[name]) {
+              if ((await digest(file(name))) !== progress.completed[name])
+                throw Error(`${name} が保存済みハッシュと一致しません`);
+              continue;
+            }
+            const config = file(`${name}.config.json`);
+            const output = file(`${name}.partial-${Date.now()}`);
+            await writeJson(config, {
+              format_version: 2,
+              seed,
+              seat_orders: stage.seats === 4 ? "cyclic" : "all_permutations",
+              profiles: profilesFile.profiles.map(({ id, config }) => ({ id, config })),
+              matchups: pair.matchups,
+            });
+            await runUnit(
+              name,
+              [file("benchmark"), "--config", config, "--rounds", "1", "--jobs", "1"],
+              output,
+              () => readCalibrationUnit(output, seed, pair.matchups, stage.seats),
+            );
+          }
+        } catch (error) {
+          failure ??= error;
+          stop();
         }
-        const config = file("benchmark-config.json");
-        const output = file(`${name}.partial-${Date.now()}`);
-        await writeJson(config, {
-          format_version: 2,
-          seed,
-          seat_orders: stage.seats === 4 ? "cyclic" : "all_permutations",
-          profiles: profilesFile.profiles.map(({ id, config }) => ({ id, config })),
-          matchups: pair.matchups,
-        });
-        await runUnit(
-          name,
-          [file("benchmark"), "--config", config, "--rounds", "1", "--jobs", String(jobs)],
-          output,
-          () => readCalibrationUnit(output, seed, pair.matchups, stage.seats),
-        );
       }
+      await Promise.all(Array.from({ length: processes }, runPairs));
+      if (failure) throw failure;
+      if (stopping) throw Error("測定を中断しました");
     }
-  }
-  if (!progress.completed["summary.json"]) {
-    const output = file(`summary.json.partial-${Date.now()}`);
-    await runUnit(
-      "summary.json",
-      [process.execPath, file("summarize.js"), directory, file("study")],
-      output,
-      () => Bun.file(output).json(),
-    );
+    if (!progress.completed["summary.json"]) {
+      const output = file(`summary.json.partial-${Date.now()}`);
+      await runUnit(
+        "summary.json",
+        [process.execPath, file("summarize.js"), directory, file("study")],
+        output,
+        () => Bun.file(output).json(),
+      );
+    }
+  } finally {
+    clearTimeout(timeout);
+    await checkpoint(() => {});
   }
 } finally {
   await rmdir(file(".lock"));
