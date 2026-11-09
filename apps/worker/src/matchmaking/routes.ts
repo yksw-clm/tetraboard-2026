@@ -66,7 +66,12 @@ matchmakingRoutes.get("/matchmaking/shogi/results/:matchId", async (c) => {
   if (!matchId.success) return c.notFound();
   const user = await accountIdentity(c.req.raw, c.env);
   if (!user || user.isAnonymous) return c.json({ message: "ログインしてください。" }, 401);
-  const result = await readShogiRatingResult(c.env.APP_DB, user.id, matchId.data);
+  const result = await readShogiRatingResult(
+    c.env.APP_DB,
+    user.id,
+    matchId.data,
+    c.req.query("includeOpponent") === "1",
+  );
   return result ? c.json(result) : c.notFound();
 });
 for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)

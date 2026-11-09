@@ -42,7 +42,11 @@ import { usePostGameFeedback } from "../feedback/usePostGameFeedback";
 import { PostGameFeedbackDialog } from "../feedback/PostGameFeedbackDialog";
 import { RoomShareDialog } from "./RoomShareDialog";
 import { RoomStartCountdown } from "./RoomStartCountdown";
-import { matchmakingRules, tournamentRules } from "@tetraboard/protocol";
+import {
+  matchmakingRules,
+  tournamentRules,
+  type ShogiRatingResult as RatingResult,
+} from "@tetraboard/protocol";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 
 export function RoomViewShell({
@@ -65,7 +69,7 @@ export function RoomViewShell({
   invited: boolean;
   board: ReactNode;
   replayCard: ReactNode;
-  result: ReactNode;
+  result: ReactNode | ((rating: RatingResult | null | undefined) => ReactNode);
   selfEliminated: boolean;
   onRotate: () => void;
   turnActions?: ReactNode;
@@ -502,7 +506,7 @@ export function RoomViewShell({
               theme={theme}
               busy={signIn.busy || session.leaving}
             >
-              {result}
+              {typeof result === "function" ? result(shogiRating.result) : result}
               {showShogiRating && <ShogiRatingResult {...shogiRating} />}
               {managedPath !== null && membership && !guestLinkResult && !linkedGuestResult && (
                 <AppButton

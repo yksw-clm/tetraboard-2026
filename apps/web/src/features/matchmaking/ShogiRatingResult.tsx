@@ -1,4 +1,3 @@
-import { shogiPlacementGames } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
 import type { useShogiRatingResult } from "./useShogiRatingResult";
 
@@ -7,6 +6,17 @@ export function ShogiRatingResult({
   failed,
   retry,
 }: ReturnType<typeof useShogiRatingResult>) {
+  if (!failed && result?.status === "placement") return null;
+  if (!failed && result?.status === "rated") {
+    if (!result.placementCompleted && result.humanPlayed) return null;
+    return (
+      <p role="status" className="mt-3 text-sm text-muted">
+        {[result.placementCompleted && "認定完了", !result.humanPlayed && "対人戦未経験"]
+          .filter(Boolean)
+          .join("・")}
+      </p>
+    );
+  }
   return (
     <div role="status" className="mt-3 space-y-1 rounded-lg bg-surface-muted p-3 text-sm">
       {failed ? (
@@ -18,29 +28,13 @@ export function ShogiRatingResult({
         </>
       ) : !result || result.status === "pending" ? (
         <p>レート結果を保存しています…</p>
-      ) : result.status === "placement" ? (
-        <p className="font-semibold">
-          認定戦 {result.games} / {shogiPlacementGames}局
-        </p>
       ) : result.status === "excluded" ? (
         <p>
           {result.reason === "ai_fallback"
             ? "AIの代替手を使ったため、この対局はレートと認定局数に反映されません。"
             : "この対局はレートと認定局数に反映されませんでした。"}
         </p>
-      ) : (
-        <>
-          {result.placementCompleted && <p>認定完了</p>}
-          <p className="font-bold tabular-nums">
-            レート {Math.round(result.rating)}（
-            {new Intl.NumberFormat("ja", { signDisplay: "exceptZero" }).format(
-              Math.round(result.rating) - Math.round(result.previousRating),
-            )}
-            ）
-          </p>
-          {!result.humanPlayed && <p className="text-xs text-muted">対人戦未経験</p>}
-        </>
-      )}
+      ) : null}
     </div>
   );
 }
