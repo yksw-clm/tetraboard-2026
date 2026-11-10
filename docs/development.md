@@ -129,6 +129,10 @@ Workerは `reversiProgress`・`reversiClock`・`reversiMatchStore` を登録し�
 
 Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に登録し、独立したエンジンだけを読み込みます。盤面描画と石・プレイヤーカードの基本描画は共有します。通常リバーシの対局・棋譜は上下2カード、観戦・保存棋譜は180度回転、ゲーム本文・マイページ・棋譜・Portalは薄い緑テーマです。静的生成・配信・サイトマップは6ロビーに対応します。
 
+開発環境の `AI_REVERSI_ENABLED` はLv2のCPU手番だけを対象とします。 `reversiProgress.ts` はAlarmで局IDと着手番号に結び付けた要求を保存し、GameRoomはtransaction外で `POST /v1/reversi/move` を呼びます。候補受領時と適用時に現在の局と時計を確認します。着手要求が失われても期限のAlarmで従来のLv2を使用します。`Reversi AI response` ログの `source` と `elapsedMs` でServiceへの往復を確認できます。
+
+`Dockerfile.reversi` は固定コミットのEgaroucid Consoleをビルドします。本体はGPL-3.0-or-laterで、定跡を無効にし、公式ソース配布に含まれる2つの評価ファイルをハッシュ照合します。対応ソース、評価ファイル、ビルド手順とライセンス本文はイメージ内の `/usr/local/share/egaroucid/` に同梱します。開発Serviceを既存の手順で更新してからアプリWorkerを反映します。[公式ソース](https://github.com/Nyanyan/Egaroucid/tree/console_v7.8.2) · [確認手順](testing.md#通常リバーシの外部ai確認)
+
 ## 通常将棋の実装
 
 [将棋のレート戦](shogi-rated-match.md)には、専用待機列、終局時のレート保存、CPUの採用前に行う検証を記載しています。Webの `features/matchmaking` をWorkerの `matchmaking/routes.ts` と `matchmaking/coordinator.ts` から通常将棋のGameRoomへ接続します。対人戦とCPU戦の待機・入室・終局は `apps/worker/test/matchmaking.test.ts`、Elo計算と認定情報の公開範囲は `apps/worker/test/shogiRating.test.ts`、画面は `apps/web/test-dom/matchmaking*.test.tsx` で確認します。

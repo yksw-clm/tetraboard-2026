@@ -39,16 +39,25 @@
           "instance_type": "basic",
           "max_instances": 1,
         },
+        {
+          "class_name": "ReversiContainer",
+          "image": "../Dockerfile.reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
       ],
       "durable_objects": {
         "bindings": [
           { "name": "AI_CONTAINER", "class_name": "AiContainer" },
           { "name": "SHOGI_CONTAINER", "class_name": "ShogiContainer" },
+          { "name": "REVERSI_CONTAINER", "class_name": "ReversiContainer" },
         ],
       },
       "migrations": [
         { "tag": "v1", "new_sqlite_classes": ["AiContainer"] },
         { "tag": "v2", "new_sqlite_classes": ["ShogiContainer"] },
+        { "tag": "v3", "new_sqlite_classes": ["ReversiContainer"] },
       ],
     },
   },

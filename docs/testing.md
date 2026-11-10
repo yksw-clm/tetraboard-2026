@@ -54,6 +54,12 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 同じテストで本人向けレートAPIの未ログイン拒否、認定中の数値非公開、全ランク境界の丸め、人間4人とCPU混在局の公開レートの更新を確認します。
 
+## 通常リバーシの外部AI確認
+
+`apps/worker/test-ai-service/reversiAiService.test.ts` は、Service障害時に既存Lv2で完走し、D1に棋譜と代替手の記録を保存することを確認します。時計切れと競合した遅延応答は反映しません。ループバックの専用イメージを接続して `TETRABOARD_REVERSI_TEST_REAL=1` を設定すると、実エンジンの完走と、保存済み棋譜の全手の再生を確認できます。
+
+開発環境ではLv2と1局完走し、公開棋譜で最終局面まで進めます。Workerの `Reversi AI response` で冷起動・起動済み・同時要求の応答時間と結果を確認します。障害時は合法な代替手で進行し、時計が切れた場合は着手せず終局することを確認します。
+
 ## Fast CIとFull CI
 
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。

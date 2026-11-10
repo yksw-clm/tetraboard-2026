@@ -1,0 +1,30 @@
+FROM rust:1.99.1-slim-bookworm AS build
+WORKDIR /build
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY configs ./configs
+RUN cargo build --release --locked --jobs 2 -p tetraboard-ai-server
+
+FROM gcc:14-bookworm AS reversi
+WORKDIR /egaroucid
+RUN git init && git fetch --depth=1 https://github.com/Nyanyan/Egaroucid.git 0c1b84ef12829b68b6d178deb35e2630e7ab5a18 \
+    && git checkout --detach FETCH_HEAD \
+    && printf '%s\n' \
+      '0a8acbcbc23067933627f1bcc83c3f7ae6b7ff3e603d174a3364271fcaeeef2f  bin/resources/eval.egev2' \
+      'bd908885e8bb85e72a9be2b0399f8ca52ed40a138bcaaecca3d13710945b9a93  bin/resources/eval_move_ordering_end.egev' \
+      | sha256sum -c -
+COPY buildEgaroucid.sh /buildEgaroucid.sh
+RUN /bin/sh /buildEgaroucid.sh \
+    && tar -czf /egaroucid-source.tar.gz LICENSE src /buildEgaroucid.sh \
+      bin/resources/eval.egev2 bin/resources/eval_move_ordering_end.egev
+
+FROM debian:bookworm-slim
+RUN groupadd --gid 10001 ai && useradd --uid 10001 --gid ai --no-create-home ai
+COPY --from=build /build/target/release/tetraboard-ai-server /usr/local/bin/tetraboard-ai-server
+COPY --from=reversi /egaroucid/bin/egaroucid /opt/egaroucid/egaroucid
+COPY --from=reversi /egaroucid/bin/resources/eval.egev2 /egaroucid/bin/resources/eval_move_ordering_end.egev /opt/egaroucid/resources/
+COPY --from=reversi /egaroucid-source.tar.gz /egaroucid/LICENSE /usr/local/share/egaroucid/
+USER 10001:10001
+ENV AI_SERVICE_LISTEN=0.0.0.0:3001
+EXPOSE 3001
+ENTRYPOINT ["/usr/local/bin/tetraboard-ai-server"]

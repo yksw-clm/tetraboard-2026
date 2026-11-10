@@ -1,6 +1,7 @@
 //! 認証された局面から候補手だけを計算します。対局状態は保存しません。
 
 pub mod local_analysis;
+mod reversi;
 mod shogi;
 
 use axum::{
@@ -39,6 +40,7 @@ struct ServiceState {
     permits: Arc<Semaphore>,
     profiles: Arc<Vec<ServedProfile>>,
     shogi: Option<Arc<shogi::Engine>>,
+    reversi: Option<Arc<reversi::Engine>>,
 }
 
 #[derive(Deserialize)]
@@ -117,13 +119,14 @@ impl IntoResponse for ApiError {
 }
 
 pub fn router(token: String, concurrency: usize) -> Result<Router, &'static str> {
-    router_with_shogi(token, concurrency, None)
+    router_with_engines(token, concurrency, None, None)
 }
 
-pub fn router_with_shogi(
+pub fn router_with_engines(
     token: String,
     concurrency: usize,
     shogi_path: Option<std::path::PathBuf>,
+    reversi_path: Option<std::path::PathBuf>,
 ) -> Result<Router, &'static str> {
     if !(32..=256).contains(&token.len()) || !token.bytes().all(|byte| byte.is_ascii_graphic()) {
         return Err("AI_SERVICE_TOKENには32〜256文字のASCII秘密値が必要です");
@@ -136,11 +139,13 @@ pub fn router_with_shogi(
         permits: Arc::new(Semaphore::new(concurrency)),
         profiles: Arc::new(builtin_profiles().map_err(|_| "Service profile一覧が不正です")?),
         shogi: shogi_path.map(shogi::Engine::new).map(Arc::new),
+        reversi: reversi_path.map(reversi::Engine::new).map(Arc::new),
     }))
 }
 
 fn app(state: ServiceState) -> Router {
     Router::new()
+        .route("/v1/reversi/move",post(reversi::choose_move))
         .route("/v1/move",post(choose_move))
         .route("/v2/move",post(choose_profile_move))
         .route("/v1/shogi/move",post(shogi::choose_move))
@@ -477,6 +482,7 @@ mod tests {
             permits: Arc::new(Semaphore::new(1)),
             profiles: Arc::new(builtin_profiles().unwrap()),
             shogi: None,
+            reversi: None,
         };
         let _permit = state.permits.clone().acquire_owned().await.unwrap();
         assert_eq!(
