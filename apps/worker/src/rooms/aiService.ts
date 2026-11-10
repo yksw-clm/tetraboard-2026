@@ -14,6 +14,7 @@ import {
 export interface AiServiceBindings {
   FOUR_SHOGI_DIAGNOSTICS?: string;
   AI_SERVICE_URL?: string;
+  AI_GATEWAY?: Pick<Fetcher, "fetch">;
   AI_SERVICE_TOKEN?: string;
   AI_SERVICE_TIMEOUT_MS?: string;
   AI_FOUR_REVERSI_TIMEOUT_MS?: string;
@@ -151,6 +152,10 @@ export const aiServiceConfigured = (bindings: AiServiceBindings) =>
 export const shogiAiEnabled = (bindings: AiServiceBindings) =>
   bindings.AI_SHOGI_ENABLED === "true" && aiServiceConfigured(bindings);
 
+function fetchAiGateway(bindings: AiServiceBindings, url: URL, init: RequestInit) {
+  return bindings.AI_GATEWAY ? bindings.AI_GATEWAY.fetch(new Request(url, init)) : fetch(url, init);
+}
+
 export type FourPlayerAiGame = "four-shogi" | "four-reversi";
 
 export async function requestFourPlayerAiWarmup(
@@ -167,7 +172,7 @@ export async function requestFourPlayerAiWarmup(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), remaining);
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetchAiGateway(bindings, endpoint, {
       method: "POST",
       headers: { authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}` },
       redirect: "manual",
@@ -512,83 +517,115 @@ export async function requestFourShogiAiMove(
     turn: side,
     events: work.events,
   });
-  const remaining = expiresAt - Date.now();
-  if (remaining <= 0) return { action: null, reason: "timeout" };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), remaining);
-  const expired = () => controller.signal.aborted || Date.now() >= expiresAt;
-  try {
-    for (let attempt = 1; ; attempt++) {
-      if (expired()) return { action: null, reason: "timeout" };
-      const started = performance.now();
-      let httpStatus: number | undefined;
-      let failure: FourShogiAiFailure;
-      let retryable = false;
-      try {
-        const response = await fetch(new URL("/v1/four-shogi/move", url), {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
-            "content-type": "application/json",
-            "x-tetraboard-ai-request-id": requestId,
-            "x-tetraboard-ai-attempt": String(attempt),
-          },
-          body,
-          redirect: "manual",
-          signal: controller.signal,
-        });
-        httpStatus = response.status;
-        if (!response.ok) {
-          void response.body?.cancel().catch(() => {});
-          throw new ServiceError(`http_${response.status}`);
-        }
-        const result = fourShogiMoveResponse.safeParse(await responseJson(response));
-        if (
-          !result.success ||
-          result.data.request_id !== requestId ||
-          result.data.position_revision !== revision ||
-          result.data.engine_version !== work.profile.engineVersion ||
-          result.data.profile_id !== work.profile.profileId ||
-          result.data.max_work !== work.profile.work ||
-          result.data.diagnostics.work > result.data.max_work
-        )
-          throw new ServiceError("invalid_response");
-        if (expired()) throw new ServiceError("timeout");
-        if (attempt === 2)
-          logFourShogiDiagnostic(bindings, "four_shogi_ai_retry_response", {
-            matchId: roundId,
-            requestId,
-            attempt,
-            httpStatus,
-            elapsedMs: Math.round(performance.now() - started),
-          });
-        return { action: result.data.action, ...(attempt === 2 ? { retried: true as const } : {}) };
-      } catch (error) {
-        if (expired()) failure = "timeout";
-        else if (httpStatus !== undefined && (httpStatus < 200 || httpStatus >= 300)) {
-          failure = `http_${httpStatus}`;
-          retryable = httpStatus === 429 || httpStatus >= 500;
-        } else if (error instanceof ServiceError || error instanceof SyntaxError)
-          failure = "invalid_response";
-        else {
-          failure = "network";
-          retryable = true;
-        }
+  for (let attempt = 1; ; attempt++) {
+    const atMs = Date.now();
+    const remaining = expiresAt - atMs;
+    if (remaining <= 0) return { action: null, reason: "timeout" };
+    // 最初の通信が無応答でも、総期限内で同じ要求を再試行できる時間を残します。
+    const budgetMs =
+      attempt === 1 ? Math.min(2000, Math.max(1, Math.floor(remaining * 0.4))) : remaining;
+    const attemptDeadlineMs = atMs + budgetMs;
+    const started = performance.now();
+    const controller = new AbortController();
+    let httpStatus: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new ServiceError("attempt_timeout"));
+        controller.abort();
+      }, budgetMs);
+    });
+    const receive = async () => {
+      const response = await fetchAiGateway(bindings, new URL("/v1/four-shogi/move", url), {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
+          "content-type": "application/json",
+          "x-tetraboard-ai-request-id": requestId,
+          "x-tetraboard-ai-attempt": String(attempt),
+        },
+        body,
+        redirect: "manual",
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) {
+        void response.body?.cancel().catch(() => {});
+        throw new ServiceError("attempt_timeout");
       }
-      const willRetry = retryable && attempt === 1 && !expired();
+      httpStatus = response.status;
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
+        throw new ServiceError(
+          `http_${response.status}`,
+          response.status === 429 || response.status >= 500,
+        );
+      }
+      const result = fourShogiMoveResponse.safeParse(await responseJson(response));
+      if (
+        !result.success ||
+        result.data.request_id !== requestId ||
+        result.data.position_revision !== revision ||
+        result.data.engine_version !== work.profile.engineVersion ||
+        result.data.profile_id !== work.profile.profileId ||
+        result.data.max_work !== work.profile.work ||
+        result.data.diagnostics.work > result.data.max_work
+      )
+        throw new ServiceError("invalid_response");
+      return result.data.action;
+    };
+    const diagnostic = {
+      matchId: roundId,
+      requestId,
+      attempt,
+      atMs,
+      budgetMs,
+      transport: bindings.AI_GATEWAY ? "binding" : "url",
+    };
+    try {
+      const action = await Promise.race([receive(), deadline]);
+      if (Date.now() >= attemptDeadlineMs) throw new ServiceError("attempt_timeout");
+      if (attempt === 2)
+        logFourShogiDiagnostic(bindings, "four_shogi_ai_retry_response", {
+          ...diagnostic,
+          httpStatus: httpStatus ?? 200,
+          elapsedMs: Math.round(performance.now() - started),
+        });
+      return { action, ...(attempt === 2 ? { retried: true as const } : {}) };
+    } catch (error) {
+      const expired = Date.now() >= expiresAt;
+      const attemptTimedOut =
+        Date.now() >= attemptDeadlineMs ||
+        (error instanceof ServiceError && error.reason === "attempt_timeout");
+      let reason: FourShogiAiFailure;
+      let retryable = false;
+      if (expired || attemptTimedOut) {
+        reason = "timeout";
+        retryable = !expired;
+      } else if (
+        error instanceof ServiceError &&
+        httpStatus !== undefined &&
+        (httpStatus < 200 || httpStatus >= 300)
+      ) {
+        reason = `http_${httpStatus}`;
+        retryable = error.retryable;
+      } else if (error instanceof ServiceError || error instanceof SyntaxError)
+        reason = "invalid_response";
+      else {
+        reason = "network";
+        retryable = true;
+      }
+      const willRetry = retryable && attempt === 1 && Date.now() < expiresAt;
       logFourShogiDiagnostic(bindings, "four_shogi_ai_attempt_failed", {
-        matchId: roundId,
-        requestId,
-        attempt,
+        ...diagnostic,
         ...(httpStatus === undefined ? {} : { httpStatus }),
         elapsedMs: Math.round(performance.now() - started),
-        reason: failure,
+        reason,
         willRetry,
       });
-      if (!willRetry) return { action: null, reason: failure };
+      if (!willRetry) return { action: null, reason };
+    } finally {
+      clearTimeout(timer);
+      controller.abort();
     }
-  } finally {
-    clearTimeout(timer);
-    controller.abort();
   }
 }
