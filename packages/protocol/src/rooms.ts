@@ -1220,6 +1220,7 @@ export const roomSocketContract = {
         "internal_error",
         "forbidden",
         "not_ready",
+        "cpu_capacity_full",
         "registration_pending",
         "already_started",
         "game_not_started",

@@ -87,6 +87,8 @@ function operationErrorMessage(
   switch (error) {
     case "registration_pending":
       return "登録手続きが完了するか、席の保持期限が過ぎるまでお待ちください。";
+    case "cpu_capacity_full":
+      return "時間をおいて再度開始してください。";
     case "not_ready":
       return "参加者全員の準備完了が必要です。";
     case "forbidden":

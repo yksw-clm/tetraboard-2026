@@ -105,6 +105,9 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
           <p role="status">{title}は準備中です。</p>
         )}
         {searching && <p role="status">対戦相手を探しています…</p>}
+        {data.enabled && !assigned && data.waitingCount !== undefined && (
+          <p className="text-sm">{data.waitingCount}人が待機中</p>
+        )}
         {assigned && owned && (
           <p role="status">対戦相手が決まりました。{entering && "ルームへ移動しています…"}</p>
         )}

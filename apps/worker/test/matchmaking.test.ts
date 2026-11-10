@@ -240,6 +240,39 @@ test.each([
   },
 );
 
+test("将棋は先頭がCPU枠を待っていても後続の対人成立を進める", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const oldest = await ratedAccount(1100);
+  const controllerId = crypto.randomUUID();
+  const joinedAtMs = now;
+  expect(await queue.join(oldest.id, crypto.randomUUID(), controllerId)).toMatchObject({
+    ok: true,
+    state: { status: "waiting", waitingCount: 1 },
+  });
+
+  now += shogiMatchmakingRules.fillAfterMs;
+  await runInDurableObject(queue, (_, ctx) => {
+    ctx.storage.kv.put("state", {
+      ...ctx.storage.kv.get<object>("state"),
+      cpuRetryAtMs: now + 2000,
+    });
+  });
+  const [first, second] = await fixture(2, queue);
+  const state = await queue.status(first!.account.id, first!.controllerId);
+  expect(state).toMatchObject({ status: "matched", assignment: { opponent: "human" } });
+  rooms.add(state.assignment!.roomId);
+  expect((await queue.status(second!.account.id, second!.controllerId)).assignment?.matchId).toBe(
+    state.assignment!.matchId,
+  );
+  expect(await queue.status(oldest.id, controllerId)).toMatchObject({
+    status: "waiting",
+    joinedAtMs,
+    waitingCount: 2,
+  });
+});
+
 test("将棋の対人マッチは認証接続後だけ開始し、終局で両者のレートを保存する", async () => {
   let now = Date.now() + 60000;
   vi.spyOn(Date, "now").mockImplementation(() => now);

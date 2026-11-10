@@ -42,9 +42,17 @@ type Group = {
   players: Player[];
   remove?: string[];
   retryDelayMs?: number;
+  capacityBlocked?: true;
   rating?: QueueRatingSource;
 };
-type State = { key: string; waiting: Wait[]; groups: Group[]; nextSequence?: number };
+type State = {
+  key: string;
+  waiting: Wait[];
+  groups: Group[];
+  nextSequence?: number;
+  cpuRetryAtMs?: number;
+};
+const cpuRetryDelayMs = 2000;
 type Profile = {
   id: string;
   name: string;
@@ -149,7 +157,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           const elapsed = now - oldest.joinedAtMs;
           const next =
             policy.wideningTimesMs.find((time) => elapsed < time) ?? this.queueRules.fillAfterMs;
-          deadlines.push(oldest.joinedAtMs + next);
+          deadlines.push(
+            elapsed >= this.queueRules.fillAfterMs
+              ? Math.max(oldest.joinedAtMs + next, state.cpuRetryAtMs ?? 0)
+              : oldest.joinedAtMs + next,
+          );
         }
         for (const w of state.waiting) if ((w.retryAtMs ?? 0) > now) deadlines.push(w.retryAtMs!);
       } else {
@@ -231,8 +243,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       )
         await this.forget(player);
       else {
-        player.expiresAtMs = Date.now() + this.queueRules.leaseMs;
-        player.retryAtMs = Date.now() + retryDelayMs;
+        if (!group.capacityBlocked) {
+          player.expiresAtMs = Date.now() + this.queueRules.leaseMs;
+          player.retryAtMs = Date.now() + retryDelayMs;
+        }
         const updated = await this.env.APP_DB.prepare(
           "UPDATE matchmaking_wait_reservations SET match_operation_id=NULL,lease_until_ms=? WHERE account_id=? AND operation_id=?",
         )
@@ -374,11 +388,18 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         version: p.version,
       })),
     });
+    if (created.status === "cpu_capacity_full") {
+      state.cpuRetryAtMs = Date.now() + cpuRetryDelayMs;
+      group.capacityBlocked = true;
+      await this.rollback(state, group, []);
+      return;
+    }
     if (created.status !== "prepared") {
       await this.rollback(state, group, [], 5000);
       return;
     }
     group.phase = "matched";
+    if (group.players.length < this.queueRules.seats) delete state.cpuRetryAtMs;
     this.save(state);
   }
   private async tick(state: State) {
@@ -458,7 +479,18 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       let rating: QueueRatingSource | undefined;
       const policy = this.ratingPolicy;
       if (policy) {
-        const match = policy.select(eligible, elapsed);
+        let match = policy.select(eligible, elapsed);
+        if ((state.cpuRetryAtMs ?? 0) > now && match?.selected.length !== this.queueRules.seats) {
+          // CPU枠待ちの先頭を残し、後続の人間同士で成立できる組合せを探します。
+          match = undefined;
+          for (let i = 1; i <= eligible.length - this.queueRules.seats; i++) {
+            const candidate = policy.select(eligible.slice(i), now - eligible[i]!.joinedAtMs);
+            if (candidate?.selected.length === this.queueRules.seats) {
+              match = candidate;
+              break;
+            }
+          }
+        }
         if (!match) break;
         ({ selected, rating } = match);
       } else {
@@ -500,24 +532,52 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.prepare(state, group);
     }
   }
+  private waitingCount(state: State, now: number): number | undefined {
+    const policy = this.ratingPolicy;
+    if (!policy) return;
+    const humans = state.waiting.filter((wait) => wait.expiresAtMs > now);
+    if (state.cpuRetryAtMs === undefined) return humans.length;
+    const eligible = humans.filter((wait) => (wait.retryAtMs ?? 0) <= now);
+    const { seats, fillAfterMs } = this.queueRules;
+    if (this.game === "four-reversi") {
+      const oldest = eligible[0];
+      const missing =
+        oldest && now - oldest.joinedAtMs >= fillAfterMs && eligible.length < seats
+          ? seats - eligible.length
+          : 0;
+      return humans.length + missing;
+    }
+    let missing = 0;
+    for (const wait of eligible) {
+      const elapsed = now - wait.joinedAtMs;
+      if (elapsed < fillAfterMs) continue;
+      const others = eligible.filter((candidate) => candidate !== wait);
+      if (policy.select([wait, ...others], elapsed)?.selected.length === 1) missing++;
+    }
+    return humans.length + missing;
+  }
+
   private async snapshot(
     state: State,
-    accountId: string,
+    accountId: string | null,
     controllerId?: string,
     readonly = false,
   ): Promise<MatchmakingState> {
+    const now = Date.now();
+    const waitingCount = this.waitingCount(state, now);
+    const summary = { serverNowMs: now, ...(waitingCount === undefined ? {} : { waitingCount }) };
+    if (accountId === null) return { status: "idle", ...summary };
     const { wait, group } = this.locate(state, accountId);
-    if (!wait) return { status: "idle", serverNowMs: Date.now() };
+    if (!wait) return { status: "idle", ...summary };
     if (group && group.phase !== "playing" && Date.now() >= group.expiresAtMs)
-      return { status: "idle", serverNowMs: Date.now() };
+      return { status: "idle", ...summary };
     if (!group) {
       const lease = await this.env.APP_DB.prepare(
         "SELECT 1 FROM matchmaking_wait_reservations WHERE account_id=? AND operation_id=? AND lease_until_ms>?",
       )
         .bind(accountId, wait.operationId, Date.now())
         .first();
-      if (wait.expiresAtMs <= Date.now() || !lease)
-        return { status: "idle", serverNowMs: Date.now() };
+      if (wait.expiresAtMs <= Date.now() || !lease) return { status: "idle", ...summary };
     }
     if (group?.phase === "playing") {
       const seat = await this.env.APP_DB.prepare(
@@ -529,17 +589,17 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         )
         .first();
       if (!seat) {
-        if (readonly) return { status: "idle", serverNowMs: Date.now() };
+        if (readonly) return { status: "idle", ...summary };
         group.players.find((p) => p.accountId === accountId)!.released = true;
         this.ctx.storage.kv.put(`ended:${wait.operationId}`, true);
         if (group.players.every((p) => p.released))
           state.groups = state.groups.filter((g) => g.id !== group.id);
-        return { status: "idle", serverNowMs: Date.now() };
+        return { status: "idle", ...summary };
       }
     }
     const result: MatchmakingState = {
       status: group ? (group.phase === "playing" ? "playing" : "matched") : "waiting",
-      serverNowMs: Date.now(),
+      ...summary,
       operationId: wait.operationId,
       controllerId: wait.controllerId,
       version: wait.version,
@@ -569,7 +629,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     }
     return result;
   }
-  async status(accountId: string, controllerId?: string) {
+  async status(accountId: string | null, controllerId?: string) {
     return this.snapshot(this.load(), accountId, controllerId, true);
   }
   async join(accountId: string, operationId: string, controllerId: string) {
