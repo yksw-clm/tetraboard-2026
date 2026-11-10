@@ -6,6 +6,7 @@ import {
   reversiAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
+import { eloRatingSourceSchema } from "../rooms/eloRating";
 import type { MatchRecord } from "../rooms/reversiMatchStore";
 import type { ParticipantProfiles } from "./matchProfiles";
 const participants = z
@@ -24,6 +25,7 @@ const recordSchema = z
     instanceId: z.uuid(),
     participants,
     aiFallback: z.literal(true).optional(),
+    rating: eloRatingSourceSchema.optional(),
   })
   .omit({ selfPlayerId: true });
 function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
@@ -42,7 +44,7 @@ function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   });
 }
 function detail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, aiFallback: _aiFallback, ...data } = record;
+  const { instanceId: _instance, aiFallback: _aiFallback, rating: _rating, ...data } = record;
   return reversiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

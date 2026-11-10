@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 const limits = {
+  reversi: { matches: 4, seats: 4, seatsPerMatch: 1 },
   shogi: { matches: 4, seats: 4, seatsPerMatch: 1 },
   "four-reversi": { matches: 4, seats: 12, seatsPerMatch: 3 },
 };
@@ -14,7 +15,8 @@ const releasedKey = (roomId: string) => `released:${roomId}`;
 export class CpuCapacity extends DurableObject<Env> {
   reserve(roomId: string, sequence: number, seats: number): boolean {
     const game = this.ctx.id.name;
-    if (game !== "shogi" && game !== "four-reversi") throw new Error("Unknown CPU capacity");
+    if (game !== "shogi" && game !== "four-reversi" && game !== "reversi")
+      throw new Error("Unknown CPU capacity");
     const limit = limits[game];
     if (!Number.isInteger(seats) || seats < 1 || seats > limit.seatsPerMatch)
       throw new Error("Invalid CPU seat count");

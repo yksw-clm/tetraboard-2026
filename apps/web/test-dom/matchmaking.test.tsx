@@ -24,7 +24,11 @@ const shogiCancelUrl = "/api/matchmaking/shogi/cancel";
 const shogiIdle = () => ({ status: "idle", enabled: true, serverNowMs: Date.now() });
 const dialogs = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
 const activeDialog = () => dialogs().at(-1)!;
-function shogiPage(viewer = user, rejoin = false, game: "shogi" | "four-reversi" = "shogi") {
+function shogiPage(
+  viewer = user,
+  rejoin = false,
+  game: "shogi" | "four-reversi" | "reversi" = "shogi",
+) {
   const lobby = `/games/${game}`;
   const controller = new QueueDocumentController({
     isReload: () => false,
@@ -381,4 +385,31 @@ test("保存できない端末では四人リバーシの待機を送信しな�
   } finally {
     denied.mockRestore();
   }
+});
+
+test("通常リバーシの認定進捗を表示し、専用キューのCPU割当で入室する", async () => {
+  const router = shogiPage(user, false, "reversi");
+  latest("/api/matchmaking/reversi?").respond(shogiIdle());
+  latest("/api/matchmaking/reversi/rating").respond({ status: "placement", games: 2 });
+  await flush();
+  expect(activeDialog().textContent).toContain("2 / 5");
+  press(activeDialog(), "対戦相手を探す");
+  await flush();
+  const join = latest("/api/matchmaking/reversi/join");
+  const operation = JSON.parse(String(join.init.body));
+  const matched = {
+    ...shogiIdle(),
+    ...operation,
+    status: "matched",
+    version: 1,
+    assignment: assignment("cpu"),
+  };
+  join.respond(matched);
+  await flush();
+  latest("/api/matchmaking/reversi?").respond(matched);
+  await flush();
+  expect(router.state.location.pathname).toBe("/rooms/12345");
+  expect(JSON.parse(sessionStorage.getItem("tetraboard:matchmaking-room:12345")!).game).toBe(
+    "reversi",
+  );
 });

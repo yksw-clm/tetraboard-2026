@@ -2,6 +2,8 @@ import {
   matchmakingStateSchema,
   fourReversiRatingResultSchema,
   fourReversiRatingSummarySchema,
+  reversiRatingResultSchema,
+  reversiRatingSummarySchema,
   shogiRatingResultSchema,
   shogiRatingSummarySchema,
   type MatchmakingGame,
@@ -15,6 +17,16 @@ const waitingQuery = (game: MatchmakingGame) =>
 export type ObservedMatchmaking = ReturnType<typeof matchmakingStateSchema.parse> & {
   legacy?: true;
 };
+
+export async function readReversiRatedAvailability(signal: AbortSignal) {
+  return (
+    matchmakingStateSchema.parse(
+      await accountRequest(api("reversi"), {
+        signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
+      }),
+    ).enabled === true
+  );
+}
 
 export async function readMatchmaking(
   game: MatchmakingGame,
@@ -59,6 +71,7 @@ const ratingContracts = {
     result: fourReversiRatingResultSchema,
     summary: fourReversiRatingSummarySchema,
   },
+  reversi: { result: reversiRatingResultSchema, summary: reversiRatingSummarySchema },
   shogi: { result: shogiRatingResultSchema, summary: shogiRatingSummarySchema },
 } satisfies Record<RatedMatchmakingGame, unknown>;
 

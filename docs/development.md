@@ -121,6 +121,8 @@ IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCa
 
 ## 通常リバーシの実装
 
+[レート戦の仕様](reversi-rated-match.md)では共通待機列と将棋のElo計算を使用します。レート履歴は `reversi_rating_changes`、保存待ちは `reversi_rating_pending` に保存します。補充CPUの版と基準レートは `reversiCpuProfiles.ts` に置き、棋譜確定と同じD1バッチでレートを反映します。
+
 `packages/reversi` は黒白2人の独立したルールエンジンとCPUを持ちます。ゲームカタログの `capacity` と `hasModes` に定員2・モードなしを登録し、共有の席管理・開始条件・公開情報・集計条件はゲーム別定員を参照します。
 
 `ReversiRoom`・対局記録・戦績・ランキングは専用の公開契約を持ち、通常リバーシの作成と履歴取得はモード指定を受け付けません。公開JSONにもモードを含めません。既存のD1のNOT NULLモード列には内部識別値 `standard` を保存します。既存の四人ゲームのモード値・JSONと既定ゲームを維持し、過去データの移行は行いません。保存は四人リバーシと同じ局面列方式で、保存待ち・5秒後の再送・本人索引・閉鎖後の保持を共用します。本人索引のゲーム列は保存済み対局から明示的に設定します。

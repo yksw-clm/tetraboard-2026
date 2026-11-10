@@ -220,14 +220,14 @@ export type ReversiAiWork = {
   job: { requestId: string; roundId: string; moveNumber: number; expiresAt: number };
   board: string;
   blackToMove: boolean;
+  level: number;
 };
 
-const reversiLevel = 4;
 const reversiResponseSchema = z.strictObject({
   request_id: z.string().uuid(),
   position_revision: z.string().length(64),
   engine_version: z.literal("egaroucid-console-7.8.2-0c1b84ef"),
-  level: z.literal(reversiLevel),
+  level: z.union([z.literal(1), z.literal(2), z.literal(4), z.literal(8)]),
   position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
 });
 
@@ -237,7 +237,9 @@ export async function requestReversiAiMove(bindings: AiServiceBindings, work: Re
   const { requestId, roundId, moveNumber, expiresAt } = work.job;
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(JSON.stringify([roundId, moveNumber, work.board, work.blackToMove])),
+    new TextEncoder().encode(
+      JSON.stringify([roundId, moveNumber, work.board, work.blackToMove, work.level]),
+    ),
   );
   const revision = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
@@ -256,7 +258,7 @@ export async function requestReversiAiMove(bindings: AiServiceBindings, work: Re
       body: JSON.stringify({
         request_id: requestId,
         position_revision: revision,
-        level: reversiLevel,
+        level: work.level,
         board: work.board,
         black_to_move: work.blackToMove,
       }),
@@ -270,7 +272,8 @@ export async function requestReversiAiMove(bindings: AiServiceBindings, work: Re
     const parsed = reversiResponseSchema.safeParse(await responseJson(response));
     return parsed.success &&
       parsed.data.request_id === requestId &&
-      parsed.data.position_revision === revision
+      parsed.data.position_revision === revision &&
+      parsed.data.level === work.level
       ? parsed.data.position
       : null;
   } catch {

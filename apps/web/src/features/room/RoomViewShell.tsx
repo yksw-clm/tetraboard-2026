@@ -115,7 +115,9 @@ export function RoomViewShell({
   const ratedGame = isRatedMatchmakingGame(game) ? game : undefined;
   const matchmaking = "matchmaking" in room ? room.matchmaking : undefined;
   const ratedMatch =
-    ratedGame === "shogi" || (matchmaking && "rated" in matchmaking && matchmaking.rated)
+    ratedGame === "shogi" ||
+    ratedGame === "reversi" ||
+    (matchmaking && "rated" in matchmaking && matchmaking.rated)
       ? matchmaking
       : undefined;
   const ratedTime = ratedGame ? matchmakingQueues[ratedGame].timeControl : undefined;
@@ -464,7 +466,12 @@ export function RoomViewShell({
               <p>
                 {"opponent" in ratedMatch && ratedMatch.opponent === "cpu" ? "CPU戦" : "対人戦"}・
                 {ratedTime.mainTimeMs / 60_000}分
-                {ratedTime.byoyomiMs ? `＋${ratedTime.byoyomiMs / 1000}秒` : ""}・レート対象
+                {ratedTime.byoyomiMs
+                  ? `＋${ratedTime.byoyomiMs / 1000}秒`
+                  : game === "reversi"
+                    ? "切れ負け"
+                    : ""}
+                ・レート対象
               </p>
             )
           }

@@ -28,6 +28,7 @@ import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
 
 type Props = {
+  showRatedMatchmaking?: boolean;
   registrationDraft?: RegistrationEntryDraft;
   game: GameId;
   name: string;
@@ -106,7 +107,7 @@ export function LobbyView(props: Props) {
     description: gameDescriptions[props.game],
     theme: gameThemes[props.game],
   };
-  const ratedMatch = isRatedMatchmakingGame(props.game);
+  const ratedMatch = isRatedMatchmakingGame(props.game) && props.showRatedMatchmaking !== false;
 
   function openMatchmaking(): void {
     const search = new URLSearchParams(location.search);

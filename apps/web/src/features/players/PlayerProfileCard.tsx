@@ -41,6 +41,12 @@ export function PlayerProfileCard({
         )}
       </div>
     );
+  const duelRating =
+    profile.kind === "account"
+      ? game === "reversi"
+        ? profile.reversiRating
+        : profile.shogiRating
+      : undefined;
   const name = profile.kind === "cpu" ? (profile.name ?? `CPU Lv${profile.level}`) : profile.name;
   return (
     <div className="flex flex-col gap-3">
@@ -86,14 +92,12 @@ export function PlayerProfileCard({
           <p className="m-0 text-xs tabular-nums wrap-anywhere">
             {formatPlayerStatsSummary(profile.stats, mode)}
           </p>
-          {profile.shogiRating && (
+          {duelRating && (
             <div className="text-sm">
               <p className="m-0 font-semibold tabular-nums">
-                将棋レート {Math.round(profile.shogiRating.rating)}
+                {gameCatalog[game].name}レート {Math.round(duelRating.rating)}
               </p>
-              {!profile.shogiRating.humanPlayed && (
-                <p className="m-0 text-xs text-muted">対人戦未経験</p>
-              )}
+              {!duelRating.humanPlayed && <p className="m-0 text-xs text-muted">対人戦未経験</p>}
             </div>
           )}
           {gameCatalog[game].hasModes && mode === "singles" && (
