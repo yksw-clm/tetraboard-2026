@@ -152,6 +152,7 @@ export async function advanceShogiMatchSave(
       !isFormationMatchEligible({
         settings: { mode: record.settings.mode ?? "standard" },
         participants: record.participants,
+        rated: "fourShogiRating" in record && record.fourShogiRating !== undefined,
       })
     )
       throw new Error("Ineligible Shogi formation match");

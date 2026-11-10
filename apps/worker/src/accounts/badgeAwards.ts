@@ -16,6 +16,7 @@ export function badgeAwardsSql(game: BadgeGame, baseline = false, personal = fal
         AND (SELECT COUNT(*) FROM json_each(result, '$.standings') s
           WHERE json_extract(s.value, '$.rank') = 1) = 1 THEN 1 ELSE 0 END) AS perfect_wins
     FROM outcomes WHERE mode = 'singles' GROUP BY account_id
+    ${baseline ? "" : "HAVING SUM(match_id = ?) > 0"}
   ), thresholds(badge_id, tier, threshold) AS (VALUES ${thresholds.join(", ")}), values_by_badge AS (
     SELECT account_id, badge_id, tier, threshold,
       CASE badge_id WHEN 'games' THEN games WHEN 'wins' THEN wins
@@ -35,7 +36,7 @@ export function badgeAwardsSql(game: BadgeGame, baseline = false, personal = fal
 export function badgeAwardStatements(db: D1Database, game: string, matchId: string) {
   if (game !== "four-reversi" && game !== "four-shogi") return [];
   return [
-    db.prepare(badgeAwardsSql(game)).bind(game, matchId, matchId),
+    db.prepare(badgeAwardsSql(game)).bind(game, matchId, matchId, matchId),
     db
       .prepare(`INSERT INTO account_badge_notifications (account_id, match_id, game, created_at_ms)
       SELECT DISTINCT account_id, match_id, game, ? FROM account_badge_awards WHERE match_id = ?

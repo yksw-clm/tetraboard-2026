@@ -2,7 +2,7 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import { lazy, Suspense, useState } from "react";
 import { isRatedMatchmakingGame, type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
-import { formatStatsRate } from "./statsPresentation";
+import { formatStatsRate, statsScopeLabel } from "./statsPresentation";
 import { StatsTable, type StatsRow } from "./StatsTable";
 import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
@@ -86,7 +86,7 @@ export function AccountStats({
           </AppButton>
         </div>
         {showRating && <RatingSummary key={`${game}:${ratingRefresh}`} game={game} compact />}
-        <p className="text-xs text-muted">対人戦のみ集計</p>
+        <p className="text-xs text-muted">{statsScopeLabel(game, mode)}</p>
         <div className="flex flex-col gap-3">
           {loading && !pendingSource && (
             <p role="status" className="text-sm text-muted">

@@ -1,7 +1,8 @@
-import { badgeDefinitions } from "@tetraboard/protocol";
+import { badgeDefinitions, getBadgeIds } from "@tetraboard/protocol";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { BadgeImage } from "../badges/BadgeImage";
 import { AppIcon } from "../../shared/ui/AppIcon";
+import { includesRatedStats } from "./statsPresentation";
 
 export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
   return (
@@ -10,12 +11,15 @@ export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
         {
           icon: "crown",
           title: "バッジを集めよう",
-          text: "対人シングルスの対局数や優勝数に応じて、バッジを獲得できます。",
+          text: "シングルスの対人戦やレート戦で、対局数や優勝数に応じてバッジを獲得できます。",
         },
         {
           icon: "users",
           title: "自分の戦績を残そう",
-          text: "対人戦の成績を確認し、ランキングに参加できます。",
+          text:
+            game === undefined || includesRatedStats(game, "singles")
+              ? "対人戦やレート戦の成績を確認し、ランキングに参加できます。"
+              : "対人戦の成績を確認し、ランキングに参加できます。",
         },
         {
           icon: "board",
@@ -23,7 +27,9 @@ export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
           text: "アカウントで参加した対局を、マイページから見返せます。CPU戦も保存されます。",
         },
       ]
-        .filter((item) => game === undefined || gameCatalog[game].hasModes || item.icon !== "crown")
+        .filter(
+          (item) => game === undefined || getBadgeIds(game).length > 0 || item.icon !== "crown",
+        )
         .map(({ icon, title, text }) => (
           <li key={title} className="flex items-start gap-2.5">
             <AppIcon name={icon as "crown" | "users" | "board"} className="mt-0.5 text-primary" />
@@ -50,7 +56,7 @@ export function RegistrationBenefits({ game }: { game?: GameId } = {}) {
 }
 
 export function RegistrationBadgeExamples({ game }: { game: GameId }) {
-  if (!gameCatalog[game].hasModes) return null;
+  if (getBadgeIds(game).length === 0) return null;
   return (
     <figure className="m-0 flex flex-col items-center gap-1">
       <div className="flex gap-2">

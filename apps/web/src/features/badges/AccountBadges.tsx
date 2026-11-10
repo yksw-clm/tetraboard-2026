@@ -5,16 +5,19 @@ import {
   type GameId,
 } from "@tetraboard/protocol";
 import { BadgeImage } from "./BadgeImage";
+import { statsScopeLabel } from "../account/statsPresentation";
 
 export function AccountBadges({ game, stats }: { game: GameId; stats: AccountStats }) {
+  const progress = getBadgeProgress(game, stats);
+  if (progress.length === 0) return null;
   return (
     <section aria-labelledby="account-badges-title" className="flex min-w-0 flex-col gap-2">
       <h2 id="account-badges-title" className="m-0 text-lg font-bold">
         バッジ
       </h2>
-      <p className="m-0 text-xs text-muted">シングルス・対人戦のみ集計</p>
+      <p className="m-0 text-xs text-muted">シングルス・{statsScopeLabel(game, "singles")}</p>
       <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0">
-        {getBadgeProgress(game, stats).map(({ id, tier, value, nextThreshold }) => {
+        {progress.map(({ id, tier, value, nextThreshold }) => {
           const definition = badgeDefinitions[id];
           return (
             <li

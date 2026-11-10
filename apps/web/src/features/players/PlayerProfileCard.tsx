@@ -7,6 +7,7 @@ import { AppButton } from "../../shared/ui/AppButton";
 import type { ProfileState } from "./playerProfileStore";
 import { PlayerBadges } from "../badges/PlayerBadges";
 import { ProfileDetails } from "./ProfileDetails";
+import { statsScopeLabel } from "../account/statsPresentation";
 export function PlayerProfileCard({
   state,
   localProfile,
@@ -87,7 +88,7 @@ export function PlayerProfileCard({
               {gameCatalog[game].name}
               {gameCatalog[game].hasModes && `・${mode === "singles" ? "シングルス" : "ダブルス"}`}
             </p>
-            <p className="m-0 text-xs text-muted">対人戦のみ集計</p>
+            <p className="m-0 text-xs text-muted">{statsScopeLabel(game, mode)}</p>
           </div>
           <p className="m-0 text-xs tabular-nums wrap-anywhere">
             {formatPlayerStatsSummary(profile.stats, mode)}

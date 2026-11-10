@@ -41,7 +41,9 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
   expect(metric("優勝率")).toBe(".333");
   expect(metric("3位率")).toBe(".500");
   expect(metric("4位率")).toBe(".000");
-  expect(view.textContent).toContain("対人戦のみ集計");
+  expect(view.textContent).toContain("対人戦/レート戦を集計");
+  expect(view.textContent).toContain("対人戦/レート戦で対局する");
+  expect(view.textContent).toContain("対人戦/レート戦で優勝する（同率優勝を含む）");
   rerender(
     view,
     <MemoryRouter>
@@ -51,10 +53,12 @@ test("戦績の表示値・率・モード別項目・0件を取得結果から�
   expect(metric("勝率")).toBe(".500");
   expect(metric("敗率")).toBe(".333");
   expect(view.textContent).not.toContain("優勝数");
+  expect(view.textContent).toContain("対人戦のみ集計");
+  expect(view.textContent).not.toContain("対人戦/レート戦を集計");
   expect(requests).toHaveLength(1);
   await flush();
 });
-test("登録者の将棋戦績は対人戦の注記の上にレートを表示し、更新で再取得する", async () => {
+test("登録者の将棋戦績は集計範囲の注記の上にレートを表示し、更新で再取得する", async () => {
   const view = render(
     <MemoryRouter>
       <AccountStats game="shogi" mode="singles" registered />
@@ -74,7 +78,7 @@ test("登録者の将棋戦績は対人戦の注記の上にレートを表示�
   first.respond({ status: "rated", rating: 1542.4 });
   await flush();
   const note = [...view.querySelectorAll("p")].find(
-    (node) => node.textContent === "対人戦のみ集計",
+    (node) => node.textContent === "対人戦/レート戦を集計",
   )!;
   expect(note.previousElementSibling?.textContent).toBe("レート戦のレート1542");
   press(view, "更新");

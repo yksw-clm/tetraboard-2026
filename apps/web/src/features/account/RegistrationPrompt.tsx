@@ -1,4 +1,4 @@
-import { gameCatalog } from "@tetraboard/protocol/games";
+import { getBadgeIds } from "@tetraboard/protocol";
 import type { SocialProvider } from "./useSocialSignIn";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { RegistrationBenefits, RegistrationBadgeExamples } from "./RegistrationBenefits";
@@ -36,9 +36,9 @@ export function RegistrationPrompt({
       <RegistrationBadgeExamples game={game} />
       {!humanOnly && (
         <p className="m-0 text-xs text-muted">
-          {!gameCatalog[game].hasModes
-            ? "CPUを含む対局は、戦績・ランキングの対象外です。"
-            : "CPUを含む対局は、戦績・ランキング・バッジの対象外です。"}
+          {getBadgeIds(game).length === 0
+            ? "通常ルームのCPU戦は、戦績・ランキングの対象外です。"
+            : "通常ルームのCPU戦は、戦績・ランキング・バッジの対象外です。"}
         </p>
       )}
       <p className="m-0 text-xs leading-relaxed text-muted">

@@ -12,6 +12,7 @@ import { AppSkeleton } from "../../shared/ui/AppSkeleton";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { type AppTheme } from "../../shared/ui/appTheme";
 import { useRankings } from "./useRankings";
+import { includesRatedStats, statsScopeLabel } from "../account/statsPresentation";
 
 type RankingMetric = "victories" | "total" | "knockouts";
 const normalMetrics: RankingMetric[] = ["victories", "total"];
@@ -235,9 +236,12 @@ function RankingsDialog({
   return (
     <AppDialog title="ランキング" onClose={onClose} theme={theme}>
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-muted">対人戦のみ集計</p>
+        <p className="text-xs text-muted">{statsScopeLabel(state.game, mode)}</p>
         <p className="text-xs text-muted">
-          CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。対戦相手にゲストがいても対象です。
+          {includesRatedStats(state.game, mode)
+            ? "対人戦とレート戦で、アカウントで参加した人の成績を集計します。CPU補充のレート戦も対象です。"
+            : "CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。"}
+          対戦相手にゲストがいても対象です。
         </p>
         <ModeTabs
           withoutModes={!gameCatalog[state.game].hasModes}
@@ -318,7 +322,8 @@ function LobbyRankingsView({
           </AppButton>
         </div>
         <p className="text-xs text-muted">
-          {gameCatalog[state.game].hasModes ? "シングルス・優勝数" : "勝利数"}（対人戦のみ集計）
+          {gameCatalog[state.game].hasModes ? "シングルス・優勝数" : "勝利数"}（
+          {statsScopeLabel(state.game, "singles")}）
         </p>
         <RankingContent state={state} mode="singles" limit={3} preview />
       </AppCard>

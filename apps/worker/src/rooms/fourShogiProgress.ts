@@ -284,7 +284,11 @@ export class FourShogiProgress {
         })),
       },
       knockouts: emptyKnockouts(),
-      ...(isFormationMatchEligible({ settings: room.settings, participants: started.players })
+      ...(isFormationMatchEligible({
+        settings: room.settings,
+        participants: started.players,
+        rated: rating !== undefined,
+      })
         ? { formationUsage: emptyFormationUsage() }
         : {}),
     } satisfies ActiveShogiMatch);
@@ -317,7 +321,12 @@ export class FourShogiProgress {
           entry.reason === "checkmate" && entry.side !== event.side && !prior.has(entry.side),
       ).length;
       active.knockouts[event.side] += count;
-      if (active.formationUsage)
+      if (
+        active.formationUsage &&
+        active.start.participants.some(
+          (player) => player.side === event.side && player.kind === "human",
+        )
+      )
         active.formationUsage = recordFormationUsage(
           active.formationUsage,
           room.game,
