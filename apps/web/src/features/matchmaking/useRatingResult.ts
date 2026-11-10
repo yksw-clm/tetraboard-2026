@@ -1,33 +1,39 @@
 import { useEffect, useState } from "react";
-import { readShogiRatingResult } from "./matchmakingApi";
+import type { RatedMatchmakingGame } from "@tetraboard/protocol";
+import { readRatingResult } from "./matchmakingApi";
 
-type Result = Awaited<ReturnType<typeof readShogiRatingResult>>;
+type Result = Awaited<ReturnType<typeof readRatingResult>>;
 
-export function useShogiRatingResult(matchId: string | undefined, profileId: string | undefined) {
+export function useRatingResult(
+  game: RatedMatchmakingGame | undefined,
+  matchId: string | undefined,
+  profileId: string | undefined,
+) {
   const [attempt, setAttempt] = useState(0);
-  const key = matchId && profileId ? `${matchId}:${profileId}:${attempt}` : undefined;
+  const key =
+    game && matchId && profileId ? `${game}:${matchId}:${profileId}:${attempt}` : undefined;
   const [state, setState] = useState<{ key: string; result: Result | null; failed: boolean }>();
   useEffect(() => {
-    if (!matchId || !key) return;
+    if (!game || !matchId || !key) return;
     const controller = new AbortController();
     let timer: number | undefined;
-    async function read(id: string, requestKey: string) {
+    async function read(ratedGame: RatedMatchmakingGame, id: string, requestKey: string) {
       try {
-        const result = await readShogiRatingResult(id, controller.signal);
+        const result = await readRatingResult(ratedGame, id, controller.signal);
         if (controller.signal.aborted) return;
         setState({ key: requestKey, result, failed: false });
         if (result.status === "pending")
-          timer = window.setTimeout(() => void read(id, requestKey), 1000);
+          timer = window.setTimeout(() => void read(ratedGame, id, requestKey), 1000);
       } catch {
         if (!controller.signal.aborted) setState({ key: requestKey, result: null, failed: true });
       }
     }
-    void read(matchId, key);
+    void read(game, matchId, key);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [matchId, key]);
+  }, [game, matchId, key]);
   const current = state?.key === key ? state : undefined;
   return {
     result: current?.result,

@@ -21,9 +21,10 @@ export async function recoverMatchmakingRoom(
     return;
   }
   const game = stored.game ?? "four-reversi";
-  const scope = matchmakingScope(stored.identity, game),
+  const legacy = stored.game === undefined;
+  const scope = matchmakingScope(stored.identity, game, legacy),
     id = controller.getIdentity();
-  let state = await readMatchmaking(game, id, signal);
+  let state = await readMatchmaking(game, id, signal, legacy);
   if (state.operationId !== stored.operationId) {
     clearRoomMembershipToken(roomId);
     return;
@@ -38,6 +39,7 @@ export async function recoverMatchmakingRoom(
       "takeover",
       { operationId: stored.operationId, controllerId: id, version: state.version! },
       signal,
+      legacy,
     );
   }
   if (
@@ -52,7 +54,7 @@ export async function recoverMatchmakingRoom(
   controller.remember(scope, stored.operationId, state.version!);
   controller.announce(scope);
   const credential = { operationId: stored.operationId, controllerId: id, version: state.version! };
-  saveMatchmakingQueue(stored.identity, credential, game);
+  if (!legacy) saveMatchmakingQueue(stored.identity, credential, game);
   if (
     !saveRoomMembershipToken(roomId, state.assignment.membership.token) ||
     !saveMatchmakingRoom({ ...stored, ...credential })

@@ -1,13 +1,17 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   matchmakingRules as rules,
-  shogiMatchmakingRules,
+  matchmakingQueues,
+  type MatchmakingGame,
   type MatchmakingState,
 } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
-import type { ShogiRatingSource } from "../rooms/shogiRating";
-import { selectShogiCpu } from "./shogiCpuProfiles";
+import {
+  ratedMatchmakingPolicy,
+  ratingOpponentKind,
+  type QueueRatingSource,
+} from "./ratedMatchmaking";
 
 type Wait = {
   accountId: string;
@@ -18,6 +22,8 @@ type Wait = {
   sequence: number;
   retryAtMs?: number;
   rating?: number;
+  sigma?: number;
+  ratedGames?: number;
   expiresAtMs: number;
 };
 type Player = Wait & {
@@ -36,7 +42,7 @@ type Group = {
   players: Player[];
   remove?: string[];
   retryDelayMs?: number;
-  rating?: ShogiRatingSource;
+  rating?: QueueRatingSource;
 };
 type State = { key: string; waiting: Wait[]; groups: Group[]; nextSequence?: number };
 type Profile = {
@@ -50,13 +56,14 @@ function compareWaits(a: Wait, b: Wait) {
   return (a.sequence ?? 0) - (b.sequence ?? 0) || a.joinedAtMs - b.joinedAtMs;
 }
 export type MatchmakingRoomInput = {
+  game?: MatchmakingGame;
   matchId: string;
   roomId: string;
   instanceId: string;
   preparedAtMs: number;
   expiresAtMs: number;
   players: { admission: AccountAdmission; tokenHash: string; version: number }[];
-  rating?: ShogiRatingSource;
+  rating?: QueueRatingSource;
 };
 export type MatchmakingRoomReservation = MatchmakingRoomInput & {
   phase: "waiting" | "playing" | "closed";
@@ -88,11 +95,31 @@ export async function matchmakingCredential(env: Env, wait: Wait, queueKey: stri
   };
 }
 export class MatchmakingCoordinator extends DurableObject<Env> {
-  private get isRatedShogi() {
-    return this.ctx.id.name === shogiMatchmakingRules.key;
+  private get game(): MatchmakingGame {
+    return (
+      (Object.keys(matchmakingQueues) as MatchmakingGame[]).find(
+        (game) => matchmakingQueues[game].key === this.ctx.id.name,
+      ) ?? "four-reversi"
+    );
+  }
+  private get legacy() {
+    return this.ctx.id.name === rules.key;
+  }
+  private get retired() {
+    return this.legacy && this.env.MATCHMAKING_ENABLED === "true";
+  }
+  private get ratingPolicy() {
+    return this.legacy ? undefined : ratedMatchmakingPolicy(this.game);
   }
   private get queueRules() {
-    return this.isRatedShogi ? shogiMatchmakingRules : rules;
+    return this.legacy ? rules : matchmakingQueues[this.game];
+  }
+  private orderWaits(state: State) {
+    state.waiting.sort(
+      this.game === "four-reversi" && !this.legacy
+        ? (a, b) => a.joinedAtMs - b.joinedAtMs || a.operationId.localeCompare(b.operationId)
+        : compareWaits,
+    );
   }
   private load(): State {
     return (
@@ -111,22 +138,23 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(Date.now() + 5000);
       const state = this.load();
       const result = await run(state);
-      if (this.isRatedShogi) state.waiting.sort(compareWaits);
+      if (this.ratingPolicy) this.orderWaits(state);
       this.save(state);
       const now = Date.now();
       const deadlines = state.waiting.map((w) => w.expiresAtMs);
-      if (this.isRatedShogi) {
+      const policy = this.ratingPolicy;
+      if (policy) {
         const oldest = state.waiting.find((w) => (w.retryAtMs ?? 0) <= now);
         if (oldest) {
           const elapsed = now - oldest.joinedAtMs;
           const next =
-            elapsed < 5000 ? 5000 : elapsed < 10_000 ? 10_000 : shogiMatchmakingRules.fillAfterMs;
+            policy.wideningTimesMs.find((time) => elapsed < time) ?? this.queueRules.fillAfterMs;
           deadlines.push(oldest.joinedAtMs + next);
         }
         for (const w of state.waiting) if ((w.retryAtMs ?? 0) > now) deadlines.push(w.retryAtMs!);
       } else {
         for (const w of state.waiting)
-          deadlines.push(Math.max(w.joinedAtMs + rules.fillAfterMs, w.retryAtMs ?? 0));
+          deadlines.push(Math.max(w.joinedAtMs + this.queueRules.fillAfterMs, w.retryAtMs ?? 0));
       }
       for (const group of state.groups) {
         if (group.phase !== "playing") deadlines.push(Date.now() + 1000, group.expiresAtMs);
@@ -135,9 +163,9 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       if (deadlines.length) {
         const deadline = Math.min(...deadlines);
         const currentTime = Date.now();
-        // 将棋の待機期限が目前でも、未来の期限を後ろへずらさずに通知します。
+        // レート戦の待機期限が目前でも、未来の期限を後ろへずらさずに通知します。
         await this.ctx.storage.setAlarm(
-          this.isRatedShogi && deadline > currentTime
+          this.ratingPolicy && deadline > currentTime
             ? deadline
             : Math.max(currentTime + 100, deadline),
         );
@@ -149,7 +177,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     return this.env.APP_DB.prepare(
       `SELECT id,name,avatarKey,avatarPresetId,isAnonymous FROM user WHERE id=? AND profileCompleted=1 AND (?=0 OR COALESCE(isAnonymous,0)=0) AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)`,
     )
-      .bind(accountId, Number(this.isRatedShogi))
+      .bind(accountId, Number(Boolean(this.ratingPolicy)))
       .first<Profile>();
   }
   private locate(state: State, id: string) {
@@ -193,10 +221,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       return;
     }
     for (const player of group.players) await releaseReservation(this.env, player.admission, true);
-    if (group.rating)
-      await this.env.APP_DB.prepare("DELETE FROM shogi_rating_pending WHERE match_id=?")
-        .bind(group.id)
-        .run();
+    const policy = this.ratingPolicy;
+    if (group.rating && policy) await policy.store.clearPending(this.env.APP_DB, group.id).run();
     for (const player of group.players) {
       if (
         remove.includes(player.accountId) ||
@@ -205,7 +231,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       )
         await this.forget(player);
       else {
-        player.expiresAtMs = Date.now() + rules.leaseMs;
+        player.expiresAtMs = Date.now() + this.queueRules.leaseMs;
         player.retryAtMs = Date.now() + retryDelayMs;
         const updated = await this.env.APP_DB.prepare(
           "UPDATE matchmaking_wait_reservations SET match_operation_id=NULL,lease_until_ms=? WHERE account_id=? AND operation_id=?",
@@ -221,6 +247,9 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             joinedAtMs: player.joinedAtMs,
             sequence: player.sequence,
             ...(player.rating === undefined ? {} : { rating: player.rating }),
+            ...(player.sigma === undefined
+              ? {}
+              : { sigma: player.sigma, ratedGames: player.ratedGames }),
             expiresAtMs: player.expiresAtMs,
             retryAtMs: player.retryAtMs,
           });
@@ -318,11 +347,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           "INSERT OR IGNORE INTO privacy_room_players SELECT account_id,room_id,instance_id,player_id,avatar_key FROM account_room_seats WHERE operation_id=?",
         ).bind(a.operationId),
       );
-      if (group.rating)
+      const policy = this.ratingPolicy;
+      if (group.rating && policy)
         statements.push(
-          this.env.APP_DB.prepare(`INSERT INTO shogi_rating_pending(account_id,match_id)
-            SELECT account_id,? FROM account_room_seats WHERE account_id=? AND operation_id=?
-            ON CONFLICT(account_id) DO NOTHING`).bind(group.id, a.accountId, a.operationId),
+          policy.store.reserve(this.env.APP_DB, group.id, a.accountId, a.operationId),
         );
     }
     this.save(state);
@@ -333,6 +361,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       return;
     }
     const created = await this.env.GAME_ROOM.getByName(group.roomId).prepareMatchmakingRoom({
+      game: this.game,
       matchId: group.id,
       roomId: group.roomId,
       instanceId: group.instanceId,
@@ -394,6 +423,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         );
       }
     }
+    if (this.retired) {
+      for (const wait of state.waiting) await this.forget(wait);
+      state.waiting = [];
+      return;
+    }
     const validRows = state.waiting.length
       ? await this.env.APP_DB.prepare(
           `SELECT w.operation_id AS operationId FROM matchmaking_wait_reservations w JOIN user u ON u.id=w.account_id WHERE w.queue_key=? AND w.lease_until_ms>? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges m WHERE m.guest_id=u.id)`,
@@ -412,7 +446,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
       }
     }
-    state.waiting.sort(compareWaits);
+    this.orderWaits(state);
     let remaining = 4;
     while (remaining-- > 0) {
       const eligible = state.waiting.filter((w) => (w.retryAtMs ?? 0) <= Date.now());
@@ -421,21 +455,16 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       const now = Date.now();
       const elapsed = now - oldest.joinedAtMs;
       let selected: Wait[];
-      let rating: ShogiRatingSource | undefined;
-      if (this.isRatedShogi) {
-        const allowedDifference = elapsed < 5000 ? 100 : elapsed < 10_000 ? 200 : 300;
-        const anchorRating = oldest.rating ?? 1500;
-        const opponent = eligible
-          .slice(1)
-          .find(
-            (candidate) => Math.abs((candidate.rating ?? 1500) - anchorRating) <= allowedDifference,
-          );
-        if (!opponent && elapsed < shogiMatchmakingRules.fillAfterMs) break;
-        selected = opponent ? [oldest, opponent] : [oldest];
-        rating = opponent ? { kind: "human" } : selectShogiCpu(anchorRating);
+      let rating: QueueRatingSource | undefined;
+      const policy = this.ratingPolicy;
+      if (policy) {
+        const match = policy.select(eligible, elapsed);
+        if (!match) break;
+        ({ selected, rating } = match);
       } else {
-        if (eligible.length < 4 && elapsed < rules.fillAfterMs) break;
-        selected = eligible.slice(0, 4);
+        const { seats, fillAfterMs } = this.queueRules;
+        if (eligible.length < seats && elapsed < fillAfterMs) break;
+        selected = eligible.slice(0, seats);
       }
       const ids = new Set(selected.map((w) => w.operationId));
       state.waiting = state.waiting.filter((w) => !ids.has(w.operationId));
@@ -447,7 +476,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         roomId,
         instanceId,
         preparedAtMs: now,
-        expiresAtMs: now + rules.connectionGraceMs,
+        expiresAtMs: now + this.queueRules.connectionGraceMs,
         phase: "preparing",
         ...(rating ? { rating } : {}),
         players: selected.map((w) => ({
@@ -530,7 +559,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         roomId: group.roomId,
         instanceId: group.instanceId,
         expiresAtMs: group.expiresAtMs,
-        ...(group.rating ? { opponent: group.rating.kind } : {}),
+        ...(group.rating ? { opponent: ratingOpponentKind(group.rating) } : {}),
         membership: {
           playerId: player.admission.playerId,
           role: group.players[0]?.accountId === accountId ? "host" : "player",
@@ -551,6 +580,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         return current.operationId === operationId && current.controllerId === controllerId
           ? { ok: true as const, state: current }
           : { ok: false as const, message: "別のタブやルームで対局または待機中です。" };
+      if (this.retired)
+        return { ok: false as const, message: "旧ランダムマッチの受付は終了しました。" };
       // 終了済みの同じ操作を遅延再送しても、新しい待機を作りません。
       if (this.ctx.storage.kv.get(`ended:${operationId}`) || !(await this.profile(accountId)))
         return {
@@ -565,41 +596,50 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         controllerId,
         version: 1,
         joinedAtMs: Date.now(),
-        expiresAtMs: Date.now() + rules.leaseMs,
+        expiresAtMs: Date.now() + this.queueRules.leaseMs,
       };
+      const policy = this.ratingPolicy;
       try {
-        const results = await this.env.APP_DB.batch<{ rating_after: number }>([
+        const results = await this.env.APP_DB.batch<{
+          rating_after: number;
+          sigma_after?: number;
+          rated_games: number;
+        }>([
           this.env.APP_DB.prepare(
             "DELETE FROM tournament_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
           ).bind(accountId, Date.now()),
           this.env.APP_DB.prepare(
-            "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
-          ).bind(accountId, Date.now()),
+            "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND match_operation_id IS NULL AND (lease_until_ms<=? OR queue_key=?)",
+          ).bind(
+            accountId,
+            Date.now(),
+            !this.legacy && this.game === "four-reversi" ? rules.key : "",
+          ),
           this.env.APP_DB.prepare(
             `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
-            SELECT ?,?,?,? WHERE ?=0 OR NOT EXISTS (SELECT 1 FROM shogi_rating_pending WHERE account_id=?)`,
+            SELECT ?,?,?,?${policy ? ` WHERE NOT EXISTS (SELECT 1 FROM ${policy.store.pendingTable} WHERE account_id=?)` : ""}`,
           ).bind(
             accountId,
             state.key,
             operationId,
             wait.expiresAtMs,
-            Number(this.isRatedShogi),
-            accountId,
+            ...(policy ? [accountId] : []),
           ),
-          ...(this.isRatedShogi
-            ? [
-                this.env.APP_DB.prepare(
-                  "SELECT rating_after FROM shogi_rating_changes WHERE account_id=? ORDER BY rated_games DESC LIMIT 1",
-                ).bind(accountId),
-              ]
-            : []),
+          ...(policy ? [policy.store.latest(this.env.APP_DB, accountId)] : []),
         ]);
         if (!results[2]?.meta.changes)
           return {
             ok: false as const,
             message: "前局のレート結果を保存中です。少し待ってから再試行してください。",
           };
-        if (this.isRatedShogi) wait.rating = results[3]?.results[0]?.rating_after ?? 1500;
+        if (policy) {
+          const latest = results[3]?.results[0];
+          wait.rating = latest?.rating_after ?? policy.initialRating;
+          if (policy.initialSigma !== undefined) {
+            wait.sigma = latest?.sigma_after ?? policy.initialSigma;
+            wait.ratedGames = latest?.rated_games ?? 0;
+          }
+        }
       } catch {
         return {
           ok: false as const,
@@ -628,7 +668,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       )
         return { ok: false as const, message: "待機の操作元が変わったか、有効期限が切れました。" };
       if (action === "cancel") {
-        if (this.isRatedShogi && (group?.phase === "matched" || group?.phase === "playing"))
+        if (
+          (this.ratingPolicy || this.retired) &&
+          (group?.phase === "matched" || group?.phase === "playing")
+        )
           return {
             ok: true as const,
             state: await this.snapshot(state, accountId, input.controllerId),
@@ -645,7 +688,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
         }
       } else if (!group) {
-        wait.expiresAtMs = Date.now() + rules.leaseMs;
+        wait.expiresAtMs = Date.now() + this.queueRules.leaseMs;
         await this.env.APP_DB.prepare(
           "UPDATE matchmaking_wait_reservations SET lease_until_ms=? WHERE account_id=? AND operation_id=?",
         )

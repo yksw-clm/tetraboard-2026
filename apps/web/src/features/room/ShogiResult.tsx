@@ -5,6 +5,7 @@ import {
 } from "@tetraboard/protocol";
 import { impassePoints } from "@tetraboard/shogi";
 import { PlayerAvatar } from "./PlayerAvatar";
+import { RatingResultLabel } from "../matchmaking/RatingResultLabel";
 const reasons = {
   resigned: "投了",
   left: "退室",
@@ -19,20 +20,6 @@ const reasons = {
   declaration: "入玉宣言",
   move_limit: "500手の上限",
 };
-const ratingChangeFormat = new Intl.NumberFormat("ja", { signDisplay: "exceptZero" });
-
-type AppliedRating = Extract<ShogiRatingResult, { status: "rated" | "placement" }>;
-
-function ratingLabel(rating: AppliedRating | AppliedRating["opponent"]) {
-  if (!rating) return;
-  if (rating.status === "placement")
-    return "games" in rating ? `認定戦 ${rating.games} / ${shogiPlacementGames}局` : "認定中";
-  const current = Math.round(rating.rating);
-  if (rating.status === "cpu") return String(current);
-  const change = current - Math.round(rating.previousRating);
-  return `${current} (${ratingChangeFormat.format(change)})`;
-}
-
 export function ShogiResult({
   lastRound,
   selfId,
@@ -55,7 +42,7 @@ export function ShogiResult({
           (a, b) => Number(b.side === game.result.winner) - Number(a.side === game.result.winner),
         )
         .map((p) => {
-          const rating = ratingLabel(p.id === selfId ? rated : rated?.opponent);
+          const rating = p.id === selfId ? rated : rated?.opponent;
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-lg bg-surface-muted p-3">
               <PlayerAvatar
@@ -64,11 +51,7 @@ export function ShogiResult({
               />
               <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span className="min-w-0 font-bold [overflow-wrap:anywhere]">{p.name}</span>
-                {rating && (
-                  <span className="text-sm whitespace-nowrap text-muted tabular-nums">
-                    {rating}
-                  </span>
-                )}
+                <RatingResultLabel rating={rating} placementGames={shogiPlacementGames} />
               </div>
               <span className="shrink-0">
                 {game.result.winner === null

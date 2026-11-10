@@ -3,7 +3,7 @@ import { runInDurableObject, evictDurableObject } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import {
   fourReversiRoomSchema,
-  matchmakingRules as rules,
+  fourReversiRatedMatchmakingRules as rules,
   matchmakingStateSchema,
 } from "@tetraboard/protocol";
 import { applyAction, createInitialState, eliminateColor } from "@tetraboard/four-reversi";
@@ -22,7 +22,7 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
   const coordinator = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
   let socket: WebSocket | undefined, roomId: string | undefined, token: string | undefined;
   try {
-    const joined = await request("/matchmaking/four-reversi/join", {
+    const joined = await request("/matchmaking/four-reversi/join?rated=1", {
       method: "POST",
       headers: account.headers,
       body: JSON.stringify({ operationId, controllerId }),
@@ -31,16 +31,16 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
     let state = matchmakingStateSchema.parse(await joined.json());
     expect(state.status).toBe("waiting");
     const joinedAt = now;
-    now += 20000;
-    const heartbeat = await request("/matchmaking/four-reversi/heartbeat", {
+    now += 10_000;
+    const heartbeat = await request("/matchmaking/four-reversi/heartbeat?rated=1", {
       method: "POST",
       headers: account.headers,
       body: JSON.stringify({ operationId, controllerId, version: 1 }),
     });
     expect(heartbeat.status).toBe(200);
-    now = joinedAt + 29999;
+    now = joinedAt + 19_999;
     expect((await coordinator.status(account.id, controllerId)).status).toBe("waiting");
-    now = joinedAt + 30000;
+    now = joinedAt + rules.fillAfterMs;
     await runInDurableObject(coordinator, (instance) => instance.alarm());
     state = await coordinator.status(account.id, controllerId);
     expect(state.status).toBe("matched");
@@ -135,6 +135,19 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
       expect(p.cpuProfile.level).toBe(3);
       expect(p.cpuProfile.engineVersion).toBe("0.2.0");
     }
+    const summary = await request("/matchmaking/four-reversi/rating", { headers: account.headers });
+    expect(await summary.json()).toEqual({ status: "placement", games: 1 });
+    const result = await request(
+      `/matchmaking/four-reversi/results/${replay.id}?includeOpponent=1`,
+      { headers: account.headers },
+    );
+    expect(await result.json()).toEqual({
+      status: "placement",
+      games: 1,
+      players: Object.fromEntries(
+        cpus.map((cpu: { id: string }) => [cpu.id, { status: "cpu", rating: 1500 }]),
+      ),
+    });
     expect(room.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
   } finally {
     vi.restoreAllMocks();

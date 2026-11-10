@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { colors } from "@tetraboard/four-reversi";
-import { fourReversiRankDivisions, fourReversiRankTiers } from "@tetraboard/protocol";
+import {
+  fourReversiRankDivisions,
+  fourReversiRankTiers,
+  fourReversiRatingResultSchema,
+  type RatingOpponent,
+} from "@tetraboard/protocol";
+import { createRatingStore } from "../matchmaking/ratingStore";
 import {
   fourReversiPlacementGames,
   fourReversiRatingMethod,
@@ -15,6 +21,13 @@ const cpuRating = z.strictObject({
   profileId: z.string().min(1),
   profileHash: z.string().min(1),
 });
+export type FourReversiCpuRating = z.infer<typeof cpuRating>;
+export const fourReversiRatingStore = createRatingStore(
+  "four-reversi",
+  "four_reversi_rating_pending",
+  "four_reversi_rating_changes",
+  "mu_after AS rating_after, sigma_after",
+);
 export const fourReversiRatedMatchSchema = z.strictObject({
   method: z.literal(fourReversiRatingMethod),
   calibrationVersion: z.string().min(1),
@@ -54,6 +67,86 @@ export async function readFourReversiRatingSummary(db: D1Database, accountId: st
     ...fourReversiPublicRating(row.mu),
     humanPlayed: row.human_games > 0,
   };
+}
+
+export async function readFourReversiRatingResult(
+  db: D1Database,
+  accountId: string,
+  matchId: string,
+  includeOpponents: boolean,
+) {
+  const { results } = await db
+    .prepare(`
+    SELECT json_extract(p.value, '$.id') AS player_id,
+      json_extract(p.value, '$.accountId') = ?1 AS own,
+      json_extract(m.record_json, '$.fourReversiRating.usedFallback') AS fallback,
+      json_extract(m.record_json, '$.fourReversiRating.cpu.' || json_extract(p.value, '$.color') || '.mu') AS cpu_mu,
+      r.mu_before, r.mu_after, r.rated_games, r.human_games,
+      EXISTS(SELECT 1 FROM four_reversi_rating_pending WHERE account_id=?1 AND match_id=?2) AS pending
+    FROM account_match_history h JOIN matches m ON m.id=h.match_id
+    JOIN json_each(m.record_json, '$.participants') p
+    LEFT JOIN four_reversi_rating_changes r
+      ON r.match_id=m.id AND r.account_id=json_extract(p.value, '$.accountId')
+    WHERE h.account_id=?1 AND m.id=?2 AND m.game='four-reversi'
+      AND json_extract(m.record_json, '$.fourReversiRating.method') IS NOT NULL
+    UNION ALL
+    SELECT NULL, 0, 0, NULL, NULL, NULL, NULL, NULL, 1
+    FROM four_reversi_rating_pending WHERE account_id=?1 AND match_id=?2
+  `)
+    .bind(accountId, matchId)
+    .all<{
+      player_id: string | null;
+      own: number | null;
+      fallback: number | null;
+      cpu_mu: number | null;
+      mu_before: number | null;
+      mu_after: number | null;
+      rated_games: number | null;
+      human_games: number | null;
+      pending: number;
+    }>();
+  if (results.some((row) => row.pending))
+    return fourReversiRatingResultSchema.parse({ status: "pending" });
+  const own = results.find((row) => row.own);
+  if (!own) return null;
+  if (own.mu_after === null || own.mu_before === null || own.rated_games === null)
+    return fourReversiRatingResultSchema.parse({
+      status: "excluded",
+      reason: own.fallback ? "ai_fallback" : "unavailable",
+    });
+  const players: Record<string, RatingOpponent> = {};
+  if (includeOpponents)
+    for (const row of results) {
+      if (!row.player_id || row.own) continue;
+      if (row.cpu_mu !== null)
+        players[row.player_id] = {
+          status: "cpu",
+          rating: fourReversiPublicRating(row.cpu_mu).rating,
+        };
+      else if (row.rated_games !== null && row.mu_after !== null && row.mu_before !== null)
+        players[row.player_id] =
+          row.rated_games < fourReversiPlacementGames
+            ? { status: "placement" }
+            : {
+                status: "rated",
+                rating: fourReversiPublicRating(row.mu_after).rating,
+                previousRating: fourReversiPublicRating(row.mu_before).rating,
+              };
+    }
+  if (own.rated_games < fourReversiPlacementGames)
+    return fourReversiRatingResultSchema.parse({
+      status: "placement",
+      games: own.rated_games,
+      players,
+    });
+  return fourReversiRatingResultSchema.parse({
+    status: "rated",
+    rating: fourReversiPublicRating(own.mu_after).rating,
+    previousRating: fourReversiPublicRating(own.mu_before).rating,
+    humanPlayed: (own.human_games ?? 0) > 0,
+    placementCompleted: own.rated_games === fourReversiPlacementGames,
+    players,
+  });
 }
 
 /** 保存済みの対局と更新前の全参加者の状態を使って、レートをまとめて確定します。 */

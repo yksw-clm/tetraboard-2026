@@ -91,9 +91,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/games/four-reversi/matchmaking",
-        lazy: async () => ({
-          Component: (await import("../features/matchmaking/MatchmakingPage")).MatchmakingPage,
-        }),
+        loader: () => replace(matchmakingPath("four-reversi")),
         hydrateFallbackElement: <AppPageLoading message="マッチングを読み込んでいます…" />,
       },
       {

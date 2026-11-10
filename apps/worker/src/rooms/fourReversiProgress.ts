@@ -1,3 +1,5 @@
+import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
+import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelection";
 import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
 import {
   fourReversiStateSchema,
@@ -99,6 +101,7 @@ export class FourReversiProgress {
   start(
     room: WaitingFor<"four-reversi">,
     tournament?: TournamentRoomContext,
+    rating?: FourReversiRatingSource,
   ): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(fourReversiCpuJobKey);
     this.storage.kv.delete(fourReversiAiJobKey);
@@ -139,6 +142,19 @@ export class FourReversiProgress {
       instanceId: startedRoom.instanceId,
       startedAtMs,
       settings: startedRoom.settings,
+      ...(rating
+        ? {
+            fourReversiRating: {
+              method: fourReversiRatingMethod,
+              calibrationVersion: rating.calibrationVersion,
+              cpu: Object.fromEntries(
+                startedRoom.players.flatMap((player) =>
+                  player.kind === "cpu" && rating.cpu ? [[player.color, rating.cpu]] : [],
+                ),
+              ),
+            },
+          }
+        : {}),
       participants: startedRoom.players.map((player, seat) => ({
         id: player.id,
         name: playerLabel(player),

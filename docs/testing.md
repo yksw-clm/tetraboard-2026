@@ -38,11 +38,13 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 ## ランダムマッチの確認
 
-採用仕様と公開条件は[ランダムマッチング](matchmaking.md)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
+採用仕様と公開条件は[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
 
-`packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存まで確認します。このテストはAI workspaceから全体check・Full CIに含まれます。
+`packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席のレート戦を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存・認定局数の更新まで確認します。このテストはAI workspaceから全体check・Full CIに含まれます。
 
-`apps/web/test-dom/matchmaking.test.tsx`はWeb Locks非対応の明示参加、取消と遅延heartbeat、別操作元の確認・引継ぎ、ポーリングで延期されない入室、サーバー時刻による待機表示を検証します。`matchmakingRoom.test.tsx`は手動開始・設定の非表示、同期した開始予告、旧席解放後の再マッチングとロビーへの移動を確認します。CPUの名前・ロボット・CPUタグ・実際のレベルはプレイヤー情報のDOMテストで確認します。画面寸法・ネイティブ入力は従来どおり手動確認です。
+四人リバーシのレート戦は、10秒での範囲拡大、20秒での不足席の補充、認定状況によるCPU選択、成立後の取消と入室、旧列の成立済み対局とレート戦の保存の違いを確認します。`apps/web/test-dom/matchmaking.test.tsx`は共通ダイアログの取消・自動入室に加え、四人リバーシのランク表示、再参加と旧割当の復旧を確認します。`matchmakingRoom.test.tsx`はルーム内の開始予告と旧席解放後の再参加を確認します。
+
+将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
 
 部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番の公開フラグは無効です。開発ServiceのWrangler dry-runはFull CIに含め、クラウド接続と実機確認は開発への反映後に別途確認します。
 

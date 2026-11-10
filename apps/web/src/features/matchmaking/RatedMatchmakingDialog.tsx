@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBlocker, useLocation, useNavigate } from "react-router";
+import type { RatedMatchmakingGame } from "@tetraboard/protocol";
+import { gameCatalog } from "@tetraboard/protocol/games";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
+import { gameThemes } from "../../shared/ui/appTheme";
 import { useAccount } from "../account/useAccount";
-import { ShogiRatingSummary } from "./ShogiRatingSummary";
+import { RatingSummary } from "./RatingSummary";
 import { useMatchmaking } from "./useMatchmaking";
 
-export function ShogiMatchmakingDialog() {
+export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame }) {
   const account = useAccount();
-  const matching = useMatchmaking("shogi");
+  const matching = useMatchmaking(game);
+  const theme = gameThemes[game];
+  const title = `${gameCatalog[game].name}のレート戦`;
   const location = useLocation();
   const navigate = useNavigate();
   const { cancel, data, enter, identity, join, owned, pending, refresh, takeover } = matching;
@@ -32,7 +37,10 @@ export function ShogiMatchmakingDialog() {
       blocker.proceed();
       return;
     }
-    if (location.state?.shogiMatchmakingFromLobby === true) {
+    if (
+      location.state?.matchmakingFromLobby === true ||
+      location.state?.shogiMatchmakingFromLobby === true
+    ) {
       void navigate(-1);
       return;
     }
@@ -90,11 +98,11 @@ export function ShogiMatchmakingDialog() {
   }
 
   return (
-    <AppDialog title="将棋のレート戦" theme="shogi" busy={entering} onClose={requestClose}>
+    <AppDialog title={title} theme={theme} busy={entering} onClose={requestClose}>
       <div className="flex flex-col gap-4">
-        {identity && <ShogiRatingSummary key={identity} />}
+        {identity && <RatingSummary key={`${game}:${identity}`} game={game} />}
         {data.status === "idle" && !pending && data.enabled === false && (
-          <p role="status">将棋のレート戦は準備中です。</p>
+          <p role="status">{title}は準備中です。</p>
         )}
         {searching && <p role="status">対戦相手を探しています…</p>}
         {assigned && owned && (
@@ -147,7 +155,7 @@ export function ShogiMatchmakingDialog() {
         <AppDialog
           title="対戦相手を探すのをやめますか？"
           size="compact"
-          theme="shogi"
+          theme={theme}
           busy={cancelRequested && pending}
           onClose={continueSearch}
         >

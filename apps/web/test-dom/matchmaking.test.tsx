@@ -1,48 +1,18 @@
 import { expect, test } from "bun:test";
-import {
-  Routes,
-  Route,
-  createMemoryRouter,
-  matchRoutes,
-  RouterProvider,
-  useLocation,
-} from "react-router";
-import { MatchmakingPage } from "../src/features/matchmaking/MatchmakingPage";
-import { ShogiMatchmakingDialog } from "../src/features/matchmaking/ShogiMatchmakingDialog";
+import { createMemoryRouter, matchRoutes, RouterProvider, useLocation } from "react-router";
+import { RatedMatchmakingDialog } from "../src/features/matchmaking/RatedMatchmakingDialog";
 import { AccountContext } from "../src/features/account/useAccount";
 import {
   QueueControllerContext,
   QueueDocumentController,
 } from "../src/shared/QueueDocumentController";
 import { profile } from "../test/fixtures/account";
-import { act, clock, flush, press, render, requests, wrap, denyStorage } from "./harness";
+import { act, clock, flush, press, render, requests, denyStorage } from "./harness";
 const identity = "00000000-0000-4000-8000-000000000001";
 const user = { ...profile, profileId: identity };
 function Path() {
   const location = useLocation();
   return <p data-path>{location.pathname}</p>;
-}
-function page() {
-  const path = "/games/four-reversi/matchmaking";
-  const controller = new QueueDocumentController({
-    isReload: () => false,
-    locks: () => undefined,
-    channel: () => null,
-  });
-  const view = render(
-    <QueueControllerContext value={controller}>
-      {wrap(
-        user,
-        path,
-      )(
-        <Routes>
-          <Route path={path} element={<MatchmakingPage />} />
-          <Route path="*" element={<Path />} />
-        </Routes>,
-      )}
-    </QueueControllerContext>,
-  );
-  return { view, controller };
 }
 const latest = (path: string) => requests.filter((r) => r.url.includes(path)).at(-1)!;
 const shogiLobby = "/games/shogi";
@@ -54,7 +24,8 @@ const shogiCancelUrl = "/api/matchmaking/shogi/cancel";
 const shogiIdle = () => ({ status: "idle", enabled: true, serverNowMs: Date.now() });
 const dialogs = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
 const activeDialog = () => dialogs().at(-1)!;
-function shogiPage(viewer = user, rejoin = false) {
+function shogiPage(viewer = user, rejoin = false, game: "shogi" | "four-reversi" = "shogi") {
+  const lobby = `/games/${game}`;
   const controller = new QueueDocumentController({
     isReload: () => false,
     locks: () => undefined,
@@ -62,18 +33,18 @@ function shogiPage(viewer = user, rejoin = false) {
   });
   function Lobby() {
     const { search } = useLocation();
-    return search === "?matchmaking=1" ? <ShogiMatchmakingDialog /> : null;
+    return search === "?matchmaking=1" ? <RatedMatchmakingDialog game={game} /> : null;
   }
   const router = createMemoryRouter(
     [
-      { path: shogiLobby, element: <Lobby /> },
+      { path: lobby, element: <Lobby /> },
       { path: "*", element: <Path /> },
     ],
     {
       initialEntries: [
-        shogiLobby,
+        lobby,
         {
-          pathname: shogiLobby,
+          pathname: lobby,
           search: "?matchmaking=1",
           state: rejoin ? { matchmakingRejoin: true } : null,
         },
@@ -174,26 +145,32 @@ test("ゲストには将棋のレート戦のログイン案内を表示する",
   expect(latest(shogiRatingUrl)).toBeUndefined();
 });
 
-test("旧将棋マッチングURLからロビーのダイアログURLへリダイレクトする", async () => {
-  const { router: appRouter } = await import("../src/app/router");
-  const oldPath = "/games/shogi/matchmaking";
-  const legacy = matchRoutes(appRouter.routes, oldPath)?.at(-1)?.route;
-  expect(legacy?.path).toBe(oldPath);
-  const router = createMemoryRouter(
-    [
-      {
-        path: oldPath,
-        loader: legacy!.loader,
-        hydrateFallbackElement: legacy!.hydrateFallbackElement,
-      },
-      { path: shogiLobby, element: <Path /> },
-    ],
-    { initialEntries: [oldPath] },
-  );
-  render(<RouterProvider router={router} />);
-  await flush();
-  expect(router.state.location.pathname + router.state.location.search).toBe(shogiDialogUrl);
-});
+test.each(["shogi", "four-reversi"])(
+  "旧マッチングURLからロビーのダイアログURLへリダイレクトする %s",
+  async (game) => {
+    const { router: appRouter } = await import("../src/app/router");
+    const lobby = `/games/${game}`;
+    const oldPath = `${lobby}/matchmaking`;
+    const legacy = matchRoutes(appRouter.routes, oldPath)?.at(-1)?.route;
+    expect(legacy?.path).toBe(oldPath);
+    const router = createMemoryRouter(
+      [
+        {
+          path: oldPath,
+          loader: legacy!.loader,
+          hydrateFallbackElement: legacy!.hydrateFallbackElement,
+        },
+        { path: lobby, element: <Path /> },
+      ],
+      { initialEntries: [oldPath] },
+    );
+    render(<RouterProvider router={router} />);
+    await flush();
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      `${lobby}?matchmaking=1`,
+    );
+  },
+);
 
 test.each(["戻る", "閉じる", "Escape", "背景クリック", "履歴を戻る"] as const)(
   "%sで取消確認を表示し、探し続けると待機を継続する",
@@ -304,173 +281,90 @@ test("終局後の再参加はダイアログから検索を一度だけ始め�
   expect(activeDialog().textContent).toContain("対戦相手を探しています");
   expect(requests.filter((request) => request.url === shogiJoinUrl)).toHaveLength(1);
 });
-test("Web Locksがなくても明示参加でき、再読み込み用の待機とCPU補充の案内を保持する", async () => {
-  const { view, controller } = page();
-  latest("/api/matchmaking/four-reversi?").respond({
-    status: "idle",
-    serverNowMs: Date.now(),
-    enabled: true,
+const fourStatus = "/api/matchmaking/four-reversi?";
+
+test("四人リバーシでランクを表示し、再参加から検索してCPU戦へすぐ入室する", async () => {
+  const router = shogiPage(user, true, "four-reversi");
+  expect(latest(fourStatus).url).toContain("rated=1");
+  latest(fourStatus).respond(shogiIdle());
+  latest("/api/matchmaking/four-reversi/rating").respond({
+    status: "rated",
+    rating: 1512,
+    rank: "シルバー2",
+    humanPlayed: false,
   });
   await flush();
-  expect(view.textContent).toContain("3分切れ負け");
-  expect(view.textContent).toContain("CPU「ヨミ」（Lv3）");
-  press(view, "対戦相手を探す");
-  await flush();
-  const join = latest("/join");
-  expect(join).toBeDefined();
-  const body = JSON.parse(String(join.init.body));
-  expect(body.controllerId).toBe(controller.getIdentity());
-  join.respond({
-    status: "waiting",
-    operationId: body.operationId,
-    controllerId: body.controllerId,
-    version: 1,
-    joinedAtMs: Date.now(),
-    expiresAtMs: Date.now() + 30000,
-    serverNowMs: Date.now(),
-    enabled: true,
-  });
-  await flush();
-  expect(view.textContent).toContain("対戦相手を探しています");
-  expect(view.textContent).not.toContain("ニックネーム");
-  press(view, "取り消す");
-  await flush();
-  const cancel = latest("/cancel");
-  expect(JSON.parse(String(cancel.init.body))).toMatchObject({
-    operationId: body.operationId,
-    version: 1,
-  });
-  cancel.respond({ status: "idle", serverNowMs: Date.now(), enabled: true });
-  await flush();
-  expect(view.textContent).toContain("対戦相手を探す");
-});
-test("成立後の5秒で参加資格を保存して入室し、ポーリングで待ち時間を数え直さない", async () => {
-  const { view, controller } = page();
-  const operationId = crypto.randomUUID(),
-    roomId = "12345",
-    instanceId = crypto.randomUUID();
-  const state = {
+  expect(activeDialog().textContent).toContain("四人リバーシのレート戦");
+  expect(activeDialog().textContent).toContain("1512");
+  expect(activeDialog().textContent).toContain("シルバー2（対人戦未経験）");
+  const join = latest("/api/matchmaking/four-reversi/join?rated=1");
+  const matched = {
+    ...shogiIdle(),
+    ...JSON.parse(String(join.init.body)),
     status: "matched",
-    operationId,
-    controllerId: controller.getIdentity(),
     version: 1,
-    joinedAtMs: Date.now() - 1000,
-    expiresAtMs: Date.now() + 30000,
-    serverNowMs: Date.now(),
-    enabled: true,
-    assignment: {
-      matchId: crypto.randomUUID(),
-      roomId,
-      instanceId,
-      expiresAtMs: Date.now() + 30000,
-      membership: { playerId: crypto.randomUUID(), role: "host", token: "a".repeat(64) },
-    },
+    assignment: assignment("cpu"),
   };
-  latest("/api/matchmaking/four-reversi?").respond(state);
+  join.respond(matched);
   await flush();
-  expect(view.textContent).toContain("対戦相手が決まりました");
-  clock.advance(3000);
-  latest("/api/matchmaking/four-reversi?").respond({ ...state, serverNowMs: Date.now() });
+  latest(fourStatus).respond(matched);
   await flush();
-  clock.advance(1999);
-  await flush();
-  expect(view.querySelector("[data-path]")).toBeNull();
-  clock.advance(1);
-  await flush();
-  latest("/api/matchmaking/four-reversi?").respond(state);
-  await flush();
-  expect(view.querySelector("[data-path]")?.textContent).toBe(`/rooms/${roomId}`);
-  expect(sessionStorage.getItem(`tetraboard:room:${roomId}:membership`)).toBe("a".repeat(64));
-});
-test("別の操作元の待機を勝手に引き継がず、ボタンから同じ待機を引き継ぐ", async () => {
-  const { view } = page();
-  const operationId = crypto.randomUUID();
-  latest("/api/matchmaking/four-reversi?").respond({
-    status: "waiting",
-    operationId,
-    controllerId: crypto.randomUUID(),
-    version: 2,
-    joinedAtMs: Date.now(),
-    expiresAtMs: Date.now() + 30000,
-    serverNowMs: Date.now(),
-    enabled: true,
-  });
-  await flush();
-  expect(view.textContent).toContain("別のタブまたは端末");
-  expect(view.textContent).not.toContain("マッチングを取り消す");
-  expect(requests.some((r) => r.url.endsWith("/takeover"))).toBe(false);
-  press(view, "このタブで続ける");
-  await flush();
-  const transfer = latest("/takeover");
-  expect(transfer).toBeDefined();
-  expect(JSON.parse(String(transfer.init.body)).operationId).toBe(operationId);
+  expect(router.state.location.pathname).toBe("/rooms/12345");
+  expect(JSON.parse(sessionStorage.getItem("tetraboard:matchmaking-room:12345")!).game).toBe(
+    "four-reversi",
+  );
 });
 
-test("継続確認の応答待ちでも取消を送れ、遅れた応答で待機を復活させない", async () => {
-  const { view, controller } = page();
-  const operationId = crypto.randomUUID();
-  const waiting = {
-    status: "waiting",
-    operationId,
-    controllerId: controller.getIdentity(),
-    version: 1,
-    joinedAtMs: Date.now(),
-    expiresAtMs: Date.now() + 30000,
-    serverNowMs: Date.now(),
-    enabled: true,
-  };
-  latest("/api/matchmaking/four-reversi?").respond(waiting);
-  await flush();
-  clock.advance(10000);
-  await flush();
-  const heartbeat = latest("/heartbeat");
-  expect(heartbeat).toBeDefined();
-  press(view, "取り消す");
-  await flush();
-  const cancel = latest("/cancel");
-  expect(cancel).toBeDefined();
-  cancel.respond({ status: "idle", serverNowMs: Date.now(), enabled: true });
-  await flush();
-  heartbeat.respond({ ...waiting, expiresAtMs: Date.now() + 30000 });
-  await flush();
-  expect(view.textContent).toContain("対戦相手を探す");
-  expect(view.textContent).not.toContain("対戦相手を探しています");
-});
+test.each([false, true])(
+  "切り替え前に成立した四人リバーシは旧列から入室できる guest=%s",
+  async (isGuest) => {
+    const operationId = crypto.randomUUID();
+    sessionStorage.setItem(
+      `tetraboard:matchmaking:${identity}`,
+      JSON.stringify({
+        operationId,
+        controllerId: crypto.randomUUID(),
+        version: 1,
+      }),
+    );
+    const router = shogiPage({ ...user, isGuest }, false, "four-reversi");
+    const controllerId = new URL(latest(fourStatus).url, "https://example.test").searchParams.get(
+      "controllerId",
+    );
+    latest(fourStatus).respond(shogiIdle());
+    await flush();
+    expect(latest(fourStatus).url).not.toContain("rated=1");
+    const matched = {
+      ...shogiIdle(),
+      enabled: false,
+      status: "matched",
+      operationId,
+      controllerId,
+      version: 1,
+      assignment: assignment("human"),
+    };
+    latest(fourStatus).respond(matched);
+    await flush();
+    latest(fourStatus).respond(matched);
+    await flush();
+    expect(router.state.location.pathname).toBe("/rooms/12345");
+    expect(
+      JSON.parse(sessionStorage.getItem("tetraboard:matchmaking-room:12345")!).game,
+    ).toBeUndefined();
+  },
+);
 
-test("待機時間は端末の時計のずれに影響されずサーバー時刻から表示する", async () => {
-  const { view, controller } = page();
-  const serverNow = Date.now() + 60000;
-  latest("/api/matchmaking/four-reversi?").respond({
-    status: "waiting",
-    operationId: crypto.randomUUID(),
-    controllerId: controller.getIdentity(),
-    version: 1,
-    joinedAtMs: serverNow - 10000,
-    expiresAtMs: serverNow + 20000,
-    serverNowMs: serverNow,
-    enabled: true,
-  });
-  await flush();
-  expect(view.textContent).toContain("待機時間：10秒");
-  clock.advance(1000);
-  await flush();
-  expect(view.textContent).toContain("待機時間：11秒");
-});
-
-test("保存できない端末では新しい待機を送信せず、入力を保持して案内する", async () => {
-  const { view } = page();
-  latest("/api/matchmaking/four-reversi?").respond({
-    status: "idle",
-    serverNowMs: Date.now(),
-    enabled: true,
-  });
+test("保存できない端末では四人リバーシの待機を送信しない", async () => {
+  shogiPage(user, false, "four-reversi");
+  latest(fourStatus).respond(shogiIdle());
+  latest("/api/matchmaking/four-reversi/rating").respond({ status: "placement", games: 0 });
   await flush();
   const denied = denyStorage();
   try {
-    press(view, "対戦相手を探す");
+    press(activeDialog(), "対戦相手を探す");
     await flush();
-    expect(requests.some((r) => r.url.endsWith("/join"))).toBe(false);
-    expect(view.textContent).toContain("保存");
+    expect(latest("/join")).toBeUndefined();
+    expect(activeDialog().textContent).toContain("保存");
   } finally {
     denied.mockRestore();
   }

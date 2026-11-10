@@ -1,58 +1,64 @@
 import { getRoomContract } from "@tetraboard/protocol";
-import { useNavigate, useNavigation } from "react-router";
+import { useNavigate, useNavigation, useSearchParams } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
 import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
 
+import { RatedMatchmakingDialog } from "../matchmaking/RatedMatchmakingDialog";
+
 export function FourReversiLobbyPage() {
   const navigate = useNavigate();
   const navigation = useNavigation();
+  const [search] = useSearchParams();
   const lobby = useLobby();
   const entry = useRoomEntry();
 
   return (
-    <LobbyView
-      game="four-reversi"
-      registrationDraft={entry.registrationDraft}
-      name={entry.name}
-      roomCode={entry.roomCode}
-      mode={entry.mode}
-      cpuLevel={entry.cpuLevel}
-      onCpuLevelChange={entry.setCpuLevel}
-      timeControl={entry.timeControl}
-      isSubmitting={entry.isSubmitting}
-      message={entry.message}
-      renderRooms={(onJoin) => (
-        <LobbyList
-          {...lobby}
-          rooms={lobby.rooms}
-          error={lobby.error}
-          loading={lobby.loading}
-          isInitialLoading={lobby.isInitialLoading}
-          pendingSource={lobby.pendingSource}
-          pendingWatchRoomId={
-            navigation.state === "loading"
-              ? navigation.location?.pathname.match(/^\/rooms\/(\d{5})$/)?.[1]
-              : undefined
-          }
-          onRefresh={() => void lobby.refresh("refresh")}
-          onJoin={onJoin}
-          onWatch={(roomId, instanceId) =>
-            void navigate(`${getRoomContract.pathFor(roomId)}?invite=${instanceId}&watch=1`)
-          }
-        />
-      )}
-      rankings={<LobbyRankings />}
-      onNameChange={entry.setName}
-      onRoomCodeChange={entry.setRoomCode}
-      onModeChange={entry.setMode}
-      onTimeControlChange={entry.setTimeControl}
-      onClearMessage={entry.clearMessage}
-      onSubmitRoom={(intent, roomId, instanceId, avatarPresetId) =>
-        void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
-      }
-    />
+    <>
+      <LobbyView
+        game="four-reversi"
+        registrationDraft={entry.registrationDraft}
+        name={entry.name}
+        roomCode={entry.roomCode}
+        mode={entry.mode}
+        cpuLevel={entry.cpuLevel}
+        onCpuLevelChange={entry.setCpuLevel}
+        timeControl={entry.timeControl}
+        isSubmitting={entry.isSubmitting}
+        message={entry.message}
+        renderRooms={(onJoin) => (
+          <LobbyList
+            {...lobby}
+            rooms={lobby.rooms}
+            error={lobby.error}
+            loading={lobby.loading}
+            isInitialLoading={lobby.isInitialLoading}
+            pendingSource={lobby.pendingSource}
+            pendingWatchRoomId={
+              navigation.state === "loading"
+                ? navigation.location?.pathname.match(/^\/rooms\/(\d{5})$/)?.[1]
+                : undefined
+            }
+            onRefresh={() => void lobby.refresh("refresh")}
+            onJoin={onJoin}
+            onWatch={(roomId, instanceId) =>
+              void navigate(`${getRoomContract.pathFor(roomId)}?invite=${instanceId}&watch=1`)
+            }
+          />
+        )}
+        rankings={<LobbyRankings />}
+        onNameChange={entry.setName}
+        onRoomCodeChange={entry.setRoomCode}
+        onModeChange={entry.setMode}
+        onTimeControlChange={entry.setTimeControl}
+        onClearMessage={entry.clearMessage}
+        onSubmitRoom={(intent, roomId, instanceId, avatarPresetId) =>
+          void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
+        }
+      />
+      {search.get("matchmaking") === "1" && <RatedMatchmakingDialog game="four-reversi" />}
+    </>
   );
 }

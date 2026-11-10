@@ -65,9 +65,14 @@ export function RoomView({
       invited={invited}
       board={board}
       replayCard={replayCard}
-      result={
+      result={(rating) =>
         room.lastRound && (
-          <GameResultView lastRound={room.lastRound} currentPlayers={room.players} />
+          <GameResultView
+            lastRound={room.lastRound}
+            currentPlayers={room.players}
+            rating={rating && "players" in rating ? rating : undefined}
+            ownPlayerId={membership?.playerId}
+          />
         )
       }
       selfEliminated={

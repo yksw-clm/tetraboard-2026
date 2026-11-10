@@ -1,6 +1,10 @@
 import { tournamentMatchStatements } from "../tournaments/store";
 import { readFourReversiMatchRecord, readStoredMatch } from "../accounts/matchDataContracts";
-import { applyFourReversiRating, type FourReversiRatedMatch } from "./fourReversiRating";
+import {
+  applyFourReversiRating,
+  fourReversiRatingStore,
+  type FourReversiRatedMatch,
+} from "./fourReversiRating";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
@@ -107,6 +111,7 @@ export async function writeMatch(
       .first<{ record_json: string }>();
     if (!saved) throw Error("四人リバーシの対局が保存されていません");
     await applyFourReversiRating(db, readFourReversiMatchRecord(saved.record_json));
+    await fourReversiRatingStore.clearPending(db, record.id).run();
   }
   if (
     tournament &&

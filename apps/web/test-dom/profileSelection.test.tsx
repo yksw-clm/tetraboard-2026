@@ -260,7 +260,11 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   await flush();
   expect(historyCard!.textContent).toContain("四人将棋");
   expect(historyCard!.textContent).toContain("ダブルス");
-  const count = requests.length;
+  const historyRequests = () =>
+    requests.filter(
+      ({ url }) => url.startsWith("/api/account/stats") || url.startsWith("/api/account/matches"),
+    );
+  const count = historyRequests().length;
   await chooseGame(view, "四人リバーシ");
   clock.advance(0);
   expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
@@ -269,7 +273,7 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   expect(historyCard!.textContent).toContain("四人リバーシ");
   expect(historyCard!.textContent).toContain("シングルス");
   expect(view.textContent).toContain("もっと見る");
-  expect(requests).toHaveLength(count);
+  expect(historyRequests()).toHaveLength(count);
   await chooseGame(view, "四人将棋");
   clock.advance(0);
   expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(
@@ -277,12 +281,12 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   );
   expect(historyCard!.textContent).toContain("四人将棋");
   expect(historyCard!.textContent).toContain("ダブルス");
-  expect(requests).toHaveLength(count);
+  expect(historyRequests()).toHaveLength(count);
   chooseMode(view, "シングルス");
   clock.advance(0);
   expect(view.textContent).toContain("撃破数");
   expect(historyCard!.textContent).toContain("まだ対局履歴がありません。");
-  expect(requests).toHaveLength(count);
+  expect(historyRequests()).toHaveLength(count);
   await flush();
 });
 
