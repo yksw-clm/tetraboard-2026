@@ -18,6 +18,7 @@ const base = workerTestConfig({
   MATCHMAKING_ENABLED: "true",
   FOUR_SHOGI_MATCHMAKING_ENABLED: "true",
   FOUR_SHOGI_DIAGNOSTICS: "true",
+  FOUR_PLAYER_AI_WARMUP_ENABLED: process.env.TETRABOARD_AI_TEST_WARMUP === "1" ? "true" : "false",
   AI_SERVICE_TOKEN: token,
   AI_SERVICE_TIMEOUT_MS: cloud ? "5000" : "2000",
 });

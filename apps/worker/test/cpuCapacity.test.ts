@@ -3,11 +3,22 @@ import { runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(async () => {
-  for (const game of ["shogi", "four-reversi"])
+  for (const game of ["shogi", "four-reversi", "four-shogi"])
     await runInDurableObject(env.CPU_CAPACITY.getByName(game), (_, ctx) => ctx.storage.deleteAll());
 });
 
 describe("CPU対局枠", () => {
+  it("四人リバーシが満枠でも四人将棋は独立して4局を確保できる", async () => {
+    const reversi = env.CPU_CAPACITY.getByName("four-reversi");
+    const shogi = env.CPU_CAPACITY.getByName("four-shogi");
+    for (const roomId of ["00001", "00002", "00003", "00004"])
+      expect(await reversi.reserve(roomId, 1, 3)).toBe(true);
+    expect(await reversi.reserve("00005", 1, 3)).toBe(false);
+    for (const roomId of ["00005", "00006", "00007", "00008"])
+      expect(await shogi.reserve(roomId, 1, 3)).toBe(true);
+    expect(await shogi.reserve("00009", 1, 3)).toBe(false);
+  });
+
   it("ゲームごとに4局を確保し、同時要求・同じ予約の再送・古い解放を処理する", async () => {
     const shogi = env.CPU_CAPACITY.getByName("shogi");
     const reversi = env.CPU_CAPACITY.getByName("four-reversi");

@@ -79,6 +79,10 @@ export type MatchmakingRoomReservation = MatchmakingRoomInput & {
   phase: "waiting" | "playing" | "closed";
   startsAtMs?: number;
   connectedPlayerIds?: string[];
+  aiWarmup?:
+    | { state: "pending"; attempts: number; nextAtMs: number }
+    | { state: "ready" | "failed" };
+  aiHumansConnected?: boolean;
 };
 const hex = (bytes: ArrayBuffer) =>
   Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -448,6 +452,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         }
         for (const p of group.players)
           p.released = !room.occupiedPlayerIds.includes(p.admission.playerId);
+        continue;
+      }
+      if (room.phase === "closed" && room.aiUnavailable) {
+        // AIの準備失敗では入室状況にかかわらず、参加資格が残る人を待機列へ戻します。
+        await this.rollback(state, group, [], 5000);
         continue;
       }
       if (room.phase === "closed" || Date.now() >= group.expiresAtMs) {

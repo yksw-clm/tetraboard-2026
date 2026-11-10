@@ -37,9 +37,9 @@ CPU接続と較正、待機列とレート保存、画面と開発公開の順�
 
 ## 開発環境の確認手順
 
-四人将棋は専用の待機列とD1のレートテーブルを使い、実行枠は同じAI Containerを使う四人リバーシと共有します。開発環境向けの `FOUR_SHOGI_MATCHMAKING_ENABLED=true` と既存のAI Service接続設定で新規受付が有効になります。着手APIを含むAI ServiceとD1の `0037_four_shogi_rating.sql` を先に反映してから、アプリWorkerを反映します。
+四人将棋は専用の待機列とD1のレートテーブルを使い、専用AIコンテナとCPU予約枠を持ちます。開発環境向けの `FOUR_SHOGI_MATCHMAKING_ENABLED=true` と既存のAI Service接続設定で新規受付が有効になります。着手APIを含むAI ServiceとD1の `0037_four_shogi_rating.sql` を先に反映してから、アプリWorkerを反映します。
 
-1. 登録アカウントで四人将棋ロビーの「レート戦」を開き、一人で待機します。20秒後にCPU3席が入り、接続から5秒のカウントダウンで対局が始まります。認定中のアカウントではCPU名は「CPU（標準）」です。
+1. 登録アカウントで四人将棋ロビーの「レート戦」を開き、一人で待機します。20秒でCPU3席の補充を試みます。全員接続とAI準備完了がそろったら、5秒のカウントダウンで対局が始まります。認定中のアカウントではCPU名は「CPU（標準）」です。
 2. 三人攻撃禁止ON、1人3分切れ負けで合法なCPU着手が進むことを確認します。終局後に結果画面の認定局数またはレートを確認します。本人向けの `GET /api/matchmaking/four-shogi/results/:matchId` と `GET /api/matchmaking/four-shogi/rating` でも確認できます。
 3. 「もう一度マッチング」で次の待機列に入れることを確認します。AI障害を再現した局は、棋譜が保存され、結果が `excluded / ai_fallback` になります。
 
@@ -47,7 +47,7 @@ CPU接続と較正、待機列とレート保存、画面と開発公開の順�
 
 開発環境のCloudflare Workers Logsでは、`four_shogi_queue_accepted` と `four_shogi_assigned` を `diagnosticId` で照合し、以降は `matchId` で `four_shogi_connected` と `four_shogi_started` を追います。接続が切れてカウントダウンをやり直すときは `four_shogi_countdown_reset` を挟みます。CPU枠の待機は `four_shogi_cpu_capacity_wait` に記録されます。
 
-AI障害は `four_shogi_ai_attempt_failed` の `requestId` と `attempt` で開発用AI Workerの `four_shogi_ai_gateway_failed` と照合します。復旧後の着手は `four_shogi_ai_retry_applied`、代替手の使用は `four_shogi_ai_fallback_applied` で確認できます。検証時は共有コンテナが停止した状態から1局、その後に続けて2局を終え、各局の認定進捗とログを照合します。
+AI障害は `four_shogi_ai_attempt_failed` の `requestId` と `attempt` で開発用AI Workerの `four_shogi_ai_gateway_failed` と照合します。復旧後の着手は `four_shogi_ai_retry_applied`、代替手の使用は `four_shogi_ai_fallback_applied` で確認できます。検証時は専用コンテナの停止後に1局開始し、人間が途中で10秒以上考えた後もCPUが着手することを確認します。終局後に認定進捗とログを照合します。準備の開始・完了・失敗は `four_player_ai_warmup_*` を対局IDで検索します。
 
 ## 探索量別の追加比較（2026-11-10）
 

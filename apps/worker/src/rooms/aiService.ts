@@ -151,6 +151,46 @@ export const aiServiceConfigured = (bindings: AiServiceBindings) =>
 export const shogiAiEnabled = (bindings: AiServiceBindings) =>
   bindings.AI_SHOGI_ENABLED === "true" && aiServiceConfigured(bindings);
 
+export type FourPlayerAiGame = "four-shogi" | "four-reversi";
+
+export async function requestFourPlayerAiWarmup(
+  bindings: AiServiceBindings,
+  game: FourPlayerAiGame,
+  deadlineMs: number,
+): Promise<string | null> {
+  const url = configuredUrl(bindings);
+  if (!url) return "configuration";
+  const remaining = deadlineMs - Date.now();
+  if (remaining <= 0) return "timeout";
+  const endpoint = new URL("/admin/warmup", url);
+  endpoint.searchParams.set("game", game);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), remaining);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}` },
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => {});
+      return `http_${response.status}`;
+    }
+    const body = await responseJson(response);
+    if (controller.signal.aborted || Date.now() >= deadlineMs) return "timeout";
+    return z.object({ status: z.literal("ok") }).safeParse(body).success
+      ? null
+      : "invalid_response";
+  } catch (error) {
+    if (controller.signal.aborted || Date.now() >= deadlineMs) return "timeout";
+    return error instanceof ServiceError ? error.reason : "network";
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
+
 export type ShogiAiWork = {
   job: { requestId: string; roundId: string; positionRevision: number; expiresAt: number };
   moves: string[];
