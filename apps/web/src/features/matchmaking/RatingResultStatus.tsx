@@ -1,11 +1,7 @@
 import { AppButton } from "../../shared/ui/AppButton";
-import type { useShogiRatingResult } from "./useShogiRatingResult";
+import type { useRatingResult } from "./useRatingResult";
 
-export function ShogiRatingResult({
-  result,
-  failed,
-  retry,
-}: ReturnType<typeof useShogiRatingResult>) {
+export function RatingResultStatus({ result, failed, retry }: ReturnType<typeof useRatingResult>) {
   if (!failed && result?.status === "placement") return null;
   if (!failed && result?.status === "rated") {
     if (!result.placementCompleted && result.humanPlayed) return null;

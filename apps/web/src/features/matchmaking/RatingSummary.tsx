@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
-import { shogiPlacementGames } from "@tetraboard/protocol";
+import { ratedMatchmakingRules, type RatedMatchmakingGame } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
-import { readShogiRatingSummary } from "./matchmakingApi";
+import { readRatingSummary } from "./matchmakingApi";
 
-export function ShogiRatingSummary({ compact = false }: { compact?: boolean }) {
+export function RatingSummary({
+  game,
+  compact = false,
+}: {
+  game: RatedMatchmakingGame;
+  compact?: boolean;
+}) {
+  const { placementGames } = ratedMatchmakingRules[game];
   const [result, setResult] = useState<
-    Awaited<ReturnType<typeof readShogiRatingSummary>> | "error" | null
+    Awaited<ReturnType<typeof readRatingSummary>> | "error" | null
   >(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    void readShogiRatingSummary(controller.signal).then(
+    void readRatingSummary(game, controller.signal).then(
       (summary) => {
         if (!controller.signal.aborted) setResult(summary);
       },
@@ -20,7 +27,7 @@ export function ShogiRatingSummary({ compact = false }: { compact?: boolean }) {
       },
     );
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, game]);
 
   if (result === null) return <p role="status">レートを読み込んでいます…</p>;
   if (result === "error")
@@ -46,7 +53,7 @@ export function ShogiRatingSummary({ compact = false }: { compact?: boolean }) {
         <strong className="text-xl font-bold tabular-nums">
           {result.status === "rated"
             ? Math.round(result.rating)
-            : `認定中（${result.games} / ${shogiPlacementGames}局）`}
+            : `認定中（${result.games} / ${placementGames}局）`}
         </strong>
       </p>
     );
@@ -58,7 +65,7 @@ export function ShogiRatingSummary({ compact = false }: { compact?: boolean }) {
       </p>
       {result.status === "placement" && (
         <p className="mt-1 text-sm tabular-nums">
-          {result.games} / {shogiPlacementGames}局
+          {result.games} / {placementGames}局
         </p>
       )}
     </div>

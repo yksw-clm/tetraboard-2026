@@ -3,6 +3,7 @@ import {
   shogiRatingResultSchema,
   shogiRatingSummarySchema,
   type MatchmakingGame,
+  type RatedMatchmakingGame,
 } from "@tetraboard/protocol";
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountRequest } from "../account/accountApi";
@@ -38,17 +39,25 @@ export async function matchmakingOperation(
   );
 }
 
-export async function readShogiRatingResult(matchId: string, signal: AbortSignal) {
-  return shogiRatingResultSchema.parse(
-    await accountRequest(`${api("shogi")}/results/${matchId}?includeOpponent=1`, {
+const ratingContracts = {
+  shogi: { result: shogiRatingResultSchema, summary: shogiRatingSummarySchema },
+} satisfies Record<RatedMatchmakingGame, unknown>;
+
+export async function readRatingResult(
+  game: RatedMatchmakingGame,
+  matchId: string,
+  signal: AbortSignal,
+) {
+  return ratingContracts[game].result.parse(
+    await accountRequest(`${api(game)}/results/${matchId}?includeOpponent=1`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
     }),
   );
 }
 
-export async function readShogiRatingSummary(signal: AbortSignal) {
-  return shogiRatingSummarySchema.parse(
-    await accountRequest(`${api("shogi")}/rating`, {
+export async function readRatingSummary(game: RatedMatchmakingGame, signal: AbortSignal) {
+  return ratingContracts[game].summary.parse(
+    await accountRequest(`${api(game)}/rating`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
     }),
   );

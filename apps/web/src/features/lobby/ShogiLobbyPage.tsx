@@ -5,7 +5,7 @@ import { LobbyList } from "./LobbyList";
 import { LobbyRankings } from "./LobbyRankings";
 import { useLobby } from "./useLobby";
 import { useRoomEntry } from "./useRoomEntry";
-import { ShogiMatchmakingDialog } from "../matchmaking/ShogiMatchmakingDialog";
+import { RatedMatchmakingDialog } from "../matchmaking/RatedMatchmakingDialog";
 
 export function ShogiLobbyPage() {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export function ShogiLobbyPage() {
           void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
         }
       />
-      {search.get("matchmaking") === "1" && <ShogiMatchmakingDialog />}
+      {search.get("matchmaking") === "1" && <RatedMatchmakingDialog game="shogi" />}
     </>
   );
 }

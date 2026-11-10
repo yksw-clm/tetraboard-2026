@@ -5,19 +5,18 @@ import {
   matchmakingControlSchema,
   matchmakingQueues,
   matchmakingStateSchema,
-  shogiRatingSummarySchema,
   type MatchmakingGame,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
 import { readLimitedBody } from "../feedback/images";
-import { aiServiceConfigured, shogiAiEnabled } from "../rooms/aiService";
-import { readShogiRatingResult, readShogiRatingSummary } from "../rooms/shogiRating";
+import { aiServiceConfigured } from "../rooms/aiService";
+import { gameCatalog } from "@tetraboard/protocol/games";
+import { ratedMatchmakingPolicy } from "./ratedMatchmaking";
 export const matchmakingRoutes = new Hono<{ Bindings: Env }>();
 export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-reversi") =>
-  game === "shogi"
-    ? env.SHOGI_MATCHMAKING_ENABLED === "true" && shogiAiEnabled(env)
-    : env.MATCHMAKING_ENABLED === "true" && aiServiceConfigured(env);
+  ratedMatchmakingPolicy(game)?.enabled(env) ??
+  (env.MATCHMAKING_ENABLED === "true" && aiServiceConfigured(env));
 const gameSchema = z.enum(["four-reversi", "shogi"]);
 const root = "/matchmaking/:game";
 matchmakingRoutes.use("/matchmaking/*", async (c, next) => {
@@ -40,7 +39,7 @@ matchmakingRoutes.get(root, async (c) => {
   if (!game.success) return c.notFound();
   const enabled = matchmakingEnabled(c.env, game.data);
   const user = await accountIdentity(c.req.raw, c.env);
-  if (!user || (game.data === "shogi" && user.isAnonymous))
+  if (!user || (ratedMatchmakingPolicy(game.data) && user.isAnonymous))
     return c.json(
       matchmakingStateSchema.parse({
         status: "idle",
@@ -55,18 +54,23 @@ matchmakingRoutes.get(root, async (c) => {
   ).status(user.id, controller.data);
   return c.json(matchmakingStateSchema.parse({ ...state, enabled }));
 });
-matchmakingRoutes.get("/matchmaking/shogi/rating", async (c) => {
+matchmakingRoutes.get(`${root}/rating`, async (c) => {
+  const game = gameSchema.safeParse(c.req.param("game"));
+  const policy = game.success ? ratedMatchmakingPolicy(game.data) : undefined;
+  if (!policy) return c.notFound();
   const user = await accountIdentity(c.req.raw, c.env);
   if (!user || user.isAnonymous) return c.json({ message: "ログインしてください。" }, 401);
-  const result = await readShogiRatingSummary(c.env.APP_DB, user.id);
-  return c.json(shogiRatingSummarySchema.parse(result));
+  const result = await policy.readSummary(c.env.APP_DB, user.id);
+  return c.json(result);
 });
-matchmakingRoutes.get("/matchmaking/shogi/results/:matchId", async (c) => {
+matchmakingRoutes.get(`${root}/results/:matchId`, async (c) => {
+  const game = gameSchema.safeParse(c.req.param("game"));
+  const policy = game.success ? ratedMatchmakingPolicy(game.data) : undefined;
   const matchId = z.uuid().safeParse(c.req.param("matchId"));
-  if (!matchId.success) return c.notFound();
+  if (!policy || !matchId.success) return c.notFound();
   const user = await accountIdentity(c.req.raw, c.env);
   if (!user || user.isAnonymous) return c.json({ message: "ログインしてください。" }, 401);
-  const result = await readShogiRatingResult(
+  const result = await policy.readResult(
     c.env.APP_DB,
     user.id,
     matchId.data,
@@ -82,8 +86,11 @@ for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
       return c.json({ message: "操作元を確認できません。" }, 403);
     const { user } = await roomEntryProfile(c.req.raw, c.env);
     if (!user) return c.json({ message: "参加情報を確認してください。" }, 401);
-    if (game.data === "shogi" && user.isAnonymous)
-      return c.json({ message: "将棋のレートマッチには登録アカウントが必要です。" }, 403);
+    if (ratedMatchmakingPolicy(game.data) && user.isAnonymous)
+      return c.json(
+        { message: `${gameCatalog[game.data].name}のレートマッチには登録アカウントが必要です。` },
+        403,
+      );
     const enabled = matchmakingEnabled(c.env, game.data);
     if (action === "join" && !enabled)
       return c.json({ message: "ランダムマッチは準備中です。" }, 503);

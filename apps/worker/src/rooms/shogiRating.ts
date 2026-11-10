@@ -1,9 +1,18 @@
 import { z } from "zod";
 import {
   shogiPlacementGames,
+  shogiMatchmakingRules,
   shogiRatingResultSchema,
   type ShogiRatingResult,
 } from "@tetraboard/protocol";
+import { createRatingStore } from "../matchmaking/ratingStore";
+
+export const shogiRatingStore = createRatingStore(
+  "shogi",
+  "shogi_rating_pending",
+  "shogi_rating_changes",
+);
+export const shogiInitialRating = 1500;
 
 export const shogiRatingSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("human") }),
@@ -30,13 +39,13 @@ export async function readShogiRatingResult(
       o.rating_before AS opponent_before, o.rating_after AS opponent_after,
       o.rated_games AS opponent_games
     FROM account_match_history h JOIN matches m ON m.id = h.match_id
-    LEFT JOIN shogi_rating_changes r ON r.account_id = h.account_id AND r.match_id = m.id
-    LEFT JOIN shogi_rating_changes o ON ?3 = 1 AND o.match_id = m.id AND o.account_id <> h.account_id
+    LEFT JOIN ${shogiRatingStore.changesTable} r ON r.account_id = h.account_id AND r.match_id = m.id
+    LEFT JOIN ${shogiRatingStore.changesTable} o ON ?3 = 1 AND o.match_id = m.id AND o.account_id <> h.account_id
     WHERE h.account_id = ?1 AND m.id = ?2 AND m.game = 'shogi'
       AND json_extract(m.record_json, '$.rating.kind') IS NOT NULL
     UNION ALL
     SELECT 'pending', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-    FROM shogi_rating_pending WHERE account_id = ?1 AND match_id = ?2
+    FROM ${shogiRatingStore.pendingTable} WHERE account_id = ?1 AND match_id = ?2
   `)
     .bind(accountId, matchId, Number(includeOpponent))
     .first<{
@@ -84,10 +93,8 @@ export async function readShogiRatingResult(
 }
 
 function readLatestShogiRating(db: D1Database, accountId: string) {
-  return db
-    .prepare(`SELECT rating_after, rated_games, human_games FROM shogi_rating_changes
-    WHERE account_id = ? ORDER BY rated_games DESC LIMIT 1`)
-    .bind(accountId)
+  return shogiRatingStore
+    .latest(db, accountId)
     .first<{ rating_after: number; rated_games: number; human_games: number }>();
 }
 
@@ -115,10 +122,10 @@ export function shogiRatingStatement(db: D1Database, matchId: string): D1Prepare
           json_extract(record_json, '$.rating.referenceRating') AS cpu_rating
         FROM matches
         WHERE id = ?1 AND game = 'shogi'
-          AND json_extract(record_json, '$.settings.timeControl.mainTimeMs') = 300000
-          AND json_extract(record_json, '$.settings.timeControl.byoyomiMs') = 30000
+          AND json_extract(record_json, '$.settings.timeControl.mainTimeMs') = ${shogiMatchmakingRules.timeControl.mainTimeMs}
+          AND json_extract(record_json, '$.settings.timeControl.byoyomiMs') = ${shogiMatchmakingRules.timeControl.byoyomiMs}
           AND json_extract(record_json, '$.rating.usedFallback') IS NULL
-          AND NOT EXISTS (SELECT 1 FROM shogi_rating_changes WHERE match_id = ?1)
+          AND ${shogiRatingStore.unappliedMatch}
       ), participants AS MATERIALIZED (
         SELECT json_extract(p.value, '$.side') AS side,
           json_extract(p.value, '$.kind') AS kind,
@@ -126,18 +133,18 @@ export function shogiRatingStatement(db: D1Database, matchId: string): D1Prepare
         FROM rated_match m, json_each(m.record_json, '$.participants') p
       ), players AS MATERIALIZED (
         SELECT p.side, u.id AS account_id,
-          COALESCE(r.rating_after, 1500.0) AS rating,
+          COALESCE(r.rating_after, CAST(${shogiInitialRating} AS REAL)) AS rating,
           COALESCE(r.rated_games, 0) AS rated_games,
           COALESCE(r.human_games, 0) AS human_games
         FROM participants p
         JOIN user u ON u.id = p.account_id AND COALESCE(u.isAnonymous, 0) = 0
-        LEFT JOIN shogi_rating_changes r ON r.account_id = u.id AND r.rated_games = (
-          SELECT MAX(rated_games) FROM shogi_rating_changes WHERE account_id = u.id
+        LEFT JOIN ${shogiRatingStore.changesTable} r ON r.account_id = u.id AND r.rated_games = (
+          SELECT MAX(rated_games) FROM ${shogiRatingStore.changesTable} WHERE account_id = u.id
         )
         WHERE p.kind = 'human'
           AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id = u.id)
       )
-      INSERT INTO shogi_rating_changes
+      INSERT INTO ${shogiRatingStore.changesTable}
         (match_id, account_id, rating_before, rating_after, rated_games, human_games)
       SELECT ?1, p.account_id, p.rating,
         p.rating + (CASE m.opponent_kind
