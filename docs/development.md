@@ -133,6 +133,8 @@ Webの通常リバーシロビー・ライブ・保存棋譜はゲーム別に�
 
 `Dockerfile.reversi` は固定コミットのEgaroucid Consoleをビルドします。本体はGPL-3.0-or-laterで、定跡を無効にし、公式ソース配布に含まれる2つの評価ファイルをハッシュ照合します。対応ソース、評価ファイル、ビルド手順とライセンス本文はイメージ内の `/usr/local/share/egaroucid/` に同梱します。開発Serviceを既存の手順で更新してからアプリWorkerを反映します。[公式ソース](https://github.com/Nyanyan/Egaroucid/tree/console_v7.8.2) · [確認手順](testing.md#通常リバーシの外部ai確認)
 
+補充CPUの比較条件、暫定Elo、測定の再実行は[通常リバーシの補充CPU較正](reversi-cpu-calibration.md)を参照します。
+
 ## 通常将棋の実装
 
 [将棋のレート戦](shogi-rated-match.md)には、専用待機列、終局時のレート保存、CPUの採用前に行う検証を記載しています。Webの `features/matchmaking` をWorkerの `matchmaking/routes.ts` と `matchmaking/coordinator.ts` から通常将棋のGameRoomへ接続します。対人戦とCPU戦の待機・入室・終局は `apps/worker/test/matchmaking.test.ts`、Elo計算と認定情報の公開範囲は `apps/worker/test/shogiRating.test.ts`、画面は `apps/web/test-dom/matchmaking*.test.tsx` で確認します。
