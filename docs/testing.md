@@ -913,6 +913,12 @@ Web・AdminのブラウザテストとWorker E2E、全Playwright設定、専用S
 | 194 | [Admin feedback.spec.ts:132](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/admin/browser-tests/feedback.spec.ts#L132) 非公開投稿を分類し、競合・公開確認・履歴・削除を扱う 320px                                              | 非公開一覧・分類・競合・公開前確認・履歴・削除・ロック・取得query・添付画像要素                     | [adminData.test.tsx](../apps/admin/test-dom/adminData.test.tsx)、[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)、[feedback.test.ts](../apps/worker/test/feedback.test.ts)                                                                                                                                                                                                                                                                                                                                             | 3画面幅の横はみ出しと実画面での添付表示                                     |
 | 195 | [Admin feedback.spec.ts:209](https://github.com/yksw-clm/tetraboard-2026/blob/a40578a95fd2bcef4dd8155c011c9fb35ef88b5a/apps/admin/browser-tests/feedback.spec.ts#L209) 管理権限が失われた一覧はデータを保持せずログインへ案内する                                              | 権限喪失時に旧一覧を破棄してログインへ案内                                                          | [adminData.test.tsx](../apps/admin/test-dom/adminData.test.tsx)、[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)、[feedback.test.ts](../apps/worker/test/feedback.test.ts)                                                                                                                                                                                                                                                                                                                                             | なし（実ブラウザ／本番バンドル全体の結合保証は共通して外れる）              |
 
+## レート戦の戦績・ランキング・バッジ
+
+Workerでは通常リバーシ・通常将棋の勝敗・引き分けとCPU補充局、四人リバーシのCPU補充局・同率優勝・公開プロフィールとランキング、四人将棋の撃破・完全優勝・記録済みの戦法解放を検証します。通常CPU戦の除外と、代替手のあるレート戦が戦績に加算されても認定・レート更新の対象にならないことを確認します。バッジは保存済みレート戦の基準化で通知が発生せず、その後の初獲得・昇格が保存再試行でもトーストとベルに一度だけ反映されることを確認します。
+
+WebのDOMテストではバッジ条件文とシングルス・ダブルスの注記を確認します。開発環境ではCPU補充局の終局後に、マイページ・ランキング・公開カードの数字が一致し、バッジ閾値に達したときだけ本人に通知が届くことを確認します。
+
 ## バッジ獲得通知（Issue #122）
 
 - Worker: `bun run --cwd apps/worker test test/badgeNotifications.test.ts`。閾値・昇格・対象外、ゲーム分離、最大4種類、導入前戦績の基準化、保存失敗時の一括ロールバックと再送、複数tokenの競合・期限・解放、認証・Origin・本人制限を確認します。

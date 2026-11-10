@@ -8,9 +8,11 @@ test("結果の登録案内は今回の記録・同じ席での再戦・CPU戦�
       <RegistrationPrompt game={game} humanOnly={false} busy={false} onRegister={() => {}} />,
     );
     expect(view.textContent).toContain("この対局を、自分の記録に残そう");
-    expect(view.textContent).toContain("対人シングルス");
+    expect(view.textContent).toContain("シングルスの対人戦やレート戦");
     expect(view.textContent).toContain("CPU戦も保存されます。");
-    expect(view.textContent).toContain("CPUを含む対局は、戦績・ランキング・バッジの対象外です。");
+    expect(view.textContent).toContain(
+      "通常ルームのCPU戦は、戦績・ランキング・バッジの対象外です。",
+    );
     expect(view.textContent).toContain("この対局の棋譜がマイページに追加されます");
     expect(view.textContent).toContain("同じ席で");
     expect(view.textContent).not.toContain("参加し直してください");

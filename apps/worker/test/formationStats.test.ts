@@ -10,6 +10,7 @@ import { humanShogiRecord, shogiRecord, saveShogiFixture } from "./shogiMatchFix
 import { matchRequest } from "./matchFixtures";
 import { advanceShogiMatchSave, type ShogiSaveProgress } from "../src/rooms/shogiMatchStore";
 import { emptyFormationUsage, type ShogiFormationUsage } from "../src/rooms/shogiFormationUsage";
+import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
 
 beforeEach(async () => {
   await env.APP_DB.batch([
@@ -84,6 +85,49 @@ test("戦法別は本人・方向・全件・保存済みだけ集計し、複�
   ]);
   expect(JSON.stringify(result)).not.toContain(user.id);
   expect(JSON.stringify(result)).not.toContain("record_json");
+});
+
+test("CPU補充レート戦は保存された戦法を解放し、通常CPU戦や未記録の局は補完しない", async () => {
+  const user = await accountFixture();
+  const fixture = shogiRecord(user.id);
+  fixture.record.fourShogiRating = {
+    method: fourReversiRatingMethod,
+    calibrationVersion: "test-v1",
+    cpu: Object.fromEntries(
+      fixture.record.participants.flatMap((p) =>
+        p.kind === "cpu"
+          ? [[p.side, { mu: 25, sigma: 1, profileId: "test", engineVersion: "test" }]]
+          : [],
+      ),
+    ),
+    usedFallback: true,
+  };
+  fixture.record.knockouts.south = 3;
+  await saveShogiFixture(shogiRecord(user.id));
+  const unrecorded = shogiRecord(user.id);
+  unrecorded.record.fourShogiRating = fixture.record.fourShogiRating;
+  await saveShogiFixture(unrecorded);
+  expect(await stats(user.cookie)).toEqual([]);
+
+  const usage = emptyFormationUsage();
+  usage.bySide.south = ["tenshukaku"];
+  await publish(fixture, usage);
+  await publish(fixture, usage);
+  expect(await stats(user.cookie)).toEqual([
+    { id: "tenshukaku", total: 1, first: 1, second: 0, third: 0, fourth: 0 },
+  ]);
+  const response = await matchRequest("/account/stats?game=four-shogi", {
+    headers: { Cookie: user.cookie },
+  });
+  expect(fourShogiAccountStatsSchema.parse(await response.json()).singles).toEqual({
+    total: 2,
+    first: 2,
+    second: 0,
+    third: 0,
+    fourth: 0,
+    knockouts: 3,
+    perfectWins: 1,
+  });
 });
 
 test("完全優勝は過去分を含み、3撃破かつ単独優勝だけ加算する", async () => {

@@ -8,7 +8,7 @@ test("ログインは両ゲームのバッジ例とメリットを表示し、Di
   const badges = [...view.querySelectorAll("li")].find(
     (item) => item.querySelector("strong")?.textContent === "バッジを集めよう",
   )!;
-  expect(badges.textContent).toContain("対人シングルス");
+  expect(badges.textContent).toContain("シングルスの対人戦やレート戦");
   expect(badges.textContent).toContain("四人リバーシ");
   expect(badges.textContent).toContain("四人将棋");
   expect(badges.querySelectorAll("figure img")).toHaveLength(4);

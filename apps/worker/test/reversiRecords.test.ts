@@ -83,8 +83,15 @@ async function stats(cookie: string) {
 test("勝ち・負け・引き分けをモードなしで集計し、再保存で重複しない", async () => {
   const user = await accountFixture();
   const records = ["win", "loss", "draw"].map((outcome) =>
-    record(user.id, outcome as "win" | "loss" | "draw"),
+    record(user.id, outcome as "win" | "loss" | "draw", outcome === "draw"),
   );
+  records[0]!.rating = { kind: "human" };
+  records[2]!.rating = {
+    kind: "cpu",
+    profileId: "test",
+    referenceRating: 1500,
+    usedFallback: true,
+  };
   for (const item of records) {
     await writeMatch(env.APP_DB, item);
     await writeMatch(env.APP_DB, item);

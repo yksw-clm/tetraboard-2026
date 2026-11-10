@@ -51,10 +51,11 @@ export function recordFormationUsage(
 export function isFormationMatchEligible(record: {
   settings: { mode: string };
   participants: readonly { kind: string }[];
+  rated?: boolean;
 }) {
   return (
     record.settings.mode === "singles" &&
     record.participants.length === sides.length &&
-    record.participants.every((player) => player.kind === "human")
+    (record.rated === true || record.participants.every((player) => player.kind === "human"))
   );
 }

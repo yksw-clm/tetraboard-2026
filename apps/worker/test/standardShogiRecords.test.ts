@@ -28,10 +28,17 @@ async function stats(cookie: string) {
   expect(response.status).toBe(200);
   return shogiAccountStatsSchema.parse(await response.json());
 }
-test("通常将棋の勝敗と千日手を対人戦だけ集計し、四人将棋と区別する", async () => {
+test("通常将棋の勝敗と千日手を対人戦とレート戦から集計し、四人将棋と区別する", async () => {
   const user = await accountFixture();
   for (const outcome of ["win", "loss", "draw"] as const) {
-    const fixture = standardShogiRecord(user.id, outcome);
+    const fixture = standardShogiRecord(user.id, outcome, outcome === "win");
+    if (outcome === "win")
+      fixture.record.rating = {
+        kind: "cpu",
+        profileId: "test",
+        referenceRating: 1500,
+        usedFallback: true,
+      };
     await saveStandardShogiFixture(fixture);
     await saveStandardShogiFixture(fixture);
   }

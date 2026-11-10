@@ -294,7 +294,7 @@ export function HowToPlayPage() {
             <li>ほかの人の対局は、ロビーの「最近の対局」から見ることもできます。</li>
           </Steps>
           <p>
-            ゲストで遊んだ対局も保存されます。CPU戦も棋譜は残りますが、戦績・ランキングの集計対象は対人戦です。
+            ゲストで遊んだ対局も保存されます。戦績・ランキングは対人戦を集計し、対応ゲームではCPU補充を含むレート戦も集計します。通常ルームのCPU戦は棋譜に残ります。
           </p>
           <Link
             className="inline-flex min-h-11 items-center font-bold text-brand underline"

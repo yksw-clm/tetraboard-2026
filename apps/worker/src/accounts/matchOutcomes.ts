@@ -51,6 +51,21 @@ export const gameOutcomeSql = {
       "CASE WHEN mode = 'singles' THEN COALESCE(json_extract(record_json, '$.knockouts.' || direction), 0) ELSE 0 END",
   },
 } satisfies { [G in GameId]: OutcomeSqlFor<G> };
+
+function ratedOutcomeCondition(game: GameId): string {
+  switch (game) {
+    case "four-reversi":
+      return "m.mode = 'singles' AND json_type(m.record_json, '$.fourReversiRating') = 'object'";
+    case "four-shogi":
+      return "m.mode = 'singles' AND json_type(m.record_json, '$.fourShogiRating') = 'object'";
+    case "reversi":
+    case "shogi":
+      return "m.mode = 'standard' AND json_extract(m.record_json, '$.rating.kind') IN ('human', 'cpu')";
+    default:
+      return "0";
+  }
+}
+
 /** 集計条件は共有し、保存された方向・チームの契約はゲーム別に登録します。 */
 export function matchOutcomesCte(game: GameId, personal: boolean, affectedMatch = false): string {
   if (!isGameId(game)) throw new Error("Unsupported match game");
@@ -71,10 +86,10 @@ export function matchOutcomesCte(game: GameId, personal: boolean, affectedMatch 
     WHERE h.game = ? AND m.game = h.game ${personal ? "AND h.account_id = ?" : ""}
       ${affectedMatch ? "AND h.account_id IN (SELECT account_id FROM account_match_history WHERE match_id = ?)" : ""}
       AND json_array_length(m.record_json, '$.participants') = ${gameCapacity(game)}
-      AND NOT EXISTS (
+      AND (NOT EXISTS (
         SELECT 1 FROM json_each(m.record_json, '$.participants') participant
         WHERE json_extract(participant.value, '$.kind') IS NOT 'human'
-      )
+      ) OR (${ratedOutcomeCondition(game)}))
   ), outcomes AS (
     SELECT account_id, match_id, mode, direction, result,
       (SELECT json_extract(s.value, '$.rank')
@@ -83,6 +98,6 @@ export function matchOutcomesCte(game: GameId, personal: boolean, affectedMatch 
       json_extract(result, '$.winner') AS winner,
       ${sql.team} AS team,
       ${sql.knockouts} AS knockouts
-    FROM own_matches
+    FROM own_matches WHERE direction IS NOT NULL
   )`;
 }

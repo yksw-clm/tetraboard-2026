@@ -13,24 +13,29 @@ export type BadgeProgress = {
 };
 
 export const badgeDefinitions = {
-  games: { name: "対局数", unit: "局", thresholds: [5, 20, 100], condition: "対人戦で対局する" },
+  games: {
+    name: "対局数",
+    unit: "局",
+    thresholds: [5, 20, 100],
+    condition: "対人戦/レート戦で対局する",
+  },
   wins: {
     name: "優勝数",
     unit: "回",
     thresholds: [3, 15, 50],
-    condition: "対人戦で優勝する（同率優勝を含む）",
+    condition: "対人戦/レート戦で優勝する（同率優勝を含む）",
   },
   knockouts: {
     name: "撃破数",
     unit: "人",
     thresholds: [3, 15, 50],
-    condition: "対人戦で相手を詰ませて撃破する",
+    condition: "対人戦/レート戦で相手を詰ませて撃破する",
   },
   "perfect-wins": {
     name: "完全優勝",
     unit: "回",
     thresholds: [1, 2, 3],
-    condition: "対人戦で他の3人全員を撃破して単独優勝する",
+    condition: "対人戦/レート戦で他の3人全員を撃破して単独優勝する",
   },
 } as const satisfies Record<
   BadgeId,

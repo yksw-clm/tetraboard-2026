@@ -550,5 +550,7 @@ test("終局後に相手が退室しても前局の構成に従って対人戦�
   clock.advance(1000);
   await flush();
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain("この対局の戦績と棋譜");
-  expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("CPUを含む対局は");
+  expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain(
+    "通常ルームのCPU戦は",
+  );
 });

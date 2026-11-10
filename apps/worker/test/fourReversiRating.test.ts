@@ -1,6 +1,11 @@
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
-import { fourReversiRatingSummarySchema } from "@tetraboard/protocol";
+import {
+  fourReversiAccountStatsSchema,
+  fourReversiRatingSummarySchema,
+  getPlayerProfileContract,
+  previewRankingsSchema,
+} from "@tetraboard/protocol";
 import {
   fourReversiRatingMethod,
   initialFourReversiRating,
@@ -12,6 +17,7 @@ import { fixtureRecord } from "./matchFixtures";
 import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
 import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
 import { fourReversiPublicRating } from "../src/rooms/fourReversiRating";
+import { readAccountStats } from "../src/accounts/statsRoutes";
 
 const ratingPath = "/matchmaking/four-reversi/rating";
 
@@ -70,7 +76,7 @@ test("同率1位の同じ事前推定は同じ結果となり、確定順位で�
 });
 
 test("人間1人とCPU3人の5局目で認定され、固定CPUは更新せず、再保存も一度だけ反映する", async () => {
-  const { id, headers } = await accountFixture();
+  const { id, headers, username } = await accountFixture();
   expect((await boundaryRequest(ratingPath)).status).toBe(401);
   expect(await readRating(headers)).toEqual({ status: "placement", games: 0 });
   for (let index = 1; index <= 4; index++) await writeMatch(env.APP_DB, ratedRecord([id], index));
@@ -105,6 +111,30 @@ test("人間1人とCPU3人の5局目で認定され、固定CPUは更新せず�
   const replay = await boundaryRequest(`/matches/${fifth.id}`);
   expect(replay.status).toBe(200);
   expect((await replay.json<{ match: unknown }>()).match).not.toHaveProperty("fourReversiRating");
+  const stats = fourReversiAccountStatsSchema.parse(
+    await (await boundaryRequest("/account/stats?game=four-reversi", { headers })).json(),
+  );
+  expect(stats.singles).toEqual({ total: 5, first: 0, second: 0, third: 0, fourth: 5 });
+  const query = new URLSearchParams({
+    game: "four-reversi",
+    source: "match",
+    matchId: fifth.id,
+    playerId: fifth.participants[0]!.id,
+    includeStats: "1",
+    includeBadges: "1",
+  });
+  const profile = getPlayerProfileContract.response.parse(
+    await (await boundaryRequest(`/player-profile?${query}`)).json(),
+  );
+  expect(profile).toMatchObject({
+    kind: "account",
+    stats,
+    badges: [{ id: "games", tier: 1, value: 5 }],
+  });
+  const rankings = previewRankingsSchema.parse(
+    await (await boundaryRequest("/games/four-reversi/rankings?profilePreview=1")).json(),
+  );
+  expect(rankings.singles.total.find((entry) => entry.username === username)?.value).toBe(5);
 });
 
 test("公開レートを整数に丸めて、全ランク境界を判定する", () => {
@@ -202,6 +232,12 @@ test("CPU混在局は全員の確定順位で人間2人を更新し、通常戦�
   );
   const excluded = ratedRecord(ids, 1);
   excluded.fourReversiRating!.usedFallback = true;
+  if (excluded.game.result.mode !== "singles") throw new Error("Expected singles");
+  excluded.game.result.standings = excluded.participants.map(({ color }, index) => ({
+    color,
+    rank: [1, 1, 3, 4][index]!,
+    stoneCount: [20, 20, 15, 9][index]!,
+  }));
   await writeMatch(env.APP_DB, excluded);
   expect(await changes(excluded.id)).toEqual([]);
   expect(
@@ -214,6 +250,12 @@ test("CPU混在局は全員の確定順位で人間2人を更新し、通常戦�
 
   const mixed = ratedRecord(ids, 3);
   await writeMatch(env.APP_DB, mixed);
+  await writeMatch(env.APP_DB, mixed);
+  for (const id of ids)
+    expect((await readAccountStats(env.APP_DB, id, "four-reversi")).singles).toMatchObject({
+      total: 2,
+      first: 1,
+    });
   const rows = await changes(mixed.id);
   expect(rows).toHaveLength(2);
   expect(rows.every((row) => row.rated_games === 1 && row.human_games === 1)).toBe(true);

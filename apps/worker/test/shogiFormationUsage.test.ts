@@ -63,7 +63,7 @@ test("同時成立をすべて記録し、既に成立していた戦法・他�
   ).toEqual([]);
 });
 
-test("開始時の対象判定は人間4人のシングルスに限る", () => {
+test("開始時は人間4人のシングルスとCPU補充のレート戦を対象にする", () => {
   const participants = sides.map(() => ({ kind: "human" }));
   expect(isFormationMatchEligible({ settings: { mode: "singles" }, participants })).toBe(true);
   expect(isFormationMatchEligible({ settings: { mode: "doubles" }, participants })).toBe(false);
@@ -78,5 +78,19 @@ test("開始時の対象判定は人間4人のシングルスに限る", () => {
     expect(isFormationMatchEligible({ settings: { mode: "singles" }, participants: withCpu })).toBe(
       false,
     );
+    expect(
+      isFormationMatchEligible({
+        settings: { mode: "singles" },
+        participants: withCpu,
+        rated: true,
+      }),
+    ).toBe(true);
+    expect(
+      isFormationMatchEligible({
+        settings: { mode: "doubles" },
+        participants: withCpu,
+        rated: true,
+      }),
+    ).toBe(false);
   }
 });
