@@ -78,6 +78,7 @@ import {
   aiServiceConfigured,
   aiServiceEnabled,
   aiServiceTimeout,
+  fourReversiAiServiceTimeout,
   requestAiMove,
   requestShogiAiMove,
   shogiAiEnabled,
@@ -3622,7 +3623,7 @@ export class GameRoom extends DurableObject<Env> {
               externalWork.current = this.reversiProgress.prepareExternalCpu(
                 room,
                 now,
-                aiServiceTimeout(this.env),
+                fourReversiAiServiceTimeout(this.env),
                 currentCpu(room)?.cpuProfile
                   ? {
                       profile_id: currentCpu(room)!.cpuProfile!.id,
