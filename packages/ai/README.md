@@ -30,6 +30,29 @@ cargo run --release --locked -p tetraboard-ai-benchmark -- --games 100 --seed 0
 
 `--config`モードでは`--rounds`がseedの数です。1roundに各組合せの4回転を実行し、同梱の4組合せでは32roundで512局になります。`--games`とは併用できません。seedはCLI指定を優先し、省略時は設定ファイルの値、roundsは省略時1です。
 
+## 四人将棋の着手API
+
+通常の `serve` とCloudflareの共用AI Containerは、Bearer認証付きの `POST /v1/four-shogi/move` で四人将棋シングルスの候補手を返します。
+
+```json
+{
+  "api_version": 1,
+  "rules_version": 1,
+  "request_id": "6ba7b810-9dad-41d1-80b4-00c04fd430c8",
+  "position_revision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "profile_id": "four-shogi-lv3-work4096-v1",
+  "three_player_attack_prohibited": true,
+  "turn": "south",
+  "events": []
+}
+```
+
+設定IDは `four-shogi-lv3-work4096-v1`、`four-shogi-lv3-work16384-v1`、`four-shogi-lv3-work65536-v1` です。探索方式は共通のRust版Lv3で、探索作業量の上限を設定IDで選びます。探索開始から500msで協調停止し、それまでの合法な候補手を返します。棋譜の再生・起動・通信は探索時間とは別です。
+
+イベントには四人将棋の `FourShogiReplayEvent` を発生順に渡します。本文は256KiB、イベントは1,600件までです。初期局面から再生し、違法なイベント、終局済みの棋譜、再生結果と異なる手番は400を返します。共用の実行枠が埋まっている場合は503を返します。
+
+応答には版、要求IDと局面リビジョン、設定ID、`engine_version`、実効上限の `max_work` と `max_time_ms`、`action`、`replay_us`、`diagnostics` が含まれます。診断値には探索時間、作業量、ノード数、完了した深さが含まれます。GameRoomが合法手と終局を確定します。レート戦への接続順序は[導入計画](../../docs/four-shogi-rated-match.md#実装順序)に記載しています。
+
 ## ローカル解析サービス
 
 Chromeの個人用widgetには、公開Serviceと別の`bun run --cwd packages/ai serve:local`を使います。初回に`bun run --cwd packages/ai setup:local`で`.env.local`を作成し、`AI_LOCAL_TOKEN`の値を拡張の設定画面へ登録します。設定ファイルは0600・Git対象外で、tokenはログへ出力しません。既存ファイルは上書きしません。

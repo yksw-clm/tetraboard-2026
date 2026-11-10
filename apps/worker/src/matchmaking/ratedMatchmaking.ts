@@ -25,6 +25,9 @@ import type { EloRatingSource } from "../rooms/eloRating";
 
 import { initialFourReversiRating } from "../../../../packages/ai/fourReversiRating";
 import {
+  fourShogiRatingStore,
+  readFourShogiRatingResult,
+  readFourShogiRatingSummary,
   fourReversiRatingStore,
   readFourReversiRatingResult,
   readFourReversiRatingSummary,
@@ -39,11 +42,26 @@ import {
   type QueueRating,
 } from "./fourReversiSelection";
 
+import {
+  calibratedFourShogiProfile,
+  fourShogiCalibrationVersion,
+  selectFourShogi,
+  type FourShogiRatingSource,
+} from "./fourShogiSelection";
+
 type ReversiQueueRating = { kind: "reversi"; source: EloRatingSource };
-export type QueueRatingSource = ShogiRatingSource | FourReversiRatingSource | ReversiQueueRating;
+export type QueueRatingSource =
+  | ShogiRatingSource
+  | FourReversiRatingSource
+  | FourShogiRatingSource
+  | ReversiQueueRating;
 export function ratingOpponentKind(rating: QueueRatingSource) {
   if (rating.kind === "reversi") return rating.source.kind;
-  return rating.kind === "four-reversi" ? (rating.cpu ? "cpu" : "human") : rating.kind;
+  return rating.kind === "four-reversi" || rating.kind === "four-shogi"
+    ? rating.cpu
+      ? "cpu"
+      : "human"
+    : rating.kind;
 }
 
 const widening = [
@@ -154,10 +172,30 @@ const fourReversi = {
   select: selectFourReversi,
 };
 
-const policies = { reversi, shogi, "four-reversi": fourReversi } satisfies Record<
-  RatedMatchmakingGame,
-  unknown
->;
+const fourShogi = {
+  ...fourReversi,
+  enabled: (env: Env) => env.FOUR_SHOGI_MATCHMAKING_ENABLED === "true" && aiServiceConfigured(env),
+  store: fourShogiRatingStore,
+  readResult: readFourShogiRatingResult,
+  async readSummary(db: D1Database, accountId: string) {
+    return fourReversiRatingSummarySchema.parse(await readFourShogiRatingSummary(db, accountId));
+  },
+  validParticipants(rating: QueueRatingSource, humans: number) {
+    if (rating.kind !== "four-shogi" || rating.calibrationVersion !== fourShogiCalibrationVersion)
+      return false;
+    return humans === matchmakingQueues["four-shogi"].seats
+      ? !rating.cpu
+      : !!rating.cpu && !!calibratedFourShogiProfile(rating.cpu);
+  },
+  select: selectFourShogi,
+};
+
+const policies = {
+  reversi,
+  shogi,
+  "four-reversi": fourReversi,
+  "four-shogi": fourShogi,
+} satisfies Record<RatedMatchmakingGame, unknown>;
 
 export function ratedMatchmakingPolicy(game: MatchmakingGame) {
   return policies[game];

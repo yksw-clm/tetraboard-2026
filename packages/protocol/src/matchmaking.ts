@@ -22,6 +22,10 @@ export const fourReversiRatedMatchmakingRules = {
   key: "four-reversi:singles:v2:180000:0:rated-v1",
   fillAfterMs: 20_000,
 } as const;
+export const fourShogiRatedMatchmakingRules = {
+  ...fourReversiRatedMatchmakingRules,
+  key: "four-shogi:singles:v1:180000:0:rated-v1",
+} as const;
 export const reversiMatchmakingRules = {
   ...shogiMatchmakingRules,
   key: "reversi:180000:0:rated-v1",
@@ -30,6 +34,7 @@ export const reversiMatchmakingRules = {
 export const matchmakingQueues = {
   reversi: reversiMatchmakingRules,
   "four-reversi": fourReversiRatedMatchmakingRules,
+  "four-shogi": fourShogiRatedMatchmakingRules,
   shogi: shogiMatchmakingRules,
 } as const;
 export const matchmakingQueueKeys = [
@@ -44,6 +49,7 @@ export const ratedMatchmakingRules = {
   reversi: { placementGames: 5 },
   shogi: { placementGames: 5 },
   "four-reversi": { placementGames: 5 },
+  "four-shogi": { placementGames: 5 },
 } as const satisfies Partial<Record<MatchmakingGame, { placementGames: number }>>;
 export type RatedMatchmakingGame = keyof typeof ratedMatchmakingRules;
 export function isRatedMatchmakingGame(game: string): game is RatedMatchmakingGame {
@@ -181,7 +187,7 @@ export const matchmakingQueueReferenceSchema = z.strictObject({
   version: z.int().positive(),
 });
 export const matchmakingRoomReferenceSchema = matchmakingQueueReferenceSchema.extend({
-  game: z.enum(["shogi", "four-reversi", "reversi"]).optional(),
+  game: z.enum(["shogi", "four-reversi", "four-shogi", "reversi"]).optional(),
   identity: z.string().min(1),
   roomId: z.string().regex(/^\d{5}$/),
   instanceId: z.uuid(),

@@ -17,7 +17,7 @@ import { ratedMatchmakingPolicy } from "./ratedMatchmaking";
 export const matchmakingRoutes = new Hono<{ Bindings: Env }>();
 export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-reversi") =>
   ratedMatchmakingPolicy(game).enabled(env);
-const gameSchema = z.enum(["four-reversi", "shogi", "reversi"]);
+const gameSchema = z.enum(["four-reversi", "four-shogi", "shogi", "reversi"]);
 const root = "/matchmaking/:game";
 function stateForClient(state: MatchmakingState, enabled: boolean, includeWaitingCount: boolean) {
   const { waitingCount, ...rest } = state;

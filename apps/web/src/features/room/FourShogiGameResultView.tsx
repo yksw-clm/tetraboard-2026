@@ -1,3 +1,5 @@
+import { ratedMatchmakingRules, type FourReversiRatingResult } from "@tetraboard/protocol";
+import { RatingResultLabel } from "../matchmaking/RatingResultLabel";
 import { resultPlayer } from "./gameResultPresentation";
 import { type Side } from "@tetraboard/four-shogi";
 import type { FourShogiLastRound, Room } from "@tetraboard/protocol";
@@ -24,9 +26,13 @@ export function FourShogiGameResultView({
   lastRound,
   currentPlayers,
   replay,
+  rating,
+  ownPlayerId,
 }: {
   lastRound: FourShogiLastRound;
   currentPlayers?: Room["players"];
+  rating?: FourReversiRatingResult;
+  ownPlayerId?: string;
   replay: {
     frames: FourShogiReplayFrame[];
     loading: boolean;
@@ -44,12 +50,21 @@ export function FourShogiGameResultView({
       },
       currentPlayers,
     );
+  const rated = rating?.status === "rated" || rating?.status === "placement" ? rating : undefined;
   const row = (side: Side, rank?: number) => (
     <GameResultRow
       key={side}
       player={player(side)}
       rank={rank}
-      details={<ShogiSideBadge side={side} proposed={false} />}
+      details={
+        <>
+          <ShogiSideBadge side={side} proposed={false} />
+          <RatingResultLabel
+            rating={player(side).id === ownPlayerId ? rated : rated?.players[player(side).id]}
+            placementGames={ratedMatchmakingRules["four-shogi"].placementGames}
+          />
+        </>
+      }
       right={
         <div className="flex flex-col gap-2">
           {replay.error ? (

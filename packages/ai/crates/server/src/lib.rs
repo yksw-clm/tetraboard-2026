@@ -1,5 +1,6 @@
 //! 認証された局面から候補手だけを計算します。対局状態は保存しません。
 
+mod four_shogi;
 pub mod local_analysis;
 mod reversi;
 mod shogi;
@@ -149,6 +150,7 @@ fn app(state: ServiceState) -> Router {
         .route("/v1/move",post(choose_move))
         .route("/v2/move",post(choose_profile_move))
         .route("/v1/shogi/move",post(shogi::choose_move))
+        .route("/v1/four-shogi/move",post(four_shogi::choose_move).layer(DefaultBodyLimit::max(four_shogi::MAX_BODY_BYTES)))
         .route_layer(middleware::from_fn_with_state(state.clone(),authenticate))
         .route("/health", get(|| async { ([(header::CACHE_CONTROL,"no-store")],Json(serde_json::json!({"status":"ok","api_version":API_VERSION,"engine_version":ENGINE_VERSION}))) }))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))

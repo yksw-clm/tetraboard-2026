@@ -30,6 +30,10 @@ Rustでは100seedについて各2回対局し、時間以外の棋譜・結果�
 
 HTTP統合は、コンテナ・通常のserveと同じrelease版Rust Serviceを使います。workspaceのtestコマンドで先にビルドし、テストの30秒制限へコンパイル時間を含めません。Rust自体の単体テストは従来のdebug版でも実行します。Workerの子プロセスはverbose出力を直接記録し、ケースの失敗や終了停滞をCIログから区別します。ケースの削除・タイムアウトの延長は行いません。
 
+四人将棋は `packages/ai/test/service.test.ts` で、予備比較の固定3棋譜をGameRoomと共通のTypeScriptルールとRustで再生します。全イベント適用前の手番・合法手一覧・脱落順位と、終局理由・最終順位を照合します。王手、成り、駒打ち、三人攻撃による合法手の制限、詰みによる脱落、時間切れ、千日手を含みます。同じテストから通常の実AI Serviceを呼び、Lv3の3設定の探索作業量、応答の識別子、返した手の合法性、不正入力の拒否も検証します。
+
+`apps/worker/test-ai-service/fourShogiRated.test.ts` は登録アカウントで20秒待機し、実ServiceによるCPU補充局をGameRoomで開始します。3分切れ負けの期限を進めて終局させ、D1に保存された認定戦と対局結果をAPIで読みます。期限切れのAI要求を復元した場合は、代替手で対局を継続し、棋譜を残したままレート更新を除外します。開発環境での手動確認は[導入計画](four-shogi-rated-match.md#開発環境の確認手順)に従います。
+
 ## ローカルAI解析widgetの確認
 
 `bun run --cwd apps/local-ai-widget test`は配布物をビルドし、Bun＋happy-domで受信監視、局面識別・非同期応答、盤面の座標照合、service workerの権限・タブ排他・再生成、manifestを確認します。WebSocketの引数・型・例外、fetchの元Promiseと本文保持、名前・チャット・tokenの除外を検証します。停止・着手・手番外の脱落・次局・切断・本人変更・遷移・非表示・復帰、遅延／不正応答と再試行も対象です。既存の全体check・Full CIへworkspace単位で含めます。

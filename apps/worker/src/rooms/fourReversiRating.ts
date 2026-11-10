@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { sides } from "@tetraboard/four-shogi";
+import type { ShogiMatchRecord } from "./shogiMatchStore";
 import { colors } from "@tetraboard/four-reversi";
 import {
   fourReversiRankDivisions,
@@ -36,6 +38,25 @@ export const fourReversiRatedMatchSchema = z.strictObject({
 });
 export type FourReversiRatedMatch = z.infer<typeof fourReversiRatedMatchSchema>;
 
+const shogiCpuRating = cpuRating
+  .omit({ profileHash: true })
+  .extend({ engineVersion: z.string().min(1) });
+export const fourShogiRatedMatchSchema = fourReversiRatedMatchSchema.extend({
+  cpu: z.partialRecord(z.enum(sides), shogiCpuRating),
+});
+export type FourShogiRatedMatch = z.infer<typeof fourShogiRatedMatchSchema>;
+export const fourShogiRatingStore = createRatingStore(
+  "four-shogi",
+  "four_shogi_rating_pending",
+  "four_shogi_rating_changes",
+  "mu_after AS rating_after, sigma_after",
+);
+const rankRatingStorage = {
+  "four-reversi": { store: fourReversiRatingStore, key: "fourReversiRating", seat: "color" },
+  "four-shogi": { store: fourShogiRatingStore, key: "fourShogiRating", seat: "side" },
+};
+type RankGame = keyof typeof rankRatingStorage;
+
 type CurrentRating = {
   account_id: string;
   mu: number;
@@ -61,9 +82,14 @@ export function fourReversiPublicRating(mu: number) {
   return { rating, rank: `${tier}${division}` as const };
 }
 
-export async function readFourReversiRatingSummary(db: D1Database, accountId: string) {
+export const readFourReversiRatingSummary = (db: D1Database, accountId: string) =>
+  readRankSummary(db, accountId, "four-reversi");
+export const readFourShogiRatingSummary = (db: D1Database, accountId: string) =>
+  readRankSummary(db, accountId, "four-shogi");
+async function readRankSummary(db: D1Database, accountId: string, game: RankGame) {
+  const { store } = rankRatingStorage[game];
   const row = await db
-    .prepare(`SELECT mu_after AS mu, rated_games, human_games FROM four_reversi_rating_changes
+    .prepare(`SELECT mu_after AS mu, rated_games, human_games FROM ${store.changesTable}
       WHERE account_id=? ORDER BY rated_games DESC LIMIT 1`)
     .bind(accountId)
     .first<Pick<CurrentRating, "mu" | "rated_games" | "human_games">>();
@@ -76,29 +102,43 @@ export async function readFourReversiRatingSummary(db: D1Database, accountId: st
   };
 }
 
-export async function readFourReversiRatingResult(
+export const readFourReversiRatingResult = (
   db: D1Database,
   accountId: string,
   matchId: string,
   includeOpponents: boolean,
+) => readRankResult(db, accountId, matchId, includeOpponents, "four-reversi");
+export const readFourShogiRatingResult = (
+  db: D1Database,
+  accountId: string,
+  matchId: string,
+  includeOpponents: boolean,
+) => readRankResult(db, accountId, matchId, includeOpponents, "four-shogi");
+async function readRankResult(
+  db: D1Database,
+  accountId: string,
+  matchId: string,
+  includeOpponents: boolean,
+  game: RankGame,
 ) {
+  const { store, key, seat } = rankRatingStorage[game];
   const { results } = await db
     .prepare(`
     SELECT json_extract(p.value, '$.id') AS player_id,
       json_extract(p.value, '$.accountId') = ?1 AS own,
-      json_extract(m.record_json, '$.fourReversiRating.usedFallback') AS fallback,
-      json_extract(m.record_json, '$.fourReversiRating.cpu.' || json_extract(p.value, '$.color') || '.mu') AS cpu_mu,
+      json_extract(m.record_json, '$.${key}.usedFallback') AS fallback,
+      json_extract(m.record_json, '$.${key}.cpu.' || json_extract(p.value, '$.${seat}') || '.mu') AS cpu_mu,
       r.mu_before, r.mu_after, r.rated_games, r.human_games,
-      EXISTS(SELECT 1 FROM four_reversi_rating_pending WHERE account_id=?1 AND match_id=?2) AS pending
+      EXISTS(SELECT 1 FROM ${store.pendingTable} WHERE account_id=?1 AND match_id=?2) AS pending
     FROM account_match_history h JOIN matches m ON m.id=h.match_id
     JOIN json_each(m.record_json, '$.participants') p
-    LEFT JOIN four_reversi_rating_changes r
+    LEFT JOIN ${store.changesTable} r
       ON r.match_id=m.id AND r.account_id=json_extract(p.value, '$.accountId')
-    WHERE h.account_id=?1 AND m.id=?2 AND m.game='four-reversi'
-      AND json_extract(m.record_json, '$.fourReversiRating.method') IS NOT NULL
+    WHERE h.account_id=?1 AND m.id=?2 AND m.game='${game}'
+      AND json_extract(m.record_json, '$.${key}.method') IS NOT NULL
     UNION ALL
     SELECT NULL, 0, 0, NULL, NULL, NULL, NULL, NULL, 1
-    FROM four_reversi_rating_pending WHERE account_id=?1 AND match_id=?2
+    FROM ${store.pendingTable} WHERE account_id=?1 AND match_id=?2
   `)
     .bind(accountId, matchId)
     .all<{
@@ -197,12 +237,79 @@ export async function applyFourReversiRating(db: D1Database, record: MatchRecord
   )
     return;
 
+  await applyRankRating(
+    db,
+    "four-reversi",
+    record.id,
+    players.map((player) =>
+      player.kind === "human"
+        ? { kind: "human", accountId: player.accountId! }
+        : { kind: "cpu", reference: source.cpu[player.color]! },
+    ),
+    ranks as number[],
+  );
+}
+
+export async function applyFourShogiRating(db: D1Database, record: ShogiMatchRecord) {
+  const source = record.fourShogiRating;
+  const result = record.game.result;
+  const clock = record.settings.timeControl;
+  if (
+    !source ||
+    source.usedFallback ||
+    result.mode !== "singles" ||
+    record.settings.mode !== "singles" ||
+    !record.settings.threePlayerAttackProhibited ||
+    clock?.mainTimeMs !== 180_000 ||
+    clock.byoyomiMs !== 0
+  )
+    return;
+  const ranks = record.participants.map(
+    ({ side }) => result.standings.find((entry) => entry.side === side)?.rank,
+  );
+  const humans = record.participants.filter((player) => player.kind === "human");
+  const ids = humans.map(({ accountId }) => accountId);
+  const cpus = record.participants.filter((player) => player.kind === "cpu");
+  if (
+    record.participants.length !== 4 ||
+    new Set(record.participants.map(({ side }) => side)).size !== 4 ||
+    ranks.some((rank) => rank === undefined) ||
+    !ids.length ||
+    ids.some((id) => !id) ||
+    new Set(ids).size !== ids.length ||
+    cpus.length !== Object.keys(source.cpu).length ||
+    cpus.some(({ side }) => !source.cpu[side])
+  )
+    return;
+  await applyRankRating(
+    db,
+    "four-shogi",
+    record.id,
+    record.participants.map((player) =>
+      player.kind === "human"
+        ? { kind: "human", accountId: player.accountId! }
+        : { kind: "cpu", reference: source.cpu[player.side]! },
+    ),
+    ranks as number[],
+  );
+}
+
+async function applyRankRating(
+  db: D1Database,
+  game: RankGame,
+  matchId: string,
+  players: (
+    | { kind: "human"; accountId: string }
+    | { kind: "cpu"; reference: { mu: number; sigma: number } }
+  )[],
+  ranks: number[],
+) {
+  const { store } = rankRatingStorage[game];
+  const humans = players.filter((player) => player.kind === "human");
+  const ids = humans.map(({ accountId }) => accountId);
   for (let attempt = 0; attempt < 3; attempt++) {
     if (
-      await db
-        .prepare("SELECT 1 FROM four_reversi_rating_changes WHERE match_id=?")
-        .bind(record.id)
-        .first()
+      await db.prepare(`SELECT 1 FROM ${store.changesTable} WHERE match_id=?`).bind(matchId).first()
     )
       return;
     const { results } = await db
@@ -210,8 +317,8 @@ export async function applyFourReversiRating(db: D1Database, record: MatchRecord
       SELECT u.id AS account_id, COALESCE(r.mu_after, ?2) AS mu, COALESCE(r.sigma_after, ?3) AS sigma,
         COALESCE(r.rated_games, 0) AS rated_games, COALESCE(r.human_games, 0) AS human_games
       FROM json_each(?1) ids JOIN user u ON u.id=ids.value
-      LEFT JOIN four_reversi_rating_changes r ON r.account_id=u.id AND r.rated_games=(
-        SELECT MAX(rated_games) FROM four_reversi_rating_changes WHERE account_id=u.id
+      LEFT JOIN ${store.changesTable} r ON r.account_id=u.id AND r.rated_games=(
+        SELECT MAX(rated_games) FROM ${store.changesTable} WHERE account_id=u.id
       )
       WHERE COALESCE(u.isAnonymous, 0)=0 AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=u.id)
     `)
@@ -220,10 +327,10 @@ export async function applyFourReversiRating(db: D1Database, record: MatchRecord
     if (results.length !== humans.length) return;
     const before = new Map(results.map((row) => [row.account_id, row]));
     const ratings = players.map((player) =>
-      player.kind === "human" ? before.get(player.accountId!)! : source.cpu[player.color]!,
+      player.kind === "human" ? before.get(player.accountId!)! : player.reference,
     );
     const updated = rateFourReversi(ratings, ranks as number[]);
-    const maxRatingChange = cpus.length ? 24 : 32;
+    const maxRatingChange = humans.length < 4 ? 24 : 32;
     const changes = players.flatMap((player, index) => {
       if (player.kind !== "human") return [];
       const row = before.get(player.accountId!)!;
@@ -253,24 +360,24 @@ export async function applyFourReversiRating(db: D1Database, record: MatchRecord
     const saved = await db
       .prepare(`
       WITH changes AS MATERIALIZED (SELECT value AS row FROM json_each(?2))
-      INSERT INTO four_reversi_rating_changes
+      INSERT INTO ${store.changesTable}
         (match_id, account_id, mu_before, sigma_before, mu_after, sigma_after, rated_games, human_games)
       SELECT ?1, row->>'$.accountId', row->>'$.muBefore', row->>'$.sigmaBefore',
         row->>'$.muAfter', row->>'$.sigmaAfter', row->>'$.ratedGames', row->>'$.humanGames'
       FROM changes
-      WHERE NOT EXISTS (SELECT 1 FROM four_reversi_rating_changes WHERE match_id=?1)
+      WHERE NOT EXISTS (SELECT 1 FROM ${store.changesTable} WHERE match_id=?1)
         AND NOT EXISTS (
           SELECT 1 FROM changes c WHERE c.row->>'$.ratedGames' - 1 <> COALESCE((
-            SELECT MAX(r.rated_games) FROM four_reversi_rating_changes r WHERE r.account_id=c.row->>'$.accountId'
+            SELECT MAX(r.rated_games) FROM ${store.changesTable} r WHERE r.account_id=c.row->>'$.accountId'
           ), 0) OR NOT EXISTS (
             SELECT 1 FROM user u WHERE u.id=c.row->>'$.accountId' AND COALESCE(u.isAnonymous, 0)=0
               AND NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=u.id)
           )
         )
     `)
-      .bind(record.id, JSON.stringify(changes))
+      .bind(matchId, JSON.stringify(changes))
       .run();
     if (saved.meta.changes === humans.length) return;
   }
-  throw Error("四人リバーシのレート更新を再試行してください");
+  throw Error("4人対局のレート更新を再試行してください");
 }

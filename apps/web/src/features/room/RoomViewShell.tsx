@@ -464,7 +464,7 @@ export function RoomViewShell({
             ratedMatch &&
             ratedTime && (
               <p>
-                {"opponent" in ratedMatch && ratedMatch.opponent === "cpu" ? "CPU戦" : "対人戦"}・
+                {room.players.some((p) => p.kind === "cpu") ? "CPU戦" : "対人戦"}・
                 {ratedTime.mainTimeMs / 60_000}分
                 {ratedTime.byoyomiMs
                   ? `＋${ratedTime.byoyomiMs / 1000}秒`

@@ -1,3 +1,8 @@
+import {
+  applyFourShogiRating,
+  fourShogiRatingStore,
+  type FourShogiRatedMatch,
+} from "./fourReversiRating";
 import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
@@ -22,6 +27,13 @@ import {
   type ShogiFormationUsage,
 } from "./shogiFormationUsage";
 
+async function finalizeFourShogiRating(db: D1Database, json: string) {
+  const record = readShogiMatchRecord(json);
+  if (!record.fourShogiRating) return;
+  await applyFourShogiRating(db, record);
+  await fourShogiRatingStore.clearPending(db, record.id).run();
+}
+
 export type ShogiMatchParticipant = {
   id: string;
   name: string;
@@ -35,6 +47,7 @@ export type ShogiMatchStart = {
   startedAtMs: number;
   settings: FourShogiMatchDetail["settings"];
   participants: ShogiMatchParticipant[];
+  fourShogiRating?: FourShogiRatedMatch;
 };
 export type ShogiMatchRecord = ShogiMatchStart & {
   endedAtMs: number;
@@ -161,6 +174,7 @@ export async function advanceShogiMatchSave(
         .first();
       if (!saved) throw new Error("Tournament result publication was incomplete");
     }
+    if (game === "four-shogi") await finalizeFourShogiRating(db, existing.record_json);
     await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
     await applyMatchClaims(db, record.id);
     return null;
@@ -257,8 +271,12 @@ export async function advanceShogiMatchSave(
       ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)
       : []),
   ]);
-  if (!(await db.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first()))
-    throw new Error("Shogi match publication was incomplete");
+  const savedRecord = await db
+    .prepare("SELECT record_json FROM matches WHERE id = ? AND game = ?")
+    .bind(record.id, game)
+    .first<{ record_json: string }>();
+  if (!savedRecord) throw new Error("Shogi match publication was incomplete");
+  if (game === "four-shogi") await finalizeFourShogiRating(db, savedRecord.record_json);
   if (
     tournament &&
     !(await db
