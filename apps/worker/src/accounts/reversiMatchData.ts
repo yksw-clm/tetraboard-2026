@@ -19,7 +19,12 @@ const participants = z
   )
   .length(2);
 const recordSchema = z
-  .strictObject({ ...reversiMatchDetailSchema.shape, instanceId: z.uuid(), participants })
+  .strictObject({
+    ...reversiMatchDetailSchema.shape,
+    instanceId: z.uuid(),
+    participants,
+    aiFallback: z.literal(true).optional(),
+  })
   .omit({ selfPlayerId: true });
 function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
@@ -37,7 +42,7 @@ function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   });
 }
 function detail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, ...data } = record;
+  const { instanceId: _instance, aiFallback: _aiFallback, ...data } = record;
   return reversiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

@@ -20,6 +20,7 @@ export type MatchStart = {
   startedAtMs: number;
   settings: ReversiMatchDetail["settings"];
   participants: MatchParticipant[];
+  aiFallback?: true;
 };
 export type MatchRecord = MatchStart & {
   endedAtMs: number;

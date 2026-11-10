@@ -13,6 +13,7 @@ if (!allowed || !token)
   );
 const base = workerTestConfig({
   AI_SERVICE_URL: url,
+  AI_REVERSI_ENABLED: process.env.TETRABOARD_REVERSI_TEST_REAL === "1" ? "true" : "false",
   AI_SHOGI_ENABLED: process.env.TETRABOARD_SHOGI_TEST_REAL === "1" ? "true" : "false",
   MATCHMAKING_ENABLED: "true",
   AI_SERVICE_TOKEN: token,

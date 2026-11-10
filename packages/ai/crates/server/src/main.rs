@@ -1,4 +1,4 @@
-use tetraboard_ai_server::router_with_shogi;
+use tetraboard_ai_server::router_with_engines;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,7 +8,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse()?;
     let listen = std::env::var("AI_SERVICE_LISTEN").unwrap_or_else(|_| "127.0.0.1:3001".into());
     let shogi_path = std::env::var_os("AI_SHOGI_ENGINE").map(Into::into);
-    let app = router_with_shogi(token, concurrency, shogi_path)?;
+    let reversi_path = std::env::var_os("AI_REVERSI_ENGINE").map(Into::into);
+    let app = router_with_engines(token, concurrency, shogi_path, reversi_path)?;
     let listener = tokio::net::TcpListener::bind(&listen).await?;
     println!(
         "{}",

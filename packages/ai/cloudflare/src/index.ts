@@ -4,6 +4,7 @@ import { authorized, validToken } from "./access";
 interface Bindings {
   AI_CONTAINER: DurableObjectNamespace<AiContainer>;
   SHOGI_CONTAINER?: DurableObjectNamespace<ShogiContainer>;
+  REVERSI_CONTAINER?: DurableObjectNamespace<ReversiContainer>;
   AI_SERVICE_TOKEN?: string;
   AI_SHOGI_ENABLED?: string;
 }
@@ -30,6 +31,17 @@ export class ShogiContainer extends Container<Bindings> {
   };
 }
 
+export class ReversiContainer extends Container<Bindings> {
+  defaultPort = 3001;
+  // 通常リバーシで選べる最大の持ち時間と、次のCPU手番までの待ち時間をカバーします。
+  sleepAfter = "11m";
+  enableInternet = false;
+  envVars = {
+    AI_SERVICE_TOKEN: this.env.AI_SERVICE_TOKEN ?? "",
+    AI_REVERSI_ENGINE: "/opt/egaroucid/egaroucid",
+  };
+}
+
 function reply(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
 }
@@ -47,19 +59,22 @@ export default {
     const status = path === "/admin/status" && request.method === "GET";
     const statusGame = url.searchParams.get("game");
     const shogi = path === "/v1/shogi/move" || (status && statusGame === "shogi");
+    const reversi = path === "/v1/reversi/move" || (status && statusGame === "reversi");
     const fourReversi =
       (request.method === "POST" && (path === "/v1/move" || path === "/v2/move")) ||
       (status && (statusGame === null || statusGame === "four-reversi"));
     if (
       (!status && request.method !== "POST") ||
-      (!fourReversi && !shogi) ||
+      (!fourReversi && !shogi && !reversi) ||
       (shogi && env.AI_SHOGI_ENABLED !== "true")
     )
       return reply({ error: "not_found" }, 404);
 
-    const container = shogi
-      ? env.SHOGI_CONTAINER?.getByName("shogi-v1")
-      : env.AI_CONTAINER.getByName("shared-v1");
+    const container = reversi
+      ? env.REVERSI_CONTAINER?.getByName("reversi-v1")
+      : shogi
+        ? env.SHOGI_CONTAINER?.getByName("shogi-v1")
+        : env.AI_CONTAINER.getByName("shared-v1");
     if (!container) return reply({ error: "not_found" }, 404);
     try {
       return status ? reply(await container.getState()) : await container.fetch(request);

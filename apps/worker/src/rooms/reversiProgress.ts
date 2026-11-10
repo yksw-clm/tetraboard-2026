@@ -13,6 +13,8 @@ import {
   colors,
   createInitialState,
   eliminateColor,
+  getLegalMoves,
+  type Position,
   type ReversiState,
   type Color,
 } from "@tetraboard/reversi";
@@ -40,6 +42,11 @@ import type {
   FinishedProgress,
   RematchFor,
 } from "./gameProgress";
+import type { ReversiAiWork } from "./aiService";
+
+const externalCpuJobKey = "reversi-external-cpu-job";
+type ExternalCpuJob = ReversiAiWork["job"] & { position?: Position | null };
+
 type Playing = PlayingFor<"reversi">;
 type Result = ProgressFor<"reversi">;
 export class ReversiProgress {
@@ -71,6 +78,7 @@ export class ReversiProgress {
       game: createInitialState(),
       clock: createClock(startedAtMs, room.settings.timeControl),
     });
+    this.storage.kv.delete(externalCpuJobKey);
     this.storage.kv.put(roomStorageKey, startedRoom);
     this.storage.kv.put(
       replayKey,
@@ -247,12 +255,59 @@ export class ReversiProgress {
     );
   }
 
+  externalCpuJob(room: Playing): ExternalCpuJob | undefined {
+    const job = this.storage.kv.get<ExternalCpuJob>(externalCpuJobKey);
+    return job &&
+      job.moveNumber === room.game.moveNumber &&
+      job.roundId === this.storage.kv.get<MatchStart>(matchStartKey)?.id
+      ? job
+      : undefined;
+  }
+
+  prepareExternalCpu(room: Playing, now: number, timeout: number): ReversiAiWork | null {
+    const cpu = room.players.find((p) => p.color === room.game.turn);
+    const match = this.storage.kv.get<MatchStart>(matchStartKey);
+    if (cpu?.kind !== "cpu" || cpu.level !== 2 || !match || this.externalCpuJob(room)) return null;
+    const job = {
+      requestId: crypto.randomUUID(),
+      roundId: match.id,
+      moveNumber: room.game.moveNumber,
+      expiresAt: Math.min(now + timeout, room.clock.turnExpiresAt),
+    };
+    this.storage.kv.put(externalCpuJobKey, job);
+    const board = room.game.board
+      .flat()
+      .map((cell) => (cell === "black" ? "B" : cell === "white" ? "W" : "-"))
+      .join("");
+    return { job, board, blackToMove: room.game.turn === "black" };
+  }
+
+  completeExternalCpu(room: Playing, work: ReversiAiWork, move: Position | null, now: number) {
+    const job = this.externalCpuJob(room);
+    if (
+      !job ||
+      job.requestId !== work.job.requestId ||
+      job.position !== undefined ||
+      isClockExpired(room.clock, now)
+    )
+      return "stale";
+    const position =
+      now < job.expiresAt &&
+      move &&
+      getLegalMoves(room.game).some(({ x, y }) => x === move.x && y === move.y)
+        ? move
+        : null;
+    this.storage.kv.put(externalCpuJobKey, { ...job, position });
+    return position ? "engine" : "fallback";
+  }
+
   cpu(room: Playing, now: number): Result {
     if (room.clock.turnStartedAt + cpuMoveDelayMs > now || isClockExpired(room.clock, now))
       return { kind: "unchanged", gameId: "reversi", room };
     const cpu = room.players.find((p) => p.color === room.game.turn);
     if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "reversi", room };
-    const move = chooseCpuMove(room.game, cpu.level);
+    const job = this.externalCpuJob(room);
+    const move = job?.position ?? chooseCpuMove(room.game, cpu.level);
     if (move === null) throw new Error("CPU has no legal move");
     const decidedAt = Date.now();
     const expired = isClockExpired(room.clock, decidedAt);
@@ -261,7 +316,15 @@ export class ReversiProgress {
       : applyAction(room.game, { type: "placeStone", position: move });
     if (!result.ok) throw new Error("CPU selected an invalid move");
     if (expired) this.recordElimination(room, room.game.turn, "timeout", result);
-    else this.recordReplayStep({ type: "place", color: room.game.turn, position: move }, result);
+    else {
+      if (job && !job.position) {
+        const match = this.storage.kv.get<MatchStart>(matchStartKey);
+        if (match && !match.aiFallback)
+          this.storage.kv.put(matchStartKey, { ...match, aiFallback: true });
+      }
+      this.recordReplayStep({ type: "place", color: room.game.turn, position: move }, result);
+    }
+    if (job) this.storage.kv.delete(externalCpuJobKey);
     return this.accept(
       room,
       result.state,
@@ -347,6 +410,7 @@ export class ReversiProgress {
       } satisfies PendingMatch);
     }
     this.storage.kv.delete(matchStartKey);
+    this.storage.kv.delete(externalCpuJobKey);
     const lastRound: LastRound = {
       game,
       replay: roundReplaySchema.parse(this.storage.kv.get<RoundReplay>(replayKey)),

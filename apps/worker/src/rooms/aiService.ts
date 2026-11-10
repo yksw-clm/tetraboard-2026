@@ -16,6 +16,7 @@ export interface AiServiceBindings {
   AI_SERVICE_LEVEL2_PROFILE?: string;
   AI_SERVICE_LEVEL2_LIMITS?: string;
   AI_SHOGI_ENABLED?: string;
+  AI_REVERSI_ENABLED?: string;
 }
 
 export const aiServiceEnabled = (bindings: AiServiceBindings) => !!bindings.AI_SERVICE_URL;
@@ -203,6 +204,74 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
       parsed.data.position_revision === revision &&
       parsed.data.nodes === nodes
       ? parsed.data.best_move
+      : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
+
+export const reversiAiEnabled = (bindings: AiServiceBindings) =>
+  bindings.AI_REVERSI_ENABLED === "true" && aiServiceConfigured(bindings);
+
+export type ReversiAiWork = {
+  job: { requestId: string; roundId: string; moveNumber: number; expiresAt: number };
+  board: string;
+  blackToMove: boolean;
+};
+
+const reversiLevel = 4;
+const reversiResponseSchema = z.strictObject({
+  request_id: z.string().uuid(),
+  position_revision: z.string().length(64),
+  engine_version: z.literal("egaroucid-console-7.8.2-0c1b84ef"),
+  level: z.literal(reversiLevel),
+  position: z.strictObject({ x: z.int().min(0).max(7), y: z.int().min(0).max(7) }),
+});
+
+export async function requestReversiAiMove(bindings: AiServiceBindings, work: ReversiAiWork) {
+  const url = configuredUrl(bindings);
+  if (!url || bindings.AI_REVERSI_ENABLED !== "true") return null;
+  const { requestId, roundId, moveNumber, expiresAt } = work.job;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([roundId, moveNumber, work.board, work.blackToMove])),
+  );
+  const revision = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), remaining);
+  try {
+    const response = await fetch(new URL("/v1/reversi/move", url), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: requestId,
+        position_revision: revision,
+        level: reversiLevel,
+        board: work.board,
+        black_to_move: work.blackToMove,
+      }),
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+    const parsed = reversiResponseSchema.safeParse(await responseJson(response));
+    return parsed.success &&
+      parsed.data.request_id === requestId &&
+      parsed.data.position_revision === revision
+      ? parsed.data.position
       : null;
   } catch {
     return null;
