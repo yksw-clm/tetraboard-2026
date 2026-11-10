@@ -382,6 +382,42 @@ test("応答待ちのtimeoutは上限内で中止し、認証や局面をログ�
   });
 });
 
+test("四人リバーシ専用の10秒設定で5秒を超えた候補を採用する", async () => {
+  const { stub, before } = await cpuSetup();
+  const requestAt = now;
+  const position = getLegalMoves(before.game)[0]!;
+  await runInDurableObject(stub, async (instance, ctx) => {
+    const original = Reflect.get(instance, "env");
+    const bindings = {
+      ...original,
+      AI_SERVICE_TIMEOUT_MS: "5000",
+      AI_FOUR_REVERSI_TIMEOUT_MS: "10000",
+    };
+    expect(aiServiceTimeout(bindings)).toBe(5000);
+    Reflect.set(instance, "env", bindings);
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
+      expect(timer.mock.calls.at(-1)?.[1]).toBe(10_000);
+      expect(ctx.storage.kv.get(fourReversiAiJobKey)).toMatchObject({
+        expiresAt: requestAt + 10_250,
+      });
+      now = requestAt + 7500;
+      return Response.json(reply(JSON.parse(String(init?.body)), position));
+    });
+    try {
+      await instance.alarm();
+      expect(ctx.storage.kv.get(fourReversiCpuJobKey)).toMatchObject({
+        source: "external",
+        move: position,
+      });
+    } finally {
+      fetchMock.mockRestore();
+      timer.mockRestore();
+      Reflect.set(instance, "env", original);
+    }
+  });
+});
+
 test("応答中に時計が切れた場合は候補より脱落処理を優先する", async () => {
   const { stub, before, read } = await cpuSetup();
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {

@@ -10,11 +10,12 @@ Serviceには32〜256文字のASCII秘密値`AI_SERVICE_TOKEN`を環境変数で
 
 Workerは次の任意設定を使います。ローカルは追跡対象外の`apps/worker/.dev.vars`、公開環境の秘密値はWrangler Secretsで管理します。本番・開発TetraBoardへ接続設定を追加せず、[別Workerでのクラウド検証](#cloudflareでの検証)を行いました。
 
-| 設定                    | 意味                                                                                         |
-| ----------------------- | -------------------------------------------------------------------------------------------- |
-| `AI_SERVICE_URL`        | Serviceのorigin。未設定なら現行CPU経路。HTTPSを使い、HTTPはlocalhost・127.0.0.1・::1だけ許可 |
-| `AI_SERVICE_TOKEN`      | Serviceと同じBearer token。Room・Web・棋譜には含めない                                       |
-| `AI_SERVICE_TIMEOUT_MS` | 100〜5000ms、既定5000。不正な値は既定値。時計の期限が先ならその時刻まで                      |
+| 設定                         | 意味                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------------- |
+| `AI_SERVICE_URL`             | Serviceのorigin。未設定なら現行CPU経路。HTTPSを使い、HTTPはlocalhost・127.0.0.1・::1だけ許可       |
+| `AI_SERVICE_TOKEN`           | Serviceと同じBearer token。Room・Web・棋譜には含めない                                             |
+| `AI_SERVICE_TIMEOUT_MS`      | 100〜5000ms、既定5000。不正な値は既定値。時計の期限が先ならその時刻まで                            |
+| `AI_FOUR_REVERSI_TIMEOUT_MS` | 四人リバーシ専用。100〜10000ms。未設定・不正値では `AI_SERVICE_TIMEOUT_MS` を使う。開発環境は10000 |
 
 URLに資格情報・パス・クエリ・fragmentは指定しません。`AI_SERVICE_URL`が設定されてもtokenやURLが不正なら、HTTP送信をせず合法な代替手へ退避します。ダブルス・脱落後・他ゲームは外部Serviceの対象外とし、既存CPU経路を維持します。
 

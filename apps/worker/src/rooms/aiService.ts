@@ -12,6 +12,7 @@ export interface AiServiceBindings {
   AI_SERVICE_URL?: string;
   AI_SERVICE_TOKEN?: string;
   AI_SERVICE_TIMEOUT_MS?: string;
+  AI_FOUR_REVERSI_TIMEOUT_MS?: string;
   AI_SERVICE_LEVEL2_PROFILE?: string;
   AI_SERVICE_LEVEL2_LIMITS?: string;
   AI_SHOGI_ENABLED?: string;
@@ -21,6 +22,13 @@ export const aiServiceEnabled = (bindings: AiServiceBindings) => !!bindings.AI_S
 export function aiServiceTimeout(bindings: AiServiceBindings): number {
   const value = Number(bindings.AI_SERVICE_TIMEOUT_MS || 5000);
   return Number.isInteger(value) && value >= 100 && value <= 5000 ? value : 5000;
+}
+
+export function fourReversiAiServiceTimeout(bindings: AiServiceBindings): number {
+  const value = Number(bindings.AI_FOUR_REVERSI_TIMEOUT_MS);
+  return Number.isInteger(value) && value >= 100 && value <= 10_000
+    ? value
+    : aiServiceTimeout(bindings);
 }
 
 const responseSchema = z.strictObject({
@@ -266,7 +274,7 @@ export async function requestAiMove(
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
-    Math.max(1, Math.min(aiServiceTimeout(bindings), expiresAt - Date.now())),
+    Math.max(1, Math.min(fourReversiAiServiceTimeout(bindings), expiresAt - Date.now())),
   );
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
