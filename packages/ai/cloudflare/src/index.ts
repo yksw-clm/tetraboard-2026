@@ -7,6 +7,7 @@ interface Bindings {
   REVERSI_CONTAINER?: DurableObjectNamespace<ReversiContainer>;
   AI_SERVICE_TOKEN?: string;
   AI_SHOGI_ENABLED?: string;
+  FOUR_SHOGI_DIAGNOSTICS?: string;
 }
 
 // 既存の四人リバーシ用Container applicationとDurable Objectを引き継ぎます。
@@ -77,9 +78,34 @@ export default {
         ? env.SHOGI_CONTAINER?.getByName("shogi-v1")
         : env.AI_CONTAINER.getByName("shared-v1");
     if (!container) return reply({ error: "not_found" }, 404);
+    const requestId = request.headers.get("x-tetraboard-ai-request-id");
+    const attempt = request.headers.get("x-tetraboard-ai-attempt");
+    const trace =
+      env.FOUR_SHOGI_DIAGNOSTICS === "true" &&
+      path === "/v1/four-shogi/move" &&
+      requestId !== null &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) &&
+      (attempt === "1" || attempt === "2");
+    const started = performance.now();
+    const logFailure = (reason: string, httpStatus: number) => {
+      if (trace)
+        console.info({
+          event: "four_shogi_ai_gateway_failed",
+          game: "four-shogi",
+          requestId,
+          attempt: Number(attempt),
+          elapsedMs: Math.round(performance.now() - started),
+          reason,
+          httpStatus,
+        });
+    };
     try {
-      return status ? reply(await container.getState()) : await container.fetch(request);
+      if (status) return reply(await container.getState());
+      const response = await container.fetch(request);
+      if (!response.ok) logFailure("container_http_error", response.status);
+      return response;
     } catch {
+      logFailure("container_fetch_exception", 503);
       return reply({ error: "unavailable" }, 503);
     }
   },

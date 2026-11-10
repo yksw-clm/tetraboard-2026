@@ -1,3 +1,4 @@
+import type { FourShogiAiFailure, FourShogiAiResult } from "./aiService";
 import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
 import {
   calibratedFourShogiProfile,
@@ -78,6 +79,14 @@ export type FourShogiAiWork = {
   events: FourShogiReplayEvent[];
   profile: NonNullable<ReturnType<typeof calibratedFourShogiProfile>>;
 };
+type FourShogiFallbackReason =
+  | FourShogiAiFailure
+  | "expired_job"
+  | "invalid_profile"
+  | "capacity_unavailable"
+  | "replay_too_long"
+  | "illegal_move";
+
 export type ShogiCpuJob = {
   roundId: string;
   positionRevision: number;
@@ -85,6 +94,7 @@ export type ShogiCpuJob = {
   action: FourShogiAction;
   applyAt: number;
   fallback?: true;
+  aiDiagnostic?: { requestId: string; reason?: FourShogiFallbackReason };
 };
 export class FourShogiProgress {
   private readonly storage: DurableObjectStorage;
@@ -473,11 +483,12 @@ export class FourShogiProgress {
     room: Playing,
     now: number,
     timeout: number,
-    hasCapacity: boolean,
+    unavailable: "configuration" | "capacity_unavailable" | null,
   ): FourShogiAiWork | null {
     const pending = this.externalCpuJob(room);
     if (pending) {
-      if (now >= pending.expiresAt) this.completeExternalCpu(room, pending, null, now);
+      if (now >= pending.expiresAt)
+        this.completeExternalCpu(room, pending, { action: null, reason: "expired_job" }, now);
       return null;
     }
     const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
@@ -495,8 +506,9 @@ export class FourShogiProgress {
     };
     this.storage.kv.put(fourShogiAiJobKey, job);
     const count = this.store().eventCount(room.roundId);
-    if (!profile || !hasCapacity || count > 1600) {
-      this.completeExternalCpu(room, job, null, now);
+    if (!profile || unavailable || count > 1600) {
+      const reason = !profile ? "invalid_profile" : (unavailable ?? "replay_too_long");
+      this.completeExternalCpu(room, job, { action: null, reason }, now);
       return null;
     }
     const events: FourShogiReplayEvent[] = [];
@@ -511,19 +523,28 @@ export class FourShogiProgress {
   completeExternalCpu(
     room: Playing,
     job: FourShogiAiJob,
-    action: FourShogiAction | null,
+    response: FourShogiAiResult | { action: null; reason: FourShogiFallbackReason },
     now: number,
   ) {
     if (this.externalCpuJob(room)?.requestId !== job.requestId || isClockExpired(room.clock, now))
       return;
     this.storage.kv.delete(fourShogiAiJobKey);
     const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
+    const { action } = response;
     const legal =
       action &&
       now < job.expiresAt &&
       applyShogiAction(state, job.side, action, repetitionLookup).ok;
     const chosen = legal ? action : room.legalActions[0];
     if (!chosen) throw Error("四人将棋のCPUに合法手がありません");
+    const aiDiagnostic = !legal
+      ? {
+          requestId: job.requestId,
+          reason: response.reason ?? (now >= job.expiresAt ? "timeout" : "illegal_move"),
+        }
+      : "retried" in response && response.retried
+        ? { requestId: job.requestId }
+        : undefined;
     this.storage.kv.put(shogiCpuJobKey, {
       roundId: job.roundId,
       positionRevision: job.positionRevision,
@@ -531,6 +552,7 @@ export class FourShogiProgress {
       action: chosen,
       applyAt: now + 1,
       ...(!legal ? { fallback: true as const } : {}),
+      ...(aiDiagnostic ? { aiDiagnostic } : {}),
     } satisfies ShogiCpuJob);
   }
 
