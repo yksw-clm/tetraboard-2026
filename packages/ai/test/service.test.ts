@@ -211,20 +211,41 @@ test("四人将棋の実AI Serviceが3設定の上限を守り、棋譜に対す
   }
 });
 
-test("実AI Serviceへ接続したWorkerで完走・再起動・重複・失敗を検証する", async () => {
-  const child = Bun.spawn(
-    ["bun", "run", "test", "--config", "vitest.ai-service.config.mts", "--reporter=verbose"],
-    {
-      cwd: new URL("../../../apps/worker", import.meta.url).pathname,
-      env: { ...process.env, TETRABOARD_AI_TEST_URL: baseUrl, TETRABOARD_AI_TEST_TOKEN: token },
-      stdout: "inherit",
-      stderr: "inherit",
-    },
-  );
-  try {
-    expect(await child.exited).toBe(0);
-  } finally {
-    child.kill("SIGTERM");
-    await child.exited;
-  }
-}, 30000);
+const workerDirectory = new URL("../../../apps/worker", import.meta.url).pathname;
+const workerSuites = [
+  ...new Bun.Glob("test-ai-service/**/*.test.ts").scanSync({ cwd: workerDirectory }),
+].sort();
+
+test("実AI Serviceへ接続するWorkerの統合試験が存在する", () => {
+  expect(workerSuites.length).toBeGreaterThan(0);
+});
+
+test.each(workerSuites)(
+  "実AI ServiceとWorkerの統合試験 %s",
+  async (suite) => {
+    const child = Bun.spawn(
+      [
+        "bun",
+        "run",
+        "test",
+        "--config",
+        "vitest.ai-service.config.mts",
+        "--reporter=verbose",
+        suite,
+      ],
+      {
+        cwd: workerDirectory,
+        env: { ...process.env, TETRABOARD_AI_TEST_URL: baseUrl, TETRABOARD_AI_TEST_TOKEN: token },
+        stdout: "inherit",
+        stderr: "inherit",
+      },
+    );
+    try {
+      expect(await child.exited).toBe(0);
+    } finally {
+      child.kill("SIGTERM");
+      await child.exited;
+    }
+  },
+  30000,
+);
