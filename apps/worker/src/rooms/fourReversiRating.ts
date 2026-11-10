@@ -44,8 +44,15 @@ type CurrentRating = {
   human_games: number;
 };
 
+const publicRatingBase = 1500;
+const publicRatingScale = 50;
+
+function publicRatingForMu(mu: number) {
+  return Math.round(publicRatingBase + publicRatingScale * (mu - initialFourReversiRating.mu));
+}
+
 export function fourReversiPublicRating(mu: number) {
-  const rating = Math.round(1500 + 50 * (mu - initialFourReversiRating.mu));
+  const rating = publicRatingForMu(mu);
   const divisions = fourReversiRankDivisions.length;
   const lastRank = fourReversiRankTiers.length * divisions - 1;
   const rankIndex = Math.min(lastRank, Math.max(0, 1 + Math.floor((rating - 1200) / 100)));
@@ -216,16 +223,28 @@ export async function applyFourReversiRating(db: D1Database, record: MatchRecord
       player.kind === "human" ? before.get(player.accountId!)! : source.cpu[player.color]!,
     );
     const updated = rateFourReversi(ratings, ranks as number[]);
+    const maxRatingChange = cpus.length ? 24 : 32;
     const changes = players.flatMap((player, index) => {
       if (player.kind !== "human") return [];
       const row = before.get(player.accountId!)!;
+      const next = updated[index]!;
+      let muAfter = next.mu;
+      if (row.rated_games >= fourReversiPlacementGames) {
+        const previousRating = publicRatingForMu(row.mu);
+        const change = publicRatingForMu(muAfter) - previousRating;
+        if (Math.abs(change) > maxRatingChange) {
+          const cappedRating = previousRating + Math.sign(change) * maxRatingChange;
+          muAfter =
+            initialFourReversiRating.mu + (cappedRating - publicRatingBase) / publicRatingScale;
+        }
+      }
       return [
         {
           accountId: row.account_id,
           muBefore: row.mu,
           sigmaBefore: row.sigma,
-          muAfter: updated[index]!.mu,
-          sigmaAfter: updated[index]!.sigma,
+          muAfter,
+          sigmaAfter: next.sigma,
           ratedGames: row.rated_games + 1,
           humanGames: row.human_games + Number(humans.length > 1),
         },

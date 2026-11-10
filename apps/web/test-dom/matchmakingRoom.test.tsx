@@ -125,52 +125,64 @@ for (const action of ["もう一度マッチング", "ロビーへ"])
     );
   });
 
-test("四人リバーシの終局では保存後に4席のレートを名前の横に表示する", async () => {
-  const match = replayMatch();
-  const base = waiting();
-  const room = fourReversiRoomSchema.parse({
-    ...base,
-    matchmaking: { ...base.matchmaking, rated: true },
-    lastRound: {
-      game: match.game,
-      replay: match.replay,
-      players: match.participants.map((p, i) => ({
-        id: playerIds[i],
-        name: p.name,
-        color: p.color,
-      })),
-    },
-  });
-  const { view } = await setup(room);
-  press(view, "結果");
-  await flush();
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
-  const rejoin = [...dialog.querySelectorAll("button")].find((button) =>
-    button.textContent?.includes("もう一度マッチング"),
-  )!;
-  expect(rejoin.disabled).toBe(true);
-  const path = `/api/matchmaking/four-reversi/results/${room.matchmaking!.id}?includeOpponent=1`;
-  requests
-    .find((r) => r.url === path)!
-    .respond({
-      status: "rated",
-      rating: 1542,
-      previousRating: 1555,
-      placementCompleted: false,
-      humanPlayed: true,
-      players: {
-        [playerIds[1]!]: { status: "rated", rating: 1513, previousRating: 1500 },
-        [playerIds[2]!]: { status: "placement" },
-        [playerIds[3]!]: { status: "cpu", rating: 1500 },
+test.each([false, true])(
+  "四人リバーシの終局で4席のレートを表示する（本人の認定完了: %s）",
+  async (placementCompleted) => {
+    const match = replayMatch();
+    const base = waiting();
+    const room = fourReversiRoomSchema.parse({
+      ...base,
+      matchmaking: { ...base.matchmaking, rated: true },
+      lastRound: {
+        game: match.game,
+        replay: match.replay,
+        players: match.participants.map((p, i) => ({
+          id: playerIds[i],
+          name: p.name,
+          color: p.color,
+        })),
       },
     });
-  await flush();
-  for (const [index, label] of ["1542 (-13)", "1513 (+13)", "認定中", "1500"].entries()) {
-    const participant = dialog.querySelector(`[data-player-id="${playerIds[index]}"]`)!;
-    expect(participant.lastElementChild?.lastElementChild?.textContent).toBe(label);
-  }
-  expect(rejoin.disabled).toBe(false);
-});
+    const { view } = await setup(room);
+    press(view, "結果");
+    await flush();
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const rejoin = [...dialog.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("もう一度マッチング"),
+    )!;
+    expect(rejoin.disabled).toBe(true);
+    const path = `/api/matchmaking/four-reversi/results/${room.matchmaking!.id}?includeOpponent=1`;
+    requests
+      .find((r) => r.url === path)!
+      .respond({
+        status: "rated",
+        rating: 1542,
+        previousRating: 1555,
+        placementCompleted,
+        humanPlayed: !placementCompleted,
+        players: {
+          [playerIds[1]!]: { status: "rated", rating: 1513, previousRating: 1500 },
+          [playerIds[2]!]: { status: "placement" },
+          [playerIds[3]!]: { status: "cpu", rating: 1500 },
+        },
+      });
+    await flush();
+    for (const [index, label] of [
+      placementCompleted ? "1542" : "1542 (-13)",
+      "1513 (+13)",
+      "認定中",
+      "1500",
+    ].entries()) {
+      const participant = dialog.querySelector(`[data-player-id="${playerIds[index]}"]`)!;
+      expect(participant.lastElementChild?.lastElementChild?.textContent).toBe(label);
+    }
+    if (placementCompleted) {
+      expect(dialog.textContent).toContain("認定完了");
+      expect(dialog.textContent).not.toContain("対人戦未経験");
+    }
+    expect(rejoin.disabled).toBe(false);
+  },
+);
 
 test.each([
   {
