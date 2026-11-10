@@ -201,15 +201,18 @@ export type ShogiAiWork = {
   job: { requestId: string; roundId: string; positionRevision: number; expiresAt: number };
   moves: string[];
   nodes?: number;
+  standardBook?: boolean;
 };
 
 const shogiNodes = 256;
+const shogiStandardBook = "standard-v1";
 const shogiResponseSchema = z.strictObject({
   request_id: z.string().uuid(),
   position_revision: z.string().length(64),
   engine_version: z.literal("yaneuraou-material-faeb37f0"),
   nodes: z.int().positive(),
   best_move: z.string().min(4).max(5),
+  opening_book: z.literal(shogiStandardBook).optional(),
 });
 
 export async function requestShogiAiMove(bindings: AiServiceBindings, work: ShogiAiWork) {
@@ -217,6 +220,7 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
   if (!url || bindings.AI_SHOGI_ENABLED !== "true") return null;
   const { requestId, roundId, positionRevision, expiresAt } = work.job;
   const nodes = work.nodes ?? shogiNodes;
+  const openingBook = work.standardBook && work.moves.length < 2 ? shogiStandardBook : undefined;
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(JSON.stringify([roundId, positionRevision, work.moves])),
@@ -240,6 +244,7 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
         position_revision: revision,
         nodes,
         moves: work.moves,
+        opening_book: openingBook,
       }),
       redirect: "manual",
       signal: controller.signal,
@@ -252,7 +257,8 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
     return parsed.success &&
       parsed.data.request_id === requestId &&
       parsed.data.position_revision === revision &&
-      parsed.data.nodes === nodes
+      parsed.data.nodes === nodes &&
+      parsed.data.opening_book === openingBook
       ? parsed.data.best_move
       : null;
   } catch {

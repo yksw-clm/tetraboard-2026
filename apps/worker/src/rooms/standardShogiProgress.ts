@@ -48,7 +48,7 @@ import type {
 } from "./gameProgress";
 import type { ShogiAiWork } from "./aiService";
 import type { ShogiRatingSource } from "./shogiRating";
-import { shogiCpuNodes } from "../matchmaking/shogiCpuProfiles";
+import { shogiCpuProfile } from "../matchmaking/shogiCpuProfiles";
 const shogiCpuJobKey = "standard-shogi-cpu-job";
 const externalShogiCpuJobKey = "standard-shogi-external-cpu-job";
 type ActiveShogiMatch = { start: Omit<StandardShogiMatchRecord, "endedAtMs" | "game" | "replay"> };
@@ -421,9 +421,9 @@ export class ShogiProgress {
     )
       return null;
     const rating = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)?.start.rating;
-    const nodes =
-      room.matchmaking && rating?.kind === "cpu" ? shogiCpuNodes(rating.profileId) : undefined;
-    if (room.matchmaking && nodes === undefined) return null;
+    const profile =
+      room.matchmaking && rating?.kind === "cpu" ? shogiCpuProfile(rating.profileId) : undefined;
+    if (room.matchmaking && !profile) return null;
     const { state } = this.store().loadTransition(room.roundId, room.game);
     if (declarationStatus(state, cpu.side).outcome === "win" || state.moveNumber > 1024)
       return null;
@@ -441,7 +441,7 @@ export class ShogiProgress {
       expiresAt: Math.min(now + timeout, room.clock.turnExpiresAt),
     };
     this.storage.kv.put(externalShogiCpuJobKey, job);
-    return { job, moves, ...(nodes === undefined ? {} : { nodes }) };
+    return { job, moves, ...profile };
   }
 
   completeExternalCpu(room: Playing, work: ShogiAiWork, move: string | null, now: number) {

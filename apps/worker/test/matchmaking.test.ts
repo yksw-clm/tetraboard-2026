@@ -210,7 +210,13 @@ test("保存済みの将棋レートを引き継ぎ、単独待機は15秒でCPU
   const reservation = await runInDurableObject(room, (_, ctx) =>
     ctx.storage.kv.get(`matchmaking:${assignment.matchId}`),
   );
-  expect(reservation).toMatchObject({ rating: { kind: "cpu", referenceRating: 1764 } });
+  expect(reservation).toMatchObject({
+    rating: {
+      kind: "cpu",
+      profileId: "yaneuraou-material-faeb37f0-n1024-standard-book-v1",
+      referenceRating: 1778,
+    },
+  });
 });
 
 test.each([
@@ -370,7 +376,7 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
   let now = Date.now() + 60000;
   vi.spyOn(Date, "now").mockImplementation(() => now);
   const queue = shogiQueue();
-  const account = await ratedAccount(1764);
+  const account = await ratedAccount(1778);
   const operationId = crypto.randomUUID();
   const controllerId = crypto.randomUUID();
   expect((await queue.join(account.id, operationId, controllerId)).ok).toBe(true);
@@ -407,6 +413,7 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
       position_revision: input.position_revision,
       engine_version: "yaneuraou-material-faeb37f0",
       nodes: input.nodes,
+      opening_book: input.opening_book,
       best_move: humanSide === "south" ? "3c3d" : "7g7f",
     });
   });
@@ -421,7 +428,10 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
     try {
       await instance.alarm();
       expect(fetchAi).toHaveBeenCalledTimes(1);
-      expect(JSON.parse(String(fetchAi.mock.calls[0]?.[1]?.body)).nodes).toBe(1024);
+      expect(JSON.parse(String(fetchAi.mock.calls[0]?.[1]?.body))).toMatchObject({
+        nodes: 1024,
+        opening_book: "standard-v1",
+      });
       const job = ctx.storage.kv.get<ShogiCpuJob>("standard-shogi-cpu-job")!;
       expect(job.external).toBe(true);
       now = job.applyAt;
@@ -449,8 +459,8 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
         .bind(assignment.matchId)
         .first(),
     ).toEqual({
-      rating_before: 1764,
-      rating_after: 1740,
+      rating_before: 1778,
+      rating_after: 1754,
       rated_games: 2,
       human_games: 0,
     });

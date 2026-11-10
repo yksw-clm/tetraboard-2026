@@ -14,7 +14,7 @@ import {
   shogiRatingStore,
   type ShogiRatingSource,
 } from "../rooms/shogiRating";
-import { selectShogiCpu, shogiCpuNodes } from "./shogiCpuProfiles";
+import { selectShogiCpu, shogiCpuProfile } from "./shogiCpuProfiles";
 import { reversiCpuProfile, selectReversiCpu } from "./reversiCpuProfiles";
 import {
   readReversiRatingResult,
@@ -84,7 +84,7 @@ const shogi = {
     const seats = matchmakingQueues.shogi.seats;
     return rating.kind === "human"
       ? humans === seats
-      : humans === seats - 1 && shogiCpuNodes(rating.profileId) !== undefined;
+      : humans === seats - 1 && shogiCpuProfile(rating.profileId) !== undefined;
   },
   select: selectShogi,
 };

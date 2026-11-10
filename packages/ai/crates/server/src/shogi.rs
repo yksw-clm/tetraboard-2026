@@ -5,7 +5,12 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use std::{io, path::PathBuf, process::Stdio, time::Duration};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
+};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines},
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -15,23 +20,41 @@ use tokio::{
 
 const ENGINE_VERSION: &str = "yaneuraou-material-faeb37f0";
 const NODE_BUDGETS: [u16; 5] = [64, 128, 256, 512, 1024];
+const STANDARD_BOOK_FILE: &str = "standard_book.db";
 
 pub(super) struct Engine {
     path: PathBuf,
+    book_dir: Option<PathBuf>,
     pending: Semaphore,
     session: Mutex<Option<Session>>,
 }
 
 impl Engine {
     pub(super) fn new(path: PathBuf) -> Self {
+        let book_dir = path
+            .parent()
+            .and_then(|dir| dir.join("book").canonicalize().ok())
+            .filter(|dir| dir.join(STANDARD_BOOK_FILE).is_file());
         Self {
             path,
+            book_dir,
             pending: Semaphore::new(4),
             session: Mutex::new(None),
         }
     }
 
-    async fn search(&self, moves: &[String], nodes: u16) -> Result<String, ApiError> {
+    async fn search(
+        &self,
+        moves: &[String],
+        nodes: u16,
+        opening_book: Option<OpeningBook>,
+    ) -> Result<String, ApiError> {
+        if opening_book.is_some() && self.book_dir.is_none() {
+            return Err(ApiError(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "shogi_book_unavailable",
+            ));
+        }
         let _permit = self
             .pending
             .try_acquire()
@@ -41,8 +64,15 @@ impl Engine {
             // 探索中に期限切れになったプロセスは破棄し、遅延した応答を次の要求に使いません。
             let mut session = match slot.take() {
                 Some(session) => session,
-                None => Session::start(&self.path).await?,
+                None => Session::start(&self.path, self.book_dir.as_deref()).await?,
             };
+            if self.book_dir.is_some() {
+                // 共有プロセスの設定を要求ごとに切り替え、対局間で混ざらないようにします。
+                let book_moves = if opening_book.is_some() { 2 } else { 0 };
+                session
+                    .send(&format!("setoption name BookMoves value {book_moves}"))
+                    .await?;
+            }
             let position = if moves.is_empty() {
                 "position startpos".to_owned()
             } else {
@@ -72,7 +102,7 @@ struct Session {
 }
 
 impl Session {
-    async fn start(path: &std::path::Path) -> io::Result<Self> {
+    async fn start(path: &Path, book_dir: Option<&Path>) -> io::Result<Self> {
         let mut child = Command::new(path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -90,10 +120,32 @@ impl Session {
         for option in [
             "setoption name USI_Hash value 16",
             "setoption name Threads value 1",
-            "setoption name BookFile value no_book",
             "setoption name EnteringKingRule value NoEnteringKing",
         ] {
             session.send(option).await?;
+        }
+        if let Some(book_dir) = book_dir {
+            session
+                .send(&format!(
+                    "setoption name BookDir value {}",
+                    book_dir.display()
+                ))
+                .await?;
+            session
+                .send(&format!(
+                    "setoption name BookFile value {STANDARD_BOOK_FILE}"
+                ))
+                .await?;
+            session
+                .send("setoption name BookOnTheFly value true")
+                .await?;
+            session
+                .send("setoption name ConsiderBookMoveCount value true")
+                .await?;
+        } else {
+            session
+                .send("setoption name BookFile value no_book")
+                .await?;
         }
         session.send("isready").await?;
         session.read_until("readyok").await?;
@@ -119,6 +171,12 @@ impl Session {
     }
 }
 
+#[derive(Clone, Copy, Deserialize, Serialize)]
+enum OpeningBook {
+    #[serde(rename = "standard-v1")]
+    StandardV1,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct MoveRequest {
@@ -126,6 +184,7 @@ pub(super) struct MoveRequest {
     position_revision: String,
     nodes: u16,
     moves: Vec<String>,
+    opening_book: Option<OpeningBook>,
 }
 
 #[derive(Serialize)]
@@ -135,6 +194,8 @@ pub(super) struct MoveResponse {
     engine_version: &'static str,
     nodes: u16,
     best_move: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    opening_book: Option<OpeningBook>,
 }
 
 pub(super) async fn choose_move(
@@ -152,13 +213,16 @@ pub(super) async fn choose_move(
     let engine = service
         .shogi
         .ok_or(ApiError(StatusCode::SERVICE_UNAVAILABLE, "shogi_disabled"))?;
-    let best_move = engine.search(&request.moves, request.nodes).await?;
+    let best_move = engine
+        .search(&request.moves, request.nodes, request.opening_book)
+        .await?;
     Ok(Json(MoveResponse {
         request_id: request.request_id,
         position_revision: request.position_revision,
         engine_version: ENGINE_VERSION,
         nodes: request.nodes,
         best_move,
+        opening_book: request.opening_book,
     }))
 }
 
@@ -189,8 +253,8 @@ mod tests {
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         let engine = Engine::new(path.clone());
-        let result = engine.search(&["7g7f".into()], 256).await;
-        let replacement = engine.search(&[], 256).await;
+        let result = engine.search(&["7g7f".into()], 256, None).await;
+        let replacement = engine.search(&[], 256, None).await;
         fs::remove_file(path).unwrap();
 
         assert!(matches!(

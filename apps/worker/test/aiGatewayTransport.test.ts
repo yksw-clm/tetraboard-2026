@@ -226,6 +226,43 @@ test("Bindingのない環境では明示したローカルHTTPサービスへ認
   );
 });
 
+test("将棋は最初の2手にだけ定跡を指定し、指定が照合できない応答を採用しない", async () => {
+  const sent: unknown[] = [];
+  const bindings = {
+    ...enabled,
+    AI_GATEWAY: {
+      fetch: async (request: Request) => {
+        const input = await request.json<{
+          opening_book?: string;
+          request_id: string;
+          position_revision: string;
+          nodes: number;
+        }>();
+        sent.push(input.opening_book);
+        return Response.json({
+          request_id: input.request_id,
+          position_revision: input.position_revision,
+          engine_version: "yaneuraou-material-faeb37f0",
+          nodes: input.nodes,
+          best_move: "7g7f",
+        });
+      },
+    },
+  };
+
+  expect(
+    await requestShogiAiMove(bindings, { job: nextJob(), moves: [], standardBook: true }),
+  ).toBeNull();
+  expect(
+    await requestShogiAiMove(bindings, {
+      job: nextJob(),
+      moves: ["7g7f", "3c3d"],
+      standardBook: true,
+    }),
+  ).toBe("7g7f");
+  expect(sent).toEqual(["standard-v1", undefined]);
+});
+
 test("Bindingだけでも接続先を認識し、トークンの検証後にAI接続を有効にする", () => {
   const binding = { AI_GATEWAY: { fetch: vi.fn() } };
   expect(aiServiceEnabled(binding)).toBe(true);
