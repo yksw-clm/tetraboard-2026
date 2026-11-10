@@ -177,6 +177,21 @@ const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
 const reconnectGraceMs = 30_000;
 const idleMs = 24 * 60 * 60 * 1000;
+function isFourPlayerRatedGameInProgress(room: Room): boolean {
+  return (
+    room.status === "playing" &&
+    (isFourShogiRoom(room) || isFourReversiRoom(room)) &&
+    room.matchmaking?.rated === true
+  );
+}
+
+function usesIdleDeadline(room: Room): boolean {
+  return (
+    !isFourPlayerRatedGameInProgress(room) &&
+    !(room.status === "playing" && (isShogiRoom(room) || isReversiRoom(room)) && room.matchmaking)
+  );
+}
+
 const stampTag = "room-stamps-v1";
 const departedKey = (playerId: string) => `departed:${playerId}`;
 type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
@@ -1262,7 +1277,7 @@ export class GameRoom extends DurableObject<Env> {
   private closeIfNoHumanParticipants<T extends Room>(room: T | null): T | null {
     if (
       room === null ||
-      (isFourShogiRoom(room) && room.status === "playing" && room.matchmaking?.rated) ||
+      isFourPlayerRatedGameInProgress(room) ||
       room.players.some((player) => this.isHumanParticipant(player))
     )
       return room;
@@ -1965,7 +1980,7 @@ export class GameRoom extends DurableObject<Env> {
         .filter((player) => player.kind === "human" && !this.registrationForPlayer(player.id))
         .map((player) => player.reconnectDeadline)
         .filter((value) => value !== null) ?? [];
-    if (room !== null) deadlines.push(room.lastActivityAtMs + idleMs);
+    if (room !== null && usesIdleDeadline(room)) deadlines.push(room.lastActivityAtMs + idleMs);
     for (const player of room?.players ?? []) {
       const registration = this.registrationForPlayer(player.id);
       if (registration) deadlines.push(registration.holdUntilMs);
@@ -3431,11 +3446,7 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         return null;
       }
-      const ratedDuelPlaying =
-        (isShogiRoom(room) || isReversiRoom(room) || isFourShogiRoom(room)) &&
-        room.matchmaking &&
-        room.status === "playing";
-      const idle = !ratedDuelPlaying && room.lastActivityAtMs + idleMs <= now;
+      const idle = usesIdleDeadline(room) && room.lastActivityAtMs + idleMs <= now;
       if (idle || this.closeIfNoHumanParticipants(room) === null) {
         if (idle) this.closeRoom();
         changed = true;
