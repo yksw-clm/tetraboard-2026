@@ -54,7 +54,7 @@ Lv3の固定8局面（初期・12・28・44手と、それぞれ白が脱落し�
 
 ## 公開前の容量と費用
 
-開発専用Serviceは`https://tetraboard-ai-dev.chaossi-lab.workers.dev`、Cloudflare Containersのlite・共有1台上限・10秒アイドル停止を使います。新しいプラン契約や常時起動は追加しません。`MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。新規参加は有効なService URL・tokenとフラグの両方がそろう場合だけ許可します。実際の公開にはルールv2／局面版2・Engine 0.2.0・profile hashの照合と、Workerからの接続成功を確認する必要があります。異常応答時の退避は接続成功の代わりに扱いません。
+2026-11-08の初回導入では、開発専用Service `https://tetraboard-ai-dev.chaossi-lab.workers.dev` にlite・1台上限・10秒アイドル停止を設定しました。現在の構成は[ゲーム別のAIコンテナ](architecture.md#ゲーム別のaiコンテナ)を参照してください。新しいプラン契約や常時起動は追加しません。`MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。新規参加は有効なService URL・tokenとフラグの両方がそろう場合だけ許可します。実際の公開にはルールv2／局面版2・Engine 0.2.0・profile hashの照合と、Workerからの接続成功を確認する必要があります。異常応答時の退避は接続成功の代わりに扱いません。
 
 2026-11-08確認の[Containers公式料金](https://developers.cloudflare.com/containers/platform/pricing/)では、Workers Paidの月間枠はメモリ25GiB-hours・CPU375vCPU-minutes・ディスク200GB-hoursです。[liteの割当](https://developers.cloudflare.com/containers/platform/limits/)は256MiB・1/16 vCPU・2GBです。メモリ・ディスクは割当とアイドルを含む稼働時間、CPUは実使用時間で課金されます。独立したサービスごとの追加月額$5ではなく、既存プランの枠を共有します。
 
@@ -103,7 +103,7 @@ Lv3の固定8局面（初期・12・28・44手と、それぞれ白が脱落し�
 
 20秒でCPU補充を試み、枠が埋まっている場合は元の待機順で再試行します。待機中は対人戦の成立と取消を受け付けます。レート戦ダイアログの「○人が待機中」には、そのゲームで待つ人間と、補充時刻を過ぎて枠の空きを待つ組合せの不足CPU席を含めます。成立した組合せは人数から外します。
 
-通信、入室、開始カウントダウンは成立後に行います。待機lease、全ゲームの同時参加制限、入室期限、再マッチング時の旧席解放はフェーズ4の仕組みを使います。
+通信と入室は成立後に行います。開発環境のCPU補充局では、全員接続とAI準備完了がそろうと開始カウントダウンに進みます。AIの準備ができなければ、参加資格が残る人を元の待機順へ戻します。待機lease、全ゲームの同時参加制限、入室期限、再マッチング時の旧席解放はフェーズ4の仕組みを使います。
 
 レート戦の「もう一度マッチング」は、旧席の退室が成功した後に新しい検索を一度だけ開始します。「ロビーへ」で戻ってダイアログを開いた場合は、現在の待機・割当を確認し、どちらもなければ検索前の画面を表示します。「待機が終了しました」は、ダイアログで確認した待機・割当がその後に終了した場合に表示します。
 

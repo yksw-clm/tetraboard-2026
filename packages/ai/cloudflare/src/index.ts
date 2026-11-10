@@ -3,6 +3,8 @@ import { authorized, validToken } from "./access";
 
 interface Bindings {
   AI_CONTAINER: DurableObjectNamespace<AiContainer>;
+  FOUR_SHOGI_CONTAINER?: DurableObjectNamespace<FourShogiContainer>;
+  FOUR_PLAYER_AI_WARMUP_ENABLED?: string;
   SHOGI_CONTAINER?: DurableObjectNamespace<ShogiContainer>;
   REVERSI_CONTAINER?: DurableObjectNamespace<ReversiContainer>;
   AI_SERVICE_TOKEN?: string;
@@ -13,7 +15,17 @@ interface Bindings {
 // 既存の四人リバーシ用Container applicationとDurable Objectを引き継ぎます。
 export class AiContainer extends Container<Bindings> {
   defaultPort = 3001;
-  sleepAfter = "10s";
+  sleepAfter = this.env.FOUR_SHOGI_CONTAINER ? "11m" : "10s";
+  enableInternet = false;
+  envVars = {
+    AI_SERVICE_TOKEN: this.env.AI_SERVICE_TOKEN ?? "",
+    AI_SERVICE_CONCURRENCY: "4",
+  };
+}
+
+export class FourShogiContainer extends Container<Bindings> {
+  defaultPort = 3001;
+  sleepAfter = "11m";
   enableInternet = false;
   envVars = {
     AI_SERVICE_TOKEN: this.env.AI_SERVICE_TOKEN ?? "",
@@ -58,16 +70,23 @@ export default {
     if (!(await authorized(request, env.AI_SERVICE_TOKEN)))
       return reply({ error: "unauthorized" }, 401);
     const status = path === "/admin/status" && request.method === "GET";
-    const statusGame = url.searchParams.get("game");
-    const shogi = path === "/v1/shogi/move" || (status && statusGame === "shogi");
-    const reversi = path === "/v1/reversi/move" || (status && statusGame === "reversi");
-    const shared =
-      (request.method === "POST" && (path === "/v1/move" || path === "/v2/move")) ||
-      path === "/v1/four-shogi/move" ||
-      (status && (statusGame === null || statusGame === "four-reversi"));
+    const warmup =
+      path === "/admin/warmup" &&
+      request.method === "POST" &&
+      env.FOUR_PLAYER_AI_WARMUP_ENABLED === "true";
+    const game = url.searchParams.get("game");
+    const shogi = path === "/v1/shogi/move" || (status && game === "shogi");
+    const reversi = path === "/v1/reversi/move" || (status && game === "reversi");
+    const fourShogi =
+      path === "/v1/four-shogi/move" || ((status || warmup) && game === "four-shogi");
+    const fourReversi =
+      path === "/v1/move" ||
+      path === "/v2/move" ||
+      (status && game === null) ||
+      ((status || warmup) && game === "four-reversi");
     if (
       (!status && request.method !== "POST") ||
-      (!shared && !shogi && !reversi) ||
+      (!fourReversi && !fourShogi && !shogi && !reversi) ||
       (shogi && env.AI_SHOGI_ENABLED !== "true")
     )
       return reply({ error: "not_found" }, 404);
@@ -76,7 +95,9 @@ export default {
       ? env.REVERSI_CONTAINER?.getByName("reversi-v1")
       : shogi
         ? env.SHOGI_CONTAINER?.getByName("shogi-v1")
-        : env.AI_CONTAINER.getByName("shared-v1");
+        : fourShogi && (env.FOUR_SHOGI_CONTAINER || env.FOUR_PLAYER_AI_WARMUP_ENABLED === "true")
+          ? env.FOUR_SHOGI_CONTAINER?.getByName("four-shogi-v1")
+          : env.AI_CONTAINER.getByName("shared-v1");
     if (!container) return reply({ error: "not_found" }, 404);
     const requestId = request.headers.get("x-tetraboard-ai-request-id");
     const attempt = request.headers.get("x-tetraboard-ai-attempt");
@@ -101,6 +122,16 @@ export default {
     };
     try {
       if (status) return reply(await container.getState());
+      if (warmup) {
+        const health = await container.fetch(
+          new Request(new URL("/health", url), { signal: request.signal }),
+        );
+        const body = health.ok ? await health.json<{ status?: string }>() : null;
+        if (!health.ok) void health.body?.cancel().catch(() => {});
+        return body?.status === "ok"
+          ? reply({ status: "ok" })
+          : reply({ error: "unavailable" }, 503);
+      }
       const response = await container.fetch(request);
       if (!response.ok) logFailure("container_http_error", response.status);
       return response;

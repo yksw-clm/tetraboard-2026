@@ -235,7 +235,12 @@ test.each(workerSuites)(
       ],
       {
         cwd: workerDirectory,
-        env: { ...process.env, TETRABOARD_AI_TEST_URL: baseUrl, TETRABOARD_AI_TEST_TOKEN: token },
+        env: {
+          ...process.env,
+          TETRABOARD_AI_TEST_URL: baseUrl,
+          TETRABOARD_AI_TEST_TOKEN: token,
+          TETRABOARD_AI_TEST_WARMUP: suite.endsWith("/fourPlayerAiWarmup.test.ts") ? "1" : "0",
+        },
         stdout: "inherit",
         stderr: "inherit",
       },

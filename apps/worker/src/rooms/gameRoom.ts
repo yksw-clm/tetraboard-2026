@@ -89,6 +89,8 @@ import {
   requestReversiAiMove,
   requestShogiAiMove,
   requestFourShogiAiMove,
+  requestFourPlayerAiWarmup,
+  type FourPlayerAiGame,
   reversiAiEnabled,
   shogiAiEnabled,
   type ReversiAiWork,
@@ -149,6 +151,9 @@ import {
   type StoredGuestRegistration,
 } from "./registrationTypes";
 
+const aiWarmupAttemptMs = 8000;
+const aiWarmupRetryMs = 2000;
+const aiWarmupMaxAttempts = 2;
 const cpuCapacityKey = "external-cpu-capacity";
 const cpuCapacitySequenceKey = "external-cpu-capacity-sequence";
 type RoomCpuCapacity = {
@@ -1776,9 +1781,8 @@ export class GameRoom extends DurableObject<Env> {
 
   private externalCpuGame(room: Room): CpuCapacityGame | null {
     if (isShogiRoom(room) && shogiAiEnabled(this.env)) return "shogi";
-    // 四人将棋と四人リバーシは同じAI Containerと実行枠を使います。
     if (isFourShogiRoom(room) && room.matchmaking?.rated && aiServiceConfigured(this.env))
-      return "four-reversi";
+      return "four-shogi";
     if (isReversiRoom(room) && room.matchmaking && reversiAiEnabled(this.env)) return "reversi";
     if (
       isFourReversiRoom(room) &&
@@ -1795,7 +1799,9 @@ export class GameRoom extends DurableObject<Env> {
     const game = this.externalCpuGame(room);
     if (!game) return null;
     const seats = room.players.filter(
-      (player) => player.kind === "cpu" && (game === "four-reversi" || player.level === 2),
+      (player) =>
+        player.kind === "cpu" &&
+        (game === "four-reversi" || game === "four-shogi" || player.level === 2),
     ).length;
     if (!seats) return null;
     await this.flushCpuCapacity();
@@ -2063,6 +2069,13 @@ export class GameRoom extends DurableObject<Env> {
     ) {
       deadlines.push(room.matchmaking.preparedAtMs + matchmakingRules.connectionGraceMs);
       if (room.matchmaking.startsAtMs !== undefined) deadlines.push(room.matchmaking.startsAtMs);
+      const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+        `matchmaking:${room.matchmaking.id}`,
+      );
+      if (saved?.phase === "waiting" && saved.aiWarmup?.state === "pending")
+        deadlines.push(
+          Math.min(saved.aiWarmup.nextAtMs, saved.expiresAtMs - matchmakingRules.countdownMs),
+        );
     }
     const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
@@ -2774,6 +2787,11 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
           ...input,
           phase: "waiting",
+          ...(this.env.FOUR_PLAYER_AI_WARMUP_ENABLED === "true" &&
+          cpuCount > 0 &&
+          (rating?.kind === "four-shogi" || rating?.kind === "four-reversi")
+            ? { aiWarmup: { state: "pending", attempts: 0, nextAtMs: Date.now() } }
+            : {}),
         } satisfies MatchmakingRoomReservation);
         for (const [index, { admission: a, tokenHash, version }] of input.players.entries()) {
           this.ctx.storage.kv.put(accountKey(a.playerId), { ...a, occupying: true });
@@ -2827,6 +2845,7 @@ export class GameRoom extends DurableObject<Env> {
     return {
       phase: same ? (saved?.phase ?? "closed") : "closed",
       started: saved?.phase === "playing",
+      aiUnavailable: saved?.aiWarmup?.state === "failed",
       occupiedPlayerIds,
       connectedPlayerIds,
     };
@@ -2918,6 +2937,84 @@ export class GameRoom extends DurableObject<Env> {
     await this.syncAlarm(this.readRoom());
     return true;
   }
+  private startMatchmakingAiWarmup(reservation: MatchmakingRoomReservation) {
+    const warmup = reservation.aiWarmup;
+    const game = reservation.rating?.kind;
+    if (warmup?.state !== "pending" || (game !== "four-shogi" && game !== "four-reversi")) return;
+    const key = `matchmaking:${reservation.matchId}`;
+    const now = Date.now();
+    const latest = reservation.expiresAtMs - matchmakingRules.countdownMs;
+    if (now >= latest || (warmup.attempts >= aiWarmupMaxAttempts && now >= warmup.nextAtMs)) {
+      this.withIndexTransaction(() => {
+        this.ctx.storage.kv.put(key, { ...reservation, aiWarmup: { state: "failed" } });
+        this.closeRoom();
+      });
+      console.info({
+        event: "four_player_ai_warmup_unavailable",
+        game,
+        matchId: reservation.matchId,
+        atMs: now,
+      });
+      return;
+    }
+    if (now < warmup.nextAtMs) return;
+    const attempt = warmup.attempts + 1;
+    const deadline = Math.min(now + aiWarmupAttemptMs, latest);
+    // 保存済みの期限で重複送信を防ぎ、処理が中断してもAlarmで再開します。
+    this.ctx.storage.kv.put(key, {
+      ...reservation,
+      aiWarmup: { state: "pending", attempts: attempt, nextAtMs: deadline + aiWarmupRetryMs },
+    } satisfies MatchmakingRoomReservation);
+    console.info({
+      event: "four_player_ai_warmup_started",
+      game,
+      matchId: reservation.matchId,
+      attempt,
+      atMs: now,
+    });
+    this.ctx.waitUntil(this.finishMatchmakingAiWarmup(key, game, attempt, deadline));
+  }
+
+  private async finishMatchmakingAiWarmup(
+    key: string,
+    game: FourPlayerAiGame,
+    attempt: number,
+    deadline: number,
+  ) {
+    const failure = await requestFourPlayerAiWarmup(this.env, game, deadline);
+    const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
+    const room = this.readRoom();
+    if (
+      !saved ||
+      saved.phase !== "waiting" ||
+      saved.aiWarmup?.state !== "pending" ||
+      saved.aiWarmup.attempts !== attempt ||
+      room?.instanceId !== saved.instanceId
+    )
+      return;
+    const now = Date.now();
+    const reason = now >= deadline ? "timeout" : failure;
+    this.ctx.storage.kv.put(key, {
+      ...saved,
+      aiWarmup: reason
+        ? {
+            state: "pending",
+            attempts: attempt,
+            nextAtMs: attempt < aiWarmupMaxAttempts ? now + aiWarmupRetryMs : now,
+          }
+        : { state: "ready" },
+    } satisfies MatchmakingRoomReservation);
+    console.info({
+      event: reason ? "four_player_ai_warmup_failed" : "four_player_ai_warmup_ready",
+      game,
+      matchId: saved.matchId,
+      attempt,
+      atMs: now,
+      ...(reason ? { reason } : {}),
+    });
+    await this.advanceMatchmakingStart();
+  }
+
   private async advanceMatchmakingStart() {
     const current = this.readRoom();
     if (
@@ -2928,10 +3025,33 @@ export class GameRoom extends DurableObject<Env> {
       current.lastRound
     )
       return;
-    const reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+    let reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
       `matchmaking:${current.matchmaking.id}`,
     );
     if (!reservation || reservation.phase !== "waiting") return;
+    if (reservation.aiWarmup) {
+      const connected = current.players
+        .filter((p) => p.kind === "human")
+        .every((p) => this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""));
+      if (connected !== Boolean(reservation.aiHumansConnected)) {
+        reservation = { ...reservation, aiHumansConnected: connected };
+        this.ctx.storage.kv.put(`matchmaking:${reservation.matchId}`, reservation);
+        if (connected)
+          console.info({
+            event: "four_player_ai_all_connected",
+            game: current.settings.game,
+            matchId: reservation.matchId,
+            atMs: Date.now(),
+          });
+      }
+      if (reservation.aiWarmup?.state === "pending") {
+        this.startMatchmakingAiWarmup(reservation);
+        await this.syncAlarm(this.readRoom());
+        if (!this.readRoom()) this.closeSockets();
+        return;
+      }
+    }
+    const readyReservation = reservation;
     const diagnostic = this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (
@@ -2943,7 +3063,7 @@ export class GameRoom extends DurableObject<Env> {
       )
         return;
       if (
-        Date.now() >= reservation.expiresAtMs ||
+        Date.now() >= readyReservation.expiresAtMs ||
         room.players.length !== gameCapacity(room.settings.game)
       ) {
         this.closeRoom();
@@ -2980,30 +3100,32 @@ export class GameRoom extends DurableObject<Env> {
       if (Date.now() < deadline) return;
       const started =
         isShogiRoom(room) &&
-        (reservation.rating?.kind === "human" || reservation.rating?.kind === "cpu")
-          ? this.standardShogiProgress.start(room, reservation.rating)
-          : isReversiRoom(room) && reservation.rating?.kind === "reversi"
-            ? this.standardProgress.start(room, reservation.rating.source)
-            : isFourShogiRoom(room) && reservation.rating?.kind === "four-shogi"
-              ? this.shogiProgress.start(room, undefined, reservation.rating)
+        (readyReservation.rating?.kind === "human" || readyReservation.rating?.kind === "cpu")
+          ? this.standardShogiProgress.start(room, readyReservation.rating)
+          : isReversiRoom(room) && readyReservation.rating?.kind === "reversi"
+            ? this.standardProgress.start(room, readyReservation.rating.source)
+            : isFourShogiRoom(room) && readyReservation.rating?.kind === "four-shogi"
+              ? this.shogiProgress.start(room, undefined, readyReservation.rating)
               : isFourReversiRoom(room)
                 ? this.reversiProgress.start(
                     room,
                     undefined,
-                    reservation.rating?.kind === "four-reversi" ? reservation.rating : undefined,
+                    readyReservation.rating?.kind === "four-reversi"
+                      ? readyReservation.rating
+                      : undefined,
                   )
                 : null;
       if (!started) throw new Error("Invalid matchmaking room");
       this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {
-        ...reservation,
+        ...readyReservation,
         phase: "playing",
       } satisfies MatchmakingRoomReservation);
       this.startAnalyticsMatch(started.roundId, started.room, started.at);
       return { event: "four_shogi_started", atMs: started.at };
     });
-    if (diagnostic && reservation.rating?.kind === "four-shogi")
+    if (diagnostic && readyReservation.rating?.kind === "four-shogi")
       logFourShogiDiagnostic(this.env, diagnostic.event, {
-        matchId: reservation.matchId,
+        matchId: readyReservation.matchId,
         atMs: diagnostic.atMs,
       });
     const room = this.readRoom();
