@@ -52,6 +52,7 @@ export function GameResultView({
             <RatingResultLabel
               rating={player.id === ownPlayerId ? rating : rating.players[player.id]}
               placementGames={ratedMatchmakingRules["four-reversi"].placementGames}
+              showPlacementChange={false}
             />
           )
         }
