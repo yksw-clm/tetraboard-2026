@@ -147,6 +147,7 @@
         "AI_SERVICE_TIMEOUT_MS": "5000",
         "AI_FOUR_REVERSI_TIMEOUT_MS": "10000"
       },
+      "services": [{ "binding": "AI_GATEWAY", "service": "tetraboard-ai-dev" }],
       "routes": [],
       "r2_buckets": [
         {

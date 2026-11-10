@@ -90,10 +90,62 @@ test.each([
   }
 });
 
-test.each(["placement", "fifth", "fallback", "retry", "retry_failed"] as const)(
+test("Service Bindingがある場合は公開URLへのfetchを使わず着手を受け取る", async () => {
+  const publicFetch = vi.spyOn(globalThis, "fetch");
+  const boundFetch = vi.fn(async (request: Request) => {
+    expect(new URL(request.url).pathname).toBe("/v1/four-shogi/move");
+    expect(request.method).toBe("POST");
+    const body = await request.json<{
+      request_id: string;
+      position_revision: string;
+      profile_id: string;
+    }>();
+    expect(request.headers.get("x-tetraboard-ai-request-id")).toBe(body.request_id);
+    return Response.json({
+      api_version: 1,
+      rules_version: 1,
+      request_id: body.request_id,
+      position_revision: body.position_revision,
+      profile_id: body.profile_id,
+      engine_version: "four-shogi-lv3-v1",
+      max_work: 16384,
+      max_time_ms: 500,
+      diagnostics: { work: 100 },
+      action: { type: "movePiece", from: { x: 4, y: 7 }, to: { x: 4, y: 6 }, promote: false },
+    });
+  });
+  try {
+    const profile = calibratedFourShogiProfile(
+      selectFourShogi([{}], rules.fillAfterMs)!.rating.cpu!,
+    )!;
+    const result = await requestFourShogiAiMove(
+      { ...env, AI_GATEWAY: { fetch: boundFetch } },
+      {
+        job: {
+          requestId: crypto.randomUUID(),
+          roundId: crypto.randomUUID(),
+          positionRevision: 0,
+          side: "south",
+          expiresAt: Date.now() + 5000,
+        },
+        profile,
+        events: [],
+      },
+    );
+    expect(result.action?.type).toBe("movePiece");
+    expect(boundFetch).toHaveBeenCalledTimes(1);
+    expect(publicFetch).not.toHaveBeenCalled();
+  } finally {
+    publicFetch.mockRestore();
+  }
+});
+
+test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_retry"] as const)(
   "CPU補充から終局・保存まで完走する（%s）",
   async (scenario) => {
     const fallback = scenario === "fallback" || scenario === "retry_failed";
+    const testRetry =
+      scenario === "retry" || scenario === "retry_failed" || scenario === "timeout_retry";
     let now = Date.now() + 60_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
     const logs: Record<string, unknown>[] = [];
@@ -218,15 +270,24 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed"] as const)(
             );
           }
           const moveNumber = room.game.moveNumber;
-          if (cpuMoves === 0 && (scenario === "retry" || scenario === "retry_failed")) {
+          if (cpuMoves === 0 && testRetry) {
             const fetchReal = globalThis.fetch;
             const bodies: unknown[] = [];
+            let firstSignal: AbortSignal | null | undefined;
             const fetchAi = vi
               .spyOn(globalThis, "fetch")
               .mockImplementation(async (input, init) => {
                 if (new URL(String(input)).pathname !== "/v1/four-shogi/move")
                   return fetchReal(input, init);
                 bodies.push(init?.body);
+                if (scenario === "timeout_retry") {
+                  if (bodies.length === 1) {
+                    firstSignal = init?.signal;
+                    // 中断通知を受けてもfetchが戻らない状況を再現します。
+                    return new Promise<Response>(() => {});
+                  }
+                  expect(firstSignal?.aborted).toBe(true);
+                }
                 if (bodies.length === 1 || scenario === "retry_failed")
                   return new Response(null, { status: 500 });
                 return fetchReal(input, init);
@@ -256,12 +317,12 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed"] as const)(
       }
       expect(cpuMoves).toBe(3);
       expect(room.lastRound?.roundId).toBe(assigned.matchId);
-      if (scenario === "retry" || scenario === "retry_failed") {
+      if (testRetry) {
         const failed = logs.find((entry) => entry.event === "four_shogi_ai_attempt_failed");
         expect(failed).toMatchObject({
           matchId: assigned.matchId,
           attempt: 1,
-          httpStatus: 500,
+          reason: scenario === "timeout_retry" ? "timeout" : "http_500",
           willRetry: true,
         });
         expect(logs).toContainEqual(
