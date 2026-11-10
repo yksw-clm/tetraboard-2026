@@ -24,7 +24,8 @@ export interface AiServiceBindings {
   AI_REVERSI_ENABLED?: string;
 }
 
-export const aiServiceEnabled = (bindings: AiServiceBindings) => !!bindings.AI_SERVICE_URL;
+export const aiServiceEnabled = (bindings: AiServiceBindings) =>
+  Boolean(bindings.AI_GATEWAY || bindings.AI_SERVICE_URL);
 export function aiServiceTimeout(bindings: AiServiceBindings): number {
   const value = Number(bindings.AI_SERVICE_TIMEOUT_MS || 5000);
   return Number.isInteger(value) && value >= 100 && value <= 5000 ? value : 5000;
@@ -122,6 +123,10 @@ async function responseJson(response: Response): Promise<unknown> {
 
 function configuredUrl(bindings: AiServiceBindings): URL | null {
   const token = bindings.AI_SERVICE_TOKEN;
+  if (!token || token.length < 32 || token.length > 256 || !/^[\x21-\x7e]+$/.test(token))
+    return null;
+  if (bindings.AI_GATEWAY) return new URL("https://ai-gateway.internal");
+
   let url: URL;
   try {
     url = new URL(bindings.AI_SERVICE_URL ?? "");
@@ -134,11 +139,7 @@ function configuredUrl(bindings: AiServiceBindings): URL | null {
       url.password ||
       url.pathname !== "/" ||
       url.search ||
-      url.hash ||
-      !token ||
-      token.length < 32 ||
-      token.length > 256 ||
-      !/^[\x21-\x7e]+$/.test(token)
+      url.hash
     )
       throw Error();
   } catch {
@@ -228,7 +229,7 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), remaining);
   try {
-    const response = await fetch(new URL("/v1/shogi/move", url), {
+    const response = await fetchAiGateway(bindings, new URL("/v1/shogi/move", url), {
       method: "POST",
       headers: {
         authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
@@ -298,7 +299,7 @@ export async function requestReversiAiMove(bindings: AiServiceBindings, work: Re
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), remaining);
   try {
-    const response = await fetch(new URL("/v1/reversi/move", url), {
+    const response = await fetchAiGateway(bindings, new URL("/v1/reversi/move", url), {
       method: "POST",
       headers: {
         authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
@@ -400,13 +401,17 @@ export async function requestAiMove(
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const response = await fetch(new URL(selectedProfile ? "/v2/move" : "/v1/move", url), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body,
-          signal: controller.signal,
-          redirect: "manual",
-        });
+        const response = await fetchAiGateway(
+          bindings,
+          new URL(selectedProfile ? "/v2/move" : "/v1/move", url),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body,
+            signal: controller.signal,
+            redirect: "manual",
+          },
+        );
         if (!response.ok) {
           await response.body?.cancel();
           throw new ServiceError(

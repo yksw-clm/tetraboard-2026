@@ -137,7 +137,6 @@
         "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev",
         "MATCHMAKING_ENABLED": "true",
         "SHOGI_MATCHMAKING_ENABLED": "true",
-        "AI_SERVICE_URL": "https://tetraboard-ai-dev.chaossi-lab.workers.dev",
         "AI_SHOGI_ENABLED": "true",
         "AI_REVERSI_ENABLED": "true",
         "REVERSI_MATCHMAKING_ENABLED": "true",

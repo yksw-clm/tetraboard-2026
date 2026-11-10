@@ -34,6 +34,12 @@ HTTP統合は、コンテナ・通常のserveと同じrelease版Rust Serviceを�
 
 `apps/worker/test-ai-service/fourShogiRated.test.ts` は登録アカウントで20秒待機し、実ServiceによるCPU補充局をGameRoomで開始します。3分切れ負けの期限を進めて終局させ、D1に保存された認定戦と対局結果をAPIで読みます。期限切れのAI要求を復元した場合は、代替手で対局を継続し、棋譜を残したままレート更新を除外します。開発環境での手動確認は[導入計画](four-shogi-rated-match.md#開発環境の確認手順)に従います。
 
+### 開発環境のAI Gateway接続
+
+`apps/worker/test/aiGatewayTransport.test.ts` で、公開URLの設定なしで4ゲームの着手と四人制2ゲームの準備確認をService Bindingへ送ることを確認します。着手のHTTPパス・認証・応答採用と、Bindingの失敗時に公開URLへ再送しないことを検証します。BindingがないローカルHTTP接続は同テストと実Rust Serviceの統合試験で確認します。
+
+開発環境への反映後は、4ゲームそれぞれでコンテナ停止状態からCPU補充レート戦を始め、初回と複数回のAI着手、終局、棋譜とレート結果の保存を確認します。通常リバーシは探索レベルのプロファイルを使うか、`Reversi AI response` のログでEgaroucidの候補手を受信したことを確認します。
+
 ## ローカルAI解析widgetの確認
 
 `bun run --cwd apps/local-ai-widget test`は配布物をビルドし、Bun＋happy-domで受信監視、局面識別・非同期応答、盤面の座標照合、service workerの権限・タブ排他・再生成、manifestを確認します。WebSocketの引数・型・例外、fetchの元Promiseと本文保持、名前・チャット・tokenの除外を検証します。停止・着手・手番外の脱落・次局・切断・本人変更・遷移・非表示・復帰、遅延／不正応答と再試行も対象です。既存の全体check・Full CIへworkspace単位で含めます。
