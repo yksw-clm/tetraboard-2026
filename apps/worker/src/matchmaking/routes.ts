@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import {
+  fourReversiRatingSummarySchema,
   matchmakingInputSchema,
   matchmakingControlSchema,
   matchmakingQueues,
@@ -13,6 +14,7 @@ import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
 import { readLimitedBody } from "../feedback/images";
 import { aiServiceConfigured, shogiAiEnabled } from "../rooms/aiService";
 import { readShogiRatingResult, readShogiRatingSummary } from "../rooms/shogiRating";
+import { readFourReversiRatingSummary } from "../rooms/fourReversiRating";
 export const matchmakingRoutes = new Hono<{ Bindings: Env }>();
 export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-reversi") =>
   game === "shogi"
@@ -54,6 +56,12 @@ matchmakingRoutes.get(root, async (c) => {
     matchmakingQueues[game.data].key,
   ).status(user.id, controller.data);
   return c.json(matchmakingStateSchema.parse({ ...state, enabled }));
+});
+matchmakingRoutes.get("/matchmaking/four-reversi/rating", async (c) => {
+  const user = await accountIdentity(c.req.raw, c.env);
+  if (!user || user.isAnonymous) return c.json({ message: "ログインしてください。" }, 401);
+  const result = await readFourReversiRatingSummary(c.env.APP_DB, user.id);
+  return c.json(fourReversiRatingSummarySchema.parse(result));
 });
 matchmakingRoutes.get("/matchmaking/shogi/rating", async (c) => {
   const user = await accountIdentity(c.req.raw, c.env);

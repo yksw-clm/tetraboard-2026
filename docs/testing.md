@@ -48,6 +48,8 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 四人リバーシのレート保存は `bun run --cwd apps/worker test test/fourReversiRating.test.ts` で確認します。同順位、CPU混在と5局目の認定、代替手使用局の除外、同じ対局の再試行、別々の対局の同時保存、棋譜APIの内部レート非公開を実D1で検証します。CPU較正の再現手順は[較正仕様](../packages/ai/docs/calibration.md#2026-11-09の予備測定と本測定の手順)にあります。
 
+同じテストで本人向けレートAPIの未ログイン拒否、認定中の数値非公開、全ランク境界の丸め、人間4人とCPU混在局の公開レートの更新を確認します。
+
 ## Fast CIとFull CI
 
 CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。

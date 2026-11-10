@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { expect, test } from "vitest";
+import { fourReversiRatingSummarySchema } from "@tetraboard/protocol";
 import {
   fourReversiRatingMethod,
   initialFourReversiRating,
@@ -10,7 +11,16 @@ import { boundaryRequest } from "./roomBoundaryFixtures";
 import { fixtureRecord } from "./matchFixtures";
 import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
 import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
-import { readFourReversiPlacement } from "../src/rooms/fourReversiRating";
+import { fourReversiPublicRating } from "../src/rooms/fourReversiRating";
+
+const ratingPath = "/matchmaking/four-reversi/rating";
+
+async function readRating(headers: HeadersInit) {
+  const response = await boundaryRequest(ratingPath, { headers });
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  return fourReversiRatingSummarySchema.parse(await response.json());
+}
 
 function ratedRecord(ids: string[], index: number): MatchRecord {
   const record = fixtureRecord(ids[0]!, index);
@@ -60,17 +70,23 @@ test("同率1位の同じ事前推定は同じ結果となり、確定順位で�
 });
 
 test("人間1人とCPU3人の5局目で認定され、固定CPUは更新せず、再保存も一度だけ反映する", async () => {
-  const { id } = await accountFixture();
+  const { id, headers } = await accountFixture();
+  expect((await boundaryRequest(ratingPath)).status).toBe(401);
+  expect(await readRating(headers)).toEqual({ status: "placement", games: 0 });
   for (let index = 1; index <= 4; index++) await writeMatch(env.APP_DB, ratedRecord([id], index));
-  expect(await readFourReversiPlacement(env.APP_DB, id)).toEqual({ status: "placement", games: 4 });
+  expect(await readRating(headers)).toEqual({ status: "placement", games: 4 });
   const fifth = ratedRecord([id], 5);
   await Promise.all([writeMatch(env.APP_DB, fifth), writeMatch(env.APP_DB, fifth)]);
-  expect(await readFourReversiPlacement(env.APP_DB, id)).toEqual({
+  const fifthChanges = await changes(fifth.id);
+  const publicRating = Math.round(1500 + 50 * (fifthChanges[0]!.mu_after - 25));
+  expect(await readRating(headers)).toEqual({
     status: "rated",
+    rating: publicRating,
+    rank: "ブロンズ3",
     humanPlayed: false,
   });
   const fourthChanges = await changes(ratedRecord([id], 4).id);
-  expect(await changes(fifth.id)).toEqual([
+  expect(fifthChanges).toEqual([
     expect.objectContaining({
       account_id: id,
       mu_before: fourthChanges[0]!.mu_after,
@@ -82,6 +98,65 @@ test("人間1人とCPU3人の5局目で認定され、固定CPUは更新せず�
   const replay = await boundaryRequest(`/matches/${fifth.id}`);
   expect(replay.status).toBe(200);
   expect((await replay.json<{ match: unknown }>()).match).not.toHaveProperty("fourReversiRating");
+});
+
+test("公開レートを整数に丸めて、全ランク境界を判定する", () => {
+  const ranks = [
+    "ブロンズ3",
+    "ブロンズ2",
+    "ブロンズ1",
+    "シルバー3",
+    "シルバー2",
+    "シルバー1",
+    "ゴールド3",
+    "ゴールド2",
+    "ゴールド1",
+    "プラチナ3",
+    "プラチナ2",
+    "プラチナ1",
+    "ダイヤモンド3",
+    "ダイヤモンド2",
+    "ダイヤモンド1",
+  ];
+  for (let i = 1; i < ranks.length; i++) {
+    const boundary = 1100 + i * 100;
+    const mu = 25 + (boundary - 1500) / 50;
+    expect(fourReversiPublicRating(mu - 0.012)).toEqual({
+      rating: boundary - 1,
+      rank: ranks[i - 1],
+    });
+    expect(fourReversiPublicRating(mu - 0.008)).toEqual({
+      rating: boundary,
+      rank: ranks[i],
+    });
+  }
+  expect(fourReversiPublicRating(0).rank).toBe("ブロンズ3");
+  expect(fourReversiPublicRating(60).rank).toBe("ダイヤモンド1");
+});
+
+test("人間4人の認定局とCPU混在局の結果を同じ公開レートに反映する", async () => {
+  const users = await Promise.all(Array.from({ length: 4 }, () => accountFixture()));
+  const target = users[0]!;
+  const ids = users.map((user) => user.id);
+  for (let i = 1; i <= 5; i++) {
+    const order = i % 2 ? [...ids.slice(1), target.id] : ids;
+    await writeMatch(env.APP_DB, ratedRecord(order, i));
+  }
+  const before = await readRating(target.headers);
+  expect(before.status).toBe("rated");
+  if (before.status !== "rated") throw Error("認定済みのレートが必要です");
+  expect(before.humanPlayed).toBe(true);
+  const mixed = ratedRecord(ids.slice(0, 2), 6);
+  await writeMatch(env.APP_DB, mixed);
+  const targetChange = (await changes(mixed.id)).find((row) => row.account_id === target.id)!;
+  expect(before.rating).toBe(Math.round(1500 + 50 * (targetChange.mu_before - 25)));
+  const after = await readRating(target.headers);
+  expect(after).toEqual({
+    status: "rated",
+    ...fourReversiPublicRating(targetChange.mu_after),
+    humanPlayed: true,
+  });
+  expect(fourReversiPublicRating(targetChange.mu_after).rating).toBeLessThan(before.rating);
 });
 
 test("CPU混在局は全員の確定順位で人間2人を更新し、通常戦と代替手使用局は対象外", async () => {

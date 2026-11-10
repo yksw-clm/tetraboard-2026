@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { colors } from "@tetraboard/four-reversi";
+import { fourReversiRankDivisions, fourReversiRankTiers } from "@tetraboard/protocol";
 import {
   fourReversiPlacementGames,
   fourReversiRatingMethod,
@@ -30,16 +31,29 @@ type CurrentRating = {
   human_games: number;
 };
 
-export async function readFourReversiPlacement(db: D1Database, accountId: string) {
+export function fourReversiPublicRating(mu: number) {
+  const rating = Math.round(1500 + 50 * (mu - initialFourReversiRating.mu));
+  const divisions = fourReversiRankDivisions.length;
+  const lastRank = fourReversiRankTiers.length * divisions - 1;
+  const rankIndex = Math.min(lastRank, Math.max(0, 1 + Math.floor((rating - 1200) / 100)));
+  const tier = fourReversiRankTiers[Math.floor(rankIndex / divisions)]!;
+  const division = fourReversiRankDivisions[rankIndex % divisions]!;
+  return { rating, rank: `${tier}${division}` as const };
+}
+
+export async function readFourReversiRatingSummary(db: D1Database, accountId: string) {
   const row = await db
-    .prepare(`SELECT rated_games, human_games FROM four_reversi_rating_changes
+    .prepare(`SELECT mu_after AS mu, rated_games, human_games FROM four_reversi_rating_changes
       WHERE account_id=? ORDER BY rated_games DESC LIMIT 1`)
     .bind(accountId)
-    .first<Pick<CurrentRating, "rated_games" | "human_games">>();
-  const games = row?.rated_games ?? 0;
-  return games < fourReversiPlacementGames
-    ? { status: "placement" as const, games }
-    : { status: "rated" as const, humanPlayed: (row?.human_games ?? 0) > 0 };
+    .first<Pick<CurrentRating, "mu" | "rated_games" | "human_games">>();
+  if (!row || row.rated_games < fourReversiPlacementGames)
+    return { status: "placement" as const, games: row?.rated_games ?? 0 };
+  return {
+    status: "rated" as const,
+    ...fourReversiPublicRating(row.mu),
+    humanPlayed: row.human_games > 0,
+  };
 }
 
 /** 保存済みの対局と更新前の全参加者の状態を使って、レートをまとめて確定します。 */

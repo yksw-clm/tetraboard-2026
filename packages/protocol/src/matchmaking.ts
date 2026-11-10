@@ -20,6 +20,23 @@ export const matchmakingQueues = {
   shogi: shogiMatchmakingRules,
 } as const;
 export type MatchmakingGame = keyof typeof matchmakingQueues;
+export const fourReversiRankTiers = [
+  "ブロンズ",
+  "シルバー",
+  "ゴールド",
+  "プラチナ",
+  "ダイヤモンド",
+] as const;
+export const fourReversiRankDivisions = [3, 2, 1] as const;
+export const fourReversiRatingSummarySchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("placement"), games: z.int().nonnegative() }),
+  z.strictObject({
+    status: z.literal("rated"),
+    rating: z.int(),
+    rank: z.templateLiteral([z.enum(fourReversiRankTiers), z.literal(fourReversiRankDivisions)]),
+    humanPlayed: z.boolean(),
+  }),
+]);
 export const shogiPlacementGames = 5;
 export const shogiRatingSummarySchema = z.discriminatedUnion("status", [
   z.strictObject({
