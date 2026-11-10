@@ -686,6 +686,7 @@ const shogiCheckStateSchema = z.strictObject({
 });
 const shogiWaitingSchema = z
   .strictObject({
+    matchmaking: fourReversiRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     tournamentId: z.int().positive().optional(),
     tournamentStartsAtMs: serverNowMsSchema.optional(),
@@ -713,6 +714,7 @@ const shogiWaitingSchema = z
   .refine((room) => room.tournamentStartsAtMs === undefined || room.tournamentId !== undefined);
 const shogiPlayingSchema = z
   .strictObject({
+    matchmaking: fourReversiRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     tournamentId: z.int().positive().optional(),
     instanceId: z.uuid(),

@@ -539,7 +539,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     if (state.cpuRetryAtMs === undefined) return humans.length;
     const eligible = humans.filter((wait) => (wait.retryAtMs ?? 0) <= now);
     const { seats, fillAfterMs } = this.queueRules;
-    if (this.game === "four-reversi") {
+    if (seats === 4) {
       const oldest = eligible[0];
       const missing =
         oldest && now - oldest.joinedAtMs >= fillAfterMs && eligible.length < seats

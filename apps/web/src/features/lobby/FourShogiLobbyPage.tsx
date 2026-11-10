@@ -1,5 +1,7 @@
+import { RatedMatchmakingDialog } from "../matchmaking/RatedMatchmakingDialog";
+import { useRatedAvailability } from "../matchmaking/useReversiRatedAvailability";
 import { getRoomContract } from "@tetraboard/protocol";
-import { useNavigate, useNavigation } from "react-router";
+import { useNavigate, useNavigation, useSearchParams } from "react-router";
 import { LobbyView } from "./LobbyView";
 import { LobbyList } from "./LobbyList";
 import { LobbyRankings } from "./LobbyRankings";
@@ -11,49 +13,55 @@ export function FourShogiLobbyPage() {
   const navigation = useNavigation();
   const lobby = useLobby("four-shogi");
   const entry = useRoomEntry("four-shogi");
+  const available = useRatedAvailability("four-shogi", true);
+  const [search] = useSearchParams();
   return (
-    <LobbyView
-      game="four-shogi"
-      registrationDraft={entry.registrationDraft}
-      name={entry.name}
-      roomCode={entry.roomCode}
-      mode={entry.mode}
-      cpuLevel={entry.cpuLevel}
-      onCpuLevelChange={entry.setCpuLevel}
-      timeControl={entry.timeControl}
-      threePlayerAttackProhibited={entry.threePlayerAttackProhibited}
-      isSubmitting={entry.isSubmitting}
-      message={entry.message}
-      onNameChange={entry.setName}
-      onRoomCodeChange={entry.setRoomCode}
-      onModeChange={entry.setMode}
-      onTimeControlChange={entry.setTimeControl}
-      onThreePlayerAttackChange={entry.setThreePlayerAttackProhibited}
-      onClearMessage={entry.clearMessage}
-      onSubmitRoom={(intent, roomId, instanceId, avatarPresetId) =>
-        void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
-      }
-      renderRooms={(onJoin) => (
-        <LobbyList
-          {...lobby}
-          rooms={lobby.rooms}
-          error={lobby.error}
-          loading={lobby.loading}
-          isInitialLoading={lobby.isInitialLoading}
-          pendingSource={lobby.pendingSource}
-          pendingWatchRoomId={
-            navigation.state === "loading"
-              ? navigation.location?.pathname.match(/^\/rooms\/(\d{5})$/)?.[1]
-              : undefined
-          }
-          onRefresh={() => void lobby.refresh("refresh")}
-          onJoin={onJoin}
-          onWatch={(roomId, instanceId) =>
-            void navigate(`${getRoomContract.pathFor(roomId)}?invite=${instanceId}&watch=1`)
-          }
-        />
-      )}
-      rankings={<LobbyRankings game="four-shogi" theme="four-shogi" />}
-    />
+    <>
+      <LobbyView
+        game="four-shogi"
+        showRatedMatchmaking={available}
+        registrationDraft={entry.registrationDraft}
+        name={entry.name}
+        roomCode={entry.roomCode}
+        mode={entry.mode}
+        cpuLevel={entry.cpuLevel}
+        onCpuLevelChange={entry.setCpuLevel}
+        timeControl={entry.timeControl}
+        threePlayerAttackProhibited={entry.threePlayerAttackProhibited}
+        isSubmitting={entry.isSubmitting}
+        message={entry.message}
+        onNameChange={entry.setName}
+        onRoomCodeChange={entry.setRoomCode}
+        onModeChange={entry.setMode}
+        onTimeControlChange={entry.setTimeControl}
+        onThreePlayerAttackChange={entry.setThreePlayerAttackProhibited}
+        onClearMessage={entry.clearMessage}
+        onSubmitRoom={(intent, roomId, instanceId, avatarPresetId) =>
+          void entry.submitRoom(intent, roomId, instanceId, avatarPresetId)
+        }
+        renderRooms={(onJoin) => (
+          <LobbyList
+            {...lobby}
+            rooms={lobby.rooms}
+            error={lobby.error}
+            loading={lobby.loading}
+            isInitialLoading={lobby.isInitialLoading}
+            pendingSource={lobby.pendingSource}
+            pendingWatchRoomId={
+              navigation.state === "loading"
+                ? navigation.location?.pathname.match(/^\/rooms\/(\d{5})$/)?.[1]
+                : undefined
+            }
+            onRefresh={() => void lobby.refresh("refresh")}
+            onJoin={onJoin}
+            onWatch={(roomId, instanceId) =>
+              void navigate(`${getRoomContract.pathFor(roomId)}?invite=${instanceId}&watch=1`)
+            }
+          />
+        )}
+        rankings={<LobbyRankings game="four-shogi" theme="four-shogi" />}
+      />
+      {search.get("matchmaking") === "1" && <RatedMatchmakingDialog game="four-shogi" />}
+    </>
   );
 }

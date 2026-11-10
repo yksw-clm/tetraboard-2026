@@ -60,12 +60,13 @@ export default {
     const statusGame = url.searchParams.get("game");
     const shogi = path === "/v1/shogi/move" || (status && statusGame === "shogi");
     const reversi = path === "/v1/reversi/move" || (status && statusGame === "reversi");
-    const fourReversi =
+    const shared =
       (request.method === "POST" && (path === "/v1/move" || path === "/v2/move")) ||
+      path === "/v1/four-shogi/move" ||
       (status && (statusGame === null || statusGame === "four-reversi"));
     if (
       (!status && request.method !== "POST") ||
-      (!fourReversi && !shogi && !reversi) ||
+      (!shared && !shogi && !reversi) ||
       (shogi && env.AI_SHOGI_ENABLED !== "true")
     )
       return reply({ error: "not_found" }, 404);

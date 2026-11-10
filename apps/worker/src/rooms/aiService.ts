@@ -1,3 +1,5 @@
+import { fourShogiActionSchema } from "@tetraboard/protocol";
+import type { FourShogiAiWork } from "./fourShogiProgress";
 import { z } from "zod";
 import type { ExternalCpuWork } from "./fourReversiProgress";
 import type { Position } from "@tetraboard/four-reversi";
@@ -416,6 +418,77 @@ export async function requestAiMove(
     return { position: null, reason: "network" };
   } finally {
     clearTimeout(timeout);
+    controller.abort();
+  }
+}
+
+const fourShogiMoveResponse = z.object({
+  api_version: z.literal(1),
+  rules_version: z.literal(1),
+  request_id: z.uuid(),
+  position_revision: z.string().length(64),
+  engine_version: z.string(),
+  profile_id: z.string(),
+  max_work: z.int().positive(),
+  max_time_ms: z.literal(500),
+  action: fourShogiActionSchema,
+  diagnostics: z.object({ work: z.int().nonnegative() }),
+});
+
+export async function requestFourShogiAiMove(bindings: AiServiceBindings, work: FourShogiAiWork) {
+  const url = configuredUrl(bindings);
+  if (!url) return null;
+  const { requestId, roundId, positionRevision, expiresAt, side } = work.job;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([roundId, positionRevision, side, work.events])),
+  );
+  const revision = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), remaining);
+  try {
+    const response = await fetch(new URL("/v1/four-shogi/move", url), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        api_version: 1,
+        rules_version: 1,
+        request_id: requestId,
+        position_revision: revision,
+        profile_id: work.profile.profileId,
+        three_player_attack_prohibited: true,
+        turn: side,
+        events: work.events,
+      }),
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+    const result = fourShogiMoveResponse.safeParse(await responseJson(response));
+    if (!result.success) return null;
+    const move = result.data;
+    return move.request_id === requestId &&
+      move.position_revision === revision &&
+      move.engine_version === work.profile.engineVersion &&
+      move.profile_id === work.profile.profileId &&
+      move.max_work === work.profile.work &&
+      move.diagnostics.work <= move.max_work
+      ? move.action
+      : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
     controller.abort();
   }
 }

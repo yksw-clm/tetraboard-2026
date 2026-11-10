@@ -16,6 +16,7 @@ const base = workerTestConfig({
   AI_REVERSI_ENABLED: process.env.TETRABOARD_REVERSI_TEST_REAL === "1" ? "true" : "false",
   AI_SHOGI_ENABLED: process.env.TETRABOARD_SHOGI_TEST_REAL === "1" ? "true" : "false",
   MATCHMAKING_ENABLED: "true",
+  FOUR_SHOGI_MATCHMAKING_ENABLED: "true",
   AI_SERVICE_TOKEN: token,
   AI_SERVICE_TIMEOUT_MS: cloud ? "5000" : "2000",
 });

@@ -1,3 +1,4 @@
 //! ゲーム固有の規則だけを提供します。探索、乱数、時計、通信は扱いません。
 
 pub mod four_reversi;
+pub mod four_shogi;

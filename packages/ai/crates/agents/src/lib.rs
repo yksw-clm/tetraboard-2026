@@ -6,6 +6,7 @@ use tetraboard_ai_engine::four_reversi::{Position, State};
 
 pub mod config;
 pub mod evaluation;
+pub mod four_shogi;
 pub mod mcts;
 pub mod policy;
 pub mod profiles;

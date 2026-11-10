@@ -148,11 +148,13 @@ export function FourShogiRoomView({
       invited={invited}
       board={board}
       replayCard={replay.frame ? <ReplayCard replay={replay} theme="four-shogi" /> : null}
-      result={
+      result={(rating) =>
         room.lastRound && (
           <FourShogiGameResultView
             lastRound={room.lastRound}
             currentPlayers={room.players}
+            rating={rating && "players" in rating ? rating : undefined}
+            ownPlayerId={session.membership?.playerId}
             replay={replay}
           />
         )

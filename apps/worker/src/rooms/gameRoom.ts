@@ -1,3 +1,4 @@
+import { calibratedFourShogiProfile } from "../matchmaking/fourShogiSelection";
 import { matchmakingQueues, matchmakingRules } from "@tetraboard/protocol";
 import { calibratedFourReversiProfile } from "../matchmaking/fourReversiSelection";
 import { ratedMatchmakingPolicy, ratingOpponentKind } from "../matchmaking/ratedMatchmaking";
@@ -6,7 +7,11 @@ import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchm
 import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
 import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
 import { prepareRoomSettings } from "./applyRoomSettings";
-import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
+import {
+  shogiEliminatedHandsKey,
+  eliminatedHandsTag,
+  fourShogiAiJobKey,
+} from "./fourShogiProgress";
 import { retiredName } from "../privacy/identity";
 import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
 import { fourGomokuCpuJobKey, type FourGomokuCpuJob } from "./fourGomokuProgress";
@@ -67,7 +72,7 @@ import {
   type SystemChatMessage,
 } from "@tetraboard/protocol";
 import { gameProgress, unreachable, type AnyProgress, type ProgressFor } from "./gameProgress";
-import type { ShogiCpuJob } from "./fourShogiProgress";
+import type { FourShogiAiWork, ShogiCpuJob } from "./fourShogiProgress";
 import {
   fourReversiCpuJobKey,
   fourReversiAiJobKey,
@@ -82,6 +87,7 @@ import {
   requestAiMove,
   requestReversiAiMove,
   requestShogiAiMove,
+  requestFourShogiAiMove,
   reversiAiEnabled,
   shogiAiEnabled,
   type ReversiAiWork,
@@ -1254,7 +1260,11 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private closeIfNoHumanParticipants<T extends Room>(room: T | null): T | null {
-    if (room === null || room.players.some((player) => this.isHumanParticipant(player)))
+    if (
+      room === null ||
+      (isFourShogiRoom(room) && room.status === "playing" && room.matchmaking?.rated) ||
+      room.players.some((player) => this.isHumanParticipant(player))
+    )
       return room;
     this.closeRoom();
     return null;
@@ -1415,6 +1425,7 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourReversiCpuJobKey);
     this.ctx.storage.kv.delete(fourReversiAiJobKey);
+    this.ctx.storage.kv.delete(fourShogiAiJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
@@ -1749,6 +1760,9 @@ export class GameRoom extends DurableObject<Env> {
 
   private externalCpuGame(room: Room): CpuCapacityGame | null {
     if (isShogiRoom(room) && shogiAiEnabled(this.env)) return "shogi";
+    // 四人将棋と四人リバーシは同じAI Containerと実行枠を使います。
+    if (isFourShogiRoom(room) && room.matchmaking?.rated && aiServiceConfigured(this.env))
+      return "four-reversi";
     if (isReversiRoom(room) && room.matchmaking && reversiAiEnabled(this.env)) return "reversi";
     if (
       isFourReversiRoom(room) &&
@@ -1972,11 +1986,13 @@ export class GameRoom extends DurableObject<Env> {
                   : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
         const externalJob =
-          isFourReversiRoom(room) && aiServiceEnabled(this.env)
-            ? this.reversiProgress.externalCpuJob(room)
-            : isShogiRoom(room) && shogiAiEnabled(this.env)
-              ? this.standardShogiProgress.externalCpuJob(room)
-              : null;
+          isFourShogiRoom(room) && room.matchmaking?.rated
+            ? this.shogiProgress.externalCpuJob(room)
+            : isFourReversiRoom(room) && aiServiceEnabled(this.env)
+              ? this.reversiProgress.externalCpuJob(room)
+              : isShogiRoom(room) && shogiAiEnabled(this.env)
+                ? this.standardShogiProgress.externalCpuJob(room)
+                : null;
         const reversiJob =
           isReversiRoom(room) && reversiAiEnabled(this.env)
             ? this.standardProgress.externalCpuJob(room)
@@ -2591,9 +2607,11 @@ export class GameRoom extends DurableObject<Env> {
         input.game ??
         (rating?.kind === "reversi"
           ? "reversi"
-          : rating && rating.kind !== "four-reversi"
-            ? "shogi"
-            : "four-reversi");
+          : rating?.kind === "four-shogi"
+            ? "four-shogi"
+            : rating && rating.kind !== "four-reversi"
+              ? "shogi"
+              : "four-reversi");
       const legacy = game === "four-reversi" && !rating;
       const rules = legacy ? matchmakingRules : matchmakingQueues[game];
       const policy = legacy ? undefined : ratedMatchmakingPolicy(game);
@@ -2659,21 +2677,36 @@ export class GameRoom extends DurableObject<Env> {
                 ...entry,
                 request: { game: "reversi", quickPlay: false, timeControl: rules.timeControl },
               })
-            : waitingRoomFactories["four-reversi"]({
-                ...entry,
-                request: {
-                  game: "four-reversi",
-                  mode: "singles",
-                  quickPlay: false,
-                  timeControl: rules.timeControl,
-                },
-              });
+            : game === "four-shogi"
+              ? waitingRoomFactories["four-shogi"]({
+                  ...entry,
+                  request: {
+                    game: "four-shogi",
+                    mode: "singles",
+                    quickPlay: false,
+                    threePlayerAttackProhibited: true,
+                    timeControl: rules.timeControl,
+                  },
+                })
+              : waitingRoomFactories["four-reversi"]({
+                  ...entry,
+                  request: {
+                    game: "four-reversi",
+                    mode: "singles",
+                    quickPlay: false,
+                    timeControl: rules.timeControl,
+                  },
+                });
       const profile = legacy
         ? namedCpuProfile("lv3-v1")
         : rating?.kind === "four-reversi" && rating.cpu
           ? calibratedFourReversiProfile(rating.cpu)
           : undefined;
-      const seat = game === "shogi" ? { side: null } : { color: null };
+      const shogiProfile =
+        rating?.kind === "four-shogi" && rating.cpu
+          ? calibratedFourShogiProfile(rating.cpu)
+          : undefined;
+      const seat = game === "shogi" || game === "four-shogi" ? { side: null } : { color: null };
       const cpuCount = rules.seats - input.players.length;
       const room = roomSchema.parse({
         ...base,
@@ -2681,7 +2714,7 @@ export class GameRoom extends DurableObject<Env> {
         matchmaking: {
           id: input.matchId,
           preparedAtMs: input.preparedAtMs,
-          ...(rating?.kind === "four-reversi"
+          ...(rating?.kind === "four-reversi" || rating?.kind === "four-shogi"
             ? { rated: true }
             : rating
               ? { opponent: ratingOpponentKind(rating) }
@@ -2700,7 +2733,7 @@ export class GameRoom extends DurableObject<Env> {
           })),
           ...Array.from({ length: cpuCount }, (_, i) => ({
             id: crypto.randomUUID(),
-            name: profile ? `${profile.name}${i + 1}` : "CPU",
+            name: profile ? `${profile.name}${i + 1}` : (shogiProfile?.name ?? "CPU"),
             kind: "cpu",
             level: 2,
             ...(profile ? { cpuProfile: profile } : {}),
@@ -2933,13 +2966,15 @@ export class GameRoom extends DurableObject<Env> {
           ? this.standardShogiProgress.start(room, reservation.rating)
           : isReversiRoom(room) && reservation.rating?.kind === "reversi"
             ? this.standardProgress.start(room, reservation.rating.source)
-            : isFourReversiRoom(room)
-              ? this.reversiProgress.start(
-                  room,
-                  undefined,
-                  reservation.rating?.kind === "four-reversi" ? reservation.rating : undefined,
-                )
-              : null;
+            : isFourShogiRoom(room) && reservation.rating?.kind === "four-shogi"
+              ? this.shogiProgress.start(room, undefined, reservation.rating)
+              : isFourReversiRoom(room)
+                ? this.reversiProgress.start(
+                    room,
+                    undefined,
+                    reservation.rating?.kind === "four-reversi" ? reservation.rating : undefined,
+                  )
+                : null;
       if (!started) throw new Error("Invalid matchmaking room");
       this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {
         ...reservation,
@@ -3360,6 +3395,7 @@ export class GameRoom extends DurableObject<Env> {
     let changed = false;
     const externalWork: { current: ExternalCpuWork | null } = { current: null };
     const shogiWork: { current: ShogiAiWork | null } = { current: null };
+    const fourShogiWork: { current: FourShogiAiWork | null } = { current: null };
     const reversiWork: { current: ReversiAiWork | null } = { current: null };
     const updated = this.withIndexTransaction(() => {
       // 将棋の読取りは従来どおりtransaction内。リバーシは最初の読取りを使用。
@@ -3396,7 +3432,9 @@ export class GameRoom extends DurableObject<Env> {
         return null;
       }
       const ratedDuelPlaying =
-        (isShogiRoom(room) || isReversiRoom(room)) && room.matchmaking && room.status === "playing";
+        (isShogiRoom(room) || isReversiRoom(room) || isFourShogiRoom(room)) &&
+        room.matchmaking &&
+        room.status === "playing";
       const idle = !ratedDuelPlaying && room.lastActivityAtMs + idleMs <= now;
       if (idle || this.closeIfNoHumanParticipants(room) === null) {
         if (idle) this.closeRoom();
@@ -3587,6 +3625,15 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isFourShogiRoom(room)) throw new Error("Expected Shogi room");
+            if (room.matchmaking?.rated && this.ctx.storage.kv.get(shogiCpuJobKey) === undefined) {
+              fourShogiWork.current = this.shogiProgress.prepareExternalCpu(
+                room,
+                now,
+                aiServiceTimeout(this.env),
+                this.hasCpuCapacity(room) && aiServiceConfigured(this.env),
+              );
+              return room;
+            }
             const result = this.shogiProgress.cpu(room, now);
             if (result.kind !== "unchanged") {
               room = this.applyProgress(result);
@@ -3720,6 +3767,17 @@ export class GameRoom extends DurableObject<Env> {
           this.reversiProgress.completeExternalCpu(room, work.job, response.position, Date.now());
       });
       if (response.reason) console.warn("AI service fallback", { reason: response.reason });
+      await this.syncAlarm(this.readRoom());
+    }
+    if (fourShogiWork.current) {
+      const work = fourShogiWork.current;
+      const move = await requestFourShogiAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isFourShogiRoom(room))
+          this.shogiProgress.completeExternalCpu(room, work.job, move, Date.now());
+      });
       await this.syncAlarm(this.readRoom());
     }
     if (shogiWork.current) {

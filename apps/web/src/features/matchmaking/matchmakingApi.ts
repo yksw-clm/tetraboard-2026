@@ -18,10 +18,10 @@ export type ObservedMatchmaking = ReturnType<typeof matchmakingStateSchema.parse
   legacy?: true;
 };
 
-export async function readReversiRatedAvailability(signal: AbortSignal) {
+export async function readRatedAvailability(game: RatedMatchmakingGame, signal: AbortSignal) {
   return (
     matchmakingStateSchema.parse(
-      await accountRequest(api("reversi"), {
+      await accountRequest(api(game), {
         signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]),
       }),
     ).enabled === true
@@ -67,6 +67,7 @@ export async function matchmakingOperation(
 }
 
 const ratingContracts = {
+  "four-shogi": { result: fourReversiRatingResultSchema, summary: fourReversiRatingSummarySchema },
   "four-reversi": {
     result: fourReversiRatingResultSchema,
     summary: fourReversiRatingSummarySchema,

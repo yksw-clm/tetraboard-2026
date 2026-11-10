@@ -11,7 +11,7 @@ import { reversiMatchData } from "./reversiMatchData";
 import type { MatchRecord as ReversiMatchRecord } from "../rooms/reversiMatchStore";
 import type { ReversiAccountStats, ReversiMatchSummary } from "@tetraboard/protocol";
 import { z } from "zod";
-import { fourReversiRatedMatchSchema } from "../rooms/fourReversiRating";
+import { fourReversiRatedMatchSchema, fourShogiRatedMatchSchema } from "../rooms/fourReversiRating";
 import { type GameId } from "@tetraboard/protocol/games";
 import {
   gameIdSchema,
@@ -100,6 +100,7 @@ const shogiRecordSchema = z
     ...fourShogiMatchDetailSchema.shape,
     instanceId: z.uuid(),
     participants: shogiParticipants,
+    fourShogiRating: fourShogiRatedMatchSchema.optional(),
   })
   .omit({ selfPlayerId: true });
 function publicIdentity(
@@ -160,7 +161,7 @@ function shogiDetail(
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const { instanceId: _instance, ...data } = record;
+  const { instanceId: _instance, fourShogiRating: _rating, ...data } = record;
   return fourShogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

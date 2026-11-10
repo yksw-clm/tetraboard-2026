@@ -55,13 +55,14 @@ const ratedMatch = {
 export type QueueRating = { rating?: number; sigma?: number; ratedGames?: number };
 export const fourReversiWidenAfterMs = 10_000;
 
-function chooseCpu(players: QueueRating[]) {
+export function nearestRankedCpu<T extends { mu: number; profileId: string }>(
+  players: QueueRating[],
+  profiles: T[],
+  placementGames: number,
+) {
   const mus = players
     .flatMap(({ ratedGames, rating }) =>
-      (ratedGames ?? 0) >= ratedMatchmakingRules["four-reversi"].placementGames &&
-      rating !== undefined
-        ? [rating]
-        : [],
+      (ratedGames ?? 0) >= placementGames && rating !== undefined ? [rating] : [],
     )
     .sort((a, b) => a - b);
   const middle = Math.floor(mus.length / 2);
@@ -70,7 +71,7 @@ function chooseCpu(players: QueueRating[]) {
     : mus.length % 2
       ? mus[middle]!
       : (mus[middle - 1]! + mus[middle]!) / 2;
-  return availableProfiles().sort(
+  return [...profiles].sort(
     (a, b) =>
       Math.abs(a.mu - target) - Math.abs(b.mu - target) ||
       a.mu - b.mu ||
@@ -82,10 +83,31 @@ export function selectFourReversi<T extends QueueRating>(
   eligible: T[],
   elapsed: number,
 ): { selected: T[]; rating: FourReversiRatingSource } | undefined {
+  return selectFourPlayerRated(
+    eligible,
+    elapsed,
+    fourReversiRatedMatchmakingRules,
+    ratedMatch,
+    (players) =>
+      nearestRankedCpu(
+        players,
+        availableProfiles(),
+        ratedMatchmakingRules["four-reversi"].placementGames,
+      ),
+  );
+}
+
+export function selectFourPlayerRated<T extends QueueRating, R extends object, C>(
+  eligible: T[],
+  elapsed: number,
+  rules: { seats: number; fillAfterMs: number },
+  ratedMatch: R,
+  chooseCpu: (players: T[]) => C | undefined,
+): { selected: T[]; rating: R & { cpu?: C } } | undefined {
   const candidates = eligible.slice(0, 16);
   const [oldest, ...others] = candidates;
   if (!oldest) return;
-  const { seats, fillAfterMs } = fourReversiRatedMatchmakingRules;
+  const { seats, fillAfterMs } = rules;
   const expired = elapsed >= fillAfterMs;
   if (candidates.length < seats) {
     if (!expired) return;
