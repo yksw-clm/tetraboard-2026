@@ -1,5 +1,7 @@
 import { isMatchmakingRoom, managedRoomPath } from "../matchmaking/managedRoom";
-import { matchmakingPath } from "../matchmaking/paths";
+import { matchmakingPath, matchmakingScope } from "../matchmaking/paths";
+import { clearDepartedMatchmakingRoom } from "../matchmaking/matchmakingStorage";
+import { QueueControllerContext } from "../../shared/QueueDocumentController";
 import { checkAccountPrivacy } from "../account/accountPrivacy";
 import { gameCapacity } from "@tetraboard/protocol/games";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
@@ -23,7 +25,7 @@ import {
   type RoomPresence,
   type RoomSocketClientMessage,
 } from "@tetraboard/protocol";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import {
@@ -132,6 +134,7 @@ export function useRoomTransport<T extends Room>({
 }: RoomTransportOptions<T>) {
   useSoundEffects();
   const navigate = useNavigate();
+  const queueController = useContext(QueueControllerContext);
   const initialMatchmaking = isMatchmakingRoom(initialRoom);
   const initialTournamentId = "tournamentId" in initialRoom ? initialRoom.tournamentId : undefined;
   const [room, setRoom] = useState(initialRoom);
@@ -159,6 +162,7 @@ export function useRoomTransport<T extends Room>({
   > | null>(null);
   const [socketError, setSocketError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
   const [chatMessages, setChatMessages] = useState<ChatEntry[]>([]);
   const [chatNotifications, setChatNotifications] = useState<ChatEntry[]>([]);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -420,6 +424,8 @@ export function useRoomTransport<T extends Room>({
     }
 
     function stopUnavailable(message: string): void {
+      // 明示退室中は、応答を待って再検索の指定を付けた遷移を行います。
+      if (initialMatchmaking && leavingRef.current) return;
       if (initialMatchmaking && initialMembership)
         void navigate(matchmakingPath(initialRoom.settings.game), { replace: true });
       if (initialTournamentId !== undefined && initialMembership) {
@@ -1091,18 +1097,33 @@ export function useRoomTransport<T extends Room>({
   }
 
   async function handleLeaveClick(nextMatch = false): Promise<void> {
-    if (membership === null || leaving) return;
+    if (membership === null || leavingRef.current) return;
     const token = readRoomMembershipToken(room.id);
     if (token === null) {
       setSocketError("参加資格が見つかりません。再読み込みしてください。");
       return;
     }
+    leavingRef.current = true;
     setLeaving(true);
     clockSoundRef.current?.leave(true);
     setSocketError(null);
     try {
       await leaveRoom(room.id, token);
-      clearRoomMembershipToken(room.id);
+      if (readRoomMembershipToken(room.id) === token) clearRoomMembershipToken(room.id);
+      if (isMatchmakingRoom(room)) {
+        const departed = clearDepartedMatchmakingRoom(room.id, room.instanceId);
+        if (departed) {
+          const game = departed.game ?? "four-reversi";
+          const scope = matchmakingScope(departed.identity, game);
+          if (queueController.version(scope, departed.operationId) !== null)
+            queueController.forget(scope);
+          if (!departed.game) {
+            const legacyScope = matchmakingScope(departed.identity, game, true);
+            if (queueController.version(legacyScope, departed.operationId) !== null)
+              queueController.forget(legacyScope);
+          }
+        }
+      }
       void navigate(
         isMatchmakingRoom(room) && !nextMatch
           ? gameCatalog[room.settings.game].lobbyPath
@@ -1112,6 +1133,7 @@ export function useRoomTransport<T extends Room>({
           : undefined,
       );
     } catch {
+      leavingRef.current = false;
       setSocketError("退室できませんでした。再度お試しください。");
       setLeaving(false);
       clockSoundRef.current?.leave(false);

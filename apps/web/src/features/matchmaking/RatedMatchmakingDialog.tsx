@@ -69,12 +69,15 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   );
   useEffect(() => {
     if (!rejoin.current || !ready || data.status !== "idle" || pending) return;
-    rejoin.current = false;
-    void navigate(location.pathname + location.search + location.hash, {
-      replace: true,
-      state: null,
-    });
-    void join();
+    if (
+      join(() => {
+        void navigate(location.pathname + location.search + location.hash, {
+          replace: true,
+          state: null,
+        });
+      })
+    )
+      rejoin.current = false;
   }, [
     ready,
     data.status,

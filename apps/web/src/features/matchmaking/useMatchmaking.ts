@@ -23,11 +23,11 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
   const scope = matchmakingScope(identity ?? legacyIdentity ?? "visitor", game);
   const epoch = useMemo(() => Symbol(`${scope}:${controllerId}`), [scope, controllerId]);
   const [visible, setVisible] = useState<{
-    scope: string;
+    epoch: symbol;
     data: ObservedState;
     error: string | null;
     pending: boolean;
-  }>({ scope, data: idle, error: null, pending: false });
+  }>({ epoch, data: idle, error: null, pending: false });
   const active = useRef({
     scope,
     controllerId,
@@ -38,6 +38,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     heartbeat: false,
     reading: false,
     sequence: 0,
+    joinOperationId: null as string | null,
     data: idle,
   });
   useLayoutEffect(() => {
@@ -51,6 +52,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       heartbeat: false,
       reading: false,
       sequence: 0,
+      joinOperationId: null,
       data: idle,
     };
     return () => {
@@ -69,24 +71,24 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
   const accept = useCallback(
     (data: ObservedMatchmaking, fromAction = false) => {
       if (!valid()) return;
-      const ended =
-        !fromAction &&
-        data.status === "idle" &&
-        (active.current.data.status !== "idle" ||
-          (identity && readMatchmakingQueue(identity, game)));
+      const ended = !fromAction && data.status === "idle" && active.current.data.status !== "idle";
       const observed = { ...data, receivedAtMs: performance.now() };
       active.current.data = observed;
       setVisible((previous) => ({
-        scope,
+        epoch,
         data: observed,
         error: ended
           ? "待機が終了しました。参加する場合は、もう一度対戦相手を探してください。"
-          : !fromAction && data.status === "idle" && previous.error?.startsWith("待機が終了")
+          : !fromAction &&
+              data.status === "idle" &&
+              previous.epoch === epoch &&
+              previous.error?.startsWith("待機が終了")
             ? previous.error
             : null,
         pending: false,
       }));
       if (data.status === "idle") {
+        active.current.joinOperationId = null;
         if (identity) clearMatchmakingQueue(identity, game);
         controller.forget(scope);
         return;
@@ -105,7 +107,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
         controller.remember(scope, data.operationId, data.version);
       }
     },
-    [valid, scope, identity, controller, controllerId, game],
+    [valid, scope, identity, controller, controllerId, game, epoch],
   );
   const refresh = useCallback(async () => {
     if (
@@ -164,8 +166,8 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     } catch (error) {
       if (valid() && sequence === active.current.sequence)
         setVisible((previous) => ({
-          scope,
-          data: previous.scope === scope ? previous.data : idle,
+          epoch,
+          data: previous.epoch === epoch ? previous.data : idle,
           pending: false,
           error: error instanceof Error ? error.message : "待機情報を取得できません。",
         }));
@@ -183,6 +185,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     scope,
     accept,
     game,
+    epoch,
   ]);
   useEffect(() => {
     void refresh();
@@ -192,14 +195,15 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     return () => window.clearInterval(timer);
   }, [refresh]);
   const perform = useCallback(
-    async (action: "join" | "heartbeat" | "cancel" | "takeover") => {
+    async (action: "join" | "heartbeat" | "cancel" | "takeover", onJoinSent?: () => void) => {
       const current = active.current.data;
       const actor = current.legacy && action === "takeover" ? legacyIdentity : identity;
       if (!actor || !valid() || account.loading || account.error || active.current.busy) return;
-      const data = current,
-        local = readMatchmakingQueue(actor, game);
+      const data = current;
       const operationId =
-        action === "join" ? (local?.operationId ?? crypto.randomUUID()) : data.operationId;
+        action === "join"
+          ? (active.current.joinOperationId ?? crypto.randomUUID())
+          : data.operationId;
       if (!operationId) return;
       if (
         (action === "heartbeat" || action === "cancel") &&
@@ -240,16 +244,17 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       }
       active.current.busy = true;
       ++active.current.sequence;
-      setVisible((previous) => ({ ...previous, scope, pending: true, error: null }));
+      setVisible((previous) => ({ ...previous, epoch, pending: true, error: null }));
       try {
         if (action === "join") {
           if (!canStoreRoomMembership())
             throw Error("参加資格を保存できません。ブラウザの保存領域を確認してください。");
           saveMatchmakingQueue(actor, { operationId, controllerId, version: 1 }, game);
+          active.current.joinOperationId = operationId;
         }
         if (action === "join" || action === "takeover") await controller.acquire(scope, true);
         if (!valid()) return;
-        const result = await matchmakingOperation(
+        const request = matchmakingOperation(
           game,
           action,
           {
@@ -260,6 +265,8 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
           undefined,
           data.legacy,
         );
+        if (action === "join") onJoinSent?.();
+        const result = await request;
         if (!valid()) return;
         accept(result, true);
         if (action === "join" || action === "takeover") controller.announce(scope);
@@ -267,7 +274,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
         if (valid())
           setVisible((previous) => ({
             ...previous,
-            scope,
+            epoch,
             pending: false,
             error: error instanceof Error ? error.message : "マッチングを処理できません。",
           }));
@@ -286,6 +293,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       scope,
       accept,
       game,
+      epoch,
     ],
   );
   useEffect(() => {
@@ -347,7 +355,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       }
     }
   }, [identity, legacyIdentity, valid, controllerId, controller, scope, navigate, game]);
-  const data = visible.scope === scope ? visible.data : idle;
+  const data = visible.epoch === epoch ? visible.data : idle;
   const owned =
     data.controllerId === controllerId &&
     controller.version(scope, data.operationId) === data.version;
@@ -355,13 +363,29 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
   useEffect(() => {
     if (owned && assignedMatchId) void enter();
   }, [owned, assignedMatchId, data.status, enter]);
-  const join = useCallback(() => perform("join"), [perform]);
+  const join = useCallback(
+    (onSent?: () => void) => {
+      if (
+        !identity ||
+        !valid() ||
+        account.loading ||
+        account.error ||
+        active.current.busy ||
+        active.current.data.status !== "idle" ||
+        active.current.data.enabled !== true
+      )
+        return false;
+      void perform("join", onSent);
+      return true;
+    },
+    [identity, valid, account.loading, account.error, perform],
+  );
   const cancel = useCallback(() => perform("cancel"), [perform]);
   const takeover = useCallback(() => perform("takeover"), [perform]);
   return {
     data,
-    error: visible.scope === scope ? visible.error : null,
-    pending: visible.scope === scope && visible.pending,
+    error: visible.epoch === epoch ? visible.error : null,
+    pending: visible.epoch === epoch && visible.pending,
     owned,
     identity,
     refresh,

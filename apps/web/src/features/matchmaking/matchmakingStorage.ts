@@ -68,3 +68,18 @@ export function readMatchmakingRoom(roomId: string, instanceId?: string) {
     return null;
   }
 }
+
+export function clearDepartedMatchmakingRoom(roomId: string, instanceId: string) {
+  const room = readMatchmakingRoom(roomId, instanceId);
+  if (!room) return null;
+  const game = room.game ?? "four-reversi";
+  const legacy = room.game === undefined;
+  if (readMatchmakingQueue(room.identity, game, legacy)?.operationId === room.operationId)
+    clearMatchmakingQueue(room.identity, game, legacy);
+  try {
+    sessionStorage.removeItem(`tetraboard:matchmaking-room:${roomId}`);
+  } catch {
+    // サーバーの状態確認で古い参加資格は無効になります。
+  }
+  return room;
+}

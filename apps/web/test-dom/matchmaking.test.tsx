@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { createMemoryRouter, matchRoutes, RouterProvider, useLocation } from "react-router";
+import type { RatedMatchmakingGame } from "@tetraboard/protocol";
 import { RatedMatchmakingDialog } from "../src/features/matchmaking/RatedMatchmakingDialog";
+import {
+  readMatchmakingQueue,
+  saveMatchmakingQueue,
+} from "../src/features/matchmaking/matchmakingStorage";
 import { AccountContext } from "../src/features/account/useAccount";
 import {
   QueueControllerContext,
@@ -27,12 +32,17 @@ const activeDialog = () => dialogs().at(-1)!;
 function shogiPage(
   viewer = user,
   rejoin = false,
-  game: "shogi" | "four-reversi" | "reversi" = "shogi",
+  game: RatedMatchmakingGame = "shogi",
+  reload = false,
 ) {
   const lobby = `/games/${game}`;
+  const locks = {
+    request: (name: string, _options: LockOptions, callback: (lock: Lock) => Promise<void>) =>
+      callback({ name, mode: "exclusive" }),
+  } as LockManager;
   const controller = new QueueDocumentController({
-    isReload: () => false,
-    locks: () => undefined,
+    isReload: () => reload,
+    locks: () => (reload ? locks : undefined),
     channel: () => null,
   });
   function Lobby() {
@@ -288,15 +298,109 @@ test.each(["cpu", "human"] as const)(
   },
 );
 
-test("終局後の再参加はダイアログから検索を一度だけ始める", async () => {
+test.each(["shogi", "four-reversi", "four-shogi", "reversi"] as const)(
+  "%sは前局の待機情報が残っていても新しい操作IDで再検索を一度だけ始める",
+  async (game) => {
+    const previous = {
+      operationId: crypto.randomUUID(),
+      controllerId: crypto.randomUUID(),
+      version: 1,
+    };
+    saveMatchmakingQueue(identity, previous, game);
+    const router = shogiPage(user, true, game);
+    const joins = () => requests.filter(({ url }) => url.includes(`/api/matchmaking/${game}/join`));
+    const clearedIntent = new Set<number>();
+    const unsubscribe = router.subscribe(({ location }) => {
+      if (location.state === null) clearedIntent.add(joins().length);
+    });
+    latest(`/api/matchmaking/${game}?`).respond(shogiIdle());
+    await flush();
+    unsubscribe();
+    expect([...clearedIntent]).toEqual([1]);
+    const join = joins()[0]!;
+    const input = JSON.parse(String(join.init.body));
+    expect(input.operationId).not.toBe(previous.operationId);
+    expect(router.state.location.state).toBeNull();
+    expect(activeDialog().textContent).not.toContain("待機が終了しました");
+    join.respond({
+      ...shogiIdle(),
+      ...input,
+      status: "waiting",
+      version: 1,
+      joinedAtMs: Date.now(),
+    });
+    await flush();
+    expect(activeDialog().textContent).toContain("対戦相手を探しています");
+    expect(joins()).toHaveLength(1);
+  },
+);
+
+test.each([true, false])("待機中は既存の操作を復元・引き継ぐ reload=%s", async (reload) => {
+  const previous = {
+    operationId: crypto.randomUUID(),
+    controllerId: crypto.randomUUID(),
+    version: 1,
+  };
+  saveMatchmakingQueue(identity, previous, "shogi");
+  shogiPage(user, false, "shogi", reload);
+  const waiting = { ...shogiIdle(), ...previous, status: "waiting", joinedAtMs: Date.now() };
+  latest(shogiStatusUrl).respond(waiting);
+  await flush();
+  const takeoverUrl = "/api/matchmaking/shogi/takeover";
+  if (!reload) {
+    expect(latest(takeoverUrl)).toBeUndefined();
+    press(activeDialog(), "このタブで続ける");
+    await flush();
+  }
+  const takeover = latest(takeoverUrl);
+  const input = JSON.parse(String(takeover.init.body));
+  expect(input.operationId).toBe(previous.operationId);
+  takeover.respond({ ...waiting, controllerId: input.controllerId, version: 2 });
+  await flush();
+  expect(activeDialog().textContent).toContain("対戦相手を探しています");
+  expect(activeDialog().textContent).not.toContain("待機が終了しました");
+  expect(latest(shogiJoinUrl)).toBeUndefined();
+});
+
+test("前局の情報が残っていてもロビーから開くだけなら終了案内も検索も発生しない", async () => {
+  saveMatchmakingQueue(
+    identity,
+    { operationId: crypto.randomUUID(), controllerId: crypto.randomUUID(), version: 1 },
+    "shogi",
+  );
+  shogiPage();
+  latest(shogiStatusUrl).respond(shogiIdle());
+  await flush();
+  expect(activeDialog().textContent).not.toContain("待機が終了しました");
+  expect(activeDialog().textContent).toContain("対戦相手を探す");
+  expect(latest(shogiJoinUrl)).toBeUndefined();
+  expect(readMatchmakingQueue(identity, "shogi")).toBeNull();
+});
+
+test("確認済みの待機が終了した場合は案内を表示し、自動で検索し直さない", async () => {
+  shogiPage();
+  await startShogiSearch();
+  clock.advance(3000);
+  latest(shogiStatusUrl).respond(shogiIdle());
+  await flush();
+  expect(activeDialog().textContent).toContain("待機が終了しました");
+  expect(requests.filter(({ url }) => url.includes(shogiJoinUrl))).toHaveLength(1);
+});
+
+test("再検索の通信に失敗しても自動で送り直さず、明示的な再試行で同じ操作IDを使う", async () => {
   shogiPage(user, true);
   latest(shogiStatusUrl).respond(shogiIdle());
   await flush();
+  const first = latest(shogiJoinUrl);
+  first.respond({ message: "通信エラー" }, 503);
+  await flush();
+  expect(activeDialog().textContent).toContain("通信エラー");
+  expect(requests.filter(({ url }) => url.includes(shogiJoinUrl))).toHaveLength(1);
+  press(activeDialog(), "対戦相手を探す");
+  await flush();
+  expect(latest(shogiJoinUrl)).not.toBe(first);
+  expect(latest(shogiJoinUrl).init.body).toBe(first.init.body);
   await respondToJoin();
-  expect(activeDialog().textContent).toContain("対戦相手を探しています");
-  expect(
-    requests.filter((request) => request.url === shogiJoinUrl + "?waitingCount=1"),
-  ).toHaveLength(1);
 });
 const fourStatus = "/api/matchmaking/four-reversi?";
 
