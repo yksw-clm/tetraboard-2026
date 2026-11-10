@@ -1,3 +1,4 @@
+import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { fourShogiActionSchema } from "@tetraboard/protocol";
 import type { FourShogiAiWork } from "./fourShogiProgress";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import {
 } from "./aiServiceProfiles";
 
 export interface AiServiceBindings {
+  FOUR_SHOGI_DIAGNOSTICS?: string;
   AI_SERVICE_URL?: string;
   AI_SERVICE_TOKEN?: string;
   AI_SERVICE_TIMEOUT_MS?: string;
@@ -435,10 +437,24 @@ const fourShogiMoveResponse = z.object({
   diagnostics: z.object({ work: z.int().nonnegative() }),
 });
 
-export async function requestFourShogiAiMove(bindings: AiServiceBindings, work: FourShogiAiWork) {
-  const url = configuredUrl(bindings);
-  if (!url) return null;
+export type FourShogiAiFailure =
+  | "configuration"
+  | "timeout"
+  | "network"
+  | "invalid_response"
+  | `http_${number}`;
+
+export type FourShogiAiResult =
+  | { action: z.infer<typeof fourShogiActionSchema>; reason?: never; retried?: true }
+  | { action: null; reason: FourShogiAiFailure };
+
+export async function requestFourShogiAiMove(
+  bindings: AiServiceBindings,
+  work: FourShogiAiWork,
+): Promise<FourShogiAiResult> {
   const { requestId, roundId, positionRevision, expiresAt, side } = work.job;
+  const url = configuredUrl(bindings);
+  if (!url) return { action: null, reason: "configuration" };
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(JSON.stringify([roundId, positionRevision, side, work.events])),
@@ -446,47 +462,91 @@ export async function requestFourShogiAiMove(bindings: AiServiceBindings, work: 
   const revision = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+  const body = JSON.stringify({
+    api_version: 1,
+    rules_version: 1,
+    request_id: requestId,
+    position_revision: revision,
+    profile_id: work.profile.profileId,
+    three_player_attack_prohibited: true,
+    turn: side,
+    events: work.events,
+  });
   const remaining = expiresAt - Date.now();
-  if (remaining <= 0) return null;
+  if (remaining <= 0) return { action: null, reason: "timeout" };
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), remaining);
+  const expired = () => controller.signal.aborted || Date.now() >= expiresAt;
   try {
-    const response = await fetch(new URL("/v1/four-shogi/move", url), {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        api_version: 1,
-        rules_version: 1,
-        request_id: requestId,
-        position_revision: revision,
-        profile_id: work.profile.profileId,
-        three_player_attack_prohibited: true,
-        turn: side,
-        events: work.events,
-      }),
-      redirect: "manual",
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      await response.body?.cancel();
-      return null;
+    for (let attempt = 1; ; attempt++) {
+      if (expired()) return { action: null, reason: "timeout" };
+      const started = performance.now();
+      let httpStatus: number | undefined;
+      let failure: FourShogiAiFailure;
+      let retryable = false;
+      try {
+        const response = await fetch(new URL("/v1/four-shogi/move", url), {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${bindings.AI_SERVICE_TOKEN}`,
+            "content-type": "application/json",
+            "x-tetraboard-ai-request-id": requestId,
+            "x-tetraboard-ai-attempt": String(attempt),
+          },
+          body,
+          redirect: "manual",
+          signal: controller.signal,
+        });
+        httpStatus = response.status;
+        if (!response.ok) {
+          void response.body?.cancel().catch(() => {});
+          throw new ServiceError(`http_${response.status}`);
+        }
+        const result = fourShogiMoveResponse.safeParse(await responseJson(response));
+        if (
+          !result.success ||
+          result.data.request_id !== requestId ||
+          result.data.position_revision !== revision ||
+          result.data.engine_version !== work.profile.engineVersion ||
+          result.data.profile_id !== work.profile.profileId ||
+          result.data.max_work !== work.profile.work ||
+          result.data.diagnostics.work > result.data.max_work
+        )
+          throw new ServiceError("invalid_response");
+        if (expired()) throw new ServiceError("timeout");
+        if (attempt === 2)
+          logFourShogiDiagnostic(bindings, "four_shogi_ai_retry_response", {
+            matchId: roundId,
+            requestId,
+            attempt,
+            httpStatus,
+            elapsedMs: Math.round(performance.now() - started),
+          });
+        return { action: result.data.action, ...(attempt === 2 ? { retried: true as const } : {}) };
+      } catch (error) {
+        if (expired()) failure = "timeout";
+        else if (httpStatus !== undefined && (httpStatus < 200 || httpStatus >= 300)) {
+          failure = `http_${httpStatus}`;
+          retryable = httpStatus === 429 || httpStatus >= 500;
+        } else if (error instanceof ServiceError || error instanceof SyntaxError)
+          failure = "invalid_response";
+        else {
+          failure = "network";
+          retryable = true;
+        }
+      }
+      const willRetry = retryable && attempt === 1 && !expired();
+      logFourShogiDiagnostic(bindings, "four_shogi_ai_attempt_failed", {
+        matchId: roundId,
+        requestId,
+        attempt,
+        ...(httpStatus === undefined ? {} : { httpStatus }),
+        elapsedMs: Math.round(performance.now() - started),
+        reason: failure,
+        willRetry,
+      });
+      if (!willRetry) return { action: null, reason: failure };
     }
-    const result = fourShogiMoveResponse.safeParse(await responseJson(response));
-    if (!result.success) return null;
-    const move = result.data;
-    return move.request_id === requestId &&
-      move.position_revision === revision &&
-      move.engine_version === work.profile.engineVersion &&
-      move.profile_id === work.profile.profileId &&
-      move.max_work === work.profile.work &&
-      move.diagnostics.work <= move.max_work
-      ? move.action
-      : null;
-  } catch {
-    return null;
   } finally {
     clearTimeout(timer);
     controller.abort();

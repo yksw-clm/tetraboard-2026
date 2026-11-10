@@ -23,7 +23,8 @@
   "env": {
     "development": {
       "name": "tetraboard-ai-dev",
-      "vars": { "AI_SHOGI_ENABLED": "true" },
+      "vars": { "AI_SHOGI_ENABLED": "true", "FOUR_SHOGI_DIAGNOSTICS": "true" },
+      "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
       "containers": [
         {
           "class_name": "AiContainer",

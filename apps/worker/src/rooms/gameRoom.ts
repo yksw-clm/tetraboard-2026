@@ -1,3 +1,4 @@
+import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { calibratedFourShogiProfile } from "../matchmaking/fourShogiSelection";
 import { matchmakingQueues, matchmakingRules } from "@tetraboard/protocol";
 import { calibratedFourReversiProfile } from "../matchmaking/fourReversiSelection";
@@ -2931,7 +2932,7 @@ export class GameRoom extends DurableObject<Env> {
       `matchmaking:${current.matchmaking.id}`,
     );
     if (!reservation || reservation.phase !== "waiting") return;
-    this.withIndexTransaction(() => {
+    const diagnostic = this.withIndexTransaction(() => {
       const room = this.readRoom();
       if (
         !room ||
@@ -2959,20 +2960,22 @@ export class GameRoom extends DurableObject<Env> {
             matchmaking: metadata,
             publicUpdatedAtMs: nextPublicUpdateAt(room),
           });
+          return { event: "four_shogi_countdown_reset", atMs: Date.now() };
         }
         return;
       }
       const deadline = room.matchmaking.startsAtMs;
       if (deadline === undefined) {
+        const atMs = Date.now();
         this.ctx.storage.kv.put(roomStorageKey, {
           ...room,
           matchmaking: {
             ...room.matchmaking,
-            startsAtMs: Date.now() + matchmakingRules.countdownMs,
+            startsAtMs: atMs + matchmakingRules.countdownMs,
           },
           publicUpdatedAtMs: nextPublicUpdateAt(room),
         });
-        return;
+        return { event: "four_shogi_connected", atMs };
       }
       if (Date.now() < deadline) return;
       const started =
@@ -2996,7 +2999,13 @@ export class GameRoom extends DurableObject<Env> {
         phase: "playing",
       } satisfies MatchmakingRoomReservation);
       this.startAnalyticsMatch(started.roundId, started.room, started.at);
+      return { event: "four_shogi_started", atMs: started.at };
     });
+    if (diagnostic && reservation.rating?.kind === "four-shogi")
+      logFourShogiDiagnostic(this.env, diagnostic.event, {
+        matchId: reservation.matchId,
+        atMs: diagnostic.atMs,
+      });
     const room = this.readRoom();
     await this.syncAlarm(room);
     if (room) this.broadcastRoom(room);
@@ -3411,6 +3420,11 @@ export class GameRoom extends DurableObject<Env> {
     const externalWork: { current: ExternalCpuWork | null } = { current: null };
     const shogiWork: { current: ShogiAiWork | null } = { current: null };
     const fourShogiWork: { current: FourShogiAiWork | null } = { current: null };
+    let fourShogiAiDiagnostic:
+      | (NonNullable<ShogiCpuJob["aiDiagnostic"]> & {
+          matchId: string;
+        })
+      | undefined;
     const reversiWork: { current: ReversiAiWork | null } = { current: null };
     const updated = this.withIndexTransaction(() => {
       // 将棋の読取りは従来どおりtransaction内。リバーシは最初の読取りを使用。
@@ -3636,17 +3650,24 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isFourShogiRoom(room)) throw new Error("Expected Shogi room");
-            if (room.matchmaking?.rated && this.ctx.storage.kv.get(shogiCpuJobKey) === undefined) {
+            const cpuJob = this.ctx.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey);
+            if (room.matchmaking?.rated && !cpuJob) {
               fourShogiWork.current = this.shogiProgress.prepareExternalCpu(
                 room,
                 now,
                 aiServiceTimeout(this.env),
-                this.hasCpuCapacity(room) && aiServiceConfigured(this.env),
+                !aiServiceConfigured(this.env)
+                  ? "configuration"
+                  : this.hasCpuCapacity(room)
+                    ? null
+                    : "capacity_unavailable",
               );
               return room;
             }
             const result = this.shogiProgress.cpu(room, now);
             if (result.kind !== "unchanged") {
+              if (cpuJob?.aiDiagnostic)
+                fourShogiAiDiagnostic = { matchId: room.roundId, ...cpuJob.aiDiagnostic };
               room = this.applyProgress(result);
               if (room) this.ctx.storage.kv.put(roomStorageKey, room);
               changed = true;
@@ -3754,6 +3775,14 @@ export class GameRoom extends DurableObject<Env> {
       }
       return room;
     });
+    if (fourShogiAiDiagnostic)
+      logFourShogiDiagnostic(
+        this.env,
+        fourShogiAiDiagnostic.reason
+          ? "four_shogi_ai_fallback_applied"
+          : "four_shogi_ai_retry_applied",
+        fourShogiAiDiagnostic,
+      );
     await this.syncAlarm(updated);
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
@@ -3782,12 +3811,12 @@ export class GameRoom extends DurableObject<Env> {
     }
     if (fourShogiWork.current) {
       const work = fourShogiWork.current;
-      const move = await requestFourShogiAiMove(this.env, work);
+      const response = await requestFourShogiAiMove(this.env, work);
       await this.reconcileDeadlines();
       this.ctx.storage.transactionSync(() => {
         const room = this.readRoom();
         if (room?.status === "playing" && isFourShogiRoom(room))
-          this.shogiProgress.completeExternalCpu(room, work.job, move, Date.now());
+          this.shogiProgress.completeExternalCpu(room, work.job, response, Date.now());
       });
       await this.syncAlarm(this.readRoom());
     }

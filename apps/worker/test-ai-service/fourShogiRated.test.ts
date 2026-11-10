@@ -10,7 +10,8 @@ import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
 import { fourShogiAiJobKey, type ShogiCpuJob } from "../src/rooms/fourShogiProgress";
 import { shogiCpuJobKey } from "../src/rooms/progressHelpers";
-import { selectFourShogi } from "../src/matchmaking/fourShogiSelection";
+import { requestFourShogiAiMove } from "../src/rooms/aiService";
+import { calibratedFourShogiProfile, selectFourShogi } from "../src/matchmaking/fourShogiSelection";
 
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
@@ -31,12 +32,74 @@ test("認定中は標準、認定済みは実力に最も近い四人将棋CPU�
   expect(selectFourShogi([{}, {}, {}, {}], 0)?.rating.cpu).toBeUndefined();
 });
 
-test.each(["placement", "fifth", "fallback"] as const)(
+test.each([
+  { mode: "auth", reason: "http_401", requests: 1 },
+  { mode: "invalid", reason: "invalid_response", requests: 1 },
+  { mode: "expired", reason: "timeout", requests: 0 },
+  { mode: "late_error", reason: "timeout", requests: 1 },
+  { mode: "late_success", reason: "timeout", requests: 1 },
+  { mode: "busy", reason: undefined, requests: 2 },
+  { mode: "network", reason: undefined, requests: 2 },
+])("四人将棋の着手要求の終了条件（$mode）", async ({ mode, reason, requests }) => {
+  let now = Date.now();
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const expiresAt = now + (mode === "expired" ? 0 : 5000);
+  let calls = 0;
+  const fetchAi = vi.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
+    calls++;
+    if (mode.startsWith("late_")) now = expiresAt;
+    if (mode === "auth") return new Response(null, { status: 401 });
+    if (mode === "invalid") return Response.json({});
+    if (mode === "late_error") return new Response(null, { status: 500 });
+    if (mode === "busy" && calls === 1) return new Response(null, { status: 429 });
+    if (mode === "network" && calls === 1) throw new TypeError("fetch failed");
+    const body = JSON.parse(String(init?.body));
+    return Response.json({
+      api_version: 1,
+      rules_version: 1,
+      request_id: body.request_id,
+      position_revision: body.position_revision,
+      profile_id: body.profile_id,
+      engine_version: "four-shogi-lv3-v1",
+      max_work: 16384,
+      max_time_ms: 500,
+      diagnostics: { work: 100 },
+      action: { type: "movePiece", from: { x: 4, y: 7 }, to: { x: 4, y: 6 }, promote: false },
+    });
+  });
+  try {
+    const profile = calibratedFourShogiProfile(
+      selectFourShogi([{}], rules.fillAfterMs)!.rating.cpu!,
+    )!;
+    const result = await requestFourShogiAiMove(env, {
+      job: {
+        requestId: crypto.randomUUID(),
+        roundId: crypto.randomUUID(),
+        positionRevision: 0,
+        side: "south",
+        expiresAt,
+      },
+      profile,
+      events: [],
+    });
+    expect(fetchAi).toHaveBeenCalledTimes(requests);
+    if (reason) expect(result).toEqual({ action: null, reason });
+    else expect(result).toMatchObject({ action: { type: "movePiece" }, retried: true });
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
+
+test.each(["placement", "fifth", "fallback", "retry", "retry_failed"] as const)(
   "CPU補充から終局・保存まで完走する（%s）",
   async (scenario) => {
-    const fallback = scenario === "fallback";
+    const fallback = scenario === "fallback" || scenario === "retry_failed";
     let now = Date.now() + 60_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
+    const logs: Record<string, unknown>[] = [];
+    vi.spyOn(console, "info").mockImplementation((entry: unknown) => {
+      if (entry && typeof entry === "object") logs.push(entry as Record<string, unknown>);
+    });
     const account = await accountFixture();
     const operationId = crypto.randomUUID();
     const controllerId = crypto.randomUUID();
@@ -74,20 +137,37 @@ test.each(["placement", "fifth", "fallback"] as const)(
       roomId = assigned.roomId;
       token = assigned.membership.token;
       const roomStub = env.GAME_ROOM.getByName(roomId);
-      const upgraded = await request(`/rooms/${roomId}/ws`, { headers: { Upgrade: "websocket" } });
-      expect(upgraded.status).toBe(101);
-      socket = upgraded.webSocket!;
-      socket.accept();
-      const ws = socket;
-      const authed = new Promise<void>((resolve) =>
-        ws.addEventListener("message", (event) => {
-          if (JSON.parse(String(event.data)).type === "room.authenticated") resolve();
-        }),
-      );
-      ws.send(JSON.stringify({ type: "room.auth", token }));
-      await authed;
+      const connect = async () => {
+        const upgraded = await request(`/rooms/${roomId}/ws`, {
+          headers: { Upgrade: "websocket" },
+        });
+        expect(upgraded.status).toBe(101);
+        const ws = upgraded.webSocket!;
+        socket = ws;
+        ws.accept();
+        const authed = new Promise<void>((resolve) =>
+          ws.addEventListener("message", (event) => {
+            if (JSON.parse(String(event.data)).type === "room.authenticated") resolve();
+          }),
+        );
+        ws.send(JSON.stringify({ type: "room.auth", token }));
+        await authed;
+      };
+      await connect();
       let room = fourShogiRoomSchema.parse(await roomStub.getRoom());
       expect(room.matchmaking?.startsAtMs).toBe(now + rules.countdownMs);
+      if (scenario === "retry") {
+        now++;
+        await runInDurableObject(roomStub, async (instance, state) => {
+          await instance.webSocketClose(state.getWebSockets()[0]!, 1000, "");
+        });
+        const disconnected = fourShogiRoomSchema.parse(await roomStub.getRoom());
+        expect(disconnected.matchmaking?.startsAtMs).toBeUndefined();
+        now++;
+        await connect();
+        room = fourShogiRoomSchema.parse(await roomStub.getRoom());
+        expect(room.matchmaking?.startsAtMs).toBe(now + rules.countdownMs);
+      }
       expect(room.settings).toMatchObject({
         mode: "singles",
         threePlayerAttackProhibited: true,
@@ -98,6 +178,22 @@ test.each(["placement", "fifth", "fallback"] as const)(
       expect(room.status).toBe("playing");
       if (room.status !== "playing") throw Error("未開始");
       expect(room.roundId).toBe(assigned.matchId);
+      if (scenario === "retry") {
+        await roomStub.getRoom();
+        const timeline = logs.filter((entry) => entry.matchId === assigned.matchId);
+        const accepted = logs.find((entry) => entry.event === "four_shogi_queue_accepted");
+        expect(timeline.map((entry) => entry.event)).toEqual([
+          "four_shogi_assigned",
+          "four_shogi_connected",
+          "four_shogi_countdown_reset",
+          "four_shogi_connected",
+          "four_shogi_started",
+        ]);
+        expect(accepted?.diagnosticId).toEqual(expect.any(String));
+        expect(timeline[0]?.diagnosticId).toBe(accepted?.diagnosticId);
+        expect(Number(timeline[0]?.atMs) - Number(accepted?.atMs)).toBe(rules.fillAfterMs);
+        expect(Number(timeline[4]?.atMs) - Number(timeline[3]?.atMs)).toBe(rules.countdownMs);
+      }
       const cpuIds = room.players.filter((p) => p.kind === "cpu").map((p) => p.id);
       expect(cpuIds).toHaveLength(3);
       let cpuMoves = 0;
@@ -109,7 +205,7 @@ test.each(["placement", "fifth", "fallback"] as const)(
           await runInDurableObject(roomStub, (instance) => instance.alarm());
         } else {
           now = room.clock.turnStartedAt + 2_000;
-          if (fallback && cpuMoves === 0) {
+          if (scenario === "fallback" && cpuMoves === 0) {
             const { roundId, positionRevision } = room;
             await runInDurableObject(roomStub, (_, context) =>
               context.storage.kv.put(fourShogiAiJobKey, {
@@ -122,7 +218,29 @@ test.each(["placement", "fifth", "fallback"] as const)(
             );
           }
           const moveNumber = room.game.moveNumber;
-          await runInDurableObject(roomStub, (instance) => instance.alarm());
+          if (cpuMoves === 0 && (scenario === "retry" || scenario === "retry_failed")) {
+            const fetchReal = globalThis.fetch;
+            const bodies: unknown[] = [];
+            const fetchAi = vi
+              .spyOn(globalThis, "fetch")
+              .mockImplementation(async (input, init) => {
+                if (new URL(String(input)).pathname !== "/v1/four-shogi/move")
+                  return fetchReal(input, init);
+                bodies.push(init?.body);
+                if (bodies.length === 1 || scenario === "retry_failed")
+                  return new Response(null, { status: 500 });
+                return fetchReal(input, init);
+              });
+            try {
+              await runInDurableObject(roomStub, (instance) => instance.alarm());
+            } finally {
+              fetchAi.mockRestore();
+            }
+            expect(bodies).toHaveLength(2);
+            expect(bodies[0]).toBe(bodies[1]);
+          } else {
+            await runInDurableObject(roomStub, (instance) => instance.alarm());
+          }
           const job = await runInDurableObject(roomStub, (_, context) =>
             context.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey),
           );
@@ -138,6 +256,22 @@ test.each(["placement", "fifth", "fallback"] as const)(
       }
       expect(cpuMoves).toBe(3);
       expect(room.lastRound?.roundId).toBe(assigned.matchId);
+      if (scenario === "retry" || scenario === "retry_failed") {
+        const failed = logs.find((entry) => entry.event === "four_shogi_ai_attempt_failed");
+        expect(failed).toMatchObject({
+          matchId: assigned.matchId,
+          attempt: 1,
+          httpStatus: 500,
+          willRetry: true,
+        });
+        expect(logs).toContainEqual(
+          expect.objectContaining({
+            event: fallback ? "four_shogi_ai_fallback_applied" : "four_shogi_ai_retry_applied",
+            matchId: assigned.matchId,
+            requestId: failed?.requestId,
+          }),
+        );
+      }
       const resultPath = `${base}/results/${assigned.matchId}?includeOpponent=1`;
       const result = async () => (await request(resultPath, { headers: account.headers })).json();
       for (let i = 0; i < 8; i++) {

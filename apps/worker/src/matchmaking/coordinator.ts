@@ -1,3 +1,4 @@
+import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { DurableObject } from "cloudflare:workers";
 import {
   matchmakingRules as rules,
@@ -21,6 +22,7 @@ type Wait = {
   joinedAtMs: number;
   sequence: number;
   retryAtMs?: number;
+  diagnosticId?: string;
   rating?: number;
   sigma?: number;
   ratedGames?: number;
@@ -260,6 +262,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             version: player.version,
             joinedAtMs: player.joinedAtMs,
             sequence: player.sequence,
+            ...(player.diagnosticId ? { diagnosticId: player.diagnosticId } : {}),
             ...(player.rating === undefined ? {} : { rating: player.rating }),
             ...(player.sigma === undefined
               ? {}
@@ -392,6 +395,12 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       state.cpuRetryAtMs = Date.now() + cpuRetryDelayMs;
       group.capacityBlocked = true;
       await this.rollback(state, group, []);
+      for (const { diagnosticId } of group.players)
+        if (diagnosticId)
+          logFourShogiDiagnostic(this.env, "four_shogi_cpu_capacity_wait", {
+            diagnosticId,
+            atMs: Date.now(),
+          });
       return;
     }
     if (created.status !== "prepared") {
@@ -401,6 +410,14 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     group.phase = "matched";
     if (group.players.length < this.queueRules.seats) delete state.cpuRetryAtMs;
     this.save(state);
+    const atMs = Date.now();
+    for (const { diagnosticId } of group.players)
+      if (diagnosticId)
+        logFourShogiDiagnostic(this.env, "four_shogi_assigned", {
+          diagnosticId,
+          matchId: group.id,
+          atMs,
+        });
   }
   private async tick(state: State) {
     for (const group of [...state.groups]) {
@@ -719,8 +736,15 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           message: "別のルームや大会で対局または待機中です。退出してから再試行してください。",
         };
       }
+      if (this.game === "four-shogi" && this.env.FOUR_SHOGI_DIAGNOSTICS === "true")
+        wait.diagnosticId = crypto.randomUUID();
       state.waiting.push(wait);
       this.save(state);
+      if (wait.diagnosticId)
+        logFourShogiDiagnostic(this.env, "four_shogi_queue_accepted", {
+          diagnosticId: wait.diagnosticId,
+          atMs: Date.now(),
+        });
       await this.tick(state);
       return { ok: true as const, state: await this.snapshot(state, accountId, controllerId) };
     });
