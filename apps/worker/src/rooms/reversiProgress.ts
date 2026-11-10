@@ -43,6 +43,8 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import type { ReversiAiWork } from "./aiService";
+import type { EloRatingSource } from "./eloRating";
+import { reversiCpuProfile } from "../matchmaking/reversiCpuProfiles";
 
 const externalCpuJobKey = "reversi-external-cpu-job";
 type ExternalCpuJob = ReversiAiWork["job"] & { position?: Position | null };
@@ -59,10 +61,13 @@ export class ReversiProgress {
     this.accountId = dependencies.accountId;
   }
 
-  start(room: WaitingFor<"reversi">): { room: Playing; roundId: string; at: number } {
+  start(
+    room: WaitingFor<"reversi">,
+    rating?: EloRatingSource,
+  ): { room: Playing; roundId: string; at: number } {
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
-    const matchId = crypto.randomUUID();
+    const matchId = room.matchmaking?.id ?? crypto.randomUUID();
     const startedRoom = reversiRoomSchema.parse({
       ...room,
       status: "playing",
@@ -95,6 +100,7 @@ export class ReversiProgress {
       instanceId: startedRoom.instanceId,
       startedAtMs,
       settings: startedRoom.settings,
+      ...(rating ? { rating } : {}),
       participants: startedRoom.players.map((player, seat) => ({
         id: player.id,
         name: playerLabel(player),
@@ -268,18 +274,24 @@ export class ReversiProgress {
     const cpu = room.players.find((p) => p.color === room.game.turn);
     const match = this.storage.kv.get<MatchStart>(matchStartKey);
     if (cpu?.kind !== "cpu" || cpu.level !== 2 || !match || this.externalCpuJob(room)) return null;
+    const profile = match.rating?.kind === "cpu" ? reversiCpuProfile(match.rating) : undefined;
+    if (match.rating && !profile) return null;
     const job = {
       requestId: crypto.randomUUID(),
       roundId: match.id,
       moveNumber: room.game.moveNumber,
       expiresAt: Math.min(now + timeout, room.clock.turnExpiresAt),
     };
+    if (profile && profile.engineProbability < 1 && Math.random() >= profile.engineProbability) {
+      this.storage.kv.put(externalCpuJobKey, { ...job, position: chooseCpuMove(room.game, 1) });
+      return null;
+    }
     this.storage.kv.put(externalCpuJobKey, job);
     const board = room.game.board
       .flat()
       .map((cell) => (cell === "black" ? "B" : cell === "white" ? "W" : "-"))
       .join("");
-    return { job, board, blackToMove: room.game.turn === "black" };
+    return { job, board, blackToMove: room.game.turn === "black", level: profile?.level ?? 4 };
   }
 
   completeExternalCpu(room: Playing, work: ReversiAiWork, move: Position | null, now: number) {
@@ -317,10 +329,14 @@ export class ReversiProgress {
     if (!result.ok) throw new Error("CPU selected an invalid move");
     if (expired) this.recordElimination(room, room.game.turn, "timeout", result);
     else {
-      if (job && !job.position) {
-        const match = this.storage.kv.get<MatchStart>(matchStartKey);
-        if (match && !match.aiFallback)
-          this.storage.kv.put(matchStartKey, { ...match, aiFallback: true });
+      const match = this.storage.kv.get<MatchStart>(matchStartKey);
+      if ((job || match?.rating?.kind === "cpu") && !job?.position && match && !match.aiFallback) {
+        const rating = match.rating;
+        this.storage.kv.put(matchStartKey, {
+          ...match,
+          aiFallback: true,
+          ...(rating?.kind === "cpu" ? { rating: { ...rating, usedFallback: true } } : {}),
+        } satisfies MatchStart);
       }
       this.recordReplayStep({ type: "place", color: room.game.turn, position: move }, result);
     }

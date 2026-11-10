@@ -8,6 +8,7 @@ import { readStoredMatch } from "./matchDataContracts";
 import { readCurrentProfiles } from "./currentProfiles";
 import { readAccountStats } from "./statsRoutes";
 import { resolveMatchParticipants } from "./matchClaims";
+import { readPublicReversiRating } from "../rooms/reversiRating";
 import { readPublicShogiRating } from "../rooms/shogiRating";
 export const playerProfileRoutes = new Hono<{ Bindings: Env }>();
 playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
@@ -97,6 +98,10 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
       target.game === "shogi" && target.includeShogiRating === "1" && !profile.isAnonymous
         ? await readPublicShogiRating(c.env.APP_DB, accountId)
         : undefined;
+    const reversiRating =
+      target.game === "reversi" && target.includeReversiRating === "1" && !profile.isAnonymous
+        ? await readPublicReversiRating(c.env.APP_DB, accountId)
+        : undefined;
     return c.json(
       getPlayerProfileContract.response.parse({
         kind: "account",
@@ -110,6 +115,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
           : {}),
         game: target.game,
         ...(shogiRating ? { shogiRating } : {}),
+        ...(reversiRating ? { reversiRating } : {}),
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:
           target.includeStats === "1" || "wins" in stats

@@ -53,6 +53,7 @@ export class PlayerProfileStore {
         includeStats: "1",
         includeDetails: "1",
         ...(game === "shogi" ? { includeShogiRating: "1" } : {}),
+        ...(game === "reversi" ? { includeReversiRating: "1" } : {}),
       });
       const response = await fetch(`/api${getPlayerProfileContract.path}?${query}`, {
         cache: "no-store",

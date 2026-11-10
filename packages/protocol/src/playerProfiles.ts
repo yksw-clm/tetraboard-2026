@@ -7,7 +7,7 @@ import { rankingEntrySchema } from "./rankings";
 import { accountStatsSchema } from "./matches";
 import { badgeIds } from "./badges";
 import { profileDetailsSchema } from "./profileDetails";
-import { publicShogiRatingSchema } from "./matchmaking";
+import { publicReversiRatingSchema, publicShogiRatingSchema } from "./matchmaking";
 
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
   z.strictObject({
@@ -27,6 +27,7 @@ export const playerProfileQuerySchema = z.discriminatedUnion("source", [
     includeStats: z.literal("1").optional(),
     includeDetails: z.literal("1").optional(),
     includeShogiRating: z.literal("1").optional(),
+    includeReversiRating: z.literal("1").optional(),
   }),
   playerProfileTargetSchema.options[1].extend({
     game: gameIdSchema,
@@ -34,6 +35,7 @@ export const playerProfileQuerySchema = z.discriminatedUnion("source", [
     includeStats: z.literal("1").optional(),
     includeDetails: z.literal("1").optional(),
     includeShogiRating: z.literal("1").optional(),
+    includeReversiRating: z.literal("1").optional(),
   }),
   playerProfileTargetSchema.options[2].extend({
     game: gameIdSchema,
@@ -41,6 +43,7 @@ export const playerProfileQuerySchema = z.discriminatedUnion("source", [
     includeStats: z.literal("1").optional(),
     includeDetails: z.literal("1").optional(),
     includeShogiRating: z.literal("1").optional(),
+    includeReversiRating: z.literal("1").optional(),
   }),
 ]);
 const count = z.int().nonnegative();
@@ -54,6 +57,7 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
     profileMessage: profileDetailsSchema.shape.profileMessage.optional(),
     favoriteGames: profileDetailsSchema.shape.favoriteGames.optional(),
     shogiRating: publicShogiRatingSchema.optional(),
+    reversiRating: publicReversiRatingSchema.optional(),
     avatarUrl: z
       .string()
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)

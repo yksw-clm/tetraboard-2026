@@ -207,7 +207,7 @@ const roomMatchmakingSchema = z.strictObject({
   preparedAtMs: serverNowMsSchema,
   startsAtMs: serverNowMsSchema.optional(),
 });
-const shogiRoomMatchmakingSchema = roomMatchmakingSchema.extend({
+const duelRoomMatchmakingSchema = roomMatchmakingSchema.extend({
   opponent: z.enum(["human", "cpu"]),
 });
 const fourReversiRoomMatchmakingSchema = roomMatchmakingSchema.extend({
@@ -332,6 +332,7 @@ const reversiRemaining = z.strictObject({
 });
 export const reversiClockSchema = playingClockSchema.extend({ remainingMainMs: reversiRemaining });
 const reversiWaitingSchema = waitingRoomSchema.extend({
+  matchmaking: duelRoomMatchmakingSchema.optional(),
   settings: reversiSettingsSchema,
   players: z
     .array(
@@ -346,6 +347,7 @@ const reversiWaitingSchema = waitingRoomSchema.extend({
 });
 const reversiPlayingRoomSchema = z
   .strictObject({
+    matchmaking: duelRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     status: z.literal("playing"),
@@ -770,7 +772,7 @@ const standardShogiCheckStateSchema = z.strictObject({
   north: z.boolean(),
 });
 const standardShogiWaitingSchema = z.strictObject({
-  matchmaking: shogiRoomMatchmakingSchema.optional(),
+  matchmaking: duelRoomMatchmakingSchema.optional(),
   id: roomCodeSchema,
   instanceId: z.uuid(),
   status: z.literal("waiting"),
@@ -794,7 +796,7 @@ const standardShogiWaitingSchema = z.strictObject({
 });
 const standardShogiPlayingSchema = z
   .strictObject({
-    matchmaking: shogiRoomMatchmakingSchema.optional(),
+    matchmaking: duelRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     status: z.literal("playing"),

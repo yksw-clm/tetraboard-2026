@@ -8,8 +8,11 @@ import {
   matchmakingStateSchema,
   roomSchema,
   shogiMatchmakingRules,
+  reversiMatchmakingRules,
+  reversiRoomSchema,
   shogiRoomSchema,
 } from "@tetraboard/protocol";
+import { getLegalMoves } from "@tetraboard/reversi";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { selectFourReversi } from "../src/matchmaking/fourReversiSelection";
@@ -19,11 +22,14 @@ import { requireGuestIdle } from "../src/accounts/guestLinking";
 import { accountIdentity } from "../src/accounts/auth";
 import { matchmakingRoutes } from "../src/matchmaking/routes";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
+import { reversiMatchData } from "../src/accounts/reversiMatchData";
+import { writeMatch } from "../src/rooms/matchStore";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 const stub = () => env.MATCHMAKING_COORDINATOR.getByName(rules.key);
 const fourRatedQueue = () =>
   env.MATCHMAKING_COORDINATOR.getByName(fourReversiRatedMatchmakingRules.key);
 const shogiQueue = () => env.MATCHMAKING_COORDINATOR.getByName(shogiMatchmakingRules.key);
+const reversiQueue = () => env.MATCHMAKING_COORDINATOR.getByName(reversiMatchmakingRules.key);
 const accounts: string[] = [];
 const rooms = new Set<string>();
 const sockets: WebSocket[] = [];
@@ -137,6 +143,9 @@ afterEach(async () => {
   rooms.clear();
   for (const id of accounts.splice(0)) {
     await env.APP_DB.prepare("DELETE FROM shogi_rating_pending WHERE account_id=?").bind(id).run();
+    await env.APP_DB.prepare("DELETE FROM reversi_rating_pending WHERE account_id=?")
+      .bind(id)
+      .run();
     await env.APP_DB.prepare("DELETE FROM four_reversi_rating_pending WHERE account_id=?")
       .bind(id)
       .run();
@@ -153,7 +162,7 @@ afterEach(async () => {
       .run();
     await env.APP_DB.prepare("DELETE FROM account_room_seats WHERE account_id=?").bind(id).run();
   }
-  for (const queue of [stub(), shogiQueue(), fourRatedQueue()])
+  for (const queue of [stub(), shogiQueue(), reversiQueue(), fourRatedQueue()])
     await runInDurableObject(queue, async (_instance, state) => {
       await state.storage.deleteAll();
     });
@@ -1061,5 +1070,161 @@ test.each([true, false])(
       accounts.push(outsider.id);
       expect((await result(outsider)).status).toBe(404);
     } else expect((await result()).status).toBe(404);
+  },
+);
+
+test.each(["human", "random", "engine", "fallback"] as const)(
+  "通常リバーシのレート戦を開始・保存する（%s）",
+  async (scenario) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = reversiQueue();
+    const users = await fixture(scenario === "human" ? 2 : 1, queue);
+    const user = users[0]!;
+    if (scenario !== "human") {
+      now += 14_999;
+      await runInDurableObject(queue, (instance) => instance.alarm());
+      expect((await queue.status(user.account.id, user.controllerId)).status).toBe("waiting");
+      now++;
+      await runInDurableObject(queue, (instance) => instance.alarm());
+    }
+    const assignment = (await queue.status(user.account.id, user.controllerId)).assignment!;
+    expect(assignment.opponent).toBe(scenario === "human" ? "human" : "cpu");
+    rooms.add(assignment.roomId);
+    const room = env.GAME_ROOM.getByName(assignment.roomId);
+    const socket = await connect(assignment.roomId, assignment.membership.token);
+    if (users[1]) {
+      const other = users[1];
+      const second = (await queue.status(other.account.id, other.controllerId)).assignment!;
+      expect(second.matchId).toBe(assignment.matchId);
+      await connect(second.roomId, second.membership.token);
+    }
+    now += 5000;
+    const started = reversiRoomSchema.parse(await room.getRoom());
+    if (started.status !== "playing") throw Error("Expected playing");
+    expect(started.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
+
+    if (scenario !== "human") {
+      const human = started.players.find((p) => p.id === assignment.membership.playerId)!;
+      if (human.color === started.game.turn) {
+        socket.send(
+          JSON.stringify({
+            type: "room.game.action",
+            action: { type: "placeStone", position: getLegalMoves(started.game)[0] },
+          }),
+        );
+      }
+      const cpuPly = human.color === "black" ? 1 : 0;
+      await vi.waitFor(async () =>
+        expect(reversiRoomSchema.parse(await room.getRoom()).game?.moveNumber).toBe(cpuPly),
+      );
+      const before = reversiRoomSchema.parse(await room.getRoom());
+      if (before.status !== "playing") throw Error("Expected playing");
+      const aiMove = getLegalMoves(before.game).at(-1)!;
+      const fetchAi = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+        expect(new URL(String(url)).pathname).toBe("/v1/reversi/move");
+        const input = JSON.parse(String(init?.body));
+        expect(input.level).toBe(1);
+        return scenario === "fallback"
+          ? Response.json({ error: "unavailable" }, { status: 503 })
+          : Response.json({
+              request_id: input.request_id,
+              position_revision: input.position_revision,
+              engine_version: "egaroucid-console-7.8.2-0c1b84ef",
+              level: input.level,
+              position: aiMove,
+            });
+      });
+      vi.spyOn(Math, "random").mockReturnValue(scenario === "random" ? 0.75 : 0.1);
+      now = before.clock.turnStartedAt + 2000;
+      await runInDurableObject(room, async (instance) => {
+        const original = Reflect.get(instance, "env");
+        Reflect.set(instance, "env", {
+          ...original,
+          AI_REVERSI_ENABLED: "true",
+          AI_SERVICE_URL: "https://ai.example.test",
+          AI_SERVICE_TOKEN: "test-token-with-at-least-32-bytes",
+        });
+        try {
+          await instance.alarm();
+          if (scenario !== "random") await instance.alarm();
+        } finally {
+          Reflect.set(instance, "env", original);
+        }
+      });
+      expect(fetchAi).toHaveBeenCalledTimes(scenario === "random" ? 0 : 1);
+      fetchAi.mockRestore();
+      const moved = reversiRoomSchema.parse(await room.getRoom()).game;
+      expect(moved?.moveNumber).toBe(cpuPly + 1);
+      expect(getLegalMoves(before.game)).toContainEqual(moved?.lastMove);
+      if (scenario === "engine") expect(moved?.lastMove).toEqual(aiMove);
+    }
+
+    const tokenHash = Array.from(
+      new Uint8Array(
+        await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(assignment.membership.token),
+        ),
+      ),
+      (byte) => byte.toString(16).padStart(2, "0"),
+    ).join("");
+    expect(await room.leaveRoom(tokenHash)).toBe("left");
+    await vi.waitFor(async () => {
+      now++;
+      await room.getRoom();
+      const saved = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+        .bind(assignment.matchId)
+        .first<{ record_json: string }>();
+      expect(saved).toBeTruthy();
+      expect(JSON.parse(saved!.record_json).rating).toMatchObject(
+        scenario === "human" ? { kind: "human" } : { kind: "cpu", referenceRating: 1490 },
+      );
+      const response = await exports.default.fetch(
+        new AcceptedGameRequest(
+          `${origin}/api/matchmaking/reversi/results/${assignment.matchId}?includeOpponent=1`,
+          { headers: user.account.headers },
+        ),
+      );
+      expect(await response.json()).toEqual(
+        scenario === "fallback"
+          ? { status: "excluded", reason: "ai_fallback" }
+          : {
+              status: "placement",
+              games: 1,
+              opponent:
+                scenario === "human" ? { status: "placement" } : { status: "cpu", rating: 1490 },
+            },
+      );
+      const changes = await env.APP_DB.prepare(
+        "SELECT account_id,rating_after,human_games FROM reversi_rating_changes WHERE match_id=?",
+      )
+        .bind(assignment.matchId)
+        .all<{ account_id: string; rating_after: number; human_games: number }>();
+      expect(changes.results).toHaveLength(scenario === "fallback" ? 0 : users.length);
+      if (scenario !== "fallback") {
+        const self = changes.results.find((row) => row.account_id === user.account.id)!;
+        expect(self.human_games).toBe(scenario === "human" ? 1 : 0);
+        expect(self.rating_after).toBeCloseTo(
+          scenario === "human" ? 1468 : 1500 - 48 / (1 + 10 ** (-10 / 400)),
+        );
+      }
+      expect(
+        await env.APP_DB.prepare(
+          "SELECT COUNT(*) AS count FROM reversi_rating_pending WHERE match_id=?",
+        )
+          .bind(assignment.matchId)
+          .first("count"),
+      ).toBe(0);
+    });
+    const saved = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+      .bind(assignment.matchId)
+      .first<string>("record_json");
+    await writeMatch(env.APP_DB, reversiMatchData.read(saved!));
+    expect(
+      await env.APP_DB.prepare("SELECT COUNT(*) FROM reversi_rating_changes WHERE match_id=?")
+        .bind(assignment.matchId)
+        .first("COUNT(*)"),
+    ).toBe(scenario === "fallback" ? 0 : users.length);
   },
 );

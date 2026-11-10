@@ -54,6 +54,10 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 同じテストで本人向けレートAPIの未ログイン拒否、認定中の数値非公開、全ランク境界の丸め、人間4人とCPU混在局の公開レートの更新を確認します。
 
+## 通常リバーシのレート戦の確認
+
+`apps/worker/test/matchmaking.test.ts` では、対人戦の優先、15秒のCPU補充、3分の時計、弱体化設定のランダム手と探索手、障害時の代替手、レート・棋譜の確定を実D1とDurable Objectで確認します。開発確認ではレート戦から対人とCPUの両方を開始し、結果・再参加・認定進捗を確認します。
+
 ## 通常リバーシの外部AI確認
 
 `apps/worker/test-ai-service/reversiAiService.test.ts` は、Service障害時に既存Lv2で完走し、D1に棋譜と代替手の記録を保存することを確認します。時計切れと競合した遅延応答は反映しません。ループバックの専用イメージを接続して `TETRABOARD_REVERSI_TEST_REAL=1` を設定すると、実エンジンの完走と、保存済み棋譜の全手の再生を確認できます。

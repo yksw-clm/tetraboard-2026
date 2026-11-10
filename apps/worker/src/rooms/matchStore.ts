@@ -10,6 +10,7 @@ import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "./fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "./gomokuMatchStore";
+import { reversiRatingStatement, reversiRatingStore } from "./reversiRating";
 import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
@@ -101,6 +102,10 @@ export async function writeMatch(
     ON CONFLICT(account_id, match_id) DO NOTHING`)
       .bind(record.id),
   );
+  if (record.settings.game === "reversi" && "rating" in record && record.rating)
+    statements.push(
+      ...reversiRatingStore.finalize(db, record.id, reversiRatingStatement(db, record.id)),
+    );
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   statements.push(...tournamentStatements);
   await db.batch(statements);

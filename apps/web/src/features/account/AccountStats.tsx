@@ -7,6 +7,7 @@ import { StatsTable, type StatsRow } from "./StatsTable";
 import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
 import { AccountBadges } from "../badges/AccountBadges";
+import { useReversiRatedAvailability } from "../matchmaking/useReversiRatedAvailability";
 import { RatingSummary } from "../matchmaking/RatingSummary";
 const FormationStats = lazy(() => import("./FormationStats"));
 
@@ -22,7 +23,9 @@ export function AccountStats({
   const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
   const showFormations = game === "four-shogi" && mode === "singles";
   const formations = useFormationStats(showFormations);
-  const showRating = registered && isRatedMatchmakingGame(game);
+  const reversiRatedAvailable = useReversiRatedAvailability(registered && game === "reversi");
+  const showRating =
+    registered && isRatedMatchmakingGame(game) && (game !== "reversi" || reversiRatedAvailable);
   const [ratingRefresh, setRatingRefresh] = useState(0);
   const rows: StatsRow[] = [];
   if (stats) {

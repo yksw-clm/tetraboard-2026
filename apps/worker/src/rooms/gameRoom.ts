@@ -1749,6 +1749,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private externalCpuGame(room: Room): CpuCapacityGame | null {
     if (isShogiRoom(room) && shogiAiEnabled(this.env)) return "shogi";
+    if (isReversiRoom(room) && room.matchmaking && reversiAiEnabled(this.env)) return "reversi";
     if (
       isFourReversiRoom(room) &&
       room.settings.mode === "singles" &&
@@ -1764,7 +1765,7 @@ export class GameRoom extends DurableObject<Env> {
     const game = this.externalCpuGame(room);
     if (!game) return null;
     const seats = room.players.filter(
-      (player) => player.kind === "cpu" && (game !== "shogi" || player.level === 2),
+      (player) => player.kind === "cpu" && (game === "four-reversi" || player.level === 2),
     ).length;
     if (!seats) return null;
     await this.flushCpuCapacity();
@@ -2587,7 +2588,12 @@ export class GameRoom extends DurableObject<Env> {
     return this.ctx.blockConcurrencyWhile(async () => {
       const rating = input.rating;
       const game =
-        input.game ?? (rating && rating.kind !== "four-reversi" ? "shogi" : "four-reversi");
+        input.game ??
+        (rating?.kind === "reversi"
+          ? "reversi"
+          : rating && rating.kind !== "four-reversi"
+            ? "shogi"
+            : "four-reversi");
       const legacy = game === "four-reversi" && !rating;
       const rules = legacy ? matchmakingRules : matchmakingQueues[game];
       const policy = legacy ? undefined : ratedMatchmakingPolicy(game);
@@ -2648,15 +2654,20 @@ export class GameRoom extends DurableObject<Env> {
                 timeControl: rules.timeControl,
               },
             })
-          : waitingRoomFactories["four-reversi"]({
-              ...entry,
-              request: {
-                game: "four-reversi",
-                mode: "singles",
-                quickPlay: false,
-                timeControl: rules.timeControl,
-              },
-            });
+          : game === "reversi"
+            ? waitingRoomFactories.reversi({
+                ...entry,
+                request: { game: "reversi", quickPlay: false, timeControl: rules.timeControl },
+              })
+            : waitingRoomFactories["four-reversi"]({
+                ...entry,
+                request: {
+                  game: "four-reversi",
+                  mode: "singles",
+                  quickPlay: false,
+                  timeControl: rules.timeControl,
+                },
+              });
       const profile = legacy
         ? namedCpuProfile("lv3-v1")
         : rating?.kind === "four-reversi" && rating.cpu
@@ -2917,15 +2928,18 @@ export class GameRoom extends DurableObject<Env> {
       }
       if (Date.now() < deadline) return;
       const started =
-        isShogiRoom(room) && reservation.rating && reservation.rating.kind !== "four-reversi"
+        isShogiRoom(room) &&
+        (reservation.rating?.kind === "human" || reservation.rating?.kind === "cpu")
           ? this.standardShogiProgress.start(room, reservation.rating)
-          : isFourReversiRoom(room)
-            ? this.reversiProgress.start(
-                room,
-                undefined,
-                reservation.rating?.kind === "four-reversi" ? reservation.rating : undefined,
-              )
-            : null;
+          : isReversiRoom(room) && reservation.rating?.kind === "reversi"
+            ? this.standardProgress.start(room, reservation.rating.source)
+            : isFourReversiRoom(room)
+              ? this.reversiProgress.start(
+                  room,
+                  undefined,
+                  reservation.rating?.kind === "four-reversi" ? reservation.rating : undefined,
+                )
+              : null;
       if (!started) throw new Error("Invalid matchmaking room");
       this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {
         ...reservation,
@@ -3381,8 +3395,9 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         return null;
       }
-      const ratedShogiPlaying = isShogiRoom(room) && room.matchmaking && room.status === "playing";
-      const idle = !ratedShogiPlaying && room.lastActivityAtMs + idleMs <= now;
+      const ratedDuelPlaying =
+        (isShogiRoom(room) || isReversiRoom(room)) && room.matchmaking && room.status === "playing";
+      const idle = !ratedDuelPlaying && room.lastActivityAtMs + idleMs <= now;
       if (idle || this.closeIfNoHumanParticipants(room) === null) {
         if (idle) this.closeRoom();
         changed = true;
@@ -3656,7 +3671,12 @@ export class GameRoom extends DurableObject<Env> {
             }
           }
         } else {
-          if (reversiAiEnabled(this.env) && currentCpu(room)?.level === 2) {
+          if (room.matchmaking && !applyCpu) return room;
+          if (
+            reversiAiEnabled(this.env) &&
+            currentCpu(room)?.level === 2 &&
+            (!room.matchmaking || this.hasCpuCapacity(room))
+          ) {
             if (!applyCpu) return room;
             reversiWork.current = this.standardProgress.prepareExternalCpu(
               room,

@@ -144,7 +144,7 @@ pub(super) async fn choose_move(
 ) -> Result<Json<MoveResponse>, ApiError> {
     let Json(request) = payload.map_err(|error| ApiError(error.status(), "invalid_request"))?;
     if !valid_identity(&request.request_id, &request.position_revision)
-        || request.level != 4
+        || !matches!(request.level, 1 | 2 | 4 | 8)
         || request.board.len() != 64
         || !request
             .board

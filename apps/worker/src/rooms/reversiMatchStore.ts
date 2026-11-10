@@ -4,6 +4,7 @@ import {
   type ReversiMatchDetail,
 } from "@tetraboard/protocol";
 
+import type { EloRatingSource } from "./eloRating";
 import { type ReversiState } from "@tetraboard/reversi";
 
 export type MatchParticipant = {
@@ -21,6 +22,7 @@ export type MatchStart = {
   settings: ReversiMatchDetail["settings"];
   participants: MatchParticipant[];
   aiFallback?: true;
+  rating?: EloRatingSource;
 };
 export type MatchRecord = MatchStart & {
   endedAtMs: number;
