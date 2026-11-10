@@ -675,6 +675,19 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             Date.now(),
             !this.legacy && this.game === "four-reversi" ? rules.key : "",
           ),
+          ...(policy && this.game === "four-reversi"
+            ? [
+                // 旧版でCPUだけになって閉鎖した局の予約を、再参加時に解放します。
+                this.env.APP_DB.prepare(
+                  `DELETE FROM four_reversi_rating_pending AS pending WHERE account_id=?
+                  AND EXISTS (
+                    SELECT 1 FROM analytics_matches a WHERE a.id=pending.match_id
+                      AND a.game='four-reversi' AND a.status='abandoned' AND a.cpu_count>0
+                  )
+                  AND NOT EXISTS (SELECT 1 FROM matches WHERE id=pending.match_id)`,
+                ).bind(accountId),
+              ]
+            : []),
           this.env.APP_DB.prepare(
             `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
             SELECT ?,?,?,?${policy ? ` WHERE NOT EXISTS (SELECT 1 FROM ${policy.store.pendingTable} WHERE account_id=?)` : ""}`,
@@ -687,13 +700,13 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           ),
           ...(policy ? [policy.store.latest(this.env.APP_DB, accountId)] : []),
         ]);
-        if (!results[2]?.meta.changes)
+        if (!results.at(policy ? -2 : -1)?.meta.changes)
           return {
             ok: false as const,
             message: "前局のレート結果を保存中です。少し待ってから再試行してください。",
           };
         if (policy) {
-          const latest = results[3]?.results[0];
+          const latest = results.at(-1)?.results[0];
           wait.rating = latest?.rating_after ?? policy.initialRating;
           if (policy.initialSigma !== undefined) {
             wait.sigma = latest?.sigma_after ?? policy.initialSigma;

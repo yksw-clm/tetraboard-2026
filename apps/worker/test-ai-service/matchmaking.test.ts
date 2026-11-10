@@ -9,11 +9,18 @@ import {
 import { applyAction, createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { accountFixture, origin } from "../test/accountFixtures";
 import { AcceptedGameRequest } from "../test/acceptedGameRequest";
+import { readFourReversiMatchRecord } from "../src/accounts/matchDataContracts";
 import { fourReversiCpuJobKey, type FourReversiCpuJob } from "../src/rooms/fourReversiProgress";
 const request = (path: string, init?: RequestInit) =>
   exports.default.fetch(new AcceptedGameRequest(`${origin}/api${path}`, init));
 
-test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了後も同じprofileで進行・保存する", async () => {
+test.each([false, true])(
+  "実Serviceのヨミ3席で投了後も終局・レート保存まで進む（退室=%s）",
+  playCpuRatedMatch,
+  30000,
+);
+
+async function playCpuRatedMatch(leaveAfterResign: boolean) {
   let now = Date.now() + 60000;
   vi.spyOn(Date, "now").mockImplementation(() => now);
   const account = await accountFixture(),
@@ -72,11 +79,14 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
     now += 5000;
     room = fourReversiRoomSchema.parse(await stub.getRoom());
     expect(room.status).toBe("playing");
+    expect(room.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
     let resigned = false,
       afterElimination = 0,
       cpuMoves = 0;
     for (let step = 0; step < 60; step++) {
-      room = fourReversiRoomSchema.parse(await stub.getRoom());
+      const current = await stub.getRoom();
+      if (current === null) break;
+      room = fourReversiRoomSchema.parse(current);
       if (room.status !== "playing") break;
       const turn = room.game.turn;
       const player = room.players.find((p) => p.color === turn)!;
@@ -88,6 +98,18 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
         socket.send(JSON.stringify({ type: "room.game.resign" }));
         await pending;
         resigned = true;
+        if (leaveAfterResign) {
+          const left = await request(`/rooms/${roomId}/leave`, {
+            method: "POST",
+            headers: { ...account.headers, Authorization: `Bearer ${token}` },
+          });
+          expect(left.status).toBe(204);
+          expect(fourReversiRoomSchema.parse(await stub.getRoom()).status).toBe("playing");
+          expect(await coordinator.join(account.id, crypto.randomUUID(), controllerId)).toEqual({
+            ok: false,
+            message: "前局のレート結果を保存中です。少し待ってから再試行してください。",
+          });
+        }
       } else {
         now = room.clock.turnStartedAt + 2000;
         await runInDurableObject(stub, (instance) => instance.alarm());
@@ -106,11 +128,17 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
         cpuMoves++;
       }
     }
-    room = fourReversiRoomSchema.parse(await stub.getRoom());
-    expect(room.status).toBe("waiting");
+    const finalRoom = await stub.getRoom();
+    if (leaveAfterResign) expect(finalRoom).toBeNull();
+    else expect(fourReversiRoomSchema.parse(finalRoom).status).toBe("waiting");
     expect(resigned).toBe(true);
     expect(afterElimination).toBeGreaterThan(0);
-    const replay = room.lastRound!.replay!;
+    const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
+      .bind(assigned.matchId)
+      .first<{ record_json: string }>();
+    expect(stored).not.toBeNull();
+    const record = readFourReversiMatchRecord(stored!.record_json);
+    const replay = record.replay;
     expect(replay.id).toBe(assigned.matchId);
     let game = createInitialState("singles");
     for (const entry of replay.steps) {
@@ -123,19 +151,20 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
       game = result.state;
     }
     expect(game.status).toBe("finished");
-    const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
-      .bind(replay.id)
-      .first<{ record_json: string }>();
-    expect(stored).not.toBeNull();
-    const record = JSON.parse(stored!.record_json);
-    const cpus = record.participants.filter((p: any) => p.kind === "cpu");
+    if (game.status !== "finished" || game.result.mode !== "singles")
+      throw Error("シングルスが終局していません");
+    const humanColor = record.participants.find((p) => p.kind === "human")?.color;
+    expect(game.result.standings.find(({ color }) => color === humanColor)?.rank).toBe(4);
+    const cpus = record.participants.filter((p) => p.kind === "cpu");
     expect(cpus).toHaveLength(3);
-    expect(cpus.map((p: any) => p.name)).toEqual(["ヨミ1", "ヨミ2", "ヨミ3"]);
+    expect(cpus.map((p) => p.name)).toEqual(["ヨミ1", "ヨミ2", "ヨミ3"]);
     for (const p of cpus) {
-      expect(p.cpuProfile.level).toBe(3);
-      expect(p.cpuProfile.engineVersion).toBe("0.2.0");
+      expect(p.cpuProfile?.level).toBe(3);
+      expect(p.cpuProfile?.engineVersion).toBe("0.2.0");
     }
-    const summary = await request("/matchmaking/four-reversi/rating", { headers: account.headers });
+    const summary = await request("/matchmaking/four-reversi/rating", {
+      headers: account.headers,
+    });
     expect(await summary.json()).toEqual({ status: "placement", games: 1 });
     const result = await request(
       `/matchmaking/four-reversi/results/${replay.id}?includeOpponent=1`,
@@ -148,7 +177,11 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
         cpus.map((cpu: { id: string }) => [cpu.id, { status: "cpu", rating: 1500 }]),
       ),
     });
-    expect(room.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
+    if (leaveAfterResign)
+      expect(await coordinator.join(account.id, crypto.randomUUID(), controllerId)).toMatchObject({
+        ok: true,
+        state: { status: "waiting" },
+      });
   } finally {
     vi.restoreAllMocks();
     socket?.close();
@@ -160,7 +193,7 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
     }
     await coordinator.leaveAccount(account.id);
   }
-}, 30000);
+}
 
 test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での再試行を続ける", async () => {
   let now = Date.now() + 60_000;
