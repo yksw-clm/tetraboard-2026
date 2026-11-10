@@ -10,6 +10,8 @@ import {
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountRequest } from "../account/accountApi";
 const api = (game: MatchmakingGame) => `/api/matchmaking/${game}`;
+const waitingQuery = (game: MatchmakingGame) =>
+  game === "four-reversi" ? "rated=1&waitingCount=1" : "waitingCount=1";
 export type ObservedMatchmaking = ReturnType<typeof matchmakingStateSchema.parse> & {
   legacy?: true;
 };
@@ -22,7 +24,7 @@ export async function readMatchmaking(
 ): Promise<ObservedMatchmaking> {
   const state = matchmakingStateSchema.parse(
     await accountRequest(
-      `${api(game)}?controllerId=${encodeURIComponent(controllerId)}${game === "four-reversi" && !legacy ? "&rated=1" : ""}`,
+      `${api(game)}?controllerId=${encodeURIComponent(controllerId)}${legacy ? "" : `&${waitingQuery(game)}`}`,
       {
         signal: signal
           ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
@@ -40,17 +42,14 @@ export async function matchmakingOperation(
   legacy = false,
 ): Promise<ObservedMatchmaking> {
   const state = matchmakingStateSchema.parse(
-    await accountRequest(
-      `${api(game)}/${action}${game === "four-reversi" && !legacy ? "?rated=1" : ""}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Legal-Consent": legalVersion },
-        body: JSON.stringify(input),
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
-          : AbortSignal.timeout(10000),
-      },
-    ),
+    await accountRequest(`${api(game)}/${action}${legacy ? "" : `?${waitingQuery(game)}`}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Legal-Consent": legalVersion },
+      body: JSON.stringify(input),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+        : AbortSignal.timeout(10000),
+    }),
   );
   return legacy ? { ...state, legacy: true } : state;
 }

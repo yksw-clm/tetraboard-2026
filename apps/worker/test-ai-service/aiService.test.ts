@@ -46,12 +46,17 @@ async function setup(level = 1, mode: GameMode = "singles") {
   return { host, stub, read };
 }
 
-async function cpuSetup(mode: GameMode = "singles", level = 1) {
+async function cpuSetup(mode: GameMode = "singles", level = 1, consecutive = false) {
   const input = await setup(level, mode);
   await runInDurableObject(input.stub, (_, ctx) => {
     const room = fourReversiRoomSchema.parse(ctx.storage.kv.get("room"));
     if (room.status !== "playing") throw Error("Expected playing");
-    const cpu = room.players.find((p) => p.kind === "cpu")!;
+    const human = room.players.find((p) => p.kind === "human")!;
+    const colors = ["black", "white", "red", "blue"] as const;
+    const nextColor = colors[(colors.indexOf(human.color!) + 1) % colors.length];
+    const cpu = room.players.find(
+      (p) => p.kind === "cpu" && (!consecutive || p.color === nextColor),
+    )!;
     ctx.storage.kv.put("room", { ...room, game: { ...room.game, turn: cpu.color } });
   });
   const room = await input.read();
@@ -152,6 +157,61 @@ async function completeGame(
   }
   throw Error("56着手以内に終局しませんでした");
 }
+test("四人リバーシの4局・12席を共有し、連続CPU手番を局ごとに1件ずつ処理する", async () => {
+  const rooms = await Promise.all(Array.from({ length: 4 }, () => cpuSetup("singles", 2, true)));
+  const fifth = await fixtures.create({
+    game: "four-reversi",
+    name: "次のホスト",
+    quickPlay: true,
+    cpuLevel: 1,
+    mode: "singles",
+  });
+  const host = await fixtures.connect(fifth);
+  host.send({ type: "room.game.start" });
+  expect((await host.waitFor("room.error")).error).toBe("cpu_capacity_full");
+  expect((await fixtures.snapshot(fifth.room.id)).room.status).toBe("waiting");
+
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  // 初手を人間の次の色に固定しているため、各局でCPUが連続します。
+  for (let turn = 0; turn < 2; turn++) {
+    const positions = await Promise.all(rooms.map(({ read }) => read()));
+    now =
+      Math.max(
+        ...positions.map((room) => (room.status === "playing" ? room.clock.turnStartedAt : 0)),
+      ) + 2000;
+    await Promise.all(rooms.map(({ stub }) => alarmWithProfile(stub, { profile_id: "lv3-v1" })));
+    const jobs = await Promise.all(
+      rooms.map(({ stub }) =>
+        runInDurableObject(stub, (_, ctx) =>
+          ctx.storage.kv.get<FourReversiCpuJob>(fourReversiCpuJobKey),
+        ),
+      ),
+    );
+    for (const [i, job] of jobs.entries()) {
+      expect(job?.source).toBe("external");
+      expect(getLegalMoves(positions[i]!.game!)).toContainEqual(job?.move);
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(4 * (turn + 1));
+    now = Math.max(...jobs.map((job) => job!.applyAt));
+    await Promise.all(rooms.map(({ stub }) => alarmWithProfile(stub)));
+    const after = await Promise.all(rooms.map(({ read }) => read()));
+    for (const [i, room] of after.entries())
+      expect(room.game?.moveNumber).toBe(positions[i]!.game!.moveNumber + 1);
+  }
+
+  const released = rooms[0]!;
+  const roomId = released.before.id;
+  const member = await runInDurableObject(released.stub, (_, ctx) => {
+    const player = released.before.players.find((p) => p.kind === "human")!;
+    return ctx.storage.kv.get<string>(`player-token:${player.id}`)!;
+  });
+  expect(await released.stub.leaveRoom(member)).toBe("left");
+  fixtures.forgetClosedRoom(roomId);
+  await runInDurableObject(released.stub, (instance) => instance.alarm());
+  host.send({ type: "room.game.start" });
+  await host.waitFor("room.snapshot", (m) => m.room.status === "playing");
+}, 12000);
+
 for (const level of [1, 2])
   test(
     `実Rust Serviceと人間1人・CPU3人のLv${level}対局を終局まで進める`,

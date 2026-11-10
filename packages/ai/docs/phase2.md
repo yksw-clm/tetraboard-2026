@@ -98,7 +98,7 @@ docker run --rm --platform linux/amd64 --cpus 2 --memory 256m \
 
 2026-11-08（日本時間）に開発者の公開・クラウド実測の承認を受け、`cloudflare/wrangler.jsonc`の独立したWorker `tetraboard-ai-validation`へ公開しました。検証後、同日の依頼でWorker・専用Durable Object・Container・検証用イメージを削除しています。[測定値と費用](cloudflare-validation.md)に条件・結果・利用枠との比較を記します。本番・開発TetraBoardの公開コード、接続設定、DBは変更していません。
 
-入口の薄いWorkerだけTypeScriptと公式`@cloudflare/containers 0.3.7`を使い、候補計算は同じRustイメージで行います。`lite`を最大1台、全要求で`shared-v1`を共有し、アイドル10秒で停止します。Containerの外向き通信を無効にし、秘密値はWorker Secretsから起動時に渡します。公開`GET /health`は入口の稼働だけを返し、Containerを起動しません。`POST /v1/move`は入口で認証した後にContainerへ渡し、Rust側でも再確認します。認証した`GET /admin/status`は起動せず状態を返します。対局ごと・CPUごとにContainerを作りません。
+フェーズ2の測定時は、すべての候補要求で `lite` 1台を共有しました。現在の開発環境では[ゲーム別のAIコンテナ構成](../../../docs/architecture.md#ゲーム別のaiコンテナ)を参照してください。公開 `GET /health` は入口の稼働を返します。認証付き `GET /admin/status` は四人リバーシの状態を返し、`?game=shogi` で有効な環境の将棋の状態を参照できます。どちらの状態確認もコンテナを起動しません。
 
 ```sh
 # 初回はWorkerを公開してから、同じ秘密値をSecretsへ登録します。

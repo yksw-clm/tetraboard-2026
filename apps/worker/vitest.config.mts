@@ -31,6 +31,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
           compatibilityDate: config.compatibility_date,
           compatibilityFlags: config.compatibility_flags,
           durableObjects: {
+            CPU_CAPACITY: { className: "CpuCapacity", useSQLite: true },
             GAME_ROOM: { className: "GameRoom", useSQLite: true },
             MATCHMAKING_COORDINATOR: { className: "MatchmakingCoordinator", useSQLite: true },
             TOURNAMENT_COORDINATOR: { className: "TournamentCoordinator", useSQLite: true },

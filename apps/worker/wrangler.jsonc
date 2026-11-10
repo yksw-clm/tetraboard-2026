@@ -29,7 +29,8 @@
         "name": "TOURNAMENT_COORDINATOR",
         "class_name": "TournamentCoordinator"
       },
-      { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" }
+      { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" },
+      { "name": "CPU_CAPACITY", "class_name": "CpuCapacity" }
     ]
   },
   "d1_databases": [
@@ -49,7 +50,8 @@
       "type": "durable-object",
       "storage": "sqlite"
     },
-    "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" }
+    "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" },
+    "CpuCapacity": { "type": "durable-object", "storage": "sqlite" }
   },
   "observability": {
     "enabled": true
@@ -97,7 +99,8 @@
             "name": "TOURNAMENT_COORDINATOR",
             "class_name": "TournamentCoordinator"
           },
-          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" }
+          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" },
+          { "name": "CPU_CAPACITY", "class_name": "CpuCapacity" }
         ]
       },
       "d1_databases": [
@@ -118,7 +121,8 @@
           "type": "durable-object",
           "storage": "sqlite"
         },
-        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" }
+        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" },
+        "CpuCapacity": { "type": "durable-object", "storage": "sqlite" }
       },
       "observability": {
         "enabled": true
@@ -164,7 +168,8 @@
             "name": "TOURNAMENT_COORDINATOR",
             "class_name": "TournamentCoordinator"
           },
-          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" }
+          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" },
+          { "name": "CPU_CAPACITY", "class_name": "CpuCapacity" }
         ]
       },
       "d1_databases": [
@@ -185,7 +190,8 @@
           "type": "durable-object",
           "storage": "sqlite"
         },
-        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" }
+        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" },
+        "CpuCapacity": { "type": "durable-object", "storage": "sqlite" }
       },
       "observability": {
         "enabled": true

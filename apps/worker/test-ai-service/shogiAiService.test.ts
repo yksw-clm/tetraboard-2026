@@ -142,24 +142,24 @@ test("応答待ちに将棋の時計が切れたら、候補手を適用せず�
 });
 
 test.skipIf(env.AI_SHOGI_ENABLED !== "true")(
-  "2つの将棋ルームが同時に実エンジンへ着手を要求し、それぞれ合法手を反映する",
+  "4つの将棋ルームが同時に実エンジンへ着手を要求し、それぞれ合法手を反映する",
   async () => {
     now = Date.now() + 60000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
-    const rooms = await Promise.all([setup(), setup()]);
+    const rooms = await Promise.all(Array.from({ length: 4 }, () => setup()));
     now = Math.max(...rooms.map(({ before }) => before.clock.turnStartedAt)) + 2000;
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await Promise.all(rooms.map(({ alarm }) => alarm()));
     const engineReplies = await Promise.all(
       fetchSpy.mock.results.map(({ value }) => value as Promise<Response>),
     );
-    expect(engineReplies).toHaveLength(2);
+    expect(engineReplies).toHaveLength(4);
     expect(engineReplies.every((reply) => reply.ok)).toBe(true);
     const jobs = await Promise.all(rooms.map(({ job }) => job()));
     expect(
       jobs.every((job, i) =>
         rooms[i].before.legalActions.some(
-          (move) => JSON.stringify(move) === JSON.stringify(job?.action),
+          (move) => job?.external && JSON.stringify(move) === JSON.stringify(job.action),
         ),
       ),
     ).toBe(true);

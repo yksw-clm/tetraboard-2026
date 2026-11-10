@@ -135,6 +135,7 @@ export const matchmakingControlSchema = matchmakingInputSchema.extend({
 });
 export const matchmakingStateSchema = z.strictObject({
   enabled: z.boolean().optional(),
+  waitingCount: z.int().nonnegative().optional(),
   status: z.enum(["idle", "waiting", "matched", "playing"]),
   operationId: z.uuid().optional(),
   controllerId: z.uuid().optional(),

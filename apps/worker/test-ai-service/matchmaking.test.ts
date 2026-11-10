@@ -161,3 +161,83 @@ test("実Serviceのヨミ3席と3分切れ負けで完走し、人間の投了�
     await coordinator.leaveAccount(account.id);
   }
 }, 30000);
+
+test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での再試行を続ける", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
+  const capacity = env.CPU_CAPACITY.getByName("four-reversi");
+  const occupied = ["test-room-1", "test-room-2", "test-room-3", "test-room-4"];
+  const users: Awaited<ReturnType<typeof accountFixture>>[] = [];
+  const rooms = new Map<string, { matchId: string; instanceId: string }>();
+  async function join() {
+    const user = await accountFixture();
+    users.push(user);
+    const operationId = crypto.randomUUID();
+    const controllerId = crypto.randomUUID();
+    expect(await queue.join(user.id, operationId, controllerId)).toMatchObject({ ok: true });
+    return { user, operationId, controllerId };
+  }
+  const tick = () => runInDurableObject(queue, (instance) => instance.alarm());
+  try {
+    for (const roomId of occupied) expect(await capacity.reserve(roomId, 1, 3)).toBe(true);
+    const oldest = await join();
+    const joinedAtMs = now;
+    now += rules.fillAfterMs;
+    await tick();
+
+    const status = (query = "") =>
+      request(`/matchmaking/four-reversi?rated=1&controllerId=${oldest.controllerId}${query}`, {
+        headers: oldest.user.headers,
+      });
+    expect(await (await status()).json()).not.toHaveProperty("waitingCount");
+    expect(await (await status("&waitingCount=1")).json()).toMatchObject({
+      status: "waiting",
+      joinedAtMs,
+      waitingCount: 4,
+    });
+
+    await join();
+    await join();
+    await join();
+    const human = (await queue.status(oldest.user.id, oldest.controllerId)).assignment!;
+    rooms.set(human.roomId, human);
+    expect(human.opponent).toBe("human");
+
+    const cancelled = await join();
+    now += rules.fillAfterMs;
+    await tick();
+    expect(
+      await queue.control(cancelled.user.id, { ...cancelled, version: 1 }, "cancel"),
+    ).toMatchObject({ ok: true, state: { status: "idle", waitingCount: 0 } });
+
+    const waiting = await join();
+    now += rules.fillAfterMs;
+    await tick();
+    expect(await queue.status(waiting.user.id, waiting.controllerId)).toMatchObject({
+      status: "waiting",
+      waitingCount: 4,
+    });
+    await capacity.release(occupied[0]!, 1);
+    now += 2000;
+    await tick();
+    const cpu = (await queue.status(waiting.user.id, waiting.controllerId)).assignment!;
+    rooms.set(cpu.roomId, cpu);
+    expect(cpu.opponent).toBe("cpu");
+    expect(await capacity.reserve("test-probe", 1, 1)).toBe(false);
+
+    const gameRoom = env.GAME_ROOM.getByName(cpu.roomId);
+    expect(await gameRoom.abortMatchmakingRoom(cpu.matchId, cpu.instanceId)).toEqual({
+      status: "aborted",
+    });
+    await runInDurableObject(gameRoom, (instance) => instance.alarm());
+    expect(await capacity.reserve("test-probe", 2, 1)).toBe(true);
+    await capacity.release("test-probe", 2);
+  } finally {
+    vi.restoreAllMocks();
+    for (const [id, room] of rooms)
+      await env.GAME_ROOM.getByName(id).abortMatchmakingRoom(room.matchId, room.instanceId);
+    for (const user of users) await queue.leaveAccount(user.id);
+    for (const id of occupied) await capacity.release(id, 1);
+  }
+});

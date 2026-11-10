@@ -75,6 +75,7 @@ import {
   type ExternalCpuWork,
 } from "./fourReversiProgress";
 import {
+  aiServiceConfigured,
   aiServiceEnabled,
   aiServiceTimeout,
   requestAiMove,
@@ -82,6 +83,7 @@ import {
   shogiAiEnabled,
   type ShogiAiWork,
 } from "./aiService";
+import type { CpuCapacityGame } from "./cpuCapacity";
 import { serviceProfile } from "./aiServiceProfiles";
 import {
   roomStorageKey,
@@ -136,6 +138,17 @@ import {
   type StoredGuestRegistration,
 } from "./registrationTypes";
 
+const cpuCapacityKey = "external-cpu-capacity";
+const cpuCapacitySequenceKey = "external-cpu-capacity-sequence";
+type RoomCpuCapacity = {
+  roomId: string;
+  sequence: number;
+  game: CpuCapacityGame;
+  instanceId: string;
+  // nullは準備済み・進行中の予約です。時刻がある予約は解放を再試行します。
+  releaseAtMs: number | null;
+};
+
 const accountKey = (playerId: string) => `seat-account:${playerId}`;
 const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
 const accountCleanupKey = "account-cleanups";
@@ -187,6 +200,7 @@ function hexToBytes(value: string): Uint8Array {
 }
 
 export class GameRoom extends DurableObject<Env> {
+  private cpuCapacityFlush: Promise<void> | null = null;
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
   private accountFlush: Promise<void> | null = null;
@@ -1729,13 +1743,122 @@ export class GameRoom extends DurableObject<Env> {
     };
   }
 
+  private externalCpuGame(room: Room): CpuCapacityGame | null {
+    if (isShogiRoom(room) && shogiAiEnabled(this.env)) return "shogi";
+    if (
+      isFourReversiRoom(room) &&
+      room.settings.mode === "singles" &&
+      aiServiceConfigured(this.env)
+    )
+      return "four-reversi";
+    return null;
+  }
+
+  private async reserveCpuCapacity(
+    room: Room,
+  ): Promise<RoomCpuCapacity | null | "cpu_capacity_full" | "internal_error"> {
+    const game = this.externalCpuGame(room);
+    if (!game) return null;
+    const seats = room.players.filter(
+      (player) => player.kind === "cpu" && (game !== "shogi" || player.level === 2),
+    ).length;
+    if (!seats) return null;
+    await this.flushCpuCapacity();
+    if (this.ctx.storage.kv.get(cpuCapacityKey) !== undefined) return "internal_error";
+    const sequence = (this.ctx.storage.kv.get<number>(cpuCapacitySequenceKey) ?? 0) + 1;
+    const reservation: RoomCpuCapacity = {
+      game,
+      roomId: room.id,
+      sequence,
+      instanceId: room.instanceId,
+      releaseAtMs: Date.now() + 30_000,
+    };
+    // RPC中の枠を解放せず、入力ゲートの期限内に確定しなければAlarmで回収します。
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.kv.put(cpuCapacityKey, reservation);
+      this.ctx.storage.kv.put(cpuCapacitySequenceKey, sequence);
+    });
+    try {
+      await this.syncAlarm(this.readRoom());
+      if (await this.env.CPU_CAPACITY.getByName(game).reserve(room.id, sequence, seats))
+        return { ...reservation, releaseAtMs: null };
+      this.ctx.storage.kv.delete(cpuCapacityKey);
+      return "cpu_capacity_full";
+    } catch {
+      this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+      this.ctx.waitUntil(this.flushCpuCapacity());
+      return "internal_error";
+    }
+  }
+
+  private async flushCpuCapacity(): Promise<void> {
+    if (this.cpuCapacityFlush) return this.cpuCapacityFlush;
+    const pending = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+    if (pending?.releaseAtMs == null || pending.releaseAtMs > Date.now()) return;
+    const flush = async () => {
+      try {
+        await this.env.CPU_CAPACITY.getByName(pending.game).release(
+          pending.roomId,
+          pending.sequence,
+        );
+        this.ctx.storage.kv.delete(cpuCapacityKey);
+      } catch {
+        this.ctx.storage.kv.put(cpuCapacityKey, { ...pending, releaseAtMs: Date.now() + 5000 });
+      }
+      await this.syncAlarm(this.readRoom());
+    };
+    this.cpuCapacityFlush = flush().finally(() => {
+      this.cpuCapacityFlush = null;
+    });
+    return this.cpuCapacityFlush;
+  }
+
+  private hasCpuCapacity(room: Room): boolean {
+    const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+    return reservation?.instanceId === room.instanceId && reservation.releaseAtMs === null;
+  }
+
+  private async recoverPlayingCpuCapacity(): Promise<void> {
+    const room = this.readRoom();
+    if (
+      room?.status !== "playing" ||
+      this.hasCpuCapacity(room) ||
+      !this.externalCpuGame(room) ||
+      !currentCpu(room) ||
+      (isShogiRoom(room) && currentCpu(room)?.level !== 2) ||
+      (isFourReversiRoom(room) && !supportsExternalAi(room)) ||
+      room.clock.turnStartedAt + cpuMoveDelayMs > Date.now() ||
+      isClockExpired(room.clock, Date.now())
+    )
+      return;
+    // 既存局・配備前に割当済みの局は、次の外部AI要求前に枠を確保します。
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const playing = this.readRoom();
+      if (playing?.status !== "playing" || this.hasCpuCapacity(playing)) return;
+      const reservation = await this.reserveCpuCapacity(playing);
+      if (reservation && typeof reservation !== "string")
+        this.ctx.storage.kv.put(cpuCapacityKey, reservation);
+    });
+  }
+
   private withIndexTransaction<T>(action: () => T): T {
     let changed = false;
+    let releaseCpu = false;
     const result = this.ctx.storage.transactionSync(() => {
       const before = this.readRoom();
       const previous = before === null ? null : this.publicMetadata(before);
       const value = action();
       const after = this.readRoom();
+      if (
+        after?.instanceId !== before?.instanceId ||
+        (before?.status === "playing" && after?.status !== "playing")
+      ) {
+        const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+        if (reservation?.releaseAtMs === null && reservation.instanceId === before?.instanceId) {
+          this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+          releaseCpu = true;
+        }
+      }
       changed =
         (before === null && after !== null) ||
         (before !== null && after === null) ||
@@ -1755,6 +1878,7 @@ export class GameRoom extends DurableObject<Env> {
       return value;
     });
     if (changed) this.ctx.waitUntil(this.flushRoomIndex());
+    if (releaseCpu) this.ctx.waitUntil(this.flushCpuCapacity());
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
       this.ctx.waitUntil(this.flushAccountCleanup());
     if (this.pendingAnalytics().size) this.ctx.waitUntil(this.flushAnalytics());
@@ -1857,6 +1981,8 @@ export class GameRoom extends DurableObject<Env> {
         );
       }
     }
+    const capacity = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+    if (capacity?.releaseAtMs != null) deadlines.push(capacity.releaseAtMs);
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
     for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
@@ -2563,7 +2689,17 @@ export class GameRoom extends DurableObject<Env> {
           })),
         ],
       });
+      const capacity = await this.reserveCpuCapacity(room);
+      if (typeof capacity === "string") return { status: capacity };
+      if (Date.now() >= input.expiresAtMs) {
+        if (capacity) {
+          this.ctx.storage.kv.put(cpuCapacityKey, { ...capacity, releaseAtMs: Date.now() });
+          this.ctx.waitUntil(this.flushCpuCapacity());
+        }
+        return { status: "invalid" as const };
+      }
       this.withIndexTransaction(() => {
+        if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
         this.ctx.storage.kv.put(roomStorageKey, room);
         this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
           ...input,
@@ -3190,6 +3326,10 @@ export class GameRoom extends DurableObject<Env> {
           .run();
       }
     }
+    if (applyCpu) {
+      await this.flushCpuCapacity();
+      await this.recoverPlayingCpuCapacity();
+    }
     const initial = this.readRoom();
     const now = Date.now();
     const promoted: string[] = [];
@@ -3438,7 +3578,7 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isShogiRoom(room)) throw new Error("Expected Shogi room");
-            if (shogiAiEnabled(this.env)) {
+            if (shogiAiEnabled(this.env) && this.hasCpuCapacity(room)) {
               shogiWork.current = this.standardShogiProgress.prepareExternalCpu(
                 room,
                 now,
@@ -3491,6 +3631,10 @@ export class GameRoom extends DurableObject<Env> {
                     }
                   : serviceProfile(this.env),
               );
+              if (externalWork.current && !this.hasCpuCapacity(room)) {
+                this.reversiProgress.completeExternalCpu(room, externalWork.current.job, null, now);
+                externalWork.current = null;
+              }
             } else {
               const result = this.reversiProgress.cpu(room, now);
               if (result.kind !== "unchanged") {
@@ -4128,7 +4272,7 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private startGame(tokenHash: string):
+  private async startGame(tokenHash: string): Promise<
     | { status: "started"; room: Room }
     | {
         status:
@@ -4137,9 +4281,12 @@ export class GameRoom extends DurableObject<Env> {
           | "forbidden"
           | "not_ready"
           | "already_started"
-          | "registration_pending";
-      } {
-    return this.withIndexTransaction(() => {
+          | "registration_pending"
+          | "cpu_capacity_full"
+          | "internal_error";
+      }
+  > {
+    return this.ctx.blockConcurrencyWhile(async () => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
@@ -4160,20 +4307,25 @@ export class GameRoom extends DurableObject<Env> {
         return { status: "not_ready" };
       }
 
-      const started = isFourShogiRoom(room)
-        ? this.shogiProgress.start(room)
-        : isShogiRoom(room)
-          ? this.standardShogiProgress.start(room)
-          : isFourGomokuRoom(room)
-            ? this.fourGomokuProgress.start(room)
-            : isGomokuRoom(room)
-              ? this.gomokuProgress.start(room)
-              : isReversiRoom(room)
-                ? this.standardProgress.start(room)
-                : this.reversiProgress.start(room);
-      this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
-      this.startAnalyticsMatch(started.roundId, started.room, started.at);
-      return { status: "started", room: started.room };
+      const capacity = await this.reserveCpuCapacity(room);
+      if (typeof capacity === "string") return { status: capacity };
+      return this.withIndexTransaction(() => {
+        if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
+        const started = isFourShogiRoom(room)
+          ? this.shogiProgress.start(room)
+          : isShogiRoom(room)
+            ? this.standardShogiProgress.start(room)
+            : isFourGomokuRoom(room)
+              ? this.fourGomokuProgress.start(room)
+              : isGomokuRoom(room)
+                ? this.gomokuProgress.start(room)
+                : isReversiRoom(room)
+                  ? this.standardProgress.start(room)
+                  : this.reversiProgress.start(room);
+        this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
+        this.startAnalyticsMatch(started.roundId, started.room, started.at);
+        return { status: "started", room: started.room };
+      });
     });
   }
 
@@ -4510,7 +4662,7 @@ export class GameRoom extends DurableObject<Env> {
       }
 
       if (parsed.data.type === "room.game.start") {
-        const result = this.startGame(tokenHash.data);
+        const result = await this.startGame(tokenHash.data);
         if (result.status === "started") {
           await this.syncAlarm(result.room);
           this.broadcastRoom(result.room);

@@ -12,7 +12,7 @@ beforeAll(async () => {
         ...process.env,
         AI_SERVICE_TOKEN: token,
         AI_SERVICE_LISTEN: "127.0.0.1:0",
-        AI_SERVICE_CONCURRENCY: "2",
+        AI_SERVICE_CONCURRENCY: "4",
       },
       stdout: "pipe",
       stderr: "pipe",

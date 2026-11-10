@@ -84,7 +84,7 @@ Webの`features/matchmaking`は登録者の参加、10秒の継続、再読み�
 
 Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v1.json`、探索設定とhashは既存の`profiles-v1.json`に分けます。旧CPUのlevel 1/2フィールドは互換用に維持し、実際のレベルとprofileは省略可能なcpuProfileへ保存・表示します。専用ルームはこれをLv2として表示しません。Engine 0.2.0はAPI v2のルール識別子v2／局面版2を受理し、旧契約も維持します。
 
-`MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。開発専用Serviceは`packages/ai/cloudflare/wrangler.jsonc`のdevelopment環境（`tetraboard-ai-dev`）です。lite・上限1台・10秒停止を使い、公開前に同じ新規tokenを両WorkerのSecretへ登録してEngine版・profile hashを照合します。Service更新は`bun run --cwd packages/ai deploy:cloud:development`で明示的に行い、アプリは既存のdevelop向けCI/CDで反映します。削除済みの検証Workerは再作成しません。検証の入口は[テスト文書](testing.md#ランダムマッチの確認)です。
+`MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。開発専用Serviceは`packages/ai/cloudflare/wrangler.jsonc`のdevelopment環境（`tetraboard-ai-dev`）です。[ゲーム別のAIコンテナ構成](architecture.md#ゲーム別のaiコンテナ)を使い、公開前に両WorkerのSecretのtokenをそろえてEngine版・profile hashを照合します。Service更新は`bun run --cwd packages/ai deploy:cloud:development`で明示的に行い、アプリは既存のdevelop向けCI/CDで反映します。削除済みの検証Workerは再作成しません。検証の入口は[テスト文書](testing.md#ランダムマッチの確認)です。
 
 ## 四人リバーシのレート戦の実装順序
 

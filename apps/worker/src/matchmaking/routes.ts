@@ -7,6 +7,7 @@ import {
   matchmakingRules,
   matchmakingStateSchema,
   type MatchmakingGame,
+  type MatchmakingState,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
@@ -18,6 +19,15 @@ export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-rever
   ratedMatchmakingPolicy(game).enabled(env);
 const gameSchema = z.enum(["four-reversi", "shogi"]);
 const root = "/matchmaking/:game";
+function stateForClient(state: MatchmakingState, enabled: boolean, includeWaitingCount: boolean) {
+  const { waitingCount, ...rest } = state;
+  return matchmakingStateSchema.parse({
+    ...rest,
+    enabled,
+    ...(includeWaitingCount && waitingCount !== undefined ? { waitingCount } : {}),
+  });
+}
+
 matchmakingRoutes.use("/matchmaking/*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   await next();
@@ -39,20 +49,16 @@ matchmakingRoutes.get(root, async (c) => {
   const legacy = game.data === "four-reversi" && c.req.query("rated") !== "1";
   const enabled = !legacy && matchmakingEnabled(c.env, game.data);
   const user = await accountIdentity(c.req.raw, c.env);
-  if (!user || (!legacy && user.isAnonymous))
-    return c.json(
-      matchmakingStateSchema.parse({
-        status: "idle",
-        serverNowMs: Date.now(),
-        enabled,
-      }),
-    );
+  const includeWaitingCount = c.req.query("waitingCount") === "1";
+  const accountId = !user || (!legacy && user.isAnonymous) ? null : user.id;
+  if (accountId === null && !(enabled && includeWaitingCount))
+    return c.json(stateForClient({ status: "idle", serverNowMs: Date.now() }, enabled, false));
   const controller = z.uuid().optional().safeParse(c.req.query("controllerId"));
   if (!controller.success) return c.json({ message: "入力内容を確認してください。" }, 400);
   const state = await c.env.MATCHMAKING_COORDINATOR.getByName(
     legacy ? matchmakingRules.key : matchmakingQueues[game.data].key,
-  ).status(user.id, controller.data);
-  return c.json(matchmakingStateSchema.parse({ ...state, enabled }));
+  ).status(accountId, controller.data);
+  return c.json(stateForClient(state, enabled, includeWaitingCount));
 });
 matchmakingRoutes.get(`${root}/rating`, async (c) => {
   const game = gameSchema.safeParse(c.req.param("game"));
@@ -130,6 +136,6 @@ for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
               action,
             );
     return result.ok
-      ? c.json(matchmakingStateSchema.parse({ ...result.state, enabled }))
+      ? c.json(stateForClient(result.state, enabled, c.req.query("waitingCount") === "1"))
       : c.json({ message: result.message }, 409);
   });

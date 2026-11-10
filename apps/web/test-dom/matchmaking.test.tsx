@@ -103,6 +103,17 @@ function assignment(opponent: "cpu" | "human") {
   };
 }
 
+test("レート戦の待機人数を表示し、CPU枠待ち専用の文言は表示しない", async () => {
+  shogiPage(user, false, "four-reversi");
+  const status = latest("/api/matchmaking/four-reversi?");
+  expect(status.url).toContain("waitingCount=1");
+  status.respond({ ...shogiIdle(), waitingCount: 4 });
+  latest("/api/matchmaking/four-reversi/rating").respond({ status: "placement", games: 0 });
+  await flush();
+  expect(activeDialog().textContent).toContain("4人が待機中");
+  expect(activeDialog().textContent).not.toContain("混み合っています");
+});
+
 test("将棋ダイアログに認定進捗を表示し、開き直すと最新レートを取得する", async () => {
   const router = shogiPage();
   expect(activeDialog().textContent).toContain("レートを読み込んでいます");
@@ -279,7 +290,9 @@ test("終局後の再参加はダイアログから検索を一度だけ始め�
   await flush();
   await respondToJoin();
   expect(activeDialog().textContent).toContain("対戦相手を探しています");
-  expect(requests.filter((request) => request.url === shogiJoinUrl)).toHaveLength(1);
+  expect(
+    requests.filter((request) => request.url === shogiJoinUrl + "?waitingCount=1"),
+  ).toHaveLength(1);
 });
 const fourStatus = "/api/matchmaking/four-reversi?";
 
