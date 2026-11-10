@@ -50,6 +50,8 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 四人リバーシのレート戦は、10秒での範囲拡大、20秒での不足席の補充、認定状況によるCPU選択、成立後の取消と入室、旧列の成立済み対局とレート戦の保存の違いを確認します。`apps/web/test-dom/matchmaking.test.tsx`は共通ダイアログの取消・自動入室に加え、四人リバーシのランク表示、再参加と旧割当の復旧を確認します。`matchmakingRoom.test.tsx`はルーム内の開始予告と旧席解放後の再参加を確認します。
 
+再検索では、前局の待機情報が残っていても新しい操作IDで1回だけ検索すること、ロビーから開くだけでは検索や終了案内が出ないこと、確認済みの待機が失効したときは案内が出ることを確認します。退室応答より先にルーム閉鎖を検知しても再検索の指定を保ち、退室失敗時や新しい待機の情報を誤って削除しないことも確認します。
+
 将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
 
 部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番の公開フラグは無効です。開発ServiceのWrangler dry-runはFull CIに含め、クラウド接続と実機確認は開発への反映後に別途確認します。

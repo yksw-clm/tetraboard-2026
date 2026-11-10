@@ -13,6 +13,14 @@ import { installSocket, Socket } from "./socket";
 import { ShogiRoomView } from "../src/features/room/ShogiRoomView";
 import { useShogiRoomSession } from "../src/features/room/useShogiRoomSession";
 import { standardSavedRound, standardWaitingRoom } from "../test/fixtures/standardShogiFixtures";
+import {
+  readMatchmakingQueue,
+  readMatchmakingRoom,
+  saveMatchmakingQueue,
+  saveMatchmakingRoom,
+} from "../src/features/matchmaking/matchmakingStorage";
+import { matchmakingScope } from "../src/features/matchmaking/paths";
+import { queueDocumentController } from "../src/shared/QueueDocumentController";
 let restore: () => void;
 beforeEach(() => {
   restore = installSocket();
@@ -104,19 +112,61 @@ for (const action of ["もう一度マッチング", "ロビーへ"])
         })),
       },
     });
-    const { view } = await setup(room);
+    const { view, socket } = await setup(room);
+    const identity = crypto.randomUUID();
+    const game = "four-reversi";
+    const scope = matchmakingScope(identity, game);
+    const previous = {
+      operationId: crypto.randomUUID(),
+      controllerId: queueDocumentController.getIdentity(),
+      version: 1,
+    };
+    saveMatchmakingQueue(identity, previous, game);
+    saveMatchmakingRoom({
+      ...previous,
+      identity,
+      game,
+      roomId: room.id,
+      instanceId: room.instanceId,
+    });
+    queueDocumentController.remember(scope, previous.operationId, 1);
     press(view, "結果");
     await flush();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain("棋譜を見る");
     press(dialog, action);
-    const request = requests.find((r) => r.url.endsWith("/leave"))!;
+    const lastLeave = () => requests.filter((r) => r.url.endsWith("/leave")).at(-1)!;
+    const request = lastLeave();
     expect(request).toBeDefined();
     expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
     expect(readRoomMembershipToken(room.id)).toBe(token);
-    request.respond(null, 204);
+    if (action === "もう一度マッチング") {
+      request.respond({ error: "internal_error" }, 500);
+      await flush();
+      expect(readRoomMembershipToken(room.id)).toBe(token);
+      expect(readMatchmakingRoom(room.id, room.instanceId)?.operationId).toBe(previous.operationId);
+      expect(readMatchmakingQueue(identity, game)).toEqual(previous);
+      expect(queueDocumentController.version(scope, previous.operationId)).toBe(1);
+      press(dialog, action);
+      socket.receive({ type: "room.error", error: "not_found" });
+      await flush();
+      expect(view.querySelector("[data-path]")?.textContent).toBe("/rooms/12345");
+    }
+    const later = { ...previous, operationId: crypto.randomUUID() };
+    if (action === "ロビーへ") {
+      saveMatchmakingQueue(identity, later, game);
+      queueDocumentController.remember(scope, later.operationId, 1);
+    }
+    lastLeave().respond(null, 204);
     await flush();
     expect(readRoomMembershipToken(room.id)).toBeNull();
+    expect(readMatchmakingRoom(room.id, room.instanceId)).toBeNull();
+    expect(readMatchmakingQueue(identity, game)).toEqual(action === "ロビーへ" ? later : null);
+    expect(queueDocumentController.version(scope, previous.operationId)).toBeNull();
+    if (action === "ロビーへ") {
+      expect(queueDocumentController.version(scope, later.operationId)).toBe(1);
+      queueDocumentController.forget(scope);
+    }
     expect(view.querySelector("[data-path]")?.textContent).toBe(
       action === "もう一度マッチング" ? "/games/four-reversi?matchmaking=1" : "/games/four-reversi",
     );
