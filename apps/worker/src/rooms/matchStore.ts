@@ -1,5 +1,10 @@
 import { tournamentMatchStatements } from "../tournaments/store";
-import { readStoredMatch } from "../accounts/matchDataContracts";
+import { readFourReversiMatchRecord, readStoredMatch } from "../accounts/matchDataContracts";
+import {
+  applyFourReversiRating,
+  fourReversiRatingStore,
+  type FourReversiRatedMatch,
+} from "./fourReversiRating";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
@@ -32,6 +37,7 @@ export type MatchStart = {
   startedAtMs: number;
   settings: FourReversiMatchDetail["settings"];
   participants: MatchParticipant[];
+  fourReversiRating?: FourReversiRatedMatch;
 };
 export type MatchRecord = MatchStart & {
   endedAtMs: number;
@@ -98,6 +104,15 @@ export async function writeMatch(
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   statements.push(...tournamentStatements);
   await db.batch(statements);
+  if ("fourReversiRating" in record && record.fourReversiRating) {
+    const saved = await db
+      .prepare("SELECT record_json FROM matches WHERE id=? AND game='four-reversi'")
+      .bind(record.id)
+      .first<{ record_json: string }>();
+    if (!saved) throw Error("四人リバーシの対局が保存されていません");
+    await applyFourReversiRating(db, readFourReversiMatchRecord(saved.record_json));
+    await fourReversiRatingStore.clearPending(db, record.id).run();
+  }
   if (
     tournament &&
     !(await db

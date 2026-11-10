@@ -210,8 +210,11 @@ const roomMatchmakingSchema = z.strictObject({
 const shogiRoomMatchmakingSchema = roomMatchmakingSchema.extend({
   opponent: z.enum(["human", "cpu"]),
 });
+const fourReversiRoomMatchmakingSchema = roomMatchmakingSchema.extend({
+  rated: z.literal(true).optional(),
+});
 const waitingRoomSchema = z.strictObject({
-  matchmaking: roomMatchmakingSchema.optional(),
+  matchmaking: fourReversiRoomMatchmakingSchema.optional(),
   tournamentId: z.int().positive().optional(),
   tournamentStartsAtMs: serverNowMsSchema.optional(),
   eliminations: z.array(eliminationSchema).length(0).default([]),
@@ -234,7 +237,7 @@ const waitingRoomSchema = z.strictObject({
 
 const activeRoomBaseSchema = z
   .strictObject({
-    matchmaking: roomMatchmakingSchema.optional(),
+    matchmaking: fourReversiRoomMatchmakingSchema.optional(),
     tournamentId: z.int().positive().optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),

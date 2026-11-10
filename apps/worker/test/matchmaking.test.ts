@@ -3,6 +3,8 @@ import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
 import {
   matchmakingRules as rules,
+  fourReversiRatedMatchmakingRules,
+  fourReversiRatingResultSchema,
   matchmakingStateSchema,
   roomSchema,
   shogiMatchmakingRules,
@@ -10,6 +12,7 @@ import {
 } from "@tetraboard/protocol";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
+import { selectFourReversi } from "../src/matchmaking/fourReversiSelection";
 import { matchmakingCredential } from "../src/matchmaking/coordinator";
 import { requestDeletion } from "../src/privacy/deletion";
 import { requireGuestIdle } from "../src/accounts/guestLinking";
@@ -18,6 +21,8 @@ import { matchmakingRoutes } from "../src/matchmaking/routes";
 import { standardShogiRecord, saveStandardShogiFixture } from "./standardShogiFixtures";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 const stub = () => env.MATCHMAKING_COORDINATOR.getByName(rules.key);
+const fourRatedQueue = () =>
+  env.MATCHMAKING_COORDINATOR.getByName(fourReversiRatedMatchmakingRules.key);
 const shogiQueue = () => env.MATCHMAKING_COORDINATOR.getByName(shogiMatchmakingRules.key);
 const accounts: string[] = [];
 const rooms = new Set<string>();
@@ -132,6 +137,9 @@ afterEach(async () => {
   rooms.clear();
   for (const id of accounts.splice(0)) {
     await env.APP_DB.prepare("DELETE FROM shogi_rating_pending WHERE account_id=?").bind(id).run();
+    await env.APP_DB.prepare("DELETE FROM four_reversi_rating_pending WHERE account_id=?")
+      .bind(id)
+      .run();
     await env.APP_DB.prepare("DELETE FROM tournament_wait_reservations WHERE account_id=?")
       .bind(id)
       .run();
@@ -145,7 +153,7 @@ afterEach(async () => {
       .run();
     await env.APP_DB.prepare("DELETE FROM account_room_seats WHERE account_id=?").bind(id).run();
   }
-  for (const queue of [stub(), shogiQueue()])
+  for (const queue of [stub(), shogiQueue(), fourRatedQueue()])
     await runInDurableObject(queue, async (_instance, state) => {
       await state.storage.deleteAll();
     });
@@ -884,3 +892,141 @@ test("待機が失効した後の遅延更新・再参加は古い操作を復�
     true,
   );
 });
+
+test("四人レート戦は10秒で範囲を広げ、20秒で実力差を解除する", () => {
+  const waits = [25, 31, 30, 32, 26].map((rating) => ({ rating, sigma: 2, ratedGames: 10 }));
+  expect(selectFourReversi(waits, 9_999)).toBeUndefined();
+  expect(selectFourReversi(waits, 10_000)?.selected.map((w) => w.rating)).toEqual([25, 31, 30, 26]);
+  const far = [25, 36, 30, 40].map((rating) => ({ rating, sigma: 2, ratedGames: 10 }));
+  expect(selectFourReversi(far, 19_999)).toBeUndefined();
+  expect(selectFourReversi(far, 20_000)?.selected).toEqual(far);
+  expect(selectFourReversi([...far, { rating: 21, sigma: 7, ratedGames: 2 }], 0)?.selected).toEqual(
+    far,
+  );
+  expect(selectFourReversi(waits.slice(0, 3), 19_999)).toBeUndefined();
+  expect(selectFourReversi(waits.slice(0, 3), 20_000)?.rating.cpu?.profileId).toBe("lv5-v1");
+  expect(selectFourReversi([{ rating: 11, ratedGames: 5 }], 20_000)?.rating.cpu?.profileId).toBe(
+    "lv1-v1",
+  );
+  expect(selectFourReversi([{ rating: 11, ratedGames: 4 }], 20_000)?.rating.cpu?.profileId).toBe(
+    "lv3-v1",
+  );
+});
+
+test("四人レート戦は20秒で不足席を補充し、成立後の取消で割当を解除しない", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = fourRatedQueue();
+  const [first, second] = await fixture(2, queue);
+  now += 19_999;
+  await runInDurableObject(queue, (instance) => instance.alarm());
+  expect((await queue.status(first!.account.id, first!.controllerId)).status).toBe("waiting");
+  now += 1;
+  const cancelled = await queue.control(
+    first!.account.id,
+    {
+      operationId: first!.operationId,
+      controllerId: first!.controllerId,
+      version: 1,
+    },
+    "cancel",
+  );
+  expect(cancelled).toMatchObject({
+    ok: true,
+    state: { status: "matched", assignment: { opponent: "cpu" } },
+  });
+  if (!cancelled.ok || !cancelled.state.assignment) throw Error("Expected assignment");
+  const a = cancelled.state.assignment;
+  rooms.add(a.roomId);
+  expect((await queue.status(second!.account.id, second!.controllerId)).assignment?.matchId).toBe(
+    a.matchId,
+  );
+  const room = roomSchema.parse(await env.GAME_ROOM.getByName(a.roomId).getRoom());
+  expect(room).toMatchObject({
+    matchmaking: { rated: true },
+    settings: { mode: "singles", timeControl: { mainTimeMs: 180_000, byoyomiMs: 0 } },
+  });
+  const cpus = room.players.filter((p) => p.kind === "cpu");
+  expect(cpus).toHaveLength(2);
+  for (const cpu of cpus) expect(cpu).toMatchObject({ cpuProfile: { id: "lv3-v1" } });
+});
+
+test.each([true, false])(
+  "成立済みの四人対局が終了して保存され、レート戦だけ認定が進む rated=%s",
+  async (rated) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = rated ? fourRatedQueue() : stub();
+    const users = await fixture(4, queue);
+    const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+    const a = states[0]!.assignment!;
+    rooms.add(a.roomId);
+    const roomStub = env.GAME_ROOM.getByName(a.roomId);
+    const result = (account = users[0]!.account) =>
+      exports.default.fetch(
+        new AcceptedGameRequest(
+          `${origin}/api/matchmaking/four-reversi/results/${a.matchId}?includeOpponent=1`,
+          { headers: account.headers },
+        ),
+      );
+    if (rated) expect(await (await result()).json()).toEqual({ status: "pending" });
+    else {
+      const status = await exports.default.fetch(
+        new AcceptedGameRequest(
+          `${origin}/api/matchmaking/four-reversi?controllerId=${users[0]!.controllerId}`,
+          { headers: users[0]!.account.headers },
+        ),
+      );
+      expect(await status.json()).toMatchObject({
+        enabled: false,
+        status: "matched",
+        assignment: a,
+      });
+      expect((await result()).status).toBe(404);
+    }
+    for (const state of states) await connect(a.roomId, state.assignment!.membership.token);
+    expect(await roomStub.getRoom()).toMatchObject({
+      status: "waiting",
+      matchmaking: { startsAtMs: now + 5000 },
+    });
+    now += 5000;
+    expect(await roomStub.getRoom()).toMatchObject({ status: "playing" });
+    const matchStart = await runInDurableObject(roomStub, (_, state) =>
+      state.storage.kv.get("match-start"),
+    );
+    expect(!!(matchStart as { fourReversiRating?: unknown })?.fourReversiRating).toBe(rated);
+    for (const state of states.slice(1)) {
+      const bytes = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(state.assignment!.membership.token),
+      );
+      expect(
+        await roomStub.leaveRoom(
+          Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join(""),
+        ),
+      ).toBe("left");
+    }
+    await vi.waitFor(async () => {
+      expect(
+        await env.APP_DB.prepare("SELECT 1 FROM matches WHERE id=?").bind(a.matchId).first(),
+      ).not.toBeNull();
+      if (rated)
+        expect(await (await result()).json()).toMatchObject({ status: "placement", games: 1 });
+    });
+    if (rated) {
+      const payload = fourReversiRatingResultSchema.parse(await (await result()).json());
+      expect(payload).toEqual({
+        status: "placement",
+        games: 1,
+        players: Object.fromEntries(
+          states
+            .slice(1)
+            .map((state) => [state.assignment!.membership.playerId, { status: "placement" }]),
+        ),
+      });
+      const outsider = await accountFixture();
+      accounts.push(outsider.id);
+      expect((await result(outsider)).status).toBe(404);
+    } else expect((await result()).status).toBe(404);
+  },
+);

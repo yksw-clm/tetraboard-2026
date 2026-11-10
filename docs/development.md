@@ -76,11 +76,11 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 `packages/ai`のMCTSは通常選択経路を維持したまま任意の根候補収集を追加し、server crateの別バイナリにローカルルーターを置きます。既存Serviceのrouterへ解析APIを追加しません。ローカル専用Lv6は `packages/ai/configs/local-analysis-profiles-v1.json` に定義し、agentsの `local_analysis_profiles` と拡張の `profiles.ts` から読みます。公開Lv1〜5の一覧は維持し、要求・応答でprofile・設定hash・実効予算を照合します。widgetの `selectProfile` は世代を更新して結果を破棄し、本人手番の自動解析を再開します。[Lv6の採用と測定の記録](../packages/ai/docs/lv6-candidate.md)を参照してください。固定fixtureの改修前コミットに対する選択手・探索診断・連続呼び出しを回帰確認します。検証分担は [テスト方針](testing.md#ローカルai解析widgetの確認) を参照します。
 
-## ランダムマッチの実装
+## 四人リバーシの待機列とルーム
 
-採用仕様は[ランダムマッチング](matchmaking.md)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
+採用仕様は[レート戦](matchmaking.md#四人リバーシのレート戦)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
 
-Webの`features/matchmaking`は登録者・設定済みゲストの参加、10秒の継続、再読み込み・明示引継ぎと入室を担当します。`QueueDocumentController`は大会と共用し、scopeを分離します。Web Locks非対応時も明示参加・引継ぎは可能とし、自動の資格引継ぎはしません。非同期応答は本人・操作元・要求世代で破棄し、経過時間は受信したサーバー時刻と単調時計から表示します。
+Webの`features/matchmaking`は登録者の参加、10秒の継続、再読み込み・明示引継ぎと入室を担当します。`QueueDocumentController`は大会と共用し、scopeを分離します。Web Locks非対応時も明示参加・引継ぎは可能とし、自動の資格引継ぎはしません。非同期応答は本人・操作元・要求世代で破棄し。
 
 Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v1.json`、探索設定とhashは既存の`profiles-v1.json`に分けます。旧CPUのlevel 1/2フィールドは互換用に維持し、実際のレベルとprofileは省略可能なcpuProfileへ保存・表示します。専用ルームはこれをLv2として表示しません。Engine 0.2.0はAPI v2のルール識別子v2／局面版2を受理し、旧契約も維持します。
 
@@ -88,11 +88,11 @@ Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v
 
 ## 四人リバーシのレート戦の実装順序
 
-登録者向けの[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦未実装)へ切り替えます。2026-11-08に文書化したフェーズ4.5-Aのうち、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)を引き継ぎます。
+登録者向けの[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦)へ切り替えます。2026-11-08に文書化したフェーズ4.5-Aのうち、[CPU評価と実力推定の較正仕様](../packages/ai/docs/calibration.md)を引き継ぎます。
 
 1. 将棋で使っているロビーダイアログ、待機・取消・自動入室・再参加、認定と対局結果の表示、終局時の二重反映防止を共通化しました。ゲーム別の参加人数・持ち時間・待機上限はprotocolの `matchmakingQueues`、相手選びとレート保存はWorkerの `matchmaking/ratedMatchmaking.ts` のゲーム別設定から参照します。将棋は既存のD1テーブルとAPI形式でレートを読み書きします。
-2. 四人リバーシのCPUを較正し、順位ベースのレート計算と保存を追加します。同順位、認定5局目、CPU混在、代替手使用時の除外、再試行を確認します。開発環境で試験し、公開レートの換算式とランク境界を決めます。
-3. 四人リバーシを共通の導線に接続します。最長20秒で人間を優先して不足席を補充し、旧ランダムマッチの新規受付を切り替えます。旧対局の完走・保存、旧URLと切り替え前に待機していた利用者の扱いを確認します。
+2. 四人リバーシのCPUを較正し、順位ベースのレート計算と保存を追加します。同順位、認定5局目、CPU混在、代替手使用時の除外、再試行を確認します。[公開レートとランクの暫定仕様](matchmaking.md#公開レートとランク)を本人向けの `GET /api/matchmaking/four-reversi/rating` に適用し、開発環境の対局結果で見直します。
+3. 四人リバーシを共通の導線に接続しました。最長20秒で人間を優先し、不足席を較正済みCPUで補います。新旧の待機列を分離し、旧対局の接続と保存を継続します。新しい待機列は `0035_four_reversi_rating_pending.sql` の保存待ち予約で、終局結果が確定するまで次の参加を制限します。
 4. 必須ローカル検証とFull CIを通し、開発環境で人間1〜4人、20秒前後の参加・取消、AI障害、終局後の再参加を確認します。対人戦とCPU入りの局でのレートの推移、稼働費用、受付停止手順をまとめ、本番公開は別途承認を得て実施します。
 
 較正では現在のEngine・profile・設定hash・実効予算・source/binaryを固定して結果をひも付けます。OpenSkill 5.0.1はWorkers互換性と予測精度を確認してから採用します。通常ルーム・他ゲームの集計と外部AI接続も回帰確認の対象です。

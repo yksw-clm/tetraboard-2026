@@ -17,22 +17,52 @@ export const shogiMatchmakingRules = {
   fillAfterMs: 15_000,
   timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
 } as const;
+export const fourReversiRatedMatchmakingRules = {
+  ...matchmakingRules,
+  key: "four-reversi:singles:v2:180000:0:rated-v1",
+  fillAfterMs: 20_000,
+} as const;
 export const matchmakingQueues = {
-  "four-reversi": matchmakingRules,
+  "four-reversi": fourReversiRatedMatchmakingRules,
   shogi: shogiMatchmakingRules,
 } as const;
+export const matchmakingQueueKeys = [
+  ...Object.values(matchmakingQueues).map(({ key }) => key),
+  matchmakingRules.key,
+];
 export type MatchmakingGame = keyof typeof matchmakingQueues;
 export function isMatchmakingGame(game: string): game is MatchmakingGame {
   return Object.hasOwn(matchmakingQueues, game);
 }
 export const ratedMatchmakingRules = {
   shogi: { placementGames: 5 },
+  "four-reversi": { placementGames: 5 },
 } as const satisfies Partial<Record<MatchmakingGame, { placementGames: number }>>;
 export type RatedMatchmakingGame = keyof typeof ratedMatchmakingRules;
 export function isRatedMatchmakingGame(game: string): game is RatedMatchmakingGame {
   return Object.hasOwn(ratedMatchmakingRules, game);
 }
 export const shogiPlacementGames = ratedMatchmakingRules.shogi.placementGames;
+export const fourReversiRankTiers = [
+  "ブロンズ",
+  "シルバー",
+  "ゴールド",
+  "プラチナ",
+  "ダイヤモンド",
+] as const;
+export const fourReversiRankDivisions = [3, 2, 1] as const;
+export const fourReversiRatingSummarySchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("placement"),
+    games: z.int().nonnegative().lt(ratedMatchmakingRules["four-reversi"].placementGames),
+  }),
+  z.strictObject({
+    status: z.literal("rated"),
+    rating: z.int(),
+    rank: z.templateLiteral([z.enum(fourReversiRankTiers), z.literal(fourReversiRankDivisions)]),
+    humanPlayed: z.boolean(),
+  }),
+]);
 export const ratingSummarySchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("placement"),
@@ -85,6 +115,17 @@ export const shogiRatingResultSchema = z.discriminatedUnion("status", [
   appliedRating.extend({ opponent: ratingOpponentSchema.optional() }),
 ]);
 export type ShogiRatingResult = z.infer<typeof shogiRatingResultSchema>;
+const fourReversiResultPlayers = z.record(z.string(), ratingOpponentSchema);
+export const fourReversiRatingResultSchema = z.discriminatedUnion("status", [
+  pendingRating,
+  excludedRating,
+  placementRating.extend({
+    games: z.int().positive().lt(ratedMatchmakingRules["four-reversi"].placementGames),
+    players: fourReversiResultPlayers,
+  }),
+  appliedRating.extend({ players: fourReversiResultPlayers }),
+]);
+export type FourReversiRatingResult = z.infer<typeof fourReversiRatingResultSchema>;
 export const matchmakingInputSchema = z.strictObject({
   controllerId: z.uuid(),
   operationId: z.uuid(),

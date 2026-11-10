@@ -4,19 +4,18 @@ import {
   matchmakingInputSchema,
   matchmakingControlSchema,
   matchmakingQueues,
+  matchmakingRules,
   matchmakingStateSchema,
   type MatchmakingGame,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "../accounts/auth";
 import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
 import { readLimitedBody } from "../feedback/images";
-import { aiServiceConfigured } from "../rooms/aiService";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { ratedMatchmakingPolicy } from "./ratedMatchmaking";
 export const matchmakingRoutes = new Hono<{ Bindings: Env }>();
 export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-reversi") =>
-  ratedMatchmakingPolicy(game)?.enabled(env) ??
-  (env.MATCHMAKING_ENABLED === "true" && aiServiceConfigured(env));
+  ratedMatchmakingPolicy(game).enabled(env);
 const gameSchema = z.enum(["four-reversi", "shogi"]);
 const root = "/matchmaking/:game";
 matchmakingRoutes.use("/matchmaking/*", async (c, next) => {
@@ -37,9 +36,10 @@ matchmakingRoutes.onError((error, c) =>
 matchmakingRoutes.get(root, async (c) => {
   const game = gameSchema.safeParse(c.req.param("game"));
   if (!game.success) return c.notFound();
-  const enabled = matchmakingEnabled(c.env, game.data);
+  const legacy = game.data === "four-reversi" && c.req.query("rated") !== "1";
+  const enabled = !legacy && matchmakingEnabled(c.env, game.data);
   const user = await accountIdentity(c.req.raw, c.env);
-  if (!user || (ratedMatchmakingPolicy(game.data) && user.isAnonymous))
+  if (!user || (!legacy && user.isAnonymous))
     return c.json(
       matchmakingStateSchema.parse({
         status: "idle",
@@ -50,7 +50,7 @@ matchmakingRoutes.get(root, async (c) => {
   const controller = z.uuid().optional().safeParse(c.req.query("controllerId"));
   if (!controller.success) return c.json({ message: "入力内容を確認してください。" }, 400);
   const state = await c.env.MATCHMAKING_COORDINATOR.getByName(
-    matchmakingQueues[game.data].key,
+    legacy ? matchmakingRules.key : matchmakingQueues[game.data].key,
   ).status(user.id, controller.data);
   return c.json(matchmakingStateSchema.parse({ ...state, enabled }));
 });
@@ -84,16 +84,17 @@ for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
     if (!game.success) return c.notFound();
     if (c.req.header("Origin") !== c.env.APP_ORIGIN)
       return c.json({ message: "操作元を確認できません。" }, 403);
+    const legacy = game.data === "four-reversi" && c.req.query("rated") !== "1";
     const { user } = await roomEntryProfile(c.req.raw, c.env);
     if (!user) return c.json({ message: "参加情報を確認してください。" }, 401);
-    if (ratedMatchmakingPolicy(game.data) && user.isAnonymous)
+    if (!legacy && user.isAnonymous)
       return c.json(
-        { message: `${gameCatalog[game.data].name}のレートマッチには登録アカウントが必要です。` },
+        { message: `${gameCatalog[game.data].name}のレート戦には登録アカウントが必要です。` },
         403,
       );
-    const enabled = matchmakingEnabled(c.env, game.data);
+    const enabled = !legacy && matchmakingEnabled(c.env, game.data);
     if (action === "join" && !enabled)
-      return c.json({ message: "ランダムマッチは準備中です。" }, 503);
+      return c.json({ message: "レート戦は現在受け付けていません。" }, 503);
     const bytes = await readLimitedBody(c.req.raw, 4096);
     let data: unknown;
     try {
@@ -105,7 +106,9 @@ for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
       action === "join" ? matchmakingInputSchema : matchmakingControlSchema
     ).safeParse(data);
     if (!parsed.success) return c.json({ message: "入力内容を確認してください。" }, 400);
-    const coordinator = c.env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game.data].key);
+    const coordinator = c.env.MATCHMAKING_COORDINATOR.getByName(
+      legacy ? matchmakingRules.key : matchmakingQueues[game.data].key,
+    );
     const input = parsed.data;
     const result =
       action === "join"

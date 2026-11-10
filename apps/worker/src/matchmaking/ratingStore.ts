@@ -5,6 +5,7 @@ export function createRatingStore(
   game: RatedMatchmakingGame,
   pendingTable: string,
   changesTable: string,
+  ratingColumns = "rating_after",
 ) {
   const clearPending = (db: D1Database, matchId: string) =>
     db.prepare(`DELETE FROM ${pendingTable} WHERE match_id=?`).bind(matchId);
@@ -13,7 +14,7 @@ export function createRatingStore(
     changesTable,
     latest: (db: D1Database, accountId: string) =>
       db
-        .prepare(`SELECT rating_after, rated_games, human_games FROM ${changesTable}
+        .prepare(`SELECT ${ratingColumns}, rated_games, human_games FROM ${changesTable}
         WHERE account_id=? ORDER BY rated_games DESC LIMIT 1`)
         .bind(accountId),
     reserve: (db: D1Database, matchId: string, accountId: string, operationId: string) =>

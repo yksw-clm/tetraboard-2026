@@ -5,12 +5,16 @@ import {
 import type { MatchmakingGame } from "@tetraboard/protocol";
 import { matchmakingScope } from "./paths";
 
-const key = (identity: string, game: MatchmakingGame) =>
-  `tetraboard:${matchmakingScope(identity, game)}`;
-export function readMatchmakingQueue(identity: string, game: MatchmakingGame = "four-reversi") {
+const key = (identity: string, game: MatchmakingGame, legacy = false) =>
+  `tetraboard:${matchmakingScope(identity, game, legacy)}`;
+export function readMatchmakingQueue(
+  identity: string,
+  game: MatchmakingGame = "four-reversi",
+  legacy = false,
+) {
   try {
     const parsed = schema.safeParse(
-      JSON.parse(sessionStorage.getItem(key(identity, game)) ?? "null"),
+      JSON.parse(sessionStorage.getItem(key(identity, game, legacy)) ?? "null"),
     );
     return parsed.success ? parsed.data : null;
   } catch {
@@ -29,9 +33,13 @@ export function saveMatchmakingQueue(
     throw Error("待機情報を保存できません。ブラウザの保存領域を確認してください。");
   }
 }
-export function clearMatchmakingQueue(identity: string, game: MatchmakingGame = "four-reversi") {
+export function clearMatchmakingQueue(
+  identity: string,
+  game: MatchmakingGame = "four-reversi",
+  legacy = false,
+) {
   try {
-    sessionStorage.removeItem(key(identity, game));
+    sessionStorage.removeItem(key(identity, game, legacy));
   } catch {
     /* 有効期限でも回収します。 */
   }

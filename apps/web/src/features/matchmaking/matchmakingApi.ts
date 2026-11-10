@@ -1,5 +1,7 @@
 import {
   matchmakingStateSchema,
+  fourReversiRatingResultSchema,
+  fourReversiRatingSummarySchema,
   shogiRatingResultSchema,
   shogiRatingSummarySchema,
   type MatchmakingGame,
@@ -8,38 +10,56 @@ import {
 import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountRequest } from "../account/accountApi";
 const api = (game: MatchmakingGame) => `/api/matchmaking/${game}`;
+export type ObservedMatchmaking = ReturnType<typeof matchmakingStateSchema.parse> & {
+  legacy?: true;
+};
+
 export async function readMatchmaking(
   game: MatchmakingGame,
   controllerId: string,
   signal?: AbortSignal,
-) {
-  return matchmakingStateSchema.parse(
-    await accountRequest(`${api(game)}?controllerId=${encodeURIComponent(controllerId)}`, {
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
-        : AbortSignal.timeout(10000),
-    }),
+  legacy = false,
+): Promise<ObservedMatchmaking> {
+  const state = matchmakingStateSchema.parse(
+    await accountRequest(
+      `${api(game)}?controllerId=${encodeURIComponent(controllerId)}${game === "four-reversi" && !legacy ? "&rated=1" : ""}`,
+      {
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+          : AbortSignal.timeout(10000),
+      },
+    ),
   );
+  return legacy ? { ...state, legacy: true } : state;
 }
 export async function matchmakingOperation(
   game: MatchmakingGame,
   action: "join" | "heartbeat" | "cancel" | "takeover",
   input: { operationId: string; controllerId: string; version?: number },
   signal?: AbortSignal,
-) {
-  return matchmakingStateSchema.parse(
-    await accountRequest(`${api(game)}/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Legal-Consent": legalVersion },
-      body: JSON.stringify(input),
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
-        : AbortSignal.timeout(10000),
-    }),
+  legacy = false,
+): Promise<ObservedMatchmaking> {
+  const state = matchmakingStateSchema.parse(
+    await accountRequest(
+      `${api(game)}/${action}${game === "four-reversi" && !legacy ? "?rated=1" : ""}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Legal-Consent": legalVersion },
+        body: JSON.stringify(input),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+          : AbortSignal.timeout(10000),
+      },
+    ),
   );
+  return legacy ? { ...state, legacy: true } : state;
 }
 
 const ratingContracts = {
+  "four-reversi": {
+    result: fourReversiRatingResultSchema,
+    summary: fourReversiRatingSummarySchema,
+  },
   shogi: { result: shogiRatingResultSchema, summary: shogiRatingSummarySchema },
 } satisfies Record<RatedMatchmakingGame, unknown>;
 

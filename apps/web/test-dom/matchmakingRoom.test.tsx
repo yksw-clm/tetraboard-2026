@@ -52,13 +52,15 @@ async function setup(room: FourReversiRoom) {
     });
     return (
       <>
-        <output data-path>{location.pathname}</output>
+        <output data-path>{location.pathname + location.search}</output>
         <output data-rejoin>{String(location.state?.matchmakingRejoin === true)}</output>
         <RoomView session={session} chat={chat} invited={false} />
       </>
     );
   }
-  const view = render(wrap(profile, "/rooms/12345")(<View />));
+  const view = render(
+    wrap({ ...profile, profileId: crypto.randomUUID() }, "/rooms/12345")(<View />),
+  );
   const socket = Socket.instances.at(-1)!;
   socket.open();
   socket.snapshot(room);
@@ -116,12 +118,59 @@ for (const action of ["もう一度マッチング", "ロビーへ"])
     await flush();
     expect(readRoomMembershipToken(room.id)).toBeNull();
     expect(view.querySelector("[data-path]")?.textContent).toBe(
-      action === "もう一度マッチング" ? "/games/four-reversi/matchmaking" : "/games/four-reversi",
+      action === "もう一度マッチング" ? "/games/four-reversi?matchmaking=1" : "/games/four-reversi",
     );
     expect(view.querySelector("[data-rejoin]")?.textContent).toBe(
       String(action === "もう一度マッチング"),
     );
   });
+
+test("四人リバーシの終局では保存後に4席のレートを名前の横に表示する", async () => {
+  const match = replayMatch();
+  const base = waiting();
+  const room = fourReversiRoomSchema.parse({
+    ...base,
+    matchmaking: { ...base.matchmaking, rated: true },
+    lastRound: {
+      game: match.game,
+      replay: match.replay,
+      players: match.participants.map((p, i) => ({
+        id: playerIds[i],
+        name: p.name,
+        color: p.color,
+      })),
+    },
+  });
+  const { view } = await setup(room);
+  press(view, "結果");
+  await flush();
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  const rejoin = [...dialog.querySelectorAll("button")].find((button) =>
+    button.textContent?.includes("もう一度マッチング"),
+  )!;
+  expect(rejoin.disabled).toBe(true);
+  const path = `/api/matchmaking/four-reversi/results/${room.matchmaking!.id}?includeOpponent=1`;
+  requests
+    .find((r) => r.url === path)!
+    .respond({
+      status: "rated",
+      rating: 1542,
+      previousRating: 1555,
+      placementCompleted: false,
+      humanPlayed: true,
+      players: {
+        [playerIds[1]!]: { status: "rated", rating: 1513, previousRating: 1500 },
+        [playerIds[2]!]: { status: "placement" },
+        [playerIds[3]!]: { status: "cpu", rating: 1500 },
+      },
+    });
+  await flush();
+  for (const [index, label] of ["1542 (-13)", "1513 (+13)", "認定中", "1500"].entries()) {
+    const participant = dialog.querySelector(`[data-player-id="${playerIds[index]}"]`)!;
+    expect(participant.lastElementChild?.lastElementChild?.textContent).toBe(label);
+  }
+  expect(rejoin.disabled).toBe(false);
+});
 
 test.each([
   {

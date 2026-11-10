@@ -7,8 +7,11 @@ import {
 } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
-import type { ShogiRatingSource } from "../rooms/shogiRating";
-import { ratedMatchmakingPolicy } from "./ratedMatchmaking";
+import {
+  ratedMatchmakingPolicy,
+  ratingOpponentKind,
+  type QueueRatingSource,
+} from "./ratedMatchmaking";
 
 type Wait = {
   accountId: string;
@@ -19,6 +22,8 @@ type Wait = {
   sequence: number;
   retryAtMs?: number;
   rating?: number;
+  sigma?: number;
+  ratedGames?: number;
   expiresAtMs: number;
 };
 type Player = Wait & {
@@ -37,7 +42,7 @@ type Group = {
   players: Player[];
   remove?: string[];
   retryDelayMs?: number;
-  rating?: ShogiRatingSource;
+  rating?: QueueRatingSource;
 };
 type State = { key: string; waiting: Wait[]; groups: Group[]; nextSequence?: number };
 type Profile = {
@@ -58,7 +63,7 @@ export type MatchmakingRoomInput = {
   preparedAtMs: number;
   expiresAtMs: number;
   players: { admission: AccountAdmission; tokenHash: string; version: number }[];
-  rating?: ShogiRatingSource;
+  rating?: QueueRatingSource;
 };
 export type MatchmakingRoomReservation = MatchmakingRoomInput & {
   phase: "waiting" | "playing" | "closed";
@@ -97,11 +102,24 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       ) ?? "four-reversi"
     );
   }
+  private get legacy() {
+    return this.ctx.id.name === rules.key;
+  }
+  private get retired() {
+    return this.legacy && this.env.MATCHMAKING_ENABLED === "true";
+  }
   private get ratingPolicy() {
-    return ratedMatchmakingPolicy(this.game);
+    return this.legacy ? undefined : ratedMatchmakingPolicy(this.game);
   }
   private get queueRules() {
-    return matchmakingQueues[this.game];
+    return this.legacy ? rules : matchmakingQueues[this.game];
+  }
+  private orderWaits(state: State) {
+    state.waiting.sort(
+      this.game === "four-reversi" && !this.legacy
+        ? (a, b) => a.joinedAtMs - b.joinedAtMs || a.operationId.localeCompare(b.operationId)
+        : compareWaits,
+    );
   }
   private load(): State {
     return (
@@ -120,7 +138,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(Date.now() + 5000);
       const state = this.load();
       const result = await run(state);
-      if (this.ratingPolicy) state.waiting.sort(compareWaits);
+      if (this.ratingPolicy) this.orderWaits(state);
       this.save(state);
       const now = Date.now();
       const deadlines = state.waiting.map((w) => w.expiresAtMs);
@@ -229,6 +247,9 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             joinedAtMs: player.joinedAtMs,
             sequence: player.sequence,
             ...(player.rating === undefined ? {} : { rating: player.rating }),
+            ...(player.sigma === undefined
+              ? {}
+              : { sigma: player.sigma, ratedGames: player.ratedGames }),
             expiresAtMs: player.expiresAtMs,
             retryAtMs: player.retryAtMs,
           });
@@ -402,6 +423,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         );
       }
     }
+    if (this.retired) {
+      for (const wait of state.waiting) await this.forget(wait);
+      state.waiting = [];
+      return;
+    }
     const validRows = state.waiting.length
       ? await this.env.APP_DB.prepare(
           `SELECT w.operation_id AS operationId FROM matchmaking_wait_reservations w JOIN user u ON u.id=w.account_id WHERE w.queue_key=? AND w.lease_until_ms>? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges m WHERE m.guest_id=u.id)`,
@@ -420,7 +446,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
       }
     }
-    state.waiting.sort(compareWaits);
+    this.orderWaits(state);
     let remaining = 4;
     while (remaining-- > 0) {
       const eligible = state.waiting.filter((w) => (w.retryAtMs ?? 0) <= Date.now());
@@ -429,7 +455,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       const now = Date.now();
       const elapsed = now - oldest.joinedAtMs;
       let selected: Wait[];
-      let rating: ShogiRatingSource | undefined;
+      let rating: QueueRatingSource | undefined;
       const policy = this.ratingPolicy;
       if (policy) {
         const match = policy.select(eligible, elapsed);
@@ -533,7 +559,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         roomId: group.roomId,
         instanceId: group.instanceId,
         expiresAtMs: group.expiresAtMs,
-        ...(group.rating ? { opponent: group.rating.kind } : {}),
+        ...(group.rating ? { opponent: ratingOpponentKind(group.rating) } : {}),
         membership: {
           playerId: player.admission.playerId,
           role: group.players[0]?.accountId === accountId ? "host" : "player",
@@ -554,6 +580,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         return current.operationId === operationId && current.controllerId === controllerId
           ? { ok: true as const, state: current }
           : { ok: false as const, message: "別のタブやルームで対局または待機中です。" };
+      if (this.retired)
+        return { ok: false as const, message: "旧ランダムマッチの受付は終了しました。" };
       // 終了済みの同じ操作を遅延再送しても、新しい待機を作りません。
       if (this.ctx.storage.kv.get(`ended:${operationId}`) || !(await this.profile(accountId)))
         return {
@@ -572,13 +600,21 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       };
       const policy = this.ratingPolicy;
       try {
-        const results = await this.env.APP_DB.batch<{ rating_after: number }>([
+        const results = await this.env.APP_DB.batch<{
+          rating_after: number;
+          sigma_after?: number;
+          rated_games: number;
+        }>([
           this.env.APP_DB.prepare(
             "DELETE FROM tournament_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
           ).bind(accountId, Date.now()),
           this.env.APP_DB.prepare(
-            "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
-          ).bind(accountId, Date.now()),
+            "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND match_operation_id IS NULL AND (lease_until_ms<=? OR queue_key=?)",
+          ).bind(
+            accountId,
+            Date.now(),
+            !this.legacy && this.game === "four-reversi" ? rules.key : "",
+          ),
           this.env.APP_DB.prepare(
             `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
             SELECT ?,?,?,?${policy ? ` WHERE NOT EXISTS (SELECT 1 FROM ${policy.store.pendingTable} WHERE account_id=?)` : ""}`,
@@ -596,7 +632,14 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             ok: false as const,
             message: "前局のレート結果を保存中です。少し待ってから再試行してください。",
           };
-        if (policy) wait.rating = results[3]?.results[0]?.rating_after ?? policy.initialRating;
+        if (policy) {
+          const latest = results[3]?.results[0];
+          wait.rating = latest?.rating_after ?? policy.initialRating;
+          if (policy.initialSigma !== undefined) {
+            wait.sigma = latest?.sigma_after ?? policy.initialSigma;
+            wait.ratedGames = latest?.rated_games ?? 0;
+          }
+        }
       } catch {
         return {
           ok: false as const,
@@ -625,7 +668,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       )
         return { ok: false as const, message: "待機の操作元が変わったか、有効期限が切れました。" };
       if (action === "cancel") {
-        if (this.ratingPolicy && (group?.phase === "matched" || group?.phase === "playing"))
+        if (
+          (this.ratingPolicy || this.retired) &&
+          (group?.phase === "matched" || group?.phase === "playing")
+        )
           return {
             ok: true as const,
             state: await this.snapshot(state, accountId, input.controllerId),

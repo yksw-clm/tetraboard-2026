@@ -1,5 +1,6 @@
 import { matchmakingQueues, matchmakingRules } from "@tetraboard/protocol";
-import { ratedMatchmakingPolicy } from "../matchmaking/ratedMatchmaking";
+import { calibratedFourReversiProfile } from "../matchmaking/fourReversiSelection";
+import { ratedMatchmakingPolicy, ratingOpponentKind } from "../matchmaking/ratedMatchmaking";
 import { namedCpuProfile } from "../matchmaking/cpuProfiles";
 import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchmaking/coordinator";
 import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
@@ -2449,9 +2450,11 @@ export class GameRoom extends DurableObject<Env> {
     await this.reconcileDeadlines();
     return this.ctx.blockConcurrencyWhile(async () => {
       const rating = input.rating;
-      const game = input.game ?? (rating ? "shogi" : "four-reversi");
-      const rules = matchmakingQueues[game];
-      const policy = ratedMatchmakingPolicy(game);
+      const game =
+        input.game ?? (rating && rating.kind !== "four-reversi" ? "shogi" : "four-reversi");
+      const legacy = game === "four-reversi" && !rating;
+      const rules = legacy ? matchmakingRules : matchmakingQueues[game];
+      const policy = legacy ? undefined : ratedMatchmakingPolicy(game);
       if (
         input.roomId !== this.ctx.id.name ||
         input.players.length < 1 ||
@@ -2518,7 +2521,11 @@ export class GameRoom extends DurableObject<Env> {
                 timeControl: rules.timeControl,
               },
             });
-      const profile = game === "shogi" ? undefined : namedCpuProfile("lv3-v1");
+      const profile = legacy
+        ? namedCpuProfile("lv3-v1")
+        : rating?.kind === "four-reversi" && rating.cpu
+          ? calibratedFourReversiProfile(rating.cpu)
+          : undefined;
       const seat = game === "shogi" ? { side: null } : { color: null };
       const cpuCount = rules.seats - input.players.length;
       const room = roomSchema.parse({
@@ -2527,7 +2534,11 @@ export class GameRoom extends DurableObject<Env> {
         matchmaking: {
           id: input.matchId,
           preparedAtMs: input.preparedAtMs,
-          ...(rating ? { opponent: rating.kind } : {}),
+          ...(rating?.kind === "four-reversi"
+            ? { rated: true }
+            : rating
+              ? { opponent: ratingOpponentKind(rating) }
+              : {}),
         },
         players: [
           ...input.players.map(({ admission: a }) => ({
@@ -2760,10 +2771,14 @@ export class GameRoom extends DurableObject<Env> {
       }
       if (Date.now() < deadline) return;
       const started =
-        isShogiRoom(room) && reservation.rating
+        isShogiRoom(room) && reservation.rating && reservation.rating.kind !== "four-reversi"
           ? this.standardShogiProgress.start(room, reservation.rating)
           : isFourReversiRoom(room)
-            ? this.reversiProgress.start(room)
+            ? this.reversiProgress.start(
+                room,
+                undefined,
+                reservation.rating?.kind === "four-reversi" ? reservation.rating : undefined,
+              )
             : null;
       if (!started) throw new Error("Invalid matchmaking room");
       this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {

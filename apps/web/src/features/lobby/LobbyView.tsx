@@ -26,7 +26,6 @@ import { FeedbackEntry } from "../feedback/FeedbackEntry";
 import { useLocation, useNavigate } from "react-router";
 import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
-import { matchmakingPath } from "../matchmaking/paths";
 
 type Props = {
   registrationDraft?: RegistrationEntryDraft;
@@ -108,23 +107,18 @@ export function LobbyView(props: Props) {
     theme: gameThemes[props.game],
   };
   const ratedMatch = isRatedMatchmakingGame(props.game);
-  const supportsMatchmaking = props.game === "four-reversi" || ratedMatch;
 
   function openMatchmaking(): void {
-    if (ratedMatch) {
-      const search = new URLSearchParams(location.search);
-      search.set("matchmaking", "1");
-      void navigate(
-        {
-          pathname: location.pathname,
-          search: search.toString(),
-          hash: location.hash,
-        },
-        { state: { matchmakingFromLobby: true } },
-      );
-    } else {
-      void navigate(matchmakingPath(props.game));
-    }
+    const search = new URLSearchParams(location.search);
+    search.set("matchmaking", "1");
+    void navigate(
+      {
+        pathname: location.pathname,
+        search: search.toString(),
+        hash: location.hash,
+      },
+      { state: { matchmakingFromLobby: true } },
+    );
   }
 
   function openEntry(
@@ -199,7 +193,7 @@ export function LobbyView(props: Props) {
             </div>
             <section
               aria-label="対局を始める"
-              className={`grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 ${supportsMatchmaking ? "" : "[@media(max-width:400px)]:grid-cols-1"}`}
+              className={`grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 ${ratedMatch ? "" : "[@media(max-width:400px)]:grid-cols-1"}`}
             >
               <AppButton
                 className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
@@ -216,10 +210,10 @@ export function LobbyView(props: Props) {
                 <AppIcon name="plus" />
                 公開ルームを作る
               </AppButton>
-              {supportsMatchmaking && (
+              {ratedMatch && (
                 <AppButton className="col-span-full w-full min-h-12" onPress={openMatchmaking}>
                   <AppIcon name="shuffle" />
-                  {ratedMatch ? "レート戦" : "ランダムマッチ"}
+                  レート戦
                 </AppButton>
               )}
             </section>

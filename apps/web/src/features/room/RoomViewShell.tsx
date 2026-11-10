@@ -48,6 +48,7 @@ import {
   matchmakingQueues,
   tournamentRules,
   type RatingResult,
+  type FourReversiRatingResult,
 } from "@tetraboard/protocol";
 import { usePlayerProfiles } from "../players/usePlayerProfiles";
 
@@ -71,7 +72,9 @@ export function RoomViewShell({
   invited: boolean;
   board: ReactNode;
   replayCard: ReactNode;
-  result: ReactNode | ((rating: RatingResult | null | undefined) => ReactNode);
+  result:
+    | ReactNode
+    | ((rating: RatingResult | FourReversiRatingResult | null | undefined) => ReactNode);
   selfEliminated: boolean;
   onRotate: () => void;
   turnActions?: ReactNode;
@@ -110,7 +113,11 @@ export function RoomViewShell({
   const { room, membership } = session;
   const game = room.settings.game;
   const ratedGame = isRatedMatchmakingGame(game) ? game : undefined;
-  const ratedMatch = ratedGame && "matchmaking" in room ? room.matchmaking : undefined;
+  const matchmaking = "matchmaking" in room ? room.matchmaking : undefined;
+  const ratedMatch =
+    ratedGame === "shogi" || (matchmaking && "rated" in matchmaking && matchmaking.rated)
+      ? matchmaking
+      : undefined;
   const ratedTime = ratedGame ? matchmakingQueues[ratedGame].timeControl : undefined;
   const resultMatchId = registrationMatchId(room);
   const participated = room.lastRound?.players.some((player) => player.id === membership?.playerId);
