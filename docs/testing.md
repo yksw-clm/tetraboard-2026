@@ -52,6 +52,8 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 ## ランダムマッチの確認
 
+前局の観戦案内はWorkerの `matchmaking.test.ts` とWebの `test-dom/matchmaking.test.tsx` で確認します。実D1・DOでは四人将棋・四人リバーシの開始・脱落退室・全4ゲームの検索拒否・終局保存後の解除、2人ゲームの保存待ち、古い待機者の除外、DO再起動、旧予約の参照復旧、別人への非公開、部屋世代の不一致、`previousMatch=1` の有無を検証します。Webでは各ダイアログのカード・観戦リンク・保存待ち・照会失敗と再試行・3秒更新・自動再検索しないことを確認します。実ブラウザとスマートフォン実機の見え方は手動確認です。Worker・protocol・D1の変更のため、PRではFull CIを確認します。
+
 採用仕様と公開条件は[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
 
 `packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席のレート戦を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存・認定局数の更新まで確認します。このテストはAI workspaceから全体check・Full CIに含まれます。

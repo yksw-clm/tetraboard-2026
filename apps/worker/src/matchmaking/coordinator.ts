@@ -9,6 +9,11 @@ import {
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
 import {
+  noPendingRatedMatch,
+  pendingRatedGames,
+  recoverableFourReversiPending,
+} from "./previousMatch";
+import {
   ratedMatchmakingPolicy,
   ratingOpponentKind,
   type QueueRatingSource,
@@ -424,6 +429,21 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         });
   }
   private async tick(state: State) {
+    if (this.ratingPolicy && state.waiting.length) {
+      const pending = await this.env.APP_DB.prepare(
+        pendingRatedGames
+          .map(
+            ({ table }) =>
+              `SELECT account_id FROM ${table} WHERE account_id IN (SELECT value FROM json_each(?1))`,
+          )
+          .join(" UNION ALL "),
+      )
+        .bind(JSON.stringify(state.waiting.map((wait) => wait.accountId)))
+        .all<{ account_id: string }>();
+      const blocked = new Set(pending.results.map((row) => row.account_id));
+      for (const wait of state.waiting) if (blocked.has(wait.accountId)) await this.forget(wait);
+      state.waiting = state.waiting.filter((wait) => !blocked.has(wait.accountId));
+    }
     for (const group of [...state.groups]) {
       if (group.phase === "playing") {
         if (group.players.some((p) => p.credentialPending))
@@ -618,7 +638,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         .first();
       if (wait.expiresAtMs <= Date.now() || !lease) return { status: "idle", ...summary };
     }
-    if (group?.phase === "playing") {
+    if (group && (group.phase === "playing" || group.phase === "matched")) {
       const seat = await this.env.APP_DB.prepare(
         "SELECT 1 FROM account_room_seats WHERE account_id=? AND operation_id=?",
       )
@@ -628,7 +648,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         )
         .first();
       if (!seat) {
-        if (readonly) return { status: "idle", ...summary };
+        if (readonly || group.phase !== "playing") return { status: "idle", ...summary };
         group.players.find((p) => p.accountId === accountId)!.released = true;
         this.ctx.storage.kv.put(`ended:${wait.operationId}`, true);
         if (group.players.every((p) => p.released))
@@ -675,6 +695,13 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
   async status(accountId: string | null, controllerId?: string, includeWaitingInfo = true) {
     return this.snapshot(this.load(), accountId, controllerId, true, includeWaitingInfo);
   }
+  async previousRoom(accountId: string, matchId: string) {
+    const group = this.load().groups.find(
+      (group) =>
+        group.id === matchId && group.players.some((player) => player.accountId === accountId),
+    );
+    return group ? { roomId: group.roomId, instanceId: group.instanceId } : null;
+  }
   async join(accountId: string, operationId: string, controllerId: string) {
     return this.serial(async (state) => {
       await this.tick(state);
@@ -718,22 +745,18 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             Date.now(),
             !this.legacy && this.game === "four-reversi" ? rules.key : "",
           ),
-          ...(policy && this.game === "four-reversi"
+          ...(policy
             ? [
                 // 旧版でCPUだけになって閉鎖した局の予約を、再参加時に解放します。
                 this.env.APP_DB.prepare(
                   `DELETE FROM four_reversi_rating_pending AS pending WHERE account_id=?
-                  AND EXISTS (
-                    SELECT 1 FROM analytics_matches a WHERE a.id=pending.match_id
-                      AND a.game='four-reversi' AND a.status='abandoned' AND a.cpu_count>0
-                  )
-                  AND NOT EXISTS (SELECT 1 FROM matches WHERE id=pending.match_id)`,
+                  AND ${recoverableFourReversiPending}`,
                 ).bind(accountId),
               ]
             : []),
           this.env.APP_DB.prepare(
             `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
-            SELECT ?,?,?,?${policy ? ` WHERE NOT EXISTS (SELECT 1 FROM ${policy.store.pendingTable} WHERE account_id=?)` : ""}`,
+            SELECT ?,?,?,?${policy ? ` WHERE ${noPendingRatedMatch}` : ""}`,
           ).bind(
             accountId,
             state.key,
