@@ -44,11 +44,15 @@ HTTP統合は、コンテナ・通常のserveと同じrelease版Rust Serviceを�
 
 ## ローカルAI解析widgetの確認
 
-`bun run --cwd apps/local-ai-widget test`は配布物をビルドし、Bun＋happy-domで受信監視、局面識別・非同期応答、盤面の座標照合、service workerの権限・タブ排他・再生成、manifestを確認します。WebSocketの引数・型・例外、fetchの元Promiseと本文保持、名前・チャット・tokenの除外を検証します。停止・着手・手番外の脱落・次局・切断・本人変更・遷移・非表示・復帰、遅延／不正応答と再試行も対象です。既存の全体check・Full CIへworkspace単位で含めます。
+`bun run --cwd apps/local-ai-widget test`は配布物をビルドし、Bun＋happy-domで両ゲームの受信監視、局面識別、本人手番限定、継続進捗、停止・手動再開、遅延／不正応答の破棄を確認します。時計更新では探索を作り直しません。WebSocketの引数・型・例外、fetchの元Promiseと本文、名前・チャット・tokenの除外を維持します。切断・脱落・次局・本人変更・遷移・非表示・復帰、タブ排他とservice worker再生成後の進捗・取消も対象です。
 
-RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analysis-baseline.json`にある対象コミット・固定局面・seed・連続選択の一致を確認します。期待値は実行時に再生成しません。ローカルAPIでは認証、版・profile・予算指定の拒否、合法候補、脱落、取消の先着・重複・実行中停止・枠解放、公開routerに解析経路がないことを検証します。Lv6とLv5のprofile・hash・実効予算、候補切替中の遅延応答、Lv5への復帰、相手手番の手動解析と停止も確認します。`lv6Statistics.test.ts` は同席の同一profileを焦点席へ合算しない集計を確認します。予備対局は通常checkへ含めず、`bun run --cwd packages/ai study:lv6:preliminary` で明示的に実行します。
+`replay.test.ts`は将棋の100件ページ、差分取得、局とrevision、欠落・競合・中断と部分キャッシュの破棄を確認します。`overlay.test.ts`は両盤面の照合と将棋の矢印・回転・番号の集約・駒打ち・未確定盤面の非表示を確認します。座標はテスト内で制御し、実寸法・画像デコード・ネイティブ操作を自動検証へ含めません。
 
-実ブラウザの単発確認は通常・CPU・大会の参加者画面、候補位置、クリック透過、スクロール・ズーム・画面寸法変更、widgetの移動・折り畳み、AI停止、拡張無効化を対象とします。実ブラウザの確認環境と実施範囲をPRへ記録し、本番大会を未確認のまま成功扱いしません。画面寸法・実際の入力は自動検証へ追加せず、ブラウザ起動テスト・workflowも追加しません。
+Rustは継続MCTSの累積試行と保持ノード上限、将棋の完了深さ・合法候補・協調停止を確認します。`fixtures/local-shogi-positions-v1.json`は既存固定棋譜の指定位置をTypeScriptで再生した受信局面で、駒打ち・成り・脱落後・千日手直前をRustの再生結果と照合します。期待値をテスト時に再生成しません。v2 APIは開始・進捗・共用実行枠・先着／重複取消・停止と枠解放、版・hash・履歴と局面不正、15秒の失効、公開routerへの非露出を確認します。旧v1と改修前の`local-analysis-baseline.json`の選択手・探索診断・乱数列の回帰も維持します。
+
+Workerの`fourShogiRoom.test.ts`は進行中棋譜のHTTP取得、revision競合、ページ境界・末尾差分、局と部屋の世代、終局・ダブルスの対象外、氏名・tokenの非公開を確認します。既存の四人将棋固定棋譜とRust／TypeScript比較で三人攻撃・成り・駒打ち・千日手・脱落を確認します。
+
+実Chromeでの矢印・番号の位置、回転・ズーム・リサイズ、通常着手・成り選択・駒打ち、停止・再読み込みは手動確認し、未実施ならPRへ記載します。全体check・Full CIと必須の本番／開発build・Worker dry-runを行います。過去のLv6大量対局・速度測定を通常checkへ追加せず、測定結果は対象コミット・当時の探索条件とともに保持します。
 
 ## ランダムマッチの確認
 

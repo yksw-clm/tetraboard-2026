@@ -76,11 +76,15 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 ## ローカルAI解析widgetの実装
 
-仕様は [README](../README.md#ローカルai解析widget)、導入は [拡張の案内](../apps/local-ai-widget/README.md)、ローカルAPIは [AI案内](../packages/ai/README.md#ローカル解析サービス) を参照します。`apps/local-ai-widget`は独立Bun workspaceで、ビルド成果物を本番Web資産へ含めません。Manifest V3のMAIN側bridgeが既存WebSocket・fetchの受信を監視し、ISOLATED側のcontroller・widgetが局面の世代管理と盤上表示、service workerがloopback通信とタブ排他を担当します。秘密値は拡張の信頼された保存領域へ置き、ページ・content scriptへ返しません。
+仕様は[README](../README.md#ローカルai解析widget)、導入は[拡張の案内](../apps/local-ai-widget/README.md)、APIは[AI案内](../packages/ai/README.md#ローカル解析サービス)を参照します。`apps/local-ai-widget`は独立Bun workspaceで、本番Web資産へ含めません。MAIN側bridgeは既存WebSocket・fetchの受信を監視し、ISOLATED側controllerが局面・棋譜・探索の世代を管理します。service workerがloopback通信とタブ排他を担当し、tokenは信頼された保存領域から外へ返しません。継続探索の要求IDはsession storageへ保持し、worker再生成後も取得・取消できます。
 
-四人リバーシの進行中RoomにはroundIdがないため、接続先・部屋ID・instanceId・接続世代・局の世代・本人と色対応・ルール状態・手番開始時刻で解析対象を識別します。時計残時間・チャット・更新時刻だけでは再解析しません。古い受信時刻のsnapshotも破棄します。局面のSHA-256と要求IDを応答・描画前に照合します。DOMは既存aria-labelの座標と石色で64マスを照合し、位置取得に失敗した場合は番号表示を止めます。復帰・遷移はbridgeの最新確定状態を再要求します。
+四人リバーシは接続先・部屋ID・instanceId・接続と局の世代・本人と色対応・ルール状態・手番開始時刻で識別します。将棋には局ID・positionRevisionも含めます。時計残時間・チャットだけでは再探索せず、古い受信や応答を破棄します。将棋の棋譜は`replay.ts`で完全取得済みの末尾から差分取得し、各ページのrevisionと連続性を照合します。
 
-`packages/ai`のMCTSは通常選択経路を維持したまま任意の根候補収集を追加し、server crateの別バイナリにローカルルーターを置きます。既存Serviceのrouterへ解析APIを追加しません。ローカル専用Lv6は `packages/ai/configs/local-analysis-profiles-v1.json` に定義し、agentsの `local_analysis_profiles` と拡張の `profiles.ts` から読みます。公開Lv1〜5の一覧は維持し、要求・応答でprofile・設定hash・実効予算を照合します。widgetの `selectProfile` は世代を更新して結果を破棄し、本人手番の自動解析を再開します。[Lv6の採用と測定の記録](../packages/ai/docs/lv6-candidate.md)を参照してください。固定fixtureの改修前コミットに対する選択手・探索診断・連続呼び出しを回帰確認します。検証分担は [テスト方針](testing.md#ローカルai解析widgetの確認) を参照します。
+Workerの`analysis-replay`は進行中シングルスの初期ルール設定とイベントだけを100件ずつ返します。既存の公開ルーム・棋譜と同じ読取範囲とし、参加者情報や認証値を追加しません。各ページでinstanceId・局ID・revisionを再確認し、revision不一致は409です。対局状態の保存形式を変更しません。将棋対応にはこのAPIを提供するWorkerが必要です。
+
+ローカルv2 APIは継続探索を1件保持し、進捗取得で15秒の生存確認を更新します。MCTSは木と乱数状態を、将棋は探索中の履歴・根候補・反復深化を保持します。将棋は深さごとの完了結果を別のsnapshotへ確定してから公開します。旧v1 APIと公開CPUは従来の探索予算を維持し、改修前の固定fixtureで選択手・診断・連続呼び出しを確認します。
+
+盤面はリバーシ64マス・将棋81マスの座標と石／駒を照合します。将棋は各マスの現在の描画座標からSVGの矢印を引くため回転にも追従し、駒打ちは移動先番号で示します。未確定盤面や不一致では表示を消します。定期取得ではwidgetのボタンを作り直さず、フォーカスを保ちます。検証分担は[テスト方針](testing.md#ローカルai解析widgetの確認)を参照します。
 
 ## レート戦の開始演出
 

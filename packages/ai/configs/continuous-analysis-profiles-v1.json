@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "profiles": [
+    {
+      "game": "four-reversi",
+      "id": "four-reversi-continuous-v1",
+      "hash": "a5af5fa2b28ff45b79d0c9cc4bf8672fe4f17ec58ee45153b0e7b6acbfa223fb",
+      "settings": {
+        "algorithm": "mcts",
+        "base": "lv6-candidate-a-v1",
+        "tree_limit": 65536,
+        "seed": 0
+      }
+    },
+    {
+      "game": "four-shogi",
+      "id": "four-shogi-continuous-v1",
+      "hash": "05ef34b969da9203f0cde5ec4f877a9281b8410149c47ff27dc8312ab7f77caf",
+      "settings": {
+        "algorithm": "lv3",
+        "continuous": true,
+        "completed_depth_only": true
+      }
+    }
+  ]
+}

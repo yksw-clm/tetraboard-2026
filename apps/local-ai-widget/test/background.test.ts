@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createBackground } from "../src/backgroundService";
-import { requestFor, responseFor, settle } from "./fixtures";
+import { requestFor, responseFor, continuousRequestFor, progressFor, settle } from "./fixtures";
 function fixture() {
   const saved: Record<string, unknown> = { token: "local-test-token-with-at-least-32-characters" },
     session: Record<string, unknown> = {},
@@ -34,16 +34,28 @@ function fixture() {
     },
   } as unknown as typeof chrome;
   let hold = false;
+  let activeRequest: ReturnType<typeof continuousRequestFor> | null = null;
   const responses: ((r: Response) => void)[] = [];
   const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
     requests.push({ url: String(url), init });
     if (init?.method === "POST") {
       if (hold) return new Promise<Response>((resolve) => responses.push(resolve));
-      return Response.json(responseFor(JSON.parse(String(init.body))));
+      const request = JSON.parse(String(init.body));
+      if (request.api_version === 2) {
+        activeRequest = request;
+        return Response.json(progressFor(request, 0), { status: 202 });
+      }
+      return Response.json(responseFor(request));
     }
+    if (String(url).includes("/v2/analysis/") && init?.method !== "DELETE" && activeRequest)
+      return Response.json(progressFor(activeRequest));
     return init?.method === "DELETE"
       ? new Response(null, { status: 204 })
-      : Response.json({ status: "ok" });
+      : Response.json({
+          status: "ok",
+          analysis_versions: [1, 2],
+          games: ["four-reversi", "four-shogi"],
+        });
   }) as typeof fetch;
   return {
     api,
@@ -118,4 +130,34 @@ test("service workerを再生成してもactiveTabを維持し、別タブを拒
   expect(await restarted({ type: "health" }, sender(1))).toMatchObject({ ok: true });
   await restarted({ type: "disable" }, sender(1));
   expect(f.session.activeTabId).toBeUndefined();
+});
+
+test("継続探索はworker再生成後も進捗取得・取消でき、別タブへ引き継ぐ", async () => {
+  const f = fixture();
+  let handle = f.create();
+  await handle({ type: "enable" }, sender(1));
+  const request = continuousRequestFor();
+  expect(await handle({ type: "start", request }, sender(1))).toMatchObject({ ok: true });
+  handle = f.create();
+  expect(await handle({ type: "poll", requestId: request.request_id }, sender(1))).toMatchObject({
+    ok: true,
+  });
+  await expect(
+    handle({ type: "poll", requestId: request.request_id }, sender(2)),
+  ).rejects.toThrow();
+  await handle({ type: "enable" }, sender(2));
+  expect(f.requests.at(-1)?.url).toEndWith(`/v2/analysis/${request.request_id}`);
+  expect(f.requests.at(-1)?.init?.method).toBe("DELETE");
+  expect(f.session.activeAnalysis).toBeUndefined();
+  expect(f.revoked).toEqual([1]);
+  expect(JSON.stringify(f.session)).not.toContain("local-test-token");
+});
+
+test("旧サービスのhealthには更新案内を返す", async () => {
+  const f = fixture();
+  const handle = createBackground(f.api, async () =>
+    Response.json({ status: "ok", api_version: 1 }),
+  );
+  await handle({ type: "enable" }, sender(1));
+  await expect(handle({ type: "health" }, sender(1))).rejects.toThrow("更新が必要");
 });

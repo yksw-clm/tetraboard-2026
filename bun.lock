@@ -48,6 +48,7 @@
         "zod": "^4.0.0",
       },
       "devDependencies": {
+        "@tetraboard/four-shogi": "workspace:*",
         "@types/chrome": "^0.1.32",
         "typescript": "~6.0.2",
       },

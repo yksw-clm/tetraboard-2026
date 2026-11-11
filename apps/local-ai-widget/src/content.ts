@@ -1,7 +1,14 @@
-import { channel, observationSchema, roomIdFromUrl, eligible, colorNames } from "./model";
+import {
+  channel,
+  observationSchema,
+  roomIdFromUrl,
+  eligible,
+  colorNames,
+  sideNames,
+} from "./model";
 import { paintOverlay } from "./overlay";
 import { WidgetController, type Reply } from "./controller";
-import { localProfileIds, profileNames } from "./profiles";
+import { shogiCandidateLabel } from "./presentation";
 let collapsed = false;
 let overlayError = "";
 const controller = new WidgetController(
@@ -47,69 +54,44 @@ fold.addEventListener("click", () => {
   collapsed = !collapsed;
   render();
 });
-function button(text: string, action: () => void, disabled = false) {
-  const b = document.createElement("button");
-  b.textContent = text;
-  b.disabled = disabled;
-  b.addEventListener("click", action);
-  section.append(b);
-}
-function paragraph(text: string) {
-  const p = document.createElement("p");
-  p.textContent = text;
-  section.append(p);
-  return p;
-}
+const enableButton = document.createElement("button"),
+  analyzeButton = document.createElement("button"),
+  stopButton = document.createElement("button"),
+  details = document.createElement("div");
+enableButton.addEventListener("click", () => {
+  void controller.toggle();
+});
+analyzeButton.textContent = "解析・再解析";
+analyzeButton.addEventListener("click", () => {
+  void controller.analyze();
+});
+stopButton.textContent = "停止";
+stopButton.addEventListener("click", () => {
+  controller.stop();
+});
+section.append(enableButton, analyzeButton, stopButton, details);
 async function send(message: unknown): Promise<Reply> {
   const response = await chrome.runtime.sendMessage(message);
   if (!response || typeof response.ok !== "boolean")
     throw Error("拡張への接続が切れました。ページを再読み込みしてください");
   return response;
 }
+function paragraph(text: string) {
+  const p = document.createElement("p");
+  p.textContent = text;
+  details.append(p);
+  return p;
+}
 function render() {
   const { enabled, observation, busy, result, error } = controller;
   host.hidden = !roomIdFromUrl(location.href);
   fold.textContent = collapsed ? "開く" : "折り畳む";
   section.hidden = collapsed;
-  section.replaceChildren();
-  const label = document.createElement("label"),
-    select = document.createElement("select");
-  label.textContent = "解析AI ";
-  for (const id of localProfileIds) {
-    const option = document.createElement("option");
-    option.value = id;
-    option.textContent = profileNames[id];
-    select.append(option);
-  }
-  select.value = controller.profileId;
-  select.disabled = controller.switching;
-  select.addEventListener("change", () => {
-    const id = localProfileIds.find((id) => id === select.value);
-    if (id) controller.selectProfile(id);
-  });
-  label.append(select);
-  section.append(label, document.createElement("br"));
-  button(
-    enabled ? "無効にする" : "有効にする",
-    () => {
-      void controller.toggle();
-    },
-    controller.switching,
-  );
-  button(
-    "解析・再解析",
-    () => {
-      void controller.analyze();
-    },
-    !controller.canAnalyze || busy,
-  );
-  button(
-    "停止",
-    () => {
-      controller.stop();
-    },
-    !busy,
-  );
+  enableButton.textContent = enabled ? "無効にする" : "有効にする";
+  enableButton.disabled = controller.switching;
+  analyzeButton.disabled = !controller.canAnalyze || busy;
+  stopButton.disabled = !busy;
+  details.replaceChildren();
   if (!enabled) {
     paragraph(error || "このタブでは無効です");
     return;
@@ -117,46 +99,52 @@ function render() {
   if (error) paragraph(error).setAttribute("role", "status");
   if (overlayError) paragraph(overlayError).setAttribute("role", "status");
   if (!eligible(observation)) {
-    paragraph("参加中の四人リバーシ・シングルスの受信を待っています");
+    paragraph("参加中の四人リバーシ・四人将棋シングルスの受信を待っています");
     return;
   }
+  const turnName =
+    observation.gameId === "four-reversi"
+      ? colorNames[observation.game.turn]
+      : sideNames[observation.game.turn];
   paragraph(
-    `${profileNames[controller.profileId]} · ${colorNames[observation.game.turn]}の候補手 · ${observation.game.moveNumber}手目`,
+    `${observation.gameId === "four-reversi" ? "四人リバーシ" : "四人将棋"} 継続検討AI · ${turnName}の候補手 · ${observation.game.moveNumber}手目`,
   );
-  if (busy) paragraph("解析中…").setAttribute("role", "status");
-  if (result) {
-    const ol = document.createElement("ol");
+  if (busy) paragraph("検討中… 着手するまで探索を続けます");
+  if (!result) return;
+  const list = document.createElement("ol");
+  if (result.game === "four-reversi") {
     for (const c of result.candidates) {
       const li = document.createElement("li");
       li.textContent = `${"ABCDEFGH"[c.position.x]}${c.position.y + 1} · ${c.visits}回`;
-      ol.append(li);
+      list.append(li);
     }
-    section.append(ol);
+    details.append(list);
     const top = result.candidates[0];
     if (top) {
       paragraph("推奨手後の探索内・単独1位率");
       paragraph(
         top.solo_wins
-          .map(
-            (n, i) =>
-              `${colorNames[(["black", "white", "red", "blue"] as const)[i]]} ${((n / top.visits) * 100).toFixed(1)}%`,
-          )
+          .map((n, i) => `${["黒", "白", "赤", "青"][i]} ${((n / top.visits) * 100).toFixed(1)}%`)
           .join(" / "),
       );
     } else paragraph("評価未取得：完走した探索がありません");
-    const reason = {
-      iteration_limit: "試行上限",
-      node_limit: "着手適用上限",
-      deadline: "時間上限・途中結果",
-      terminal: "終局",
-    }[result.diagnostics.mcts.stop_reason];
+    paragraph(`${result.diagnostics.trials ?? 0}試行 / ${result.diagnostics.nodes ?? 0}着手適用`);
     paragraph(
-      `${result.diagnostics.mcts.trials}試行 / ${result.diagnostics.nodes}着手適用 · ${reason}`,
+      "探索内の参考値です。対人勝率ではありません。同率1位を含まず、合計100%にならない場合があります。",
     );
-    const small = document.createElement("small");
-    small.textContent =
-      "探索内の参考値です。対人勝率ではありません。同率1位を含まず、合計100%にならない場合があります。";
-    section.append(small);
+  } else if (observation.gameId === "four-shogi") {
+    for (const c of result.candidates) {
+      const li = document.createElement("li");
+      li.textContent = `${shogiCandidateLabel(c.action, observation)} · 参考評価 ${c.score.toFixed(0)}`;
+      list.append(li);
+    }
+    details.append(list);
+    paragraph(
+      `完了深さ ${result.diagnostics.completed_depth ?? 0} / ${result.diagnostics.nodes ?? 0}探索局面`,
+    );
+    paragraph(
+      "手番の陣営から見た参考評価です。勝率ではありません。矢印は移動元から移動先、駒打ちは移動先の番号で示します。",
+    );
   }
 }
 function draw() {

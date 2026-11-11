@@ -1,18 +1,30 @@
 import { expect, test } from "bun:test";
 import { applyAction, getLegalMoves } from "@tetraboard/four-reversi";
 import { WidgetController, type Reply } from "../src/controller";
-import { observation, responseFor, settle } from "./fixtures";
-import { type AnalysisRequest } from "../src/model";
+import { observation, progressFor as responseFor, shogiObservation, settle } from "./fixtures";
+import { type ContinuousRequest as AnalysisRequest } from "../src/model";
 function harness() {
   const pending: { request: AnalysisRequest; resolve: (value: Reply) => void }[] = [];
   const messages: unknown[] = [];
+  const callbacks: (() => void)[] = [];
   let changes = 0;
   const controller = new WidgetController(
     async (message) => {
       messages.push(message);
       const m = message as { type: string; request: AnalysisRequest };
-      if (m.type === "analyze")
-        return new Promise<Reply>((resolve) => pending.push({ request: m.request, resolve }));
+      if (m.type === "start") {
+        const data = responseFor(m.request, 0);
+        data.candidates = [];
+        return { ok: true, data };
+      }
+      if (m.type === "poll") {
+        const request = (
+          messages.findLast((v) => (v as { type: string }).type === "start") as {
+            request: AnalysisRequest;
+          }
+        ).request;
+        return new Promise<Reply>((resolve) => pending.push({ request, resolve }));
+      }
       return { ok: true };
     },
     () => {
@@ -20,9 +32,18 @@ function harness() {
     },
     "https://tetraboard.net/rooms/12345",
     async () => "a".repeat(64),
+    async () => [],
+    (callback) => {
+      callbacks.push(callback);
+      return () => {
+        const index = callbacks.indexOf(callback);
+        if (index >= 0) callbacks.splice(index, 1);
+      };
+    },
   );
   return {
     controller,
+    callbacks,
     pending,
     messages,
     get changes() {
@@ -30,40 +51,31 @@ function harness() {
     },
   };
 }
-test("解析中のprofile切替は旧応答を破棄し、Lv5へ戻して同じ局面を再解析できる", async () => {
+test("同じ要求の探索進捗を蓄積表示し、2秒を超えて検討を続ける", async () => {
   const h = harness();
-  expect(h.controller.profileId).toBe("lv5-v1");
   h.controller.observe(observation());
   await h.controller.toggle();
   await settle();
-  h.controller.selectProfile("lv6-candidate-a-v1");
-  await settle();
-  expect(h.pending).toHaveLength(2);
-  expect(h.pending[1].request.profile_id).toBe("lv6-candidate-a-v1");
-  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
-  await settle();
-  expect(h.controller.result).toBeNull();
-  expect(h.controller.busy).toBe(true);
-  h.pending[1].resolve({ ok: true, data: responseFor(h.pending[1].request) });
-  await settle();
-  expect(h.controller.result?.profile_id).toBe("lv6-candidate-a-v1");
-  h.controller.selectProfile("lv5-v1");
-  expect(h.controller.result).toBeNull();
-  await settle();
-  expect(h.pending[2].request.profile_id).toBe("lv5-v1");
-  h.pending[2].resolve({ ok: true, data: responseFor(h.pending[2].request) });
-  await settle();
-  expect(h.controller.result?.profile_id).toBe("lv5-v1");
-  expect(h.messages).toContainEqual({ type: "cancel" });
-  expect(harness().controller.profileId).toBe("lv5-v1");
+  for (let i = 1; i <= 4; i++) {
+    h.pending[i - 1].resolve({ ok: true, data: responseFor(h.pending[i - 1].request, i) });
+    await settle();
+    expect(h.controller.result?.sequence).toBe(i);
+    expect(h.controller.busy).toBe(true);
+    if (i < 4) {
+      h.callbacks.shift()!();
+      await settle();
+    }
+  }
+  expect(h.messages.filter((m) => (m as { type: string }).type === "start")).toHaveLength(1);
+  h.controller.stop();
+  expect(h.callbacks).toHaveLength(0);
 });
-test("相手手番のprofile切替は自動解析せず、停止・非表示中の旧候補も表示しない", async () => {
+test("相手手番は自動解析せず、停止・非表示中の旧候補も表示しない", async () => {
   const h = harness(),
     o = observation();
   o.players[0].color = "white";
   h.controller.observe(o);
   await h.controller.toggle();
-  h.controller.selectProfile("lv6-candidate-a-v1");
   await settle();
   expect(h.pending).toHaveLength(0);
   void h.controller.analyze();
@@ -213,9 +225,85 @@ test("不正な解析応答は参考値として表示しない", async () => {
   await h.controller.toggle();
   await settle();
   const result = responseFor(h.pending[0].request);
+  if (result.game !== "four-reversi") throw Error("fixture");
   result.candidates[0].position = { x: 3, y: 2 };
   h.pending[0].resolve({ ok: true, data: result });
   await settle();
   expect(h.controller.result).toBeNull();
   expect(h.controller.error).toContain("不正");
+});
+
+test("将棋も本人手番で継続検討し、revision変更で旧結果を破棄する", async () => {
+  const h = harness(),
+    o = shogiObservation();
+  h.controller.observe(o);
+  await h.controller.toggle();
+  await settle();
+  expect(h.pending[0].request.input.game).toBe("four-shogi");
+  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
+  await settle();
+  expect(h.controller.result?.game).toBe("four-shogi");
+  h.controller.observe({ ...o, positionRevision: 1, serverNowMs: 101 });
+  expect(h.controller.result).toBeNull();
+  await settle();
+  expect(h.pending).toHaveLength(2);
+  h.controller.stop();
+});
+test("将棋の相手手番は手動だけ、本人脱落後とダブルスは検討しない", async () => {
+  const h = harness(),
+    o = shogiObservation();
+  o.selfId = o.players[1].id;
+  o.connectedPlayerIds = [o.selfId];
+  h.controller.observe(o);
+  await h.controller.toggle();
+  await settle();
+  expect(h.pending).toHaveLength(0);
+  void h.controller.analyze();
+  await settle();
+  expect(h.pending).toHaveLength(1);
+  if (!o.game) throw Error("fixture");
+  o.game.eliminations = [{ side: "west", reason: "resigned", rank: 4, group: 0 }];
+  h.controller.observe(structuredClone(o));
+  expect(h.controller.canAnalyze).toBe(false);
+  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
+  await settle();
+  expect(h.controller.result).toBeNull();
+  const doubles = shogiObservation();
+  doubles.game!.mode = "doubles";
+  h.controller.observe(doubles);
+  expect(h.controller.canAnalyze).toBe(false);
+});
+test("同一探索の遅れたsequenceと停止後の進捗を表示しない", async () => {
+  const h = harness();
+  h.controller.observe(observation());
+  await h.controller.toggle();
+  await settle();
+  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request, 2) });
+  await settle();
+  h.callbacks.shift()!();
+  await settle();
+  h.pending[1].resolve({ ok: true, data: responseFor(h.pending[1].request, 1) });
+  await settle();
+  expect(h.controller.result?.sequence).toBe(2);
+  h.callbacks.shift()!();
+  await settle();
+  h.controller.stop();
+  h.pending[2].resolve({ ok: true, data: responseFor(h.pending[2].request, 3) });
+  await settle();
+  expect(h.controller.result).toBeNull();
+  expect(h.callbacks).toHaveLength(0);
+});
+
+test("将棋の同じ受信時刻でも古いrevisionへ戻らない", async () => {
+  const h = harness(),
+    o = shogiObservation();
+  h.controller.observe({ ...o, positionRevision: 2 });
+  await h.controller.toggle();
+  await settle();
+  h.controller.observe({ ...o, positionRevision: 1 });
+  expect(
+    h.controller.observation?.gameId === "four-shogi" && h.controller.observation.positionRevision,
+  ).toBe(2);
+  expect(h.pending).toHaveLength(1);
+  h.controller.stop();
 });
