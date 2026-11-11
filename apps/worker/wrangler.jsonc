@@ -64,9 +64,19 @@
       "name": "tetraboard-2026",
       "vars": {
         "APP_ORIGIN": "https://tetraboard.net",
-        "MATCHMAKING_ENABLED": "false",
-        "SHOGI_MATCHMAKING_ENABLED": "false"
+        "MATCHMAKING_ENABLED": "true",
+        "SHOGI_MATCHMAKING_ENABLED": "true",
+        "AI_RATED_ONLY": "true",
+        "REVERSI_MATCHMAKING_ENABLED": "true",
+        "FOUR_SHOGI_MATCHMAKING_ENABLED": "true",
+        "AI_SHOGI_ENABLED": "true",
+        "AI_REVERSI_ENABLED": "true",
+        "FOUR_SHOGI_DIAGNOSTICS": "true",
+        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_SERVICE_TIMEOUT_MS": "5000",
+        "AI_FOUR_REVERSI_TIMEOUT_MS": "10000"
       },
+      "services": [{ "binding": "AI_GATEWAY", "service": "tetraboard-ai-prod" }],
       "routes": [
         {
           "pattern": "tetraboard.net",
@@ -144,7 +154,8 @@
         "FOUR_SHOGI_DIAGNOSTICS": "true",
         "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
         "AI_SERVICE_TIMEOUT_MS": "5000",
-        "AI_FOUR_REVERSI_TIMEOUT_MS": "10000"
+        "AI_FOUR_REVERSI_TIMEOUT_MS": "10000",
+        "AI_RATED_ONLY": "false"
       },
       "services": [{ "binding": "AI_GATEWAY", "service": "tetraboard-ai-dev" }],
       "routes": [],

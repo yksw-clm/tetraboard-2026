@@ -54,7 +54,7 @@ Lv3の固定8局面（初期・12・28・44手と、それぞれ白が脱落し�
 
 ## 公開前の容量と費用
 
-2026-11-08の初回導入では、開発専用Service `https://tetraboard-ai-dev.chaossi-lab.workers.dev` にlite・1台上限・10秒アイドル停止を設定しました。現在の構成は[ゲーム別のAIコンテナ](architecture.md#ゲーム別のaiコンテナ)を参照してください。新しいプラン契約や常時起動は追加しません。`MATCHMAKING_ENABLED`はdevelopmentだけtrue、productionとローカルの既定値はfalseです。新規参加は有効なService URL・tokenとフラグの両方がそろう場合だけ許可します。実際の公開にはルールv2／局面版2・Engine 0.2.0・profile hashの照合と、Workerからの接続成功を確認する必要があります。異常応答時の退避は接続成功の代わりに扱いません。
+2026-11-08の初回導入では、開発専用Service `https://tetraboard-ai-dev.chaossi-lab.workers.dev` にlite・1台上限・10秒アイドル停止を設定しました。現在の構成は[ゲーム別のAIコンテナ](architecture.md#ゲーム別のaiコンテナ)を参照してください。新しいプラン契約や常時起動は追加しません。現行の `MATCHMAKING_ENABLED` は開発・本番構成でtrue、ローカルの既定値はfalseです。本番の実有効化は[公開前手順](development.md#本番aiと4ゲーム同時公開)に従います。新規参加は有効なService URL・tokenとフラグの両方がそろう場合だけ許可します。実際の公開にはルールv2／局面版2・Engine 0.2.0・profile hashの照合と、Workerからの接続成功を確認する必要があります。異常応答時の退避は接続成功の代わりに扱いません。
 
 2026-11-08確認の[Containers公式料金](https://developers.cloudflare.com/containers/platform/pricing/)では、Workers Paidの月間枠はメモリ25GiB-hours・CPU375vCPU-minutes・ディスク200GB-hoursです。[liteの割当](https://developers.cloudflare.com/containers/platform/limits/)は256MiB・1/16 vCPU・2GBです。メモリ・ディスクは割当とアイドルを含む稼働時間、CPUは実使用時間で課金されます。独立したサービスごとの追加月額$5ではなく、既存プランの枠を共有します。
 
