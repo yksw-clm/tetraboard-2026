@@ -19,6 +19,26 @@ const value = {
   },
 };
 describe("登録後の復帰情報", () => {
+  test.each(["shogi", "reversi", "four-shogi", "four-reversi"])(
+    "レート戦への復帰は固定のダイアログURLだけを許可する %s",
+    (game) => {
+      const path = `/games/${game}?matchmaking=1`;
+      expect(registrationPath(path)).toBe(path);
+      expect(parseRegistrationReturn({ ...value, path, entry: undefined }, now)?.path).toBe(path);
+      for (const invalid of [
+        `${path}&next=https://example.com`,
+        `${path}&matchmaking=1`,
+        `${path}#other`,
+        `/games/${game}?matchmaking=0`,
+        `/games/${game}?matchmaking=%31`,
+      ])
+        expect(registrationPath(invalid)).toBeNull();
+    },
+  );
+  test("レート非対応ゲームのダイアログを復帰先にしない", () => {
+    for (const game of ["gomoku", "four-gomoku"])
+      expect(registrationPath(`/games/${game}?matchmaking=1`)).toBeNull();
+  });
   test("入力途中の参加情報を保持し、アカウントや参加資格は復元対象に含めない", () => {
     expect(parseRegistrationReturn({ ...value, token: "secret", account: "another" }, now)).toEqual(
       value,

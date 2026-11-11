@@ -4,13 +4,17 @@ import type { RatedMatchmakingGame } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
+import { AppIcon } from "../../shared/ui/AppIcon";
 import { gameThemes } from "../../shared/ui/appTheme";
+import { SocialSignInButtons } from "../account/SocialSignInButtons";
 import { useAccount } from "../account/useAccount";
+import { useSocialSignIn } from "../account/useSocialSignIn";
 import { RatingSummary } from "./RatingSummary";
 import { useMatchmaking } from "./useMatchmaking";
 
 export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame }) {
   const account = useAccount();
+  const signIn = useSocialSignIn();
   const matching = useMatchmaking(game);
   const theme = gameThemes[game];
   const title = `${gameCatalog[game].name}のレート戦`;
@@ -26,7 +30,7 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   if (confirm && !searching) setConfirm(false);
   const blocker = useBlocker(
     ({ historyAction, nextLocation }) =>
-      (searching || entering) &&
+      (searching || entering || signIn.busy) &&
       historyAction === "POP" &&
       (nextLocation.pathname !== location.pathname ||
         new URLSearchParams(nextLocation.search).get("matchmaking") !== "1"),
@@ -90,7 +94,15 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   ]);
 
   const showConfirm = searching && (confirm || blocker.state === "blocked");
+  const showSignIn =
+    data.status === "idle" &&
+    !pending &&
+    data.enabled &&
+    !account.loading &&
+    !account.error &&
+    !identity;
   function requestClose() {
+    if (signIn.busy) return;
     if (searching) setConfirm(true);
     else close();
   }
@@ -101,14 +113,27 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   }
 
   return (
-    <AppDialog title={title} theme={theme} busy={entering} onClose={requestClose}>
+    <AppDialog title={title} theme={theme} busy={entering || signIn.busy} onClose={requestClose}>
       <div className="flex flex-col gap-4">
+        {showSignIn && (
+          <div className="flex flex-col items-center gap-3 py-2 text-center">
+            <span className="grid size-16 place-items-center rounded-full bg-brand/10 text-brand">
+              <AppIcon name="trophy" className="size-9" />
+            </span>
+            <h3 className="m-0 text-xl font-bold leading-relaxed">
+              Google・Discordと連携して、<span className="inline-block">レート戦に挑戦！</span>
+            </h3>
+            <p className="text-sm leading-relaxed text-muted">
+              対局でレートを上げて、<span className="inline-block">ランキング上位を目指そう！</span>
+            </p>
+          </div>
+        )}
         {identity && <RatingSummary key={`${game}:${identity}`} game={game} />}
         {data.status === "idle" && !pending && data.enabled === false && (
           <p role="status">{title}は準備中です。</p>
         )}
         {searching && <p role="status">対戦相手を探しています…</p>}
-        {data.enabled && !assigned && data.waitingCount !== undefined && (
+        {identity && data.enabled && !assigned && data.waitingCount !== undefined && (
           <p className="text-sm">{data.waitingCount}人が待機中</p>
         )}
         {assigned && owned && (
@@ -125,8 +150,25 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
         <div className="flex flex-col gap-2">
           {data.status === "idle" &&
             !pending &&
-            (data.enabled && !account.loading && !account.error && !identity ? (
-              <AppButtonLink to="/login">ログイン・登録</AppButtonLink>
+            (showSignIn ? (
+              <>
+                <SocialSignInButtons
+                  busy={signIn.busy}
+                  pendingProvider={signIn.pendingProvider}
+                  consentBelowButtons
+                  layout="vertical"
+                  onSignIn={(provider) =>
+                    void signIn.start(provider, {
+                      path: `${gameCatalog[game].lobbyPath}?matchmaking=1`,
+                    })
+                  }
+                />
+                {signIn.message && (
+                  <p role="alert" className="text-sm text-danger">
+                    {signIn.message}
+                  </p>
+                )}
+              </>
             ) : data.enabled && identity && !account.user?.profileCompleted ? (
               <AppButtonLink to="/account/setup">プロフィールを設定する</AppButtonLink>
             ) : (
@@ -143,14 +185,18 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
             <AppButton onPress={() => void enter()}>入室する</AppButton>
           )}
           {!showConfirm && matching.error && (
-            <AppButton appearance="secondary" onPress={() => void refresh()}>
+            <AppButton
+              appearance="secondary"
+              isDisabled={signIn.busy}
+              onPress={() => void refresh()}
+            >
               状態を確認する
             </AppButton>
           )}
           <AppButton
             className="w-full"
             appearance="secondary"
-            isDisabled={entering}
+            isDisabled={entering || signIn.busy}
             onPress={requestClose}
           >
             戻る

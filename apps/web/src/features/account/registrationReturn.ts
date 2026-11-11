@@ -1,6 +1,7 @@
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import {
   roomSocketContract,
+  ratedMatchmakingGameIds,
   roomTimeControlSchema,
   type RoomTimeControl,
   type RoomMode,
@@ -42,6 +43,8 @@ export function registrationPath(path: unknown): string | null {
     if (Number.isSafeInteger(id)) return path;
   }
   if (gameIds.some((id) => gameCatalog[id].lobbyPath === path)) return path;
+  if (ratedMatchmakingGameIds.some((id) => `${gameCatalog[id].lobbyPath}?matchmaking=1` === path))
+    return path;
   const match = /^\/rooms\/(\d{5})\?invite=([^&?#]+)$/.exec(path);
   if (!match || !roomSocketContract.query.safeParse({ instanceId: match[2] }).success) return null;
   return path;

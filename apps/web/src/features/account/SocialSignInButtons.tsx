@@ -9,12 +9,14 @@ export function SocialSignInButtons({
   pendingProvider = null,
   adminOnly = false,
   consentBelowButtons = false,
+  layout = "responsive",
   onSignIn,
 }: {
   busy: boolean;
   pendingProvider?: SocialProvider | null;
   adminOnly?: boolean;
   consentBelowButtons?: boolean;
+  layout?: "responsive" | "vertical";
   onSignIn: (provider: SocialProvider) => void;
 }) {
   const consentId = useId();
@@ -23,7 +25,7 @@ export function SocialSignInButtons({
     <div className="@container w-full flex flex-col gap-3">
       {!adminOnly && !consentBelowButtons && <LegalNotice />}
       <div
-        className={`grid gap-2 ${adminOnly ? "grid-cols-1" : "grid-cols-1 @min-[480px]:grid-cols-2"}`}
+        className={`grid gap-2 ${adminOnly || layout === "vertical" ? "grid-cols-1" : "grid-cols-1 @min-[480px]:grid-cols-2"}`}
       >
         <AppButton
           aria-describedby={buttonDescription}
