@@ -25,6 +25,26 @@ pub(super) struct Engine {
 }
 
 impl Engine {
+    pub(super) async fn warmup(&self) -> Result<(), ApiError> {
+        let mut board = vec![b'-'; 64];
+        for (index, stone) in [(28, b'B'), (35, b'B'), (27, b'W'), (36, b'W')] {
+            board[index] = stone;
+        }
+        let position = self
+            .search(&MoveRequest {
+                request_id: String::new(),
+                position_revision: String::new(),
+                level: 1,
+                board: String::from_utf8(board).expect("ASCII board"),
+                black_to_move: true,
+            })
+            .await?;
+        if ![[2, 3], [3, 2], [4, 5], [5, 4]].contains(&position) {
+            return Err(ApiError(StatusCode::SERVICE_UNAVAILABLE, "engine_failed"));
+        }
+        Ok(())
+    }
+
     pub(super) fn new(path: PathBuf) -> Self {
         Self {
             path,

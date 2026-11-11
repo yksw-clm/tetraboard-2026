@@ -16,6 +16,8 @@
 
 ## Rust AI基盤の確認
 
+`test-ai-service/ratedAiWarmup.test.ts` は4ゲームのCPU補充局でAI準備中の開始・時計進行を止め、準備後のカウントダウン、2回失敗後の待機復帰・枠と保存待ちの解放、対人戦で準備を呼ばないことを確認します。Rust Serviceの準備APIは、healthが成功してもエンジン未設定・起動失敗なら503とし、実際に着手生成したセッションを再利用することをプロセス境界で確認します。コンテナイメージの検証と公開確認でも、通常2ゲームの準備API成功後に各採用設定の合法手を照合します。クラウドの休止後・初回起動の実測は開発環境で別途確認します。
+
 フェーズ3は[MCTSと採用基準](../packages/ai/docs/phase3.md)に従い、単独1位報酬・予算中断・再現性・全24席順を検証します。API v2の全5profileでローカルの実Serviceとの完走・復元、不正profile/予算/応答・同じ要求IDでの保存profile変更を確認します。大量対局と速度・CPU測定は専用コマンドで行い、通常のcheckでは低い予算を使います。
 
 フェーズ2はRustのHTTP境界（認証・版・入力・予算・過負荷）と、実プロセス間のService接続を検証します。`packages/ai/test/service.test.ts`が実Rust serverを起動し、明示したloopback URL・検証用tokenで`vitest.ai-service.config.mts`を実行します。`test-ai-service/`のテストは通常Worker分割と重複せず、AI workspaceから全体check・Full CIに含めます。人間1人＋CPU3人の完走、候補保存後の再起動、重複Alarm・古い世代・時計切れ、再試行・不正/過大応答・timeout・未完了要求の復旧を確認します。開発用の個人設定を読みません。承認済みの[クラウド測定](../packages/ai/docs/cloudflare-validation.md)は独立した検証用Workerに対して別途実施し、通常のcheckは外部クラウドへ接続しません。
@@ -38,7 +40,7 @@ HTTP統合は、コンテナ・通常のserveと同じrelease版Rust Serviceを�
 
 ### 開発環境のAI Gateway接続
 
-`apps/worker/test/aiGatewayTransport.test.ts` で、公開URLの設定なしで4ゲームの着手と四人制2ゲームの準備確認をService Bindingへ送ることを確認します。着手のHTTPパス・認証・応答採用と、Bindingの失敗時に公開URLへ再送しないことを検証します。BindingがないローカルHTTP接続は同テストと実Rust Serviceの統合試験で確認します。
+`apps/worker/test/aiGatewayTransport.test.ts` で、公開URLの設定なしで4ゲームの着手と準備確認をService Bindingへ送ることを確認します。着手のHTTPパス・認証・応答採用と、Bindingの失敗時に公開URLへ再送しないことを検証します。BindingがないローカルHTTP接続は同テストと実Rust Serviceの統合試験で確認します。
 
 開発環境への反映後は、4ゲームそれぞれでコンテナ停止状態からCPU補充レート戦を始め、初回と複数回のAI着手、終局、棋譜とレート結果の保存を確認します。通常リバーシは探索レベルのプロファイルを使うか、`Reversi AI response` のログでEgaroucidの候補手を受信したことを確認します。
 

@@ -33,7 +33,7 @@ async function connect(roomId: string, token: string) {
   return socket;
 }
 
-test.each(["four-shogi", "four-reversi"] as const)(
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
   "%sのCPU補充局は入室済みでもAIの準備を待ってから開始する",
   async (game) => {
     const rules = matchmakingQueues[game];
@@ -49,7 +49,7 @@ test.each(["four-shogi", "four-reversi"] as const)(
       return Response.json({ status: "ok" });
     });
     vi.spyOn(console, "info").mockImplementation((entry) => {
-      if (entry?.event === "four_player_ai_warmup_ready") ready = true;
+      if (entry?.event === "rated_ai_warmup_ready") ready = true;
     });
     const { account, controllerId } = await queuePlayer(coordinator);
     let socket: WebSocket | undefined;
@@ -92,10 +92,15 @@ test.each(["four-shogi", "four-reversi"] as const)(
   },
 );
 
-test.each([false, true])(
-  "AI準備が2回失敗すると未入室の参加者も元の待機へ戻り枠が空く（旧予約=%s）",
-  async (legacy) => {
-    const game = "four-shogi";
+test.each([
+  ["four-shogi", false],
+  ["four-shogi", true],
+  ["four-reversi", false],
+  ["shogi", false],
+  ["reversi", false],
+] as const)(
+  "%sのAI準備が2回失敗すると未入室の参加者も元の待機へ戻り枠が空く（旧予約=%s）",
+  async (game, legacy) => {
     const rules = matchmakingQueues[game];
     const coordinator = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
     let now = Date.now() + 60_000;
@@ -108,8 +113,8 @@ test.each([false, true])(
       return new Response(null, { status: 503 });
     });
     vi.spyOn(console, "info").mockImplementation((entry) => {
-      if (entry?.event === "four_player_ai_warmup_failed" && entry.attempt === 1) failedOnce = true;
-      if (entry?.event === "four_player_ai_warmup_unavailable") unavailable = true;
+      if (entry?.event === "rated_ai_warmup_failed" && entry.attempt === 1) failedOnce = true;
+      if (entry?.event === "rated_ai_warmup_unavailable") unavailable = true;
     });
     const { account, controllerId, operationId } = await queuePlayer(coordinator);
     try {
@@ -156,7 +161,9 @@ test.each([false, true])(
         operationId,
       });
       expect(
-        await env.APP_DB.prepare("SELECT 1 FROM four_shogi_rating_pending WHERE account_id=?")
+        await env.APP_DB.prepare(
+          `SELECT 1 FROM ${game.replaceAll("-", "_")}_rating_pending WHERE account_id=?`,
+        )
           .bind(account.id)
           .first(),
       ).toBeNull();
@@ -174,31 +181,33 @@ test.each([false, true])(
   },
 );
 
-test("人間4人の四人将棋レート戦はAIを起動せず開始する", async () => {
-  const game = "four-shogi";
-  const rules = matchmakingQueues[game];
-  const coordinator = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
-  let now = Date.now() + 60_000;
-  vi.spyOn(Date, "now").mockImplementation(() => now);
-  const fetchAi = vi.spyOn(globalThis, "fetch");
-  const users: Awaited<ReturnType<typeof queuePlayer>>[] = [];
-  const sockets: WebSocket[] = [];
-  try {
-    for (let i = 0; i < 4; i++) users.push(await queuePlayer(coordinator));
-    const [first] = users;
-    const { assignment } = await coordinator.status(first!.account.id, first!.controllerId);
-    expect(assignment).toBeDefined();
-    const stub = env.GAME_ROOM.getByName(assignment!.roomId);
-    for (const user of users) {
-      const state = await coordinator.status(user.account.id, user.controllerId);
-      sockets.push(await connect(state.assignment!.roomId, state.assignment!.membership.token));
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
+  "%sの対人レート戦はAIを起動せず開始する",
+  async (game) => {
+    const rules = matchmakingQueues[game];
+    const coordinator = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const fetchAi = vi.spyOn(globalThis, "fetch");
+    const users: Awaited<ReturnType<typeof queuePlayer>>[] = [];
+    const sockets: WebSocket[] = [];
+    try {
+      for (let i = 0; i < rules.seats; i++) users.push(await queuePlayer(coordinator));
+      const [first] = users;
+      const { assignment } = await coordinator.status(first!.account.id, first!.controllerId);
+      expect(assignment).toBeDefined();
+      const stub = env.GAME_ROOM.getByName(assignment!.roomId);
+      for (const user of users) {
+        const state = await coordinator.status(user.account.id, user.controllerId);
+        sockets.push(await connect(state.assignment!.roomId, state.assignment!.membership.token));
+      }
+      now += rules.countdownMs;
+      expect(await stub.getRoom()).toMatchObject({ status: "playing" });
+      expect(fetchAi).not.toHaveBeenCalled();
+    } finally {
+      for (const socket of sockets) socket.close();
+      vi.restoreAllMocks();
+      for (const user of users) await coordinator.leaveAccount(user.account.id);
     }
-    now += rules.countdownMs;
-    expect(await stub.getRoom()).toMatchObject({ status: "playing" });
-    expect(fetchAi).not.toHaveBeenCalled();
-  } finally {
-    for (const socket of sockets) socket.close();
-    vi.restoreAllMocks();
-    for (const user of users) await coordinator.leaveAccount(user.account.id);
-  }
-});
+  },
+);

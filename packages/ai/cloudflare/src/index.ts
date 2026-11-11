@@ -4,7 +4,7 @@ import { authorized, validToken } from "./access";
 interface Bindings {
   AI_CONTAINER: DurableObjectNamespace<AiContainer>;
   FOUR_SHOGI_CONTAINER?: DurableObjectNamespace<FourShogiContainer>;
-  FOUR_PLAYER_AI_WARMUP_ENABLED?: string;
+  AI_WARMUP_ENABLED?: string;
   SHOGI_CONTAINER?: DurableObjectNamespace<ShogiContainer>;
   REVERSI_CONTAINER?: DurableObjectNamespace<ReversiContainer>;
   AI_SERVICE_TOKEN?: string;
@@ -71,12 +71,10 @@ export default {
       return reply({ error: "unauthorized" }, 401);
     const status = path === "/admin/status" && request.method === "GET";
     const warmup =
-      path === "/admin/warmup" &&
-      request.method === "POST" &&
-      env.FOUR_PLAYER_AI_WARMUP_ENABLED === "true";
+      path === "/admin/warmup" && request.method === "POST" && env.AI_WARMUP_ENABLED === "true";
     const game = url.searchParams.get("game");
-    const shogi = path === "/v1/shogi/move" || (status && game === "shogi");
-    const reversi = path === "/v1/reversi/move" || (status && game === "reversi");
+    const shogi = path === "/v1/shogi/move" || ((status || warmup) && game === "shogi");
+    const reversi = path === "/v1/reversi/move" || ((status || warmup) && game === "reversi");
     const fourShogi =
       path === "/v1/four-shogi/move" || ((status || warmup) && game === "four-shogi");
     const fourReversi =
@@ -95,7 +93,7 @@ export default {
       ? env.REVERSI_CONTAINER?.getByName("reversi-v1")
       : shogi
         ? env.SHOGI_CONTAINER?.getByName("shogi-v1")
-        : fourShogi && (env.FOUR_SHOGI_CONTAINER || env.FOUR_PLAYER_AI_WARMUP_ENABLED === "true")
+        : fourShogi && (env.FOUR_SHOGI_CONTAINER || env.AI_WARMUP_ENABLED === "true")
           ? env.FOUR_SHOGI_CONTAINER?.getByName("four-shogi-v1")
           : env.AI_CONTAINER.getByName("shared-v1");
     if (!container) return reply({ error: "not_found" }, 404);
@@ -123,8 +121,15 @@ export default {
     try {
       if (status) return reply(await container.getState());
       if (warmup) {
+        // 外部プロセスを使う二人ゲームは、着手生成まで終えてから準備完了にします。
+        const endpoint = new URL(shogi || reversi ? "/admin/warmup" : "/health", url);
+        if (shogi || reversi) endpoint.searchParams.set("game", game!);
         const health = await container.fetch(
-          new Request(new URL("/health", url), { signal: request.signal }),
+          new Request(endpoint, {
+            method: shogi || reversi ? "POST" : "GET",
+            headers: shogi || reversi ? request.headers : undefined,
+            signal: request.signal,
+          }),
         );
         const body = health.ok ? await health.json<{ status?: string }>() : null;
         if (!health.ok) void health.body?.cancel().catch(() => {});
