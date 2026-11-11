@@ -39,6 +39,7 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
           r2Buckets: ["OBJECT_STORAGE"],
           d1Databases: {
             APP_DB: "app-tests",
+            ADMIN_USERS_TEST_DB: "admin-users-tests",
             MATCH_LIFECYCLE_TEST_DB: "match-lifecycle-tests",
             ANALYTICS_REGISTRATION_TEST_DB: "analytics-registration-tests",
             ANALYTICS_FOUNDATION_TEST_DB: "analytics-foundation-tests",

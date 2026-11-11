@@ -1,10 +1,31 @@
-import { env } from "cloudflare:workers";
-import { beforeEach, afterEach, vi, expect, test } from "vitest";
+import { env as bindings } from "cloudflare:workers";
+import { applyD1Migrations } from "cloudflare:test";
+import { beforeAll, beforeEach, afterEach, vi, expect, test } from "vitest";
 import worker from "../src/worker";
-import { accountFixture, origin } from "./accountFixtures";
+import { accountFixture as createAccountFixture, origin } from "./accountFixtures";
 import { backfillAccountTotals } from "../src/analytics/foundation";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
+const env = {
+  ...bindings,
+  APP_DB: (bindings as typeof bindings & { ADMIN_USERS_TEST_DB: D1Database }).ADMIN_USERS_TEST_DB,
+};
+const accountFixture = () => createAccountFixture(true, crypto.randomUUID(), env.APP_DB);
+beforeAll(async () => {
+  await applyD1Migrations(
+    env.APP_DB,
+    (bindings as typeof bindings & { TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1] })
+      .TEST_MIGRATIONS,
+  );
+});
 beforeEach(async () => {
+  // 集計は50件単位なので、他のテストの未処理ユーザーを持ち込みません。
+  await env.APP_DB.batch([
+    env.APP_DB.prepare("DELETE FROM user"),
+    env.APP_DB.prepare("DELETE FROM account_totals_dirty"),
+    env.APP_DB.prepare(
+      "UPDATE analytics_foundation_state SET backfill_cursor='',backfill_complete=0 WHERE id=1",
+    ),
+  ]);
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(Date.parse("2026-11-11T12:00:00+09:00"));
   await env.APP_DB.prepare(
