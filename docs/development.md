@@ -1350,6 +1350,10 @@ migration 0021はゲストセッション、OAuth対応、統合済み内部ID�
 
 ### 共通のアカウント連携ダイアログ
 
+`RatingGrowthPreview` はレート戦の連携案内だけで使う独立した演出です。1秒のtimeoutを段階ごとに予約し、1600到達・unmount・動きを減らす設定で停止します。ゲーム切替では再作成し、通常の再描画では継続します。CSS keyframesは数字の小さな跳ねと増分の浮上だけに使い、固定幅と配置済みの余白でレイアウトを保ちます。`useSyncExternalStore` で端末の動きを減らす設定の変更を購読し、静止表示へ切り替えます。数値は演出用の固定値で、API・保存データ・公開レートと接続しません。
+
+レート戦の未ログイン・ゲスト向け表示は[共通仕様](../README.md#未ログイン時のレート戦の連携案内)に従い、`RatedMatchmakingDialog` の中で `SocialSignInButtons` と `useSocialSignIn` を使います。新しいダイアログを重ねず、ボタン群は任意の `layout="vertical"` で縦に並べます。省略時は既存のレスポンシブ配置です。`registrationPath` は対象4ゲームの固定の `?matchmaking=1` 付きURLも許可し、任意のクエリ・ハッシュは許可しません。`RegistrationCompletion` の既存処理でプロフィール設定・統合後に復帰し、再検索のstateは付けません。認証開始中は閉鎖・戻る・履歴の戻るを防ぎ、失敗後に再操作できます。
+
 `features/account/AccountLinkDialog.tsx` は機能名・テーマ・閉じる操作を受け取り、どの画面からも使える共通の連携案内です。任意の `beforeSignIn` と `beforeSignInNotice` で、事前処理とその説明を渡せます。任意の `destination` は既存の登録復帰情報で扱えるアプリ内の遷移先に限定します。Google・Discordの認証開始と同意表示を共用し、事前処理の失敗ではOAuthへ進みません。`onBusyChange` で親の操作・閉鎖をロックできます。
 
 ゲストの `ProfileForm` は全プロフィール項目を表示し、制限操作から案内を重ねます。`saveBeforeLink` は名前・選択プリセットを保存してセッション表示・本人プロフィールのキャッシュを更新しますが、編集ダイアログを閉じません。通常の「保存」と取消の動作は維持します。案内は `AppDialog` の既存のModalスタックを使い、Escape・外側操作・フォーカスの復帰は最上段だけで処理します。案内を開く・閉じるだけでプロフィールを保存しません。本人の切替やunmount後の事前処理・OAuth応答から更新や遷移を行いません。Workerの権限・API・DBは変更しません。

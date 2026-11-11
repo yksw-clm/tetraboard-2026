@@ -43,6 +43,31 @@
     inset 0 -3px 5px #0003,
     0 2px 3px #0003;
 }
+@keyframes rating-preview-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes rating-preview-gain {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  15%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
 @keyframes room-turn-glow {
   0%,
   100% {

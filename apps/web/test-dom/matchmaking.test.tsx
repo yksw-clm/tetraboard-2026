@@ -1,6 +1,8 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { createMemoryRouter, matchRoutes, RouterProvider, useLocation } from "react-router";
-import type { RatedMatchmakingGame } from "@tetraboard/protocol";
+import { legalVersion } from "@tetraboard/protocol/privacy";
+import type { AccountProfile, RatedMatchmakingGame } from "@tetraboard/protocol";
+import { readRegistrationReturn } from "../src/features/account/registrationReturn";
 import { RatedMatchmakingDialog } from "../src/features/matchmaking/RatedMatchmakingDialog";
 import {
   readMatchmakingQueue,
@@ -30,10 +32,11 @@ const shogiIdle = () => ({ status: "idle", enabled: true, serverNowMs: Date.now(
 const dialogs = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
 const activeDialog = () => dialogs().at(-1)!;
 function shogiPage(
-  viewer = user,
+  viewer: AccountProfile | null = user,
   rejoin = false,
   game: RatedMatchmakingGame = "shogi",
   reload = false,
+  accountState: { loading: boolean; error: string | null } = { loading: false, error: null },
 ) {
   const lobby = `/games/${game}`;
   const locks = {
@@ -69,8 +72,7 @@ function shogiPage(
     <AccountContext
       value={{
         user: viewer,
-        loading: false,
-        error: null,
+        ...accountState,
         refresh: async () => {},
         update: () => {},
       }}
@@ -161,13 +163,108 @@ test("将棋ダイアログに認定進捗を表示し、開き直すと最新�
   expect(activeDialog().textContent).toContain("1524");
 });
 
-test("ゲストには将棋のレート戦のログイン案内を表示する", async () => {
-  shogiPage({ ...user, isGuest: true });
-  latest(shogiStatusUrl).respond(shogiIdle());
+const ratedGames: RatedMatchmakingGame[] = ["shogi", "reversi", "four-shogi", "four-reversi"];
+test.each(ratedGames)(
+  "未ログインとゲストに連携のメリットと認証ボタンを表示する %s",
+  async (game) => {
+    for (const viewer of [null, { ...user, isGuest: true }]) {
+      const router = shogiPage(viewer, false, game);
+      latest(`/api/matchmaking/${game}?`).respond({ ...shogiIdle(), waitingCount: 4 });
+      await flush();
+      const dialog = activeDialog();
+      expect(dialog.textContent).toContain("アカウントを連携して、レート戦に挑戦！");
+      expect(dialog.textContent).toContain("対局でレートを上げて、ランキング上位を目指そう！");
+      expect(dialog.textContent).toContain("レートのイメージ");
+      expect(dialog.textContent).toContain("1500");
+      expect(dialog.textContent).not.toContain("人が待機中");
+      expect(dialog.textContent).not.toContain("対戦相手を探す");
+      expect(dialog.querySelector('a[href="/login"]')).toBeNull();
+      for (const provider of ["Google", "Discord"])
+        expect(
+          [...dialog.querySelectorAll("button")].some(
+            (b) => b.textContent === `${provider}で続ける`,
+          ),
+        ).toBe(true);
+      expect(dialog.querySelector('a[href="/terms"]')?.getAttribute("target")).toBe("_blank");
+      expect(dialog.querySelector('a[href="/privacy"]')).not.toBeNull();
+      expect(dialog.textContent).toContain("利用規約");
+      expect(latest(`/api/matchmaking/${game}/rating`)).toBeUndefined();
+      expect(latest(`/api/matchmaking/${game}/join`)).toBeUndefined();
+      press(dialog, "戻る");
+      await flush();
+      expect(router.state.location.search).toBe("");
+    }
+  },
+);
+
+test.each(["google", "discord"] as const)(
+  "認証開始中の操作を防ぎ、失敗後に再試行できる %s",
+  async (provider) => {
+    const assign = spyOn(window.location, "assign").mockImplementation(() => {});
+    try {
+      const router = shogiPage(null);
+      latest(shogiStatusUrl).respond(shogiIdle());
+      await flush();
+      const dialog = activeDialog();
+      const label = `${provider === "google" ? "Google" : "Discord"}で続ける`;
+      press(dialog, label);
+      press(dialog, label);
+      await flush();
+      const oauth = () => requests.filter((r) => r.url === "/api/auth/sign-in/social");
+      expect(oauth()).toHaveLength(1);
+      expect(JSON.parse(String(oauth()[0]!.init.body))).toEqual({ provider });
+      expect(new Headers(oauth()[0]!.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
+      expect(readRegistrationReturn()).toMatchObject({ path: shogiDialogUrl, oauthStarted: true });
+      for (const button of dialog.querySelectorAll("button")) expect(button.disabled).toBe(true);
+      const processing = dialog.querySelectorAll('button:has([data-slot="pending-spinner"])');
+      expect(processing).toHaveLength(1);
+      expect(processing[0]!.textContent).toContain(label);
+      act(() =>
+        dialog.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+      );
+      await act(async () => {
+        await router.navigate(-1);
+      });
+      expect(router.state.location.search).toBe("?matchmaking=1");
+      oauth()[0]!.respond({ message: "接続できませんでした" }, 503);
+      await flush();
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toContain("接続できませんでした");
+      expect(readRegistrationReturn()?.oauthStarted).toBe(false);
+      for (const button of dialog.querySelectorAll("button")) expect(button.disabled).toBe(false);
+      press(dialog, label);
+      await flush();
+      const url =
+        provider === "google"
+          ? "https://accounts.google.com/o/oauth2/auth"
+          : "https://discord.com/oauth2/authorize";
+      oauth()[1]!.respond({ url });
+      await flush();
+      expect(assign).toHaveBeenCalledWith(url);
+      expect(latest(shogiJoinUrl)).toBeUndefined();
+    } finally {
+      assign.mockRestore();
+    }
+  },
+);
+
+test.each([
+  { loading: true, error: null },
+  { loading: false, error: "ログイン状態を確認できません。" },
+])("認証の確認中・取得失敗を未ログインの連携案内にしない %o", async (accountState) => {
+  shogiPage(null, false, "shogi", false, accountState);
+  if (latest(shogiStatusUrl)) latest(shogiStatusUrl).respond(shogiIdle());
   await flush();
-  expect(activeDialog().querySelector('a[href="/login"]')).not.toBeNull();
-  expect(activeDialog().textContent).not.toContain("対戦相手を探す");
-  expect(latest(shogiRatingUrl)).toBeUndefined();
+  expect(activeDialog().textContent).not.toContain("Googleで続ける");
+  expect(activeDialog().textContent).not.toContain("レート戦に挑戦！");
+  if (accountState.error) expect(activeDialog().textContent).toContain(accountState.error);
+});
+
+test("受付停止中は準備中を表示し、連携へ誘導しない", async () => {
+  shogiPage(null);
+  latest(shogiStatusUrl).respond({ ...shogiIdle(), enabled: false });
+  await flush();
+  expect(activeDialog().textContent).toContain("将棋のレート戦は準備中です。");
+  expect(activeDialog().textContent).not.toContain("Googleで続ける");
 });
 
 test.each(["shogi", "four-reversi"])(

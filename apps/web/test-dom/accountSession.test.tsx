@@ -206,6 +206,39 @@ test("OAuth完了は一度だけ復帰情報を消費し、ゲスト参加資格
   expect(requests).toHaveLength(0);
 });
 
+test.each(["shogi", "reversi", "four-shogi", "four-reversi"])(
+  "プロフィール設定完了まで復帰先を保持し、同じレート戦ダイアログへ戻る %s",
+  (game) => {
+    const path = `/games/${game}?matchmaking=1`;
+    saveRegistrationReturn({ path }, true);
+    let location!: ReturnType<typeof useLocation>;
+    function Probe() {
+      location = useLocation();
+      return null;
+    }
+    function Page({ completed }: { completed: boolean }) {
+      return (
+        <MemoryRouter initialEntries={["/account/setup"]}>
+          <RegistrationCompletion enabled={completed}>
+            <Probe />
+          </RegistrationCompletion>
+          <Probe />
+        </MemoryRouter>
+      );
+    }
+    const view = render(<Page completed={false} />);
+    expect(location.pathname).toBe("/account/setup");
+    expect(readRegistrationReturn()?.path).toBe(path);
+    rerender(view, <Page completed />);
+    expect(location.pathname + location.search).toBe(path);
+    expect(location.state?.matchmakingRejoin).not.toBe(true);
+    expect(readRegistrationReturn()).toBeNull();
+    rerender(view, <Page completed />);
+    expect(location.pathname + location.search).toBe(path);
+    expect(requests).toHaveLength(0);
+  },
+);
+
 test("退会による接続失効の通知で本人を再確認し、古いプロフィール取得を破棄する", async () => {
   let account!: ReturnType<typeof useAccount>;
   function Probe() {
