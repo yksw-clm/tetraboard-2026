@@ -56,23 +56,15 @@ export function isRatedMatchmakingGame(game: string): game is RatedMatchmakingGa
   return Object.hasOwn(ratedMatchmakingRules, game);
 }
 export const shogiPlacementGames = ratedMatchmakingRules.shogi.placementGames;
-export const fourReversiRankTiers = [
-  "ブロンズ",
-  "シルバー",
-  "ゴールド",
-  "プラチナ",
-  "ダイヤモンド",
-] as const;
-export const fourReversiRankDivisions = [3, 2, 1] as const;
 export const fourReversiRatingSummarySchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("placement"),
     games: z.int().nonnegative().lt(ratedMatchmakingRules["four-reversi"].placementGames),
   }),
-  z.strictObject({
+  // 旧Workerのrankを読み捨て、数値レートだけを取り出す。
+  z.object({
     status: z.literal("rated"),
     rating: z.int(),
-    rank: z.templateLiteral([z.enum(fourReversiRankTiers), z.literal(fourReversiRankDivisions)]),
     humanPlayed: z.boolean(),
   }),
 ]);

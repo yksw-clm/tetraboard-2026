@@ -404,7 +404,7 @@ test("再検索の通信に失敗しても自動で送り直さず、明示的�
 });
 const fourStatus = "/api/matchmaking/four-reversi?";
 
-test("四人リバーシでランクを表示し、再参加から検索してCPU戦へすぐ入室する", async () => {
+test("四人リバーシで旧応答のランクを表示せず、再参加からCPU戦へすぐ入室する", async () => {
   const router = shogiPage(user, true, "four-reversi");
   expect(latest(fourStatus).url).toContain("rated=1");
   latest(fourStatus).respond(shogiIdle());
@@ -417,7 +417,8 @@ test("四人リバーシでランクを表示し、再参加から検索してCP
   await flush();
   expect(activeDialog().textContent).toContain("四人リバーシのレート戦");
   expect(activeDialog().textContent).toContain("1512");
-  expect(activeDialog().textContent).toContain("シルバー2（対人戦未経験）");
+  expect(activeDialog().textContent).toContain("対人戦未経験");
+  expect(activeDialog().textContent).not.toContain("シルバー2");
   const join = latest("/api/matchmaking/four-reversi/join?rated=1");
   const matched = {
     ...shogiIdle(),

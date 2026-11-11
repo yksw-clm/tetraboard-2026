@@ -414,10 +414,9 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
       await runInDurableObject(roomStub, (instance) => instance.alarm());
       const summary = await (await request(`${base}/rating`, { headers: account.headers })).json();
       if (scenario === "fifth") {
-        expect(summary).toMatchObject({
+        expect(summary).toEqual({
           status: "rated",
           rating: (saved as { rating: number }).rating,
-          rank: expect.any(String),
           humanPlayed: false,
         });
         expect(
