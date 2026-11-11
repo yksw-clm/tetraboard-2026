@@ -11,9 +11,9 @@ const dimensions = [
   { name: "utm", column: "utm_source" },
   { name: "device", column: "device" },
 ] as const;
-function keys(alias: string, dimension: (typeof dimensions)[number]) {
-  return `COALESCE(${alias}.${dimension.column},'') AS value,${
-    dimension.name === "utm"
+function keys(alias: string, dimension: { name: string; column: string }) {
+  return `COALESCE(CAST(${alias}.${dimension.column} AS TEXT),'') AS value,${
+    ["utm", "link"].includes(dimension.name)
       ? `COALESCE(${alias}.utm_medium,'') AS medium,COALESCE(${alias}.utm_campaign,'') AS campaign`
       : "'' AS medium,'' AS campaign"
   }`;
@@ -31,7 +31,7 @@ export function acquisitionArchiveStatements(env: AdminEnv, cutoff: number) {
     owners = adminAccountIds(env) ?? [];
   const statements: D1PreparedStatement[] = [];
   for (const include of [false, true])
-    for (const dimension of dimensions) {
+    for (const dimension of [...dimensions, { name: "link", column: "utm_link_id" }]) {
       const args = include ? [] : owners;
       statements.push(
         db
@@ -97,7 +97,7 @@ export async function readAcquisition(
   statements.push(
     db
       .prepare(`SELECT day,dimension,value,medium,campaign,visits,started FROM analytics_acquisition_daily
-    WHERE day>=? AND day<=? AND game=? AND internal=?`)
+    WHERE day>=? AND day<=? AND game=? AND internal=? AND dimension IN('referrer','utm','device')`)
       .bind(query.from, query.to, query.game === "all" ? "*" : query.game, Number(include)),
   );
   statements.push(
