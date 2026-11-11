@@ -808,6 +808,8 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 
 `src/seo/lobbyMetadata.ts` はWeb側のゲーム別title・description・紹介の正本です。ゲーム名・ロビーパスは軽量ゲームカタログを参照します。紹介は `GameIntroduction` で通常ロビーと初期HTMLが共用し、ルール正本に合わせて同じ変更で更新します。エンジン・認証・API・動的一覧を静的生成へ持ち込みません。
 
+四人将棋・四人リバーシのFAQは `src/seo/lobbyQuestions.ts` に置き、`GameIntroduction` が同じ回答を初期HTMLと通常画面へ出力します。対象2ゲームは白背景の紹介カード内に、概要・CPUとの3段階の開始手順・友人との4段階の開始手順・主要ルール・各3問のFAQを縦1列で表示します。見出しはh2、質問はh3、開始手順はol、既存の利用ガイドへの案内は通常のa要素を使い、折り畳み・追加データ取得・参加処理を持ち込みません。他4ゲームの紹介構成は維持します。本文の改善では既存のtitle・descriptionを維持し、公開後は対象URLと検索語ごとの28日比較を基本に、表示回数・クリック数・CTR・平均順位を確認します。
+
 6ロビーのtitleは「ゲーム名をブラウザで無料対戦 | TetraBoard」、四人将棋・四人リバーシの検索向け別表記は[README](../README.md#ゲームロビーの検索向け紹介と配信)に従います。既定HTMLと遷移後の `og:site_name` も `TetraBoard` にそろえます。ルーム共有では `protocol/room-sharing` の同じブランド表記を使い、遷移時に共有用のtitle・画像を残しません。
 
 各ロビーと `generalLobbyMetadata` の `lastModified` は、title・description・紹介・主要ルールなどページの内容を更新した日に `YYYY-MM-DD` で更新します。全7URLの `lastmod` はこの値から生成し、再ビルドや動的一覧の更新だけで日付を進めません。[Googleのlastmodの説明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap#additional-notes-about-xml-sitemaps)を参照します。

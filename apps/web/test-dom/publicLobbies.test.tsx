@@ -29,14 +29,52 @@ test("大会の実URLはnoindexと自身のcanonicalを持ち、ロビー移動�
   }
 });
 
-test("紹介はダイアログを開かず読め、両ゲームのモードと固有ルールを表示する", () => {
+test("四人将棋・四人リバーシの開始手順とFAQは初期HTMLと通常画面で同じ内容を読める", () => {
+  const template =
+    '<html><head><title>TetraBoard</title></head><body><div id="root"></div></body></html>';
   for (const game of ["four-shogi", "four-reversi"] as const) {
     const view = render(<GameIntroduction game={game} />);
-    expect(view.querySelectorAll("h2")).toHaveLength(3);
+    expect([...view.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
+      "ゲーム概要",
+      "ひとりでCPUと遊ぶ",
+      "友人とオンラインで遊ぶ",
+      "TetraBoardの主要ルール",
+      "よくある質問",
+    ]);
+    const steps = view.querySelectorAll("ol");
+    expect(steps).toHaveLength(2);
+    expect(steps[0]!.children).toHaveLength(3);
+    expect(steps[1]!.children).toHaveLength(4);
+    expect(steps[0]!.textContent).toContain("CPU3人との待機室");
+    expect(steps[1]!.textContent).toContain("準備完了");
+    expect(steps[1]!.textContent).toContain("対局開始");
+    expect(view.textContent).toContain("招待URLを共有した部屋も公開ルーム一覧に掲載");
+    expect(view.textContent).toContain("自動では始まりません");
     expect(view.textContent).toContain("シングルス");
     expect(view.textContent).toContain("ダブルス");
     expect(view.textContent).toContain("ユーザー登録は不要");
+    expect(view.querySelectorAll("h3")).toHaveLength(3);
     expect(view.querySelector('[role="dialog"]')).toBeNull();
+    expect(view.querySelector("details")).toBeNull();
+    expect(view.querySelector("a")?.textContent).toBe("詳しい遊び方を見る");
+    expect(view.querySelector("a")?.getAttribute("href")).toBe("/how-to-play");
+    const initial = document.implementation.createHTMLDocument();
+    initial.documentElement.innerHTML = renderPublicLobby(template, game, lobbyBoardSources);
+    expect(
+      initial.querySelector(`section[aria-label="${gameCatalog[game].name}の紹介"]`)!.textContent,
+    ).toBe(view.textContent);
+  }
+});
+
+test("他4ゲームの紹介は従来の構成を維持する", () => {
+  for (const game of ["four-gomoku", "gomoku", "shogi", "reversi"] as const) {
+    const view = render(<GameIntroduction game={game} />);
+    expect([...view.querySelectorAll("h2")].map((heading) => heading.textContent)).toEqual([
+      "ゲーム概要",
+      "遊び始め方",
+      "主要ルール",
+    ]);
+    expect(view.querySelector("h3")).toBeNull();
   }
 });
 
