@@ -8,6 +8,8 @@
 
 `apps/web/test/publicLobbies.test.ts` と `test-dom/publicLobbies.test.tsx` は、全6ロビーのtitleの語順と長さ、descriptionの120字以内、「4人将棋」「4人オセロ」がtitle・description・紹介文に含まれること、既定HTML・初期HTMLと遷移後のブランド表記・メタ情報の一致を確認します。サイトマップは全7URLにページごとの有効な日付の `lastmod` があること、開発環境ではURLと `lastmod` が出力されないことを確認します。`test-dom/roomSharing.test.tsx` でルーム共有の画像・titleがロビーへ残らず、`og:site_name` が重複しないことも確認します。
 
+四人将棋・四人リバーシの紹介は `test-dom/publicLobbies.test.tsx` で、5項目の見出し、CPUとの3段階・友人との4段階の手順、ホスト開始・準備完了・招待部屋の公開という案内、各3問の回答の常時表示、利用ガイドへの通常リンク、初期HTMLと通常画面の紹介本文の一致を確認します。他4ゲームには従来の3項目の紹介を表示します。白背景・枠線・余白・文字の折り返し・スマホとPCの読みやすさは手動確認し、ブラウザを起動する自動テストは追加しません。
+
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
 
 `bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsは検証範囲・工程別の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
