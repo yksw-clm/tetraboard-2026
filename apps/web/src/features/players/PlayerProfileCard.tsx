@@ -140,9 +140,6 @@ function ProfileRatingLabel({ rating }: { rating: ProfileRating }) {
             ? "認定中"
             : "記録なし"}
       </p>
-      {rating.timing === "current" && rating.status === "rated" && rating.humanPlayed === false && (
-        <p className="m-0 text-xs text-muted">対人戦未経験</p>
-      )}
     </div>
   );
 }

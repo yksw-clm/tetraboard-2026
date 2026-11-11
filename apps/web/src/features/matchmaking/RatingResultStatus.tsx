@@ -4,14 +4,10 @@ import type { useRatingResult } from "./useRatingResult";
 export function RatingResultStatus({ result, failed, retry }: ReturnType<typeof useRatingResult>) {
   if (!failed && result?.status === "placement") return null;
   if (!failed && result?.status === "rated") {
-    const showHumanPlayed =
-      !result.humanPlayed && !(result.placementCompleted && "players" in result);
-    if (!result.placementCompleted && !showHumanPlayed) return null;
+    if (!result.placementCompleted) return null;
     return (
       <p role="status" className="mt-3 text-sm text-muted">
-        {[result.placementCompleted && "認定完了", showHumanPlayed && "対人戦未経験"]
-          .filter(Boolean)
-          .join("・")}
+        認定完了
       </p>
     );
   }
