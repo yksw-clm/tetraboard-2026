@@ -93,6 +93,10 @@ for (const [name, Page] of [
     expect(dialog().textContent).toContain("レート戦が開幕しました！");
     expect(dialog().textContent).toContain("認定戦5局");
     expect(seen()).toBe("1");
+    const gameGroup = dialog().querySelector('[role="group"]')!;
+    expect(document.getElementById(gameGroup.getAttribute("aria-labelledby")!)?.textContent).toBe(
+      "対応ゲーム",
+    );
     expect([...dialog().querySelectorAll("[aria-pressed]")].map((b) => b.textContent)).toEqual([
       "四人将棋",
       "四人リバーシ",

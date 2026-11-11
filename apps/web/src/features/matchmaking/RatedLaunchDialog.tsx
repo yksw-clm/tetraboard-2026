@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useNavigate } from "react-router";
 import type { RatedMatchmakingGame } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
@@ -20,6 +20,7 @@ export function RatedLaunchDialog({
   game?: RatedMatchmakingGame;
   onClose: () => void;
 }) {
+  const gamesLabelId = useId();
   const account = useAccount();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<RatedMatchmakingGame>(() => {
@@ -44,19 +45,24 @@ export function RatedLaunchDialog({
             各ゲームで最初の認定戦5局を終えると、初回レートが公開されます。その後は対局結果に応じてレートが変わります。
           </p>
         </div>
-        <div role="group" aria-label="レート戦のゲームを選択" className="grid grid-cols-2 gap-2">
-          {games.map((value) => (
-            <AppButton
-              key={value}
-              className="min-h-11 min-w-0 px-2 whitespace-normal"
-              appearance={selected === value ? "primary" : "secondary"}
-              aria-pressed={selected === value}
-              isDisabled={signIn.busy}
-              onPress={() => setSelected(value)}
-            >
-              {gameCatalog[value].name}
-            </AppButton>
-          ))}
+        <div role="group" aria-labelledby={gamesLabelId}>
+          <p id={gamesLabelId} className="mb-2 text-sm font-bold">
+            対応ゲーム
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {games.map((value) => (
+              <AppButton
+                key={value}
+                className="min-h-11 w-full min-w-0 px-2 whitespace-normal"
+                appearance={selected === value ? "primary" : "secondary"}
+                aria-pressed={selected === value}
+                isDisabled={signIn.busy}
+                onPress={() => setSelected(value)}
+              >
+                {gameCatalog[value].name}
+              </AppButton>
+            ))}
+          </div>
         </div>
         <p className="text-sm font-bold">
           {registered
