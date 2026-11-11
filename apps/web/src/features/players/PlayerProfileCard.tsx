@@ -131,13 +131,18 @@ function ProfileRatingLabel({ rating }: { rating: ProfileRating }) {
         ? "基準レート"
         : "対局前レート";
   return (
-    <p className="m-0 text-sm font-semibold tabular-nums">
-      {label}{" "}
-      {rating.status === "rated"
-        ? Math.round(rating.rating)
-        : rating.status === "placement"
-          ? "認定中"
-          : "記録なし"}
-    </p>
+    <div className="text-sm">
+      <p className="m-0 font-semibold tabular-nums">
+        {label}{" "}
+        {rating.status === "rated"
+          ? Math.round(rating.rating)
+          : rating.status === "placement"
+            ? "認定中"
+            : "記録なし"}
+      </p>
+      {rating.timing === "current" && rating.status === "rated" && rating.humanPlayed === false && (
+        <p className="m-0 text-xs text-muted">対人戦未経験</p>
+      )}
+    </div>
   );
 }

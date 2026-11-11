@@ -43,10 +43,11 @@ test("プレイヤー情報に現在レートを表示し、元のトリガー�
   await flush();
   requests[0]!.respond({
     ...profile,
-    rating: { timing: "current", status: "rated", rating: 1550.4 },
+    rating: { timing: "current", status: "rated", rating: 1550.4, humanPlayed: false },
   });
   await flush();
   expect(region()?.textContent).toContain("現在のレート 1550");
+  expect(region()?.textContent).toContain("対人戦未経験");
   expect(view.querySelector("button")?.textContent).toBe("プレイヤー");
 });
 

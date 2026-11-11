@@ -14,6 +14,7 @@ export const profileRatingSchema = z.union([
     timing: z.enum(["current", "before"]),
     status: z.literal("rated"),
     rating: z.number(),
+    humanPlayed: z.boolean().optional(),
   }),
   z.strictObject({
     timing: z.enum(["current", "before"]),

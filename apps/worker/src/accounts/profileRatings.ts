@@ -21,12 +21,13 @@ export async function readProfileRating(
 ): Promise<ProfileRating> {
   const row = await ratedMatchmakingPolicy(game)
     .store.latest(db, accountId)
-    .first<{ rating_after: number; rated_games: number }>();
+    .first<{ rating_after: number; rated_games: number; human_games: number }>();
   if (!row || row.rated_games < ratedMatchmakingRules[game].placementGames)
     return { timing, status: "placement" };
   return {
     timing,
     status: "rated",
+    ...(timing === "current" ? { humanPlayed: row.human_games > 0 } : {}),
     rating:
       game === "shogi" || game === "reversi"
         ? row.rating_after
