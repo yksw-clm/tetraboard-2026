@@ -1,3 +1,9 @@
+import {
+  enqueueMatchmakingEvent,
+  flushMatchmakingEvents,
+  purgeMatchmakingEvents,
+  type MatchmakingEvent,
+} from "../analytics/matchmakingEvents";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { DurableObject } from "cloudflare:workers";
 import {
@@ -27,6 +33,7 @@ type Wait = {
   sigma?: number;
   ratedGames?: number;
   expiresAtMs: number;
+  isTest?: boolean;
 };
 type Player = Wait & {
   admission: AccountAdmission;
@@ -45,6 +52,7 @@ type Group = {
   remove?: string[];
   retryDelayMs?: number;
   capacityBlocked?: true;
+  rollbackReason?: MatchmakingEvent["reason"];
   rating?: QueueRatingSource;
 };
 type State = {
@@ -61,6 +69,7 @@ type Profile = {
   avatarKey: string | null;
   avatarPresetId: string | null;
   isAnonymous: number | null;
+  isTest: number | null;
 };
 function compareWaits(a: Wait, b: Wait) {
   return (a.sequence ?? 0) - (b.sequence ?? 0) || a.joinedAtMs - b.joinedAtMs;
@@ -72,7 +81,12 @@ export type MatchmakingRoomInput = {
   instanceId: string;
   preparedAtMs: number;
   expiresAtMs: number;
-  players: { admission: AccountAdmission; tokenHash: string; version: number }[];
+  players: {
+    admission: AccountAdmission;
+    tokenHash: string;
+    version: number;
+    search?: { operationId: string; joinedAtMs: number; isTest: boolean };
+  }[];
   rating?: QueueRatingSource;
 };
 export type MatchmakingRoomReservation = MatchmakingRoomInput & {
@@ -144,8 +158,34 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       }
     );
   }
+  private analyticsEvents: MatchmakingEvent[] = [];
+  private event(
+    wait: Wait,
+    stage: MatchmakingEvent["stage"],
+    reason: MatchmakingEvent["reason"] = null,
+    group?: Group,
+  ) {
+    const atMs = Date.now();
+    this.analyticsEvents.push({
+      operationId: wait.operationId,
+      accountId: wait.accountId,
+      matchId: group?.id ?? null,
+      game: this.game,
+      stage,
+      reason,
+      atMs,
+      waitingMs: stage === "matched" ? Math.max(0, atMs - wait.joinedAtMs) : null,
+      humans: group?.players.length ?? null,
+      rated: Boolean(this.ratingPolicy),
+      isTest: wait.isTest ?? false,
+    });
+  }
   private save(state: State) {
-    this.ctx.storage.kv.put("state", state);
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.kv.put("state", state);
+      for (const event of this.analyticsEvents) enqueueMatchmakingEvent(this.ctx.storage, event);
+    });
+    this.analyticsEvents = [];
   }
   private async serial<T>(run: (state: State) => Promise<T>) {
     return this.ctx.blockConcurrencyWhile(async () => {
@@ -156,6 +196,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       this.save(state);
       const now = Date.now();
       const deadlines = state.waiting.map((w) => w.expiresAtMs);
+      const retryAt = await flushMatchmakingEvents(this.ctx.storage, this.env.APP_DB, now);
+      if (retryAt !== null) deadlines.push(retryAt);
       const policy = this.ratingPolicy;
       if (policy) {
         const oldest = state.waiting.find((w) => (w.retryAtMs ?? 0) <= now);
@@ -193,7 +235,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
   }
   private async profile(accountId: string) {
     return this.env.APP_DB.prepare(
-      `SELECT id,name,avatarKey,avatarPresetId,isAnonymous FROM user WHERE id=? AND profileCompleted=1 AND (?=0 OR COALESCE(isAnonymous,0)=0) AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)`,
+      `SELECT id,name,avatarKey,avatarPresetId,isAnonymous,isTestUser AS isTest FROM user WHERE id=? AND profileCompleted=1 AND (?=0 OR COALESCE(isAnonymous,0)=0) AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id)`,
     )
       .bind(accountId, Number(Boolean(this.ratingPolicy)))
       .first<Profile>();
@@ -209,8 +251,17 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         state.waiting.find((w) => w.accountId === id),
     };
   }
-  private async forget(wait: Wait) {
-    this.ctx.storage.kv.put(`ended:${wait.operationId}`, true);
+  private async forget(
+    wait: Wait,
+    state: State,
+    reason: MatchmakingEvent["reason"] = "invalidated",
+    group?: Group,
+  ) {
+    this.event(wait, reason === "cancelled" ? "cancelled" : "failed", reason, group);
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.kv.put(`ended:${wait.operationId}`, true);
+      this.save(state);
+    });
     await this.env.APP_DB.prepare(
       "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND operation_id=?",
     )
@@ -222,7 +273,9 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     group: Group,
     remove: string[],
     retryDelayMs = group.retryDelayMs ?? 0,
+    reason: MatchmakingEvent["reason"] = group.rollbackReason ?? "unavailable",
   ) {
+    group.rollbackReason = reason;
     group.phase = "cancelling";
     group.remove = remove;
     group.retryDelayMs = retryDelayMs;
@@ -247,7 +300,12 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         !(await this.profile(player.accountId)) ||
         this.ctx.storage.kv.get(`ended:${player.operationId}`)
       )
-        await this.forget(player);
+        await this.forget(
+          player,
+          state,
+          remove.includes(player.accountId) ? reason : "invalidated",
+          group,
+        );
       else {
         if (!group.capacityBlocked) {
           player.expiresAtMs = Date.now() + this.queueRules.leaseMs;
@@ -258,7 +316,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         )
           .bind(player.expiresAtMs, player.accountId, player.operationId)
           .run();
-        if (updated.meta.changes && !state.waiting.some((w) => w.accountId === player.accountId))
+        if (updated.meta.changes && !state.waiting.some((w) => w.accountId === player.accountId)) {
+          this.event(player, "retry", reason, group);
           state.waiting.push({
             accountId: player.accountId,
             operationId: player.operationId,
@@ -266,6 +325,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             version: player.version,
             joinedAtMs: player.joinedAtMs,
             sequence: player.sequence,
+            isTest: player.isTest,
             ...(player.diagnosticId ? { diagnosticId: player.diagnosticId } : {}),
             ...(player.rating === undefined ? {} : { rating: player.rating }),
             ...(player.sigma === undefined
@@ -274,6 +334,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             expiresAtMs: player.expiresAtMs,
             retryAtMs: player.retryAtMs,
           });
+        } else if (!updated.meta.changes) await this.forget(player, state, "invalidated", group);
       }
     }
     state.groups = state.groups.filter((g) => g.id !== group.id);
@@ -393,12 +454,13 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         admission: p.admission,
         tokenHash: p.tokenHash,
         version: p.version,
+        search: { operationId: p.operationId, joinedAtMs: p.joinedAtMs, isTest: p.isTest ?? false },
       })),
     });
     if (created.status === "cpu_capacity_full") {
       state.cpuRetryAtMs = Date.now() + cpuRetryDelayMs;
       group.capacityBlocked = true;
-      await this.rollback(state, group, []);
+      await this.rollback(state, group, [], 0, "cpu_capacity");
       for (const { diagnosticId } of group.players)
         if (diagnosticId)
           logFourShogiDiagnostic(this.env, "four_shogi_cpu_capacity_wait", {
@@ -412,6 +474,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       return;
     }
     group.phase = "matched";
+    for (const p of group.players) this.event(p, "matched", null, group);
     if (group.players.length < this.queueRules.seats) delete state.cpuRetryAtMs;
     this.save(state);
     const atMs = Date.now();
@@ -456,7 +519,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       }
       if (room.phase === "closed" && room.aiUnavailable) {
         // AIの準備失敗では入室状況にかかわらず、参加資格が残る人を待機列へ戻します。
-        await this.rollback(state, group, [], 5000);
+        await this.rollback(state, group, [], 5000, "ai_unavailable");
         continue;
       }
       if (room.phase === "closed" || Date.now() >= group.expiresAtMs) {
@@ -467,11 +530,13 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
           group.players
             .filter((p) => !connected.includes(p.admission.playerId))
             .map((p) => p.accountId),
+          0,
+          "connection_timeout",
         );
       }
     }
     if (this.retired) {
-      for (const wait of state.waiting) await this.forget(wait);
+      for (const wait of state.waiting) await this.forget(wait, state);
       state.waiting = [];
       return;
     }
@@ -489,7 +554,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         !valid.has(wait.operationId) ||
         this.ctx.storage.kv.get(`ended:${wait.operationId}`)
       ) {
-        await this.forget(wait);
+        await this.forget(
+          wait,
+          state,
+          wait.expiresAtMs <= Date.now() ? "lease_expired" : "invalidated",
+        );
         state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
       }
     }
@@ -686,7 +755,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       if (this.retired)
         return { ok: false as const, message: "旧ランダムマッチの受付は終了しました。" };
       // 終了済みの同じ操作を遅延再送しても、新しい待機を作りません。
-      if (this.ctx.storage.kv.get(`ended:${operationId}`) || !(await this.profile(accountId)))
+      const profile = await this.profile(accountId);
+      if (this.ctx.storage.kv.get(`ended:${operationId}`) || !profile)
         return {
           ok: false as const,
           message: "この待機は終了しています。もう一度操作してください。",
@@ -699,6 +769,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         controllerId,
         version: 1,
         joinedAtMs: Date.now(),
+        isTest: Boolean(profile.isTest),
         expiresAtMs: Date.now() + this.queueRules.leaseMs,
       };
       const policy = this.ratingPolicy;
@@ -765,6 +836,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       if (this.game === "four-shogi" && this.env.FOUR_SHOGI_DIAGNOSTICS === "true")
         wait.diagnosticId = crypto.randomUUID();
       state.waiting.push(wait);
+      this.event(wait, "accepted");
       this.save(state);
       if (wait.diagnosticId)
         logFourShogiDiagnostic(this.env, "four_shogi_queue_accepted", {
@@ -805,9 +877,9 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             message: "対局が開始されています。対局画面へ戻ってください。",
           };
         this.ctx.storage.kv.put(`ended:${wait.operationId}`, true);
-        if (group) await this.rollback(state, group, [accountId]);
+        if (group) await this.rollback(state, group, [accountId], 0, "cancelled");
         else {
-          await this.forget(wait);
+          await this.forget(wait, state, "cancelled");
           state.waiting = state.waiting.filter((w) => w.operationId !== wait.operationId);
         }
       } else if (!group) {
@@ -864,9 +936,9 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       const { wait, group } = this.locate(state, accountId);
       if (!wait) return;
       if (group?.phase === "playing") return;
-      if (group) await this.rollback(state, group, [accountId]);
+      if (group) await this.rollback(state, group, [accountId], 0, "cancelled");
       else {
-        await this.forget(wait);
+        await this.forget(wait, state, "cancelled");
         state.waiting = state.waiting.filter((w) => w.accountId !== accountId);
       }
     });
@@ -877,11 +949,13 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       if (wait && group && group.phase !== "playing")
         await this.rollback(state, group, [accountId]);
       for (const waiting of state.waiting.filter((w) => w.accountId === accountId))
-        await this.forget(waiting);
+        await this.forget(waiting, state);
       state.waiting = state.waiting.filter((w) => w.accountId !== accountId);
       for (const group of state.groups)
         group.players = group.players.filter((p) => p.accountId !== accountId);
       state.groups = state.groups.filter((g) => g.players.length > 0);
+      this.save(state);
+      purgeMatchmakingEvents(this.ctx.storage, accountId);
     });
   }
   /** 毎時の既存保守から、解放済みの席だけをまとめて片付けます。 */

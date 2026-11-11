@@ -1154,7 +1154,7 @@ test("長期集計は期限前に未完了だった対局の率・時間を推�
   expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
   const id = crypto.randomUUID();
   await env.APP_DB.prepare(
-    "INSERT INTO analytics_matches VALUES (?,'four-reversi','singles',?,NULL,'playing',0)",
+    "INSERT INTO analytics_matches(id,game,mode,started_at_ms,ended_at_ms,status,cpu_count) VALUES (?,'four-reversi','singles',?,NULL,'playing',0)",
   )
     .bind(id, at)
     .run();

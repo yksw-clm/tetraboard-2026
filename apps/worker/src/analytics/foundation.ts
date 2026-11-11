@@ -1,3 +1,4 @@
+import { aggregateLifecycleAnalytics } from "./lifecycleAggregation";
 import { aggregateRegistrationAnalytics } from "./registrationAggregation";
 import {
   gameScopeIds,
@@ -174,6 +175,7 @@ export async function aggregateAnalytics(env: AdminEnv, now = Date.now()) {
 export async function runAnalyticsAggregation(env: Env, now = Date.now()) {
   await backfillAccountTotals(env.APP_DB);
   await aggregateRegistrationAnalytics(env, now);
+  await aggregateLifecycleAnalytics(env, now);
   await aggregateAnalytics(env, now);
 }
 
