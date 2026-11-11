@@ -1,0 +1,165 @@
+.rated-match-intro {
+  background: color-mix(in srgb, var(--lobby-background) 72%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.rated-match-intro-arena {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  grid-template-areas: "opponents clock" "self self";
+  align-items: center;
+  gap: 24px 16px;
+  padding-right: 32px;
+}
+
+.rated-match-intro-opponents {
+  grid-area: opponents;
+}
+
+.rated-match-intro-player {
+  padding: 12px 40px 14px 32px;
+  border-block: 1px solid var(--color-line);
+  background: var(--color-surface-input);
+  clip-path: polygon(0 0, calc(100% - 32px) 0, 100% 100%, 0 100%);
+}
+
+.rated-match-intro-opponents > li {
+  animation: rated-intro-opponent 600ms var(--intro-delay) both cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rated-match-intro-player-grid {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 116px;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.rated-match-intro-avatar {
+  grid-area: 1 / 1 / 3 / 2;
+}
+.rated-match-intro-name {
+  grid-area: 1 / 2;
+}
+.rated-match-intro-id {
+  grid-area: 2 / 2;
+}
+.rated-match-intro-rating {
+  grid-area: 1 / 3 / 3 / 4;
+}
+.rated-match-intro-record {
+  grid-area: 3 / 2 / 4 / 4;
+}
+
+.rated-match-intro-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rated-match-intro-self {
+  grid-area: self;
+  justify-self: end;
+  width: 82%;
+  margin-right: -32px;
+  animation: rated-intro-self 700ms 200ms both cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rated-match-intro-self .rated-match-intro-player {
+  padding-left: 48px;
+  padding-right: 32px;
+  border-color: var(--color-entry-selection-line);
+  background: var(--color-entry-selection-surface);
+  clip-path: polygon(32px 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.rated-match-intro-clock {
+  grid-area: clock;
+}
+.rated-match-intro-ring {
+  position: relative;
+  width: 88px;
+  height: 88px;
+}
+.rated-match-intro-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--color-brand) calc(var(--intro-progress) * 1turn),
+    var(--color-line) 0
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+}
+.rated-match-intro-seconds {
+  animation: rated-intro-count 180ms ease-out;
+}
+
+@keyframes rated-intro-opponent {
+  from {
+    transform: translateX(-100vw);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes rated-intro-self {
+  from {
+    transform: translateX(100vw);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes rated-intro-count {
+  from {
+    transform: scale(1.1);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 639px) {
+  .rated-match-intro-arena {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "opponents" "clock" "self";
+    gap: 12px;
+    padding-right: 0;
+  }
+  .rated-match-intro-opponents {
+    width: 94%;
+  }
+  .rated-match-intro-player {
+    padding: 10px 28px 12px 20px;
+  }
+  .rated-match-intro-player-grid {
+    grid-template-columns: 36px minmax(0, 1fr) 88px;
+    gap: 4px 8px;
+  }
+  .rated-match-intro-clock {
+    justify-self: start;
+    margin-left: 24px;
+  }
+  .rated-match-intro-ring {
+    width: 52px;
+    height: 52px;
+  }
+  .rated-match-intro-self {
+    width: 94%;
+    margin-right: 0;
+  }
+  .rated-match-intro-self .rated-match-intro-player {
+    padding-left: 36px;
+    padding-right: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rated-match-intro-opponents > li,
+  .rated-match-intro-self,
+  .rated-match-intro-seconds {
+    animation: none;
+  }
+}

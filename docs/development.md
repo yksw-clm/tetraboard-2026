@@ -76,6 +76,14 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 `packages/ai`のMCTSは通常選択経路を維持したまま任意の根候補収集を追加し、server crateの別バイナリにローカルルーターを置きます。既存Serviceのrouterへ解析APIを追加しません。ローカル専用Lv6は `packages/ai/configs/local-analysis-profiles-v1.json` に定義し、agentsの `local_analysis_profiles` と拡張の `profiles.ts` から読みます。公開Lv1〜5の一覧は維持し、要求・応答でprofile・設定hash・実効予算を照合します。widgetの `selectProfile` は世代を更新して結果を破棄し、本人手番の自動解析を再開します。[Lv6の採用と測定の記録](../packages/ai/docs/lv6-candidate.md)を参照してください。固定fixtureの改修前コミットに対する選択手・探索診断・連続呼び出しを回帰確認します。検証分担は [テスト方針](testing.md#ローカルai解析widgetの確認) を参照します。
 
+## レート戦の開始演出
+
+ルームの盤面は紹介の背後で描画し続けます。紹介の背景は既存の `--lobby-background` を72%にした半透明色と3pxの `backdrop-filter` にし、帯の不透明色は既存テーマのまま保ちます。相手は `translateX(-100vw)` から600ms、本人は `translateX(100vw)` から700msで入れ、終端で減速します。相手を80msずつ遅らせ、本人は200ms後に開始します。登場中の横スクロールは背景幕で抑止します。
+
+表示仕様は[READMEの開始演出](../README.md#レート戦の開始演出)です。`RoomViewShell` はレート戦の初回待機中に `RatedMatchStartCountdown` をマウントし、開始予定時刻の通知前から既存の `PlayerProfileStore` へルーム・instance・プレイヤーIDを指定して並列に先読みします。帯は同じstoreを購読し、入室時の名前・アイコンを維持して公開ID・対象ゲームの通算成績・成立時の対局前レートを補います。現在レートで代用せず、CPUの基準レートと認定中を区別します。
+
+カウントダウンはサーバー時刻から求め、プロフィール取得を開始条件に含めません。表示が中断しても入室中のstoreを利用し、通常ルーム・大会・旧ランダムマッチは既存の `RoomStartCountdown` を維持します。`ratedMatchStartCountdown.css` は帯の切り欠き・配置・登場アニメーションだけを担当し、配色は既存のゲームテーマ変数を使います。
+
 ## 四人リバーシの待機列とルーム
 
 採用仕様は[レート戦](matchmaking.md#四人リバーシのレート戦)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
