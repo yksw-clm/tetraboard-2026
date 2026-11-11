@@ -11,6 +11,7 @@ import {
   rateFourReversi,
 } from "../../../../packages/ai/fourReversiRating";
 import type { MatchRecord } from "./matchStore";
+import { ratedTimeControls } from "./ratedTimeControls";
 
 const cpuRating = z.strictObject({
   mu: z.number(),
@@ -191,8 +192,9 @@ export async function applyFourReversiRating(db: D1Database, record: MatchRecord
     source.usedFallback ||
     result.mode !== "singles" ||
     record.settings.mode !== "singles" ||
-    clock?.mainTimeMs !== 180_000 ||
-    clock.byoyomiMs !== 0
+    !ratedTimeControls("four-reversi").some(
+      (time) => clock?.mainTimeMs === time.mainTimeMs && clock.byoyomiMs === time.byoyomiMs,
+    )
   )
     return;
   const players = record.participants;
@@ -245,8 +247,9 @@ export async function applyFourShogiRating(db: D1Database, record: ShogiMatchRec
     result.mode !== "singles" ||
     record.settings.mode !== "singles" ||
     !record.settings.threePlayerAttackProhibited ||
-    clock?.mainTimeMs !== 180_000 ||
-    clock.byoyomiMs !== 0
+    !ratedTimeControls("four-shogi").some(
+      (time) => clock?.mainTimeMs === time.mainTimeMs && clock.byoyomiMs === time.byoyomiMs,
+    )
   )
     return;
   const ranks = record.participants.map(

@@ -49,7 +49,7 @@ export function RatedMatchStartCountdown({
   );
   const self = room.players.find((player) => player.id === ownPlayerId);
   const opponents = room.players.filter((player) => player.id !== self?.id);
-  const time = queue.timeControl;
+  const time = room.settings.timeControl;
   return (
     <section
       aria-label="対局の開始カウントダウン"
@@ -67,8 +67,9 @@ export function RatedMatchStartCountdown({
           <p className="text-right text-xs leading-relaxed text-muted">
             シングルス
             <br />
-            {time.mainTimeMs / 60_000}分
-            {time.byoyomiMs ? `＋${time.byoyomiMs / 1000}秒` : "切れ負け"}
+            {time.mainTimeMs === 0
+              ? `一手${time.byoyomiMs / 1000}秒`
+              : `${time.mainTimeMs / 60_000}分${time.byoyomiMs ? `＋${time.byoyomiMs / 1000}秒` : "切れ負け"}`}
           </p>
         </header>
         <div className="rated-match-intro-arena">

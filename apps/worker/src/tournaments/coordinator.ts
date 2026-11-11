@@ -1,3 +1,4 @@
+import { reserveMatchSequence } from "../rooms/matchSequences";
 import { settingsForTournament } from "./store";
 import { accountAvatarPresetId } from "@tetraboard/protocol";
 import { DurableObject } from "cloudflare:workers";
@@ -19,6 +20,7 @@ type Waiting = {
 };
 type Player = Waiting & { entryId: string; admission: AccountAdmission };
 type Group = {
+  assignSequence?: true;
   id: string;
   roomId: string;
   instanceId: string;
@@ -228,9 +230,13 @@ export class TournamentCoordinator extends DurableObject<Env> {
     }
     this.save(state);
     await this.env.APP_DB.batch(statements);
+    const matchSequence = group.assignSequence
+      ? await reserveMatchSequence(this.env.APP_DB, group.id, `tournament:${row.key}`)
+      : undefined;
     const prepared = await this.env.GAME_ROOM.getByName(group.roomId).prepareTournamentRoom({
       context: {
         tournamentId: row.public_id!,
+        ...(matchSequence === undefined ? {} : { matchSequence }),
         tournamentKey: row.key,
         matchId: group.id,
         startsAtMs: row.starts_at_ms!,
@@ -311,6 +317,7 @@ export class TournamentCoordinator extends DurableObject<Env> {
       });
     }
     const group: Group = {
+      assignSequence: true,
       id,
       roomId,
       instanceId,

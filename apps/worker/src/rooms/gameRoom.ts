@@ -1800,6 +1800,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private publicMetadata(room: Room): RoomPublicMetadata & {
     matchKind: MatchKind;
+    matchSequence?: number;
     instanceId: string;
     hostPlayerId: string | null;
     participantPreviews: IndexedRoomParticipant[];
@@ -1809,10 +1810,22 @@ export class GameRoom extends DurableObject<Env> {
       const tokenHash = this.playerTokenHash(player.id);
       return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
     });
+    const kind = roomMatchKind(room);
+    const matchmaking =
+      "matchmaking" in room && room.matchmaking
+        ? this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${room.matchmaking.id}`)
+        : undefined;
+    const matchSequence =
+      kind === "tournament"
+        ? this.tournamentReservation(room)?.context.matchSequence
+        : kind === "rated" && matchmaking?.instanceId === room.instanceId
+          ? matchmaking.matchSequence
+          : undefined;
     const humanCount = room.players.filter((player) => player.kind === "human").length;
     return {
       instanceId: room.instanceId,
-      matchKind: roomMatchKind(room),
+      matchKind: kind,
+      ...(matchSequence === undefined ? {} : { matchSequence }),
       hostPlayerId: host?.id ?? null,
       participantPreviews: room.players.map((player) => ({
         playerId: player.id,
@@ -2713,6 +2726,8 @@ export class GameRoom extends DurableObject<Env> {
       const rules = legacy ? matchmakingRules : matchmakingQueues[game];
       const policy = legacy ? undefined : ratedMatchmakingPolicy(game);
       if (
+        (input.matchSequence !== undefined &&
+          (!Number.isSafeInteger(input.matchSequence) || input.matchSequence < 1 || !rating)) ||
         input.roomId !== this.ctx.id.name ||
         input.players.length < 1 ||
         input.players.length > rules.seats ||
@@ -3411,6 +3426,7 @@ export class GameRoom extends DurableObject<Env> {
       hostPlayerId,
       participantPreviews: _previews,
       matchKind: _matchKind,
+      matchSequence: _matchSequence,
       ...metadata
     } = this.publicMetadata(room);
     return { ...metadata, ...(profilePreview ? { instanceId, hostPlayerId } : {}) };

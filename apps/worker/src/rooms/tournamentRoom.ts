@@ -3,6 +3,7 @@ import { z } from "zod";
 import { tournamentSettingsSchema, type TournamentSettings } from "@tetraboard/protocol";
 
 export type TournamentRoomContext = {
+  matchSequence?: number;
   tournamentId: number;
   tournamentKey: string;
   matchId: string;
@@ -61,6 +62,7 @@ export const prepareTournamentRoomSchema = z.strictObject({
   context: z
     .strictObject({
       tournamentId: z.int().positive(),
+      matchSequence: z.int().positive().optional(),
       tournamentKey: z.string().min(1).max(200),
       matchId: z.uuid(),
       startsAtMs: z.int().nonnegative(),

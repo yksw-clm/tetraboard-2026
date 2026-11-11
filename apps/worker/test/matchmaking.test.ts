@@ -15,6 +15,7 @@ import {
   getPublicMatchContract,
   shogiRoomSchema,
   matchmakingQueues,
+  fourShogiRoomSchema,
 } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/reversi";
 import { accountFixture, origin } from "./accountFixtures";
@@ -180,6 +181,98 @@ afterEach(async () => {
     });
   for (const game of Object.keys(matchmakingQueues))
     await runInDurableObject(env.CPU_CAPACITY.getByName(game), (_, ctx) => ctx.storage.deleteAll());
+});
+
+test.each([
+  { game: "four-shogi", seats: 4, mainTimeMs: 0, byoyomiMs: 30_000, duration: 30_000 },
+  { game: "four-reversi", seats: 4, mainTimeMs: 0, byoyomiMs: 30_000, duration: 30_000 },
+  { game: "shogi", seats: 2, mainTimeMs: 600_000, byoyomiMs: 0, duration: 600_000 },
+  { game: "reversi", seats: 2, mainTimeMs: 300_000, byoyomiMs: 0, duration: 300_000 },
+] as const)(
+  "$gameのレート戦は指定時計で開始し、復元後も期限直前まで進行して期限ちょうどに時間切れになる",
+  async ({ game, seats, mainTimeMs, byoyomiMs, duration }) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    const users = await fixture(seats, queue);
+    const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+    const assignment = states[0]!.assignment!;
+    rooms.add(assignment.roomId);
+    const roomStub = env.GAME_ROOM.getByName(assignment.roomId);
+    const schema =
+      game === "four-shogi"
+        ? fourShogiRoomSchema
+        : game === "four-reversi"
+          ? roomSchema
+          : game === "shogi"
+            ? shogiRoomSchema
+            : reversiRoomSchema;
+    for (const state of states)
+      await connect(assignment.roomId, state.assignment!.membership.token);
+    now += 5_000;
+    const started = schema.parse(await roomStub.getRoom());
+    expect(started.settings.timeControl).toEqual({ mainTimeMs, byoyomiMs });
+    if (started.status !== "playing") throw Error("Expected playing");
+    const turn = started.game.turn;
+    expect(started.clock.turnExpiresAt).toBe(now + duration);
+    now += duration - 1;
+    await evictDurableObject(roomStub);
+    const restored = schema.parse(await roomStub.getRoom());
+    expect(restored.settings.timeControl).toEqual({ mainTimeMs, byoyomiMs });
+    expect(restored.status === "playing" && restored.game.turn).toBe(turn);
+    expect(restored.clock?.turnExpiresAt).toBe(now + 1);
+    now++;
+    await runInDurableObject(roomStub, (instance) => instance.alarm());
+    const expired = schema.parse(await roomStub.getRoom());
+    if (seats === 4) {
+      expect(expired.status).toBe("playing");
+      expect(expired.status === "playing" && expired.game.turn).not.toBe(turn);
+      expect(expired.clock?.turnExpiresAt).toBe(now + 30_000);
+    } else {
+      expect(expired.status).toBe("waiting");
+      if (game === "shogi")
+        expect(shogiRoomSchema.parse(expired).lastRound?.game.eliminations).toEqual([
+          expect.objectContaining({ reason: "timeout" }),
+        ]);
+      else
+        expect(
+          reversiRoomSchema.parse(expired).lastRound?.replay.steps.at(-1)?.action,
+        ).toMatchObject({
+          type: "eliminate",
+          reason: "timeout",
+        });
+    }
+  },
+);
+
+test("変更前に成立した将棋ルームは保存済みの5分＋30秒で開始・復元する", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const users = await fixture(2, queue);
+  const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+  const assignment = states[0]!.assignment!;
+  rooms.add(assignment.roomId);
+  const roomStub = env.GAME_ROOM.getByName(assignment.roomId);
+  const timeControl = { mainTimeMs: 300_000, byoyomiMs: 30_000 } as const;
+  await runInDurableObject(roomStub, (_, ctx) => {
+    const room = shogiRoomSchema.parse(ctx.storage.kv.get("room"));
+    room.settings.timeControl = timeControl;
+    ctx.storage.kv.put("room", room);
+  });
+  await evictDurableObject(roomStub);
+  for (const state of states) await connect(assignment.roomId, state.assignment!.membership.token);
+  now += 5_000;
+  const started = shogiRoomSchema.parse(await roomStub.getRoom());
+  expect(started.settings.timeControl).toEqual(timeControl);
+  if (started.status !== "playing") throw Error("Expected playing");
+  expect(started.clock.turnExpiresAt).toBe(now + 330_000);
+  await evictDurableObject(roomStub);
+  expect(await roomStub.getRoom()).toMatchObject({
+    status: "playing",
+    settings: { timeControl },
+    clock: { turnExpiresAt: now + 330_000 },
+  });
 });
 
 test.each([
@@ -582,7 +675,7 @@ test("将棋の対人マッチは認証接続後だけ開始し、終局で両�
   const started = shogiRoomSchema.parse(await room.getRoom());
   if (started.status !== "playing") throw Error("Expected playing");
   expect(started.roundId).toBe(first.matchId);
-  expect(started.clock.turnExpiresAt).toBe(now + 330000);
+  expect(started.clock.turnExpiresAt).toBe(now + 600_000);
   const credential = await matchmakingCredential(
     env,
     {
@@ -1311,7 +1404,7 @@ test("四人レート戦は20秒で不足席を補充し、成立後の取消で
   const room = roomSchema.parse(await env.GAME_ROOM.getByName(a.roomId).getRoom());
   expect(room).toMatchObject({
     matchmaking: { rated: true },
-    settings: { mode: "singles", timeControl: { mainTimeMs: 180_000, byoyomiMs: 0 } },
+    settings: { mode: "singles", timeControl: { mainTimeMs: 0, byoyomiMs: 30_000 } },
   });
   const cpus = room.players.filter((p) => p.kind === "cpu");
   expect(cpus).toHaveLength(2);
@@ -1484,7 +1577,7 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     expect(started.players.find((player) => player.kind === "cpu")?.name).toBe(
       scenario === "human" ? undefined : "クルリ",
     );
-    expect(started.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
+    expect(started.settings.timeControl).toEqual({ mainTimeMs: 300_000, byoyomiMs: 0 });
 
     if (scenario !== "human") {
       const human = started.players.find((p) => p.id === assignment.membership.playerId)!;
@@ -1686,9 +1779,10 @@ test.each(["four-reversi", "four-shogi"] as const)(
       });
       return prepare.call(this, input).finally(() => Reflect.set(this, "env", original));
     });
-    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key),
-      capacity = env.CPU_CAPACITY.getByName(game);
-    for (let i = 0; i < 4; i++) await capacity.reserve(`9999${i}`, 1, 3);
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    // 他の対局の非同期解放と競合しないよう、枠取得のRPC境界だけを制御します。
+    let blocked = true;
+    vi.spyOn(CpuCapacity.prototype, "reserve").mockImplementation(() => !blocked);
     const [u] = await fixture(1, queue);
     now += matchmakingQueues[game].fillAfterMs;
     await runInDurableObject(queue, (instance) => instance.alarm());
@@ -1697,7 +1791,7 @@ test.each(["four-reversi", "four-shogi"] as const)(
       expect.objectContaining({ stage: "retry", reason: "cpu_capacity" }),
     );
     await evictDurableObject(queue);
-    for (let i = 0; i < 4; i++) await capacity.release(`9999${i}`, 1);
+    blocked = false;
     now += 2001;
     await runInDurableObject(queue, (instance) => instance.alarm());
     const state = await queue.status(u!.account.id, u!.controllerId);
@@ -1788,3 +1882,68 @@ test("計測D1だけが失敗しても検索・取消は成功し、DO再起動�
   await runInDurableObject(queue, (instance) => instance.alarm());
   expect((await searchEvents(operationId)).map((e) => e.stage)).toEqual(["accepted", "cancelled"]);
 });
+
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
+  "%sのCPU補充局は公開番号を保持し、再取得・DO再起動で再採番しない",
+  async (game) => {
+    let now = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    const [user] = await fixture(1, queue);
+    await runInDurableObject(queue, (_, ctx) => {
+      const state = ctx.storage.kv.get<{ waiting: { joinedAtMs: number }[] }>("state")!;
+      state.waiting[0]!.joinedAtMs = Date.now() - 60000;
+      ctx.storage.kv.put("state", state);
+    });
+    // 番号の検証は成立後を対象とし、準備が自動再試行された場合は保存済みの期限で進めます。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await runInDurableObject(queue, (instance) => instance.alarm());
+      if ((await queue.status(user!.account.id, user!.controllerId)).status !== "waiting") break;
+      const retryAt = await runInDurableObject(queue, (_, ctx) => {
+        const state = ctx.storage.kv.get<{
+          waiting: { retryAtMs?: number }[];
+          cpuRetryAtMs?: number;
+        }>("state")!;
+        const retry = state.waiting[0]?.retryAtMs;
+        return retry === undefined ? undefined : Math.max(retry, state.cpuRetryAtMs ?? 0);
+      });
+      expect(retryAt).toBeTypeOf("number");
+      now = Math.max(now + 1, retryAt! + 1);
+    }
+    const matched = await queue.status(user!.account.id, user!.controllerId);
+    expect(matched.status).toBe("matched");
+    const assignment = matched.assignment!;
+    rooms.add(assignment.roomId);
+    const room = env.GAME_ROOM.getByName(assignment.roomId);
+    expect(roomSchema.parse(await room.getRoom()).players.some((p) => p.kind === "cpu")).toBe(true);
+    const read = async () => {
+      let cursor: string | null = null;
+      do {
+        const path =
+          `/lobby/rooms?view=cards&game=${game}&includeMatchKind=1&includeMatchSequence=1` +
+          (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "");
+        const response = await exports.default.fetch(
+          new AcceptedGameRequest(`${origin}/api${path}`),
+        );
+        expect(response.status).toBe(200);
+        const result = (await response.json()) as {
+          rooms: { id: string; matchSequence?: number }[];
+          nextCursor: string | null;
+        };
+        const entry = result.rooms.find((entry) => entry.id === assignment.roomId);
+        if (entry) return entry.matchSequence;
+        cursor = result.nextCursor;
+      } while (cursor !== null);
+      throw new Error("Prepared room missing from lobby");
+    };
+    const sequence = await read();
+    expect(sequence).toBeGreaterThan(0);
+    await evictDurableObject(queue);
+    await evictDurableObject(room);
+    expect((await queue.status(user!.account.id, user!.controllerId)).assignment?.matchId).toBe(
+      assignment.matchId,
+    );
+    expect(await read()).toBe(sequence);
+    expect(await room.getPublicMetadata()).not.toHaveProperty("matchSequence");
+  },
+);

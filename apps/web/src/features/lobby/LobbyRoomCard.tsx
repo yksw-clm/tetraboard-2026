@@ -25,6 +25,16 @@ export function LobbyRoomCard({
   children: ReactNode;
 }) {
   const host = room.hostName ?? "ホストなし";
+  const title =
+    room.matchKind === "tournament"
+      ? room.matchSequence === undefined
+        ? "大会戦"
+        : `大会${room.matchSequence}局目`
+      : room.matchKind === "rated"
+        ? room.matchSequence === undefined
+          ? "レート戦"
+          : `レート戦 #${room.matchSequence}`
+        : null;
   const participants = room.participants;
   const status = room.status === "playing" ? "対局中" : room.openSeats > 0 ? "募集中" : "満員";
   const gameName = gameCatalog[room.game].name;
@@ -56,16 +66,20 @@ export function LobbyRoomCard({
             </span>
           </div>
           <strong className="block text-[15px] leading-6 wrap-anywhere">
-            <PlayerProfileTrigger
-              target={room.hostName === null ? null : room.profileTarget}
-              game={room.game}
-              mode={room.mode ?? "singles"}
-              theme={gameThemes[room.game]}
-              label={host}
-            >
-              {host}
-            </PlayerProfileTrigger>
-            の部屋
+            {title ?? (
+              <>
+                <PlayerProfileTrigger
+                  target={room.hostName === null ? null : room.profileTarget}
+                  game={room.game}
+                  mode={room.mode ?? "singles"}
+                  theme={gameThemes[room.game]}
+                  label={host}
+                >
+                  {host}
+                </PlayerProfileTrigger>
+                の部屋
+              </>
+            )}
           </strong>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 text-[11px] font-bold">

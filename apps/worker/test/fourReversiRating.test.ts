@@ -32,7 +32,7 @@ async function readRating(headers: HeadersInit) {
 
 function ratedRecord(ids: string[], index: number): MatchRecord {
   const record = fixtureRecord(ids[0]!, index);
-  record.settings.timeControl = { mainTimeMs: 180_000, byoyomiMs: 0 };
+  record.settings.timeControl = { mainTimeMs: 0, byoyomiMs: 30_000 };
   const profile = namedCpuProfile("lv3-v1");
   const cpu: NonNullable<MatchRecord["fourReversiRating"]>["cpu"] = {};
   record.participants = record.participants.map(({ id, name, color, seat }, position) => {
@@ -67,6 +67,24 @@ async function changes(matchId: string) {
       }>()
   ).results;
 }
+
+test.each([
+  { mainTimeMs: 0, byoyomiMs: 30_000, counted: true },
+  { mainTimeMs: 180_000, byoyomiMs: 0, counted: true },
+  { mainTimeMs: 300_000, byoyomiMs: 30_000, counted: false },
+] as const)(
+  "四人リバーシの新旧レート戦の時計だけを更新対象にする $mainTimeMs + $byoyomiMs",
+  async ({ mainTimeMs, byoyomiMs, counted }) => {
+    const user = await accountFixture();
+    const record = ratedRecord([user.id], 0);
+    record.settings.timeControl = { mainTimeMs, byoyomiMs };
+    await writeMatch(env.APP_DB, record);
+    await writeMatch(env.APP_DB, record);
+    const rows = await changes(record.id);
+    expect(rows).toHaveLength(counted ? 1 : 0);
+    if (counted) expect(rows[0]!.rated_games).toBe(1);
+  },
+);
 
 test("同率1位の同じ事前推定は同じ結果となり、確定順位で更新する", () => {
   const prior = Array(4).fill(initialFourReversiRating);
