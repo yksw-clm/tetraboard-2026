@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AdminApiError, adminRequest } from "./api";
+import { AdminApiError, adminRequest, adminAccessDeniedEvent } from "./api";
 export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<{
@@ -13,6 +13,16 @@ export function useAdminData<T>(url: string, parse: (body: unknown) => T) {
   const discard = useCallback(() => {
     activeRequest.current?.abort();
     setState((old) => ({ ...old, data: null, loading: false }));
+  }, []);
+  useEffect(() => {
+    const denied = (event: Event) => {
+      const { status, message } = (event as CustomEvent<{ status: number; message: string }>)
+        .detail;
+      activeRequest.current?.abort();
+      setState((old) => ({ ...old, data: null, loading: false, status, error: message }));
+    };
+    window.addEventListener(adminAccessDeniedEvent, denied);
+    return () => window.removeEventListener(adminAccessDeniedEvent, denied);
   }, []);
   useEffect(() => {
     const controller = new AbortController();

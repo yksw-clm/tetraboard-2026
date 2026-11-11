@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { Avatar, Button, Card, Tabs } from "@heroui/react";
+import { Input } from "./components/ui/input";
+import { DataTable, type DataColumn } from "./components/DataTable";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
+import { Button } from "./components/ui/button";
+import { Card } from "./components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 import { adminUsersSchema, type AdminUser, type AdminUsersQuery } from "@tetraboard/protocol";
 import { useAdminData } from "./useAdminData";
 import { adminRequest, AdminApiError } from "./api";
@@ -15,9 +20,9 @@ export function Users() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-sm text-brand">ACCOUNTS</p>
+        <p className="text-sm text-primary">ACCOUNTS</p>
         <h1 className="mt-1 text-3xl font-bold">ユーザー</h1>
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           Google・Discord連携済みのユーザーとゲストを分けて表示します。プロフィール設定未完了のユーザーも含みます。
         </p>
       </div>
@@ -31,7 +36,7 @@ export function Users() {
         >
           <label className="flex min-w-0 flex-1 flex-col gap-2">
             名前・IDで検索
-            <input
+            <Input
               aria-label="名前・IDで検索"
               value={draft}
               maxLength={100}
@@ -42,19 +47,18 @@ export function Users() {
           <Button type="submit">検索</Button>
         </form>
       </Card>
-      <Tabs selectedKey={kind} onSelectionChange={(key) => setKind(key as AdminUsersQuery["kind"])}>
-        <Tabs.List aria-label="ユーザー種別">
+      <Tabs value={kind} onValueChange={(key) => setKind(key as AdminUsersQuery["kind"])}>
+        <TabsList aria-label="ユーザー種別">
           {userKinds.map(({ id, label }) => (
-            <Tabs.Tab key={id} id={id}>
+            <TabsTrigger key={id} value={id}>
               {label}
-              <Tabs.Indicator />
-            </Tabs.Tab>
+            </TabsTrigger>
           ))}
-        </Tabs.List>
+        </TabsList>
         {userKinds.map(({ id }) => (
-          <Tabs.Panel key={id} id={id} className="pt-4">
+          <TabsContent key={id} value={id} className="pt-4">
             {kind === id && <UserResults key={search} search={search} kind={id} />}
-          </Tabs.Panel>
+          </TabsContent>
         ))}
       </Tabs>
     </div>
@@ -94,7 +98,48 @@ function UserResults({ search, kind }: { search: string; kind: AdminUsersQuery["
       if (!request.signal.aborted) setLoadingMore(false);
     }
   }
-  const users = [...(result.data?.users ?? []), ...extra];
+  const users = useMemo(() => [...(result.data?.users ?? []), ...extra], [result.data, extra]);
+  const columns = useMemo<DataColumn<AdminUser>[]>(
+    () => [
+      {
+        id: "name",
+        header: "ユーザー",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3">
+            <Avatar className="size-9 shrink-0">
+              <AvatarImage src={row.original.avatarUrl ?? undefined} alt="" />
+              <AvatarFallback>{row.original.name.slice(0, 1) || "?"}</AvatarFallback>
+            </Avatar>
+            <span className="break-all font-medium">{row.original.name || "未設定"}</span>
+          </div>
+        ),
+      },
+      {
+        id: "username",
+        header: "ID",
+        cell: ({ row }) => (row.original.username ? `@${row.original.username}` : "未設定"),
+      },
+      {
+        id: "created",
+        header: `${kind === "guest" ? "作成日時" : "登録日時"}（日本時間）`,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {new Date(row.original.createdAtMs).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
+          </span>
+        ),
+      },
+      {
+        id: "profile",
+        header: "プロフィール",
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap text-muted-foreground">
+            {row.original.profileCompleted ? "設定済み" : "未完了"}
+          </span>
+        ),
+      },
+    ],
+    [kind],
+  );
   return (
     <Card className="gap-4 p-5">
       {result.loading && <p role="status">ユーザーを読み込んでいます…</p>}
@@ -104,7 +149,7 @@ function UserResults({ search, kind }: { search: string; kind: AdminUsersQuery["
           {result.status === 401 ? (
             <a href="/login?destination=admin">ログインへ</a>
           ) : (
-            <Button onPress={result.refresh}>再試行</Button>
+            <Button onClick={result.refresh}>再試行</Button>
           )}
         </div>
       )}
@@ -115,47 +160,15 @@ function UserResults({ search, kind }: { search: string; kind: AdminUsersQuery["
         </p>
       )}
       {!!users.length && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                <th className="p-3">ユーザー</th>
-                <th className="p-3">ID</th>
-                <th className="p-3">{kind === "guest" ? "作成日時" : "登録日時"}（日本時間）</th>
-                <th className="p-3">プロフィール</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user, index) => (
-                <tr
-                  key={`${user.username}:${user.createdAtMs}:${index}`}
-                  className="border-t border-gray-200"
-                >
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="size-10 shrink-0">
-                        <Avatar.Image src={user.avatarUrl ?? undefined} alt="" />
-                        <Avatar.Fallback>{user.name.slice(0, 1) || "?"}</Avatar.Fallback>
-                      </Avatar>
-                      <span className="break-all">{user.name || "未設定"}</span>
-                    </div>
-                  </td>
-                  <td className="p-3">{user.username ? `@${user.username}` : "未設定"}</td>
-                  <td className="whitespace-nowrap p-3">
-                    {new Date(user.createdAtMs).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
-                  </td>
-                  <td className="whitespace-nowrap p-3">
-                    {user.profileCompleted ? "設定済み" : "未完了"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={users}
+          columns={columns}
+          caption={kind === "guest" ? "ゲストユーザー一覧" : "連携済みユーザー一覧"}
+        />
       )}
       {moreError && <p role="alert">{moreError}</p>}
       {cursor && (
-        <Button onPress={() => void more()} isDisabled={loadingMore}>
+        <Button onClick={() => void more()} disabled={loadingMore}>
           {loadingMore ? "読み込んでいます…" : "もっと見る"}
         </Button>
       )}

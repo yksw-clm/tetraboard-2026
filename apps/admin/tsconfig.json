@@ -11,7 +11,10 @@
     "esModuleInterop": true,
     "types": ["bun", "vite/client"],
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src", "test", "test-dom", "*.config.ts"]
 }
