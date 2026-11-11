@@ -603,6 +603,14 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 
 `testEnvironment.test.ts` は固定値・管理者設定の未登録・開発用設定の追加キーが取り込まれないことと、生成型のキーを検証し、通常の `check` に含めます。CIはプロセス環境変数の取り込みを要求する環境で、設定なしと競合する `.env` だけの状態をこのテストで確認し、偽の管理者・Origin・認証情報を含む `.dev.vars` を追加してFullの全workspace検証を実行します。各状態で生成型が同一であることも照合します。全テストは重複実行せず、これらの偽設定はCIの使い捨て環境だけに作成します。
 
+## 認証時のDB読み取りとスキーマ整合性
+
+`bun run --cwd apps/worker test test/authDatabaseReads.test.ts test/sessionCookieRenewal.test.ts test/accounts.test.ts test/discordAuth.test.ts test/guestAccounts.test.ts test/privacy.test.ts` で確認します。`authDatabaseReads.test.ts` は実D1へ委譲するラッパーで発行SQLを観測し、認証インスタンスを繰り返し生成しても `sqlite_master`・`pragma_table_info` が発行されないこと、Cookieなし・計測Cookieだけ・ゲストCookieだけの登録者セッション確認がDBにアクセスしないことを確認します。全表数やSQL総数には固定しません。
+
+実行時に無効化したスキーマ検証の代わりに、全migration適用後のローカルD1に対して同じ認証設定からテスト内だけ `validateSchema: true` にしたインスタンスを作り、認証APIの完了まで待ちます。HTTP・HTTPSともに検証の成功を確認し、期待スキーマに存在しない表・列を指定した場合に不一致を検出することも確認します。共有DBの構造は変更しません。この検証は通常の `check` とFull CIのWorkerテストに含まれます。
+
+有効な登録者・ゲストとCookieの併存、空・改ざん・期限切れの登録者Cookieがある場合のゲストへの復帰抑止を確認します。既存のセッション更新・OAuth・退会・ゲスト連携テストも実行します。実Google・Discord認証、ブラウザのCookie保持と反映後のD1 Insightsは手動確認とし、未実施ならPRに記載します。効果測定は[開発文書](development.md#認証時のdb読み取り)に従います。
+
 ## セッション更新Cookie（Issue #142）
 
 `bun run --cwd apps/worker test test/sessionCookieRenewal.test.ts test/accounts.test.ts` を使います。WorkerのHTTP入口とテスト用D1を使い、偽時計で発行から1日の直前・ちょうど・直後を確認します。DB期限とHTTP応答のCookieを照合し、更新CookieのMax-Ageに従って元の7日期限を越えて認証できることを確認します。
