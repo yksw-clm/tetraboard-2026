@@ -2891,6 +2891,7 @@ export class GameRoom extends DurableObject<Env> {
       const {
         hostPlayerId: _host,
         participantPreviews: _players,
+        matchKind: _matchKind,
         ...metadata
       } = this.publicMetadata(room!);
       summary = metadata;
