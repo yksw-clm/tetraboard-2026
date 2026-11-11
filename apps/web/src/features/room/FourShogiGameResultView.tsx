@@ -56,14 +56,12 @@ export function FourShogiGameResultView({
       key={side}
       player={player(side)}
       rank={rank}
-      details={
-        <>
-          <ShogiSideBadge side={side} proposed={false} />
-          <RatingResultLabel
-            rating={player(side).id === ownPlayerId ? rated : rated?.players[player(side).id]}
-            placementGames={ratedMatchmakingRules["four-shogi"].placementGames}
-          />
-        </>
+      details={<ShogiSideBadge side={side} proposed={false} />}
+      rating={
+        <RatingResultLabel
+          rating={player(side).id === ownPlayerId ? rated : rated?.players[player(side).id]}
+          placementGames={ratedMatchmakingRules["four-shogi"].placementGames}
+        />
       }
       right={
         <div className="flex flex-col gap-2">
