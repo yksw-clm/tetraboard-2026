@@ -5,6 +5,23 @@ import { gameCatalog } from "./games";
 import { playerProfileTargetSchema } from "./playerProfiles";
 import { matchSummarySchema } from "./matches";
 import { chatTextSchema } from "./rooms";
+import { ratedMatchmakingGameIds, ratingSummarySchema } from "./matchmaking";
+
+export const lobbyGameRatingsSchema = z.strictObject({
+  viewer: z
+    .strictObject({ profileId: z.uuid().nullable(), username: z.string().nullable() })
+    .nullable(),
+  games: z.record(
+    z.enum(ratedMatchmakingGameIds),
+    z.strictObject({
+      enabled: z.boolean(),
+      summary: z
+        .union([ratingSummarySchema, z.strictObject({ status: z.literal("error") })])
+        .nullable(),
+    }),
+  ),
+});
+export type LobbyGameRatings = z.infer<typeof lobbyGameRatingsSchema>;
 
 export const lobbyRoomSchema = roomPublicMetadataSchema.safeExtend({ instanceId: z.uuid() });
 export const lobbyRoomsQuerySchema = z

@@ -124,7 +124,9 @@ test("ホームの全登録ゲームと作成ボタンはゲーム選択を経�
   }
   const view = render(wrap()(<Page />));
   expect(
-    view.querySelector('section[aria-labelledby="game-list-title"]')!.querySelectorAll("a"),
+    view
+      .querySelector('section[aria-labelledby="game-list-title"]')!
+      .querySelectorAll('a[href^="/games/"]'),
   ).toHaveLength(gameIds.length);
   expect(view.querySelector("h1")!.textContent).toBe("TetraBoard");
   press(view, "ルームを作る");
