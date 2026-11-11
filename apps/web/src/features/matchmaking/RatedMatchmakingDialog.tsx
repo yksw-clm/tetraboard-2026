@@ -4,12 +4,12 @@ import type { RatedMatchmakingGame } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { AppButton, AppButtonLink } from "../../shared/ui/AppButton";
 import { AppDialog } from "../../shared/ui/AppDialog";
-import { AppIcon } from "../../shared/ui/AppIcon";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { SocialSignInButtons } from "../account/SocialSignInButtons";
 import { useAccount } from "../account/useAccount";
 import { useSocialSignIn } from "../account/useSocialSignIn";
 import { RatingSummary } from "./RatingSummary";
+import { RatingGrowthPreview } from "./RatingGrowthPreview";
 import { useMatchmaking } from "./useMatchmaking";
 
 export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame }) {
@@ -117,9 +117,7 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
       <div className="flex flex-col gap-4">
         {showSignIn && (
           <div className="flex flex-col items-center gap-3 py-2 text-center">
-            <span className="grid size-16 place-items-center rounded-full bg-brand/10 text-brand">
-              <AppIcon name="trophy" className="size-9" />
-            </span>
+            <RatingGrowthPreview key={game} />
             <h3 className="m-0 text-xl font-bold leading-relaxed">
               Google・Discordと連携して、<span className="inline-block">レート戦に挑戦！</span>
             </h3>

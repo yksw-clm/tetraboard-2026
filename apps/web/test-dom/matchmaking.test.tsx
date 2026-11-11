@@ -174,6 +174,8 @@ test.each(ratedGames)(
       const dialog = activeDialog();
       expect(dialog.textContent).toContain("Google・Discordと連携して、レート戦に挑戦！");
       expect(dialog.textContent).toContain("対局でレートを上げて、ランキング上位を目指そう！");
+      expect(dialog.textContent).toContain("レートのイメージ");
+      expect(dialog.textContent).toContain("1500");
       expect(dialog.textContent).not.toContain("人が待機中");
       expect(dialog.textContent).not.toContain("対戦相手を探す");
       expect(dialog.querySelector('a[href="/login"]')).toBeNull();
