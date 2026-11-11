@@ -52,6 +52,7 @@ export const ratedMatchmakingRules = {
   "four-shogi": { placementGames: 5 },
 } as const satisfies Partial<Record<MatchmakingGame, { placementGames: number }>>;
 export type RatedMatchmakingGame = keyof typeof ratedMatchmakingRules;
+export const ratedMatchmakingGameIds = Object.keys(ratedMatchmakingRules) as RatedMatchmakingGame[];
 export function isRatedMatchmakingGame(game: string): game is RatedMatchmakingGame {
   return Object.hasOwn(ratedMatchmakingRules, game);
 }

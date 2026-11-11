@@ -19,6 +19,8 @@ import { RecentMatches } from "../matches/RecentMatches";
 import { TournamentList } from "../tournaments/TournamentList";
 import { ActiveTournamentNotice } from "../tournaments/ActiveTournamentNotice";
 import { gameThemes } from "../../shared/ui/appTheme";
+import { AppButton } from "../../shared/ui/AppButton";
+import { useLobbyGameRatings } from "./useLobbyGameRatings";
 
 const mobileQuery = "(max-width: 767px)";
 function subscribeToMobile(onChange: () => void) {
@@ -37,6 +39,10 @@ export function GeneralLobbyPage() {
   const entry = useRoomEntry(selected?.game);
   const [selectingGame, setSelectingGame] = useState(false);
   const mobile = useSyncExternalStore(subscribeToMobile, isMobile, isServerMobile);
+  const ratings = useLobbyGameRatings();
+  const ratingsFailed =
+    ratings.error ||
+    Object.values(ratings.games ?? {}).some(({ summary }) => summary?.status === "error");
   const sections = {
     tournaments: <TournamentList key="tournaments" game="all" />,
     chat: <GeneralLobbyChat key="chat" />,
@@ -95,7 +101,25 @@ export function GeneralLobbyPage() {
             <h2 id="game-list-title" className="mb-4 text-xl font-bold">
               ゲーム一覧
             </h2>
-            <LobbyGameGrid mobile={mobile} />
+            <LobbyGameGrid mobile={mobile} ratings={ratings} />
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+              {!account.loading && !account.error && !ratings.registered && (
+                <Link to="/login" className="text-brand underline">
+                  ログインすると自分のレートを確認できます
+                </Link>
+              )}
+              {ratings.loading && <span role="status">レート情報を読み込んでいます…</span>}
+              {ratingsFailed && (
+                <AppButton
+                  appearance="quiet"
+                  size="compact"
+                  isPending={ratings.loading}
+                  onPress={() => void ratings.retry()}
+                >
+                  レート情報を再取得
+                </AppButton>
+              )}
+            </div>
           </section>
           <GeneralLobbyRooms
             page={rooms}
