@@ -12,15 +12,17 @@ export const matchmakingRules = {
 } as const;
 export const shogiMatchmakingRules = {
   ...matchmakingRules,
+  // 待機・成立済み割当の復旧に使う識別子は、時計設定の変更後も維持します。
   key: "shogi:300000:30000:rated-v1",
   seats: 2,
   fillAfterMs: 15_000,
-  timeControl: { mainTimeMs: 300_000, byoyomiMs: 30_000 },
+  timeControl: { mainTimeMs: 600_000, byoyomiMs: 0 },
 } as const;
 export const fourReversiRatedMatchmakingRules = {
   ...matchmakingRules,
   key: "four-reversi:singles:v2:180000:0:rated-v1",
   fillAfterMs: 20_000,
+  timeControl: { mainTimeMs: 0, byoyomiMs: 30_000 },
 } as const;
 export const fourShogiRatedMatchmakingRules = {
   ...fourReversiRatedMatchmakingRules,
@@ -29,7 +31,7 @@ export const fourShogiRatedMatchmakingRules = {
 export const reversiMatchmakingRules = {
   ...shogiMatchmakingRules,
   key: "reversi:180000:0:rated-v1",
-  timeControl: { mainTimeMs: 180_000, byoyomiMs: 0 },
+  timeControl: { mainTimeMs: 300_000, byoyomiMs: 0 },
 } as const;
 export const matchmakingQueues = {
   reversi: reversiMatchmakingRules,

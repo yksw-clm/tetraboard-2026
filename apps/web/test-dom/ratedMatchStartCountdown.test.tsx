@@ -38,6 +38,38 @@ function respond(room: Room) {
   }
 }
 
+test.each([
+  { game: "four-shogi", mainTimeMs: 0, byoyomiMs: 30_000, label: "一手30秒" },
+  { game: "four-reversi", mainTimeMs: 0, byoyomiMs: 30_000, label: "一手30秒" },
+  { game: "shogi", mainTimeMs: 600_000, byoyomiMs: 0, label: "10分切れ負け" },
+  { game: "reversi", mainTimeMs: 300_000, byoyomiMs: 0, label: "5分切れ負け" },
+  { game: "four-shogi", mainTimeMs: 180_000, byoyomiMs: 0, label: "3分切れ負け" },
+  { game: "four-reversi", mainTimeMs: 180_000, byoyomiMs: 0, label: "3分切れ負け" },
+  { game: "shogi", mainTimeMs: 300_000, byoyomiMs: 30_000, label: "5分＋30秒" },
+  { game: "reversi", mainTimeMs: 180_000, byoyomiMs: 0, label: "3分切れ負け" },
+] as const)(
+  "$gameの成立時に保存した時計を表示する $label",
+  ({ game, mainTimeMs, byoyomiMs, label }) => {
+    const base = waitingRoom();
+    const room =
+      game === "four-shogi"
+        ? waitingShogiRoom()
+        : game === "four-reversi"
+          ? base
+          : game === "shogi"
+            ? standardWaitingRoom()
+            : reversiRoomSchema.parse({
+                ...base,
+                settings: { game, timeControl: base.settings.timeControl },
+                players: base.players.slice(0, 2),
+              });
+    room.settings.timeControl = { mainTimeMs, byoyomiMs };
+    const view = render(wrap({ room, startsAtMs: now + 5000, serverNowMs: now }));
+    expect(view.querySelector("header")?.textContent).toContain(label);
+    expect(view.querySelector("header")?.textContent).not.toContain("0分＋");
+  },
+);
+
 test("入室後に先読みし、相手3人と実際の本人を分けて対局前情報を表示する", async () => {
   const room = waitingShogiRoom();
   const props = { room, ownPlayerId: playerIds[2], serverNowMs: now };
