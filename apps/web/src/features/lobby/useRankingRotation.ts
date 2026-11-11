@@ -2,12 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type PreviewRankingMetric = "victories" | "rating";
 
-export function useRankingRotation(available: boolean, blocked: boolean, reducedMotion: boolean) {
-  const [metric, setMetric] = useState<PreviewRankingMetric>("victories");
+export function useRankingRotation(
+  available: boolean,
+  blocked: boolean,
+  reducedMotion: boolean,
+  initialMetric: PreviewRankingMetric = "rating",
+) {
+  const [metric, setMetric] = useState<PreviewRankingMetric>(initialMetric);
   const [phase, setPhase] = useState<"idle" | "out" | "in">("idle");
   const [paused, setPaused] = useState(false);
   const [hidden, setHidden] = useState(() => document.hidden);
-  const target = useRef<PreviewRankingMetric>("victories");
+  const target = useRef<PreviewRankingMetric>(initialMetric);
   const select = useCallback(
     (next: PreviewRankingMetric) => {
       target.current = next;

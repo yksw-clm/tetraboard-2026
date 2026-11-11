@@ -83,9 +83,18 @@ test("全6ロビーの作成導線はダイアログだけを開き、再訪時�
     rerender(view, null);
   }
 });
+async function showVictoryRanking(view: HTMLElement) {
+  act(() => view.querySelector<HTMLElement>('[role="tab"][data-key="victories"]')!.click());
+  clock.advance(100);
+  await flush();
+  clock.advance(150);
+  await flush();
+}
+
 test("両ゲームのランキングは上位3人・詳細10人・集計選択、失敗時保持・空一覧を表示", async () => {
   for (const game of ["four-reversi", "four-shogi"] as const) {
     const view = render(<LobbyRankings game={game} />);
+    await showVictoryRanking(view);
     clock.advance(0);
     expect(requests.filter(({ url }) => url.includes("/rankings?")).at(-1)!.url).toBe(
       `/api/games/${game}/rankings?profilePreview=1${game === "four-shogi" ? "&includeKnockouts=1" : ""}`,
@@ -144,6 +153,7 @@ test.each([1, 2])(
   "初回失敗後もランキングのプレビュー内に再試行と%d件の結果を表示する",
   async (count) => {
     const view = render(<LobbyRankings game="four-shogi" />);
+    await showVictoryRanking(view);
     const preview = view.querySelector('[role="status"]')!.parentElement!;
     clock.advance(0);
     requests

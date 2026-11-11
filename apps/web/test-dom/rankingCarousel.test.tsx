@@ -48,7 +48,7 @@ async function ready(game: "four-shogi" | "shogi" = "four-shogi") {
   return view;
 }
 for (const game of gameIds) {
-  test(`${game}: 対応ゲームだけ10秒後にレートへ切り替え、追加通信しない`, async () => {
+  test(`${game}: 対応ゲームはレートを左・初期選択にし、10秒後に件数へ切り替えても追加通信しない`, async () => {
     const view = render(wrap()(<LobbyRankings game={game} />));
     clock.advance(0);
     normalRequest().respond(
@@ -60,17 +60,26 @@ for (const game of gameIds) {
     if (rated) ratingRequest().respond({ entries: [ratingEntry] });
     await flush();
     expect(view.querySelectorAll("li")).toHaveLength(1);
-    clock.advance(9999);
-    expect(view.textContent).toContain("12回");
-    clock.advance(1);
-    await settleSwitch();
     if (rated) {
+      expect([...view.querySelectorAll('[role="tab"]')].map((item) => item.textContent)).toEqual([
+        "レート",
+        gameCatalog[game].hasModes ? "優勝数" : "勝利数",
+      ]);
       expect(selected(view)).toBe("レート");
       expect(view.textContent).toContain("1680");
       expect(view.textContent).not.toContain("1680回");
+    }
+    clock.advance(9999);
+    expect(view.textContent).toContain(rated ? "1680" : "12回");
+    clock.advance(1);
+    await settleSwitch();
+    if (rated) {
+      expect(selected(view)).toBe(gameCatalog[game].hasModes ? "優勝数" : "勝利数");
+      expect(view.textContent).toContain("12回");
       clock.advance(10_000);
       await settleSwitch();
-      expect(view.textContent).toContain("12回");
+      expect(selected(view)).toBe("レート");
+      expect(view.textContent).toContain("1680");
     } else expect(Boolean(view.querySelector('[role="tablist"]'))).toBe(false);
     expect(requests).toHaveLength(rated ? 2 : 1);
   });
@@ -108,22 +117,22 @@ test("マウスとフォーカスで停止し、解除後に10秒数え直す。
     section.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" })),
   );
   clock.advance(30_000);
-  expect(selected(view)).toBe("優勝数");
+  expect(selected(view)).toBe("レート");
   act(() =>
     section.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" })),
   );
   clock.advance(9999);
-  expect(selected(view)).toBe("優勝数");
+  expect(selected(view)).toBe("レート");
   act(() => view.querySelector<HTMLButtonElement>("button")!.focus());
   clock.advance(30_000);
-  expect(selected(view)).toBe("優勝数");
+  expect(selected(view)).toBe("レート");
   act(() => view.querySelector<HTMLButtonElement>("button")!.blur());
   act(() =>
     section.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "touch" })),
   );
   clock.advance(10_000);
   await settleSwitch();
-  expect(selected(view)).toBe("レート");
+  expect(selected(view)).toBe("優勝数");
 });
 
 test("詳細に選択を引き継ぎ、自動切替せず、詳細の選択はロビーに反映しない", async () => {
@@ -134,6 +143,11 @@ test("詳細に選択を引き継ぎ、自動切替せず、詳細の選択は�
   await flush();
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
   expect(dialog.querySelector("h3")!.textContent).toBe("レート");
+  expect(
+    [...dialog.querySelectorAll('[aria-label="ランキングの集計項目"] [role="tab"]')].map(
+      (item) => item.textContent,
+    ),
+  ).toEqual(["レート", "優勝数", "対局数", "撃破数"]);
   clock.advance(30_000);
   expect(dialog.querySelector("h3")!.textContent).toBe("レート");
   tab(dialog, "ダブルス");
@@ -141,6 +155,9 @@ test("詳細に選択を引き継ぎ、自動切替せず、詳細の選択は�
   expect(
     [...dialog.querySelectorAll('[role="tab"]')].some((item) => item.textContent === "レート"),
   ).toBe(false);
+  tab(dialog, "シングルス");
+  expect(dialog.querySelector("h3")!.textContent).toBe("レート");
+  tab(dialog, "優勝数");
   act(() => dialog.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
   await flush();
   expect(selected(view)).toBe("レート");
@@ -153,9 +170,7 @@ test("レート0件・取得失敗は自動切替せず、再試行はレート�
   ratingRequest().respond({}, 503);
   await flush();
   clock.advance(30_000);
-  expect(selected(view)).toBe("優勝数");
-  tab(view, "レート");
-  await settleSwitch();
+  expect(selected(view)).toBe("レート");
   expect(view.textContent).toContain("レートランキングを取得できませんでした。");
   press(view, "再試行");
   expect(requests).toHaveLength(3);
