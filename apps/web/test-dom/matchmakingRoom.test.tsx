@@ -357,7 +357,7 @@ test.each([
     expect(dialog.textContent).not.toContain("レート 1524");
     if (opponent === "cpu") {
       expect(dialog.textContent).toContain("認定完了");
-      expect(dialog.textContent).toContain("対人戦未経験");
+      expect(dialog.textContent).not.toContain("対人戦未経験");
     }
     expect(rejoin().disabled).toBe(false);
     press(dialog, "もう一度マッチング");

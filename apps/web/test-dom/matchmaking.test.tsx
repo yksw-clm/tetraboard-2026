@@ -514,7 +514,7 @@ test("四人リバーシで旧応答のランクを表示せず、再参加か�
   await flush();
   expect(activeDialog().textContent).toContain("四人リバーシのレート戦");
   expect(activeDialog().textContent).toContain("1512");
-  expect(activeDialog().textContent).toContain("対人戦未経験");
+  expect(activeDialog().textContent).not.toContain("対人戦未経験");
   expect(activeDialog().textContent).not.toContain("シルバー2");
   const join = latest("/api/matchmaking/four-reversi/join?rated=1");
   const matched = {
