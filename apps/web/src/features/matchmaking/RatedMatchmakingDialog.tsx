@@ -119,7 +119,7 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
           <div className="flex flex-col items-center gap-3 py-2 text-center">
             <RatingGrowthPreview key={game} />
             <h3 className="m-0 text-xl font-bold leading-relaxed">
-              Google・Discordと連携して、<span className="inline-block">レート戦に挑戦！</span>
+              アカウントを連携して、<span className="inline-block">レート戦に挑戦！</span>
             </h3>
             <p className="text-sm leading-relaxed text-muted">
               対局でレートを上げて、<span className="inline-block">ランキング上位を目指そう！</span>

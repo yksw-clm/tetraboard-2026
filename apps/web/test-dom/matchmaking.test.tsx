@@ -172,7 +172,7 @@ test.each(ratedGames)(
       latest(`/api/matchmaking/${game}?`).respond({ ...shogiIdle(), waitingCount: 4 });
       await flush();
       const dialog = activeDialog();
-      expect(dialog.textContent).toContain("Google・Discordと連携して、レート戦に挑戦！");
+      expect(dialog.textContent).toContain("アカウントを連携して、レート戦に挑戦！");
       expect(dialog.textContent).toContain("対局でレートを上げて、ランキング上位を目指そう！");
       expect(dialog.textContent).toContain("レートのイメージ");
       expect(dialog.textContent).toContain("1500");
