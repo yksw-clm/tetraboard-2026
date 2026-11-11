@@ -60,7 +60,7 @@ function shogiBoard(rotated = false) {
       cell.dataset.square = `${"ABCDEFGHI"[x]}${y + 1}`;
       cell.setAttribute(
         "aria-label",
-        `${cell.dataset.square}：${p ? `${sideNames[p.side]}の${pieceNames[p.kind]}` : "空き"}、棋譜座標`,
+        `${cell.dataset.square}：${p ? `${sideNames[p.side]}の${p.kind === "rook" ? "飛車" : pieceNames[p.kind]}` : "空き"}、棋譜座標`,
       );
       cell.getBoundingClientRect = () =>
         ({
