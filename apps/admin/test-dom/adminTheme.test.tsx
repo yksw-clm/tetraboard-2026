@@ -21,6 +21,7 @@ function mount() {
   );
 }
 test("テーマはOSの変更・明示選択・再表示・別タブからの変更に追従する", async () => {
+  localStorage.setItem("other-setting", "unchanged");
   const original = window.matchMedia;
   let dark = false;
   const callbacks = new Set<EventListenerOrEventListenerObject>();
@@ -54,11 +55,13 @@ test("テーマはOSの変更・明示選択・再表示・別タブからの変
     expect(
       (document.querySelector('select[aria-label="表示テーマ"]') as HTMLSelectElement).value,
     ).toBe("light");
-    const key = localStorage.key(0)!;
+    const key = "tetraboard:admin-theme:v1";
+    expect(localStorage.getItem(key)).toBe("light");
     localStorage.setItem(key, "dark");
     act(() => window.dispatchEvent(new window.StorageEvent("storage", { key })));
     await flush();
     expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(localStorage.getItem("other-setting")).toBe("unchanged");
     change("system");
     os(false);
     expect(document.documentElement.classList.contains("light")).toBe(true);
