@@ -1,3 +1,4 @@
+const rankingRequests = () => requests.filter(({ url }) => url.includes("/rankings?"));
 import { expect, test } from "bun:test";
 import { lobbyRoomCardSchema } from "@tetraboard/protocol/general-lobby";
 import { useAccountStats } from "../src/features/account/useAccountStats";
@@ -34,15 +35,15 @@ test("cards・ランキングの400は自動再取得せず、利用者の再試
   expect(lobby.current.error).toBeNull();
   const ranking = renderHook(useRankings, "four-shogi" as const);
   clock.advance(0);
-  requests.at(-1)!.respond({}, 400);
+  rankingRequests().at(-1)!.respond({}, 400);
   await flush();
   expect(ranking.current.error).not.toBeNull();
-  expect(requests).toHaveLength(3);
+  expect(requests).toHaveLength(4);
   act(() => void ranking.current.refresh());
-  expect(requests.at(-1)!.url).toBe(
+  expect(rankingRequests().at(-1)!.url).toBe(
     "/api/games/four-shogi/rankings?profilePreview=1&includeKnockouts=1",
   );
-  requests.at(-1)!.respond(rankings);
+  rankingRequests().at(-1)!.respond(rankings);
   await flush();
   expect(ranking.current.error).toBeNull();
 });
@@ -92,12 +93,12 @@ test("一覧の重複更新を防ぎ、ローカル条件切替は取得中の�
 
   const ranking = renderHook(useRankings, "four-reversi" as const);
   clock.advance(0);
-  requests.at(-1)!.respond({}, 503);
+  rankingRequests().at(-1)!.respond({}, 503);
   await flush();
   act(() => void ranking.current.refresh("dialog-retry"));
   expect(ranking.current.pendingSource).toBe("dialog-retry");
   expect(ranking.current.error).not.toBeNull();
-  requests.at(-1)!.respond(rankings);
+  rankingRequests().at(-1)!.respond(rankings);
   await flush();
   expect(ranking.current.pendingSource).toBeNull();
   expect(ranking.current.error).toBeNull();
@@ -236,26 +237,26 @@ test("履歴は別ゲーム・モードのschema応答を拒否し、切替後�
 test("ランキングはゲーム別API、失敗時保持、更新によるabortと再試行", async () => {
   const h = renderHook(useRankings, "four-reversi" as "four-reversi" | "four-shogi");
   clock.advance(0);
-  expect(requests[0]!.url).toBe("/api/games/four-reversi/rankings?profilePreview=1");
-  requests[0]!.respond(rankings);
+  expect(rankingRequests()[0]!.url).toBe("/api/games/four-reversi/rankings?profilePreview=1");
+  rankingRequests()[0]!.respond(rankings);
   await flush();
   act(() => {
     void h.current.refresh();
   });
-  requests[1]!.respond({}, 503);
+  rankingRequests()[1]!.respond({}, 503);
   await flush();
   expect(h.current.rankings).toEqual(rankings);
   act(() => {
     void h.current.refresh();
   });
   h.rerender("four-shogi");
-  expect(requests[2]!.init.signal?.aborted).toBe(true);
+  expect(rankingRequests()[2]!.init.signal?.aborted).toBe(true);
   clock.advance(0);
-  expect(requests[3]!.url).toBe(
+  expect(rankingRequests()[3]!.url).toBe(
     "/api/games/four-shogi/rankings?profilePreview=1&includeKnockouts=1",
   );
-  requests[2]!.respond(rankings);
-  requests[3]!.respond(rankings);
+  rankingRequests()[2]!.respond(rankings);
+  rankingRequests()[3]!.respond(rankings);
   await flush();
   expect(h.current.error).toBeNull();
   expect(h.current.loading).toBe(false);
