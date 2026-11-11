@@ -356,6 +356,10 @@ export class GameRoom extends DurableObject<Env> {
       endReason: status === "abandoned" ? "abandoned" : (facts?.reason ?? "unknown"),
       participants: active.participants.map((p) => ({
         ...p,
+        completionIsGuest: (() => {
+          const seat = this.storedAccount(aliases[p.playerId] ?? p.playerId);
+          return seat && seat.accountId === p.accountId ? Boolean(seat.isGuest) : undefined;
+        })(),
         endReason:
           status === "abandoned"
             ? "abandoned"

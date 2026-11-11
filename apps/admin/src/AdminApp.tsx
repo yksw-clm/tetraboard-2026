@@ -43,6 +43,9 @@ const AcquisitionDashboard = lazy(() =>
 const TrackingLinks = lazy(() =>
   import("./TrackingLinks").then((m) => ({ default: m.TrackingLinks })),
 );
+const RetentionDashboard = lazy(() =>
+  import("./RetentionDashboard").then((m) => ({ default: m.RetentionDashboard })),
+);
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 export function AdminApp() {
   const { pathname } = useLocation();
@@ -90,6 +93,7 @@ export function AdminApp() {
             <Route path="/lobby-chat" element={<LobbyChat />} />
             <Route path="/users" element={<Users />} />
             <Route path="/acquisition" element={<AcquisitionDashboard />} />
+            <Route path="/retention" element={<RetentionDashboard />} />
             <Route path="/tracking-links" element={<TrackingLinks />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/announcements/new" element={<AnnouncementCreatePage />} />

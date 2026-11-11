@@ -1,3 +1,4 @@
+import { retentionArchiveStatements } from "./retentionCohorts";
 import { lifecycleArchiveStatements } from "./lifecycleAggregation";
 import { registrationArchiveStatements } from "./registrationAggregation";
 import { foundationArchiveStatements } from "./foundationRetention";
@@ -10,6 +11,7 @@ export async function archiveAnalytics(env: Env, now = Date.now()) {
   const owners = adminAccountIds(env as AdminEnv) ?? [];
   const day = (column: string) => `strftime('%Y-%m-%d',${column}/1000+32400,'unixepoch')`;
   const statements: D1PreparedStatement[] = [
+    ...retentionArchiveStatements(env, cutoff, now),
     ...foundationArchiveStatements(env, cutoff),
     ...lifecycleArchiveStatements(env, cutoff),
     ...registrationArchiveStatements(env, cutoff, now),

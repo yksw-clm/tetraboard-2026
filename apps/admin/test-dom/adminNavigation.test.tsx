@@ -32,6 +32,7 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
   const destinations = [
     ["/", "全体概要"],
     ["/acquisition", "集客・登録"],
+    ["/retention", "再対局・認定"],
     ["/tracking-links", "計測リンク"],
     ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
     ["/users", "ユーザー"],

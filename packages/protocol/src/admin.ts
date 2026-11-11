@@ -251,3 +251,34 @@ export const adminAcquisitionSnapshotContract = {
   query: adminAnalyticsQuerySchema,
   response: acquisitionSnapshotSchema,
 } as const;
+
+const retentionRowSchema = z.object({
+  game: gameScopeSchema,
+  kind: z.enum(["registered", "guest", "unknown"]),
+  enrolled: count,
+  eligible: count,
+  retained: count,
+  retainedNextDay: count,
+  observing: count,
+  unknown: count,
+  rate: rate,
+  nextDayRate: rate,
+  reached: z.array(count).length(5),
+});
+export const retentionAnalyticsSchema = z.object({
+  collectedFromMs: z.number(),
+  aggregatedAtMs: z.number().nullable(),
+  metricVersion: z.literal(2),
+  status: z.enum(["unmeasured", "ready", "delayed"]),
+  coverage: z.enum(["unmeasured", "partial", "ready"]),
+  returns: z.array(retentionRowSchema),
+  placement: z.array(retentionRowSchema),
+  postPlacement: z.array(retentionRowSchema),
+});
+export const adminRetentionAnalyticsContract = {
+  method: "GET",
+  path: "/api/admin/analytics/retention",
+  query: adminAnalyticsQuerySchema,
+  response: retentionAnalyticsSchema,
+} as const;
+export type RetentionAnalytics = z.infer<typeof retentionAnalyticsSchema>;

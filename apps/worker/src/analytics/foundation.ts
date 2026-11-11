@@ -1,3 +1,4 @@
+import { aggregateRetention } from "./retentionCohorts";
 import { aggregateAcquisition } from "./acquisitionAggregation";
 import { aggregateLifecycleAnalytics } from "./lifecycleAggregation";
 import { aggregateRegistrationAnalytics } from "./registrationAggregation";
@@ -197,6 +198,7 @@ export async function runAnalyticsAggregation(env: Env, now = Date.now()) {
   await aggregateRegistrationAnalytics(env, now);
   await aggregateAcquisition(env, now);
   await aggregateLifecycleAnalytics(env, now);
+  await aggregateRetention(env, now);
   await aggregateAnalytics(env, now);
 }
 

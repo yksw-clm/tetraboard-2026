@@ -1,3 +1,4 @@
+import { readRetention } from "../analytics/retentionCohorts";
 import { readAcquisitionSnapshot } from "../analytics/acquisitionAggregation";
 import type { Context } from "hono";
 import { readAdminUsers, UserQueryError } from "./users";
@@ -12,6 +13,7 @@ import {
   adminUsersSchema,
   adminUserDetailSchema,
   acquisitionSnapshotSchema,
+  retentionAnalyticsSchema,
 } from "@tetraboard/protocol";
 import { type StoredProfile } from "../accounts/auth";
 import { adminIdentity, type AdminEnv } from "./auth";
@@ -25,6 +27,7 @@ for (const path of [
   "/admin/analytics/foundation",
   "/admin/analytics/registration",
   "/admin/analytics/acquisition",
+  "/admin/analytics/retention",
   "/admin/users",
   "/admin/users/:id",
 ]) {
@@ -91,4 +94,10 @@ adminRoutes.get("/admin/analytics/acquisition", async (c) => {
   const q = adminAnalyticsQuerySchema.safeParse(c.req.query());
   if (!q.success) return c.json({ message: "期間の指定が正しくありません。" }, 400);
   return c.json(acquisitionSnapshotSchema.parse(await readAcquisitionSnapshot(c.env, q.data)));
+});
+
+adminRoutes.get("/admin/analytics/retention", async (c) => {
+  const q = adminAnalyticsQuerySchema.safeParse(c.req.query());
+  if (!q.success) return c.json({ message: "期間の指定が正しくありません（最大3年）。" }, 400);
+  return c.json(retentionAnalyticsSchema.parse(await readRetention(c.env, q.data)));
 });

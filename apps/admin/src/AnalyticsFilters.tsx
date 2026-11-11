@@ -26,7 +26,11 @@ export function useAnalyticsFilters() {
   };
   return { query, update };
 }
-export function AnalyticsFilters({ query, update }: ReturnType<typeof useAnalyticsFilters>) {
+export function AnalyticsFilters({
+  query,
+  update,
+  showDateBasis = true,
+}: ReturnType<typeof useAnalyticsFilters> & { showDateBasis?: boolean }) {
   const today = new Date(Date.now() + 32400000).toISOString().slice(0, 10);
   return (
     <Card className="gap-4 p-5">
@@ -84,17 +88,19 @@ export function AnalyticsFilters({ query, update }: ReturnType<typeof useAnalyti
             ))}
           </NativeSelect>
         </label>
-        <label className="space-y-2 text-sm">
-          登録導線の日付基準
-          <NativeSelect
-            aria-label="日付基準"
-            value={query.get("dateBasis")!}
-            onChange={(e) => update({ dateBasis: e.target.value })}
-          >
-            <option value="entry">登録入口の日</option>
-            <option value="event">各段階の発生日</option>
-          </NativeSelect>
-        </label>
+        {showDateBasis && (
+          <label className="space-y-2 text-sm">
+            登録導線の日付基準
+            <NativeSelect
+              aria-label="日付基準"
+              value={query.get("dateBasis")!}
+              onChange={(e) => update({ dateBasis: e.target.value })}
+            >
+              <option value="entry">登録入口の日</option>
+              <option value="event">各段階の発生日</option>
+            </NativeSelect>
+          </label>
+        )}
       </div>
       <div className="flex min-h-10 items-center gap-3">
         <Checkbox

@@ -101,6 +101,13 @@ test.each(gameIds)(
       ).results;
       expect(endings.filter((p) => p.end_reason === "left")).toHaveLength(others.length);
       expect(endings).toHaveLength(gameCatalog[game].capacity);
+      expect(
+        await env.APP_DB.prepare(
+          "SELECT completion_is_guest FROM analytics_participants WHERE match_id=? AND origin_account_id=?",
+        )
+          .bind(active.id, user.id)
+          .first("completion_is_guest"),
+      ).toBe(0);
       await runInDurableObject(stub, (instance) => instance.alarm());
       expect(
         await env.APP_DB.prepare("SELECT COUNT(*) AS n FROM analytics_matches WHERE id=?")

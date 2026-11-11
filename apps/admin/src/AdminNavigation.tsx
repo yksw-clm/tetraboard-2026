@@ -30,6 +30,7 @@ import { ThemeSelect } from "./components/ThemeProvider";
 const analysis = [
   { path: "/", label: "全体概要", icon: LayoutDashboardIcon },
   { path: "/acquisition", label: "集客・登録", icon: ActivityIcon },
+  { path: "/retention", label: "再対局・認定", icon: ActivityIcon },
   ...gameIds.map((id) => ({
     path: gameCatalog[id].lobbyPath,
     label: gameCatalog[id].name,
