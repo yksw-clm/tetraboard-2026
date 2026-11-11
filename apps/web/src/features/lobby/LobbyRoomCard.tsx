@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import type { ReactNode } from "react";
 import type { LobbyRoomCard as RoomCardData } from "@tetraboard/protocol/general-lobby";
+import { cpuDisplayName } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
@@ -83,29 +84,32 @@ export function LobbyRoomCard({
             aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${room.capacity - participants.length}席`}
             className="inline-flex items-center gap-1"
           >
-            {participants.map((appearance, index) => (
-              <PlayerProfileTrigger
-                key={
-                  appearance.kind === "human" && appearance.profileTarget
-                    ? appearance.profileTarget.playerId
-                    : index
-                }
-                target={appearance.kind === "human" ? appearance.profileTarget : undefined}
-                localProfile={appearance.kind === "cpu" ? appearance : undefined}
-                game={room.game}
-                mode={room.mode ?? "singles"}
-                theme={gameThemes[room.game]}
-                label={
-                  appearance.kind === "cpu"
-                    ? appearance.cpuProfile
-                      ? (appearance.name ?? appearance.cpuProfile.name) + " CPU"
-                      : `CPU Lv${appearance.level}`
-                    : `ルーム${room.id}の参加者${index + 1}`
-                }
-              >
-                <PlayerAvatar appearance={appearance} className="size-7 [&_svg]:size-4" />
-              </PlayerProfileTrigger>
-            ))}
+            {participants.map((appearance, index) => {
+              const cpuName = appearance.kind === "cpu" ? cpuDisplayName(appearance) : undefined;
+              return (
+                <PlayerProfileTrigger
+                  key={
+                    appearance.kind === "human" && appearance.profileTarget
+                      ? appearance.profileTarget.playerId
+                      : index
+                  }
+                  target={appearance.kind === "human" ? appearance.profileTarget : undefined}
+                  localProfile={appearance.kind === "cpu" ? appearance : undefined}
+                  game={room.game}
+                  mode={room.mode ?? "singles"}
+                  theme={gameThemes[room.game]}
+                  label={
+                    appearance.kind === "cpu"
+                      ? cpuName
+                        ? cpuName + " CPU"
+                        : `CPU Lv${appearance.level}`
+                      : `ルーム${room.id}の参加者${index + 1}`
+                  }
+                >
+                  <PlayerAvatar appearance={appearance} className="size-7 [&_svg]:size-4" />
+                </PlayerProfileTrigger>
+              );
+            })}
             {Array.from(
               { length: Math.max(0, room.capacity - participants.length) },
               (_, index) => (

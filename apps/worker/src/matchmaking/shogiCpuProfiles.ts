@@ -1,12 +1,14 @@
 import type { ShogiRatingSource } from "../rooms/shogiRating";
 
-const profiles = [
-  { nodes: 128, referenceRating: 1365 },
-  { nodes: 64, referenceRating: 1403 },
-  { nodes: 256, referenceRating: 1488 },
-  { nodes: 512, referenceRating: 1552 },
-  { nodes: 1024, referenceRating: 1778 },
-].map(({ nodes, referenceRating }) => ({
+const profiles = (
+  [
+    { nodes: 128, referenceRating: 1365 },
+    { nodes: 64, referenceRating: 1403 },
+    { nodes: 256, referenceRating: 1488 },
+    { nodes: 512, referenceRating: 1552 },
+    { nodes: 1024, referenceRating: 1778 },
+  ] as const
+).map(({ nodes, referenceRating }) => ({
   kind: "cpu" as const,
   profileId: `yaneuraou-material-faeb37f0-n${nodes}-standard-book-v1`,
   referenceRating,

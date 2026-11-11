@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import {
+  cpuPlayerAppearance,
   getEarnedBadges,
   getPlayerProfileContract,
   profileInputSchema,
@@ -54,15 +55,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         accountId = player.kind === "human" ? player.accountId : null;
       }
       if (player.kind === "cpu")
-        return c.json(
-          getPlayerProfileContract.response.parse({
-            kind: "cpu",
-            level: player.level,
-            ...("cpuProfile" in player && player.cpuProfile
-              ? { cpuProfile: player.cpuProfile, name: player.name }
-              : {}),
-          }),
-        );
+        return c.json(getPlayerProfileContract.response.parse(cpuPlayerAppearance(player)));
       if ("retired" in player && player.retired)
         return c.json({ message: "退会したプレイヤーです。" }, 404);
       if (!accountId)

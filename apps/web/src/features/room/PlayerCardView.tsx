@@ -1,5 +1,5 @@
 import { usePlayerStamp } from "./roomStampContext";
-import { roomStamps } from "@tetraboard/protocol";
+import { cpuPlayerAppearance, roomStamps } from "@tetraboard/protocol";
 import { gameThemes } from "../../shared/ui/appTheme";
 import type { GameId } from "@tetraboard/protocol/games";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
@@ -64,18 +64,10 @@ export function PlayerCardView({
   game?: GameId;
 }) {
   const stamp = usePlayerStamp(player?.id);
+  const cpu = player?.kind === "cpu" ? cpuPlayerAppearance(player) : undefined;
   const preview = {
     target: player?.kind === "human" && player.retired ? null : profileTarget,
-    localProfile:
-      player?.kind === "cpu"
-        ? {
-            kind: "cpu" as const,
-            level: player.level,
-            ...("cpuProfile" in player && player.cpuProfile
-              ? { cpuProfile: player.cpuProfile, name: player.name }
-              : {}),
-          }
-        : undefined,
+    localProfile: cpu,
     game,
     mode: profileMode,
     theme: gameThemes[game],
@@ -209,7 +201,7 @@ export function PlayerCardView({
           ) : (
             name
           )}
-          {player?.kind === "cpu" && "cpuProfile" in player && player.cpuProfile && (
+          {cpu?.name && (
             <span className="ml-1 rounded bg-surface-muted px-1 text-[10px] font-normal">CPU</span>
           )}
           {host && (

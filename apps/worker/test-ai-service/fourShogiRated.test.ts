@@ -3,6 +3,7 @@ import { runInDurableObject } from "cloudflare:test";
 import { expect, test, vi } from "vitest";
 import {
   fourShogiRoomSchema,
+  getPublicMatchContract,
   fourShogiRatedMatchmakingRules as rules,
   matchmakingStateSchema,
 } from "@tetraboard/protocol";
@@ -18,18 +19,52 @@ const request = (path: string, init?: RequestInit) =>
 const base = "/matchmaking/four-shogi";
 
 test("認定中は標準、認定済みは実力に最も近い四人将棋CPUを選ぶ", () => {
-  for (const [rating, ratedGames, work] of [
-    [20, 4, 16384],
-    [20, 5, 4096],
-    [25, 5, 16384],
-    [28, 5, 65536],
-  ]) {
+  for (const [rating, ratedGames, work, name] of [
+    [20, 4, 16384, "シテン"],
+    [20, 5, 4096, "ヨツメ"],
+    [25, 5, 16384, "シテン"],
+    [28, 5, 65536, "カコイ"],
+  ] as const) {
     expect(selectFourShogi([{ rating, ratedGames }], 19_999)).toBeUndefined();
-    expect(selectFourShogi([{ rating, ratedGames }], 20_000)?.rating.cpu?.profileId).toBe(
-      `four-shogi-lv3-work${work}-v1`,
-    );
+    const reference = selectFourShogi([{ rating, ratedGames }], 20_000)?.rating.cpu;
+    expect(reference?.profileId).toBe(`four-shogi-lv3-work${work}-v1`);
+    expect(reference && calibratedFourShogiProfile(reference)?.name).toBe(name);
   }
   expect(selectFourShogi([{}, {}, {}, {}], 0)?.rating.cpu).toBeUndefined();
+});
+
+test.each([
+  { humans: 2, names: ["シテン1", "シテン2"] },
+  { humans: 3, names: ["シテン"] },
+])("四人将棋の補充席数に合わせて名前を付ける（人間$humans人）", async ({ humans, names }) => {
+  let now = Date.now() + 60_000;
+  const accounts = await Promise.all(Array.from({ length: humans }, () => accountFixture()));
+  const controllerId = crypto.randomUUID();
+  const coordinator = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    for (const account of accounts) {
+      const joined = await request(`${base}/join`, {
+        method: "POST",
+        headers: account.headers,
+        body: JSON.stringify({ operationId: crypto.randomUUID(), controllerId }),
+      });
+      expect(joined.status).toBe(200);
+      expect(matchmakingStateSchema.parse(await joined.json()).status).toBe("waiting");
+    }
+    now += rules.fillAfterMs;
+    await runInDurableObject(coordinator, (instance) => instance.alarm());
+    const assigned = (await coordinator.status(accounts[0]!.id, controllerId)).assignment!;
+    const room = fourShogiRoomSchema.parse(
+      await env.GAME_ROOM.getByName(assigned.roomId).getRoom(),
+    );
+    expect(
+      room.players.filter((player) => player.kind === "cpu").map((player) => player.name),
+    ).toEqual(names);
+  } finally {
+    for (const account of accounts) await coordinator.leaveAccount(account.id);
+    vi.restoreAllMocks();
+  }
 });
 
 test.each([
@@ -247,7 +282,11 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
         expect(Number(timeline[4]?.atMs) - Number(timeline[3]?.atMs)).toBe(rules.countdownMs);
       }
       const cpuIds = room.players.filter((p) => p.kind === "cpu").map((p) => p.id);
-      expect(cpuIds).toHaveLength(3);
+      expect(room.players.filter((p) => p.kind === "cpu").map((p) => p.name)).toEqual([
+        "シテン1",
+        "シテン2",
+        "シテン3",
+      ]);
       let cpuMoves = 0;
       for (let step = 0; step < 14 && room.status === "playing"; step++) {
         const turn = room.game.turn;
@@ -317,6 +356,12 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
       }
       expect(cpuMoves).toBe(3);
       expect(room.lastRound?.roundId).toBe(assigned.matchId);
+      expect(
+        room.lastRound?.players
+          .filter((player) => player.appearance?.kind === "cpu")
+          .map((player) => player.name)
+          .sort(),
+      ).toEqual(["シテン1", "シテン2", "シテン3"]);
       if (testRetry) {
         const failed = logs.find((entry) => entry.event === "four_shogi_ai_attempt_failed");
         expect(failed).toMatchObject({
@@ -359,6 +404,12 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
             : { status: "placement", games: 1, players },
         );
       }
+      const replay = await request(`/matches/${assigned.matchId}`);
+      expect(replay.status).toBe(200);
+      const { match } = getPublicMatchContract.response.parse(await replay.json());
+      expect(
+        match.participants.filter((player) => player.kind === "cpu").map((player) => player.name),
+      ).toEqual(["シテン1", "シテン2", "シテン3"]);
       // 再度Alarmを実行しても認定局数は増えず、予約が残りません。
       await runInDurableObject(roomStub, (instance) => instance.alarm());
       const summary = await (await request(`${base}/rating`, { headers: account.headers })).json();

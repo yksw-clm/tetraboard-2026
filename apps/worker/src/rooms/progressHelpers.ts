@@ -1,4 +1,9 @@
-import type { Room, PlayerAppearance } from "@tetraboard/protocol";
+import {
+  cpuDisplayName,
+  cpuPlayerAppearance,
+  type Room,
+  type PlayerAppearance,
+} from "@tetraboard/protocol";
 export const roomStorageKey = "room";
 export const replayKey = "round-replay";
 export const shogiCpuJobKey = "shogi-cpu-job";
@@ -7,19 +12,11 @@ export function nextPublicUpdateAt(room: Room): number {
   return Math.max(Date.now(), room.publicUpdatedAtMs + 1);
 }
 export function playerLabel(player: Room["players"][number]): string {
-  return player.kind === "cpu"
-    ? player.cpuProfile
-      ? player.name
-      : `CPU Lv${player.level}`
-    : player.name;
+  return player.kind === "cpu" ? (cpuDisplayName(player) ?? `CPU Lv${player.level}`) : player.name;
 }
 export function playerAppearance(player: Room["players"][number]): PlayerAppearance {
   return player.kind === "cpu"
-    ? {
-        kind: "cpu",
-        level: player.level,
-        ...(player.cpuProfile ? { cpuProfile: player.cpuProfile, name: player.name } : {}),
-      }
+    ? cpuPlayerAppearance(player)
     : {
         kind: "human",
         avatarUrl: player.avatarUrl,

@@ -1,5 +1,5 @@
 import { GameBadge } from "../../shared/ui/GameBadge";
-import { countCharacters } from "@tetraboard/protocol";
+import { countCharacters, cpuPlayerAppearance } from "@tetraboard/protocol";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { gameCatalog } from "@tetraboard/protocol/games";
@@ -19,17 +19,7 @@ function Participant({ player, match }: { player: MatchHistoryParticipant; match
           ? null
           : { source: "match", matchId: match.id, playerId: player.id }
       }
-      localProfile={
-        player.kind === "cpu"
-          ? {
-              kind: "cpu",
-              level: player.level,
-              ...("cpuProfile" in player && player.cpuProfile
-                ? { cpuProfile: player.cpuProfile, name: player.name }
-                : {}),
-            }
-          : undefined
-      }
+      localProfile={player.kind === "cpu" ? cpuPlayerAppearance(player) : undefined}
       game={match.game}
       mode={match.mode ?? "singles"}
       theme={gameThemes[match.game]}
