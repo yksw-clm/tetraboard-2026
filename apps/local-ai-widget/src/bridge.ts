@@ -1,4 +1,4 @@
-import { fourReversiRoomSchema } from "@tetraboard/protocol";
+import { fourReversiRoomSchema, fourShogiRoomSchema } from "@tetraboard/protocol";
 import { channel, observationSchema, roomIdFromUrl, type Observation } from "./model";
 let generation = 0;
 let latest: Observation | null = null;
@@ -15,7 +15,11 @@ function emit() {
 function snapshot(body: unknown, id: string, expectedGeneration: number) {
   if (expectedGeneration !== generation || !body || typeof body !== "object" || !("room" in body))
     return;
-  const parsed = fourReversiRoomSchema.safeParse(body.room);
+  const gameId = (body.room as { settings?: { game?: unknown } })?.settings?.game;
+  const parsed =
+    gameId === "four-shogi"
+      ? fourShogiRoomSchema.safeParse(body.room)
+      : fourReversiRoomSchema.safeParse(body.room);
   if (!parsed.success || parsed.data.id !== id) return;
   const room = parsed.data;
   const time =
@@ -36,6 +40,7 @@ function snapshot(body: unknown, id: string, expectedGeneration: number) {
       ? presence.connectedPlayerIds
       : [];
   const value = observationSchema.safeParse({
+    gameId: room.settings.game,
     roomId: id,
     instanceId: room.instanceId,
     generation,
@@ -43,7 +48,16 @@ function snapshot(body: unknown, id: string, expectedGeneration: number) {
     selfId,
     serverNowMs: time,
     status: room.status,
-    players: room.players.map((p) => ({ id: p.id, color: p.color })),
+    players: room.players.map((p) =>
+      "side" in p ? { id: p.id, side: p.side } : { id: p.id, color: p.color },
+    ),
+    ...("roundId" in room
+      ? {
+          roundId: room.roundId,
+          positionRevision: room.positionRevision,
+          legalActions: room.legalActions,
+        }
+      : {}),
     connectedPlayerIds,
     game: room.status === "playing" && room.game.mode === "singles" ? room.game : null,
     turnStartedAt: room.status === "playing" ? room.clock.turnStartedAt : null,

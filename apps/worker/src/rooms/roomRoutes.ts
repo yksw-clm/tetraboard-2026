@@ -7,6 +7,7 @@ import {
   createRoomContract,
   getRoomContract,
   getFourShogiReplayContract,
+  getFourShogiAnalysisReplayContract,
   getRoomMembershipContract,
   joinRoomContract,
   leaveRoomContract,
@@ -240,6 +241,33 @@ roomRoutes.on(getRoomContract.method, getRoomContract.path, async (context) => {
     return context.json(roomError("internal_error"), 500);
   }
 });
+
+roomRoutes.on(
+  getFourShogiAnalysisReplayContract.method,
+  getFourShogiAnalysisReplayContract.path,
+  async (context) => {
+    context.header("Cache-Control", "no-store");
+    const params = getFourShogiAnalysisReplayContract.params.safeParse(context.req.param());
+    const query = getFourShogiAnalysisReplayContract.query.safeParse(context.req.query());
+    if (!params.success || !query.success) return context.json(roomError("invalid_request"), 400);
+    try {
+      const result = await context.env.GAME_ROOM.getByName(
+        params.data.id,
+      ).getFourShogiAnalysisReplay(
+        query.data.instanceId,
+        params.data.roundId,
+        query.data.positionRevision,
+        query.data.cursor ?? 0,
+      );
+      if (result.status === "room_changed") return context.json(roomError("room_changed"), 410);
+      if (result.status === "stale_position") return context.json(roomError("conflict"), 409);
+      if (result.status !== "found") return context.json(roomError("not_found"), 404);
+      return context.json(getFourShogiAnalysisReplayContract.response.parse(result.page));
+    } catch {
+      return context.json(roomError("internal_error"), 500);
+    }
+  },
+);
 
 roomRoutes.on(
   getFourShogiReplayContract.method,

@@ -1772,6 +1772,42 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  async getFourShogiAnalysisReplay(
+    instanceId: string,
+    roundId: string,
+    positionRevision: number,
+    cursor: number,
+  ): Promise<
+    | { status: "found"; page: import("@tetraboard/protocol").FourShogiAnalysisReplayPage }
+    | { status: "not_found" | "room_changed" | "stale_position" }
+  > {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (!room) return { status: "not_found" };
+    if (room.instanceId !== instanceId) return { status: "room_changed" };
+    if (
+      !isFourShogiRoom(room) ||
+      room.status !== "playing" ||
+      room.roundId !== roundId ||
+      room.game.mode !== "singles"
+    )
+      return { status: "not_found" };
+    if (room.positionRevision !== positionRevision) return { status: "stale_position" };
+    const page = this.shogiProgress.store().getPage(instanceId, roundId, cursor);
+    if (!page) return { status: "not_found" };
+    return {
+      status: "found",
+      page: {
+        ...page,
+        positionRevision,
+        initial: {
+          mode: "singles",
+          threePlayerAttackProhibited: page.initial.threePlayerAttackProhibited,
+        },
+      },
+    };
+  }
+
   async getShogiReplay(
     instanceId: string,
     roundId: string,

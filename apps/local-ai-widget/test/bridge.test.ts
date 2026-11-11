@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { Window } from "happy-dom";
 import { createInitialState } from "@tetraboard/four-reversi";
-import { fourReversiRoomSchema } from "@tetraboard/protocol";
-import { playerId, settle } from "./fixtures";
+import { fourReversiRoomSchema, fourShogiRoomSchema } from "@tetraboard/protocol";
+import { playerId, shogiObservation, settle } from "./fixtures";
 const script = await Bun.file(new URL("../dist/bridge.js", import.meta.url)).text();
 function fixture() {
   const w = new Window({ url: "https://tetraboard.net/rooms/12345" });
@@ -115,6 +115,57 @@ test("fetchのPromiseをそのまま返し、応答本文を消費せず、古�
     f.sockets[0].receive(snapshot());
     f.sockets[0].close();
     expect(f.observations).toHaveLength(count);
+  } finally {
+    await f.w.happyDOM.close();
+  }
+});
+
+test("四人将棋の局ID・revision・合法手・担当方向を受信し氏名やtokenを除外する", async () => {
+  const f = fixture();
+  try {
+    new f.w.WebSocket("wss://tetraboard.net/api/rooms/12345/ws");
+    f.sockets[0].open();
+    const o = shogiObservation(),
+      original = snapshot();
+    const room = fourShogiRoomSchema.parse({
+      ...original.room,
+      settings: {
+        game: "four-shogi",
+        mode: "singles",
+        threePlayerAttackProhibited: true,
+        timeControl: { mainTimeMs: 300000, byoyomiMs: 30000 },
+      },
+      players: original.room.players.map((p, i) => {
+        const { color: _color, ...rest } = p;
+        return { ...rest, side: o.players[i].side };
+      }),
+      game: o.game,
+      roundId: o.roundId,
+      positionRevision: 0,
+      legalActions: o.legalActions,
+      checkState: { south: false, west: false, north: false, east: false },
+      eliminations: [],
+      clock: {
+        remainingMainMs: { south: 300000, west: 300000, north: 300000, east: 300000 },
+        turnStartedAt: 100,
+        turnExpiresAt: 330100,
+      },
+    });
+    f.sockets[0].receive({ ...original, room });
+    f.sockets[0].receive({
+      type: "room.authenticated",
+      membership: { playerId, token: "private-token" },
+    });
+    expect(f.observations.at(-1)).toMatchObject({
+      data: {
+        gameId: "four-shogi",
+        roundId: o.roundId,
+        positionRevision: 0,
+        legalActions: o.legalActions,
+        players: o.players,
+      },
+    });
+    expect(JSON.stringify(f.observations)).not.toContain("private");
   } finally {
     await f.w.happyDOM.close();
   }

@@ -18,6 +18,7 @@ import {
   playingFourShogiStateSchema,
   finishedFourShogiStateSchema,
   fourShogiReplayPageSchema,
+  fourShogiAnalysisReplayPageSchema,
   fourShogiFormationAnalysisSchema,
   fourShogiEliminatedHandsSchema,
 } from "./fourShogi";
@@ -1284,6 +1285,22 @@ export const getFourShogiReplayContract = {
       .optional(),
   }),
   response: fourShogiReplayPageSchema,
+  error: roomErrorSchema,
+} as const;
+
+export const getFourShogiAnalysisReplayContract = {
+  method: "GET",
+  path: "/rooms/:id/rounds/:roundId/analysis-replay",
+  pathFor: (id: string, roundId: string) => `/rooms/${id}/rounds/${roundId}/analysis-replay`,
+  params: getFourShogiReplayContract.params,
+  query: getFourShogiReplayContract.query.extend({
+    positionRevision: z
+      .string()
+      .regex(/^\d{1,10}$/)
+      .transform(Number)
+      .pipe(z.int().nonnegative()),
+  }),
+  response: fourShogiAnalysisReplayPageSchema,
   error: roomErrorSchema,
 } as const;
 

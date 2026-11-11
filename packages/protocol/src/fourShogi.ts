@@ -149,6 +149,14 @@ export const fourShogiReplayPageSchema = z.strictObject({
 export type FourShogiPublicState = z.infer<typeof fourShogiPublicStateSchema>;
 export type FourShogiReplayPage = z.infer<typeof fourShogiReplayPageSchema>;
 export type FourShogiReplayEvent = z.infer<typeof fourShogiReplayEventSchema>;
+export const fourShogiAnalysisReplayPageSchema = fourShogiReplayPageSchema.extend({
+  positionRevision: z.int().nonnegative(),
+  initial: z.strictObject({
+    mode: z.literal("singles"),
+    threePlayerAttackProhibited: z.boolean(),
+  }),
+});
+export type FourShogiAnalysisReplayPage = z.infer<typeof fourShogiAnalysisReplayPageSchema>;
 export type FourShogiAction = z.infer<typeof fourShogiActionSchema>;
 
 export const fourShogiEliminatedHandsSchema = z.strictObject({

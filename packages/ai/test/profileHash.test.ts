@@ -69,3 +69,25 @@ test("ローカル実験候補は公開profileと別のhash・予算で識別す
     max_time_ms: 2000,
   });
 });
+
+test("継続検討の設定はゲーム別のhashで識別し、測定済みの旧profileを維持する", async () => {
+  const registry = JSON.parse(
+    await readFile(
+      new URL("../configs/continuous-analysis-profiles-v1.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  expect(registry.profiles.map((p: { game: string }) => p.game)).toEqual([
+    "four-reversi",
+    "four-shogi",
+  ]);
+  for (const profile of registry.profiles)
+    expect(
+      Bun.CryptoHasher.hash(
+        "sha256",
+        JSON.stringify(canonical({ id: profile.id, settings: profile.settings })),
+        "hex",
+      ),
+    ).toBe(profile.hash);
+  expect(registry.profiles[0].settings.tree_limit).toBe(65536);
+});

@@ -1,4 +1,5 @@
 //! loopback専用バイナリだけが公開する解析APIです。
+mod continuous;
 use crate::{ApiError, MAX_BODY_BYTES};
 use axum::{
     Json, Router,
@@ -35,12 +36,14 @@ struct LocalState {
 struct Jobs {
     active: Option<Arc<Job>>,
     cancelled: VecDeque<String>,
+    previous: Option<Arc<Job>>,
 }
 struct Job {
     id: String,
     cancelled: AtomicBool,
     done: AtomicBool,
     finished: Notify,
+    continuous: Option<continuous::Progress>,
 }
 struct Running {
     state: LocalState,
@@ -59,6 +62,9 @@ impl Drop for Running {
             .is_some_and(|active| Arc::ptr_eq(active, &self.job))
         {
             jobs.active = None;
+            if self.job.continuous.is_some() {
+                jobs.previous = Some(self.job.clone());
+            }
         }
         self.job.done.store(true, Ordering::Release);
         self.job.finished.notify_waiters();
@@ -108,7 +114,9 @@ pub fn router(token: String) -> Result<Router, &'static str> {
         jobs: Arc::new(Mutex::new(Jobs::default())),
     };
     Ok(Router::new()
-        .route("/health", get(|| async { Json(serde_json::json!({"status":"ok","service":"local-analysis","api_version":1,"engine_version":ENGINE_VERSION})) }))
+        .route("/health", get(|| async { Json(serde_json::json!({"status":"ok","service":"local-analysis","api_version":1,"engine_version":ENGINE_VERSION,"analysis_versions":[1,2],"games":["four-reversi","four-shogi"]})) }))
+        .route("/v2/analysis", post(continuous::start).layer(DefaultBodyLimit::max(256 * 1024)))
+        .route("/v2/analysis/{request_id}", get(continuous::poll).delete(cancel))
         .route("/v1/analysis", post(analyze))
         .route("/v1/analysis/{request_id}", delete(cancel))
         .route_layer(middleware::from_fn_with_state(state.clone(), authenticate))
@@ -190,6 +198,7 @@ async fn analyze(
         cancelled: AtomicBool::new(false),
         done: AtomicBool::new(false),
         finished: Notify::new(),
+        continuous: None,
     });
     {
         let mut jobs = service
@@ -440,6 +449,7 @@ mod tests {
             cancelled: AtomicBool::new(false),
             done: AtomicBool::new(false),
             finished: Notify::new(),
+            continuous: None,
         });
         let state = LocalState {
             token: Arc::new(TOKEN.into()),
@@ -447,6 +457,7 @@ mod tests {
             jobs: Arc::new(Mutex::new(Jobs {
                 active: Some(job.clone()),
                 cancelled: VecDeque::new(),
+                previous: None,
             })),
         };
         let running = Running {

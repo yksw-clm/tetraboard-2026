@@ -32,7 +32,7 @@ pub struct Diagnostics {
     pub nodes: u64,
     pub work: u64,
     pub root_moves: usize,
-    pub completed_depth: u8,
+    pub completed_depth: u16,
     pub disproved_roots: usize,
     pub cutoff: bool,
     pub search_us: u64,
@@ -49,14 +49,33 @@ pub struct RootTrace {
     pub action: Action,
     pub initial: f64,
     pub score: f64,
-    pub depth: u8,
+    pub depth: u16,
     pub kept_after_depth_two: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ordering_features: Option<[f64; ordering::FEATURE_COUNT]>,
 }
 
-struct Search {
-    deadline: Instant,
+#[derive(Clone, Debug, Serialize)]
+pub struct AnalysisCandidate {
+    pub action: Action,
+    pub score: f64,
+}
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct ContinuousSnapshot {
+    pub candidates: Vec<AnalysisCandidate>,
+    pub completed_depth: u16,
+    pub nodes: u64,
+    pub work: u64,
+}
+struct Continuous<'a> {
+    cancelled: &'a mut dyn FnMut() -> bool,
+    publish: &'a mut dyn FnMut(ContinuousSnapshot),
+    snapshot: ContinuousSnapshot,
+    updated: Instant,
+}
+struct Search<'a> {
+    deadline: Option<Instant>,
+    continuous: Option<Continuous<'a>>,
     max_work: u64,
     root: Side,
     two_players: bool,
@@ -80,7 +99,7 @@ struct Candidate {
     tactical: bool,
     refuted: bool,
     checked_replies: bool,
-    depth: u8,
+    depth: u16,
     kept_after_depth_two: bool,
     index: usize,
 }
@@ -97,9 +116,23 @@ impl Window {
     };
 }
 
-impl Search {
+impl Search<'_> {
     fn spend(&mut self, work: u64) -> Option<()> {
-        if self.stats.work + work > self.max_work || Instant::now() >= self.deadline {
+        if let Some(continuous) = &mut self.continuous {
+            if (continuous.cancelled)() {
+                self.stats.cutoff = true;
+                return None;
+            }
+            if continuous.updated.elapsed() >= Duration::from_secs(1) {
+                continuous.snapshot.nodes = self.stats.nodes;
+                continuous.snapshot.work = self.stats.work;
+                (continuous.publish)(continuous.snapshot.clone());
+                continuous.updated = Instant::now();
+            }
+        }
+        if self.stats.work + work > self.max_work
+            || self.deadline.is_some_and(|end| Instant::now() >= end)
+        {
             self.stats.cutoff = true;
             return None;
         }
@@ -122,7 +155,7 @@ impl Search {
         &mut self,
         state: &State,
         history: &mut History,
-        mut depth: u8,
+        mut depth: u16,
         mut extension: u8,
         mut window: Window,
         mut immediate_loss: Option<&mut bool>,
@@ -253,7 +286,7 @@ impl Search {
         &mut self,
         (state, key): (&State, Option<&PositionKey>),
         history: &mut History,
-        depth: u8,
+        depth: u16,
         extension: u8,
         window: Window,
         immediate_loss: Option<&mut bool>,
@@ -303,12 +336,46 @@ impl Search {
                 kept_after_depth_two: false,
                 index,
             });
-            if won {
+            if won && self.continuous.is_none() {
                 break;
             }
         }
         roots.sort_by(|a, b| b.initial.total_cmp(&a.initial).then(a.index.cmp(&b.index)));
         roots
+    }
+
+    fn publish_roots(&mut self, roots: &[Candidate], depth: u16) {
+        if let Some(continuous) = &mut self.continuous {
+            let mut ranked: Vec<_> = roots
+                .iter()
+                .filter(|r| !r.refuted && r.depth == depth)
+                .collect();
+            ranked.sort_by(|a, b| {
+                b.score
+                    .total_cmp(&a.score)
+                    .then(b.initial.total_cmp(&a.initial))
+                    .then(a.index.cmp(&b.index))
+            });
+            if ranked.is_empty() {
+                ranked = roots.iter().filter(|r| r.depth == depth).collect();
+                ranked.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.index.cmp(&b.index)));
+            }
+            continuous.snapshot = ContinuousSnapshot {
+                candidates: ranked
+                    .into_iter()
+                    .take(3)
+                    .map(|r| AnalysisCandidate {
+                        action: r.action,
+                        score: r.score,
+                    })
+                    .collect(),
+                completed_depth: depth,
+                nodes: self.stats.nodes,
+                work: self.stats.work,
+            };
+            (continuous.publish)(continuous.snapshot.clone());
+            continuous.updated = Instant::now();
+        }
     }
 
     fn deeper(&mut self, roots: &mut [Candidate], history: &mut History) -> Action {
@@ -319,7 +386,13 @@ impl Search {
             .filter(|(i, r)| self.focus || *i < 24 || r.tactical)
             .map(|(i, _)| i)
             .collect();
-        for depth in 2..=if self.teacher { 8 } else { 6 } {
+        for depth in 2..=if self.continuous.is_some() {
+            u16::MAX
+        } else if self.teacher {
+            8
+        } else {
+            6
+        } {
             let mut complete = true;
             let mut best = None;
             let extension = if self.focus && depth == 2 { 0 } else { 2 };
@@ -384,6 +457,7 @@ impl Search {
                 .expect("評価済みの候補です")
                 .action;
             self.stats.completed_depth = depth;
+            self.publish_roots(roots, depth);
             if self.focus {
                 active.retain(|i| !roots[*i].refuted);
                 if depth == 2 && self.learned_order {
@@ -501,7 +575,8 @@ fn search(
     let start = Instant::now();
     let root = state.turn()?;
     let mut search = Search {
-        deadline: start + budget,
+        deadline: Some(start + budget),
+        continuous: None,
         max_work,
         root,
         two_players: state.active_count() == 2,
@@ -557,9 +632,88 @@ fn search(
     })
 }
 
+/// 公開Lv3と同じ評価で、完了した深さだけを公開しながら反復深化します。
+pub fn analyze_continuously(
+    state: &State,
+    history: &mut History,
+    cancelled: &mut dyn FnMut() -> bool,
+    publish: &mut dyn FnMut(ContinuousSnapshot),
+) {
+    let Some(root) = state.turn() else {
+        return;
+    };
+    let mut search = Search {
+        deadline: None,
+        continuous: Some(Continuous {
+            cancelled,
+            publish,
+            snapshot: ContinuousSnapshot::default(),
+            updated: Instant::now(),
+        }),
+        max_work: u64::MAX,
+        root,
+        two_players: state.active_count() == 2,
+        focus: true,
+        reply_risk: false,
+        reply_mix: false,
+        learned_order: false,
+        teacher: false,
+        evaluate,
+        stats: Diagnostics::default(),
+    };
+    let moves = state.legal_moves();
+    let mut roots = search.rank_roots(state, &moves, history);
+    if roots.is_empty() || roots.len() != moves.len() {
+        return;
+    }
+    search.stats.completed_depth = 1;
+    search.publish_roots(&roots, 1);
+    search.deeper(&mut roots, history);
+}
+
 #[cfg(test)]
 mod tests {
     use super::mix_reply_values;
+    #[test]
+    fn continuous_shogi_publishes_common_completed_depths_and_cancels() {
+        use super::*;
+        for restricted in [true, false] {
+            let (state, mut history) = State::start(restricted);
+            let stop = std::cell::Cell::new(false);
+            let mut reports = Vec::new();
+            analyze_continuously(&state, &mut history, &mut || stop.get(), &mut |report| {
+                stop.set(report.completed_depth >= 2);
+                reports.push(report);
+            });
+            assert_eq!(reports.first().unwrap().completed_depth, 1);
+            assert_eq!(reports.last().unwrap().completed_depth, 2);
+            assert!(reports.last().unwrap().nodes > reports.first().unwrap().nodes);
+            for report in reports {
+                assert!(!report.candidates.is_empty());
+                assert!(report.candidates.iter().all(|candidate| {
+                    state
+                        .legal_moves()
+                        .iter()
+                        .any(|legal| legal.action == candidate.action)
+                }));
+            }
+            // 探索の枝が停止後に元の千日手履歴へ残らないことを確認します。
+            let decision = decide_with_limits(
+                &state,
+                &mut history,
+                Profile::Lv3,
+                Duration::from_secs(1),
+                1,
+            )
+            .unwrap();
+            assert!(
+                state
+                    .legal_moves()
+                    .iter()
+                    .any(|m| m.action == decision.action)
+            );
+        }
+    }
 
     #[test]
     fn reply_mix_uses_movers_gap_and_one_weight_for_all_sides() {
