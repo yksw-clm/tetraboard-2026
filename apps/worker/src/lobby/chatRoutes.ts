@@ -1,3 +1,4 @@
+import { recordAccountUsage } from "../accounts/usage";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -27,6 +28,8 @@ lobbyChatRoutes.use("/lobby/chat*", async (c, next) => {
   c.set("user", await accountIdentity(c.req.raw, c.env));
   c.set("tournamentId", null);
   await next();
+  const user = c.get("user");
+  if (c.req.method === "POST" && c.res.ok && user) await recordAccountUsage(c.env.APP_DB, user.id);
 });
 lobbyChatRoutes.use("/tournaments/:id/chat*", async (c, next) => {
   c.header("Cache-Control", "no-store");
@@ -37,6 +40,8 @@ lobbyChatRoutes.use("/tournaments/:id/chat*", async (c, next) => {
   c.set("tournamentId", id.data);
   c.set("user", await accountIdentity(c.req.raw, c.env));
   await next();
+  const user = c.get("user");
+  if (c.req.method === "POST" && c.res.ok && user) await recordAccountUsage(c.env.APP_DB, user.id);
 });
 lobbyChatRoutes.use("/admin/lobby-chat*", async (c, next) => {
   c.header("Cache-Control", "no-store");
