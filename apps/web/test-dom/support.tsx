@@ -122,6 +122,8 @@ beforeEach(() => {
   requests = [];
   sessionStorage.clear();
   localStorage.clear();
+  // 他機能のテストは開幕案内を確認済みとし、未読のケースは専用テストで明示します。
+  localStorage.setItem("tetraboard:rated-launch:seen", "1");
   browserSettings.sync();
   globalThis.fetch = ((url: string | URL | globalThis.Request, init: RequestInit = {}) =>
     new Promise<Response>((resolve, reject) => {
