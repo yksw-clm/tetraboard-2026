@@ -64,7 +64,7 @@ RustはMCTSの既存終局報酬テストと、改修前の`fixtures/local-analy
 
 将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
 
-部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番の公開フラグは無効です。開発ServiceのWrangler dry-runはFull CIに含め、クラウド接続と実機確認は開発への反映後に別途確認します。
+部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番・開発ServiceのWrangler dry-runをFull CIに含めます。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。別の `ai-images` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](development.md#本番aiと4ゲーム同時公開)で別途確認します。
 
 四人リバーシのレート保存は `bun run --cwd apps/worker test test/fourReversiRating.test.ts` で確認します。同順位、CPU混在と5局目の認定、代替手使用局の除外、同じ対局の再試行、別々の対局の同時保存、棋譜APIの内部レート非公開を実D1で検証します。CPU較正の再現手順は[較正仕様](../packages/ai/docs/calibration.md#2026-11-09の予備測定と本測定の手順)にあります。
 

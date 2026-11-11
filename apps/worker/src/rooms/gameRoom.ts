@@ -98,6 +98,7 @@ import {
 } from "./fourReversiProgress";
 import {
   aiServiceConfigured,
+  roomAiAllowed,
   aiServiceEnabled,
   aiServiceTimeout,
   fourReversiAiServiceTimeout,
@@ -1861,6 +1862,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private externalCpuGame(room: Room): CpuCapacityGame | null {
+    if (!roomAiAllowed(this.env, room)) return null;
     if (isShogiRoom(room) && shogiAiEnabled(this.env)) return "shogi";
     if (isFourShogiRoom(room) && room.matchmaking?.rated && aiServiceConfigured(this.env))
       return "four-shogi";
@@ -2091,13 +2093,13 @@ export class GameRoom extends DurableObject<Env> {
         const externalJob =
           isFourShogiRoom(room) && room.matchmaking?.rated
             ? this.shogiProgress.externalCpuJob(room)
-            : isFourReversiRoom(room) && aiServiceEnabled(this.env)
+            : isFourReversiRoom(room) && roomAiAllowed(this.env, room) && aiServiceEnabled(this.env)
               ? this.reversiProgress.externalCpuJob(room)
-              : isShogiRoom(room) && shogiAiEnabled(this.env)
+              : isShogiRoom(room) && roomAiAllowed(this.env, room) && shogiAiEnabled(this.env)
                 ? this.standardShogiProgress.externalCpuJob(room)
                 : null;
         const reversiJob =
-          isReversiRoom(room) && reversiAiEnabled(this.env)
+          isReversiRoom(room) && roomAiAllowed(this.env, room) && reversiAiEnabled(this.env)
             ? this.standardProgress.externalCpuJob(room)
             : undefined;
         deadlines.push(
@@ -3948,7 +3950,11 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isShogiRoom(room)) throw new Error("Expected Shogi room");
-            if (shogiAiEnabled(this.env) && this.hasCpuCapacity(room)) {
+            if (
+              roomAiAllowed(this.env, room) &&
+              shogiAiEnabled(this.env) &&
+              this.hasCpuCapacity(room)
+            ) {
               shogiWork.current = this.standardShogiProgress.prepareExternalCpu(
                 room,
                 now,
@@ -3985,6 +3991,7 @@ export class GameRoom extends DurableObject<Env> {
         } else if (isFourReversiRoom(room)) {
           if (applyCpu && currentCpu(room) !== null) {
             if (
+              roomAiAllowed(this.env, room) &&
               aiServiceEnabled(this.env) &&
               supportsExternalAi(room) &&
               this.ctx.storage.kv.get(fourReversiCpuJobKey) === undefined
@@ -4017,6 +4024,7 @@ export class GameRoom extends DurableObject<Env> {
         } else {
           if (room.matchmaking && !applyCpu) return room;
           if (
+            roomAiAllowed(this.env, room) &&
             reversiAiEnabled(this.env) &&
             currentCpu(room)?.level === 2 &&
             (!room.matchmaking || this.hasCpuCapacity(room))

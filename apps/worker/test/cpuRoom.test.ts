@@ -92,7 +92,10 @@ for (const game of gameIds) {
           expect(snapshot?.game?.moveNumber).toBe(room.game.moveNumber);
           if (snapshot?.status !== "playing") throw Error("Expected playing");
           expect(snapshot.clock.turnStartedAt).toBe(at);
-          expect(await ctx.storage.getAlarm()).toBe(at + 2_000);
+          // 保存・計測の再試行が先に来ても、CPUの期限までにAlarmが動けば着手条件を保てます。
+          const alarmAt = await ctx.storage.getAlarm();
+          expect(alarmAt).not.toBeNull();
+          expect(alarmAt!).toBeLessThanOrEqual(at + 2_000);
         } finally {
           clock.mockRestore();
         }

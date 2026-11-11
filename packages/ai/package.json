@@ -26,7 +26,11 @@
     "study:reversi-calibration": "bun scripts/reversiCalibration.ts",
     "study:lv6:preliminary": "cargo build --release --locked -p tetraboard-ai-benchmark && bun scripts/lv6Preliminary.ts",
     "serve:local": "bun scripts/serveLocal.ts",
-    "setup:local": "bun scripts/setupLocal.ts"
+    "setup:local": "bun scripts/setupLocal.ts",
+    "deploy:cloud:production": "wrangler deploy --config cloudflare/wrangler.jsonc --env production",
+    "deploy:cloud:dry-run:production": "wrangler deploy --config cloudflare/wrangler.jsonc --env production --dry-run",
+    "verify:images": "bun scripts/verifyImages.ts",
+    "verify:deployment": "bun scripts/checkDeployment.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

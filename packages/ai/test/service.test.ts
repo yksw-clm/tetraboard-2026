@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { checkProbe, deploymentProbes } from "../scripts/deploymentChecks";
 import {
   applyAction,
   createInitialState,
@@ -59,6 +60,11 @@ test("実HTTPのhealthと認証境界を確認する", async () => {
       })
     ).status,
   ).toBe(401);
+});
+
+test("公開確認用の全四人ゲームprofileが実Rust Serviceの合法手と版に一致する", async () => {
+  for (const probe of deploymentProbes().filter((p) => p.game.startsWith("four-")))
+    await checkProbe(baseUrl, token, probe, 5000);
 });
 
 type FourShogiReplay = {

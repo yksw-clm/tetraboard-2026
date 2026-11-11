@@ -1,5 +1,5 @@
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
-import { fourShogiActionSchema } from "@tetraboard/protocol";
+import { fourShogiActionSchema, type Room } from "@tetraboard/protocol";
 import type { FourShogiAiWork } from "./fourShogiProgress";
 import { z } from "zod";
 import type { ExternalCpuWork } from "./fourReversiProgress";
@@ -12,6 +12,7 @@ import {
 } from "./aiServiceProfiles";
 
 export interface AiServiceBindings {
+  AI_RATED_ONLY?: string;
   FOUR_SHOGI_DIAGNOSTICS?: string;
   AI_SERVICE_URL?: string;
   AI_GATEWAY?: Pick<Fetcher, "fetch">;
@@ -23,6 +24,15 @@ export interface AiServiceBindings {
   AI_SHOGI_ENABLED?: string;
   AI_REVERSI_ENABLED?: string;
 }
+
+export const roomAiAllowed = (bindings: AiServiceBindings, room: Room) => {
+  const context = "matchmaking" in room ? room.matchmaking : undefined;
+  // 二人ゲームの専用ルームはすべてレート戦で、旧四人ランダムマッチだけは対象外です。
+  return (
+    bindings.AI_RATED_ONLY !== "true" ||
+    (!!context && (("rated" in context && context.rated === true) || "opponent" in context))
+  );
+};
 
 export const aiServiceEnabled = (bindings: AiServiceBindings) =>
   Boolean(bindings.AI_GATEWAY || bindings.AI_SERVICE_URL);
