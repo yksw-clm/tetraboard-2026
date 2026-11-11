@@ -101,6 +101,38 @@ export const adminAnalyticsSchema = z.object({
   buckets: z.array(z.object({ period: z.string(), metrics: analyticsMetricsSchema })),
   acquisition: acquisitionReportSchema.optional(),
 });
+// 日次の人数は期間合計へ単純加算しません。導入前・未集計の日は応答に作りません。
+export const analyticsFoundationSchema = z.object({
+  collectedFromMs: z.number(),
+  aggregatedAtMs: z.number().nullable(),
+  metricVersion: z.number().int().positive(),
+  status: z.enum(["unmeasured", "ready", "delayed"]),
+  backfillComplete: z.boolean(),
+  days: z.array(
+    z.object({
+      day: analyticsDateSchema,
+      incomplete: z.boolean(),
+      pageViews: count,
+      visitors: count.nullable(),
+      dwellMs: count,
+      started: count,
+      completed: count,
+      abandoned: count,
+      cpuMatches: count,
+      humanMatches: count,
+      completedDurationMs: count,
+      registeredActive: count.nullable(),
+      guestActive: count.nullable(),
+    }),
+  ),
+});
+export const analyticsFoundationContract = {
+  method: "GET",
+  path: "/api/admin/analytics/foundation",
+  query: adminAnalyticsQuerySchema,
+  response: analyticsFoundationSchema,
+} as const;
+export type AnalyticsFoundation = z.infer<typeof analyticsFoundationSchema>;
 export const adminUsersQuerySchema = z.object({
   kind: z.enum(["registered", "guest"]).default("registered"),
   search: z.string().trim().max(100).default(""),
@@ -113,6 +145,8 @@ export const adminUserSchema = z.object({
   createdAtMs: z.number(),
   profileCompleted: z.boolean(),
   isGuest: z.boolean().optional(),
+  lastLoginAtMs: z.number().nullable().optional(),
+  lastUsedDay: analyticsDateSchema.nullable().optional(),
 });
 export const adminUsersSchema = z.object({
   users: z.array(adminUserSchema),

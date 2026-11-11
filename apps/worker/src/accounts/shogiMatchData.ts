@@ -1,3 +1,4 @@
+import { profileRatingsSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
   shogiMatchDetailSchema,
@@ -7,6 +8,7 @@ import {
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
 import type { StandardShogiMatchRecord } from "../rooms/shogiMatchStore";
+import { shogiRatingSourceSchema } from "../rooms/shogiRating";
 import type { ParticipantProfiles } from "./matchProfiles";
 const participants = z
   .array(
@@ -19,8 +21,14 @@ const participants = z
   )
   .length(2);
 const recordSchema = z
-  .strictObject({ ...shogiMatchDetailSchema.shape, instanceId: z.uuid(), participants })
-  .omit({ selfPlayerId: true });
+  .strictObject({
+    ...shogiMatchDetailSchema.shape,
+    instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
+    participants,
+    rating: shogiRatingSourceSchema.optional(),
+  })
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicPlayers(record: StandardShogiMatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
     const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;
@@ -41,7 +49,12 @@ function detail(
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const { instanceId: _instance, ...data } = record;
+  const {
+    instanceId: _instance,
+    rating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return shogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

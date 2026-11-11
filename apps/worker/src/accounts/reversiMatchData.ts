@@ -1,3 +1,4 @@
+import { profileRatingsSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
   reversiMatchDetailSchema,
@@ -6,6 +7,7 @@ import {
   reversiAccountStatsSchema,
   reversiRankingsSchema,
 } from "@tetraboard/protocol";
+import { eloRatingSourceSchema } from "../rooms/eloRating";
 import type { MatchRecord } from "../rooms/reversiMatchStore";
 import type { ParticipantProfiles } from "./matchProfiles";
 const participants = z
@@ -19,8 +21,15 @@ const participants = z
   )
   .length(2);
 const recordSchema = z
-  .strictObject({ ...reversiMatchDetailSchema.shape, instanceId: z.uuid(), participants })
-  .omit({ selfPlayerId: true });
+  .strictObject({
+    ...reversiMatchDetailSchema.shape,
+    instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
+    participants,
+    aiFallback: z.literal(true).optional(),
+    rating: eloRatingSourceSchema.optional(),
+  })
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
     const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;
@@ -37,7 +46,13 @@ function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   });
 }
 function detail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, ...data } = record;
+  const {
+    instanceId: _instance,
+    aiFallback: _aiFallback,
+    rating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return reversiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

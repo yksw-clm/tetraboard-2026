@@ -1,3 +1,4 @@
+import { roomMatchKind } from "@tetraboard/protocol";
 import { useBoardRotation } from "./useBoardRotation";
 import { otherSide, canProposeImpasse } from "@tetraboard/shogi";
 import { useState } from "react";
@@ -186,8 +187,20 @@ export function ShogiRoomView({
       chat={chat}
       invited={invited}
       board={board}
-      replayCard={replay.frame ? <ReplayCard replay={replay} theme="shogi" /> : null}
-      result={room.lastRound && <ShogiResult lastRound={room.lastRound} />}
+      replayCard={
+        replay.frame ? (
+          <ReplayCard matchKind={roomMatchKind(room)} replay={replay} theme="shogi" />
+        ) : null
+      }
+      result={(ratingResult) =>
+        room.lastRound && (
+          <ShogiResult
+            lastRound={room.lastRound}
+            selfId={membership?.playerId}
+            ratingResult={ratingResult}
+          />
+        )
+      }
       selfEliminated={
         room.status === "playing" &&
         !!session.self?.side &&

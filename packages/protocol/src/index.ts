@@ -1,4 +1,5 @@
 export * from "./games";
+export * from "./matchKinds";
 export * from "./avatarPresets";
 export * from "./profileDetails";
 export * from "./gameSchemas";
@@ -7,6 +8,10 @@ export {
   getFourReversiRankingsContract,
   fourReversiRankingsSchema,
   rankingEntrySchema,
+  ratingRankingEntrySchema,
+  ratingRankingsSchema,
+  ratingRankingContracts,
+  type RatingRankings,
   type FourReversiRankings,
   type RankingEntry,
   getFourShogiRankingsContract,
@@ -33,6 +38,8 @@ export {
   type ReplayFourShogiMatch,
   type ReplayMatch,
   listMatchesContract,
+  matchHistoryFilterSchema,
+  type MatchHistoryFilter,
   getMatchContract,
   matchDetailSchema,
   type MatchDetail,
@@ -297,3 +304,9 @@ export * from "./registration";
 export * from "./tournaments";
 
 export * from "./notifications";
+
+export * from "./cpuProfiles";
+export * from "./ratedCpuNames";
+export * from "./matchmaking";
+
+export * from "./registrationAnalytics";

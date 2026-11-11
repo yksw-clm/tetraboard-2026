@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import type { ReactNode } from "react";
 import type { LobbyRoomCard as RoomCardData } from "@tetraboard/protocol/general-lobby";
+import { cpuDisplayName } from "@tetraboard/protocol";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { AppCard } from "../../shared/ui/AppCard";
 import { AppIcon } from "../../shared/ui/AppIcon";
@@ -8,6 +9,7 @@ import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { PlayerAvatar } from "../room/PlayerAvatar";
 import { LobbyBoardPreview } from "./LobbyBoardPreview";
+import { MatchKindBadge } from "../../shared/ui/MatchKindBadge";
 
 function duration(ms: number) {
   const seconds = Math.floor(ms / 1000);
@@ -23,6 +25,16 @@ export function LobbyRoomCard({
   children: ReactNode;
 }) {
   const host = room.hostName ?? "ホストなし";
+  const title =
+    room.matchKind === "tournament"
+      ? room.matchSequence === undefined
+        ? "大会戦"
+        : `大会${room.matchSequence}局目`
+      : room.matchKind === "rated"
+        ? room.matchSequence === undefined
+          ? "レート戦"
+          : `レート戦 #${room.matchSequence}`
+        : null;
   const participants = room.participants;
   const status = room.status === "playing" ? "対局中" : room.openSeats > 0 ? "募集中" : "満員";
   const gameName = gameCatalog[room.game].name;
@@ -47,22 +59,27 @@ export function LobbyRoomCard({
               )}
               {room.mode && `・${room.mode === "singles" ? "シングルス" : "ダブルス"}`}
             </span>
+            <MatchKindBadge kind={room.matchKind} />
             <span className="inline-flex items-center gap-1 whitespace-nowrap font-normal tabular-nums">
               <AppIcon name="clock" className="size-3.5" />
               {duration(room.timeControl.mainTimeMs)} / {duration(room.timeControl.byoyomiMs)}
             </span>
           </div>
           <strong className="block text-[15px] leading-6 wrap-anywhere">
-            <PlayerProfileTrigger
-              target={room.hostName === null ? null : room.profileTarget}
-              game={room.game}
-              mode={room.mode ?? "singles"}
-              theme={gameThemes[room.game]}
-              label={host}
-            >
-              {host}
-            </PlayerProfileTrigger>
-            の部屋
+            {title ?? (
+              <>
+                <PlayerProfileTrigger
+                  target={room.hostName === null ? null : room.profileTarget}
+                  game={room.game}
+                  mode={room.mode ?? "singles"}
+                  theme={gameThemes[room.game]}
+                  label={host}
+                >
+                  {host}
+                </PlayerProfileTrigger>
+                の部屋
+              </>
+            )}
           </strong>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 text-[11px] font-bold">
@@ -83,27 +100,32 @@ export function LobbyRoomCard({
             aria-label={`人間${room.humanCount}人、CPU${room.cpuCount}人、空席${room.capacity - participants.length}席`}
             className="inline-flex items-center gap-1"
           >
-            {participants.map((appearance, index) => (
-              <PlayerProfileTrigger
-                key={
-                  appearance.kind === "human" && appearance.profileTarget
-                    ? appearance.profileTarget.playerId
-                    : index
-                }
-                target={appearance.kind === "human" ? appearance.profileTarget : undefined}
-                localProfile={appearance.kind === "cpu" ? appearance : undefined}
-                game={room.game}
-                mode={room.mode ?? "singles"}
-                theme={gameThemes[room.game]}
-                label={
-                  appearance.kind === "cpu"
-                    ? `CPU Lv${appearance.level}`
-                    : `ルーム${room.id}の参加者${index + 1}`
-                }
-              >
-                <PlayerAvatar appearance={appearance} className="size-7 [&_svg]:size-4" />
-              </PlayerProfileTrigger>
-            ))}
+            {participants.map((appearance, index) => {
+              const cpuName = appearance.kind === "cpu" ? cpuDisplayName(appearance) : undefined;
+              return (
+                <PlayerProfileTrigger
+                  key={
+                    appearance.kind === "human" && appearance.profileTarget
+                      ? appearance.profileTarget.playerId
+                      : index
+                  }
+                  target={appearance.kind === "human" ? appearance.profileTarget : undefined}
+                  localProfile={appearance.kind === "cpu" ? appearance : undefined}
+                  game={room.game}
+                  mode={room.mode ?? "singles"}
+                  theme={gameThemes[room.game]}
+                  label={
+                    appearance.kind === "cpu"
+                      ? cpuName
+                        ? cpuName + " CPU"
+                        : `CPU Lv${appearance.level}`
+                      : `ルーム${room.id}の参加者${index + 1}`
+                  }
+                >
+                  <PlayerAvatar appearance={appearance} className="size-7 [&_svg]:size-4" />
+                </PlayerProfileTrigger>
+              );
+            })}
             {Array.from(
               { length: Math.max(0, room.capacity - participants.length) },
               (_, index) => (

@@ -1,3 +1,4 @@
+import { roomMatchKind } from "@tetraboard/protocol";
 import { useState } from "react";
 import type { QuarterTurn } from "./boardRotation";
 import { FourReversiBoard } from "./FourReversiBoard";
@@ -56,8 +57,20 @@ export function ReversiRoomView({
       chat={chat}
       invited={invited}
       board={board}
-      replayCard={replay.frame ? <ReplayCard replay={replay} theme="reversi" /> : null}
-      result={room.lastRound ? <ReversiResult lastRound={room.lastRound} /> : null}
+      replayCard={
+        replay.frame ? (
+          <ReplayCard matchKind={roomMatchKind(room)} replay={replay} theme="reversi" />
+        ) : null
+      }
+      result={(rating) =>
+        room.lastRound ? (
+          <ReversiResult
+            lastRound={room.lastRound}
+            selfId={membership?.playerId}
+            ratingResult={rating && !("players" in rating) ? rating : undefined}
+          />
+        ) : null
+      }
       selfEliminated={false}
       onRotate={() => setRotation((r) => (r === 0 ? 2 : 0))}
       operationNotice={

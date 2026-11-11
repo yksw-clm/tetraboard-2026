@@ -33,10 +33,13 @@ test("画面移動のabortを棋譜取得へ伝え、取得失敗へ変換しな
     ),
   );
   const pending = matchReplayLoader(input);
-  expect(fetchSpy).toHaveBeenCalledWith(`/api/account/matches/${input.params.matchId}`, {
-    credentials: "include",
-    signal: input.request.signal,
-  });
+  expect(fetchSpy).toHaveBeenCalledWith(
+    `/api/account/matches/${input.params.matchId}?includeMatchKind=1`,
+    {
+      credentials: "include",
+      signal: input.request.signal,
+    },
+  );
   controller.abort();
   await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 });
@@ -61,8 +64,8 @@ test("リバーシは棋譜詳細だけを取得し、公開APIと本人APIを�
     match: publicMatch,
   });
   expect(fetchSpy.mock.calls.map(([url]) => url)).toEqual([
-    `/api/account/matches/${match.id}`,
-    `/api/matches/${match.id}`,
+    `/api/account/matches/${match.id}?includeMatchKind=1`,
+    `/api/matches/${match.id}?includeMatchKind=1`,
   ]);
 });
 

@@ -1,3 +1,4 @@
+import { cpuProfileSchema } from "./cpuProfiles";
 import { roomStampSendSchema, roomStampReceivedSchema, roomStampErrorSchema } from "./stamps";
 import { gameCatalog } from "./games";
 import {
@@ -43,7 +44,12 @@ export const playerAppearanceSchema = z.discriminatedUnion("kind", [
     retired: z.literal(true).optional(),
     isGuest: z.boolean().optional(),
   }),
-  z.strictObject({ kind: z.literal("cpu"), level: cpuLevelSchema }),
+  z.strictObject({
+    kind: z.literal("cpu"),
+    level: cpuLevelSchema,
+    cpuProfile: cpuProfileSchema.optional(),
+    name: z.string().optional(),
+  }),
 ]);
 export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
 
@@ -192,10 +198,23 @@ const humanPlayerSchema = playerBaseSchema.extend({
 const cpuPlayerSchema = playerBaseSchema.extend({
   kind: z.literal("cpu"),
   level: cpuLevelSchema,
+  cpuProfile: cpuProfileSchema.optional(),
   ready: z.literal(true),
   reconnectDeadline: z.null(),
 });
+const roomMatchmakingSchema = z.strictObject({
+  id: z.uuid(),
+  preparedAtMs: serverNowMsSchema,
+  startsAtMs: serverNowMsSchema.optional(),
+});
+const duelRoomMatchmakingSchema = roomMatchmakingSchema.extend({
+  opponent: z.enum(["human", "cpu"]),
+});
+const fourReversiRoomMatchmakingSchema = roomMatchmakingSchema.extend({
+  rated: z.literal(true).optional(),
+});
 const waitingRoomSchema = z.strictObject({
+  matchmaking: fourReversiRoomMatchmakingSchema.optional(),
   tournamentId: z.int().positive().optional(),
   tournamentStartsAtMs: serverNowMsSchema.optional(),
   eliminations: z.array(eliminationSchema).length(0).default([]),
@@ -218,6 +237,7 @@ const waitingRoomSchema = z.strictObject({
 
 const activeRoomBaseSchema = z
   .strictObject({
+    matchmaking: fourReversiRoomMatchmakingSchema.optional(),
     tournamentId: z.int().positive().optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
@@ -312,6 +332,7 @@ const reversiRemaining = z.strictObject({
 });
 export const reversiClockSchema = playingClockSchema.extend({ remainingMainMs: reversiRemaining });
 const reversiWaitingSchema = waitingRoomSchema.extend({
+  matchmaking: duelRoomMatchmakingSchema.optional(),
   settings: reversiSettingsSchema,
   players: z
     .array(
@@ -326,6 +347,7 @@ const reversiWaitingSchema = waitingRoomSchema.extend({
 });
 const reversiPlayingRoomSchema = z
   .strictObject({
+    matchmaking: duelRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     status: z.literal("playing"),
@@ -664,6 +686,7 @@ const shogiCheckStateSchema = z.strictObject({
 });
 const shogiWaitingSchema = z
   .strictObject({
+    matchmaking: fourReversiRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     tournamentId: z.int().positive().optional(),
     tournamentStartsAtMs: serverNowMsSchema.optional(),
@@ -691,6 +714,7 @@ const shogiWaitingSchema = z
   .refine((room) => room.tournamentStartsAtMs === undefined || room.tournamentId !== undefined);
 const shogiPlayingSchema = z
   .strictObject({
+    matchmaking: fourReversiRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     tournamentId: z.int().positive().optional(),
     instanceId: z.uuid(),
@@ -750,6 +774,7 @@ const standardShogiCheckStateSchema = z.strictObject({
   north: z.boolean(),
 });
 const standardShogiWaitingSchema = z.strictObject({
+  matchmaking: duelRoomMatchmakingSchema.optional(),
   id: roomCodeSchema,
   instanceId: z.uuid(),
   status: z.literal("waiting"),
@@ -773,6 +798,7 @@ const standardShogiWaitingSchema = z.strictObject({
 });
 const standardShogiPlayingSchema = z
   .strictObject({
+    matchmaking: duelRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
     status: z.literal("playing"),
@@ -826,6 +852,7 @@ export function isFourReversiRoom(room: Room): room is FourReversiRoom {
 
 export const roomPublicMetadataSchema = z
   .strictObject({
+    matchmaking: z.literal(true).optional(),
     id: roomCodeSchema,
     tournamentId: z.int().positive().optional(),
     game: roomGameSchema,
@@ -919,6 +946,7 @@ const roomErrorSchema = z.strictObject({
     "account_seated",
     "account_busy",
     "tournament_required",
+    "matchmaking_required",
     "profile_required",
     "consent_required",
     "room_started",
@@ -1196,6 +1224,7 @@ export const roomSocketContract = {
         "internal_error",
         "forbidden",
         "not_ready",
+        "cpu_capacity_full",
         "registration_pending",
         "already_started",
         "game_not_started",

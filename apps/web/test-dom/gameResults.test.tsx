@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { fourReversiMatchDetailSchema, type FourShogiLastRound } from "@tetraboard/protocol";
+import {
+  fourReversiMatchDetailSchema,
+  type FourReversiRatingResult,
+  type FourShogiLastRound,
+} from "@tetraboard/protocol";
 import { reversiArchives } from "../../../test-fixtures/matches";
 import { GameResultView } from "../src/features/room/GameResultView";
 import { FourShogiGameResultView } from "../src/features/room/FourShogiGameResultView";
@@ -66,6 +70,44 @@ test("将棋は各人の右欄に撃破対象のアイコン・名前をIDで対
   expect(rows[1]!.querySelector('[title="CPU"]')).not.toBeNull();
   expect(rows[0]!.children[1]).toBe(targets);
 });
+for (const status of ["rated", "placement"] as const) {
+  test(`将棋の${status === "rated" ? "レート" : "認定戦"}は名前と同じ欄に表示し、順位・方角の列を増やさない`, () => {
+    const props = shogiResult();
+    const players = props.lastRound.players;
+    const opponents = {
+      [players[1]!.id]: { status: "rated" as const, rating: 1476, previousRating: 1500 },
+      [players[2]!.id]: { status: "placement" as const },
+      [players[3]!.id]: { status: "cpu" as const, rating: 1500 },
+    };
+    const rating: FourReversiRatingResult =
+      status === "rated"
+        ? {
+            status,
+            rating: 1542,
+            previousRating: 1518,
+            humanPlayed: true,
+            placementCompleted: false,
+            players: opponents,
+          }
+        : { status, games: 2, players: opponents };
+    const view = render(
+      <FourShogiGameResultView {...props} ownPlayerId={players[0]!.id} rating={rating} />,
+    );
+    const labels = [
+      status === "rated" ? "1542 (+24)" : "認定戦 2 / 5局",
+      "1476 (-24)",
+      "認定中",
+      "1500",
+    ];
+    for (const [index, player] of players.entries()) {
+      const participant = view.querySelector(`li > div > [data-player-id="${player.id}"]`)!;
+      const grid = participant.parentElement!;
+      expect(grid.children).toHaveLength(3);
+      expect(grid.lastElementChild).toBe(participant);
+      expect(participant.textContent).toBe(player.name + labels[index]);
+    }
+  });
+}
 test("将棋の読込中・失敗は撃破なしと区別し、順位を残して再試行できる", () => {
   const props = shogiResult();
   const view = render(

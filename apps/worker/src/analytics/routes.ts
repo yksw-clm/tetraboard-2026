@@ -1,6 +1,9 @@
+import { registrationAnalyticsInputSchema } from "@tetraboard/protocol";
+import { recordRegistrationEntry } from "./registration";
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { Hono } from "hono";
 import { pageViewInputSchema, dwellInputSchema } from "@tetraboard/protocol";
+import { recordAccountUsage } from "../accounts/usage";
 import { accountIdentity } from "../accounts/auth";
 import { analyticsVisitor, coverageStatement } from "./store";
 import { sessionActivityStatement, sessionStatements } from "./sessions";
@@ -44,9 +47,12 @@ async function body(request: Request) {
 analyticsRoutes.post("/analytics/pageviews", async (c) => {
   const input = pageViewInputSchema.safeParse(await body(c.req.raw));
   if (!input.success) return c.body(null, 400);
-  const visitor = analyticsVisitor(c.req.raw);
-  if (!visitor) return c.body(null, 204);
   const user = await accountIdentity(c.req.raw, c.env);
+  const visitor = analyticsVisitor(c.req.raw);
+  if (!visitor) {
+    if (user) await recordAccountUsage(c.env.APP_DB, user.id);
+    return c.body(null, 204);
+  }
   const now = Date.now();
   // 1ブラウザの異常な送信で、ページビュー行が際限なく増えることを防ぎます。
   const recent = await c.env.APP_DB.prepare(
@@ -79,6 +85,15 @@ analyticsRoutes.post("/analytics/pageviews", async (c) => {
       acquisition: input.data.acquisition,
     }),
   ]);
+  if (user) {
+    const saved = await c.env.APP_DB.prepare(
+      "SELECT started_at_ms FROM analytics_pageviews WHERE id=? AND visitor_id=? AND account_id=?",
+    )
+      .bind(input.data.id, visitor, user.id)
+      .first<{ started_at_ms: number }>();
+    // 切替前の本人のビュー再送や、古いビューの再送で今日の利用日を作りません。
+    if (saved) await recordAccountUsage(c.env.APP_DB, user.id, saved.started_at_ms);
+  }
   return c.body(null, 204);
 });
 analyticsRoutes.post("/analytics/dwell", async (c) => {
@@ -113,5 +128,21 @@ analyticsRoutes.post("/analytics/dwell", async (c) => {
       ),
     ),
   ]);
+  return c.body(null, 204);
+});
+
+analyticsRoutes.post("/analytics/registration", async (c) => {
+  const input = registrationAnalyticsInputSchema.safeParse(await body(c.req.raw));
+  if (!input.success) return c.body(null, 400);
+  const visitor = analyticsVisitor(c.req.raw),
+    user = await accountIdentity(c.req.raw, c.env);
+  if (!visitor && !user) return c.body(null, 204);
+  const recent = await c.env.APP_DB.prepare(
+    `SELECT COUNT(*) AS count FROM analytics_registration_flows WHERE ${visitor ? "visitor_id" : "source_account_id"}=? AND created_at_ms>?`,
+  )
+    .bind(visitor ?? user!.id, Date.now() - 60000)
+    .first<{ count: number }>();
+  if ((recent?.count ?? 0) >= 120) return c.body(null, 429);
+  await recordRegistrationEntry(c.env, input.data, visitor, user);
   return c.body(null, 204);
 });

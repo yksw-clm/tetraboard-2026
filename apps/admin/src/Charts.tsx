@@ -1,120 +1,103 @@
 import type { AdminAnalytics, AnalyticsMetrics } from "@tetraboard/protocol";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "./components/ui/chart";
 import { quantity } from "./presentation";
-const series: { key: keyof AnalyticsMetrics; name: string; color: string }[] = [
-  { key: "visitors", name: "訪問ブラウザ", color: "#246b50" },
-  { key: "started", name: "開始対局", color: "#4479ba" },
-  { key: "completed", name: "完了対局", color: "#bc7e22" },
-];
+const trendConfig = {
+  visitors: { label: "訪問ブラウザ", color: "var(--chart-1)" },
+  started: { label: "開始対局", color: "var(--chart-2)" },
+  completed: { label: "完了対局", color: "var(--chart-3)" },
+} satisfies ChartConfig;
 export function TrendChart({ buckets }: Pick<AdminAnalytics, "buckets">) {
-  const maximum = Math.max(
-    1,
-    ...buckets.flatMap((row) => series.map((s) => Number(row.metrics[s.key]))),
-  );
-  const x = (index: number) => 48 + (index / Math.max(1, buckets.length - 1)) * 690;
-  const y = (value: number) => 220 - (value / maximum) * 170;
+  const data = buckets.map((row) => ({ ...row.metrics, period: row.period }));
   return (
-    <figure className="m-0" aria-label="訪問・対局の推移">
-      <svg
-        viewBox="0 0 780 270"
-        className="w-full"
-        role="img"
+    <figure className="m-0 min-w-0" aria-label="訪問・対局の推移">
+      <ChartContainer
+        config={trendConfig}
+        className="h-[280px] w-full"
         aria-label="訪問ブラウザ数・開始対局数・完了対局数の折れ線グラフ。正確な数値は集計表に表示します。"
       >
-        {[0, 0.5, 1].map((ratio) => (
-          <g key={ratio}>
-            <line
-              x1="48"
-              x2="738"
-              y1={y(maximum * ratio)}
-              y2={y(maximum * ratio)}
-              stroke="#dde5e0"
+        <AreaChart accessibilityLayer data={data} margin={{ left: 0, right: 12, top: 16 }}>
+          <defs>
+            {Object.keys(trendConfig).map((key) => (
+              <linearGradient key={key} id={`fill-${key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={`var(--color-${key})`} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={`var(--color-${key})`} stopOpacity={0.03} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="period"
+            tickLine={false}
+            axisLine={false}
+            minTickGap={36}
+            tickMargin={10}
+            tickFormatter={(v) => String(v).slice(5)}
+          />
+          <YAxis tickLine={false} axisLine={false} width={44} tickFormatter={quantity} />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          {Object.keys(trendConfig).map((key) => (
+            <Area
+              key={key}
+              dataKey={key}
+              type="monotone"
+              stroke={`var(--color-${key})`}
+              fill={`url(#fill-${key})`}
+              strokeWidth={2}
+              connectNulls={false}
+              isAnimationActive={false}
             />
-            <text x="40" y={y(maximum * ratio) + 4} textAnchor="end" fontSize="12" fill="#53665c">
-              {quantity(maximum * ratio)}
-            </text>
-          </g>
-        ))}
-        {series
-          .filter((s) => buckets.every((row) => row.metrics[s.key] !== null))
-          .map((s) => (
-            <g key={s.key}>
-              <polyline
-                fill="none"
-                stroke={s.color}
-                strokeWidth="3"
-                points={buckets
-                  .map((row, index) => `${x(index)},${y(Number(row.metrics[s.key]))}`)
-                  .join(" ")}
-              />
-              {buckets.length === 1 && (
-                <circle cx={x(0)} cy={y(Number(buckets[0].metrics[s.key]))} r="4" fill={s.color} />
-              )}
-            </g>
           ))}
-        {buckets
-          .filter(
-            (_, i) => i === 0 || i === buckets.length - 1 || i === Math.floor(buckets.length / 2),
-          )
-          .map((row) => (
-            <text
-              key={row.period}
-              x={x(buckets.indexOf(row))}
-              y="248"
-              textAnchor="middle"
-              fontSize="12"
-              fill="#53665c"
-            >
-              {row.period}
-            </text>
-          ))}
-      </svg>
-      <figcaption className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-        {series.map((s) => (
-          <span key={s.key} className="flex items-center gap-2">
-            <span className="h-2 w-5 rounded" style={{ background: s.color }} />
-            {s.name}
-            {buckets.some((row) => row.metrics[s.key] === null)
-              ? "（期間の一部を算出できません）"
-              : ""}
-          </span>
-        ))}
-      </figcaption>
+        </AreaChart>
+      </ChartContainer>
+      {buckets.some(
+        (row) =>
+          row.metrics.visitors === null ||
+          row.metrics.started === null ||
+          row.metrics.completed === null,
+      ) && (
+        <figcaption className="text-xs text-muted-foreground">
+          期間の一部を算出できません。欠測区間を0で補っていません。
+        </figcaption>
+      )}
     </figure>
   );
 }
+const breakdownConfig = { count: { label: "対局", color: "var(--chart-1)" } } satisfies ChartConfig;
 export function BreakdownChart({ metrics }: { metrics: AnalyticsMetrics }) {
-  const pairs = [
-    ["CPU戦", metrics.cpuMatches, "#4479ba"],
-    ["対人戦", metrics.humanMatches, "#246b50"],
-    ["シングルス", metrics.singles, "#bc7e22"],
-    ["ダブルス", metrics.doubles, "#875b9b"],
-  ] as const;
-  const maximum = Math.max(1, ...pairs.map(([, value]) => value));
+  const data = [
+    { label: "CPU戦", count: metrics.cpuMatches },
+    { label: "対人戦", count: metrics.humanMatches },
+    { label: "シングルス", count: metrics.singles },
+    { label: "ダブルス", count: metrics.doubles },
+  ];
   return (
-    <svg
-      viewBox="0 0 500 180"
+    <ChartContainer
+      config={breakdownConfig}
+      className="h-[280px] w-full"
       role="img"
-      className="w-full"
-      aria-label={`対局の内訳：${pairs.map(([label, count]) => `${label}${count}局`).join("、")}`}
+      aria-label={`対局の内訳：${data.map((row) => `${row.label}${row.count}局`).join("、")}`}
     >
-      {pairs.map(([label, value, color], index) => (
-        <g key={label}>
-          <text x="0" y={index * 40 + 23} fontSize="14" fill="#21352d">
-            {label}
-          </text>
-          <rect
-            x="100"
-            y={index * 40 + 5}
-            height="25"
-            width={(value / maximum) * 330}
-            rx="4"
-            fill={color}
-          />
-          <text x="490" y={index * 40 + 23} textAnchor="end" fontSize="14" fill="#21352d">
-            {quantity(value)}
-          </text>
-        </g>
-      ))}
-    </svg>
+      <BarChart
+        accessibilityLayer
+        layout="vertical"
+        data={data}
+        margin={{ left: 0, right: 16, top: 16, bottom: 16 }}
+      >
+        <CartesianGrid horizontal={false} />
+        <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey="label" axisLine={false} tickLine={false} width={85} />
+        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+        <Bar dataKey="count" fill="var(--color-count)" radius={4} isAnimationActive={false} />
+      </BarChart>
+    </ChartContainer>
   );
 }

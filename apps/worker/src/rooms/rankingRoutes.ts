@@ -12,6 +12,64 @@ import {
 import { accountAvatarUrl } from "../accounts/auth";
 import { matchDataContracts } from "../accounts/matchDataContracts";
 import { matchOutcomesCte } from "../accounts/matchOutcomes";
+import {
+  ratedMatchmakingGameIds,
+  ratedMatchmakingRules,
+  ratingRankingContracts,
+  type RatedMatchmakingGame,
+} from "@tetraboard/protocol";
+import { ratedMatchmakingPolicy } from "../matchmaking/ratedMatchmaking";
+import { publicRatingBase, publicRatingScale } from "./fourReversiRating";
+import { initialFourReversiRating } from "../../../../packages/ai/fourReversiRating";
+
+export async function readRatingRankings(db: D1Database, game: RatedMatchmakingGame) {
+  const { store } = ratedMatchmakingPolicy(game);
+  const rawRating =
+    game === "four-shogi" || game === "four-reversi"
+      ? `${publicRatingBase} + ${publicRatingScale} * (r.mu_after - ${initialFourReversiRating.mu})`
+      : "r.rating_after";
+  // SQLiteのroundは負の半整数でMath.roundと異なるため、公開表示と同じ丸めを使います。
+  const rows = await db
+    .prepare(`WITH latest AS (
+    SELECT account_id, MAX(rated_games) AS games FROM ${store.changesTable} GROUP BY account_id
+  ), public_values AS (
+    SELECT u.id AS accountId, u.publicProfileId AS profileId, u.username, u.name,
+      u.avatarKey, u.avatarPresetId, CAST(floor((${rawRating}) + 0.5) AS INTEGER) AS value
+    FROM latest l JOIN ${store.changesTable} r ON r.account_id=l.account_id AND r.rated_games=l.games
+    JOIN user u ON u.id=r.account_id
+    WHERE l.games>=?1 AND u.profileCompleted=1 AND COALESCE(u.isAnonymous,0)=0
+      AND NOT EXISTS(SELECT 1 FROM deleted_accounts d WHERE d.id=u.id)
+      AND NOT EXISTS(SELECT 1 FROM guest_account_merges g WHERE g.guest_id=u.id)
+  ), ranked AS (
+    SELECT *, RANK() OVER(ORDER BY value DESC) AS rank,
+      ROW_NUMBER() OVER(ORDER BY value DESC, username ASC) AS position FROM public_values
+  ) SELECT * FROM ranked WHERE position<=10 ORDER BY position`)
+    .bind(ratedMatchmakingRules[game].placementGames)
+    .all<{
+      accountId: string;
+      profileId: string;
+      username: string;
+      name: string;
+      avatarKey: string | null;
+      avatarPresetId: string | null;
+      value: number;
+      rank: number;
+    }>();
+  return ratingRankingContracts[game].response.parse({
+    entries: rows.results.map((row) => ({
+      rank: row.rank,
+      profileId: row.profileId,
+      username: row.username,
+      name: row.name,
+      avatarUrl: accountAvatarUrl({
+        id: row.accountId,
+        avatarKey: row.avatarKey,
+        avatarPresetId: row.avatarPresetId,
+      }),
+      value: row.value,
+    })),
+  });
+}
 
 async function queryGameRankings(
   db: D1Database,
@@ -136,6 +194,20 @@ async function queryTwoPlayerRankings(
   return result;
 }
 export const rankingRoutes = new Hono<{ Bindings: Env }>();
+for (const game of ratedMatchmakingGameIds) {
+  rankingRoutes.get(ratingRankingContracts[game].path, async (c) => {
+    c.header("Cache-Control", "no-store");
+    try {
+      return c.json(await readRatingRankings(c.env.APP_DB, game));
+    } catch {
+      console.error("Rating rankings request failed", game);
+      return c.json(
+        { message: "レートランキングを取得できませんでした。もう一度お試しください。" },
+        503,
+      );
+    }
+  });
+}
 export const rankingReaders = {
   gomoku: async (db: D1Database) =>
     matchDataContracts.gomoku.rankings(await queryTwoPlayerRankings(db, false, "gomoku")),

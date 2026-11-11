@@ -2,6 +2,7 @@ import { gameCatalog } from "./games";
 import { z } from "zod";
 import { usernameSchema } from "./accounts";
 import { countCharacters } from "./rooms";
+import { ratedMatchmakingGameIds } from "./matchmaking";
 
 export const rankingEntrySchema = z.strictObject({
   rank: z.int().positive(),
@@ -25,6 +26,32 @@ export const getFourReversiRankingsContract = {
   response: fourReversiRankingsSchema,
 } as const;
 export type RankingEntry = z.infer<typeof rankingEntrySchema>;
+export const ratingRankingEntrySchema = rankingEntrySchema.extend({
+  profileId: z.uuid(),
+  username: usernameSchema,
+  value: z.int(),
+});
+export const ratingRankingsSchema = z.strictObject({
+  entries: z.array(ratingRankingEntrySchema).max(10),
+});
+export type RatingRankings = z.infer<typeof ratingRankingsSchema>;
+export const ratingRankingContracts = Object.fromEntries(
+  ratedMatchmakingGameIds.map((game) => [
+    game,
+    {
+      method: "GET" as const,
+      path: `${gameCatalog[game].rankingsPath}/rating`,
+      response: ratingRankingsSchema,
+    },
+  ]),
+) as Record<
+  (typeof ratedMatchmakingGameIds)[number],
+  {
+    method: "GET";
+    path: string;
+    response: typeof ratingRankingsSchema;
+  }
+>;
 export type FourReversiRankings = z.infer<typeof fourReversiRankingsSchema>;
 export const fourShogiRankingsSchema = fourReversiRankingsSchema.safeExtend({
   singles: fourReversiRankingsSchema.shape.singles.extend({

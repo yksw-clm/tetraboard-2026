@@ -31,12 +31,17 @@ export function workerTestConfig(extraBindings: Record<string, string> = {}) {
           compatibilityDate: config.compatibility_date,
           compatibilityFlags: config.compatibility_flags,
           durableObjects: {
+            CPU_CAPACITY: { className: "CpuCapacity", useSQLite: true },
             GAME_ROOM: { className: "GameRoom", useSQLite: true },
+            MATCHMAKING_COORDINATOR: { className: "MatchmakingCoordinator", useSQLite: true },
             TOURNAMENT_COORDINATOR: { className: "TournamentCoordinator", useSQLite: true },
           },
           r2Buckets: ["OBJECT_STORAGE"],
           d1Databases: {
             APP_DB: "app-tests",
+            MATCH_LIFECYCLE_TEST_DB: "match-lifecycle-tests",
+            ANALYTICS_REGISTRATION_TEST_DB: "analytics-registration-tests",
+            ANALYTICS_FOUNDATION_TEST_DB: "analytics-foundation-tests",
             LOBBY_TEST_DB: "lobby-tests",
             MATCH_COMPATIBILITY_TEST_DB: "match-compatibility-tests",
             PUBLIC_MATCH_TEST_DB: "public-match-tests",

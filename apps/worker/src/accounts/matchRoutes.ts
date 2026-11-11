@@ -1,3 +1,4 @@
+import { matchHistoryFilterSql, readMatchKinds, withMatchKind } from "./matchKinds";
 import { participantProfiles } from "./matchProfiles";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
@@ -7,6 +8,7 @@ import {
   getMatchReplayContract,
   type RoomMode,
   type MatchGame,
+  type MatchHistoryFilter,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "./auth";
 import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
@@ -19,9 +21,11 @@ export async function listMatches(
   cursor: { startedAtMs: number; id: string } | null,
   game: MatchGame = defaultGameId,
   includeMoveCount = false,
+  includeMatchKind = false,
+  filter: MatchHistoryFilter = "all",
 ) {
   const sql = `SELECT m.game, m.record_json FROM account_match_history h
-    JOIN matches m ON m.id = h.match_id WHERE h.account_id = ? AND h.game = ? AND m.game = h.game AND h.mode = ?`;
+    JOIN matches m ON m.id = h.match_id WHERE h.account_id = ? AND h.game = ? AND m.game = h.game AND h.mode = ?${matchHistoryFilterSql(filter)}`;
   const statement = cursor
     ? db
         .prepare(`${sql} AND (h.started_at_ms < ? OR (h.started_at_ms = ? AND h.match_id < ?))
@@ -42,11 +46,15 @@ export async function listMatches(
     .slice(0, 20)
     .map((row) => readStoredMatch(row.record_json, row.game));
   const profiles = await participantProfiles(db, records);
-  const matches = records.map((record) => matchSummary(record, profiles, includeMoveCount));
+  const kinds = includeMatchKind ? await readMatchKinds(db, records) : undefined;
+  const matches = records.map((record) =>
+    withMatchKind(matchSummary(record, profiles, includeMoveCount), kinds),
+  );
   const last = matches.at(-1);
   return listMatchesContract.response.parse({
     matches,
     nextCursor: rows.results.length > 20 && last ? `${last.startedAtMs}:${last.id}` : null,
+    ...(filter === "all" ? {} : { filter }),
   });
 }
 
@@ -61,6 +69,8 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
       mode: c.req.query("mode"),
       cursor: c.req.query("cursor"),
       includeMoveCount: c.req.query("includeMoveCount"),
+      includeMatchKind: c.req.query("includeMatchKind"),
+      filter: c.req.query("filter"),
     });
     if (!query.success) return c.json({ message: "履歴の取得条件が正しくありません。" }, 400);
     return c.json(
@@ -71,6 +81,8 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
         query.data.cursor ?? null,
         query.data.game,
         query.data.includeMoveCount === "1",
+        query.data.includeMatchKind === "1",
+        query.data.filter,
       ),
     );
   } catch {
@@ -85,6 +97,10 @@ matchRoutes.get(getMatchContract.path, async (c) => {
     const user = await accountIdentity(c.req.raw, c.env);
     if (!user) return c.json({ message: "ログインしてください。" }, 401);
     const params = getMatchContract.params.safeParse(c.req.param());
+    const query = getMatchContract.query.safeParse({
+      includeMatchKind: c.req.query("includeMatchKind"),
+    });
+    if (!query.success) return c.json({ message: "棋譜の取得条件が正しくありません。" }, 400);
     if (!params.success) return c.json({ message: "棋譜のURLが正しくありません。" }, 400);
     const row =
       await c.env.APP_DB.prepare(`SELECT m.game, m.record_json FROM account_match_history h
@@ -98,9 +114,13 @@ matchRoutes.get(getMatchContract.path, async (c) => {
       (p) => p.kind === "human" && p.accountId === user.id,
     );
     if (!self) throw new Error("Match participant missing");
+    const kinds =
+      query.data.includeMatchKind === "1"
+        ? await readMatchKinds(c.env.APP_DB, [record])
+        : undefined;
     return c.json(
       getMatchContract.response.parse({
-        match: matchDetail(record, self.id, profiles),
+        match: withMatchKind(matchDetail(record, self.id, profiles), kinds),
       }),
     );
   } catch {

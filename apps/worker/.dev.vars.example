@@ -10,3 +10,18 @@ DISCORD_CLIENT_SECRET=replace-with-discord-client-secret
 
 # 管理画面の利用を許可する本人の内部 user.id（公開 @ID とは異なります）
 ADMIN_ACCOUNT_IDS='["replace-with-owner-internal-account-id","replace-with-second-internal-account-id"]'
+
+# 外部AI Service（URL未設定なら現行CPU、秘密値は実際の .dev.vars / Secretsへ設定します）
+AI_SERVICE_URL=""
+AI_SHOGI_ENABLED=""
+AI_REVERSI_ENABLED=""
+REVERSI_MATCHMAKING_ENABLED="false"
+AI_SERVICE_TOKEN=""
+AI_RATED_ONLY="false"
+AI_SERVICE_TIMEOUT_MS="5000"
+AI_FOUR_REVERSI_TIMEOUT_MS=""
+AI_SERVICE_LEVEL2_PROFILE=""
+AI_SERVICE_LEVEL2_LIMITS=""
+
+# Rust Service接続後にランダムマッチを有効にします。
+MATCHMAKING_ENABLED="false"

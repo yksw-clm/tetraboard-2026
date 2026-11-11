@@ -1,0 +1,13 @@
+{
+  "format_version": 1,
+  "engine_version": "0.2.0",
+  "ruleset_version": "four-reversi-singles-v2",
+  "state_version": 2,
+  "characters": [
+    { "profile_id": "lv1-v1", "level": 1, "name": "コロ", "style": "一様ランダム" },
+    { "profile_id": "lv2-v1", "level": 2, "name": "カド", "style": "配置・角などの1手評価" },
+    { "profile_id": "lv3-v1", "level": 3, "name": "ヨミ", "style": "多人数の先読み" },
+    { "profile_id": "lv4-v1", "level": 4, "name": "モンテ", "style": "多人数MCTS" },
+    { "profile_id": "lv5-v1", "level": 5, "name": "ノヴァ", "style": "探索量を増やした多人数MCTS" }
+  ]
+}

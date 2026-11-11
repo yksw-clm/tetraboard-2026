@@ -1,6 +1,13 @@
+import { Label } from "./components/ui/label";
+import { Checkbox } from "./components/ui/checkbox";
+import { Input } from "./components/ui/input";
+import { Textarea } from "./components/ui/textarea";
+import { NativeSelect } from "./components/ui/native-select";
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { Button, Card, Spinner } from "@heroui/react";
+import { Button } from "./components/ui/button";
+import { Card } from "./components/ui/card";
+import { Spinner } from "./components/ui/spinner";
 import {
   announcementAdminListSchema,
   announcementFirstLine,
@@ -15,13 +22,13 @@ import { useAdminData } from "./useAdminData";
 import { AdminApiError, adminMutation } from "./api";
 const parseList = (body: unknown) => announcementAdminListSchema.parse(body);
 const parseRecord = (body: unknown) => announcementRecordSchema.parse(body);
-const field = "w-full rounded-lg border border-gray-300 bg-white p-3 text-sm disabled:opacity-60";
+const field = "w-full disabled:opacity-60";
 export function announcementToday(now = Date.now()) {
   return new Date(now + 9 * 3600000).toISOString().slice(0, 10);
 }
 function ErrorMessage({ message, status }: { message: string | null; status?: number }) {
   return message ? (
-    <div role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800">
+    <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
       {message}
       {status === 401 && (
         <a href="/login?destination=admin" className="ml-3 underline">
@@ -38,10 +45,10 @@ export function Announcements() {
     <div className="space-y-5 wrap-anywhere">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">お知らせ</h1>
-        <Link className="text-brand underline" to="/announcements/new">
+        <Link className="text-primary underline" to="/announcements/new">
           お知らせを作成
         </Link>
-        <Button onPress={list.refresh} isDisabled={list.loading}>
+        <Button onClick={list.refresh} disabled={list.loading}>
           更新
         </Button>
       </div>
@@ -52,11 +59,11 @@ export function Announcements() {
           {list.data.announcements.length === 0 && <p>お知らせはありません。</p>}
           {list.data.announcements.map((entry) => (
             <Card className="gap-2 p-5" key={entry.id}>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 {entry.date} ／ {announcementKindLabels[entry.kind]} ／{" "}
                 {entry.published ? "公開" : "非公開"}
               </p>
-              <Link to={`/announcements/${entry.id}`} className="font-bold text-brand underline">
+              <Link to={`/announcements/${entry.id}`} className="font-bold text-primary underline">
                 {entry.title}
               </Link>
               <p className="text-sm">
@@ -67,7 +74,7 @@ export function Announcements() {
           ))}
           {list.data.nextCursor && (
             <Link
-              className="text-brand underline"
+              className="text-primary underline"
               to={`/announcements?cursor=${encodeURIComponent(list.data.nextCursor)}`}
             >
               もっと見る
@@ -76,7 +83,7 @@ export function Announcements() {
         </>
       )}
       {search.has("cursor") && (
-        <Link className="text-brand underline" to="/announcements">
+        <Link className="text-primary underline" to="/announcements">
           最新のお知らせへ
         </Link>
       )}
@@ -94,7 +101,7 @@ export function AnnouncementEditPage() {
       <ErrorMessage message={data.error} status={data.status} />
       {data.loading && <p role="status">読み込んでいます…</p>}
       {!data.data && (
-        <Button isDisabled={data.loading} onPress={data.refresh}>
+        <Button disabled={data.loading} onClick={data.refresh}>
           再試行
         </Button>
       )}
@@ -186,7 +193,7 @@ function AnnouncementEditor({
   }
   return (
     <div className="space-y-5 wrap-anywhere">
-      <Link to="/announcements" className="text-brand underline">
+      <Link to="/announcements" className="text-primary underline">
         お知らせ一覧へ
       </Link>
       <h1 className="text-2xl font-bold">{initial ? "お知らせを編集" : "お知らせを作成"}</h1>
@@ -197,7 +204,7 @@ function AnnouncementEditor({
           <fieldset disabled={busy} className="space-y-4">
             <label className="block space-y-2">
               <span>タイトル（必須・80文字まで）</span>
-              <input
+              <Input
                 className={field}
                 value={draft.title}
                 onChange={(e) => change({ title: e.target.value })}
@@ -205,7 +212,7 @@ function AnnouncementEditor({
             </label>
             <label className="block space-y-2">
               <span>説明文（必須・2,000文字まで）</span>
-              <textarea
+              <Textarea
                 className={field}
                 rows={8}
                 value={draft.body}
@@ -214,19 +221,19 @@ function AnnouncementEditor({
             </label>
             <label className="block space-y-2">
               <span>日付</span>
-              <input
+              <Input
                 className={field}
                 type="date"
                 value={draft.date}
                 onChange={(e) => change({ date: e.target.value })}
               />
             </label>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               日付は表示・並び順に使います。公開予約ではありません。
             </p>
             <label className="block space-y-2">
               <span>種別</span>
-              <select
+              <NativeSelect
                 className={field}
                 value={draft.kind}
                 onChange={(e) => change({ kind: e.target.value as AnnouncementInput["kind"] })}
@@ -236,68 +243,70 @@ function AnnouncementEditor({
                     {label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
-            <label className="flex min-h-11 items-center gap-3">
-              <input
-                type="checkbox"
+            <div className="flex min-h-11 items-center gap-3">
+              <Checkbox
+                id="announcement-published"
+                disabled={busy}
                 checked={draft.published}
-                onChange={(e) => change({ published: e.target.checked })}
+                onCheckedChange={(checked) => change({ published: checked })}
               />
-              公開する
-            </label>
+              <Label htmlFor="announcement-published">公開する</Label>
+            </div>
             <fieldset className="space-y-2">
               <legend>ロビー掲載先</legend>
               {gameIds.map((game) => (
-                <label key={game} className="flex min-h-11 items-center gap-3">
-                  <input
-                    type="checkbox"
+                <div key={game} className="flex min-h-11 items-center gap-3">
+                  <Checkbox
+                    id={`announcement-${game}`}
+                    disabled={busy}
                     checked={draft.lobbyGames.includes(game)}
-                    onChange={(e) =>
+                    onCheckedChange={(checked) =>
                       change({
-                        lobbyGames: e.target.checked
+                        lobbyGames: checked
                           ? [...draft.lobbyGames, game]
                           : draft.lobbyGames.filter((value) => value !== game),
                       })
                     }
                   />
-                  {gameCatalog[game].name}
-                </label>
+                  <Label htmlFor={`announcement-${game}`}>{gameCatalog[game].name}</Label>
+                </div>
               ))}
             </fieldset>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               未選択ならお知らせ一覧だけに掲載します。公開状態と掲載先は保存後に反映されます。
             </p>
           </fieldset>
           <section
             aria-label="ロビー表示プレビュー"
-            className="rounded-lg border border-gray-200 p-4 space-y-2"
+            className="rounded-lg border border-border p-4 space-y-2"
           >
-            <h2 className="text-sm text-gray-600">ロビー表示プレビュー</h2>
+            <h2 className="text-sm text-muted-foreground">ロビー表示プレビュー</h2>
             <p className="font-bold">{draft.title || "タイトル"}</p>
             <p className="text-sm">{announcementFirstLine(draft.body) || "説明文の1行目"}</p>
-            <span className="text-sm text-brand underline">お知らせへ</span>
+            <span className="text-sm text-primary underline">お知らせへ</span>
           </section>
           {status === 409 && reload && (
             <>
               <p className="text-sm">
                 入力を確認してから読み直してください。読み直すと最新の保存内容に置き換わります。
               </p>
-              <Button onPress={reload} isDisabled={busy}>
+              <Button onClick={reload} disabled={busy}>
                 最新データを読み直す
               </Button>
             </>
           )}
           <Button
-            onPress={() => void save()}
-            isDisabled={busy}
+            onClick={() => void save()}
+            disabled={busy}
             aria-label="保存"
             className="relative self-start"
           >
             <span className={busy ? "opacity-0" : ""}>保存</span>
             {busy && (
               <span aria-hidden="true" className="absolute inset-0 grid place-items-center">
-                <Spinner size="sm" />
+                <Spinner className="size-4" />
               </span>
             )}
           </Button>

@@ -1,18 +1,32 @@
 import { gameCatalog } from "@tetraboard/protocol/games";
-import { lazy, Suspense } from "react";
-import { type MatchGame, type RoomMode } from "@tetraboard/protocol";
+import { lazy, Suspense, useState } from "react";
+import { isRatedMatchmakingGame, type MatchGame, type RoomMode } from "@tetraboard/protocol";
 import { AppButton } from "../../shared/ui/AppButton";
-import { formatStatsRate } from "./statsPresentation";
+import { formatStatsRate, statsScopeLabel } from "./statsPresentation";
 import { StatsTable, type StatsRow } from "./StatsTable";
 import { useFormationStats } from "./useFormationStats";
 import { useAccountStats } from "./useAccountStats";
 import { AccountBadges } from "../badges/AccountBadges";
+import { useReversiRatedAvailability } from "../matchmaking/useReversiRatedAvailability";
+import { RatingSummary } from "../matchmaking/RatingSummary";
 const FormationStats = lazy(() => import("./FormationStats"));
 
-export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }) {
+export function AccountStats({
+  game,
+  mode,
+  registered = false,
+}: {
+  game: MatchGame;
+  mode: RoomMode;
+  registered?: boolean;
+}) {
   const { stats, loading, error, pendingSource, refresh } = useAccountStats(game);
   const showFormations = game === "four-shogi" && mode === "singles";
   const formations = useFormationStats(showFormations);
+  const reversiRatedAvailable = useReversiRatedAvailability(registered && game === "reversi");
+  const showRating =
+    registered && isRatedMatchmakingGame(game) && (game !== "reversi" || reversiRatedAvailable);
+  const [ratingRefresh, setRatingRefresh] = useState(0);
   const rows: StatsRow[] = [];
   if (stats) {
     const selected = "wins" in stats ? stats : stats[mode];
@@ -65,12 +79,14 @@ export function AccountStats({ game, mode }: { game: MatchGame; mode: RoomMode }
             onPress={() => {
               void refresh("refresh");
               void formations.refresh("refresh");
+              if (showRating) setRatingRefresh((current) => current + 1);
             }}
           >
             更新
           </AppButton>
         </div>
-        <p className="text-xs text-muted">対人戦のみ集計</p>
+        {showRating && <RatingSummary key={`${game}:${ratingRefresh}`} game={game} compact />}
+        <p className="text-xs text-muted">{statsScopeLabel(game, mode)}</p>
         <div className="flex flex-col gap-3">
           {loading && !pendingSource && (
             <p role="status" className="text-sm text-muted">

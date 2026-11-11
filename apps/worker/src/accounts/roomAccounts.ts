@@ -120,6 +120,9 @@ export async function reserveAccountSeat(
     // If profile editing won the race, its obsolete image cannot gain a new reference.
     const result = await env.APP_DB.batch([
       env.APP_DB.prepare(
+        "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
+      ).bind(user.id, Date.now()),
+      env.APP_DB.prepare(
         "DELETE FROM tournament_wait_reservations WHERE account_id=? AND lease_until_ms<=? AND match_operation_id IS NULL",
       ).bind(user.id, Date.now()),
       env.APP_DB.prepare(`INSERT OR IGNORE INTO account_room_seats
@@ -152,14 +155,14 @@ export async function reserveAccountSeat(
       ).bind(admission.operationId),
     ]).catch(async (error: unknown) => {
       const waiting = await env.APP_DB.prepare(
-        "SELECT 1 FROM tournament_wait_reservations WHERE account_id=?",
+        "SELECT 1 FROM tournament_wait_reservations WHERE account_id=? UNION ALL SELECT 1 FROM matchmaking_wait_reservations WHERE account_id=?",
       )
-        .bind(user.id)
+        .bind(user.id, user.id)
         .first();
       if (waiting) throw new RoomAccountError("account_busy", 409);
       throw error;
     });
-    if (result[1].meta.changes === 1) {
+    if (result[2].meta.changes === 1) {
       return admission;
     }
     const existing = await existingReservation(env.APP_DB, user.id);

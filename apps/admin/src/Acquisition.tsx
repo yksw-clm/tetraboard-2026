@@ -1,4 +1,12 @@
-import { Card } from "@heroui/react";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "./components/ui/table";
+import { Card } from "./components/ui/card";
 import type { AcquisitionReport, AcquisitionRow } from "@tetraboard/protocol";
 import { quantity } from "./presentation";
 
@@ -43,41 +51,41 @@ function Rows({
   const span = utm ? 5 : 3;
   if (status === "未計測")
     return (
-      <tr>
-        <th>{period}</th>
-        <td colSpan={span}>未計測</td>
-      </tr>
+      <TableRow>
+        <TableHead>{period}</TableHead>
+        <TableCell colSpan={span}>未計測</TableCell>
+      </TableRow>
     );
   if (!rows.length)
     return (
-      <tr>
-        <th>
+      <TableRow>
+        <TableHead>
           {period}
           {status && `（${status}）`}
-        </th>
-        <td colSpan={span}>訪問・開始対局 0件</td>
-      </tr>
+        </TableHead>
+        <TableCell colSpan={span}>訪問・開始対局 0件</TableCell>
+      </TableRow>
     );
   return (
     <>
       {rows.map((row, i) => (
-        <tr key={JSON.stringify([row.value, row.medium, row.campaign])}>
+        <TableRow key={JSON.stringify([row.value, row.medium, row.campaign])}>
           {i === 0 && (
-            <th rowSpan={rows.length}>
+            <TableHead rowSpan={rows.length}>
               {period}
               {status && <span className="block text-xs">{status}</span>}
-            </th>
+            </TableHead>
           )}
-          <td className="break-all">{label(row)}</td>
+          <TableCell className="break-all">{label(row)}</TableCell>
           {utm && (
             <>
-              <td className="break-all">{row.medium || "未指定・不明"}</td>
-              <td className="break-all">{row.campaign || "未指定・不明"}</td>
+              <TableCell className="break-all">{row.medium || "未指定・不明"}</TableCell>
+              <TableCell className="break-all">{row.campaign || "未指定・不明"}</TableCell>
             </>
           )}
-          <td>{quantity(row.visits)}</td>
-          <td>{quantity(row.started)}</td>
-        </tr>
+          <TableCell>{quantity(row.visits)}</TableCell>
+          <TableCell>{quantity(row.started)}</TableCell>
+        </TableRow>
       ))}
     </>
   );
@@ -91,7 +99,7 @@ export function Acquisition({
 }) {
   if (!report)
     return (
-      <Card className="rounded-lg border border-gray-200 p-3 text-xs shadow-none">
+      <Card className="rounded-lg border border-border p-3 text-xs shadow-none">
         <h2>流入・端末</h2>
         <p>未計測（対応する計測情報がありません）</p>
       </Card>
@@ -106,12 +114,12 @@ export function Acquisition({
         ? "途中集計"
         : "";
   return (
-    <Card className="gap-3 rounded-lg border border-gray-200 p-3 shadow-none">
+    <Card className="gap-3 rounded-lg border border-border p-3 shadow-none">
       <h2 className="text-sm font-bold">流入・端末</h2>
-      <p className="text-xs leading-relaxed text-gray-600">
+      <p className="text-xs leading-relaxed text-muted-foreground">
         訪問セッション数は30分間、閲覧・前面滞在の更新が途絶えた後の閲覧で区切ります。既存の訪問ブラウザ数とは異なります。流入情報は最初の閲覧で固定します。ゲーム別の訪問は、その訪問で最初に対象ゲームを閲覧した日に数えます。
       </p>
-      <p className="text-xs leading-relaxed text-gray-600">
+      <p className="text-xs leading-relaxed text-muted-foreground">
         開始対局は開始日の参加者に対応する各区分で対局IDを重複排除します。異なる流入元・端末の人が同じ対局に参加した場合は各区分に数えるため、行の合計は全体の開始対局数と一致しません。UTMは参照元分類を変更しません。未指定・不明には欠測を含み、端末分類は推定です。
       </p>
       <p className="text-xs">
@@ -130,22 +138,22 @@ export function Acquisition({
         <section key={dimension} className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold">{title}別の訪問・開始対局</h3>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-xs [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_tbody_tr]:border-t [&_tbody_tr]:border-gray-200">
-              <thead>
-                <tr>
-                  <th>期間（日本時間）</th>
-                  <th>{dimension === "utm" ? "source" : title}</th>
+            <Table className="w-full min-w-[600px] text-xs [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_tbody_tr]:border-t [&_tbody_tr]:border-border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>期間（日本時間）</TableHead>
+                  <TableHead>{dimension === "utm" ? "source" : title}</TableHead>
                   {dimension === "utm" && (
                     <>
-                      <th>medium</th>
-                      <th>campaign</th>
+                      <TableHead>medium</TableHead>
+                      <TableHead>campaign</TableHead>
                     </>
                   )}
-                  <th>訪問セッション数</th>
-                  <th>開始対局</th>
-                </tr>
-              </thead>
-              <tbody>
+                  <TableHead>訪問セッション数</TableHead>
+                  <TableHead>開始対局</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 <Rows
                   rows={report.summary.filter((row) => row.dimension === dimension)}
                   period="選択期間の合計"
@@ -161,8 +169,8 @@ export function Acquisition({
                     utm={dimension === "utm"}
                   />
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </section>
       ))}

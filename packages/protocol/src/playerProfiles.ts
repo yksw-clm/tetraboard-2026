@@ -1,3 +1,4 @@
+import { cpuProfileSchema } from "./cpuProfiles";
 import { z } from "zod";
 import { gameIdSchema } from "./gameSchemas";
 import { usernameSchema } from "./accounts";
@@ -6,6 +7,29 @@ import { rankingEntrySchema } from "./rankings";
 import { accountStatsSchema } from "./matches";
 import { badgeIds } from "./badges";
 import { profileDetailsSchema } from "./profileDetails";
+import { publicReversiRatingSchema, publicShogiRatingSchema } from "./matchmaking";
+
+export const profileRatingSchema = z.union([
+  z.strictObject({
+    timing: z.enum(["current", "before"]),
+    status: z.literal("rated"),
+    rating: z.number(),
+    humanPlayed: z.boolean().optional(),
+  }),
+  z.strictObject({
+    timing: z.enum(["current", "before"]),
+    status: z.literal("placement"),
+  }),
+  z.strictObject({ timing: z.literal("before"), status: z.literal("unavailable") }),
+  z.strictObject({
+    timing: z.literal("reference"),
+    status: z.literal("rated"),
+    rating: z.number(),
+  }),
+]);
+export type ProfileRating = z.infer<typeof profileRatingSchema>;
+export const profileRatingsSchema = z.record(z.uuid(), profileRatingSchema);
+export type ProfileRatings = z.infer<typeof profileRatingsSchema>;
 
 export const playerProfileTargetSchema = z.discriminatedUnion("source", [
   z.strictObject({
@@ -21,21 +45,30 @@ export type PlayerProfileTarget = z.infer<typeof playerProfileTargetSchema>;
 export const playerProfileQuerySchema = z.discriminatedUnion("source", [
   playerProfileTargetSchema.options[0].extend({
     game: gameIdSchema,
+    includeRating: z.literal("1").optional(),
     includeBadges: z.literal("1").optional(),
     includeStats: z.literal("1").optional(),
     includeDetails: z.literal("1").optional(),
+    includeShogiRating: z.literal("1").optional(),
+    includeReversiRating: z.literal("1").optional(),
   }),
   playerProfileTargetSchema.options[1].extend({
     game: gameIdSchema,
+    includeRating: z.literal("1").optional(),
     includeBadges: z.literal("1").optional(),
     includeStats: z.literal("1").optional(),
     includeDetails: z.literal("1").optional(),
+    includeShogiRating: z.literal("1").optional(),
+    includeReversiRating: z.literal("1").optional(),
   }),
   playerProfileTargetSchema.options[2].extend({
     game: gameIdSchema,
+    includeRating: z.literal("1").optional(),
     includeBadges: z.literal("1").optional(),
     includeStats: z.literal("1").optional(),
     includeDetails: z.literal("1").optional(),
+    includeShogiRating: z.literal("1").optional(),
+    includeReversiRating: z.literal("1").optional(),
   }),
 ]);
 const count = z.int().nonnegative();
@@ -48,6 +81,9 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
     isGuest: z.boolean().optional(),
     profileMessage: profileDetailsSchema.shape.profileMessage.optional(),
     favoriteGames: profileDetailsSchema.shape.favoriteGames.optional(),
+    shogiRating: publicShogiRatingSchema.optional(),
+    reversiRating: publicReversiRatingSchema.optional(),
+    rating: profileRatingSchema.optional(),
     avatarUrl: z
       .string()
       .regex(/^\/api\/avatars\/[0-9a-f-]{36}$/)
@@ -72,7 +108,13 @@ export const playerProfileSchema = z.discriminatedUnion("kind", [
     ]),
   }),
   z.strictObject({ kind: z.literal("guest"), name: z.string(), avatarUrl: z.null() }),
-  z.strictObject({ kind: z.literal("cpu"), level: z.union([z.literal(1), z.literal(2)]) }),
+  z.strictObject({
+    kind: z.literal("cpu"),
+    level: z.union([z.literal(1), z.literal(2)]),
+    cpuProfile: cpuProfileSchema.optional(),
+    name: z.string().optional(),
+    rating: profileRatingSchema.optional(),
+  }),
 ]);
 export type PlayerProfile = z.infer<typeof playerProfileSchema>;
 export const getPlayerProfileContract = {

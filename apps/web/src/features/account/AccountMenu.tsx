@@ -1,3 +1,4 @@
+import { beginRegistrationEntry } from "../../analytics/registrationAnalytics";
 import { gameCatalog, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { Dropdown } from "@heroui/react";
 import { useState } from "react";
@@ -63,6 +64,7 @@ export function AccountMenu({ lobbyGame }: { lobbyGame?: GameId }) {
         to="/login"
         size="compact"
         onClick={() => {
+          beginRegistrationEntry("account-menu", lobbyGame ?? null);
           const path = registrationPath(location.pathname + location.search);
           if (path) saveRegistrationReturn({ path }, false);
           else clearRegistrationReturn();

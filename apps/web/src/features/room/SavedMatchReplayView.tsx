@@ -65,6 +65,7 @@ export function SavedMatchReplayView({
       </AppButton>
       <ViewerControls
         label="棋譜閲覧中"
+        matchKind={match.matchKind ?? "unknown"}
         hideLabelOnMobile
         onRotate={onRotate}
         rotationDegrees={!gameCatalog[match.settings.game].hasModes ? 180 : 90}

@@ -1,5 +1,7 @@
+import { matchmakingRoutes } from "./matchmaking/routes";
 import { notificationRoutes } from "./notifications/routes";
-import { runScheduledMaintenance } from "./scheduledMaintenance";
+import { runAnalyticsAggregation } from "./analytics/foundation";
+import { runScheduledMaintenance, runMaintenanceTasks } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./accounts/guestLinking";
 import { guestRoutes } from "./accounts/guestAccounts";
 import { generalLobbyRoutes } from "./lobby/routes";
@@ -8,6 +10,7 @@ import { deletionRoutes } from "./privacy/deletionRoutes";
 import { legalRoutes } from "./privacy/legalRoutes";
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
 import { announcementRoutes, announcementAdminRoutes } from "./announcements/routes";
+import { trackingLinkRoutes } from "./admin/trackingLinks";
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
 import { analyticsRoutes } from "./analytics/routes";
@@ -28,7 +31,9 @@ import { feedbackRoutes, feedbackAdminRoutes } from "./feedback/routes";
 import { servePublicAssets } from "./publicAssets";
 import { tournamentRoutes, tournamentAdminRoutes } from "./tournaments/routes";
 
+export { CpuCapacity } from "./rooms/cpuCapacity";
 export { GameRoom } from "./rooms/gameRoom";
+export { MatchmakingCoordinator } from "./matchmaking/coordinator";
 export { TournamentCoordinator } from "./tournaments/coordinator";
 
 const api = new Hono<{ Bindings: Env }>();
@@ -41,9 +46,11 @@ api.on(healthzContract.method, healthzContract.path, (context) => {
 
 api.route("/", generalLobbyRoutes);
 api.route("/", tournamentRoutes);
+api.route("/", matchmakingRoutes);
 api.route("/", tournamentAdminRoutes);
 api.route("/", lobbyChatRoutes);
 api.route("/", adminRoutes);
+api.route("/", trackingLinkRoutes);
 api.route("/", announcementRoutes);
 api.route("/", announcementAdminRoutes);
 api.route("/", feedbackAdminRoutes);
@@ -126,8 +133,12 @@ const worker = {
     }
     return app.fetch(request, env, context);
   },
-  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await runScheduledMaintenance(env);
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    if (controller.cron === "*/5 * * * *")
+      await runMaintenanceTasks([
+        { name: "analytics-aggregation", run: () => runAnalyticsAggregation(env) },
+      ]);
+    else await runScheduledMaintenance(env);
   },
 };
 

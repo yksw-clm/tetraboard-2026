@@ -1,3 +1,6 @@
+import { lifecycleArchiveStatements } from "./lifecycleAggregation";
+import { registrationArchiveStatements } from "./registrationAggregation";
+import { foundationArchiveStatements } from "./foundationRetention";
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { adminAccountIds, type AdminEnv } from "../admin/auth";
 import { acquisitionArchiveStatements } from "./acquisition";
@@ -6,7 +9,11 @@ export async function archiveAnalytics(env: Env, now = Date.now()) {
     cutoff = now - analyticsRetentionMs;
   const owners = adminAccountIds(env as AdminEnv) ?? [];
   const day = (column: string) => `strftime('%Y-%m-%d',${column}/1000+32400,'unixepoch')`;
-  const statements: D1PreparedStatement[] = [];
+  const statements: D1PreparedStatement[] = [
+    ...foundationArchiveStatements(env, cutoff),
+    ...lifecycleArchiveStatements(env, cutoff),
+    ...registrationArchiveStatements(env, cutoff, now),
+  ];
   for (const include of [false, true]) {
     const eligible = (alias: string) =>
       include

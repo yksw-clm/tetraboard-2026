@@ -1,5 +1,8 @@
+import { registrationContext, sendRegistrationEntry } from "../../analytics/registrationAnalytics";
+import type { RegistrationAnalyticsInput, RegistrationEntry } from "@tetraboard/protocol";
+import type { GameId } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { accountRequest } from "./accountApi";
 import type { RegistrationCredential } from "@tetraboard/protocol";
 import {
@@ -10,7 +13,31 @@ import {
 
 export type SocialProvider = "google" | "discord";
 
-export function useSocialSignIn() {
+export function useSocialSignIn(
+  entry: RegistrationEntry = "login-page",
+  game: GameId | null = null,
+  observeEntry = false,
+) {
+  const analytics = useRef<RegistrationAnalyticsInput | null>(null);
+  const observed = useRef<string | null>(null);
+  const context = useCallback(() => {
+    if (
+      !analytics.current ||
+      (entry !== "login-page" &&
+        (analytics.current.entry !== entry || analytics.current.game !== game))
+    )
+      analytics.current = registrationContext(entry, game);
+    return analytics.current;
+  }, [entry, game]);
+  const trackEntry = useCallback(() => {
+    const key = `${entry}:${game}`;
+    if (observed.current === key) return;
+    observed.current = key;
+    sendRegistrationEntry(context());
+  }, [context, entry, game]);
+  useEffect(() => {
+    if (observeEntry) trackEntry();
+  }, [observeEntry, trackEntry]);
   const submitting = useRef(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
@@ -33,6 +60,10 @@ export function useSocialSignIn() {
     if (registrationDestination) saveRegistrationReturn(registrationDestination, true);
     else clearRegistrationReturn();
     try {
+      if (destination !== "admin") {
+        trackEntry();
+        context();
+      }
       const result = (await accountRequest("/api/auth/sign-in/social", {
         method: "POST",
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(10000)]),
@@ -42,6 +73,7 @@ export function useSocialSignIn() {
         },
         body: JSON.stringify({
           provider,
+          ...(destination !== "admin" ? { analytics: analytics.current } : {}),
           ...(destination === "admin" ? { destination: "admin" } : {}),
           ...(registration
             ? {
@@ -79,5 +111,5 @@ export function useSocialSignIn() {
       return false;
     }
   }
-  return { busy, pendingProvider, message, start };
+  return { busy, pendingProvider, message, start, trackEntry };
 }

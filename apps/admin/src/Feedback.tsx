@@ -1,7 +1,21 @@
+import { Label } from "./components/ui/label";
+import { Checkbox } from "./components/ui/checkbox";
+import { Input } from "./components/ui/input";
+import { Textarea } from "./components/ui/textarea";
+import { NativeSelect } from "./components/ui/native-select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "./components/ui/table";
 import { gameCatalog, gameScopeIds } from "@tetraboard/protocol/games";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { Button, Card } from "@heroui/react";
+import { Button } from "./components/ui/button";
+import { Card } from "./components/ui/card";
 import {
   feedbackDetailSchema,
   feedbackListSchema,
@@ -35,7 +49,7 @@ const priorities = { high: "高", normal: "通常", low: "低" };
 const authors = { guest: "ゲスト", account: "ユーザー" };
 const opponents = { cpu: "CPU戦", human: "対人戦" };
 const ratings = { "1": "★1", "2": "★2", "3": "★3", "4": "★4", "5": "★5" };
-const field = "w-full rounded-lg border border-gray-300 bg-white p-3 text-sm disabled:opacity-60";
+const field = "w-full disabled:opacity-60";
 const date = (ms: number) => new Date(ms).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 const duration = (ms: number | null) =>
   ms === null
@@ -47,7 +61,7 @@ const duration = (ms: number | null) =>
         : `${(ms / 3600000).toFixed(1)}時間`;
 function ErrorMessage({ error, status }: { error: string | null; status?: number }) {
   return error ? (
-    <div role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800">
+    <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
       {error}
       {status === 401 && (
         <a className="ml-3 underline" href="/login?destination=admin">
@@ -91,25 +105,25 @@ export function Feedback() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">フィードバック</h1>
-        <Button onPress={refresh} isDisabled={list.loading}>
+        <Button onClick={refresh} disabled={list.loading}>
           更新
         </Button>
       </div>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         原則、翌日までに新着を確認します。修正期限は約束せず、完了は本番公開の確認後に記録します。投稿・画像は180日で削除されます。
       </p>
       <ErrorMessage
         error={list.error ?? summary.error ?? topics.error}
         status={list.status ?? summary.status ?? topics.status}
       />
-      <label className="flex min-h-11 items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+      <div className="flex min-h-11 items-center gap-2 text-sm">
+        <Checkbox
+          id="feedback-internal"
           checked={includeInternal}
-          onChange={(e) => setIncludeInternal(e.target.checked)}
+          onCheckedChange={(checked) => setIncludeInternal(checked)}
         />
-        集計に運営・テスト投稿を含める
-      </label>
+        <Label htmlFor="feedback-internal">集計に運営・テスト投稿を含める</Label>
+      </div>
       {summary.data && (
         <>
           <section aria-label="確認速度" className="grid gap-3 sm:grid-cols-3">
@@ -119,45 +133,45 @@ export function Feedback() {
               ["初回確認までの中央値", duration(summary.data.medianReviewMs)],
             ].map(([label, value]) => (
               <Card key={label} className="gap-2 p-5">
-                <h2 className="text-sm text-gray-600">{label}</h2>
+                <h2 className="text-sm text-muted-foreground">{label}</h2>
                 <p className="text-2xl font-bold">{value}</p>
               </Card>
             ))}
           </section>
           <Card className="gap-3 p-5">
             <h2 className="font-bold">過去180日のテーマ別需要</h2>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-muted-foreground">
               報告者数はアカウント・ゲストのブラウザ単位の参考値です。登録前後や端末間では統合しません。迷惑投稿は除外します。
             </p>
             {summary.data.topics.length === 0 ? (
               <p>集計対象の投稿はありません。</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="p-2 text-left">テーマ</th>
-                      <th className="p-2 text-right">投稿</th>
-                      <th className="p-2 text-right">報告者</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="w-full text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="p-2 text-left">テーマ</TableHead>
+                      <TableHead className="p-2 text-right">投稿</TableHead>
+                      <TableHead className="p-2 text-right">報告者</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {summary.data.topics.map((t) => (
-                      <tr key={t.id ?? "none"} className="border-t">
-                        <td className="p-2">
+                      <TableRow key={t.id ?? "none"} className="border-t">
+                        <TableCell className="p-2">
                           <button
-                            className="min-h-11 text-brand underline text-left"
+                            className="min-h-11 text-primary underline text-left"
                             onClick={() => filter("topicId", t.id ?? "none")}
                           >
                             {t.name}
                           </button>
-                        </td>
-                        <td className="p-2 text-right">{t.posts}</td>
-                        <td className="p-2 text-right">{t.reporters}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="p-2 text-right">{t.posts}</TableCell>
+                        <TableCell className="p-2 text-right">{t.reporters}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </Card>
@@ -178,19 +192,19 @@ export function Feedback() {
           ).map(([key, label, values]) => (
             <label key={key} className="text-sm">
               {label}
-              <select
+              <NativeSelect
                 className={`${field} mt-1`}
                 value={search.get(key) ?? ""}
                 onChange={(e) => filter(key, e.target.value)}
               >
                 <option value="">すべて</option>
                 <Options values={values} />
-              </select>
+              </NativeSelect>
             </label>
           ))}
           <label className="text-sm">
             テーマ
-            <select
+            <NativeSelect
               className={`${field} mt-1`}
               value={search.get("topicId") ?? ""}
               onChange={(e) => filter("topicId", e.target.value)}
@@ -202,11 +216,11 @@ export function Feedback() {
                   {t.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
         <div>
-          <Button onPress={() => setTopicManager((old) => !old)}>テーマを管理</Button>
+          <Button onClick={() => setTopicManager((old) => !old)}>テーマを管理</Button>
         </div>
         {topicManager && (
           <TopicManager topics={topics.data?.topics ?? []} onSaved={topics.refresh} />
@@ -215,7 +229,7 @@ export function Feedback() {
       {list.loading && <p role="status">読み込んでいます…</p>}
       {list.data && (
         <>
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-muted-foreground">
             新着順・1ページ50件。内部投稿は一覧には表示され、需要集計からは初期除外されます。
           </p>
           {list.data.feedback.length === 0 ? (
@@ -224,7 +238,7 @@ export function Feedback() {
             <div className="space-y-3">
               {list.data.feedback.map((r) => (
                 <Card key={r.id} className="gap-2 p-5">
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span>{date(r.receivedAtMs)}</span>
                     <span>
                       {kinds[r.kind]} ／ {games[r.game]}
@@ -236,13 +250,13 @@ export function Feedback() {
                   </div>
                   <Link
                     to={`/feedback/${r.id}`}
-                    className="block min-h-11 py-2 text-brand underline whitespace-pre-wrap break-words"
+                    className="block min-h-11 py-2 text-primary underline whitespace-pre-wrap break-words"
                   >
                     {r.rating !== null && `★${r.rating} / 5　`}
                     {Array.from(r.body).slice(0, 120).join("") || "コメントなし"}
                     {Array.from(r.body).length > 120 ? "…" : ""}
                   </Link>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-muted-foreground">
                     {authors[r.author]}
                     {r.opponent !== null ? ` ／ ${opponents[r.opponent]}` : ""}
                     {r.hasAttachment ? " ／ 画像あり" : ""}
@@ -254,7 +268,7 @@ export function Feedback() {
           <div className="flex gap-3">
             {search.has("cursor") && (
               <Button
-                onPress={() => {
+                onClick={() => {
                   const next = new URLSearchParams(search);
                   next.delete("cursor");
                   setSearch(next);
@@ -265,7 +279,7 @@ export function Feedback() {
             )}
             {list.data.nextCursor && (
               <Button
-                onPress={() => {
+                onClick={() => {
                   const next = new URLSearchParams(search);
                   next.set("cursor", list.data!.nextCursor!);
                   setSearch(next);
@@ -310,7 +324,7 @@ function TopicManager({ topics, onSaved }: { topics: FeedbackTopic[]; onSaved: (
     <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
       <label className="text-sm">
         編集するテーマ
-        <select
+        <NativeSelect
           className={`${field} mt-1`}
           value={selected}
           disabled={busy}
@@ -327,11 +341,11 @@ function TopicManager({ topics, onSaved }: { topics: FeedbackTopic[]; onSaved: (
               {t.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <label className="text-sm">
         テーマ名
-        <input
+        <Input
           className={`${field} mt-1`}
           value={name}
           disabled={busy}
@@ -339,12 +353,12 @@ function TopicManager({ topics, onSaved }: { topics: FeedbackTopic[]; onSaved: (
         />
       </label>
       {message && (
-        <p role="alert" className="text-sm text-red-800 sm:col-span-2">
+        <p role="alert" className="text-sm text-destructive sm:col-span-2">
           {message}
         </p>
       )}
       <div>
-        <Button onPress={() => void save()} isDisabled={busy}>
+        <Button onClick={() => void save()} disabled={busy}>
           {busy ? "保存中…" : "テーマを保存"}
         </Button>
       </div>
@@ -358,13 +372,13 @@ export function FeedbackDetailPage() {
   const topics = useAdminData("/api/admin/feedback/topics", parseTopics);
   return (
     <div className="space-y-5">
-      <Link className="inline-flex min-h-11 items-center text-brand underline" to="/feedback">
+      <Link className="inline-flex min-h-11 items-center text-primary underline" to="/feedback">
         一覧へ戻る
       </Link>
       <h1 className="text-2xl font-bold">投稿の確認</h1>
       <ErrorMessage error={detail.error ?? topics.error} status={detail.status ?? topics.status} />
       {detail.loading && <p role="status">読み込んでいます…</p>}
-      <Button onPress={detail.refresh} isDisabled={detail.loading}>
+      <Button onClick={detail.refresh} disabled={detail.loading}>
         再取得
       </Button>
       {detail.data && (
@@ -441,13 +455,13 @@ function FeedbackEditor({
   return (
     <>
       <Card className="gap-4 p-5 sm:p-7">
-        <p className="break-all text-xs text-gray-600">受付番号：{r.id}</p>
+        <p className="break-all text-xs text-muted-foreground">受付番号：{r.id}</p>
         <p className="text-sm">
           {kinds[r.kind]} ／ {games[r.game]} ／ {authors[r.author]}
           {r.opponent !== null ? ` ／ ${opponents[r.opponent]}` : ""}
           {r.internal ? "（運営・テスト）" : ""}
         </p>
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-muted-foreground">
           受信：{date(r.receivedAtMs)} ／ 保存期限：{date(r.expiresAtMs)}
           <br />
           初回確認：{r.firstReviewedAtMs === null ? "未確認" : date(r.firstReviewedAtMs)}
@@ -508,7 +522,7 @@ function FeedbackEditor({
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-sm">
             対応状況
-            <select
+            <NativeSelect
               className={`${field} mt-1`}
               value={status}
               disabled={busy}
@@ -518,22 +532,22 @@ function FeedbackEditor({
               }}
             >
               <Options values={statuses} />
-            </select>
+            </NativeSelect>
           </label>
           <label className="text-sm">
             優先度
-            <select
+            <NativeSelect
               className={`${field} mt-1`}
               value={priority}
               disabled={busy}
               onChange={(e) => setPriority(e.target.value as FeedbackRecord["priority"])}
             >
               <Options values={priorities} />
-            </select>
+            </NativeSelect>
           </label>
           <label className="text-sm">
             テーマ
-            <select
+            <NativeSelect
               className={`${field} mt-1`}
               value={topicId}
               disabled={busy}
@@ -545,12 +559,12 @@ function FeedbackEditor({
                   {t.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
         <label className="text-sm">
           運営メモ{status === "declined" ? "（見送りの理由・必須）" : ""}
-          <textarea
+          <Textarea
             className={`${field} mt-1`}
             rows={4}
             value={note}
@@ -560,7 +574,7 @@ function FeedbackEditor({
         </label>
         <label className="text-sm">
           関連GitHub Issue
-          <input
+          <Input
             className={`${field} mt-1`}
             type="url"
             value={issueUrl}
@@ -570,15 +584,15 @@ function FeedbackEditor({
           />
         </label>
         {status === "done" && (
-          <label className="flex min-h-11 gap-2 items-center text-sm">
-            <input
-              type="checkbox"
+          <div className="flex min-h-11 gap-2 items-center text-sm">
+            <Checkbox
+              id="feedback-published"
               checked={published}
               disabled={busy}
-              onChange={(e) => setPublished(e.target.checked)}
+              onCheckedChange={(checked) => setPublished(checked)}
             />
-            本番で公開・動作を確認しました
-          </label>
+            <Label htmlFor="feedback-published">本番で公開・動作を確認しました</Label>
+          </div>
         )}
         <ErrorMessage error={message} status={errorStatus} />
         {errorStatus === 409 && (
@@ -587,24 +601,24 @@ function FeedbackEditor({
           </p>
         )}
         <div>
-          <Button onPress={() => void save()} isDisabled={busy}>
+          <Button onClick={() => void save()} disabled={busy}>
             {busy ? "処理中…" : "対応を保存"}
           </Button>
         </div>
         <div className="border-t pt-4">
-          <label className="flex min-h-11 gap-2 items-center text-sm">
-            <input
-              type="checkbox"
+          <div className="flex min-h-11 gap-2 items-center text-sm">
+            <Checkbox
+              id="feedback-delete"
               checked={confirmDelete}
               disabled={busy}
-              onChange={(e) => setConfirmDelete(e.target.checked)}
+              onCheckedChange={(checked) => setConfirmDelete(checked)}
             />
-            投稿と画像を削除することを確認しました
-          </label>
+            <Label htmlFor="feedback-delete">投稿と画像を削除することを確認しました</Label>
+          </div>
           <Button
-            className="bg-red-700 text-white"
-            isDisabled={busy || !confirmDelete}
-            onPress={() => void save(true)}
+            variant="destructive"
+            disabled={busy || !confirmDelete}
+            onClick={() => void save(true)}
           >
             投稿を削除
           </Button>

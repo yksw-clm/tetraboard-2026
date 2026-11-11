@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { LobbyChat } from "../src/LobbyChat";
-import { render, requests, flush, press } from "../../web/test-dom/support";
+import { render, requests, flush, press, act, clock } from "../../web/test-dom/support";
 const id = "11111111-1111-4111-8111-111111111111";
 const report = {
   id,
@@ -34,18 +34,39 @@ test("運営画面は通報・停止を表示し、操作失敗を残して再�
   await flush();
   expect(view.textContent).toContain("通報された本文");
   expect(view.textContent).toContain("停止中");
+  const opener = [...view.querySelectorAll("button")].find(
+    (b) => b.textContent === "投稿受付を停止",
+  )!;
+  act(() => {
+    opener.focus();
+    opener.click();
+  });
+  await flush();
+  expect(document.body.querySelector('[role="dialog"]')?.getAttribute("aria-modal")).toBe("true");
+  act(() =>
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    ),
+  );
+  clock.advance(300);
+  await flush();
+  expect(document.body.querySelector('[role="dialog"]') === null).toBe(true);
+  expect(document.activeElement === opener).toBe(true);
+  expect(requests.filter((r) => r.init.method === "POST").length).toBe(0);
   press(view, "投稿受付を停止");
-  press(view, "実行");
+  press(document.body, "実行");
   expect(JSON.parse(String(requests.at(-1)!.init.body))).toEqual({
     action: "accepting",
     accepting: false,
   });
   requests.at(-1)!.respond({}, 503);
   await flush();
-  expect(view.textContent).toContain("変更できませんでした");
+  expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
+    "変更できませんでした",
+  );
   expect(view.textContent).toContain("通報された本文");
   press(view, "投稿受付を停止");
-  press(view, "実行");
+  press(document.body, "実行");
   requests.at(-1)!.respond({ message: "変更しました" });
   await flush();
   expect(requests.filter((r) => r.url === "/api/admin/lobby-chat").length).toBe(4);
@@ -75,7 +96,7 @@ test("大会管理は対象大会の履歴と通報を表示し、大会だけ�
   expect(view.textContent).toContain("大会 #3 のチャット管理");
   expect(view.querySelector('a[href="/tournaments/3"]')).not.toBeNull();
   press(view, "投稿受付を停止");
-  press(view, "実行");
+  press(document.body, "実行");
   expect(JSON.parse(String(requests.at(-1)!.init.body))).toEqual({
     action: "accepting",
     accepting: false,

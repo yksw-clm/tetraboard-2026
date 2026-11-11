@@ -6,6 +6,8 @@ import { PlayerProfileCard } from "../src/features/players/PlayerProfileCard";
 import type { PlayerProfile } from "@tetraboard/protocol";
 import { PlayerProfileStore, profileKey } from "../src/features/players/playerProfileStore";
 import { AppDialog } from "../src/shared/ui/AppDialog";
+import { PlayerCardView } from "../src/features/room/PlayerCardView";
+import { PlayerAvatar } from "../src/features/room/PlayerAvatar";
 import { act, clock, flush, render, rerender, requests } from "./harness";
 const id = "10000000-0000-4000-8000-000000000001";
 const target = { source: "profile" as const, profileId: id };
@@ -25,7 +27,7 @@ const wrap = (child: React.ReactNode) => (
 );
 const trigger = (label = "プレイヤー", cpu = false) => (
   <PlayerProfileTrigger
-    target={target}
+    target={cpu ? undefined : target}
     localProfile={cpu ? { kind: "cpu", level: 2 } : undefined}
     game="four-reversi"
     mode="singles"
@@ -35,6 +37,192 @@ const trigger = (label = "プレイヤー", cpu = false) => (
   </PlayerProfileTrigger>
 );
 const region = () => document.querySelector<HTMLElement>('[role="region"]');
+test("プレイヤー情報に現在レートを表示し、元のトリガーの名前は維持する", async () => {
+  const view = render(wrap(trigger()));
+  act(() => view.querySelector<HTMLButtonElement>("button")!.click());
+  await flush();
+  requests[0]!.respond({
+    ...profile,
+    rating: { timing: "current", status: "rated", rating: 1550.4, humanPlayed: false },
+  });
+  await flush();
+  expect(region()?.textContent).toContain("現在のレート 1550");
+  expect(region()?.textContent).not.toContain("対人戦未経験");
+  expect(view.querySelector("button")?.textContent).toBe("プレイヤー");
+});
+
+test.each([
+  { timing: "before", status: "rated", rating: 1549.6, text: "対局前レート 1550" },
+  { timing: "before", status: "placement", text: "対局前レート 認定中" },
+  { timing: "before", status: "unavailable", text: "対局前レート 記録なし" },
+  { timing: "reference", status: "rated", rating: 1552, text: "基準レート 1552" },
+  { timing: "current", status: "placement", text: "現在のレート 認定中" },
+] as const)("レートの時点と公開状態を区別する（$text）", ({ text, ...rating }) => {
+  const current: PlayerProfile = {
+    ...profile,
+    kind: "account",
+    game: "four-reversi",
+    rating,
+  };
+  const view = render(
+    <PlayerProfileCard
+      state={{ loading: false, error: null, loadedAt: 0, profile: current }}
+      game="four-reversi"
+      mode="singles"
+      onRetry={() => {}}
+    />,
+  );
+  expect(view.textContent).toContain(text);
+  expect(view.textContent).not.toContain("ランク");
+});
+
+test("CPUの基準レートは対象対局から取得し、失敗は再試行できる", async () => {
+  const matchTarget = { source: "match" as const, matchId: id, playerId: id };
+  const view = render(
+    wrap(
+      <PlayerProfileTrigger
+        target={matchTarget}
+        localProfile={{ kind: "cpu", name: "ギン", level: 2 }}
+        game="shogi"
+        mode="singles"
+        label="ギン"
+      >
+        ギン
+      </PlayerProfileTrigger>,
+    ),
+  );
+  act(() => view.querySelector<HTMLButtonElement>("button")!.click());
+  await flush();
+  expect(region()?.textContent).toContain("ギン");
+  requests[0]!.respond({ message: "失敗" }, 503);
+  await flush();
+  expect(region()?.textContent).toContain("再試行");
+  expect(region()?.textContent).not.toContain("認定中");
+  act(() => region()!.querySelector<HTMLButtonElement>("button:not([aria-label])")!.click());
+  await flush();
+  requests[1]!.respond({
+    kind: "cpu",
+    name: "ギン",
+    level: 2,
+    rating: { timing: "reference", status: "rated", rating: 1552 },
+  });
+  await flush();
+  expect(region()?.textContent).toContain("基準レート 1552");
+});
+
+test("同じ人の別対局・現在値・通常対局をキャッシュで混同しない", async () => {
+  const store = new PlayerProfileStore();
+  const firstMatch = { source: "match" as const, matchId: id, playerId: id };
+  const secondMatch = { ...firstMatch, matchId: "20000000-0000-4000-8000-000000000002" };
+  const normalRoom = { source: "room" as const, roomId: "12345", instanceId: id, playerId: id };
+  const cases = [
+    { source: target, rating: { timing: "current", status: "rated", rating: 1600 } },
+    { source: firstMatch, rating: { timing: "before", status: "rated", rating: 1400 } },
+    { source: secondMatch, rating: { timing: "before", status: "placement" } },
+    { source: normalRoom, rating: undefined },
+  ] as const;
+  for (const [index, entry] of cases.entries()) {
+    const loading = store.load(entry.source, "four-reversi");
+    requests[index]!.respond({ ...profile, ...(entry.rating ? { rating: entry.rating } : {}) });
+    await loading;
+  }
+  for (const entry of cases) {
+    await store.load(entry.source, "four-reversi");
+    const saved = store.get(profileKey(entry.source, "four-reversi")).profile;
+    expect(saved?.kind === "account" ? saved.rating : undefined).toEqual(entry.rating);
+  }
+  expect(requests).toHaveLength(4);
+});
+
+test("固有名CPUはロボット・CPU表記を併用し、互換用レベルでなく実際のLv3と判断方法を表示する", async () => {
+  const cpuProfile = {
+    id: "lv3-v1" as const,
+    engineVersion: "0.2.0",
+    rulesetVersion: "four-reversi-singles-v2" as const,
+    stateVersion: 2 as const,
+    hash: "a".repeat(64),
+    agentId: "maxn-v1",
+    level: 3,
+    name: "ヨミ",
+    style: "多人数の先読み",
+  };
+  const player = {
+    id: crypto.randomUUID(),
+    name: "ヨミ1",
+    kind: "cpu" as const,
+    level: 2 as const,
+    ready: true as const,
+    color: null,
+    reconnectDeadline: null,
+    cpuProfile,
+  };
+  const view = render(
+    wrap(
+      <PlayerCardView
+        player={player}
+        self={false}
+        host={false}
+        position="bottom"
+        score={null}
+        rank={null}
+        clock={null}
+      />,
+    ),
+  );
+  expect(view.querySelector('[data-testid="player-name"]')?.textContent).toContain("ヨミ1CPU");
+  const avatar = view.querySelector('[data-testid="player-avatar"]');
+  expect(avatar?.getAttribute("title")).toBe("CPU");
+  const robot = render(<PlayerAvatar appearance={{ kind: "cpu", level: 2 }} />);
+  expect(avatar?.querySelector("svg")?.innerHTML).toBe(robot.querySelector("svg")?.innerHTML);
+  expect(avatar?.querySelector("svg")).not.toBeNull();
+  act(() => view.querySelector<HTMLButtonElement>('[aria-label="ヨミ1のプレイヤー情報"]')!.click());
+  await flush();
+  expect(region()?.textContent).toContain("ヨミ1");
+  expect(region()?.textContent).toContain("CPU Lv3");
+  expect(region()?.textContent).toContain("多人数の先読み");
+  expect(region()?.textContent).not.toContain("CPU Lv2");
+  expect(requests).toHaveLength(0);
+});
+test.each([
+  { stored: "シテン2", shown: "シテン2", card: "シテン2CPU" },
+  { stored: "CPU（標準）", shown: "CPU Lv2", card: "CPU Lv2" },
+  { stored: "CPU 1", shown: "CPU Lv2", card: "CPU Lv2" },
+])(
+  "四人将棋のCPUはルームとプレイヤー情報に同じ名前が出る（$stored）",
+  async ({ stored, shown, card }) => {
+    const cpu = {
+      id: crypto.randomUUID(),
+      name: stored,
+      kind: "cpu" as const,
+      level: 2 as const,
+      ready: true as const,
+      side: null,
+      reconnectDeadline: null,
+    };
+    const view = render(
+      wrap(
+        <PlayerCardView
+          player={cpu}
+          self={false}
+          host={false}
+          position="bottom"
+          score={null}
+          rank={null}
+          clock={null}
+          game="four-shogi"
+        />,
+      ),
+    );
+    expect(view.querySelector('[data-testid="player-name"]')?.textContent).toBe(card);
+    expect(view.querySelector('[data-testid="player-avatar"] svg')).not.toBeNull();
+    act(() =>
+      view.querySelector<HTMLButtonElement>(`[aria-label="${shown}のプレイヤー情報"]`)!.click(),
+    );
+    await flush();
+    expect(region()?.textContent).toContain(shown);
+    expect(requests).toHaveLength(0);
+  },
+);
 test("全ゲームの戦績をモードに応じたコンパクトな文章で表示する", () => {
   const singles = { total: 83, first: 22, second: 36, third: 17, fourth: 8 };
   const shogiSingles = { ...singles, knockouts: 51, perfectWins: 2 };
@@ -154,7 +342,7 @@ test("outside dismissal stays closed when Popover restores trigger focus, then a
   clock.advance(500);
   expect(Boolean(region())).toBe(false);
 });
-test("cache expires at 60 seconds, deduplicates requests, preserves source aliases and rejects invalidated late completion", async () => {
+test("cache expires at 60 seconds, deduplicates requests, separates match context and rejects invalidated late completion", async () => {
   const store = new PlayerProfileStore();
   const first = store.load(target, "four-reversi");
   const second = store.load(target, "four-reversi");
@@ -176,8 +364,10 @@ test("cache expires at 60 seconds, deduplicates requests, preserves source alias
   const fromMatch = store.load(source, "four-reversi");
   requests[2]!.respond(profile);
   await fromMatch;
-  await store.load(target, "four-reversi");
-  expect(requests).toHaveLength(3);
+  const current = store.load(target, "four-reversi");
+  expect(requests).toHaveLength(4);
+  requests[3]!.respond(profile);
+  await current;
   store.invalidate({ game: "four-shogi" });
   expect(store.get(profileKey(source, "four-reversi")).profile).not.toBeNull();
   store.clear();

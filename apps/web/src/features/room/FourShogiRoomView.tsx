@@ -1,3 +1,4 @@
+import { roomMatchKind } from "@tetraboard/protocol";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedShogiViewer } from "./boardRotation";
 import { sides, type Side } from "@tetraboard/four-shogi";
@@ -147,12 +148,18 @@ export function FourShogiRoomView({
       chat={chat}
       invited={invited}
       board={board}
-      replayCard={replay.frame ? <ReplayCard replay={replay} theme="four-shogi" /> : null}
-      result={
+      replayCard={
+        replay.frame ? (
+          <ReplayCard matchKind={roomMatchKind(room)} replay={replay} theme="four-shogi" />
+        ) : null
+      }
+      result={(rating) =>
         room.lastRound && (
           <FourShogiGameResultView
             lastRound={room.lastRound}
             currentPlayers={room.players}
+            rating={rating && "players" in rating ? rating : undefined}
+            ownPlayerId={session.membership?.playerId}
             replay={replay}
           />
         )

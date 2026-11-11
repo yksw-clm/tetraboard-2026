@@ -9,6 +9,7 @@ import { createInitialState, eliminateColor } from "@tetraboard/four-reversi";
 import { writeMatch } from "../src/rooms/matchStore";
 import { badgeNotificationResponseSchema } from "@tetraboard/protocol";
 import { badgeAwardsSql } from "../src/accounts/badgeAwards";
+import { fourReversiRatingMethod } from "../../../packages/ai/fourReversiRating";
 
 const db = env.APP_DB;
 function winningRecord(accountId: string, index: number) {
@@ -29,6 +30,24 @@ function winningRecord(accountId: string, index: number) {
   record.game = state;
   record.eliminations = steps.map((s) => ({ color: s.action.color, reason: "left" as const }));
   record.replay.steps = steps;
+  return record;
+}
+
+function ratedWinningRecord(accountId: string, index: number) {
+  const record = winningRecord(accountId, index);
+  record.participants = fixtureRecord(accountId, index).participants;
+  record.fourReversiRating = {
+    method: fourReversiRatingMethod,
+    calibrationVersion: "test-v1",
+    cpu: Object.fromEntries(
+      record.participants.flatMap((p) =>
+        p.kind === "cpu"
+          ? [[p.color, { mu: 25, sigma: 1, profileId: "test", profileHash: "test" }]]
+          : [],
+      ),
+    ),
+    usedFallback: true,
+  };
   return record;
 }
 const awards = (id: string) =>
@@ -145,7 +164,7 @@ test("four-shogi publishes all simultaneous badges with its verified final batch
 test("failure to persist notification rolls back match, indexes and awards, and retry publishes exactly once", async () => {
   const user = await accountFixture();
   for (let i = 1; i <= 2; i++) await writeMatch(db, winningRecord(user.id, i));
-  const record = winningRecord(user.id, 3);
+  const record = ratedWinningRecord(user.id, 3);
   await db
     .prepare(`CREATE TRIGGER fail_badge_notification BEFORE INSERT ON account_badge_notifications
     WHEN NEW.account_id = '${user.id}' BEGIN SELECT RAISE(ABORT, 'notification failure'); END;`)
@@ -162,6 +181,12 @@ test("failure to persist notification rolls back match, indexes and awards, and 
   await writeMatch(db, record);
   await writeMatch(db, record);
   expect((await awards(user.id)).results).toHaveLength(1);
+  expect((await claim(user, crypto.randomUUID()))?.id).toBe(record.id);
+  const events = await db
+    .prepare("SELECT source_id FROM notification_events WHERE account_id=? AND kind='badge'")
+    .bind(user.id)
+    .all();
+  expect(events.results).toEqual([{ source_id: record.id }]);
 });
 
 test("leases serialize tabs/devices, expire or release without losing events, and cannot cross accounts", async () => {
@@ -245,9 +270,10 @@ test("migration snapshots historical badges without notifications and detects th
         .bind(user.id, record.id, "singles", record.startedAtMs, "four-reversi"),
     ]);
   }
+  const ratedMigration = migrations.find((m) => m.name.includes("rated_badge_baseline"))!;
   await applyD1Migrations(
     database,
-    migrations.filter((m) => m.name >= last.name),
+    migrations.filter((m) => m.name >= last.name && m.name < ratedMigration.name),
   );
   const baseline = await database
     .prepare("SELECT badge_id, MAX(tier) AS tier FROM account_badge_awards GROUP BY badge_id")
@@ -274,4 +300,46 @@ test("migration snapshots historical badges without notifications and detects th
   expect(badgeNotificationResponseSchema.parse(await response.json()).notification?.badges).toEqual(
     [{ id: "games", tier: 2, previousTier: 1, value: 20 }],
   );
+
+  const ratedUser = await accountFixture(true, crypto.randomUUID(), database);
+  for (let i = 1; i <= 4; i++) {
+    const record = ratedWinningRecord(ratedUser.id, i);
+    await database.batch([
+      database
+        .prepare("INSERT INTO matches VALUES (?, 'four-reversi', 'singles', ?, ?, ?)")
+        .bind(record.id, record.startedAtMs, record.endedAtMs, JSON.stringify(record)),
+      database
+        .prepare(
+          "INSERT INTO account_match_history (account_id, match_id, mode, started_at_ms, game) VALUES (?, ?, 'singles', ?, 'four-reversi')",
+        )
+        .bind(ratedUser.id, record.id, record.startedAtMs),
+    ]);
+  }
+  await applyD1Migrations(
+    database,
+    migrations.filter((m) => m.name >= ratedMigration.name),
+  );
+  expect(
+    (
+      await database
+        .prepare("SELECT badge_id, tier, match_id FROM account_badge_awards WHERE account_id=?")
+        .bind(ratedUser.id)
+        .all()
+    ).results,
+  ).toEqual([{ badge_id: "wins", tier: 1, match_id: null }]);
+  const count = (table: "account_badge_notifications" | "notification_events") =>
+    database
+      .prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE account_id=?`)
+      .bind(ratedUser.id)
+      .first("count");
+  expect(await count("account_badge_notifications")).toBe(0);
+  expect(await count("notification_events")).toBe(0);
+  const next = ratedWinningRecord(ratedUser.id, 5);
+  await writeMatch(database, next);
+  await writeMatch(database, next);
+  const notice = await operation(ratedUser, "claim", crypto.randomUUID(), undefined, database);
+  expect(badgeNotificationResponseSchema.parse(await notice.json()).notification?.badges).toEqual([
+    { id: "games", tier: 1, previousTier: 0, value: 5 },
+  ]);
+  expect(await count("notification_events")).toBe(1);
 });

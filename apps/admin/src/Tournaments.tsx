@@ -1,7 +1,23 @@
+import { Label } from "./components/ui/label";
+import { Checkbox } from "./components/ui/checkbox";
+import { Input } from "./components/ui/input";
+import { Textarea } from "./components/ui/textarea";
+import { NativeSelect } from "./components/ui/native-select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "./components/ui/table";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { Avatar, Button, Card, Spinner } from "@heroui/react";
+import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
+import { Button } from "./components/ui/button";
+import { Card } from "./components/ui/card";
+import { Spinner } from "./components/ui/spinner";
 import {
   tournamentAdminListSchema,
   tournamentAdminEntriesSchema,
@@ -26,7 +42,7 @@ import { LobbyChat } from "./LobbyChat";
 const parseList = (body: unknown) => tournamentAdminListSchema.parse(body);
 const parseRecord = (body: unknown) => tournamentRecordSchema.parse(body);
 const parseEntries = (body: unknown) => tournamentAdminEntriesSchema.parse(body);
-const field = "w-full rounded-lg border border-gray-300 bg-white p-3 text-sm disabled:opacity-60";
+const field = "w-full disabled:opacity-60";
 const statusLabels = {
   draft: "下書き",
   upcoming: "開催前・エントリー受付中",
@@ -53,7 +69,7 @@ export function tournamentDateValue(value: string): number | null {
 }
 function ErrorMessage({ message, status }: { message: string | null; status?: number }) {
   return message ? (
-    <div role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800">
+    <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
       {message}
       {status === 401 && (
         <a href="/login?destination=admin" className="ml-3 underline">
@@ -76,10 +92,10 @@ export function Tournaments() {
     <div className="space-y-5 wrap-anywhere">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">大会</h1>
-        <Link to="/tournaments/new" className="text-brand underline">
+        <Link to="/tournaments/new" className="text-primary underline">
           大会を作成
         </Link>
-        <Button onPress={list.refresh} isDisabled={list.loading || list.denied}>
+        <Button onClick={list.refresh} disabled={list.loading || list.denied}>
           更新
         </Button>
       </div>
@@ -88,11 +104,11 @@ export function Tournaments() {
       {!!list.pages.length && !tournaments.length && <p>大会はありません。</p>}
       {tournaments.map((tournament) => (
         <Card className="gap-2 p-5" key={tournament.key}>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             {statusLabels[tournament.status]}
             {tournament.id !== null && ` ／ 大会番号 ${tournament.id}`}
           </p>
-          <Link to={`/tournaments/${tournament.key}`} className="font-bold text-brand underline">
+          <Link to={`/tournaments/${tournament.key}`} className="font-bold text-primary underline">
             {tournament.name}
           </Link>
           <p className="text-sm">
@@ -103,7 +119,7 @@ export function Tournaments() {
         </Card>
       ))}
       {list.cursor && (
-        <Button onPress={() => void list.more()} isDisabled={list.loadingMore}>
+        <Button onClick={() => void list.more()} disabled={list.loadingMore}>
           {list.loadingMore ? "読み込んでいます…" : "次の50件"}
         </Button>
       )}
@@ -136,7 +152,7 @@ function TournamentDetail({ tournamentKey }: { tournamentKey: string }) {
       />
       {data.loading && !unauthorized && <p role="status">大会を読み込んでいます…</p>}
       {!data.data && !unauthorized && (
-        <Button isDisabled={data.loading} onPress={data.refresh}>
+        <Button disabled={data.loading} onClick={data.refresh}>
           再試行
         </Button>
       )}
@@ -273,7 +289,7 @@ function TournamentEditor({
   }
   return (
     <div className="space-y-5 wrap-anywhere">
-      <Link to="/tournaments" className="text-brand underline">
+      <Link to="/tournaments" className="text-primary underline">
         大会一覧へ
       </Link>
       <h1 className="text-2xl font-bold">{initial ? "大会を編集" : "大会を作成"}</h1>
@@ -283,7 +299,7 @@ function TournamentEditor({
         <>
           <Card className="gap-5 p-5 sm:p-7">
             {saved && (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 {statusLabels[saved.status]} ／ 更新番号 {saved.version}
                 {saved.id !== null && ` ／ 大会番号 ${saved.id}`}
               </p>
@@ -293,7 +309,7 @@ function TournamentEditor({
                 href={`/tournaments/${saved.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-brand underline"
+                className="text-primary underline"
               >
                 公開ページを開く ↗
               </a>
@@ -303,7 +319,7 @@ function TournamentEditor({
                 <legend className="font-bold">ゲーム・対局ルール</legend>
                 <label className="block space-y-2">
                   <span>ゲーム</span>
-                  <select
+                  <NativeSelect
                     aria-label="ゲーム"
                     className={field}
                     value={draft.settings.game}
@@ -327,12 +343,12 @@ function TournamentEditor({
                         {gameCatalog[game].name}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <p className="text-sm">シングルス・人間4人（CPU補充なし）</p>
                 <label className="block space-y-2">
                   <span>持ち時間</span>
-                  <select
+                  <NativeSelect
                     aria-label="持ち時間"
                     className={field}
                     value={draft.settings.timeControl.mainTimeMs}
@@ -359,11 +375,11 @@ function TournamentEditor({
                         {value ? `${value / 60000}分` : "なし"}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label className="block space-y-2">
                   <span>秒読み</span>
-                  <select
+                  <NativeSelect
                     aria-label="秒読み"
                     className={field}
                     value={draft.settings.timeControl.byoyomiMs}
@@ -390,32 +406,33 @@ function TournamentEditor({
                         {value ? `${value / 1000}秒` : "なし"}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 {draft.settings.game === "four-shogi" && (
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="tournament-three-player-attack"
+                      disabled={busy !== null}
                       aria-label="三人攻撃禁止"
                       checked={draft.settings.threePlayerAttackProhibited}
-                      onChange={(event) => {
+                      onCheckedChange={(checked) => {
                         if (draft.settings.game === "four-shogi")
                           change({
                             settings: {
                               ...draft.settings,
-                              threePlayerAttackProhibited: event.target.checked,
+                              threePlayerAttackProhibited: checked,
                             },
                           });
                       }}
                     />
-                    三人攻撃禁止
-                  </label>
+                    <Label htmlFor="tournament-three-player-attack">三人攻撃禁止</Label>
+                  </div>
                 )}
               </fieldset>
 
               <label className="block space-y-2">
                 <span>大会名（必須・80文字まで）</span>
-                <input
+                <Input
                   aria-label="大会名"
                   className={field}
                   value={draft.name}
@@ -424,7 +441,7 @@ function TournamentEditor({
               </label>
               <label className="block space-y-2">
                 <span>大会の詳細（任意・2,000文字まで）</span>
-                <textarea
+                <Textarea
                   aria-label="大会の詳細"
                   className={field}
                   rows={5}
@@ -435,7 +452,7 @@ function TournamentEditor({
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block space-y-2">
                   <span>開始日時（日本時間）</span>
-                  <input
+                  <Input
                     aria-label="開始日時（日本時間）"
                     type="datetime-local"
                     className={field}
@@ -446,7 +463,7 @@ function TournamentEditor({
                 </label>
                 <label className="block space-y-2">
                   <span>終了日時（日本時間）</span>
-                  <input
+                  <Input
                     aria-label="終了日時（日本時間）"
                     type="datetime-local"
                     className={field}
@@ -456,14 +473,14 @@ function TournamentEditor({
                   />
                 </label>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 {saved?.published
                   ? "公開後の開催日時・ゲーム・対局ルールは固定です。大会名・詳細・説明文は修正できます。"
                   : "下書きでは日時を空欄にできます。公開時は未来の開催日時が必要です。"}
               </p>
               <label className="block space-y-2">
                 <span>大会ごとの説明文（任意・2,000文字まで）</span>
-                <textarea
+                <Textarea
                   aria-label="大会ごとの説明文"
                   className={field}
                   rows={5}
@@ -471,7 +488,7 @@ function TournamentEditor({
                   onChange={(e) => change({ rulesDescription: e.target.value })}
                 />
               </label>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 詳細・説明文は改行を保持するプレーンテキストです。説明文で対局ルール・配点・順位判定を上書きすることはできません。
               </p>
             </fieldset>
@@ -481,34 +498,34 @@ function TournamentEditor({
                 <p className="text-sm">
                   入力を保持しています。入力を確認してから読み直してください。読み直すと最新の保存内容に置き換わります。
                 </p>
-                <Button onPress={reload} isDisabled={busy !== null}>
+                <Button onClick={reload} disabled={busy !== null}>
                   最新データを読み直す
                 </Button>
               </div>
             )}
             <div className="flex flex-wrap gap-3">
               <Button
-                onPress={() => void mutate("save")}
-                isDisabled={busy !== null}
+                onClick={() => void mutate("save")}
+                disabled={busy !== null}
                 aria-label="保存"
                 className="relative"
               >
                 <span className={busy === "save" ? "opacity-0" : ""}>保存</span>
                 {busy === "save" && (
                   <span aria-hidden="true" className="absolute inset-0 grid place-items-center">
-                    <Spinner size="sm" />
+                    <Spinner className="size-4" />
                   </span>
                 )}
               </Button>
               <Button
-                onPress={() => {
+                onClick={() => {
                   const value = input();
                   if (value) {
                     setPreview(value);
                     setError(null);
                   }
                 }}
-                isDisabled={busy !== null}
+                disabled={busy !== null}
               >
                 プレビュー
               </Button>
@@ -516,7 +533,7 @@ function TournamentEditor({
           </Card>
           {preview && (
             <Card aria-label="大会ページのプレビュー" className="gap-4 p-5 sm:p-7">
-              <p className="text-sm text-gray-600">大会ページのプレビュー</p>
+              <p className="text-sm text-muted-foreground">大会ページのプレビュー</p>
               <h2 className="text-2xl font-bold">{preview.name}</h2>
               <p>
                 開催日時（日本時間）：{dateTime(preview.startsAtMs)} 〜 {dateTime(preview.endsAtMs)}
@@ -536,8 +553,8 @@ function TournamentEditor({
                     公開すると大会番号・開催日時・対局ルールが確定し、エントリー受付を開始します。公開後の非公開化・削除はできません。
                   </p>
                   <Button
-                    onPress={() => void mutate("publish")}
-                    isDisabled={
+                    onClick={() => void mutate("publish")}
+                    disabled={
                       busy !== null ||
                       !saved ||
                       JSON.stringify(draft) !== JSON.stringify(draftFromRecord(saved))
@@ -561,7 +578,7 @@ function TournamentEditor({
 }
 function FixedRules({ settings }: { settings: TournamentSettings }) {
   return (
-    <section aria-label="固定ルール" className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm">
+    <section aria-label="固定ルール" className="space-y-2 rounded-lg bg-muted/50 p-4 text-sm">
       <h3 className="font-bold">大会ルール（シングルス）</h3>
       {tournamentRuleDescriptions(settings).map((line) => (
         <p key={line}>{line}</p>
@@ -581,7 +598,7 @@ function TournamentEntries({
   return (
     <section aria-label="エントリー者一覧" className="space-y-4">
       <h2 className="text-xl font-bold">エントリー者一覧</h2>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted-foreground">
         未対局者を含む全エントリー者です。現在オンラインの人数ではありません。
       </p>
       <form
@@ -593,7 +610,7 @@ function TournamentEntries({
       >
         <label className="min-w-0 flex-1 space-y-2">
           <span>名前・公開IDで検索</span>
-          <input
+          <Input
             aria-label="名前・公開IDで検索"
             className={field}
             maxLength={100}
@@ -637,7 +654,7 @@ function EntryResults({
             {search ? "検索結果" : "全エントリー"} {result.pages[0]!.total}人
           </p>
         )}
-        <Button onPress={result.refresh} isDisabled={result.loading || result.denied}>
+        <Button onClick={result.refresh} disabled={result.loading || result.denied}>
           エントリー者を更新
         </Button>
       </div>
@@ -646,9 +663,9 @@ function EntryResults({
       {!!result.pages.length && !entries.length && <p>該当するエントリー者はいません。</p>}
       {!!entries.length && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
+          <Table className="w-full text-left text-sm">
+            <TableHeader>
+              <TableRow>
                 {[
                   "プレイヤー",
                   "公開ID",
@@ -657,42 +674,46 @@ function EntryResults({
                   "対局数",
                   "勝ち点",
                 ].map((label) => (
-                  <th className="whitespace-nowrap p-3" key={label}>
+                  <TableHead className="whitespace-nowrap p-3" key={label}>
                     {label}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {entries.map((entry) => (
-                <tr
+                <TableRow
                   key={`${entry.username}:${entry.enteredAtMs}`}
-                  className="border-t border-gray-200"
+                  className="border-t border-border"
                 >
-                  <td className="p-3">
+                  <TableCell className="p-3">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-9 shrink-0">
-                        <Avatar.Image src={entry.avatarUrl ?? undefined} alt="" />
-                        <Avatar.Fallback>{entry.name.slice(0, 1)}</Avatar.Fallback>
+                        <AvatarImage src={entry.avatarUrl ?? undefined} alt="" />
+                        <AvatarFallback>{entry.name.slice(0, 1)}</AvatarFallback>
                       </Avatar>
                       <span className="whitespace-nowrap">{entry.name}</span>
                     </div>
-                  </td>
-                  <td className="whitespace-nowrap p-3">
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap p-3">
                     {entry.isGuest ? "ゲスト" : `@${entry.username}`}
-                  </td>
-                  <td className="whitespace-nowrap p-3">{dateTime(entry.enteredAtMs)}</td>
-                  <td className="whitespace-nowrap p-3">{entryStatusLabels[entry.status]}</td>
-                  <td className="p-3">{entry.games}</td>
-                  <td className="p-3">{formatTournamentPoints(entry.pointsUnits)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap p-3">
+                    {dateTime(entry.enteredAtMs)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap p-3">
+                    {entryStatusLabels[entry.status]}
+                  </TableCell>
+                  <TableCell className="p-3">{entry.games}</TableCell>
+                  <TableCell className="p-3">{formatTournamentPoints(entry.pointsUnits)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       {result.cursor && (
-        <Button onPress={() => void result.more()} isDisabled={result.loadingMore}>
+        <Button onClick={() => void result.more()} disabled={result.loadingMore}>
           {result.loadingMore ? "読み込んでいます…" : "次の50人"}
         </Button>
       )}

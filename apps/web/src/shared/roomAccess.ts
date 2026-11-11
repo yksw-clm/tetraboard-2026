@@ -109,6 +109,7 @@ export async function joinRoom(
     const messages = {
       account_busy:
         "大会で対局相手を探しています。大会ページで待機を取り消してから参加してください。",
+      matchmaking_required: "ランダムマッチの対局にはマッチング画面から参加してください。",
       tournament_required: "大会の対局には大会詳細ページからエントリーして参加してください。",
       account_seated:
         "このアカウントは既にルームに参加しています。参加中のタブで遊ぶか、退室してから参加してください。",

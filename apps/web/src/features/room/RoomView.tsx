@@ -1,3 +1,4 @@
+import { roomMatchKind } from "@tetraboard/protocol";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex } from "./boardRotation";
 import { FourReversiBoard } from "./FourReversiBoard";
@@ -24,7 +25,9 @@ export function RoomView({
   const { rotation, rotate } = useBoardRotation();
   const viewerRotation = membership === null ? rotation : 0;
   const replay = useRoomReplay(room);
-  const replayCard = replay.frame ? <ReplayCard replay={replay} /> : null;
+  const replayCard = replay.frame ? (
+    <ReplayCard matchKind={roomMatchKind(room)} replay={replay} />
+  ) : null;
   const hasPassNotice = room.status === "playing" && room.game.consecutivePasses.length > 0;
   const board = (
     <RoomBoardLayout hasNotice={hasPassNotice}>
@@ -65,9 +68,14 @@ export function RoomView({
       invited={invited}
       board={board}
       replayCard={replayCard}
-      result={
+      result={(rating) =>
         room.lastRound && (
-          <GameResultView lastRound={room.lastRound} currentPlayers={room.players} />
+          <GameResultView
+            lastRound={room.lastRound}
+            currentPlayers={room.players}
+            rating={rating && "players" in rating ? rating : undefined}
+            ownPlayerId={membership?.playerId}
+          />
         )
       }
       selfEliminated={

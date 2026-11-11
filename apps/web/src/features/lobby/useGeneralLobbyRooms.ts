@@ -52,7 +52,11 @@ export function useGeneralLobbyRooms(game?: GameId) {
         const seenCursors = new Set<string>();
         const collected = new Map<string, LobbyRoomCard>();
         do {
-          const query = new URLSearchParams({ view: "cards" });
+          const query = new URLSearchParams({
+            view: "cards",
+            includeMatchKind: "1",
+            includeMatchSequence: "1",
+          });
           if (game) query.set("game", game);
           if (capacity !== "all") query.set("capacity", String(capacity));
           if (cursor) {

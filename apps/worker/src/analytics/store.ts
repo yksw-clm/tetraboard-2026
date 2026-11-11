@@ -1,3 +1,6 @@
+import { matchmakingEventStatement } from "./matchmakingEvents";
+import type { MatchKind } from "@tetraboard/protocol";
+import { accountUsageStatement } from "../accounts/usage";
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { analyticsSessionIdleMs } from "@tetraboard/protocol";
 export type AnalyticsIdentity = {
@@ -14,7 +17,14 @@ export type AnalyticsMatch = {
   endedAtMs: number | null;
   status: "playing" | "completed" | "abandoned";
   cpuCount: number;
-  participants: (AnalyticsIdentity & { playerId: string })[];
+  matchKind?: MatchKind;
+  humanCount?: number;
+  endReason?: string;
+  participants: (AnalyticsIdentity & {
+    playerId: string;
+    endReason?: string;
+    search?: { operationId: string; joinedAtMs: number };
+  })[];
 };
 export type AnalyticsJob = { record: AnalyticsMatch; revision: number; retryAtMs: number };
 export const analyticsPendingPrefix = "analytics-pending:";
@@ -44,11 +54,15 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
   if (record.startedAtMs <= Date.now() - analyticsRetentionMs) return;
   await db.batch([
     coverageStatement(db, record.startedAtMs),
+    ...record.participants.flatMap((p) =>
+      p.accountId ? [accountUsageStatement(db, p.accountId, record.startedAtMs)] : [],
+    ),
     db
-      .prepare(`INSERT INTO analytics_matches (id, game, mode, started_at_ms, ended_at_ms, status, cpu_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET
+      .prepare(`INSERT INTO analytics_matches (id, game, mode, started_at_ms, ended_at_ms, status, cpu_count,match_kind,human_count,end_reason)
+      VALUES (?, ?, ?, ?, ?, ?, ?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       status = CASE WHEN analytics_matches.status = 'playing' THEN excluded.status ELSE analytics_matches.status END,
-      ended_at_ms = COALESCE(analytics_matches.ended_at_ms, excluded.ended_at_ms)`)
+      ended_at_ms = COALESCE(analytics_matches.ended_at_ms, excluded.ended_at_ms),
+      end_reason=COALESCE(analytics_matches.end_reason,excluded.end_reason)`)
       .bind(
         record.id,
         record.game,
@@ -57,16 +71,19 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
         record.endedAtMs,
         record.status,
         record.cpuCount,
+        record.matchKind ?? "unknown",
+        record.humanCount ?? null,
+        record.endReason ?? null,
       ),
     ...record.participants.map((p) =>
       db
         .prepare(`INSERT INTO analytics_participants (match_id, player_id, account_id, visitor_id, is_test,
-          session_id,referrer_class,utm_source,utm_medium,utm_campaign,device,is_guest)
-      SELECT ?, ?, COALESCE((SELECT account_id FROM guest_account_merges WHERE guest_id=?),?), ?, ?,s.id,s.referrer_class,s.utm_source,s.utm_medium,s.utm_campaign,s.device,?
+          session_id,referrer_class,utm_source,utm_medium,utm_campaign,device,is_guest,origin_account_id,utm_link_id,end_reason)
+      SELECT ?, ?, COALESCE((SELECT account_id FROM guest_account_merges WHERE guest_id=?),?), ?, ?,s.id,s.referrer_class,s.utm_source,s.utm_medium,s.utm_campaign,s.device,?,?,s.utm_link_id,?
       FROM (SELECT 1) LEFT JOIN analytics_sessions s ON s.id=(SELECT id FROM analytics_sessions
         WHERE visitor_id=? AND started_at_ms<=? AND last_activity_ms>? AND started_at_ms>?
         ORDER BY started_at_ms DESC,id LIMIT 1)
-      WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?) AND EXISTS (SELECT 1 FROM analytics_matches WHERE id=?) ON CONFLICT(match_id, player_id) DO NOTHING`)
+      WHERE NOT EXISTS (SELECT 1 FROM deleted_accounts WHERE id=?) AND EXISTS (SELECT 1 FROM analytics_matches WHERE id=?) ON CONFLICT(match_id, player_id) DO UPDATE SET end_reason=COALESCE(analytics_participants.end_reason,excluded.end_reason)`)
         .bind(
           record.id,
           p.playerId,
@@ -75,6 +92,8 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
           p.visitorId,
           Number(p.isTest),
           Number(Boolean(p.isGuest)),
+          p.accountId,
+          p.endReason ?? null,
           p.visitorId,
           record.startedAtMs,
           record.startedAtMs - analyticsSessionIdleMs,
@@ -82,6 +101,25 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
           p.accountId,
           record.id,
         ),
+    ),
+    ...record.participants.flatMap((p) =>
+      p.accountId && p.search
+        ? [
+            matchmakingEventStatement(db, {
+              operationId: p.search.operationId,
+              accountId: p.accountId,
+              matchId: record.id,
+              game: record.game as import("@tetraboard/protocol").GameId,
+              stage: "started",
+              reason: null,
+              atMs: record.startedAtMs,
+              waitingMs: null,
+              humans: record.humanCount ?? record.participants.length,
+              rated: record.matchKind === "rated",
+              isTest: p.isTest,
+            }),
+          ]
+        : [],
     ),
   ]);
 }

@@ -1,5 +1,4 @@
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
-import { archiveAnalytics } from "../analytics/retention";
 import { readAcquisition } from "../analytics/acquisition";
 import {
   analyticsMetricsSchema,
@@ -33,7 +32,7 @@ export async function readAnalytics(
   query: AdminAnalyticsQuery,
 ): Promise<AdminAnalytics> {
   const now = Date.now();
-  await archiveAnalytics(env, now);
+  const cutoff = now - analyticsRetentionMs;
   const from = Date.parse(`${query.from}T00:00:00+09:00`);
   const to = Date.parse(`${query.to}T00:00:00+09:00`) + 86400000;
   const include = query.includeInternal === "true";
@@ -55,7 +54,7 @@ export async function readAnalytics(
       CASE WHEN p.account_id IS NOT NULL THEN 'account:' || p.account_id ELSE 'guest:' || p.visitor_id END AS actor,
       CASE WHEN p.account_id IS NOT NULL AND p.is_guest=0 THEN 'registered' ELSE 'guest' END AS kind
       FROM analytics_participants p WHERE ${actorFilter("p")}),
-    eligible_matches AS (SELECT m.* FROM analytics_matches m WHERE ${gameFilter("m")}
+    eligible_matches AS (SELECT m.* FROM analytics_matches m WHERE m.started_at_ms>${cutoff} AND ${gameFilter("m")}
       AND EXISTS (SELECT 1 FROM eligible_participants p WHERE p.match_id = m.id))`;
   const cteArgs = () => [...actorArgs(), ...gameArgs()];
   type Row = Record<string, number | string | null> & { period: string };
@@ -72,14 +71,14 @@ export async function readAnalytics(
     jobs.push({
       sql: `SELECT ${bucket("v.started_at_ms")} AS period,
       COUNT(DISTINCT v.visitor_id) AS visitors, COUNT(*) AS pageViews, SUM(v.page='general-lobby') AS generalLobbyViews
-      FROM analytics_pageviews v WHERE v.started_at_ms >= ? AND v.started_at_ms < ?
+      FROM analytics_pageviews v WHERE v.started_at_ms>${cutoff} AND v.started_at_ms >= ? AND v.started_at_ms < ?
       AND ${actorFilter("v")} AND ${gameFilter("v")}${grouped}`,
       args: [from, to, ...actorArgs(), ...gameArgs()],
     });
     jobs.push({
       sql: `SELECT ${total ? "'*'" : `substr(d.day, 1, ${query.bucket === "day" ? 10 : 7})`} AS period,
       SUM(d.milliseconds) AS dwellMs, SUM(CASE WHEN v.page='general-lobby' THEN d.milliseconds ELSE 0 END) AS generalLobbyDwellMs FROM analytics_dwell d JOIN analytics_pageviews v ON v.id = d.view_id
-      WHERE d.day >= ? AND d.day <= ? AND ${actorFilter("v")} AND ${gameFilter("v")}${grouped}`,
+      WHERE v.started_at_ms>${cutoff} AND d.day >= ? AND d.day <= ? AND ${actorFilter("v")} AND ${gameFilter("v")}${grouped}`,
       args: [query.from, query.to, ...actorArgs(), ...gameArgs()],
     });
     jobs.push({
@@ -117,7 +116,7 @@ export async function readAnalytics(
       sql: `${cte}, visits AS (SELECT DISTINCT v.visitor_id, v.game, v.started_at_ms,
       ${dateBucket("v.started_at_ms")} AS visit_period,
       strftime('%Y-%m-%d', v.started_at_ms / 1000 + 32400, 'unixepoch') AS day
-      FROM analytics_pageviews v WHERE v.page IN ('lobby', 'room') AND v.started_at_ms >= ? AND v.started_at_ms < ?
+      FROM analytics_pageviews v WHERE v.started_at_ms>${cutoff} AND v.page IN ('lobby', 'room') AND v.started_at_ms >= ? AND v.started_at_ms < ?
       AND ${actorFilter("v")} AND ${gameFilter("v")})
       SELECT ${total ? "'*'" : "visit_period"} AS period, COUNT(DISTINCT v.visitor_id) AS conversionEligible,
       COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM eligible_matches m JOIN eligible_participants p ON p.match_id = m.id
@@ -202,7 +201,6 @@ export async function readAnalytics(
       .bind(...actorArgs())
       .first<{ count: number }>(),
   ]);
-  const cutoff = now - analyticsRetentionMs;
   const unavailable = (values: AnalyticsMetrics) => {
     for (const key of [
       "visitors",

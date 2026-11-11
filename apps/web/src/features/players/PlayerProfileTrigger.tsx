@@ -27,6 +27,7 @@ export function PlayerProfileTrigger({
   label,
   className,
   children,
+  showRating = true,
 }: {
   target?: PlayerProfileTarget | null;
   localProfile?: PlayerProfile;
@@ -36,6 +37,7 @@ export function PlayerProfileTrigger({
   label: string;
   className?: string;
   children: ReactNode;
+  showRating?: boolean;
 }) {
   const context = usePlayerProfiles();
   const closePreview = context?.close;
@@ -64,6 +66,7 @@ export function PlayerProfileTrigger({
   );
   const active = context?.active?.id === id;
   const pinned = active && context?.active?.pinned;
+  const needsRequest = Boolean(target && (!localProfile || localProfile.kind === "cpu"));
   const anyPinned = context?.active?.pinned;
   const clearTimers = useCallback(() => {
     clearTimeout(timers.current.open);
@@ -85,7 +88,7 @@ export function PlayerProfileTrigger({
     if (!pin && (flags.current.suppressed || anyPinned)) return;
     setPortalContainer(anchor.current?.closest<HTMLElement>('[role="dialog"]') ?? undefined);
     context?.activate(id, pin);
-    if (target && !localProfile) void context?.store.load(target, game);
+    if (target && needsRequest) void context?.store.load(target, game);
   };
   useEffect(() => {
     if (active && target === null && !localProfile) close();
@@ -105,9 +108,9 @@ export function PlayerProfileTrigger({
       timers.current.close = setTimeout(() => close(), 150);
   };
   useEffect(() => {
-    if (active && target && !localProfile && !state.loading && !state.profile && !state.error)
+    if (active && target && needsRequest && !state.loading && !state.profile && !state.error)
       void store?.load(target, game);
-  }, [active, target, localProfile, state, store, game]);
+  }, [active, target, needsRequest, state, store, game]);
   const attachCard = useCallback(
     (element: HTMLElement | null) => {
       card.current = element;
@@ -264,6 +267,7 @@ export function PlayerProfileTrigger({
             localProfile={localProfile}
             game={game}
             mode={mode}
+            showRating={showRating}
             onRetry={() => {
               if (target) void context.store.load(target, game, true);
             }}

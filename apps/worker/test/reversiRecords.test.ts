@@ -80,11 +80,40 @@ async function stats(cookie: string) {
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   return reversiAccountStatsSchema.parse(await response.json());
 }
+test.each([
+  { mainTimeMs: 300_000, byoyomiMs: 0, counted: true },
+  { mainTimeMs: 180_000, byoyomiMs: 0, counted: true },
+  { mainTimeMs: 300_000, byoyomiMs: 30_000, counted: false },
+] as const)(
+  "リバーシの新旧レート戦の時計だけを更新対象にする $mainTimeMs + $byoyomiMs",
+  async ({ mainTimeMs, byoyomiMs, counted }) => {
+    const user = await accountFixture();
+    const match = record(user.id, "win", true);
+    match.settings.timeControl = { mainTimeMs, byoyomiMs };
+    match.rating = { kind: "cpu", profileId: "test", referenceRating: 1500 };
+    await writeMatch(env.APP_DB, match);
+    await writeMatch(env.APP_DB, match);
+    const { results } = await env.APP_DB.prepare(
+      "SELECT rating_after, rated_games FROM reversi_rating_changes WHERE match_id=?",
+    )
+      .bind(match.id)
+      .all();
+    expect(results).toEqual(counted ? [{ rating_after: 1524, rated_games: 1 }] : []);
+  },
+);
+
 test("勝ち・負け・引き分けをモードなしで集計し、再保存で重複しない", async () => {
   const user = await accountFixture();
   const records = ["win", "loss", "draw"].map((outcome) =>
-    record(user.id, outcome as "win" | "loss" | "draw"),
+    record(user.id, outcome as "win" | "loss" | "draw", outcome === "draw"),
   );
+  records[0]!.rating = { kind: "human" };
+  records[2]!.rating = {
+    kind: "cpu",
+    profileId: "test",
+    referenceRating: 1500,
+    usedFallback: true,
+  };
   for (const item of records) {
     await writeMatch(env.APP_DB, item);
     await writeMatch(env.APP_DB, item);

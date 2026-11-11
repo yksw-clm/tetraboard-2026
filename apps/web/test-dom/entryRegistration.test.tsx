@@ -14,6 +14,8 @@ import { playingShogiRoom, waitingShogiRoom } from "../test/fixtures/fourShogiFi
 import { act, denyStorage, clock, flush, requests, renderHook, wrap } from "./harness";
 import type { GameId, Room } from "@tetraboard/protocol";
 
+const actions = () => requests.filter((request) => request.url !== "/api/analytics/registration");
+
 test("両ゲームの作成・すぐ遊ぶは入力と設定を送り、アカウント名を省略し送信中に再送しない", async () => {
   for (const game of ["four-reversi", "four-shogi"] as const) {
     requests.length = 0;
@@ -31,11 +33,11 @@ test("両ゲームの作成・すぐ遊ぶは入力と設定を送り、アカ�
       void h.current.submitRoom("quick");
       void h.current.submitRoom("quick");
     });
-    expect(requests).toHaveLength(1);
+    expect(actions()).toHaveLength(1);
     expect(h.current.isSubmitting).toBe("quick");
-    requests[0]!.respond({ user: profile });
+    actions()[0]!.respond({ user: profile });
     await flush();
-    const payload = JSON.parse(String(requests[1]!.init.body));
+    const payload = JSON.parse(String(actions()[1]!.init.body));
     expect(payload.name).toBeUndefined();
     expect(payload.quickPlay).toBe(true);
     expect(payload.mode).toBe("doubles");
@@ -48,7 +50,7 @@ test("両ゲームの作成・すぐ遊ぶは入力と設定を送り、アカ�
       expect(payload.threePlayerAttackProhibited).toBeUndefined();
     }
     const room = game === "four-shogi" ? waitingShogiRoom() : waitingRoom();
-    requests[1]!.respond({ room, membership: { ...membership, token } }, 201);
+    actions()[1]!.respond({ room, membership: { ...membership, token } }, 201);
     await flush();
     expect(h.current.location.pathname).toBe("/rooms/12345");
     expect(sessionStorage.getItem("tetraboard:room:12345:membership")).toBe(token);
@@ -63,23 +65,23 @@ test("ログイン失効をゲストへ降格して送らず、取得失敗・�
   act(() => {
     void h.current.submitRoom("create");
   });
-  requests[0]!.respond({ user: null });
+  actions()[0]!.respond({ user: null });
   await flush();
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(h.current.message).toContain("有効期限");
   expect(h.current.name).toBe("入力");
   act(() => {
     void h.current.submitRoom("create");
   });
-  requests[1]!.respond({}, 503);
+  actions()[1]!.respond({}, 503);
   await flush();
-  expect(requests).toHaveLength(2);
+  expect(actions()).toHaveLength(2);
   act(() => {
     void h.current.submitRoom("create");
   });
-  requests[2]!.respond({ user: profile });
+  actions()[2]!.respond({ user: profile });
   await flush();
-  requests[3]!.respond({ error: "account_seated" }, 409);
+  actions()[3]!.respond({ error: "account_seated" }, 409);
   await flush();
   expect(h.current.message).toContain("既に");
   expect(h.current.name).toBe("入力");
@@ -89,13 +91,13 @@ test("無効な部屋番号・保存不能・無効な時間設定は作成や�
   act(() => {
     void h.current.submitRoom("join", "123");
   });
-  expect(requests).toHaveLength(0);
+  expect(actions()).toHaveLength(0);
   const failure = denyStorage();
   try {
     act(() => {
       void h.current.submitRoom("create");
     });
-    expect(requests).toHaveLength(0);
+    expect(actions()).toHaveLength(0);
     expect(h.current.message).toContain("保存できません");
   } finally {
     failure.mockRestore();
@@ -107,9 +109,9 @@ test("無効な部屋番号・保存不能・無効な時間設定は作成や�
   act(() => {
     void h.current.submitRoom("create");
   });
-  requests[0]!.respond({ user: null });
+  actions()[0]!.respond({ user: null });
   await flush();
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(h.current.name).toBe("ゲスト");
 });
 test("招待の自動表示はタブ・世代ごとに消費し、対局中・満室・参加済みは消費しない", () => {
@@ -163,17 +165,17 @@ test("招待参加は同世代GET確認後に名前を省略したPOSTを送り�
     h.current.close();
   });
   expect(h.current.dialog).toBe("join");
-  requests[0]!.respond({ user: profile });
+  actions()[0]!.respond({ user: profile });
   await flush();
-  requests[1]!.respond({
+  actions()[1]!.respond({
     room,
     presence: { hostPlayerId: playerIds[0], connectedPlayerIds: [] },
     serverNowMs: now,
   });
   await flush();
-  expect(requests[2]!.url).toBe("/api/rooms/12345/players");
-  expect(JSON.parse(String(requests[2]!.init.body))).toEqual({ instanceId: room.instanceId });
-  requests[2]!.respond({ error: "account_seated" }, 409);
+  expect(actions()[2]!.url).toBe("/api/rooms/12345/players");
+  expect(JSON.parse(String(actions()[2]!.init.body))).toEqual({ instanceId: room.instanceId });
+  actions()[2]!.respond({ error: "account_seated" }, 409);
   await flush();
   expect(h.current.message).toContain("既に");
   expect(h.current.busy).toBe(false);
@@ -194,9 +196,9 @@ test("OAuth復帰は入力を保存して失敗後再試行、adminでは通常�
     void h.current.start("google", destination);
     void h.current.start("google", destination);
   });
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(readRegistrationReturn()?.oauthStarted).toBe(true);
-  requests[0]!.respond({ message: "準備中" }, 503);
+  actions()[0]!.respond({ message: "準備中" }, 503);
   await flush();
   expect(h.current.busy).toBe(false);
   expect(readRegistrationReturn()?.entry).toEqual(destination.entry);
@@ -205,17 +207,17 @@ test("OAuth復帰は入力を保存して失敗後再試行、adminでは通常�
     void h.current.start("google", "admin");
   });
   expect(readRegistrationReturn()).toBeNull();
-  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({
+  expect(JSON.parse(String(actions()[1]!.init.body))).toEqual({
     provider: "google",
     destination: "admin",
   });
-  requests[1]!.respond({}, 503);
+  actions()[1]!.respond({}, 503);
   await flush();
   act(() => {
     void h.current.start("google", "admin");
   });
-  expect(requests[2]!.init.body).toBe(requests[1]!.init.body);
-  requests[2]!.respond({ url: "https://evil.test/" });
+  expect(actions()[2]!.init.body).toBe(actions()[1]!.init.body);
+  actions()[2]!.respond({ url: "https://evil.test/" });
   await flush();
   expect(h.current.message).toContain("開始できません");
 });
@@ -239,15 +241,15 @@ test("復帰入力は履歴stateから一度だけ読み、保存不能でもOAu
   );
   expect(h.current.restored?.entry?.name).toBe("下書き");
   expect(h.current.location.state).toBeNull();
-  expect(requests).toHaveLength(0);
+  expect(actions()).toHaveLength(0);
   const failure = denyStorage();
   try {
     const signIn = renderHook(useSocialSignIn, undefined);
     act(() => {
       void signIn.current.start("google", { path: "/games/four-reversi" });
     });
-    expect(requests).toHaveLength(1);
-    requests[0]!.respond({}, 503);
+    expect(actions()).toHaveLength(1);
+    actions()[0]!.respond({}, 503);
     await flush();
     expect(signIn.current.busy).toBe(false);
   } finally {
@@ -267,18 +269,24 @@ test("Discord開始も下書きを保持し、プロバイダーを送り、失�
     void h.current.start("discord", destination);
     void h.current.start("google", destination);
   });
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(h.current.pendingProvider).toBe("discord");
-  expect(JSON.parse(String(requests[0]!.init.body))).toEqual({ provider: "discord" });
-  requests[0]!.respond({ message: "Discordログインは準備中です。" }, 503);
+  expect(JSON.parse(String(actions()[0]!.init.body))).toEqual({
+    provider: "discord",
+    analytics: { id: expect.any(String), entry: "login-page", game: null },
+  });
+  actions()[0]!.respond({ message: "Discordログインは準備中です。" }, 503);
   await flush();
   expect(h.current.pendingProvider).toBeNull();
   expect(readRegistrationReturn()?.joinName).toBe("下書き");
   act(() => {
     void h.current.start("google", destination);
   });
-  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({ provider: "google" });
-  requests[1]!.respond({ url: "https://discord.com/api/oauth2/authorize" });
+  expect(JSON.parse(String(actions()[1]!.init.body))).toEqual({
+    provider: "google",
+    analytics: { id: expect.any(String), entry: "login-page", game: null },
+  });
+  actions()[1]!.respond({ url: "https://discord.com/api/oauth2/authorize" });
   await flush();
   expect(h.current.busy).toBe(false);
   expect(h.current.message).toContain("開始できません");

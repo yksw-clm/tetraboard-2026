@@ -705,7 +705,8 @@ for (const provider of ["google", "discord"] as const)
         });
       throw new Error("Unexpected OAuth request");
     });
-    const signIn = async () => {
+    const signIn = async (admin = false) => {
+      const analytics = { id: crypto.randomUUID(), entry: "login-page", game: null };
       const response = await request("/auth/sign-in/social", {
         method: "POST",
         headers: {
@@ -713,7 +714,7 @@ for (const provider of ["google", "discord"] as const)
           "Content-Type": "application/json",
           "X-Legal-Consent": legalVersion,
         },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, ...(admin ? { destination: "admin" } : { analytics }) }),
       });
       expect(response.status).toBe(200);
       const url = new URL(((await response.json()) as { url: string }).url);
@@ -725,20 +726,93 @@ for (const provider of ["google", "discord"] as const)
           "profile",
         ]);
       }
-      return { state: url.searchParams.get("state")!, cookie: cookies(response) };
+      return { state: url.searchParams.get("state")!, cookie: cookies(response), analytics };
     };
     const callback = async (flow: { state: string; cookie: string }, cancel = false) =>
       request(
         `/auth/callback/${provider}?${cancel ? "error=access_denied" : "code=test-code"}&state=${encodeURIComponent(flow.state)}`,
         { headers: { Cookie: flow.cookie } },
       );
-    const first = await callback(await signIn());
+    const firstFlow = await signIn();
+    const first = await callback(firstFlow);
     const initialCookie = responseCookies(new Request(origin), first).get("Cookie")!;
     const user = (await env.APP_DB.prepare("SELECT id,name,image FROM user WHERE email=?")
       .bind(email)
       .first<{ id: string; name: string; image: string | null }>())!;
     expect(user.name).toBe("");
     expect(user.image).toBeNull();
+    const stages = async (id: string) =>
+      (
+        await env.APP_DB.prepare(
+          "SELECT stage FROM analytics_registration_events WHERE flow_id=? ORDER BY stage",
+        )
+          .bind(id)
+          .all<{ stage: string }>()
+      ).results.map((row) => row.stage);
+    expect(await stages(firstFlow.analytics.id)).toEqual([
+      "entry",
+      "oauth_start",
+      "oauth_success",
+      "profile_required",
+      "registered",
+    ]);
+    const form = new FormData();
+    form.set("name", "計測登録");
+    form.set("username", `metric_${user.id.slice(0, 8)}`);
+    form.set("avatarAction", "keep");
+    form.set("consentVersion", legalVersion);
+    const encoded = new Request(`${origin}/api/account/setup`, {
+      method: "POST",
+      headers: { Cookie: initialCookie, Origin: origin },
+      body: form,
+    });
+    const setup = await request("/account/setup", {
+      method: "POST",
+      headers: encoded.headers,
+      body: await encoded.arrayBuffer(),
+    });
+    expect(setup.status).toBe(200);
+    expect(await stages(firstFlow.analytics.id)).toContain("profile_complete");
+    const existingFlow = await signIn();
+    await callback(existingFlow);
+    expect(await stages(existingFlow.analytics.id)).toEqual([
+      "entry",
+      "existing_login",
+      "oauth_start",
+      "oauth_success",
+    ]);
+    await callback(existingFlow);
+    expect(await stages(existingFlow.analytics.id)).toEqual([
+      "entry",
+      "existing_login",
+      "oauth_start",
+      "oauth_success",
+    ]);
+    const canceledLogin = await signIn();
+    await callback(canceledLogin, true);
+    expect(await stages(canceledLogin.analytics.id)).toEqual(["entry", "oauth_start"]);
+
+    const loginUsage = await env.APP_DB.prepare(
+      "SELECT last_login_at_ms FROM account_usage WHERE account_id=?",
+    )
+      .bind(user.id)
+      .first<number>("last_login_at_ms");
+    expect(loginUsage).toBeGreaterThan(0);
+    if (provider === "google") {
+      await env.APP_DB.prepare("DELETE FROM account_usage WHERE account_id=?").bind(user.id).run();
+      const adminLogin = await callback(await signIn(true));
+      expect(adminLogin.headers.get("Location")).toContain("/admin");
+      expect(
+        await env.APP_DB.prepare("SELECT last_login_at_ms FROM account_usage WHERE account_id=?")
+          .bind(user.id)
+          .first<number>("last_login_at_ms"),
+      ).toBeGreaterThan(0);
+    }
+    // セッション期限更新や再認証が誤ってログイン扱いになれば、この既知の値が上書きされます。
+    const loginSentinel = Date.now() - 1000000;
+    await env.APP_DB.prepare("UPDATE account_usage SET last_login_at_ms=? WHERE account_id=?")
+      .bind(loginSentinel, user.id)
+      .run();
     expect(
       await env.APP_DB.prepare("SELECT version FROM legal_consents WHERE account_id=?")
         .bind(user.id)
@@ -816,6 +890,19 @@ for (const provider of ["google", "discord"] as const)
       .first<{ verified_at_ms: number; verified_session_id: string }>();
     expect(row!.verified_at_ms).toBeGreaterThan(0);
     expect(row!.verified_session_id).toBeTruthy();
+    expect(await stages(firstFlow.analytics.id)).toEqual([
+      "entry",
+      "oauth_start",
+      "oauth_success",
+      "profile_complete",
+      "profile_required",
+      "registered",
+    ]);
+    expect(
+      await env.APP_DB.prepare("SELECT last_login_at_ms FROM account_usage WHERE account_id=?")
+        .bind(user.id)
+        .first("last_login_at_ms"),
+    ).toBe(loginSentinel);
     expect(
       (await request("/account/deletion/confirmation", { headers: { Cookie: newCookie } })).status,
     ).toBe(200);
@@ -835,6 +922,14 @@ for (const provider of ["google", "discord"] as const)
       .bind(email)
       .first<{ id: string }>();
     expect(fresh!.id).not.toBe(user.id);
+    expect(await stages(firstFlow.analytics.id)).toEqual([]);
+    expect(
+      await env.APP_DB.prepare(
+        "SELECT COUNT(*) AS count FROM analytics_registration_flows WHERE target_account_id=? AND is_new_registration=1",
+      )
+        .bind(fresh!.id)
+        .first("count"),
+    ).toBe(1);
     mock.mockRestore();
   });
 
@@ -1059,7 +1154,7 @@ test("長期集計は期限前に未完了だった対局の率・時間を推�
   expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
   const id = crypto.randomUUID();
   await env.APP_DB.prepare(
-    "INSERT INTO analytics_matches VALUES (?,'four-reversi','singles',?,NULL,'playing',0)",
+    "INSERT INTO analytics_matches(id,game,mode,started_at_ms,ended_at_ms,status,cpu_count) VALUES (?,'four-reversi','singles',?,NULL,'playing',0)",
   )
     .bind(id, at)
     .run();
@@ -1068,6 +1163,7 @@ test("長期集計は期限前に未完了だった対局の率・時間を推�
   )
     .bind(id, crypto.randomUUID(), crypto.randomUUID())
     .run();
+  await archiveAnalytics(env);
   const data = await readAnalytics(env, query);
   expect(data.summary.started).toBeGreaterThan(0);
   expect(data.summary.playing).toBeNull();

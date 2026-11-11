@@ -1,3 +1,4 @@
+import { RatedLaunchAnnouncement } from "../matchmaking/RatedLaunchAnnouncement";
 import { TournamentEntrance } from "../tournaments/TournamentEntrance";
 import { TournamentList } from "../tournaments/TournamentList";
 import { LobbyFooter } from "./LobbyFooter";
@@ -14,6 +15,7 @@ import {
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { AccountMenu } from "../account/AccountMenu";
 import { AppHeader } from "../../shared/ui/AppHeader";
+import { isRatedMatchmakingGame } from "@tetraboard/protocol";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
 import { appThemeClasses, gameThemes } from "../../shared/ui/appTheme";
 import { HowToPlayDialog } from "./HowToPlayDialog";
@@ -27,6 +29,7 @@ import { LobbyAnnouncement } from "./LobbyAnnouncement";
 import { GameIntroduction } from "../../seo/GameIntroduction";
 
 type Props = {
+  showRatedMatchmaking?: boolean;
   registrationDraft?: RegistrationEntryDraft;
   game: GameId;
   name: string;
@@ -105,6 +108,20 @@ export function LobbyView(props: Props) {
     description: gameDescriptions[props.game],
     theme: gameThemes[props.game],
   };
+  const ratedMatch = isRatedMatchmakingGame(props.game) && props.showRatedMatchmaking !== false;
+
+  function openMatchmaking(): void {
+    const search = new URLSearchParams(location.search);
+    search.set("matchmaking", "1");
+    void navigate(
+      {
+        pathname: location.pathname,
+        search: search.toString(),
+        hash: location.hash,
+      },
+      { state: { matchmakingFromLobby: true } },
+    );
+  }
 
   function openEntry(
     intent: RoomEntryIntent,
@@ -178,7 +195,7 @@ export function LobbyView(props: Props) {
             </div>
             <section
               aria-label="対局を始める"
-              className="grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 [@media(max-width:400px)]:grid-cols-1"
+              className={`grid w-full max-w-[576px] grid-cols-2 gap-3 [@media(min-width:768px)]:w-[min(48%,28rem)] [@media(min-width:768px)]:shrink-0 ${ratedMatch ? "" : "[@media(max-width:400px)]:grid-cols-1"}`}
             >
               <AppButton
                 className="w-full min-w-0 min-h-12 gap-2 px-3 whitespace-normal"
@@ -195,6 +212,12 @@ export function LobbyView(props: Props) {
                 <AppIcon name="plus" />
                 公開ルームを作る
               </AppButton>
+              {ratedMatch && (
+                <AppButton className="col-span-full w-full min-h-12" onPress={openMatchmaking}>
+                  <AppIcon name="shuffle" />
+                  レート戦
+                </AppButton>
+              )}
             </section>
           </div>
 
@@ -209,6 +232,12 @@ export function LobbyView(props: Props) {
           </LobbyFooter>
         </main>
       </div>
+      {isRatedMatchmakingGame(props.game) && (
+        <RatedLaunchAnnouncement
+          game={props.game}
+          blocked={dialog !== null || Boolean(props.registrationDraft) || createRequested}
+        />
+      )}
       {dialog?.type === "entry" && (
         <RoomEntryDialog
           game={props.game}

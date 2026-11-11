@@ -1,7 +1,34 @@
+import { matchEndFacts } from "../analytics/matchLifecycle";
+import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
+import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
+import {
+  cpuReferenceRating,
+  hasProfileRating,
+  profileRatingsKey,
+  readProfileRating,
+} from "../accounts/profileRatings";
+import type { ProfileRatings } from "@tetraboard/protocol";
+import { calibratedFourShogiProfile } from "../matchmaking/fourShogiSelection";
+import {
+  cpuPlayerAppearance,
+  matchmakingQueues,
+  matchmakingRules,
+  ratedCpuNames,
+} from "@tetraboard/protocol";
+import { calibratedFourReversiProfile } from "../matchmaking/fourReversiSelection";
+import { ratedMatchmakingPolicy, ratingOpponentKind } from "../matchmaking/ratedMatchmaking";
+import { namedCpuProfile } from "../matchmaking/cpuProfiles";
+import { reversiCpuProfile } from "../matchmaking/reversiCpuProfiles";
+import { shogiCpuProfile } from "../matchmaking/shogiCpuProfiles";
+import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchmaking/coordinator";
 import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
 import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
 import { prepareRoomSettings } from "./applyRoomSettings";
-import { shogiEliminatedHandsKey, eliminatedHandsTag } from "./fourShogiProgress";
+import {
+  shogiEliminatedHandsKey,
+  eliminatedHandsTag,
+  fourShogiAiJobKey,
+} from "./fourShogiProgress";
 import { retiredName } from "../privacy/identity";
 import type { PendingMatch as PendingFourGomokuMatch } from "./fourGomokuMatchStore";
 import { fourGomokuCpuJobKey, type FourGomokuCpuJob } from "./fourGomokuProgress";
@@ -62,14 +89,39 @@ import {
   type SystemChatMessage,
 } from "@tetraboard/protocol";
 import { gameProgress, unreachable, type AnyProgress, type ProgressFor } from "./gameProgress";
-import type { ShogiCpuJob } from "./fourShogiProgress";
-import { fourReversiCpuJobKey } from "./fourReversiProgress";
+import type { FourShogiAiWork, ShogiCpuJob } from "./fourShogiProgress";
+import {
+  fourReversiCpuJobKey,
+  fourReversiAiJobKey,
+  supportsExternalAi,
+  type ExternalCpuWork,
+} from "./fourReversiProgress";
+import {
+  aiServiceConfigured,
+  roomAiAllowed,
+  aiServiceEnabled,
+  aiServiceTimeout,
+  fourReversiAiServiceTimeout,
+  requestAiMove,
+  requestReversiAiMove,
+  requestShogiAiMove,
+  requestFourShogiAiMove,
+  requestFourPlayerAiWarmup,
+  type FourPlayerAiGame,
+  reversiAiEnabled,
+  shogiAiEnabled,
+  type ReversiAiWork,
+  type ShogiAiWork,
+} from "./aiService";
+import type { CpuCapacityGame } from "./cpuCapacity";
+import { serviceProfile } from "./aiServiceProfiles";
 import {
   roomStorageKey,
   replayKey,
   shogiCpuJobKey,
   cpuMoveDelayMs,
   nextPublicUpdateAt,
+  playerLabel,
 } from "./progressHelpers";
 import {
   advanceShogiMatchSave,
@@ -117,6 +169,20 @@ import {
   type StoredGuestRegistration,
 } from "./registrationTypes";
 
+const aiWarmupAttemptMs = 8000;
+const aiWarmupRetryMs = 2000;
+const aiWarmupMaxAttempts = 2;
+const cpuCapacityKey = "external-cpu-capacity";
+const cpuCapacitySequenceKey = "external-cpu-capacity-sequence";
+type RoomCpuCapacity = {
+  roomId: string;
+  sequence: number;
+  game: CpuCapacityGame;
+  instanceId: string;
+  // nullは準備済み・進行中の予約です。時刻がある予約は解放を再試行します。
+  releaseAtMs: number | null;
+};
+
 const accountKey = (playerId: string) => `seat-account:${playerId}`;
 const cancelledAdmissionKey = (operationId: string) => `cancelled-admission:${operationId}`;
 const accountCleanupKey = "account-cleanups";
@@ -135,6 +201,21 @@ const membershipStorageKey = (tokenHash: string) => `membership:${tokenHash}`;
 const playerTokenKey = (playerId: string) => `player-token:${playerId}`;
 const reconnectGraceMs = 30_000;
 const idleMs = 24 * 60 * 60 * 1000;
+function isFourPlayerRatedGameInProgress(room: Room): boolean {
+  return (
+    room.status === "playing" &&
+    (isFourShogiRoom(room) || isFourReversiRoom(room)) &&
+    room.matchmaking?.rated === true
+  );
+}
+
+function usesIdleDeadline(room: Room): boolean {
+  return (
+    !isFourPlayerRatedGameInProgress(room) &&
+    !(room.status === "playing" && (isShogiRoom(room) || isReversiRoom(room)) && room.matchmaking)
+  );
+}
+
 const stampTag = "room-stamps-v1";
 const departedKey = (playerId: string) => `departed:${playerId}`;
 type RoomSocketError = Extract<RoomSocketMessage, { type: "room.error" }>["error"];
@@ -168,6 +249,7 @@ function hexToBytes(value: string): Uint8Array {
 }
 
 export class GameRoom extends DurableObject<Env> {
+  private cpuCapacityFlush: Promise<void> | null = null;
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
   private accountFlush: Promise<void> | null = null;
@@ -194,9 +276,23 @@ export class GameRoom extends DurableObject<Env> {
     return new Map(this.ctx.storage.kv.list<AnalyticsJob>({ prefix: analyticsPendingPrefix }));
   }
 
+  private clearMatchmakingSearches(reservation: MatchmakingRoomReservation) {
+    return {
+      ...reservation,
+      players: reservation.players.map(({ search: _search, ...player }) => player),
+    };
+  }
+
   private startAnalyticsMatch(id: string, room: Room, at: number) {
+    const reservation =
+      "matchmaking" in room && room.matchmaking
+        ? this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${room.matchmaking.id}`)
+        : undefined;
+    const aliases: Record<string, string> = {};
     const record: AnalyticsMatch = {
       id,
+      matchKind: roomMatchKind(room),
+      humanCount: room.players.filter((p) => p.kind === "human").length,
       game: room.settings.game,
       mode: room.settings.mode ?? "standard",
       startedAtMs: at,
@@ -207,18 +303,33 @@ export class GameRoom extends DurableObject<Env> {
         .filter((p) => p.kind === "human")
         .map((p) => {
           const identity = this.ctx.storage.kv.get<AnalyticsIdentity>(analyticsPlayerKey(p.id));
+          const search = reservation?.players.find(
+            (player) => player.admission.playerId === p.id,
+          )?.search;
+          const playerId =
+            identity && !identity.accountId && !identity.visitorId ? crypto.randomUUID() : p.id;
+          aliases[playerId] = p.id;
           return {
-            playerId:
-              identity && !identity.accountId && !identity.visitorId ? crypto.randomUUID() : p.id,
+            ...(search
+              ? { search: { operationId: search.operationId, joinedAtMs: search.joinedAtMs } }
+              : {}),
+            playerId,
             visitorId: identity?.visitorId ?? null,
             accountId: identity
               ? identity.accountId
               : (this.storedAccount(p.id)?.accountId ?? null),
-            isTest: identity?.isTest ?? false,
+            isTest: identity?.isTest ?? search?.isTest ?? false,
             isGuest: identity?.isGuest ?? this.storedAccount(p.id)?.isGuest ?? false,
           };
         }),
     };
+    // 未識別の席の局内対応だけを保持し、終局時に破棄します。
+    this.ctx.storage.kv.put("analytics-player-aliases", aliases);
+    if (reservation)
+      this.ctx.storage.kv.put(
+        `matchmaking:${reservation.matchId}`,
+        this.clearMatchmakingSearches(reservation),
+      );
     this.ctx.storage.kv.put(analyticsActiveKey, record);
     this.ctx.storage.kv.put(analyticsPendingPrefix + id, {
       record,
@@ -227,10 +338,29 @@ export class GameRoom extends DurableObject<Env> {
     } satisfies AnalyticsJob);
   }
 
-  private endAnalyticsMatch(status: "completed" | "abandoned", at: number) {
+  private endAnalyticsMatch(
+    status: "completed" | "abandoned",
+    at: number,
+    facts?: ReturnType<typeof matchEndFacts>,
+  ) {
     const active = this.ctx.storage.kv.get<AnalyticsMatch>(analyticsActiveKey);
     if (!active) return;
-    const record = { ...active, status, endedAtMs: at };
+    const aliases =
+      this.ctx.storage.kv.get<Record<string, string>>("analytics-player-aliases") ?? {};
+    this.ctx.storage.kv.delete("analytics-player-aliases");
+    const record: AnalyticsMatch = {
+      ...active,
+      status,
+      endedAtMs: at,
+      endReason: status === "abandoned" ? "abandoned" : (facts?.reason ?? "unknown"),
+      participants: active.participants.map((p) => ({
+        ...p,
+        endReason:
+          status === "abandoned"
+            ? "abandoned"
+            : (facts?.players.get(aliases[p.playerId] ?? p.playerId) ?? "unknown"),
+      })),
+    };
     this.ctx.storage.kv.delete(analyticsActiveKey);
     this.ctx.storage.kv.put(analyticsPendingPrefix + record.id, {
       record,
@@ -560,6 +690,9 @@ export class GameRoom extends DurableObject<Env> {
         const own =
           inherited ||
           accountIds.has(String(row.accountId)) ||
+          (row.admission !== null &&
+            typeof row.admission === "object" &&
+            accountIds.has(String((row.admission as Record<string, unknown>).accountId))) ||
           matchingIds.has(String(row.id)) ||
           matchingIds.has(String(row.playerId)) ||
           matchingIds.has(String(row.senderId)) ||
@@ -578,27 +711,37 @@ export class GameRoom extends DurableObject<Env> {
         const out = Object.fromEntries(
           Object.entries(row).map(([key, v]) => [
             key,
-            own && ["name", "senderName", "hostName"].includes(key)
-              ? retiredName
-              : own &&
-                  [
-                    "accountId",
-                    "avatarUrl",
-                    "avatarKey",
-                    "avatarPresetId",
-                    "profileId",
-                    "hostAvatarUrl",
-                  ].includes(key)
-                ? null
-                : strip(v, own && key === "appearance", scope),
+            key === "profileRatings" && v && typeof v === "object"
+              ? Object.fromEntries(Object.entries(v).filter(([id]) => !matchingIds.has(id)))
+              : own && ["name", "senderName", "hostName"].includes(key)
+                ? retiredName
+                : own &&
+                    [
+                      "accountId",
+                      "avatarUrl",
+                      "avatarKey",
+                      "avatarPresetId",
+                      "profileId",
+                      "hostAvatarUrl",
+                    ].includes(key)
+                  ? null
+                  : strip(v, own && key === "appearance", scope),
           ]),
         );
         if (own && row.kind === "human") out.retired = true;
         if (own && "visitorId" in row) out.visitorId = null;
+        if (own && "search" in row) delete out.search;
         return out;
       };
       for (const [key, value] of entries) {
         if (removedKeys.has(key)) continue;
+        if (key.startsWith("profile-ratings:") && value && typeof value === "object") {
+          this.ctx.storage.kv.put(
+            key,
+            Object.fromEntries(Object.entries(value).filter(([id]) => !ids.has(id))),
+          );
+          continue;
+        }
         if (
           key.startsWith("seat-account:") &&
           value &&
@@ -1217,7 +1360,11 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private closeIfNoHumanParticipants<T extends Room>(room: T | null): T | null {
-    if (room === null || room.players.some((player) => this.isHumanParticipant(player)))
+    if (
+      room === null ||
+      isFourPlayerRatedGameInProgress(room) ||
+      room.players.some((player) => this.isHumanParticipant(player))
+    )
       return room;
     this.closeRoom();
     return null;
@@ -1241,16 +1388,12 @@ export class GameRoom extends DurableObject<Env> {
     this.chatDirty = true;
   }
 
-  private playerLabel(player: Room["players"][number]): string {
-    return player.kind === "cpu" ? `CPU Lv${player.level}` : player.name;
-  }
-
   private recordDeparture(player: Room["players"][number]): void {
     if (this.ctx.storage.kv.get(departedKey(player.id))) return;
     this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
     if (this.readRoom()?.status === "playing")
       this.ctx.storage.kv.put(departedKey(player.id), true);
-    this.appendSystem("left", `${this.playerLabel(player)}が退室しました`);
+    this.appendSystem("left", `${playerLabel(player)}が退室しました`);
   }
 
   private presence(room: Room): RoomPresence {
@@ -1300,6 +1443,20 @@ export class GameRoom extends DurableObject<Env> {
 
   private closeRoom(): void {
     const room = this.readRoom();
+    if (room && "matchmaking" in room && room.matchmaking) {
+      const key = `matchmaking:${room.matchmaking.id}`;
+      const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
+      if (saved && saved.phase !== "playing")
+        this.ctx.storage.kv.put(key, {
+          ...this.clearMatchmakingSearches(saved),
+          phase: "closed",
+          connectedPlayerIds: room.players
+            .filter(
+              (p) => p.kind === "human" && this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""),
+            )
+            .map((p) => p.id),
+        });
+    }
     const tournament = this.tournamentReservation(room);
     if (tournament) {
       const excluded = tournament.excludedPlayerIds ?? [];
@@ -1359,6 +1516,8 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.kv.delete(gomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourGomokuCpuJobKey);
     this.ctx.storage.kv.delete(fourReversiCpuJobKey);
+    this.ctx.storage.kv.delete(fourReversiAiJobKey);
+    this.ctx.storage.kv.delete(fourShogiAiJobKey);
     if (room && isFourShogiRoom(room)) this.shogiProgress.store().clear();
     if (room && isShogiRoom(room)) this.standardShogiProgress.store().clear();
   }
@@ -1384,7 +1543,7 @@ export class GameRoom extends DurableObject<Env> {
           this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
           this.recordTournamentState(closed, "saving");
         }
-        this.endAnalyticsMatch("completed", result.at);
+        this.endAnalyticsMatch("completed", result.at, matchEndFacts(result.room, result.game));
         switch (result.gameId) {
           case "four-gomoku": {
             const lastRound = this.fourGomokuProgress.finalize(result);
@@ -1641,6 +1800,8 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private publicMetadata(room: Room): RoomPublicMetadata & {
+    matchKind: MatchKind;
+    matchSequence?: number;
     instanceId: string;
     hostPlayerId: string | null;
     participantPreviews: IndexedRoomParticipant[];
@@ -1650,15 +1811,28 @@ export class GameRoom extends DurableObject<Env> {
       const tokenHash = this.playerTokenHash(player.id);
       return tokenHash !== null && this.readMembership(tokenHash)?.role === "host";
     });
+    const kind = roomMatchKind(room);
+    const matchmaking =
+      "matchmaking" in room && room.matchmaking
+        ? this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${room.matchmaking.id}`)
+        : undefined;
+    const matchSequence =
+      kind === "tournament"
+        ? this.tournamentReservation(room)?.context.matchSequence
+        : kind === "rated" && matchmaking?.instanceId === room.instanceId
+          ? matchmaking.matchSequence
+          : undefined;
     const humanCount = room.players.filter((player) => player.kind === "human").length;
     return {
       instanceId: room.instanceId,
+      matchKind: kind,
+      ...(matchSequence === undefined ? {} : { matchSequence }),
       hostPlayerId: host?.id ?? null,
       participantPreviews: room.players.map((player) => ({
         playerId: player.id,
         appearance:
           player.kind === "cpu"
-            ? { kind: "cpu", level: player.level }
+            ? cpuPlayerAppearance(player)
             : {
                 kind: "human",
                 avatarUrl: player.retired ? null : player.avatarUrl,
@@ -1667,6 +1841,7 @@ export class GameRoom extends DurableObject<Env> {
       })),
       ...roomPublicMetadataSchema.parse({
         id: room.id,
+        ...("matchmaking" in room && room.matchmaking ? { matchmaking: true } : {}),
         ...(isTournamentGameRoom(room) && room.tournamentId !== undefined
           ? { tournamentId: room.tournamentId }
           : {}),
@@ -1686,13 +1861,128 @@ export class GameRoom extends DurableObject<Env> {
     };
   }
 
+  private externalCpuGame(room: Room): CpuCapacityGame | null {
+    if (!roomAiAllowed(this.env, room)) return null;
+    if (isShogiRoom(room) && shogiAiEnabled(this.env)) return "shogi";
+    if (isFourShogiRoom(room) && room.matchmaking?.rated && aiServiceConfigured(this.env))
+      return "four-shogi";
+    if (isReversiRoom(room) && room.matchmaking && reversiAiEnabled(this.env)) return "reversi";
+    if (
+      isFourReversiRoom(room) &&
+      room.settings.mode === "singles" &&
+      aiServiceConfigured(this.env)
+    )
+      return "four-reversi";
+    return null;
+  }
+
+  private async reserveCpuCapacity(
+    room: Room,
+  ): Promise<RoomCpuCapacity | null | "cpu_capacity_full" | "internal_error"> {
+    const game = this.externalCpuGame(room);
+    if (!game) return null;
+    const seats = room.players.filter(
+      (player) =>
+        player.kind === "cpu" &&
+        (game === "four-reversi" || game === "four-shogi" || player.level === 2),
+    ).length;
+    if (!seats) return null;
+    await this.flushCpuCapacity();
+    if (this.ctx.storage.kv.get(cpuCapacityKey) !== undefined) return "internal_error";
+    const sequence = (this.ctx.storage.kv.get<number>(cpuCapacitySequenceKey) ?? 0) + 1;
+    const reservation: RoomCpuCapacity = {
+      game,
+      roomId: room.id,
+      sequence,
+      instanceId: room.instanceId,
+      releaseAtMs: Date.now() + 30_000,
+    };
+    // RPC中の枠を解放せず、入力ゲートの期限内に確定しなければAlarmで回収します。
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.kv.put(cpuCapacityKey, reservation);
+      this.ctx.storage.kv.put(cpuCapacitySequenceKey, sequence);
+    });
+    try {
+      await this.syncAlarm(this.readRoom());
+      if (await this.env.CPU_CAPACITY.getByName(game).reserve(room.id, sequence, seats))
+        return { ...reservation, releaseAtMs: null };
+      this.ctx.storage.kv.delete(cpuCapacityKey);
+      return "cpu_capacity_full";
+    } catch {
+      this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+      this.ctx.waitUntil(this.flushCpuCapacity());
+      return "internal_error";
+    }
+  }
+
+  private async flushCpuCapacity(): Promise<void> {
+    if (this.cpuCapacityFlush) return this.cpuCapacityFlush;
+    const pending = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+    if (pending?.releaseAtMs == null || pending.releaseAtMs > Date.now()) return;
+    const flush = async () => {
+      try {
+        await this.env.CPU_CAPACITY.getByName(pending.game).release(
+          pending.roomId,
+          pending.sequence,
+        );
+        this.ctx.storage.kv.delete(cpuCapacityKey);
+      } catch {
+        this.ctx.storage.kv.put(cpuCapacityKey, { ...pending, releaseAtMs: Date.now() + 5000 });
+      }
+      await this.syncAlarm(this.readRoom());
+    };
+    this.cpuCapacityFlush = flush().finally(() => {
+      this.cpuCapacityFlush = null;
+    });
+    return this.cpuCapacityFlush;
+  }
+
+  private hasCpuCapacity(room: Room): boolean {
+    const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+    return reservation?.instanceId === room.instanceId && reservation.releaseAtMs === null;
+  }
+
+  private async recoverPlayingCpuCapacity(): Promise<void> {
+    const room = this.readRoom();
+    if (
+      room?.status !== "playing" ||
+      this.hasCpuCapacity(room) ||
+      !this.externalCpuGame(room) ||
+      !currentCpu(room) ||
+      (isShogiRoom(room) && currentCpu(room)?.level !== 2) ||
+      (isFourReversiRoom(room) && !supportsExternalAi(room)) ||
+      room.clock.turnStartedAt + cpuMoveDelayMs > Date.now() ||
+      isClockExpired(room.clock, Date.now())
+    )
+      return;
+    // 既存局・配備前に割当済みの局は、次の外部AI要求前に枠を確保します。
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const playing = this.readRoom();
+      if (playing?.status !== "playing" || this.hasCpuCapacity(playing)) return;
+      const reservation = await this.reserveCpuCapacity(playing);
+      if (reservation && typeof reservation !== "string")
+        this.ctx.storage.kv.put(cpuCapacityKey, reservation);
+    });
+  }
+
   private withIndexTransaction<T>(action: () => T): T {
     let changed = false;
+    let releaseCpu = false;
     const result = this.ctx.storage.transactionSync(() => {
       const before = this.readRoom();
       const previous = before === null ? null : this.publicMetadata(before);
       const value = action();
       const after = this.readRoom();
+      if (
+        after?.instanceId !== before?.instanceId ||
+        (before?.status === "playing" && after?.status !== "playing")
+      ) {
+        const reservation = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+        if (reservation?.releaseAtMs === null && reservation.instanceId === before?.instanceId) {
+          this.ctx.storage.kv.put(cpuCapacityKey, { ...reservation, releaseAtMs: Date.now() });
+          releaseCpu = true;
+        }
+      }
       changed =
         (before === null && after !== null) ||
         (before !== null && after === null) ||
@@ -1712,6 +2002,7 @@ export class GameRoom extends DurableObject<Env> {
       return value;
     });
     if (changed) this.ctx.waitUntil(this.flushRoomIndex());
+    if (releaseCpu) this.ctx.waitUntil(this.flushCpuCapacity());
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
       this.ctx.waitUntil(this.flushAccountCleanup());
     if (this.pendingAnalytics().size) this.ctx.waitUntil(this.flushAnalytics());
@@ -1779,7 +2070,7 @@ export class GameRoom extends DurableObject<Env> {
         .filter((player) => player.kind === "human" && !this.registrationForPlayer(player.id))
         .map((player) => player.reconnectDeadline)
         .filter((value) => value !== null) ?? [];
-    if (room !== null) deadlines.push(room.lastActivityAtMs + idleMs);
+    if (room !== null && usesIdleDeadline(room)) deadlines.push(room.lastActivityAtMs + idleMs);
     for (const player of room?.players ?? []) {
       const registration = this.registrationForPlayer(player.id);
       if (registration) deadlines.push(registration.holdUntilMs);
@@ -1799,9 +2090,31 @@ export class GameRoom extends DurableObject<Env> {
                   ? this.reversiProgress.cpuJob(room)
                   : undefined;
         const earliestCpuMoveAt = room.clock.turnStartedAt + cpuMoveDelayMs;
-        deadlines.push(job ? Math.max(job.applyAt, earliestCpuMoveAt) : earliestCpuMoveAt);
+        const externalJob =
+          isFourShogiRoom(room) && room.matchmaking?.rated
+            ? this.shogiProgress.externalCpuJob(room)
+            : isFourReversiRoom(room) && roomAiAllowed(this.env, room) && aiServiceEnabled(this.env)
+              ? this.reversiProgress.externalCpuJob(room)
+              : isShogiRoom(room) && roomAiAllowed(this.env, room) && shogiAiEnabled(this.env)
+                ? this.standardShogiProgress.externalCpuJob(room)
+                : null;
+        const reversiJob =
+          isReversiRoom(room) && roomAiAllowed(this.env, room) && reversiAiEnabled(this.env)
+            ? this.standardProgress.externalCpuJob(room)
+            : undefined;
+        deadlines.push(
+          reversiJob && reversiJob.position === undefined
+            ? reversiJob.expiresAt
+            : externalJob
+              ? externalJob.expiresAt
+              : job
+                ? Math.max(job.applyAt, earliestCpuMoveAt)
+                : earliestCpuMoveAt,
+        );
       }
     }
+    const capacity = this.ctx.storage.kv.get<RoomCpuCapacity>(cpuCapacityKey);
+    if (capacity?.releaseAtMs != null) deadlines.push(capacity.releaseAtMs);
     const pending = this.ctx.storage.kv.get<PendingRoomIndex>(pendingIndexKey);
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
     for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
@@ -1830,6 +2143,23 @@ export class GameRoom extends DurableObject<Env> {
       room.tournamentStartsAtMs
     )
       deadlines.push(room.tournamentStartsAtMs);
+    if (
+      room &&
+      "matchmaking" in room &&
+      room.matchmaking &&
+      room.status === "waiting" &&
+      !room.lastRound
+    ) {
+      deadlines.push(room.matchmaking.preparedAtMs + matchmakingRules.connectionGraceMs);
+      if (room.matchmaking.startsAtMs !== undefined) deadlines.push(room.matchmaking.startsAtMs);
+      const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+        `matchmaking:${room.matchmaking.id}`,
+      );
+      if (saved?.phase === "waiting" && saved.aiWarmup?.state === "pending")
+        deadlines.push(
+          Math.min(saved.aiWarmup.nextAtMs, saved.expiresAtMs - matchmakingRules.countdownMs),
+        );
+    }
     const next = earliestAlarmAt(deadlines);
     const current = await this.ctx.storage.getAlarm();
     if (next === current) return;
@@ -2381,6 +2711,557 @@ export class GameRoom extends DurableObject<Env> {
     if (room) this.broadcastRoom(room);
   }
 
+  async prepareMatchmakingRoom(input: MatchmakingRoomInput) {
+    await this.reconcileDeadlines();
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const rating = input.rating;
+      const game =
+        input.game ??
+        (rating?.kind === "reversi"
+          ? "reversi"
+          : rating?.kind === "four-shogi"
+            ? "four-shogi"
+            : rating && rating.kind !== "four-reversi"
+              ? "shogi"
+              : "four-reversi");
+      const legacy = game === "four-reversi" && !rating;
+      const rules = legacy ? matchmakingRules : matchmakingQueues[game];
+      const policy = legacy ? undefined : ratedMatchmakingPolicy(game);
+      if (
+        (input.matchSequence !== undefined &&
+          (!Number.isSafeInteger(input.matchSequence) || input.matchSequence < 1 || !rating)) ||
+        input.roomId !== this.ctx.id.name ||
+        input.players.length < 1 ||
+        input.players.length > rules.seats ||
+        (rating
+          ? !policy?.validParticipants(rating, input.players.length)
+          : policy !== undefined) ||
+        new Set(input.players.map((p) => p.admission.accountId)).size !== input.players.length ||
+        Date.now() >= input.expiresAtMs ||
+        input.expiresAtMs !== input.preparedAtMs + rules.connectionGraceMs
+      )
+        return { status: "invalid" as const };
+      const existing = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+        `matchmaking:${input.matchId}`,
+      );
+      if (existing)
+        return existing.phase === "closed"
+          ? { status: "cancelled" as const }
+          : { status: "prepared" as const };
+      if (this.ctx.storage.kv.get(`matchmaking-cancelled:${input.matchId}`))
+        return { status: "cancelled" as const };
+      if (this.readRoom()) return { status: "room_in_use" as const };
+      for (const { admission: a } of input.players) {
+        const valid = await this.env.APP_DB.prepare(
+          `SELECT 1 FROM account_room_seats s JOIN user u ON u.id=s.account_id JOIN matchmaking_wait_reservations w ON w.account_id=s.account_id WHERE s.account_id=? AND s.operation_id=? AND s.room_id=? AND s.instance_id=? AND s.player_id=? AND w.match_operation_id=s.operation_id AND w.queue_key=? AND u.profileCompleted=1 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)
+            ${
+              policy
+                ? `AND COALESCE(u.isAnonymous,0)=0 AND EXISTS (
+              SELECT 1 FROM ${policy.store.pendingTable} p WHERE p.account_id=s.account_id AND p.match_id=?
+            )`
+                : ""
+            }`,
+        )
+          .bind(
+            a.accountId,
+            a.operationId,
+            input.roomId,
+            input.instanceId,
+            a.playerId,
+            rules.key,
+            ...(policy ? [input.matchId] : []),
+          )
+          .first();
+        if (!valid || this.ctx.storage.kv.get(cancelledAdmissionKey(a.operationId)))
+          return { status: "invalid" as const };
+      }
+      const entry = { code: input.roomId, name: input.players[0]!.admission.name };
+      const base =
+        game === "shogi"
+          ? waitingRoomFactories.shogi({
+              ...entry,
+              request: {
+                game: "shogi",
+                quickPlay: false,
+                timeControl: rules.timeControl,
+              },
+            })
+          : game === "reversi"
+            ? waitingRoomFactories.reversi({
+                ...entry,
+                request: { game: "reversi", quickPlay: false, timeControl: rules.timeControl },
+              })
+            : game === "four-shogi"
+              ? waitingRoomFactories["four-shogi"]({
+                  ...entry,
+                  request: {
+                    game: "four-shogi",
+                    mode: "singles",
+                    quickPlay: false,
+                    threePlayerAttackProhibited: true,
+                    timeControl: rules.timeControl,
+                  },
+                })
+              : waitingRoomFactories["four-reversi"]({
+                  ...entry,
+                  request: {
+                    game: "four-reversi",
+                    mode: "singles",
+                    quickPlay: false,
+                    timeControl: rules.timeControl,
+                  },
+                });
+      const profile = legacy
+        ? namedCpuProfile("lv3-v1")
+        : rating?.kind === "four-reversi" && rating.cpu
+          ? calibratedFourReversiProfile(rating.cpu)
+          : undefined;
+      const fourShogiProfile =
+        rating?.kind === "four-shogi" && rating.cpu
+          ? calibratedFourShogiProfile(rating.cpu)
+          : undefined;
+      const shogiProfile =
+        game === "shogi" && rating?.kind === "cpu" ? shogiCpuProfile(rating.profileId) : undefined;
+      const cpuName =
+        fourShogiProfile?.name ??
+        (rating?.kind === "reversi" && rating.source.kind === "cpu"
+          ? reversiCpuProfile(rating.source)?.name
+          : shogiProfile?.standardBook
+            ? ratedCpuNames.shogi[shogiProfile.nodes]
+            : undefined);
+      const seat = game === "shogi" || game === "four-shogi" ? { side: null } : { color: null };
+      const cpuCount = rules.seats - input.players.length;
+      const room = roomSchema.parse({
+        ...base,
+        instanceId: input.instanceId,
+        matchmaking: {
+          id: input.matchId,
+          preparedAtMs: input.preparedAtMs,
+          ...(rating?.kind === "four-reversi" || rating?.kind === "four-shogi"
+            ? { rated: true }
+            : rating
+              ? { opponent: ratingOpponentKind(rating) }
+              : {}),
+        },
+        players: [
+          ...input.players.map(({ admission: a }) => ({
+            id: a.playerId,
+            name: a.name,
+            kind: "human",
+            avatarUrl: profileAvatarUrl(a.avatarKey, a.avatarPresetId),
+            ...(a.isGuest ? { isGuest: true } : {}),
+            ready: true,
+            ...seat,
+            reconnectDeadline: input.expiresAtMs,
+          })),
+          ...Array.from({ length: cpuCount }, (_, i) => ({
+            id: crypto.randomUUID(),
+            name: profile
+              ? `${profile.name}${i + 1}`
+              : cpuCount > 1 && cpuName
+                ? `${cpuName}${i + 1}`
+                : (cpuName ?? "CPU"),
+            kind: "cpu",
+            level: 2,
+            ...(profile ? { cpuProfile: profile } : {}),
+            ready: true,
+            ...seat,
+            reconnectDeadline: null,
+          })),
+        ],
+      });
+      const profileRatings: ProfileRatings = {};
+      if (rating && hasProfileRating(game)) {
+        for (const { admission } of input.players) {
+          profileRatings[admission.playerId] = await readProfileRating(
+            this.env.APP_DB,
+            admission.accountId,
+            game,
+            "before",
+          );
+        }
+        const reference = cpuReferenceRating(rating);
+        if (reference)
+          for (const player of room.players)
+            if (player.kind === "cpu") profileRatings[player.id] = reference;
+      }
+      const capacity = await this.reserveCpuCapacity(room);
+      if (typeof capacity === "string") return { status: capacity };
+      if (Date.now() >= input.expiresAtMs) {
+        if (capacity) {
+          this.ctx.storage.kv.put(cpuCapacityKey, { ...capacity, releaseAtMs: Date.now() });
+          this.ctx.waitUntil(this.flushCpuCapacity());
+        }
+        return { status: "invalid" as const };
+      }
+      this.withIndexTransaction(() => {
+        if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
+        this.ctx.storage.kv.put(roomStorageKey, room);
+        if (rating) this.ctx.storage.kv.put(profileRatingsKey(input.matchId), profileRatings);
+        this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
+          ...input,
+          phase: "waiting",
+          ...(this.env.FOUR_PLAYER_AI_WARMUP_ENABLED === "true" &&
+          cpuCount > 0 &&
+          (rating?.kind === "four-shogi" || rating?.kind === "four-reversi")
+            ? { aiWarmup: { state: "pending", attempts: 0, nextAtMs: Date.now() } }
+            : {}),
+        } satisfies MatchmakingRoomReservation);
+        for (const [
+          index,
+          { admission: a, tokenHash, version, search },
+        ] of input.players.entries()) {
+          this.ctx.storage.kv.put(accountKey(a.playerId), { ...a, occupying: true });
+          this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
+            playerId: a.playerId,
+            role: index === 0 ? "host" : "player",
+          });
+          this.ctx.storage.kv.put(playerTokenKey(a.playerId), tokenHash);
+          this.ctx.storage.kv.put(`matchmaking-version:${a.playerId}`, version);
+          this.ctx.storage.kv.put(disconnectedAtKey(a.playerId), Date.now());
+          this.ctx.storage.kv.put(analyticsPlayerKey(a.playerId), {
+            accountId: a.accountId,
+            visitorId: null,
+            isGuest: Boolean(a.isGuest),
+            isTest: search?.isTest ?? false,
+          });
+        }
+        for (const p of room.players)
+          this.appendSystem("joined", `${playerLabel(p)}が入室しました`);
+        this.ctx.storage.kv.put(
+          viewerSecretKey,
+          bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
+        );
+      });
+      await this.syncAlarm(room);
+      return { status: "prepared" as const };
+    });
+  }
+  async getMatchmakingState(matchId: string, instanceId: string) {
+    await this.reconcileDeadlines();
+    const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${matchId}`);
+    const room = this.readRoom();
+    const same = Boolean(
+      room &&
+      "matchmaking" in room &&
+      room.matchmaking?.id === matchId &&
+      room.instanceId === instanceId,
+    );
+    const occupiedPlayerIds = same
+      ? room!.players
+          .filter((p) => p.kind === "human" && this.storedAccount(p.id)?.occupying)
+          .map((p) => p.id)
+      : [];
+    const connectedPlayerIds = same
+      ? room!.players
+          .filter(
+            (p) => p.kind === "human" && this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""),
+          )
+          .map((p) => p.id)
+      : (saved?.connectedPlayerIds ?? []);
+    let summary: (RoomPublicMetadata & { instanceId: string }) | undefined;
+    if (same) {
+      const {
+        hostPlayerId: _host,
+        participantPreviews: _players,
+        matchKind: _matchKind,
+        ...metadata
+      } = this.publicMetadata(room!);
+      summary = metadata;
+    }
+    return {
+      phase: same ? (saved?.phase ?? "closed") : "closed",
+      started: saved?.phase === "playing",
+      aiUnavailable: saved?.aiWarmup?.state === "failed",
+      occupiedPlayerIds,
+      connectedPlayerIds,
+      ...(summary ? { room: summary } : {}),
+    };
+  }
+  async abortMatchmakingRoom(matchId: string, instanceId: string) {
+    await this.reconcileDeadlines();
+    const reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+      `matchmaking:${matchId}`,
+    );
+    if (reservation?.phase === "playing") return { status: "already_started" as const };
+    const closed = this.withIndexTransaction(() => {
+      this.ctx.storage.kv.put(`matchmaking-cancelled:${matchId}`, true);
+      const room = this.readRoom();
+      if (
+        room &&
+        "matchmaking" in room &&
+        room.matchmaking?.id === matchId &&
+        room.instanceId === instanceId
+      ) {
+        this.closeRoom();
+        return true;
+      }
+      return false;
+    });
+    if (closed) this.closeSockets();
+    await this.syncAlarm(this.readRoom());
+    return { status: "aborted" as const };
+  }
+  async rekeyMatchmakingPlayer(
+    matchId: string,
+    instanceId: string,
+    playerId: string,
+    version: number,
+    tokenHash: string,
+  ) {
+    await this.reconcileDeadlines();
+    const room = this.readRoom();
+    if (
+      !room ||
+      !("matchmaking" in room) ||
+      room.matchmaking?.id !== matchId ||
+      room.instanceId !== instanceId ||
+      !this.storedAccount(playerId)?.occupying
+    )
+      return false;
+    const current = this.ctx.storage.kv.get<number>(`matchmaking-version:${playerId}`) ?? 0;
+    if (version < current) return false;
+    const old = this.playerTokenHash(playerId);
+    if (version === current) {
+      if (old !== tokenHash) return false;
+      await this.advanceMatchmakingStart();
+      await this.syncAlarm(this.readRoom());
+      return true;
+    }
+    this.ctx.storage.transactionSync(() => {
+      const membership = old ? this.readMembership(old) : null;
+      if (old) this.ctx.storage.kv.delete(membershipStorageKey(old));
+      this.ctx.storage.kv.put(playerTokenKey(playerId), tokenHash);
+      this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
+        playerId,
+        role: membership?.role ?? "player",
+      });
+      this.ctx.storage.kv.put(`matchmaking-version:${playerId}`, version);
+      this.ctx.storage.kv.put(disconnectedAtKey(playerId), Date.now());
+      const updated = roomSchema.parse({
+        ...room,
+        players: room.players.map((p) =>
+          p.id === playerId
+            ? {
+                ...p,
+                reconnectDeadline:
+                  p.reconnectDeadline ??
+                  (room.status === "waiting" && !room.lastRound
+                    ? room.matchmaking!.preparedAtMs + matchmakingRules.connectionGraceMs
+                    : Date.now() + reconnectGraceMs),
+              }
+            : p,
+        ),
+      });
+      this.ctx.storage.kv.put(roomStorageKey, updated);
+    });
+    for (const socket of this.ctx.getWebSockets())
+      if (
+        old &&
+        (socket.deserializeAttachment() as { tokenHash?: string } | null)?.tokenHash === old
+      )
+        socket.close(1000, "操作元が変わりました");
+    await this.advanceMatchmakingStart();
+    await this.syncAlarm(this.readRoom());
+    return true;
+  }
+  private startMatchmakingAiWarmup(reservation: MatchmakingRoomReservation) {
+    const warmup = reservation.aiWarmup;
+    const game = reservation.rating?.kind;
+    if (warmup?.state !== "pending" || (game !== "four-shogi" && game !== "four-reversi")) return;
+    const key = `matchmaking:${reservation.matchId}`;
+    const now = Date.now();
+    const latest = reservation.expiresAtMs - matchmakingRules.countdownMs;
+    if (now >= latest || (warmup.attempts >= aiWarmupMaxAttempts && now >= warmup.nextAtMs)) {
+      this.withIndexTransaction(() => {
+        this.ctx.storage.kv.put(key, { ...reservation, aiWarmup: { state: "failed" } });
+        this.closeRoom();
+      });
+      console.info({
+        event: "four_player_ai_warmup_unavailable",
+        game,
+        matchId: reservation.matchId,
+        atMs: now,
+      });
+      return;
+    }
+    if (now < warmup.nextAtMs) return;
+    const attempt = warmup.attempts + 1;
+    const deadline = Math.min(now + aiWarmupAttemptMs, latest);
+    // 保存済みの期限で重複送信を防ぎ、処理が中断してもAlarmで再開します。
+    this.ctx.storage.kv.put(key, {
+      ...reservation,
+      aiWarmup: { state: "pending", attempts: attempt, nextAtMs: deadline + aiWarmupRetryMs },
+    } satisfies MatchmakingRoomReservation);
+    console.info({
+      event: "four_player_ai_warmup_started",
+      game,
+      matchId: reservation.matchId,
+      attempt,
+      atMs: now,
+    });
+    this.ctx.waitUntil(this.finishMatchmakingAiWarmup(key, game, attempt, deadline));
+  }
+
+  private async finishMatchmakingAiWarmup(
+    key: string,
+    game: FourPlayerAiGame,
+    attempt: number,
+    deadline: number,
+  ) {
+    const failure = await requestFourPlayerAiWarmup(this.env, game, deadline);
+    const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
+    const room = this.readRoom();
+    if (
+      !saved ||
+      saved.phase !== "waiting" ||
+      saved.aiWarmup?.state !== "pending" ||
+      saved.aiWarmup.attempts !== attempt ||
+      room?.instanceId !== saved.instanceId
+    )
+      return;
+    const now = Date.now();
+    const reason = now >= deadline ? "timeout" : failure;
+    this.ctx.storage.kv.put(key, {
+      ...saved,
+      aiWarmup: reason
+        ? {
+            state: "pending",
+            attempts: attempt,
+            nextAtMs: attempt < aiWarmupMaxAttempts ? now + aiWarmupRetryMs : now,
+          }
+        : { state: "ready" },
+    } satisfies MatchmakingRoomReservation);
+    console.info({
+      event: reason ? "four_player_ai_warmup_failed" : "four_player_ai_warmup_ready",
+      game,
+      matchId: saved.matchId,
+      attempt,
+      atMs: now,
+      ...(reason ? { reason } : {}),
+    });
+    await this.advanceMatchmakingStart();
+  }
+
+  private async advanceMatchmakingStart() {
+    const current = this.readRoom();
+    if (
+      !current ||
+      !("matchmaking" in current) ||
+      !current.matchmaking ||
+      current.status !== "waiting" ||
+      current.lastRound
+    )
+      return;
+    let reservation = this.ctx.storage.kv.get<MatchmakingRoomReservation>(
+      `matchmaking:${current.matchmaking.id}`,
+    );
+    if (!reservation || reservation.phase !== "waiting") return;
+    if (reservation.aiWarmup) {
+      const connected = current.players
+        .filter((p) => p.kind === "human")
+        .every((p) => this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""));
+      if (connected !== Boolean(reservation.aiHumansConnected)) {
+        reservation = { ...reservation, aiHumansConnected: connected };
+        this.ctx.storage.kv.put(`matchmaking:${reservation.matchId}`, reservation);
+        if (connected)
+          console.info({
+            event: "four_player_ai_all_connected",
+            game: current.settings.game,
+            matchId: reservation.matchId,
+            atMs: Date.now(),
+          });
+      }
+      if (reservation.aiWarmup?.state === "pending") {
+        this.startMatchmakingAiWarmup(reservation);
+        await this.syncAlarm(this.readRoom());
+        if (!this.readRoom()) this.closeSockets();
+        return;
+      }
+    }
+    const readyReservation = reservation;
+    const diagnostic = this.withIndexTransaction(() => {
+      const room = this.readRoom();
+      if (
+        !room ||
+        !("matchmaking" in room) ||
+        !room.matchmaking ||
+        room.status !== "waiting" ||
+        room.lastRound
+      )
+        return;
+      if (
+        Date.now() >= readyReservation.expiresAtMs ||
+        room.players.length !== gameCapacity(room.settings.game)
+      ) {
+        this.closeRoom();
+        return;
+      }
+      const connected = room.players
+        .filter((p) => p.kind === "human")
+        .every((p) => this.hasOpenConnection(this.playerTokenHash(p.id) ?? ""));
+      if (!connected) {
+        if (room.matchmaking.startsAtMs !== undefined) {
+          const { startsAtMs: _deadline, ...metadata } = room.matchmaking;
+          this.ctx.storage.kv.put(roomStorageKey, {
+            ...room,
+            matchmaking: metadata,
+            publicUpdatedAtMs: nextPublicUpdateAt(room),
+          });
+          return { event: "four_shogi_countdown_reset", atMs: Date.now() };
+        }
+        return;
+      }
+      const deadline = room.matchmaking.startsAtMs;
+      if (deadline === undefined) {
+        const atMs = Date.now();
+        this.ctx.storage.kv.put(roomStorageKey, {
+          ...room,
+          matchmaking: {
+            ...room.matchmaking,
+            startsAtMs: atMs + matchmakingRules.countdownMs,
+          },
+          publicUpdatedAtMs: nextPublicUpdateAt(room),
+        });
+        return { event: "four_shogi_connected", atMs };
+      }
+      if (Date.now() < deadline) return;
+      const started =
+        isShogiRoom(room) &&
+        (readyReservation.rating?.kind === "human" || readyReservation.rating?.kind === "cpu")
+          ? this.standardShogiProgress.start(room, readyReservation.rating)
+          : isReversiRoom(room) && readyReservation.rating?.kind === "reversi"
+            ? this.standardProgress.start(room, readyReservation.rating.source)
+            : isFourShogiRoom(room) && readyReservation.rating?.kind === "four-shogi"
+              ? this.shogiProgress.start(room, undefined, readyReservation.rating)
+              : isFourReversiRoom(room)
+                ? this.reversiProgress.start(
+                    room,
+                    undefined,
+                    readyReservation.rating?.kind === "four-reversi"
+                      ? readyReservation.rating
+                      : undefined,
+                  )
+                : null;
+      if (!started) throw new Error("Invalid matchmaking room");
+      this.ctx.storage.kv.put(`matchmaking:${room.matchmaking.id}`, {
+        ...readyReservation,
+        phase: "playing",
+      } satisfies MatchmakingRoomReservation);
+      this.startAnalyticsMatch(started.roundId, started.room, started.at);
+      return { event: "four_shogi_started", atMs: started.at };
+    });
+    if (diagnostic && readyReservation.rating?.kind === "four-shogi")
+      logFourShogiDiagnostic(this.env, diagnostic.event, {
+        matchId: readyReservation.matchId,
+        atMs: diagnostic.atMs,
+      });
+    const room = this.readRoom();
+    await this.syncAlarm(room);
+    if (room) this.broadcastRoom(room);
+    else this.closeSockets();
+  }
+
   async createRoom(
     room: Room,
     tokenHash: string,
@@ -2436,7 +3317,7 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
         this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
         for (const player of initialRoom.players) {
-          this.appendSystem("joined", `${this.playerLabel(player)}が入室しました`);
+          this.appendSystem("joined", `${playerLabel(player)}が入室しました`);
         }
         const secret = new Uint8Array(32);
         crypto.getRandomValues(secret);
@@ -2500,11 +3381,26 @@ export class GameRoom extends DurableObject<Env> {
     const player = room.players.find((p) => p.id === playerId);
     if (player?.kind === "human" && player.retired) return { status: "not_found" as const };
     if (!player) return { status: "not_found" as const };
+    const matchmaking = "matchmaking" in room ? room.matchmaking : undefined;
+    const rated =
+      matchmaking &&
+      this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${matchmaking.id}`)?.rating;
     return {
       status: "found" as const,
       game: room.settings.game,
       player,
       accountId: this.storedAccount(playerId)?.accountId ?? null,
+      ...(matchmaking && rated && hasProfileRating(room.settings.game)
+        ? {
+            profileRating:
+              this.ctx.storage.kv.get<ProfileRatings>(profileRatingsKey(matchmaking.id))?.[
+                playerId
+              ] ??
+              (player.kind === "human"
+                ? { timing: "before" as const, status: "unavailable" as const }
+                : undefined),
+          }
+        : {}),
     };
   }
 
@@ -2542,6 +3438,8 @@ export class GameRoom extends DurableObject<Env> {
       instanceId,
       hostPlayerId,
       participantPreviews: _previews,
+      matchKind: _matchKind,
+      matchSequence: _matchSequence,
       ...metadata
     } = this.publicMetadata(room);
     return { ...metadata, ...(profilePreview ? { instanceId, hostPlayerId } : {}) };
@@ -2596,6 +3494,7 @@ export class GameRoom extends DurableObject<Env> {
     | { status: "room_changed" }
     | { status: "account_reservation_invalid" }
     | { status: "tournament_required" }
+    | { status: "matchmaking_required" }
   > {
     await this.reconcileDeadlines();
     const playerName = joinRoomContract.request.parse({ name }).name!;
@@ -2608,6 +3507,8 @@ export class GameRoom extends DurableObject<Env> {
         if (instanceId !== undefined && room.instanceId !== instanceId) {
           return { status: "room_changed" } as const;
         }
+        if ("matchmaking" in room && room.matchmaking)
+          return { status: "matchmaking_required" } as const;
         if (isTournamentGameRoom(room) && room.tournamentId !== undefined)
           return { status: "tournament_required" } as const;
         if (room.status !== "waiting") {
@@ -2775,10 +3676,23 @@ export class GameRoom extends DurableObject<Env> {
           .run();
       }
     }
+    if (applyCpu) {
+      await this.flushCpuCapacity();
+      await this.recoverPlayingCpuCapacity();
+    }
     const initial = this.readRoom();
     const now = Date.now();
     const promoted: string[] = [];
     let changed = false;
+    const externalWork: { current: ExternalCpuWork | null } = { current: null };
+    const shogiWork: { current: ShogiAiWork | null } = { current: null };
+    const fourShogiWork: { current: FourShogiAiWork | null } = { current: null };
+    let fourShogiAiDiagnostic:
+      | (NonNullable<ShogiCpuJob["aiDiagnostic"]> & {
+          matchId: string;
+        })
+      | undefined;
+    const reversiWork: { current: ReversiAiWork | null } = { current: null };
     const updated = this.withIndexTransaction(() => {
       // 将棋の読取りは従来どおりtransaction内。リバーシは最初の読取りを使用。
       let room: Room | null =
@@ -2813,8 +3727,9 @@ export class GameRoom extends DurableObject<Env> {
         changed = true;
         return null;
       }
-      if (room.lastActivityAtMs + idleMs <= now || this.closeIfNoHumanParticipants(room) === null) {
-        if (room.lastActivityAtMs + idleMs <= now) this.closeRoom();
+      const idle = usesIdleDeadline(room) && room.lastActivityAtMs + idleMs <= now;
+      if (idle || this.closeIfNoHumanParticipants(room) === null) {
+        if (idle) this.closeRoom();
         changed = true;
         return null;
       }
@@ -3002,8 +3917,24 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isFourShogiRoom(room)) throw new Error("Expected Shogi room");
+            const cpuJob = this.ctx.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey);
+            if (room.matchmaking?.rated && !cpuJob) {
+              fourShogiWork.current = this.shogiProgress.prepareExternalCpu(
+                room,
+                now,
+                aiServiceTimeout(this.env),
+                !aiServiceConfigured(this.env)
+                  ? "configuration"
+                  : this.hasCpuCapacity(room)
+                    ? null
+                    : "capacity_unavailable",
+              );
+              return room;
+            }
             const result = this.shogiProgress.cpu(room, now);
             if (result.kind !== "unchanged") {
+              if (cpuJob?.aiDiagnostic)
+                fourShogiAiDiagnostic = { matchId: room.roundId, ...cpuJob.aiDiagnostic };
               room = this.applyProgress(result);
               if (room) this.ctx.storage.kv.put(roomStorageKey, room);
               changed = true;
@@ -3019,6 +3950,19 @@ export class GameRoom extends DurableObject<Env> {
             }
             if (!room || room.status !== "playing") return room;
             if (!isShogiRoom(room)) throw new Error("Expected Shogi room");
+            if (
+              roomAiAllowed(this.env, room) &&
+              shogiAiEnabled(this.env) &&
+              this.hasCpuCapacity(room)
+            ) {
+              shogiWork.current = this.standardShogiProgress.prepareExternalCpu(
+                room,
+                now,
+                aiServiceTimeout(this.env),
+              );
+              const pending = this.standardShogiProgress.externalCpuJob(room);
+              if (pending && pending.expiresAt > now) return room;
+            }
             const result = this.standardShogiProgress.cpu(room, now);
             if (result.kind !== "unchanged") {
               room = this.applyProgress(result);
@@ -3046,14 +3990,54 @@ export class GameRoom extends DurableObject<Env> {
           }
         } else if (isFourReversiRoom(room)) {
           if (applyCpu && currentCpu(room) !== null) {
-            const result = this.reversiProgress.cpu(room, now);
-            if (result.kind !== "unchanged") {
-              room = this.applyProgress(result);
-              if (room) this.ctx.storage.kv.put(roomStorageKey, room);
-              changed = true;
+            if (
+              roomAiAllowed(this.env, room) &&
+              aiServiceEnabled(this.env) &&
+              supportsExternalAi(room) &&
+              this.ctx.storage.kv.get(fourReversiCpuJobKey) === undefined
+            ) {
+              externalWork.current = this.reversiProgress.prepareExternalCpu(
+                room,
+                now,
+                fourReversiAiServiceTimeout(this.env),
+                currentCpu(room)?.cpuProfile
+                  ? {
+                      profile_id: currentCpu(room)!.cpuProfile!.id,
+                      profile_hash: currentCpu(room)!.cpuProfile!.hash,
+                      engine_version: currentCpu(room)!.cpuProfile!.engineVersion,
+                    }
+                  : serviceProfile(this.env),
+              );
+              if (externalWork.current && !this.hasCpuCapacity(room)) {
+                this.reversiProgress.completeExternalCpu(room, externalWork.current.job, null, now);
+                externalWork.current = null;
+              }
+            } else {
+              const result = this.reversiProgress.cpu(room, now);
+              if (result.kind !== "unchanged") {
+                room = this.applyProgress(result);
+                if (room) this.ctx.storage.kv.put(roomStorageKey, room);
+                changed = true;
+              }
             }
           }
         } else {
+          if (room.matchmaking && !applyCpu) return room;
+          if (
+            roomAiAllowed(this.env, room) &&
+            reversiAiEnabled(this.env) &&
+            currentCpu(room)?.level === 2 &&
+            (!room.matchmaking || this.hasCpuCapacity(room))
+          ) {
+            if (!applyCpu) return room;
+            reversiWork.current = this.standardProgress.prepareExternalCpu(
+              room,
+              now,
+              aiServiceTimeout(this.env),
+            );
+            const pending = this.standardProgress.externalCpuJob(room);
+            if (pending && pending.position === undefined && now < pending.expiresAt) return room;
+          }
           const result = this.standardProgress.cpu(room, now);
           if (result.kind !== "unchanged") {
             room = this.applyProgress(result);
@@ -3064,6 +4048,14 @@ export class GameRoom extends DurableObject<Env> {
       }
       return room;
     });
+    if (fourShogiAiDiagnostic)
+      logFourShogiDiagnostic(
+        this.env,
+        fourShogiAiDiagnostic.reason
+          ? "four_shogi_ai_fallback_applied"
+          : "four_shogi_ai_retry_applied",
+        fourShogiAiDiagnostic,
+      );
     await this.syncAlarm(updated);
     await this.flushRoomIndex();
     await this.flushAccountCleanup();
@@ -3076,6 +4068,57 @@ export class GameRoom extends DurableObject<Env> {
     }
     for (const hash of promoted) this.sendCurrentMembership(hash);
     await this.advanceTournamentStart();
+    await this.advanceMatchmakingStart();
+    if (externalWork.current) {
+      // transactionとDOの入力ゲートを保持せず、ネットワーク応答を待ちます。
+      const work = externalWork.current;
+      const response = await requestAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isFourReversiRoom(room))
+          this.reversiProgress.completeExternalCpu(room, work.job, response.position, Date.now());
+      });
+      if (response.reason) console.warn("AI service fallback", { reason: response.reason });
+      await this.syncAlarm(this.readRoom());
+    }
+    if (fourShogiWork.current) {
+      const work = fourShogiWork.current;
+      const response = await requestFourShogiAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isFourShogiRoom(room))
+          this.shogiProgress.completeExternalCpu(room, work.job, response, Date.now());
+      });
+      await this.syncAlarm(this.readRoom());
+    }
+    if (shogiWork.current) {
+      const work = shogiWork.current;
+      const move = await requestShogiAiMove(this.env, work);
+      await this.reconcileDeadlines();
+      this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        if (room?.status === "playing" && isShogiRoom(room))
+          this.standardShogiProgress.completeExternalCpu(room, work, move, Date.now());
+      });
+      await this.syncAlarm(this.readRoom());
+    }
+    if (reversiWork.current) {
+      const work = reversiWork.current;
+      const started = performance.now();
+      const move = await requestReversiAiMove(this.env, work);
+      const elapsedMs = Math.round(performance.now() - started);
+      await this.reconcileDeadlines();
+      const source = this.ctx.storage.transactionSync(() => {
+        const room = this.readRoom();
+        return room?.status === "playing" && isReversiRoom(room)
+          ? this.standardProgress.completeExternalCpu(room, work, move, Date.now())
+          : "stale";
+      });
+      console.info("Reversi AI response", { source, elapsedMs });
+      await this.syncAlarm(this.readRoom());
+    }
   }
 
   async alarm(): Promise<void> {
@@ -3656,7 +4699,7 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
-  private startGame(tokenHash: string):
+  private async startGame(tokenHash: string): Promise<
     | { status: "started"; room: Room }
     | {
         status:
@@ -3665,9 +4708,12 @@ export class GameRoom extends DurableObject<Env> {
           | "forbidden"
           | "not_ready"
           | "already_started"
-          | "registration_pending";
-      } {
-    return this.withIndexTransaction(() => {
+          | "registration_pending"
+          | "cpu_capacity_full"
+          | "internal_error";
+      }
+  > {
+    return this.ctx.blockConcurrencyWhile(async () => {
       const room = this.readRoom();
       if (room === null) return { status: "not_found" };
       if (room.status !== "waiting") return { status: "already_started" };
@@ -3688,20 +4734,25 @@ export class GameRoom extends DurableObject<Env> {
         return { status: "not_ready" };
       }
 
-      const started = isFourShogiRoom(room)
-        ? this.shogiProgress.start(room)
-        : isShogiRoom(room)
-          ? this.standardShogiProgress.start(room)
-          : isFourGomokuRoom(room)
-            ? this.fourGomokuProgress.start(room)
-            : isGomokuRoom(room)
-              ? this.gomokuProgress.start(room)
-              : isReversiRoom(room)
-                ? this.standardProgress.start(room)
-                : this.reversiProgress.start(room);
-      this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
-      this.startAnalyticsMatch(started.roundId, started.room, started.at);
-      return { status: "started", room: started.room };
+      const capacity = await this.reserveCpuCapacity(room);
+      if (typeof capacity === "string") return { status: capacity };
+      return this.withIndexTransaction(() => {
+        if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
+        const started = isFourShogiRoom(room)
+          ? this.shogiProgress.start(room)
+          : isShogiRoom(room)
+            ? this.standardShogiProgress.start(room)
+            : isFourGomokuRoom(room)
+              ? this.fourGomokuProgress.start(room)
+              : isGomokuRoom(room)
+                ? this.gomokuProgress.start(room)
+                : isReversiRoom(room)
+                  ? this.standardProgress.start(room)
+                  : this.reversiProgress.start(room);
+        this.releaseResultAvatars(room, new Set(started.room.players.map((player) => player.id)));
+        this.startAnalyticsMatch(started.roundId, started.room, started.at);
+        return { status: "started", room: started.room };
+      });
     });
   }
 
@@ -3886,6 +4937,7 @@ export class GameRoom extends DurableObject<Env> {
         if (connectedRoom !== null) this.broadcastRoom(connectedRoom);
         socket.send(JSON.stringify(this.authenticationMessage(socket, result.membership)));
         await this.advanceTournamentStart();
+        await this.advanceMatchmakingStart();
         return;
       }
 
@@ -3930,9 +4982,9 @@ export class GameRoom extends DurableObject<Env> {
       const tournamentRoom = this.readRoom();
       if (
         tournamentRoom &&
-        isTournamentGameRoom(tournamentRoom) &&
-        tournamentRoom.tournamentId !== undefined &&
-        [
+        ((isTournamentGameRoom(tournamentRoom) && tournamentRoom.tournamentId !== undefined) ||
+          ("matchmaking" in tournamentRoom && tournamentRoom.matchmaking)) &&
+        ([
           "room.ready.set",
           "room.settings.apply",
           "room.three-player-attack.set",
@@ -3942,8 +4994,8 @@ export class GameRoom extends DurableObject<Env> {
           "room.cpu.remove",
           "room.cpu.level.set",
           "room.game.start",
-          "room.game.draw.set",
-        ].includes(parsed.data.type)
+        ].includes(parsed.data.type) ||
+          (parsed.data.type === "room.game.draw.set" && !isShogiRoom(tournamentRoom)))
       ) {
         this.rejectAction(socket, "forbidden");
         return;
@@ -4037,7 +5089,7 @@ export class GameRoom extends DurableObject<Env> {
       }
 
       if (parsed.data.type === "room.game.start") {
-        const result = this.startGame(tokenHash.data);
+        const result = await this.startGame(tokenHash.data);
         if (result.status === "started") {
           await this.syncAlarm(result.room);
           this.broadcastRoom(result.room);

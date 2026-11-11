@@ -1,3 +1,4 @@
+import { managedRoomPath, isMatchmakingRoom } from "../matchmaking/managedRoom";
 import { gameCapacity, gameCatalog } from "@tetraboard/protocol/games";
 import { ViewerControls } from "./ViewerControls";
 import { RoomStatusCard } from "./RoomStatusCard";
@@ -29,6 +30,7 @@ export function RoomStatus({
   onReplayChange,
   onRotate,
   onTournamentNext,
+  nextMatchPending = false,
 }: {
   session: SharedRoomSession & { canPlay: boolean };
   turn: Room["players"][number] | undefined;
@@ -45,6 +47,7 @@ export function RoomStatus({
   onReplayChange: (key: string | null) => void;
   onRotate: () => void;
   onTournamentNext?: () => void;
+  nextMatchPending?: boolean;
 }) {
   const { room, self, membership, presence, authenticated, connection } = session;
   const waiting = room.status === "waiting";
@@ -56,9 +59,9 @@ export function RoomStatus({
       ? `${room.instanceId}:${"roundId" in round ? round.roundId : (round.replay?.id ?? "legacy")}`
       : null;
   const replayOpen = mobileReplayKey !== null && openReplayKey === mobileReplayKey;
-  const tournamentId = "tournamentId" in room ? room.tournamentId : undefined;
+  const managed = managedRoomPath(room) !== null;
   const nextTournamentRound =
-    tournamentId !== undefined &&
+    managed &&
     ((room.status === "waiting" && room.lastRound !== null) ||
       (room.status === "playing" &&
         self &&
@@ -88,9 +91,11 @@ export function RoomStatus({
     room.players.every((player) => player.ready && presence.connectedPlayerIds.includes(player.id));
   const notice = registering
     ? "登録手続きの完了を待っています。"
-    : tournamentId !== undefined
+    : managed
       ? room.lastRound
-        ? "大会の対局が終了しました。"
+        ? isMatchmakingRoom(room)
+          ? "マッチングの対局が終了しました。"
+          : "大会の対局が終了しました。"
         : "参加者の接続を待っています。"
       : null;
   const status = (
@@ -118,7 +123,7 @@ export function RoomStatus({
           </>
         ) : null}
       </div>
-      {tournamentId === undefined && waiting && self && membership && (
+      {!managed && waiting && self && membership && (
         <AppButton
           size="compact"
           className={waitingActionWidth}
@@ -130,7 +135,7 @@ export function RoomStatus({
           {ownRegistration ? "登録手続中" : self.ready ? "準備取消" : "準備完了"}
         </AppButton>
       )}
-      {tournamentId === undefined && waiting && membership?.role === "host" && (
+      {!managed && waiting && membership?.role === "host" && (
         <AppButton
           size="compact"
           className={waitingActionWidth}
@@ -160,9 +165,9 @@ export function RoomStatus({
       ) : (
         replay && <div className="min-w-0 flex-1">{replay}</div>
       )}
-      {membership === null && (tournamentId !== undefined || !joinUnavailable) && (
+      {membership === null && (managed || !joinUnavailable) && (
         <AppButton size="compact" ref={joinButtonRef} onPress={onJoin}>
-          {tournamentId !== undefined ? "大会へ" : "参加する"}
+          {managed ? (isMatchmakingRoom(room) ? "マッチングへ" : "大会へ") : "参加する"}
         </AppButton>
       )}
       {myTurn && (
@@ -178,11 +183,11 @@ export function RoomStatus({
       {nextTournamentRound && membership && onTournamentNext && (
         <AppButton
           size="compact"
-          isDisabled={session.leaving}
+          isDisabled={session.leaving || nextMatchPending}
           isPending={session.leaving}
           onPress={onTournamentNext}
         >
-          次の対局
+          {isMatchmakingRoom(room) ? "もう一度マッチング" : "次の対局"}
         </AppButton>
       )}
       {turnActions}

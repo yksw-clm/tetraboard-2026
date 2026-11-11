@@ -4,6 +4,7 @@ export const analyticsUtmMaxLength = 64;
 export const analyticsSessionIdleMs = 30 * 60 * 1000;
 export const acquisitionInputSchema = z
   .object({
+    shortUtm: z.string().max(1024).nullable().optional(),
     referrer: z.string().max(253).nullable(),
     source: z.string().max(1024).nullable(),
     medium: z.string().max(1024).nullable(),

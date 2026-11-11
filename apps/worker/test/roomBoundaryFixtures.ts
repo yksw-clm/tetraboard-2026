@@ -112,6 +112,17 @@ export class RoomBoundaryFixtures {
     return entry;
   }
 
+  async leave(entry: Entry): Promise<void> {
+    const response = await boundaryRequest(leaveRoomContract.pathFor(entry.room.id), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${entry.membership.token}` },
+    });
+    expect(response.status).toBe(204);
+    this.entries = this.entries.filter(
+      (current) => current.membership.token !== entry.membership.token,
+    );
+  }
+
   async snapshot(roomId: string) {
     const response = await boundaryRequest(getRoomContract.pathFor(roomId));
     expect(response.status).toBe(200);

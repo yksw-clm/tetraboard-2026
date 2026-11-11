@@ -75,3 +75,24 @@ test("Adminの分類・削除はversionを送り、競合と権限エラーをst
   await expect(remove).resolves.toBeNull();
   expect(JSON.parse(String(requests[1]!.init.body))).toEqual({ version: 3 });
 });
+
+test("別の管理操作が403になったら表示済みデータと進行中の取得を破棄する", async () => {
+  const first = renderHook(() => useAdminData("/api/admin/analytics", parse), undefined);
+  const second = renderHook(() => useAdminData("/api/admin/users", parse), undefined);
+  requests[0]!.respond({ value: "機密の集計" });
+  requests[1]!.respond({ value: "機密の一覧" });
+  await flush();
+  act(() => second.current.refresh());
+  const mutation = adminMutation("/api/admin/feedback/id", "PATCH", { version: 1 });
+  await act(async () => {
+    requests[3]!.respond({ message: "権限を失いました" }, 403);
+    await expect(mutation).rejects.toEqual(new AdminApiError(403, "権限を失いました"));
+  });
+  await flush();
+  expect(first.current.data).toBeNull();
+  expect(second.current.data).toBeNull();
+  expect(requests[2]!.init.signal?.aborted).toBe(true);
+  requests[2]!.respond({ value: "遅れて届く一覧" });
+  await flush();
+  expect(second.current.data).toBeNull();
+});

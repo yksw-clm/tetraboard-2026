@@ -28,7 +28,7 @@ export function GuestRegistrationCompletion({
 }) {
   const account = useAccount();
   const navigate = useNavigate();
-  const signIn = useSocialSignIn();
+  const signIn = useSocialSignIn("room-result", flow.game);
   const [status, setStatus] = useState<RegistrationStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState<"checking" | "complete" | "cancel" | null>("checking");

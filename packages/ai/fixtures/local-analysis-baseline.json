@@ -1,0 +1,478 @@
+{
+  "source_commit": "4f0b6b6d1c8fccea8421f5fdad0015bd37de1e24",
+  "description": "改修前のLv5、初期・12手後・青脱落、seed 0/17、同一Agentへの連続呼び出し。時間上限なし。",
+  "cases": [
+    {
+      "case": "initial",
+      "position": {
+        "x": 2,
+        "y": 3
+      },
+      "seed": 0,
+      "sequence": 0,
+      "state": {
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "black", null, null, null, null],
+          [null, null, null, "red", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": null,
+        "moveNumber": 0,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1255,
+          "max_tree_depth": 7,
+          "stop_reason": "node_limit",
+          "trials": 1254
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "initial",
+      "position": {
+        "x": 4,
+        "y": 6
+      },
+      "seed": 0,
+      "sequence": 1,
+      "state": {
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "black", null, null, null, null],
+          [null, null, null, "red", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": null,
+        "moveNumber": 0,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1256,
+          "max_tree_depth": 7,
+          "stop_reason": "node_limit",
+          "trials": 1255
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "initial",
+      "position": {
+        "x": 2,
+        "y": 5
+      },
+      "seed": 17,
+      "sequence": 0,
+      "state": {
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "black", null, null, null, null],
+          [null, null, null, "red", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": null,
+        "moveNumber": 0,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1256,
+          "max_tree_depth": 7,
+          "stop_reason": "node_limit",
+          "trials": 1255
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "initial",
+      "position": {
+        "x": 3,
+        "y": 5
+      },
+      "seed": 17,
+      "sequence": 1,
+      "state": {
+        "board": [
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, "black", null, null, null, null],
+          [null, null, null, "red", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": null,
+        "moveNumber": 0,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1254,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1253
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "middle",
+      "position": {
+        "x": 0,
+        "y": 3
+      },
+      "seed": 0,
+      "sequence": 0,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1599,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1598
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "middle",
+      "position": {
+        "x": 2,
+        "y": 5
+      },
+      "seed": 0,
+      "sequence": 1,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1599,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1598
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "middle",
+      "position": {
+        "x": 4,
+        "y": 1
+      },
+      "seed": 17,
+      "sequence": 0,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1599,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1598
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "middle",
+      "position": {
+        "x": 4,
+        "y": 1
+      },
+      "seed": 17,
+      "sequence": 1,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1599,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1598
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "eliminated",
+      "position": {
+        "x": 6,
+        "y": 3
+      },
+      "seed": 0,
+      "sequence": 0,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "eliminatedColors": ["blue"],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1605,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1604
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "eliminated",
+      "position": {
+        "x": 6,
+        "y": 3
+      },
+      "seed": 0,
+      "sequence": 1,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "eliminatedColors": ["blue"],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1604,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1603
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "eliminated",
+      "position": {
+        "x": 6,
+        "y": 3
+      },
+      "seed": 17,
+      "sequence": 0,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "eliminatedColors": ["blue"],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1603,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1602
+        },
+        "nodes": 65536
+      }
+    },
+    {
+      "case": "eliminated",
+      "position": {
+        "x": 2,
+        "y": 5
+      },
+      "seed": 17,
+      "sequence": 1,
+      "state": {
+        "board": [
+          ["blue", "blue", "blue", "blue", null, null, null, null],
+          ["white", "red", "black", "blue", null, null, null, null],
+          ["red", "white", "blue", "blue", null, null, null, null],
+          [null, null, "white", "blue", "black", "blue", null, null],
+          [null, null, "red", "white", "blue", null, null, null],
+          [null, null, null, null, "white", null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null]
+        ],
+        "consecutivePasses": [],
+        "eliminatedColors": ["blue"],
+        "lastMove": {
+          "x": 3,
+          "y": 0
+        },
+        "moveNumber": 12,
+        "result": null,
+        "turn": "black"
+      },
+      "stats": {
+        "completed_depth": 0,
+        "interrupted": true,
+        "mcts": {
+          "iterations_started": 1606,
+          "max_tree_depth": 6,
+          "stop_reason": "node_limit",
+          "trials": 1605
+        },
+        "nodes": 65536
+      }
+    }
+  ]
+}

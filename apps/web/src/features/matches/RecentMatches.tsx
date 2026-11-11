@@ -1,3 +1,4 @@
+import { MatchKindBadge } from "../../shared/ui/MatchKindBadge";
 import type { GameId, MatchSummary } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -106,7 +107,13 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
       <PlayerAvatar
         appearance={
           first?.kind === "cpu"
-            ? { kind: "cpu", level: first.level }
+            ? {
+                kind: "cpu",
+                level: first.level,
+                ...("cpuProfile" in first && first.cpuProfile
+                  ? { cpuProfile: first.cpuProfile, name: first.name }
+                  : {}),
+              }
             : { kind: "human", avatarUrl: first?.avatarUrl ?? null }
         }
         className="size-8 shrink-0"
@@ -115,14 +122,17 @@ function MatchPreview({ match, nowMs }: { match: MatchSummary; nowMs: number }) 
         <strong className="block truncate text-sm">
           {winners.length ? `${name}が${label}` : "引き分け"}
         </strong>
-        <span className="block truncate text-xs text-muted">
-          {match.mode ? `${match.mode === "singles" ? "シングルス" : "ダブルス"}・` : ""}
-          <time
-            dateTime={new Date(match.startedAtMs).toISOString()}
-            title={formatMatchDate(match.startedAtMs)}
-          >
-            {formatMatchDate(match.startedAtMs, nowMs)}
-          </time>
+        <span className="flex min-w-0 items-center gap-1 text-xs text-muted">
+          <MatchKindBadge kind={match.matchKind} />
+          <span className="truncate">
+            {match.mode ? `${match.mode === "singles" ? "シングルス" : "ダブルス"}・` : ""}
+            <time
+              dateTime={new Date(match.startedAtMs).toISOString()}
+              title={formatMatchDate(match.startedAtMs)}
+            >
+              {formatMatchDate(match.startedAtMs, nowMs)}
+            </time>
+          </span>
         </span>
         <span className="block truncate text-xs text-muted">
           {match.participants.map((player) => player.name).join("・")}

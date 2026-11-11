@@ -44,7 +44,7 @@ export async function withAccountSessionCookies(
   }
 }
 
-export function createAuth(env: AuthEnv) {
+export function createAuth(env: AuthEnv, createdAccounts?: Set<string>) {
   const local = new URL(env.APP_ORIGIN).protocol === "http:";
   const secret = authSecret(env);
   return betterAuth({
@@ -55,7 +55,12 @@ export function createAuth(env: AuthEnv) {
     secret,
     trustedOrigins: [env.APP_ORIGIN],
     onAPIError: { errorURL: `${env.APP_ORIGIN}/login` },
-    advanced: { useSecureCookies: !local, cookiePrefix: "tetraboard-2026" },
+    advanced: {
+      useSecureCookies: !local,
+      cookiePrefix: "tetraboard-2026",
+      // リクエストごとの全表走査を避け、authDatabaseReads.test.tsでmigrationとの整合性を検証します。
+      database: { validateSchema: false },
+    },
     rateLimit: { enabled: !local, storage: "database" },
     socialProviders: {
       discord: {
@@ -109,6 +114,9 @@ export function createAuth(env: AuthEnv) {
       },
       user: {
         create: {
+          after: async (user) => {
+            createdAccounts?.add(user.id);
+          },
           before: async (user) => ({
             data: { ...user, name: "", image: null },
           }),
@@ -117,8 +125,13 @@ export function createAuth(env: AuthEnv) {
     },
   });
 }
+function hasAccountSessionCookie(request: Request) {
+  return /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(
+    request.headers.get("Cookie") ?? "",
+  );
+}
 export async function accountSessionIdentity(request: Request, env: AuthEnv) {
-  if (!request.headers.get("cookie")) return null;
+  if (!hasAccountSessionCookie(request)) return null;
   const { response: session, headers } = await createAuth(env).api.getSession({
     headers: request.headers,
     returnHeaders: true,
@@ -140,12 +153,7 @@ export async function accountIdentity(request: Request, env: AuthEnv) {
     return identity.user;
   }
   // 登録セッションの失効時に、別のゲストへ自動で切り替えません。
-  if (
-    /(?:^|;\s*)(?:__Secure-)?tetraboard-2026\.session_token=/.test(
-      request.headers.get("Cookie") ?? "",
-    )
-  )
-    return null;
+  if (hasAccountSessionCookie(request)) return null;
   return guestIdentity(request, env);
 }
 export type StoredProfile = {

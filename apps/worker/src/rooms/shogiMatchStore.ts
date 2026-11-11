@@ -1,8 +1,15 @@
+import type { ProfileRatings } from "@tetraboard/protocol";
+import {
+  applyFourShogiRating,
+  fourShogiRatingStore,
+  type FourShogiRatedMatch,
+} from "./fourReversiRating";
 import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
 import { getMatchReplayContract, shogiMatchReplayPageSchema } from "@tetraboard/protocol";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import { tournamentMatchStatements } from "../tournaments/store";
+import { shogiRatingStatement, shogiRatingStore, type ShogiRatingSource } from "./shogiRating";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import {
   fourShogiReplayEventSchema,
@@ -21,6 +28,13 @@ import {
   type ShogiFormationUsage,
 } from "./shogiFormationUsage";
 
+async function finalizeFourShogiRating(db: D1Database, json: string) {
+  const record = readShogiMatchRecord(json);
+  if (!record.fourShogiRating) return;
+  await applyFourShogiRating(db, record);
+  await fourShogiRatingStore.clearPending(db, record.id).run();
+}
+
 export type ShogiMatchParticipant = {
   id: string;
   name: string;
@@ -28,12 +42,14 @@ export type ShogiMatchParticipant = {
   seat: number;
 } & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
 export type ShogiMatchStart = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;
   startedAtMs: number;
   settings: FourShogiMatchDetail["settings"];
   participants: ShogiMatchParticipant[];
+  fourShogiRating?: FourShogiRatedMatch;
 };
 export type ShogiMatchRecord = ShogiMatchStart & {
   endedAtMs: number;
@@ -69,6 +85,7 @@ export { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/ma
 import { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 
 export type StandardShogiMatchRecord = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;
@@ -81,6 +98,7 @@ export type StandardShogiMatchRecord = {
   ))[];
   game: ShogiMatchDetail["game"];
   replay: ShogiMatchDetail["replay"];
+  rating?: ShogiRatingSource;
 };
 export const standardShogiMatchStartKey = "standard-shogi-match-start";
 export const pendingStandardShogiMatchPrefix = "standard-shogi-match-pending:";
@@ -137,6 +155,7 @@ export async function advanceShogiMatchSave(
       !isFormationMatchEligible({
         settings: { mode: record.settings.mode ?? "standard" },
         participants: record.participants,
+        rated: "fourShogiRating" in record && record.fourShogiRating !== undefined,
       })
     )
       throw new Error("Ineligible Shogi formation match");
@@ -159,6 +178,7 @@ export async function advanceShogiMatchSave(
         .first();
       if (!saved) throw new Error("Tournament result publication was incomplete");
     }
+    if (game === "four-shogi") await finalizeFourShogiRating(db, existing.record_json);
     await db.prepare("DELETE FROM shogi_match_uploads WHERE id = ?").bind(record.id).run();
     await applyMatchClaims(db, record.id);
     return null;
@@ -212,7 +232,7 @@ export async function advanceShogiMatchSave(
       throw new Error("Shogi chunk content mismatch");
   }
   if (end < chunkCount) return { phase: "verify", cursor: end };
-  // 不変の棋譜行をすべて検証した後、本体と全アカウント索引を一緒に確定します。
+  // 棋譜の検証後、本体・アカウント索引・レートを一緒に確定します。
   await db.batch([
     db
       .prepare(`INSERT INTO matches (id, game, mode, started_at_ms, ended_at_ms, record_json)
@@ -248,12 +268,19 @@ export async function advanceShogiMatchSave(
         ]
       : []),
     ...badgeAwardStatements(db, game, record.id),
+    ...("rating" in record && record.rating
+      ? shogiRatingStore.finalize(db, record.id, shogiRatingStatement(db, record.id))
+      : []),
     ...(tournament && game === "four-shogi"
       ? tournamentMatchStatements(db, tournament, record as ShogiMatchRecord)
       : []),
   ]);
-  if (!(await db.prepare("SELECT id FROM matches WHERE id = ?").bind(record.id).first()))
-    throw new Error("Shogi match publication was incomplete");
+  const savedRecord = await db
+    .prepare("SELECT record_json FROM matches WHERE id = ? AND game = ?")
+    .bind(record.id, game)
+    .first<{ record_json: string }>();
+  if (!savedRecord) throw new Error("Shogi match publication was incomplete");
+  if (game === "four-shogi") await finalizeFourShogiRating(db, savedRecord.record_json);
   if (
     tournament &&
     !(await db

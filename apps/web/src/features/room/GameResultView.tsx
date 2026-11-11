@@ -1,7 +1,13 @@
 import { resultPlayer } from "./gameResultPresentation";
-import type { LastRound, Room } from "@tetraboard/protocol";
+import {
+  ratedMatchmakingRules,
+  type FourReversiRatingResult,
+  type LastRound,
+  type Room,
+} from "@tetraboard/protocol";
 import { type Color } from "@tetraboard/four-reversi";
 import { colorNames } from "./roomPresentation";
+import { RatingResultLabel } from "../matchmaking/RatingResultLabel";
 import { PlayerStoneCount } from "./PlayerStoneCount";
 import { GameResultList, GameResultRow, GameResultTeam } from "./GameResultRow";
 
@@ -18,9 +24,13 @@ const teamColors = { "black-red": ["black", "red"], "white-blue": ["white", "blu
 export function GameResultView({
   lastRound,
   currentPlayers,
+  rating,
+  ownPlayerId,
 }: {
   lastRound: LastRound;
   currentPlayers?: Room["players"];
+  rating?: FourReversiRatingResult;
+  ownPlayerId?: string;
 }) {
   const { result } = lastRound.game;
   const row = (color: Color, count: number | null, rank?: number) => {
@@ -36,6 +46,16 @@ export function GameResultView({
         key={color}
         player={player}
         rank={rank}
+        rating={
+          rating &&
+          "players" in rating && (
+            <RatingResultLabel
+              rating={player.id === ownPlayerId ? rating : rating.players[player.id]}
+              placementGames={ratedMatchmakingRules["four-reversi"].placementGames}
+              showPlacementChange={false}
+            />
+          )
+        }
         details={
           <span className="inline-flex w-14 items-center gap-2">
             <PlayerStoneCount color={color} count={count} />

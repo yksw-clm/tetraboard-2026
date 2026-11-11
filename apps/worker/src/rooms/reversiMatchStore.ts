@@ -1,9 +1,11 @@
+import type { ProfileRatings } from "@tetraboard/protocol";
 import {
   type ReversiRoom as Room,
   type ReversiReplay,
   type ReversiMatchDetail,
 } from "@tetraboard/protocol";
 
+import type { EloRatingSource } from "./eloRating";
 import { type ReversiState } from "@tetraboard/reversi";
 
 export type MatchParticipant = {
@@ -14,12 +16,15 @@ export type MatchParticipant = {
 } & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
 
 export type MatchStart = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;
   startedAtMs: number;
   settings: ReversiMatchDetail["settings"];
   participants: MatchParticipant[];
+  aiFallback?: true;
+  rating?: EloRatingSource;
 };
 export type MatchRecord = MatchStart & {
   endedAtMs: number;

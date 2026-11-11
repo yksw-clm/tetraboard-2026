@@ -545,3 +545,97 @@ test("ゲスト統合で移した席と旧ゲストaliasの席も、統合先の
     profileTarget: null,
   });
 });
+
+test("種別は要求時だけ返し、状態・参加者・世代と古いrevisionの保護を維持する", async () => {
+  const kinds = ["rated", "tournament", "normal", "unknown"] as const;
+  for (const [index, matchKind] of kinds.entries()) {
+    const pending = indexed(21000 + index, "four-shogi");
+    pending.metadata.matchKind = matchKind;
+    await writeRoomIndex(db, pending);
+    await writeRoomIndex(db, {
+      ...pending,
+      revision: 0,
+      metadata: { ...pending.metadata, matchKind: "normal" },
+    });
+  }
+  expect((await cards()).rooms.every((room) => !("matchKind" in room))).toBe(true);
+  const result = await cards("&includeMatchKind=1");
+  for (const [index, kind] of kinds.entries()) {
+    const room = result.rooms.find((room) => room.id === String(21000 + index))!;
+    expect(room.matchKind).toBe(kind);
+    expect(room.participants).toHaveLength(1);
+    expect(room.status).toBe("waiting");
+  }
+  expect((await request("?view=cards&includeMatchKind=0")).status).toBe(400);
+});
+
+test("稼働中の旧索引の種別をルームから再発行し、公開メタ情報の旧応答には追加しない", async () => {
+  const entry = await fixtures.create({
+    name: "種別確認",
+    game: "four-reversi",
+    mode: "singles",
+    quickPlay: false,
+  });
+  await waitForIndex(entry.room.id, (row) => row.participants_json !== null);
+  const stub = env.GAME_ROOM.getByName(entry.room.id);
+  await env.APP_DB.prepare("UPDATE room_index SET match_kind=NULL WHERE room_id=?")
+    .bind(entry.room.id)
+    .run();
+  const result = await cards("&includeMatchKind=1&game=four-reversi", env.APP_DB);
+  expect(result.rooms.find((room) => room.id === entry.room.id)?.matchKind).toBe("normal");
+  expect(await stub.getPublicMetadata()).not.toHaveProperty("matchKind");
+  expect(await stub.getPublicMetadata(true)).not.toHaveProperty("matchKind");
+});
+
+test("旧索引の種別を取得できない場合は種別不明とし、通常対局に決めつけない", async () => {
+  await writeRoomIndex(db, indexed(22000, "four-reversi"));
+  const response = await worker.fetch(
+    new Request(`${origin}/api/lobby/rooms?view=cards&includeMatchKind=1`),
+    {
+      ...env,
+      APP_DB: db,
+      GAME_ROOM: {
+        getByName: () => ({ refreshLobbyIndex: () => Promise.reject(new Error("Unavailable")) }),
+      } as unknown as Env["GAME_ROOM"],
+    },
+    {} as ExecutionContext,
+  );
+  expect(response.status).toBe(200);
+  expect(lobbyRoomCardsSchema.parse(await response.json()).rooms[0]?.matchKind).toBe("unknown");
+});
+
+test("通し番号はカードの明示要求時だけ返し、旧応答と通常・未採番ルームに混入しない", async () => {
+  for (const [index, kind] of (["rated", "tournament", "normal", "unknown"] as const).entries()) {
+    const pending = indexed(91000 + index, "four-reversi");
+    pending.metadata.matchKind = kind;
+    pending.metadata.matchSequence = 12;
+    await writeRoomIndex(db, pending);
+  }
+  const old = indexed(91004, "shogi");
+  old.metadata.matchKind = "rated";
+  await writeRoomIndex(db, old);
+  expect(
+    (await cards("&includeMatchKind=1")).rooms.every((room) => !("matchSequence" in room)),
+  ).toBe(true);
+  const result = await cards("&includeMatchKind=1&includeMatchSequence=1");
+  for (const room of result.rooms) {
+    if (room.id === "91000" || room.id === "91001") expect(room.matchSequence).toBe(12);
+    else expect(room).not.toHaveProperty("matchSequence");
+  }
+  for (const query of ["?view=cards&includeMatchSequence=0", "?includeMatchSequence=1"])
+    expect((await request(query)).status).toBe(400);
+  const newer = indexed(91000, "four-reversi");
+  newer.revision = 2;
+  newer.metadata.matchKind = "normal";
+  await writeRoomIndex(db, newer);
+  await writeRoomIndex(db, {
+    ...newer,
+    revision: 1,
+    metadata: { ...newer.metadata, matchKind: "rated", matchSequence: 999 },
+  });
+  expect(
+    (await cards("&includeMatchKind=1&includeMatchSequence=1")).rooms.find(
+      (room) => room.id === "91000",
+    ),
+  ).not.toHaveProperty("matchSequence");
+});

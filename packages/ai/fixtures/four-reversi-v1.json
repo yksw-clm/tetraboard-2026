@@ -1,0 +1,1024 @@
+{
+  "formatVersion": 1,
+  "sourceCommit": "5c39ead7e5335a7a2da32aeec54f9ab209ff4275",
+  "sourceFiles": [
+    "docs/rules/four-reversi.md",
+    "packages/four-reversi/src/engine.ts",
+    "packages/four-reversi/src/moves.ts"
+  ],
+  "cases": [
+    {
+      "name": "initial-and-invalid-moves",
+      "input": {
+        "board": [
+          "........",
+          "........",
+          "...K....",
+          "...RKB..",
+          "..RWB...",
+          "....W...",
+          "........",
+          "........"
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": -1,
+            "y": 3
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "out_of_bounds"
+          }
+        },
+        {
+          "position": {
+            "x": 8,
+            "y": 0
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "out_of_bounds"
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": -1
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "out_of_bounds"
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 8
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "out_of_bounds"
+          }
+        },
+        {
+          "position": {
+            "x": 3,
+            "y": 3
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "occupied"
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "no_capture"
+          }
+        },
+        {
+          "position": {
+            "x": 2,
+            "y": 3
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 3
+            },
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "........",
+                "........",
+                "...K....",
+                "..KKKB..",
+                "..RWB...",
+                "....W...",
+                "........",
+                "........"
+              ],
+              "turn": "white",
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 2,
+                "y": 3
+              },
+              "consecutivePasses": [],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 3,
+                "y": 3
+              }
+            ],
+            "passedColors": []
+          }
+        },
+        {
+          "position": {
+            "x": 2,
+            "y": 2
+          },
+          "legalMoves": [
+            {
+              "x": 3,
+              "y": 1
+            },
+            {
+              "x": 1,
+              "y": 2
+            },
+            {
+              "x": 4,
+              "y": 2
+            },
+            {
+              "x": 5,
+              "y": 2
+            },
+            {
+              "x": 5,
+              "y": 4
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "no_capture"
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed-colors-and-three-directions",
+      "input": {
+        "board": [
+          "KWRB....",
+          ".W......",
+          "..R.....",
+          "....RWK.",
+          "...B....",
+          "...K....",
+          "........",
+          "........"
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 3,
+            "y": 3
+          },
+          "legalMoves": [
+            {
+              "x": 4,
+              "y": 0
+            },
+            {
+              "x": 3,
+              "y": 3
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KWRB....",
+                ".K......",
+                "..K.....",
+                "...KKKK.",
+                "...K....",
+                "...K....",
+                "........",
+                "........"
+              ],
+              "turn": "white",
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 3,
+                "y": 3
+              },
+              "consecutivePasses": [],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 2,
+                "y": 2
+              },
+              {
+                "x": 1,
+                "y": 1
+              },
+              {
+                "x": 4,
+                "y": 3
+              },
+              {
+                "x": 5,
+                "y": 3
+              },
+              {
+                "x": 3,
+                "y": 4
+              }
+            ],
+            "passedColors": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "protect-last-opponent-stone",
+      "input": {
+        "board": [
+          "........",
+          "........",
+          "...K....",
+          "...RKB..",
+          "...WB...",
+          "....W...",
+          "........",
+          "........"
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 2,
+            "y": 3
+          },
+          "legalMoves": [
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "eliminates_player"
+          }
+        },
+        {
+          "position": {
+            "x": 6,
+            "y": 3
+          },
+          "legalMoves": [
+            {
+              "x": 6,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 4,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "........",
+                "........",
+                "...K....",
+                "...RKKK.",
+                "...WB...",
+                "....W...",
+                "........",
+                "........"
+              ],
+              "turn": "white",
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 6,
+                "y": 3
+              },
+              "consecutivePasses": [],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 5,
+                "y": 3
+              }
+            ],
+            "passedColors": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "protect-two-opponents-simultaneously",
+      "input": {
+        "board": [
+          ".WRK....",
+          "........",
+          ".BK.....",
+          "........",
+          "........",
+          "........",
+          "........",
+          "B......."
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "legalMoves": [
+            {
+              "x": 0,
+              "y": 2
+            }
+          ],
+          "expected": {
+            "ok": false,
+            "reason": "eliminates_player"
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 2
+          },
+          "legalMoves": [
+            {
+              "x": 0,
+              "y": 2
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                ".WRK....",
+                "........",
+                "KKK.....",
+                "........",
+                "........",
+                "........",
+                "........",
+                "B......."
+              ],
+              "turn": "red",
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 0,
+                "y": 2
+              },
+              "consecutivePasses": ["white"],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 1,
+                "y": 2
+              }
+            ],
+            "passedColors": ["white"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "automatic-passes-and-reset",
+      "input": {
+        "board": [
+          "KW......",
+          "BK......",
+          "........",
+          "........",
+          "........",
+          "........",
+          "........",
+          "......RW"
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": ["red", "blue"]
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 2,
+            "y": 0
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 0
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KKK.....",
+                "BK......",
+                "........",
+                "........",
+                "........",
+                "........",
+                "........",
+                "......RW"
+              ],
+              "turn": "blue",
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 2,
+                "y": 0
+              },
+              "consecutivePasses": ["white", "red"],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 1,
+                "y": 0
+              }
+            ],
+            "passedColors": ["white", "red"]
+          }
+        },
+        {
+          "position": {
+            "x": 2,
+            "y": 1
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 1
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KKK.....",
+                "BBB.....",
+                "........",
+                "........",
+                "........",
+                "........",
+                "........",
+                "......RW"
+              ],
+              "turn": "black",
+              "moveNumber": 2,
+              "lastMove": {
+                "x": 2,
+                "y": 1
+              },
+              "consecutivePasses": [],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 1,
+                "y": 1
+              }
+            ],
+            "passedColors": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "full-board-and-shared-ranks",
+      "input": {
+        "board": [
+          "KKKKKKKK",
+          "KKKKKKKW",
+          "WWWWWWWW",
+          "WWWWWWWW",
+          "WWWRRRRR",
+          "RRRRRRRB",
+          "BBBBBBKK",
+          "BBBBBKW."
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 7,
+            "y": 7
+          },
+          "legalMoves": [
+            {
+              "x": 7,
+              "y": 7
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KKKKKKKK",
+                "KKKKKKKW",
+                "WWWWWWWW",
+                "WWWWWWWW",
+                "WWWRRRRR",
+                "RRRRRRRB",
+                "BBBBBBKK",
+                "BBBBBKKK"
+              ],
+              "turn": null,
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 7,
+                "y": 7
+              },
+              "consecutivePasses": [],
+              "result": {
+                "reason": "board_full",
+                "standings": [
+                  {
+                    "color": "black",
+                    "stoneCount": 20,
+                    "rank": 1
+                  },
+                  {
+                    "color": "white",
+                    "stoneCount": 20,
+                    "rank": 1
+                  },
+                  {
+                    "color": "red",
+                    "stoneCount": 12,
+                    "rank": 3
+                  },
+                  {
+                    "color": "blue",
+                    "stoneCount": 12,
+                    "rank": 3
+                  }
+                ]
+              }
+            },
+            "flipped": [
+              {
+                "x": 6,
+                "y": 7
+              }
+            ],
+            "passedColors": []
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "legalMoves": [],
+          "expected": {
+            "ok": false,
+            "reason": "game_finished"
+          }
+        }
+      ]
+    },
+    {
+      "name": "all-passed-with-empty-square",
+      "input": {
+        "board": [
+          "KW.KKKKK",
+          "KKKKKKKK",
+          "KRKKKKKK",
+          "KWKKKKKK",
+          "KBKKKKKK",
+          "KKKKKKKK",
+          "KKKKKKKK",
+          "KKKKKKK."
+        ],
+        "turn": "black",
+        "moveNumber": 0,
+        "lastMove": null,
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 2,
+            "y": 0
+          },
+          "legalMoves": [
+            {
+              "x": 2,
+              "y": 0
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KKKKKKKK",
+                "KKKKKKKK",
+                "KRKKKKKK",
+                "KWKKKKKK",
+                "KBKKKKKK",
+                "KKKKKKKK",
+                "KKKKKKKK",
+                "KKKKKKK."
+              ],
+              "turn": null,
+              "moveNumber": 1,
+              "lastMove": {
+                "x": 2,
+                "y": 0
+              },
+              "consecutivePasses": ["white", "red", "blue", "black"],
+              "result": {
+                "reason": "all_passed",
+                "standings": [
+                  {
+                    "color": "black",
+                    "stoneCount": 60,
+                    "rank": 1
+                  },
+                  {
+                    "color": "white",
+                    "stoneCount": 1,
+                    "rank": 2
+                  },
+                  {
+                    "color": "red",
+                    "stoneCount": 1,
+                    "rank": 2
+                  },
+                  {
+                    "color": "blue",
+                    "stoneCount": 1,
+                    "rank": 2
+                  }
+                ]
+              }
+            },
+            "flipped": [
+              {
+                "x": 1,
+                "y": 0
+              }
+            ],
+            "passedColors": ["white", "red", "blue", "black"]
+          }
+        },
+        {
+          "position": {
+            "x": 7,
+            "y": 7
+          },
+          "legalMoves": [],
+          "expected": {
+            "ok": false,
+            "reason": "game_finished"
+          }
+        }
+      ]
+    },
+    {
+      "name": "same-player-after-three-passes",
+      "input": {
+        "board": [
+          "KBBRRRRR",
+          "KKKKKKWW",
+          "KKKKBWWW",
+          "KKBKWWWW",
+          "KKBWWWWW",
+          "K.WWWWWW",
+          ".WBRWRWW",
+          "BBBRRRRW"
+        ],
+        "turn": "red",
+        "moveNumber": 54,
+        "lastMove": {
+          "x": 6,
+          "y": 2
+        },
+        "consecutivePasses": []
+      },
+      "steps": [
+        {
+          "position": {
+            "x": 1,
+            "y": 5
+          },
+          "legalMoves": [
+            {
+              "x": 1,
+              "y": 5
+            },
+            {
+              "x": 0,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KBBRRRRR",
+                "KKKKKRWW",
+                "KKKKRWWW",
+                "KKBRWWWW",
+                "KKRWWWWW",
+                "KRWWWWWW",
+                ".WRRWRWW",
+                "BBBRRRRW"
+              ],
+              "turn": "red",
+              "moveNumber": 55,
+              "lastMove": {
+                "x": 1,
+                "y": 5
+              },
+              "consecutivePasses": ["blue", "black", "white"],
+              "result": null
+            },
+            "flipped": [
+              {
+                "x": 2,
+                "y": 4
+              },
+              {
+                "x": 3,
+                "y": 3
+              },
+              {
+                "x": 4,
+                "y": 2
+              },
+              {
+                "x": 5,
+                "y": 1
+              },
+              {
+                "x": 2,
+                "y": 6
+              }
+            ],
+            "passedColors": ["blue", "black", "white"]
+          }
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 6
+          },
+          "legalMoves": [
+            {
+              "x": 0,
+              "y": 6
+            }
+          ],
+          "expected": {
+            "ok": true,
+            "state": {
+              "board": [
+                "KBBRRRRR",
+                "KKKKKRWW",
+                "KKKKRWWW",
+                "KKBRWWWW",
+                "KKRWWWWW",
+                "KRWWWWWW",
+                "RRRRWRWW",
+                "BBBRRRRW"
+              ],
+              "turn": null,
+              "moveNumber": 56,
+              "lastMove": {
+                "x": 0,
+                "y": 6
+              },
+              "consecutivePasses": [],
+              "result": {
+                "reason": "board_full",
+                "standings": [
+                  {
+                    "color": "white",
+                    "stoneCount": 24,
+                    "rank": 1
+                  },
+                  {
+                    "color": "red",
+                    "stoneCount": 19,
+                    "rank": 2
+                  },
+                  {
+                    "color": "black",
+                    "stoneCount": 15,
+                    "rank": 3
+                  },
+                  {
+                    "color": "blue",
+                    "stoneCount": 6,
+                    "rank": 4
+                  }
+                ]
+              }
+            },
+            "flipped": [
+              {
+                "x": 1,
+                "y": 6
+              }
+            ],
+            "passedColors": []
+          }
+        }
+      ]
+    }
+  ]
+}

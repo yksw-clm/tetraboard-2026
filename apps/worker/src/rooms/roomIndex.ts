@@ -2,6 +2,8 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import { defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import {
   playerAppearanceSchema,
+  matchKindSchema,
+  type MatchKind,
   roomPublicMetadataSchema,
   type RoomPublicMetadata,
 } from "@tetraboard/protocol";
@@ -22,6 +24,8 @@ export type PendingRoomIndex = {
   revision: number;
   closed: boolean;
   metadata: RoomPublicMetadata & {
+    matchKind?: MatchKind;
+    matchSequence?: number;
     instanceId?: string;
     hostPlayerId?: string | null;
     participantPreviews?: IndexedRoomParticipant[];
@@ -32,6 +36,9 @@ export type PendingRoomIndex = {
 type IndexRow = {
   room_id: string;
   tournament_id: number | null;
+  matchmaking: number;
+  match_kind: string | null;
+  match_sequence: number | null;
   instance_id: string | null;
   host_player_id: string | null;
   game: string;
@@ -56,8 +63,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .prepare(
       `INSERT INTO room_index (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id, participants_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -76,7 +83,10 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         instance_id = excluded.instance_id,
         host_player_id = excluded.host_player_id
         , tournament_id = excluded.tournament_id,
-        participants_json = excluded.participants_json
+        matchmaking = excluded.matchmaking,
+        participants_json = excluded.participants_json,
+        match_kind = excluded.match_kind,
+        match_sequence = excluded.match_sequence
       WHERE excluded.revision > room_index.revision`,
     )
     .bind(
@@ -98,9 +108,12 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
       room.instanceId ?? null,
       room.hostPlayerId ?? null,
       room.tournamentId ?? null,
+      room.matchmaking ? 1 : 0,
       room.participantPreviews === undefined
         ? null
         : JSON.stringify(indexedParticipantsSchema.parse(room.participantPreviews)),
+      room.matchKind ?? null,
+      room.matchSequence ?? null,
     )
     .run();
 }
@@ -156,12 +169,31 @@ export async function listLobbyRoomCards(
     const incomplete = rows.filter(
       (row) => row.participants_json === null || row.instance_id === null,
     );
+    if (incomplete.length === 0 && query.includeMatchKind === "1" && attempt === 0) {
+      const missingKinds = rows.filter((row) => row.match_kind === null);
+      if (missingKinds.length) {
+        await Promise.allSettled(
+          missingKinds.map((row) =>
+            env.GAME_ROOM.getByName(row.room_id).refreshLobbyIndex(row.instance_id, row.revision),
+          ),
+        );
+        continue;
+      }
+    }
     if (incomplete.length === 0) {
       const last = rows.at(-1);
       return {
         rooms: rows.map((row) =>
           lobbyRoomCardSchema.parse({
             ...parseRow(row, true),
+            ...(query.includeMatchKind === "1"
+              ? { matchKind: matchKindSchema.parse(row.match_kind ?? "unknown") }
+              : {}),
+            ...(query.includeMatchSequence === "1" &&
+            row.match_sequence !== null &&
+            (row.match_kind === "rated" || row.match_kind === "tournament")
+              ? { matchSequence: row.match_sequence }
+              : {}),
             instanceId: row.instance_id,
             participants: indexedParticipantsSchema
               .parse(JSON.parse(row.participants_json!))
@@ -215,6 +247,7 @@ export function parseRow(row: IndexRow, preview: boolean) {
       : {}),
     ...roomPublicMetadataSchema.parse({
       id: row.room_id,
+      ...(row.matchmaking ? { matchmaking: true as const } : {}),
       ...(row.tournament_id ? { tournamentId: row.tournament_id } : {}),
       game: row.game,
       mode: gameCatalog[roomPublicMetadataSchema.shape.game.parse(row.game)].hasModes
@@ -240,7 +273,7 @@ export async function listRoomIndex(
   preview = false,
 ) {
   const query = `SELECT room_id, game, mode, main_time_ms, byoyomi_ms, status,
-      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms, instance_id, host_player_id, tournament_id
+      host_name, host_avatar_url, human_count, cpu_count, capacity, open_seats, updated_at_ms, instance_id, host_player_id, tournament_id, matchmaking
     FROM room_index
     WHERE closed = 0 AND status IN ('waiting', 'playing') AND game = ?`;
   const statement = cursor

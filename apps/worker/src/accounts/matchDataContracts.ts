@@ -1,3 +1,4 @@
+import { profileRatingsSchema } from "@tetraboard/protocol";
 import { fourGomokuMatchData } from "./fourGomokuMatchData";
 import type { MatchRecord as FourGomokuMatchRecord } from "../rooms/fourGomokuMatchStore";
 import type { FourGomokuMatchSummary, FourGomokuAccountStats } from "@tetraboard/protocol";
@@ -11,6 +12,7 @@ import { reversiMatchData } from "./reversiMatchData";
 import type { MatchRecord as ReversiMatchRecord } from "../rooms/reversiMatchStore";
 import type { ReversiAccountStats, ReversiMatchSummary } from "@tetraboard/protocol";
 import { z } from "zod";
+import { fourReversiRatedMatchSchema, fourShogiRatedMatchSchema } from "../rooms/fourReversiRating";
 import { type GameId } from "@tetraboard/protocol/games";
 import {
   gameIdSchema,
@@ -90,26 +92,41 @@ const reversiRecordSchema = z
   .strictObject({
     ...fourReversiMatchDetailSchema.shape,
     instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
     participants: reversiParticipants,
+    fourReversiRating: fourReversiRatedMatchSchema.optional(),
   })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 const shogiRecordSchema = z
   .strictObject({
     ...fourShogiMatchDetailSchema.shape,
     instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
     participants: shogiParticipants,
+    fourShogiRating: fourShogiRatedMatchSchema.optional(),
   })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicIdentity(
   player: { name: string } & (
     | { kind: "human"; accountId: string | null; retired?: true }
-    | { kind: "cpu"; level: 1 | 2 }
+    | { kind: "cpu"; level: 1 | 2; cpuProfile?: import("@tetraboard/protocol").CpuProfile }
   ),
   profiles: ParticipantProfiles,
 ):
   | { name: string; kind: "human"; avatarUrl: string | null; retired?: true }
-  | { name: string; kind: "cpu"; level: 1 | 2 } {
-  if (player.kind === "cpu") return { name: player.name, kind: "cpu", level: player.level };
+  | {
+      name: string;
+      kind: "cpu";
+      level: 1 | 2;
+      cpuProfile?: import("@tetraboard/protocol").CpuProfile;
+    } {
+  if (player.kind === "cpu")
+    return {
+      name: player.name,
+      kind: "cpu",
+      level: player.level,
+      ...(player.cpuProfile ? { cpuProfile: player.cpuProfile } : {}),
+    };
   const profile = player.accountId ? profiles.get(player.accountId) : undefined;
   return {
     name: profile?.name ?? player.name,
@@ -135,7 +152,12 @@ function shogiPublic(record: ShogiMatchRecord, profiles: ParticipantProfiles) {
   }));
 }
 function reversiDetail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, ...data } = record;
+  const {
+    instanceId: _instance,
+    fourReversiRating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return fourReversiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,
@@ -147,7 +169,12 @@ function shogiDetail(
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const { instanceId: _instance, ...data } = record;
+  const {
+    instanceId: _instance,
+    fourShogiRating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return fourShogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

@@ -127,7 +127,10 @@ test("通常リバーシのマイページは5戦績項目、引き分けを分�
   ).toEqual(["対局数", "勝数", "勝率", "敗数", "敗率"]);
   expect(view.textContent).toContain(".250");
   expect(view.textContent).toContain(".500");
-  expect(view.querySelector('[role="tablist"]:not([hidden])')).toBeNull();
+  expect(
+    view.querySelector('[role="tablist"][aria-label="プロフィールの対局モード"]:not([hidden])'),
+  ).toBeNull();
+  expect(view.querySelector('[role="tablist"][aria-label="棋譜の絞り込み"]')).not.toBeNull();
   expect(view.textContent).not.toContain("シングルス");
   expect(view.textContent).not.toContain("未獲得");
 });
@@ -140,9 +143,19 @@ test("通常リバーシのランキングは勝数3人・詳細10人、対局�
     value: 10 - i,
   }));
   const view = render(wrap()(<LobbyRankings game="reversi" theme="reversi" />));
+  act(() => view.querySelector<HTMLElement>('[role="tab"][data-key="victories"]')!.click());
+  clock.advance(100);
+  await flush();
+  clock.advance(150);
+  await flush();
   clock.advance(0);
-  expect(requests.at(-1)!.url).toBe("/api/games/reversi/rankings?profilePreview=1");
-  requests.at(-1)!.respond({ wins: entries, total: entries });
+  expect(requests.filter(({ url }) => url.includes("/rankings?")).at(-1)!.url).toBe(
+    "/api/games/reversi/rankings?profilePreview=1",
+  );
+  requests
+    .filter(({ url }) => url.includes("/rankings?"))
+    .at(-1)!
+    .respond({ wins: entries, total: entries });
   await flush();
   expect(view.querySelectorAll("li")).toHaveLength(3);
   expect(view.textContent).toContain("勝利数");

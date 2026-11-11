@@ -1,0 +1,131 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "tetraboard-ai-validation",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-25",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": false },
+  "limits": { "cpu_ms": 50 },
+  "containers": [
+    {
+      "class_name": "AiContainer",
+      "image": "../Dockerfile.four-reversi",
+      "image_build_context": "..",
+      "instance_type": "lite",
+      "max_instances": 1,
+    },
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "AI_CONTAINER", "class_name": "AiContainer" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AiContainer"] }],
+  "env": {
+    "production": {
+      "name": "tetraboard-ai-prod",
+      "vars": {
+        "AI_SHOGI_ENABLED": "true",
+        "FOUR_SHOGI_DIAGNOSTICS": "true",
+        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+      },
+      "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
+      "containers": [
+        {
+          "class_name": "AiContainer",
+          "image": "../Dockerfile.four-reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+        {
+          "class_name": "FourShogiContainer",
+          "image": "../Dockerfile.four-reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+        {
+          "class_name": "ShogiContainer",
+          "image": "../Dockerfile",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+        {
+          "class_name": "ReversiContainer",
+          "image": "../Dockerfile.reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "AI_CONTAINER", "class_name": "AiContainer" },
+          { "name": "FOUR_SHOGI_CONTAINER", "class_name": "FourShogiContainer" },
+          { "name": "SHOGI_CONTAINER", "class_name": "ShogiContainer" },
+          { "name": "REVERSI_CONTAINER", "class_name": "ReversiContainer" },
+        ],
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["AiContainer"] },
+        { "tag": "v2", "new_sqlite_classes": ["ShogiContainer"] },
+        { "tag": "v3", "new_sqlite_classes": ["ReversiContainer"] },
+        { "tag": "v4", "new_sqlite_classes": ["FourShogiContainer"] },
+      ],
+    },
+    "development": {
+      "name": "tetraboard-ai-dev",
+      "vars": {
+        "AI_SHOGI_ENABLED": "true",
+        "FOUR_SHOGI_DIAGNOSTICS": "true",
+        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+      },
+      "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
+      "containers": [
+        {
+          "class_name": "AiContainer",
+          "image": "../Dockerfile.four-reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+        {
+          "class_name": "FourShogiContainer",
+          "image": "../Dockerfile.four-reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+        {
+          "class_name": "ShogiContainer",
+          "image": "../Dockerfile",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+        {
+          "class_name": "ReversiContainer",
+          "image": "../Dockerfile.reversi",
+          "image_build_context": "..",
+          "instance_type": "basic",
+          "max_instances": 1,
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "AI_CONTAINER", "class_name": "AiContainer" },
+          { "name": "FOUR_SHOGI_CONTAINER", "class_name": "FourShogiContainer" },
+          { "name": "SHOGI_CONTAINER", "class_name": "ShogiContainer" },
+          { "name": "REVERSI_CONTAINER", "class_name": "ReversiContainer" },
+        ],
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["AiContainer"] },
+        { "tag": "v2", "new_sqlite_classes": ["ShogiContainer"] },
+        { "tag": "v3", "new_sqlite_classes": ["ReversiContainer"] },
+        { "tag": "v4", "new_sqlite_classes": ["FourShogiContainer"] },
+      ],
+    },
+  },
+}

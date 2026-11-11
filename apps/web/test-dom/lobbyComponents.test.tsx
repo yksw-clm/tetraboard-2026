@@ -83,40 +83,64 @@ test("全6ロビーの作成導線はダイアログだけを開き、再訪時�
     rerender(view, null);
   }
 });
+async function showVictoryRanking(view: HTMLElement) {
+  act(() => view.querySelector<HTMLElement>('[role="tab"][data-key="victories"]')!.click());
+  clock.advance(100);
+  await flush();
+  clock.advance(150);
+  await flush();
+}
+
 test("両ゲームのランキングは上位3人・詳細10人・集計選択、失敗時保持・空一覧を表示", async () => {
   for (const game of ["four-reversi", "four-shogi"] as const) {
     const view = render(<LobbyRankings game={game} />);
+    await showVictoryRanking(view);
     clock.advance(0);
-    expect(requests.at(-1)!.url).toBe(
+    expect(requests.filter(({ url }) => url.includes("/rankings?")).at(-1)!.url).toBe(
       `/api/games/${game}/rankings?profilePreview=1${game === "four-shogi" ? "&includeKnockouts=1" : ""}`,
     );
     expect(view.textContent).toContain("読み込んで");
     const preview = view.querySelector('[role="status"]')!.parentElement!;
     expect(preview.querySelectorAll(':scope > [aria-hidden="true"]')).toHaveLength(3);
-    requests.at(-1)!.respond(rankings);
+    requests
+      .filter(({ url }) => url.includes("/rankings?"))
+      .at(-1)!
+      .respond(rankings);
     await flush();
     expect(preview.querySelectorAll("li")).toHaveLength(3);
     expect(preview.querySelector(".skeleton")).toBeNull();
-    expect(view.textContent).toContain("対人戦のみ集計");
+    expect(view.textContent).toContain("シングルス");
+    requests
+      .filter(({ url }) => url.endsWith("/rankings/rating"))
+      .at(-1)!
+      .respond({ entries: [] });
+    await flush();
     press(view, "もっと見る");
     await flush();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.querySelectorAll("li")).toHaveLength(10);
+    expect(dialog.textContent).toContain("CPU補充のレート戦も対象です。");
     expect(dialog.textContent).toContain("対戦相手にゲストがいても対象です。");
     act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="doubles"]')!.click());
     await flush();
     expect(dialog.textContent).toContain("勝利数");
+    expect(dialog.textContent).toContain("対人戦のみ集計");
+    expect(dialog.textContent).not.toContain("CPU補充のレート戦も対象です。");
     act(() => dialog.querySelector<HTMLElement>('[role="tab"][id$="total"]')!.click());
     await flush();
     expect(dialog.querySelector("h3")!.textContent).toBe("対局数");
     press(dialog, "更新");
     act(() => dialog.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
-    requests.at(-1)!.respond({}, 503);
+    requests
+      .filter(({ url }) => url.includes("/rankings?"))
+      .at(-1)!
+      .respond({}, 503);
     await flush();
     expect(view.querySelectorAll("li")).toHaveLength(3);
     expect(view.querySelector('[role="alert"]')).not.toBeNull();
     press(view, "再試行");
     requests
+      .filter(({ url }) => url.includes("/rankings?"))
       .at(-1)!
       .respond({ singles: { first: [], total: [] }, doubles: { wins: [], total: [] } });
     await flush();
@@ -129,14 +153,19 @@ test.each([1, 2])(
   "初回失敗後もランキングのプレビュー内に再試行と%d件の結果を表示する",
   async (count) => {
     const view = render(<LobbyRankings game="four-shogi" />);
+    await showVictoryRanking(view);
     const preview = view.querySelector('[role="status"]')!.parentElement!;
     clock.advance(0);
-    requests.at(-1)!.respond({}, 503);
+    requests
+      .filter(({ url }) => url.includes("/rankings?"))
+      .at(-1)!
+      .respond({}, 503);
     await flush();
     expect(preview.querySelector('[role="alert"]')).not.toBeNull();
     expect(preview.querySelector(".skeleton")).toBeNull();
     press(preview, "再試行");
     requests
+      .filter(({ url }) => url.includes("/rankings?"))
       .at(-1)!
       .respond({ ...rankings, singles: { ...rankings.singles, first: entries.slice(0, count) } });
     await flush();

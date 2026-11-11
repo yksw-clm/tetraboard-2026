@@ -1,3 +1,5 @@
+import { matchmakingPath } from "../matchmaking/paths";
+
 import { useRef, useState } from "react";
 import type { LobbyRoomCard as RoomCardData } from "@tetraboard/protocol/general-lobby";
 import { gameCatalog, type GameId } from "@tetraboard/protocol/games";
@@ -203,7 +205,15 @@ export function LobbyList({
                       <AppIcon name="eye" className="size-4" />
                       観戦
                     </AppButton>
-                    {room.tournamentId ? (
+                    {room.matchmaking ? (
+                      <AppButtonLink
+                        size="compact"
+                        className="min-h-11 px-3 text-xs"
+                        to={matchmakingPath(room.game)}
+                      >
+                        マッチングへ
+                      </AppButtonLink>
+                    ) : room.tournamentId ? (
                       <AppButtonLink
                         size="compact"
                         className="min-h-11 px-3 text-xs"

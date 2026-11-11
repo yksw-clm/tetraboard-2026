@@ -3,7 +3,7 @@ import { lobbyRoomCardSchema, type LobbyRoomCard } from "@tetraboard/protocol/ge
 import { TournamentRooms } from "../src/features/tournaments/TournamentRooms";
 import { act, clock, flush, press, render, rerender, requests, wrap } from "./harness";
 
-const url = "/api/lobby/rooms?view=cards&game=four-shogi";
+const url = "/api/lobby/rooms?view=cards&includeMatchKind=1&includeMatchSequence=1&game=four-shogi";
 const instanceId = "11111111-1111-4111-8111-111111111111";
 function room(id: string, values: Partial<LobbyRoomCard> = {}) {
   return lobbyRoomCardSchema.parse({
@@ -19,6 +19,8 @@ function room(id: string, values: Partial<LobbyRoomCard> = {}) {
     openSeats: 0,
     updatedAtMs: Number(id),
     tournamentId: 1,
+    matchKind: "tournament",
+    matchSequence: Number(id),
     timeControl: { mainTimeMs: 0, byoyomiMs: 30000 },
     participants: Array.from({ length: 4 }, () => ({
       kind: "human",
@@ -56,8 +58,8 @@ test("同じ大会で対局中の部屋だけを全ページから選び、共�
   expect(list.children).toHaveLength(2);
   expect(list.classList.contains("grid-cols-2")).toBe(true);
   expect(list.classList.contains("[@media(max-width:767px)]:grid-cols-1")).toBe(true);
-  expect(view.textContent).toContain("ホスト12345の部屋");
-  expect(view.textContent).toContain("ホスト23456の部屋");
+  expect(view.textContent).toContain("大会12345局目");
+  expect(view.textContent).toContain("大会23456局目");
   expect(view.textContent).not.toContain("ホスト12346");
   expect(view.textContent).not.toContain("ホスト12347");
   expect(view.textContent).not.toContain("ホスト23457");

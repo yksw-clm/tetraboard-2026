@@ -1,7 +1,24 @@
-import type { ReversiLastRound } from "@tetraboard/protocol";
+import {
+  ratedMatchmakingRules,
+  type ReversiLastRound,
+  type ReversiRatingResult,
+} from "@tetraboard/protocol";
 import { PlayerAvatar } from "./PlayerAvatar";
+import { RatingResultLabel } from "../matchmaking/RatingResultLabel";
 import { Stone } from "./Stone";
-export function ReversiResult({ lastRound }: { lastRound: ReversiLastRound }) {
+export function ReversiResult({
+  lastRound,
+  selfId,
+  ratingResult,
+}: {
+  lastRound: ReversiLastRound;
+  selfId?: string;
+  ratingResult?: ReversiRatingResult;
+}) {
+  const rated =
+    ratingResult?.status === "rated" || ratingResult?.status === "placement"
+      ? ratingResult
+      : undefined;
   const { game, players } = lastRound;
   const winner = game.result.winner;
   const sorted = [...players].sort(
@@ -24,7 +41,13 @@ export function ReversiResult({ lastRound }: { lastRound: ReversiLastRound }) {
           <Stone color={p.color} className="size-5 shrink-0" />
           <span className="w-8 text-sm tabular-nums">{game.result.stoneCounts[p.color]}</span>
           <PlayerAvatar appearance={p.appearance ?? null} className="size-7" />
-          <span className="text-sm font-semibold wrap-anywhere">{p.name}</span>
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-sm font-semibold wrap-anywhere">{p.name}</span>
+            <RatingResultLabel
+              rating={p.id === selfId ? rated : rated?.opponent}
+              placementGames={ratedMatchmakingRules.reversi.placementGames}
+            />
+          </div>
         </div>
       ))}
     </div>

@@ -1,3 +1,6 @@
+import { savedProfileRatings } from "../accounts/profileRatings";
+import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
+import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelection";
 import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
 import {
   fourReversiStateSchema,
@@ -14,6 +17,8 @@ import {
   colors,
   createInitialState,
   eliminateColor,
+  getLegalMoves,
+  type Position,
   type FourReversiState,
   type Color,
 } from "@tetraboard/four-reversi";
@@ -42,9 +47,11 @@ import type {
   RematchFor,
 } from "./gameProgress";
 import { z } from "zod";
+import { sameServiceProfile, serviceProfileSchema, type ServiceProfile } from "./aiServiceProfiles";
 type Playing = PlayingFor<"four-reversi">;
 type Result = ProgressFor<"four-reversi">;
 export const fourReversiCpuJobKey = "four-reversi-cpu-job";
+export const fourReversiAiJobKey = "four-reversi-ai-job";
 const cpuJobSchema = z.object({
   instanceId: z.string(),
   roundId: z.string().nullable(),
@@ -55,8 +62,23 @@ const cpuJobSchema = z.object({
   positionKey: z.string(),
   move: z.object({ x: z.number().int().min(0).max(7), y: z.number().int().min(0).max(7) }),
   applyAt: z.number().finite().nonnegative(),
+  source: z.enum(["external", "fallback"]).optional(),
+  requestId: z.string().uuid().optional(),
+  serviceProfile: serviceProfileSchema.optional(),
+  extendedRules: z.literal(true).optional(),
 });
 export type FourReversiCpuJob = z.infer<typeof cpuJobSchema>;
+const externalJobSchema = cpuJobSchema
+  .omit({ move: true, applyAt: true, source: true, requestId: true })
+  .extend({
+    requestId: z.string().uuid(),
+    expiresAt: z.number().finite().nonnegative(),
+  });
+type ExternalCpuJob = z.infer<typeof externalJobSchema>;
+export type ExternalCpuWork = { job: ExternalCpuJob; game: Playing["game"] };
+export const supportsExternalAi = (room: Playing) =>
+  room.game.mode === "singles" &&
+  (room.game.eliminatedColors.length === 0 || room.matchmaking !== undefined);
 const cpuPositionKey = (game: FourReversiState) =>
   JSON.stringify([
     game.mode,
@@ -80,11 +102,13 @@ export class FourReversiProgress {
   start(
     room: WaitingFor<"four-reversi">,
     tournament?: TournamentRoomContext,
+    rating?: FourReversiRatingSource,
   ): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(fourReversiCpuJobKey);
+    this.storage.kv.delete(fourReversiAiJobKey);
     const assignments = shuffledAssignments(colors);
     const startedAtMs = Date.now();
-    const matchId = tournament?.matchId ?? crypto.randomUUID();
+    const matchId = tournament?.matchId ?? room.matchmaking?.id ?? crypto.randomUUID();
     if (tournament) this.storage.kv.put(activeTournamentContextKey, tournament);
     else this.storage.kv.delete(activeTournamentContextKey);
     const { tournamentStartsAtMs: _countdown, ...waiting } = room;
@@ -114,18 +138,36 @@ export class FourReversiProgress {
     );
     if (startedRoom.status !== "playing") throw new Error("Game did not start");
     this.storage.kv.put(matchStartKey, {
+      ...savedProfileRatings(this.storage, matchId),
       id: matchId,
       roomId: startedRoom.id,
       instanceId: startedRoom.instanceId,
       startedAtMs,
       settings: startedRoom.settings,
+      ...(rating
+        ? {
+            fourReversiRating: {
+              method: fourReversiRatingMethod,
+              calibrationVersion: rating.calibrationVersion,
+              cpu: Object.fromEntries(
+                startedRoom.players.flatMap((player) =>
+                  player.kind === "cpu" && rating.cpu ? [[player.color, rating.cpu]] : [],
+                ),
+              ),
+            },
+          }
+        : {}),
       participants: startedRoom.players.map((player, seat) => ({
         id: player.id,
         name: playerLabel(player),
         color: player.color,
         seat,
         ...(player.kind === "cpu"
-          ? { kind: "cpu" as const, level: player.level }
+          ? {
+              kind: "cpu" as const,
+              level: player.level,
+              ...(player.cpuProfile ? { cpuProfile: player.cpuProfile } : {}),
+            }
           : {
               kind: "human" as const,
               accountId: this.accountId(player.id),
@@ -189,6 +231,7 @@ export class FourReversiProgress {
     clockAt = at,
   ): Result {
     this.storage.kv.delete(fourReversiCpuJobKey);
+    this.storage.kv.delete(fourReversiAiJobKey);
     if (state.status === "finished") {
       const game = fourReversiStateSchema.parse(state);
       if (game.status !== "finished") throw new Error("Expected finished state");
@@ -313,6 +356,14 @@ export class FourReversiProgress {
         const result = applyAction(room.game, { type: "placeStone", position: job.move });
         if (!result.ok) this.storage.kv.delete(fourReversiCpuJobKey);
         else {
+          if (job.source !== "external") {
+            const start = this.storage.kv.get<MatchStart>(matchStartKey);
+            if (start?.fourReversiRating && !start.fourReversiRating.usedFallback)
+              this.storage.kv.put(matchStartKey, {
+                ...start,
+                fourReversiRating: { ...start.fourReversiRating, usedFallback: true },
+              } satisfies MatchStart);
+          }
           this.recordReplayStep(
             { type: "place", color: room.game.turn, position: job.move },
             result,
@@ -321,7 +372,9 @@ export class FourReversiProgress {
         }
       }
     } else {
-      const move = chooseCpuMove(room.game, cpu.level);
+      const move = cpu.cpuProfile
+        ? (getLegalMoves(room.game)[0] ?? null)
+        : chooseCpuMove(room.game, cpu.level);
       if (move === null) throw new Error("CPU has no legal move");
       // Workersの同期計算中は時刻が進まないため、別イベントで期限を読み直します。
       this.storage.kv.put(fourReversiCpuJobKey, {
@@ -339,6 +392,98 @@ export class FourReversiProgress {
     return { kind: "unchanged", gameId: "four-reversi", room };
   }
 
+  externalCpuJob(room: Playing): ExternalCpuJob | null {
+    const parsed = externalJobSchema.safeParse(this.storage.kv.get(fourReversiAiJobKey));
+    if (!parsed.success || !this.matchesExternal(room, parsed.data)) return null;
+    return parsed.data;
+  }
+
+  private matchesExternal(room: Playing, job: ExternalCpuJob): boolean {
+    const cpu = room.players.find((p) => p.color === room.game.turn);
+    return (
+      supportsExternalAi(room) &&
+      cpu?.kind === "cpu" &&
+      job.instanceId === room.instanceId &&
+      job.roundId === (this.storage.kv.get<MatchStart>(matchStartKey)?.id ?? null) &&
+      job.playerId === cpu.id &&
+      job.color === cpu.color &&
+      job.level === cpu.level &&
+      job.turnStartedAt === room.clock.turnStartedAt &&
+      job.positionKey === cpuPositionKey(room.game)
+    );
+  }
+
+  prepareExternalCpu(
+    room: Playing,
+    now: number,
+    timeoutMs: number,
+    serviceProfile?: ServiceProfile,
+  ): ExternalCpuWork | null {
+    if (
+      !supportsExternalAi(room) ||
+      room.clock.turnStartedAt + cpuMoveDelayMs > now ||
+      isClockExpired(room.clock, now)
+    )
+      return null;
+    if (this.storage.kv.get(fourReversiAiJobKey) !== undefined) {
+      const current = this.externalCpuJob(room);
+      if (!current) this.storage.kv.delete(fourReversiAiJobKey);
+      else if (current.expiresAt <= now) this.completeExternalCpu(room, current, null, now);
+      return null;
+    }
+    const cpu = room.players.find((p) => p.color === room.game.turn);
+    if (cpu?.kind !== "cpu") return null;
+    const job: ExternalCpuJob = {
+      instanceId: room.instanceId,
+      roundId: this.storage.kv.get<MatchStart>(matchStartKey)?.id ?? null,
+      playerId: cpu.id,
+      color: cpu.color,
+      level: cpu.level,
+      turnStartedAt: room.clock.turnStartedAt,
+      positionKey: cpuPositionKey(room.game),
+      requestId: crypto.randomUUID(),
+      ...(cpu.level === 2 && serviceProfile ? { serviceProfile } : {}),
+      ...(room.matchmaking ? { extendedRules: true as const } : {}),
+      expiresAt: Math.min(room.clock.turnExpiresAt, now + timeoutMs + 250),
+    };
+    this.storage.kv.put(fourReversiAiJobKey, job);
+    return { job, game: room.game };
+  }
+
+  completeExternalCpu(
+    room: Playing,
+    job: ExternalCpuJob,
+    position: Position | null,
+    now: number,
+  ): boolean {
+    const current = this.externalCpuJob(room);
+    if (
+      !current ||
+      current.requestId !== job.requestId ||
+      !sameServiceProfile(current.serviceProfile, job.serviceProfile) ||
+      !this.matchesExternal(room, job) ||
+      isClockExpired(room.clock, now) ||
+      this.storage.kv.get(fourReversiCpuJobKey) !== undefined
+    )
+      return false;
+    const legal = getLegalMoves(room.game);
+    const external =
+      position !== null &&
+      legal.some((p) => p.x === position.x && p.y === position.y) &&
+      now < job.expiresAt;
+    const move = external ? position : legal[0];
+    if (!move) return false;
+    const { expiresAt: _expiresAt, ...context } = job;
+    this.storage.kv.put(fourReversiCpuJobKey, {
+      ...context,
+      move,
+      applyAt: now + 1,
+      source: external ? "external" : "fallback",
+    } satisfies FourReversiCpuJob);
+    this.storage.kv.delete(fourReversiAiJobKey);
+    return true;
+  }
+
   finalize(result: FinishedProgress<"four-reversi">): LastRound {
     return this.finalizeResult(result.room, result.game, result.at);
   }
@@ -348,6 +493,7 @@ export class FourReversiProgress {
     players: FourReversiRoom["players"],
   ): WaitingFor<"four-reversi"> {
     this.storage.kv.delete(fourReversiCpuJobKey);
+    this.storage.kv.delete(fourReversiAiJobKey);
     const room = fourReversiRoomSchema.parse({
       ...data.room,
       status: "waiting",
@@ -411,6 +557,7 @@ export class FourReversiProgress {
     at: number,
   ): LastRound {
     this.storage.kv.delete(fourReversiCpuJobKey);
+    this.storage.kv.delete(fourReversiAiJobKey);
     const start = this.storage.kv.get<MatchStart>(matchStartKey);
     const replay = this.storage.kv.get<RoundReplay>(replayKey);
     if (start && replay && start.id === replay.id) {

@@ -6,7 +6,8 @@ import { PlayerProfileProvider } from "../features/players/PlayerProfileProvider
 import { ActiveTournamentProvider } from "../features/tournaments/ActiveTournamentProvider";
 import { AccountLayout } from "../features/account/AccountSession";
 import { LoginPage, ProfilePage } from "../features/account/AccountPages";
-import { createBrowserRouter, Link } from "react-router";
+import { createBrowserRouter, Link, replace } from "react-router";
+import { matchmakingPath } from "../features/matchmaking/paths";
 import { RoomErrorPage, RoomPage } from "../features/room/RoomPage";
 import { roomLoader } from "../features/room/roomLoader";
 
@@ -86,6 +87,18 @@ export const router = createBrowserRouter([
         }),
         hydrateFallbackElement: (
           <AppPageLoading message="大会を読み込んでいます…" theme="four-shogi" />
+        ),
+      },
+      {
+        path: "/games/four-reversi/matchmaking",
+        loader: () => replace(matchmakingPath("four-reversi")),
+        hydrateFallbackElement: <AppPageLoading message="マッチングを読み込んでいます…" />,
+      },
+      {
+        path: "/games/shogi/matchmaking",
+        loader: () => replace(matchmakingPath("shogi")),
+        hydrateFallbackElement: (
+          <AppPageLoading message="将棋ロビーを読み込んでいます…" theme="shogi" />
         ),
       },
       { path: "/login", Component: LoginPage },

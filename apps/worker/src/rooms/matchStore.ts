@@ -1,10 +1,17 @@
+import type { ProfileRatings } from "@tetraboard/protocol";
 import { tournamentMatchStatements } from "../tournaments/store";
-import { readStoredMatch } from "../accounts/matchDataContracts";
+import { readFourReversiMatchRecord, readStoredMatch } from "../accounts/matchDataContracts";
+import {
+  applyFourReversiRating,
+  fourReversiRatingStore,
+  type FourReversiRatedMatch,
+} from "./fourReversiRating";
 import type { TournamentRoomContext } from "./tournamentRoom";
 import { redactParticipants } from "../privacy/identity";
 import { applyMatchClaims } from "../accounts/matchClaims";
 import type { MatchRecord as FourGomokuMatchRecord } from "./fourGomokuMatchStore";
 import type { MatchRecord as GomokuMatchRecord } from "./gomokuMatchStore";
+import { reversiRatingStatement, reversiRatingStore } from "./reversiRating";
 import type { MatchRecord as ReversiMatchRecord } from "./reversiMatchStore";
 import { badgeAwardStatements } from "../accounts/badgeAwards";
 import {
@@ -20,15 +27,20 @@ export type MatchParticipant = {
   name: string;
   color: NonNullable<Room["players"][number]["color"]>;
   seat: number;
-} & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
+} & (
+  | { kind: "human"; accountId: string | null; retired?: true }
+  | { kind: "cpu"; level: 1 | 2; cpuProfile?: import("@tetraboard/protocol").CpuProfile }
+);
 
 export type MatchStart = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;
   startedAtMs: number;
   settings: FourReversiMatchDetail["settings"];
   participants: MatchParticipant[];
+  fourReversiRating?: FourReversiRatedMatch;
 };
 export type MatchRecord = MatchStart & {
   endedAtMs: number;
@@ -92,9 +104,22 @@ export async function writeMatch(
     ON CONFLICT(account_id, match_id) DO NOTHING`)
       .bind(record.id),
   );
+  if (record.settings.game === "reversi" && "rating" in record && record.rating)
+    statements.push(
+      ...reversiRatingStore.finalize(db, record.id, reversiRatingStatement(db, record.id)),
+    );
   statements.push(...badgeAwardStatements(db, record.settings.game, record.id));
   statements.push(...tournamentStatements);
   await db.batch(statements);
+  if ("fourReversiRating" in record && record.fourReversiRating) {
+    const saved = await db
+      .prepare("SELECT record_json FROM matches WHERE id=? AND game='four-reversi'")
+      .bind(record.id)
+      .first<{ record_json: string }>();
+    if (!saved) throw Error("四人リバーシの対局が保存されていません");
+    await applyFourReversiRating(db, readFourReversiMatchRecord(saved.record_json));
+    await fourReversiRatingStore.clearPending(db, record.id).run();
+  }
   if (
     tournament &&
     !(await db

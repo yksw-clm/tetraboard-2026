@@ -2,6 +2,9 @@ import { gameCatalog } from "@tetraboard/protocol/games";
 import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { usePlayerProfiles } from "../players/usePlayerProfiles";
+import { useRankingRotation } from "./useRankingRotation";
 import { type PreviewRankings, type RoomMode, type MatchGame } from "@tetraboard/protocol";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppAvatar } from "../../shared/ui/AppAvatar";
@@ -12,16 +15,19 @@ import { AppSkeleton } from "../../shared/ui/AppSkeleton";
 import { AppTabs } from "../../shared/ui/AppTabs";
 import { type AppTheme } from "../../shared/ui/appTheme";
 import { useRankings } from "./useRankings";
+import { includesRatedStats, statsScopeLabel } from "../account/statsPresentation";
 
-type RankingMetric = "victories" | "total" | "knockouts";
+type RankingMetric = "victories" | "total" | "knockouts" | "rating";
 const normalMetrics: RankingMetric[] = ["victories", "total"];
 const shogiSinglesMetrics: RankingMetric[] = ["victories", "total", "knockouts"];
 
-function rankingMetrics(game: MatchGame, mode: RoomMode) {
-  return game === "four-shogi" && mode === "singles" ? shogiSinglesMetrics : normalMetrics;
+function rankingMetrics(game: MatchGame, mode: RoomMode, rated: boolean) {
+  const metrics = game === "four-shogi" && mode === "singles" ? shogiSinglesMetrics : normalMetrics;
+  return rated && mode === "singles" ? ["rating" as const, ...metrics] : metrics;
 }
 
 function rankingLabel(game: MatchGame, mode: RoomMode, metric: RankingMetric) {
+  if (metric === "rating") return "レート";
   if (metric === "total") return "対局数";
   if (metric === "knockouts") return "撃破数";
   return gameCatalog[game].hasModes && mode === "singles" ? "優勝数" : "勝利数";
@@ -112,15 +118,21 @@ function RankingList({
           </span>
           <span className="shrink-0 font-semibold tabular-nums">
             {entry.value}
-            <span className="ml-1 text-xs font-normal text-muted">
-              {label === "対局数" ? "局" : label === "撃破数" ? "人" : "回"}
-            </span>
+            {label !== "レート" && (
+              <span className="ml-1 text-xs font-normal text-muted">
+                {label === "対局数" ? "局" : label === "撃破数" ? "人" : "回"}
+              </span>
+            )}
           </span>
         </li>
       ))}
     </ol>
   ) : (
-    <p className="text-sm text-muted">まだランキングの対象者がいません。</p>
+    <p className="text-sm text-muted">
+      {label === "レート"
+        ? "まだ認定を完了したプレイヤーがいません。"
+        : "まだランキングの対象者がいません。"}
+    </p>
   );
 }
 
@@ -140,34 +152,37 @@ function RankingContent({
   preview?: boolean;
 }) {
   const label = rankingLabel(state.game, mode, metric);
+  const request = metric === "rating" ? state.rating : state;
   const entries =
-    state.rankings &&
-    (metric === "knockouts"
-      ? "singles" in state.rankings
-        ? state.rankings.singles.knockouts
-        : undefined
-      : "wins" in state.rankings
-        ? metric === "total"
-          ? state.rankings.total
-          : state.rankings.wins
-        : metric === "total"
-          ? state.rankings[mode].total
-          : mode === "singles"
-            ? state.rankings.singles.first
-            : state.rankings.doubles.wins);
-  const loading = state.loading && !state.pendingSource;
-  const showErrorInPreview = preview && !entries?.length && Boolean(state.error);
-  const error = state.error && (
+    metric === "rating"
+      ? state.rating.data?.entries
+      : state.rankings &&
+        (metric === "knockouts"
+          ? "singles" in state.rankings
+            ? state.rankings.singles.knockouts
+            : undefined
+          : "wins" in state.rankings
+            ? metric === "total"
+              ? state.rankings.total
+              : state.rankings.wins
+            : metric === "total"
+              ? state.rankings[mode].total
+              : mode === "singles"
+                ? state.rankings.singles.first
+                : state.rankings.doubles.wins);
+  const loading = request.loading && !request.pendingSource;
+  const showErrorInPreview = preview && !entries?.length && Boolean(request.error);
+  const error = request.error && (
     <div className="flex flex-col items-start gap-2">
       <p role="alert" className="text-sm text-danger">
-        {state.error}
+        {request.error}
       </p>
       <AppButton
         appearance="secondary"
         size="compact"
-        isDisabled={state.loading}
-        isPending={state.pendingSource === source}
-        onPress={() => void state.refresh(source)}
+        isDisabled={request.loading}
+        isPending={request.pendingSource === source}
+        onPress={() => void request.refresh(source)}
       >
         再試行
       </AppButton>
@@ -231,20 +246,31 @@ function RankingsDialog({
 }) {
   const [mode, setMode] = useState(initialMode);
   const [metric, setMetric] = useState<RankingMetric>(initialMetric);
-  const metrics = rankingMetrics(state.game, mode);
+  const metrics = rankingMetrics(state.game, mode, state.rating.supported);
   return (
     <AppDialog title="ランキング" onClose={onClose} theme={theme}>
       <div className="flex flex-col gap-4">
-        <p className="text-xs text-muted">対人戦のみ集計</p>
         <p className="text-xs text-muted">
-          CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。対戦相手にゲストがいても対象です。
+          {metric === "rating" ? "現在のレート" : statsScopeLabel(state.game, mode)}
+        </p>
+        <p className="text-xs text-muted">
+          {metric === "rating" ? (
+            "認定5局を終えたプレイヤーの現在のレートです。CPU補充のレート戦も反映します。"
+          ) : (
+            <>
+              {includesRatedStats(state.game, mode)
+                ? "対人戦とレート戦で、アカウントで参加した人の成績を集計します。CPU補充のレート戦も対象です。"
+                : "CPUを含まない対局で、アカウントで参加したユーザーの成績を集計します。"}
+              対戦相手にゲストがいても対象です。
+            </>
+          )}
         </p>
         <ModeTabs
           withoutModes={!gameCatalog[state.game].hasModes}
           mode={mode}
           onChange={(next) => {
             setMode(next);
-            setMetric("victories");
+            setMetric(next === "singles" && state.rating.supported ? "rating" : "victories");
           }}
         >
           <AppTabs
@@ -277,9 +303,17 @@ function RankingsDialog({
         <AppButton
           appearance="quiet"
           size="compact"
-          isDisabled={state.loading}
-          isPending={state.pendingSource === "dialog-refresh"}
-          onPress={() => void state.refresh("dialog-refresh")}
+          isDisabled={state.loading || state.rating.loading}
+          isPending={
+            state.pendingSource === "dialog-refresh" ||
+            state.rating.pendingSource === "dialog-refresh"
+          }
+          onPress={() =>
+            void Promise.all([
+              state.refresh("dialog-refresh"),
+              state.rating.refresh("dialog-refresh"),
+            ])
+          }
         >
           <AppIcon name="refresh" />
           更新
@@ -297,8 +331,39 @@ function LobbyRankingsView({
   theme: AppTheme;
 }) {
   const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const profiles = usePlayerProfiles();
+  const reducedMotion = Boolean(useReducedMotion());
+  const rotation = useRankingRotation(
+    Boolean(state.rankings && state.rating.data?.entries.length),
+    hovered || focused || open || Boolean(profiles?.active),
+    reducedMotion,
+    state.rating.supported ? "rating" : "victories",
+  );
+  const preview = (
+    <motion.div
+      key={rotation.metric}
+      initial={rotation.phase === "in" ? { opacity: 0, y: 4 } : false}
+      animate={{ opacity: rotation.phase === "out" ? 0 : 1, y: 0 }}
+      transition={{ duration: reducedMotion ? 0 : rotation.phase === "out" ? 0.1 : 0.15 }}
+    >
+      <RankingContent state={state} mode="singles" metric={rotation.metric} limit={3} preview />
+    </motion.div>
+  );
   return (
-    <section aria-labelledby="lobby-rankings-title" className="min-w-0">
+    <section
+      aria-labelledby="lobby-rankings-title"
+      className="min-w-0"
+      onPointerEnter={(event) => {
+        if (event.pointerType !== "touch") setHovered(true);
+      }}
+      onPointerLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
+    >
       <AppCard className="gap-4 p-5 [@media(max-width:767px)]:gap-2 [@media(max-width:767px)]:p-3">
         <div className="flex items-center justify-between gap-2">
           <h2
@@ -317,16 +382,61 @@ function LobbyRankingsView({
             もっと見る
           </AppButton>
         </div>
-        <p className="text-xs text-muted">
-          {gameCatalog[state.game].hasModes ? "シングルス・優勝数" : "勝利数"}（対人戦のみ集計）
-        </p>
-        <RankingContent state={state} mode="singles" limit={3} preview />
+        {state.rating.supported ? (
+          <AppTabs
+            selectedKey={rotation.metric}
+            onSelectionChange={(key) => rotation.select(key as "victories" | "rating")}
+          >
+            <div className="flex min-w-0 items-center gap-1">
+              <AppTabs.List
+                aria-label="ランキングの集計項目"
+                className="w-fit min-w-0 shrink-0 gap-0 bg-transparent p-0"
+              >
+                {(["rating", "victories"] as const).map((tab) => (
+                  <AppTabs.Tab key={tab} id={tab} className="group min-h-11 w-auto flex-none px-0">
+                    <span className="flex h-8 items-center rounded-full px-3 text-xs group-data-[selected=true]:bg-brand/10 group-data-[selected=true]:text-brand">
+                      {rankingLabel(state.game, "singles", tab)}
+                    </span>
+                  </AppTabs.Tab>
+                ))}
+              </AppTabs.List>
+              <AppButton
+                appearance="quiet"
+                size="compact"
+                className="size-11 min-h-11 shrink-0 p-0"
+                aria-label={
+                  rotation.paused ? "ランキングの自動切替を再開" : "ランキングの自動切替を停止"
+                }
+                aria-pressed={rotation.paused}
+                onPress={rotation.togglePaused}
+              >
+                <AppIcon name={rotation.paused ? "play" : "pause"} />
+              </AppButton>
+              {gameCatalog[state.game].hasModes && (
+                <span className="ml-auto text-xs whitespace-nowrap text-muted">シングルス</span>
+              )}
+            </div>
+            {(["rating", "victories"] as const).map((tab) => (
+              <AppTabs.Panel key={tab} id={tab}>
+                {tab === rotation.metric && preview}
+              </AppTabs.Panel>
+            ))}
+          </AppTabs>
+        ) : (
+          <>
+            <p className="text-xs text-muted">
+              {gameCatalog[state.game].hasModes ? "シングルス・優勝数" : "勝利数"}（
+              {statsScopeLabel(state.game, "singles")}）
+            </p>
+            <RankingContent state={state} mode="singles" limit={3} preview />
+          </>
+        )}
       </AppCard>
       {open && (
         <RankingsDialog
           state={state}
           initialMode="singles"
-          initialMetric="victories"
+          initialMetric={rotation.metric}
           onClose={() => setOpen(false)}
           theme={theme}
         />

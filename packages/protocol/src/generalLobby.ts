@@ -1,3 +1,4 @@
+import { matchKindSchema } from "./matchKinds";
 import { z } from "zod";
 import { playerAppearanceSchema, roomPublicMetadataSchema, roomModeSchema } from "./rooms";
 import { gameIdSchema } from "./gameSchemas";
@@ -5,11 +6,30 @@ import { gameCatalog } from "./games";
 import { playerProfileTargetSchema } from "./playerProfiles";
 import { matchSummarySchema } from "./matches";
 import { chatTextSchema } from "./rooms";
+import { ratedMatchmakingGameIds, ratingSummarySchema } from "./matchmaking";
+
+export const lobbyGameRatingsSchema = z.strictObject({
+  viewer: z
+    .strictObject({ profileId: z.uuid().nullable(), username: z.string().nullable() })
+    .nullable(),
+  games: z.record(
+    z.enum(ratedMatchmakingGameIds),
+    z.strictObject({
+      enabled: z.boolean(),
+      summary: z
+        .union([ratingSummarySchema, z.strictObject({ status: z.literal("error") })])
+        .nullable(),
+    }),
+  ),
+});
+export type LobbyGameRatings = z.infer<typeof lobbyGameRatingsSchema>;
 
 export const lobbyRoomSchema = roomPublicMetadataSchema.safeExtend({ instanceId: z.uuid() });
 export const lobbyRoomsQuerySchema = z
   .strictObject({
     view: z.literal("cards").optional(),
+    includeMatchKind: z.literal("1").optional(),
+    includeMatchSequence: z.literal("1").optional(),
     game: gameIdSchema.optional(),
     capacity: z.enum(["2", "4"]).optional(),
     mode: roomModeSchema.optional(),
@@ -26,6 +46,9 @@ export const lobbyRoomsQuerySchema = z
       (query.game === undefined && query.mode === undefined && query.joinable === undefined),
     { message: "Card filters require the card view" },
   )
+  .refine((query) => query.includeMatchSequence === undefined || query.view === "cards", {
+    message: "Match sequences require the card view",
+  })
   .refine((query) => !query.mode || !query.game || gameCatalog[query.game].hasModes, {
     message: "This game does not have room modes",
   });
@@ -46,6 +69,8 @@ export const lobbyRoomParticipantSchema = z.discriminatedUnion("kind", [
 export const lobbyRoomCardSchema = lobbyRoomSchema
   .safeExtend({
     participants: z.array(lobbyRoomParticipantSchema).max(4),
+    matchKind: matchKindSchema.optional(),
+    matchSequence: z.int().positive().optional(),
     profileTarget: playerProfileTargetSchema.nullable().optional(),
   })
   .refine(

@@ -6,11 +6,20 @@ import type { ResultPlayer } from "./gameResultPresentation";
 
 const resultColumns = "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-center gap-3";
 
-export function ResultParticipant({ player }: { player: ResultPlayer }) {
+export function ResultParticipant({
+  player,
+  rating,
+}: {
+  player: ResultPlayer;
+  rating?: ReactNode;
+}) {
   return (
     <span className="inline-flex min-w-0 items-center gap-2" data-player-id={player.id}>
       <PlayerAvatar appearance={player.appearance} className="size-8" />
-      <span className="min-w-0 text-sm font-bold [overflow-wrap:anywhere]">{player.name}</span>
+      <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="min-w-0 text-sm font-bold [overflow-wrap:anywhere]">{player.name}</span>
+        {rating}
+      </span>
     </span>
   );
 }
@@ -20,11 +29,13 @@ export function GameResultRow({
   rank,
   details,
   right,
+  rating,
 }: {
   player: ResultPlayer;
   rank?: number;
   details: ReactNode;
   right?: ReactNode;
+  rating?: ReactNode;
 }) {
   return (
     <li
@@ -44,7 +55,7 @@ export function GameResultRow({
       >
         {rank !== undefined && <PlayerRankBadge rank={rank} className="text-xs" />}
         {details}
-        <ResultParticipant player={player} />
+        <ResultParticipant player={player} rating={rating} />
       </div>
       {right && (
         <div className="min-w-0 flex-1 text-xs" aria-label="撃破したプレイヤー">

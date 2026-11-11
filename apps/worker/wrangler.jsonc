@@ -5,7 +5,9 @@
   "compatibility_date": "2026-09-25",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "APP_ORIGIN": "http://localhost:5173"
+    "APP_ORIGIN": "http://localhost:5173",
+    "MATCHMAKING_ENABLED": "false",
+    "SHOGI_MATCHMAKING_ENABLED": "false"
   },
   "r2_buckets": [
     {
@@ -26,7 +28,9 @@
       {
         "name": "TOURNAMENT_COORDINATOR",
         "class_name": "TournamentCoordinator"
-      }
+      },
+      { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" },
+      { "name": "CPU_CAPACITY", "class_name": "CpuCapacity" }
     ]
   },
   "d1_databases": [
@@ -45,20 +49,34 @@
     "TournamentCoordinator": {
       "type": "durable-object",
       "storage": "sqlite"
-    }
+    },
+    "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" },
+    "CpuCapacity": { "type": "durable-object", "storage": "sqlite" }
   },
   "observability": {
     "enabled": true
   },
   "triggers": {
-    "crons": ["0 * * * *"]
+    "crons": ["0 * * * *", "*/5 * * * *"]
   },
   "env": {
     "production": {
       "name": "tetraboard-2026",
       "vars": {
-        "APP_ORIGIN": "https://tetraboard.net"
+        "APP_ORIGIN": "https://tetraboard.net",
+        "MATCHMAKING_ENABLED": "true",
+        "SHOGI_MATCHMAKING_ENABLED": "true",
+        "AI_RATED_ONLY": "true",
+        "REVERSI_MATCHMAKING_ENABLED": "true",
+        "FOUR_SHOGI_MATCHMAKING_ENABLED": "true",
+        "AI_SHOGI_ENABLED": "true",
+        "AI_REVERSI_ENABLED": "true",
+        "FOUR_SHOGI_DIAGNOSTICS": "true",
+        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_SERVICE_TIMEOUT_MS": "5000",
+        "AI_FOUR_REVERSI_TIMEOUT_MS": "10000"
       },
+      "services": [{ "binding": "AI_GATEWAY", "service": "tetraboard-ai-prod" }],
       "routes": [
         {
           "pattern": "tetraboard.net",
@@ -90,7 +108,9 @@
           {
             "name": "TOURNAMENT_COORDINATOR",
             "class_name": "TournamentCoordinator"
-          }
+          },
+          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" },
+          { "name": "CPU_CAPACITY", "class_name": "CpuCapacity" }
         ]
       },
       "d1_databases": [
@@ -110,20 +130,34 @@
         "TournamentCoordinator": {
           "type": "durable-object",
           "storage": "sqlite"
-        }
+        },
+        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" },
+        "CpuCapacity": { "type": "durable-object", "storage": "sqlite" }
       },
       "observability": {
         "enabled": true
       },
       "triggers": {
-        "crons": ["0 * * * *"]
+        "crons": ["0 * * * *", "*/5 * * * *"]
       }
     },
     "development": {
       "name": "tetraboard-dev",
       "vars": {
-        "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev"
+        "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev",
+        "MATCHMAKING_ENABLED": "true",
+        "SHOGI_MATCHMAKING_ENABLED": "true",
+        "AI_SHOGI_ENABLED": "true",
+        "AI_REVERSI_ENABLED": "true",
+        "REVERSI_MATCHMAKING_ENABLED": "true",
+        "FOUR_SHOGI_MATCHMAKING_ENABLED": "true",
+        "FOUR_SHOGI_DIAGNOSTICS": "true",
+        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_SERVICE_TIMEOUT_MS": "5000",
+        "AI_FOUR_REVERSI_TIMEOUT_MS": "10000",
+        "AI_RATED_ONLY": "false"
       },
+      "services": [{ "binding": "AI_GATEWAY", "service": "tetraboard-ai-dev" }],
       "routes": [],
       "r2_buckets": [
         {
@@ -150,7 +184,9 @@
           {
             "name": "TOURNAMENT_COORDINATOR",
             "class_name": "TournamentCoordinator"
-          }
+          },
+          { "name": "MATCHMAKING_COORDINATOR", "class_name": "MatchmakingCoordinator" },
+          { "name": "CPU_CAPACITY", "class_name": "CpuCapacity" }
         ]
       },
       "d1_databases": [
@@ -170,13 +206,15 @@
         "TournamentCoordinator": {
           "type": "durable-object",
           "storage": "sqlite"
-        }
+        },
+        "MatchmakingCoordinator": { "type": "durable-object", "storage": "sqlite" },
+        "CpuCapacity": { "type": "durable-object", "storage": "sqlite" }
       },
       "observability": {
         "enabled": true
       },
       "triggers": {
-        "crons": ["0 * * * *"]
+        "crons": ["0 * * * *", "*/5 * * * *"]
       }
     }
   }

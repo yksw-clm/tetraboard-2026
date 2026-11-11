@@ -1,3 +1,4 @@
+import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import { adminAccountIds } from "../admin/auth";
 import { accountRegisteredAtMsSql } from "../accounts/timestamps";
 import { unsealToken } from "./tokens";
@@ -67,6 +68,9 @@ export async function requestDeletion(env: AuthEnv, id: string, receipt: string)
     ).bind(id, id, tokenHash),
     env.APP_DB.prepare(
       "DELETE FROM tournament_wait_reservations WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
+    ).bind(id, id, tokenHash),
+    env.APP_DB.prepare(
+      "DELETE FROM matchmaking_wait_reservations WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
     ).bind(id, id, tokenHash),
     env.APP_DB.prepare(
       "UPDATE tournament_entries SET deleted=1 WHERE account_id=? AND EXISTS(SELECT 1 FROM deleted_accounts WHERE id=? AND receipt_hash=?)",
@@ -142,6 +146,8 @@ export async function processDeletions(env: AuthEnv) {
           .first()
       )
         continue;
+      for (const key of matchmakingQueueKeys)
+        await env.MATCHMAKING_COORDINATOR.getByName(key).purgeAccount(job.id);
       const tournaments = await env.APP_DB.prepare(
         "SELECT DISTINCT tournament_key FROM tournament_entries WHERE account_id=?",
       )
