@@ -50,6 +50,12 @@ export async function archiveAnalytics(env: Env, now = Date.now()) {
   statements.push(
     ...acquisitionArchiveStatements(env, cutoff),
     db
+      .prepare("DELETE FROM analytics_acquisition_snapshot WHERE dimension='host' AND day<=?")
+      .bind(new Date(cutoff + 32400000).toISOString().slice(0, 10)),
+    db
+      .prepare("DELETE FROM account_game_daily WHERE day<=?")
+      .bind(new Date(cutoff + 32400000).toISOString().slice(0, 10)),
+    db
       .prepare(
         "DELETE FROM analytics_dwell WHERE view_id IN (SELECT id FROM analytics_pageviews WHERE started_at_ms<=?)",
       )

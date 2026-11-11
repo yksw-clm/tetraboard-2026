@@ -5,9 +5,20 @@ import {
   validateResult,
   supportedUrl,
   analysisRequestSchema,
+  eligible,
+  validateProgress,
+  continuousProfile,
+  type ContinuousRequest,
 } from "../src/model";
 import { localProfileIds, localProfile } from "../src/profiles";
-import { observation, requestFor, responseFor } from "./fixtures";
+import {
+  observation,
+  requestFor,
+  responseFor,
+  shogiObservation,
+  continuousRequestFor,
+  progressFor,
+} from "./fixtures";
 test("観測情報は局面と識別子だけを保持しプロフィール・tokenを除く", () => {
   const o = observationSchema.parse({ ...observation(), token: "secret", chat: ["private"] });
   expect(o).not.toHaveProperty("token");
@@ -76,4 +87,42 @@ test("許可したprofileだけ要求でき、応答のprofile・hash・実効�
     { ...requestFor(), limits: { max_nodes: 999999 } },
   ])
     expect(analysisRequestSchema.safeParse(invalid).success).toBe(false);
+});
+
+test("将棋の候補は受信した合法手と照合し、重複・別設定・非有限評価を拒否する", () => {
+  const o = shogiObservation();
+  if (!eligible(o)) throw Error("fixture");
+  const request: ContinuousRequest = {
+    ...continuousRequestFor(),
+    profile_hash: continuousProfile("four-shogi").hash,
+    input: {
+      game: "four-shogi",
+      three_player_attack_prohibited: true,
+      events: [],
+      state: {
+        board: o.game.board.map((row) =>
+          row.map((p) => (p ? { side: p.side, kind: p.kind, promoted: p.promoted } : null)),
+        ),
+        hands: Array.from({ length: 4 }, () => [0, 0, 0, 0]),
+        turn: "south",
+        moveNumber: 0,
+        eliminatedSides: [],
+      },
+    },
+  };
+  const result = progressFor(request);
+  if (result.game !== "four-shogi") throw Error("fixture");
+  expect(validateProgress(result, request, o)).toEqual(result);
+  for (const invalid of [
+    { ...result, candidates: [result.candidates[0], result.candidates[0]] },
+    { ...result, profile_hash: "a".repeat(64) },
+    {
+      ...result,
+      candidates: [
+        { action: { type: "dropPiece", pieceKind: "rook", to: { x: 4, y: 4 } }, score: 1 },
+      ],
+    },
+    { ...result, candidates: [{ ...result.candidates[0], score: Infinity }] },
+  ])
+    expect(() => validateProgress(invalid, request, o)).toThrow();
 });

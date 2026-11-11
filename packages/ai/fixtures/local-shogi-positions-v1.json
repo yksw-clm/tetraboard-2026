@@ -1,0 +1,993 @@
+{
+  "source": "four-shogi-lv3-v1.jsonl",
+  "cases": [
+    {
+      "label": "drop",
+      "replay_index": 0,
+      "event_count": 16,
+      "state": {
+        "board": [
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "rook",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "king",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "south",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "king",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ]
+        ],
+        "hands": [
+          [0, 0, 0, 1],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 1, 0]
+        ],
+        "turn": "south",
+        "moveNumber": 16,
+        "eliminatedSides": ["west"]
+      }
+    },
+    {
+      "label": "elimination",
+      "replay_index": 0,
+      "event_count": 16,
+      "state": {
+        "board": [
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "rook",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "king",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "south",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "king",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ]
+        ],
+        "hands": [
+          [0, 0, 0, 1],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 1, 0]
+        ],
+        "turn": "south",
+        "moveNumber": 16,
+        "eliminatedSides": ["west"]
+      }
+    },
+    {
+      "label": "promotion",
+      "replay_index": 0,
+      "event_count": 37,
+      "state": {
+        "board": [
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "rook",
+              "promoted": true
+            },
+            null,
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            }
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "king",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "rook",
+              "promoted": false
+            },
+            null
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "hands": [
+          [1, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 2, 0, 2],
+          [1, 0, 2, 0]
+        ],
+        "turn": "north",
+        "moveNumber": 37,
+        "eliminatedSides": ["west"]
+      }
+    },
+    {
+      "label": "before-repetition",
+      "replay_index": 1,
+      "event_count": 37,
+      "state": {
+        "board": [
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "north",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            }
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "west",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "rook",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "king",
+              "promoted": false
+            }
+          ],
+          [
+            {
+              "side": "west",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "gold",
+              "promoted": false
+            }
+          ],
+          [
+            null,
+            {
+              "side": "west",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "king",
+              "promoted": false
+            },
+            {
+              "side": "south",
+              "kind": "pawn",
+              "promoted": false
+            },
+            {
+              "side": "north",
+              "kind": "gold",
+              "promoted": false
+            },
+            null,
+            null
+          ],
+          [
+            {
+              "side": "south",
+              "kind": "rook",
+              "promoted": false
+            },
+            null,
+            {
+              "side": "south",
+              "kind": "silver",
+              "promoted": false
+            },
+            {
+              "side": "east",
+              "kind": "silver",
+              "promoted": false
+            },
+            null,
+            null,
+            null,
+            null,
+            {
+              "side": "east",
+              "kind": "rook",
+              "promoted": false
+            }
+          ]
+        ],
+        "hands": [
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+          [0, 0, 0, 0]
+        ],
+        "turn": "north",
+        "moveNumber": 37,
+        "eliminatedSides": ["west", "south"]
+      }
+    }
+  ]
+}

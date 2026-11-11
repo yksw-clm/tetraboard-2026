@@ -26,7 +26,7 @@
       "vars": {
         "AI_SHOGI_ENABLED": "true",
         "FOUR_SHOGI_DIAGNOSTICS": "true",
-        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_WARMUP_ENABLED": "true",
       },
       "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
       "containers": [
@@ -79,7 +79,7 @@
       "vars": {
         "AI_SHOGI_ENABLED": "true",
         "FOUR_SHOGI_DIAGNOSTICS": "true",
-        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_WARMUP_ENABLED": "true",
       },
       "observability": { "enabled": true, "logs": { "enabled": true, "invocation_logs": false } },
       "containers": [

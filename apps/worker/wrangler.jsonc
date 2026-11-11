@@ -72,7 +72,7 @@
         "AI_SHOGI_ENABLED": "true",
         "AI_REVERSI_ENABLED": "true",
         "FOUR_SHOGI_DIAGNOSTICS": "true",
-        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_WARMUP_ENABLED": "true",
         "AI_SERVICE_TIMEOUT_MS": "5000",
         "AI_FOUR_REVERSI_TIMEOUT_MS": "10000"
       },
@@ -152,7 +152,7 @@
         "REVERSI_MATCHMAKING_ENABLED": "true",
         "FOUR_SHOGI_MATCHMAKING_ENABLED": "true",
         "FOUR_SHOGI_DIAGNOSTICS": "true",
-        "FOUR_PLAYER_AI_WARMUP_ENABLED": "true",
+        "AI_WARMUP_ENABLED": "true",
         "AI_SERVICE_TIMEOUT_MS": "5000",
         "AI_FOUR_REVERSI_TIMEOUT_MS": "10000",
         "AI_RATED_ONLY": "false"

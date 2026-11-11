@@ -37,6 +37,12 @@ const LobbyChat = lazy(() =>
 const Dashboard = lazy(() =>
   import("./Dashboard").then((module) => ({ default: module.Dashboard })),
 );
+const AcquisitionDashboard = lazy(() =>
+  import("./AcquisitionDashboard").then((m) => ({ default: m.AcquisitionDashboard })),
+);
+const TrackingLinks = lazy(() =>
+  import("./TrackingLinks").then((m) => ({ default: m.TrackingLinks })),
+);
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 export function AdminApp() {
   const { pathname } = useLocation();
@@ -83,6 +89,8 @@ export function AdminApp() {
             ))}
             <Route path="/lobby-chat" element={<LobbyChat />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/acquisition" element={<AcquisitionDashboard />} />
+            <Route path="/tracking-links" element={<TrackingLinks />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/announcements/new" element={<AnnouncementCreatePage />} />
             <Route path="/announcements/:id" element={<AnnouncementEditPage />} />

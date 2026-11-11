@@ -6,7 +6,7 @@ import {
   aiServiceConfigured,
   aiServiceEnabled,
   requestAiMove,
-  requestFourPlayerAiWarmup,
+  requestRatedAiWarmup,
   requestFourShogiAiMove,
   requestReversiAiMove,
   requestShogiAiMove,
@@ -165,14 +165,14 @@ test.each(moves)(
   },
 );
 
-test.each(["four-shogi", "four-reversi"] as const)(
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
   "%s のウォームアップをURL設定なしで認証付きBindingに送る",
   async (game) => {
     const publicFetch = watchPublicFetch();
     const bindingFetch = vi.fn(async (_request: Request) => Response.json({ status: "ok" }));
 
     expect(
-      await requestFourPlayerAiWarmup(
+      await requestRatedAiWarmup(
         { ...enabled, AI_GATEWAY: { fetch: bindingFetch } },
         game,
         Date.now() + 30_000,

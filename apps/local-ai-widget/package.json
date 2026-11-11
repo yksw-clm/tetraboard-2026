@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "typescript": "~6.0.2",
-    "@types/chrome": "^0.1.32"
+    "@types/chrome": "^0.1.32",
+    "@tetraboard/four-shogi": "workspace:*"
   }
 }

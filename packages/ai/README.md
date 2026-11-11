@@ -57,7 +57,28 @@ cargo run --release --locked -p tetraboard-ai-benchmark -- --games 100 --seed 0
 
 Chromeの個人用widgetには、公開Serviceと別の`bun run --cwd packages/ai serve:local`を使います。初回に`bun run --cwd packages/ai setup:local`で`.env.local`を作成し、`AI_LOCAL_TOKEN`の値を拡張の設定画面へ登録します。設定ファイルは0600・Git対象外で、tokenはログへ出力しません。既存ファイルは上書きしません。
 
-ローカル専用バイナリ`tetraboard-ai-local`は`127.0.0.1:3002`固定で待ち受けます。`GET /health`、`POST /v1/analysis`、`DELETE /v1/analysis/:requestId`はすべて専用Bearer tokenが必要です。任意ホストの指定・CORS許可・公開APIの時間上限緩和は行いません。通常の`serve`・Dockerの起動バイナリ・`/v1/move`・`/v2/move`は従来どおりです。
+ローカル専用バイナリ`tetraboard-ai-local`は`127.0.0.1:3002`固定で待ち受けます。health・解析・進捗取得・取消はすべて専用Bearer tokenが必要です。応答はno-storeです。任意ホストやCORSを許可せず、公開Serviceのrouterには解析経路を追加しません。
+
+### 継続解析API v2
+
+新しい拡張は`POST /v2/analysis`で開始（202）、`GET /v2/analysis/:requestId`で進捗取得、`DELETE /v2/analysis/:requestId`で協調停止と枠解放を待ちます。同時実行はv1と共通で1件です。進捗取得が15秒途絶えると停止し、期限後の取得では復活しません。直近128件の先着取消を記録します。実行中の探索と直前の継続探索の最終結果だけをメモリに保持し、局面・棋譜を永続保存しません。
+
+要求は`api_version: 2`、UUIDの`request_id`、64桁小文字hexの`position_revision`、`profile_hash`、ゲーム別`input`です。本文は最大256KiBです。
+
+- リバーシのinputは`{ game: "four-reversi", state: PositionSetup }`です。
+- 将棋のinputは`{ game: "four-shogi", three_player_attack_prohibited, events, state }`です。stateはcamelCaseで、駒IDを除く9×9のboard、南西北東順・飛金銀歩順の4×4のhands、turn、moveNumber、eliminatedSidesを持ちます。棋譜を初期局面から再生し、受信局面と一致してから探索します。
+
+応答は対象識別子・ゲーム・profile ID/hash、`status: running | stopped | failed`、単調増加の`sequence`、`reproducible: false`、最大3候補と`diagnostics`です。開始直後は候補なしです。リバーシの候補は`{ position, visits, solo_wins }`、診断は累積`trials`・`nodes`と保持`tree_nodes`です。将棋の候補は`{ action, score }`、診断は`completed_depth`・累積`nodes`・`work`です。failedでは`error`も返します。
+
+設定は`configs/continuous-analysis-profiles-v1.json`のゲーム別ID/hashで照合します。リバーシはLv6の評価・rollout・報酬を使い、同じ木と乱数状態を保持します。木は最大65,536ノードで、新規展開の上限後も試行を継続します。将棋は既存Lv3を基に反復深化し、完了した同じ深さの候補だけを比較します。総時間・総試行数・作業量を終了条件にしません。継続探索の棋力は未測定です。
+
+healthの`analysis_versions`と`games`でv2・四人将棋への対応を確認します。認証不正401、版・hash不一致400、JSON型不正422、取消済み409、繁忙503、未知の進捗ID404、本文超過413です。再生や局面の不一致は進捗のfailedで返します。
+
+### 既存API v1との互換性
+
+以下は旧拡張向けに維持する時間制限付きAPIです。新拡張の継続検討では使用しません。
+
+`GET /health`、`POST /v1/analysis`、`DELETE /v1/analysis/:requestId`はすべて専用Bearer tokenが必要です。任意ホストの指定・CORS許可・公開APIの時間上限緩和は行いません。通常の`serve`・Dockerの起動バイナリ・`/v1/move`・`/v2/move`は従来どおりです。
 
 解析契約は`api_version: 1`、`ruleset_version: four-reversi-singles-v2`、`state_version: 2`、UUIDの`request_id`、64桁小文字hexの`position_revision`、`profile_id: lv5-v1` または `lv6-candidate-a-v1`と既存`PositionSetup`の`state`です。局面はcamelCaseで、盤面・手番・手数・直前手・連続パス・脱落順を渡します。任意の予算・seedは受理しません。
 

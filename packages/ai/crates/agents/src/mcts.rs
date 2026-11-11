@@ -38,6 +38,16 @@ pub struct MctsAnalysis {
     pub candidates: Vec<RootCandidate>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct ContinuousSnapshot {
+    pub candidates: Vec<RootCandidate>,
+    pub trials: u64,
+    pub nodes: u64,
+    pub tree_nodes: usize,
+}
+
+type Progress<'a> = &'a mut dyn FnMut(ContinuousSnapshot);
+
 pub struct MctsAgent {
     rng: ChaCha8Rng,
     weights: EvaluationWeights,
@@ -151,6 +161,44 @@ impl MctsAgent {
         cancelled: &mut dyn FnMut() -> bool,
         candidates: Option<&mut Vec<RootCandidate>>,
     ) -> Decision {
+        self.search_mode(
+            state,
+            cancelled,
+            candidates,
+            None,
+            65_536,
+            Duration::from_secs(1),
+        )
+    }
+
+    /// 同じ木と乱数列を保持し、停止要求まで単独1位の試行を蓄積します。
+    pub fn analyze_continuously(
+        &mut self,
+        state: &State,
+        cancelled: &mut dyn FnMut() -> bool,
+        progress: Progress<'_>,
+    ) {
+        self.search_mode(
+            state,
+            cancelled,
+            None,
+            Some(progress),
+            65_536,
+            Duration::from_secs(1),
+        );
+    }
+
+    fn search_mode(
+        &mut self,
+        state: &State,
+        cancelled: &mut dyn FnMut() -> bool,
+        candidates: Option<&mut Vec<RootCandidate>>,
+        mut progress: Option<Progress<'_>>,
+        tree_limit: usize,
+        update_interval: Duration,
+    ) -> Decision {
+        let continuous = progress.is_some();
+        let mut last_update = Instant::now();
         let legal = state.legal_moves();
         let Some(player) = state.turn() else {
             return Decision {
@@ -169,7 +217,11 @@ impl MctsAgent {
         let mut tree = vec![Node::new(state.clone())];
         let mut work = Work {
             nodes: 0,
-            limit: self.budget.max_nodes,
+            limit: if continuous {
+                u64::MAX
+            } else {
+                self.budget.max_nodes
+            },
             cancelled,
             reason: None,
         };
@@ -179,7 +231,11 @@ impl MctsAgent {
             max_tree_depth: 0,
             stop_reason: StopReason::IterationLimit,
         };
-        for _ in 0..self.budget.max_iterations {
+        for _ in 0..if continuous {
+            u64::MAX
+        } else {
+            self.budget.max_iterations
+        } {
             if !work.check() {
                 break;
             }
@@ -193,7 +249,7 @@ impl MctsAgent {
                 if tree[cursor].state.turn().is_none() {
                     break;
                 }
-                if !tree[cursor].unexpanded.is_empty() {
+                if !tree[cursor].unexpanded.is_empty() && (!continuous || tree.len() < tree_limit) {
                     let index = self
                         .rng
                         .random_range(0..tree[cursor].unexpanded.len() as u32)
@@ -209,6 +265,10 @@ impl MctsAgent {
                     path.push(child);
                     cursor = child;
                     stats.max_tree_depth = stats.max_tree_depth.max((path.len() - 1) as u8);
+                    break;
+                }
+                // 保持上限では新規展開だけを止め、既存の葉から試行を続けます。
+                if tree[cursor].children.is_empty() {
                     break;
                 }
                 let actor = tree[cursor].state.turn().unwrap().index();
@@ -248,6 +308,20 @@ impl MctsAgent {
                 }
             }
             stats.trials += 1;
+            if let Some(publish) = progress.as_mut()
+                && (stats.trials == 1 || last_update.elapsed() >= update_interval)
+            {
+                publish(ContinuousSnapshot {
+                    candidates: root_candidates(&tree, player.index())
+                        .into_iter()
+                        .take(3)
+                        .collect(),
+                    trials: stats.trials,
+                    nodes: work.nodes,
+                    tree_nodes: tree.len(),
+                });
+                last_update = Instant::now();
+            }
         }
         if let Some(reason) = work.reason {
             stats.stop_reason = reason;
@@ -270,26 +344,7 @@ impl MctsAgent {
             .map(|(p, _)| *p)
             .or_else(|| legal.first().copied());
         if let Some(candidates) = candidates {
-            candidates.extend(
-                tree[0]
-                    .children
-                    .iter()
-                    .filter(|(_, index)| tree[*index].visits > 0)
-                    .map(|(position, index)| RootCandidate {
-                        position: *position,
-                        visits: tree[*index].visits,
-                        solo_wins: tree[*index].wins,
-                    }),
-            );
-            candidates.sort_by(|a, b| {
-                b.visits
-                    .cmp(&a.visits)
-                    .then_with(|| {
-                        (u128::from(b.solo_wins[player.index()]) * u128::from(a.visits))
-                            .cmp(&(u128::from(a.solo_wins[player.index()]) * u128::from(b.visits)))
-                    })
-                    .then_with(|| position_key(a.position).cmp(&position_key(b.position)))
-            });
+            candidates.extend(root_candidates(&tree, player.index()));
         }
         let interrupted = matches!(
             stats.stop_reason,
@@ -328,6 +383,29 @@ impl MctsAgent {
         }
         Some(terminal_reward(&state))
     }
+}
+
+fn root_candidates(tree: &[Node], player: usize) -> Vec<RootCandidate> {
+    let mut candidates: Vec<_> = tree[0]
+        .children
+        .iter()
+        .filter(|(_, i)| tree[*i].visits > 0)
+        .map(|(position, i)| RootCandidate {
+            position: *position,
+            visits: tree[*i].visits,
+            solo_wins: tree[*i].wins,
+        })
+        .collect();
+    candidates.sort_by(|a, b| {
+        b.visits
+            .cmp(&a.visits)
+            .then_with(|| {
+                (u128::from(b.solo_wins[player]) * u128::from(a.visits))
+                    .cmp(&(u128::from(a.solo_wins[player]) * u128::from(b.visits)))
+            })
+            .then_with(|| position_key(a.position).cmp(&position_key(b.position)))
+    });
+    candidates
 }
 
 impl Agent for MctsAgent {
@@ -372,6 +450,39 @@ mod tests {
                 max_nodes: 4096,
                 max_time_ms: None,
             },
+        }
+    }
+
+    #[test]
+    fn continuous_search_keeps_trials_and_a_bounded_tree() {
+        let state = State::initial();
+        let mut agent = MctsAgent::new(&cfg(), 0, 0);
+        let stop = std::cell::Cell::new(false);
+        let mut snapshots = Vec::new();
+        agent.search_mode(
+            &state,
+            &mut || stop.get(),
+            None,
+            Some(&mut |snapshot| {
+                stop.set(snapshot.trials >= 20);
+                snapshots.push(snapshot);
+            }),
+            5,
+            Duration::ZERO,
+        );
+        assert_eq!(snapshots.last().unwrap().trials, 20);
+        assert_eq!(snapshots.last().unwrap().tree_nodes, 5);
+        assert!(
+            snapshots
+                .windows(2)
+                .all(|w| w[1].nodes > w[0].nodes && w[1].trials == w[0].trials + 1)
+        );
+        for snapshot in snapshots {
+            assert!(snapshot.tree_nodes <= 5);
+            for c in snapshot.candidates {
+                assert!(state.legal_moves().contains(&c.position));
+                assert!(c.solo_wins.iter().sum::<u64>() <= c.visits);
+            }
         }
     }
 
