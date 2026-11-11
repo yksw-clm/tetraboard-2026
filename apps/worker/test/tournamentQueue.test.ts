@@ -892,7 +892,25 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
     const room = roomSchema.parse(await env.GAME_ROOM.getByName(matched.roomId!).getRoom());
     expect(room.settings).toEqual(settings);
     expect(room).toHaveProperty("tournamentId", f.id);
+    const indexed = await env.APP_DB.prepare(
+      "SELECT match_sequence FROM room_index WHERE room_id=? AND instance_id=?",
+    )
+      .bind(matched.roomId, matched.instanceId)
+      .first<{ match_sequence: number }>();
+    expect(indexed?.match_sequence).toBe(1);
     await evictDurableObject(f.stub);
+    const gameRoom = env.GAME_ROOM.getByName(matched.roomId!);
+    await evictDurableObject(gameRoom);
+    await gameRoom.refreshLobbyIndex(matched.instanceId!, 0);
+    expect(
+      (
+        await env.APP_DB.prepare(
+          "SELECT match_sequence FROM room_index WHERE room_id=? AND instance_id=?",
+        )
+          .bind(matched.roomId, matched.instanceId)
+          .first<{ match_sequence: number }>()
+      )?.match_sequence,
+    ).toBe(1);
     expect(await f.status(0)).toMatchObject({
       status: "matched",
       roomId: matched.roomId,
@@ -901,3 +919,51 @@ for (const game of ["four-reversi", "four-gomoku"] as const) {
     });
   });
 }
+
+test("大会の採番失敗は503となり、Alarmによる再準備で番号を確定して再取得で維持する", async () => {
+  const f = await fixture();
+  for (let i = 0; i < 3; i++) expect((await f.queue(i)).status).toBe(200);
+  await env.APP_DB.exec(
+    "CREATE TRIGGER fail_match_sequence BEFORE INSERT ON room_match_sequences BEGIN SELECT RAISE(ABORT,'test sequence fault'); END",
+  );
+  try {
+    expect((await f.queue(3)).status).toBe(503);
+    expect(
+      (
+        await env.APP_DB.prepare("SELECT 1 FROM room_match_sequences WHERE scope=?")
+          .bind(`tournament:${f.key}`)
+          .all()
+      ).results,
+    ).toHaveLength(0);
+  } finally {
+    await env.APP_DB.exec("DROP TRIGGER fail_match_sequence");
+  }
+  await runInDurableObject(f.stub, (instance) => instance.alarm());
+  const matched = await f.status(0);
+  expect(matched.status).toBe("matched");
+  const room = env.GAME_ROOM.getByName(matched.roomId!);
+  const read = async () => {
+    let cursor: string | null = null;
+    do {
+      const path =
+        "/lobby/rooms?view=cards&includeMatchKind=1&includeMatchSequence=1" +
+        (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "");
+      const response = await request(path);
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as {
+        rooms: { id: string; matchSequence?: number }[];
+        nextCursor: string | null;
+      };
+      const entry = result.rooms.find((entry) => entry.id === matched.roomId);
+      if (entry) return entry.matchSequence;
+      cursor = result.nextCursor;
+    } while (cursor !== null);
+    throw new Error("Prepared room missing from lobby");
+  };
+  expect(await read()).toBe(1);
+
+  expect((await f.status(0)).matchId).toBe(matched.matchId);
+  expect(await read()).toBe(1);
+  expect(await room.getPublicMetadata()).not.toHaveProperty("matchSequence");
+  expect(await room.getPublicMetadata(true)).not.toHaveProperty("matchSequence");
+});

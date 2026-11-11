@@ -1874,3 +1874,52 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     ).toBe(scenario === "fallback" ? 0 : users.length);
   },
 );
+
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
+  "%sのCPU補充局は公開番号を保持し、再取得・DO再起動で再採番しない",
+  async (game) => {
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    const [user] = await fixture(1, queue);
+    await runInDurableObject(queue, (_, ctx) => {
+      const state = ctx.storage.kv.get<{ waiting: { joinedAtMs: number }[] }>("state")!;
+      state.waiting[0]!.joinedAtMs = Date.now() - 60000;
+      ctx.storage.kv.put("state", state);
+    });
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    const matched = await queue.status(user!.account.id, user!.controllerId);
+    expect(matched.status).toBe("matched");
+    const assignment = matched.assignment!;
+    rooms.add(assignment.roomId);
+    const room = env.GAME_ROOM.getByName(assignment.roomId);
+    expect(roomSchema.parse(await room.getRoom()).players.some((p) => p.kind === "cpu")).toBe(true);
+    const read = async () => {
+      let cursor: string | null = null;
+      do {
+        const path =
+          `/lobby/rooms?view=cards&game=${game}&includeMatchKind=1&includeMatchSequence=1` +
+          (cursor ? `&cursor=${encodeURIComponent(cursor)}` : "");
+        const response = await exports.default.fetch(
+          new AcceptedGameRequest(`${origin}/api${path}`),
+        );
+        expect(response.status).toBe(200);
+        const result = (await response.json()) as {
+          rooms: { id: string; matchSequence?: number }[];
+          nextCursor: string | null;
+        };
+        const entry = result.rooms.find((entry) => entry.id === assignment.roomId);
+        if (entry) return entry.matchSequence;
+        cursor = result.nextCursor;
+      } while (cursor !== null);
+      throw new Error("Prepared room missing from lobby");
+    };
+    const sequence = await read();
+    expect(sequence).toBeGreaterThan(0);
+    await evictDurableObject(queue);
+    await evictDurableObject(room);
+    expect((await queue.status(user!.account.id, user!.controllerId)).assignment?.matchId).toBe(
+      assignment.matchId,
+    );
+    expect(await read()).toBe(sequence);
+    expect(await room.getPublicMetadata()).not.toHaveProperty("matchSequence");
+  },
+);

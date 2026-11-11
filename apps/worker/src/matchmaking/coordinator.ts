@@ -1,3 +1,4 @@
+import { reserveMatchSequence } from "../rooms/matchSequences";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { DurableObject } from "cloudflare:workers";
 import {
@@ -40,6 +41,7 @@ type Player = Wait & {
   credentialPending?: boolean;
 };
 type Group = {
+  assignSequence?: true;
   id: string;
   roomId: string;
   instanceId: string;
@@ -71,6 +73,7 @@ function compareWaits(a: Wait, b: Wait) {
   return (a.sequence ?? 0) - (b.sequence ?? 0) || a.joinedAtMs - b.joinedAtMs;
 }
 export type MatchmakingRoomInput = {
+  matchSequence?: number;
   game?: MatchmakingGame;
   matchId: string;
   roomId: string;
@@ -386,7 +389,12 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.rollback(state, group, [], 5000);
       return;
     }
+    const matchSequence =
+      group.assignSequence && group.rating
+        ? await reserveMatchSequence(this.env.APP_DB, group.id, `rated:${this.game}`)
+        : undefined;
     const created = await this.env.GAME_ROOM.getByName(group.roomId).prepareMatchmakingRoom({
+      ...(matchSequence === undefined ? {} : { matchSequence }),
       game: this.game,
       matchId: group.id,
       roomId: group.roomId,
@@ -550,6 +558,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         roomId = String(crypto.getRandomValues(new Uint32Array(1))[0]! % 100000).padStart(5, "0"),
         instanceId = crypto.randomUUID();
       const group: Group = {
+        ...(rating ? { assignSequence: true as const } : {}),
         id,
         roomId,
         instanceId,
