@@ -31,6 +31,8 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
   const select = view.querySelector("select")!;
   const destinations = [
     ["/", "全体概要"],
+    ["/acquisition", "集客・登録"],
+    ["/tracking-links", "計測リンク"],
     ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
     ["/users", "ユーザー"],
     ["/lobby-chat", "公開チャット"],

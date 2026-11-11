@@ -134,11 +134,36 @@ export const analyticsFoundationContract = {
 } as const;
 export type AnalyticsFoundation = z.infer<typeof analyticsFoundationSchema>;
 export const adminUsersQuerySchema = z.object({
+  from: analyticsDateSchema.optional(),
+  to: analyticsDateSchema.optional(),
+  game: gameScopeSchema.default("all"),
+  sort: z
+    .enum(["created", "lastLogin", "lastUsed", "completed", "periodCompleted", "rating"])
+    .default("created"),
+  direction: z.enum(["asc", "desc"]).default("desc"),
   kind: z.enum(["registered", "guest"]).default("registered"),
   search: z.string().trim().max(100).default(""),
-  cursor: z.string().max(512).optional(),
+  cursor: z.string().max(4096).optional(),
+});
+export const adminUserRatingSchema = z.object({
+  status: z.enum(["placement", "rated", "ineligible"]),
+  rating: z.number().nullable(),
+  ratedGames: z.number().int().nonnegative(),
 });
 export const adminUserSchema = z.object({
+  id: z.string().optional(),
+  completed: count.nullable().optional(),
+  periodCompleted: count.nullable().optional(),
+  games: z
+    .array(
+      z.object({
+        game: gameIdSchema,
+        completed: count.nullable(),
+        periodCompleted: count.nullable(),
+      }),
+    )
+    .optional(),
+  ratings: z.partialRecord(gameIdSchema, adminUserRatingSchema).optional(),
   name: z.string(),
   username: z.string().nullable(),
   avatarUrl: z.string().nullable(),
@@ -148,7 +173,14 @@ export const adminUserSchema = z.object({
   lastLoginAtMs: z.number().nullable().optional(),
   lastUsedDay: analyticsDateSchema.nullable().optional(),
 });
+export const adminUserDetailSchema = z.object({ user: adminUserSchema });
 export const adminUsersSchema = z.object({
+  status: z.enum(["unmeasured", "ready", "delayed"]).optional(),
+  collectedFromMs: z.number().optional(),
+  metricVersion: z.literal(1).optional(),
+  aggregatedAtMs: z.number().nullable().optional(),
+  backfillComplete: z.boolean().optional(),
+  periodAvailable: z.boolean().optional(),
   users: z.array(adminUserSchema),
   nextCursor: z.string().nullable(),
 });
@@ -186,3 +218,36 @@ export type AdminAnalyticsQuery = z.infer<typeof adminAnalyticsQuerySchema>;
 export type AdminUsers = z.infer<typeof adminUsersSchema>;
 export type AdminUsersQuery = z.infer<typeof adminUsersQuerySchema>;
 export type AdminUser = z.infer<typeof adminUserSchema>;
+
+export const acquisitionSnapshotSchema = z.object({
+  collectedFromMs: z.number().nullable(),
+  aggregatedAtMs: z.number().nullable(),
+  metricVersion: z.literal(1),
+  status: z.enum(["unmeasured", "ready", "delayed"]),
+  hostAvailable: z.boolean(),
+  rows: z.array(
+    z.object({
+      dimension: z.enum(["referrer", "utm", "device", "link", "host"]),
+      value: z.string(),
+      medium: z.string(),
+      campaign: z.string(),
+      label: z.string().nullable(),
+      visits: count,
+      started: count.nullable(),
+    }),
+  ),
+});
+export type AcquisitionSnapshot = z.infer<typeof acquisitionSnapshotSchema>;
+
+export const adminUserDetailContract = {
+  method: "GET",
+  path: "/api/admin/users/:id",
+  query: adminUsersQuerySchema,
+  response: adminUserDetailSchema,
+} as const;
+export const adminAcquisitionSnapshotContract = {
+  method: "GET",
+  path: "/api/admin/analytics/acquisition",
+  query: adminAnalyticsQuerySchema,
+  response: acquisitionSnapshotSchema,
+} as const;

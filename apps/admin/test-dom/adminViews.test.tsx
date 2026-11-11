@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { analyticsMetricsSchema } from "@tetraboard/protocol";
 import { Dashboard } from "../src/Dashboard";
 import { Users } from "../src/Users";
-import { act, enter, flush, render, requests } from "../../web/test-dom/support";
+import { act, press, enter, flush, render, requests } from "../../web/test-dom/support";
 
 const zero = Object.fromEntries(
   Object.keys(analyticsMetricsSchema.shape).map((key) => [key, key.endsWith("Rate") ? null : 0]),
@@ -182,4 +182,91 @@ test("種別切り替えは検索語を保ち、ゲストIDと追加ページを
   requests.at(-1)!.respond({ users: [], nextCursor: null });
   await flush();
   expect(view.textContent).toContain("該当するゲストユーザーはいません");
+});
+
+test("ユーザーは最終日時と通算・期間局数・現在レートを区別し、条件変更で前の一覧を破棄する", async () => {
+  const view = render(<Users />);
+  requests[0]!.respond({
+    users: [
+      {
+        id: "admin-id",
+        name: "計測対象",
+        username: "player",
+        avatarUrl: null,
+        createdAtMs: 1,
+        profileCompleted: true,
+        lastLoginAtMs: null,
+        lastUsedDay: "2026-11-11",
+        completed: 12,
+        periodCompleted: 3,
+        ratings: { shogi: { status: "rated", rating: 1550, ratedGames: 5 } },
+      },
+    ],
+    nextCursor: null,
+    backfillComplete: true,
+    periodAvailable: true,
+    aggregatedAtMs: 1,
+  });
+  await flush();
+  expect(view.textContent).toContain("最終ログイン");
+  expect(view.textContent).toContain("通算対局数");
+  expect(view.textContent).toContain("1550");
+  const game = view.querySelector<HTMLSelectElement>('[aria-label="ゲーム"]')!;
+  act(() => {
+    game.value = "shogi";
+    game.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(requests.at(-1)!.url).toContain("game=shogi");
+  expect(view.textContent).not.toContain("計測対象");
+});
+
+test("ユーザー詳細は明示操作で取得し、URLの戻るで検索条件と前の結果を破棄して再取得する", async () => {
+  const { MemoryRouter, useNavigate } = await import("react-router");
+  function Back() {
+    const navigate = useNavigate();
+    return <button onClick={() => void navigate(-1)}>条件を戻す</button>;
+  }
+  const user = {
+    id: "person",
+    name: "詳細対象",
+    username: "person",
+    avatarUrl: null,
+    createdAtMs: 1,
+    profileCompleted: true,
+    completed: 4,
+    periodCompleted: 2,
+    ratings: { shogi: { status: "placement", rating: null, ratedGames: 2 } },
+    games: [{ game: "shogi", completed: 4, periodCompleted: 2 }],
+  };
+  const view = render(
+    <MemoryRouter>
+      <Users />
+      <Back />
+    </MemoryRouter>,
+  );
+  requests[0]!.respond({ users: [user], nextCursor: null });
+  await flush();
+  expect(requests).toHaveLength(1);
+  press(view, "詳細を表示");
+  expect(requests[1]!.url).toContain("/api/admin/users/person?");
+  requests[1]!.respond({ user });
+  await flush();
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("認定中 2/5局");
+  const close = document.querySelector(
+    '[role="dialog"] button[data-slot="dialog-close"]',
+  ) as HTMLButtonElement;
+  act(() => close.click());
+  await flush();
+  enter(view.querySelector<HTMLInputElement>('[aria-label="名前・IDで検索"]')!, "新しい条件");
+  act(() =>
+    view
+      .querySelector("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  const changed = requests.at(-1)!;
+  expect(changed.url).toContain("search=");
+  press(view, "条件を戻す");
+  expect(changed.init.signal!.aborted).toBe(true);
+  expect(new URL(requests.at(-1)!.url, "https://test").searchParams.get("search")).toBe("");
+  expect(view.textContent).not.toContain("詳細対象");
 });

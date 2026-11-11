@@ -29,6 +29,7 @@ import { Separator } from "./components/ui/separator";
 import { ThemeSelect } from "./components/ThemeProvider";
 const analysis = [
   { path: "/", label: "全体概要", icon: LayoutDashboardIcon },
+  { path: "/acquisition", label: "集客・登録", icon: ActivityIcon },
   ...gameIds.map((id) => ({
     path: gameCatalog[id].lobbyPath,
     label: gameCatalog[id].name,
@@ -36,6 +37,7 @@ const analysis = [
   })),
 ];
 const operations = [
+  { path: "/tracking-links", label: "計測リンク", icon: ExternalLinkIcon },
   { path: "/users", label: "ユーザー", icon: UsersIcon },
   { path: "/lobby-chat", label: "公開チャット", icon: MessageCircleIcon },
   { path: "/feedback", label: "フィードバック", icon: CircleHelpIcon },
