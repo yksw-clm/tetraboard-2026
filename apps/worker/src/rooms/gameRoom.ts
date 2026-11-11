@@ -275,6 +275,13 @@ export class GameRoom extends DurableObject<Env> {
     return new Map(this.ctx.storage.kv.list<AnalyticsJob>({ prefix: analyticsPendingPrefix }));
   }
 
+  private clearMatchmakingSearches(reservation: MatchmakingRoomReservation) {
+    return {
+      ...reservation,
+      players: reservation.players.map(({ search: _search, ...player }) => player),
+    };
+  }
+
   private startAnalyticsMatch(id: string, room: Room, at: number) {
     const reservation =
       "matchmaking" in room && room.matchmaking
@@ -317,6 +324,11 @@ export class GameRoom extends DurableObject<Env> {
     };
     // 未識別の席の局内対応だけを保持し、終局時に破棄します。
     this.ctx.storage.kv.put("analytics-player-aliases", aliases);
+    if (reservation)
+      this.ctx.storage.kv.put(
+        `matchmaking:${reservation.matchId}`,
+        this.clearMatchmakingSearches(reservation),
+      );
     this.ctx.storage.kv.put(analyticsActiveKey, record);
     this.ctx.storage.kv.put(analyticsPendingPrefix + id, {
       record,
@@ -677,6 +689,9 @@ export class GameRoom extends DurableObject<Env> {
         const own =
           inherited ||
           accountIds.has(String(row.accountId)) ||
+          (row.admission !== null &&
+            typeof row.admission === "object" &&
+            accountIds.has(String((row.admission as Record<string, unknown>).accountId))) ||
           matchingIds.has(String(row.id)) ||
           matchingIds.has(String(row.playerId)) ||
           matchingIds.has(String(row.senderId)) ||
@@ -1432,7 +1447,7 @@ export class GameRoom extends DurableObject<Env> {
       const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
       if (saved && saved.phase !== "playing")
         this.ctx.storage.kv.put(key, {
-          ...saved,
+          ...this.clearMatchmakingSearches(saved),
           phase: "closed",
           connectedPlayerIds: room.players
             .filter(

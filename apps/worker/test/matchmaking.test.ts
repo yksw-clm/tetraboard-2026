@@ -1120,6 +1120,11 @@ test("全員の接続後だけカウントダウンし、再起動しても1回�
   expect(playing.status).toBe("playing");
   expect(playing.clock?.remainingMainMs).toBeDefined();
   expect((await roomStub.getMatchmakingState(a.matchId, a.instanceId)).started).toBe(true);
+  const savedReservation = await runInDurableObject(roomStub, (_, ctx) =>
+    ctx.storage.kv.get<{ players: { search?: unknown }[] }>(`matchmaking:${a.matchId}`)!,
+  );
+  expect(savedReservation.players.every((p) => p.search === undefined)).toBe(true);
+
   await vi.waitFor(async () =>
     expect((await searchEvents(users[0]!.operationId)).map((e) => e.stage)).toEqual([
       "accepted",
@@ -1717,6 +1722,15 @@ test.each(["four-reversi", "four-shogi"] as const)(
     expect(await searchEvents(u!.operationId)).toContainEqual(
       expect.objectContaining({ stage: "retry", reason: "ai_unavailable" }),
     );
+    const closed = await runInDurableObject(
+      env.GAME_ROOM.getByName(state.assignment!.roomId),
+      (_, ctx) =>
+        ctx.storage.kv.get<{ players: { search?: unknown }[] }>(
+          `matchmaking:${state.assignment!.matchId}`,
+        )!,
+    );
+    expect(closed.players.every((p) => p.search === undefined)).toBe(true);
+
     expect((await searchEvents(u!.operationId)).some((e) => e.stage === "failed")).toBe(false);
     now += 5001;
     await runInDurableObject(queue, (instance) => instance.alarm());

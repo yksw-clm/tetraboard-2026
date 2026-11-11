@@ -71,6 +71,37 @@ test("検索イベントの保存失敗は伝播せず、再開後の再送も�
   ).toBe(1);
 });
 
+test("取消と最終失敗の遅延再送は同じ検索の結果を二重計上しない", async () => {
+  const account = await accountFixture(true, crypto.randomUUID(), env.APP_DB),
+    operationId = crypto.randomUUID(),
+    now = Date.now();
+  const stub = env.MATCHMAKING_COORDINATOR.getByName(`terminal-test-${crypto.randomUUID()}`);
+  const base = {
+    operationId,
+    accountId: account.id,
+    matchId: null,
+    game: "shogi" as const,
+    atMs: now,
+    waitingMs: null,
+    humans: null,
+    rated: true,
+  };
+  await runInDurableObject(stub, async (_, ctx) => {
+    enqueueMatchmakingEvent(ctx.storage, { ...base, stage: "cancelled", reason: "cancelled" });
+    await flushMatchmakingEvents(ctx.storage, env.APP_DB, now);
+  });
+  await runInDurableObject(stub, async (_, ctx) => {
+    enqueueMatchmakingEvent(ctx.storage, { ...base, stage: "failed", reason: "invalidated" });
+    await flushMatchmakingEvents(ctx.storage, env.APP_DB, now);
+  });
+  const stages = (
+    await env.APP_DB.prepare("SELECT stage FROM analytics_matchmaking_events WHERE operation_id=?")
+      .bind(operationId)
+      .all<{ stage: string }>()
+  ).results.map((r) => r.stage);
+  expect(stages).toEqual(["cancelled"]);
+});
+
 import { writeAnalyticsMatch, type AnalyticsMatch } from "../src/analytics/store";
 import { aggregateLifecycleAnalytics } from "../src/analytics/lifecycleAggregation";
 import { archiveAnalytics } from "../src/analytics/retention";
