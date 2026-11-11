@@ -14,12 +14,14 @@ export function PlayerProfileCard({
   game,
   mode,
   onRetry,
+  showRating = true,
 }: {
   state: ProfileState;
   localProfile?: PlayerProfile;
   game: GameId;
   mode: RoomMode;
   onRetry: () => void;
+  showRating?: boolean;
 }) {
   const profile = state.profile ?? localProfile;
   if (!profile || (state.loading && !localProfile))
@@ -87,7 +89,7 @@ export function PlayerProfileCard({
           <p className="m-0 text-xs tabular-nums wrap-anywhere">
             {formatPlayerStatsSummary(profile.stats, mode)}
           </p>
-          {profile.rating && <ProfileRatingLabel rating={profile.rating} />}
+          {showRating && profile.rating && <ProfileRatingLabel rating={profile.rating} />}
           {gameCatalog[game].hasModes && mode === "singles" && (
             <PlayerBadges game={game} badges={profile.badges} />
           )}
@@ -97,7 +99,7 @@ export function PlayerProfileCard({
           <p className="m-0 text-sm text-muted">
             {profile.kind === "guest" ? "ゲスト／ID・戦績なし" : "戦績集計対象外"}
           </p>
-          {profile.kind === "cpu" && profile.rating && (
+          {showRating && profile.kind === "cpu" && profile.rating && (
             <ProfileRatingLabel rating={profile.rating} />
           )}
           {localProfile && state.loading && (
@@ -129,13 +131,18 @@ function ProfileRatingLabel({ rating }: { rating: ProfileRating }) {
         ? "基準レート"
         : "対局前レート";
   return (
-    <p className="m-0 text-sm font-semibold tabular-nums">
-      {label}{" "}
-      {rating.status === "rated"
-        ? Math.round(rating.rating)
-        : rating.status === "placement"
-          ? "認定中"
-          : "記録なし"}
-    </p>
+    <div className="text-sm">
+      <p className="m-0 font-semibold tabular-nums">
+        {label}{" "}
+        {rating.status === "rated"
+          ? Math.round(rating.rating)
+          : rating.status === "placement"
+            ? "認定中"
+            : "記録なし"}
+      </p>
+      {rating.timing === "current" && rating.status === "rated" && rating.humanPlayed === false && (
+        <p className="m-0 text-xs text-muted">対人戦未経験</p>
+      )}
+    </div>
   );
 }

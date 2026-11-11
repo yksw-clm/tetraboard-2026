@@ -56,6 +56,31 @@ function page(rows: TournamentStanding[]) {
   );
 }
 
+test("大会順位表のプレイヤー情報は公開レートを取得しても表示しない", async () => {
+  const view = page([{ ...row(1, "大会参加者"), profileId }]);
+  act(() =>
+    view.querySelector<HTMLButtonElement>('[aria-label="大会参加者のプレイヤー情報"]')!.click(),
+  );
+  await flush();
+  requests[0]!.respond({
+    kind: "account",
+    profileId,
+    game: "four-shogi",
+    name: "大会参加者",
+    username: "tournament_player",
+    avatarUrl: null,
+    stats: { singles: { total: 2, first: 1 }, doubles: { total: 0, wins: 0 } },
+    rating: { timing: "current", status: "rated", rating: 1700 },
+  });
+  await flush();
+  const text = document.querySelector(
+    '[role="region"][aria-label="大会参加者のプレイヤー情報"]',
+  )?.textContent;
+  expect(text).toContain("大会参加者");
+  expect(text).not.toContain("現在のレート");
+  expect(text).not.toContain("1700");
+});
+
 test("公開IDでゲストの本人重複を防ぎ、順位更新後も開いた成績を本人の行に保持する", () => {
   const first = { ...row(1, "ゲスト一人目"), username: null, isGuest: true, profileId };
   const self = {
