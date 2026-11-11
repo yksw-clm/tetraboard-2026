@@ -97,6 +97,25 @@ test("マッチング専用ルームは手動準備・開始・設定を出さ�
   await flush();
   expect(overlay()).toBeNull();
 });
+test("レート戦の開始予告は相手3人と本人のカットインに切り替え、中断時に閉じる", async () => {
+  const room = waiting();
+  room.matchmaking = { ...room.matchmaking!, rated: true };
+  const { view, socket } = await setup(room);
+  expect(view.querySelector(".rated-match-intro")).toBeNull();
+  socket.snapshot({ ...room, matchmaking: { ...room.matchmaking, startsAtMs: now + 5000 } });
+  await flush();
+  const overlay = view.querySelector(".rated-match-intro")!;
+  expect(overlay.querySelectorAll('ul[aria-label="対戦相手"] li')).toHaveLength(3);
+  expect(overlay.querySelector('[data-self="true"]')?.textContent).toContain(room.players[0]!.name);
+  expect(overlay.querySelector('[role="status"]')?.textContent).toBe("5");
+  clock.advance(1000);
+  await flush();
+  expect(overlay.querySelector('[role="status"]')?.textContent).toBe("4");
+  socket.snapshot(room, now + 1000);
+  await flush();
+  expect(view.querySelector(".rated-match-intro")).toBeNull();
+  expect(socket.sent.some((m) => m.type === "room.start")).toBe(false);
+});
 for (const action of ["もう一度マッチング", "ロビーへ"])
   test(`終局後の「${action}」は旧席の解放成功を待ち、次の待機は明示した場合だけ開始する`, async () => {
     const match = replayMatch();

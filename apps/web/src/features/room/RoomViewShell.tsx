@@ -42,6 +42,7 @@ import { usePostGameFeedback } from "../feedback/usePostGameFeedback";
 import { PostGameFeedbackDialog } from "../feedback/PostGameFeedbackDialog";
 import { RoomShareDialog } from "./RoomShareDialog";
 import { RoomStartCountdown } from "./RoomStartCountdown";
+import { RatedMatchStartCountdown } from "./RatedMatchStartCountdown";
 import {
   isMatchmakingGame,
   isRatedMatchmakingGame,
@@ -448,34 +449,43 @@ export function RoomViewShell({
           />
         </RoomStampContext.Provider>
       </div>
-      {tournamentStartsAtMs !== undefined && (
-        <RoomStartCountdown
+      {ratedMatch && ratedGame && room.status === "waiting" && !room.lastRound ? (
+        <RatedMatchStartCountdown
+          room={room}
+          ownPlayerId={membership?.playerId}
           startsAtMs={tournamentStartsAtMs}
           serverNowMs={session.serverNowMs}
-          durationMs={
-            isMatchmakingRoom(room) && isMatchmakingGame(game)
-              ? matchmakingQueues[game].countdownMs
-              : tournamentRules.startCountdownMs
-          }
-          label={
-            isMatchmakingRoom(room) ? "対局の開始カウントダウン" : "大会対局の開始カウントダウン"
-          }
-          details={
-            ratedMatch &&
-            ratedTime && (
-              <p>
-                {room.players.some((p) => p.kind === "cpu") ? "CPU戦" : "対人戦"}・
-                {ratedTime.mainTimeMs / 60_000}分
-                {ratedTime.byoyomiMs
-                  ? `＋${ratedTime.byoyomiMs / 1000}秒`
-                  : game === "reversi"
-                    ? "切れ負け"
-                    : ""}
-                ・レート対象
-              </p>
-            )
-          }
         />
+      ) : (
+        tournamentStartsAtMs !== undefined && (
+          <RoomStartCountdown
+            startsAtMs={tournamentStartsAtMs}
+            serverNowMs={session.serverNowMs}
+            durationMs={
+              isMatchmakingRoom(room) && isMatchmakingGame(game)
+                ? matchmakingQueues[game].countdownMs
+                : tournamentRules.startCountdownMs
+            }
+            label={
+              isMatchmakingRoom(room) ? "対局の開始カウントダウン" : "大会対局の開始カウントダウン"
+            }
+            details={
+              ratedMatch &&
+              ratedTime && (
+                <p>
+                  {room.players.some((p) => p.kind === "cpu") ? "CPU戦" : "対人戦"}・
+                  {ratedTime.mainTimeMs / 60_000}分
+                  {ratedTime.byoyomiMs
+                    ? `＋${ratedTime.byoyomiMs / 1000}秒`
+                    : game === "reversi"
+                      ? "切れ負け"
+                      : ""}
+                  ・レート対象
+                </p>
+              )
+            }
+          />
+        )
       )}
       {tournamentStartsAtMs === undefined && (
         <>
