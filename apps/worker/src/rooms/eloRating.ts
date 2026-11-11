@@ -1,11 +1,11 @@
 import { z } from "zod";
 import {
-  matchmakingQueues,
   ratedMatchmakingRules,
   type RatingOpponent,
   type ShogiRatingResult,
 } from "@tetraboard/protocol";
 import { createRatingStore } from "../matchmaking/ratingStore";
+import { ratedTimeControls } from "./ratedTimeControls";
 
 export const eloInitialRating = 1500;
 
@@ -25,7 +25,6 @@ export function createEloRating(
   resultSchema: { parse(value: unknown): ShogiRatingResult },
 ) {
   const store = createRatingStore(game, `${game}_rating_pending`, `${game}_rating_changes`);
-  const rules = matchmakingQueues[game];
   const { placementGames } = ratedMatchmakingRules[game];
   const side = game === "shogi" ? "side" : "color";
   async function readResult(
@@ -125,8 +124,14 @@ export function createEloRating(
           json_extract(record_json, '$.rating.referenceRating') AS cpu_rating
         FROM matches
         WHERE id = ?1 AND game = '${game}'
-          AND json_extract(record_json, '$.settings.timeControl.mainTimeMs') = ${rules.timeControl.mainTimeMs}
-          AND json_extract(record_json, '$.settings.timeControl.byoyomiMs') = ${rules.timeControl.byoyomiMs}
+          AND (${ratedTimeControls(game)
+            .map(
+              (
+                time,
+              ) => `(json_extract(record_json, '$.settings.timeControl.mainTimeMs') = ${time.mainTimeMs}
+                AND json_extract(record_json, '$.settings.timeControl.byoyomiMs') = ${time.byoyomiMs})`,
+            )
+            .join(" OR ")})
           AND json_extract(record_json, '$.rating.usedFallback') IS NULL
           AND ${store.unappliedMatch}
       ), participants AS MATERIALIZED (
