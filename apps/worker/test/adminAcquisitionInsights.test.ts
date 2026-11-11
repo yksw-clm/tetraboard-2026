@@ -100,6 +100,10 @@ test("集客の再集計失敗は公開値と時刻を保持し、再実行と90
   await aggregateAcquisition(bindings, now + 1);
   const before = await readAcquisitionSnapshot(bindings, q, now + 1);
   expect(before.rows.find((r) => r.dimension === "host" && r.value === host)?.visits).toBe(1);
+  const wide = await readAcquisitionSnapshot(bindings, { ...q, from: "2026-08-01" }, now + 1);
+  expect(wide.hostAvailable).toBe(false);
+  expect(wide.rows.some((r) => r.dimension === "host")).toBe(false);
+
   await visit();
   await env.APP_DB.exec(
     "CREATE TRIGGER insights_test_fail BEFORE INSERT ON analytics_acquisition_snapshot WHEN NEW.dimension='host' BEGIN SELECT RAISE(ABORT,'test snapshot failure'); END;",

@@ -54,19 +54,22 @@ export async function aggregateAcquisition(env: AdminEnv, now = Date.now()) {
   await db.batch(statements);
 }
 export async function readAcquisitionSnapshot(env: Env, q: AdminAnalyticsQuery, now = Date.now()) {
+  const cutoffDay = new Date(now - analyticsRetentionMs + 32400000).toISOString().slice(0, 10);
+  const hostAvailable = q.from > cutoffDay;
   const [meta, rows] = await env.APP_DB.batch<Record<string, unknown>>([
     env.APP_DB.prepare(
       "SELECT key,value FROM analytics_metadata WHERE key IN('acquisition_collected_from','acquisition_aggregated_at')",
     ),
     env.APP_DB.prepare(`SELECT s.dimension,s.value,s.medium,s.campaign,SUM(visits) AS visits,SUM(started) AS started,l.label
  FROM analytics_acquisition_snapshot s LEFT JOIN analytics_links l ON s.dimension='link' AND CAST(l.id AS TEXT)=s.value
- WHERE s.day>=? AND s.day<=? AND s.game=? AND s.internal=? AND (s.dimension!='host' OR s.day>?)
+ WHERE s.day>=? AND s.day<=? AND s.game=? AND s.internal=? AND (s.dimension!='host' OR (? AND s.day>?))
  GROUP BY s.dimension,s.value,s.medium,s.campaign,l.label ORDER BY s.dimension,visits DESC,s.value,s.medium,s.campaign`).bind(
       q.from,
       q.to,
       q.game,
       Number(q.includeInternal === "true"),
-      new Date(now - analyticsRetentionMs + 32400000).toISOString().slice(0, 10),
+      Number(hostAvailable),
+      cutoffDay,
     ),
   ]);
   const values = new Map(meta!.results.map((r) => [String(r.key), Number(r.value)]));
@@ -76,8 +79,7 @@ export async function readAcquisitionSnapshot(env: Env, q: AdminAnalyticsQuery, 
     aggregatedAtMs: at,
     metricVersion: 1,
     status: at === null ? "unmeasured" : now - at > 300000 ? "delayed" : "ready",
-    hostAvailable:
-      q.from > new Date(now - analyticsRetentionMs + 32400000).toISOString().slice(0, 10),
+    hostAvailable,
     rows:
       at === null
         ? []

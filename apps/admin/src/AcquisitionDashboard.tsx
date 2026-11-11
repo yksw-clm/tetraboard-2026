@@ -129,13 +129,14 @@ export function AcquisitionDashboard() {
                   </TableBody>
                 </Table>
               )}
-              {!acquisition.data!.rows.some((r) => r.dimension === dimension) && (
-                <p className="text-sm text-muted-foreground">
-                  {!isReportMeasured(acquisition.data!, filters.query)
-                    ? "未計測"
-                    : "該当する訪問・対局は0件です。"}
-                </p>
-              )}
+              {(dimension !== "host" || acquisition.data!.hostAvailable) &&
+                !acquisition.data!.rows.some((r) => r.dimension === dimension) && (
+                  <p className="text-sm text-muted-foreground">
+                    {!isReportMeasured(acquisition.data!, filters.query)
+                      ? "未計測"
+                      : "該当する訪問・対局は0件です。"}
+                  </p>
+                )}
             </Card>
           ))}
         </section>

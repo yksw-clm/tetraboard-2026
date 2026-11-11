@@ -225,3 +225,19 @@ test("計測リンクを追加発行・改名・アーカイブし、失敗時�
   await flush();
   expect(view.textContent).not.toContain("変更した表示名");
 });
+
+test("ホスト別を算出できない長期期間では、集計済みでも0件と表示しない", async () => {
+  const view = render(
+    <MemoryRouter initialEntries={["/?from=2026-01-01&to=2026-10-03"]}>
+      <AcquisitionDashboard />
+    </MemoryRouter>,
+  );
+  requests[0]!.respond({ ...meta(), hostAvailable: false, rows: [] });
+  requests[1]!.respond({ ...meta(), dateBasis: "entry", rows: [] });
+  await flush();
+  const card = [...view.querySelectorAll("h2")].find(
+    (h) => h.textContent === "実際の参照元ホスト",
+  )!.parentElement!;
+  expect(card.textContent).toContain("算出不可");
+  expect(card.textContent).not.toContain("0件");
+});
