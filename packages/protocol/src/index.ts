@@ -1,4 +1,5 @@
 export * from "./games";
+export * from "./matchKinds";
 export * from "./avatarPresets";
 export * from "./profileDetails";
 export * from "./gameSchemas";
@@ -305,3 +306,5 @@ export * from "./notifications";
 export * from "./cpuProfiles";
 export * from "./ratedCpuNames";
 export * from "./matchmaking";
+
+export * from "./registrationAnalytics";

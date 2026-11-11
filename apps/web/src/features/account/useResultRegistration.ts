@@ -11,7 +11,7 @@ import {
 } from "./guestRegistration";
 
 export function useResultRegistration(room: Room) {
-  const signIn = useSocialSignIn();
+  const signIn = useSocialSignIn("room-result", room.settings.game);
   const navigate = useNavigate();
   const submitting = useRef(false);
   const [preparing, setPreparing] = useState<SocialProvider | null>(null);
@@ -19,6 +19,7 @@ export function useResultRegistration(room: Room) {
   async function start(provider: SocialProvider, linkGuest?: true) {
     if (submitting.current) return;
     submitting.current = true;
+    signIn.trackEntry();
     setPreparing(provider);
     setMessage(null);
     try {

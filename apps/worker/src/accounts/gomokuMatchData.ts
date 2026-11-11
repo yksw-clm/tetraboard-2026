@@ -21,7 +21,7 @@ const participants = z
   .length(2);
 const recordSchema = z
   .strictObject({ ...gomokuMatchDetailSchema.shape, instanceId: z.uuid(), participants })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
     const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;

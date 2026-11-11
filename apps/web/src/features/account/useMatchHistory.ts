@@ -70,6 +70,7 @@ export function useMatchHistory(game: MatchGame, mode: RoomMode) {
           !gameCatalog[targetGame].hasModes ? {} : { mode: target },
         );
         query.set("includeMoveCount", "1");
+        query.set("includeMatchKind", "1");
         if (targetGame !== "four-reversi") query.set("game", targetGame);
         if (cursor) query.set("cursor", cursor);
         const resultRequest = await request(

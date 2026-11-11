@@ -33,6 +33,7 @@ export function pageAcquisition(
   const params = new URLSearchParams(search);
   return {
     referrer: referrerHostname(referrer, ownHostname),
+    ...(params.has("utm") ? { shortUtm: (params.get("utm") ?? "").slice(0, 1024) } : {}),
     source: sanitizeUtm(params.get("utm_source")),
     medium: sanitizeUtm(params.get("utm_medium")),
     campaign: sanitizeUtm(params.get("utm_campaign")),

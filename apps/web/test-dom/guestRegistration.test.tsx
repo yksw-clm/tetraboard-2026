@@ -59,15 +59,17 @@ function Location() {
   return <output data-testid="location">{location.pathname + location.search}</output>;
 }
 
+const actions = () => requests.filter((request) => request.url !== "/api/analytics/registration");
+
 test("開始RPC未確定の手続きも204の取消完了を成功として受け取る", async () => {
   const value = flow();
   const cancelling = cancelGuestRegistration(value);
-  requests[0]!.respond(null, 204);
+  actions()[0]!.respond(null, 204);
   await expect(cancelling).resolves.toBeNull();
 });
 async function flushCrypto(expectedRequests = 1) {
   // Web Cryptoのネイティブ処理が返るイベントループも進めます。
-  for (let attempt = 0; attempt < 100 && requests.length < expectedRequests; attempt++) {
+  for (let attempt = 0; attempt < 100 && actions().length < expectedRequests; attempt++) {
     await act(async () => {
       await Bun.sleep(1);
     });
@@ -80,9 +82,9 @@ test("OAuthより前に資格候補を保存し、元の参加資格で局を固
   expect(readGuestRegistration()?.newToken).toBe(value.newToken);
   const prepared = prepareGuestRegistration(value);
   await flushCrypto();
-  expect(requests).toHaveLength(1);
-  expect(requests[0]!.init.headers).toMatchObject({ Authorization: `Bearer ${token}` });
-  const payload = JSON.parse(String(requests[0]!.init.body));
+  expect(actions()).toHaveLength(1);
+  expect(actions()[0]!.init.headers).toMatchObject({ Authorization: `Bearer ${token}` });
+  const payload = JSON.parse(String(actions()[0]!.init.body));
   expect(payload).toMatchObject({
     registrationId: value.registrationId,
     instanceId: value.instanceId,
@@ -91,7 +93,7 @@ test("OAuthより前に資格候補を保存し、元の参加資格で局を固
   expect(payload.newTokenHash).toMatch(/^[0-9a-f]{64}$/);
   expect(payload.newTokenHash).not.toBe(value.newToken);
   expect(payload.newToken).toBeUndefined();
-  requests[0]!.respond(status(value, { identity: "unverified" }));
+  actions()[0]!.respond(status(value, { identity: "unverified" }));
   await prepared;
   expect(readGuestRegistration()?.holdUntilMs).toBe(Date.now() + 600000);
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
@@ -105,7 +107,7 @@ test("保存不能ならゲストを維持して登録開始APIもOAuthも送ら
       void h.current.start("google");
     });
     await flush();
-    expect(requests).toHaveLength(0);
+    expect(actions()).toHaveLength(0);
     expect(h.current.message).toContain("保存できません");
     expect(h.current.busy).toBe(false);
   } finally {
@@ -121,17 +123,17 @@ test("OAuth開始失敗は席保護を中止し、再試行では新しい登録
     void h.current.start("google");
   });
   await flushCrypto();
-  requests[0]!.respond(status(value, { identity: "unverified" }));
+  actions()[0]!.respond(status(value, { identity: "unverified" }));
   await flush();
-  expect(JSON.parse(String(requests[1]!.init.body))).toMatchObject({
+  expect(JSON.parse(String(actions()[1]!.init.body))).toMatchObject({
     provider: "discord",
     registration: { registrationId: value.registrationId, secret: value.secret },
   });
-  expect(JSON.parse(String(requests[1]!.init.body)).registration.newToken).toBeUndefined();
-  requests[1]!.respond({ message: "認証開始失敗" }, 503);
+  expect(JSON.parse(String(actions()[1]!.init.body)).registration.newToken).toBeUndefined();
+  actions()[1]!.respond({ message: "認証開始失敗" }, 503);
   await flush();
-  expect(requests[2]!.url).toEndWith("/cancel");
-  requests[2]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
+  expect(actions()[2]!.url).toEndWith("/cancel");
+  actions()[2]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
   await flush();
   expect(readGuestRegistration()).toBeNull();
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
@@ -157,12 +159,12 @@ test("帰属と席変更を確認してから新しい参加資格を保存し�
       </>,
     ),
   );
-  requests[0]!.respond(status(value));
+  actions()[0]!.respond(status(value));
   await flush();
-  expect(requests[1]!.url).toEndWith("/complete");
+  expect(actions()[1]!.url).toEndWith("/complete");
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
   expect(readGuestRegistration()).not.toBeNull();
-  requests[1]!.respond(status(value, { record: "pending", seat: "complete" }));
+  actions()[1]!.respond(status(value, { record: "pending", seat: "complete" }));
   await flush();
   expect(readRoomMembershipToken(value.roomId)).toBe(value.newToken);
   expect(readGuestRegistration()?.returning).toEqual({
@@ -177,10 +179,10 @@ test("帰属と席変更を確認してから新しい参加資格を保存し�
 test("サーバー成功後の保存失敗でも資格を保持し、再試行で同じ席の資格を復元する", async () => {
   const value = flow();
   const view = render(wrap(profile)(<GuestRegistrationCompletion flow={value} />));
-  requests[0]!.respond(status(value));
+  actions()[0]!.respond(status(value));
   await flush();
   const denied = denyStorage();
-  requests[1]!.respond(status(value, { record: "complete", seat: "complete" }));
+  actions()[1]!.respond(status(value, { record: "complete", seat: "complete" }));
   await flush();
   expect(view.textContent).toContain("新しい参加資格を保存できません");
   expect(readGuestRegistration()?.registrationId).toBe(value.registrationId);
@@ -188,9 +190,9 @@ test("サーバー成功後の保存失敗でも資格を保持し、再試行�
   denied.mockRestore();
   press(view, "再試行");
   await flush();
-  requests[2]!.respond(status(value, { record: "complete", seat: "complete" }));
+  actions()[2]!.respond(status(value, { record: "complete", seat: "complete" }));
   await flush();
-  requests[3]!.respond(status(value, { record: "complete", seat: "complete" }));
+  actions()[3]!.respond(status(value, { record: "complete", seat: "complete" }));
   await flush();
   expect(readRoomMembershipToken(value.roomId)).toBe(value.newToken);
   expect(readGuestRegistration()?.returning).toEqual({
@@ -211,11 +213,11 @@ test("初回設定前は本人確認を待ち、未設定の別アカウント�
   );
   expect(view.textContent).not.toContain("設定フォーム");
   expect(view.textContent).not.toContain("Googleで続ける");
-  requests[0]!.respond(status(value, { identity: "mismatch" }));
+  actions()[0]!.respond(status(value, { identity: "mismatch" }));
   await flush();
   expect(view.textContent).toContain("登録開始時のログイン状態と異なります");
   expect(view.textContent).not.toContain("設定フォーム");
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
 });
 
 test("1時間経過後もサーバー確認前に資格候補と受付済み情報を捨てない", () => {
@@ -232,16 +234,16 @@ test("席保持期限後の新しい登録開始は記録だけの引継ぎを�
     void h.current.start("google");
   });
   await flushCrypto();
-  requests[0]!.respond(status(value, { identity: "unverified", seat: "expired" }));
+  actions()[0]!.respond(status(value, { identity: "unverified", seat: "expired" }));
   await flush();
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
   const view = render(wrap()(<GuestRegistrationCompletion flow={value} />));
-  requests[1]!.respond(status(value, { identity: "unverified", seat: "expired" }));
+  actions()[1]!.respond(status(value, { identity: "unverified", seat: "expired" }));
   await flush();
   expect(view.textContent).toContain("同じ席への復帰はできません");
   press(view, "Googleで続ける");
-  expect(requests[2]!.url).toBe("/api/auth/sign-in/social");
+  expect(actions()[2]!.url).toBe("/api/auth/sign-in/social");
 });
 
 test("初回設定から結果に戻っても同じ手続きでOAuthを始め直したり席保護を取消したりしない", async () => {
@@ -251,9 +253,9 @@ test("初回設定から結果に戻っても同じ手続きでOAuthを始め直
     void h.current.start("google");
   });
   await flushCrypto();
-  requests[0]!.respond(status(value, { identity: "profile_required" }));
+  actions()[0]!.respond(status(value, { identity: "profile_required" }));
   await flush();
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(readGuestRegistration()?.registrationId).toBe(value.registrationId);
 });
 
@@ -270,12 +272,12 @@ test("OAuth取消で戻ったログイン画面から席保護を解除しゲス
       </>,
     ),
   );
-  requests[0]!.respond(status(value, { identity: "unverified" }));
+  actions()[0]!.respond(status(value, { identity: "unverified" }));
   await flush();
   press(view, "手続きを中止してルームへ戻る");
-  requests[1]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
+  actions()[1]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
   await flush();
-  requests[2]!.respond({ user: null });
+  actions()[2]!.respond({ user: null });
   await flush();
   expect(readGuestRegistration()).toBeNull();
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
@@ -294,22 +296,22 @@ test("確認画面のOAuth開始失敗も席保護を取消し、取消失敗時
       </>,
     ),
   );
-  requests[0]!.respond(status(value, { identity: "unverified" }));
+  actions()[0]!.respond(status(value, { identity: "unverified" }));
   await flush();
   press(view, "Googleで続ける");
-  requests[1]!.respond({ message: "認証を開始できません" }, 503);
+  actions()[1]!.respond({ message: "認証を開始できません" }, 503);
   await flush();
-  expect(requests[2]!.url).toEndWith("/cancel");
-  requests[2]!.respond({ message: "取消を確認できません" }, 503);
+  expect(actions()[2]!.url).toEndWith("/cancel");
+  actions()[2]!.respond({ message: "取消を確認できません" }, 503);
   await flush();
   expect(view.textContent).toContain("取消を確認できません");
   expect(readGuestRegistration()?.registrationId).toBe(value.registrationId);
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
   press(view, "手続きを中止してルームへ戻る");
-  expect(requests[3]!.url).toEndWith("/cancel");
-  requests[3]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
+  expect(actions()[3]!.url).toEndWith("/cancel");
+  actions()[3]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
   await flush();
-  requests[4]!.respond({ user: null });
+  actions()[4]!.respond({ user: null });
   await flush();
   expect(readGuestRegistration()).toBeNull();
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
@@ -323,7 +325,7 @@ test("OAuthエラー復帰時に本人確認済みなら同じ手続きの初回
   const view = render(
     wrap({ ...profile, profileCompleted: false }, "/login?error=retry")(<LoginPage />),
   );
-  requests[0]!.respond(status(value, { identity: "profile_required" }));
+  actions()[0]!.respond(status(value, { identity: "profile_required" }));
   await flush();
   const setup = [...view.querySelectorAll("a")].find(
     (link) => link.textContent === "プロフィールを作成する",
@@ -336,10 +338,10 @@ test("OAuthエラー復帰時に本人確認済みなら同じ手続きの初回
 test("参加条件の不一致は終端状態として表示し完了を再送しない", async () => {
   const value = flow();
   const view = render(wrap(profile)(<GuestRegistrationCompletion flow={value} />));
-  requests[0]!.respond(status(value, { record: "conflict" }));
+  actions()[0]!.respond(status(value, { record: "conflict" }));
   await flush();
   expect(view.textContent).toContain("このアカウントにはこの対局を引き継げません");
-  expect(requests).toHaveLength(1);
+  expect(actions()).toHaveLength(1);
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
 });
 
@@ -352,16 +354,16 @@ test("設定中の取消は当該認証セッションのログアウトを要�
       </GuestRegistrationCompletion>,
     ),
   );
-  requests[0]!.respond(status(value, { identity: "profile_required" }));
+  actions()[0]!.respond(status(value, { identity: "profile_required" }));
   await flush();
   expect(view.textContent).toContain("設定フォーム");
   press(view, "登録をやめてゲストに戻る");
   await flush();
-  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({ signOut: true });
-  requests[1]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
+  expect(JSON.parse(String(actions()[1]!.init.body))).toEqual({ signOut: true });
+  actions()[1]!.respond(status(value, { identity: "unverified", seat: "cancelled" }));
   await flush();
-  expect(requests[2]!.url).toBe("/api/account/session");
-  requests[2]!.respond({ user: null });
+  expect(actions()[2]!.url).toBe("/api/account/session");
+  actions()[2]!.respond({ user: null });
   await flush();
   expect(readGuestRegistration()).toBeNull();
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
@@ -370,11 +372,11 @@ test("設定中の取消は当該認証セッションのログアウトを要�
 test("初回プロフィール保存にも同じ登録資格を渡す", async () => {
   const value = flow();
   const saving = saveProfile(true, new FormData());
-  expect(requests[0]!.init.headers).toEqual({
+  expect(actions()[0]!.init.headers).toEqual({
     "X-Registration-Id": value.registrationId,
     "X-Registration-Secret": value.secret,
   });
-  requests[0]!.respond(profile);
+  actions()[0]!.respond(profile);
   await saving;
 });
 
@@ -397,12 +399,12 @@ test("確認中にアカウントが切り替わっても古い成功応答か�
     </MemoryRouter>
   );
   const view = render(renderFlow(profile, 1));
-  requests[0]!.respond(status(value));
+  actions()[0]!.respond(status(value));
   await flush();
   rerender(view, renderFlow({ ...profile, username: "other" }, 2));
   await flush();
-  requests[1]!.respond(status(value, { record: "complete", seat: "complete" }));
-  requests[2]!.respond(status(value, { identity: "mismatch" }));
+  actions()[1]!.respond(status(value, { record: "complete", seat: "complete" }));
+  actions()[2]!.respond(status(value, { identity: "mismatch" }));
   await flush();
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
   expect(readGuestRegistration()).not.toBeNull();
@@ -412,11 +414,11 @@ test("確認中にアカウントが切り替わっても古い成功応答か�
 test("準備応答を失った手続きは同じIDと資格で準備を再開する", async () => {
   const value = flow();
   const view = render(wrap()(<GuestRegistrationCompletion flow={value} />));
-  requests[0]!.respond({ error: "preparing", message: "準備中" }, 503);
+  actions()[0]!.respond({ error: "preparing", message: "準備中" }, 503);
   await flushCrypto(2);
-  expect(requests[1]!.url).toBe(`/api/rooms/${value.roomId}/registration`);
-  expect(JSON.parse(String(requests[1]!.init.body)).registrationId).toBe(value.registrationId);
-  requests[1]!.respond(status(value, { identity: "unverified" }));
+  expect(actions()[1]!.url).toBe(`/api/rooms/${value.roomId}/registration`);
+  expect(JSON.parse(String(actions()[1]!.init.body)).registrationId).toBe(value.registrationId);
+  actions()[1]!.respond(status(value, { identity: "unverified" }));
   await flush();
   expect(view.textContent).toContain("Googleで続ける");
 });
@@ -424,14 +426,14 @@ test("準備応答を失った手続きは同じIDと資格で準備を再開す
 test("席競合では更新資格を保存せず、記録の受付と席変更未完了を区別する", async () => {
   const value = flow();
   const view = render(wrap(profile)(<GuestRegistrationCompletion flow={value} />));
-  requests[0]!.respond(status(value));
+  actions()[0]!.respond(status(value));
   await flush();
-  requests[1]!.respond(status(value, { record: "pending", seat: "conflict" }));
+  actions()[1]!.respond(status(value, { record: "pending", seat: "conflict" }));
   await flush();
   expect(view.textContent).toContain("別のルームに参加中");
   expect(readRoomMembershipToken(value.roomId)).toBe(token);
   expect(readGuestRegistration()?.registrationId).toBe(value.registrationId);
-  expect(requests).toHaveLength(2);
+  expect(actions()).toHaveLength(2);
 });
 
 test("設定途中の期限切れもゲスト復帰でき、同じ手続きでの再OAuthを案内しない", async () => {
@@ -443,12 +445,12 @@ test("設定途中の期限切れもゲスト復帰でき、同じ手続きで�
       </GuestRegistrationCompletion>,
     ),
   );
-  requests[0]!.respond(
+  actions()[0]!.respond(
     status(value, { identity: "profile_required", record: "expired", seat: "expired" }),
   );
   await flush();
   expect(view.textContent).not.toContain("設定フォーム");
   expect(view.textContent).not.toContain("Googleで続ける");
   press(view, "登録をやめてゲストに戻る");
-  expect(JSON.parse(String(requests[1]!.init.body))).toEqual({ signOut: true });
+  expect(JSON.parse(String(actions()[1]!.init.body))).toEqual({ signOut: true });
 });

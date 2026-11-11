@@ -2,11 +2,14 @@ import { AppCard } from "../../shared/ui/AppCard";
 import { AppButton } from "../../shared/ui/AppButton";
 import { cn, ListBox, Select } from "@heroui/react";
 import { appThemeClasses, type AppTheme } from "../../shared/ui/appTheme";
+import type { MatchKind } from "@tetraboard/protocol";
+import { MatchKindBadge } from "../../shared/ui/MatchKindBadge";
 
 export function ReplayCard({
   replay,
   theme = "default",
   placement = "board",
+  matchKind,
 }: {
   replay: {
     frames: readonly { label: string; accessibleLabel?: string }[];
@@ -15,6 +18,7 @@ export function ReplayCard({
   };
   theme?: AppTheme;
   placement?: "board" | "status" | "footer";
+  matchKind?: MatchKind;
 }) {
   const inStatus = placement === "status";
   const Container = inStatus ? "div" : AppCard;
@@ -37,6 +41,7 @@ export function ReplayCard({
       )}
       aria-label="棋譜"
     >
+      {matchKind && <MatchKindBadge kind={matchKind} />}
       <AppButton
         className={stepButtonClasses}
         size="compact"

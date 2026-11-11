@@ -428,6 +428,7 @@ test.each([true, false])(
       expect(JSON.parse(String(auth.init.body))).toEqual({
         provider: "discord",
         registration: { registrationId: payload.registrationId, secret: payload.secret },
+        analytics: { id: expect.any(String), entry: "room-result", game: playing.settings.game },
       });
       auth.respond({ message: "Discordログインは準備中です。" }, 503);
       await flush();

@@ -121,7 +121,7 @@ export function RoomViewShell({
     (matchmaking && "rated" in matchmaking && matchmaking.rated)
       ? matchmaking
       : undefined;
-  const ratedTime = ratedGame ? matchmakingQueues[ratedGame].timeControl : undefined;
+  const ratedTime = room.settings.timeControl;
   const resultMatchId = registrationMatchId(room);
   const participated = room.lastRound?.players.some((player) => player.id === membership?.playerId);
   const showRating = Boolean(ratedMatch && room.lastRound && participated);
@@ -474,12 +474,9 @@ export function RoomViewShell({
               ratedTime && (
                 <p>
                   {room.players.some((p) => p.kind === "cpu") ? "CPU戦" : "対人戦"}・
-                  {ratedTime.mainTimeMs / 60_000}分
-                  {ratedTime.byoyomiMs
-                    ? `＋${ratedTime.byoyomiMs / 1000}秒`
-                    : game === "reversi"
-                      ? "切れ負け"
-                      : ""}
+                  {ratedTime.mainTimeMs === 0
+                    ? `一手${ratedTime.byoyomiMs / 1000}秒`
+                    : `${ratedTime.mainTimeMs / 60_000}分${ratedTime.byoyomiMs ? `＋${ratedTime.byoyomiMs / 1000}秒` : "切れ負け"}`}
                   ・レート対象
                 </p>
               )

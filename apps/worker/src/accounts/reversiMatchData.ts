@@ -29,7 +29,7 @@ const recordSchema = z
     aiFallback: z.literal(true).optional(),
     rating: eloRatingSourceSchema.optional(),
   })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicPlayers(record: MatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
     const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;

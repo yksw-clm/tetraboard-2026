@@ -156,10 +156,14 @@ export function LoginPage() {
   const location = useLocation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const signIn = useSocialSignIn();
   const [destination] = useState(readRegistrationReturn);
   const [handoff] = useState(readGuestRegistration);
   const adminDestination = params.get("destination") === "admin";
+  const signIn = useSocialSignIn(
+    "login-page",
+    null,
+    !loading && !error && !adminDestination && !handoff && (!user || Boolean(user.isGuest)),
+  );
   useEffect(() => {
     if (params.has("error") && destination && !adminDestination)
       saveRegistrationReturn(destination, false);

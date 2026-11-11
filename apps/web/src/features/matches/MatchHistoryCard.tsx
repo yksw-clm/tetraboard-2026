@@ -11,6 +11,7 @@ import { AppButtonLink } from "../../shared/ui/AppButton";
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { matchResultGroups } from "../account/matchSummaryPresentation";
 import { formatMatchDate } from "./matchDatePresentation";
+import { MatchKindBadge } from "../../shared/ui/MatchKindBadge";
 function Participant({ player, match }: { player: MatchHistoryParticipant; match: MatchSummary }) {
   return (
     <PlayerProfileTrigger
@@ -85,6 +86,7 @@ export function MatchHistoryCard({
         </time>
         {showGame && <GameBadge game={match.game} />}
         {match.mode && <span>{match.mode === "singles" ? "シングルス" : "ダブルス"}</span>}
+        <MatchKindBadge kind={match.matchKind} />
       </div>
       {!("mode" in result) || result.mode === "singles" ? (
         <ol className="m-0 grid list-none grid-cols-2 gap-x-3 gap-y-2 p-0">

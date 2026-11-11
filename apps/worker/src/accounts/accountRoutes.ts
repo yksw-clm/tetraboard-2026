@@ -1,3 +1,10 @@
+import {
+  rememberRegistrationAnalytics,
+  completeRegistrationAnalytics,
+  recordProfileCompletion,
+  parseRegistrationAnalytics,
+} from "../analytics/registration";
+import type { RegistrationAnalyticsInput } from "@tetraboard/protocol";
 import { recordLoginUsage } from "./loginUsage";
 import { recordAccountUsage } from "./usage";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
@@ -67,7 +74,8 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     c.req.method === "GET" &&
     ["/auth/callback/google", "/auth/callback/discord"].includes(path)
   ) {
-    const response = await createAuth(c.env).handler(
+    const createdAccounts = new Set<string>();
+    const response = await createAuth(c.env, createdAccounts).handler(
       new Request(`${c.env.APP_ORIGIN}/api${path}${new URL(c.req.url).search}`, c.req.raw),
     );
     await completeGuestLink(c.req.raw, response, c.env);
@@ -75,6 +83,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     await completeReauthentication(c.req.raw, response, c.env);
     await completeLegalAuthentication(c.req.raw, response, c.env);
     await completeRegistrationOAuth(c.req.raw, response, c.env);
+    await completeRegistrationAnalytics(c.req.raw, response, c.env, createdAccounts.size > 0);
     return response;
   }
   if (c.req.method !== "POST" || !["/auth/sign-in/social", "/auth/sign-out"].includes(path))
@@ -101,6 +110,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
   }
   let provider: "google" | "discord" = "google";
   let adminLogin = false;
+  let analytics: RegistrationAnalyticsInput | undefined;
   let registration: RegistrationFlow | undefined;
   let guest: StoredProfile | null = null;
   if (path === "/auth/sign-in/social") {
@@ -124,6 +134,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
     )
       return c.json(error("規約と年齢条件を確認してください。"), 403);
     adminLogin = data.destination === "admin";
+    analytics = parseRegistrationAnalytics(data.analytics);
     if (data.registration !== undefined) {
       if (adminLogin) return c.json(error("管理画面のログインでは対局を引き継げません。"), 400);
       registration = await prepareRegistrationOAuth(c.env, data.registration);
@@ -178,6 +189,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
           provider,
           registration?.guest_account_id ? registration.id : undefined,
         );
+      await rememberRegistrationAnalytics(c.req.raw, c.env, state, provider, analytics);
     }
   }
   return response;
@@ -436,6 +448,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     if (registration) await validateRegistrationSetup(c.req.raw, c.env);
     return c.json(error("設定が更新されています。ページを開き直してください。"), 409);
   }
+  if (action === "setup" && !user.profileCompleted) await recordProfileCompletion(c.env, user.id);
   c.executionCtx.waitUntil(deleteUnusedAvatars(c.env));
   return c.json(
     publicProfile({

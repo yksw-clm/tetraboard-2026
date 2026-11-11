@@ -79,7 +79,7 @@ async function playCpuRatedMatch(leaveAfterResign: boolean) {
     now += 5000;
     room = fourReversiRoomSchema.parse(await stub.getRoom());
     expect(room.status).toBe("playing");
-    expect(room.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
+    expect(room.settings.timeControl).toEqual({ mainTimeMs: 0, byoyomiMs: 30_000 });
     let resigned = false,
       afterElimination = 0,
       cpuMoves = 0;

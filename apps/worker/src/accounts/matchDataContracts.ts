@@ -96,7 +96,7 @@ const reversiRecordSchema = z
     participants: reversiParticipants,
     fourReversiRating: fourReversiRatedMatchSchema.optional(),
   })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 const shogiRecordSchema = z
   .strictObject({
     ...fourShogiMatchDetailSchema.shape,
@@ -105,7 +105,7 @@ const shogiRecordSchema = z
     participants: shogiParticipants,
     fourShogiRating: fourShogiRatedMatchSchema.optional(),
   })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicIdentity(
   player: { name: string } & (
     | { kind: "human"; accountId: string | null; retired?: true }

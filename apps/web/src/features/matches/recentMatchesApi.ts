@@ -8,6 +8,7 @@ export async function fetchRecentMatches(
 ) {
   const query = new URLSearchParams(game === "all" ? {} : { game });
   query.set("includeMoveCount", "1");
+  query.set("includeMatchKind", "1");
   if (humanOnly) query.set("humanOnly", "true");
   const response = await fetch(
     `/api${game === "all" ? "/lobby/matches" : listPublicMatchesContract.path}?${query}`,

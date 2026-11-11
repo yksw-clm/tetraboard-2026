@@ -30,6 +30,7 @@ import {
   type PendingStandardShogiMatch,
 } from "./shogiMatchStore";
 import { initializeClock, advanceTurnClock } from "./clockCore";
+import { ratedTimeControls } from "./ratedTimeControls";
 import { declarationStatus, declareEnteringKing, canProposeImpasse } from "@tetraboard/shogi";
 import { isClockExpired } from "./clock";
 import {
@@ -199,11 +200,12 @@ export class ShogiProgress {
     at: number;
   } {
     if (rating) {
-      const { mainTimeMs, byoyomiMs } = room.settings.timeControl;
+      const clock = room.settings.timeControl;
       const cpuCount = room.players.filter((player) => player.kind === "cpu").length;
       if (
-        mainTimeMs !== 300000 ||
-        byoyomiMs !== 30000 ||
+        !ratedTimeControls("shogi").some(
+          (time) => clock.mainTimeMs === time.mainTimeMs && clock.byoyomiMs === time.byoyomiMs,
+        ) ||
         cpuCount !== Number(rating.kind === "cpu")
       )
         throw new Error("Invalid rated Shogi room");

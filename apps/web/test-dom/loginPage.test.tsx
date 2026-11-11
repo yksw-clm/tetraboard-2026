@@ -13,13 +13,18 @@ test("ログインは両ゲームのバッジ例とメリットを表示し、Di
   expect(badges.textContent).toContain("四人将棋");
   expect(badges.querySelectorAll("figure img")).toHaveLength(4);
   expect(view.textContent).toContain("登録せずに遊ぶこともできます。");
+  const entry = requests.find((request) => request.url === "/api/analytics/registration")!;
+  const context = JSON.parse(String(entry.init.body));
+  expect(context).toEqual({ id: expect.any(String), entry: "login-page", game: null });
+  entry.respond(null, 204);
   press(view, "Discordで続ける");
-  expect(JSON.parse(String(requests[0]!.init.body))).toEqual({ provider: "discord" });
+  const oauth = requests.find((request) => request.url === "/api/auth/sign-in/social")!;
+  expect(JSON.parse(String(oauth.init.body))).toEqual({ provider: "discord", analytics: context });
   const buttons = [...view.querySelectorAll("button")].filter((button) =>
     button.textContent?.includes("で続ける"),
   );
   expect(buttons.every((button) => button.disabled)).toBe(true);
-  requests[0]!.respond({ message: "Discordログインは準備中です。" }, 503);
+  oauth.respond({ message: "Discordログインは準備中です。" }, 503);
   await flush();
   expect(view.querySelector('[role="alert"]')!.textContent).toContain("準備中");
   expect(buttons.every((button) => !button.disabled)).toBe(true);

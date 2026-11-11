@@ -36,6 +36,7 @@ async function changes(matchId: string) {
 function ratedCpuRecord(accountId: string, outcome: "win" | "loss" | "draw" = "win") {
   const fixture = standardShogiRecord(accountId, outcome, true);
   fixture.record.rating = cpuProfile;
+  fixture.record.settings.timeControl = { mainTimeMs: 600_000, byoyomiMs: 0 };
   return fixture;
 }
 
@@ -45,8 +46,37 @@ function ratedHumanRecord(south: string, north: string, outcome: "win" | "draw" 
   if (opponent.kind !== "human") throw new Error("Expected human opponent");
   opponent.accountId = north;
   fixture.record.rating = { kind: "human" };
+  fixture.record.settings.timeControl = { mainTimeMs: 600_000, byoyomiMs: 0 };
   return fixture;
 }
+
+test.each([
+  { mainTimeMs: 600_000, byoyomiMs: 0, counted: true },
+  { mainTimeMs: 300_000, byoyomiMs: 30_000, counted: true },
+  { mainTimeMs: 600_000, byoyomiMs: 30_000, counted: false },
+] as const)(
+  "将棋の新旧レート戦の時計だけを更新対象にする $mainTimeMs + $byoyomiMs",
+  async ({ mainTimeMs, byoyomiMs, counted }) => {
+    const user = await accountFixture();
+    const fixture = ratedCpuRecord(user.id);
+    fixture.record.settings.timeControl = { mainTimeMs, byoyomiMs };
+    await saveStandardShogiFixture(fixture);
+    await saveStandardShogiFixture(fixture);
+    expect(await changes(fixture.record.id)).toEqual(
+      counted
+        ? [
+            {
+              account_id: user.id,
+              rating_before: 1500,
+              rating_after: 1524,
+              rated_games: 1,
+              human_games: 0,
+            },
+          ]
+        : [],
+    );
+  },
+);
 
 test("CPU戦の認定5局目にはK=48を使い、6局目には固定CPUレートとK=16を使う", async () => {
   const { id } = await accountFixture();

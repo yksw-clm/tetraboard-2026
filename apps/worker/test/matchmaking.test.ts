@@ -14,6 +14,7 @@ import {
   getPublicMatchContract,
   shogiRoomSchema,
   matchmakingQueues,
+  fourShogiRoomSchema,
 } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/reversi";
 import { accountFixture, origin } from "./accountFixtures";
@@ -333,6 +334,98 @@ afterEach(async () => {
     });
   for (const game of Object.keys(matchmakingQueues))
     await runInDurableObject(env.CPU_CAPACITY.getByName(game), (_, ctx) => ctx.storage.deleteAll());
+});
+
+test.each([
+  { game: "four-shogi", seats: 4, mainTimeMs: 0, byoyomiMs: 30_000, duration: 30_000 },
+  { game: "four-reversi", seats: 4, mainTimeMs: 0, byoyomiMs: 30_000, duration: 30_000 },
+  { game: "shogi", seats: 2, mainTimeMs: 600_000, byoyomiMs: 0, duration: 600_000 },
+  { game: "reversi", seats: 2, mainTimeMs: 300_000, byoyomiMs: 0, duration: 300_000 },
+] as const)(
+  "$gameのレート戦は指定時計で開始し、復元後も期限直前まで進行して期限ちょうどに時間切れになる",
+  async ({ game, seats, mainTimeMs, byoyomiMs, duration }) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    const users = await fixture(seats, queue);
+    const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+    const assignment = states[0]!.assignment!;
+    rooms.add(assignment.roomId);
+    const roomStub = env.GAME_ROOM.getByName(assignment.roomId);
+    const schema =
+      game === "four-shogi"
+        ? fourShogiRoomSchema
+        : game === "four-reversi"
+          ? roomSchema
+          : game === "shogi"
+            ? shogiRoomSchema
+            : reversiRoomSchema;
+    for (const state of states)
+      await connect(assignment.roomId, state.assignment!.membership.token);
+    now += 5_000;
+    const started = schema.parse(await roomStub.getRoom());
+    expect(started.settings.timeControl).toEqual({ mainTimeMs, byoyomiMs });
+    if (started.status !== "playing") throw Error("Expected playing");
+    const turn = started.game.turn;
+    expect(started.clock.turnExpiresAt).toBe(now + duration);
+    now += duration - 1;
+    await evictDurableObject(roomStub);
+    const restored = schema.parse(await roomStub.getRoom());
+    expect(restored.settings.timeControl).toEqual({ mainTimeMs, byoyomiMs });
+    expect(restored.status === "playing" && restored.game.turn).toBe(turn);
+    expect(restored.clock?.turnExpiresAt).toBe(now + 1);
+    now++;
+    await runInDurableObject(roomStub, (instance) => instance.alarm());
+    const expired = schema.parse(await roomStub.getRoom());
+    if (seats === 4) {
+      expect(expired.status).toBe("playing");
+      expect(expired.status === "playing" && expired.game.turn).not.toBe(turn);
+      expect(expired.clock?.turnExpiresAt).toBe(now + 30_000);
+    } else {
+      expect(expired.status).toBe("waiting");
+      if (game === "shogi")
+        expect(shogiRoomSchema.parse(expired).lastRound?.game.eliminations).toEqual([
+          expect.objectContaining({ reason: "timeout" }),
+        ]);
+      else
+        expect(
+          reversiRoomSchema.parse(expired).lastRound?.replay.steps.at(-1)?.action,
+        ).toMatchObject({
+          type: "eliminate",
+          reason: "timeout",
+        });
+    }
+  },
+);
+
+test("変更前に成立した将棋ルームは保存済みの5分＋30秒で開始・復元する", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const users = await fixture(2, queue);
+  const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+  const assignment = states[0]!.assignment!;
+  rooms.add(assignment.roomId);
+  const roomStub = env.GAME_ROOM.getByName(assignment.roomId);
+  const timeControl = { mainTimeMs: 300_000, byoyomiMs: 30_000 } as const;
+  await runInDurableObject(roomStub, (_, ctx) => {
+    const room = shogiRoomSchema.parse(ctx.storage.kv.get("room"));
+    room.settings.timeControl = timeControl;
+    ctx.storage.kv.put("room", room);
+  });
+  await evictDurableObject(roomStub);
+  for (const state of states) await connect(assignment.roomId, state.assignment!.membership.token);
+  now += 5_000;
+  const started = shogiRoomSchema.parse(await roomStub.getRoom());
+  expect(started.settings.timeControl).toEqual(timeControl);
+  if (started.status !== "playing") throw Error("Expected playing");
+  expect(started.clock.turnExpiresAt).toBe(now + 330_000);
+  await evictDurableObject(roomStub);
+  expect(await roomStub.getRoom()).toMatchObject({
+    status: "playing",
+    settings: { timeControl },
+    clock: { turnExpiresAt: now + 330_000 },
+  });
 });
 
 test.each([
@@ -735,7 +828,7 @@ test("将棋の対人マッチは認証接続後だけ開始し、終局で両�
   const started = shogiRoomSchema.parse(await room.getRoom());
   if (started.status !== "playing") throw Error("Expected playing");
   expect(started.roundId).toBe(first.matchId);
-  expect(started.clock.turnExpiresAt).toBe(now + 330000);
+  expect(started.clock.turnExpiresAt).toBe(now + 600_000);
   const credential = await matchmakingCredential(
     env,
     {
@@ -1451,7 +1544,7 @@ test("四人レート戦は20秒で不足席を補充し、成立後の取消で
   const room = roomSchema.parse(await env.GAME_ROOM.getByName(a.roomId).getRoom());
   expect(room).toMatchObject({
     matchmaking: { rated: true },
-    settings: { mode: "singles", timeControl: { mainTimeMs: 180_000, byoyomiMs: 0 } },
+    settings: { mode: "singles", timeControl: { mainTimeMs: 0, byoyomiMs: 30_000 } },
   });
   const cpus = room.players.filter((p) => p.kind === "cpu");
   expect(cpus).toHaveLength(2);
@@ -1624,7 +1717,7 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     expect(started.players.find((player) => player.kind === "cpu")?.name).toBe(
       scenario === "human" ? undefined : "クルリ",
     );
-    expect(started.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
+    expect(started.settings.timeControl).toEqual({ mainTimeMs: 300_000, byoyomiMs: 0 });
 
     if (scenario !== "human") {
       const human = started.players.find((p) => p.id === assignment.membership.playerId)!;

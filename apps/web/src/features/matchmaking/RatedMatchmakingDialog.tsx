@@ -16,13 +16,20 @@ import { useMatchmaking } from "./useMatchmaking";
 
 export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame }) {
   const account = useAccount();
-  const signIn = useSocialSignIn();
   const matching = useMatchmaking(game);
   const theme = gameThemes[game];
   const title = `${gameCatalog[game].name}のレート戦`;
   const location = useLocation();
   const navigate = useNavigate();
   const { cancel, data, enter, identity, join, owned, pending, refresh, takeover } = matching;
+  const showSignIn =
+    data.status === "idle" &&
+    !pending &&
+    data.enabled &&
+    !account.loading &&
+    !account.error &&
+    !identity;
+  const signIn = useSocialSignIn("rated-match", game, showSignIn);
   const [confirm, setConfirm] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const rejoin = useRef(location.state?.matchmakingRejoin === true);
@@ -107,13 +114,6 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   ]);
 
   const showConfirm = searching && (confirm || blocker.state === "blocked");
-  const showSignIn =
-    data.status === "idle" &&
-    !pending &&
-    data.enabled &&
-    !account.loading &&
-    !account.error &&
-    !identity;
   function requestClose() {
     if (signIn.busy) return;
     if (searching) setConfirm(true);

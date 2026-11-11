@@ -1,3 +1,4 @@
+import { matchKindSchema } from "./matchKinds";
 import { z } from "zod";
 import { playerAppearanceSchema, roomPublicMetadataSchema, roomModeSchema } from "./rooms";
 import { gameIdSchema } from "./gameSchemas";
@@ -27,6 +28,7 @@ export const lobbyRoomSchema = roomPublicMetadataSchema.safeExtend({ instanceId:
 export const lobbyRoomsQuerySchema = z
   .strictObject({
     view: z.literal("cards").optional(),
+    includeMatchKind: z.literal("1").optional(),
     game: gameIdSchema.optional(),
     capacity: z.enum(["2", "4"]).optional(),
     mode: roomModeSchema.optional(),
@@ -63,6 +65,7 @@ export const lobbyRoomParticipantSchema = z.discriminatedUnion("kind", [
 export const lobbyRoomCardSchema = lobbyRoomSchema
   .safeExtend({
     participants: z.array(lobbyRoomParticipantSchema).max(4),
+    matchKind: matchKindSchema.optional(),
     profileTarget: playerProfileTargetSchema.nullable().optional(),
   })
   .refine(

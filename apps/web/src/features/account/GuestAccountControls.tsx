@@ -11,7 +11,7 @@ import { clearGuestRegistration, readGuestRegistration } from "./guestRegistrati
 import { clearRegistrationReturn } from "./registrationReturn";
 
 export function GuestAccountControls() {
-  const signIn = useSocialSignIn();
+  const signIn = useSocialSignIn("guest-account");
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">{guestStorageNotice}</p>
