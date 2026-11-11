@@ -46,17 +46,9 @@ export function RatingSummary({
         </AppButton>
       </div>
     );
-  const rank =
-    result.status === "rated" && "rank" in result && typeof result.rank === "string"
-      ? result.rank
-      : undefined;
-  const humanPlayed = result.status !== "rated" || !("humanPlayed" in result) || result.humanPlayed;
-  const rankDetail = rank && (
-    <span className="text-sm text-muted">
-      {rank}
-      {!humanPlayed && "（対人戦未経験）"}
-    </span>
-  );
+  const humanPlayDetail = result.status === "rated" &&
+    "humanPlayed" in result &&
+    !result.humanPlayed && <span className="text-sm text-muted">対人戦未経験</span>;
   if (compact)
     return (
       <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -66,7 +58,7 @@ export function RatingSummary({
             ? Math.round(result.rating)
             : `認定中（${result.games} / ${placementGames}局）`}
         </strong>
-        {rankDetail}
+        {humanPlayDetail}
       </p>
     );
   return (
@@ -75,7 +67,7 @@ export function RatingSummary({
       <p className="mt-1 text-4xl font-bold tabular-nums">
         {result.status === "rated" ? Math.round(result.rating) : "認定中"}
       </p>
-      {rankDetail}
+      {humanPlayDetail}
       {result.status === "placement" && (
         <p className="mt-1 text-sm tabular-nums">
           {result.games} / {placementGames}局

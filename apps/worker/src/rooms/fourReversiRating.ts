@@ -2,12 +2,7 @@ import { z } from "zod";
 import { sides } from "@tetraboard/four-shogi";
 import type { ShogiMatchRecord } from "./shogiMatchStore";
 import { colors } from "@tetraboard/four-reversi";
-import {
-  fourReversiRankDivisions,
-  fourReversiRankTiers,
-  fourReversiRatingResultSchema,
-  type RatingOpponent,
-} from "@tetraboard/protocol";
+import { fourReversiRatingResultSchema, type RatingOpponent } from "@tetraboard/protocol";
 import { createRatingStore } from "../matchmaking/ratingStore";
 import {
   fourReversiPlacementGames,
@@ -68,18 +63,8 @@ type CurrentRating = {
 const publicRatingBase = 1500;
 const publicRatingScale = 50;
 
-function publicRatingForMu(mu: number) {
+export function publicRatingForMu(mu: number) {
   return Math.round(publicRatingBase + publicRatingScale * (mu - initialFourReversiRating.mu));
-}
-
-export function fourReversiPublicRating(mu: number) {
-  const rating = publicRatingForMu(mu);
-  const divisions = fourReversiRankDivisions.length;
-  const lastRank = fourReversiRankTiers.length * divisions - 1;
-  const rankIndex = Math.min(lastRank, Math.max(0, 1 + Math.floor((rating - 1200) / 100)));
-  const tier = fourReversiRankTiers[Math.floor(rankIndex / divisions)]!;
-  const division = fourReversiRankDivisions[rankIndex % divisions]!;
-  return { rating, rank: `${tier}${division}` as const };
 }
 
 export const readFourReversiRatingSummary = (db: D1Database, accountId: string) =>
@@ -97,7 +82,7 @@ async function readRankSummary(db: D1Database, accountId: string, game: RankGame
     return { status: "placement" as const, games: row?.rated_games ?? 0 };
   return {
     status: "rated" as const,
-    ...fourReversiPublicRating(row.mu),
+    rating: publicRatingForMu(row.mu),
     humanPlayed: row.human_games > 0,
   };
 }
@@ -168,7 +153,7 @@ async function readRankResult(
       if (row.cpu_mu !== null)
         players[row.player_id] = {
           status: "cpu",
-          rating: fourReversiPublicRating(row.cpu_mu).rating,
+          rating: publicRatingForMu(row.cpu_mu),
         };
       else if (row.rated_games !== null && row.mu_after !== null && row.mu_before !== null)
         players[row.player_id] =
@@ -176,8 +161,8 @@ async function readRankResult(
             ? { status: "placement" }
             : {
                 status: "rated",
-                rating: fourReversiPublicRating(row.mu_after).rating,
-                previousRating: fourReversiPublicRating(row.mu_before).rating,
+                rating: publicRatingForMu(row.mu_after),
+                previousRating: publicRatingForMu(row.mu_before),
               };
     }
   if (own.rated_games < fourReversiPlacementGames)
@@ -188,8 +173,8 @@ async function readRankResult(
     });
   return fourReversiRatingResultSchema.parse({
     status: "rated",
-    rating: fourReversiPublicRating(own.mu_after).rating,
-    previousRating: fourReversiPublicRating(own.mu_before).rating,
+    rating: publicRatingForMu(own.mu_after),
+    previousRating: publicRatingForMu(own.mu_before),
     humanPlayed: (own.human_games ?? 0) > 0,
     placementCompleted: own.rated_games === fourReversiPlacementGames,
     players,

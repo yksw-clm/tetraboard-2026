@@ -16,7 +16,7 @@ import { boundaryRequest } from "./roomBoundaryFixtures";
 import { fixtureRecord } from "./matchFixtures";
 import { namedCpuProfile } from "../src/matchmaking/cpuProfiles";
 import { writeMatch, type MatchRecord } from "../src/rooms/matchStore";
-import { fourReversiPublicRating } from "../src/rooms/fourReversiRating";
+import { publicRatingForMu } from "../src/rooms/fourReversiRating";
 import { readAccountStats } from "../src/accounts/statsRoutes";
 
 const ratingPath = "/matchmaking/four-reversi/rating";
@@ -25,7 +25,9 @@ async function readRating(headers: HeadersInit) {
   const response = await boundaryRequest(ratingPath, { headers });
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
-  return fourReversiRatingSummarySchema.parse(await response.json());
+  const summary = await response.json();
+  expect(summary).not.toHaveProperty("rank");
+  return fourReversiRatingSummarySchema.parse(summary);
 }
 
 function ratedRecord(ids: string[], index: number): MatchRecord {
@@ -88,7 +90,6 @@ test("人間1人とCPU3人の5局目で認定され、固定CPUは更新せず�
   expect(await readRating(headers)).toEqual({
     status: "rated",
     rating: publicRating,
-    rank: "ブロンズ3",
     humanPlayed: false,
   });
   const fourthChanges = await changes(ratedRecord([id], 4).id);
@@ -137,38 +138,9 @@ test("人間1人とCPU3人の5局目で認定され、固定CPUは更新せず�
   expect(rankings.singles.total.find((entry) => entry.username === username)?.value).toBe(5);
 });
 
-test("公開レートを整数に丸めて、全ランク境界を判定する", () => {
-  const ranks = [
-    "ブロンズ3",
-    "ブロンズ2",
-    "ブロンズ1",
-    "シルバー3",
-    "シルバー2",
-    "シルバー1",
-    "ゴールド3",
-    "ゴールド2",
-    "ゴールド1",
-    "プラチナ3",
-    "プラチナ2",
-    "プラチナ1",
-    "ダイヤモンド3",
-    "ダイヤモンド2",
-    "ダイヤモンド1",
-  ];
-  for (let i = 1; i < ranks.length; i++) {
-    const boundary = 1100 + i * 100;
-    const mu = 25 + (boundary - 1500) / 50;
-    expect(fourReversiPublicRating(mu - 0.012)).toEqual({
-      rating: boundary - 1,
-      rank: ranks[i - 1],
-    });
-    expect(fourReversiPublicRating(mu - 0.008)).toEqual({
-      rating: boundary,
-      rank: ranks[i],
-    });
-  }
-  expect(fourReversiPublicRating(0).rank).toBe("ブロンズ3");
-  expect(fourReversiPublicRating(60).rank).toBe("ダイヤモンド1");
+test("公開レートを整数に丸める", () => {
+  expect(publicRatingForMu(24.988)).toBe(1499);
+  expect(publicRatingForMu(24.992)).toBe(1500);
 });
 
 test("人間4人の認定局とCPU混在局の結果を同じ公開レートに反映する", async () => {
@@ -190,10 +162,10 @@ test("人間4人の認定局とCPU混在局の結果を同じ公開レートに�
   const after = await readRating(target.headers);
   expect(after).toEqual({
     status: "rated",
-    ...fourReversiPublicRating(targetChange.mu_after),
+    rating: publicRatingForMu(targetChange.mu_after),
     humanPlayed: true,
   });
-  expect(fourReversiPublicRating(targetChange.mu_after).rating).toBeLessThan(before.rating);
+  expect(publicRatingForMu(targetChange.mu_after)).toBeLessThan(before.rating);
 });
 
 test.each([
@@ -216,9 +188,7 @@ test.each([
     const deltas = ids.slice(0, seats).map((id) => {
       const row = rows.find((change) => change.account_id === id)!;
       expect(row.rated_games).toBe(6);
-      return (
-        fourReversiPublicRating(row.mu_after).rating - fourReversiPublicRating(row.mu_before).rating
-      );
+      return publicRatingForMu(row.mu_after) - publicRatingForMu(row.mu_before);
     });
     expect(deltas[0]).toBe(-maxChange);
     expect(deltas.every((delta) => Math.abs(delta) <= maxChange)).toBe(true);
