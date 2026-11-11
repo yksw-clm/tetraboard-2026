@@ -1,3 +1,4 @@
+import { savedProfileRatings } from "../accounts/profileRatings";
 import {
   shogiRoomSchema,
   isShogiRoom,
@@ -257,6 +258,7 @@ export class ShogiProgress {
     this.storage.kv.put(roomStorageKey, started);
     this.storage.kv.put(shogiMatchStartKey, {
       start: {
+        ...savedProfileRatings(this.storage, roundId),
         id: roundId,
         roomId: room.id,
         instanceId: room.instanceId,

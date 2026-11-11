@@ -1,3 +1,4 @@
+import { savedProfileRatings } from "../accounts/profileRatings";
 import {
   reversiStateSchema,
   reversiRoomSchema,
@@ -95,6 +96,7 @@ export class ReversiProgress {
     );
     if (startedRoom.status !== "playing") throw new Error("Game did not start");
     this.storage.kv.put(matchStartKey, {
+      ...savedProfileRatings(this.storage, matchId),
       id: matchId,
       roomId: startedRoom.id,
       instanceId: startedRoom.instanceId,

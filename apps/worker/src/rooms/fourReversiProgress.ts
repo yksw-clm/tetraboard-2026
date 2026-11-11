@@ -1,3 +1,4 @@
+import { savedProfileRatings } from "../accounts/profileRatings";
 import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
 import type { FourReversiRatingSource } from "../matchmaking/fourReversiSelection";
 import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
@@ -137,6 +138,7 @@ export class FourReversiProgress {
     );
     if (startedRoom.status !== "playing") throw new Error("Game did not start");
     this.storage.kv.put(matchStartKey, {
+      ...savedProfileRatings(this.storage, matchId),
       id: matchId,
       roomId: startedRoom.id,
       instanceId: startedRoom.instanceId,

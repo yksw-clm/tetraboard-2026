@@ -1,3 +1,4 @@
+import { savedProfileRatings } from "../accounts/profileRatings";
 import type { FourShogiAiFailure, FourShogiAiResult } from "./aiService";
 import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
 import {
@@ -262,6 +263,7 @@ export class FourShogiProgress {
     this.storage.kv.put(shogiMatchStartKey, {
       ...(tournament ? { tournament } : {}),
       start: {
+        ...savedProfileRatings(this.storage, roundId),
         id: roundId,
         roomId: room.id,
         instanceId: room.instanceId,

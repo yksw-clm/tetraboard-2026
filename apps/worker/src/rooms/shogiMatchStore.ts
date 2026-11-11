@@ -1,3 +1,4 @@
+import type { ProfileRatings } from "@tetraboard/protocol";
 import {
   applyFourShogiRating,
   fourShogiRatingStore,
@@ -41,6 +42,7 @@ export type ShogiMatchParticipant = {
   seat: number;
 } & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
 export type ShogiMatchStart = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;
@@ -83,6 +85,7 @@ export { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/ma
 import { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 
 export type StandardShogiMatchRecord = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;

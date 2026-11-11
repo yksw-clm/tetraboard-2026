@@ -52,8 +52,7 @@ export class PlayerProfileStore {
         includeBadges: "1",
         includeStats: "1",
         includeDetails: "1",
-        ...(game === "shogi" ? { includeShogiRating: "1" } : {}),
-        ...(game === "reversi" ? { includeReversiRating: "1" } : {}),
+        includeRating: "1",
       });
       const response = await fetch(`/api${getPlayerProfileContract.path}?${query}`, {
         cache: "no-store",
@@ -70,7 +69,7 @@ export class PlayerProfileStore {
         throw new Error("プレイヤー情報を取得できませんでした。");
       if (controller.signal.aborted || this.pending.get(key) !== controller) return;
       const canonical =
-        profile.kind === "account"
+        profile.kind === "account" && target.source === "profile"
           ? profileKey({ source: "profile", profileId: profile.profileId }, game)
           : key;
       if (canonical !== key) {
@@ -79,7 +78,9 @@ export class PlayerProfileStore {
       }
       this.targets.set(canonical, {
         target:
-          profile.kind === "account" ? { source: "profile", profileId: profile.profileId } : target,
+          profile.kind === "account" && target.source === "profile"
+            ? { source: "profile", profileId: profile.profileId }
+            : target,
         game,
       });
       this.states.set(canonical, { profile, error: null, loading: false, loadedAt: Date.now() });

@@ -505,6 +505,25 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
   expect(replay.status).toBe(200);
   const { match } = getPublicMatchContract.response.parse(await replay.json());
   expect(match.participants.find((player) => player.kind === "cpu")?.name).toBe("リュウ");
+  for (const player of match.participants) {
+    const query = new URLSearchParams({
+      source: "match",
+      matchId: match.id,
+      playerId: player.id,
+      game: "shogi",
+      includeRating: "1",
+    });
+    const response = await exports.default.fetch(
+      new AcceptedGameRequest(`${origin}/api/player-profile?${query}`),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      rating:
+        player.kind === "cpu"
+          ? { timing: "reference", status: "rated", rating: 1778 }
+          : { timing: "before", status: "placement" },
+    });
+  }
 });
 
 test("将棋の待機APIは別キューを使い、四人リバーシとの二重待機を拒否する", async () => {
@@ -1331,6 +1350,25 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     expect(
       record.participants.filter((player) => player.kind === "cpu").map((player) => player.name),
     ).toEqual(scenario === "human" ? [] : ["クルリ"]);
+    for (const player of record.participants) {
+      const query = new URLSearchParams({
+        source: "match",
+        matchId: record.id,
+        playerId: player.id,
+        game: "reversi",
+        includeRating: "1",
+      });
+      const response = await exports.default.fetch(
+        new AcceptedGameRequest(`${origin}/api/player-profile?${query}`),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        rating:
+          player.kind === "cpu"
+            ? { timing: "reference", status: "rated", rating: 1490 }
+            : { timing: "before", status: "placement" },
+      });
+    }
     const replay = await exports.default.fetch(
       new AcceptedGameRequest(`${origin}/api/matches/${assignment.matchId}`),
     );

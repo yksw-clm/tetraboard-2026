@@ -1,3 +1,4 @@
+import { profileRatingsSchema } from "@tetraboard/protocol";
 import { fourGomokuMatchData } from "./fourGomokuMatchData";
 import type { MatchRecord as FourGomokuMatchRecord } from "../rooms/fourGomokuMatchStore";
 import type { FourGomokuMatchSummary, FourGomokuAccountStats } from "@tetraboard/protocol";
@@ -91,6 +92,7 @@ const reversiRecordSchema = z
   .strictObject({
     ...fourReversiMatchDetailSchema.shape,
     instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
     participants: reversiParticipants,
     fourReversiRating: fourReversiRatedMatchSchema.optional(),
   })
@@ -99,6 +101,7 @@ const shogiRecordSchema = z
   .strictObject({
     ...fourShogiMatchDetailSchema.shape,
     instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
     participants: shogiParticipants,
     fourShogiRating: fourShogiRatedMatchSchema.optional(),
   })
@@ -149,7 +152,12 @@ function shogiPublic(record: ShogiMatchRecord, profiles: ParticipantProfiles) {
   }));
 }
 function reversiDetail(record: MatchRecord, selfPlayerId: string, profiles: ParticipantProfiles) {
-  const { instanceId: _instance, fourReversiRating: _rating, ...data } = record;
+  const {
+    instanceId: _instance,
+    fourReversiRating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return fourReversiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,
@@ -161,7 +169,12 @@ function shogiDetail(
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const { instanceId: _instance, fourShogiRating: _rating, ...data } = record;
+  const {
+    instanceId: _instance,
+    fourShogiRating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return fourShogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

@@ -1,4 +1,11 @@
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
+import {
+  cpuReferenceRating,
+  hasProfileRating,
+  profileRatingsKey,
+  readProfileRating,
+} from "../accounts/profileRatings";
+import type { ProfileRatings } from "@tetraboard/protocol";
 import { calibratedFourShogiProfile } from "../matchmaking/fourShogiSelection";
 import {
   cpuPlayerAppearance,
@@ -650,19 +657,21 @@ export class GameRoom extends DurableObject<Env> {
         const out = Object.fromEntries(
           Object.entries(row).map(([key, v]) => [
             key,
-            own && ["name", "senderName", "hostName"].includes(key)
-              ? retiredName
-              : own &&
-                  [
-                    "accountId",
-                    "avatarUrl",
-                    "avatarKey",
-                    "avatarPresetId",
-                    "profileId",
-                    "hostAvatarUrl",
-                  ].includes(key)
-                ? null
-                : strip(v, own && key === "appearance", scope),
+            key === "profileRatings" && v && typeof v === "object"
+              ? Object.fromEntries(Object.entries(v).filter(([id]) => !matchingIds.has(id)))
+              : own && ["name", "senderName", "hostName"].includes(key)
+                ? retiredName
+                : own &&
+                    [
+                      "accountId",
+                      "avatarUrl",
+                      "avatarKey",
+                      "avatarPresetId",
+                      "profileId",
+                      "hostAvatarUrl",
+                    ].includes(key)
+                  ? null
+                  : strip(v, own && key === "appearance", scope),
           ]),
         );
         if (own && row.kind === "human") out.retired = true;
@@ -671,6 +680,13 @@ export class GameRoom extends DurableObject<Env> {
       };
       for (const [key, value] of entries) {
         if (removedKeys.has(key)) continue;
+        if (key.startsWith("profile-ratings:") && value && typeof value === "object") {
+          this.ctx.storage.kv.put(
+            key,
+            Object.fromEntries(Object.entries(value).filter(([id]) => !ids.has(id))),
+          );
+          continue;
+        }
         if (
           key.startsWith("seat-account:") &&
           value &&
@@ -2781,6 +2797,21 @@ export class GameRoom extends DurableObject<Env> {
           })),
         ],
       });
+      const profileRatings: ProfileRatings = {};
+      if (rating && hasProfileRating(game)) {
+        for (const { admission } of input.players) {
+          profileRatings[admission.playerId] = await readProfileRating(
+            this.env.APP_DB,
+            admission.accountId,
+            game,
+            "before",
+          );
+        }
+        const reference = cpuReferenceRating(rating);
+        if (reference)
+          for (const player of room.players)
+            if (player.kind === "cpu") profileRatings[player.id] = reference;
+      }
       const capacity = await this.reserveCpuCapacity(room);
       if (typeof capacity === "string") return { status: capacity };
       if (Date.now() >= input.expiresAtMs) {
@@ -2793,6 +2824,7 @@ export class GameRoom extends DurableObject<Env> {
       this.withIndexTransaction(() => {
         if (capacity) this.ctx.storage.kv.put(cpuCapacityKey, capacity);
         this.ctx.storage.kv.put(roomStorageKey, room);
+        if (rating) this.ctx.storage.kv.put(profileRatingsKey(input.matchId), profileRatings);
         this.ctx.storage.kv.put(`matchmaking:${input.matchId}`, {
           ...input,
           phase: "waiting",
@@ -3262,11 +3294,26 @@ export class GameRoom extends DurableObject<Env> {
     const player = room.players.find((p) => p.id === playerId);
     if (player?.kind === "human" && player.retired) return { status: "not_found" as const };
     if (!player) return { status: "not_found" as const };
+    const matchmaking = "matchmaking" in room ? room.matchmaking : undefined;
+    const rated =
+      matchmaking &&
+      this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${matchmaking.id}`)?.rating;
     return {
       status: "found" as const,
       game: room.settings.game,
       player,
       accountId: this.storedAccount(playerId)?.accountId ?? null,
+      ...(matchmaking && rated && hasProfileRating(room.settings.game)
+        ? {
+            profileRating:
+              this.ctx.storage.kv.get<ProfileRatings>(profileRatingsKey(matchmaking.id))?.[
+                playerId
+              ] ??
+              (player.kind === "human"
+                ? { timing: "before" as const, status: "unavailable" as const }
+                : undefined),
+          }
+        : {}),
     };
   }
 
