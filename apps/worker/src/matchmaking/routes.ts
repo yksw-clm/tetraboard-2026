@@ -14,6 +14,7 @@ import { roomEntryProfile, RoomAccountError } from "../accounts/roomAccounts";
 import { readLimitedBody } from "../feedback/images";
 import { gameCatalog } from "@tetraboard/protocol/games";
 import { ratedMatchmakingPolicy } from "./ratedMatchmaking";
+import { readPreviousRatedMatch } from "./previousMatch";
 export const matchmakingRoutes = new Hono<{ Bindings: Env }>();
 export const matchmakingEnabled = (env: Env, game: MatchmakingGame = "four-reversi") =>
   ratedMatchmakingPolicy(game).enabled(env);
@@ -67,6 +68,13 @@ matchmakingRoutes.get(root, async (c) => {
   const state = await c.env.MATCHMAKING_COORDINATOR.getByName(
     legacy ? matchmakingRules.key : matchmakingQueues[game.data].key,
   ).status(accountId, controller.data, enabled && (includeWaitingCount || includeEstimate));
+  if (
+    !legacy &&
+    accountId !== null &&
+    c.req.query("previousMatch") === "1" &&
+    (state.status === "idle" || state.status === "playing")
+  )
+    state.previousMatch = await readPreviousRatedMatch(c.env, accountId, game.data);
   return c.json(stateForClient(state, enabled, includeWaitingCount, includeEstimate));
 });
 matchmakingRoutes.get(`${root}/rating`, async (c) => {
@@ -144,6 +152,13 @@ for (const action of ["join", "heartbeat", "cancel", "takeover"] as const)
               },
               action,
             );
+    if (
+      result.ok &&
+      !legacy &&
+      c.req.query("previousMatch") === "1" &&
+      result.state.status === "playing"
+    )
+      result.state.previousMatch = await readPreviousRatedMatch(c.env, user.id, game.data);
     return result.ok
       ? c.json(
           stateForClient(

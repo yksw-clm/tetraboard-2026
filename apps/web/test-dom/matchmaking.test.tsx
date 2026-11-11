@@ -108,6 +108,125 @@ async function startShogiSearch() {
   return respondToJoin();
 }
 
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
+  "%sのダイアログは別ゲームの前局を観戦カードで案内し、保存後に自動検索せずボタンへ戻す",
+  async (game) => {
+    const router = shogiPage(user, true, game);
+    const statusUrl = `/api/matchmaking/${game}?`;
+    const previousMatch = {
+      game: "four-reversi",
+      matchId: crypto.randomUUID(),
+      phase: "playing",
+      room: {
+        id: "54321",
+        instanceId: crypto.randomUUID(),
+        game: "four-reversi",
+        mode: "singles",
+        timeControl: { mainTimeMs: 180000, byoyomiMs: 0 },
+        status: "playing",
+        hostName: "対局者",
+        matchSequence: 37,
+        humanCount: 3,
+        cpuCount: 1,
+        capacity: 4,
+        openSeats: 0,
+        updatedAtMs: Date.now(),
+      },
+    };
+    expect(activeDialog().textContent).not.toContain("対戦相手を探す");
+    latest(statusUrl).respond({ ...shogiIdle(), previousMatch, waitingCount: 12 });
+    latest(`/api/matchmaking/${game}/rating`).respond({ status: "placement", games: 2 });
+    await flush();
+    expect(activeDialog().textContent).toContain("前局は対局中です");
+    expect(activeDialog().querySelector("h3")?.textContent).toBe("レート戦 #37");
+    expect(activeDialog().textContent).toContain("四人リバーシのレート戦");
+    expect(activeDialog().textContent).toContain("#54321");
+    expect(activeDialog().textContent).not.toContain("対戦相手を探す");
+    expect(activeDialog().textContent).not.toContain("人が待機中");
+    expect(activeDialog().querySelector('a[href*="watch=1"]')?.getAttribute("href")).toBe(
+      `/rooms/54321?invite=${previousMatch.room.instanceId}&watch=1`,
+    );
+    expect(requests.filter((r) => r.url.includes("/join"))).toHaveLength(0);
+    expect(router.state.location.state).toBeNull();
+    clock.advance(3000);
+    await flush();
+    latest(statusUrl).respond({
+      ...shogiIdle(),
+      previousMatch: { ...previousMatch, phase: "saving" },
+    });
+    await flush();
+    expect(activeDialog().textContent).toContain("前局の結果を保存しています");
+    expect(activeDialog().textContent).not.toContain("観戦する");
+    clock.advance(3000);
+    await flush();
+    latest(statusUrl).respond(shogiIdle());
+    await flush();
+    expect(activeDialog().textContent).toContain("対戦相手を探す");
+    expect(requests.filter((r) => r.url.includes("/join"))).toHaveLength(0);
+    press(activeDialog(), "対戦相手を探す");
+    await flush();
+    expect(latest(`/api/matchmaking/${game}/join`)).toBeDefined();
+  },
+);
+
+test("前局の照会失敗時も検索を出さず、状態確認から回復できる", async () => {
+  shogiPage();
+  latest(shogiStatusUrl).respond({
+    ...shogiIdle(),
+    previousMatch: { game: "four-shogi", matchId: crypto.randomUUID(), phase: "unavailable" },
+  });
+  latest(shogiRatingUrl).respond({ status: "placement", games: 0 });
+  await flush();
+  expect(activeDialog().textContent).toContain("前局の状況を確認できません");
+  expect(activeDialog().textContent).not.toContain("対戦相手を探す");
+  press(activeDialog(), "状態を確認する");
+  await flush();
+  latest(shogiStatusUrl).respond(shogiIdle());
+  await flush();
+  expect(activeDialog().textContent).toContain("対戦相手を探す");
+});
+
+test("進行中の前局を同じ操作元で開いても自動入室・引き継ぎをせず観戦カードを表示する", async () => {
+  const router = shogiPage();
+  const status = latest(shogiStatusUrl);
+  const controllerId = new URL(status.url, "http://localhost").searchParams.get("controllerId")!;
+  const room = assignment("human");
+  latest(shogiRatingUrl).respond({ status: "placement", games: 2 });
+  status.respond({
+    ...shogiIdle(),
+    status: "playing",
+    controllerId,
+    operationId: crypto.randomUUID(),
+    version: 1,
+    assignment: room,
+    previousMatch: {
+      game: "shogi",
+      matchId: room.matchId,
+      phase: "playing",
+      room: {
+        id: room.roomId,
+        instanceId: room.instanceId,
+        game: "shogi",
+        timeControl: { mainTimeMs: 300000, byoyomiMs: 30000 },
+        status: "playing",
+        hostName: "対局者",
+        humanCount: 2,
+        cpuCount: 0,
+        capacity: 2,
+        openSeats: 0,
+        updatedAtMs: Date.now(),
+      },
+    },
+  });
+  await flush();
+  expect(router.state.location.pathname).toBe(shogiLobby);
+  expect(activeDialog().querySelector("h3")?.textContent).toBe("レート戦");
+  expect(activeDialog().textContent).toContain("観戦する");
+  expect(activeDialog().textContent).not.toContain("入室する");
+  expect(activeDialog().textContent).not.toContain("このタブで続ける");
+  expect(requests.filter((r) => r.url.includes("/takeover"))).toHaveLength(0);
+});
+
 function assignment(opponent: "cpu" | "human") {
   return {
     opponent,

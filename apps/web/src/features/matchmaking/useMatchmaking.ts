@@ -27,7 +27,8 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     data: ObservedState;
     error: string | null;
     pending: boolean;
-  }>({ epoch, data: idle, error: null, pending: false });
+    verified: boolean;
+  }>({ epoch, data: idle, error: null, pending: false, verified: false });
   const active = useRef({
     scope,
     controllerId,
@@ -39,6 +40,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     reading: false,
     sequence: 0,
     joinOperationId: null as string | null,
+    verified: false,
     data: idle,
   });
   useLayoutEffect(() => {
@@ -53,6 +55,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       reading: false,
       sequence: 0,
       joinOperationId: null,
+      verified: false,
       data: idle,
     };
     return () => {
@@ -73,6 +76,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       if (!valid()) return;
       const ended = !fromAction && data.status === "idle" && active.current.data.status !== "idle";
       const observed = { ...data, receivedAtMs: performance.now() };
+      active.current.verified = true;
       active.current.data = observed;
       setVisible((previous) => ({
         epoch,
@@ -86,6 +90,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
             ? previous.error
             : null,
         pending: false,
+        verified: true,
       }));
       if (data.status === "idle") {
         active.current.joinOperationId = null;
@@ -142,6 +147,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
           : null;
       if (
         data.status !== "idle" &&
+        !data.previousMatch &&
         data.controllerId !== controllerId &&
         local?.operationId === data.operationId &&
         controller.isReload() &&
@@ -164,13 +170,16 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
       }
       accept(data);
     } catch (error) {
-      if (valid() && sequence === active.current.sequence)
+      if (valid() && sequence === active.current.sequence) {
+        active.current.verified = false;
         setVisible((previous) => ({
           epoch,
           data: previous.epoch === epoch ? previous.data : idle,
           pending: false,
+          verified: false,
           error: error instanceof Error ? error.message : "待機情報を取得できません。",
         }));
+      }
     } finally {
       if (valid()) active.current.reading = false;
     }
@@ -307,6 +316,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     const actor = data.legacy ? legacyIdentity : identity;
     if (!actor || !valid() || active.current.busy || active.current.moving) return;
     if (
+      data.previousMatch ||
       !data.assignment ||
       data.controllerId !== controllerId ||
       controller.version(scope, data.operationId) !== data.version
@@ -317,6 +327,10 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     setVisible((previous) => ({ ...previous, pending: true, error: null }));
     try {
       const latest = await readMatchmaking(game, controllerId, undefined, data.legacy);
+      if (valid() && latest.previousMatch) {
+        accept(latest);
+        return;
+      }
       if (
         !valid() ||
         !latest.assignment ||
@@ -354,12 +368,12 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
         if (!active.current.moving) setVisible((previous) => ({ ...previous, pending: false }));
       }
     }
-  }, [identity, legacyIdentity, valid, controllerId, controller, scope, navigate, game]);
+  }, [identity, legacyIdentity, valid, controllerId, controller, scope, navigate, game, accept]);
   const data = visible.epoch === epoch ? visible.data : idle;
   const owned =
     data.controllerId === controllerId &&
     controller.version(scope, data.operationId) === data.version;
-  const assignedMatchId = data.assignment?.matchId;
+  const assignedMatchId = data.previousMatch ? undefined : data.assignment?.matchId;
   useEffect(() => {
     if (owned && assignedMatchId) void enter();
   }, [owned, assignedMatchId, data.status, enter]);
@@ -371,6 +385,8 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
         account.loading ||
         account.error ||
         active.current.busy ||
+        !active.current.verified ||
+        active.current.data.previousMatch ||
         active.current.data.status !== "idle" ||
         active.current.data.enabled !== true
       )
@@ -386,6 +402,7 @@ export function useMatchmaking(game: RatedMatchmakingGame) {
     data,
     error: visible.epoch === epoch ? visible.error : null,
     pending: visible.epoch === epoch && visible.pending,
+    verified: visible.epoch === epoch && visible.verified,
     owned,
     identity,
     refresh,

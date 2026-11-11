@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { roomMembershipSchema, roomCodeSchema } from "./rooms";
+import { roomMembershipSchema, roomCodeSchema, roomPublicMetadataSchema } from "./rooms";
 export const matchmakingRules = {
   key: "four-reversi:singles:v2:180000:0:casual-v1",
   seats: 4,
@@ -157,6 +157,16 @@ export const matchmakingStateSchema = z.strictObject({
   enabled: z.boolean().optional(),
   waitingCount: z.int().nonnegative().optional(),
   estimatedMatchAtMs: z.int().nonnegative().optional(),
+  previousMatch: z
+    .strictObject({
+      game: z.enum(["four-reversi", "four-shogi", "shogi", "reversi"]),
+      matchId: z.uuid(),
+      phase: z.enum(["matched", "playing", "saving", "unavailable"]),
+      room: roomPublicMetadataSchema
+        .safeExtend({ instanceId: z.uuid(), matchSequence: z.int().positive().optional() })
+        .optional(),
+    })
+    .optional(),
   status: z.enum(["idle", "waiting", "matched", "playing"]),
   operationId: z.uuid().optional(),
   controllerId: z.uuid().optional(),
