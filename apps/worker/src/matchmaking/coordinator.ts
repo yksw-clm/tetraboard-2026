@@ -558,13 +558,36 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.prepare(state, group);
     }
   }
-  private async waitingCount(state: State, now: number): Promise<number | undefined> {
+  private async availableCpuSeats(): Promise<number | undefined> {
     if (!this.ratingPolicy) return;
     try {
-      const cpuSeats = await this.env.CPU_CAPACITY.getByName(this.game).availableSeats();
-      return state.waiting.filter((wait) => wait.expiresAtMs > now).length + cpuSeats;
+      return await this.env.CPU_CAPACITY.getByName(this.game).availableSeats();
     } catch {
       return;
+    }
+  }
+
+  private estimatedMatchAt(state: State, wait: Wait, now: number, cpuSeats?: number) {
+    const policy = this.ratingPolicy;
+    if (!policy || cpuSeats === undefined || (state.cpuRetryAtMs ?? 0) > now) return;
+    const { seats, fillAfterMs } = this.queueRules;
+    let cpuMatches = Math.floor(cpuSeats / (seats - 1));
+    let eligible = state.waiting.filter(
+      (entry) => entry.expiresAtMs > now && (entry.retryAtMs ?? 0) <= now,
+    );
+    // 実際の補充候補を先頭から読み取り、先行する組が使う対局枠も差し引きます。
+    for (let remaining = 4; remaining > 0 && cpuMatches > 0; remaining--) {
+      const oldest = eligible[0];
+      if (!oldest) return;
+      const match = policy.select(eligible, fillAfterMs);
+      if (!match) return;
+      if (match.selected.some((entry) => entry.operationId === wait.operationId)) {
+        const at = oldest.joinedAtMs + fillAfterMs;
+        return at > now ? at : undefined;
+      }
+      if (match.selected.length < seats) cpuMatches--;
+      const selected = new Set(match.selected.map((entry) => entry.operationId));
+      eligible = eligible.filter((entry) => !selected.has(entry.operationId));
     }
   }
 
@@ -573,10 +596,14 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     accountId: string | null,
     controllerId?: string,
     readonly = false,
-    includeWaitingCount = true,
+    includeWaitingInfo = true,
   ): Promise<MatchmakingState> {
+    const cpuSeats = includeWaitingInfo ? await this.availableCpuSeats() : undefined;
     const now = Date.now();
-    const waitingCount = includeWaitingCount ? await this.waitingCount(state, now) : undefined;
+    const waitingCount =
+      cpuSeats === undefined
+        ? undefined
+        : state.waiting.filter((wait) => wait.expiresAtMs > now).length + cpuSeats;
     const summary = { serverNowMs: now, ...(waitingCount === undefined ? {} : { waitingCount }) };
     if (accountId === null) return { status: "idle", ...summary };
     const { wait, group } = this.locate(state, accountId);
@@ -618,6 +645,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       joinedAtMs: wait.joinedAtMs,
       expiresAtMs: group?.expiresAtMs ?? wait.expiresAtMs,
     };
+    if (!group && controllerId === wait.controllerId) {
+      const estimatedMatchAtMs = this.estimatedMatchAt(state, wait, now, cpuSeats);
+      if (estimatedMatchAtMs !== undefined) result.estimatedMatchAtMs = estimatedMatchAtMs;
+    }
     if (
       group &&
       ["matched", "playing"].includes(group.phase) &&
@@ -641,8 +672,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     }
     return result;
   }
-  async status(accountId: string | null, controllerId?: string, includeWaitingCount = true) {
-    return this.snapshot(this.load(), accountId, controllerId, true, includeWaitingCount);
+  async status(accountId: string | null, controllerId?: string, includeWaitingInfo = true) {
+    return this.snapshot(this.load(), accountId, controllerId, true, includeWaitingInfo);
   }
   async join(accountId: string, operationId: string, controllerId: string) {
     return this.serial(async (state) => {
