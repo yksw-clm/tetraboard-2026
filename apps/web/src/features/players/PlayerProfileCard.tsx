@@ -1,6 +1,6 @@
 import type { GameId } from "@tetraboard/protocol/games";
 import { gameCatalog } from "@tetraboard/protocol/games";
-import type { PlayerProfile, RoomMode } from "@tetraboard/protocol";
+import type { PlayerProfile, ProfileRating, RoomMode } from "@tetraboard/protocol";
 import { PlayerAvatar } from "../room/PlayerAvatar";
 import { formatPlayerStatsSummary } from "./playerStatsSummary";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -21,8 +21,8 @@ export function PlayerProfileCard({
   mode: RoomMode;
   onRetry: () => void;
 }) {
-  const profile = localProfile ?? state.profile;
-  if (!profile || state.loading)
+  const profile = state.profile ?? localProfile;
+  if (!profile || (state.loading && !localProfile))
     return (
       <div className="flex flex-col items-start gap-2 pr-8" role="status">
         <p className="m-0 text-sm">
@@ -42,12 +42,6 @@ export function PlayerProfileCard({
         )}
       </div>
     );
-  const duelRating =
-    profile.kind === "account"
-      ? game === "reversi"
-        ? profile.reversiRating
-        : profile.shogiRating
-      : undefined;
   const name = profile.kind === "cpu" ? (profile.name ?? `CPU Lv${profile.level}`) : profile.name;
   return (
     <div className="flex flex-col gap-3">
@@ -93,23 +87,55 @@ export function PlayerProfileCard({
           <p className="m-0 text-xs tabular-nums wrap-anywhere">
             {formatPlayerStatsSummary(profile.stats, mode)}
           </p>
-          {duelRating && (
-            <div className="text-sm">
-              <p className="m-0 font-semibold tabular-nums">
-                {gameCatalog[game].name}レート {Math.round(duelRating.rating)}
-              </p>
-              {!duelRating.humanPlayed && <p className="m-0 text-xs text-muted">対人戦未経験</p>}
-            </div>
-          )}
+          {profile.rating && <ProfileRatingLabel rating={profile.rating} />}
           {gameCatalog[game].hasModes && mode === "singles" && (
             <PlayerBadges game={game} badges={profile.badges} />
           )}
         </>
       ) : (
-        <p className="m-0 text-sm text-muted">
-          {profile.kind === "guest" ? "ゲスト／ID・戦績なし" : "戦績集計対象外"}
-        </p>
+        <>
+          <p className="m-0 text-sm text-muted">
+            {profile.kind === "guest" ? "ゲスト／ID・戦績なし" : "戦績集計対象外"}
+          </p>
+          {profile.kind === "cpu" && profile.rating && (
+            <ProfileRatingLabel rating={profile.rating} />
+          )}
+          {localProfile && state.loading && (
+            <p role="status" className="m-0 text-sm">
+              プレイヤー情報を読み込んでいます…
+            </p>
+          )}
+          {localProfile && state.error && (
+            <div>
+              <p role="alert" className="m-0 text-sm">
+                {state.error}
+              </p>
+              <AppButton size="compact" appearance="secondary" onPress={onRetry}>
+                再試行
+              </AppButton>
+            </div>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function ProfileRatingLabel({ rating }: { rating: ProfileRating }) {
+  const label =
+    rating.timing === "current"
+      ? "現在のレート"
+      : rating.timing === "reference"
+        ? "基準レート"
+        : "対局前レート";
+  return (
+    <p className="m-0 text-sm font-semibold tabular-nums">
+      {label}{" "}
+      {rating.status === "rated"
+        ? Math.round(rating.rating)
+        : rating.status === "placement"
+          ? "認定中"
+          : "記録なし"}
+    </p>
   );
 }

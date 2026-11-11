@@ -1,3 +1,4 @@
+import type { ProfileRatings } from "@tetraboard/protocol";
 import {
   type ReversiRoom as Room,
   type ReversiReplay,
@@ -15,6 +16,7 @@ export type MatchParticipant = {
 } & ({ kind: "human"; accountId: string | null; retired?: true } | { kind: "cpu"; level: 1 | 2 });
 
 export type MatchStart = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;

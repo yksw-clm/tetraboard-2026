@@ -410,6 +410,23 @@ test.each(["placement", "fifth", "fallback", "retry", "retry_failed", "timeout_r
       expect(
         match.participants.filter((player) => player.kind === "cpu").map((player) => player.name),
       ).toEqual(["シテン1", "シテン2", "シテン3"]);
+      for (const player of match.participants) {
+        const query = new URLSearchParams({
+          source: "match",
+          matchId: match.id,
+          playerId: player.id,
+          game: "four-shogi",
+          includeRating: "1",
+        });
+        const response = await request(`/player-profile?${query}`);
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({
+          rating:
+            player.kind === "cpu"
+              ? { timing: "reference", status: "rated", rating: 1500 }
+              : { timing: "before", status: "placement" },
+        });
+      }
       // 再度Alarmを実行しても認定局数は増えず、予約が残りません。
       await runInDurableObject(roomStub, (instance) => instance.alarm());
       const summary = await (await request(`${base}/rating`, { headers: account.headers })).json();

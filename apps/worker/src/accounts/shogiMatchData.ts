@@ -1,3 +1,4 @@
+import { profileRatingsSchema } from "@tetraboard/protocol";
 import { z } from "zod";
 import {
   shogiMatchDetailSchema,
@@ -23,6 +24,7 @@ const recordSchema = z
   .strictObject({
     ...shogiMatchDetailSchema.shape,
     instanceId: z.uuid(),
+    profileRatings: profileRatingsSchema.optional(),
     participants,
     rating: shogiRatingSourceSchema.optional(),
   })
@@ -47,7 +49,12 @@ function detail(
   selfPlayerId: string,
   profiles: ParticipantProfiles,
 ) {
-  const { instanceId: _instance, rating: _rating, ...data } = record;
+  const {
+    instanceId: _instance,
+    rating: _rating,
+    profileRatings: _profileRatings,
+    ...data
+  } = record;
   return shogiMatchDetailSchema.parse({
     ...data,
     selfPlayerId,

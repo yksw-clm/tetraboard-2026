@@ -138,6 +138,23 @@ async function playCpuRatedMatch(leaveAfterResign: boolean) {
       .first<{ record_json: string }>();
     expect(stored).not.toBeNull();
     const record = readFourReversiMatchRecord(stored!.record_json);
+    for (const player of record.participants) {
+      const query = new URLSearchParams({
+        source: "match",
+        matchId: record.id,
+        playerId: player.id,
+        game: "four-reversi",
+        includeRating: "1",
+      });
+      const response = await request(`/player-profile?${query}`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        rating:
+          player.kind === "cpu"
+            ? { timing: "reference", status: "rated", rating: 1500 }
+            : { timing: "before", status: "placement" },
+      });
+    }
     const replay = record.replay;
     expect(replay.id).toBe(assigned.matchId);
     let game = createInitialState("singles");

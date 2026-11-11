@@ -4,7 +4,9 @@ import {
   getEarnedBadges,
   getPlayerProfileContract,
   profileInputSchema,
+  type ProfileRating,
 } from "@tetraboard/protocol";
+import { hasProfileRating, readMatchProfileRating, readProfileRating } from "./profileRatings";
 import { readStoredMatch } from "./matchDataContracts";
 import { readCurrentProfiles } from "./currentProfiles";
 import { readAccountStats } from "./statsRoutes";
@@ -20,6 +22,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
   const target = query.data;
   try {
     let accountId: string | null = null;
+    let rating: ProfileRating | undefined;
     if (target.source === "profile") {
       accountId =
         (
@@ -42,6 +45,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
           return c.json({ message: "ゲームが一致しません。" }, 400);
         player = resolved.player;
         accountId = resolved.accountId;
+        if (target.includeRating === "1") rating = resolved.profileRating;
       } else {
         const row = await c.env.APP_DB.prepare("SELECT game, record_json FROM matches WHERE id = ?")
           .bind(target.matchId)
@@ -53,9 +57,16 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         player = record.record.participants.find((p) => p.id === target.playerId);
         if (!player) return c.json({ message: "プロフィールを表示できません。" }, 404);
         accountId = player.kind === "human" ? player.accountId : null;
+        if (target.includeRating === "1")
+          rating = await readMatchProfileRating(c.env.APP_DB, record, player.id);
       }
       if (player.kind === "cpu")
-        return c.json(getPlayerProfileContract.response.parse(cpuPlayerAppearance(player)));
+        return c.json(
+          getPlayerProfileContract.response.parse({
+            ...cpuPlayerAppearance(player),
+            ...(rating ? { rating } : {}),
+          }),
+        );
       if ("retired" in player && player.retired)
         return c.json({ message: "退会したプレイヤーです。" }, 404);
       if (!accountId)
@@ -87,6 +98,10 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
     const profileId = profile.publicProfileId;
     if (!profileId) throw new Error("Public profile ID is missing");
     const stats = await readAccountStats(c.env.APP_DB, accountId, target.game);
+    if (target.includeRating === "1" && !profile.isAnonymous) {
+      if (target.source === "profile" && hasProfileRating(target.game))
+        rating = await readProfileRating(c.env.APP_DB, accountId, target.game, "current");
+    } else rating = undefined;
     const shogiRating =
       target.game === "shogi" && target.includeShogiRating === "1" && !profile.isAnonymous
         ? await readPublicShogiRating(c.env.APP_DB, accountId)
@@ -109,6 +124,7 @@ playerProfileRoutes.get(getPlayerProfileContract.path, async (c) => {
         game: target.game,
         ...(shogiRating ? { shogiRating } : {}),
         ...(reversiRating ? { reversiRating } : {}),
+        ...(rating ? { rating } : {}),
         ...(target.includeBadges === "1" ? { badges: getEarnedBadges(target.game, stats) } : {}),
         stats:
           target.includeStats === "1" || "wins" in stats

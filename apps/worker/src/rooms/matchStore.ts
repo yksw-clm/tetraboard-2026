@@ -1,3 +1,4 @@
+import type { ProfileRatings } from "@tetraboard/protocol";
 import { tournamentMatchStatements } from "../tournaments/store";
 import { readFourReversiMatchRecord, readStoredMatch } from "../accounts/matchDataContracts";
 import {
@@ -32,6 +33,7 @@ export type MatchParticipant = {
 );
 
 export type MatchStart = {
+  profileRatings?: ProfileRatings;
   id: string;
   roomId: string;
   instanceId: string;
