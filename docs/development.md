@@ -1573,6 +1573,14 @@ Webのプレイヤー機能は取得store、Provider、表示カード、トリ�
 
 Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テスト、Webの `playerProfiles.test.tsx` で未ログインでの取得、別人への誤紐付け防止、ゲスト・CPU・参照先なし、旧応答、取得障害、開閉、再試行、キャッシュ期限・無効化・遅延応答を確認します。実寸法・ネイティブ入力・画像デコードは手動確認し、PRへ結果と未確認を記載します。
 
+## 本人棋譜の絞り込み
+
+仕様は[本人棋譜の絞り込み](../README.md#本人棋譜の絞り込み)です。protocolの `matchHistoryFilterSchema` は `all / rated / human / cpu` を定義し、`GET /api/account/matches` の省略可能な `filter` は既定で `all` です。不正値は400、未認証は401、DB取得失敗は503とし、応答はno-storeです。`all` 以外では応答に適用した `filter` を返し、新Webは一致しない旧Workerの応答を成功扱いせず、指定を外した再取得もしません。Workerを先に反映します。
+
+`accounts/matchKinds.ts` は成立記録と大会台帳による分類SQLを表示・フィルターで共用し、レート戦を優先して通常／大会の開始時参加者を照合します。`matchRoutes.ts` は本人索引・ゲーム・モード・種別の条件を20件のLIMITより前へ適用します。未取得の履歴をWebで除外したり、APIで全件を読み込んでから絞り込んだりしません。保存JSON・戦績集計・DBスキーマを変更しません。
+
+Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウザ履歴に保持し、別人へ切り替わると初期化します。`useMatchHistory` の一覧・追加位置・実行中要求のキーはゲーム・モード・フィルターです。アカウント世代・abortの照合と本人変更時の再マウントを維持し、棋譜の選択で戦績APIを取り直しません。`MatchHistory` は既存の `AppTabs`・`AppTabs.List`・`AppTabs.Tab`・`AppTabs.Indicator`・`AppTabs.Panel` で4択と選択中の一覧を表示し、空一覧・失敗を区別します。
+
 ## ルーム・棋譜の対局種別
 
 表示仕様は[README](../README.md#対局種別の表示)です。protocolの `MatchKind` は `rated / tournament / normal / unknown` とし、画面は共通の `MatchKindBadge` を使います。ルーム内の直前局は `roomMatchKind` が専用ルームの成立情報を読みます。四人ゲームは `matchmaking.rated`、二人ゲームは専用レート戦のコンテキスト、大会は `tournamentId` を使い、四人リバーシの旧ランダムマッチをレート戦へ読み替えません。WebSocketや保存済み棋譜JSONには項目を追加しません。

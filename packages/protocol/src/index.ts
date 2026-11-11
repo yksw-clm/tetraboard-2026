@@ -38,6 +38,8 @@ export {
   type ReplayFourShogiMatch,
   type ReplayMatch,
   listMatchesContract,
+  matchHistoryFilterSchema,
+  type MatchHistoryFilter,
   getMatchContract,
   matchDetailSchema,
   type MatchDetail,
