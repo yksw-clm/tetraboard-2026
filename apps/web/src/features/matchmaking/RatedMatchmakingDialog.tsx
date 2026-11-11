@@ -10,6 +10,7 @@ import { useAccount } from "../account/useAccount";
 import { useSocialSignIn } from "../account/useSocialSignIn";
 import { RatingSummary } from "./RatingSummary";
 import { RatingGrowthPreview } from "./RatingGrowthPreview";
+import { MatchmakingWaitTime } from "./MatchmakingWaitTime";
 import { useMatchmaking } from "./useMatchmaking";
 
 export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame }) {
@@ -130,7 +131,18 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
         {data.status === "idle" && !pending && data.enabled === false && (
           <p role="status">{title}は準備中です。</p>
         )}
-        {searching && <p role="status">対戦相手を探しています…</p>}
+        {searching &&
+          (data.status === "waiting" && data.joinedAtMs !== undefined ? (
+            <MatchmakingWaitTime
+              key={data.operationId}
+              joinedAtMs={data.joinedAtMs}
+              estimatedMatchAtMs={matching.error ? undefined : data.estimatedMatchAtMs}
+              serverNowMs={data.serverNowMs}
+              receivedAtMs={data.receivedAtMs}
+            />
+          ) : (
+            <p role="status">対戦相手を探しています…</p>
+          ))}
         {identity && data.enabled && !assigned && data.waitingCount !== undefined && (
           <p className="text-sm">{data.waitingCount}人が待機中</p>
         )}

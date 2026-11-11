@@ -270,6 +270,7 @@ test("受付確認のみのGETはCPU枠を照会せず、枠取得失敗でも�
   expect(joined).toMatchObject({ ok: true, state: { status: "waiting" } });
   if (!joined.ok) throw new Error("join failed");
   expect(joined.state).not.toHaveProperty("waitingCount");
+  expect(joined.state).not.toHaveProperty("estimatedMatchAtMs");
   const cancelled = await queue.control(
     account.id,
     { operationId, controllerId, version: joined.state.version! },
@@ -280,6 +281,137 @@ test("受付確認のみのGETはCPU枠を照会せず、枠取得失敗でも�
   const recovered = await request(true);
   expect(await recovered.json()).toMatchObject({ waitingCount: 4 });
   expect((await stub().status(null)).waitingCount).toBeUndefined();
+});
+
+test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
+  "%sの目安は固定の補充時刻で、満枠・期限超過では省略し、旧APIへ追加しない",
+  async (game) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    const [user] = await fixture(1, queue);
+    const at = now + matchmakingQueues[game].fillAfterMs;
+    const status = () => queue.status(user!.account.id, user!.controllerId);
+    expect((await status()).estimatedMatchAtMs).toBe(at);
+    expect((await queue.status(null)).estimatedMatchAtMs).toBeUndefined();
+    expect(
+      (await queue.status(user!.account.id, crypto.randomUUID())).estimatedMatchAtMs,
+    ).toBeUndefined();
+    const before = await runInDurableObject(queue, (_, ctx) => ctx.storage.kv.get("state"));
+    now += 5000;
+    expect((await status()).estimatedMatchAtMs).toBe(at);
+    expect(await runInDurableObject(queue, (_, ctx) => ctx.storage.kv.get("state"))).toEqual(
+      before,
+    );
+    const request = async (query: string, action?: "heartbeat") => {
+      const response = await matchmakingRoutes.request(
+        new AcceptedGameRequest(
+          `${origin}/matchmaking/${game}${action ? `/${action}` : ""}?rated=1&controllerId=${user!.controllerId}${query}`,
+          {
+            headers: user!.account.headers,
+            ...(action
+              ? {
+                  method: "POST",
+                  body: JSON.stringify({
+                    operationId: user!.operationId,
+                    controllerId: user!.controllerId,
+                    version: 1,
+                  }),
+                }
+              : {}),
+          },
+        ),
+        undefined,
+        {
+          ...env,
+          APP_ORIGIN: origin,
+          SHOGI_MATCHMAKING_ENABLED: "true",
+          REVERSI_MATCHMAKING_ENABLED: "true",
+          FOUR_SHOGI_MATCHMAKING_ENABLED: "true",
+          MATCHMAKING_ENABLED: "true",
+          AI_SHOGI_ENABLED: "true",
+          AI_REVERSI_ENABLED: "true",
+          AI_SERVICE_URL: "https://ai.example.test",
+          AI_SERVICE_TOKEN: "test-token-with-at-least-32-bytes",
+        },
+      );
+      expect(response.status).toBe(200);
+      return response.json();
+    };
+    expect(await request("&waitingCount=1")).not.toHaveProperty("estimatedMatchAtMs");
+    expect(await request("&estimate=1")).toMatchObject({ estimatedMatchAtMs: at });
+    expect(await request("&estimate=1")).not.toHaveProperty("waitingCount");
+    expect(await request("&estimate=1", "heartbeat")).toMatchObject({ estimatedMatchAtMs: at });
+    expect(await request("", "heartbeat")).not.toHaveProperty("estimatedMatchAtMs");
+    const capacity = env.CPU_CAPACITY.getByName(game);
+    for (let i = 0; i < 4; i++) await capacity.reserve(`9999${i}`, 1, 1);
+    expect((await status()).estimatedMatchAtMs).toBeUndefined();
+    await capacity.release("99990", 1);
+    expect((await status()).estimatedMatchAtMs).toBe(at);
+    now = at;
+    expect((await status()).estimatedMatchAtMs).toBeUndefined();
+  },
+);
+
+test.each(["four-shogi", "four-reversi"] as const)(
+  "%sの後続の人は先頭の補充時刻を使い、期限切れと再試行待ちを除外する",
+  async (game) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    const [first] = await fixture(1, queue);
+    const at = now + 20_000;
+    now += 8000;
+    const [second] = await fixture(1, queue);
+    const status = () => queue.status(second!.account.id, second!.controllerId);
+    expect((await status()).estimatedMatchAtMs).toBe(at);
+    await runInDurableObject(queue, (_, ctx) => {
+      const state = ctx.storage.kv.get<{ waiting: { accountId: string; retryAtMs?: number }[] }>(
+        "state",
+      )!;
+      state.waiting.find((entry) => entry.accountId === first!.account.id)!.retryAtMs =
+        Date.now() + 5000;
+      ctx.storage.kv.put("state", state);
+    });
+    expect((await status()).estimatedMatchAtMs).toBe(now + 20_000);
+    await runInDurableObject(queue, (_, ctx) => {
+      const state = ctx.storage.kv.get<{
+        waiting: { accountId: string; expiresAtMs: number; retryAtMs?: number }[];
+      }>("state")!;
+      const wait = state.waiting.find((entry) => entry.accountId === first!.account.id)!;
+      delete wait.retryAtMs;
+      wait.expiresAtMs = Date.now();
+      ctx.storage.kv.put("state", state);
+    });
+    expect((await status()).estimatedMatchAtMs).toBe(now + 20_000);
+  },
+);
+
+test("将棋の後続は本人の補充時刻と先行する組が使用するCPU対局枠を反映する", async () => {
+  let now = Date.now() + 60_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  const queue = shogiQueue();
+  const first = await ratedAccount(1000),
+    second = await ratedAccount(2000);
+  const firstController = crypto.randomUUID(),
+    secondController = crypto.randomUUID();
+  await queue.join(first.id, crypto.randomUUID(), firstController);
+  const firstAt = now + 15_000;
+  now += 5000;
+  await queue.join(second.id, crypto.randomUUID(), secondController);
+  const secondAt = now + 15_000;
+  const capacity = env.CPU_CAPACITY.getByName("shogi");
+  for (let i = 0; i < 3; i++) await capacity.reserve(`9999${i}`, 1, 1);
+  expect((await queue.status(first.id, firstController)).estimatedMatchAtMs).toBe(firstAt);
+  expect((await queue.status(second.id, secondController)).estimatedMatchAtMs).toBeUndefined();
+  await capacity.release("99990", 1);
+  expect((await queue.status(second.id, secondController)).estimatedMatchAtMs).toBe(secondAt);
+  await runInDurableObject(queue, (_, ctx) => {
+    const state = ctx.storage.kv.get<{ cpuRetryAtMs?: number }>("state")!;
+    state.cpuRetryAtMs = Date.now() + 2000;
+    ctx.storage.kv.put("state", state);
+  });
+  expect((await queue.status(second.id, secondController)).estimatedMatchAtMs).toBeUndefined();
 });
 
 async function ratedAccount(rating: number, ratedGames = 1) {

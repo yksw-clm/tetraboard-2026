@@ -150,6 +150,51 @@ test.each([
   },
 );
 
+test.each([
+  { game: "four-shogi", seconds: 20 },
+  { game: "four-reversi", seconds: 20 },
+  { game: "shogi", seconds: 15 },
+  { game: "reversi", seconds: 15 },
+] as const)(
+  "$gameは検索中だけ目安を表示し、成立時に入室案内へ切り替える",
+  async ({ game, seconds }) => {
+    shogiPage(user, false, game);
+    const statusUrl = `/api/matchmaking/${game}?`;
+    expect(latest(statusUrl).url).toContain("estimate=1");
+    latest(statusUrl).respond(shogiIdle());
+    latest(`/api/matchmaking/${game}/rating`).respond({ status: "placement", games: 0 });
+    await flush();
+    expect(activeDialog().textContent).not.toContain("マッチングの目安");
+    press(activeDialog(), "対戦相手を探す");
+    await flush();
+    const join = latest(`/api/matchmaking/${game}/join`);
+    expect(join.url).toContain("estimate=1");
+    const waiting = {
+      ...shogiIdle(),
+      ...JSON.parse(String(join.init.body)),
+      status: "waiting",
+      version: 1,
+      joinedAtMs: Date.now(),
+      estimatedMatchAtMs: Date.now() + seconds * 1000,
+    };
+    join.respond(waiting);
+    await flush();
+    expect(activeDialog().textContent).toContain(`マッチングの目安：あと約${seconds}秒`);
+    clock.advance(3000);
+    await flush();
+    latest(statusUrl).respond({
+      ...waiting,
+      status: "matched",
+      serverNowMs: Date.now(),
+      assignment: assignment("human"),
+    });
+    await flush();
+    expect(activeDialog().textContent).not.toContain("マッチングの目安");
+    expect(activeDialog().textContent).not.toContain("待機時間：");
+    expect(activeDialog().textContent).toContain("対戦相手が決まりました。");
+  },
+);
+
 test("将棋ダイアログに認定進捗を表示し、開き直すと最新レートを取得する", async () => {
   const router = shogiPage();
   expect(activeDialog().textContent).toContain("レートを読み込んでいます");
