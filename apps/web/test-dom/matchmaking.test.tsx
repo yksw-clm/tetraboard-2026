@@ -119,16 +119,36 @@ function assignment(opponent: "cpu" | "human") {
   };
 }
 
-test("レート戦の待機人数を表示し、CPU枠待ち専用の文言は表示しない", async () => {
-  shogiPage(user, false, "four-reversi");
-  const status = latest("/api/matchmaking/four-reversi?");
-  expect(status.url).toContain("waitingCount=1");
-  status.respond({ ...shogiIdle(), waitingCount: 4 });
-  latest("/api/matchmaking/four-reversi/rating").respond({ status: "placement", games: 0 });
-  await flush();
-  expect(activeDialog().textContent).toContain("4人が待機中");
-  expect(activeDialog().textContent).not.toContain("混み合っています");
-});
+test.each([
+  { game: "four-shogi", count: 12, next: 9 },
+  { game: "four-reversi", count: 12, next: 9 },
+  { game: "shogi", count: 4, next: 3 },
+  { game: "reversi", count: 4, next: 3 },
+] as const)(
+  "$gameの待機人数はCPU枠を含む合計だけを表示し、省略時に隠して次の更新で回復する",
+  async ({ game, count, next }) => {
+    shogiPage(user, false, game);
+    const statusUrl = `/api/matchmaking/${game}?`;
+    const status = latest(statusUrl);
+    expect(status.url).toContain("waitingCount=1");
+    status.respond({ ...shogiIdle(), waitingCount: count });
+    latest(`/api/matchmaking/${game}/rating`).respond({ status: "placement", games: 0 });
+    await flush();
+    expect(activeDialog().textContent).toContain(`${count}人が待機中`);
+    expect(activeDialog().textContent).not.toContain("混み合っています");
+    expect(activeDialog().textContent).not.toContain("CPUを含む");
+    clock.advance(3000);
+    await flush();
+    latest(statusUrl).respond(shogiIdle());
+    await flush();
+    expect(activeDialog().textContent).not.toContain("人が待機中");
+    clock.advance(3000);
+    await flush();
+    latest(statusUrl).respond({ ...shogiIdle(), waitingCount: next });
+    await flush();
+    expect(activeDialog().textContent).toContain(`${next}人が待機中`);
+  },
+);
 
 test("将棋ダイアログに認定進捗を表示し、開き直すと最新レートを取得する", async () => {
   const router = shogiPage();

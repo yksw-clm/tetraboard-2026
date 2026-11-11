@@ -57,7 +57,7 @@ matchmakingRoutes.get(root, async (c) => {
   if (!controller.success) return c.json({ message: "入力内容を確認してください。" }, 400);
   const state = await c.env.MATCHMAKING_COORDINATOR.getByName(
     legacy ? matchmakingRules.key : matchmakingQueues[game.data].key,
-  ).status(accountId, controller.data);
+  ).status(accountId, controller.data, enabled && includeWaitingCount);
   return c.json(stateForClient(state, enabled, includeWaitingCount));
 });
 matchmakingRoutes.get(`${root}/rating`, async (c) => {

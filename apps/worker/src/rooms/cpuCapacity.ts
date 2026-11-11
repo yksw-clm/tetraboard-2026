@@ -14,10 +14,27 @@ const activeKey = (roomId: string) => `active:${roomId}`;
 const releasedKey = (roomId: string) => `released:${roomId}`;
 
 export class CpuCapacity extends DurableObject<Env> {
-  reserve(roomId: string, sequence: number, seats: number): boolean {
+  private get limit() {
     const game = this.ctx.id.name;
     if (!game || !Object.hasOwn(limits, game)) throw new Error("Unknown CPU capacity");
-    const limit = limits[game as CpuCapacityGame];
+    return limits[game as CpuCapacityGame];
+  }
+
+  availableSeats(): number {
+    const limit = this.limit;
+    const reservations = [...this.ctx.storage.kv.list<Reservation>({ prefix: "active:" })];
+    const usedSeats = reservations.reduce((sum, [, reservation]) => sum + reservation.seats, 0);
+    return Math.max(
+      0,
+      Math.min(
+        limit.seats - usedSeats,
+        (limit.matches - reservations.length) * limit.seatsPerMatch,
+      ),
+    );
+  }
+
+  reserve(roomId: string, sequence: number, seats: number): boolean {
+    const limit = this.limit;
     if (!Number.isInteger(seats) || seats < 1 || seats > limit.seatsPerMatch)
       throw new Error("Invalid CPU seat count");
     return this.ctx.storage.transactionSync(() => {
