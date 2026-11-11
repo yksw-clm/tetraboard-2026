@@ -1,19 +1,24 @@
 import { AppIcon } from "../../shared/ui/AppIcon";
 import { AppButton } from "../../shared/ui/AppButton";
+import type { MatchKind } from "@tetraboard/protocol";
+import { MatchKindBadge } from "../../shared/ui/MatchKindBadge";
 
 export function ViewerControls({
   label,
   hideLabelOnMobile = false,
   onRotate,
   rotationDegrees = 90,
+  matchKind,
 }: {
   label: "観戦中" | "棋譜閲覧中";
   hideLabelOnMobile?: boolean;
   onRotate: () => void;
   rotationDegrees?: 90 | 180;
+  matchKind?: MatchKind;
 }) {
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      {matchKind && <MatchKindBadge kind={matchKind} />}
       <span
         className={`text-muted text-xs whitespace-nowrap ${hideLabelOnMobile ? "[@media(max-width:767px)]:hidden" : ""}`}
       >

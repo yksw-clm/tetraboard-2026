@@ -28,7 +28,7 @@ const recordSchema = z
     participants,
     rating: shogiRatingSourceSchema.optional(),
   })
-  .omit({ selfPlayerId: true });
+  .omit({ selfPlayerId: true, matchKind: true });
 function publicPlayers(record: StandardShogiMatchRecord, profiles: ParticipantProfiles) {
   return record.participants.map((p) => {
     const identity = p.kind === "human" && p.accountId ? profiles.get(p.accountId) : undefined;

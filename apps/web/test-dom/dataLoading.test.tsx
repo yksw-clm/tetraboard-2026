@@ -24,7 +24,9 @@ const rankings = { singles: { first: [], total: [] }, doubles: { wins: [], total
 test("cards・ランキングの400は自動再取得せず、利用者の再試行で同条件を使う", async () => {
   const lobby = renderHook(useLobby, "four-reversi" as const);
   clock.advance(0);
-  expect(requests.at(-1)!.url).toBe("/api/lobby/rooms?view=cards&game=four-reversi");
+  expect(requests.at(-1)!.url).toBe(
+    "/api/lobby/rooms?view=cards&includeMatchKind=1&game=four-reversi",
+  );
   requests.at(-1)!.respond({}, 400);
   await flush();
   expect(lobby.current.error).not.toBeNull();

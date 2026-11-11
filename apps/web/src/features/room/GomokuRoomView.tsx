@@ -1,3 +1,4 @@
+import { roomMatchKind } from "@tetraboard/protocol";
 import { AppToastRegion } from "../../shared/ui/AppToastRegion";
 import { useState } from "react";
 import type { QuarterTurn } from "./boardRotation";
@@ -61,7 +62,11 @@ export function GomokuRoomView({
           {!session.toast.shared && <AppToastRegion queue={session.toast.queue} theme="gomoku" />}
         </>
       }
-      replayCard={replay.frame ? <ReplayCard replay={replay} theme="gomoku" /> : null}
+      replayCard={
+        replay.frame ? (
+          <ReplayCard matchKind={roomMatchKind(room)} replay={replay} theme="gomoku" />
+        ) : null
+      }
       result={room.lastRound ? <GomokuResult lastRound={room.lastRound} /> : null}
       selfEliminated={false}
       onRotate={() => setRotation((r) => (r === 0 ? 2 : 0))}

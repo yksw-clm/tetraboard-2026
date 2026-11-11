@@ -224,7 +224,9 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   clock.advance(0);
   requests.find((r) => r.url === "/api/account/stats")!.respond(stats);
   requests
-    .find((r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1")!
+    .find(
+      (r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1&includeMatchKind=1",
+    )!
     .respond({
       matches: [match(1)],
       nextCursor: "next",
@@ -233,7 +235,9 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   await chooseGame(view, "四人将棋");
   clock.advance(0);
   const shogiSingles = requests.find(
-    (r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1&game=four-shogi",
+    (r) =>
+      r.url ===
+      "/api/account/matches?mode=singles&includeMoveCount=1&includeMatchKind=1&game=four-shogi",
   )!;
   chooseMode(view, "ダブルス");
   clock.advance(0);
@@ -252,7 +256,11 @@ test("共通操作で戦績・棋譜を同期し、カード・キャッシュ�
   expect(view.textContent).not.toContain("撃破数");
   expect(view.textContent).not.toContain("まだ対局履歴がありません。");
   requests
-    .find((r) => r.url === "/api/account/matches?mode=doubles&includeMoveCount=1&game=four-shogi")!
+    .find(
+      (r) =>
+        r.url ===
+        "/api/account/matches?mode=doubles&includeMoveCount=1&includeMatchKind=1&game=four-shogi",
+    )!
     .respond({
       matches: [shogi.summary],
       nextCursor: null,
@@ -402,7 +410,11 @@ test("四人五目並べのダブルス戦績と履歴を表示し、ゲーム�
   clock.advance(0);
   requests.find((r) => r.url === "/api/account/stats?game=four-gomoku")!.respond(stats);
   requests
-    .find((r) => r.url === "/api/account/matches?mode=singles&includeMoveCount=1&game=four-gomoku")!
+    .find(
+      (r) =>
+        r.url ===
+        "/api/account/matches?mode=singles&includeMoveCount=1&includeMatchKind=1&game=four-gomoku",
+    )!
     .respond({ matches: [], nextCursor: null });
   await flush();
   chooseMode(view, "ダブルス");
@@ -413,7 +425,11 @@ test("四人五目並べのダブルス戦績と履歴を表示し、ゲーム�
     result: { mode: "doubles", reason: "five", winner: "black-red" },
   };
   requests
-    .find((r) => r.url === "/api/account/matches?mode=doubles&includeMoveCount=1&game=four-gomoku")!
+    .find(
+      (r) =>
+        r.url ===
+        "/api/account/matches?mode=doubles&includeMoveCount=1&includeMatchKind=1&game=four-gomoku",
+    )!
     .respond({ matches: [summary], nextCursor: null });
   await flush();
   expect(view.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toContain(

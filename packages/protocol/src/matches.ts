@@ -1,3 +1,4 @@
+import { matchKindSchema, matchKindQuerySchema } from "./matchKinds";
 import { cpuProfileSchema } from "./cpuProfiles";
 import {
   fourGomokuSettingsSchema,
@@ -75,6 +76,7 @@ export const matchParticipantSchema = z.discriminatedUnion("kind", [
 export const fourReversiMatchSummarySchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     game: z.literal("four-reversi"),
     mode: roomModeSchema,
     startedAtMs: z.int().nonnegative(),
@@ -118,6 +120,7 @@ function completeShogiResult(result: z.infer<typeof finishedFourShogiStateSchema
 export const fourShogiMatchSummarySchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     game: z.literal("four-shogi"),
     mode: roomModeSchema,
     startedAtMs: z.int().nonnegative(),
@@ -145,6 +148,7 @@ export const reversiMatchParticipantSchema = z.discriminatedUnion("kind", [
 ]);
 export const reversiMatchSummarySchema = z.strictObject({
   id: z.uuid(),
+  matchKind: matchKindSchema.optional(),
   game: z.literal("reversi"),
   mode: z.never().optional(),
   startedAtMs: z.int().nonnegative(),
@@ -236,6 +240,7 @@ export const listMatchesContract = {
       mode: roomModeSchema.optional(),
       cursor: matchCursorSchema.optional(),
       includeMoveCount: z.literal("1").optional(),
+      includeMatchKind: z.literal("1").optional(),
     })
     .refine((value) =>
       gameCatalog[value.game].hasModes ? value.mode !== undefined : value.mode === undefined,
@@ -317,6 +322,7 @@ export type FourShogiAccountStats = z.infer<typeof fourShogiAccountStatsSchema>;
 export const publicFourReversiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
@@ -343,6 +349,7 @@ const knockoutCountsSchema = z.strictObject({
 export const publicFourShogiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
@@ -382,6 +389,7 @@ export const fourShogiMatchDetailSchema = publicFourShogiMatchDetailSchema
 export const publicReversiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
@@ -410,6 +418,7 @@ export function isReversiMatch(match: ReplayMatch): match is ReplayReversiMatch 
 export const publicGomokuMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
@@ -440,6 +449,7 @@ export function isGomokuMatch(match: ReplayMatch): match is ReplayGomokuMatch {
 export const publicFourGomokuMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
@@ -470,6 +480,7 @@ export function isFourGomokuMatch(match: ReplayMatch): match is ReplayFourGomoku
 export const publicShogiMatchDetailSchema = z
   .strictObject({
     id: z.uuid(),
+    matchKind: matchKindSchema.optional(),
     roomId: roomCodeSchema,
     startedAtMs: z.int().nonnegative(),
     endedAtMs: z.int().nonnegative(),
@@ -524,6 +535,7 @@ export const listPublicMatchesContract = {
   query: z.object({
     game: matchGameSchema,
     includeMoveCount: z.literal("1").optional(),
+    includeMatchKind: z.literal("1").optional(),
     humanOnly: z
       .enum(["true", "false"])
       .default("false")
@@ -536,6 +548,7 @@ export const getPublicMatchContract = {
   path: "/matches/:matchId",
   pathFor: (id: string) => `/matches/${id}`,
   params: z.strictObject({ matchId: z.uuid() }),
+  query: matchKindQuerySchema,
   response: z.strictObject({ match: publicMatchDetailSchema }),
 } as const;
 export const matchDetailSchema = z.union([
@@ -551,6 +564,7 @@ export const getMatchContract = {
   path: "/account/matches/:matchId",
   pathFor: (id: string) => `/account/matches/${id}`,
   params: z.strictObject({ matchId: z.uuid() }),
+  query: matchKindQuerySchema,
   response: z.strictObject({ match: matchDetailSchema }),
 } as const;
 export type MatchDetail = z.infer<typeof matchDetailSchema>;
