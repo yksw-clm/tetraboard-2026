@@ -558,29 +558,14 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       await this.prepare(state, group);
     }
   }
-  private waitingCount(state: State, now: number): number | undefined {
-    const policy = this.ratingPolicy;
-    if (!policy) return;
-    const humans = state.waiting.filter((wait) => wait.expiresAtMs > now);
-    if (state.cpuRetryAtMs === undefined) return humans.length;
-    const eligible = humans.filter((wait) => (wait.retryAtMs ?? 0) <= now);
-    const { seats, fillAfterMs } = this.queueRules;
-    if (seats === 4) {
-      const oldest = eligible[0];
-      const missing =
-        oldest && now - oldest.joinedAtMs >= fillAfterMs && eligible.length < seats
-          ? seats - eligible.length
-          : 0;
-      return humans.length + missing;
+  private async waitingCount(state: State, now: number): Promise<number | undefined> {
+    if (!this.ratingPolicy) return;
+    try {
+      const cpuSeats = await this.env.CPU_CAPACITY.getByName(this.game).availableSeats();
+      return state.waiting.filter((wait) => wait.expiresAtMs > now).length + cpuSeats;
+    } catch {
+      return;
     }
-    let missing = 0;
-    for (const wait of eligible) {
-      const elapsed = now - wait.joinedAtMs;
-      if (elapsed < fillAfterMs) continue;
-      const others = eligible.filter((candidate) => candidate !== wait);
-      if (policy.select([wait, ...others], elapsed)?.selected.length === 1) missing++;
-    }
-    return humans.length + missing;
   }
 
   private async snapshot(
@@ -588,9 +573,10 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     accountId: string | null,
     controllerId?: string,
     readonly = false,
+    includeWaitingCount = true,
   ): Promise<MatchmakingState> {
     const now = Date.now();
-    const waitingCount = this.waitingCount(state, now);
+    const waitingCount = includeWaitingCount ? await this.waitingCount(state, now) : undefined;
     const summary = { serverNowMs: now, ...(waitingCount === undefined ? {} : { waitingCount }) };
     if (accountId === null) return { status: "idle", ...summary };
     const { wait, group } = this.locate(state, accountId);
@@ -655,8 +641,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     }
     return result;
   }
-  async status(accountId: string | null, controllerId?: string) {
-    return this.snapshot(this.load(), accountId, controllerId, true);
+  async status(accountId: string | null, controllerId?: string, includeWaitingCount = true) {
+    return this.snapshot(this.load(), accountId, controllerId, true, includeWaitingCount);
   }
   async join(accountId: string, operationId: string, controllerId: string) {
     return this.serial(async (state) => {

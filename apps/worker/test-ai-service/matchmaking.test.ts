@@ -212,7 +212,7 @@ async function playCpuRatedMatch(leaveAfterResign: boolean) {
   }
 }
 
-test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での再試行を続ける", async () => {
+test("利用可能なCPU枠を人数に含め、対人成立・取消・空き枠での再試行を続ける", async () => {
   let now = Date.now() + 60_000;
   vi.spyOn(Date, "now").mockImplementation(() => now);
   const queue = env.MATCHMAKING_COORDINATOR.getByName(rules.key);
@@ -230,6 +230,7 @@ test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での�
   }
   const tick = () => runInDurableObject(queue, (instance) => instance.alarm());
   try {
+    expect((await queue.status(null)).waitingCount).toBe(12);
     for (const roomId of occupied) expect(await capacity.reserve(roomId, 1, 3)).toBe(true);
     const oldest = await join();
     const joinedAtMs = now;
@@ -244,7 +245,7 @@ test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での�
     expect(await (await status("&waitingCount=1")).json()).toMatchObject({
       status: "waiting",
       joinedAtMs,
-      waitingCount: 4,
+      waitingCount: 1,
     });
 
     await join();
@@ -253,6 +254,7 @@ test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での�
     const human = (await queue.status(oldest.user.id, oldest.controllerId)).assignment!;
     rooms.set(human.roomId, human);
     expect(human.opponent).toBe("human");
+    expect((await queue.status(null)).waitingCount).toBe(0);
 
     const cancelled = await join();
     now += rules.fillAfterMs;
@@ -266,14 +268,16 @@ test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での�
     await tick();
     expect(await queue.status(waiting.user.id, waiting.controllerId)).toMatchObject({
       status: "waiting",
-      waitingCount: 4,
+      waitingCount: 1,
     });
     await capacity.release(occupied[0]!, 1);
+    expect((await queue.status(null)).waitingCount).toBe(4);
     now += 2000;
     await tick();
     const cpu = (await queue.status(waiting.user.id, waiting.controllerId)).assignment!;
     rooms.set(cpu.roomId, cpu);
     expect(cpu.opponent).toBe("cpu");
+    expect((await queue.status(null)).waitingCount).toBe(0);
     expect(await capacity.reserve("test-probe", 1, 1)).toBe(false);
 
     const gameRoom = env.GAME_ROOM.getByName(cpu.roomId);
@@ -281,6 +285,7 @@ test("CPU枠待ちを人数に含め、対人成立・取消・空き枠での�
       status: "aborted",
     });
     await runInDurableObject(gameRoom, (instance) => instance.alarm());
+    expect(await capacity.availableSeats()).toBe(3);
     expect(await capacity.reserve("test-probe", 2, 1)).toBe(true);
     await capacity.release("test-probe", 2);
   } finally {

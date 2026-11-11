@@ -84,6 +84,12 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 カウントダウンはサーバー時刻から求め、プロフィール取得を開始条件に含めません。表示が中断しても入室中のstoreを利用し、通常ルーム・大会・旧ランダムマッチは既存の `RoomStartCountdown` を維持します。`ratedMatchStartCountdown.css` は帯の切り欠き・配置・登場アニメーションだけを担当し、配色は既存のゲームテーマ変数を使います。
 
+## レート戦の待機人数
+
+表示の正本は[READMEの待機人数](../README.md#レート戦の待機人数)です。`CpuCapacity.availableSeats()` は既存のゲーム別上限と予約台帳を読み取り、「残り席数」と「残り対局枠×1局のCPU席上限」の小さい方を0以上で返します。`MatchmakingCoordinator` は有効な人間の待機者数を加え、既存の `waitingCount` に入れます。取得失敗はこの項目を省略し、検索・取消などの状態応答は返します。通常対局とレート戦で共有する予約台帳をそのまま参照し、予約・解放の処理や照会時の状態を変更しません。
+
+人数を要求しない受付確認GETではCoordinatorへ照会フラグを渡し、CPU枠への追加RPCを省きます。`waitingCount=1` と省略可能な整数項目の契約を維持し、Webは既存の3秒更新と表示条件を使います。旧Workerとの組合せでは従来の人数表示になり、新しいWorkerへの切替後に空き枠を含む計算になります。DB移行はありません。
+
 ## 四人リバーシの待機列とルーム
 
 採用仕様は[レート戦](matchmaking.md#四人リバーシのレート戦)、ゲームの裁定は[四人リバーシ正本](rules/four-reversi.md)です。Workerの`matchmaking/routes.ts`が本人・Origin・同意・入力を検証し、`MatchmakingCoordinator`がFIFO・lease・操作元・割当と回復を扱います。migration `0031_matchmaking.sql`はD1の通常席・大会待機との排他、ゲスト統合のfence、公開索引の印を追加します。GameRoomは専用ルームの接続・期限・自動開始と既存の時計・脱落・保存を担当します。状態GETは本人の状態を参照するだけで、組合せや全ルーム巡回を行いません。割当・期限・再試行は変更操作とAlarmで処理します。毎時保守は解放済みの割当をD1の席予約と照合して片付け、対局中のGameRoomへ巡回RPCを送りません。
