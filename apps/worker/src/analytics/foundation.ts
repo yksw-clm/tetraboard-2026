@@ -1,3 +1,4 @@
+import { aggregateAcquisition } from "./acquisitionAggregation";
 import { aggregateLifecycleAnalytics } from "./lifecycleAggregation";
 import { aggregateRegistrationAnalytics } from "./registrationAggregation";
 import {
@@ -19,7 +20,7 @@ type State = {
 };
 
 /** 本人履歴の索引を使い、再開位置以降のアカウントと変更された本人だけを復元します。 */
-export async function backfillAccountTotals(db: D1Database, limit = 50) {
+export async function backfillAccountTotals(db: D1Database, limit = 50, now = Date.now()) {
   const state = await db
     .prepare("SELECT * FROM analytics_foundation_state WHERE id=1")
     .first<State>();
@@ -42,6 +43,15 @@ export async function backfillAccountTotals(db: D1Database, limit = 50) {
   await db.batch([
     ...accounts.flatMap((id) => [
       db.prepare("DELETE FROM account_game_totals WHERE account_id=?").bind(id),
+      db.prepare("DELETE FROM account_game_daily WHERE account_id=?").bind(id),
+      db
+        .prepare(`INSERT INTO account_game_daily
+        SELECT h.account_id,strftime('%Y-%m-%d',m.ended_at_ms/1000+32400,'unixepoch'),m.game,COUNT(*)
+        FROM account_match_history h JOIN matches m ON m.id=h.match_id
+        WHERE h.account_id=? AND m.ended_at_ms>? AND EXISTS(SELECT 1 FROM user WHERE id=h.account_id)
+        AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=h.account_id)
+        AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=h.account_id) GROUP BY 1,2,3`)
+        .bind(id, now - analyticsRetentionMs),
       db
         .prepare(`INSERT INTO account_game_totals
         SELECT h.account_id,m.game,COUNT(*),MIN(m.ended_at_ms),MAX(m.ended_at_ms)
@@ -51,6 +61,11 @@ export async function backfillAccountTotals(db: D1Database, limit = 50) {
           AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=h.account_id)
         GROUP BY h.account_id,m.game`)
         .bind(id),
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO account_insights_ready SELECT id FROM user WHERE id=? AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=?) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=?)",
+        )
+        .bind(id, id, id),
       db.prepare("DELETE FROM account_totals_dirty WHERE account_id=?").bind(id),
     ]),
     // 同時実行が古いカーソルを書き戻さないよう比較してから進めます。
@@ -62,6 +77,11 @@ export async function backfillAccountTotals(db: D1Database, limit = 50) {
         Number(users.length < limit),
         state.backfill_cursor,
       ),
+    db
+      .prepare(
+        `INSERT INTO analytics_metadata(key,value) SELECT 'account_insights_aggregated_at',? WHERE NOT EXISTS(SELECT 1 FROM account_totals_dirty) AND EXISTS(SELECT 1 FROM analytics_foundation_state WHERE backfill_complete=1) ON CONFLICT(key) DO UPDATE SET value=MAX(value,excluded.value)`,
+      )
+      .bind(now),
   ]);
 }
 
@@ -173,8 +193,9 @@ export async function aggregateAnalytics(env: AdminEnv, now = Date.now()) {
 }
 
 export async function runAnalyticsAggregation(env: Env, now = Date.now()) {
-  await backfillAccountTotals(env.APP_DB);
+  await backfillAccountTotals(env.APP_DB, 50, now);
   await aggregateRegistrationAnalytics(env, now);
+  await aggregateAcquisition(env, now);
   await aggregateLifecycleAnalytics(env, now);
   await aggregateAnalytics(env, now);
 }
