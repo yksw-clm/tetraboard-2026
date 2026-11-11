@@ -1,3 +1,5 @@
+import { registrationAnalyticsInputSchema } from "@tetraboard/protocol";
+import { recordRegistrationEntry } from "./registration";
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { Hono } from "hono";
 import { pageViewInputSchema, dwellInputSchema } from "@tetraboard/protocol";
@@ -126,5 +128,21 @@ analyticsRoutes.post("/analytics/dwell", async (c) => {
       ),
     ),
   ]);
+  return c.body(null, 204);
+});
+
+analyticsRoutes.post("/analytics/registration", async (c) => {
+  const input = registrationAnalyticsInputSchema.safeParse(await body(c.req.raw));
+  if (!input.success) return c.body(null, 400);
+  const visitor = analyticsVisitor(c.req.raw),
+    user = await accountIdentity(c.req.raw, c.env);
+  if (!visitor && !user) return c.body(null, 204);
+  const recent = await c.env.APP_DB.prepare(
+    `SELECT COUNT(*) AS count FROM analytics_registration_flows WHERE ${visitor ? "visitor_id" : "source_account_id"}=? AND created_at_ms>?`,
+  )
+    .bind(visitor ?? user!.id, Date.now() - 60000)
+    .first<{ count: number }>();
+  if ((recent?.count ?? 0) >= 120) return c.body(null, 429);
+  await recordRegistrationEntry(c.env, input.data, visitor, user);
   return c.body(null, 204);
 });

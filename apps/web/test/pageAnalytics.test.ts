@@ -31,3 +31,20 @@ test("閲覧の付加情報は参照元ホストと3種類のUTMだけに限定�
     campaign: "20261019_event",
   });
 });
+
+test("短縮UTMは番号指定の有無を区別し、旧UTMとともに限定した項目だけ送る", () => {
+  expect(pageAcquisition("", "?utm=1&utm_source=legacy&token=SECRET", "tetraboard.net")).toEqual({
+    referrer: "direct",
+    source: "legacy",
+    medium: null,
+    campaign: null,
+    shortUtm: "1",
+  });
+  expect(pageAcquisition("", "?utm=&utm_source=legacy", "tetraboard.net")).toHaveProperty(
+    "shortUtm",
+    "",
+  );
+  expect(pageAcquisition("", "?utm_source=legacy", "tetraboard.net")).not.toHaveProperty(
+    "shortUtm",
+  );
+});

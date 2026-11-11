@@ -277,7 +277,10 @@ test.each(["google", "discord"] as const)(
       await flush();
       const oauth = () => requests.filter((r) => r.url === "/api/auth/sign-in/social");
       expect(oauth()).toHaveLength(1);
-      expect(JSON.parse(String(oauth()[0]!.init.body))).toEqual({ provider });
+      expect(JSON.parse(String(oauth()[0]!.init.body))).toEqual({
+        provider,
+        analytics: { id: expect.any(String), entry: "rated-match", game: "shogi" },
+      });
       expect(new Headers(oauth()[0]!.init.headers).get("X-Legal-Consent")).toBe(legalVersion);
       expect(readRegistrationReturn()).toMatchObject({ path: shogiDialogUrl, oauthStarted: true });
       for (const button of dialog.querySelectorAll("button")) expect(button.disabled).toBe(true);

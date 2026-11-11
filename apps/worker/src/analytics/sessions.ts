@@ -23,22 +23,36 @@ export function sessionStatements(
 ) {
   const { id, visitor, account, isTest, game, now, acquisition } = input;
   const referrer = classifyReferrer(acquisition?.referrer ?? null, new URL(input.origin).hostname);
+  const hasShort = acquisition?.shortUtm !== undefined;
+  const shortId =
+    typeof acquisition?.shortUtm === "string" &&
+    /^[1-9][0-9]{0,15}$/.test(acquisition.shortUtm) &&
+    Number.isSafeInteger(Number(acquisition.shortUtm))
+      ? Number(acquisition.shortUtm)
+      : null;
   const active = "visitor_id=? AND started_at_ms>? AND last_activity_ms>?";
   const activeArgs = [visitor, now - analyticsRetentionMs, now - analyticsSessionIdleMs];
   // batch内で既存の訪問を確認するため、別タブが同時に来ても最初の閲覧だけが作成します。
   return [
     db
-      .prepare(`INSERT INTO analytics_sessions(id,visitor_id,account_id,started_at_ms,last_activity_ms,
-      referrer_host,referrer_class,utm_source,utm_medium,utm_campaign,device)
-      SELECT id,visitor_id,account_id,started_at_ms,started_at_ms,?,?,?,?,?,?
+      .prepare(`WITH link AS (SELECT * FROM analytics_links WHERE id=?) INSERT INTO analytics_sessions(id,visitor_id,account_id,started_at_ms,last_activity_ms,
+      referrer_host,referrer_class,utm_source,utm_medium,utm_campaign,device,utm_link_id)
+      SELECT id,visitor_id,account_id,started_at_ms,started_at_ms,?,?,
+        CASE WHEN ? THEN (SELECT 'link-' || id FROM link) ELSE ? END,
+        CASE WHEN ? THEN (SELECT medium FROM link) ELSE ? END,
+        CASE WHEN ? THEN (SELECT campaign FROM link) ELSE ? END,?,(SELECT id FROM link)
       FROM analytics_pageviews WHERE id=? AND visitor_id=? AND started_at_ms=? AND session_id IS NULL
       AND NOT EXISTS(SELECT 1 FROM analytics_sessions WHERE ${active})
       ON CONFLICT(id) DO NOTHING`)
       .bind(
+        shortId,
         referrer.host,
         referrer.category,
+        Number(hasShort),
         sanitizeUtm(acquisition?.source ?? null),
+        Number(hasShort),
         sanitizeUtm(acquisition?.medium ?? null),
+        Number(hasShort),
         sanitizeUtm(acquisition?.campaign ?? null),
         acquisition ? classifyDevice(input.userAgent) : null,
         id,

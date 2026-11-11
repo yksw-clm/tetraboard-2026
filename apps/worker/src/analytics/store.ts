@@ -65,8 +65,8 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
     ...record.participants.map((p) =>
       db
         .prepare(`INSERT INTO analytics_participants (match_id, player_id, account_id, visitor_id, is_test,
-          session_id,referrer_class,utm_source,utm_medium,utm_campaign,device,is_guest,origin_account_id)
-      SELECT ?, ?, COALESCE((SELECT account_id FROM guest_account_merges WHERE guest_id=?),?), ?, ?,s.id,s.referrer_class,s.utm_source,s.utm_medium,s.utm_campaign,s.device,?,?
+          session_id,referrer_class,utm_source,utm_medium,utm_campaign,device,is_guest,origin_account_id,utm_link_id)
+      SELECT ?, ?, COALESCE((SELECT account_id FROM guest_account_merges WHERE guest_id=?),?), ?, ?,s.id,s.referrer_class,s.utm_source,s.utm_medium,s.utm_campaign,s.device,?,?,s.utm_link_id
       FROM (SELECT 1) LEFT JOIN analytics_sessions s ON s.id=(SELECT id FROM analytics_sessions
         WHERE visitor_id=? AND started_at_ms<=? AND last_activity_ms>? AND started_at_ms>?
         ORDER BY started_at_ms DESC,id LIMIT 1)
