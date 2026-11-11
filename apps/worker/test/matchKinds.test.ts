@@ -61,9 +61,14 @@ const request = (path: string, cookie?: string) =>
     { ...env, APP_DB: db },
     {} as ExecutionContext,
   );
-async function seed(game: GameId, kind: "normal" | "rated" | "tournament", fallback = false) {
-  const user = await accountFixture(true, crypto.randomUUID(), db);
-  users.push(user.id);
+async function seed(
+  game: GameId,
+  kind: "normal" | "rated" | "tournament",
+  fallback = false,
+  existingUser?: Awaited<ReturnType<typeof accountFixture>>,
+) {
+  const user = existingUser ?? (await accountFixture(true, crypto.randomUUID(), db));
+  if (!existingUser) users.push(user.id);
   const source =
     game === "shogi"
       ? standardShogiRecord(user.id).record
@@ -229,4 +234,120 @@ test("大会台帳の取得失敗を通常対局に置き換えず503にする",
   } finally {
     await db.exec("ALTER TABLE tournament_matches_unavailable RENAME TO tournament_matches");
   }
+});
+
+async function updateHistoryFixture(fixture: Awaited<ReturnType<typeof seed>>) {
+  readStoredMatch(JSON.stringify(fixture.record), fixture.record.settings.game);
+  await db.batch([
+    db
+      .prepare("UPDATE matches SET record_json=?, started_at_ms=?, ended_at_ms=? WHERE id=?")
+      .bind(
+        JSON.stringify(fixture.record),
+        fixture.record.startedAtMs,
+        fixture.record.endedAtMs,
+        fixture.id,
+      ),
+    db
+      .prepare("UPDATE account_match_history SET started_at_ms=? WHERE match_id=?")
+      .bind(fixture.record.startedAtMs, fixture.id),
+  ]);
+}
+async function makeHuman(fixture: Awaited<ReturnType<typeof seed>>) {
+  fixture.record.participants = fixture.record.participants.map((player, index) => {
+    const { level: _level, cpuProfile: _profile, ...identity } = player;
+    return { ...identity, kind: "human", accountId: index === 0 ? fixture.user.id : null };
+  });
+  await updateHistoryFixture(fixture);
+}
+async function makeCpu(fixture: Awaited<ReturnType<typeof seed>>) {
+  const last = fixture.record.participants.at(-1)!;
+  const { accountId: _account, retired: _retired, ...identity } = last;
+  fixture.record.participants[fixture.record.participants.length - 1] = {
+    ...identity,
+    kind: "cpu",
+    level: 1,
+  };
+  await updateHistoryFixture(fixture);
+}
+async function filteredHistory(game: GameId, cookie: string, filter: string, cursor?: string) {
+  const query = new URLSearchParams({ game, filter, includeMatchKind: "1" });
+  if (gameCatalog[game].hasModes) query.set("mode", "singles");
+  if (cursor) query.set("cursor", cursor);
+  const response = await request(`/account/matches?${query}`, cookie);
+  expect(response.status).toBe(200);
+  return listMatchesContract.response.parse(await response.json());
+}
+
+test.each(gameIds)("%sの本人棋譜は通常の対人・CPUとレート戦を重複なく絞り込む", async (game) => {
+  const human = await seed(game, "normal");
+  await makeHuman(human);
+  const cpu = await seed(game, "normal", false, human.user);
+  await makeCpu(cpu);
+  const ratedGame = ["four-reversi", "four-shogi", "shogi", "reversi"].includes(game);
+  const rated = ratedGame ? await seed(game, "rated", true, human.user) : null;
+  if (rated) await makeCpu(rated);
+  const getIds = async (filter: string) =>
+    (await filteredHistory(game, human.user.cookie, filter)).matches.map((m) => m.id);
+  expect(await getIds("human")).toEqual([human.id]);
+  expect(await getIds("cpu")).toEqual([cpu.id]);
+  expect(await getIds("rated")).toEqual(rated ? [rated.id] : []);
+  expect(new Set(await getIds("all"))).toEqual(
+    new Set([human.id, cpu.id, ...(rated ? [rated.id] : [])]),
+  );
+  const outsider = await seed(game, "normal");
+  expect(await getIds("human")).not.toContain(outsider.id);
+});
+
+test("大会は対人戦に含み、矛盾した成立記録はすべてでだけ表示する", async () => {
+  const tournament = await seed("four-reversi", "tournament");
+  await makeHuman(tournament);
+  const unknown = await seed("four-reversi", "rated", false, tournament.user);
+  await linkTournament(unknown.id);
+  const human = await filteredHistory("four-reversi", tournament.user.cookie, "human");
+  expect(human.matches.map((m) => m.id)).toEqual([tournament.id]);
+  expect(human.matches[0]!.matchKind).toBe("tournament");
+  expect(
+    (await filteredHistory("four-reversi", tournament.user.cookie, "all")).matches,
+  ).toHaveLength(2);
+  for (const filter of ["rated", "cpu"])
+    expect((await filteredHistory("four-reversi", tournament.user.cookie, filter)).matches).toEqual(
+      [],
+    );
+});
+
+test("絞り込みは20件の区切りより前に適用し、同時刻の続きと再送で欠落・重複しない", async () => {
+  const first = await seed("four-reversi", "rated");
+  const rated = [first];
+  for (let i = 0; i < 24; i++) rated.push(await seed("four-reversi", "rated", false, first.user));
+  for (const item of rated) {
+    item.record.startedAtMs = 1_000;
+    item.record.endedAtMs = 2_000;
+    await updateHistoryFixture(item);
+  }
+  for (let i = 0; i < 21; i++) {
+    const item = await seed("four-reversi", "normal", false, first.user);
+    item.record.startedAtMs = 3_000 + i;
+    item.record.endedAtMs = 4_000 + i;
+    await updateHistoryFixture(item);
+  }
+  const page = await filteredHistory("four-reversi", first.user.cookie, "rated");
+  expect(page.filter).toBe("rated");
+  expect(page.matches).toHaveLength(20);
+  expect(page.nextCursor).not.toBeNull();
+  const next = await filteredHistory("four-reversi", first.user.cookie, "rated", page.nextCursor!);
+  expect(next.matches).toHaveLength(5);
+  expect(next.nextCursor).toBeNull();
+  expect([...page.matches, ...next.matches].map((m) => m.id)).toEqual(
+    rated
+      .map((m) => m.id)
+      .sort()
+      .reverse(),
+  );
+  expect(
+    await filteredHistory("four-reversi", first.user.cookie, "rated", page.nextCursor!),
+  ).toEqual(next);
+  expect(
+    (await request("/account/matches?mode=singles&filter=invalid", first.user.cookie)).status,
+  ).toBe(400);
+  expect((await request("/account/matches?mode=singles&filter=rated")).status).toBe(401);
 });

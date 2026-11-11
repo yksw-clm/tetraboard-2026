@@ -1,5 +1,36 @@
-import type { MatchKind } from "@tetraboard/protocol";
+import type { MatchHistoryFilter, MatchKind } from "@tetraboard/protocol";
 import type { DecodedMatch } from "./matchDataContracts";
+
+const rated = `(
+  json_type(m.record_json, '$.fourReversiRating') = 'object'
+  OR json_type(m.record_json, '$.fourShogiRating') = 'object'
+  OR json_type(m.record_json, '$.rating') = 'object'
+)`;
+const tournament = `EXISTS (SELECT 1 FROM tournament_matches t WHERE t.id = m.id)`;
+
+// 一覧の絞り込みと表示で、同じ成立記録・大会台帳を参照します。
+const storedMatchKindSql = `CASE
+  WHEN ${tournament} THEN CASE WHEN ${rated} THEN 'unknown' ELSE 'tournament' END
+  WHEN ${rated} THEN 'rated'
+  ELSE 'normal'
+END`;
+
+export function matchHistoryFilterSql(filter: MatchHistoryFilter) {
+  if (filter === "all") return "";
+  if (filter === "rated") return ` AND (${storedMatchKindSql}) = 'rated'`;
+  return ` AND (${storedMatchKindSql}) IN ('normal', 'tournament')
+    AND json_array_length(m.record_json, '$.participants') =
+      CASE WHEN m.game IN ('four-reversi', 'four-shogi', 'four-gomoku') THEN 4 ELSE 2 END
+    AND NOT EXISTS (
+      SELECT 1 FROM json_each(m.record_json, '$.participants') p
+      WHERE json_extract(p.value, '$.kind') IS NULL
+        OR json_extract(p.value, '$.kind') NOT IN ('human', 'cpu')
+    )
+    AND ${filter === "human" ? "NOT " : ""}EXISTS (
+      SELECT 1 FROM json_each(m.record_json, '$.participants') p
+      WHERE json_extract(p.value, '$.kind') = 'cpu'
+    )`;
+}
 
 export function withMatchKind<T extends { id: string }>(
   match: T,
@@ -12,19 +43,10 @@ export async function readMatchKinds(db: D1Database, records: readonly DecodedMa
   const kinds = new Map<string, MatchKind>();
   if (!records.length) return kinds;
   const rows = await db
-    .prepare(`SELECT id FROM tournament_matches WHERE id IN (${records.map(() => "?").join(",")})`)
+    .prepare(`SELECT m.id, (${storedMatchKindSql}) AS kind FROM matches m
+      WHERE m.id IN (${records.map(() => "?").join(",")})`)
     .bind(...records.map(({ record }) => record.id))
-    .all<{ id: string }>();
-  const tournaments = new Set(rows.results.map(({ id }) => id));
-  for (const { record } of records) {
-    const rated =
-      ("fourReversiRating" in record && record.fourReversiRating !== undefined) ||
-      ("fourShogiRating" in record && record.fourShogiRating !== undefined) ||
-      ("rating" in record && record.rating !== undefined);
-    kinds.set(
-      record.id,
-      tournaments.has(record.id) ? (rated ? "unknown" : "tournament") : rated ? "rated" : "normal",
-    );
-  }
+    .all<{ id: string; kind: MatchKind }>();
+  for (const row of rows.results) kinds.set(row.id, row.kind);
   return kinds;
 }

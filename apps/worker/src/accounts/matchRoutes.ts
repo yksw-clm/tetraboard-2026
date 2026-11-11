@@ -1,4 +1,4 @@
-import { readMatchKinds, withMatchKind } from "./matchKinds";
+import { matchHistoryFilterSql, readMatchKinds, withMatchKind } from "./matchKinds";
 import { participantProfiles } from "./matchProfiles";
 import { defaultGameId } from "@tetraboard/protocol/games";
 import { Hono } from "hono";
@@ -8,6 +8,7 @@ import {
   getMatchReplayContract,
   type RoomMode,
   type MatchGame,
+  type MatchHistoryFilter,
 } from "@tetraboard/protocol";
 import { accountIdentity } from "./auth";
 import { readShogiMatchReplayPage } from "../rooms/shogiMatchStore";
@@ -21,9 +22,10 @@ export async function listMatches(
   game: MatchGame = defaultGameId,
   includeMoveCount = false,
   includeMatchKind = false,
+  filter: MatchHistoryFilter = "all",
 ) {
   const sql = `SELECT m.game, m.record_json FROM account_match_history h
-    JOIN matches m ON m.id = h.match_id WHERE h.account_id = ? AND h.game = ? AND m.game = h.game AND h.mode = ?`;
+    JOIN matches m ON m.id = h.match_id WHERE h.account_id = ? AND h.game = ? AND m.game = h.game AND h.mode = ?${matchHistoryFilterSql(filter)}`;
   const statement = cursor
     ? db
         .prepare(`${sql} AND (h.started_at_ms < ? OR (h.started_at_ms = ? AND h.match_id < ?))
@@ -52,6 +54,7 @@ export async function listMatches(
   return listMatchesContract.response.parse({
     matches,
     nextCursor: rows.results.length > 20 && last ? `${last.startedAtMs}:${last.id}` : null,
+    ...(filter === "all" ? {} : { filter }),
   });
 }
 
@@ -67,6 +70,7 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
       cursor: c.req.query("cursor"),
       includeMoveCount: c.req.query("includeMoveCount"),
       includeMatchKind: c.req.query("includeMatchKind"),
+      filter: c.req.query("filter"),
     });
     if (!query.success) return c.json({ message: "履歴の取得条件が正しくありません。" }, 400);
     return c.json(
@@ -78,6 +82,7 @@ matchRoutes.get(listMatchesContract.path, async (c) => {
         query.data.game,
         query.data.includeMoveCount === "1",
         query.data.includeMatchKind === "1",
+        query.data.filter,
       ),
     );
   } catch {

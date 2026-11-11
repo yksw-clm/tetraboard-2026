@@ -127,7 +127,10 @@ test("通常リバーシのマイページは5戦績項目、引き分けを分�
   ).toEqual(["対局数", "勝数", "勝率", "敗数", "敗率"]);
   expect(view.textContent).toContain(".250");
   expect(view.textContent).toContain(".500");
-  expect(view.querySelector('[role="tablist"]:not([hidden])')).toBeNull();
+  expect(
+    view.querySelector('[role="tablist"][aria-label="プロフィールの対局モード"]:not([hidden])'),
+  ).toBeNull();
+  expect(view.querySelector('[role="tablist"][aria-label="棋譜の絞り込み"]')).not.toBeNull();
   expect(view.textContent).not.toContain("シングルス");
   expect(view.textContent).not.toContain("未獲得");
 });

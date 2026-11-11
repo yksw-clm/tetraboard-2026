@@ -231,6 +231,9 @@ export const matchCursorSchema = z
   })
   .pipe(z.strictObject({ startedAtMs: z.int().nonnegative(), id: z.uuid() }));
 
+export const matchHistoryFilterSchema = z.enum(["all", "rated", "human", "cpu"]);
+export type MatchHistoryFilter = z.infer<typeof matchHistoryFilterSchema>;
+
 export const listMatchesContract = {
   method: "GET",
   path: "/account/matches",
@@ -241,6 +244,7 @@ export const listMatchesContract = {
       cursor: matchCursorSchema.optional(),
       includeMoveCount: z.literal("1").optional(),
       includeMatchKind: z.literal("1").optional(),
+      filter: matchHistoryFilterSchema.default("all"),
     })
     .refine((value) =>
       gameCatalog[value.game].hasModes ? value.mode !== undefined : value.mode === undefined,
@@ -248,6 +252,7 @@ export const listMatchesContract = {
   response: z.strictObject({
     matches: z.array(matchSummarySchema).max(20),
     nextCursor: z.string().nullable(),
+    filter: matchHistoryFilterSchema.optional(),
   }),
 } as const;
 export type MatchSummary = z.infer<typeof matchSummarySchema>;

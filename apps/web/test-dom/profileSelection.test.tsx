@@ -204,7 +204,10 @@ test("全6ロビーのマイページは移動元の戦績・棋譜を最初に�
 
 test("共通操作で戦績・棋譜を同期し、カード・キャッシュ・遅延応答とゲーム別モードを保持", async () => {
   const { view } = profilePage();
-  expect(view.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+  expect(
+    view.querySelectorAll('[role="tablist"][aria-label="プロフィールの対局モード"]'),
+  ).toHaveLength(1);
+  expect(view.querySelectorAll('[role="tablist"][aria-label="棋譜の絞り込み"]')).toHaveLength(1);
   expect(view.querySelectorAll('[role="combobox"]')).toHaveLength(0);
   const profileCard = view.querySelector('[data-testid="account-profile-card"]');
   const historyCard = view.querySelector('[data-testid="account-replay-card"]');
