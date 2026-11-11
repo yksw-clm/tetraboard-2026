@@ -341,7 +341,10 @@ function UserResults({ filters, kind }: { filters: string; kind: AdminUsersQuery
           {dateTime(result.data.aggregatedAtMs)}
           {result.data.backfillComplete === false ? " ／ 補完・更新中" : ""}
           {result.data.periodAvailable === false ? " ／ この期間の局数は算出不可" : ""}
-          。局数は5分ごとの集計値です。最新日時の計測開始：{dateTime(result.data.collectedFromMs)}
+          。局数は5分ごとの集計値です。最新日時の計測開始：{dateTime(
+            result.data.collectedFromMs,
+          )}{" "}
+          ／ 指標版 {result.data.metricVersion ?? "未取得"}
         </p>
       )}
       <Dialog

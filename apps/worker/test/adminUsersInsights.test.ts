@@ -1,9 +1,19 @@
 import { env } from "cloudflare:workers";
-import { expect, test } from "vitest";
+import { beforeEach, afterEach, vi, expect, test } from "vitest";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
 import { backfillAccountTotals } from "../src/analytics/foundation";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse("2026-11-11T12:00:00+09:00"));
+  await env.APP_DB.prepare(
+    "UPDATE analytics_metadata SET value=? WHERE key='acquisition_collected_from'",
+  )
+    .bind(Date.now() - 86400000)
+    .run();
+});
+afterEach(() => vi.useRealTimers());
 const context = { waitUntil() {} } as unknown as ExecutionContext;
 test("管理ユーザーは最終日時・完了局数・ゲーム別現在レートを一括取得し、条件付きカーソルと詳細を扱う", async () => {
   const owner = await accountFixture();

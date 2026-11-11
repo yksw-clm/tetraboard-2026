@@ -146,7 +146,7 @@ export function AcquisitionDashboard() {
           <ReportStatus report={registration.data} query={filters.query} />
           <p className="text-sm text-muted-foreground">
             {registration.data.dateBasis === "entry" ? "登録を始めた日" : "各段階が発生した日"}
-            で絞り込みます。同じ手続きの段階は1回です。既存ログインと新規登録は別で、プロフィール工程が不要な人を離脱に数えません。発生日基準の行同士から到達率を計算しません。
+            で絞り込みます。同じ手続きの段階は1回です。既存ログインと新規登録は別で、プロフィール工程が不要な人を離脱に数えません。発生日基準の行同士から到達率を計算しません。プロフィール対象の記録が0でも、未到達と対象外の人数を推定しません。
           </p>
           <Table>
             <TableCaption className="sr-only">入口・本人区分・訪問の流入別の登録段階</TableCaption>
@@ -163,11 +163,7 @@ export function AcquisitionDashboard() {
                 <TableRow key={r.label}>
                   <TableCell className="max-w-80 whitespace-normal">{r.label}</TableCell>
                   {stages.map(([k]) => (
-                    <TableCell key={k}>
-                      {k === "profile_complete" && !r.counts.profile_required
-                        ? "対象外"
-                        : (r.counts[k] ?? 0)}
-                    </TableCell>
+                    <TableCell key={k}>{r.counts[k] ?? 0}</TableCell>
                   ))}
                 </TableRow>
               ))}

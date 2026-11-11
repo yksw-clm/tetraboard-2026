@@ -1,9 +1,19 @@
 import { env } from "cloudflare:workers";
-import { test, expect } from "vitest";
+import { beforeEach, afterEach, vi, test, expect } from "vitest";
 import worker from "../src/worker";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { runAnalyticsAggregation } from "../src/analytics/foundation";
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse("2026-11-11T12:00:00+09:00"));
+  await env.APP_DB.prepare(
+    "UPDATE analytics_metadata SET value=? WHERE key='acquisition_collected_from'",
+  )
+    .bind(Date.now() - 86400000)
+    .run();
+});
+afterEach(() => vi.useRealTimers());
 const context = { waitUntil() {} } as unknown as ExecutionContext;
 test("集客APIは5分スナップショットだけを返し、リンク・実参照元・未集計と0件を区別する", async () => {
   const owner = await accountFixture();

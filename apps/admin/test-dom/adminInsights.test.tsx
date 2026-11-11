@@ -101,6 +101,30 @@ test("集客と登録は実参照元・リンク・新規と既存を区別し�
   });
   expect(old.init.signal!.aborted).toBe(true);
   expect(requests.at(-1)!.url).toContain("dateBasis=event");
+  requests.at(-2)!.respond({ ...meta(), hostAvailable: true, rows: [] });
+  requests.at(-1)!.respond({
+    ...meta(),
+    dateBasis: "event",
+    rows: [
+      {
+        day: "2026-10-03",
+        entryDay: "2026-10-02",
+        entry: "room-result",
+        game: "shogi",
+        kind: "guest",
+        stage: "profile_complete",
+        linkId: 1,
+        source: "link-1",
+        medium: "social",
+        campaign: "profile",
+        referrerClass: "social",
+        device: "mobile",
+        count: 17,
+      },
+    ],
+  });
+  await flush();
+  expect([...view.querySelectorAll("table")].at(-1)!.textContent).toContain("17");
   press(view, "戻る");
   expect(requests.at(-1)!.url).toContain("dateBasis=entry");
   const lastAcquisition = requests.at(-2)!;
