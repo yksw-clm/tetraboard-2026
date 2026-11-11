@@ -11,6 +11,7 @@ import { useSocialSignIn } from "../account/useSocialSignIn";
 import { RatingSummary } from "./RatingSummary";
 import { RatingGrowthPreview } from "./RatingGrowthPreview";
 import { MatchmakingWaitTime } from "./MatchmakingWaitTime";
+import { PreviousRatedMatchCard } from "./PreviousRatedMatchCard";
 import { useMatchmaking } from "./useMatchmaking";
 
 export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame }) {
@@ -33,7 +34,7 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   const [cancelRequested, setCancelRequested] = useState(false);
   const rejoin = useRef(location.state?.matchmakingRejoin === true);
   const searching = (owned && data.status === "waiting") || (pending && data.status === "idle");
-  const assigned = data.status === "matched" || data.status === "playing";
+  const assigned = !data.previousMatch && (data.status === "matched" || data.status === "playing");
   const entering = assigned && owned && pending;
   if (confirm && !searching) setConfirm(false);
   const blocker = useBlocker(
@@ -74,12 +75,22 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
 
   const ready = Boolean(
     identity &&
+    !data.previousMatch &&
+    matching.verified &&
     account.user?.profileCompleted &&
     !account.loading &&
     !account.error &&
     data.enabled,
   );
   useEffect(() => {
+    if (rejoin.current && data.previousMatch) {
+      rejoin.current = false;
+      void navigate(location.pathname + location.search + location.hash, {
+        replace: true,
+        state: null,
+      });
+      return;
+    }
     if (!rejoin.current || !ready || data.status !== "idle" || pending) return;
     if (
       join(() => {
@@ -93,6 +104,7 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
   }, [
     ready,
     data.status,
+    data.previousMatch,
     pending,
     join,
     navigate,
@@ -128,6 +140,9 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
           </div>
         )}
         {identity && <RatingSummary key={`${game}:${identity}`} game={game} />}
+        {identity && data.serverNowMs === 0 && !matching.error && (
+          <p role="status">対局状況を確認しています…</p>
+        )}
         {data.status === "idle" && !pending && data.enabled === false && (
           <p role="status">{title}は準備中です。</p>
         )}
@@ -143,13 +158,20 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
           ) : (
             <p role="status">対戦相手を探しています…</p>
           ))}
-        {identity && data.enabled && !assigned && data.waitingCount !== undefined && (
-          <p className="text-sm">{data.waitingCount}人が待機中</p>
+        {identity &&
+          data.enabled &&
+          !assigned &&
+          !data.previousMatch &&
+          data.waitingCount !== undefined && (
+            <p className="text-sm">{data.waitingCount}人が待機中</p>
+          )}
+        {identity && data.previousMatch && (
+          <PreviousRatedMatchCard previous={data.previousMatch} refresh={() => void refresh()} />
         )}
         {assigned && owned && (
           <p role="status">対戦相手が決まりました。{entering && "ルームへ移動しています…"}</p>
         )}
-        {data.status !== "idle" && !owned && (
+        {data.status !== "idle" && !data.previousMatch && !owned && (
           <p role="status">別のタブまたは端末でマッチング・対局中です。</p>
         )}
         {!showConfirm && (matching.error || account.error) && (
@@ -159,6 +181,8 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
         )}
         <div className="flex flex-col gap-2">
           {data.status === "idle" &&
+            !data.previousMatch &&
+            (!identity || matching.verified) &&
             !pending &&
             (showSignIn ? (
               <>
@@ -186,7 +210,7 @@ export function RatedMatchmakingDialog({ game }: { game: RatedMatchmakingGame })
                 対戦相手を探す
               </AppButton>
             ))}
-          {data.status !== "idle" && !owned && (
+          {data.status !== "idle" && !data.previousMatch && !owned && (
             <AppButton isDisabled={pending} onPress={() => void takeover()}>
               このタブで続ける
             </AppButton>

@@ -2901,12 +2901,23 @@ export class GameRoom extends DurableObject<Env> {
           )
           .map((p) => p.id)
       : (saved?.connectedPlayerIds ?? []);
+    let summary: (RoomPublicMetadata & { instanceId: string }) | undefined;
+    if (same) {
+      const {
+        hostPlayerId: _host,
+        participantPreviews: _players,
+        matchKind: _matchKind,
+        ...metadata
+      } = this.publicMetadata(room!);
+      summary = metadata;
+    }
     return {
       phase: same ? (saved?.phase ?? "closed") : "closed",
       started: saved?.phase === "playing",
       aiUnavailable: saved?.aiWarmup?.state === "failed",
       occupiedPlayerIds,
       connectedPlayerIds,
+      ...(summary ? { room: summary } : {}),
     };
   }
   async abortMatchmakingRoom(matchId: string, instanceId: string) {

@@ -157,7 +157,7 @@ test("認定中の進捗は本人だけに返し、5局目の保存後から公�
 
   for (let i = 0; i < 3; i++) await saveStandardShogiFixture(ratedCpuRecord(user.id, "draw"));
   const fifth = ratedCpuRecord(user.id);
-  await env.APP_DB.prepare("INSERT INTO shogi_rating_pending VALUES (?,?)")
+  await env.APP_DB.prepare("INSERT INTO shogi_rating_pending(account_id,match_id) VALUES (?,?)")
     .bind(user.id, fifth.record.id)
     .run();
   expect(await read(fifth.record.id)).toEqual({ status: "pending" });
