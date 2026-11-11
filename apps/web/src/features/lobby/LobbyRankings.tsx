@@ -23,9 +23,7 @@ const shogiSinglesMetrics: RankingMetric[] = ["victories", "total", "knockouts"]
 
 function rankingMetrics(game: MatchGame, mode: RoomMode, rated: boolean) {
   const metrics = game === "four-shogi" && mode === "singles" ? shogiSinglesMetrics : normalMetrics;
-  return rated && mode === "singles"
-    ? [metrics[0]!, "rating" as const, ...metrics.slice(1)]
-    : metrics;
+  return rated && mode === "singles" ? ["rating" as const, ...metrics] : metrics;
 }
 
 function rankingLabel(game: MatchGame, mode: RoomMode, metric: RankingMetric) {
@@ -272,7 +270,7 @@ function RankingsDialog({
           mode={mode}
           onChange={(next) => {
             setMode(next);
-            setMetric("victories");
+            setMetric(next === "singles" && state.rating.supported ? "rating" : "victories");
           }}
         >
           <AppTabs
@@ -341,6 +339,7 @@ function LobbyRankingsView({
     Boolean(state.rankings && state.rating.data?.entries.length),
     hovered || focused || open || Boolean(profiles?.active),
     reducedMotion,
+    state.rating.supported ? "rating" : "victories",
   );
   const preview = (
     <motion.div
@@ -393,7 +392,7 @@ function LobbyRankingsView({
                 aria-label="ランキングの集計項目"
                 className="w-fit min-w-0 shrink-0 gap-0 bg-transparent p-0"
               >
-                {(["victories", "rating"] as const).map((tab) => (
+                {(["rating", "victories"] as const).map((tab) => (
                   <AppTabs.Tab key={tab} id={tab} className="group min-h-11 w-auto flex-none px-0">
                     <span className="flex h-8 items-center rounded-full px-3 text-xs group-data-[selected=true]:bg-brand/10 group-data-[selected=true]:text-brand">
                       {rankingLabel(state.game, "singles", tab)}
@@ -417,7 +416,7 @@ function LobbyRankingsView({
                 <span className="ml-auto text-xs whitespace-nowrap text-muted">シングルス</span>
               )}
             </div>
-            {(["victories", "rating"] as const).map((tab) => (
+            {(["rating", "victories"] as const).map((tab) => (
               <AppTabs.Panel key={tab} id={tab}>
                 {tab === rotation.metric && preview}
               </AppTabs.Panel>
