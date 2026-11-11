@@ -14,12 +14,14 @@ export function PlayerProfileCard({
   game,
   mode,
   onRetry,
+  showRating = true,
 }: {
   state: ProfileState;
   localProfile?: PlayerProfile;
   game: GameId;
   mode: RoomMode;
   onRetry: () => void;
+  showRating?: boolean;
 }) {
   const profile = state.profile ?? localProfile;
   if (!profile || (state.loading && !localProfile))
@@ -87,7 +89,7 @@ export function PlayerProfileCard({
           <p className="m-0 text-xs tabular-nums wrap-anywhere">
             {formatPlayerStatsSummary(profile.stats, mode)}
           </p>
-          {profile.rating && <ProfileRatingLabel rating={profile.rating} />}
+          {showRating && profile.rating && <ProfileRatingLabel rating={profile.rating} />}
           {gameCatalog[game].hasModes && mode === "singles" && (
             <PlayerBadges game={game} badges={profile.badges} />
           )}
@@ -97,7 +99,7 @@ export function PlayerProfileCard({
           <p className="m-0 text-sm text-muted">
             {profile.kind === "guest" ? "ゲスト／ID・戦績なし" : "戦績集計対象外"}
           </p>
-          {profile.kind === "cpu" && profile.rating && (
+          {showRating && profile.kind === "cpu" && profile.rating && (
             <ProfileRatingLabel rating={profile.rating} />
           )}
           {localProfile && state.loading && (

@@ -21,6 +21,7 @@ export function TournamentPlayer({
 }) {
   return (
     <PlayerProfileTrigger
+      showRating={false}
       target={row.profileId ? { source: "profile", profileId: row.profileId } : null}
       game={game}
       mode="singles"

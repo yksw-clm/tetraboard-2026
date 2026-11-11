@@ -27,6 +27,7 @@ export function PlayerProfileTrigger({
   label,
   className,
   children,
+  showRating = true,
 }: {
   target?: PlayerProfileTarget | null;
   localProfile?: PlayerProfile;
@@ -36,6 +37,7 @@ export function PlayerProfileTrigger({
   label: string;
   className?: string;
   children: ReactNode;
+  showRating?: boolean;
 }) {
   const context = usePlayerProfiles();
   const closePreview = context?.close;
@@ -265,6 +267,7 @@ export function PlayerProfileTrigger({
             localProfile={localProfile}
             game={game}
             mode={mode}
+            showRating={showRating}
             onRetry={() => {
               if (target) void context.store.load(target, game, true);
             }}
