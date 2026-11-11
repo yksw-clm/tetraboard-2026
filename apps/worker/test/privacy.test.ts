@@ -705,7 +705,7 @@ for (const provider of ["google", "discord"] as const)
         });
       throw new Error("Unexpected OAuth request");
     });
-    const signIn = async () => {
+    const signIn = async (admin = false) => {
       const response = await request("/auth/sign-in/social", {
         method: "POST",
         headers: {
@@ -713,7 +713,7 @@ for (const provider of ["google", "discord"] as const)
           "Content-Type": "application/json",
           "X-Legal-Consent": legalVersion,
         },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, ...(admin ? { destination: "admin" } : {}) }),
       });
       expect(response.status).toBe(200);
       const url = new URL(((await response.json()) as { url: string }).url);
@@ -739,6 +739,27 @@ for (const provider of ["google", "discord"] as const)
       .first<{ id: string; name: string; image: string | null }>())!;
     expect(user.name).toBe("");
     expect(user.image).toBeNull();
+    const loginUsage = await env.APP_DB.prepare(
+      "SELECT last_login_at_ms FROM account_usage WHERE account_id=?",
+    )
+      .bind(user.id)
+      .first<number>("last_login_at_ms");
+    expect(loginUsage).toBeGreaterThan(0);
+    if (provider === "google") {
+      await env.APP_DB.prepare("DELETE FROM account_usage WHERE account_id=?").bind(user.id).run();
+      const adminLogin = await callback(await signIn(true));
+      expect(adminLogin.headers.get("Location")).toContain("/admin");
+      expect(
+        await env.APP_DB.prepare("SELECT last_login_at_ms FROM account_usage WHERE account_id=?")
+          .bind(user.id)
+          .first<number>("last_login_at_ms"),
+      ).toBeGreaterThan(0);
+    }
+    // セッション期限更新や再認証が誤ってログイン扱いになれば、この既知の値が上書きされます。
+    const loginSentinel = Date.now() - 1000000;
+    await env.APP_DB.prepare("UPDATE account_usage SET last_login_at_ms=? WHERE account_id=?")
+      .bind(loginSentinel, user.id)
+      .run();
     expect(
       await env.APP_DB.prepare("SELECT version FROM legal_consents WHERE account_id=?")
         .bind(user.id)
@@ -816,6 +837,11 @@ for (const provider of ["google", "discord"] as const)
       .first<{ verified_at_ms: number; verified_session_id: string }>();
     expect(row!.verified_at_ms).toBeGreaterThan(0);
     expect(row!.verified_session_id).toBeTruthy();
+    expect(
+      await env.APP_DB.prepare("SELECT last_login_at_ms FROM account_usage WHERE account_id=?")
+        .bind(user.id)
+        .first("last_login_at_ms"),
+    ).toBe(loginSentinel);
     expect(
       (await request("/account/deletion/confirmation", { headers: { Cookie: newCookie } })).status,
     ).toBe(200);
@@ -1068,6 +1094,7 @@ test("長期集計は期限前に未完了だった対局の率・時間を推�
   )
     .bind(id, crypto.randomUUID(), crypto.randomUUID())
     .run();
+  await archiveAnalytics(env);
   const data = await readAnalytics(env, query);
   expect(data.summary.started).toBeGreaterThan(0);
   expect(data.summary.playing).toBeNull();

@@ -57,6 +57,7 @@ test("管理API・HTMLは本人限定で、通報用トークンを流用せず�
     "/api/admin/session",
     "/api/admin/analytics?from=2001-01-01&to=2001-01-31",
     "/api/admin/users",
+    "/api/admin/analytics/foundation?from=2001-01-01&to=2001-01-31",
   ]) {
     expect((await fetchWith(bindings, path)).status).toBe(401);
     expect((await fetchWith(bindings, path, { headers: { Cookie: other.cookie } })).status).toBe(

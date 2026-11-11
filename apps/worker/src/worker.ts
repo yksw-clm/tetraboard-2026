@@ -1,6 +1,7 @@
 import { matchmakingRoutes } from "./matchmaking/routes";
 import { notificationRoutes } from "./notifications/routes";
-import { runScheduledMaintenance } from "./scheduledMaintenance";
+import { runAnalyticsAggregation } from "./analytics/foundation";
+import { runScheduledMaintenance, runMaintenanceTasks } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./accounts/guestLinking";
 import { guestRoutes } from "./accounts/guestAccounts";
 import { generalLobbyRoutes } from "./lobby/routes";
@@ -130,8 +131,12 @@ const worker = {
     }
     return app.fetch(request, env, context);
   },
-  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await runScheduledMaintenance(env);
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    if (controller.cron === "*/5 * * * *")
+      await runMaintenanceTasks([
+        { name: "analytics-aggregation", run: () => runAnalyticsAggregation(env) },
+      ]);
+    else await runScheduledMaintenance(env);
   },
 };
 

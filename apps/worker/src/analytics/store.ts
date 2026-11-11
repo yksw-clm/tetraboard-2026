@@ -1,3 +1,4 @@
+import { accountUsageStatement } from "../accounts/usage";
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { analyticsSessionIdleMs } from "@tetraboard/protocol";
 export type AnalyticsIdentity = {
@@ -44,6 +45,9 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
   if (record.startedAtMs <= Date.now() - analyticsRetentionMs) return;
   await db.batch([
     coverageStatement(db, record.startedAtMs),
+    ...record.participants.flatMap((p) =>
+      p.accountId ? [accountUsageStatement(db, p.accountId, record.startedAtMs)] : [],
+    ),
     db
       .prepare(`INSERT INTO analytics_matches (id, game, mode, started_at_ms, ended_at_ms, status, cpu_count)
       VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET
@@ -61,8 +65,8 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
     ...record.participants.map((p) =>
       db
         .prepare(`INSERT INTO analytics_participants (match_id, player_id, account_id, visitor_id, is_test,
-          session_id,referrer_class,utm_source,utm_medium,utm_campaign,device,is_guest)
-      SELECT ?, ?, COALESCE((SELECT account_id FROM guest_account_merges WHERE guest_id=?),?), ?, ?,s.id,s.referrer_class,s.utm_source,s.utm_medium,s.utm_campaign,s.device,?
+          session_id,referrer_class,utm_source,utm_medium,utm_campaign,device,is_guest,origin_account_id)
+      SELECT ?, ?, COALESCE((SELECT account_id FROM guest_account_merges WHERE guest_id=?),?), ?, ?,s.id,s.referrer_class,s.utm_source,s.utm_medium,s.utm_campaign,s.device,?,?
       FROM (SELECT 1) LEFT JOIN analytics_sessions s ON s.id=(SELECT id FROM analytics_sessions
         WHERE visitor_id=? AND started_at_ms<=? AND last_activity_ms>? AND started_at_ms>?
         ORDER BY started_at_ms DESC,id LIMIT 1)
@@ -75,6 +79,7 @@ export async function writeAnalyticsMatch(db: D1Database, record: AnalyticsMatch
           p.visitorId,
           Number(p.isTest),
           Number(Boolean(p.isGuest)),
+          p.accountId,
           p.visitorId,
           record.startedAtMs,
           record.startedAtMs - analyticsSessionIdleMs,

@@ -1,6 +1,7 @@
 import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { Hono } from "hono";
 import { pageViewInputSchema, dwellInputSchema } from "@tetraboard/protocol";
+import { recordAccountUsage } from "../accounts/usage";
 import { accountIdentity } from "../accounts/auth";
 import { analyticsVisitor, coverageStatement } from "./store";
 import { sessionActivityStatement, sessionStatements } from "./sessions";
@@ -44,9 +45,12 @@ async function body(request: Request) {
 analyticsRoutes.post("/analytics/pageviews", async (c) => {
   const input = pageViewInputSchema.safeParse(await body(c.req.raw));
   if (!input.success) return c.body(null, 400);
-  const visitor = analyticsVisitor(c.req.raw);
-  if (!visitor) return c.body(null, 204);
   const user = await accountIdentity(c.req.raw, c.env);
+  const visitor = analyticsVisitor(c.req.raw);
+  if (!visitor) {
+    if (user) await recordAccountUsage(c.env.APP_DB, user.id);
+    return c.body(null, 204);
+  }
   const now = Date.now();
   // 1ブラウザの異常な送信で、ページビュー行が際限なく増えることを防ぎます。
   const recent = await c.env.APP_DB.prepare(
@@ -79,6 +83,15 @@ analyticsRoutes.post("/analytics/pageviews", async (c) => {
       acquisition: input.data.acquisition,
     }),
   ]);
+  if (user) {
+    const saved = await c.env.APP_DB.prepare(
+      "SELECT started_at_ms FROM analytics_pageviews WHERE id=? AND visitor_id=? AND account_id=?",
+    )
+      .bind(input.data.id, visitor, user.id)
+      .first<{ started_at_ms: number }>();
+    // 切替前の本人のビュー再送や、古いビューの再送で今日の利用日を作りません。
+    if (saved) await recordAccountUsage(c.env.APP_DB, user.id, saved.started_at_ms);
+  }
   return c.body(null, 204);
 });
 analyticsRoutes.post("/analytics/dwell", async (c) => {

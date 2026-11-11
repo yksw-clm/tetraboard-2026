@@ -1,3 +1,5 @@
+import { recordLoginUsage } from "./loginUsage";
+import { recordAccountUsage } from "./usage";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import {
   prepareGuestLink,
@@ -43,6 +45,14 @@ accountRoutes.use("*", async (c, next) => {
   if (/\/(auth|account)(\/|$)/.test(new URL(c.req.url).pathname))
     c.header("Cache-Control", "no-store");
   await next();
+  if (
+    ["/api/account/profile", "/api/account/setup"].includes(c.req.path) &&
+    ["POST", "PATCH"].includes(c.req.method) &&
+    c.res.ok
+  ) {
+    const user = c.get("user");
+    if (user) await recordAccountUsage(c.env.APP_DB, user.id);
+  }
 });
 accountRoutes.onError((err, c) => {
   if (err instanceof GuestLinkError) return c.json(error(err.message), 409);
@@ -61,6 +71,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       new Request(`${c.env.APP_ORIGIN}/api${path}${new URL(c.req.url).search}`, c.req.raw),
     );
     await completeGuestLink(c.req.raw, response, c.env);
+    await recordLoginUsage(c.req.raw, response, c.env);
     await completeReauthentication(c.req.raw, response, c.env);
     await completeLegalAuthentication(c.req.raw, response, c.env);
     await completeRegistrationOAuth(c.req.raw, response, c.env);
