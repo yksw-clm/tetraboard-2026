@@ -13,7 +13,7 @@ import { legalVersion } from "@tetraboard/protocol/privacy";
 import { accountRequest } from "../account/accountApi";
 const api = (game: MatchmakingGame) => `/api/matchmaking/${game}`;
 const waitingQuery = (game: MatchmakingGame) =>
-  game === "four-reversi" ? "rated=1&waitingCount=1" : "waitingCount=1";
+  game === "four-reversi" ? "rated=1&waitingCount=1&estimate=1" : "waitingCount=1&estimate=1";
 export type ObservedMatchmaking = ReturnType<typeof matchmakingStateSchema.parse> & {
   legacy?: true;
 };
