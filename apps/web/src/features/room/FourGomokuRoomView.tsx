@@ -1,3 +1,4 @@
+import { roomMatchKind } from "@tetraboard/protocol";
 import { useBoardRotation } from "./useBoardRotation";
 import { rotatedSeatIndex } from "./boardRotation";
 import { seatPositions } from "./roomCommonPresentation";
@@ -58,7 +59,11 @@ export function FourGomokuRoomView({
       chat={chat}
       invited={invited}
       board={board}
-      replayCard={replay.frame ? <ReplayCard replay={replay} theme="gomoku" /> : null}
+      replayCard={
+        replay.frame ? (
+          <ReplayCard matchKind={roomMatchKind(room)} replay={replay} theme="gomoku" />
+        ) : null
+      }
       result={room.lastRound ? <FourGomokuResult lastRound={room.lastRound} /> : null}
       selfEliminated={inactive}
       onRotate={rotate}

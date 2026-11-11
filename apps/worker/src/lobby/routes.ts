@@ -1,3 +1,4 @@
+import { readMatchKinds, withMatchKind } from "../accounts/matchKinds";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -72,6 +73,7 @@ generalLobbyRoutes.get("/lobby/matches", async (c) => {
     .strictObject({
       humanOnly: z.enum(["true", "false"]).default("false"),
       includeMoveCount: z.literal("1").optional(),
+      includeMatchKind: z.literal("1").optional(),
     })
     .safeParse(c.req.query());
   if (!query.success) return c.json({ message: "取得条件が正しくありません。" }, 400);
@@ -85,10 +87,12 @@ generalLobbyRoutes.get("/lobby/matches", async (c) => {
  ORDER BY started_at_ms DESC,id DESC LIMIT 20`).all<{ game: string; record_json: string }>();
   const records = rows.results.map((row) => readStoredMatch(row.record_json, row.game));
   const profiles = await participantProfiles(c.env.APP_DB, records);
+  const kinds =
+    query.data.includeMatchKind === "1" ? await readMatchKinds(c.env.APP_DB, records) : undefined;
   return c.json(
     lobbyMatchesSchema.parse({
       matches: records.map((record) =>
-        matchSummary(record, profiles, query.data.includeMoveCount === "1"),
+        withMatchKind(matchSummary(record, profiles, query.data.includeMoveCount === "1"), kinds),
       ),
     }),
   );

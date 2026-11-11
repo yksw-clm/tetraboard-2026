@@ -1,3 +1,4 @@
+import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import {
   cpuReferenceRating,
@@ -1745,6 +1746,7 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   private publicMetadata(room: Room): RoomPublicMetadata & {
+    matchKind: MatchKind;
     instanceId: string;
     hostPlayerId: string | null;
     participantPreviews: IndexedRoomParticipant[];
@@ -1757,6 +1759,7 @@ export class GameRoom extends DurableObject<Env> {
     const humanCount = room.players.filter((player) => player.kind === "human").length;
     return {
       instanceId: room.instanceId,
+      matchKind: roomMatchKind(room),
       hostPlayerId: host?.id ?? null,
       participantPreviews: room.players.map((player) => ({
         playerId: player.id,
@@ -3351,6 +3354,7 @@ export class GameRoom extends DurableObject<Env> {
       instanceId,
       hostPlayerId,
       participantPreviews: _previews,
+      matchKind: _matchKind,
       ...metadata
     } = this.publicMetadata(room);
     return { ...metadata, ...(profilePreview ? { instanceId, hostPlayerId } : {}) };

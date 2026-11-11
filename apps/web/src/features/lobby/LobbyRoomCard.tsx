@@ -9,6 +9,7 @@ import { gameThemes } from "../../shared/ui/appTheme";
 import { PlayerProfileTrigger } from "../players/PlayerProfileTrigger";
 import { PlayerAvatar } from "../room/PlayerAvatar";
 import { LobbyBoardPreview } from "./LobbyBoardPreview";
+import { MatchKindBadge } from "../../shared/ui/MatchKindBadge";
 
 function duration(ms: number) {
   const seconds = Math.floor(ms / 1000);
@@ -48,6 +49,7 @@ export function LobbyRoomCard({
               )}
               {room.mode && `・${room.mode === "singles" ? "シングルス" : "ダブルス"}`}
             </span>
+            <MatchKindBadge kind={room.matchKind} />
             <span className="inline-flex items-center gap-1 whitespace-nowrap font-normal tabular-nums">
               <AppIcon name="clock" className="size-3.5" />
               {duration(room.timeControl.mainTimeMs)} / {duration(room.timeControl.byoyomiMs)}

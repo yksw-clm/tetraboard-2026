@@ -1,4 +1,5 @@
 export * from "./games";
+export * from "./matchKinds";
 export * from "./avatarPresets";
 export * from "./profileDetails";
 export * from "./gameSchemas";

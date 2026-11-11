@@ -3,7 +3,7 @@ import { lobbyRoomCardSchema, type LobbyRoomCard } from "@tetraboard/protocol/ge
 import { TournamentRooms } from "../src/features/tournaments/TournamentRooms";
 import { act, clock, flush, press, render, rerender, requests, wrap } from "./harness";
 
-const url = "/api/lobby/rooms?view=cards&game=four-shogi";
+const url = "/api/lobby/rooms?view=cards&includeMatchKind=1&game=four-shogi";
 const instanceId = "11111111-1111-4111-8111-111111111111";
 function room(id: string, values: Partial<LobbyRoomCard> = {}) {
   return lobbyRoomCardSchema.parse({

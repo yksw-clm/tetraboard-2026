@@ -77,7 +77,7 @@ async function loadMatchReplay({ params, request }: LoaderFunctionArgs, publicVi
   const generation = accountRequestGeneration();
   let response: Response;
   try {
-    response = await fetch(`/api${contract.pathFor(parsed.data.matchId)}`, {
+    response = await fetch(`/api${contract.pathFor(parsed.data.matchId)}?includeMatchKind=1`, {
       credentials: "include",
       signal: request.signal,
     });
