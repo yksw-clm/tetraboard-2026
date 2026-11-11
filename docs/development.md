@@ -1601,6 +1601,14 @@ Webの `useMatchHistoryFilter` は本人の公開識別子と選択をブラウ�
 
 新Webは `includeMatchKind=1` とともに要求し、共通カードが名前を整形します。新Webには対応Workerが必要で、旧Workerへの自動再取得は行いません。反映順はmigration→Worker→Webとし、Workerを切り戻す場合は対応するWebも戻します。
 
+## レート戦開幕ダイアログ
+
+仕様の正本は[開幕の案内](../README.md#レート戦開幕の案内)です。`RatedLaunchAnnouncement` が総合ロビーと対応4ゲームの共通 `LobbyView` に入り、固定キー `tetraboard:rated-launch:seen` を受付情報の取得前に確認します。`ratedLaunch.ts` に既読確認・表示直前の保存・目的付き遷移の判定を集約します。保存不可では自動表示を見送り、既読は本人の切替やデプロイで消去しません。
+
+総合ロビーは既存 `useLobbyGameRatings` の結果を渡し、ゲーム別は未読かつ目的付き遷移でないときだけ同じAPIを取得します。読み込み・非表示・停止・失敗では既読にしません。表示待ち中のpointerdown・keydown・wheel、別ダイアログの出現、別タブの既読を監視し、利用者の操作を優先します。破棄時に取得・タイマー・イベント・Observerを解除します。
+
+`RatedLaunchDialog` は受付確認済みのゲーム一覧を受け、既存 `AppDialog`・`SocialSignInButtons`・`useSocialSignIn` を使います。選択ゲームを既存の登録復帰先へ保存し、OAuth／初回設定後はそのゲームの `?matchmaking=1` へ戻します。認証開始の計測も既存のrated-matchを利用し、新API・保存テーブル・依存や受付フラグ変更はありません。参加者の検索開始は既存画面の操作に残します。
+
 ## ゲーム別のランキング
 
 `GET /api/games/:game/rankings/rating` は四人将棋・四人リバーシ・将棋・リバーシだけの公開APIです。`{ entries: [{ rank, profileId, username, name, avatarUrl, value }] }` で最新の公開整数レート上位10人を返し、既存のランキング応答を変更しません。各ゲームのレート更新履歴の最大有効局数から認定済みの登録者を抽出し、公開整数値で同順位を判定します。四人ゲームの変換定数を既存表示と共有し、SQLiteでは負の半整数もMath.roundと一致する `floor(value + 0.5)` を使います。件数用の正整数制約はレートに流用せず、内部ID・μ・σ・認定中の値は返しません。新しい集計テーブルやバックフィルは不要です。応答はno-store、失敗は503です。
