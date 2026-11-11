@@ -162,7 +162,9 @@ export const matchmakingStateSchema = z.strictObject({
       game: z.enum(["four-reversi", "four-shogi", "shogi", "reversi"]),
       matchId: z.uuid(),
       phase: z.enum(["matched", "playing", "saving", "unavailable"]),
-      room: roomPublicMetadataSchema.safeExtend({ instanceId: z.uuid() }).optional(),
+      room: roomPublicMetadataSchema
+        .safeExtend({ instanceId: z.uuid(), matchSequence: z.int().positive().optional() })
+        .optional(),
     })
     .optional(),
   status: z.enum(["idle", "waiting", "matched", "playing"]),

@@ -137,7 +137,11 @@ test.each(["four-reversi", "four-shogi"] as const)(
         game,
         matchId: assignment.matchId,
         phase: "playing",
-        room: { id: assignment.roomId, instanceId: assignment.instanceId },
+        room: {
+          id: assignment.roomId,
+          instanceId: assignment.instanceId,
+          matchSequence: expect.any(Number),
+        },
       });
       expect(JSON.stringify(data.previousMatch)).not.toContain("token");
       expect(

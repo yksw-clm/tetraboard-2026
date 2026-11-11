@@ -22,7 +22,11 @@ export function PreviousRatedMatchCard({
             {gameCatalog[previous.game].name}のレート戦
           </p>
           <h3 className="text-base font-bold wrap-anywhere">
-            {room ? `${room.hostName ?? "ホストなし"}の部屋` : "前局のルーム"}
+            {room
+              ? room.matchSequence === undefined
+                ? "レート戦"
+                : `レート戦 #${room.matchSequence}`
+              : "前局のルーム"}
           </h3>
         </div>
         {room && (

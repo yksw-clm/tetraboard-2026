@@ -125,6 +125,7 @@ test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
         timeControl: { mainTimeMs: 180000, byoyomiMs: 0 },
         status: "playing",
         hostName: "対局者",
+        matchSequence: 37,
         humanCount: 3,
         cpuCount: 1,
         capacity: 4,
@@ -137,7 +138,7 @@ test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
     latest(`/api/matchmaking/${game}/rating`).respond({ status: "placement", games: 2 });
     await flush();
     expect(activeDialog().textContent).toContain("前局は対局中です");
-    expect(activeDialog().querySelector("h3")?.textContent).toBe("対局者の部屋");
+    expect(activeDialog().querySelector("h3")?.textContent).toBe("レート戦 #37");
     expect(activeDialog().textContent).toContain("四人リバーシのレート戦");
     expect(activeDialog().textContent).toContain("#54321");
     expect(activeDialog().textContent).not.toContain("対戦相手を探す");
@@ -219,6 +220,7 @@ test("進行中の前局を同じ操作元で開いても自動入室・引き�
   });
   await flush();
   expect(router.state.location.pathname).toBe(shogiLobby);
+  expect(activeDialog().querySelector("h3")?.textContent).toBe("レート戦");
   expect(activeDialog().textContent).toContain("観戦する");
   expect(activeDialog().textContent).not.toContain("入室する");
   expect(activeDialog().textContent).not.toContain("このタブで続ける");
