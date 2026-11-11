@@ -44,7 +44,7 @@ export async function withAccountSessionCookies(
   }
 }
 
-export function createAuth(env: AuthEnv) {
+export function createAuth(env: AuthEnv, createdAccounts?: Set<string>) {
   const local = new URL(env.APP_ORIGIN).protocol === "http:";
   const secret = authSecret(env);
   return betterAuth({
@@ -114,6 +114,9 @@ export function createAuth(env: AuthEnv) {
       },
       user: {
         create: {
+          after: async (user) => {
+            createdAccounts?.add(user.id);
+          },
           before: async (user) => ({
             data: { ...user, name: "", image: null },
           }),

@@ -17,6 +17,7 @@ import { cn } from "@heroui/react";
 import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { gameAccentClasses, type AppTheme } from "../../shared/ui/appTheme";
 import { useEffect, useState, type KeyboardEvent } from "react";
+import { beginRegistrationEntry } from "../../analytics/registrationAnalytics";
 import { AccountLinkDialog } from "./AccountLinkDialog";
 export function ProfileForm({
   user,
@@ -66,7 +67,10 @@ export function ProfileForm({
     return () => onBusyChange?.(false);
   }, [busy, onBusyChange]);
   function requireLink(feature: string) {
-    if (!busy && user.isGuest) setLinkFeature(feature);
+    if (!busy && user.isGuest) {
+      beginRegistrationEntry("profile-edit");
+      setLinkFeature(feature);
+    }
   }
   function requireLinkOnKey(event: KeyboardEvent<HTMLInputElement>, feature: string) {
     if (user.isGuest && (event.key === "Enter" || event.key === " ")) {
@@ -310,6 +314,7 @@ export function ProfileForm({
       </form>
       {linkFeature && (
         <AccountLinkDialog
+          analyticsEntry="profile-edit"
           feature={linkFeature}
           theme={theme}
           beforeSignIn={saveBeforeLink}

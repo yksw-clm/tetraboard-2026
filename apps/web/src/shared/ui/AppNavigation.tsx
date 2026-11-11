@@ -1,3 +1,4 @@
+import { beginRegistrationEntry } from "../../analytics/registrationAnalytics";
 import { useContext, useEffect, useSyncExternalStore, type MouseEvent } from "react";
 import { Link, useLocation } from "react-router";
 import { cn } from "@heroui/react";
@@ -128,6 +129,7 @@ export function AppNavigation({
           }
           onClick={(event) => {
             if (accountTo === "/login") {
+              beginRegistrationEntry("mobile-navigation", game);
               const path = registrationPath(location.pathname + location.search);
               if (path) saveRegistrationReturn({ path }, false);
               else clearRegistrationReturn();

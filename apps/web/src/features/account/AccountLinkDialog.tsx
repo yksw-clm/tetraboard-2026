@@ -1,3 +1,4 @@
+import type { RegistrationEntry } from "@tetraboard/protocol";
 import { useEffect, useRef, useState } from "react";
 import { AppDialog } from "../../shared/ui/AppDialog";
 import { AppButton } from "../../shared/ui/AppButton";
@@ -8,6 +9,7 @@ import { useSocialSignIn, type SocialProvider } from "./useSocialSignIn";
 
 export function AccountLinkDialog({
   feature,
+  analyticsEntry = "account-link",
   theme = "default",
   destination,
   beforeSignIn,
@@ -17,6 +19,7 @@ export function AccountLinkDialog({
   onBusyChange,
 }: {
   feature?: string;
+  analyticsEntry?: RegistrationEntry;
   theme?: AppTheme;
   destination?: RegistrationDestination;
   beforeSignIn?: () => Promise<void>;
@@ -25,7 +28,7 @@ export function AccountLinkDialog({
   onClose: () => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
-  const signIn = useSocialSignIn();
+  const signIn = useSocialSignIn(analyticsEntry);
   const [preparing, setPreparing] = useState(false);
   const [provider, setProvider] = useState<SocialProvider | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -45,6 +48,7 @@ export function AccountLinkDialog({
   async function start(nextProvider: SocialProvider) {
     if (busy || submitting.current) return;
     submitting.current = true;
+    signIn.trackEntry();
     const version = ++requestVersion.current;
     setPreparing(true);
     setProvider(nextProvider);

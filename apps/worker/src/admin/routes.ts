@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import {
   analyticsFoundationSchema,
+  registrationAnalyticsReportSchema,
+  registrationAnalyticsQuerySchema,
   adminAnalyticsQuerySchema,
   adminAnalyticsSchema,
   adminUsersQuerySchema,
@@ -9,6 +11,7 @@ import {
 import { accountAvatarUrl, type StoredProfile } from "../accounts/auth";
 import { accountCreatedAtMsSql } from "../accounts/timestamps";
 import { adminIdentity, type AdminEnv } from "./auth";
+import { readRegistrationAnalytics } from "../analytics/registrationAggregation";
 import { readAnalyticsFoundation } from "../analytics/foundation";
 import { readAnalytics } from "./metrics";
 export const adminRoutes = new Hono<{ Bindings: AdminEnv; Variables: { admin: StoredProfile } }>();
@@ -16,6 +19,7 @@ for (const path of [
   "/admin/session",
   "/admin/analytics",
   "/admin/analytics/foundation",
+  "/admin/analytics/registration",
   "/admin/users",
 ]) {
   adminRoutes.use(path, async (c, next) => {
@@ -43,6 +47,13 @@ adminRoutes.get("/admin/analytics/foundation", async (c) => {
   const query = adminAnalyticsQuerySchema.safeParse(c.req.query());
   if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大3年）。" }, 400);
   return c.json(analyticsFoundationSchema.parse(await readAnalyticsFoundation(c.env, query.data)));
+});
+adminRoutes.get("/admin/analytics/registration", async (c) => {
+  const query = registrationAnalyticsQuerySchema.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大3年）。" }, 400);
+  return c.json(
+    registrationAnalyticsReportSchema.parse(await readRegistrationAnalytics(c.env, query.data)),
+  );
 });
 adminRoutes.get("/admin/users", async (c) => {
   const query = adminUsersQuerySchema.safeParse(c.req.query());
