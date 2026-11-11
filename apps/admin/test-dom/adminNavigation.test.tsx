@@ -1,3 +1,5 @@
+import { SidebarProvider } from "../src/components/ui/sidebar";
+import { ThemeProvider } from "../src/components/ThemeProvider";
 import { expect, test } from "bun:test";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { MemoryRouter, useLocation, useNavigate } from "react-router";
@@ -18,7 +20,11 @@ function Location() {
 test("画面選択は全管理メニューへadmin配下で移動し、PCリンクの現在地も同期する", () => {
   const view = render(
     <MemoryRouter basename="/admin" initialEntries={["/admin/"]}>
-      <AdminNavigation name="管理者" />
+      <ThemeProvider>
+        <SidebarProvider>
+          <AdminNavigation name="管理者" />
+        </SidebarProvider>
+      </ThemeProvider>
       <Location />
     </MemoryRouter>,
   );
@@ -46,7 +52,7 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
     expect(current[0]?.textContent).toBe(label);
     expect(current[0]?.getAttribute("href")).toBe(`/admin${path === "/" ? "" : path}`);
   }
-  act(() => view.querySelector("button")!.click());
+  act(() => [...view.querySelectorAll("button")].find((b) => b.textContent === "戻る")!.click());
   expect(select.value).toBe("/announcements");
 });
 
@@ -61,7 +67,11 @@ test("詳細・新規作成への直接アクセスは親メニューを現在�
     const parent = `/${path.split("/")[1]}`;
     const view = render(
       <MemoryRouter basename="/admin" initialEntries={[`/admin${path}`]}>
-        <AdminNavigation name="管理者" />
+        <ThemeProvider>
+          <SidebarProvider>
+            <AdminNavigation name="管理者" />
+          </SidebarProvider>
+        </ThemeProvider>
         <Location />
       </MemoryRouter>,
     );
@@ -75,8 +85,21 @@ test("詳細・新規作成への直接アクセスは親メニューを現在�
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(view.querySelector("output")?.textContent).toBe("/");
-    act(() => view.querySelector("button")!.click());
+    act(() => [...view.querySelectorAll("button")].find((b) => b.textContent === "戻る")!.click());
     expect(select.value).toBe(parent);
     expect(view.querySelector("output")?.textContent).toBe(path);
   }
+});
+
+test("管理画面で表示テーマを選択できる", () => {
+  const view = render(
+    <MemoryRouter>
+      <ThemeProvider>
+        <SidebarProvider>
+          <AdminNavigation name="管理者" />
+        </SidebarProvider>
+      </ThemeProvider>
+    </MemoryRouter>,
+  );
+  expect(view.querySelector('select[aria-label="表示テーマ"]')).not.toBeNull();
 });

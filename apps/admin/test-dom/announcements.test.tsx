@@ -50,11 +50,17 @@ test("新規の既定値・文字数検証・プレビュー・保存ロック�
   expect(view.querySelector('[aria-label="ロビー表示プレビュー"]')!.textContent).not.toContain(
     "二行目",
   );
-  const checkboxes = view.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+  const checkboxes = view.querySelectorAll<HTMLElement>('[role="checkbox"]');
   act(() => {
-    checkboxes[0]!.click();
-    checkboxes[2]!.click();
+    const published = checkboxes[0]!;
+    published.focus();
+    published.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", code: "Space", bubbles: true }),
+    );
+    published.dispatchEvent(new KeyboardEvent("keyup", { key: " ", code: "Space", bubbles: true }));
   });
+  expect(checkboxes[0]!.getAttribute("aria-checked")).toBe("true");
+  act(() => checkboxes[2]!.click());
   press(view, "保存");
   press(view, "保存");
   expect(requests).toHaveLength(1);
