@@ -110,8 +110,13 @@ test("通常将棋ランキングは勝数3人と詳細10人でモードタブ�
   }));
   const view = render(wrap()(<LobbyRankings game="shogi" theme="shogi" />));
   clock.advance(0);
-  expect(requests.at(-1)!.url).toBe("/api/games/shogi/rankings?profilePreview=1");
-  requests.at(-1)!.respond({ wins: entries, total: entries });
+  expect(requests.filter(({ url }) => url.includes("/rankings?")).at(-1)!.url).toBe(
+    "/api/games/shogi/rankings?profilePreview=1",
+  );
+  requests
+    .filter(({ url }) => url.includes("/rankings?"))
+    .at(-1)!
+    .respond({ wins: entries, total: entries });
   await flush();
   expect(view.querySelectorAll("li")).toHaveLength(3);
   press(view, "もっと見る");

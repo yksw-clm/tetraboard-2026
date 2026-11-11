@@ -87,17 +87,25 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
   for (const game of ["four-reversi", "four-shogi"] as const) {
     const view = render(<LobbyRankings game={game} />);
     clock.advance(0);
-    expect(requests.at(-1)!.url).toBe(
+    expect(requests.filter(({ url }) => url.includes("/rankings?")).at(-1)!.url).toBe(
       `/api/games/${game}/rankings?profilePreview=1${game === "four-shogi" ? "&includeKnockouts=1" : ""}`,
     );
     expect(view.textContent).toContain("読み込んで");
     const preview = view.querySelector('[role="status"]')!.parentElement!;
     expect(preview.querySelectorAll(':scope > [aria-hidden="true"]')).toHaveLength(3);
-    requests.at(-1)!.respond(rankings);
+    requests
+      .filter(({ url }) => url.includes("/rankings?"))
+      .at(-1)!
+      .respond(rankings);
     await flush();
     expect(preview.querySelectorAll("li")).toHaveLength(3);
     expect(preview.querySelector(".skeleton")).toBeNull();
-    expect(view.textContent).toContain("対人戦/レート戦を集計");
+    expect(view.textContent).toContain("シングルス");
+    requests
+      .filter(({ url }) => url.endsWith("/rankings/rating"))
+      .at(-1)!
+      .respond({ entries: [] });
+    await flush();
     press(view, "もっと見る");
     await flush();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
@@ -114,12 +122,16 @@ test("両ゲームのランキングは上位3人・詳細10人・集計選択�
     expect(dialog.querySelector("h3")!.textContent).toBe("対局数");
     press(dialog, "更新");
     act(() => dialog.querySelector<HTMLButtonElement>('[aria-label="閉じる"]')!.click());
-    requests.at(-1)!.respond({}, 503);
+    requests
+      .filter(({ url }) => url.includes("/rankings?"))
+      .at(-1)!
+      .respond({}, 503);
     await flush();
     expect(view.querySelectorAll("li")).toHaveLength(3);
     expect(view.querySelector('[role="alert"]')).not.toBeNull();
     press(view, "再試行");
     requests
+      .filter(({ url }) => url.includes("/rankings?"))
       .at(-1)!
       .respond({ singles: { first: [], total: [] }, doubles: { wins: [], total: [] } });
     await flush();
@@ -134,12 +146,16 @@ test.each([1, 2])(
     const view = render(<LobbyRankings game="four-shogi" />);
     const preview = view.querySelector('[role="status"]')!.parentElement!;
     clock.advance(0);
-    requests.at(-1)!.respond({}, 503);
+    requests
+      .filter(({ url }) => url.includes("/rankings?"))
+      .at(-1)!
+      .respond({}, 503);
     await flush();
     expect(preview.querySelector('[role="alert"]')).not.toBeNull();
     expect(preview.querySelector(".skeleton")).toBeNull();
     press(preview, "再試行");
     requests
+      .filter(({ url }) => url.includes("/rankings?"))
       .at(-1)!
       .respond({ ...rankings, singles: { ...rankings.singles, first: entries.slice(0, count) } });
     await flush();

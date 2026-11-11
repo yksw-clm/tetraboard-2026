@@ -60,8 +60,8 @@ type CurrentRating = {
   human_games: number;
 };
 
-const publicRatingBase = 1500;
-const publicRatingScale = 50;
+export const publicRatingBase = 1500;
+export const publicRatingScale = 50;
 
 export function publicRatingForMu(mu: number) {
   return Math.round(publicRatingBase + publicRatingScale * (mu - initialFourReversiRating.mu));

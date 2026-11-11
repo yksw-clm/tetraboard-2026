@@ -141,8 +141,13 @@ test("通常リバーシのランキングは勝数3人・詳細10人、対局�
   }));
   const view = render(wrap()(<LobbyRankings game="reversi" theme="reversi" />));
   clock.advance(0);
-  expect(requests.at(-1)!.url).toBe("/api/games/reversi/rankings?profilePreview=1");
-  requests.at(-1)!.respond({ wins: entries, total: entries });
+  expect(requests.filter(({ url }) => url.includes("/rankings?")).at(-1)!.url).toBe(
+    "/api/games/reversi/rankings?profilePreview=1",
+  );
+  requests
+    .filter(({ url }) => url.includes("/rankings?"))
+    .at(-1)!
+    .respond({ wins: entries, total: entries });
   await flush();
   expect(view.querySelectorAll("li")).toHaveLength(3);
   expect(view.textContent).toContain("勝利数");
