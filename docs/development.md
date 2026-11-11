@@ -157,6 +157,8 @@ IDと `all` の境界・既定値は `bun run --cwd apps/worker test test/gameCa
 
 ## 通常リバーシの実装
 
+通常リバーシ・通常将棋のCPU補充レート戦は、`AI_WARMUP_ENABLED=true` で既存の開始前準備・再試行・待機列への復帰を共用します。`GameRoom` は部屋のゲームIDから準備先を決めます。`aiService.ts` の `requestRatedAiWarmup` はService Bindingへ送り、AI GatewayとRust Serviceの `/admin/warmup?game=...` がエンジンの初期化と実際の着手応答まで確認します。四人ゲームのヘルス確認も同じ開始待機処理を使います。準備のログは `rated_ai_warmup_*` です。AI側を先にデプロイし、新API対応後にアプリWorkerを更新します。
+
 [レート戦の仕様](reversi-rated-match.md)では共通待機列と将棋のElo計算を使用します。レート履歴は `reversi_rating_changes`、保存待ちは `reversi_rating_pending` に保存します。補充CPUの版と基準レートは `reversiCpuProfiles.ts` に置き、棋譜確定と同じD1バッチでレートを反映します。
 
 `packages/reversi` は黒白2人の独立したルールエンジンとCPUを持ちます。ゲームカタログの `capacity` と `hasModes` に定員2・モードなしを登録し、共有の席管理・開始条件・公開情報・集計条件はゲーム別定員を参照します。

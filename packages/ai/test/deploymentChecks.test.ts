@@ -1,8 +1,24 @@
 import { expect, test } from "bun:test";
-import { checkProbe, deploymentProbes } from "../scripts/deploymentChecks";
+import { checkEngineWarmup, checkProbe, deploymentProbes } from "../scripts/deploymentChecks";
 
 const token = "deployment-test-token-at-least-32-characters";
 const probe = deploymentProbes().find((p) => p.game === "reversi")!;
+test.each(["shogi", "reversi"] as const)("%sの公開確認でエンジン準備を検証する", async (game) => {
+  for (const failure of [false, "http", "body"]) {
+    const fetcher = (async (url, init) => {
+      expect(String(url)).toBe(`https://ai.example.test/admin/warmup?game=${game}`);
+      expect(init?.method).toBe("POST");
+      expect(new Headers(init?.headers).get("authorization")).toBe(`Bearer ${token}`);
+      return Response.json(
+        { status: failure === "body" ? "starting" : "ok" },
+        { status: failure === "http" ? 503 : 200 },
+      );
+    }) as typeof fetch;
+    const result = checkEngineWarmup("https://ai.example.test", token, game, fetcher);
+    if (failure) await expect(result).rejects.toThrow();
+    else await result;
+  }
+});
 test("将棋の候補手は文字列で受け取り、文字列化できる配列を受理しない", async () => {
   const shogi = deploymentProbes().find((p) => p.game === "shogi")!;
   const fetcher = (async (_url, init) => {

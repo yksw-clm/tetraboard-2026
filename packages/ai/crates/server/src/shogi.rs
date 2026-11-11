@@ -30,6 +30,12 @@ pub(super) struct Engine {
 }
 
 impl Engine {
+    pub(super) async fn warmup(&self) -> Result<(), ApiError> {
+        // 定跡と本体を初期化し、次の要求にも同じセッションを引き継ぎます。
+        self.search(&[], 64, Some(OpeningBook::StandardV1)).await?;
+        Ok(())
+    }
+
     pub(super) fn new(path: PathBuf) -> Self {
         let book_dir = path
             .parent()

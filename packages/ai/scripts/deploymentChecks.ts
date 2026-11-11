@@ -152,6 +152,8 @@ export async function checkAiDeployment(
   await completeChecks(
     aiGames.map(async (game) => {
       const selected = probes.filter((p) => p.game === game);
+      if (game === "shogi" || game === "reversi")
+        await checkEngineWarmup(origins[game], token, game);
       // 初回はコンテナ起動を含めて確認し、その後は実際の着手期限で全採用設定を照合します。
       await checkProbe(origins[game], token, selected[0]!, 60_000);
       for (const probe of selected)
@@ -171,6 +173,29 @@ export async function checkAiDeployment(
         );
     }),
   );
+}
+
+export async function checkEngineWarmup(
+  origin: string,
+  token: string,
+  game: "shogi" | "reversi",
+  fetcher: typeof fetch = fetch,
+) {
+  const endpoint = new URL("/admin/warmup", origin);
+  endpoint.searchParams.set("game", game);
+  const response = await fetcher(endpoint, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+    redirect: "manual",
+    signal: AbortSignal.timeout(60_000),
+  });
+  ensure(response.ok, `${game}: AI準備失敗 (${response.status})`);
+  const body: unknown = await response.json();
+  ensure(
+    body !== null && typeof body === "object" && "status" in body && body.status === "ok",
+    `${game}: AI準備の不正な応答`,
+  );
+  console.log(`${game}: エンジン初期化・着手生成確認成功`);
 }
 
 async function completeChecks(checks: Promise<void>[]) {

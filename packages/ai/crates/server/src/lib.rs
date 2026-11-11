@@ -4,6 +4,7 @@ mod four_shogi;
 pub mod local_analysis;
 mod reversi;
 mod shogi;
+mod warmup;
 
 use axum::{
     Json, Router,
@@ -146,6 +147,7 @@ pub fn router_with_engines(
 
 fn app(state: ServiceState) -> Router {
     Router::new()
+        .route("/admin/warmup",post(warmup::prepare))
         .route("/v1/reversi/move",post(reversi::choose_move))
         .route("/v1/move",post(choose_move))
         .route("/v2/move",post(choose_profile_move))

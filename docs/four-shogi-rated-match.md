@@ -59,7 +59,7 @@ CPU接続と較正、待機列とレート保存、画面と開発公開の順�
 
 開発環境のCloudflare Workers Logsでは、`four_shogi_queue_accepted` と `four_shogi_assigned` を `diagnosticId` で照合し、以降は `matchId` で `four_shogi_connected` と `four_shogi_started` を追います。接続が切れてカウントダウンをやり直すときは `four_shogi_countdown_reset` を挟みます。CPU枠の待機は `four_shogi_cpu_capacity_wait` に記録されます。
 
-AI障害は `four_shogi_ai_attempt_failed` の `requestId` と `attempt` で開発用AI Workerの `four_shogi_ai_gateway_failed` と照合します。復旧後の着手は `four_shogi_ai_retry_applied`、代替手の使用は `four_shogi_ai_fallback_applied` で確認できます。検証時は専用コンテナの停止後に1局開始し、人間が途中で10秒以上考えた後もCPUが着手することを確認します。終局後に認定進捗とログを照合します。準備の開始・完了・失敗は `four_player_ai_warmup_*` を対局IDで検索します。
+AI障害は `four_shogi_ai_attempt_failed` の `requestId` と `attempt` で開発用AI Workerの `four_shogi_ai_gateway_failed` と照合します。復旧後の着手は `four_shogi_ai_retry_applied`、代替手の使用は `four_shogi_ai_fallback_applied` で確認できます。検証時は専用コンテナの停止後に1局開始し、人間が途中で10秒以上考えた後もCPUが着手することを確認します。終局後に認定進捗とログを照合します。準備の開始・完了・失敗は `rated_ai_warmup_*` を対局IDで検索します。
 
 ## 探索量別の追加比較（2026-11-10）
 

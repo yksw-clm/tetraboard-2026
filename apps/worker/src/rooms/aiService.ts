@@ -167,11 +167,11 @@ function fetchAiGateway(bindings: AiServiceBindings, url: URL, init: RequestInit
   return bindings.AI_GATEWAY ? bindings.AI_GATEWAY.fetch(new Request(url, init)) : fetch(url, init);
 }
 
-export type FourPlayerAiGame = "four-shogi" | "four-reversi";
+export type RatedAiGame = "four-shogi" | "four-reversi" | "shogi" | "reversi";
 
-export async function requestFourPlayerAiWarmup(
+export async function requestRatedAiWarmup(
   bindings: AiServiceBindings,
-  game: FourPlayerAiGame,
+  game: RatedAiGame,
   deadlineMs: number,
 ): Promise<string | null> {
   const url = configuredUrl(bindings);
