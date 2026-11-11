@@ -1,3 +1,4 @@
+import { GameRoom } from "../src/rooms/gameRoom";
 import { env, exports } from "cloudflare:workers";
 import { evictDurableObject, runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
@@ -69,6 +70,10 @@ test("前局の保存待ちがある古い待機者も、成立処理で待機�
   await runInDurableObject(queue, (instance) => instance.alarm());
   expect((await queue.status(user!.account.id, user!.controllerId)).status).toBe("idle");
   expect((await queue.status(null)).waitingCount).toBe(4);
+  await runInDurableObject(shogiQueue(), (instance) => instance.alarm());
+  expect((await searchEvents(user!.operationId)).filter((e) => e.stage === "failed")).toEqual([
+    expect.objectContaining({ reason: "invalidated" }),
+  ]);
 });
 
 test.each(["four-reversi", "four-shogi"] as const)(
@@ -1370,6 +1375,19 @@ test("全員の接続後だけカウントダウンし、再起動しても1回�
   expect(playing.status).toBe("playing");
   expect(playing.clock?.remainingMainMs).toBeDefined();
   expect((await roomStub.getMatchmakingState(a.matchId, a.instanceId)).started).toBe(true);
+  const savedReservation = await runInDurableObject(roomStub, (_, ctx) =>
+    ctx.storage.kv.get<{ players: { search?: unknown }[] }>(`matchmaking:${a.matchId}`)!,
+  );
+  expect(savedReservation.players.every((p) => p.search === undefined)).toBe(true);
+
+  await vi.waitFor(async () =>
+    expect((await searchEvents(users[0]!.operationId)).map((e) => e.stage)).toEqual([
+      "accepted",
+      "matched",
+      "started",
+    ]),
+  );
+
   expect((await roomStub.abortMatchmakingRoom(a.matchId, a.instanceId)).status).toBe(
     "already_started",
   );
@@ -1879,9 +1897,159 @@ test.each(["human", "random", "engine", "fallback"] as const)(
   },
 );
 
+test("検索受付・取消は操作単位で一度だけ記録し、heartbeatと再送で計測を増やさない", async () => {
+  const [u] = await fixture(1, shogiQueue());
+  const input = { operationId: u!.operationId, controllerId: u!.controllerId, version: 1 };
+  await shogiQueue().join(u!.account.id, u!.operationId, u!.controllerId);
+  await shogiQueue().control(u!.account.id, input, "heartbeat");
+  await shogiQueue().control(u!.account.id, input, "cancel");
+  await shogiQueue().control(u!.account.id, input, "cancel");
+  const stages = (await searchEvents(u!.operationId)).map((r) => r.stage);
+  expect(stages).toEqual(["accepted", "cancelled"]);
+});
+
+async function searchEvents(operationId: string) {
+  return (
+    await env.APP_DB.prepare(
+      "SELECT stage,reason,humans,waiting_ms FROM analytics_matchmaking_events WHERE operation_id=? ORDER BY at_ms,stage",
+    )
+      .bind(operationId)
+      .all<{
+        stage: string;
+        reason: string | null;
+        humans: number | null;
+        waiting_ms: number | null;
+      }>()
+  ).results;
+}
+
+test.each(["four-reversi", "four-shogi"] as const)(
+  "%sのCPU枠不足は再試行で、復旧・DO再起動後の成立を最終失敗にしない",
+  async (game) => {
+    let now = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const prepare = GameRoom.prototype.prepareMatchmakingRoom;
+    vi.spyOn(GameRoom.prototype, "prepareMatchmakingRoom").mockImplementation(function (
+      this: GameRoom,
+      input,
+    ) {
+      const original = Reflect.get(this, "env");
+      Reflect.set(this, "env", {
+        ...original,
+        AI_SERVICE_URL: "https://ai.example.test",
+        AI_SERVICE_TOKEN: "test-token-with-at-least-32-bytes",
+      });
+      return prepare.call(this, input).finally(() => Reflect.set(this, "env", original));
+    });
+    const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
+    // 他の対局の非同期解放と競合しないよう、枠取得のRPC境界だけを制御します。
+    let blocked = true;
+    vi.spyOn(CpuCapacity.prototype, "reserve").mockImplementation(() => !blocked);
+    const [u] = await fixture(1, queue);
+    now += matchmakingQueues[game].fillAfterMs;
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    expect((await queue.status(u!.account.id, u!.controllerId)).status).toBe("waiting");
+    expect(await searchEvents(u!.operationId)).toContainEqual(
+      expect.objectContaining({ stage: "retry", reason: "cpu_capacity" }),
+    );
+    await evictDurableObject(queue);
+    blocked = false;
+    now += 2001;
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    const state = await queue.status(u!.account.id, u!.controllerId);
+    expect(state.status).toBe("matched");
+    rooms.add(state.assignment!.roomId);
+    const events = await searchEvents(u!.operationId);
+    expect(events.filter((e) => e.stage === "failed")).toHaveLength(0);
+    expect(events.filter((e) => e.stage === "matched")).toEqual([
+      expect.objectContaining({
+        humans: 1,
+        waiting_ms: matchmakingQueues[game].fillAfterMs + 2001,
+      }),
+    ]);
+    expect(events.filter((e) => e.stage === "accepted")).toHaveLength(1);
+    // AI準備の最終応答で閉鎖した割当も、同じ操作を再試行します。
+    await runInDurableObject(env.GAME_ROOM.getByName(state.assignment!.roomId), (_, ctx) => {
+      const key = `matchmaking:${state.assignment!.matchId}`;
+      const reservation = ctx.storage.kv.get<Record<string, unknown>>(key)!;
+      ctx.storage.kv.put(key, { ...reservation, phase: "closed", aiWarmup: { state: "failed" } });
+    });
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    expect(await searchEvents(u!.operationId)).toContainEqual(
+      expect.objectContaining({ stage: "retry", reason: "ai_unavailable" }),
+    );
+    const closed = await runInDurableObject(
+      env.GAME_ROOM.getByName(state.assignment!.roomId),
+      (_, ctx) =>
+        ctx.storage.kv.get<{ players: { search?: unknown }[] }>(
+          `matchmaking:${state.assignment!.matchId}`,
+        )!,
+    );
+    expect(closed.players.every((p) => p.search === undefined)).toBe(true);
+
+    expect((await searchEvents(u!.operationId)).some((e) => e.stage === "failed")).toBe(false);
+    now += 5001;
+    await runInDurableObject(queue, (instance) => instance.alarm());
+    const again = await queue.status(u!.account.id, u!.controllerId);
+    expect(again.status).toBe("matched");
+    rooms.add(again.assignment!.roomId);
+    expect((await searchEvents(u!.operationId)).filter((e) => e.stage === "matched")).toHaveLength(
+      1,
+    );
+  },
+);
+
+test("リース切れで検索を終えた最終失敗は、Alarmの再実行でも一度だけ計測する", async () => {
+  const [u] = await fixture(1, shogiQueue());
+  await runInDurableObject(shogiQueue(), (_, ctx) => {
+    const state = ctx.storage.kv.get<{ waiting: { expiresAtMs: number }[] }>("state")!;
+    state.waiting[0]!.expiresAtMs = Date.now() - 1;
+    ctx.storage.kv.put("state", state);
+  });
+  await runInDurableObject(shogiQueue(), (instance) => instance.alarm());
+  await runInDurableObject(shogiQueue(), (instance) => instance.alarm());
+  expect(await searchEvents(u!.operationId)).toContainEqual(
+    expect.objectContaining({ stage: "failed", reason: "lease_expired" }),
+  );
+  expect((await searchEvents(u!.operationId)).filter((e) => e.stage === "failed")).toHaveLength(1);
+});
+
+test("計測D1だけが失敗しても検索・取消は成功し、DO再起動後のAlarmで再送する", async () => {
+  const user = await accountFixture();
+  accounts.push(user.id);
+  const queue = shogiQueue(),
+    operationId = crypto.randomUUID(),
+    controllerId = crypto.randomUUID();
+  const trigger = "reject_queue_analytics";
+  await env.APP_DB.exec(
+    `CREATE TRIGGER ${trigger} BEFORE INSERT ON analytics_matchmaking_events WHEN NEW.operation_id='${operationId}' BEGIN SELECT RAISE(ABORT,'analytics unavailable'); END;`,
+  );
+  try {
+    expect((await queue.join(user.id, operationId, controllerId)).ok).toBe(true);
+    expect(
+      (await queue.control(user.id, { operationId, controllerId, version: 1 }, "cancel")).ok,
+    ).toBe(true);
+    expect((await queue.status(user.id, controllerId)).status).toBe("idle");
+    expect(await searchEvents(operationId)).toEqual([]);
+  } finally {
+    await env.APP_DB.exec(`DROP TRIGGER ${trigger}`);
+  }
+  await runInDurableObject(queue, (_, ctx) => {
+    for (const [key, job] of ctx.storage.kv.list<{ retryAtMs: number }>({
+      prefix: "matchmaking-analytics-pending:",
+    }))
+      ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
+  });
+  await evictDurableObject(queue);
+  await runInDurableObject(queue, (instance) => instance.alarm());
+  expect((await searchEvents(operationId)).map((e) => e.stage)).toEqual(["accepted", "cancelled"]);
+});
+
 test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
   "%sのCPU補充局は公開番号を保持し、再取得・DO再起動で再採番しない",
   async (game) => {
+    let now = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => now);
     const queue = env.MATCHMAKING_COORDINATOR.getByName(matchmakingQueues[game].key);
     const [user] = await fixture(1, queue);
     await runInDurableObject(queue, (_, ctx) => {
@@ -1889,7 +2057,21 @@ test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(
       state.waiting[0]!.joinedAtMs = Date.now() - 60000;
       ctx.storage.kv.put("state", state);
     });
-    await runInDurableObject(queue, (instance) => instance.alarm());
+    // 番号の検証は成立後を対象とし、準備が自動再試行された場合は保存済みの期限で進めます。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await runInDurableObject(queue, (instance) => instance.alarm());
+      if ((await queue.status(user!.account.id, user!.controllerId)).status !== "waiting") break;
+      const retryAt = await runInDurableObject(queue, (_, ctx) => {
+        const state = ctx.storage.kv.get<{
+          waiting: { retryAtMs?: number }[];
+          cpuRetryAtMs?: number;
+        }>("state")!;
+        const retry = state.waiting[0]?.retryAtMs;
+        return retry === undefined ? undefined : Math.max(retry, state.cpuRetryAtMs ?? 0);
+      });
+      expect(retryAt).toBeTypeOf("number");
+      now = Math.max(now + 1, retryAt! + 1);
+    }
     const matched = await queue.status(user!.account.id, user!.controllerId);
     expect(matched.status).toBe("matched");
     const assignment = matched.assignment!;

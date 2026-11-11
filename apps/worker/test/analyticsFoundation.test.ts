@@ -309,7 +309,7 @@ test("90日削除と匿名集約を原子的に行い、部分的な日付の遅
   const match = crypto.randomUUID();
   await env.APP_DB.batch([
     env.APP_DB.prepare(
-      "INSERT INTO analytics_matches VALUES(?,'reversi','singles',?,NULL,'playing',1)",
+      "INSERT INTO analytics_matches(id,game,mode,started_at_ms,ended_at_ms,status,cpu_count) VALUES(?,'reversi','singles',?,NULL,'playing',1)",
     ).bind(match, now + 3600000),
     env.APP_DB.prepare(
       "INSERT INTO analytics_participants(match_id,player_id,visitor_id) VALUES(?,'guest',?)",
@@ -453,7 +453,7 @@ test("一般利用と内部席を区別し、ゲスト統合で過去の対局�
   const match = crypto.randomUUID();
   await env.APP_DB.batch([
     env.APP_DB.prepare(
-      "INSERT INTO analytics_matches VALUES(?,'reversi','singles',?,?, 'playing',0)",
+      "INSERT INTO analytics_matches(id,game,mode,started_at_ms,ended_at_ms,status,cpu_count) VALUES(?,'reversi','singles',?,?, 'playing',0)",
     ).bind(match, now - 60000, null),
     env.APP_DB.prepare(
       "INSERT INTO analytics_participants(match_id,player_id,account_id,is_guest) VALUES(?,'guest',?,1)",
@@ -544,7 +544,7 @@ test("保存期限まで終了結果がない局は長期集計で未確定と�
   const match = crypto.randomUUID();
   await env.APP_DB.batch([
     env.APP_DB.prepare(
-      "INSERT INTO analytics_matches VALUES(?,'reversi','singles',?,NULL,'playing',3)",
+      "INSERT INTO analytics_matches(id,game,mode,started_at_ms,ended_at_ms,status,cpu_count) VALUES(?,'reversi','singles',?,NULL,'playing',3)",
     ).bind(match, now),
     env.APP_DB.prepare(
       "INSERT INTO analytics_participants(match_id,player_id,visitor_id) VALUES(?,'guest',?)",

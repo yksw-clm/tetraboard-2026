@@ -1,3 +1,4 @@
+import { matchEndFacts } from "../analytics/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import {
@@ -274,9 +275,23 @@ export class GameRoom extends DurableObject<Env> {
     return new Map(this.ctx.storage.kv.list<AnalyticsJob>({ prefix: analyticsPendingPrefix }));
   }
 
+  private clearMatchmakingSearches(reservation: MatchmakingRoomReservation) {
+    return {
+      ...reservation,
+      players: reservation.players.map(({ search: _search, ...player }) => player),
+    };
+  }
+
   private startAnalyticsMatch(id: string, room: Room, at: number) {
+    const reservation =
+      "matchmaking" in room && room.matchmaking
+        ? this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${room.matchmaking.id}`)
+        : undefined;
+    const aliases: Record<string, string> = {};
     const record: AnalyticsMatch = {
       id,
+      matchKind: roomMatchKind(room),
+      humanCount: room.players.filter((p) => p.kind === "human").length,
       game: room.settings.game,
       mode: room.settings.mode ?? "standard",
       startedAtMs: at,
@@ -287,18 +302,33 @@ export class GameRoom extends DurableObject<Env> {
         .filter((p) => p.kind === "human")
         .map((p) => {
           const identity = this.ctx.storage.kv.get<AnalyticsIdentity>(analyticsPlayerKey(p.id));
+          const search = reservation?.players.find(
+            (player) => player.admission.playerId === p.id,
+          )?.search;
+          const playerId =
+            identity && !identity.accountId && !identity.visitorId ? crypto.randomUUID() : p.id;
+          aliases[playerId] = p.id;
           return {
-            playerId:
-              identity && !identity.accountId && !identity.visitorId ? crypto.randomUUID() : p.id,
+            ...(search
+              ? { search: { operationId: search.operationId, joinedAtMs: search.joinedAtMs } }
+              : {}),
+            playerId,
             visitorId: identity?.visitorId ?? null,
             accountId: identity
               ? identity.accountId
               : (this.storedAccount(p.id)?.accountId ?? null),
-            isTest: identity?.isTest ?? false,
+            isTest: identity?.isTest ?? search?.isTest ?? false,
             isGuest: identity?.isGuest ?? this.storedAccount(p.id)?.isGuest ?? false,
           };
         }),
     };
+    // 未識別の席の局内対応だけを保持し、終局時に破棄します。
+    this.ctx.storage.kv.put("analytics-player-aliases", aliases);
+    if (reservation)
+      this.ctx.storage.kv.put(
+        `matchmaking:${reservation.matchId}`,
+        this.clearMatchmakingSearches(reservation),
+      );
     this.ctx.storage.kv.put(analyticsActiveKey, record);
     this.ctx.storage.kv.put(analyticsPendingPrefix + id, {
       record,
@@ -307,10 +337,29 @@ export class GameRoom extends DurableObject<Env> {
     } satisfies AnalyticsJob);
   }
 
-  private endAnalyticsMatch(status: "completed" | "abandoned", at: number) {
+  private endAnalyticsMatch(
+    status: "completed" | "abandoned",
+    at: number,
+    facts?: ReturnType<typeof matchEndFacts>,
+  ) {
     const active = this.ctx.storage.kv.get<AnalyticsMatch>(analyticsActiveKey);
     if (!active) return;
-    const record = { ...active, status, endedAtMs: at };
+    const aliases =
+      this.ctx.storage.kv.get<Record<string, string>>("analytics-player-aliases") ?? {};
+    this.ctx.storage.kv.delete("analytics-player-aliases");
+    const record: AnalyticsMatch = {
+      ...active,
+      status,
+      endedAtMs: at,
+      endReason: status === "abandoned" ? "abandoned" : (facts?.reason ?? "unknown"),
+      participants: active.participants.map((p) => ({
+        ...p,
+        endReason:
+          status === "abandoned"
+            ? "abandoned"
+            : (facts?.players.get(aliases[p.playerId] ?? p.playerId) ?? "unknown"),
+      })),
+    };
     this.ctx.storage.kv.delete(analyticsActiveKey);
     this.ctx.storage.kv.put(analyticsPendingPrefix + record.id, {
       record,
@@ -640,6 +689,9 @@ export class GameRoom extends DurableObject<Env> {
         const own =
           inherited ||
           accountIds.has(String(row.accountId)) ||
+          (row.admission !== null &&
+            typeof row.admission === "object" &&
+            accountIds.has(String((row.admission as Record<string, unknown>).accountId))) ||
           matchingIds.has(String(row.id)) ||
           matchingIds.has(String(row.playerId)) ||
           matchingIds.has(String(row.senderId)) ||
@@ -677,6 +729,7 @@ export class GameRoom extends DurableObject<Env> {
         );
         if (own && row.kind === "human") out.retired = true;
         if (own && "visitorId" in row) out.visitorId = null;
+        if (own && "search" in row) delete out.search;
         return out;
       };
       for (const [key, value] of entries) {
@@ -1394,7 +1447,7 @@ export class GameRoom extends DurableObject<Env> {
       const saved = this.ctx.storage.kv.get<MatchmakingRoomReservation>(key);
       if (saved && saved.phase !== "playing")
         this.ctx.storage.kv.put(key, {
-          ...saved,
+          ...this.clearMatchmakingSearches(saved),
           phase: "closed",
           connectedPlayerIds: room.players
             .filter(
@@ -1489,7 +1542,7 @@ export class GameRoom extends DurableObject<Env> {
           this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
           this.recordTournamentState(closed, "saving");
         }
-        this.endAnalyticsMatch("completed", result.at);
+        this.endAnalyticsMatch("completed", result.at, matchEndFacts(result.room, result.game));
         switch (result.gameId) {
           case "four-gomoku": {
             const lastRound = this.fourGomokuProgress.finalize(result);
@@ -2852,7 +2905,10 @@ export class GameRoom extends DurableObject<Env> {
             ? { aiWarmup: { state: "pending", attempts: 0, nextAtMs: Date.now() } }
             : {}),
         } satisfies MatchmakingRoomReservation);
-        for (const [index, { admission: a, tokenHash, version }] of input.players.entries()) {
+        for (const [
+          index,
+          { admission: a, tokenHash, version, search },
+        ] of input.players.entries()) {
           this.ctx.storage.kv.put(accountKey(a.playerId), { ...a, occupying: true });
           this.ctx.storage.kv.put(membershipStorageKey(tokenHash), {
             playerId: a.playerId,
@@ -2865,7 +2921,7 @@ export class GameRoom extends DurableObject<Env> {
             accountId: a.accountId,
             visitorId: null,
             isGuest: Boolean(a.isGuest),
-            isTest: false,
+            isTest: search?.isTest ?? false,
           });
         }
         for (const p of room.players)
