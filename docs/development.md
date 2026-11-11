@@ -1579,6 +1579,16 @@ Workerの `playerProfiles.test.ts` と既存の公開／本人棋譜・戦績テ
 
 保存済み棋譜の種別は `accounts/matchKinds.ts` に集約し、厳密に解析した保存記録のレート戦成立情報と、対局IDで結合する大会台帳から取得します。レート変更履歴の有無は認定中・代替手使用時の判定に使いません。一覧は最大20局を一括照会し、局ごとの追加リクエストや保存内容の再計算を行いません。大会の公開状態・名前・内部キーをラベル表示に公開せず、矛盾する成立記録は `unknown` とします。台帳取得の失敗は503とし、通常対局へフォールバックしません。
 
+## 大会・レート戦のルーム通し番号
+
+表示仕様は[対局種別の表示](../README.md#対局種別の表示)です。`0041_room_match_sequences.sql` は対局IDを主キー、採番範囲と番号を一意とする `room_match_sequences` と、公開索引の nullable な `match_sequence` を追加します。大会は内部大会キー、レート戦はゲームIDで範囲を分け、個人情報は保存しません。台帳は番号を再利用しないために保持します。
+
+`rooms/matchSequences.ts` はMAXの参照とINSERTを一文で確定し、同じ対局の再試行では既存番号を返します。Coordinatorはグループを永続化してから採番し、GameRoomを準備します。新規グループだけに `assignSequence` を記録し、導入前の準備済み予約と復旧処理へ後付けしません。失敗は既存のAlarmで再試行し、通常・旧ランダムマッチには採番しません。
+
+番号は内部予約と公開索引へ保存し、索引のrevision・instanceId照合と通常ルームへの再利用時の消去を維持します。`GET /api/lobby/rooms?view=cards&includeMatchSequence=1` の要求時だけ省略可能な正整数 `matchSequence` を返します。カード以外の指定と不正値は400です。未採番の部屋は省略し、一覧取得で採番しません。旧公開メタ情報RPC、既存APIの省略時応答、WebSocket・保存済み棋譜の形式は維持します。
+
+新Webは `includeMatchKind=1` とともに要求し、共通カードが名前を整形します。新Webには対応Workerが必要で、旧Workerへの自動再取得は行いません。反映順はmigration→Worker→Webとし、Workerを切り戻す場合は対応するWebも戻します。
+
 ## ゲーム別のランキング
 
 `GET /api/games/:game/rankings/rating` は四人将棋・四人リバーシ・将棋・リバーシだけの公開APIです。`{ entries: [{ rank, profileId, username, name, avatarUrl, value }] }` で最新の公開整数レート上位10人を返し、既存のランキング応答を変更しません。各ゲームのレート更新履歴の最大有効局数から認定済みの登録者を抽出し、公開整数値で同順位を判定します。四人ゲームの変換定数を既存表示と共有し、SQLiteでは負の半整数もMath.roundと一致する `floor(value + 0.5)` を使います。件数用の正整数制約はレートに流用せず、内部ID・μ・σ・認定中の値は返しません。新しい集計テーブルやバックフィルは不要です。応答はno-store、失敗は503です。

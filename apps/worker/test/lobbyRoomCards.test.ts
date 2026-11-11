@@ -603,3 +603,39 @@ test("旧索引の種別を取得できない場合は種別不明とし、通�
   expect(response.status).toBe(200);
   expect(lobbyRoomCardsSchema.parse(await response.json()).rooms[0]?.matchKind).toBe("unknown");
 });
+
+test("通し番号はカードの明示要求時だけ返し、旧応答と通常・未採番ルームに混入しない", async () => {
+  for (const [index, kind] of (["rated", "tournament", "normal", "unknown"] as const).entries()) {
+    const pending = indexed(91000 + index, "four-reversi");
+    pending.metadata.matchKind = kind;
+    pending.metadata.matchSequence = 12;
+    await writeRoomIndex(db, pending);
+  }
+  const old = indexed(91004, "shogi");
+  old.metadata.matchKind = "rated";
+  await writeRoomIndex(db, old);
+  expect(
+    (await cards("&includeMatchKind=1")).rooms.every((room) => !("matchSequence" in room)),
+  ).toBe(true);
+  const result = await cards("&includeMatchKind=1&includeMatchSequence=1");
+  for (const room of result.rooms) {
+    if (room.id === "91000" || room.id === "91001") expect(room.matchSequence).toBe(12);
+    else expect(room).not.toHaveProperty("matchSequence");
+  }
+  for (const query of ["?view=cards&includeMatchSequence=0", "?includeMatchSequence=1"])
+    expect((await request(query)).status).toBe(400);
+  const newer = indexed(91000, "four-reversi");
+  newer.revision = 2;
+  newer.metadata.matchKind = "normal";
+  await writeRoomIndex(db, newer);
+  await writeRoomIndex(db, {
+    ...newer,
+    revision: 1,
+    metadata: { ...newer.metadata, matchKind: "rated", matchSequence: 999 },
+  });
+  expect(
+    (await cards("&includeMatchKind=1&includeMatchSequence=1")).rooms.find(
+      (room) => room.id === "91000",
+    ),
+  ).not.toHaveProperty("matchSequence");
+});

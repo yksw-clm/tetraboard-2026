@@ -25,6 +25,7 @@ export type PendingRoomIndex = {
   closed: boolean;
   metadata: RoomPublicMetadata & {
     matchKind?: MatchKind;
+    matchSequence?: number;
     instanceId?: string;
     hostPlayerId?: string | null;
     participantPreviews?: IndexedRoomParticipant[];
@@ -37,6 +38,7 @@ type IndexRow = {
   tournament_id: number | null;
   matchmaking: number;
   match_kind: string | null;
+  match_sequence: number | null;
   instance_id: string | null;
   host_player_id: string | null;
   game: string;
@@ -61,8 +63,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
     .prepare(
       `INSERT INTO room_index (
         room_id, game, mode, main_time_ms, byoyomi_ms, status, host_name, host_avatar_url,
-        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        human_count, cpu_count, capacity, open_seats, updated_at_ms, revision, closed, instance_id, host_player_id, tournament_id, matchmaking, participants_json, match_kind, match_sequence
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(room_id) DO UPDATE SET
         game = excluded.game,
         mode = excluded.mode,
@@ -83,7 +85,8 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         , tournament_id = excluded.tournament_id,
         matchmaking = excluded.matchmaking,
         participants_json = excluded.participants_json,
-        match_kind = excluded.match_kind
+        match_kind = excluded.match_kind,
+        match_sequence = excluded.match_sequence
       WHERE excluded.revision > room_index.revision`,
     )
     .bind(
@@ -110,6 +113,7 @@ export async function writeRoomIndex(db: D1Database, pending: PendingRoomIndex):
         ? null
         : JSON.stringify(indexedParticipantsSchema.parse(room.participantPreviews)),
       room.matchKind ?? null,
+      room.matchSequence ?? null,
     )
     .run();
 }
@@ -184,6 +188,11 @@ export async function listLobbyRoomCards(
             ...parseRow(row, true),
             ...(query.includeMatchKind === "1"
               ? { matchKind: matchKindSchema.parse(row.match_kind ?? "unknown") }
+              : {}),
+            ...(query.includeMatchSequence === "1" &&
+            row.match_sequence !== null &&
+            (row.match_kind === "rated" || row.match_kind === "tournament")
+              ? { matchSequence: row.match_sequence }
               : {}),
             instanceId: row.instance_id,
             participants: indexedParticipantsSchema

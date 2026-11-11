@@ -426,6 +426,12 @@ protocolの `matchKinds.test.ts` は6ゲームの通常対局、四人ゲーム�
 
 `lobbyRoomCards.test.ts` は種別の要求時追加、revisionによる古い更新の拒否、既存索引の再発行、取得不能時の種別不明と旧公開メタ情報の応答形状を確認します。Webの `matchKinds.test.tsx` は共通ラベル、ルームの状態・CPU表示との併記、最近3件と詳細、総合ロビー、保存棋譜と直前局の操作欄、旧応答の種別不明をBun＋happy-domで検証します。PC・スマートフォンの折返し・ラベルと操作欄の収まりは手動確認し、ブラウザ自動テストを追加しません。
 
+## ルーム名と通し番号の確認
+
+Workerの `matchSequences.test.ts` は大会・4ゲームの採番範囲、連番、同時要求、同一対局の再送と範囲の誤用拒否を確認します。`tournamentQueue.test.ts` と `matchmaking.test.ts` は実際のCoordinatorからGameRoom・公開索引への番号伝達、CPU補充、採番障害の503とAlarm復旧、DO再起動での維持を確認します。`lobbyRoomCards.test.ts` は要求時だけの追加、未採番・通常・不明種別での省略、不正指定400、古いrevisionの拒否と別世代への番号持越し防止を確認します。
+
+Webの `roomNames.test.tsx` は大会・レート・通常の名称、番号なし表示、名前と参加者アイコンの操作、総合・ゲーム別の要求と更新後の維持をBun＋happy-domで確認します。`tournamentRooms.test.tsx` でも共通カードの名前を確認します。PCと幅320pxで長い番号の折返し、部屋番号・ラベル・操作の収まりを手動確認し、ブラウザ自動テストは追加しません。
+
 ## プレイヤー情報と戦績の表示
 
 ひとこと・お気に入りゲームはWorkerの `profileDetails.test.ts` と `playerProfiles.test.ts`・`guestAccounts.test.ts` で、30／31書記素・絵文字・空白・改行、0／3／4ゲーム・不正ID・重複、初回設定・旧フォームの省略時保持・明示的な削除・ゲストの拒否を確認します。公開ID・入室済みの部屋・保存棋譜の参照から現在値を取得し、要求がない旧クライアントへの応答形状、統合先の優先、退会後の非公開を検証します。
