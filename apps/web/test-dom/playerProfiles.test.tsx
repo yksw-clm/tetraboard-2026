@@ -86,6 +86,46 @@ test("固有名CPUはロボット・CPU表記を併用し、互換用レベル�
   expect(region()?.textContent).not.toContain("CPU Lv2");
   expect(requests).toHaveLength(0);
 });
+test.each([
+  { stored: "シテン2", shown: "シテン2", card: "シテン2CPU" },
+  { stored: "CPU（標準）", shown: "CPU Lv2", card: "CPU Lv2" },
+  { stored: "CPU 1", shown: "CPU Lv2", card: "CPU Lv2" },
+])(
+  "四人将棋のCPUはルームとプレイヤー情報に同じ名前が出る（$stored）",
+  async ({ stored, shown, card }) => {
+    const cpu = {
+      id: crypto.randomUUID(),
+      name: stored,
+      kind: "cpu" as const,
+      level: 2 as const,
+      ready: true as const,
+      side: null,
+      reconnectDeadline: null,
+    };
+    const view = render(
+      wrap(
+        <PlayerCardView
+          player={cpu}
+          self={false}
+          host={false}
+          position="bottom"
+          score={null}
+          rank={null}
+          clock={null}
+          game="four-shogi"
+        />,
+      ),
+    );
+    expect(view.querySelector('[data-testid="player-name"]')?.textContent).toBe(card);
+    expect(view.querySelector('[data-testid="player-avatar"] svg')).not.toBeNull();
+    act(() =>
+      view.querySelector<HTMLButtonElement>(`[aria-label="${shown}のプレイヤー情報"]`)!.click(),
+    );
+    await flush();
+    expect(region()?.textContent).toContain(shown);
+    expect(requests).toHaveLength(0);
+  },
+);
 test("全ゲームの戦績をモードに応じたコンパクトな文章で表示する", () => {
   const singles = { total: 83, first: 22, second: 36, third: 17, fourth: 8 };
   const shogiSingles = { ...singles, knockouts: 51, perfectWins: 2 };

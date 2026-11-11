@@ -1,9 +1,16 @@
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { calibratedFourShogiProfile } from "../matchmaking/fourShogiSelection";
-import { matchmakingQueues, matchmakingRules } from "@tetraboard/protocol";
+import {
+  cpuPlayerAppearance,
+  matchmakingQueues,
+  matchmakingRules,
+  ratedCpuNames,
+} from "@tetraboard/protocol";
 import { calibratedFourReversiProfile } from "../matchmaking/fourReversiSelection";
 import { ratedMatchmakingPolicy, ratingOpponentKind } from "../matchmaking/ratedMatchmaking";
 import { namedCpuProfile } from "../matchmaking/cpuProfiles";
+import { reversiCpuProfile } from "../matchmaking/reversiCpuProfiles";
+import { shogiCpuProfile } from "../matchmaking/shogiCpuProfiles";
 import type { MatchmakingRoomInput, MatchmakingRoomReservation } from "../matchmaking/coordinator";
 import { isTournamentGameRoom, type TournamentGameRoom } from "./tournamentRoom";
 import { tournamentSettingsMatch, readTournament } from "../tournaments/store";
@@ -104,6 +111,7 @@ import {
   shogiCpuJobKey,
   cpuMoveDelayMs,
   nextPublicUpdateAt,
+  playerLabel,
 } from "./progressHelpers";
 import {
   advanceShogiMatchSave,
@@ -1309,20 +1317,12 @@ export class GameRoom extends DurableObject<Env> {
     this.chatDirty = true;
   }
 
-  private playerLabel(player: Room["players"][number]): string {
-    return player.kind === "cpu"
-      ? player.cpuProfile
-        ? player.name
-        : `CPU Lv${player.level}`
-      : player.name;
-  }
-
   private recordDeparture(player: Room["players"][number]): void {
     if (this.ctx.storage.kv.get(departedKey(player.id))) return;
     this.ctx.storage.kv.delete(analyticsPlayerKey(player.id));
     if (this.readRoom()?.status === "playing")
       this.ctx.storage.kv.put(departedKey(player.id), true);
-    this.appendSystem("left", `${this.playerLabel(player)}が退室しました`);
+    this.appendSystem("left", `${playerLabel(player)}が退室しました`);
   }
 
   private presence(room: Room): RoomPresence {
@@ -1746,11 +1746,7 @@ export class GameRoom extends DurableObject<Env> {
         playerId: player.id,
         appearance:
           player.kind === "cpu"
-            ? {
-                kind: "cpu",
-                level: player.level,
-                ...(player.cpuProfile ? { cpuProfile: player.cpuProfile, name: player.name } : {}),
-              }
+            ? cpuPlayerAppearance(player)
             : {
                 kind: "human",
                 avatarUrl: player.retired ? null : player.avatarUrl,
@@ -2731,10 +2727,19 @@ export class GameRoom extends DurableObject<Env> {
         : rating?.kind === "four-reversi" && rating.cpu
           ? calibratedFourReversiProfile(rating.cpu)
           : undefined;
-      const shogiProfile =
+      const fourShogiProfile =
         rating?.kind === "four-shogi" && rating.cpu
           ? calibratedFourShogiProfile(rating.cpu)
           : undefined;
+      const shogiProfile =
+        game === "shogi" && rating?.kind === "cpu" ? shogiCpuProfile(rating.profileId) : undefined;
+      const cpuName =
+        fourShogiProfile?.name ??
+        (rating?.kind === "reversi" && rating.source.kind === "cpu"
+          ? reversiCpuProfile(rating.source)?.name
+          : shogiProfile?.standardBook
+            ? ratedCpuNames.shogi[shogiProfile.nodes]
+            : undefined);
       const seat = game === "shogi" || game === "four-shogi" ? { side: null } : { color: null };
       const cpuCount = rules.seats - input.players.length;
       const room = roomSchema.parse({
@@ -2762,7 +2767,11 @@ export class GameRoom extends DurableObject<Env> {
           })),
           ...Array.from({ length: cpuCount }, (_, i) => ({
             id: crypto.randomUUID(),
-            name: profile ? `${profile.name}${i + 1}` : (shogiProfile?.name ?? "CPU"),
+            name: profile
+              ? `${profile.name}${i + 1}`
+              : cpuCount > 1 && cpuName
+                ? `${cpuName}${i + 1}`
+                : (cpuName ?? "CPU"),
             kind: "cpu",
             level: 2,
             ...(profile ? { cpuProfile: profile } : {}),
@@ -2810,7 +2819,7 @@ export class GameRoom extends DurableObject<Env> {
           });
         }
         for (const p of room.players)
-          this.appendSystem("joined", `${this.playerLabel(p)}が入室しました`);
+          this.appendSystem("joined", `${playerLabel(p)}が入室しました`);
         this.ctx.storage.kv.put(
           viewerSecretKey,
           bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
@@ -3189,7 +3198,7 @@ export class GameRoom extends DurableObject<Env> {
         this.ctx.storage.kv.put(playerTokenKey(initialRoom.players[0].id), tokenHash);
         this.ctx.storage.kv.put(disconnectedAtKey(initialRoom.players[0].id), Date.now());
         for (const player of initialRoom.players) {
-          this.appendSystem("joined", `${this.playerLabel(player)}が入室しました`);
+          this.appendSystem("joined", `${playerLabel(player)}が入室しました`);
         }
         const secret = new Uint8Array(32);
         crypto.getRandomValues(secret);

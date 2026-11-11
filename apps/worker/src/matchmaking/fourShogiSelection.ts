@@ -1,23 +1,28 @@
-import { matchmakingQueues, ratedMatchmakingRules } from "@tetraboard/protocol";
+import { matchmakingQueues, ratedCpuNames, ratedMatchmakingRules } from "@tetraboard/protocol";
 import { nearestRankedCpu, selectFourPlayerRated, type QueueRating } from "./fourReversiSelection";
 
 export const fourShogiEngineVersion = "four-shogi-lv3-v1";
 export const fourShogiCalibrationVersion = "four-shogi-lv3-dev-v1";
-const profiles = [
-  {
-    profileId: "four-shogi-lv3-work4096-v1",
-    work: 4096,
-    name: "CPU（低め）",
-    mu: 23.74057892918443,
-  },
-  { profileId: "four-shogi-lv3-work16384-v1", work: 16384, name: "CPU（標準）", mu: 25 },
-  {
-    profileId: "four-shogi-lv3-work65536-v1",
-    work: 65536,
-    name: "CPU（最強）",
-    mu: 25.980724801061935,
-  },
-].map((profile) => ({ ...profile, sigma: 1, engineVersion: fourShogiEngineVersion }));
+const profiles = (
+  [
+    {
+      profileId: "four-shogi-lv3-work4096-v1",
+      work: 4096,
+      mu: 23.74057892918443,
+    },
+    { profileId: "four-shogi-lv3-work16384-v1", work: 16384, mu: 25 },
+    {
+      profileId: "four-shogi-lv3-work65536-v1",
+      work: 65536,
+      mu: 25.980724801061935,
+    },
+  ] as const
+).map((profile) => ({
+  ...profile,
+  name: ratedCpuNames.fourShogi[profile.work],
+  sigma: 1,
+  engineVersion: fourShogiEngineVersion,
+}));
 
 export type FourShogiCpuReference = {
   profileId: string;
@@ -31,7 +36,9 @@ export type FourShogiRatingSource = {
   cpu?: FourShogiCpuReference;
 };
 
-export function calibratedFourShogiProfile(reference: FourShogiCpuReference) {
+export function calibratedFourShogiProfile(
+  reference: FourShogiCpuReference,
+): (FourShogiCpuReference & { work: number; name: string }) | undefined {
   return profiles.find(
     (profile) =>
       reference.profileId === profile.profileId &&

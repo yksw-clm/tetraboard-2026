@@ -299,4 +299,5 @@ export * from "./tournaments";
 export * from "./notifications";
 
 export * from "./cpuProfiles";
+export * from "./ratedCpuNames";
 export * from "./matchmaking";

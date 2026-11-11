@@ -10,11 +10,15 @@ import {
   shogiMatchmakingRules,
   reversiMatchmakingRules,
   reversiRoomSchema,
+  ratedCpuNames,
+  getPublicMatchContract,
   shogiRoomSchema,
 } from "@tetraboard/protocol";
 import { getLegalMoves } from "@tetraboard/reversi";
 import { accountFixture, origin } from "./accountFixtures";
 import { AcceptedGameRequest } from "./acceptedGameRequest";
+import { selectShogiCpu, shogiCpuProfile } from "../src/matchmaking/shogiCpuProfiles";
+import { selectReversiCpu, reversiCpuProfile } from "../src/matchmaking/reversiCpuProfiles";
 import { selectFourReversi } from "../src/matchmaking/fourReversiSelection";
 import { matchmakingCredential } from "../src/matchmaking/coordinator";
 import { requestDeletion } from "../src/privacy/deletion";
@@ -178,6 +182,32 @@ async function ratedAccount(rating: number, ratedGames = 1) {
     .run();
   return account;
 }
+
+test("通常将棋と通常リバーシは各基準レートに対応するCPU名を選ぶ", () => {
+  for (const [rating, name] of [
+    [1365, "フミ"],
+    [1403, "ヤリ"],
+    [1488, "ケイ"],
+    [1552, "ギン"],
+    [1778, "リュウ"],
+  ] as const) {
+    const source = selectShogiCpu(rating);
+    if (source.kind !== "cpu") throw Error("Expected CPU");
+    const profile = shogiCpuProfile(source.profileId);
+    expect(profile?.standardBook && ratedCpuNames.shogi[profile.nodes]).toBe(name);
+  }
+  for (const [rating, name] of [
+    [1297, "パチ"],
+    [1490, "クルリ"],
+    [1748, "カエシ"],
+    [2109, "セキ"],
+    [2385, "フチ"],
+    [2650, "シメ"],
+    [3003, "クロシロ"],
+  ] as const) {
+    expect(reversiCpuProfile(selectReversiCpu(rating))?.name).toBe(name);
+  }
+});
 
 test("保存済みの将棋レートを引き継ぎ、単独待機は15秒でCPU戦になる", async () => {
   let now = Date.now() + 60_000;
@@ -390,6 +420,7 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
   const started = shogiRoomSchema.parse(await room.getRoom());
   if (started.status !== "playing") throw Error("Expected playing");
   expect(started.matchmaking?.opponent).toBe("cpu");
+  expect(started.players.find((player) => player.kind === "cpu")?.name).toBe("リュウ");
   const humanSide =
     started.game.players.south === assignment.membership.playerId ? "south" : "north";
   if (humanSide === "south")
@@ -442,16 +473,19 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
     }
   });
   expect(shogiRoomSchema.parse(await room.getRoom()).game?.moveNumber).toBe(cpuPly + 1);
-  const tokenHash = Array.from(
-    new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(assignment.membership.token)),
-    ),
-    (byte) => byte.toString(16).padStart(2, "0"),
-  ).join("");
-  expect(await room.leaveRoom(tokenHash)).toBe("left");
+  socket.send(JSON.stringify({ type: "room.game.resign" }));
   await vi.waitFor(async () => {
     now++;
-    await room.getRoom();
+    const finished = shogiRoomSchema.parse(await room.getRoom());
+    if (finished.status !== "waiting") throw Error("Expected finished game");
+    expect(finished.lastRound?.players).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "リュウ",
+          appearance: { kind: "cpu", level: 2, name: "リュウ" },
+        }),
+      ]),
+    );
     expect(
       await env.APP_DB.prepare(
         "SELECT rating_before,rating_after,rated_games,human_games FROM shogi_rating_changes WHERE match_id=?",
@@ -465,6 +499,12 @@ test("将棋CPU戦は選んだ探索予算で着手し、そのCPU基準レー�
       human_games: 0,
     });
   });
+  const replay = await exports.default.fetch(
+    new AcceptedGameRequest(`${origin}/api/matches/${assignment.matchId}`),
+  );
+  expect(replay.status).toBe(200);
+  const { match } = getPublicMatchContract.response.parse(await replay.json());
+  expect(match.participants.find((player) => player.kind === "cpu")?.name).toBe("リュウ");
 });
 
 test("将棋の待機APIは別キューを使い、四人リバーシとの二重待機を拒否する", async () => {
@@ -1166,6 +1206,9 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     now += 5000;
     const started = reversiRoomSchema.parse(await room.getRoom());
     if (started.status !== "playing") throw Error("Expected playing");
+    expect(started.players.find((player) => player.kind === "cpu")?.name).toBe(
+      scenario === "human" ? undefined : "クルリ",
+    );
     expect(started.settings.timeControl).toEqual({ mainTimeMs: 180000, byoyomiMs: 0 });
 
     if (scenario !== "human") {
@@ -1284,7 +1327,19 @@ test.each(["human", "random", "engine", "fallback"] as const)(
     const saved = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
       .bind(assignment.matchId)
       .first<string>("record_json");
-    await writeMatch(env.APP_DB, reversiMatchData.read(saved!));
+    const record = reversiMatchData.read(saved!);
+    expect(
+      record.participants.filter((player) => player.kind === "cpu").map((player) => player.name),
+    ).toEqual(scenario === "human" ? [] : ["クルリ"]);
+    const replay = await exports.default.fetch(
+      new AcceptedGameRequest(`${origin}/api/matches/${assignment.matchId}`),
+    );
+    expect(replay.status).toBe(200);
+    const { match } = getPublicMatchContract.response.parse(await replay.json());
+    expect(
+      match.participants.filter((player) => player.kind === "cpu").map((player) => player.name),
+    ).toEqual(scenario === "human" ? [] : ["クルリ"]);
+    await writeMatch(env.APP_DB, record);
     expect(
       await env.APP_DB.prepare("SELECT COUNT(*) FROM reversi_rating_changes WHERE match_id=?")
         .bind(assignment.matchId)
