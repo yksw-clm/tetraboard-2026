@@ -76,6 +76,10 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 ## ローカルAI解析widgetの実装
 
+Macのサービス操作は`native/host.ts`と`native/serviceManager.ts`が担当します。`setup:native`はBunの単体実行ファイルとRustのローカル解析バイナリをユーザーのApplication Supportへコピーし、Chromeへ拡張ID限定で登録します。`nativeClient.ts`はbackgroundからの`connectNative`接続を保持し、要求ID・protocol版・状態を照合します。内容は起動・停止・再起動・状態取得に限定し、任意コマンドやPIDを受け付けません。tokenはNativeからbackgroundの信頼された保存領域へだけ渡し、contentへの応答には含めません。
+
+補助プログラムは自分の子プロセスだけを管理し、別のlistenerが存在すれば手動起動扱いで操作を拒否します。AIの起動完了は子のlisten応答で確認します。通常終了を2秒待った後は同じ子だけを強制終了し、Native接続終了でも解放します。標準出力は長さ付きJSON専用、AIの標準エラーは非公開の`service.log`です。widgetは3秒間隔で状態を確認し、停止・再起動時は探索の世代を進めて遅延候補を捨てます。既存の手動起動・token設定も維持します。
+
 仕様は[README](../README.md#ローカルai解析widget)、導入は[拡張の案内](../apps/local-ai-widget/README.md)、APIは[AI案内](../packages/ai/README.md#ローカル解析サービス)を参照します。`apps/local-ai-widget`は独立Bun workspaceで、本番Web資産へ含めません。MAIN側bridgeは既存WebSocket・fetchの受信を監視し、ISOLATED側controllerが局面・棋譜・探索の世代を管理します。service workerがloopback通信とタブ排他を担当し、tokenは信頼された保存領域から外へ返しません。継続探索の要求IDはsession storageへ保持し、worker再生成後も取得・取消できます。
 
 四人リバーシは接続先・部屋ID・instanceId・接続と局の世代・本人と色対応・ルール状態・手番開始時刻で識別します。将棋には局ID・positionRevisionも含めます。時計残時間・チャットだけでは再探索せず、古い受信や応答を破棄します。将棋の棋譜は`replay.ts`で完全取得済みの末尾から差分取得し、各ページのrevisionと連続性を照合します。

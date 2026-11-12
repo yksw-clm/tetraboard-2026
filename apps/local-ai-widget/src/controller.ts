@@ -13,6 +13,7 @@ import {
   type Observation,
 } from "./model";
 import { ShogiReplayCache } from "./replay";
+import { serviceStateSchema, type ServiceCommand, type ServiceState } from "./serviceProtocol";
 export type Reply = { ok: boolean; error?: string; data?: unknown };
 export type Transport = (message: unknown) => Promise<Reply>;
 export class WidgetController {
@@ -22,6 +23,11 @@ export class WidgetController {
   switching = false;
   error = "";
   result: ContinuousResponse | null = null;
+  serviceState: ServiceState | "unknown" | "unavailable" = "unknown";
+  serviceBusy = false;
+  serviceError = "";
+  private serviceVersion = 0;
+  private checkingService = false;
   private cancelPoll: (() => void) | null = null;
   private abort: AbortController | null = null;
   private replay = new ShogiReplayCache();
@@ -50,11 +56,67 @@ export class WidgetController {
     return (
       this.enabled &&
       !this.switching &&
+      !this.serviceBusy &&
+      this.serviceState !== "stopped" &&
       this.visible &&
       !this.needsObservation &&
       eligible(this.observation) &&
       this.observation.roomId === roomIdFromUrl(this.href)
     );
+  }
+  async refreshService() {
+    if (this.serviceBusy || this.checkingService) return;
+    this.checkingService = true;
+    const version = this.serviceVersion;
+    try {
+      const reply = await this.transport({ type: "service", command: "status" });
+      if (version !== this.serviceVersion) return;
+      if (!reply.ok) throw Error(reply.error ?? "AIの状態を確認できません");
+      const state = serviceStateSchema.parse((reply.data as { state?: unknown })?.state);
+      if (state === "stopped" && (this.busy || this.result)) this.invalidate();
+      this.serviceState = state;
+      this.serviceError = "";
+    } catch (error) {
+      if (version !== this.serviceVersion) return;
+      if (this.serviceState === "running") {
+        this.invalidate();
+        this.lastAuto = this.identity;
+      }
+      this.serviceState = "unavailable";
+      this.serviceError = error instanceof Error ? error.message : "AIの状態を確認できません";
+    } finally {
+      this.checkingService = false;
+      this.changed();
+    }
+  }
+  async controlService(command: Exclude<ServiceCommand, "status">) {
+    if (this.serviceBusy) return;
+    const version = ++this.serviceVersion;
+    this.serviceBusy = true;
+    this.serviceError = "";
+    this.invalidate();
+    this.changed();
+    try {
+      const reply = await this.transport({ type: "service", command });
+      if (version !== this.serviceVersion) return;
+      if (!reply.ok) throw Error(reply.error ?? "AIを操作できません");
+      this.serviceState = serviceStateSchema.parse((reply.data as { state?: unknown })?.state);
+      this.error = "";
+      if (this.serviceState === "running") this.lastAuto = "";
+    } catch (error) {
+      this.serviceError = error instanceof Error ? error.message : "AIを操作できません";
+    } finally {
+      this.serviceBusy = false;
+      this.changed();
+      if (!this.serviceError) this.maybeAuto();
+    }
+  }
+  serviceChanging() {
+    this.serviceVersion++;
+    this.serviceState = "unknown";
+    this.invalidate();
+    this.lastAuto = this.identity;
+    this.changed();
   }
   private invalidate() {
     this.version++;
@@ -141,7 +203,7 @@ export class WidgetController {
     this.changed();
   }
   async toggle() {
-    if (this.switching) return;
+    if (this.switching || this.serviceBusy) return;
     if (this.enabled) {
       this.enabled = false;
       this.invalidate();

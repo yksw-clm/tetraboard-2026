@@ -10,5 +10,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "test", "build.ts"]
+  "include": ["src", "test", "native", "scripts", "build.ts"]
 }
