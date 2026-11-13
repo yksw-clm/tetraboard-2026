@@ -7,7 +7,13 @@ description: Claude Code が Codex CLI を呼んで実装を任せ、差分を�
 
 Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`codex exec`）に任せる。Codex は worktree の中のファイルを変えるだけで、commit、push、PR 作成は Claude Code が行う。
 
-**未確認**: 非対話実行での承認の扱いと `codex exec resume` の挙動は、このリポジトリではまだ試していない。試運転（TB-18）の結果でこの文書を直す。それまでは、下のコマンドが想定どおり動かなければ `codex exec --help` を読んで合わせる。
+試運転（TB-18、2026-11-14、codex-cli 0.162.1）で確かめたこと:
+
+- 下の `codex exec` のコマンドは、承認を求めて止まることなく最後まで動いた。Codex は依頼文に書いた lint と整形のコマンドを自分で実行し、対象のファイルだけを変更し、commit はしなかった。
+- 書き込めるのは、worktree、`/tmp`、`$TMPDIR` だけである。
+- Bun のコマンドは `mise exec --` を付けて実行する。付けないと、手元の古い Bun が使われて型チェックが失敗する。依頼文に書くコマンドにも付ける。
+
+**未確認**: 直しを頼むときに前の会話を引き継ぐ方法（`codex exec resume`）と、サンドボックスの中で `bun run check` の全体が通るかは、まだ試していない。check は Claude Code が worktree で実行する。
 
 ## 始める前に
 
@@ -24,8 +30,10 @@ Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`cod
    ```sh
    git fetch origin develop
    git worktree add ../tetraboard-2026-wt/tb-123 -b feat/tb-123-short-name origin/develop
-   bun install --frozen-lockfile --cwd ../tetraboard-2026-wt/tb-123
+   (cd ../tetraboard-2026-wt/tb-123 && mise exec -- bun install --frozen-lockfile)
    ```
+
+   依存は Codex を呼ぶ前に入れておく。Codex には `bun install` を実行させない。
 
 3. **依頼文を書く。** リポジトリの外の一時ファイルに書く。Notion の本文を写すのではなく、Codex がこの文だけで作業できるように書き直す。入れる内容は次のとおり。
    - タスク ID と目的（なぜ必要か）。
@@ -44,7 +52,7 @@ Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`cod
    - `git -C <worktree> status` と `git -C <worktree> diff` を読む。範囲外のファイルが変わっていないか見る。
    - 受け入れ条件を 1 つずつ照合する。
    - 仕様にない振る舞いが足されていないか、依存の向きを破っていないか、テストが振る舞いを確かめているかを見る。
-   - worktree で `bun run check` を実行する。
+   - worktree で `mise exec -- bun run check` を実行する。
 
 6. **直しが必要なら Codex に戻す。** 指摘を具体的に書いて、同じ worktree でもう一度呼ぶ。小さな直しでも、実装コードは自分で書かない。3 往復しても受け入れ条件を満たさないときは、設計か依頼文に問題があるとみて、タスクの本文を見直す。
 
