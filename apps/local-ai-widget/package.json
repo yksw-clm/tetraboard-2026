@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "setup:native": "bun scripts/setupNative.ts",
     "build": "bun build.ts",
     "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
     "typecheck:tsc": "tsc --noEmit",
