@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename } from "node:fs/promises";
+import { mkdir, rename } from "node:fs/promises";
 import { arch, cpus, platform, release } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import {
   applyAction,
   chooseCpuMove,
