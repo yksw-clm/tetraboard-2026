@@ -409,7 +409,7 @@ Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の
 
 ### PR提出前の検証
 
-コード・設定変更では、PRを作成する前にルートから次の全コマンドを成功させます。
+コード・設定変更では、PRを作成する前にルートから `bun run check` を成功させます。buildとdeployのdry-runはGitHub CIが実行します（[ADR 0007](adr/0007-ci-and-tests.md)）。CIと同じ確認を手元で行うときは、次のコマンドを使います。
 
 ```sh
 bun run check
