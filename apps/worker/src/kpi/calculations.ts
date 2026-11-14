@@ -75,6 +75,85 @@ const number = (row: QueryRow, column: string): number => {
   return Number(value);
 };
 
+export const registrationLookbackMs = 10 * 60 * 1000;
+
+function registrationTimestamp(row: QueryRow) {
+  const timestamp = text(row, "timestamp");
+  // Analytics Engine のタイムゾーンなしの時刻も UTC として扱います。
+  const atMs = Date.parse(
+    /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp) ? timestamp : `${timestamp.replace(" ", "T")}Z`,
+  );
+  if (!Number.isFinite(atMs)) throw new Error("Invalid registration timestamp");
+  return atMs;
+}
+
+/** 同時刻の開始・成功を「直前」とせず、入力を変更せずに手続きへ対応づけます。 */
+export function attributeRegistrationEvents(rows: QueryRow[]): QueryRow[] {
+  const events = rows
+    .map((row) => ({ row: { ...row }, atMs: registrationTimestamp(row) }))
+    .sort((a, b) => a.atMs - b.atMs);
+  type Event = (typeof events)[number];
+  const starts = new Map<string, Event>();
+  const successes = new Map<string, Event>();
+  const unpaired = new Map<string, QueryRow>();
+  const identity = (row: QueryRow) => JSON.stringify([text(row, "blob5"), text(row, "blob4")]);
+  const inherit = (row: QueryRow, source: QueryRow) => {
+    row.blob6 = text(source, "blob6");
+    row.blob8 = text(source, "blob8");
+  };
+  for (let i = 0; i < events.length;) {
+    let end = i + 1;
+    while (end < events.length && events[end]!.atMs === events[i]!.atMs) end++;
+    const simultaneous = events.slice(i, end);
+    const unmatched: QueryRow[] = [];
+    for (const { row, atMs } of simultaneous) {
+      if (text(row, "blob6")) continue;
+      const stage = text(row, "blob7");
+      if (["oauth_success", "registered", "existing_login"].includes(stage)) {
+        const browser = text(row, "blob4");
+        const start = browser ? starts.get(browser) : undefined;
+        if (start && atMs - start.atMs <= registrationLookbackMs) {
+          inherit(row, start.row);
+          continue;
+        }
+        unmatched.push(row);
+      } else if (stage === "profile_complete") {
+        const account = text(row, "blob5");
+        const success = account ? successes.get(account) : undefined;
+        if (success) {
+          inherit(row, success.row);
+          continue;
+        }
+      } else continue;
+      row.blob6 = JSON.stringify(["unknown", identity(row), atMs]);
+      row.blob8 = "unknown";
+    }
+    // 連続して書かれる完了の2点は、時刻が少しずれても同じ手続きにします。
+    for (const { row } of simultaneous)
+      if (text(row, "blob7") === "oauth_success") unpaired.delete(identity(row));
+    for (const row of unmatched)
+      if (text(row, "blob7") === "oauth_success") unpaired.set(identity(row), row);
+    for (const row of unmatched) {
+      if (text(row, "blob7") === "oauth_success") continue;
+      const key = identity(row);
+      const success = unpaired.get(key);
+      if (success) {
+        inherit(row, success);
+        unpaired.delete(key);
+      }
+    }
+    for (const event of simultaneous) {
+      const { row } = event;
+      if (text(row, "blob7") === "oauth_start" && text(row, "blob6") && text(row, "blob4"))
+        starts.set(text(row, "blob4"), event);
+      if (text(row, "blob7") === "oauth_success" && text(row, "blob5"))
+        successes.set(text(row, "blob5"), event);
+    }
+    i = end;
+  }
+  return events.map(({ row }) => row);
+}
+
 export type EventRows = {
   tests: QueryRow[];
   visits: QueryRow[];
@@ -85,7 +164,10 @@ export type EventRows = {
   matchmaking: QueryRow[];
 };
 
-export function calculateEventKpi(rows: EventRows): EventKpi & { newRegistrations: number } {
+export function calculateEventKpi(
+  rows: EventRows,
+  period: { fromMs: number; toMs: number },
+): EventKpi & { newRegistrations: number } {
   const testBrowsers = new Set(rows.tests.map((r) => text(r, "blob4")).filter(Boolean));
   const testAccounts = new Set(rows.tests.map((r) => text(r, "blob5")).filter(Boolean));
   const eligible = (r: QueryRow) =>
@@ -124,7 +206,10 @@ export function calculateEventKpi(rows: EventRows): EventKpi & { newRegistration
   }
   const registration = new Map<string, { entry: string; stage: string; ids: Set<string> }>();
   const registeredAccounts = new Set<string>();
-  for (const row of rows.registration.filter(eligible)) {
+  const attributed = attributeRegistrationEvents(rows.registration.filter(eligible));
+  for (const row of attributed) {
+    const atMs = registrationTimestamp(row);
+    if (atMs < period.fromMs || atMs >= period.toMs) continue;
     const stage = text(row, "blob7");
     const accountId = text(row, "blob5");
     if (stage === "registered" && accountId) registeredAccounts.add(accountId);

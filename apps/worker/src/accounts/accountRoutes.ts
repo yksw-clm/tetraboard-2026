@@ -448,7 +448,8 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     if (registration) await validateRegistrationSetup(c.req.raw, c.env);
     return c.json(error("設定が更新されています。ページを開き直してください。"), 409);
   }
-  if (action === "setup" && !user.profileCompleted) await recordProfileCompletion(c.env, user.id);
+  if (action === "setup" && !user.profileCompleted)
+    await recordProfileCompletion(c.env, user.id, c.req.raw);
   c.executionCtx.waitUntil(deleteUnusedAvatars(c.env));
   return c.json(
     publicProfile({

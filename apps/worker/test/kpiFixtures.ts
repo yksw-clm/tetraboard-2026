@@ -12,6 +12,7 @@ export function eventRow(event: UsageEvent, count = 1): QueryRow {
       Array.from({ length: 20 }, (_, i) => [`double${i + 1}`, point.doubles[i] ?? 0]),
     ),
     count,
+    timestamp: "1981-01-02T03:00:00.000Z",
   };
 }
 
@@ -30,11 +31,32 @@ export function eventRows(events: QueryRow[]): EventRows {
 
 export function fixedUsageQuery(events: QueryRow[]): UsageEventQuery {
   return {
-    async rows(sql) {
+    async rows(sql, params) {
       const name = /blob1 = '([a-z_]+)'/.exec(sql)?.[1];
-      return name
-        ? events.filter((row) => row.blob1 === name)
-        : events.filter((row) => row.blob2 === "1");
+      const rows = (
+        name
+          ? events.filter((row) => row.blob1 === name)
+          : events.filter((row) => row.blob2 === "1")
+      ).filter(
+        (row) =>
+          String(row.timestamp) >= String(params.from) && String(row.timestamp) < String(params.to),
+      );
+      if (name === "registration") {
+        const columns = [
+          "timestamp",
+          "blob2",
+          "blob4",
+          "blob5",
+          "blob6",
+          "blob7",
+          "blob8",
+          "blob3",
+        ];
+        return rows
+          .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)))
+          .map((row) => Object.fromEntries(columns.map((column) => [column, row[column]])));
+      }
+      return rows;
     },
   };
 }
