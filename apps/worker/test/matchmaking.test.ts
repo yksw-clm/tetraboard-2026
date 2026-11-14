@@ -43,6 +43,37 @@ const accounts: string[] = [];
 const rooms = new Set<string>();
 const sockets: WebSocket[] = [];
 
+test("再起動時に旧計測の保存待ちだけを消し、マッチングの待機状態を保持する", async () => {
+  const queue = shogiQueue();
+  const [user] = await fixture(1, queue);
+  const status = await queue.status(user!.account.id, user!.controllerId, false);
+  expect(status.status).toBe("waiting");
+  const before = await runInDurableObject(queue, (_, state) => {
+    state.storage.kv.delete("legacy-analytics-purged");
+    const saved = [...state.storage.kv.list()];
+    state.storage.kv.put("matchmaking-analytics-pending:first", { id: "old-event" });
+    state.storage.kv.put("matchmaking-analytics-pending:second", { id: "other-event" });
+    return saved;
+  });
+  await evictDurableObject(queue);
+  expect(await queue.status(user!.account.id, user!.controllerId, false)).toMatchObject({
+    ...status,
+    serverNowMs: expect.any(Number),
+  });
+  await runInDurableObject(queue, (_, state) => {
+    expect([...state.storage.kv.list({ prefix: "matchmaking-analytics-pending:" })]).toEqual([]);
+    expect(state.storage.kv.get("legacy-analytics-purged")).toBe(true);
+    expect(
+      [...state.storage.kv.list()].filter(([key]) => key !== "legacy-analytics-purged"),
+    ).toEqual(before);
+  });
+  await evictDurableObject(queue);
+  expect(await queue.status(user!.account.id, user!.controllerId, false)).toMatchObject({
+    ...status,
+    serverNowMs: expect.any(Number),
+  });
+});
+
 test.each([false, true])(
   "Usage Events は受付・成立・開始を書き、書き込み失敗=%sでもマッチングが成立する",
   async (fail) => {

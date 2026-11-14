@@ -1,6 +1,4 @@
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
-import { adminAccountIds } from "../admin/auth";
-import { accountRegisteredAtMsSql } from "../accounts/timestamps";
 import { unsealToken } from "./tokens";
 import type { AuthEnv } from "../accounts/auth";
 import { avatarKeyPattern } from "../accounts/auth";
@@ -198,37 +196,11 @@ export async function processDeletions(env: AuthEnv) {
         .bind(job.id)
         .run();
       const reporterHash = await feedbackAccountHash(env, job.id);
-      const owners = adminAccountIds(env) ?? [];
-      const registeredAt = accountRegisteredAtMsSql();
-      const registrations = [false, true].map((include) =>
-        env.APP_DB.prepare(`INSERT INTO analytics_deleted_registrations(day,internal,count)
-        SELECT strftime('%Y-%m-%d',(${registeredAt})/1000+32400,'unixepoch'),?,COUNT(*) FROM user u WHERE u.id=? AND COALESCE(u.isAnonymous,0)=0 AND (${registeredAt})>=COALESCE((SELECT value FROM analytics_metadata WHERE key='collected_from'),?) ${include ? "" : `AND COALESCE(u.isTestUser,0)=0 ${owners.length ? `AND u.id NOT IN (${owners.map(() => "?").join(",")})` : ""}`} GROUP BY 1,2
-        ON CONFLICT(day,internal) DO UPDATE SET count=count+excluded.count`).bind(
-          Number(include),
-          job.id,
-          Date.now(),
-          ...(include ? [] : owners),
-        ),
-      );
-
       await env.APP_DB.batch([
-        ...registrations,
-        env.APP_DB.prepare(`DELETE FROM analytics_sessions WHERE account_id=?
-          OR id IN (SELECT session_id FROM analytics_pageviews WHERE account_id=?)
-          OR id IN (SELECT session_id FROM analytics_participants WHERE account_id=?)`).bind(
-          job.id,
-          job.id,
-          job.id,
-        ),
         env.APP_DB.prepare("DELETE FROM feedback_limits WHERE key IN (?,?)").bind(
           `${reporterHash}:600000`,
           `${reporterHash}:86400000`,
         ),
-        env.APP_DB.prepare(
-          "DELETE FROM analytics_dwell WHERE view_id IN (SELECT id FROM analytics_pageviews WHERE account_id=?)",
-        ).bind(job.id),
-        env.APP_DB.prepare("DELETE FROM analytics_pageviews WHERE account_id=?").bind(job.id),
-        env.APP_DB.prepare("DELETE FROM analytics_participants WHERE account_id=?").bind(job.id),
         ...[
           "account_notification_reads",
           "account_notification_state",

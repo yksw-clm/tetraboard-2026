@@ -248,6 +248,20 @@ function hexToBytes(value: string): Uint8Array {
 }
 
 export class GameRoom extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // フェーズ 6 の掃除で消す。旧計測の保存待ちだけを初回起動時に削除します。
+    ctx.blockConcurrencyWhile(async () => {
+      if (ctx.storage.kv.get("legacy-analytics-purged")) return;
+      ctx.storage.transactionSync(() => {
+        for (const [key] of ctx.storage.kv.list({ prefix: "analytics-pending:" }))
+          ctx.storage.kv.delete(key);
+        ctx.storage.kv.delete("analytics-player-aliases");
+        ctx.storage.kv.put("legacy-analytics-purged", true);
+      });
+    });
+  }
+
   private cpuCapacityFlush: Promise<void> | null = null;
   private indexFlush: Promise<void> | null = null;
   private chatDirty = false;
