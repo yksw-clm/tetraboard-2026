@@ -9,6 +9,9 @@
     "MATCHMAKING_ENABLED": "false",
     "SHOGI_MATCHMAKING_ENABLED": "false"
   },
+  "analytics_engine_datasets": [
+    { "binding": "USAGE_EVENTS", "dataset": "tetraboard_usage_events_local" }
+  ],
   "r2_buckets": [
     {
       "binding": "OBJECT_STORAGE",
@@ -62,6 +65,9 @@
   "env": {
     "production": {
       "name": "tetraboard-2026",
+      "analytics_engine_datasets": [
+        { "binding": "USAGE_EVENTS", "dataset": "tetraboard_usage_events" }
+      ],
       "vars": {
         "APP_ORIGIN": "https://tetraboard.net",
         "MATCHMAKING_ENABLED": "true",
@@ -143,6 +149,9 @@
     },
     "development": {
       "name": "tetraboard-dev",
+      "analytics_engine_datasets": [
+        { "binding": "USAGE_EVENTS", "dataset": "tetraboard_usage_events_dev" }
+      ],
       "vars": {
         "APP_ORIGIN": "https://tetraboard-dev.chaossi-lab.workers.dev",
         "MATCHMAKING_ENABLED": "true",

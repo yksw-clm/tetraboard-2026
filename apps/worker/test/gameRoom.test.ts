@@ -28,6 +28,7 @@ import { applyAction, createInitialState, getLegalMoves } from "@tetraboard/four
 import { afterEach, expect, test, vi } from "vitest";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import worker from "../src/worker";
+import { recordUsageEvents } from "./usageEventsRecorder";
 
 type RoomSocketMessage =
   | Exclude<ProtocolRoomSocketMessage, { type: "room.snapshot" }>
@@ -40,6 +41,97 @@ function parseReversiMessage(value: unknown): RoomSocketMessage {
 }
 
 const baseUrl = "https://example.com";
+
+test.each([false, true])(
+  "Usage Events は対局の開始から完了までを記録し、書き込み失敗=%sでも続行する",
+  async (fail) => {
+    const events = recordUsageEvents(fail);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const setup = await startFourPlayerRoom();
+    const active = await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_, state) =>
+      state.storage.kv.get<import("../src/analytics/store").AnalyticsMatch>("analytics-active"),
+    );
+    const matchId = active!.id;
+    expect(events.filter((e) => e.name === "match_started")).toEqual([
+      {
+        name: "match_started",
+        game: "four-reversi",
+        matchId,
+        isTest: false,
+        mode: "singles",
+        matchKind: "normal",
+        humans: 4,
+        cpus: 0,
+      },
+    ]);
+    expect(events.filter((e) => e.name === "match_participant")).toHaveLength(4);
+    for (const participant of active!.participants)
+      expect(events).toContainEqual({
+        name: "match_participant",
+        game: "four-reversi",
+        matchId,
+        isTest: participant.isTest,
+        browserId: participant.visitorId,
+        accountId: participant.accountId,
+        isGuest: participant.isGuest ?? false,
+      });
+    for (const color of ["black", "white", "red"]) {
+      const index = setup.room.players.findIndex((p) => p.color === color);
+      setup.connections[index].send({ type: "room.game.resign" });
+      await setup.connections[0].nextSnapshotWhere((room) =>
+        color === "red"
+          ? room.status === "waiting"
+          : room.status === "playing" &&
+            room.game.eliminatedColors.includes(color as "black" | "white"),
+      );
+    }
+    expect(events.filter((e) => e.name === "match_ended")).toEqual([
+      {
+        name: "match_ended",
+        game: "four-reversi",
+        matchId,
+        isTest: false,
+        result: "completed",
+        reason: "last_player",
+        durationMs: expect.any(Number),
+      },
+    ]);
+    expect(await getRoom(setup.id)).toMatchObject({ status: "waiting" });
+    if (fail) expect(warn).toHaveBeenCalledWith("Usage event write failed");
+  },
+);
+
+test.each([false, true])(
+  "Usage Events は席ごとの識別情報を維持し、旧集計と同じ条件で対局をテスト扱いにする（全員テスト=%s）",
+  async (allTest) => {
+    const events = recordUsageEvents();
+    const setup = await fourPlayers();
+    const browserIds = setup.participants.map(() => crypto.randomUUID());
+    await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_, state) => {
+      for (const [index, participant] of setup.participants.entries()) {
+        const key = `analytics-player:${participant.playerId}`;
+        const identity =
+          state.storage.kv.get<import("../src/analytics/store").AnalyticsIdentity>(key);
+        state.storage.kv.put(key, {
+          ...identity,
+          visitorId: browserIds[index],
+          isTest: allTest || index === 0,
+        });
+      }
+    });
+    await readyPlayers(setup.id, setup.connections);
+    setup.connections[0].send({ type: "room.game.start" });
+    await setup.connections[0].nextSnapshotWhere((room) => room.status === "playing");
+    const participants = events.filter((e) => e.name === "match_participant");
+    for (const [index, browserId] of browserIds.entries())
+      expect(participants).toContainEqual(
+        expect.objectContaining({ browserId, isTest: allTest || index === 0 }),
+      );
+    expect(events).toContainEqual(
+      expect.objectContaining({ name: "match_started", isTest: allTest }),
+    );
+  },
+);
 
 test("接続情報は観戦者にも配信し、脱落後の切断と復帰も反映する", async () => {
   const setup = await startFourPlayerRoom();
