@@ -9,6 +9,8 @@ import { savePreviousMonthKpi } from "../src/kpi/monthly";
 import { readBusinessKpi } from "../src/kpi/business";
 import { accountFixture, origin } from "./accountFixtures";
 import { eventRow, fixedUsageQuery, visit } from "./kpiFixtures";
+import { kpiPeriod } from "../src/kpi/period";
+import type { UsageEvent } from "../src/usageEvents/events";
 
 // 毎時保守の専用DBを使い、共有APP_DBの退会待ちfixtureを巡回しません。
 const db = (bindings as typeof bindings & { SCHEDULED_MAINTENANCE_TEST_DB: D1Database })
@@ -260,6 +262,52 @@ test("新規登録はD1の登録数を使わず、後で退会したアカウン
   expect(result.eventsUnavailableReason).toBeNull();
   expect(result).not.toHaveProperty("newRegistrationsUnavailableReason");
   expect((await readKpi(env, period, now, fixedUsageQuery([]))).newRegistrations).toBe(0);
+});
+
+test("時刻つきの登録イベントを対応づけ、10分前の開始と期間外の完了を件数へ混ぜない", async () => {
+  const { fromMs, toMs } = kpiPeriod(period);
+  type Registration = Extract<UsageEvent, { name: "registration" }>;
+  const row = (
+    stage: Registration["stage"],
+    atMs: number,
+    details: Partial<Registration> = {},
+  ) => ({
+    ...eventRow({
+      name: "registration",
+      stage,
+      entry: "unknown",
+      isTest: false,
+      browserId: "browser",
+      accountId: "account",
+      ...details,
+    }),
+    timestamp: new Date(atMs).toISOString(),
+  });
+  const result = await readKpi(
+    env,
+    period,
+    now,
+    fixedUsageQuery([
+      row("oauth_start", fromMs - 600000, { flowId: "flow", entry: "login-page" }),
+      row("oauth_success", fromMs - 1000, { accountId: "before" }),
+      row("registered", fromMs - 999, { accountId: "before" }),
+      row("oauth_success", fromMs),
+      row("registered", fromMs),
+      row("profile_complete", fromMs + 700000, { browserId: "different" }),
+      row("oauth_success", fromMs + 700000, { accountId: "unmatched", browserId: "other" }),
+      row("existing_login", fromMs + 700001, { accountId: "unmatched", browserId: "other" }),
+      row("registered", toMs, { accountId: "after" }),
+    ]),
+  );
+  expect(result.eventsUnavailableReason).toBeNull();
+  expect(result.newRegistrations).toBe(1);
+  expect(result.events?.registration).toEqual([
+    { entry: "login-page", stage: "oauth_success", flows: 1 },
+    { entry: "login-page", stage: "registered", flows: 1 },
+    { entry: "login-page", stage: "profile_complete", flows: 1 },
+    { entry: "unknown", stage: "oauth_success", flows: 1 },
+    { entry: "unknown", stage: "existing_login", flows: 1 },
+  ]);
 });
 
 test("イベントの問い合わせ失敗でもD1の値を返し、エラー本文の秘密を返さない", async () => {

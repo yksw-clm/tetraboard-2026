@@ -1,9 +1,7 @@
 import { gameIds } from "@tetraboard/protocol/games";
 import { classifyDevice, classifyReferrer, referrerHostname, sanitizeUtm } from "./acquisition";
+import { analyticsCookie, browserIdFromRequest } from "./browserId";
 import { createUsageEventWriter } from "./writer";
-
-const analyticsCookie = "tetraboard-2026.analytics";
-const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function pageType(path: string): string {
   return path === "/"
@@ -43,13 +41,7 @@ export function withVisitStarted(
     return response;
 
   const url = new URL(request.url);
-  const cookie = request.headers
-    .get("Cookie")
-    ?.split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${analyticsCookie}=`))
-    ?.slice(analyticsCookie.length + 1);
-  const existingId = cookie && uuidV4.test(cookie) ? cookie : null;
+  const existingId = browserIdFromRequest(request);
   const browserId = existingId ?? crypto.randomUUID();
   const referrer = classifyReferrer(
     referrerHostname(request.headers.get("Referer") ?? "", url.hostname),

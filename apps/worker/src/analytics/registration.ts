@@ -148,6 +148,7 @@ export async function completeRegistrationAnalytics(
     const destination = new URL(response.headers.get("Location") ?? "/", env.APP_ORIGIN);
     if (destination.searchParams.has("error") || destination.pathname === "/account/deletion")
       return;
+    await writeRegistrationCompletionUsage(env, request, response, newAccount);
     const now = Date.now(),
       db = env.APP_DB;
     const attempt = await db
@@ -162,7 +163,6 @@ export async function completeRegistrationAnalytics(
     });
     if (!session) return;
     const account = session.user.id;
-    await writeRegistrationCompletionUsage(env, attempt.flow_id, account, newAccount, now);
     await db.batch([
       db
         .prepare(`UPDATE analytics_registration_flows SET target_account_id=COALESCE(target_account_id,?),
@@ -204,8 +204,13 @@ export async function completeRegistrationAnalytics(
   }
 }
 
-export async function recordProfileCompletion(env: Env, account: string, now = Date.now()) {
-  await writeProfileCompletionUsage(env, account, now);
+export async function recordProfileCompletion(
+  env: Env,
+  account: string,
+  request: Request,
+  now = Date.now(),
+) {
+  await writeProfileCompletionUsage(env, account, request);
   try {
     await env.APP_DB.prepare(`INSERT INTO analytics_registration_events
       SELECT f.id,'profile_complete',? FROM analytics_registration_flows f
