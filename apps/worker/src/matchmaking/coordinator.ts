@@ -15,11 +15,7 @@ import {
 } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
-import {
-  noPendingRatedMatch,
-  pendingRatedGames,
-  recoverableFourReversiPending,
-} from "./previousMatch";
+import { noPendingRatedMatch, pendingRatedGames } from "./previousMatch";
 import {
   ratedMatchmakingPolicy,
   ratingOpponentKind,
@@ -826,15 +822,6 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             Date.now(),
             !this.legacy && this.game === "four-reversi" ? rules.key : "",
           ),
-          ...(policy
-            ? [
-                // 旧版でCPUだけになって閉鎖した局の予約を、再参加時に解放します。
-                this.env.APP_DB.prepare(
-                  `DELETE FROM four_reversi_rating_pending AS pending WHERE account_id=?
-                  AND ${recoverableFourReversiPending}`,
-                ).bind(accountId),
-              ]
-            : []),
           this.env.APP_DB.prepare(
             `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
             SELECT ?,?,?,?${policy ? ` WHERE ${noPendingRatedMatch}` : ""}`,

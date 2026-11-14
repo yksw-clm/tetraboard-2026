@@ -1573,60 +1573,6 @@ test("四人レート戦は20秒で不足席を補充し、成立後の取消で
   for (const cpu of cpus) expect(cpu).toMatchObject({ cpuProfile: { id: "lv3-v1" } });
 });
 
-test.each([
-  { status: "abandoned", saved: false, canJoin: true },
-  { status: "abandoned", saved: true, canJoin: false },
-  { status: "playing", saved: false, canJoin: false },
-  { status: "completed", saved: false, canJoin: false },
-] as const)(
-  "四人リバーシの再参加では中断が確定した未保存局の予約だけを解放する ($status, saved=$saved)",
-  async ({ status, saved, canJoin }) => {
-    const account = await accountFixture();
-    accounts.push(account.id);
-    const matchId = crypto.randomUUID();
-    const now = Date.now();
-    const db = env.APP_DB;
-    await db.batch([
-      db
-        .prepare("INSERT INTO four_reversi_rating_pending (account_id,match_id) VALUES (?,?)")
-        .bind(account.id, matchId),
-      db
-        .prepare(`INSERT INTO analytics_matches
-        (id, game, mode, started_at_ms, ended_at_ms, status, cpu_count)
-        VALUES (?, 'four-reversi', 'singles', ?, ?, ?, 3)`)
-        .bind(matchId, now - 3000, status === "playing" ? null : now, status),
-      ...(saved
-        ? [
-            db
-              .prepare(`INSERT INTO matches
-        (id, game, mode, started_at_ms, ended_at_ms, record_json)
-        VALUES (?, 'four-reversi', 'singles', ?, ?, '{}')`)
-              .bind(matchId, now - 3000, now),
-          ]
-        : []),
-    ]);
-    try {
-      const result = await fourRatedQueue().join(
-        account.id,
-        crypto.randomUUID(),
-        crypto.randomUUID(),
-      );
-      if (canJoin) expect(result).toMatchObject({ ok: true, state: { status: "waiting" } });
-      else expect(result).toMatchObject({ ok: false, message: expect.stringContaining("保存中") });
-      const pending = await db
-        .prepare("SELECT 1 FROM four_reversi_rating_pending WHERE account_id=?")
-        .bind(account.id)
-        .first();
-      expect(pending !== null).toBe(!canJoin);
-    } finally {
-      await db.batch([
-        db.prepare("DELETE FROM analytics_matches WHERE id=?").bind(matchId),
-        db.prepare("DELETE FROM matches WHERE id=?").bind(matchId),
-      ]);
-    }
-  },
-);
-
 test.each([true, false])(
   "成立済みの四人対局が終了して保存され、レート戦だけ認定が進む rated=%s",
   async (rated) => {
