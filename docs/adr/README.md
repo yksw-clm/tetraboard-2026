@@ -18,7 +18,8 @@
 | [0002](0002-web-and-api-workers.md) | web と api を別の Worker にし、同一オリジンに載せる | 承認済み |
 | [0003](0003-contexts-and-drizzle.md) | contexts による軽い DDD と drizzle を採用する | 承認済み |
 | [0004](0004-game-contract.md) | 6 ゲームを共通の契約に揃える | 承認済み |
-| [0005](0005-posthog-and-admin.md) | 分析を PostHog へ移し、管理画面を 3 画面に縮小する | 承認済み |
+| [0005](0005-posthog-and-admin.md) | 分析を PostHog へ移し、管理画面を 3 画面に縮小する | 分析の部分を 0009 で置き換え |
 | [0006](0006-ai-roles-and-notion.md) | Claude Code が設計とレビュー、Codex が実装を担い、タスクは Notion で管理する | 承認済み |
 | [0007](0007-ci-and-tests.md) | CI は通常の PR で 4 分以内を目標にし、テストを層で分ける | 一部を 0008 で置き換え |
 | [0008](0008-ci-single-job.md) | CI は 1 つのジョブにまとめ、AI のジョブだけを差分があるときに分ける | 承認済み |
+| [0009](0009-analytics-on-cloudflare.md) | 分析は Cloudflare の中で作り直す | 承認済み |
