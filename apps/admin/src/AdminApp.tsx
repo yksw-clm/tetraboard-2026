@@ -1,7 +1,6 @@
 import { lazy, Suspense } from "react";
 import { AdminPageBoundary } from "./components/AdminPageBoundary";
 import { useLocation } from "react-router";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { Navigate, Route, Routes } from "react-router";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
@@ -30,20 +29,10 @@ const AnnouncementCreatePage = lazy(() =>
 const AnnouncementEditPage = lazy(() =>
   import("./Announcements").then((module) => ({ default: module.AnnouncementEditPage })),
 );
-const Users = lazy(() => import("./Users").then((module) => ({ default: module.Users })));
 const LobbyChat = lazy(() =>
   import("./LobbyChat").then((module) => ({ default: module.LobbyChat })),
 );
-const Dashboard = lazy(() =>
-  import("./Dashboard").then((module) => ({ default: module.Dashboard })),
-);
 const Kpi = lazy(() => import("./Kpi").then((module) => ({ default: module.Kpi })));
-const AcquisitionDashboard = lazy(() =>
-  import("./AcquisitionDashboard").then((m) => ({ default: m.AcquisitionDashboard })),
-);
-const TrackingLinks = lazy(() =>
-  import("./TrackingLinks").then((m) => ({ default: m.TrackingLinks })),
-);
 const parseSession = (body: unknown) => adminSessionSchema.parse(body);
 export function AdminApp() {
   const { pathname } = useLocation();
@@ -81,18 +70,8 @@ export function AdminApp() {
         >
           <Routes>
             <Route path="/kpi" element={<Kpi />} />
-            <Route path="/" element={<Dashboard game="all" />} />
-            {gameIds.map((id) => (
-              <Route
-                key={id}
-                path={gameCatalog[id].lobbyPath}
-                element={<Dashboard key={id} game={id} />}
-              />
-            ))}
+            <Route path="/" element={<Navigate to="/kpi" replace />} />
             <Route path="/lobby-chat" element={<LobbyChat />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/acquisition" element={<AcquisitionDashboard />} />
-            <Route path="/tracking-links" element={<TrackingLinks />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/announcements/new" element={<AnnouncementCreatePage />} />
             <Route path="/announcements/:id" element={<AnnouncementEditPage />} />

@@ -1,4 +1,4 @@
-import { beginRegistrationEntry } from "../../analytics/registrationAnalytics";
+import { beginRegistrationEntry } from "../../features/account/registrationAnalytics";
 import { useContext, useEffect, useSyncExternalStore, type MouseEvent } from "react";
 import { Link, useLocation } from "react-router";
 import { cn } from "@heroui/react";

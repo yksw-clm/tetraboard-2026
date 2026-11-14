@@ -20,8 +20,6 @@ import { createGuestAccount, guestTokenHash, guestLifetimeMs } from "../src/acco
 import { completeGuestLink, rememberGuestLink } from "../src/accounts/guestLinking";
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/rooms/matchStore";
-import { writeAnalyticsMatch } from "../src/analytics/store";
-import { readAnalytics, japanDay } from "../src/admin/metrics";
 import { requestDeletion } from "../src/privacy/deletion";
 import worker from "../src/worker";
 import { lobbyChatSchema, lobbyPostResultSchema } from "@tetraboard/protocol/general-lobby";
@@ -712,6 +710,58 @@ test("既存アカウントへの統合は認証後の確認まで変更せず�
     await (await request("/account/stats?game=four-reversi", { headers: target.headers })).json(),
   ).toMatchObject({ singles: { total: 2 } });
 });
+test("ゲスト統合はfeedbackを1回だけ更新し、本人の投稿だけを引き継ぐ", async () => {
+  const g = await guest();
+  const other = await accountFixture();
+  const ownId = crypto.randomUUID();
+  const otherId = crypto.randomUUID();
+  for (const [id, accountId] of [
+    [ownId, g.id],
+    [otherId, other.id],
+  ])
+    await env.APP_DB.prepare(`INSERT INTO feedback
+      (id,submission_id,payload_hash,author,reporter_hash,internal,kind,game,body,expectation,steps,received_at_ms,expires_at_ms,account_id)
+      VALUES(?,?,?,'guest',?,0,'bug','all',?,'','',?,?,?)`)
+      .bind(id, id, id, id, "引き継ぐ本文", Date.now(), Date.now() + 86400000, accountId)
+      .run();
+  try {
+    const { target, headers } = await link(g);
+    const feedbackUpdates: string[] = [];
+    const db = new Proxy(env.APP_DB, {
+      get(database, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (/^\s*UPDATE\s+feedback\b/i.test(sql)) feedbackUpdates.push(sql);
+            return database.prepare(sql);
+          };
+        const value = Reflect.get(database, key);
+        return typeof value === "function" ? value.bind(database) : value;
+      },
+    });
+    const response = await worker.fetch(
+      new AcceptedGameRequest(`${origin}/api/account/guest-merge`, { method: "POST", headers }),
+      { ...env, APP_DB: db },
+      { waitUntil() {} } as unknown as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+    expect(feedbackUpdates).toHaveLength(1);
+    const saved = await env.APP_DB.prepare(
+      "SELECT id,account_id,body FROM feedback WHERE id IN (?,?)",
+    )
+      .bind(ownId, otherId)
+      .all();
+    expect(saved.results).toHaveLength(2);
+    expect(saved.results).toEqual(
+      expect.arrayContaining([
+        { id: ownId, account_id: target.id, body: "引き継ぐ本文" },
+        { id: otherId, account_id: other.id, body: "引き継ぐ本文" },
+      ]),
+    );
+  } finally {
+    await env.APP_DB.prepare("DELETE FROM feedback WHERE id IN (?,?)").bind(ownId, otherId).run();
+  }
+});
+
 test("ゲストの公開チャットは統合後も非表示用ID・再送・投稿停止・通報を保ち、退会で削除する", async () => {
   const g = await guest(),
     other = await accountFixture();
@@ -991,43 +1041,7 @@ test("大会エントリーと得点の同一性を保って統合し、同じ�
     await (await request("/account/guest-merge", { headers: conflict.headers })).json(),
   ).toMatchObject({ pending: { guestName: other.user.name } });
 });
-test("管理の参加者計測は、アカウントIDのあるゲストも開始時のゲスト区分で集計する", async () => {
-  const g = await guest(),
-    now = Date.now(),
-    id = crypto.randomUUID(),
-    day = japanDay(now);
-  const query = {
-    from: day,
-    to: day,
-    game: "all",
-    bucket: "day",
-    includeInternal: "true",
-  } as const;
-  const before = await readAnalytics(env, query);
-  await writeAnalyticsMatch(env.APP_DB, {
-    id,
-    game: "four-reversi",
-    mode: "singles",
-    startedAtMs: now,
-    endedAtMs: now + 1,
-    status: "completed",
-    cpuCount: 0,
-    participants: [
-      {
-        playerId: crypto.randomUUID(),
-        accountId: g.id,
-        visitorId: crypto.randomUUID(),
-        isTest: false,
-        isGuest: true,
-      },
-    ],
-  });
-  const after = await readAnalytics(env, query);
-  expect(after.summary.guestActive).toBe(before.summary.guestActive! + 1);
-  expect(after.summary.registeredActive).toBe(before.summary.registeredActive);
-  await link(g, false);
-  expect((await readAnalytics(env, query)).summary.guestActive).toBe(after.summary.guestActive);
-});
+
 test("統合した戦績の合計でバッジを判定し、既存の獲得記録を二重作成しない", async () => {
   const g = await guest(),
     linked = await link(g);

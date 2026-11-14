@@ -317,16 +317,9 @@ export async function mergeGuestAccounts(env: Env, flow: MergeFlow) {
     WHERE account_id=? AND room_id=? AND instance_id=? AND player_id=?`)
         .bind(a, g, held.room_id, held.instance_id, held.player_id),
     );
+  statements.push(db.prepare("UPDATE feedback SET account_id=? WHERE account_id=?").bind(a, g));
   // 公開棋譜の本人参照だけを移し、手順・日時・結果を保持します。
   for (const table of ["matches", "shogi_match_uploads"]) {
-    for (const table of [
-      "analytics_pageviews",
-      "analytics_participants",
-      "analytics_sessions",
-      "analytics_session_visits",
-      "feedback",
-    ])
-      statements.push(db.prepare(`UPDATE ${table} SET account_id=? WHERE account_id=?`).bind(a, g));
     statements.push(
       db
         .prepare(`UPDATE ${table} SET record_json=json_set(record_json,'$.participants',json((

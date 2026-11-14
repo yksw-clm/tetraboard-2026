@@ -1,4 +1,4 @@
-import { matchEndFacts } from "../analytics/matchLifecycle";
+import { matchEndFacts } from "../usageEvents/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { createUsageEventWriter } from "../usageEvents/writer";
@@ -52,13 +52,10 @@ import { nextDueRoomDeadline, earliestAlarmAt } from "./roomDeadlines";
 import { roomFormationAnalysis, formationAnalysisTag } from "./fourShogiFormationAnalysis";
 import {
   analyticsActiveKey,
-  analyticsPendingPrefix,
   analyticsPlayerKey,
-  writeAnalyticsMatch,
   type AnalyticsIdentity,
   type AnalyticsMatch,
-  type AnalyticsJob,
-} from "../analytics/store";
+} from "../usageEvents/matches";
 import {
   joinRoomContract,
   chatMessageSchema,
@@ -272,12 +269,6 @@ export class GameRoom extends DurableObject<Env> {
   private readonly standardProgress = gameProgress.reversi.create(this.progressDependencies);
   private readonly shogiProgress = gameProgress["four-shogi"].create(this.progressDependencies);
   private readonly standardShogiProgress = gameProgress.shogi.create(this.progressDependencies);
-  private analyticsFlush: Promise<void> | null = null;
-
-  private pendingAnalytics() {
-    return new Map(this.ctx.storage.kv.list<AnalyticsJob>({ prefix: analyticsPendingPrefix }));
-  }
-
   private clearMatchmakingSearches(reservation: MatchmakingRoomReservation) {
     return {
       ...reservation,
@@ -290,7 +281,6 @@ export class GameRoom extends DurableObject<Env> {
       "matchmaking" in room && room.matchmaking
         ? this.ctx.storage.kv.get<MatchmakingRoomReservation>(`matchmaking:${room.matchmaking.id}`)
         : undefined;
-    const aliases: Record<string, string> = {};
     const record: AnalyticsMatch = {
       id,
       matchKind: roomMatchKind(room),
@@ -310,7 +300,6 @@ export class GameRoom extends DurableObject<Env> {
           )?.search;
           const playerId =
             identity && !identity.accountId && !identity.visitorId ? crypto.randomUUID() : p.id;
-          aliases[playerId] = p.id;
           return {
             ...(search
               ? { search: { operationId: search.operationId, joinedAtMs: search.joinedAtMs } }
@@ -363,19 +352,12 @@ export class GameRoom extends DurableObject<Env> {
           humans: record.humanCount ?? record.participants.length,
         });
     }
-    // 未識別の席の局内対応だけを保持し、終局時に破棄します。
-    this.ctx.storage.kv.put("analytics-player-aliases", aliases);
     if (reservation)
       this.ctx.storage.kv.put(
         `matchmaking:${reservation.matchId}`,
         this.clearMatchmakingSearches(reservation),
       );
     this.ctx.storage.kv.put(analyticsActiveKey, record);
-    this.ctx.storage.kv.put(analyticsPendingPrefix + id, {
-      record,
-      revision: 1,
-      retryAtMs: Date.now(),
-    } satisfies AnalyticsJob);
   }
 
   private endAnalyticsMatch(
@@ -385,70 +367,16 @@ export class GameRoom extends DurableObject<Env> {
   ) {
     const active = this.ctx.storage.kv.get<AnalyticsMatch>(analyticsActiveKey);
     if (!active) return;
-    const aliases =
-      this.ctx.storage.kv.get<Record<string, string>>("analytics-player-aliases") ?? {};
-    this.ctx.storage.kv.delete("analytics-player-aliases");
-    const record: AnalyticsMatch = {
-      ...active,
-      status,
-      endedAtMs: at,
-      endReason: status === "abandoned" ? "abandoned" : (facts?.reason ?? "unknown"),
-      participants: active.participants.map((p) => ({
-        ...p,
-        endReason:
-          status === "abandoned"
-            ? "abandoned"
-            : (facts?.players.get(aliases[p.playerId] ?? p.playerId) ?? "unknown"),
-      })),
-    };
     this.ctx.storage.kv.delete(analyticsActiveKey);
     createUsageEventWriter(this.env.USAGE_EVENTS).write({
       name: "match_ended",
-      game: record.game,
-      matchId: record.id,
-      isTest: record.participants.length > 0 && record.participants.every((p) => p.isTest),
+      game: active.game,
+      matchId: active.id,
+      isTest: active.participants.length > 0 && active.participants.every((p) => p.isTest),
       result: status,
-      reason: record.endReason ?? "unknown",
-      durationMs: Math.max(0, at - record.startedAtMs),
+      reason: status === "abandoned" ? "abandoned" : (facts?.reason ?? "unknown"),
+      durationMs: Math.max(0, at - active.startedAtMs),
     });
-    this.ctx.storage.kv.put(analyticsPendingPrefix + record.id, {
-      record,
-      revision: 2,
-      retryAtMs: Date.now(),
-    } satisfies AnalyticsJob);
-  }
-
-  private async flushAnalytics(): Promise<void> {
-    if (this.analyticsFlush) return this.analyticsFlush;
-    const flush = async () => {
-      for (let pass = 0; pass < 16; pass++) {
-        const next = [...this.pendingAnalytics()].find(([, job]) => job.retryAtMs <= Date.now());
-        if (!next) break;
-        const [key, job] = next;
-        try {
-          await writeAnalyticsMatch(this.env.APP_DB, job.record);
-          this.ctx.storage.transactionSync(() => {
-            if (this.ctx.storage.kv.get<AnalyticsJob>(key)?.revision === job.revision)
-              this.ctx.storage.kv.delete(key);
-          });
-        } catch {
-          this.ctx.storage.transactionSync(() => {
-            if (this.ctx.storage.kv.get<AnalyticsJob>(key)?.revision === job.revision)
-              this.ctx.storage.kv.put(key, {
-                ...this.ctx.storage.kv.get<AnalyticsJob>(key)!,
-                retryAtMs: Date.now() + 5000,
-              });
-          });
-          console.error("Analytics save will be retried");
-          break;
-        }
-      }
-      await this.syncAlarm(this.readRoom());
-    };
-    this.analyticsFlush = flush().finally(() => {
-      this.analyticsFlush = null;
-    });
-    return this.analyticsFlush;
   }
 
   private pendingMatches() {
@@ -1592,7 +1520,7 @@ export class GameRoom extends DurableObject<Env> {
           this.ctx.storage.kv.put(tournamentReservationKey(tournament.context.matchId), closed);
           this.recordTournamentState(closed, "saving");
         }
-        this.endAnalyticsMatch("completed", result.at, matchEndFacts(result.room, result.game));
+        this.endAnalyticsMatch("completed", result.at, matchEndFacts(result.game));
         switch (result.gameId) {
           case "four-gomoku": {
             const lastRound = this.fourGomokuProgress.finalize(result);
@@ -2090,7 +2018,6 @@ export class GameRoom extends DurableObject<Env> {
     if (releaseCpu) this.ctx.waitUntil(this.flushCpuCapacity());
     if ((this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? []).length)
       this.ctx.waitUntil(this.flushAccountCleanup());
-    if (this.pendingAnalytics().size) this.ctx.waitUntil(this.flushAnalytics());
     if (this.pendingMatches().size) this.ctx.waitUntil(this.flushMatches());
     if (this.pendingShogiMatches().size) this.ctx.waitUntil(this.flushShogiMatches());
     if ([...this.ctx.storage.kv.list({ prefix: pendingTournamentStatePrefix })].length)
@@ -2204,7 +2131,6 @@ export class GameRoom extends DurableObject<Env> {
     if (pending !== undefined) deadlines.push(pending.retryAtMs);
     for (const job of this.ctx.storage.kv.get<AccountCleanup[]>(accountCleanupKey) ?? [])
       deadlines.push(job.retryAtMs);
-    for (const job of this.pendingAnalytics().values()) deadlines.push(job.retryAtMs);
     for (const job of this.pendingMatches().values()) deadlines.push(job.retryAtMs);
     for (const job of this.pendingShogiMatches().values()) deadlines.push(job.retryAtMs);
     const claims = this.ctx.storage.kv.get<PendingGuestClaims>(guestClaimsKey);

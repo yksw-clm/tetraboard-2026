@@ -8,7 +8,7 @@ import { act, render, flush, requests, press, clock } from "../../web/test-dom/s
 test("詳細URLの認証・一時障害からの再試行・権限喪失後の画面破棄を維持する", async () => {
   const view = render(
     <ThemeProvider>
-      <MemoryRouter basename="/admin" initialEntries={["/admin/users"]}>
+      <MemoryRouter basename="/admin" initialEntries={["/admin/announcements"]}>
         <AdminApp />
       </MemoryRouter>
     </ThemeProvider>,
@@ -20,21 +20,26 @@ test("詳細URLの認証・一時障害からの再試行・権限喪失後の�
   press(view, "再試行");
   await act(async () => {
     requests[1]!.respond({ name: "管理者", username: null });
-    await import("../src/Users");
+    await import("../src/Announcements");
   });
   clock.advance(500);
   await flush();
   expect(view.querySelector('nav a[aria-current="page"]')?.getAttribute("href")).toBe(
-    "/admin/users",
+    "/admin/announcements",
   );
   requests[2]!.respond({
-    users: [
+    announcements: [
       {
-        name: "機密の利用者",
-        username: "user",
-        avatarUrl: null,
+        id: "secret",
+        title: "機密の利用者",
+        body: "下書き",
+        date: "2026-11-14",
+        kind: "other",
+        published: false,
+        lobbyGames: [],
         createdAtMs: 1,
-        profileCompleted: true,
+        updatedAtMs: 1,
+        version: 1,
       },
     ],
     nextCursor: null,
@@ -89,12 +94,12 @@ test("モバイルの管理メニューは開閉し、選択後に閉じて対�
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(dialog).not.toBeNull();
     expect(dialog.textContent).toContain("管理メニュー");
-    const link = dialog.querySelector('a[href="/users"]') as HTMLAnchorElement;
+    const link = dialog.querySelector('a[href="/announcements"]') as HTMLAnchorElement;
     act(() => link.click());
     clock.advance(300);
     await flush();
     expect(document.querySelector('[role="dialog"]') === null).toBe(true);
-    expect(document.querySelector("header")?.textContent).toContain("ユーザー");
+    expect(document.querySelector("header")?.textContent).toContain("お知らせ");
   } finally {
     window.innerWidth = previous;
   }
@@ -119,7 +124,7 @@ test("画面の表示に失敗してもメニューと再読み込みを残し�
                 </AdminPageBoundary>
               }
             />
-            <Route path="/users" element={<p>正常な管理画面</p>} />
+            <Route path="/announcements" element={<p>正常な管理画面</p>} />
           </Routes>
         </AdminShell>
       </MemoryRouter>
@@ -129,7 +134,7 @@ test("画面の表示に失敗してもメニューと再読み込みを残し�
   expect([...view.querySelectorAll("button")].some((b) => b.textContent === "再読み込み")).toBe(
     true,
   );
-  act(() => (view.querySelector('nav a[href="/users"]') as HTMLAnchorElement).click());
+  act(() => (view.querySelector('nav a[href="/announcements"]') as HTMLAnchorElement).click());
   await flush();
   expect(view.textContent).toContain("正常な管理画面");
   expect(view.textContent).not.toContain("画面を表示できませんでした");

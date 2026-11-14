@@ -1,4 +1,3 @@
-// 旧分析の撤去後も分類を維持するため、protocol/acquisition.ts の関数を独立して持ちます。
 export function sanitizeUtm(value: string | null) {
   return value?.replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 64) || null;
 }

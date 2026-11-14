@@ -1,7 +1,6 @@
 import { humanFixtureRecord, fixtureRecord } from "./matchFixtures";
 import { writeMatch } from "../src/rooms/matchStore";
 import { humanShogiRecord, saveShogiFixture } from "./shogiMatchFixtures";
-import { readAnalytics, japanDay } from "../src/admin/metrics";
 import { env, applyD1Migrations } from "cloudflare:test";
 import { beforeAll, afterEach, expect, test } from "vitest";
 import worker from "../src/worker";
@@ -28,12 +27,6 @@ beforeAll(async () => {
 afterEach(async () => {
   await db.batch(
     [
-      "analytics_dwell",
-      "analytics_pageviews",
-      "analytics_participants",
-      "analytics_matches",
-      "analytics_daily",
-      "analytics_metadata",
       "account_match_history",
       "matches",
       "shogi_match_chunks",
@@ -456,30 +449,4 @@ test("最近の対局はゲーム横断の開始順で最新20件、人間限定
     matches: { id: string; game: string }[];
   };
   expect(filtered.matches.map((m) => m.id)).toEqual([human.id, shogi.record.id]);
-});
-test("総合ロビー計測は全体だけに入り、ゲーム開始率の分母に混ぜない", async () => {
-  const now = Date.now(),
-    day = japanDay(now),
-    view = crypto.randomUUID();
-  await db
-    .prepare(
-      "INSERT INTO analytics_pageviews(id,visitor_id,account_id,is_test,page,game,started_at_ms) VALUES(?,?,NULL,0,'general-lobby',NULL,?)",
-    )
-    .bind(view, "visitor", now - 1000)
-    .run();
-  await db.prepare("INSERT INTO analytics_dwell VALUES(?,?,?)").bind(view, day, 500).run();
-  const query = {
-    from: day,
-    to: day,
-    bucket: "day" as const,
-    game: "all" as const,
-    includeInternal: "false" as const,
-  };
-  const all = await readAnalytics({ ...env, APP_DB: db }, query);
-  expect(all.summary.generalLobbyViews).toBe(1);
-  expect(all.summary.generalLobbyDwellMs).toBe(500);
-  expect(all.summary.conversionEligible).toBe(0);
-  const game = await readAnalytics({ ...env, APP_DB: db }, { ...query, game: "four-reversi" });
-  expect(game.summary.generalLobbyViews).toBe(0);
-  expect(game.summary.pageViews).toBe(0);
 });

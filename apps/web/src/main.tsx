@@ -1,5 +1,4 @@
 import "./app/installPreloadRecovery";
-import { startWebAnalytics } from "./analytics/pageAnalytics";
 import "./shared/clientErrors";
 import "./shared/heroui.css";
 import { StrictMode } from "react";
@@ -16,7 +15,6 @@ function syncMetadata(state: typeof router.state) {
 }
 syncMetadata(router.state);
 router.subscribe(syncMetadata);
-startWebAnalytics(router);
 
 const root = document.getElementById("root")!;
 startPublicLobby(root, router, () => {

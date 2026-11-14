@@ -1,5 +1,8 @@
-import type { RegistrationAnalyticsInput } from "@tetraboard/protocol";
-import { createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
+import {
+  registrationAnalyticsInputSchema,
+  type RegistrationAnalyticsInput,
+} from "@tetraboard/protocol";
+import { accountIdentity, createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
 import { responseCookies } from "../privacy/deletion";
 import { browserIdFromRequest } from "./browserId";
 import type { UsageEvent } from "./events";
@@ -64,7 +67,20 @@ export async function writeRegistrationCompletionUsage(
 ) {
   if (!env.USAGE_EVENTS) return;
   try {
-    if (!/\/callback\/(google|discord)$/.test(new URL(request.url).pathname)) return;
+    const url = new URL(request.url);
+    if (
+      !/\/callback\/(google|discord)$/.test(url.pathname) ||
+      !url.searchParams.get("state") ||
+      url.searchParams.has("error") ||
+      response.status >= 400 ||
+      !response.headers
+        .getSetCookie()
+        .some((cookie) => /^(?:__Secure-)?tetraboard-2026\.session_token=[^;]/.test(cookie))
+    )
+      return;
+    const destination = new URL(response.headers.get("Location") ?? "/", env.APP_ORIGIN);
+    if (destination.searchParams.has("error") || destination.pathname === "/account/deletion")
+      return;
     const session = await createAuth(env).api.getSession({
       headers: responseCookies(request, response),
     });
@@ -92,3 +108,25 @@ export async function writeProfileCompletionUsage(env: Env, accountId: string, r
     console.warn("Usage registration context read failed");
   }
 }
+
+/** 計測の障害はOAuth開始を妨げません。 */
+export async function recordRegistrationOAuthStart(
+  request: Request,
+  env: AuthEnv,
+  input?: RegistrationAnalyticsInput,
+) {
+  const usage = registrationUsage(env, input, browserIdFromRequest(request));
+  try {
+    const user = await accountIdentity(request, env);
+    usage.identify(input ?? { id: crypto.randomUUID(), entry: "unknown", game: null }, user);
+  } catch {
+    console.warn("Usage registration context read failed");
+  } finally {
+    usage.write("oauth_start");
+  }
+}
+
+export const parseRegistrationAnalytics = (value: unknown) => {
+  const input = registrationAnalyticsInputSchema.safeParse(value);
+  return input.success ? input.data : undefined;
+};
