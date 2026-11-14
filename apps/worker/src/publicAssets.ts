@@ -1,6 +1,7 @@
 import { legalHtml } from "./privacy/legalHtml";
 import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { serveRoomShareHtml } from "./roomShareHtml";
+import { withVisitStarted } from "./usageEvents/visit";
 
 export function withoutIndexing(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -19,6 +20,7 @@ export async function servePublicAssets(
   env?: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
+  const html = (response: Response) => withVisitStarted(request, response, path, env);
   if (request.headers.get("Upgrade"))
     return withoutIndexing(new Response("Not Found", { status: 404 }));
   if (request.method !== "GET" && request.method !== "HEAD")
@@ -33,7 +35,7 @@ export async function servePublicAssets(
       return Response.redirect(url.toString(), 308);
     }
     url.pathname = "/index.html";
-    return assets.fetch(new Request(url, request));
+    return html(await assets.fetch(new Request(url, request)));
   }
   const game = gameIds.find((id) => {
     const lobby = gameCatalog[id].lobbyPath;
@@ -47,7 +49,7 @@ export async function servePublicAssets(
     }
     url.pathname = `${lobby}/index.html`;
     const response = await assets.fetch(new Request(url, request));
-    return response.status < 400 ? response : withoutIndexing(response);
+    return html(response.status < 400 ? response : withoutIndexing(response));
   }
   const spa =
     [
@@ -66,9 +68,10 @@ export async function servePublicAssets(
     /^\/tournaments\/[1-9]\d*\/?$/.test(path) ||
     /^\/account\/matches\/[^/]+\/?$/.test(path);
   if (spa) {
-    if (env && /^\/rooms\/[^/]+\/?$/.test(path)) return serveRoomShareHtml(request, env, assets);
+    if (env && /^\/rooms\/[^/]+\/?$/.test(path))
+      return html(await serveRoomShareHtml(request, env, assets));
     url.pathname = "/app.html";
-    return withoutIndexing(await assets.fetch(new Request(url, request)));
+    return html(withoutIndexing(await assets.fetch(new Request(url, request))));
   }
   if (
     path.startsWith("/assets/") ||
