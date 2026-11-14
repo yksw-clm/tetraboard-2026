@@ -74,6 +74,12 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 
 Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。ルートの`bun run check:ai`とCIの`ai`ジョブで検証します。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
 
+## 対局参加BOTの実装
+
+[確定仕様](specs/player-bot.md)と[CLIの案内](../apps/player-bot/README.md)を参照します。参加・待機は既存HTTP API、対局は既存WebSocket契約を使います。登録者Cookieと部屋専用tokenは別資格として扱い、状態不明時に新しい参加要求を発行しません。大会・レートで終局した後も席の解放と結果保存を確認してから再参加します。
+
+ローカルAIの`--port`は待受ポートだけを選択し、loopbackと既定3002を維持します。BOTは専用の子プロセスに動的ポートを割り当て、既存widgetのプロセスを操作しません。
+
 ## ローカルAI解析widgetの実装
 
 Macのサービス操作は`native/host.ts`と`native/serviceManager.ts`が担当します。`setup:native`はBunの単体実行ファイルとRustのローカル解析バイナリをユーザーのApplication Supportへコピーし、Chromeへ拡張ID限定で登録します。`nativeClient.ts`はbackgroundからの`connectNative`接続を保持し、要求ID・protocol版・状態を照合します。内容は起動・停止・再起動・状態取得に限定し、任意コマンドやPIDを受け付けません。tokenはNativeからbackgroundの信頼された保存領域へだけ渡し、contentへの応答には含めません。
