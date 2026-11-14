@@ -60,7 +60,15 @@ Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`cod
 
 8. **Notion を In Review にし、PR の URL を入れる。** 開発者に、何を変えたか、何を確かめたか、何が未確認かを報告する。
 
-9. **マージ後に片づける。** 開発者の承認を得てマージしたら、Notion を Done にし、worktree を消す。
+9. **マージして片づける。** 開発者の承認と GitHub CI の成功を確かめてから、スカッシュマージする。件名は PR タイトルに PR 番号を付けたものにする。`--match-head-commit` には完全なコミット ID を渡す（短縮形は拒否される）。
+
+   ```sh
+   SHA=$(gh pr view 123 --json headRefOid --jq .headRefOid)
+   gh pr merge 123 --squash --match-head-commit "$SHA" --delete-branch \
+     --subject "feat: 日本語の説明（TB-123） (#123)"
+   ```
+
+   マージしたら、Notion を Done にし、worktree を消す。
 
    ```sh
    git worktree remove ../tetraboard-2026-wt/tb-123

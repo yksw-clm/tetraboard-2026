@@ -40,7 +40,8 @@ AI エージェント（Claude Code / Codex）と開発者の作業規約。
 
 - タスクは Notion で管理する。GitHub Issues は使わない。`qa-ready`、`codex-ready`、`stage:*` のラベルも使わない。
 - 1 タスク 1 PR。ブランチ名は `種別/tb-123-短い説明`、PR タイトルは `種別: 日本語の説明（TB-123）` とする。
-- `main` は本番、`develop` は開発環境で GitHub の既定ブランチ。最新の `develop` から `feat/`、`fix/`、`docs/`、`refactor/`、`test/`、`chore/` のブランチを切り、`develop` 向けの PR にする。`develop` から `main` へのリリースはマージコミットで取り込む。
+- `main` は本番、`develop` は開発環境で GitHub の既定ブランチ。最新の `develop` から `feat/`、`fix/`、`docs/`、`refactor/`、`test/`、`chore/` のブランチを切り、`develop` 向けの PR にする。
+- 作業ブランチから `develop` へはスカッシュマージで取り込む。件名は `PR タイトル (#PR 番号)` にする（例: `docs: 旧ブラウザテストの移管対応表を削除する（TB-30） (#364)`）。`develop` から `main` へのリリースはマージコミットで取り込む。
 - `main` と `develop` への直接 push と force push は禁止。非公開リポジトリの現行プランでは保護を強制できないので、運用で守る。
 - コミットメッセージは `feat:`、`fix:`、`docs:` などの種別で始め、説明は日本語で書く（例: `docs: コミットメッセージの作成ルールを追加する`）。
 
