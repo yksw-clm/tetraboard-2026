@@ -33,6 +33,7 @@ import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import { writeMatch } from "../src/rooms/matchStore";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import { CpuCapacity } from "../src/rooms/cpuCapacity";
+import { recordUsageEvents } from "./usageEventsRecorder";
 const stub = () => env.MATCHMAKING_COORDINATOR.getByName(rules.key);
 const fourRatedQueue = () =>
   env.MATCHMAKING_COORDINATOR.getByName(fourReversiRatedMatchmakingRules.key);
@@ -41,6 +42,77 @@ const reversiQueue = () => env.MATCHMAKING_COORDINATOR.getByName(reversiMatchmak
 const accounts: string[] = [];
 const rooms = new Set<string>();
 const sockets: WebSocket[] = [];
+
+test.each([false, true])(
+  "Usage Events は受付・成立・開始を書き、書き込み失敗=%sでもマッチングが成立する",
+  async (fail) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const events = recordUsageEvents(fail);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const queue = shogiQueue();
+    const users = await fixture(2, queue);
+    const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+    const assignment = states[0]!.assignment!;
+    rooms.add(assignment.roomId);
+    expect(states.map((s) => s.status)).toEqual(["matched", "matched"]);
+    for (const user of users) {
+      expect(events).toContainEqual({
+        name: "matchmaking",
+        operationId: user.operationId,
+        accountId: user.account.id,
+        game: "shogi",
+        stage: "accepted",
+        reason: null,
+        waitingMs: null,
+        humans: null,
+        rated: true,
+        isTest: false,
+      });
+      expect(events).toContainEqual({
+        name: "matchmaking",
+        operationId: user.operationId,
+        accountId: user.account.id,
+        game: "shogi",
+        stage: "matched",
+        reason: null,
+        waitingMs: 0,
+        humans: 2,
+        rated: true,
+        isTest: false,
+      });
+    }
+    for (const state of states)
+      await connect(assignment.roomId, state.assignment!.membership.token);
+    now += 5000;
+    const room = env.GAME_ROOM.getByName(assignment.roomId);
+    expect(await room.getRoom()).toMatchObject({ status: "playing" });
+    for (const user of users)
+      expect(events).toContainEqual({
+        name: "matchmaking",
+        operationId: user.operationId,
+        accountId: user.account.id,
+        browserId: null,
+        game: "shogi",
+        stage: "started",
+        reason: null,
+        humans: 2,
+        rated: true,
+        isTest: false,
+      });
+    expect(events.filter((e) => e.name === "matchmaking")).toHaveLength(6);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "match_started",
+        matchId: assignment.matchId,
+        matchKind: "rated",
+        humans: 2,
+        cpus: 0,
+      }),
+    );
+    if (fail) expect(warn).toHaveBeenCalledWith("Usage event write failed");
+  },
+);
 
 test.each(["shogi", "reversi"] as const)("%sの保存待ちも全ゲームの再検索を止める", async (game) => {
   const account = await accountFixture();

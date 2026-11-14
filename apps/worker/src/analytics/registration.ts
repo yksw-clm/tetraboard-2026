@@ -6,6 +6,11 @@ import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
 import { accountIdentity, createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
 import { responseCookies, digest } from "../privacy/deletion";
 import { analyticsVisitor } from "./store";
+import {
+  registrationUsage,
+  writeRegistrationCompletionUsage,
+  writeProfileCompletionUsage,
+} from "../usageEvents/registration";
 
 function flowStatements(
   db: D1Database,
@@ -59,6 +64,9 @@ export async function recordRegistrationEntry(
   user: StoredProfile | null,
   now = Date.now(),
 ) {
+  const usage = registrationUsage(env, input, visitor);
+  usage.identify(input, user);
+  usage.write("entry");
   await env.APP_DB.batch(flowStatements(env.APP_DB, input, visitor, user, now, true));
 }
 
@@ -70,12 +78,14 @@ export async function rememberRegistrationAnalytics(
   provider: string,
   input?: RegistrationAnalyticsInput,
 ) {
+  const usage = registrationUsage(env, input, analyticsVisitor(request));
   try {
     const now = Date.now(),
       visitor = analyticsVisitor(request),
       user = await accountIdentity(request, env);
     const stateHash = await digest(state);
     let flow = input ?? { id: crypto.randomUUID(), entry: "unknown" as const, game: null };
+    usage.identify(flow, user);
     await env.APP_DB.batch(flowStatements(env.APP_DB, flow, visitor, user, now, Boolean(input)));
     const own =
       await env.APP_DB.prepare(`SELECT EXISTS(SELECT 1 FROM analytics_registration_events e WHERE e.flow_id=analytics_registration_flows.id AND e.stage='oauth_success') AS completed FROM analytics_registration_flows WHERE id=?
@@ -88,6 +98,7 @@ export async function rememberRegistrationAnalytics(
         entry: own ? flow.entry : "unknown",
         game: input?.game ?? null,
       };
+      usage.identify(flow, user);
       await env.APP_DB.batch(
         flowStatements(env.APP_DB, flow, visitor, user, now, Boolean(own && input)),
       );
@@ -110,6 +121,8 @@ export async function rememberRegistrationAnalytics(
     ]);
   } catch {
     console.warn("Registration analytics save failed");
+  } finally {
+    usage.write("oauth_start");
   }
 }
 
@@ -149,6 +162,7 @@ export async function completeRegistrationAnalytics(
     });
     if (!session) return;
     const account = session.user.id;
+    await writeRegistrationCompletionUsage(env, attempt.flow_id, account, newAccount, now);
     await db.batch([
       db
         .prepare(`UPDATE analytics_registration_flows SET target_account_id=COALESCE(target_account_id,?),
@@ -191,6 +205,7 @@ export async function completeRegistrationAnalytics(
 }
 
 export async function recordProfileCompletion(env: Env, account: string, now = Date.now()) {
+  await writeProfileCompletionUsage(env, account, now);
   try {
     await env.APP_DB.prepare(`INSERT INTO analytics_registration_events
       SELECT f.id,'profile_complete',? FROM analytics_registration_flows f
