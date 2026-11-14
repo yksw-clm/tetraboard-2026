@@ -8,7 +8,12 @@ import type { ShogiObservation } from "./model";
 export class ShogiReplayCache {
   private scope = "";
   private events: FourShogiReplayEvent[] = [];
-  constructor(private fetcher: typeof fetch = fetch) {}
+  constructor(
+    private fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = (
+      input,
+      init,
+    ) => globalThis.fetch(input, init),
+  ) {}
   async load(observation: ShogiObservation, signal: AbortSignal): Promise<FourShogiReplayEvent[]> {
     const scope = JSON.stringify([observation.roomId, observation.instanceId, observation.roundId]);
     const events = scope === this.scope ? [...this.events] : [];

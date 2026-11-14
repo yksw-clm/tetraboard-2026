@@ -3,7 +3,7 @@
   "name": "TetraBoard Local AI",
   "version": "0.1.0",
   "minimum_chrome_version": "120",
-  "permissions": ["storage"],
+  "permissions": ["storage", "nativeMessaging"],
   "host_permissions": ["http://127.0.0.1/*"],
   "background": {
     "service_worker": "background.js",

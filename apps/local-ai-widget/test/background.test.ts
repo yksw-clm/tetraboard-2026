@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createBackground } from "../src/backgroundService";
 import { requestFor, responseFor, continuousRequestFor, progressFor, settle } from "./fixtures";
+import type { NativeResponse, ServiceCommand } from "../src/serviceProtocol";
 function fixture() {
   const saved: Record<string, unknown> = { token: "local-test-token-with-at-least-32-characters" },
     session: Record<string, unknown> = {},
@@ -62,6 +63,7 @@ function fixture() {
     requests,
     revoked,
     session,
+    saved,
     responses,
     get access() {
       return access;
@@ -69,11 +71,64 @@ function fixture() {
     set hold(v: boolean) {
       hold = v;
     },
-    create: () => createBackground(api, fetcher),
+    create: (native?: (command: ServiceCommand) => Promise<NativeResponse>) =>
+      createBackground(api, fetcher, native),
   };
 }
 const sender = (id: number, url = "https://tetraboard.net/games/four-reversi", frameId = 0) =>
   ({ tab: { id }, url, frameId }) as chrome.runtime.MessageSender;
+test("無効なタブでもAIを操作でき、Native tokenは信頼された保存領域だけへ渡す", async () => {
+  const f = fixture();
+  const calls: ServiceCommand[] = [];
+  const token = "a".repeat(64);
+  const handle = f.create(async (command) => {
+    calls.push(command);
+    return { id: crypto.randomUUID(), protocol_version: 1, ok: true, state: "running", token };
+  });
+  const reply = await handle({ type: "service", command: "start" }, sender(1));
+  expect(reply).toEqual({ ok: true, data: { state: "running" } });
+  expect(f.saved.token).toBe(token);
+  expect(f.access).toBe("TRUSTED_CONTEXTS");
+  expect(f.session.activeTabId).toBeUndefined();
+  expect(calls).toEqual(["start"]);
+  for (const s of [
+    sender(1, "https://evil.test/"),
+    sender(1, "https://tetraboard.net/rooms/12345", 1),
+  ])
+    await expect(handle({ type: "service", command: "stop" }, s)).rejects.toThrow();
+  await expect(handle({ type: "service", command: "exec" }, sender(1))).rejects.toThrow();
+  expect(calls).toEqual(["start"]);
+});
+test("AI停止前に探索を取り消し、別タブの候補を破棄する", async () => {
+  const f = fixture();
+  const calls: ServiceCommand[] = [];
+  const handle = f.create(async (command) => {
+    expect(f.requests.at(-1)?.init?.method).toBe("DELETE");
+    calls.push(command);
+    return { id: crypto.randomUUID(), protocol_version: 1, ok: true, state: "stopped" };
+  });
+  await handle({ type: "enable" }, sender(1));
+  await handle({ type: "start", request: continuousRequestFor() }, sender(1));
+  await handle({ type: "service", command: "stop" }, sender(2));
+  expect(calls).toEqual(["stop"]);
+  expect(f.revoked).toEqual([1]);
+  expect(f.session.activeAnalysis).toBeUndefined();
+});
+test("手動サービスのtokenをNativeの状態取得で上書きしない", async () => {
+  const f = fixture(),
+    token = f.saved.token;
+  const handle = f.create(async () => ({
+    id: crypto.randomUUID(),
+    protocol_version: 1,
+    ok: true,
+    state: "external",
+  }));
+  expect(await handle({ type: "service", command: "status" }, sender(1))).toEqual({
+    ok: true,
+    data: { state: "external" },
+  });
+  expect(f.saved.token).toBe(token);
+});
 test("SPAの初期URLからでも本人タブを有効化し、最後のタブだけに解析を許す", async () => {
   const f = fixture(),
     handle = f.create();

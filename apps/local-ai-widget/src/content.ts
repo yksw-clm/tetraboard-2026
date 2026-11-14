@@ -65,11 +65,38 @@ analyzeButton.textContent = "解析・再解析";
 analyzeButton.addEventListener("click", () => {
   void controller.analyze();
 });
-stopButton.textContent = "停止";
+stopButton.textContent = "検討停止";
 stopButton.addEventListener("click", () => {
   controller.stop();
 });
-section.append(enableButton, analyzeButton, stopButton, details);
+const serviceControls = document.createElement("div"),
+  serviceStatus = document.createElement("p"),
+  serviceError = document.createElement("p");
+serviceStatus.setAttribute("role", "status");
+const serviceButtons = (
+  [
+    ["start", "AI起動"],
+    ["stop", "AI停止"],
+    ["restart", "再起動"],
+  ] as const
+).map(([command, label]) => {
+  const button = document.createElement("button");
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    void controller.controlService(command);
+  });
+  serviceControls.append(button);
+  return { button, command };
+});
+section.append(
+  serviceStatus,
+  serviceControls,
+  serviceError,
+  enableButton,
+  analyzeButton,
+  stopButton,
+  details,
+);
 async function send(message: unknown): Promise<Reply> {
   const response = await chrome.runtime.sendMessage(message);
   if (!response || typeof response.ok !== "boolean")
@@ -87,8 +114,25 @@ function render() {
   host.hidden = !roomIdFromUrl(location.href);
   fold.textContent = collapsed ? "開く" : "折り畳む";
   section.hidden = collapsed;
+  const stateLabels = {
+    unknown: "確認中",
+    running: "起動中",
+    stopped: "停止中",
+    external: "手動で起動中",
+    unavailable: "補助プログラムへ未接続",
+  };
+  serviceStatus.textContent = controller.serviceBusy
+    ? "ローカルAIを操作中…"
+    : `ローカルAI：${stateLabels[controller.serviceState]}`;
+  serviceError.textContent = controller.serviceError;
+  serviceError.hidden = !controller.serviceError;
+  for (const { button, command } of serviceButtons)
+    button.disabled =
+      controller.serviceBusy ||
+      (command === "start" && ["running", "external"].includes(controller.serviceState)) ||
+      (command !== "start" && ["stopped", "external"].includes(controller.serviceState));
   enableButton.textContent = enabled ? "無効にする" : "有効にする";
-  enableButton.disabled = controller.switching;
+  enableButton.disabled = controller.switching || controller.serviceBusy;
   analyzeButton.disabled = !controller.canAnalyze || busy;
   stopButton.disabled = !busy;
   details.replaceChildren();
@@ -180,11 +224,19 @@ window.addEventListener("message", (event) => {
 });
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "revoked") controller.revoke();
+  if (message?.type === "service-changing") controller.serviceChanging();
 });
 document.addEventListener("visibilitychange", () => {
   controller.setVisible(!document.hidden);
-  if (!document.hidden) window.postMessage({ channel, type: "request" }, location.origin);
+  if (!document.hidden) {
+    refreshService();
+    window.postMessage({ channel, type: "request" }, location.origin);
+  }
 });
+function refreshService() {
+  if (!document.hidden && roomIdFromUrl(location.href)) void controller.refreshService();
+}
+setInterval(refreshService, 3000);
 let path = location.pathname;
 let pendingDraw = false;
 function schedule() {
@@ -224,6 +276,7 @@ function mount() {
   });
   new ResizeObserver(schedule).observe(document.body);
   controller.setVisible(!document.hidden);
+  refreshService();
   window.postMessage({ channel, type: "request" }, location.origin);
 }
 window.addEventListener("scroll", schedule, true);

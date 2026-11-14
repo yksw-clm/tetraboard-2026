@@ -1,3 +1,4 @@
+import { createUsageEventWriter, type UsageEventWriter } from "../usageEvents/writer";
 import {
   enqueueMatchmakingEvent,
   flushMatchmakingEvents,
@@ -15,11 +16,7 @@ import {
 } from "@tetraboard/protocol";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { authSecret } from "../privacy/tokens";
-import {
-  noPendingRatedMatch,
-  pendingRatedGames,
-  recoverableFourReversiPending,
-} from "./previousMatch";
+import { noPendingRatedMatch, pendingRatedGames } from "./previousMatch";
 import {
   ratedMatchmakingPolicy,
   ratingOpponentKind,
@@ -167,6 +164,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     );
   }
   private analyticsEvents: MatchmakingEvent[] = [];
+  private usageEvents?: UsageEventWriter;
   private event(
     wait: Wait,
     stage: MatchmakingEvent["stage"],
@@ -174,6 +172,18 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     group?: Group,
   ) {
     const atMs = Date.now();
+    (this.usageEvents ?? createUsageEventWriter(this.env.USAGE_EVENTS)).write({
+      name: "matchmaking",
+      operationId: wait.operationId,
+      accountId: wait.accountId,
+      game: this.game,
+      stage,
+      reason,
+      waitingMs: stage === "matched" ? Math.max(0, atMs - wait.joinedAtMs) : null,
+      humans: group?.players.length ?? null,
+      rated: Boolean(this.ratingPolicy),
+      isTest: wait.isTest ?? false,
+    });
     this.analyticsEvents.push({
       operationId: wait.operationId,
       accountId: wait.accountId,
@@ -197,48 +207,54 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
   }
   private async serial<T>(run: (state: State) => Promise<T>) {
     return this.ctx.blockConcurrencyWhile(async () => {
-      await this.ctx.storage.setAlarm(Date.now() + 5000);
-      const state = this.load();
-      const result = await run(state);
-      if (this.ratingPolicy) this.orderWaits(state);
-      this.save(state);
-      const now = Date.now();
-      const deadlines = state.waiting.map((w) => w.expiresAtMs);
-      const retryAt = await flushMatchmakingEvents(this.ctx.storage, this.env.APP_DB, now);
-      if (retryAt !== null) deadlines.push(retryAt);
-      const policy = this.ratingPolicy;
-      if (policy) {
-        const oldest = state.waiting.find((w) => (w.retryAtMs ?? 0) <= now);
-        if (oldest) {
-          const elapsed = now - oldest.joinedAtMs;
-          const next =
-            policy.wideningTimesMs.find((time) => elapsed < time) ?? this.queueRules.fillAfterMs;
-          deadlines.push(
-            elapsed >= this.queueRules.fillAfterMs
-              ? Math.max(oldest.joinedAtMs + next, state.cpuRetryAtMs ?? 0)
-              : oldest.joinedAtMs + next,
-          );
+      this.usageEvents = createUsageEventWriter(this.env.USAGE_EVENTS);
+      try {
+        await this.ctx.storage.setAlarm(Date.now() + 5000);
+        const state = this.load();
+        const result = await run(state);
+        if (this.ratingPolicy) this.orderWaits(state);
+        this.save(state);
+        const now = Date.now();
+        const deadlines = state.waiting.map((w) => w.expiresAtMs);
+        const retryAt = await flushMatchmakingEvents(this.ctx.storage, this.env.APP_DB, now);
+        if (retryAt !== null) deadlines.push(retryAt);
+        const policy = this.ratingPolicy;
+        if (policy) {
+          const oldest = state.waiting.find((w) => (w.retryAtMs ?? 0) <= now);
+          if (oldest) {
+            const elapsed = now - oldest.joinedAtMs;
+            const next =
+              policy.wideningTimesMs.find((time) => elapsed < time) ?? this.queueRules.fillAfterMs;
+            deadlines.push(
+              elapsed >= this.queueRules.fillAfterMs
+                ? Math.max(oldest.joinedAtMs + next, state.cpuRetryAtMs ?? 0)
+                : oldest.joinedAtMs + next,
+            );
+          }
+          for (const w of state.waiting) if ((w.retryAtMs ?? 0) > now) deadlines.push(w.retryAtMs!);
+        } else {
+          for (const w of state.waiting)
+            deadlines.push(Math.max(w.joinedAtMs + this.queueRules.fillAfterMs, w.retryAtMs ?? 0));
         }
-        for (const w of state.waiting) if ((w.retryAtMs ?? 0) > now) deadlines.push(w.retryAtMs!);
-      } else {
-        for (const w of state.waiting)
-          deadlines.push(Math.max(w.joinedAtMs + this.queueRules.fillAfterMs, w.retryAtMs ?? 0));
+        for (const group of state.groups) {
+          if (group.phase !== "playing") deadlines.push(Date.now() + 1000, group.expiresAtMs);
+          else if (group.players.some((p) => p.credentialPending))
+            deadlines.push(Date.now() + 1000);
+        }
+        if (deadlines.length) {
+          const deadline = Math.min(...deadlines);
+          const currentTime = Date.now();
+          // レート戦の待機期限が目前でも、未来の期限を後ろへずらさずに通知します。
+          await this.ctx.storage.setAlarm(
+            this.ratingPolicy && deadline > currentTime
+              ? deadline
+              : Math.max(currentTime + 100, deadline),
+          );
+        } else await this.ctx.storage.deleteAlarm();
+        return result;
+      } finally {
+        this.usageEvents = undefined;
       }
-      for (const group of state.groups) {
-        if (group.phase !== "playing") deadlines.push(Date.now() + 1000, group.expiresAtMs);
-        else if (group.players.some((p) => p.credentialPending)) deadlines.push(Date.now() + 1000);
-      }
-      if (deadlines.length) {
-        const deadline = Math.min(...deadlines);
-        const currentTime = Date.now();
-        // レート戦の待機期限が目前でも、未来の期限を後ろへずらさずに通知します。
-        await this.ctx.storage.setAlarm(
-          this.ratingPolicy && deadline > currentTime
-            ? deadline
-            : Math.max(currentTime + 100, deadline),
-        );
-      } else await this.ctx.storage.deleteAlarm();
-      return result;
     });
   }
   private async profile(accountId: string) {
@@ -826,15 +842,6 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
             Date.now(),
             !this.legacy && this.game === "four-reversi" ? rules.key : "",
           ),
-          ...(policy
-            ? [
-                // 旧版でCPUだけになって閉鎖した局の予約を、再参加時に解放します。
-                this.env.APP_DB.prepare(
-                  `DELETE FROM four_reversi_rating_pending AS pending WHERE account_id=?
-                  AND ${recoverableFourReversiPending}`,
-                ).bind(accountId),
-              ]
-            : []),
           this.env.APP_DB.prepare(
             `INSERT INTO matchmaking_wait_reservations(account_id,queue_key,operation_id,lease_until_ms)
             SELECT ?,?,?,?${policy ? ` WHERE ${noPendingRatedMatch}` : ""}`,

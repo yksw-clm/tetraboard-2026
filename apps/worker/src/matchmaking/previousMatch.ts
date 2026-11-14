@@ -15,11 +15,6 @@ export const noPendingRatedMatch = pendingRatedGames
   .map(({ table }) => `NOT EXISTS (SELECT 1 FROM ${table} WHERE account_id=?5)`)
   .join(" AND ");
 
-export const recoverableFourReversiPending = `EXISTS (
-  SELECT 1 FROM analytics_matches a WHERE a.id=pending.match_id
-    AND a.game='four-reversi' AND a.status='abandoned' AND a.cpu_count>0
-) AND NOT EXISTS (SELECT 1 FROM matches WHERE id=pending.match_id)`;
-
 export async function readPreviousRatedMatch(
   env: Env,
   accountId: string,
@@ -32,7 +27,7 @@ export async function readPreviousRatedMatch(
     ordered
       .map(
         ({ game, table }) =>
-          `SELECT '${game}' AS game, match_id, room_id, instance_id FROM ${table} AS pending WHERE account_id=?1${game === "four-reversi" ? ` AND NOT (${recoverableFourReversiPending})` : ""}`,
+          `SELECT '${game}' AS game, match_id, room_id, instance_id FROM ${table} AS pending WHERE account_id=?1`,
       )
       .join(" UNION ALL ") + " LIMIT 1",
   )

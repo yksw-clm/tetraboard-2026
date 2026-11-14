@@ -33,6 +33,7 @@ import { reversiMatchData } from "../src/accounts/reversiMatchData";
 import { writeMatch } from "../src/rooms/matchStore";
 import type { ShogiCpuJob } from "../src/rooms/standardShogiProgress";
 import { CpuCapacity } from "../src/rooms/cpuCapacity";
+import { recordUsageEvents } from "./usageEventsRecorder";
 const stub = () => env.MATCHMAKING_COORDINATOR.getByName(rules.key);
 const fourRatedQueue = () =>
   env.MATCHMAKING_COORDINATOR.getByName(fourReversiRatedMatchmakingRules.key);
@@ -41,6 +42,77 @@ const reversiQueue = () => env.MATCHMAKING_COORDINATOR.getByName(reversiMatchmak
 const accounts: string[] = [];
 const rooms = new Set<string>();
 const sockets: WebSocket[] = [];
+
+test.each([false, true])(
+  "Usage Events は受付・成立・開始を書き、書き込み失敗=%sでもマッチングが成立する",
+  async (fail) => {
+    let now = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const events = recordUsageEvents(fail);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const queue = shogiQueue();
+    const users = await fixture(2, queue);
+    const states = await Promise.all(users.map((u) => queue.status(u.account.id, u.controllerId)));
+    const assignment = states[0]!.assignment!;
+    rooms.add(assignment.roomId);
+    expect(states.map((s) => s.status)).toEqual(["matched", "matched"]);
+    for (const user of users) {
+      expect(events).toContainEqual({
+        name: "matchmaking",
+        operationId: user.operationId,
+        accountId: user.account.id,
+        game: "shogi",
+        stage: "accepted",
+        reason: null,
+        waitingMs: null,
+        humans: null,
+        rated: true,
+        isTest: false,
+      });
+      expect(events).toContainEqual({
+        name: "matchmaking",
+        operationId: user.operationId,
+        accountId: user.account.id,
+        game: "shogi",
+        stage: "matched",
+        reason: null,
+        waitingMs: 0,
+        humans: 2,
+        rated: true,
+        isTest: false,
+      });
+    }
+    for (const state of states)
+      await connect(assignment.roomId, state.assignment!.membership.token);
+    now += 5000;
+    const room = env.GAME_ROOM.getByName(assignment.roomId);
+    expect(await room.getRoom()).toMatchObject({ status: "playing" });
+    for (const user of users)
+      expect(events).toContainEqual({
+        name: "matchmaking",
+        operationId: user.operationId,
+        accountId: user.account.id,
+        browserId: null,
+        game: "shogi",
+        stage: "started",
+        reason: null,
+        humans: 2,
+        rated: true,
+        isTest: false,
+      });
+    expect(events.filter((e) => e.name === "matchmaking")).toHaveLength(6);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        name: "match_started",
+        matchId: assignment.matchId,
+        matchKind: "rated",
+        humans: 2,
+        cpus: 0,
+      }),
+    );
+    if (fail) expect(warn).toHaveBeenCalledWith("Usage event write failed");
+  },
+);
 
 test.each(["shogi", "reversi"] as const)("%sの保存待ちも全ゲームの再検索を止める", async (game) => {
   const account = await accountFixture();
@@ -1572,60 +1644,6 @@ test("四人レート戦は20秒で不足席を補充し、成立後の取消で
   expect(cpus).toHaveLength(2);
   for (const cpu of cpus) expect(cpu).toMatchObject({ cpuProfile: { id: "lv3-v1" } });
 });
-
-test.each([
-  { status: "abandoned", saved: false, canJoin: true },
-  { status: "abandoned", saved: true, canJoin: false },
-  { status: "playing", saved: false, canJoin: false },
-  { status: "completed", saved: false, canJoin: false },
-] as const)(
-  "四人リバーシの再参加では中断が確定した未保存局の予約だけを解放する ($status, saved=$saved)",
-  async ({ status, saved, canJoin }) => {
-    const account = await accountFixture();
-    accounts.push(account.id);
-    const matchId = crypto.randomUUID();
-    const now = Date.now();
-    const db = env.APP_DB;
-    await db.batch([
-      db
-        .prepare("INSERT INTO four_reversi_rating_pending (account_id,match_id) VALUES (?,?)")
-        .bind(account.id, matchId),
-      db
-        .prepare(`INSERT INTO analytics_matches
-        (id, game, mode, started_at_ms, ended_at_ms, status, cpu_count)
-        VALUES (?, 'four-reversi', 'singles', ?, ?, ?, 3)`)
-        .bind(matchId, now - 3000, status === "playing" ? null : now, status),
-      ...(saved
-        ? [
-            db
-              .prepare(`INSERT INTO matches
-        (id, game, mode, started_at_ms, ended_at_ms, record_json)
-        VALUES (?, 'four-reversi', 'singles', ?, ?, '{}')`)
-              .bind(matchId, now - 3000, now),
-          ]
-        : []),
-    ]);
-    try {
-      const result = await fourRatedQueue().join(
-        account.id,
-        crypto.randomUUID(),
-        crypto.randomUUID(),
-      );
-      if (canJoin) expect(result).toMatchObject({ ok: true, state: { status: "waiting" } });
-      else expect(result).toMatchObject({ ok: false, message: expect.stringContaining("保存中") });
-      const pending = await db
-        .prepare("SELECT 1 FROM four_reversi_rating_pending WHERE account_id=?")
-        .bind(account.id)
-        .first();
-      expect(pending !== null).toBe(!canJoin);
-    } finally {
-      await db.batch([
-        db.prepare("DELETE FROM analytics_matches WHERE id=?").bind(matchId),
-        db.prepare("DELETE FROM matches WHERE id=?").bind(matchId),
-      ]);
-    }
-  },
-);
 
 test.each([true, false])(
   "成立済みの四人対局が終了して保存され、レート戦だけ認定が進む rated=%s",

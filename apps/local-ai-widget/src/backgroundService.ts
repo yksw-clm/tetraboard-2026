@@ -4,9 +4,12 @@ import {
   continuousProfile,
   supportedUrl,
 } from "./model";
+import { createNativeClient } from "./nativeClient";
+import { serviceCommandSchema } from "./serviceProtocol";
 export function createBackground(
   api: typeof chrome,
   fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
+  native = createNativeClient(api.runtime),
 ) {
   const base = "http://127.0.0.1:3002";
   const init = api.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
@@ -51,6 +54,24 @@ export function createBackground(
     const tab = sender.tab.id;
     if (!message || typeof message !== "object" || !("type" in message))
       throw Error("要求が不正です");
+    if (message.type === "service" && "command" in message) {
+      const command = serviceCommandSchema.parse(message.command);
+      const execute = async () => {
+        if (command !== "status") {
+          await cancel();
+          const { activeTabId } = await api.storage.session.get("activeTabId");
+          if (typeof activeTabId === "number" && activeTabId !== tab)
+            await api.tabs.sendMessage(activeTabId, { type: "service-changing" }).catch(() => {});
+        }
+        const response = await native(command);
+        if (!response.ok) throw Error(response.error);
+        if (response.token && (await api.storage.local.get("token")).token !== response.token)
+          await api.storage.local.set({ token: response.token });
+        // tokenは信頼されたbackground内だけに保存します。
+        return { ok: true, data: { state: response.state } };
+      };
+      return command === "status" ? execute() : ordered(execute);
+    }
     if (message.type === "position") {
       if ("position" in message) {
         const p = message.position as { left?: unknown; top?: unknown };

@@ -7,6 +7,8 @@ import {
 } from "./model";
 const numbers = ["①", "②", "③"];
 const arrowColors = ["#52e1ff", "#ffc65c", "#ef94ff"];
+// 盤面の読み上げ名は、棋譜の略称「飛」と区別します。
+const boardPieceNames = { ...pieceNames, rook: "飛車" };
 export function boardCells(
   doc: Document,
   observation: Observation,
@@ -30,7 +32,7 @@ export function boardCells(
       const p = observation.game.board[y][x],
         dead = p && observation.game.eliminations.some((e) => e.side === p.side);
       label = p
-        ? `${sideNames[p.side]}の${p.kind === "king" && dead ? "裏王" : p.promoted ? { rook: "龍", silver: "成銀", pawn: "と金", gold: "金", king: "王" }[p.kind] : pieceNames[p.kind]}`
+        ? `${sideNames[p.side]}の${p.kind === "king" && dead ? "裏王" : p.promoted ? { rook: "龍", silver: "成銀", pawn: "と金", gold: "金", king: "王" }[p.kind] : boardPieceNames[p.kind]}`
         : "空き";
       if (element.dataset.square !== `${match[1]}${match[2]}` || element.dataset.pendingMove)
         return null;

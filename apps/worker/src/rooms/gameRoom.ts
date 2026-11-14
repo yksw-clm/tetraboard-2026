@@ -1,6 +1,7 @@
 import { matchEndFacts } from "../analytics/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
+import { createUsageEventWriter } from "../usageEvents/writer";
 import {
   cpuReferenceRating,
   hasProfileRating,
@@ -324,6 +325,44 @@ export class GameRoom extends DurableObject<Env> {
           };
         }),
     };
+    const usage = createUsageEventWriter(this.env.USAGE_EVENTS);
+    const common = {
+      game: record.game,
+      matchId: record.id,
+      isTest: record.participants.length > 0 && record.participants.every((p) => p.isTest),
+    };
+    usage.write({
+      ...common,
+      name: "match_started",
+      mode: record.mode,
+      matchKind: record.matchKind ?? "unknown",
+      humans: record.humanCount ?? record.participants.length,
+      cpus: record.cpuCount,
+    });
+    for (const participant of record.participants) {
+      const identity = {
+        game: record.game,
+        browserId: participant.visitorId,
+        accountId: participant.accountId,
+        isTest: participant.isTest,
+      };
+      usage.write({
+        ...identity,
+        name: "match_participant",
+        matchId: record.id,
+        isGuest: participant.isGuest ?? false,
+      });
+      if (participant.accountId && participant.search)
+        usage.write({
+          ...identity,
+          name: "matchmaking",
+          operationId: participant.search.operationId,
+          stage: "started",
+          reason: null,
+          rated: record.matchKind === "rated",
+          humans: record.humanCount ?? record.participants.length,
+        });
+    }
     // 未識別の席の局内対応だけを保持し、終局時に破棄します。
     this.ctx.storage.kv.put("analytics-player-aliases", aliases);
     if (reservation)
@@ -363,6 +402,15 @@ export class GameRoom extends DurableObject<Env> {
       })),
     };
     this.ctx.storage.kv.delete(analyticsActiveKey);
+    createUsageEventWriter(this.env.USAGE_EVENTS).write({
+      name: "match_ended",
+      game: record.game,
+      matchId: record.id,
+      isTest: record.participants.length > 0 && record.participants.every((p) => p.isTest),
+      result: status,
+      reason: record.endReason ?? "unknown",
+      durationMs: Math.max(0, at - record.startedAtMs),
+    });
     this.ctx.storage.kv.put(analyticsPendingPrefix + record.id, {
       record,
       revision: 2,

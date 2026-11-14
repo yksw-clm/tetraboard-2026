@@ -30,6 +30,7 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
   );
   const select = view.querySelector("select")!;
   const destinations = [
+    ["/kpi", "KPI"],
     ["/", "全体概要"],
     ["/acquisition", "集客・登録"],
     ["/tracking-links", "計測リンク"],
@@ -42,6 +43,8 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
   ];
   expect(select.labels?.[0]?.textContent).toContain("表示画面");
   expect(select.options.length).toBe(destinations.length);
+  expect(select.options[0]?.textContent).toBe("KPI");
+  expect(view.querySelector("nav a")?.getAttribute("href")).toBe("/admin/kpi");
   for (const [path, label] of destinations) {
     expect([...select.options].find((option) => option.value === path)?.textContent).toBe(label);
     act(() => {

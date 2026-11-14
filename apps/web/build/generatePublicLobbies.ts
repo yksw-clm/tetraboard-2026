@@ -32,7 +32,7 @@ for (const game of gameIds) {
 await writeFile(new URL("404.html", dist), renderNotFound(template));
 await writeFile(
   new URL("app.html", dist),
-  template.replace("</head>", '<meta name="robots" content="noindex,follow" /></head>'),
+  template.replace("<head>", '<head><meta name="robots" content="noindex,follow" />'),
 );
 await writeFile(new URL("index.html", dist), renderGeneralLobby(template, boardSources));
 await writeFile(new URL("robots.txt", dist), robotsText);

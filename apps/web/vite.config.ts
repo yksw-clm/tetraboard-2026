@@ -1,5 +1,6 @@
 import { gameChunks } from "./build/gameChunks.ts";
 import { webpAssets } from "./build/webpAssets.ts";
+import { webAnalytics } from "./build/webAnalytics.ts";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
@@ -19,6 +20,7 @@ export default defineConfig({
     tailwindcss(),
     gameChunks(),
     webpAssets(),
+    webAnalytics(),
   ],
   optimizeDeps: { exclude: ["@jsquash/webp"] },
   build: {

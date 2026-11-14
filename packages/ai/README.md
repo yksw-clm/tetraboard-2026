@@ -55,9 +55,13 @@ cargo run --release --locked -p tetraboard-ai-benchmark -- --games 100 --seed 0
 
 ## ローカル解析サービス
 
-Chromeの個人用widgetには、公開Serviceと別の`bun run --cwd packages/ai serve:local`を使います。初回に`bun run --cwd packages/ai setup:local`で`.env.local`を作成し、`AI_LOCAL_TOKEN`の値を拡張の設定画面へ登録します。設定ファイルは0600・Git対象外で、tokenはログへ出力しません。既存ファイルは上書きしません。
+ローカルバイナリは`--port <番号>`で待受ポートを指定できます。0なら空きポートを割り当て、起動応答の`listen`へ実際のアドレスを返します。省略時は従来の`127.0.0.1:3002`です。loopback以外にはbindしません。[対局参加BOT](../../apps/player-bot/README.md)はこの指定で専用プロセスを起動します。
 
-ローカル専用バイナリ`tetraboard-ai-local`は`127.0.0.1:3002`固定で待ち受けます。health・解析・進捗取得・取消はすべて専用Bearer tokenが必要です。応答はno-storeです。任意ホストやCORSを許可せず、公開Serviceのrouterには解析経路を追加しません。
+Chromeの個人用widgetには公開Serviceと別のローカル解析バイナリを使います。macOS版Chromeは`bun run --cwd apps/local-ai-widget setup:native`で補助プログラムを登録し、widgetの「AI起動」「AI停止」「再起動」で管理できます。Rustバイナリは初回登録時にビルドし、起動のたびにはコンパイルしません。ローカルtokenはNative Messagingを通じて拡張の信頼された保存領域へ自動設定します。登録先と更新手順は[拡張の案内](../../apps/local-ai-widget/README.md)を参照してください。
+
+従来の`bun run --cwd packages/ai serve:local`も維持します。手動起動では初回に`bun run --cwd packages/ai setup:local`で`.env.local`を作成し、`AI_LOCAL_TOKEN`の値を拡張の設定画面へ登録します。設定ファイルは0600・Git対象外で、tokenはログへ出力しません。既存ファイルは上書きしません。手動起動したプロセスを補助プログラムから停止・再起動することはありません。
+
+ローカル専用バイナリ`tetraboard-ai-local`は既定で`127.0.0.1:3002`を使い、ポート指定時もloopbackだけで待ち受けます。health・解析・進捗取得・取消はすべて専用Bearer tokenが必要です。応答はno-storeです。任意ホストやCORSを許可せず、公開Serviceのrouterには解析経路を追加しません。
 
 ### 継続解析API v2
 
@@ -131,8 +135,8 @@ Engineの局面表現と、serverが管理する版付きHTTP契約を分けま�
 
 8組の基本fixtureと6組の脱落fixtureをRustとBunで照合します。初期局面からの到達を要しない合成局面も含みます。期待値は確認元TypeScriptのルール処理から一度固定し、テスト実行時には再生成しません。Rustでは8方向の反転、局面構築の拒否、Agentの決定性、引数処理、100seedの完走と再現性・石数・順位を検証します。BunではRust CLIが出力した100局をTypeScriptルールで再生し、全着手の合法手・反転・パスと最終結果を比較します。
 
-ルートの`bun run check`とFull CIはこのworkspaceも検証します。`typecheck`はBunの比較テスト・計測スクリプトとCloudflare入口の型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。Rust・lockfile・fixtureの変更はFull CI対象です。
+このworkspaceはルートの`bun run check`に含めず、ルートの`bun run check:ai`とCIの`ai`ジョブで検証します。`typecheck`はBunの比較テスト・計測スクリプトとCloudflare入口の型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。このworkspaceの変更はCIの`ai`ジョブの対象です。
 
 フェーズ1では評価・探索・設定・席順・統計を検証します。BunはLv1〜3混在の4組合せ×4回転を再生し、ノード上限とsummaryも確認します。フェーズ2では実Rust ServiceとWorkerを別プロセスで起動し、人間1人＋CPU3人の完走、認証、遅延・不正・重複応答、再起動とtimeoutを検証します。接続設定を与える専用WorkerテストはAI workspaceのtestから自動実行し、個人の開発設定は使いません。
 
-未確定の対象ルールは現時点でありません。ダブルスはRust側の実装対象外です。脱落後の進行はEngine 0.2.0／ルール識別子v2／局面版2で追加し、従来のAPI v1・v2のルール識別子v1／局面版1も維持します。ローカルとCloudflare Containersの検証を実施し、[実測と現在の使用量を踏まえた費用](docs/cloudflare-validation.md)を記録しました。独立した検証用Workerは測定後の依頼で削除済みで、本番TetraBoardの接続は有効にしていません。本番専用4コンテナの構成と公開前条件は[本番AIと4ゲーム同時公開](../../docs/development.md#本番aiと4ゲーム同時公開)を参照します。本番の外部AIはレート戦だけを対象とし、実公開は検証と承認の後に行います。開発専用Serviceの公開は`bun run --cwd packages/ai deploy:cloud:development`、dry-runは`deploy:cloud:dry-run:development`を使います。既定の検証用Workerは再作成しません。学習方式・強さの境界も後続フェーズの未決定事項です。
+未確定の対象ルールは現時点でありません。ダブルスはRust側の実装対象外です。脱落後の進行はEngine 0.2.0／ルール識別子v2／局面版2で追加し、従来のAPI v1・v2のルール識別子v1／局面版1も維持します。ローカルとCloudflare Containersの検証を実施し、[実測と現在の使用量を踏まえた費用](docs/cloudflare-validation.md)を記録しました。独立した検証用Workerは測定後の依頼で削除済みで、本番TetraBoardの接続は有効にしていません。本番専用4コンテナの構成と公開前条件は[本番AIと4ゲーム同時公開](../../docs/runbooks/deploy.md#本番aiと4ゲーム同時公開)を参照します。本番の外部AIはレート戦だけを対象とし、実公開は検証と承認の後に行います。開発専用Serviceの公開は`bun run --cwd packages/ai deploy:cloud:development`、dry-runは`deploy:cloud:dry-run:development`を使います。既定の検証用Workerは再作成しません。学習方式・強さの境界も後続フェーズの未決定事項です。

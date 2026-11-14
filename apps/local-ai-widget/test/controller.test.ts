@@ -7,11 +7,16 @@ function harness() {
   const pending: { request: AnalysisRequest; resolve: (value: Reply) => void }[] = [];
   const messages: unknown[] = [];
   const callbacks: (() => void)[] = [];
+  const servicePending: { command: string; resolve: (value: Reply) => void }[] = [];
   let changes = 0;
   const controller = new WidgetController(
     async (message) => {
       messages.push(message);
       const m = message as { type: string; request: AnalysisRequest };
+      if (m.type === "service")
+        return new Promise<Reply>((resolve) =>
+          servicePending.push({ command: (message as { command: string }).command, resolve }),
+        );
       if (m.type === "start") {
         const data = responseFor(m.request, 0);
         data.candidates = [];
@@ -46,11 +51,60 @@ function harness() {
     callbacks,
     pending,
     messages,
+    servicePending,
     get changes() {
       return changes;
     },
   };
 }
+test("AI停止は旧候補を捨て、停止中は自動探索せず、再起動後は本人手番を再検討する", async () => {
+  const h = harness();
+  h.controller.observe(observation());
+  await h.controller.toggle();
+  await settle();
+  expect(h.pending).toHaveLength(1);
+  const stopping = h.controller.controlService("stop");
+  expect(h.controller.result).toBeNull();
+  expect(h.controller.canAnalyze).toBe(false);
+  h.pending[0].resolve({ ok: true, data: responseFor(h.pending[0].request) });
+  h.servicePending[0].resolve({ ok: true, data: { state: "stopped" } });
+  await stopping;
+  h.controller.observe(observation());
+  expect(h.controller.result).toBeNull();
+  expect(h.pending).toHaveLength(1);
+  const restarting = h.controller.controlService("restart");
+  h.servicePending[1].resolve({ ok: true, data: { state: "running" } });
+  await restarting;
+  await settle();
+  expect(h.pending).toHaveLength(2);
+  expect(h.controller.canAnalyze).toBe(true);
+  h.controller.stop();
+});
+test("遅い状態取得はAI起動後の状態を巻き戻さず、重複操作を送らない", async () => {
+  const h = harness();
+  const checking = h.controller.refreshService();
+  const starting = h.controller.controlService("start");
+  await h.controller.controlService("restart");
+  expect(h.servicePending.map((p) => p.command)).toEqual(["status", "start"]);
+  h.servicePending[1].resolve({ ok: true, data: { state: "running" } });
+  await starting;
+  h.servicePending[0].resolve({ ok: true, data: { state: "stopped" } });
+  await checking;
+  expect(h.controller.serviceState).toBe("running");
+  expect(h.controller.enabled).toBe(false);
+});
+test("補助プログラムの導入前でも手動起動したAIで検討できる", async () => {
+  const h = harness();
+  const checking = h.controller.refreshService();
+  h.servicePending[0].resolve({ ok: false, error: "setup:nativeを実行してください" });
+  await checking;
+  h.controller.observe(observation());
+  await h.controller.toggle();
+  await settle();
+  expect(h.controller.serviceState).toBe("unavailable");
+  expect(h.pending).toHaveLength(1);
+  h.controller.stop();
+});
 test("同じ要求の探索進捗を蓄積表示し、2秒を超えて検討を続ける", async () => {
   const h = harness();
   h.controller.observe(observation());

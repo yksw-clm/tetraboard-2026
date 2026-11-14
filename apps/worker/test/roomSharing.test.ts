@@ -71,7 +71,7 @@ test("全6ゲームの共有URLは通常UAとクローラーへゲーム別初�
     expect(html).toContain('property="og:site_name" content="TetraBoard"');
     expect(html).not.toContain("old.invalid");
     expect(html).toContain('<script src="/assets/app.js"></script>');
-    expect(user.headers.get("Cache-Control")).toBe("no-store");
+    expect(user.headers.get("Cache-Control")).toBe("private, no-store");
     expect(user.headers.get("ETag")).toBeNull();
     expect(user.headers.get("Content-Length")).toBeNull();
     expect(user.headers.get("X-Robots-Tag")).toBe("noindex, follow");
