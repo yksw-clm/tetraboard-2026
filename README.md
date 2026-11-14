@@ -14,7 +14,7 @@ TetraBoardは、四人用を中心としたボードゲームをブラウザで�
 
 利用者向けの仕様とゲーム共通仕様は、この文書の対象箇所から確認します。ゲーム固有のルールとCPUの採用仕様は各ゲームのルール正本を参照してください。
 
-新しいAI開発基盤は [packages/ai](packages/ai/README.md) に置きます。フェーズ0〜4で四人リバーシ・シングルスのRustエンジン、Lv1〜5候補、比較Benchmark、[外部AI Service接続](packages/ai/docs/phase2.md)と[ランダムマッチ](docs/matchmaking.md)を実装しています。ランダムマッチでは脱落後もRustのヨミ（Lv3）を使い、通常ルームのCPUは従来の設定に従います。四人将棋・四人リバーシ・将棋・リバーシのレート戦を開発・本番向けに構成します。本番はゲーム別の専用AIコンテナを使い、外部AIはレート戦だけに限定します。通常ルーム・大会は従来CPUを維持します。本番公開は[公開前検証と承認](docs/development.md#本番aiと4ゲーム同時公開)の後に行います。既存AIを新しいAgentへ流用せず、棋力は[比較条件](packages/ai/docs/phase1.md)と[フェーズ3の評価](packages/ai/docs/phase3.md)、実測結果で判断します。
+新しいAI開発基盤は [packages/ai](packages/ai/README.md) に置きます。フェーズ0〜4で四人リバーシ・シングルスのRustエンジン、Lv1〜5候補、比較Benchmark、[外部AI Service接続](packages/ai/docs/phase2.md)と[ランダムマッチ](docs/matchmaking.md)を実装しています。ランダムマッチでは脱落後もRustのヨミ（Lv3）を使い、通常ルームのCPUは従来の設定に従います。四人将棋・四人リバーシ・将棋・リバーシのレート戦を開発・本番向けに構成します。本番はゲーム別の専用AIコンテナを使い、外部AIはレート戦だけに限定します。通常ルーム・大会は従来CPUを維持します。本番公開は[公開前検証と承認](docs/runbooks/deploy.md#本番aiと4ゲーム同時公開)の後に行います。既存AIを新しいAgentへ流用せず、棋力は[比較条件](packages/ai/docs/phase1.md)と[フェーズ3の評価](packages/ai/docs/phase3.md)、実測結果で判断します。
 
 | 確認する対象                   | 仕様の入口                                                                                                                                                                                                                                                                                                                     |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1087,21 +1087,7 @@ CPU枠不足・AI準備失敗などで同じ検索の待機へ自動復帰する
 
 ## 開発と本番公開
 
-`main` を本番、`develop` を開発環境・GitHubの既定ブランチとして扱います。最新developから `feat/xxx`、`fix/xxx`、`docs/xxx`、`chore/xxx` などを作り、GitHub CIと必須のローカル検証の成功後に開発者が確認してdevelop向けPRをマージします。開発環境で確認後、develop→mainのリリースPRをマージコミットで取り込みます。両ブランチへの直接push・force pushは禁止します。非公開リポジトリの現行GitHubプランではブランチ保護を強制できないため、このルールを運用で守ります。他者レビューは必須ではありません。
-
-developは `https://tetraboard-dev.chaossi-lab.workers.dev` へCI成功後に自動公開します。Workerは `tetraboard-dev`、D1は `tetraboard-dev-db`、R2は `tetraboard-dev-objects` とし、対局状態・アカウント・画像・棋譜を本番と分離します。本番データをコピーせず空の状態から開始します。誰でも利用できますがHTTPとHTMLのnoindexで検索対象外にします。canonicalは開発URL、サイトマップは空とし、robots.txtからサイトマップを案内しません。本番ドメイン・データ・検索設定は維持します。
-
-CIは毎回、AI以外の全workspaceの静的検証・テスト、本番・開発のWeb・AdminビルドとWorker dry-runを実行し、AIのジョブはAIに関わる差分があるときとmainへのpushで実行します。main・developの自動公開前に必ず成功させます。詳しくは[CIの実行範囲](docs/testing.md#ciの実行範囲)を参照してください。コード・設定変更ではPR提出前に、ローカルで `bun run check`（AIに触れたときは `bun run check:ai` も）を成功させ、検証対象コミット・環境・結果・未確認事項をPRに記載します。PR提出後のコード・設定変更とmain・develop取り込みによる変更も再検証します。文書だけの変更は同一コード・設定の直前の成功結果を再利用できます。
-
-WorkerテストはローカルのD1・R2・SQLite対応Durable Objectとテスト専用の設定を明示し、開発用 `.dev.vars`・`.env` や個人の管理者設定を読み込みません。Workerの型生成は追跡済み `.dev.vars.example` を入力に固定します。設定の退避・一時コピーなしで通常の作業ディレクトリから検証し、CIでも設定なし・競合設定ありの結果と生成型の一致を確認します。
-
-型チェックはmiseとCIで固定したBunの内蔵チェッカーを使い、全workspaceの本体・テスト・型検査専用fixture・ビルド用コードを検査します。通常は `bun run typecheck`、従来のTypeScriptとの診断比較は `bun run typecheck:tsc` を使います。検査対象と互換性の注意点は[開発手順](docs/development.md#checks)を参照してください。
-
-自動検証はBunの単体テスト、Bun＋happy-domの部品・hookテスト、Worker統合テストを使います。format確認・lint・型チェック・全テストを含む `bun run check` の目標は180秒以内です。ブラウザテストとレポート保存は廃止し、画面寸法・ブラウザ固有の入力・実画像デコードを自動検証対象から外します。ゲーム・画面の仕様は維持します。リバーシ・将棋の少数E2Eの再構築は次の作業で行い、今回は追加しません。既存のPlaywright依存は維持します。[テスト方針](docs/testing.md)を参照してください。
-
-本番URLは `https://tetraboard.net`、Worker名は `tetraboard-2026`、D1名は `tetraboard-2026-prod-db` です。Worker 1つでWeb画面・管理画面・HTTP API・WebSocketを配信します。GitHub ActionsはmainのCI成功後にD1マイグレーションとデプロイを行います。CloudflareのGit連携による別の自動公開は設定しません。
-
-初回は差分と検証結果を確認し、開発者の承認後にマージ・公開します。以後はPRのマージが本番更新の契機です。ローカルのデータは本番へ移行せず、開発環境を設け、PRごとのプレビューは設けません。`tetraboard-2026.chaossi-lab.workers.dev` はパスとクエリを保持して本番ドメインへ308転送します。ドメインをまたいだログイン状態・タブ内の参加資格は引き継がず、再ログイン・再入室します。旧版の `/profile` はマイページ、`/games/game-…` の棋譜と `/guest/name` はリバーシロビーへ案内します。旧ルームは移行せず、存在しない部屋には既存のエラー画面とロビーへの導線を表示します。設定・認証・確認・復旧の手順は [開発手順](docs/development.md#本番デプロイ) を参照してください。
+開発サーバーと検証コマンドは [ローカル開発と検証](docs/runbooks/local-dev.md)、本番・開発環境の構成とデプロイは [デプロイと環境](docs/runbooks/deploy.md)、作業の規約は [AGENTS.md](AGENTS.md) を参照してください。
 
 ## ゲーム共通仕様
 
