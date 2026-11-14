@@ -55,11 +55,13 @@ cargo run --release --locked -p tetraboard-ai-benchmark -- --games 100 --seed 0
 
 ## ローカル解析サービス
 
+ローカルバイナリは`--port <番号>`で待受ポートを指定できます。0なら空きポートを割り当て、起動応答の`listen`へ実際のアドレスを返します。省略時は従来の`127.0.0.1:3002`です。loopback以外にはbindしません。[対局参加BOT](../../apps/player-bot/README.md)はこの指定で専用プロセスを起動します。
+
 Chromeの個人用widgetには公開Serviceと別のローカル解析バイナリを使います。macOS版Chromeは`bun run --cwd apps/local-ai-widget setup:native`で補助プログラムを登録し、widgetの「AI起動」「AI停止」「再起動」で管理できます。Rustバイナリは初回登録時にビルドし、起動のたびにはコンパイルしません。ローカルtokenはNative Messagingを通じて拡張の信頼された保存領域へ自動設定します。登録先と更新手順は[拡張の案内](../../apps/local-ai-widget/README.md)を参照してください。
 
 従来の`bun run --cwd packages/ai serve:local`も維持します。手動起動では初回に`bun run --cwd packages/ai setup:local`で`.env.local`を作成し、`AI_LOCAL_TOKEN`の値を拡張の設定画面へ登録します。設定ファイルは0600・Git対象外で、tokenはログへ出力しません。既存ファイルは上書きしません。手動起動したプロセスを補助プログラムから停止・再起動することはありません。
 
-ローカル専用バイナリ`tetraboard-ai-local`は`127.0.0.1:3002`固定で待ち受けます。health・解析・進捗取得・取消はすべて専用Bearer tokenが必要です。応答はno-storeです。任意ホストやCORSを許可せず、公開Serviceのrouterには解析経路を追加しません。
+ローカル専用バイナリ`tetraboard-ai-local`は既定で`127.0.0.1:3002`を使い、ポート指定時もloopbackだけで待ち受けます。health・解析・進捗取得・取消はすべて専用Bearer tokenが必要です。応答はno-storeです。任意ホストやCORSを許可せず、公開Serviceのrouterには解析経路を追加しません。
 
 ### 継続解析API v2
 

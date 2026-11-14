@@ -1,0 +1,23 @@
+{
+  "name": "@tetraboard/player-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "build:ai": "cargo build --manifest-path ../../packages/ai/Cargo.toml --release --locked -p tetraboard-ai-server --bin tetraboard-ai-local",
+    "typecheck": "bun ../../scripts/checkBunVersion.ts && bun check --no-script --all",
+    "typecheck:tsc": "tsc --noEmit",
+    "test": "bun test ./test",
+    "test:ai": "bun run build:ai && bun test ./test-ai"
+  },
+  "dependencies": {
+    "@tetraboard/protocol": "workspace:*",
+    "@tetraboard/four-reversi": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tetraboard/four-shogi": "workspace:*",
+    "@types/bun": "^1.4.2",
+    "typescript": "~6.0.2"
+  }
+}

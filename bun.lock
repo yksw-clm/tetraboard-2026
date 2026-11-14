@@ -53,6 +53,19 @@
         "typescript": "~6.0.2",
       },
     },
+    "apps/player-bot": {
+      "name": "@tetraboard/player-bot",
+      "dependencies": {
+        "@tetraboard/four-reversi": "workspace:*",
+        "@tetraboard/protocol": "workspace:*",
+        "zod": "^4.0.0",
+      },
+      "devDependencies": {
+        "@tetraboard/four-shogi": "workspace:*",
+        "@types/bun": "^1.4.2",
+        "typescript": "~6.0.2",
+      },
+    },
     "apps/web": {
       "name": "@tetraboard/web",
       "dependencies": {
@@ -991,6 +1004,8 @@
     "@tetraboard/gomoku": ["@tetraboard/gomoku@workspace:packages/gomoku"],
 
     "@tetraboard/local-ai-widget": ["@tetraboard/local-ai-widget@workspace:apps/local-ai-widget"],
+
+    "@tetraboard/player-bot": ["@tetraboard/player-bot@workspace:apps/player-bot"],
 
     "@tetraboard/protocol": ["@tetraboard/protocol@workspace:packages/protocol"],
 
