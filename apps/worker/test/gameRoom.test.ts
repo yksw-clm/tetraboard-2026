@@ -50,7 +50,7 @@ test.each([false, true])(
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const setup = await startFourPlayerRoom();
     const active = await runInDurableObject(env.GAME_ROOM.getByName(setup.id), (_, state) =>
-      state.storage.kv.get<import("../src/analytics/store").AnalyticsMatch>("analytics-active"),
+      state.storage.kv.get<import("../src/usageEvents/matches").AnalyticsMatch>("analytics-active"),
     );
     const matchId = active!.id;
     expect(events.filter((e) => e.name === "match_started")).toEqual([
@@ -112,7 +112,7 @@ test.each([false, true])(
       for (const [index, participant] of setup.participants.entries()) {
         const key = `analytics-player:${participant.playerId}`;
         const identity =
-          state.storage.kv.get<import("../src/analytics/store").AnalyticsIdentity>(key);
+          state.storage.kv.get<import("../src/usageEvents/matches").AnalyticsIdentity>(key);
         state.storage.kv.put(key, {
           ...identity,
           visitorId: browserIds[index],

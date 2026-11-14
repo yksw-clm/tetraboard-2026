@@ -1,10 +1,5 @@
+import type { UsageEvent } from "../usageEvents/events";
 import { createUsageEventWriter, type UsageEventWriter } from "../usageEvents/writer";
-import {
-  enqueueMatchmakingEvent,
-  flushMatchmakingEvents,
-  purgeMatchmakingEvents,
-  type MatchmakingEvent,
-} from "../analytics/matchmakingEvents";
 import { reserveMatchSequence } from "../rooms/matchSequences";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { DurableObject } from "cloudflare:workers";
@@ -56,7 +51,7 @@ type Group = {
   remove?: string[];
   retryDelayMs?: number;
   capacityBlocked?: true;
-  rollbackReason?: MatchmakingEvent["reason"];
+  rollbackReason?: Extract<UsageEvent, { name: "matchmaking" }>["reason"];
   rating?: QueueRatingSource;
 };
 type State = {
@@ -163,12 +158,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       }
     );
   }
-  private analyticsEvents: MatchmakingEvent[] = [];
   private usageEvents?: UsageEventWriter;
   private event(
     wait: Wait,
-    stage: MatchmakingEvent["stage"],
-    reason: MatchmakingEvent["reason"] = null,
+    stage: Extract<UsageEvent, { name: "matchmaking" }>["stage"],
+    reason: Extract<UsageEvent, { name: "matchmaking" }>["reason"] = null,
     group?: Group,
   ) {
     const atMs = Date.now();
@@ -184,27 +178,11 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
       rated: Boolean(this.ratingPolicy),
       isTest: wait.isTest ?? false,
     });
-    this.analyticsEvents.push({
-      operationId: wait.operationId,
-      accountId: wait.accountId,
-      matchId: group?.id ?? null,
-      game: this.game,
-      stage,
-      reason,
-      atMs,
-      waitingMs: stage === "matched" ? Math.max(0, atMs - wait.joinedAtMs) : null,
-      humans: group?.players.length ?? null,
-      rated: Boolean(this.ratingPolicy),
-      isTest: wait.isTest ?? false,
-    });
   }
   private save(state: State) {
-    this.ctx.storage.transactionSync(() => {
-      this.ctx.storage.kv.put("state", state);
-      for (const event of this.analyticsEvents) enqueueMatchmakingEvent(this.ctx.storage, event);
-    });
-    this.analyticsEvents = [];
+    this.ctx.storage.kv.put("state", state);
   }
+
   private async serial<T>(run: (state: State) => Promise<T>) {
     return this.ctx.blockConcurrencyWhile(async () => {
       this.usageEvents = createUsageEventWriter(this.env.USAGE_EVENTS);
@@ -216,8 +194,6 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         this.save(state);
         const now = Date.now();
         const deadlines = state.waiting.map((w) => w.expiresAtMs);
-        const retryAt = await flushMatchmakingEvents(this.ctx.storage, this.env.APP_DB, now);
-        if (retryAt !== null) deadlines.push(retryAt);
         const policy = this.ratingPolicy;
         if (policy) {
           const oldest = state.waiting.find((w) => (w.retryAtMs ?? 0) <= now);
@@ -278,7 +254,7 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
   private async forget(
     wait: Wait,
     state: State,
-    reason: MatchmakingEvent["reason"] = "invalidated",
+    reason: Extract<UsageEvent, { name: "matchmaking" }>["reason"] = "invalidated",
     group?: Group,
   ) {
     this.event(wait, reason === "cancelled" ? "cancelled" : "failed", reason, group);
@@ -297,7 +273,8 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
     group: Group,
     remove: string[],
     retryDelayMs = group.retryDelayMs ?? 0,
-    reason: MatchmakingEvent["reason"] = group.rollbackReason ?? "unavailable",
+    reason: Extract<UsageEvent, { name: "matchmaking" }>["reason"] = group.rollbackReason ??
+      "unavailable",
   ) {
     group.rollbackReason = reason;
     group.phase = "cancelling";
@@ -995,7 +972,6 @@ export class MatchmakingCoordinator extends DurableObject<Env> {
         group.players = group.players.filter((p) => p.accountId !== accountId);
       state.groups = state.groups.filter((g) => g.players.length > 0);
       this.save(state);
-      purgeMatchmakingEvents(this.ctx.storage, accountId);
     });
   }
   /** 毎時の既存保守から、解放済みの席だけをまとめて片付けます。 */

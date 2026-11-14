@@ -2,7 +2,7 @@ import { z } from "zod";
 import { shogiReplayPageSchema } from "@tetraboard/protocol";
 import { waitingRoomFactories } from "./waitingRoomFactories";
 import { defaultGameId } from "@tetraboard/protocol/games";
-import { analyticsVisitor } from "../analytics/store";
+import { browserIdFromRequest } from "../usageEvents/browserId";
 import {
   createRoomContract,
   getRoomContract,
@@ -140,7 +140,7 @@ roomRoutes.on(createRoomContract.method, createRoomContract.path, async (context
         tokenHash,
         admission,
         {
-          visitorId: analyticsVisitor(context.req.raw),
+          visitorId: browserIdFromRequest(context.req.raw),
           accountId: profile.user?.id ?? null,
           isGuest: Boolean(profile.user?.isAnonymous),
           isTest: Boolean(profile.user?.isTestUser),
@@ -338,7 +338,7 @@ roomRoutes.on(joinRoomContract.method, joinRoomContract.path, async (context) =>
       request.data.instanceId,
       admission,
       {
-        visitorId: analyticsVisitor(context.req.raw),
+        visitorId: browserIdFromRequest(context.req.raw),
         accountId: profile.user?.id ?? null,
         isGuest: Boolean(profile.user?.isAnonymous),
         isTest: Boolean(profile.user?.isTestUser),

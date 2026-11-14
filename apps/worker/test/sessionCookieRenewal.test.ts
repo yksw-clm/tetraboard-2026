@@ -314,37 +314,25 @@ test("並行した別アカウントと未認証の応答へCookieを混ぜな�
   expect(responses[2]!.headers.getSetCookie()).toEqual([]);
 });
 
-test("計測APIとルーム作成の成功応答にも更新Cookieを返す", async () => {
-  for (const kind of ["analytics", "room"] as const) {
-    vi.setSystemTime(issuedAt);
-    const user = await fixture();
-    vi.setSystemTime(issuedAt + day);
-    const response = await request(
-      kind === "analytics" ? "/api/analytics/pageviews" : "/api/rooms",
-      `${user.cookie}; tetraboard-2026.analytics=${crypto.randomUUID()}`,
-      {
-        method: "POST",
-        headers: { Origin: origin, "Content-Type": "application/json" },
-        body: JSON.stringify(
-          kind === "analytics"
-            ? { id: crypto.randomUUID(), page: "lobby", game: "four-reversi" }
-            : { quickPlay: false, mode: "singles" },
-        ),
-      },
-    );
-    expect(response.status).toBe(kind === "analytics" ? 204 : 201);
-    sessionCookie(response);
-    if (kind === "room") {
-      const created = (await response.json()) as {
-        room: { id: string };
-        membership: { token: string };
-      };
-      await request(`/api/rooms/${created.room.id}/leave`, undefined, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${created.membership.token}` },
-      });
-    }
-  }
+test("ルーム作成の成功応答にも更新Cookieを返す", async () => {
+  vi.setSystemTime(issuedAt);
+  const user = await fixture();
+  vi.setSystemTime(issuedAt + day);
+  const response = await request("/api/rooms", user.cookie, {
+    method: "POST",
+    headers: { Origin: origin, "Content-Type": "application/json" },
+    body: JSON.stringify({ quickPlay: false, mode: "singles" }),
+  });
+  expect(response.status).toBe(201);
+  sessionCookie(response);
+  const created = (await response.json()) as {
+    room: { id: string };
+    membership: { token: string };
+  };
+  await request(`/api/rooms/${created.room.id}/leave`, undefined, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${created.membership.token}` },
+  });
 });
 
 test("既存の複数CookieにExpiresのカンマがあっても欠落・結合させない", async () => {

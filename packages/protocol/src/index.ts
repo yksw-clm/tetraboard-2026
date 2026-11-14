@@ -175,7 +175,6 @@ export {
   fourShogiEliminationSchema,
 } from "./fourShogi";
 export * from "./admin";
-export * from "./acquisition";
 export * from "./feedback";
 export * from "./gameTypes";
 export { gameRankingContracts, type GameRankingContracts } from "./rankings";

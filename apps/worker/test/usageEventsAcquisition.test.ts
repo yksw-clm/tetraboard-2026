@@ -1,36 +1,33 @@
 import { expect, test } from "vitest";
-import * as legacy from "@tetraboard/protocol";
 import {
   classifyDevice,
   classifyReferrer,
   referrerHostname,
   sanitizeUtm,
 } from "../src/usageEvents/acquisition";
-
 const ownHost = "tetraboard.net";
 
-test("UTMは旧分類と同じ許可文字・64文字制限・大小文字・空値を保つ", () => {
-  for (const value of [
-    null,
-    "",
-    " X /告知?&a-_.9 ",
-    "日本語@ ",
-    "告知".repeat(100) + "A".repeat(65),
-    "a".repeat(63) + "_B",
-    "source\n\t\0test😀",
-  ])
-    expect(sanitizeUtm(value)).toBe(legacy.sanitizeUtm(value));
+test.each([
+  [null, null],
+  ["", null],
+  [" X /告知?&a-_.9 ", "Xa-_.9"],
+  ["日本語@ ", null],
+  ["告知".repeat(100) + "A".repeat(65), "A".repeat(64)],
+  ["a".repeat(63) + "_B", "a".repeat(63) + "_"],
+  ["source\n\t\0test😀", "sourcetest"],
+])("UTMは許可文字と64文字制限を保つ: %s", (input, expected) => {
+  expect(sanitizeUtm(input)).toBe(expected);
 });
 
-test("参照元のホスト抽出は旧分類と同じで、パス・クエリ・IPを残さない", () => {
-  for (const value of [
-    "",
-    "https://WWW.Google.COM/search?q=SECRET#secret",
-    "https://tetraboard.net/rooms/secret?invite=secret",
-    "https://TETRABOARD.NET:8443/path",
-    "https://google.com./search",
-    "http://user:password@x.com:8080/path?secret=value",
-    "https://日本語.jp/path",
+test.each([
+  ["", "direct"],
+  ["https://WWW.Google.COM/search?q=SECRET#secret", "www.google.com"],
+  ["https://tetraboard.net/rooms/secret?invite=secret", "internal"],
+  ["https://TETRABOARD.NET:8443/path", "internal"],
+  ["https://google.com./search", "google.com"],
+  ["http://user:password@x.com:8080/path?secret=value", "x.com"],
+  ["https://日本語.jp/path", "xn--wgv71a119e.jp"],
+  ...[
     "invalid",
     "/relative/path",
     "file:///private/secret",
@@ -40,58 +37,64 @@ test("参照元のホスト抽出は旧分類と同じで、パス・クエリ�
     "http://localhost/path",
     `https://${"a".repeat(64)}.com/`,
     `https://${("a".repeat(63) + ".").repeat(4)}com/`,
-  ]) {
-    expect(referrerHostname(value, ownHost)).toBe(legacy.referrerHostname(value, ownHost));
-    expect(referrerHostname(value, "TETRABOARD.NET")).toBe(
-      legacy.referrerHostname(value, "TETRABOARD.NET"),
-    );
-  }
+  ].map((value) => [value, null]),
+])("参照元からパス・クエリ・IPを残さずホストだけを抽出する: %s", (input, expected) => {
+  expect(referrerHostname(input!, ownHost)).toBe(expected);
+  expect(referrerHostname(input!, "TETRABOARD.NET")).toBe(expected);
 });
 
-test("検索・SNSの全ドメインと不正ホストは旧分類と同じ結果になる", () => {
-  const hosts = [
-    "google.com",
-    "google.co.jp",
-    "bing.com",
-    "yahoo.co.jp",
-    "search.yahoo.co.jp",
-    "yahoo.com",
-    "search.yahoo.com",
-    "duckduckgo.com",
-    "search.brave.com",
-    "ecosia.org",
-    "x.com",
-    "t.co",
-    "twitter.com",
-    "youtube.com",
-    "m.youtube.com",
-    "youtu.be",
-    "facebook.com",
-    "m.facebook.com",
-    "l.facebook.com",
-    "instagram.com",
-    "threads.net",
-    "twitch.tv",
-    "discord.com",
-    "discord.gg",
-    "bsky.app",
-    "reddit.com",
-    "line.me",
-  ];
+test("検索・SNSのドメインとそのwww・大小文字・末尾ドットを分類する", () => {
+  const groups = {
+    search: [
+      "google.com",
+      "google.co.jp",
+      "bing.com",
+      "yahoo.co.jp",
+      "search.yahoo.co.jp",
+      "yahoo.com",
+      "search.yahoo.com",
+      "duckduckgo.com",
+      "search.brave.com",
+      "ecosia.org",
+    ],
+    social: [
+      "x.com",
+      "t.co",
+      "twitter.com",
+      "youtube.com",
+      "m.youtube.com",
+      "youtu.be",
+      "facebook.com",
+      "m.facebook.com",
+      "l.facebook.com",
+      "instagram.com",
+      "threads.net",
+      "twitch.tv",
+      "discord.com",
+      "discord.gg",
+      "bsky.app",
+      "reddit.com",
+      "line.me",
+    ],
+  };
+  for (const [category, hosts] of Object.entries(groups))
+    for (const host of hosts) {
+      for (const value of [host, host.toUpperCase(), `${host}.`])
+        expect(classifyReferrer(value, ownHost)).toEqual({ host, category });
+      expect(classifyReferrer(`www.${host}`, ownHost)).toEqual({ host: `www.${host}`, category });
+    }
+  for (const value of ["direct", "internal"])
+    expect(classifyReferrer(value, ownHost)).toEqual({ host: value, category: value });
+  for (const value of [ownHost, ownHost.toUpperCase()])
+    expect(classifyReferrer(value, ownHost)).toEqual({ host: "internal", category: "internal" });
+  for (const host of ["evilgoogle.com", "google.com.evil.test", "accounts.google.com"])
+    expect(classifyReferrer(host, ownHost)).toEqual({ host, category: "other" });
   for (const value of [
-    ...hosts.flatMap((host) => [host, `www.${host}`, host.toUpperCase(), `${host}.`]),
-    "direct",
-    "internal",
-    ownHost,
-    ownHost.toUpperCase(),
     null,
     "",
     "localhost",
     "192.0.2.1",
     "[2001:db8::1]",
-    "evilgoogle.com",
-    "google.com.evil.test",
-    "accounts.google.com",
     "https://google.com/search?q=SECRET",
     "-bad.example",
     "bad_.example",
@@ -99,29 +102,34 @@ test("検索・SNSの全ドメインと不正ホストは旧分類と同じ結�
     `${"a".repeat(64)}.com`,
     ("a".repeat(63) + ".").repeat(4) + "com",
   ])
-    expect(classifyReferrer(value, ownHost)).toEqual(legacy.classifyReferrer(value, ownHost));
+    expect(classifyReferrer(value, ownHost)).toEqual({ host: null, category: null });
 });
 
-test("端末判定は旧分類と同じ優先順で、取得不能と不明も維持する", () => {
-  for (const ua of [
-    null,
-    "",
-    "unknown",
-    "Mozilla/5.0 (iPhone) Mobile",
-    "iPod",
-    "Windows Phone Mobile",
-    "Mozilla/5.0 (iPad) Mobile",
-    "Tablet",
-    "Kindle",
-    "Silk",
-    "Mozilla/5.0 (Linux; Android 14) Mobile",
-    "Mozilla/5.0 (Linux; Android 14)",
-    "Mozilla/5.0 (Windows NT 10.0)",
-    "Mozilla/5.0 (Macintosh)",
-    "Mozilla/5.0 (X11; Linux x86_64)",
-    "CrOS",
-    "android mobile",
-    "ipad mobile",
-  ])
-    expect(classifyDevice(ua)).toBe(legacy.classifyDevice(ua));
+test("端末判定はタブレットを優先し、取得不能と不明も維持する", () => {
+  const groups = {
+    mobile: [
+      "Mozilla/5.0 (iPhone) Mobile",
+      "iPod",
+      "Windows Phone Mobile",
+      "Mozilla/5.0 (Linux; Android 14) Mobile",
+      "android mobile",
+    ],
+    tablet: [
+      "Mozilla/5.0 (iPad) Mobile",
+      "Tablet",
+      "Kindle",
+      "Silk",
+      "Mozilla/5.0 (Linux; Android 14)",
+      "ipad mobile",
+    ],
+    desktop: [
+      "Mozilla/5.0 (Windows NT 10.0)",
+      "Mozilla/5.0 (Macintosh)",
+      "Mozilla/5.0 (X11; Linux x86_64)",
+      "CrOS",
+    ],
+  };
+  for (const [expected, values] of Object.entries(groups))
+    for (const ua of values) expect(classifyDevice(ua)).toBe(expected);
+  for (const ua of [null, "", "unknown"]) expect(classifyDevice(ua)).toBeNull();
 });

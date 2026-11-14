@@ -1,4 +1,4 @@
-import { registrationContext, sendRegistrationEntry } from "../../analytics/registrationAnalytics";
+import { registrationContext, sendRegistrationEntry } from "./registrationAnalytics";
 import type { RegistrationAnalyticsInput, RegistrationEntry } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
 import { legalVersion } from "@tetraboard/protocol/privacy";

@@ -13,7 +13,7 @@ import {
   type StoredProfile,
 } from "./auth";
 import { legalVersion } from "@tetraboard/protocol/privacy";
-import { analyticsVisitor } from "../analytics/store";
+import { browserIdFromRequest } from "../usageEvents/browserId";
 import { digest } from "../privacy/deletion";
 import { reserveAccountSeat, cancelReservation, RoomAccountError } from "./roomAccounts";
 import { acceptMatchClaim, readMatchClaimState, MatchClaimError } from "./matchClaims";
@@ -293,7 +293,7 @@ registrationRoutes.post("/registrations/:registrationId/complete", async (c) => 
         { reuseForGuestRegistration: true },
       );
       const result = await room.completeGuestRegistration(flow.id, admission, {
-        visitorId: analyticsVisitor(c.req.raw),
+        visitorId: browserIdFromRequest(c.req.raw),
         accountId: identity.user.id,
         isTest: Boolean(identity.user.isTestUser),
       });

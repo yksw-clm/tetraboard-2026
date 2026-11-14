@@ -1,7 +1,7 @@
+import { registrationEntryRoutes } from "./usageEvents/registrationRoutes";
 import { matchmakingRoutes } from "./matchmaking/routes";
 import { notificationRoutes } from "./notifications/routes";
-import { runAnalyticsAggregation } from "./analytics/foundation";
-import { runScheduledMaintenance, runMaintenanceTasks } from "./scheduledMaintenance";
+import { runScheduledMaintenance } from "./scheduledMaintenance";
 import { guestLinkRoutes } from "./accounts/guestLinking";
 import { guestRoutes } from "./accounts/guestAccounts";
 import { generalLobbyRoutes } from "./lobby/routes";
@@ -10,10 +10,8 @@ import { deletionRoutes } from "./privacy/deletionRoutes";
 import { legalRoutes } from "./privacy/legalRoutes";
 import { defaultGameId, gameCatalog } from "@tetraboard/protocol/games";
 import { announcementRoutes, announcementAdminRoutes } from "./announcements/routes";
-import { trackingLinkRoutes } from "./admin/trackingLinks";
 import { adminRoutes } from "./admin/routes";
 import { adminIdentity, type AdminEnv } from "./admin/auth";
-import { analyticsRoutes } from "./analytics/routes";
 import { clientErrorRoutes } from "./usageEvents/clientErrors";
 import { healthzContract } from "@tetraboard/protocol";
 import { accountRoutes } from "./accounts/accountRoutes";
@@ -51,12 +49,11 @@ api.route("/", matchmakingRoutes);
 api.route("/", tournamentAdminRoutes);
 api.route("/", lobbyChatRoutes);
 api.route("/", adminRoutes);
-api.route("/", trackingLinkRoutes);
 api.route("/", announcementRoutes);
 api.route("/", announcementAdminRoutes);
 api.route("/", feedbackAdminRoutes);
 api.route("/", feedbackRoutes);
-api.route("/", analyticsRoutes);
+api.route("/", registrationEntryRoutes);
 api.route("/", clientErrorRoutes);
 api.route("/", matchRoutes);
 api.route("/", publicMatchRoutes);
@@ -135,12 +132,8 @@ const worker = {
     }
     return app.fetch(request, env, context);
   },
-  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
-    if (controller.cron === "*/5 * * * *")
-      await runMaintenanceTasks([
-        { name: "analytics-aggregation", run: () => runAnalyticsAggregation(env) },
-      ]);
-    else await runScheduledMaintenance(env);
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await runScheduledMaintenance(env);
   },
 };
 

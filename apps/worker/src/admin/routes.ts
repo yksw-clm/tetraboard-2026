@@ -1,36 +1,10 @@
-import { readAcquisitionSnapshot } from "../analytics/acquisitionAggregation";
-import type { Context } from "hono";
-import { readAdminUsers, UserQueryError } from "./users";
 import { Hono } from "hono";
-import {
-  analyticsFoundationSchema,
-  registrationAnalyticsReportSchema,
-  registrationAnalyticsQuerySchema,
-  adminAnalyticsQuerySchema,
-  adminAnalyticsSchema,
-  adminUsersQuerySchema,
-  adminUsersSchema,
-  adminUserDetailSchema,
-  acquisitionSnapshotSchema,
-} from "@tetraboard/protocol";
 import { type StoredProfile } from "../accounts/auth";
 import { adminIdentity, type AdminEnv } from "./auth";
-import { readRegistrationAnalytics } from "../analytics/registrationAggregation";
-import { readAnalyticsFoundation } from "../analytics/foundation";
-import { readAnalytics } from "./metrics";
 import { kpiQuerySchema, kpiReportSchema } from "@tetraboard/protocol";
 import { readKpi } from "../kpi/report";
 export const adminRoutes = new Hono<{ Bindings: AdminEnv; Variables: { admin: StoredProfile } }>();
-for (const path of [
-  "/admin/session",
-  "/admin/kpi",
-  "/admin/analytics",
-  "/admin/analytics/foundation",
-  "/admin/analytics/registration",
-  "/admin/analytics/acquisition",
-  "/admin/users",
-  "/admin/users/:id",
-]) {
+for (const path of ["/admin/session", "/admin/kpi"]) {
   adminRoutes.use(path, async (c, next) => {
     c.header("Cache-Control", "no-store");
     const result = await adminIdentity(c.req.raw, c.env);
@@ -51,52 +25,4 @@ adminRoutes.get("/admin/kpi", async (c) => {
   const query = kpiQuerySchema.safeParse(c.req.query());
   if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大92日）。" }, 400);
   return c.json(kpiReportSchema.parse(await readKpi(c.env, query.data)));
-});
-adminRoutes.get("/admin/analytics", async (c) => {
-  const query = adminAnalyticsQuerySchema.safeParse(c.req.query());
-  if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大3年）。" }, 400);
-  return c.json(adminAnalyticsSchema.parse(await readAnalytics(c.env, query.data)));
-});
-adminRoutes.get("/admin/analytics/foundation", async (c) => {
-  const query = adminAnalyticsQuerySchema.safeParse(c.req.query());
-  if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大3年）。" }, 400);
-  return c.json(analyticsFoundationSchema.parse(await readAnalyticsFoundation(c.env, query.data)));
-});
-adminRoutes.get("/admin/analytics/registration", async (c) => {
-  const query = registrationAnalyticsQuerySchema.safeParse(c.req.query());
-  if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大3年）。" }, 400);
-  return c.json(
-    registrationAnalyticsReportSchema.parse(await readRegistrationAnalytics(c.env, query.data)),
-  );
-});
-async function users(
-  c: Context<{ Bindings: AdminEnv; Variables: { admin: StoredProfile } }>,
-  detail = false,
-) {
-  const query = adminUsersQuerySchema.safeParse(c.req.query());
-  if (!query.success) return c.json({ message: "検索条件が正しくありません。" }, 400);
-  try {
-    const data = await readAdminUsers(
-      c.env.APP_DB,
-      query.data,
-      detail ? c.req.param("id") : undefined,
-    );
-    if (detail)
-      return data.users[0]
-        ? c.json(adminUserDetailSchema.parse({ user: data.users[0] }))
-        : c.json({ message: "ユーザーが見つかりません。" }, 404);
-    return c.json(adminUsersSchema.parse(data));
-  } catch (error) {
-    if (error instanceof UserQueryError)
-      return c.json({ message: "期間・並べ替え・続きの指定を確認してください（最大3年）。" }, 400);
-    throw error;
-  }
-}
-adminRoutes.get("/admin/users", (c) => users(c));
-adminRoutes.get("/admin/users/:id", (c) => users(c, true));
-
-adminRoutes.get("/admin/analytics/acquisition", async (c) => {
-  const q = adminAnalyticsQuerySchema.safeParse(c.req.query());
-  if (!q.success) return c.json({ message: "期間の指定が正しくありません。" }, 400);
-  return c.json(acquisitionSnapshotSchema.parse(await readAcquisitionSnapshot(c.env, q.data)));
 });

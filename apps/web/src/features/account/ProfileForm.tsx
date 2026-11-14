@@ -17,7 +17,7 @@ import { cn } from "@heroui/react";
 import { LobbyBoardPreview } from "../lobby/LobbyBoardPreview";
 import { gameAccentClasses, type AppTheme } from "../../shared/ui/appTheme";
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { beginRegistrationEntry } from "../../analytics/registrationAnalytics";
+import { beginRegistrationEntry } from "./registrationAnalytics";
 import { AccountLinkDialog } from "./AccountLinkDialog";
 export function ProfileForm({
   user,
