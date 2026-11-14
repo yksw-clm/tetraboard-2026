@@ -403,7 +403,7 @@ miseとCIはBun 1.4.4へ固定しています。`scripts/checkBunVersion.ts` は
 
 比較用の従来方式は `bun run typecheck:tsc`、部分比較は `bun run --cwd <workspace> typecheck:tsc` です。通常CIで両方式を重複実行しません。Bun内蔵のTypeScriptと標準型定義はインストール済みTypeScriptやエディタの版とは独立しており、100%互換は前提にしません。診断差は比較コマンドと既存の否定fixtureで調べます。TypeScriptパッケージは比較用とWorkerテスト設定のJSONC解析にも必要なため維持します。Bunを更新するときは[測定条件と互換性の確認](testing.md#bun-144での型チェック比較2026-10-24)も参照してください。
 
-GitHub Actionsの実行範囲は [CIの実行範囲](testing.md#ciの実行範囲) を参照してください。`scripts/ci/run.ts` が `packages/ai` 以外のworkspaceを上限2プロセスで実行し、`workerGroups.ts` がWorkerファイルの自動分割を担当します。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。
+GitHub Actionsの実行範囲は [CIの実行範囲](testing.md#ciの実行範囲) を参照してください。`scripts/ci/run.ts` が `packages/ai` 以外のworkspaceを並列（CPU数と4の小さいほう）で実行し、WorkerのテストはVitestの `--shard` で2つに分けます。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。
 
 Workerテストは `vitest.config.mts` でローカルのD1・R2・SQLite対応Durable Objectとテスト専用のbindingsを指定します。追跡済みWrangler設定はJSONCとして入口・互換日・互換フラグだけを読み、Wranglerの開発用設定ローダーを通しません。管理者はテストごとに指定し、開発用 `.dev.vars`・`.env` やプロセスの秘密設定を取り込みません。詳細と回帰検証は [個人設定からの分離](testing.md#個人設定からの分離) を参照してください。
 

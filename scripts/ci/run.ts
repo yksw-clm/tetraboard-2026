@@ -1,7 +1,6 @@
-import { statSync } from "node:fs";
-import { readWorkspaces, root } from "./repository";
+import { availableParallelism } from "node:os";
+import { readWorkspaces } from "./repository";
 import { runTask, runTasks, type Task } from "./tasks";
-import { splitWorkerFiles, workerTestPattern } from "./workerGroups";
 
 const workspaces = readWorkspaces().filter((path) => path !== "packages/ai");
 const mode = process.argv[2];
@@ -35,13 +34,7 @@ if (mode === "test" || mode === "check") {
     await runTask({ name: "CI runner tests", command: ["bun", "test", "./scripts/ci/test"] });
   const tasks: Task[] = [];
   if (workspaces.includes("apps/worker")) {
-    const files = [...new Bun.Glob(workerTestPattern).scanSync(`${root}/apps/worker`)];
-    if (!files.length) throw new Error("Workerテストが見つかりません");
-    const groups = serial
-      ? [files.sort()]
-      : splitWorkerFiles(
-          files.map((path) => ({ path, size: statSync(`${root}/apps/worker/${path}`).size })),
-        );
+    const groups = serial ? [[]] : [["--shard=1/2"], ["--shard=2/2"]];
     for (const [index, group] of groups.entries())
       tasks.push({
         name: `Worker ${index + 1}-${groups.length}`,
@@ -57,7 +50,7 @@ if (mode === "test" || mode === "check") {
         (priority.indexOf(b) < 0 ? 99 : priority.indexOf(b)),
     ))
     tasks.push({ name: `test ${path}`, command: command(path, "test") });
-  await runTasks(tasks, serial ? 1 : 2);
+  await runTasks(tasks, serial ? 1 : Math.min(availableParallelism(), 4));
 }
 
 if (mode === "build") {

@@ -142,15 +142,15 @@ CIの入口は `.github/workflows/ci.yml` です。設計判断は [ADR 0007](ad
 
 ### 実行の分割とテスト品質
 
-`bun run check` は `packages/ai` を除く全体検証です。テスト実行は上限2プロセスとし、Workerの重いファイルを先に2群へ分散します。全Workerファイルをサイズ順で軽い群へ割り当て、2つの独立したVitest／Miniflareで動かします。ファイル一覧のpatternはVitest設定と共有し、新規ファイルも必ずどちらか1群へ入れます。純粋関数とDOMのworkspaceも空いた枠で実行します。Bun内蔵型チェックはCPUを内部並列利用するためworkspace間では直列です。
+`bun run check` は `packages/ai` を除く全体検証です。テスト実行の並列数はCPU数と4の小さいほうです。Workerのテストは、Vitest標準の `--shard=1/2` と `--shard=2/2` で2つの独立したVitest／Miniflareに分けて動かします。新規ファイルも必ずどちらか1群へ入ります。純粋関数とDOMのworkspaceも空いた枠で実行します。2026-11-14にファイルサイズで均等化する自作の分割と比べ、遅いほうの群の時間が同等（0.98倍）だったため、自作の分割をやめました。Bun内蔵型チェックはCPUを内部並列利用するためworkspace間では直列です。
 
-各Workerプロセス内の `--max-workers=1 --no-isolate` は維持します。[CloudflareのWebSocketとストレージ分離の制約](https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#websockets)に対応するためです。共有永続ディレクトリは指定せず、各プロセスが独立したD1・DO・R2とmodule cacheを使います。Vitestの結果キャッシュは無効にし、並列プロセス間のresults.json書込み競合と過去の時間による実行順変更を避けます。各群内も明示的にファイルサイズ降順・同サイズはパス順で実行します。`bun scripts/ci/verifyWorkerIsolation.ts` は同じD1主キー・DO ID・R2キーへ異なる値を同時保存し、両方の書込み後に自分の値だけを読めることをbarrier付きで確認します。新しい並列化やCloudflare plugin更新時に実行してください。
+各Workerプロセス内の `--max-workers=1 --no-isolate` は維持します。[CloudflareのWebSocketとストレージ分離の制約](https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#websockets)に対応するためです。共有永続ディレクトリは指定せず、各プロセスが独立したD1・DO・R2とmodule cacheを使います。Vitestの結果キャッシュは無効にし、並列プロセス間のresults.json書込み競合と過去の時間による実行順変更を避けます。各群内は明示的にファイルサイズ降順・同サイズはパス順で実行します。`bun scripts/ci/verifyWorkerIsolation.ts` は同じD1主キー・DO ID・R2キーへ異なる値を同時保存し、両方の書込み後に自分の値だけを読めることをbarrier付きで確認します。新しい並列化やCloudflare plugin更新時に実行してください。
 
 Workerの全テストを分割して実行し、認証・認可・アカウント分離・合法手・CPU・再接続・DO復旧・D1保存／migration・大会の競合を維持します。CI高速化のためにケースを削除・skipしたり、timeoutを延長したりしません。複数ゲームの同じシナリオは、dispatch・認可・保存の接続ミスを検知するため保持します。時間プリセットの網羅はAPI層と純粋時計層で一部重複しますが、CIでAPI42件が約0.4秒のため削減対象にしません。公開CPUの合法手・決定性・入力不変と棋力fixtureも、実行コストに見合う回帰価値があるため維持します。
 
 単体で代替可能な時計・期限の純粋関数はWorker内に残します。現状の実行コストは小さく、移管に伴う境界の変更を今回追加する効果が小さいためです。終了済みファイルの全DO Alarmを列挙して停止する案は、片付けコスト増加と終了待ちが発生したため採用しません。
 
-並列実行の失敗は子プロセスの終了コードで伝播し、開始済みの検証を回収してから失敗にします。失敗を成功へ変換しません。未発見のテスト間状態依存や、将来のファイルサイズと時間のずれは残るリスクです。`bun run test:serial` と通常分割で切り分け、分割一覧の欠落・重複テストを維持してください。
+並列実行の失敗は子プロセスの終了コードで伝播し、開始済みの検証を回収してから失敗にします。失敗を成功へ変換しません。未発見のテスト間状態依存や、将来の群ごとの時間の偏りは残るリスクです。`bun run test:serial`（分割なし・並列数1）と通常分割で切り分けてください。
 
 ### 測定と運用
 
