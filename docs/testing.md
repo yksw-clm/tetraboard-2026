@@ -20,13 +20,13 @@
 
 フェーズ3は[MCTSと採用基準](../packages/ai/docs/phase3.md)に従い、単独1位報酬・予算中断・再現性・全24席順を検証します。API v2の全5profileでローカルの実Serviceとの完走・復元、不正profile/予算/応答・同じ要求IDでの保存profile変更を確認します。大量対局と速度・CPU測定は専用コマンドで行い、通常のcheckでは低い予算を使います。
 
-フェーズ2はRustのHTTP境界（認証・版・入力・予算・過負荷）と、実プロセス間のService接続を検証します。`packages/ai/test/service.test.ts`が実Rust serverを起動し、明示したloopback URL・検証用tokenで`vitest.ai-service.config.mts`を実行します。`test-ai-service/`のテストは通常Worker分割と重複せず、AI workspaceから全体check・Full CIに含めます。人間1人＋CPU3人の完走、候補保存後の再起動、重複Alarm・古い世代・時計切れ、再試行・不正/過大応答・timeout・未完了要求の復旧を確認します。開発用の個人設定を読みません。承認済みの[クラウド測定](../packages/ai/docs/cloudflare-validation.md)は独立した検証用Workerに対して別途実施し、通常のcheckは外部クラウドへ接続しません。
+フェーズ2はRustのHTTP境界（認証・版・入力・予算・過負荷）と、実プロセス間のService接続を検証します。`packages/ai/test/service.test.ts`が実Rust serverを起動し、明示したloopback URL・検証用tokenで`vitest.ai-service.config.mts`を実行します。`test-ai-service/`のテストは通常Worker分割と重複せず、AI workspaceの`check:ai`とCIの`ai`ジョブに含めます。人間1人＋CPU3人の完走、候補保存後の再起動、重複Alarm・古い世代・時計切れ、再試行・不正/過大応答・timeout・未完了要求の復旧を確認します。開発用の個人設定を読みません。承認済みの[クラウド測定](../packages/ai/docs/cloudflare-validation.md)は独立した検証用Workerに対して別途実施し、通常のcheckは外部クラウドへ接続しません。
 
 ゲーム別のCPU枠は `cpuCapacity.test.ts` で同時確保・上限・古い取得と解放の再送を確認します。AI Service統合は四人リバーシで4局・12席を同時に使い、連続CPU手番と5局目の待機・退室後の開始を確認します。レート戦では満杯時の待機人数・対人成立・取消・再試行・準備済みルームの取消による解放を確認します。実やねうら王を使う検証では将棋4局の同時要求を実行し、各局で合法な着手を反映します。レート戦ダイアログと待機人数はBun＋happy-domで確認します。
 
 フェーズ1は角・石数・機動力・配置の評価、同点順、MaxNの完了深さ・予算中断、終局評価と3色パス後の本人手番を検証します。比較CLIでは設定を読み、4組合せ×4回転の混在対局をTypeScriptで再生し、探索量の上限・summaryを確認します。全色の合法手数は別の固定fixtureで両言語を比較します。回転ごとの席の均等性、固定seedの再現、同率1位と単独1位の区別、失敗を含む分母と全失敗時のnullもRustで検証します。実時間の上限には依存しません。評価・集計の定義と比較条件は[フェーズ1文書](../packages/ai/docs/phase1.md)を参照してください。
 
-`packages/ai`は全体の`bun run check`とFull CIに含めます。`typecheck`は比較テスト・計測スクリプトのBun型検査、Cloudflare入口の型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。通常の検証jobと任意の`ci-benchmark`計測jobの両方で、miseからBun・Node・Rustを導入します。AIのRustソース・lockfile・fixture変更がFullに分類されることをCI選択テストで確認します。
+`packages/ai`はルートの`bun run check`に含めず、`bun run check:ai`とCIの`ai`ジョブで検証します。`typecheck`は比較テスト・計測スクリプトのBun型検査、Cloudflare入口の型検査、`cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`を実行します。`test`は`cargo test --workspace --locked`とBun比較テストを実行します。Rustツールチェーンはmiseで固定し、Cargo.lockも追跡します。CIの`ai`ジョブはmiseからBun・Node・Rustを導入します。
 
 8組の固定fixtureで、初期局面、合法手と拒否理由、複数色・複数方向の反転、全滅禁止、自動パスと解除、本人の連続手番、満盤・全色パス終局、同率順位を両言語で照合します。作成元コミットと期待値は固定し、実行時に生成しません。合成局面は初期局面からの到達を保証しません。
 
@@ -58,15 +58,15 @@ Rustは継続MCTSの累積試行と保持ノード上限、将棋の完了深さ
 
 Workerの`fourShogiRoom.test.ts`は進行中棋譜のHTTP取得、revision競合、ページ境界・末尾差分、局と部屋の世代、終局・ダブルスの対象外、氏名・tokenの非公開を確認します。既存の四人将棋固定棋譜とRust／TypeScript比較で三人攻撃・成り・駒打ち・千日手・脱落を確認します。
 
-実Chromeでの矢印・番号の位置、回転・ズーム・リサイズ、通常着手・成り選択・駒打ち、停止・再読み込みは手動確認し、未実施ならPRへ記載します。全体check・Full CIと必須の本番／開発build・Worker dry-runを行います。過去のLv6大量対局・速度測定を通常checkへ追加せず、測定結果は対象コミット・当時の探索条件とともに保持します。
+実Chromeでの矢印・番号の位置、回転・ズーム・リサイズ、通常着手・成り選択・駒打ち、停止・再読み込みは手動確認し、未実施ならPRへ記載します。全体check・CIと必須の本番／開発build・Worker dry-runを行います。過去のLv6大量対局・速度測定を通常checkへ追加せず、測定結果は対象コミット・当時の探索条件とともに保持します。
 
 ## ランダムマッチの確認
 
-前局の観戦案内はWorkerの `matchmaking.test.ts` とWebの `test-dom/matchmaking.test.tsx` で確認します。実D1・DOでは四人将棋・四人リバーシの開始・脱落退室・全4ゲームの検索拒否・終局保存後の解除、2人ゲームの保存待ち、古い待機者の除外、DO再起動、旧予約の参照復旧、別人への非公開、部屋世代の不一致、`previousMatch=1` の有無を検証します。Webでは各ダイアログのカード・観戦リンク・保存待ち・照会失敗と再試行・3秒更新・自動再検索しないことを確認します。実ブラウザとスマートフォン実機の見え方は手動確認です。Worker・protocol・D1の変更のため、PRではFull CIを確認します。
+前局の観戦案内はWorkerの `matchmaking.test.ts` とWebの `test-dom/matchmaking.test.tsx` で確認します。実D1・DOでは四人将棋・四人リバーシの開始・脱落退室・全4ゲームの検索拒否・終局保存後の解除、2人ゲームの保存待ち、古い待機者の除外、DO再起動、旧予約の参照復旧、別人への非公開、部屋世代の不一致、`previousMatch=1` の有無を検証します。Webでは各ダイアログのカード・観戦リンク・保存待ち・照会失敗と再試行・3秒更新・自動再検索しないことを確認します。実ブラウザとスマートフォン実機の見え方は手動確認です。Worker・protocol・D1の変更のため、PRではCIを確認します。
 
 採用仕様と公開条件は[四人リバーシのレート戦](matchmaking.md#四人リバーシのレート戦)です。`apps/worker/test/matchmaking.test.ts`は実D1・DOで、人間1〜4人、FIFO・CPU補充、取消・重複・lease期限・操作元世代、5秒開始、再起動、部分接続の期限切れと再割当、D1転送失敗の回復、通常席／大会待機との排他、ログアウト・退会・連携制約を検証します。状態GETで割当を実行しないことも確認します。時間は固定時計または保存期限で制御し、実時間のsleepに依存しません。
 
-`packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席のレート戦を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存・認定局数の更新まで確認します。このテストはAI workspaceから全体check・Full CIに含まれます。
+`packages/ai/fixtures/elimination-v1.json`の固定6ケースをRustとTypeScriptで読み、脱落後の合法手・全滅保護・残存石・パス・順位を比較します。`test-ai-service/matchmaking.test.ts`ではローカルの実Rust Serviceで人間1人＋ヨミ3席のレート戦を進め、人間の投了後もprofileを維持して終局・棋譜再生・D1の名前と版の保存・認定局数の更新まで確認します。このテストはAI workspaceの`check:ai`とCIの`ai`ジョブに含まれます。
 
 四人リバーシのレート戦は、10秒での範囲拡大、20秒での不足席の補充、認定状況によるCPU選択、成立後の取消と入室、旧列の成立済み対局とレート戦の保存の違いを確認します。`apps/web/test-dom/matchmaking.test.tsx`は共通ダイアログの取消・自動入室に加え、四人リバーシの数値レート、対人戦の経験有無のラベルと旧応答のランクを表示しないこと、再参加と旧割当の復旧を確認します。`matchmakingRoom.test.tsx`はルーム内の開始予告と旧席解放後の再参加を確認します。
 
@@ -74,7 +74,7 @@ Workerの`fourShogiRoom.test.ts`は進行中棋譜のHTTP取得、revision競合
 
 将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
 
-部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。本番・開発ServiceのWrangler dry-runをFull CIに含めます。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。別の `ai-images` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](development.md#本番aiと4ゲーム同時公開)で別途確認します。
+部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。開発ServiceのWrangler dry-runは毎回のCI、本番はmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](development.md#本番aiと4ゲーム同時公開)で別途確認します。
 
 四人リバーシのレート保存は `bun run --cwd apps/worker test test/fourReversiRating.test.ts` で確認します。同順位、CPU混在と5局目の認定、代替手使用局の除外、同じ対局の再試行、別々の対局の同時保存、棋譜APIの内部レート非公開を実D1で検証します。CPU較正の再現手順は[較正仕様](../packages/ai/docs/calibration.md#2026-11-09の予備測定と本測定の手順)にあります。
 
@@ -110,48 +110,39 @@ ChromeでPC・スマートフォン幅の4ゲームを開き、見出しの折�
 
 ## レート戦の待機人数の確認
 
-Workerの `cpuCapacity.test.ts` と `matchmaking.test.ts` は4ゲームの未使用枠、1席だけのCPU対局を含む部分使用、満枠、解放、重複予約・古い解放、ゲーム間の独立性、照会で状態が変わらないことを確認します。待機人数は人間2人＋未使用の12席＝14人、満枠で人間3人＝3人、期限切れと成立済みの除外、人間のみの対局で枠を消費しないことを検証します。受付確認だけのGETでCPU枠を照会せず、枠取得失敗でも状態応答と検索・取消が成功し、次の取得で回復することも確認します。Webの `matchmaking.test.tsx` は4ゲームの合計人数だけの表示、項目省略時の非表示と3秒更新後の回復をBun＋happy-domで確認します。Workerを変更するためFull CIを実行し、開発環境での予約・解放に応じた表示更新はマージ後に確認します。
+Workerの `cpuCapacity.test.ts` と `matchmaking.test.ts` は4ゲームの未使用枠、1席だけのCPU対局を含む部分使用、満枠、解放、重複予約・古い解放、ゲーム間の独立性、照会で状態が変わらないことを確認します。待機人数は人間2人＋未使用の12席＝14人、満枠で人間3人＝3人、期限切れと成立済みの除外、人間のみの対局で枠を消費しないことを検証します。受付確認だけのGETでCPU枠を照会せず、枠取得失敗でも状態応答と検索・取消が成功し、次の取得で回復することも確認します。Webの `matchmaking.test.tsx` は4ゲームの合計人数だけの表示、項目省略時の非表示と3秒更新後の回復をBun＋happy-domで確認します。Workerを変更するためCIを実行し、開発環境での予約・解放に応じた表示更新はマージ後に確認します。
 
 ## レート戦のマッチング時間の目安の確認
 
 Workerの `matchmaking.test.ts` は4ゲームの補充時刻と固定された目安、四人ゲームの先頭待機者を基準にすること、先行する組によるCPU対局枠の使用、満枠・期限切れ・再試行・照会失敗での省略、照会による保存状態の不変、操作元の照合を確認します。GET・heartbeatで `estimate=1` の有無を検査し、従来のAPI応答へ新項目を追加しないことも検証します。
 
-Webの `matchmakingWaitTime.test.tsx` はサーバーと端末の時刻ずれ、1秒更新、目安超過と省略時の経過時間、後続応答での延長防止・期限前だけの復帰、再検索でのリセット、背景復帰と毎秒の読み上げ抑止を確認します。`matchmaking.test.tsx` で4ゲームの検索前・検索中・成立後の表示を確認し、取消・再読込・別端末・入室は既存シナリオも継続します。Worker・protocolを変更するためFull CIを実行します。画面の収まりはPC・スマートフォン幅で手動確認し、実OAuth・開発環境の実レート戦待機は未実施ならPRへ記録します。
+Webの `matchmakingWaitTime.test.tsx` はサーバーと端末の時刻ずれ、1秒更新、目安超過と省略時の経過時間、後続応答での延長防止・期限前だけの復帰、再検索でのリセット、背景復帰と毎秒の読み上げ抑止を確認します。`matchmaking.test.tsx` で4ゲームの検索前・検索中・成立後の表示を確認し、取消・再読込・別端末・入室は既存シナリオも継続します。Worker・protocolを変更するためCIを実行します。画面の収まりはPC・スマートフォン幅で手動確認し、実OAuth・開発環境の実レート戦待機は未実施ならPRへ記録します。
 
-## Fast CIとFull CI
+## CIの実行範囲
 
-CIの入口は `.github/workflows/ci.yml`、対象選択は `scripts/ci/plan.ts` です。`checks` の成功はsummaryに記録した範囲の成功です。Fastで実行しなかったworkspaceを合格扱いせず、実行・未実行の一覧と検証したcommit SHAを確認します。
+CIの入口は `.github/workflows/ci.yml` です。設計判断は [ADR 0007](adr/0007-ci-and-tests.md) にあります。
 
-| 変更・イベント                                                                                           | 検証範囲                                                        |
-| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Webのsrc・test・test-dom・静的資産                                                                       | Webと推移的な利用側。現在は共有テスト支援を使うAdminも含む      |
-| Adminのsrc・test・test-dom                                                                               | Admin                                                           |
-| shogi-uiのsrc・test-dom・資産                                                                            | 共有盤面とWeb・Admin                                            |
-| README・docs内のMarkdown（rulesを除く）だけ                                                              | format・lint・CI方針の型とテスト。アプリのテスト・buildは未実行 |
-| Worker・認証・対局・DB・migration・ゲームエンジン・protocol・ルール正本                                  | PRでもFull                                                      |
-| package.json・lockfile・ビルド設定・CI・scripts・共有fixture・test-support・未知のファイル／依存解決不能 | PRでもFull                                                      |
-| main向けPR、`ci-full` ラベルのあるPR                                                                     | Full                                                            |
-| main・developへのpush                                                                                    | 常にFull。成功後だけ既存の自動デプロイ                          |
+- `checks` ジョブは、PRとmain・developへのpushのたびに、`packages/ai` を除く全workspaceのformat・lint・型・全テスト、環境分離の検査、本番と開発のWeb・Adminビルド、Workerのdry-runを実行します。
+- `ai` ジョブは、AIのパス（ワークフローの `Detect AI changes` に列挙）に差分があるときと、mainへのpushのときだけ走ります。`bun run check:ai`（Rustのfmt・clippy・testとAIサービスの統合テスト）と、本番AIのコンテナ4つのビルドと起動確認を行います。mainへのpushでは本番AIのdry-runも行います。
+- `ai` がskipされたら、AIの検査は実行されていません。skipを成功とみなしません。AIのテストやスクリプトが新しいファイルを読むようにしたら、同じ変更でAIのパスの一覧に足してください。
+- `deploy` ジョブは、main・developへのpushで `checks` が成功し、`ai` が成功またはskipのときに走ります。本番AIのデプロイは、AIのパスに差分があるときだけ行います。
+- 差分の基準は、PRではPRのベース、pushではpush前のコミットです。マージ後のpushでも `checks` を再実行し、PRの成果物をデプロイへ流用しません。PR更新時には同じPRの古い検証を取り消します。
 
-Fastは対象workspaceの型・全テストと対象アプリの本番向け資産ビルドを実行します。型チェックは推移的にimportされるソースも検査します。開発向けbuild・Worker dry-run・環境分離はFullで確認します。ファイル単位のテスト省略や、成功した過去commitのテスト結果の流用は行いません。
+ローカルの `bun run check` も `packages/ai` を含みません。AIに触れる変更では `bun run check:ai` も実行してください。
 
-依存関係はworkspaceのdependencies・devDependencies・peerDependenciesに、相対import・型import・CSS・静的URL参照とBunのimport解決結果を加えます。WebのDOM支援をAdminが直接参照する依存も対象です。検証対象から利用側への推移的閉包を取り、API・ルール・未知workspaceへ届けばFullです。Fast候補で動的importの対象やaliasを解決できない場合もFullにします。新しい実行方式や依存関係を追加するときは、この検出と選択テストを同じ変更で見直してください。
+非公開リポジトリの現行プランではブランチ保護を強制できないため、GitHub CIの成功と開発者のマージ承認を運用で維持します。
 
-PRはeventのbase SHAとcheckoutしたmerge commitを直接比較し、renameを追加・削除に分解して両方のパスを評価します。base更新の影響も含め、SHA不足・比較失敗・空差分ではFullへ倒します。PR更新時には同じPRの古い検証を取り消します。featureブランチへのpushでは別のCIを起動しません。マージ後のcommitはPRとは異なるため、pushのFullを再実行し、PRのartifactをデプロイへ流用しません。
+### 環境分離と資産の受け渡し
 
-非公開リポジトリの現行プランではブランチ保護を強制できないため、GitHub CI・必須ローカル5コマンドの成功と開発者のマージ承認を運用で維持します。低リスクPRのFastを許可するのは、このローカル全体検証とデプロイ前Fullがあるためです。main向けPRと高リスク変更はPR時点でもFullを要求します。必要時は `ci-full` ラベルを追加してください。ラベル削除だけでは既存の実行結果を変更しません。
-
-### Fullの実行と資産の受け渡し
-
-Fullは全workspaceのformat・lint・型・全テスト、本番／開発のWeb・Admin buildとWorker dry-runを実行します。個人設定なし・競合する.env・競合する.dev.varsの実Worker検証と型生成の一致も維持します。この3状態には異なるローダー分岐があるため、起動コストを理由に省略しません。
+個人設定なし・競合する.env・競合する.dev.varsの実Worker検証と型生成の一致を毎回確認します。この3状態には異なるローダー分岐があるため、起動コストを理由に省略しません。
 
 型チェックが成功したCI内では `build:assets` で同じVite・公開ロビー生成・chunk／WASM検査を実行します。手元の `bun run build` は型チェックを含みます。本番と開発でcanonical・robots等が異なるWeb資産は別々に生成します。
 
-本番は本番build直後に `web-production-<SHA>`、開発は開発build直後に `web-development-<SHA>` をuploadします。全検証とupload成功の後にだけ `full-validated=true` を出力します。deployはchecks成功・この出力・main/developへのpushの3条件を満たす場合だけ起動し、同じSHAのartifactをdownloadします。既存のmigration前後のbranch最新性チェック、デプロイの直列化、公開後検証を維持します。
+本番は本番build直後に `web-production-<SHA>`、開発は開発build直後に `web-development-<SHA>` をuploadします。deployは同じSHAのartifactをdownloadします。既存のmigration前後のbranch最新性チェック、デプロイの直列化、公開後検証を維持します。
 
 ### 実行の分割とテスト品質
 
-`bun run check` は引き続き全体検証です。テスト実行は上限2プロセスとし、Workerの重いファイルを先に2群へ分散します。全Workerファイルをサイズ順で軽い群へ割り当て、2つの独立したVitest／Miniflareで動かします。ファイル一覧のpatternはVitest設定と共有し、新規ファイルも必ずどちらか1群へ入れます。純粋関数とDOMのworkspaceも空いた枠で実行します。Bun内蔵型チェックはCPUを内部並列利用するためworkspace間では直列です。
+`bun run check` は `packages/ai` を除く全体検証です。テスト実行は上限2プロセスとし、Workerの重いファイルを先に2群へ分散します。全Workerファイルをサイズ順で軽い群へ割り当て、2つの独立したVitest／Miniflareで動かします。ファイル一覧のpatternはVitest設定と共有し、新規ファイルも必ずどちらか1群へ入れます。純粋関数とDOMのworkspaceも空いた枠で実行します。Bun内蔵型チェックはCPUを内部並列利用するためworkspace間では直列です。
 
 各Workerプロセス内の `--max-workers=1 --no-isolate` は維持します。[CloudflareのWebSocketとストレージ分離の制約](https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/#websockets)に対応するためです。共有永続ディレクトリは指定せず、各プロセスが独立したD1・DO・R2とmodule cacheを使います。Vitestの結果キャッシュは無効にし、並列プロセス間のresults.json書込み競合と過去の時間による実行順変更を避けます。各群内も明示的にファイルサイズ降順・同サイズはパス順で実行します。`bun scripts/ci/verifyWorkerIsolation.ts` は同じD1主キー・DO ID・R2キーへ異なる値を同時保存し、両方の書込み後に自分の値だけを読めることをbarrier付きで確認します。新しい並列化やCloudflare plugin更新時に実行してください。
 
@@ -163,11 +154,9 @@ Workerの全テストを分割して実行し、認証・認可・アカウン�
 
 ### 測定と運用
 
-この節の数値・workspace構成・実行条件は、以下に示すCI高速化時の対象コミットの記録です。現在の検証対象は上のFast／Full表に従い、撤去済みのAI・ローカル検討を含めません。
+この節の数値・workspace構成・実行条件は、以下に示すCI高速化時の対象コミットの記録です。当時のFast／Full判定と測定用の `ci-benchmark` jobは2026-11-14に廃止しました。現在の実行範囲は[CIの実行範囲](#ciの実行範囲)に従います。
 
 通常CIは1台のrunner内で並列化し、ジョブ数を増やして待機時間だけを短くする方式は採りません。依存installは基準CIで2〜3秒だったため、キャッシュの転送・無効化・保守コストを増やす変更は採用していません。PRとpushの全検証の重複は低リスクPRの対象選択で減らし、デプロイ前Fullは維持します。
-
-任意の `ci-benchmark` ラベル追加イベントは、別の測定専用jobを1回起動します。同じrunner・Bun・Nodeでbaseとheadのcheckを交互に2回実行し、D1／DO／R2分離とWeb・Admin・検討アプリのFast選択・check・buildを実行します。結果はsummaryと `ci-benchmark-<SHA>` artifactへ保存します。通常PRでは起動せず、ラベルを残したままpushしても測定jobは再実行しません。測定job自体の消費時間は、通常CIの費用削減とは別に数えます。
 
 2026-10-30の比較基準はdevelop `b9d5559069d63ef3fc6df183939e99900b1404ae` です。ActionsはUbuntu 26.04.1、Bun 1.4.4、Node 22。直近の参考実行は次のとおりです。
 
@@ -240,7 +229,7 @@ Fastの全3パターンと、別Miniflare間の同一D1主キー・DO ID・R2キ
 
 概要と詳細は同じ条件・集計済み時刻で値を照合します。長期の人数や待ち時間の分布が算出できない場合、日別人数や中央値の合算を使わず、理由と対象期間を示すことを検証します。既存クライアント・旧応答の不足を0や認証失効へ置き換えません。
 
-画面寸法・スクロール・ライト／ダーク・キーボード操作、実Google／Discord認証、migration・補完処理の実環境適用、反映後のD1読み書きと鮮度は手動確認または未確認事項として記録します。コード・設定を変更した各PRは必須5コマンドとFull CIを確認し、[PR提出前の検証](development.md#pr提出前の検証)へ従います。公開ポリシー・文書版と実際の取得範囲・保存区分の一致はPR2で検証します。
+画面寸法・スクロール・ライト／ダーク・キーボード操作、実Google／Discord認証、migration・補完処理の実環境適用、反映後のD1読み書きと鮮度は手動確認または未確認事項として記録します。コード・設定を変更した各PRは必須5コマンドとCIを確認し、[PR提出前の検証](development.md#pr提出前の検証)へ従います。公開ポリシー・文書版と実際の取得範囲・保存区分の一致はPR2で検証します。
 
 PR2の回帰テストは修正前に、管理GETによる21本の集約・削除SQLと、5分ジョブでの資格削除によって失敗することを確認しました。SQLの観測は実D1へ委譲し、表数・総SQL数は固定しません。追加migrationを適用した専用D1で、変更日だけの集計・空実行・再実行・日付境界・全体の重複排除・内部除外（管理者32人を含む）、期限時に未終了の局の未確定フラグ、途中のD1 batch失敗とロールバック、集計開始後の同時書き込みと次回回収、90日途中の匿名化と削除を検証します。本人集計の中断・再開・同じ履歴の再送・本人履歴移動・退会と遅延保存、HTTP／HTTPSの成功Cookie・改ざん・失効とログイン日時、計測Cookieなしの本人閲覧・自動取得で利用日を延長しないことも対象です。
 
@@ -715,7 +704,7 @@ bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.
 
 `bun run --cwd apps/worker test test/authDatabaseReads.test.ts test/sessionCookieRenewal.test.ts test/accounts.test.ts test/discordAuth.test.ts test/guestAccounts.test.ts test/privacy.test.ts` で確認します。`authDatabaseReads.test.ts` は実D1へ委譲するラッパーで発行SQLを観測し、認証インスタンスを繰り返し生成しても `sqlite_master`・`pragma_table_info` が発行されないこと、Cookieなし・計測Cookieだけ・ゲストCookieだけの登録者セッション確認がDBにアクセスしないことを確認します。全表数やSQL総数には固定しません。
 
-実行時に無効化したスキーマ検証の代わりに、全migration適用後のローカルD1に対して同じ認証設定からテスト内だけ `validateSchema: true` にしたインスタンスを作り、認証APIの完了まで待ちます。HTTP・HTTPSともに検証の成功を確認し、期待スキーマに存在しない表・列を指定した場合に不一致を検出することも確認します。共有DBの構造は変更しません。この検証は通常の `check` とFull CIのWorkerテストに含まれます。
+実行時に無効化したスキーマ検証の代わりに、全migration適用後のローカルD1に対して同じ認証設定からテスト内だけ `validateSchema: true` にしたインスタンスを作り、認証APIの完了まで待ちます。HTTP・HTTPSともに検証の成功を確認し、期待スキーマに存在しない表・列を指定した場合に不一致を検出することも確認します。共有DBの構造は変更しません。この検証は通常の `check` とCIのWorkerテストに含まれます。
 
 有効な登録者・ゲストとCookieの併存、空・改ざん・期限切れの登録者Cookieがある場合のゲストへの復帰抑止を確認します。既存のセッション更新・OAuth・退会・ゲスト連携テストも実行します。実Google・Discord認証、ブラウザのCookie保持と反映後のD1 Insightsは手動確認とし、未実施ならPRに記載します。効果測定は[開発文書](development.md#認証時のdb読み取り)に従います。
 
