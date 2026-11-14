@@ -313,3 +313,4 @@ export * from "./ratedCpuNames";
 export * from "./matchmaking";
 
 export * from "./registrationAnalytics";
+export * from "./kpi";

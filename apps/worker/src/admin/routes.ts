@@ -18,9 +18,12 @@ import { adminIdentity, type AdminEnv } from "./auth";
 import { readRegistrationAnalytics } from "../analytics/registrationAggregation";
 import { readAnalyticsFoundation } from "../analytics/foundation";
 import { readAnalytics } from "./metrics";
+import { kpiQuerySchema, kpiReportSchema } from "@tetraboard/protocol";
+import { readKpi } from "../kpi/report";
 export const adminRoutes = new Hono<{ Bindings: AdminEnv; Variables: { admin: StoredProfile } }>();
 for (const path of [
   "/admin/session",
+  "/admin/kpi",
   "/admin/analytics",
   "/admin/analytics/foundation",
   "/admin/analytics/registration",
@@ -43,6 +46,11 @@ adminRoutes.onError((_error, c) => {
 adminRoutes.get("/admin/session", (c) => {
   const user = c.get("admin");
   return c.json({ name: user.name, username: user.username });
+});
+adminRoutes.get("/admin/kpi", async (c) => {
+  const query = kpiQuerySchema.safeParse(c.req.query());
+  if (!query.success) return c.json({ message: "期間の指定が正しくありません（最大92日）。" }, 400);
+  return c.json(kpiReportSchema.parse(await readKpi(c.env, query.data)));
 });
 adminRoutes.get("/admin/analytics", async (c) => {
   const query = adminAnalyticsQuerySchema.safeParse(c.req.query());

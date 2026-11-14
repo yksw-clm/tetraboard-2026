@@ -24,7 +24,7 @@
     "@types/node": "^22",
     "typescript": "^5.5.2",
     "vitest": "^4.1.0",
-    "wrangler": "^4.142.0"
+    "wrangler": "^4.145.0"
   },
   "dependencies": {
     "@tetraboard/four-reversi": "workspace:*",
