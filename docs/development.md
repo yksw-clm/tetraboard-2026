@@ -23,10 +23,10 @@ CPUの探索方式・上限・評価値など、現在の採用仕様はルー�
 ## 共通の作業手順
 
 1. [AGENTS.md](../AGENTS.md) の作業・承認・検証ルールを確認し、READMEの対象箇所と、ゲーム固有の変更なら対象ゲームのルール正本を読みます。
-2. コードの作成・変更・レビューでは [Code Principles](#code-principles)、[Naming](#naming)、[Comments](#comments) を確認します。ローカル起動が必要な場合は [Local Development](#local-development)、検証環境は [Checks](#checks) と [テスト方針の実行環境](testing.md#実行環境) を参照します。
+2. コードの作成・変更・レビューでは [Code Principles](#code-principles)、[Naming](#naming)、[Comments](#comments) を確認します。ローカル起動が必要な場合は [ローカル開発と検証](runbooks/local-dev.md)、検証環境は同じ文書 と [テスト方針の実行環境](testing.md#実行環境) を参照します。
 3. 下表から必要な仕様・実装・テストを確認します。共通部品や通信・時計・保存を横断する変更では、関連する行の説明と契約も読みます。案内にない対象は見出し・キーワードを検索して参照範囲を広げます。
 4. 仕様と実装に差があれば、承認指示・正本・Git履歴・利用できるIssue／PRを照合し、文書の陳腐化か実装の不具合かを判断します。未決定事項や矛盾を推測で埋めず、開発者に確認します。
-5. 変更に伴う仕様文書と実装案内を更新し、関連文書を検索して現在仕様として旧説明が残っていないか確認します。[PR提出前の検証](#pr提出前の検証) を行い、[PRテンプレート](../.github/pull_request_template.md) に対象コミット・環境・結果・未確認事項を記載します。
+5. 変更に伴う仕様文書と実装案内を更新し、関連文書を検索して現在仕様として旧説明が残っていないか確認します。[PR提出前の検証](runbooks/local-dev.md#pr提出前の検証) を行い、[PRテンプレート](../.github/pull_request_template.md) に対象コミット・環境・結果・未確認事項を記載します。
 
 ## Workerとの互換性と定期処理
 
@@ -64,7 +64,7 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 | チャット・スタンプ                       | [チャット](../README.md#チャット)、[保存とモデレーション](../README.md#チャットの保存期間とモデレーション)、[スタンプ](../README.md#ルームのスタンプ)             | [スタンプ](#ルームのスタンプ)、[gameRoom.ts](../apps/worker/src/rooms/gameRoom.ts)、[useSessionChat.ts](../apps/web/src/features/room/useSessionChat.ts)、[useRoomStamps.ts](../apps/web/src/features/room/useRoomStamps.ts)                                                                  | [スタンプの確認](testing.md#ルームのスタンプの確認)、[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)                                                                      |
 | 戦績・ランキング・戦型・バッジ           | [戦績](../README.md#戦績の表示)、[ランキング](../README.md#ランキングの表示)、[バッジ](../README.md#バッジ)、[四人将棋の戦型](rules/four-shogi.md#戦型の成立判定) | [戦績集計](#本人の戦績集計)、[ランキング](#ゲーム別のランキング)、[戦型解析](#四人将棋の戦型解析と通知)、[バッジ](#バッジ判定と画像)、[accounts](../apps/worker/src/accounts/)                                                                                                                | [accountStats.test.ts](../apps/worker/test/accountStats.test.ts)、[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、[バッジ通知の確認](testing.md#バッジ獲得通知issue-122) |
 | 管理画面・計測・フィードバック・お知らせ | [計測画面](../README.md#計測用管理画面)、[フィードバック](../README.md#フィードバック受付とお知らせ)、[お知らせ管理](../README.md#お知らせの管理とロビー掲載)     | [管理画面](#計測用管理画面の開発と公開)、[フィードバック運営](#フィードバックの受付運営)、[お知らせ](#お知らせの保存管理公開)、[admin](../apps/worker/src/admin/)、[apps/admin](../apps/admin/src/)                                                                                           | [adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)、[feedback.test.ts](../apps/worker/test/feedback.test.ts)、[announcements.test.ts](../apps/worker/test/announcements.test.ts)     |
-| 公開・環境設定・CI                       | [開発と本番公開](../README.md#開発と本番公開)、[AGENTS.md](../AGENTS.md)                                                                                          | [本番デプロイ](#本番デプロイ)、[Checks](#checks)、[個人設定からの分離](testing.md#個人設定からの分離)、[ci.yml](../.github/workflows/ci.yml)、[buildAssets.ts](../scripts/buildAssets.ts)                                                                                                     | [testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)、必須のcheck・build・Worker dry-run                           |
+| 公開・環境設定・CI                       | [デプロイと環境](runbooks/deploy.md)、[AGENTS.md](../AGENTS.md)                                                                                          | [ローカル開発と検証](runbooks/local-dev.md)、[個人設定からの分離](testing.md#個人設定からの分離)、[ci.yml](../.github/workflows/ci.yml)、[buildAssets.ts](../scripts/buildAssets.ts)                                                                                                     | [testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)、必須のcheck・build・Worker dry-run                           |
 | 五目並べ                                 | [追加範囲](../README.md#五目並べ)、[ルール正本](rules/gomoku.md)                                                                                                  | [実装](#五目並べの実装)・[計画](#五目並べの実装計画)、[ゲームの必須登録](#ゲームの必須登録と型の対応)                                                                                                                                                                                         | [エンジン](../packages/gomoku/test/)、[Worker](../apps/worker/test/gomokuRoom.test.ts)、[DOM](../apps/web/test-dom/gomoku.test.tsx)                                                                    |
 | 四人五目並べ                             | [追加範囲](../README.md#四人五目並べ)、[ルール正本](rules/four-gomoku.md)                                                                                         | [実装](#四人五目並べの実装)・[計画と完了条件](#四人五目並べの実装計画)                                                                                                                                                                                                                        | [エンジン](../packages/four-gomoku/test/)、[Worker](../apps/worker/test/fourGomokuRoom.test.ts)、[DOM](../apps/web/test-dom/fourGomoku.test.tsx)                                                       |
 
@@ -124,7 +124,7 @@ Webの`features/matchmaking`は登録者の参加、10秒の継続、再読み�
 
 Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v1.json`、探索設定とhashは既存の`profiles-v1.json`に分けます。旧CPUのlevel 1/2フィールドは互換用に維持し、実際のレベルとprofileは省略可能なcpuProfileへ保存・表示します。専用ルームはこれをLv2として表示しません。Engine 0.2.0はAPI v2のルール識別子v2／局面版2を受理し、旧契約も維持します。
 
-4ゲームのレート戦は開発・本番それぞれの専用AI WorkerへService Bindingで接続します。本番は `AI_RATED_ONLY=true` で通常ルーム・大会を従来CPUのまま保ちます。[ゲーム別のAIコンテナ構成](architecture.md#ゲーム別のaiコンテナ)、[本番AIと4ゲーム同時公開](#本番aiと4ゲーム同時公開)を参照してください。開発AIの更新は `bun run --cwd packages/ai deploy:cloud:development`、本番はmainのActionsから同じコミットのAIをアプリより先に公開・検証します。削除済みの検証Workerは再作成しません。
+4ゲームのレート戦は開発・本番それぞれの専用AI WorkerへService Bindingで接続します。本番は `AI_RATED_ONLY=true` で通常ルーム・大会を従来CPUのまま保ちます。[ゲーム別のAIコンテナ構成](architecture.md#ゲーム別のaiコンテナ)、[本番AIと4ゲーム同時公開](runbooks/deploy.md#本番aiと4ゲーム同時公開)を参照してください。開発AIの更新は `bun run --cwd packages/ai deploy:cloud:development`、本番はmainのActionsから同じコミットのAIをアプリより先に公開・検証します。削除済みの検証Workerは再作成しません。
 
 ## 四人リバーシのレート戦の実装順序
 
@@ -366,81 +366,6 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 | 7   | `docs: 四人五目並べの実装案内と検証範囲を更新する`             | 実装・テストへの入口、採用したCPU値、6ゲームの実装済み範囲を正本・開発・テスト・構成文書へ反映。対象コミット・検証環境・測定結果・未確認事項をPRへ記録                    |
 
 GameIdを登録すると各層の型付き登録が必要になるため、5番で未対応の画面・保存契約・集計を残しません。差分が大きい場合は、公開登録前に準備できる内部部品を先行コミットに分けます。コミットの分割は実装の都合で調整できますが、承認済みの仕様・初回範囲・完了条件は変更しません。
-
-## Local Development
-
-リポジトリのルートで `bun run dev` を実行すると、WorkerのローカルD1マイグレーションを適用してからWeb・Worker・Adminの開発サーバーが同時に起動します。
-どちらもLANから接続できます。
-
-スマートフォンでは開発機と同じLANに接続し、Viteの起動ログに表示される `Network` のURLを開きます。ポートは `/5173` ではなく `:5173` とし、例は `http://192.168.68.52:5173/` です。LANのHTTPでは `crypto.randomUUID()` が利用できないため、WebのUUID生成は `shared/createUuid.ts` の `crypto.getRandomValues()` によるUUID v4を使います。フィードバック送信ID、アクセス解析ID、スタンプのrequestIdで共用します。HTTPS限定APIを使う機能は、個別に対応可否を判定します。
-通信の確認にはWorkerの `/healthz` を使います。ロビー画面にはAPIステータスや生のAPI応答を表示しません。
-開発機からは `http://127.0.0.1:8787/healthz` でWorkerを直接、Viteの `Network` URLに `/api/healthz` を付けてWeb経由の通信を確認できます。
-
-規約・年齢条件の確認後、作成と入室のHTTPリクエストに `X-Legal-Consent: 2026-10-21` を付けます。版は `packages/protocol/src/privacy.ts` の `legalVersion` と一致させます。
-
-ルーム作成は `POST http://127.0.0.1:8787/rooms` に `{"name":"てとら","quickPlay":false,"mode":"singles"}` をJSONで送ります。`mode` は `singles` または `doubles` の必須項目です。成功応答の `room.id` に含まれる5桁のIDを使い、`GET http://127.0.0.1:8787/rooms/<ID>` で保存した部屋を確認できます。Workerを再起動した後も同じIDで取得できます。開発時のDurable ObjectとD1の状態は `apps/worker/.wrangler/state` に保存されます。D1だけを準備する場合は `bun run --cwd apps/worker db:migrate:local` を実行します。
-既存ルームへの入室は `POST http://127.0.0.1:8787/rooms/<ID>/players` に `{"name":"二人目"}` をJSONで送ります。作成・入室の成功応答は `{ "room": ..., "membership": { "playerId": ..., "role": ..., "token": ... } }` です。満室なら409を返します。本人確認は `GET http://127.0.0.1:8787/rooms/<ID>/me` に `Authorization: Bearer <token>` を付けて行います。トークンは公開GETやWebSocketの応答には含めません。
-Webの `/` は総合ロビーを表示します。各ゲームロビーの「CPUと遊ぶ」「公開ルームを作る」、公開一覧の「参加する」から入力ダイアログを開きます。名前などを入力して確定すると、`/rooms/<ID>` に移動します。「ルーム番号で参加」の入力入口は設けず、公開一覧と招待URLを使います。ルームページはGETで保存済みの情報を確認してから表示し、WebSocket接続後に受信したルーム情報と接続状態を表示します。別の画面からの入室もWebSocketで反映します。ページを再読み込みしても同じルームを取得できます。接続が切れた場合はGETで状態を再取得してから再接続します。開発機のブラウザで確認後、スマートフォンでもViteの `Network` URLから同じルームURLを開いて確認します。
-作成・「CPUと遊ぶ」のダイアログでシングルス・ダブルスを選択します。初期値はシングルスです。「CPUと遊ぶ」を確定すると、選択したモードでホストは準備完了、CPU 3体は作成時に選んだレベル（省略時はLv1）で待機します。ホストが「対局開始」を押した後、CPUの各手番は最低2秒待ってから自動で進みます。通常の待機部屋では、ホストがCPUの追加・削除・レベル変更とモード変更を行えます。モード・時間設定の変更時は人間全員の準備状態を解除します。人間とCPUの合計が4席で、接続中の人間全員が準備完了なら開始できます。設定変更と自動着手はWebSocketのルームスナップショットで他の画面へ反映されます。
-同じタブで再読み込みすると、保存した参加資格をサーバーで確認してホスト・プレイヤーの区分と「[あなた]」を表示します。別の独立したタブから資格なしで通常URLを開いた場合は観戦者として表示し、空席のある待機中なら状況カードから参加できます。
-ホスト・プレイヤーのWebSocket接続は、接続後に資格トークンを送って認証します。認証後の「準備完了」「準備取消」はWebSocketメッセージで送信し、Durable Objectが本人の状態を保存して全接続へ最新のルーム情報を配信します。別のタブで同じ部屋を観戦し、表示が更新されることを確認できます。GET、再読み込み、Worker再起動後も準備状態を取得できます。観戦者や無効な資格では準備状態を変更できません。
-四人リバーシの着手を確認するには、4つの独立したタブで同じルームへ入室し、全員が準備完了にします。ホストが「対局開始」を押すと担当色がランダムに割り当てられ、黒の担当者が盤面のC4をクリックできます。座標は左上A1が `{x:0,y:0}` で、C4は `{x:2,y:3}` です。Durable Objectが `packages/four-reversi` で合法手を判定し、更新した盤面と手番を全接続へ配信します。`bun run test` でエンジンの判定を確認できます。
-四人リバーシのエンジンは、シングルス・ダブルスの自動パス、終局、石数と順位・勝敗の確定、脱落色を飛ばす進行を扱います。ルームは保存したモードで開始し、エンジンが終局したら前局の最終盤面と結果を保持して自動で待機状態へ戻ります。Webは最終局面から棋譜モードになり、「←」・Select・「→」で開始局面や着手・パス・脱落へ移動できます。前局の結果は「結果」ボタンでダイアログ表示します。人間のReadyを改めて揃え、ホストが次の対局を開始します。
-公開ロビーは `/games/four-reversi` で表示します。`GET http://127.0.0.1:8787/rooms` はD1索引から更新時刻の新しい順に20件返し、続きは応答の `nextCursor` を `?cursor=` に指定して取得します。参加ダイアログではゲストはニックネームを入力し、ログイン中はプロフィールを確認します。観戦は入力なしでルームページを開きます。終局後は対局前として一覧に表示されます。索引の反映が遅れた場合も、参加と観戦の可否はGameRoomが判定します。今回より前に保存したローカルルームは新しい索引へ移行しないため、動作確認には新規ルームを使用します。本番D1 `tetraboard-2026-prod-db` は作成済みです。`wrangler.jsonc` の `env.production` に本番用IDを設定し、トップレベルのローカル用IDは置き換えません。本番のマイグレーションは初回公開時にCDから適用します。
-4つの独立したブラウザタブで1人ずつ入室・準備完了し、ホストが開始した後、各手番の担当タブで合法手を選び続けると、終局後の再戦待機画面に同じ結果が全タブで表示されることを確認できます。1タブを再読み込みしても同じ結果が表示されます。
-ルーム内チャットは認証済みのプレイヤーが送信し、観戦者も閲覧・通報できます。投稿とシステムログは合計100件を上限に再接続後も復元します。運営者APIのローカル確認では `apps/worker/.dev.vars.example` を参考に、追跡対象外の `.dev.vars` に `MODERATOR_TOKEN` を設定します。`GET /admin/reports` と `POST /admin/reports/:id/actions` にその値をBearerトークンとして渡します。通報データのマイグレーションは通常の `bun run dev` 時にも適用されます。期限切れ通報は毎時の定期処理で削除されます。
-待機中の退室では席が解放され、ホストが抜けると最も早く入室した人へ役割が移ります。対局中は自分の手番で投了でき、退室や30秒の切断期限切れ、持ち時間切れでも脱落します。再読み込み・再接続が期限前なら同じ参加資格で復帰し、期限後は閲覧のみできます。対局はルームの持ち時間・秒読み設定で進み、初期設定は各人5分＋1手30秒です。GETの応答は `{ "room": ..., "presence": { "hostPlayerId": ..., "connectedPlayerIds": [...] }, "serverNowMs": ... }` で、WebSocketの `room.snapshot` にも接続情報と送信時のサーバー時刻が含まれます。接続情報は認証済みソケットから算出し、脱落後の切断・復帰も配信します。Webはこの時刻を基準に残り時間を表示します。復帰期限と時計の期限にはDurable Object Alarmを使い、Workerテストではアラームと保存済み期限を操作して確認します。以前のエンジン状態で保存されたローカルルームの移行は行わないため、進行確認には新規ルームを使用します。
-
-招待リンクはルーム情報の「ルームを共有」で開くダイアログから取得します。`/rooms/<ID>?invite=<instanceId>` を資格のない別タブで開くと、空席のある待機中ルームでは参加ダイアログを自動表示します。閉じれば観戦でき、状況カードから再度参加できます。参加時は `POST /rooms/<ID>/players` のJSONに `instanceId` を追加し、WebSocketは `/rooms/<ID>/ws?instanceId=<instanceId>` へ接続します。識別子が不正なら400、不一致なら410を返します。従来の識別子なしリクエストも受け付けます。コピーAPIが使えないLAN上のHTTPなどでは、同じ共有ダイアログのURL欄と失敗案内から手動コピーできます。共有ダイアログ・X募集・OGPの実装は [ルーム共有の実装計画](#ルーム共有の実装計画) を参照します。
-
-## Checks
-
-ルートで `bun run check` を実行すると、整形確認、lint、全Workspaceの型チェック、6ゲームのエンジン、Worker、Web・Adminの表示ロジックのテストを実行します。`bun run test` は各workspaceのテストを自動収集し、6エンジン・protocol・共有盤面・Worker・Web・AdminとCI選択方針を検証します。上限2プロセスで実行し、Workerは別々のMiniflareに分けます。診断用の `bun run test:serial` は同じ全ファイルを直列実行します。WorkerのテストはCloudflare Workers実行環境でDurable ObjectとWebSocketを検証します。
-
-`bun run typecheck` は全workspaceの `typecheck` を順番に実行し、Bun内蔵の `bun check --no-script --all` で検査します。workspaceの追加は従来どおり自動で対象になります。Webは `tsconfig.check.json` からapp・node・test・type-tests・buildの5設定、Workerは同名の設定から本体・test・scriptsの3設定を参照します。ほかのworkspaceは各 `tsconfig.json` を使い、従来の検査対象を維持します。CI選択・実行スクリプトも専用tsconfigで検査します。同時に各workspaceから全CPUを使う処理を起動しないよう、workspace間は直列にします。Web・Adminのbuild前の型検査も内蔵チェッカーを使います。Webのbuildは従来どおりapp・node・buildを検査し、共有のBun版確認スクリプトもbuild設定に含めます。
-
-miseとCIはBun 1.4.4へ固定しています。`scripts/checkBunVersion.ts` はmiseの指定より古いBunを内蔵チェック前に拒否し、旧Bunで既存checkスクリプトが再帰実行されることを防ぎます。シェルのPATHに古いBunが残っている場合は `mise exec -- bun run typecheck` で実行してください。protocolは `types: ["bun"]` を明示し、暗黙の型定義読込みに依存しません。
-
-比較用の従来方式は `bun run typecheck:tsc`、部分比較は `bun run --cwd <workspace> typecheck:tsc` です。通常CIで両方式を重複実行しません。Bun内蔵のTypeScriptと標準型定義はインストール済みTypeScriptやエディタの版とは独立しており、100%互換は前提にしません。診断差は比較コマンドと既存の否定fixtureで調べます。TypeScriptパッケージは比較用とWorkerテスト設定のJSONC解析にも必要なため維持します。Bunを更新するときは[測定条件と互換性の確認](testing.md#bun-144での型チェック比較2026-10-24)も参照してください。
-
-GitHub Actionsの実行範囲は [CIの実行範囲](testing.md#ciの実行範囲) を参照してください。`scripts/ci/run.ts` が `packages/ai` 以外のworkspaceを並列（CPU数と4の小さいほう）で実行し、WorkerのテストはVitestの `--shard` で2つに分けます。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。
-
-Workerテストは `vitest.config.mts` でローカルのD1・R2・SQLite対応Durable Objectとテスト専用のbindingsを指定します。追跡済みWrangler設定はJSONCとして入口・互換日・互換フラグだけを読み、Wranglerの開発用設定ローダーを通しません。管理者はテストごとに指定し、開発用 `.dev.vars`・`.env` やプロセスの秘密設定を取り込みません。詳細と回帰検証は [個人設定からの分離](testing.md#個人設定からの分離) を参照してください。
-
-Workerの `typecheck` は `bun run cf-typegen` を呼び、型生成の入力を追跡済み `.dev.vars.example` に固定します。`--env-file` とコマンド内の `CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=true`・`CLOUDFLARE_INCLUDE_PROCESS_ENV=false` により、個人設定から型のキーを推定しません。設定例には秘密値を記載せず、秘密設定のキーを追加・削除するときは同じ変更で更新します。生成ファイルは従来どおり追跡対象外です。
-
-Workerの `gameBoundary.test.ts` は公開 `/api` の作成・一覧・本人の履歴・戦績で、game省略のリバーシ互換、明示した両ゲームの分離、未知ID・空文字の拒否を検証します。`commonRoomBehavior.test.ts` は同じシナリオを6ゲームへ適用し、待機中の参加・観戦・準備・資格認証・接続復帰・チャットを実HTTP／WebSocketで確認します。関連テストだけを実行する場合は `bun run --cwd apps/worker test test/gameBoundary.test.ts test/commonRoomBehavior.test.ts` を使います。共通fixtureは公開応答と対象IDに一致する通知を待ち、テスト終了時に席・資格・ソケットを解放します。
-
-### PR提出前の検証
-
-コード・設定変更では、PRを作成する前にルートから `bun run check` を成功させます。buildとdeployのdry-runはGitHub CIが実行します（[ADR 0007](adr/0007-ci-and-tests.md)）。CIと同じ確認を手元で行うときは、次のコマンドを使います。
-
-```sh
-bun run check
-bun run build
-bun run --cwd apps/worker deploy:dry-run
-bun run build:development
-bun run --cwd apps/worker deploy:dry-run:development
-```
-
-自動検証はBunの純粋関数テスト、Bun＋happy-domの部品・hookテスト、Worker統合テストへ集約します。ブラウザ起動・画面寸法・ネイティブ入力・実画像デコードの検証とレポート生成は廃止します。`bun run check` の目標は180秒以内です。[テスト方針](testing.md)に実行環境と各検証の対応を記載します。
-
-PR本文には検証対象コミット、実行環境、各コマンドの結果、未確認事項を記載します。PR提出後にコード・設定を変更した場合と、main・develop取り込みでコード・設定が変わった場合も上記の必須コマンドを再実行して結果を更新します。文書だけの変更では同一コード・設定の直前の成功結果を再利用できますが、検証済みコミットを明記し、文書の整形確認と `git diff --check` は最終差分で行います。マージはGitHub CI成功、必須のローカル検証成功、差分と結果に対する開発者の承認を条件とし、ローカル成功でGitHub CIを代替しません。
-
-### 変更内容に応じた確認
-
-変更したロジックに応じて、既存の純粋関数・部品・hook・Worker統合テストへ確認を追加します。画面幅やブラウザ別の重複ケースは追加しません。
-
-ロビーはゲーム別の作成・参加API、入力・時間設定、認証失効、送信ロック、取得失敗と追加取得を軽量テストで確認します。遊び方は各ゲームのルール正本と照合します。
-
-ルームは待機中の操作禁止、準備・開始、CPU・モード・時間設定、投了・退室、再戦、接続とホスト権限、revision・局ID・送信待ちの制御をWorkerとWebのテストで確認します。時計は基本時間から秒読みへの切替、残り10秒／9秒、サーバー時刻と経過時間を確認します。
-チャットは100文字／101文字、100件保持、入退室・CPU・形式変更ログ、初回・再接続時のtoast抑止、通常投稿とシステム通知を確認します。送信後はサーバーの履歴反映を確認して入力をクリアし、拒否・切断時は入力を残します。旧投稿は読み込み時に通常投稿へ正規化し、過去200文字の履歴・通報も読み込めます。途中スクロールと最下部追従、タブ切替時の保持は画面の仕様として維持します。
-Webの純粋関数テストは初回待機の初期盤面・再戦待機の最終盤面、入室順、リバーシの全24配色・本人4色・観戦の黒基準・4方向の回転、脱落後の配置保持と再戦時の再抽選を確認します。直前局棋譜は盤面が前局、カードが現在の待機メンバー・入室順・準備状態であることを確認します。将棋の待機・対局・保存棋譜・持ち駒・回転は純粋関数とDOMテストを使います。
-盤面の `lastMove` はエンジンの着手時に更新し、ルームとともに保存・配信します。旧保存状態に座標がない場合は `null` として読み込み、次の着手から表示します。棋譜では選択局面に追従し、開始局面では消えます。着手可能なマスの丸い点、名前と王冠の一行表示、円形の接続バッジなどの表示仕様は維持します。3秒の通知は偽時計で境界を確認します。
-
-招待ダイアログの自動表示履歴は `useRoomInvitation` が `sessionStorage` に部屋番号・`instanceId` ごとに保存します。Reactの初期化中には書き込まず、自動表示の描画後に記録します。閉鎖前に更新しても表示済みとして扱い、手動の参加操作には影響させません。保存領域を利用できない場合も画面の操作を継続できますが、更新をまたぐ履歴保持は保証しません。招待URLの `invite` は保持し、部屋世代の検証を継続します。
-
-招待の自動案内はタブ・ルーム世代ごとに表示時に消費し、閉じた後の更新とロビー往復では繰り返しません。独立したタブ・別世代では初回表示します。参加済み・対局中・満室では消費せず、保存領域が利用できなくても閉じて観戦・手動参加できます。`useRoomInvitation` のDOMテストと純粋関数テストで確認します。番号再利用後の古い招待は、読み込み・参加・WebSocket接続・再接続で別の部屋へ進まないことをWorkerとWebのテストで検証します。
 
 ## ゲームの必須登録と型の対応
 
@@ -986,114 +911,6 @@ bun run --cwd apps/worker test test/feedback.test.ts
 テスト結果は通常CIのログへ出力し、HTML・スクリーンショット・traceのレポートartifactは生成しません。デプロイに使う `web-production-<コミットSHA>`・`web-development-<コミットSHA>` のビルドartifactは維持します。
 
 既存のWorker E2Eと専用SQL・Playwright設定は削除します。実APIの権限・再送・保存・CPU・閉鎖は通常のWorker統合テストで確認します。画像変換は入力検証と状態・出力境界をDOMテスト、WASMの同一origin asset参照はビルド時の検証、assetへのHTTP転送はWorkerテストで確認します。既存のPlaywright依存は維持します。
-
-## 本番デプロイ
-
-### ブランチと公開先
-
-最新developから `feat/xxx`・`fix/xxx`・`docs/xxx`・`chore/xxx` を作り、ローカル検証を成功させてdevelop向けPRを開きます。開発環境で確認後、develop→mainのリリースPRをマージコミットで取り込みます。両ブランチへの直接push・force pushは禁止します。GitHubの既定ブランチはdevelopです。非公開リポジトリでは現在のGitHubプランによる保護を利用できないため、GitHub CI成功、必須のローカル検証成功、開発者の確認を運用で必須にします。他者レビューは必須ではありません。初回も差分と検証結果の承認後にマージし、それ以降はPRのマージを公開の契機とします。
-
-| 設定           | 本番の値                                          |
-| -------------- | ------------------------------------------------- |
-| Wrangler環境   | `production`                                      |
-| Worker         | `tetraboard-2026`                                 |
-| URL            | `https://tetraboard.net`                          |
-| D1             | `tetraboard-2026-prod-db`                         |
-| D1接続名       | `APP_DB`                                          |
-| R2             | `tetraboard-2026-objects-prod` / `OBJECT_STORAGE` |
-| Durable Object | `GAME_ROOM` / `GameRoom`（SQLite）                |
-
-本番用D1はAPACの配置ヒントで新規作成済みです。IDは `env.production.d1_databases` に記載しています。通常の `bun run dev` とWorkerテストはトップレベルのローカルDBだけを利用します。productionの `remote: false` はローカル実行時にリモートDBへ接続しない指定で、本番Workerでは本番D1へ接続します。ローカルデータは移行しません。
-
-### 初回の認証設定
-
-開発環境の初回準備・ブランチ移行は次節に従います。本番用の既存Secretは維持します。
-
-### 開発環境の準備と移行
-
-`env.development` はWorker `tetraboard-dev`、URL `https://tetraboard-dev.chaossi-lab.workers.dev`、D1 `tetraboard-dev-db`、R2 `tetraboard-dev-objects` を使います。GAME_ROOMはこのWorker専用のSQLite Durable Objectです。本番からデータをコピーせず、アカウントも新規登録します。
-
-1. 初回のみ最新mainからdevelopを作成します。初回ブランチ作成は直接push禁止の例外です。そこから作業ブランチを作り、設定変更はdevelop向けPRにします。
-2. Cloudflareの認証を用意し、`apps/worker` で `bunx wrangler d1 create tetraboard-dev-db --location apac` と `bunx wrangler r2 bucket create tetraboard-dev-objects` を実行します。返されたD1 IDを `env.development.d1_databases` に記録します。ゼロ始まりIDは未準備の印で、開発用リモートmigration・deployコマンドは停止します。dry-runは実リソースの存在や権限を保証しません。
-3. GitHub Actionsの専用APIトークンが開発用D1・R2も操作できることを確認します。Google・Discordの既存OAuthアプリに開発URLの `/api/auth/callback/google`・`/api/auth/callback/discord` を追加します。
-4. `wrangler secret put <名前> --env development` でGoogle・Discord設定を登録します。BETTER_AUTH_SECRET・FEEDBACK_HASH_SECRET・MODERATOR_TOKENは開発専用の乱数を使います。秘密値は会話・ログ・Gitに記載しません。Secret登録がWorkerを作成する場合も初回公開承認後に行います。初回マージ前に必要なSecretを揃えます。
-5. 検証結果と差分の承認後、developへマージして初回公開します。開発環境で登録した本人のIDをADMIN_ACCOUNT_IDSに設定し、ログイン・画像・棋譜・ルーム・WebSocket再接続・管理画面と本番データとの分離を確認します。
-6. 開発環境の動作確認後、GitHubの既定ブランチをdevelopへ変更します。未マージPRがあれば差分を確認してdevelop向けに変更します。その後develop→mainのリリースPRを提出し、CI成功と開発者承認後にマージします。
-
-開発用コマンドは `bun run build:development`、Workerの `deploy:dry-run:development`、`db:migrate:development`、`deploy:development` です。公開確認は `bun scripts/checkDeployment.ts https://tetraboard-dev.chaossi-lab.workers.dev development`。本番は既存コマンドを維持します。リモートmigrationは通常Actionsからのみ実行します。
-
-開発ビルドはVITE_PUBLIC_ORIGINとVITE_SEARCH_INDEXABLEを設定し、初期HTMLと画面内遷移のcanonical・robotsを一致させます。開発Workerは101応答を除いてX-Robots-Tagを付与します。robots.txtはnoindexを読めるようクロールを許可し、サイトマップの案内を省きます。サイトマップは空のXMLです。本番のSEO確認は維持します。
-
-緊急修正も原則develop経由です。復旧は修正またはrevertのPRで行い、DB・Durable Object保存形式と旧コードの互換性を確認します。マイグレーションの自動巻き戻しはしません。
-
-### 本番の認証設定
-
-1. Cloudflareで本プロジェクト専用APIトークンを新規作成します。「Edit Cloudflare Workers」を基に、対象アカウントだけを選び、Workersの公開に必要な権限とD1の編集権限と対象R2バケットを読み書きできる権限を付与します。workers.devでの公開には独自ドメインのZone権限は不要です。ローカルWranglerのOAuthトークンや他プロジェクトのトークンは流用しません。
-2. GitHubのリポジトリ設定 → Secrets and variables → Actions → Repository secretsに `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を登録します。値をソース・PR・会話・ログに記載しません。GitHub Environmentは利用しません。
-3. 初回公開直後に `bunx wrangler secret put MODERATOR_TOKEN --env production` を `apps/worker` から実行し、運営者API専用の十分に長い乱数を非表示の入力欄へ渡します。APIトークンとは別の値を使い、運営者の安全な保管先で管理します。未登録の間は運営者APIの認証は成功しません。登録後に認証付き運営者APIを確認します。
-
-CloudflareのGit連携は設定せず、公開経路はこのリポジトリのActionsに一本化します。本番Worker・D1の名前は今後も変更せず、ドメインを変える場合も同じリソースを利用します。
-
-### CI/CDの流れ
-
-CIの実行範囲は[CIの実行範囲](testing.md#ciの実行範囲)を参照してください。工程別の秒数をsummaryへ記録します。CIは型検査後の `build:assets` で重複検査を避けます。PRジョブはCloudflareの認証情報を使いません。
-
-公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
-
-main・developのpushでは、`checks` ジョブが同じ実行の対象環境の成果物をデプロイジョブへ渡します。`ai` ジョブ（AIに関わる差分があるときとmainへのpushで実行）がlinux/amd64の3種類のイメージをビルドし、4コンテナを起動して全採用設定の合法手・版と4並列を検証します。`checks` の成功と、`ai` の成功またはskipを公開条件にします。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
-
-独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
-
-公開後は `scripts/checkDeployment.ts` でトップページのHTML、`/api/healthz` の応答、公開ルーム一覧のスキーマ、全16戦法の画像URLの成功応答・JPEGのContent-Type・ファイル先頭の識別バイトを検証します。実画像のデコードは行いません。各リクエストにはタイムアウトと最大5回の再試行を設けています。チェック・マイグレーション失敗時はデプロイへ進まず、公開後の確認失敗もActionsの失敗として残ります。
-
-### 本番構成のローカル確認
-
-リポジトリのルートから順に実行します。
-
-```sh
-bun run check
-bun run build
-bun run --cwd apps/worker deploy:dry-run
-bun run --cwd apps/worker db:migrate:preview
-bun run --cwd apps/worker preview:production
-```
-
-最後のコマンドはローカルサーバーを継続実行します。別のターミナルで `bun scripts/checkDeployment.ts http://127.0.0.1:8788` を実行します。プレビュー用DBは `.wrangler/production-preview` に隔離し、本番には書き込みません。
-ブラウザで `/games/four-reversi` と `/rooms/<ID>` を直接開き、招待・参加・観戦・CPU対戦・チャット・再接続を確認します。未知の `/api/*` がSPAのHTMLにならないこと、WebSocketのUpgradeと資格確認・部屋世代の照合が保たれることも確認します。Workerテストは `/api` 経由のJSON・認証・WebSocketと404を検証します。
-
-初回公開後も本番URLで上記の主要導線を確認し、作成した確認用ルームから退室します。本番のマイグレーションはActionsからのみ適用し、ローカル確認時に `db:migrate:production` を使わないでください。
-
-### 失敗時の対応と将来のドメイン
-
-- CI失敗は修正してPRを更新します。秘密値不足や認証エラーはRepository secretsと権限を確認します。秘密値はログへ出さず、初回は必要なSecretが揃うまでマージしません。
-- マイグレーションは旧コードでも動く追加変更を基本とし、破壊的な変更は段階を分けて別途承認します。マイグレーション失敗時は公開されません。適用済みの変更は公開失敗やスキップ時にも残るため、自動でDBを巻き戻しません。
-- 公開後に不具合があれば、修正またはrevertのPRをCI成功後にマージして再デプロイします。DBやDurable Objectの保存形式に変更がある場合は旧コードとの互換性を確認し、互換性がなければ修正を前進適用します。
-- Actionsの実行履歴とCloudflareのWorkerログで障害を確認します。デプロイ時にはWebSocketが切断されるため、公開後に再接続も確認します。
-- 本番ドメインは `tetraboard.net` です。Worker・D1・R2の名前とIDを維持します。旧workers.dev URLは同じパス・クエリで308転送します。転送を静的アセットより先に処理するため `run_worker_first: true` と `ASSETS` を設定し、`/api` と `/api/*` はHono、画面・画像は `ASSETS.fetch` へ渡します。
-- 旧版の `/profile` は `/account`、`/games/game-…` と `/guest/name` は `/games/four-reversi` へ302転送します。旧ルーム・棋譜は移行しません。旧ルームの取得失敗は既存のエラー画面からロビーへ戻れます。ログイン状態とオリジン別の `sessionStorage` は移行せず、再ログイン・再入室します。
-- 切替前にアカウントの追加移行を済ませ、CI成功後にドメイン・`APP_ORIGIN`・CIの `PRODUCTION_URL` を同じ変更で切り替えます。ドメインの割当先、HTML・API・WebSocket、Googleログイン、プロフィールと既存棋譜を確認した後、旧Worker `tetraboard`、旧D1 `tetraboard-db-prod`、旧R2 `tetraboard-objects-prod` を削除します。削除前に旧版へ戻す場合は、ドメインの割当先を旧Workerへ戻します。
-
-### 本番AIと4ゲーム同時公開
-
-2026-11-11の開発者指示により、本番専用AI 4コンテナと4ゲームのレート戦を同時公開する構成です。本番の外部AIはレート戦だけで使い、通常ルーム・大会のCPU、ルール・時計・レート計算は変更しません。設定追加と実際の公開を区別し、以下の確認・承認が終わるまでmainへ取り込みません。
-
-- AI Workerは `tetraboard-ai-prod`、各ゲームは `basic`・最大1台・アイドル停止11分です。アプリの `AI_GATEWAY` は本番AIだけへ接続します。`AI_RATED_ONLY` は本番true、開発false、未指定時は従来動作です。四人ゲームの応答期限は四人リバーシ10秒・四人将棋5秒、二人ゲームは5秒を上限に時計期限を優先します。
-- 開発環境で4ゲームの冷起動、上限までの同時対局、取消・再接続・枠解放、終局・棋譜・レート保存、正常系で代替手が発生しないこと、AI障害時の代替手とレート対象外処理を確認します。各CPU設定・較正版・基準レートを固定し、特に四人将棋は人間混在試験の結果と開発者の採用判断を記録します。暫定値を確認なしに本番採用しません。
-- 必須ローカル5コマンドに加え、`bun run --cwd packages/ai deploy:cloud:dry-run:production` と `bun run --cwd packages/ai verify:images` を成功させます。後者はDockerを使い、公開先へ接続せず1/4 CPU・1GiBメモリの4コンテナを一時起動します。4並列はエミュレーションの速度差を考慮して要求ごとに最大60秒で回収し、合法手と受付上限を確認します。Cloudflareでの期限内成功率、冷起動やディスク割当の保証ではありません。終了時はこの検証が作成したコンテナとイメージタグだけを回収します。
-- develop向け実装PRの検証・承認・開発確認後、develop→mainのリリースPRへ対象SHA、全差分、マイグレーション一覧、検証対象・環境・結果・未確認事項を記載します。4ゲームすべての確認が完了するまで公開しません。コード・設定更新後は必須検証を再実行します。
-- 公開前に本番の未適用migration、旧コードとの互換性、D1復元可能時点、Secret・CDトークンのWorkers/DO/Containers・レジストリ権限と、開発を含むアカウントの利用上限を確認します。開発のアカウント・棋譜・レートはコピーしません。実OAuth、ゲスト連携、既存棋譜、管理画面、端末操作の確認を自動テストの成功と混同しません。
-
-公開日は運営者が決め、対局・大会が少ない時間を選びます。更新時の再接続を告知し、公開直後の確認担当を決めます。差分・検証結果への公開承認後、次の順で実施します。
-
-1. 本番専用の32〜256文字ASCII乱数 `AI_SERVICE_TOKEN` を安全な保管先へ生成します。`apps/worker` の `wrangler secret put AI_SERVICE_TOKEN --env production` と、`packages/ai` の `wrangler secret put AI_SERVICE_TOKEN --config cloudflare/wrangler.jsonc --env production` に同じ値を非表示入力で登録します。新規AI Workerの作成や既存Workerの更新を伴うため、これも承認された公開準備操作として扱います。既存の認証Secret・開発AIのtokenは変更しません。
-2. 認証付き公開確認のため、同じ値をGitHub Repository secret `AI_SERVICE_TOKEN_PRODUCTION` に登録します。これはアプリへ埋め込む値ではなく、Actionsの公開確認だけへ環境変数で渡します。値は引数・Git・PR・ログに出しません。
-3. リリースPRをマージコミットで取り込みます。mainのCIの `checks` と `ai` の成功後、AIに関わる差分があれば先頭SHAを確認してAIをデプロイし、`bun run --cwd packages/ai verify:deployment production` で4エンジンの実着手・要求ID・版・profile・合法性を確認します。初回は起動を含む最大60秒、その後は実際の応答期限で全採用設定を照合します。ゲームごとの確認要求は1件ずつとし、4並列の負荷確認はCIの一時コンテナだけで行います。固定の非個人局面だけを送り、healthだけで成功としません。
-4. AI公開確認が成功し、再度先頭SHAが一致する場合だけD1 migrationを適用します。適用後も先頭を確認し、アプリをデプロイします。AIとアプリは同じコミットのソースを使い、AIは更新前のアプリが使うAPI・profileも受理する互換更新とします。AI検証失敗時はDB更新・アプリ公開へ進みません。AIだけ公開済みの場合も自動削除・巻き戻しはしません。
-5. 既存の `checkDeployment.ts` と、4ゲームの受付・着手・終局保存・レート反映、開幕案内、通常ルームの従来CPU、ログイン・既存棋譜・再接続を本番で確認します。ActionsのSHA、Worker版と結果をリリースPRへ記録します。
-
-公開直後30分、翌日、1週間後にゲーム別の応答時間、タイムアウト・代替手、枠解放、保存待ち、コンテナ稼働時間と費用を確認します。4台を用意しても常時起動しません。メモリ・ディスクはアイドル中も割当分が課金され、月枠は開発環境と共有します。費用の過去条件はAIの測定記録を参照し、本番の実使用量は別途確認します。
-
-レート結果の不整合・保存不能、または同じゲームで正常対局が連続して成立・進行できない場合は、そのゲームの受付停止PRをdevelop経由で作成します。共通障害は4ゲームを停止します。`MATCHMAKING_ENABLED`（四人リバーシ）、`FOUR_SHOGI_MATCHMAKING_ENABLED`、`SHOGI_MATCHMAKING_ENABLED`、`REVERSI_MATCHMAKING_ENABLED` の対象だけをfalseにします。AI接続・有効化設定・token・コンテナは残し、新規joinを拒否します。受付済み待機は既存の成立・取消・失効処理、成立済み局は終局・保存まで継続します。停止にもCI・承認・再デプロイが必要で、即時停止ではありません。復旧は互換性確認済みの修正・revert PRとし、DBの自動巻き戻しや未確認の旧版復元は行いません。
 
 ## Code Principles
 

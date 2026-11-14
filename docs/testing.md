@@ -12,7 +12,7 @@
 
 本番HTTPからHTTPSへの転送は `apiRouting.test.ts` で、トップ・ロビー・招待クエリ・APIのGET／POST・WebSocketの308と転送先、資産処理の未実行、旧Workerホストからの直接転送を確認します。既存のHTTPS応答と、ローカル・開発環境・対象外ホストのHTTPを維持します。本番公開後はHTTPのトップ・ロビー・APIで308とパス・クエリの保持、HTTPSで通常応答を確認します。
 
-`bun run check` にformat確認・lint・型チェック・全テストを含め、目標を180秒以内とします。GitHub Actionsは検証範囲・工程別の秒数をsummaryとログに記録します。180秒を超えた場合は、重複する検証と型チェックの処理を見直します。ビルドとWorker dry-runは別の必須検証です。
+`bun run check` にformat確認・lint・型チェック・`packages/ai` 以外の全テストを含めます。フェーズ1の目標は、手元の `bun run check` が150秒以内、CIの `checks` ジョブが4分以内です（[ADR 0008](adr/0008-ci-single-job.md)）。GitHub Actionsは工程別の秒数をsummaryとログに記録します。ビルドとWorker dry-runはCIが実行します。
 
 ## Rust AI基盤の確認
 
@@ -74,7 +74,7 @@ Workerの`fourShogiRoom.test.ts`は進行中棋譜のHTTP取得、revision競合
 
 将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
 
-部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。Wrangler dry-runは、開発Serviceを`ai`ジョブで毎回、本番をmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](development.md#本番aiと4ゲーム同時公開)で別途確認します。
+部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。Wrangler dry-runは、開発Serviceを`ai`ジョブで毎回、本番をmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](runbooks/deploy.md#本番aiと4ゲーム同時公開)で別途確認します。
 
 四人リバーシのレート保存は `bun run --cwd apps/worker test test/fourReversiRating.test.ts` で確認します。同順位、CPU混在と5局目の認定、代替手使用局の除外、同じ対局の再試行、別々の対局の同時保存、棋譜APIの内部レート非公開を実D1で検証します。CPU較正の再現手順は[較正仕様](../packages/ai/docs/calibration.md#2026-11-09の予備測定と本測定の手順)にあります。
 
@@ -229,7 +229,7 @@ Fastの全3パターンと、別Miniflare間の同一D1主キー・DO ID・R2キ
 
 概要と詳細は同じ条件・集計済み時刻で値を照合します。長期の人数や待ち時間の分布が算出できない場合、日別人数や中央値の合算を使わず、理由と対象期間を示すことを検証します。既存クライアント・旧応答の不足を0や認証失効へ置き換えません。
 
-画面寸法・スクロール・ライト／ダーク・キーボード操作、実Google／Discord認証、migration・補完処理の実環境適用、反映後のD1読み書きと鮮度は手動確認または未確認事項として記録します。コード・設定を変更した各PRは必須5コマンドとCIを確認し、[PR提出前の検証](development.md#pr提出前の検証)へ従います。公開ポリシー・文書版と実際の取得範囲・保存区分の一致はPR2で検証します。
+画面寸法・スクロール・ライト／ダーク・キーボード操作、実Google／Discord認証、migration・補完処理の実環境適用、反映後のD1読み書きと鮮度は手動確認または未確認事項として記録します。コード・設定を変更した各PRは必須5コマンドとCIを確認し、[PR提出前の検証](runbooks/local-dev.md#pr提出前の検証)へ従います。公開ポリシー・文書版と実際の取得範囲・保存区分の一致はPR2で検証します。
 
 PR2の回帰テストは修正前に、管理GETによる21本の集約・削除SQLと、5分ジョブでの資格削除によって失敗することを確認しました。SQLの観測は実D1へ委譲し、表数・総SQL数は固定しません。追加migrationを適用した専用D1で、変更日だけの集計・空実行・再実行・日付境界・全体の重複排除・内部除外（管理者32人を含む）、期限時に未終了の局の未確定フラグ、途中のD1 batch失敗とロールバック、集計開始後の同時書き込みと次回回収、90日途中の匿名化と削除を検証します。本人集計の中断・再開・同じ履歴の再送・本人履歴移動・退会と遅延保存、HTTP／HTTPSの成功Cookie・改ざん・失効とログイン日時、計測Cookieなしの本人閲覧・自動取得で利用日を延長しないことも対象です。
 
@@ -524,7 +524,7 @@ bun run --cwd packages/reversi test
 bun run --cwd packages/shogi test
 ```
 
-部分実行の後、PR提出前の必須検証は[開発文書の共通手順](development.md#pr提出前の検証)に従います。実行環境の制約は[実行環境](#実行環境)、画面寸法・ネイティブ入力・実画像デコードなどの自動検証対象から外す範囲は[廃止した自動検証](#廃止した自動検証)を参照してください。
+部分実行の後、PR提出前の必須検証は[開発文書の共通手順](runbooks/local-dev.md#pr提出前の検証)に従います。実行環境の制約は[実行環境](#実行環境)、画面寸法・ネイティブ入力・実画像デコードなどの自動検証対象から外す範囲は[廃止した自動検証](#廃止した自動検証)を参照してください。
 
 ## ルーム共有の確認
 

@@ -13,7 +13,9 @@ Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`cod
 - 書き込めるのは、worktree、`/tmp`、`$TMPDIR` だけである。
 - Bun のコマンドは `mise exec --` を付けて実行する。付けないと、手元の古い Bun が使われて型チェックが失敗する。依頼文に書くコマンドにも付ける。
 
-**未確認**: 直しを頼むときに前の会話を引き継ぐ方法（`codex exec resume`）と、サンドボックスの中で `bun run check` の全体が通るかは、まだ試していない。check は Claude Code が worktree で実行する。
+- サンドボックスの中では localhost のポートを開けないため、Worker の統合テスト（Miniflare）を含む `bun run check` は一度失敗する。Codex は権限を上げて再実行し、成功させた（TB-20、TB-32）。いずれにしても、check は Claude Code が worktree で実行し直す。
+
+**未確認**: 直しを頼むときに前の会話を引き継ぐ方法（`codex exec resume`）は、まだ試していない。
 
 ## 始める前に
 
@@ -29,7 +31,7 @@ Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`cod
 
    ```sh
    git fetch origin develop
-   git worktree add ../tetraboard-2026-wt/tb-123 -b feat/tb-123-short-name origin/develop
+   git worktree add ../tetraboard-2026-wt/tb-123 -b feat/tb-123-short-name refs/remotes/origin/develop
    (cd ../tetraboard-2026-wt/tb-123 && mise exec -- bun install --frozen-lockfile)
    ```
 
@@ -68,7 +70,7 @@ Claude Code が設計とレビューを受け持ち、実装は Codex CLI（`cod
      --subject "feat: 日本語の説明（TB-123） (#123)"
    ```
 
-   マージしたら、Notion を Done にし、worktree を消す。
+   `--delete-branch` は、リモートのブランチに加えて、手元のブランチと、そのブランチを使っている worktree も消す（2026-11-14 に確認）。マージしたら Notion を Done にし、`git worktree list` で worktree が残っていないことを確かめる。残っていれば消す。
 
    ```sh
    git worktree remove ../tetraboard-2026-wt/tb-123
