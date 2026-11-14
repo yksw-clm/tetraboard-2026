@@ -28,6 +28,7 @@ import { NativeSelect, NativeSelectOption } from "./components/ui/native-select"
 import { Separator } from "./components/ui/separator";
 import { ThemeSelect } from "./components/ThemeProvider";
 const analysis = [
+  { path: "/kpi", label: "KPI", icon: ActivityIcon },
   { path: "/", label: "全体概要", icon: LayoutDashboardIcon },
   { path: "/acquisition", label: "集客・登録", icon: ActivityIcon },
   ...gameIds.map((id) => ({

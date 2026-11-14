@@ -37,6 +37,7 @@ const LobbyChat = lazy(() =>
 const Dashboard = lazy(() =>
   import("./Dashboard").then((module) => ({ default: module.Dashboard })),
 );
+const Kpi = lazy(() => import("./Kpi").then((module) => ({ default: module.Kpi })));
 const AcquisitionDashboard = lazy(() =>
   import("./AcquisitionDashboard").then((m) => ({ default: m.AcquisitionDashboard })),
 );
@@ -79,6 +80,7 @@ export function AdminApp() {
           }
         >
           <Routes>
+            <Route path="/kpi" element={<Kpi />} />
             <Route path="/" element={<Dashboard game="all" />} />
             {gameIds.map((id) => (
               <Route
