@@ -3,6 +3,7 @@ import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { applyD1Migrations } from "cloudflare:test";
 import worker from "../src/worker";
 import { runMaintenanceTasks } from "../src/scheduledMaintenance";
+import * as monthlyKpi from "../src/kpi/monthly";
 
 const env = {
   ...bindings,
@@ -61,6 +62,7 @@ test("定期処理は順番を守り、失敗後のジョブも完了させて�
 });
 
 test("通報の期限削除が失敗しても後続の資格を削除し、次回は成功できる", async () => {
+  const monthly = vi.spyOn(monthlyKpi, "savePreviousMonthKpi").mockResolvedValue();
   vi.spyOn(console, "info").mockImplementation(() => {});
   const id = crypto.randomUUID();
   const unrelatedId = crypto.randomUUID();
@@ -100,6 +102,7 @@ test("通報の期限削除が失敗しても後続の資格を削除し、次�
     await env.APP_DB.prepare("SELECT id FROM verification WHERE id=?").bind(id).first(),
   ).toBeNull();
   await expect(worker.scheduled({} as ScheduledController, env)).resolves.toBeUndefined();
+  expect(monthly).toHaveBeenCalledTimes(2);
 });
 
 test("退会対象と横断棋譜一覧は検索順に対応する索引を使う", async () => {

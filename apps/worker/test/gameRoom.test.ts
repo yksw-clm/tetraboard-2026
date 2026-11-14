@@ -26,6 +26,7 @@ import {
 } from "@tetraboard/protocol";
 import { applyAction, createInitialState, getLegalMoves } from "@tetraboard/four-reversi";
 import { afterEach, expect, test, vi } from "vitest";
+import * as monthlyKpi from "../src/kpi/monthly";
 import { writeRoomIndex } from "../src/rooms/roomIndex";
 import worker from "../src/worker";
 import { recordUsageEvents } from "./usageEventsRecorder";
@@ -1792,6 +1793,7 @@ test("観戦者は匿名資格で通報し、運営者が削除・送信停止�
 });
 
 test("通報D1障害は成功扱いにせず、期限切れ通報を定期削除する", async () => {
+  vi.spyOn(monthlyKpi, "savePreviousMonthKpi").mockResolvedValue();
   const created = await createRoom();
   const host = await authenticatedRoom(created.room.id, created.membership.token);
   host.send({ type: "room.chat.send", text: "通報対象" });

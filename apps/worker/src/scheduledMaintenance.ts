@@ -8,6 +8,7 @@ import { cleanupFeedback } from "./feedback/store";
 import { deleteUnusedAvatars } from "./accounts/accountRoutes";
 import { recoverTournaments } from "./tournaments/routes";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
+import { savePreviousMonthKpi } from "./kpi/monthly";
 
 export type MaintenanceTask = { name: string; run: () => Promise<unknown> };
 
@@ -38,6 +39,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     { name: "account-deletions", run: () => processDeletions(env) },
     { name: "lobby-chat", run: () => cleanupLobbyChat(env.APP_DB) },
     { name: "analytics", run: () => archiveAnalytics(env) },
+    { name: "kpi-monthly", run: () => savePreviousMonthKpi(env) },
     { name: "feedback", run: () => cleanupFeedback(env) },
     { name: "reports", run: () => deleteExpiredReports(env.APP_DB) },
     { name: "account-reservations", run: () => recoverAccountReservations(env) },
