@@ -1,5 +1,6 @@
 import "./app/installPreloadRecovery";
 import { startWebAnalytics } from "./analytics/pageAnalytics";
+import "./shared/clientErrors";
 import "./shared/heroui.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
