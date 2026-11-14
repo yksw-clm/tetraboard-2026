@@ -182,7 +182,7 @@ Webは同じタブの待機とルーム参照をsessionStorageへ保存します
 
 削除作業は直近の試行時刻で順序を回して、外部障害のあるジョブだけで後続を塞がないようにします。R2とプロバイダー解除が成功してから認証・プロフィールを物理削除し、完了を記録します。状況確認資格の原文は保存せず、資格から状況だけを返します。バックアップ復元時は、復元前に確保した削除済み識別子とジョブを新しいコードへ戻して再適用します。
 
-利用計測は[計測の仕様](specs/analytics.md)に従い、Workerが Cloudflare Workers Analytics Engine にイベントを書きます。ブラウザは計測用CookieのIDで識別し、ON/OFF UI・選択Cookie・設定APIは設けません。イベントは3か月で消え、KPIの月次値だけをIDなしでD1に残します。旧D1の分析テーブルは撤去まで、期限削除と退会時の本人行削除を続けます。
+利用計測は[計測の仕様](specs/analytics.md)に従い、Workerが Cloudflare Workers Analytics Engine にイベントを書きます。ブラウザは計測用CookieのIDで識別し、ON/OFF UI・選択Cookie・設定APIは設けません。イベントは3か月で消え、KPIの月次値だけをIDなしでD1に残します。
 
 ## アカウントの認証と保存
 

@@ -1,6 +1,11 @@
 import { AcceptedGameRequest } from "./acceptedGameRequest";
 import { env, exports } from "cloudflare:workers";
-import { applyD1Migrations, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
+import {
+  applyD1Migrations,
+  evictDurableObject,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test";
 import {
   createRoomContract,
   getRoomContract,
@@ -42,6 +47,34 @@ function parseReversiMessage(value: unknown): RoomSocketMessage {
 }
 
 const baseUrl = "https://example.com";
+
+test("再起動時に旧計測の保存待ちだけを消し、進行中の対局と資格を保持する", async () => {
+  const setup = await startFourPlayerRoom();
+  const stub = env.GAME_ROOM.getByName(setup.id);
+  const before = await runInDurableObject(stub, (_, state) => {
+    state.storage.kv.delete("legacy-analytics-purged");
+    const saved = [...state.storage.kv.list()];
+    state.storage.kv.put("analytics-pending:first", { id: "old-match" });
+    state.storage.kv.put("analytics-pending:second", { id: "other-match" });
+    state.storage.kv.put("analytics-player-aliases", { old: "new" });
+    return saved;
+  });
+  await evictDurableObject(stub);
+  await stub.getShareMetadata(setup.room.instanceId);
+  await runInDurableObject(stub, (_, state) => {
+    expect([...state.storage.kv.list({ prefix: "analytics-pending:" })]).toEqual([]);
+    expect(state.storage.kv.get("analytics-player-aliases")).toBeUndefined();
+    expect(state.storage.kv.get("legacy-analytics-purged")).toBe(true);
+    expect(
+      [...state.storage.kv.list()].filter(([key]) => key !== "legacy-analytics-purged"),
+    ).toEqual(before);
+  });
+  await evictDurableObject(stub);
+  expect(await stub.getRoom()).toMatchObject({
+    status: "playing",
+    instanceId: setup.room.instanceId,
+  });
+});
 
 test.each([false, true])(
   "Usage Events は対局の開始から完了までを記録し、書き込み失敗=%sでも続行する",

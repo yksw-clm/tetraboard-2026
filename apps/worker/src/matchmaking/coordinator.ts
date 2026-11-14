@@ -123,6 +123,19 @@ export async function matchmakingCredential(env: Env, wait: Wait, queueKey: stri
   };
 }
 export class MatchmakingCoordinator extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // フェーズ 6 の掃除で消す。旧計測の保存待ちだけを初回起動時に削除します。
+    ctx.blockConcurrencyWhile(async () => {
+      if (ctx.storage.kv.get("legacy-analytics-purged")) return;
+      ctx.storage.transactionSync(() => {
+        for (const [key] of ctx.storage.kv.list({ prefix: "matchmaking-analytics-pending:" }))
+          ctx.storage.kv.delete(key);
+        ctx.storage.kv.put("legacy-analytics-purged", true);
+      });
+    });
+  }
+
   private get game(): MatchmakingGame {
     return (
       (Object.keys(matchmakingQueues) as MatchmakingGame[]).find(
