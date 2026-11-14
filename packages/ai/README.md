@@ -133,7 +133,7 @@ Engineの局面表現と、serverが管理する版付きHTTP契約を分けま�
 
 8組の基本fixtureと6組の脱落fixtureをRustとBunで照合します。初期局面からの到達を要しない合成局面も含みます。期待値は確認元TypeScriptのルール処理から一度固定し、テスト実行時には再生成しません。Rustでは8方向の反転、局面構築の拒否、Agentの決定性、引数処理、100seedの完走と再現性・石数・順位を検証します。BunではRust CLIが出力した100局をTypeScriptルールで再生し、全着手の合法手・反転・パスと最終結果を比較します。
 
-ルートの`bun run check`とFull CIはこのworkspaceも検証します。`typecheck`はBunの比較テスト・計測スクリプトとCloudflare入口の型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。Rust・lockfile・fixtureの変更はFull CI対象です。
+このworkspaceはルートの`bun run check`に含めず、ルートの`bun run check:ai`とCIの`ai`ジョブで検証します。`typecheck`はBunの比較テスト・計測スクリプトとCloudflare入口の型検査、Rustの整形とClippy（型検査を含む）、`test`はRustテストとBunの比較テストを実行します。このworkspaceの変更はCIの`ai`ジョブの対象です。
 
 フェーズ1では評価・探索・設定・席順・統計を検証します。BunはLv1〜3混在の4組合せ×4回転を再生し、ノード上限とsummaryも確認します。フェーズ2では実Rust ServiceとWorkerを別プロセスで起動し、人間1人＋CPU3人の完走、認証、遅延・不正・重複応答、再起動とtimeoutを検証します。接続設定を与える専用WorkerテストはAI workspaceのtestから自動実行し、個人の開発設定は使いません。
 

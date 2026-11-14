@@ -72,7 +72,7 @@ GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い
 
 新しいAI基盤の入口は [packages/ai](../packages/ai/README.md) です。フェーズ4で脱落後を含む四人リバーシ・シングルスを対象に、engine・agents・benchmark・serverの4 crateで構成します。ルールの正本は既存の[四人リバーシルール](rules/four-reversi.md)です。[対応範囲](../packages/ai/docs/rules-four-player-reversi.md)、[フェーズ1の評価・探索・比較](../packages/ai/docs/phase1.md)、[フェーズ2のAPI・認証・接続・コンテナ](../packages/ai/docs/phase2.md)を参照してください。[フェーズ3のMCTS・API v2・採用基準](../packages/ai/docs/phase3.md)も参照してください。GameRoomのAlarmは未完了の要求を保存し、transaction外でHTTPを待ち、照合済み候補を次Alarmで適用します。I/Oの権限をProgressへ渡さず、既存AIを新しいAgentへ流用しません。
 
-Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。Bun Workspace用manifestによって全体check・Full CIへ組み込みます。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
+Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。Rustの識別子とファイル名はRust標準のsnake_caseとし、コメントは日本語の丁寧体を使います。ルートの`bun run check:ai`とCIの`ai`ジョブで検証します。`bun run --cwd packages/ai check`は型・Rust整形・Clippy・Rustテスト・TypeScript比較を実行します。fixtureと100局比較の分担は[テスト文書](testing.md#rust-ai基盤の確認)を参照してください。
 
 ## ローカルAI解析widgetの実装
 
@@ -133,7 +133,7 @@ Rust CPUの名前・判断方法・Engine版は`packages/ai/configs/characters-v
 1. 将棋で使っているロビーダイアログ、待機・取消・自動入室・再参加、認定と対局結果の表示、終局時の二重反映防止を共通化しました。ゲーム別の参加人数・持ち時間・待機上限はprotocolの `matchmakingQueues`、相手選びとレート保存はWorkerの `matchmaking/ratedMatchmaking.ts` のゲーム別設定から参照します。将棋は既存のD1テーブルとAPI形式でレートを読み書きします。
 2. 四人リバーシのCPUを較正し、順位ベースのレート計算と保存を追加します。同順位、認定5局目、CPU混在、代替手使用時の除外、再試行を確認します。[公開レートの仕様](matchmaking.md#公開レート)を本人向けの `GET /api/matchmaking/four-reversi/rating` に適用し、開発環境の対局結果で見直します。四人リバーシ・四人将棋のレートAPIは認定後の数値レートと対人戦の有無を返します。Webは旧Workerの応答にあるランク項目を読み捨てます。
 3. 四人リバーシを共通の導線に接続しました。最長20秒で人間を優先し、不足席を較正済みCPUで補います。新旧の待機列を分離し、旧対局の接続と保存を継続します。新しい待機列は `0035_four_reversi_rating_pending.sql` の保存待ち予約で、終局結果が確定するまで次の参加を制限します。
-4. 必須ローカル検証とFull CIを通し、開発環境で人間1〜4人、20秒前後の参加・取消、AI障害、終局後の再参加を確認します。対人戦とCPU入りの局でのレートの推移、稼働費用、受付停止手順をまとめ、本番公開は別途承認を得て実施します。
+4. 必須ローカル検証とCIを通し、開発環境で人間1〜4人、20秒前後の参加・取消、AI障害、終局後の再参加を確認します。対人戦とCPU入りの局でのレートの推移、稼働費用、受付停止手順をまとめ、本番公開は別途承認を得て実施します。
 
 較正では現在のEngine・profile・設定hash・実効予算・source/binaryを固定して結果をひも付けます。OpenSkill 5.0.1はWorkers互換性と予測精度を確認してから採用します。通常ルーム・他ゲームの集計と外部AI接続も回帰確認の対象です。
 
@@ -403,7 +403,7 @@ miseとCIはBun 1.4.4へ固定しています。`scripts/checkBunVersion.ts` は
 
 比較用の従来方式は `bun run typecheck:tsc`、部分比較は `bun run --cwd <workspace> typecheck:tsc` です。通常CIで両方式を重複実行しません。Bun内蔵のTypeScriptと標準型定義はインストール済みTypeScriptやエディタの版とは独立しており、100%互換は前提にしません。診断差は比較コマンドと既存の否定fixtureで調べます。TypeScriptパッケージは比較用とWorkerテスト設定のJSONC解析にも必要なため維持します。Bunを更新するときは[測定条件と互換性の確認](testing.md#bun-144での型チェック比較2026-10-24)も参照してください。
 
-GitHub Actionsは [Fast CIとFull CI](testing.md#fast-ciとfull-ci) の基準でPRの検証範囲を選択します。`scripts/ci/impact.ts` が分類と依存先の展開、`repository.ts` がmanifest・相対参照・import解決、`run.ts` が上限2プロセスでの実行、`workerGroups.ts` がWorkerファイルの自動分割を担当します。未知の変更はFullへ倒し、main・developのpushは常にFullです。Full成功と同じSHAの環境別artifactを確認してから既存のデプロイを行います。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。通常のbuildとコミット前フックの `bun run check` は全体検証を維持します。
+GitHub Actionsの実行範囲は [CIの実行範囲](testing.md#ciの実行範囲) を参照してください。`scripts/ci/run.ts` が `packages/ai` 以外のworkspaceを上限2プロセスで実行し、`workerGroups.ts` がWorkerファイルの自動分割を担当します。CIは `bun install --frozen-lockfile` を使い、型検査済みのアプリを `build:assets` でビルドして型チェックの重複を避けます。
 
 Workerテストは `vitest.config.mts` でローカルのD1・R2・SQLite対応Durable Objectとテスト専用のbindingsを指定します。追跡済みWrangler設定はJSONCとして入口・互換日・互換フラグだけを読み、Wranglerの開発用設定ローダーを通しません。管理者はテストごとに指定し、開発用 `.dev.vars`・`.env` やプロセスの秘密設定を取り込みません。詳細と回帰検証は [個人設定からの分離](testing.md#個人設定からの分離) を参照してください。
 
@@ -763,7 +763,7 @@ D1 migration `0017_general_lobby.sql` はチャット・送信者・再送台帳
 2. 対象3ゲームの専用開始と終局保存を接続し、予約IDと棋譜ID、保存再試行と一度だけの加点を検証します。
 3. Adminのゲーム・時計・三人攻撃禁止の編集、保存設定からのプレビュー、公開後の固定を実装します。
 4. Webのゲーム別掲載・テーマ・観戦・プロフィール・戻り先・成績を対象ゲームへ切り替えます。
-5. 正本と関連案内を更新し、必須5コマンドとFull CIを成功させ、対象SHA・環境・migration・手動確認／未確認事項を記載した `qa-ready` PRを提出します。
+5. 正本と関連案内を更新し、必須5コマンドとCIを成功させ、対象SHA・環境・migration・手動確認／未確認事項を記載した `qa-ready` PRを提出します。
 
 `0030_tournament_settings.sql` を開発環境へ適用してから、同じ変更のWeb・Admin・Workerを配信します。版1の既存大会と、各ゲームの作成→公開→エントリー→4人マッチ→終局→結果確定を確認します。マージ・本番公開は開発者の明示承認後に実施します。migration適用後は版2の大会を作成した状態で旧Workerへ戻さず、問題があれば版1／2を読める修正版を配信します。
 
@@ -1036,11 +1036,11 @@ CloudflareのGit連携は設定せず、公開経路はこのリポジトリのA
 
 ### CI/CDの流れ
 
-checksジョブは `bun install --frozen-lockfile` 後に[Fast／Fullの選択](testing.md#fast-ciとfull-ci)を行います。低リスクのdevelop向けPRは依存する利用側までの型・テスト・資産ビルド、高リスク・不明な変更とmain向けPRは全体検証・本番／開発ビルド・dry-runを実行します。両ブランチのpushは必ずFullです。範囲・未実行workspace・commit・工程別の秒数をsummaryへ記録し、Fullのcheck相当は180秒、通常PRのFastは60〜90秒以内を目標とします。CIは型検査後の `build:assets` で重複検査を避け、ローカルの `bun run check` と必須5コマンドは維持します。PRジョブはCloudflareの認証情報を使いません。
+CIの実行範囲は[CIの実行範囲](testing.md#ciの実行範囲)を参照してください。工程別の秒数をsummaryへ記録します。CIは型検査後の `build:assets` で重複検査を避けます。PRジョブはCloudflareの認証情報を使いません。
 
 公開確認スクリプトの `scripts/checkDeployment.ts` はWebの `tsconfig.build.json` に含め、通常の型チェックと本番・開発ビルドでも検査します。本番だけが通るサイトマップの検証分岐も、未定義変数やimport漏れを公開前に検出します。
 
-main・developのpushではFullの全検証とupload成功後だけ `full-validated` を出力し、同じ実行の対象環境の成果物をデプロイジョブへ渡します。別の `ai-images` ジョブがlinux/amd64の3種類のイメージをビルドし、4コンテナを起動して全採用設定の合法手・版と4並列を検証します。両ジョブの成功を公開条件にします。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
+main・developのpushでは、`checks` ジョブが同じ実行の対象環境の成果物をデプロイジョブへ渡します。`ai` ジョブ（AIに関わる差分があるときとmainへのpushで実行）がlinux/amd64の3種類のイメージをビルドし、4コンテナを起動して全採用設定の合法手・版と4並列を検証します。`checks` の成功と、`ai` の成功またはskipを公開条件にします。成果物名は環境とSHAを含みます。対象ブランチの先頭SHAをD1マイグレーションの前後に確認し、古い実行なら公開をスキップします。mainはproduction、developはdevelopmentへ公開します。同時デプロイを環境別に禁止し、進行中のデプロイは途中キャンセルしません。先頭確認後の更新は次の実行で公開します。
 
 独自ドメインの変更時はCD用APIトークンに対象Zoneの読み取り権限と、対象アカウントのWorkersルート・独自ドメインを更新できる権限があることを確認します。
 
@@ -1087,13 +1087,13 @@ bun run --cwd apps/worker preview:production
 
 1. 本番専用の32〜256文字ASCII乱数 `AI_SERVICE_TOKEN` を安全な保管先へ生成します。`apps/worker` の `wrangler secret put AI_SERVICE_TOKEN --env production` と、`packages/ai` の `wrangler secret put AI_SERVICE_TOKEN --config cloudflare/wrangler.jsonc --env production` に同じ値を非表示入力で登録します。新規AI Workerの作成や既存Workerの更新を伴うため、これも承認された公開準備操作として扱います。既存の認証Secret・開発AIのtokenは変更しません。
 2. 認証付き公開確認のため、同じ値をGitHub Repository secret `AI_SERVICE_TOKEN_PRODUCTION` に登録します。これはアプリへ埋め込む値ではなく、Actionsの公開確認だけへ環境変数で渡します。値は引数・Git・PR・ログに出しません。
-3. リリースPRをマージコミットで取り込みます。mainのFull CIと `ai-images` 成功後、先頭SHAを確認してAIをデプロイし、`bun run --cwd packages/ai verify:deployment production` で4エンジンの実着手・要求ID・版・profile・合法性を確認します。初回は起動を含む最大60秒、その後は実際の応答期限で全採用設定を照合します。ゲームごとの確認要求は1件ずつとし、4並列の負荷確認はCIの一時コンテナだけで行います。固定の非個人局面だけを送り、healthだけで成功としません。
+3. リリースPRをマージコミットで取り込みます。mainのCIの `checks` と `ai` の成功後、AIに関わる差分があれば先頭SHAを確認してAIをデプロイし、`bun run --cwd packages/ai verify:deployment production` で4エンジンの実着手・要求ID・版・profile・合法性を確認します。初回は起動を含む最大60秒、その後は実際の応答期限で全採用設定を照合します。ゲームごとの確認要求は1件ずつとし、4並列の負荷確認はCIの一時コンテナだけで行います。固定の非個人局面だけを送り、healthだけで成功としません。
 4. AI公開確認が成功し、再度先頭SHAが一致する場合だけD1 migrationを適用します。適用後も先頭を確認し、アプリをデプロイします。AIとアプリは同じコミットのソースを使い、AIは更新前のアプリが使うAPI・profileも受理する互換更新とします。AI検証失敗時はDB更新・アプリ公開へ進みません。AIだけ公開済みの場合も自動削除・巻き戻しはしません。
 5. 既存の `checkDeployment.ts` と、4ゲームの受付・着手・終局保存・レート反映、開幕案内、通常ルームの従来CPU、ログイン・既存棋譜・再接続を本番で確認します。ActionsのSHA、Worker版と結果をリリースPRへ記録します。
 
 公開直後30分、翌日、1週間後にゲーム別の応答時間、タイムアウト・代替手、枠解放、保存待ち、コンテナ稼働時間と費用を確認します。4台を用意しても常時起動しません。メモリ・ディスクはアイドル中も割当分が課金され、月枠は開発環境と共有します。費用の過去条件はAIの測定記録を参照し、本番の実使用量は別途確認します。
 
-レート結果の不整合・保存不能、または同じゲームで正常対局が連続して成立・進行できない場合は、そのゲームの受付停止PRをdevelop経由で作成します。共通障害は4ゲームを停止します。`MATCHMAKING_ENABLED`（四人リバーシ）、`FOUR_SHOGI_MATCHMAKING_ENABLED`、`SHOGI_MATCHMAKING_ENABLED`、`REVERSI_MATCHMAKING_ENABLED` の対象だけをfalseにします。AI接続・有効化設定・token・コンテナは残し、新規joinを拒否します。受付済み待機は既存の成立・取消・失効処理、成立済み局は終局・保存まで継続します。停止にもFull CI・承認・再デプロイが必要で、即時停止ではありません。復旧は互換性確認済みの修正・revert PRとし、DBの自動巻き戻しや未確認の旧版復元は行いません。
+レート結果の不整合・保存不能、または同じゲームで正常対局が連続して成立・進行できない場合は、そのゲームの受付停止PRをdevelop経由で作成します。共通障害は4ゲームを停止します。`MATCHMAKING_ENABLED`（四人リバーシ）、`FOUR_SHOGI_MATCHMAKING_ENABLED`、`SHOGI_MATCHMAKING_ENABLED`、`REVERSI_MATCHMAKING_ENABLED` の対象だけをfalseにします。AI接続・有効化設定・token・コンテナは残し、新規joinを拒否します。受付済み待機は既存の成立・取消・失効処理、成立済み局は終局・保存まで継続します。停止にもCI・承認・再デプロイが必要で、即時停止ではありません。復旧は互換性確認済みの修正・revert PRとし、DBの自動巻き戻しや未確認の旧版復元は行いません。
 
 ## Code Principles
 
@@ -1731,7 +1731,7 @@ GameRoomは既存の対局計測の保存待ちを利用し、実開始時に検
 
 ### 改修の検証・移行・公開
 
-各PRは対応する振る舞いの回帰テストを先に追加し、[受入確認](testing.md#管理画面分析の改修の受入確認)を満たします。コード・設定変更では必須5コマンド、文書だけのPRでは同一コード・設定に対する直前の成功結果の再利用条件と最終差分の文書確認・`git diff --check` に従います。対象コミット・migration・補完処理・検証結果・未確認事項をPRへ記載し、QA可能になった時点で `qa-ready` を付け、Full CIを確認します。
+各PRは対応する振る舞いの回帰テストを先に追加し、[受入確認](testing.md#管理画面分析の改修の受入確認)を満たします。コード・設定変更では必須5コマンド、文書だけのPRでは同一コード・設定に対する直前の成功結果の再利用条件と最終差分の文書確認・`git diff --check` に従います。対象コミット・migration・補完処理・検証結果・未確認事項をPRへ記載し、QA可能になった時点で `qa-ready` を付け、CIを確認します。
 
 公開は追加migration→Worker→対応するWeb・Adminの順とし、新規の収集範囲と最新日時の保持はPR2の公開ポリシー・文書版更新と既存の次回登録・参加時の確認へ接続します。既存のクライアントは維持し、切り戻しは対応するWorkerとフロントを組み合わせて行います。追加テーブルを直ちに削除する巻き戻しは行いません。
 

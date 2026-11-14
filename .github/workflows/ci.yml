@@ -5,31 +5,53 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   checks:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
       group: ci-checks-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     outputs:
-      full-validated: ${{ steps.full.outputs.validated }}
+      ai: ${{ steps.changes.outputs.ai }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5
       - run: bun install --frozen-lockfile
-      - name: Select validation scope
-        id: plan
-        run: bun scripts/ci/plan.ts
+      - name: Detect AI changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: changes
+        with:
+          token: ""
+          base: ${{ github.event.pull_request.base.sha || github.event.before }}
+          filters: |
+            ai:
+              - 'packages/ai/**'
+              - 'packages/four-reversi/**'
+              - 'packages/four-shogi/**'
+              - 'packages/reversi/**'
+              - 'packages/shogi/**'
+              - 'packages/protocol/**'
+              - 'apps/worker/test-ai-service/**'
+              - 'apps/worker/vitest.ai-service.config.mts'
+              - 'apps/worker/vitest.config.mts'
+              - 'apps/worker/src/rooms/**'
+              - 'apps/worker/src/matchmaking/**'
+              - 'apps/worker/src/accounts/matchDataContracts.ts'
+              - 'apps/worker/test/roomBoundaryFixtures.ts'
+              - 'apps/worker/test/accountFixtures.ts'
+              - 'apps/worker/test/acceptedGameRequest.ts'
+              - 'mise.toml'
+              - 'bun.lock'
+              - '.github/workflows/**'
       - name: Verify isolation without development settings
-        if: steps.plan.outputs.mode == 'full'
         env:
           CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
           CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
@@ -39,7 +61,6 @@ jobs:
           cp apps/worker/worker-configuration.d.ts "$RUNNER_TEMP/worker-configuration.clean.d.ts"
           bun run --cwd apps/worker test test/testEnvironment.test.ts
       - name: Verify isolation with conflicting dotenv settings
-        if: steps.plan.outputs.mode == 'full'
         env:
           CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
           CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
@@ -54,7 +75,6 @@ jobs:
           diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
           bun run --cwd apps/worker test test/testEnvironment.test.ts
       - name: Add conflicting development settings for isolation checks
-        if: steps.plan.outputs.mode == 'full'
         run: |
           cat > apps/worker/.dev.vars <<'VARS'
           APP_ORIGIN=https://personal-settings.example.invalid
@@ -68,24 +88,21 @@ jobs:
           DISCORD_CLIENT_SECRET=personal-discord-secret
           TETRABOARD_DEV_VARS_LEAK=must-not-be-loaded
           VARS
-      - name: Validate selected scope (Fast or Full)
+      - name: Validate non-AI workspaces
         env:
           CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
           CLOUDFLARE_INCLUDE_PROCESS_ENV: "true"
           TETRABOARD_PROCESS_ENV_LEAK: must-not-be-loaded
         run: bun scripts/ci/run.ts check
       - name: Verify generated types with conflicting development settings
-        if: steps.plan.outputs.mode == 'full'
         run: diff -u "$RUNNER_TEMP/worker-configuration.clean.d.ts" apps/worker/worker-configuration.d.ts
-      - name: Build selected apps (types already checked)
+      - name: Build apps (types already checked)
         run: bun scripts/ci/run.ts build
       - name: Package and verify production assets
-        if: steps.plan.outputs.mode == 'full'
         run: |
           bun scripts/buildAssets.ts
           bun run --cwd apps/worker deploy:dry-run
-          bun run --cwd packages/ai deploy:cloud:dry-run:production
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           name: web-production-${{ github.sha }}
@@ -93,7 +110,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Build and verify development assets
-        if: steps.plan.outputs.mode == 'full'
         env:
           VITE_PUBLIC_ORIGIN: https://tetraboard-dev.chaossi-lab.workers.dev
           VITE_SEARCH_INDEXABLE: "false"
@@ -103,7 +119,7 @@ jobs:
           bun scripts/buildAssets.ts
           bun run --cwd apps/worker deploy:dry-run:development
           bun run --cwd packages/ai deploy:cloud:dry-run:development
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         with:
           name: web-development-${{ github.sha }}
@@ -111,48 +127,29 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Confirm Full CI gate
-        id: full
-        if: steps.plan.outputs.mode == 'full'
-        run: echo 'validated=true' >> "$GITHUB_OUTPUT"
-
-  ai-images:
-    needs: [checks]
-    if: needs.checks.outputs.full-validated == 'true'
+  ai:
+    needs: checks
+    if: needs.checks.outputs.ai == 'true' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5
       - run: bun install --frozen-lockfile
+      - run: bun run check:ai
       - name: Build and verify four production AI containers
         run: bun run --cwd packages/ai verify:images
-
-  benchmark:
-    if: github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'ci-benchmark'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: jdx/mise-action@v5
-      - run: bun install --frozen-lockfile
-      - name: Compare on the same runner
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: bun scripts/ci/benchmark.ts "$BASE_SHA"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ci-benchmark-${{ github.sha }}
-          path: .ci-benchmark.json
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7
+      - name: Verify production AI deployment dry-run
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: bun run --cwd packages/ai deploy:cloud:dry-run:production
 
   deploy:
-    needs: [checks, ai-images]
-    if: needs.checks.outputs.full-validated == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    needs: [checks, ai]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && (needs.ai.result == 'success' || needs.ai.result == 'skipped') && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') }}
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.ref_name == 'main' && 'production-deploy' || 'development-deploy' }}
@@ -161,15 +158,15 @@ jobs:
       DEPLOY_ENV: ${{ github.ref_name == 'main' && 'production' || 'development' }}
       DEPLOY_URL: ${{ github.ref_name == 'main' && 'https://tetraboard.net' || 'https://tetraboard-dev.chaossi-lab.workers.dev' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: web-${{ env.DEPLOY_ENV }}-${{ github.sha }}
           path: apps/worker/dist/assets
@@ -185,7 +182,7 @@ jobs:
             echo 'Newer branch commit exists; skipping this deployment.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Deploy and verify production AI before the application
-        if: steps.current.outputs.deploy == 'true' && env.DEPLOY_ENV == 'production'
+        if: steps.current.outputs.deploy == 'true' && env.DEPLOY_ENV == 'production' && needs.checks.outputs.ai == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
