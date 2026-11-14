@@ -3,7 +3,6 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { roomSocketContract, createRoomContract, joinRoomContract } from "@tetraboard/protocol";
-import { legalVersion } from "@tetraboard/protocol/privacy";
 import { GameFixture, ids, token } from "./fixtures";
 import { Store } from "../src/store";
 import { runConfigSchema, origin } from "../src/config";
@@ -112,14 +111,14 @@ for (const game of ["four-reversi", "four-shogi"] as const) {
               },
             });
           if (p === "/api/account/legal")
-            return Response.json({ accepted: true, version: legalVersion });
+            return Response.json({ accepted: true, version: "2026-11-11" });
           const membership = {
             playerId: ids[i],
             role: i === 0 ? "host" : "player",
             token: token(i),
           };
           if (request.method === "POST" && (p === "/api/rooms" || p.endsWith("/players"))) {
-            expect(request.headers.get("X-Legal-Consent")).toBe(legalVersion);
+            expect(request.headers.get("X-Legal-Consent")).toBe("2026-11-11");
             if (p === "/api/rooms") createRoomContract.request.parse(await request.json());
             else joinRoomContract.request.parse(await request.json());
             f.members.add(i);

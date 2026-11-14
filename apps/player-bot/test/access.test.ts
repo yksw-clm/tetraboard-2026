@@ -53,6 +53,88 @@ test("セッション更新Cookieを保存し、期限切れや未同意のHTTP2
   await expect(api.checkAccess()).rejects.toThrow("Cookieを再取り込み");
 });
 
+test("ローカルと異なる接続先の同意済み規約版で参加し、更新後の未同意版は送らない", async () => {
+  let version = "2026-11-11";
+  let accepted = true;
+  const sentVersions: (string | null)[] = [];
+  const api = new Api(
+    "https://example.com",
+    { cookie: "secret", identity: ids[0] },
+    async () => {},
+    async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/api/account/session")
+        return Response.json({
+          user: {
+            profileId: ids[0],
+            username: "bot1",
+            name: "BOT-1",
+            avatarUrl: null,
+            profileCompleted: true,
+          },
+        });
+      if (path === "/api/account/legal") {
+        expect(init?.method).toBe("GET");
+        return Response.json({ accepted, version });
+      }
+      const sent = new Headers(init?.headers).get("X-Legal-Consent");
+      sentVersions.push(sent);
+      return sent === version
+        ? Response.json({ ok: true })
+        : Response.json({ error: "consent_required" }, { status: 403 });
+    },
+  );
+  const join = () =>
+    api.request("/api/rooms", z.object({ ok: z.literal(true) }), {
+      method: "POST",
+      consent: true,
+    });
+  expect(await api.checkAccess()).toBe(ids[0]);
+  await join();
+  expect(sentVersions).toEqual(["2026-11-11"]);
+
+  version = "2026-11-15";
+  accepted = false;
+  await expect(join()).rejects.toThrow("consent_required");
+  await expect(api.checkAccess()).rejects.toThrow("2026-11-15");
+  await expect(join()).rejects.toThrow("https://example.com");
+  expect(sentVersions).toEqual(["2026-11-11", "2026-11-11"]);
+
+  accepted = true;
+  expect(await api.checkAccess()).toBe(ids[0]);
+  await join();
+  expect(sentVersions).toEqual(["2026-11-11", "2026-11-11", "2026-11-15"]);
+});
+
+test("規約版を解釈できないときは参加せず、応答中の資格をエラーへ出さない", async () => {
+  for (const version of [null, "", "private-session-credential", "2026-99-99"]) {
+    let mutations = 0;
+    const api = new Api(
+      "https://example.com",
+      { cookie: "secret", identity: ids[0] },
+      async () => {},
+      async (input, init) => {
+        if (init?.method !== "GET") mutations++;
+        if (String(input).endsWith("/session"))
+          return Response.json({
+            user: {
+              profileId: ids[0],
+              username: "bot1",
+              name: "BOT-1",
+              avatarUrl: null,
+              profileCompleted: true,
+            },
+          });
+        return Response.json({ accepted: true, version });
+      },
+    );
+    await expect(
+      api.request("/api/rooms", z.unknown(), { method: "POST", consent: true }),
+    ).rejects.toThrow("API 0: incompatible_response");
+    expect(mutations).toBe(0);
+  }
+});
+
 test("Cookieを別origin・リダイレクトへ渡さず、レスポンス本文の認証値をエラーへ含めない", async () => {
   let calls = 0;
   const api = new Api(
