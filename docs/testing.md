@@ -217,74 +217,15 @@ Fastの全3パターンと、別Miniflare間の同一D1主キー・DO ID・R2キ
 
 測定専用jobは806秒、同runの通常Full jobは229秒で、総runner稼働は1,035秒でした。この一度限りの比較費用を通常CIの費用削減へ混ぜません。Fullは依然3分半程度で、主な残余コストはWorker統合と環境分離です。将来は実測によるWorker分割の再均等化と、重い対局fixtureの初期化を優先して評価します。現在の本番コード・重要な回帰ケース・環境設定分離は維持し、実デプロイ／リモートDB／push時のartifact受渡しは今回実行していません。
 
-## 管理画面・分析の改修の受入確認
-
-[承認済み仕様](../README.md#管理画面分析の改修仕様)と[PR単位の実装手順](development.md#管理画面分析の改修手順)に対応する検証です。PR1で文書の定義・参照・現行説明との整合性を確認しました。PR2は `analyticsFoundation.test.ts`・既存の管理／認証／退会テストで基盤を検証しました。PR3は `analyticsRegistration.test.ts` とWebの入口・OAuth操作、既存の認証・ゲスト連携・退会で短縮番号と登録導線を検証します。PR4は `matchmaking.test.ts`・`matchLifecycle.test.ts`・`matchEndAnalytics.test.ts` と既存の共通対局・管理分析・退会で検索と対局の計測を検証します。残りの自動テストと手動確認は、対象機能を実装する後続PRで追加・実行します。未実装のテストを実施済みとして扱いません。
-
-純粋な計算・分類はBun、Admin・Webの操作と表示はBun＋happy-dom、認証・API・保存・再試行はWorker＋D1＋DOの既存統合テストに追加します。フロントエンドは条件変更・入力・画面結果を一連の操作で検証し、内部state・クラス名・グラフのピクセル寸法を主なアサーションにしません。時刻は固定し、外部OAuth・通信等は境界で制御します。ブラウザ起動型の自動テストは導入しません。
-
-| 対象 | 確認する振る舞い |
-| --- | --- |
-| 人数・単位 | 同じアカウントの複数日・複数ゲームを適切な範囲で重複排除する。ゲストはアカウント単位、訪問はブラウザ／セッション単位とし、アカウント不明をブラウザで代用しない。本人・テストと一般利用の混在も確認する |
-| 最終日時 | 通常ログイン・新規登録・管理者ログイン、セッション更新、退会用再認証を区別する。同日更新・日本時間の日付境界・本人切替・古い送信・ゲスト統合・退会後の遅延保存を確認する |
-| 対局数・レート | 完了・打ち切り、CPU・対人、通常・大会・レート戦、通算・期間内・レート有効局数を区別する。補完バッチの中断・再開・再送で重複を防ぎ、保存済みレートを変更しない |
-| 短縮UTM | 固定1〜4、5以降の同時発行、表示名変更・アーカイブ後の既存リンク、旧UTM、未登録・不正番号、参照元との相違、訪問開始時の帰属固定を確認する |
-| 登録導線 | 限定イベントの受信、同一Origin・容量・入力・本人情報を検証する。OAuth取消・失敗・再送を成功に数えず、新規登録・既存ログイン・プロフィール完了と不要な工程の省略を区別する |
-| レート戦 | 検索受付・成立・開始・保存完了、取消競合、CPU枠不足、AI障害、参加者と対局全体の終了理由、レート対象外理由を区別する。DO再起動・重複操作・D1失敗と再試行も確認する |
-| 再対局・認定 | 168時間の直前・ちょうど・直後、同日と日本時間の別日、観測中・0人・分母0、別ゲーム、全体人数の重複を確認する。90日削除後に初回を作り直さず、起点時点の区分を後の登録・プロフィール変更で上書きしない。認定の到達には有効局だけを使う |
-| 大会・移動・分布 | エントリーと実参加、大会終了を起点にした7日、閲覧移動と対局移動、7日以内の最初の別ゲーム、30日の活動分布を確認する。各表の起点・対象人数・範囲が応答と一致する |
-| 集計・削除 | 5分集計の途中失敗・再実行、遅れた終了結果、公開値と処理済み位置、更新遅延、90日期限・毎時削除・退会・遅延保存を確認する。個別記録とIDを持たない長期集計を区別する |
-| Admin操作 | 条件変更・検索・並べ替え・ページ送り・戻る・深いURL・テーマ切替、古い応答の破棄、401／403時のデータ破棄、実測0と未計測・不明・観測中・対象外・算出不可を確認する。既存運営画面の操作も移行前後で確認する |
-| 負荷 | 管理データ取得が集約・削除・構造確認SQLを実行しないことを実D1へ委譲する観測で確認する。認証期限更新は維持する。1人と50人の一覧で問い合わせ回数が人数に比例せず、空のポーリングで計測行が増えないことを確認する |
-
-概要と詳細は同じ条件・集計済み時刻で値を照合します。長期の人数や待ち時間の分布が算出できない場合、日別人数や中央値の合算を使わず、理由と対象期間を示すことを検証します。既存クライアント・旧応答の不足を0や認証失効へ置き換えません。
-
-画面寸法・スクロール・ライト／ダーク・キーボード操作、実Google／Discord認証、migration・補完処理の実環境適用、反映後のD1読み書きと鮮度は手動確認または未確認事項として記録します。コード・設定を変更した各PRは必須5コマンドとCIを確認し、[PR提出前の検証](runbooks/local-dev.md#pr提出前の検証)へ従います。公開ポリシー・文書版と実際の取得範囲・保存区分の一致はPR2で検証します。
-
-PR2の回帰テストは修正前に、管理GETによる21本の集約・削除SQLと、5分ジョブでの資格削除によって失敗することを確認しました。SQLの観測は実D1へ委譲し、表数・総SQL数は固定しません。追加migrationを適用した専用D1で、変更日だけの集計・空実行・再実行・日付境界・全体の重複排除・内部除外（管理者32人を含む）、期限時に未終了の局の未確定フラグ、途中のD1 batch失敗とロールバック、集計開始後の同時書き込みと次回回収、90日途中の匿名化と削除を検証します。本人集計の中断・再開・同じ履歴の再送・本人履歴移動・退会と遅延保存、HTTP／HTTPSの成功Cookie・改ざん・失効とログイン日時、計測Cookieなしの本人閲覧・自動取得で利用日を延長しないことも対象です。
-
-既存OAuth・退会テストはGoogle／Discordの実コールバックから、通常成功で最新値を保存し、退会用再認証・取消・別人・期限切れでは元のログイン値を変更しないことを確認します。外部プロバイダーは境界で置き換えるため実OAuthの手動確認は別です。既存管理APIの長期集計テストは毎時保守を明示的に呼び、閲覧を保守の代わりにしません。新APIの401／403・no-storeは既存管理APIと同じ経路で確認します。
-
-PR3は実装前に、新しい管理API／入口APIの404、短縮UTMの400、Webの短縮番号欠落によるassertion失敗を確認しました。専用D1で固定1〜4・同時発行・改名・意味の変更拒否・アーカイブ後の解決・旧UTM・不正番号・実参照元・訪問初回の固定・開始対局への帰属を検証します。入口の限定形式、別ブラウザの再送、OAuthの取消・改ざん・期限・重複、既存ログイン、プロフィール工程の対象／省略、保存失敗でも本人設定が成功すること、退会後の入口・コールバックの遅延保存、90日匿名化と再実行を確認します。
-
-登録入口と成功が日本時間の別日になるケースは `dateBasis=entry/event` で分け、集計済み行が両方の日付を保持することを検証します。管理者32人の除外・読み取りAPIのSQL観測・権限・no-store・503も実DBで確認します。既存のGoogle／Discordのコールバック統合テストで、新規作成hookから成功・プロフィール完了、既存ログイン、取消、再認証、退会、新規再登録までの段階を実際の経路で確認します。
-
-Webは登録リンク→ログイン画面→OAuth再試行を実操作で通し、限定データにURLや秘密値を含めず、手続きIDを維持し、計測失敗・端末内保存不可でも認証を送れること、管理者ログインを計測しないことを確認します。既存の参加・席保護・連携前保存の検証では、計測送信と認証／参加の送信を区別し、二重操作・送信中ロック・失敗復旧のアサーションを維持します。ブラウザ自動テストは追加しません。実プロバイダー・反映後の指標・リンク運用は手動未確認としてPRへ記録します。
-
-PR4は実装前に、実際の検索→heartbeat→取消→再送に対して `accepted/cancelled` が保存されないassertion失敗を確認しました。Worker＋D1＋DOで受付・最初の成立・実開始・リース切れ・取消、CPU枠不足とAI準備失敗の再試行、再起動・重複・空のポーリングを検証します。検索の計測INSERTだけをD1トリガーで失敗させ、検索・取消は成功し、DO再起動後のAlarmで保存することを確認します。
-
-6ゲームの実対局で人間の退出によるルール上の終局を通し、確定ゲームの理由と各席の退出理由を照合します。計測INSERTだけの障害でも対局が完了し、既存の保存待ちから再起動後に一度だけ保存できることを確認します。手番を無視した投了をテスト用に許可せず、既存の投了・時間切れ・切断・AI代替・大会の回帰テストも維持します。未識別席のID対応が理由の欠落を起こさないことも対象です。
-
-専用D1に全migrationを適用し、5分集計の再実行・日本時間の変更日・一般／内部込み・管理者32人・レート保存待ちとAI代替の確定を確認します。D1 batchの後半を失敗させ、先行する集計削除と時刻更新がロールバックされ、次回に遅れた更新を反映することを確認します。退会後の遅延再送、90日削除と匿名集計の再実行、長期表に操作・本人・局・席のIDを持たないことも検証します。反映後のCPU枠・実AI障害・実際のD1 Insightsと5分の鮮度は手動確認事項としてPRへ記録します。
-
-PR6は実装前に、ユーザー応答の追加項目欠落、集客APIの404、ユーザー画面の最新日時・局数欄の欠落によるassertion失敗を確認しました。`adminUsersInsights.test.ts` は実D1で一括取得、同値の50件境界、日本語検索、条件付きカーソル、問い合わせ数が人数で増えないこと、ゲストと退会の除外を確認します。認証の既存セッション期限更新は維持し、管理データ取得からの集計書き込み・構造確認を区別します。
-
-`adminAcquisitionInsights.test.ts` は5分前の値の維持、短縮番号と実ホストの区別、読み取り時の個別テーブル非参照、集計INSERT障害時の公開値・時刻のロールバック、再実行、90日期限・長期指定でのホスト値の非返却／0件への補完禁止とIDのない長期リンク件数の二重加算防止を確認します。既存の計測・保守・退会・登録導線の統合テストも実行します。`adminInsights.test.tsx` と `adminViews.test.tsx` はURL条件・戻る・旧応答破棄、新規と既存、入口が前日でプロフィール完了だけ当日に発生した表示（対象外と推測しない）、0件と導入前、権限喪失、リンクの二重操作・入力保持・固定番号・発行URL・改名・アーカイブを確認します。新しいWorkerテストはDateだけを固定し、実行日によって90日境界やセッション期限が変わらないようにします。実環境のmigration、補完完了、5分の鮮度、D1 Insights、実機の表とDialog・コピー・認証は手動未確認としてPRへ記録します。
-
 ## 管理画面の表示と画面選択
 
-PR5でshadcn/uiへ移行した管理画面は、既存のBun＋happy-domで操作と結果を確認します。[改修の受入確認](#管理画面分析の改修の受入確認)も適用します。
+管理画面は、既存のBun＋happy-domで操作と結果を確認します。
 
-`apps/admin/test-dom/adminNavigation.test.tsx` は全ゲームと運営画面への移動、詳細・新規作成・編集への直接アクセス、戻る操作と現在地の同期を確認します。`adminTheme.test.tsx` はOS配色の変更、手動選択・保存・再マウント、別タブの変更、ほかの設定が同時に保存されている場合、保存不能を確認します。`adminShell.test.tsx` はセッション失敗からの再試行、401のログイン案内、更新APIの403による画面全体の破棄、モバイルSheetの開閉・移動、描画失敗後の別ページへの復旧を確認します。`adminData.test.tsx` は複数取得・更新間の401／403通知と古い応答の破棄を検証します。先に回帰テストを追加し、修正前はテーマ選択欄の欠落、別APIの403後に取得済みデータが残ることで失敗することを確認しました。
+`apps/admin/test-dom/adminNavigation.test.tsx` はKPIと運営画面への移動、詳細・新規作成・編集への直接アクセス、戻る操作と現在地の同期を確認します。`adminTheme.test.tsx` はOS配色の変更、手動選択・保存・再マウント、別タブの変更、ほかの設定が同時に保存されている場合、保存不能を確認します。`adminShell.test.tsx` はセッション失敗からの再試行、401のログイン案内、更新APIの403による画面全体の破棄、モバイルSheetの開閉・移動、描画失敗後の別ページへの復旧を確認します。`adminData.test.tsx` は複数取得・更新間の401／403通知と古い応答の破棄を検証します。先に回帰テストを追加し、修正前はテーマ選択欄の欠落、別APIの403後に取得済みデータが残ることで失敗することを確認しました。
 
-既存の大会・フィードバック・お知らせ・公開チャット・ユーザー・集計の操作テストを引き継ぎ、保存・競合・失敗時の入力保持・追加取得・条件変更・認可を検証します。お知らせは可視CheckboxのSpace操作とクリック、チャットは確認Dialogの初期フォーカス・Escape・閉じた後のフォーカス復帰も確認します。Checkboxはlabelへの入れ子を避け、IDでLabelと関連付けます。グラフの欠測は0へ補完せず、数値表と既存APIの定義を維持します。
+大会・フィードバック・お知らせ・公開チャット・KPIの操作テストで、保存・競合・失敗時の入力保持・追加取得・条件変更・認可を検証します。お知らせは可視CheckboxのSpace操作とクリック、チャットは確認Dialogの初期フォーカス・Escape・閉じた後のフォーカス復帰も確認します。Checkboxはlabelへの入れ子を避け、IDでLabelと関連付けます。
 
 320pxから広幅までの配置、768px境界のサイドバー／Sheet、表の横スクロール、ライト／ダーク／OS設定の実際の色・コントラスト、キーボードの視認性、ネイティブ日付入力・画像デコード、実Google／Discord認証は手動確認対象としてPRへ記録します。寸法だけを検査するDOMテストやブラウザ起動型テストは追加しません。
-
-## 流入元・端末別の計測
-
-Issue #214の[確定仕様](../README.md#流入元端末別の計測)と[実装](development.md#流入元端末別の計測)を、既存のBun・happy-dom・Worker統合へ追加します。
-
-- protocolの `test/acquisition.test.ts` はホスト名のみの抽出、IP・パス・検索語・不正入力の除外、明示的なドメイン分類、UTM除去後の64文字・大小文字・空、端末3分類と不明、旧入力の互換性を確認します。
-- Webの `test/pageAnalytics.test.ts` と `test-dom/analytics.test.tsx` は3種類以外のクエリ非送信、SPAでの参照元切替、Cookie再利用と追加storageなし、旧Workerの400に同じIDで一度だけ再送、既存の滞在・失敗時の非阻害を確認します。
-- Workerの `test/acquisition.test.ts` は専用の実D1で、同時到達、30分の直前／一致、閲覧・累積時間の再送、取得項目の制限、旧画面の欠測、開始対局の区分内重複排除と再訪後の帰属固定、本人・テスト混在、90日の訪問／対局の別々の期限・二重集約防止、退会受付・遅延保存、保存失敗の一括ロールバックを検証します。既存 `adminAnalytics.test.ts`・`privacy.test.ts`・`generalLobby.test.ts` の集計も維持します。
-- Adminの `test-dom/acquisition.test.tsx` は3表・UTMの各列・期間合計、未計測／不明／実測0、初日・当日・月別の途中集計、旧応答を確認します。取得・条件変更・権限・再試行は既存Dashboardと `adminViews.test.tsx`・`adminData.test.tsx` を共用します。
-
-部分確認は `bun test --cwd packages/protocol test/acquisition.test.ts`、`bun run --cwd apps/worker test test/acquisition.test.ts test/adminAnalytics.test.ts test/privacy.test.ts test/generalLobby.test.ts`、`bun test --cwd apps/web --preload ../../test-support/dom.ts test-dom/analytics.test.tsx`、`bun test --cwd apps/admin --preload ../../test-support/dom.ts test-dom/acquisition.test.tsx test-dom/adminViews.test.tsx` を使います。ブラウザを起動する自動テストは追加しません。PC／スマートフォンの表の収まり・スクロール・ネイティブ日付入力、実環境の端末分類とmigration適用は手動確認または未確認事項としてPRへ記載します。Issue #214ではポリシー本文・文書版を変更しない方針を確認しました。今回の改修PR2では、承認済みの取得範囲・保存区分と公開ポリシー・文書版が一致することを確認します。
-
-`adminAnalytics.test.ts` の未決着閉鎖・保存失敗・番号再利用後の再送は、失敗triggerを先に設置し、初期revision 1の再送期限を未来にしたfixtureを使います。自動Alarmによる初期ジョブの保存と閉鎖の競合を避け、退室で生成されるrevision 2の保存失敗と再送期限の更新を確認します。
-
-<a id="四人将棋大会の確認"></a>
 
 ## 大会の確認
 
@@ -404,10 +345,10 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 | 管理操作       | Workerで管理者セッションと権限、投稿削除、本人単位の公開チャット投稿停止・解除、全体投稿停止・再開を確認。Admin DOMで取得・処理中・失敗・再試行、Webで次回同期の反映と停止案内を確認。停止・障害時に対局・ルーム内チャット・履歴閲覧が影響を受けないこと                                                   |
 | 退会           | Workerで受付直後の本人投稿除外・通常投稿削除、同時投稿・保存失敗・再試行、遅延保存／同期からの復活防止、相手投稿の保持を確認。通報証拠は既存の期限・退会者情報除去に従い、本人削除完了を早く表示しないこと                                                                                                 |
 | 配信と検索     | Bunでトップ紹介HTML・ゲームリンク・メタ情報・7ページの本番サイトマップ、happy-domで遷移時の選択とメタ情報、Workerで `/` のGET／HEADが転送せず200、既存6ロビーの200／308／404・条件付き取得を確認。チャット本文・認証情報・架空データが静的HTMLにないこと、開発noindexと管理／棋譜／APIの境界を維持すること |
-| 計測           | WorkerとWeb DOMで総合ロビーのサービス全体の閲覧・滞在、ゲーム別開始率への混入防止、CPU有無の開始・完了・割合・継続率、既存除外・保存期限・退会を確認。チャット本文・操作内容・URL全文を分析保存しないこと                                                                                                  |
+| 計測           | Workerの `usageEvents*.test.ts`・`kpi*.test.ts` で対局の開始・終了とCPU有無、対人戦の割合、テストの除外を確認。チャット本文・操作内容・URL全文を分析保存しないこと                                                                                                  |
 | 関連回帰       | 6ゲームのルーム進行・時計・準備・再戦・資格・招待・登録引き継ぎ・棋譜・戦績、既存ルームチャット・認証・フィードバック・管理認証の関連テストが成功すること                                                                                                                                                  |
 
-既存の入口はWorkerの `publicMatches.test.ts`・`accountRooms.test.ts`・`commonRoomBehavior.test.ts`・`privacy.test.ts`・`adminAnalytics.test.ts`・`publicAssets.test.ts`、Webの `lobbyComponents.test.tsx`・`lobbyLoading.test.tsx`・`entryRegistration.test.tsx`・`accountSession.test.tsx`・`publicLobbies.test.tsx`・`analytics.test.tsx`、Adminの `adminViews.test.tsx` です。固有の検証は[Worker](../apps/worker/test/generalLobby.test.ts)・[Web DOM](../apps/web/test-dom/generalLobby.test.tsx)・[Admin DOM](../apps/admin/test-dom/lobbyChat.test.tsx)です。
+既存の入口はWorkerの `publicMatches.test.ts`・`accountRooms.test.ts`・`commonRoomBehavior.test.ts`・`privacy.test.ts`・`admin.test.ts`・`publicAssets.test.ts`、Webの `lobbyComponents.test.tsx`・`lobbyLoading.test.tsx`・`entryRegistration.test.tsx`・`accountSession.test.tsx`・`publicLobbies.test.tsx` です。固有の検証は[Worker](../apps/worker/test/generalLobby.test.ts)・[Web DOM](../apps/web/test-dom/generalLobby.test.tsx)・[Admin DOM](../apps/admin/test-dom/lobbyChat.test.tsx)です。
 
 手動確認はPC／スマートフォンのゲームカード・盤面図、767px／768pxの境界、ホームの公開ルーム最大480px／400pxと内部スクロール、ゲーム別の展開、固定下部タブのsafe areaと本文・ダイアログの重なり、長い名前・長文・時刻と操作欄、チャット投稿欄、キーボード・フォーカス・読み上げ、日本語の実入力、実Google／Discord認証からの復帰です。機種・OS・ブラウザ・対象コミット・結果または未確認理由を記録します。ブラウザを起動する自動検証を追加しません。
 
@@ -430,7 +371,7 @@ Workerの非分離実行では、退会の失敗・再試行テストがキュ�
 | 表示設定・サウンド                 | Web純粋関数の[browserSettings.test.ts](../apps/web/test/browserSettings.test.ts)・[clockWarning.test.ts](../apps/web/test/clockWarning.test.ts)、Web部品の[browserSettings.test.tsx](../apps/web/test-dom/browserSettings.test.tsx)・[soundPlayer.test.ts](../apps/web/test-dom/soundPlayer.test.ts)、[詳細と手動確認](#表示サウンド設定の確認)                                                                                                                                                                            |
 | チャット・スタンプ                 | Workerの[commonRoomBehavior.test.ts](../apps/worker/test/commonRoomBehavior.test.ts)・[roomStamps.test.ts](../apps/worker/test/roomStamps.test.ts)、Web部品の[roomAuxiliary.test.tsx](../apps/web/test-dom/roomAuxiliary.test.tsx)・[roomStamps.test.tsx](../apps/web/test-dom/roomStamps.test.tsx)、[スタンプの詳細と手動確認](#ルームのスタンプの確認)                                                                                                                                                                   |
 | 戦績・ランキング・バッジ           | Workerの[accountStats.test.ts](../apps/worker/test/accountStats.test.ts)・[rankings.test.ts](../apps/worker/test/rankings.test.ts)・[badgeNotifications.test.ts](../apps/worker/test/badgeNotifications.test.ts)、Web部品の[presentation.test.tsx](../apps/web/test-dom/presentation.test.tsx)・[badgeNotifications.test.tsx](../apps/web/test-dom/badgeNotifications.test.tsx)、[バッジ獲得通知の詳細](#バッジ獲得通知issue-122)                                                                                          |
-| 管理・フィードバック・お知らせ     | Workerの[adminAnalytics.test.ts](../apps/worker/test/adminAnalytics.test.ts)・[feedback.test.ts](../apps/worker/test/feedback.test.ts)・[announcements.test.ts](../apps/worker/test/announcements.test.ts)、Admin部品の[adminViews.test.tsx](../apps/admin/test-dom/adminViews.test.tsx)・[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)・[announcements.test.tsx](../apps/admin/test-dom/announcements.test.tsx)                                                                               |
+| 管理・フィードバック・お知らせ     | Workerの[admin.test.ts](../apps/worker/test/admin.test.ts)・[kpi.test.ts](../apps/worker/test/kpi.test.ts)・[feedback.test.ts](../apps/worker/test/feedback.test.ts)・[announcements.test.ts](../apps/worker/test/announcements.test.ts)、Admin部品の[kpi.test.tsx](../apps/admin/test-dom/kpi.test.tsx)・[feedbackEditor.test.tsx](../apps/admin/test-dom/feedbackEditor.test.tsx)・[announcements.test.tsx](../apps/admin/test-dom/announcements.test.tsx)                                                                               |
 | 公開・検索向け配信・設定           | Workerの[publicAssets.test.ts](../apps/worker/test/publicAssets.test.ts)・[testEnvironment.test.ts](../apps/worker/test/testEnvironment.test.ts)、Web部品の[publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx)、[個人設定からの分離](#個人設定からの分離)、ビルドとWorker dry-run                                                                                                                                                                                                                        |
 
 ## ロビーのルームカードとランキングの切替
@@ -490,7 +431,7 @@ Webの `profileDetails.test.tsx` は選択上限と解除、通常テキスト�
 | 棋譜と相手         | 全6ゲームの公開／本人一覧・詳細・イベントページ・相手履歴・ルーム内棋譜／結果、複数の退会者、CPU・ゲストの保存名維持、元から参照先がない旧記録との区別、名前・画像・公開ID・内部参照の除去、盤面・結果・順位・撃破数・日時・相手戦績の維持                          |
 | 保存の競合         | D1保存失敗、再送・二重送信、DO再起動、保存開始前／受付直後／転送途中／完了後の退会、将棋manifestと全チャンク検証、部屋閉鎖・番号再利用、バッジ・計測待ち、同時編集、遅延RPCによる旧名・画像・本人索引の復活防止                                                     |
 | 削除と進捗         | 認証情報・画像・履歴索引・同意・バッジ・個別計測・本人フィードバック・編集履歴の対象発見と削除、D1・DO・R2失敗からの再開、外部解除のモックによる再試行、他の利用者の情報保護、受付と完了の区別、完了前の完了表示拒否                                                |
-| 常時計測           | ON/OFF UI・設定APIを提供しない、旧選択Cookieに依存しない、Cookieと内部IDの関連付け・閲覧・滞在、規約ページでの計測ID非発行、退会の本人識別除去                                                                                                                      |
+| 常時計測           | ON/OFF UI・設定APIを提供しない、旧選択Cookieに依存しない、規約ページでの計測ID非発行、退会の本人識別除去                                                                                                                      |
 | 保存期限・長期集計 | 90日の直前・一致・直後、期限後のAPI除外と毎時削除、導入前データ、集計後の削除失敗・重複実行・遅延送信、7日継続率の観測窓と月境界、個人ID・端末ID・対局ID・対応表の非保持、期間ユニーク数の誤加算防止、算出不可の管理表示                                            |
 | 互換・回帰         | 既存固定棋譜と旧記録、退会対象のないデータの不変、Google／Discord認証・プロフィール・ゲスト名記憶・ゲスト参加・戦績・バッジ・チャット・通報・フィードバックの既存動作                                                                                               |
 
@@ -500,9 +441,9 @@ Webの `profileDetails.test.tsx` は選択上限と解除、通常テキスト�
 
 [publicLobbies.test.tsx](../apps/web/test-dom/publicLobbies.test.tsx) は `/terms`・`/privacy` の初期表示・再読み込み相当のメタ情報同期と、クエリ・ハッシュを含む画面遷移・履歴の戻りで文書名を含むtitleを確認します。ロビー・棋譜・アカウント等の既存titleと検索除外も回帰確認し、Workerの `privacy.test.ts` で初回HTMLのtitleを確認します。
 
-部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/adminAnalytics.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMでは同意チェック・端末保存がなくても、説明後のボタン操作で現在版を送ることを確認します。
+部分実行は `bun run --cwd apps/worker test test/privacy.test.ts test/discordAuth.test.ts test/matchCompatibility.test.ts test/admin.test.ts` と `bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/privacy.test.tsx ./test-dom/accountSession.test.tsx ./test-dom/roomSession.test.tsx` を使います。既存の同意済みゲームfixtureは `AcceptedGameRequest` で現在版の確認を表し、未確認の拒否テストは通常の `Request` を使います。DOMでは同意チェック・端末保存がなくても、説明後のボタン操作で現在版を送ることを確認します。
 
-WorkerはローカルのD1・R2・SQLite対応DOで保存と資格・HTTP／WebSocketを確認します。期限・再認証の有効時間・表示変換は純粋関数、同意・退会・非同期応答はBun＋happy-domで確認します。既存の `accounts.test.ts`・`discordAuth.test.ts`・`accountRooms.test.ts`・`publicMatches.test.ts`・`matchCompatibility.test.ts`・`commonRoomBehavior.test.ts`・`adminAnalytics.test.ts`・`feedback.test.ts`・`badgeNotifications.test.ts`・`publicAssets.test.ts` と関連DOMテストを入口にします。
+WorkerはローカルのD1・R2・SQLite対応DOで保存と資格・HTTP／WebSocketを確認します。期限・再認証の有効時間・表示変換は純粋関数、同意・退会・非同期応答はBun＋happy-domで確認します。既存の `accounts.test.ts`・`discordAuth.test.ts`・`accountRooms.test.ts`・`publicMatches.test.ts`・`matchCompatibility.test.ts`・`commonRoomBehavior.test.ts`・`admin.test.ts`・`feedback.test.ts`・`badgeNotifications.test.ts`・`publicAssets.test.ts` と関連DOMテストを入口にします。
 
 手動確認は、PC／スマートフォンの文章・リンク・最終確認と処理中表示、キーボード・読み上げ、実Google／Discord認証と取消・同じ本人の再認証・連携解除、複数端末の失効、実画像削除、窓口メール受信、Google Cloudのscope・本番URL・所有ドメイン、Cloudflareの処理先・ログ／バックアップ期限、バックアップ復元後の削除再適用です。ブラウザを起動する自動テストを追加しません。
 
@@ -522,7 +463,7 @@ bun test --cwd apps/web --preload ../../test-support/dom.ts ./test-dom/roomSessi
 # Adminの純粋関数
 bun test --cwd apps/admin ./test/presentation.test.ts
 # Adminの部品・hook
-bun test --cwd apps/admin --preload ../../test-support/dom.ts ./test-dom/adminViews.test.tsx
+bun test --cwd apps/admin --preload ../../test-support/dom.ts ./test-dom/kpi.test.tsx
 ```
 
 エンジンとCPUは、変更したゲームのパッケージを選びます。特定ファイルに絞る場合は、例えば `bun run --cwd packages/four-shogi test test/cpuSearch.test.ts` を使います。
@@ -580,7 +521,6 @@ PC・スマートフォンの実画像と枚数の可読性、画面寸法、ネ
 
 ## 実行環境
 
-管理ユーザー分析の `adminUsersInsights.test.ts` は専用D1を使い、各ケースのユーザーと集計カーソルを初期化します。50件単位の集計を、他のテストが作った未処理アカウント数・実行順に依存させません。
 
 終局後の星評価（#132）は、Webの `postGameFeedback.test.tsx` と `autoGameResult.test.tsx`、Workerの `feedback.test.ts`、Adminの `feedbackEditor.test.tsx` で確認します。ゲスト・ユーザー、観戦、CPU戦・対人戦、結果を閉じた後の表示、表示時の記録、再読み込み相当の再マウント・ログイン後の抑止、保存領域エラー、星1〜5・任意コメントの入力、送信失敗と同じIDの再送、管理画面の表示と条件絞り込みを対象にします。スマートフォンの収まり・ネイティブの星選択・実フォーカスと、開発環境へのmigration適用は手動確認として記録します。
 
@@ -705,7 +645,7 @@ Workerテストは `apps/worker/vitest.config.mts` で `main` とMiniflare設定
 部分確認は次のコマンドを使います。開発用設定を退避・変更せず、通常の作業ディレクトリで実行してください。
 
 ```sh
-bun run --cwd apps/worker test test/testEnvironment.test.ts test/adminAnalytics.test.ts test/feedback.test.ts test/accounts.test.ts test/sessionCookieRenewal.test.ts test/announcements.test.ts test/discordAuth.test.ts
+bun run --cwd apps/worker test test/testEnvironment.test.ts test/admin.test.ts test/feedback.test.ts test/accounts.test.ts test/sessionCookieRenewal.test.ts test/announcements.test.ts test/discordAuth.test.ts
 ```
 
 `testEnvironment.test.ts` は固定値・管理者設定の未登録・開発用設定の追加キーが取り込まれないことと、生成型のキーを検証し、通常の `check` に含めます。CIはプロセス環境変数の取り込みを要求する環境で、設定なしと競合する `.env` だけの状態をこのテストで確認し、偽の管理者・Origin・認証情報を含む `.dev.vars` を追加してFullの全workspace検証を実行します。各状態で生成型が同一であることも照合します。全テストは重複実行せず、これらの偽設定はCIの使い捨て環境だけに作成します。
@@ -874,7 +814,6 @@ PCの盤面と状況カードは全6ゲームで画面の高さを変えて手�
 
 ## ゲストアカウントの確認（#234）
 
-管理画面のユーザー一覧は `apps/worker/test/adminAnalytics.test.ts` で、連携済み・ゲストそれぞれの種別絞り込みと退会済みの除外を50件制限より前に適用し、名前／ID検索・同時刻のページ送り・未設定プロフィール・旧日時形式に対応することを確認します。種別省略は連携済み、未知の種別は400です。Adminの `adminViews.test.tsx` は連携済みの初期選択、ゲストID表示、両種別の検索と追加取得、切り替え時の検索語保持・旧結果とカーソルの破棄・通信中止・遅延応答の無視をBun＋happy-domで確認します。
 
 `apps/worker/test/guestAccounts.test.ts` で閲覧時非作成、同意・Origin・文字数、自動名と設定済みの区別、180日期限・更新、全6ゲームの作成と1席制限、対人／CPUの集計、新規Google／Discord連携の内部ID保持、既存登録者への確認付き統合・本人限定・重複拒否・遅延保存を確認します。大会参加・バッジ・公開表示・登録者限定権限も対象です。公開チャットではゲストの投稿・再送・送信間隔・通報上限・運営停止を検証し、統合後も非表示用ID・再送・投稿停止・通報と退会時の削除を維持することを確認します。本人確認後の本文読取を制御して統合を挟み、遅延した通報が元ゲストの参照で保存されないことも検証します。表示用IDの一意性、登録者IDとの衝突・再生成、作成batchの失敗時にアカウント・本人資格・同意を残さないこと、取得時にIDを補完しないこと、ゲスト中の編集拒否、新規連携後の保持・変更を確認します。既存登録者へ引き継がない場合は0局・対局済みの両方で、記録を維持しつつ元ゲストへ復帰しないこと、確認未完了のログアウト・登録セッション失効・OAuth取消・別アカウント・Origin違反を検証します。
 
@@ -882,7 +821,7 @@ WebはBun＋happy-domで名前入力と取消・保存・Cookie保存不能・�
 
 ## 互換整理・定期処理・DB取得の確認
 
-- `playerProfiles.test.ts` は公開ID欠落時の503と、プロフィール・ランキングのGETがIDを補完しないことを確認します。`privacy.test.ts` は暗号化トークンの解除・失敗再送を維持し、平文の受理を拒否します。`adminAnalytics.test.ts` は配列設定だけの認可と未設定・不正値の拒否を確認します。
+- `playerProfiles.test.ts` は公開ID欠落時の503と、プロフィール・ランキングのGETがIDを補完しないことを確認します。`privacy.test.ts` は暗号化トークンの解除・失敗再送を維持し、平文の受理を拒否します。`admin.test.ts` は配列設定だけの認可と未設定・不正値の拒否を確認します。
 - `scheduledMaintenance.test.ts` は失敗後のジョブ実行、順序、秘密を含まないログ、次回の成功と、追加索引の実行計画を確認します。`generalLobby.test.ts`・`tournamentChat.test.ts` はbatch化後も匿名・本人・投稿停止・大会の受付とページングを確認します。
 - `gameRoom.test.ts`・`roomDeadlineBoundary.test.ts`・`accountRooms.test.ts`・大会と棋譜保存の統合テストで、期限の前後、失効資格、閉鎖後の保存・再送を確認します。空キューではAlarm再同期を省き、実際の保存・失敗後には次の期限を維持します。
 - Webの `roomLoader.test.ts`・`dataLoading.test.tsx`・`badges.test.tsx` は400時の単一リクエストと手動再試行、`roomSession.test.tsx` は再接続時も戦型解析を要求しないことを確認します。戦型通知の既存 `shogiState.test.tsx` は継続します。

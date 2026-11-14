@@ -2,12 +2,168 @@ import { expect, test } from "vitest";
 import { kpiQuerySchema } from "@tetraboard/protocol";
 import {
   calculateEventKpi,
+  attributeRegistrationEvents,
   ratio,
   replayWithin7Days,
   waitingPercentiles,
 } from "../src/kpi/calculations";
 import { dayMs, japanDayStart, kpiPeriod, previousJapanMonth } from "../src/kpi/period";
 import { eventRow, eventRows, visit } from "./kpiFixtures";
+import type { UsageEvent } from "../src/usageEvents/events";
+
+const eventPeriod = kpiPeriod({ from: "1981-01-01", to: "1981-01-31" });
+type RegistrationEvent = Extract<UsageEvent, { name: "registration" }>;
+function registrationAt(
+  stage: RegistrationEvent["stage"],
+  offsetMs: number,
+  details: Partial<RegistrationEvent> = {},
+) {
+  return {
+    ...eventRow({
+      name: "registration",
+      isTest: false,
+      browserId: "browser",
+      accountId: "account",
+      entry: "unknown",
+      stage,
+      ...details,
+    }),
+    timestamp: new Date(eventPeriod.fromMs + offsetMs).toISOString(),
+  };
+}
+
+test.each([
+  { elapsed: 600000, browserId: "browser", expected: "flow" },
+  { elapsed: 600001, browserId: "browser", expected: null },
+  { elapsed: 1, browserId: "other", expected: null },
+  { elapsed: 1, browserId: "", expected: null },
+  { elapsed: 0, browserId: "browser", expected: null },
+])(
+  "OAuth完了の対応づけは直前10分以内の同じブラウザだけを使う: %j",
+  ({ elapsed, browserId, expected }) => {
+    const rows = [
+      registrationAt("oauth_start", 0, { flowId: "flow", entry: "login-page" }),
+      ...(["oauth_success", "registered", "existing_login"] as const).map((stage) =>
+        registrationAt(stage, elapsed, { browserId }),
+      ),
+    ];
+    const result = attributeRegistrationEvents(rows);
+    for (const row of result.filter((r) => r.blob7 !== "oauth_start")) {
+      expect(row.blob8).toBe(expected ? "login-page" : "unknown");
+      if (expected) expect(row.blob6).toBe(expected);
+      else expect(row.blob6).toBeTruthy();
+    }
+  },
+);
+
+test("最新のOAuth開始を選び、未来・同時刻の開始を使わず、既存の手続きIDを保持する", () => {
+  const rows = [
+    registrationAt("oauth_start", -2000, { flowId: "old", entry: "room-result" }),
+    registrationAt("oauth_start", -1000, { flowId: "latest", entry: "login-page" }),
+    registrationAt("oauth_start", 0, { flowId: "same-time", entry: "room-result" }),
+    registrationAt("oauth_start", 1, { flowId: "future", entry: "room-result" }),
+    registrationAt("oauth_success", 0),
+    registrationAt("registered", 0, { flowId: "original", entry: "account-link" }),
+  ].reverse();
+  const before = structuredClone(rows);
+  const result = attributeRegistrationEvents(rows);
+  expect(result.find((r) => r.blob7 === "oauth_success")).toMatchObject({
+    blob6: "latest",
+    blob8: "login-page",
+  });
+  expect(result.find((r) => r.blob7 === "registered")).toMatchObject({
+    blob6: "original",
+    blob8: "account-link",
+  });
+  expect(rows).toEqual(before);
+});
+
+test("プロフィール完了はブラウザが変わっても同じアカウントの直前のOAuth成功へ対応づく", () => {
+  const rows = [
+    registrationAt("oauth_start", -100, { flowId: "old", entry: "room-result" }),
+    registrationAt("oauth_success", -99),
+    registrationAt("oauth_start", -50, { flowId: "latest", entry: "login-page" }),
+    registrationAt("oauth_success", -49),
+    registrationAt("oauth_success", -1, {
+      accountId: "other",
+      flowId: "other",
+      entry: "account-link",
+    }),
+    registrationAt("profile_complete", 0, { browserId: "new-browser" }),
+    registrationAt("oauth_success", 0, { flowId: "same-time", entry: "room-result" }),
+    registrationAt("profile_complete", 1, { accountId: "" }),
+    registrationAt("profile_complete", 2, { accountId: "missing" }),
+  ];
+  const profiles = attributeRegistrationEvents(rows).filter((r) => r.blob7 === "profile_complete");
+  expect(profiles[0]).toMatchObject({ blob6: "latest", blob8: "login-page" });
+  expect(profiles.slice(1).every((r) => r.blob8 === "unknown" && r.blob6)).toBe(true);
+});
+
+test("対応先のない完了の2点はunknownの同じ手続きになり、別の完了と重複しない", () => {
+  const rows = [
+    registrationAt("oauth_success", 0),
+    registrationAt("registered", 1),
+    registrationAt("oauth_success", 2000),
+    registrationAt("existing_login", 2001),
+    registrationAt("profile_complete", 3000, { browserId: "other" }),
+  ];
+  const result = attributeRegistrationEvents(rows);
+  expect(result.every((r) => r.blob8 === "unknown" && r.blob6)).toBe(true);
+  expect(result[0]!.blob6).toBe(result[1]!.blob6);
+  expect(result[2]!.blob6).toBe(result[3]!.blob6);
+  expect(result[0]!.blob6).not.toBe(result[2]!.blob6);
+  expect(result[4]!.blob6).toBe(result[2]!.blob6);
+  expect(calculateEventKpi(eventRows(rows), eventPeriod).registration).toEqual([
+    { entry: "unknown", stage: "oauth_success", flows: 2 },
+    { entry: "unknown", stage: "registered", flows: 1 },
+    { entry: "unknown", stage: "existing_login", flows: 1 },
+    { entry: "unknown", stage: "profile_complete", flows: 1 },
+  ]);
+});
+
+test("期間開始の10分前の開始・成功は対応づけに使うが、期間内の段階と新規登録だけ数える", () => {
+  const rows = [
+    registrationAt("oauth_start", -600000, { flowId: "flow", entry: "room-result" }),
+    registrationAt("oauth_success", -1000, { accountId: "before" }),
+    registrationAt("registered", -999, { accountId: "before" }),
+    registrationAt("profile_complete", 0, { accountId: "before", browserId: "different" }),
+    registrationAt("oauth_success", 0),
+    registrationAt("registered", 0),
+    registrationAt("registered", eventPeriod.toMs - eventPeriod.fromMs, { accountId: "after" }),
+  ];
+  const result = calculateEventKpi(eventRows(rows), eventPeriod);
+  expect(result.newRegistrations).toBe(1);
+  expect(result.registration).toEqual([
+    { entry: "room-result", stage: "profile_complete", flows: 1 },
+    { entry: "room-result", stage: "oauth_success", flows: 1 },
+    { entry: "room-result", stage: "registered", flows: 1 },
+  ]);
+});
+
+test("テストの本人を対応づけ前に除外し、時刻にタイムゾーンがなくてもUTCとして扱う", () => {
+  const start = registrationAt("oauth_start", -600000, { flowId: "flow", entry: "login-page" });
+  start.timestamp = start.timestamp.replace("T", " ").replace("Z", "");
+  const rows = [
+    start,
+    registrationAt("oauth_success", 0),
+    registrationAt("registered", 0),
+    registrationAt("registered", 0, { accountId: "test-account", browserId: "other" }),
+    registrationAt("registered", 0, { accountId: "other", browserId: "test-browser" }),
+    registrationAt("oauth_start", -1, {
+      flowId: "test",
+      entry: "room-result",
+      isTest: true,
+      browserId: "test-browser",
+      accountId: "test-account",
+    }),
+  ];
+  const result = calculateEventKpi(eventRows(rows), eventPeriod);
+  expect(result.newRegistrations).toBe(1);
+  expect(result.registration).toEqual([
+    { entry: "login-page", stage: "oauth_success", flows: 1 },
+    { entry: "login-page", stage: "registered", flows: 1 },
+  ]);
+});
 
 test("期間は日本時間の両端を含み、実在する日付と最大92日を検証する", () => {
   expect(kpiPeriod({ from: "2024-02-29", to: "2024-03-01" })).toEqual({
@@ -180,7 +336,7 @@ test("後からテストと判明したブラウザ・アカウントとテス�
     }),
   ];
   const before = structuredClone(rows);
-  const result = calculateEventKpi(eventRows(rows));
+  const result = calculateEventKpi(eventRows(rows), eventPeriod);
   expect(result.visitingBrowsers).toBe(2);
   expect(result.matchStartRate).toEqual(ratio(1, 2));
   expect(result.matchCompletionRate).toEqual(ratio(1, 2));
@@ -201,7 +357,7 @@ test("後からテストと判明したブラウザ・アカウントとテス�
     { stage: "matched", count: 10, waitingMs: { median: 100, p90: 100 } },
   ]);
   expect(rows).toEqual(before);
-  expect(calculateEventKpi(eventRows([])).matchCompletionRate).toEqual(ratio(0, 0));
+  expect(calculateEventKpi(eventRows([]), eventPeriod).matchCompletionRate).toEqual(ratio(0, 0));
 });
 
 test("新規登録はregisteredのアカウントIDを数え、重複・IDなし・他段階・テスト本人を除く", () => {
@@ -247,8 +403,8 @@ test("新規登録はregisteredのアカウントIDを数え、重複・IDなし
       message: "test",
     }),
   ];
-  expect(calculateEventKpi(eventRows(rows)).newRegistrations).toBe(2);
-  expect(calculateEventKpi(eventRows([])).newRegistrations).toBe(0);
+  expect(calculateEventKpi(eventRows(rows), eventPeriod).newRegistrations).toBe(2);
+  expect(calculateEventKpi(eventRows([]), eventPeriod).newRegistrations).toBe(0);
 });
 
 test("再対局は翌日から7日目までを含み、初回が期間外・同日だけ・観測中を区別する", () => {

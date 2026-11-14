@@ -5,12 +5,7 @@ import { humanFixtureRecord } from "./matchFixtures";
 import { humanShogiRecord } from "./shogiMatchFixtures";
 import { pendingMatchPrefix, type PendingMatch } from "../src/rooms/matchStore";
 import { pendingShogiMatchPrefix, type PendingShogiMatch } from "../src/rooms/shogiMatchStore";
-import {
-  analyticsActiveKey,
-  analyticsPendingPrefix,
-  type AnalyticsMatch,
-  type AnalyticsJob,
-} from "../src/analytics/store";
+import { analyticsActiveKey, type AnalyticsMatch } from "../src/usageEvents/matches";
 import type { PendingRoomIndex } from "../src/rooms/roomIndex";
 import type { AccountAdmission } from "../src/accounts/roomAccounts";
 import { env } from "cloudflare:workers";
@@ -224,18 +219,6 @@ for (const game of ["four-reversi", "four-shogi"] satisfies GameId[]) {
           .bind(roundId)
           .first(),
       ).toEqual({ n: 4 });
-      expect(
-        await env.APP_DB.prepare("SELECT status FROM analytics_matches WHERE id = ?")
-          .bind(roundId)
-          .first(),
-      ).toEqual({ status: "completed" });
-      expect(
-        await env.APP_DB.prepare(
-          "SELECT COUNT(*) AS n FROM analytics_participants WHERE match_id = ?",
-        )
-          .bind(roundId)
-          .first(),
-      ).toEqual({ n: 4 });
       return match;
     };
     await vi.waitFor(persisted);
@@ -399,7 +382,7 @@ test.each(["一致", "期限切れ", "別局", "revision違い", "手番違い"]
 );
 
 // 保存待ちは実際の保存型で作り、将来の期限なので外部サービスを失敗させずに候補を検証する。
-test.each(["時計", "復帰", "活動停止", "索引", "席解放", "計測", "リバーシ保存", "将棋保存"])(
+test.each(["時計", "復帰", "活動停止", "索引", "席解放", "リバーシ保存", "将棋保存"])(
   "Alarm候補: %s が最小ならその保存時刻を選ぶ",
   async (source) => {
     const prepared = await start("four-reversi");
@@ -439,11 +422,6 @@ test.each(["時計", "復帰", "活動停止", "索引", "席解放", "計測", 
       state.storage.kv.put("account-cleanups", [
         { reservation, releaseAvatar: false, retryAtMs: retry("席解放") },
       ]);
-      state.storage.kv.put(analyticsPendingPrefix + active.id, {
-        record: active,
-        revision: 1,
-        retryAtMs: retry("計測"),
-      } satisfies AnalyticsJob);
       state.storage.kv.put(pendingMatchPrefix + record.id, {
         record,
         retryAtMs: retry("リバーシ保存"),
@@ -456,7 +434,7 @@ test.each(["時計", "復帰", "活動停止", "索引", "席解放", "計測", 
       await instance.getRoom();
       expect(await state.storage.getAlarm()).toBe(early);
       // 自動再試行を残さず、通常の資格・ルーム解放へ戻す。
-      for (const prefix of [pendingMatchPrefix, pendingShogiMatchPrefix, analyticsPendingPrefix])
+      for (const prefix of [pendingMatchPrefix, pendingShogiMatchPrefix])
         for (const [key] of state.storage.kv.list({ prefix })) state.storage.kv.delete(key);
       state.storage.kv.delete("room-index-pending");
       state.storage.kv.delete("account-cleanups");

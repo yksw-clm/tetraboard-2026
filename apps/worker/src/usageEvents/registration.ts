@@ -1,6 +1,10 @@
-import type { RegistrationAnalyticsInput } from "@tetraboard/protocol";
-import { analyticsRetentionMs } from "@tetraboard/protocol/privacy";
-import type { StoredProfile } from "../accounts/auth";
+import {
+  registrationAnalyticsInputSchema,
+  type RegistrationAnalyticsInput,
+} from "@tetraboard/protocol";
+import { accountIdentity, createAuth, type AuthEnv, type StoredProfile } from "../accounts/auth";
+import { responseCookies } from "../privacy/deletion";
+import { browserIdFromRequest } from "./browserId";
 import type { UsageEvent } from "./events";
 import { createUsageEventWriter } from "./writer";
 
@@ -38,73 +42,91 @@ export function registrationUsage(
   };
 }
 
-type Flow = {
-  id: string;
-  entry: RegistrationEvent["entry"];
-  game: string;
-  visitor_id: string | null;
-  is_test: number;
-  is_new_registration: number | null;
-};
+async function completionEvent(env: Env, request: Request, accountId: string) {
+  const user = await env.APP_DB.prepare(`SELECT isTestUser FROM user WHERE id=?
+    AND COALESCE(isAnonymous,0)=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id)`)
+    .bind(accountId)
+    .first<{ isTestUser: number | null }>();
+  if (!user) return null;
+  return {
+    name: "registration" as const,
+    flowId: null,
+    entry: "unknown" as const,
+    game: null,
+    browserId: browserIdFromRequest(request),
+    accountId,
+    isTest: Boolean(user.isTestUser),
+  };
+}
 
 export async function writeRegistrationCompletionUsage(
-  env: Env,
-  flowId: string,
-  accountId: string,
+  env: AuthEnv,
+  request: Request,
+  response: Response,
   newAccount: boolean,
-  now: number,
 ) {
   if (!env.USAGE_EVENTS) return;
   try {
-    const flow = await env.APP_DB.prepare(`SELECT f.id,f.entry,f.game,f.visitor_id,
-      MAX(f.is_test,COALESCE(u.isTestUser,0)) AS is_test,
-      COALESCE(f.is_new_registration,?) AS is_new_registration
-      FROM analytics_registration_flows f JOIN user u ON u.id=?
-      WHERE f.id=? AND f.created_at_ms>? AND (f.target_account_id IS NULL OR f.target_account_id=?)
-      AND COALESCE(u.isAnonymous,0)=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=u.id)`)
-      .bind(Number(newAccount), accountId, flowId, now - analyticsRetentionMs, accountId)
-      .first<Flow>();
-    if (!flow) return;
+    const url = new URL(request.url);
+    if (
+      !/\/callback\/(google|discord)$/.test(url.pathname) ||
+      !url.searchParams.get("state") ||
+      url.searchParams.has("error") ||
+      response.status >= 400 ||
+      !response.headers
+        .getSetCookie()
+        .some((cookie) => /^(?:__Secure-)?tetraboard-2026\.session_token=[^;]/.test(cookie))
+    )
+      return;
+    const destination = new URL(response.headers.get("Location") ?? "/", env.APP_ORIGIN);
+    if (destination.searchParams.has("error") || destination.pathname === "/account/deletion")
+      return;
+    const session = await createAuth(env).api.getSession({
+      headers: responseCookies(request, response),
+    });
+    if (!session) return;
+    const event = await completionEvent(env, request, session.user.id);
+    if (!event) return;
     const writer = createUsageEventWriter(env.USAGE_EVENTS);
-    const event = {
-      name: "registration" as const,
-      flowId: flow.id,
-      entry: flow.entry,
-      game: flow.game === "all" ? null : flow.game,
-      browserId: flow.visitor_id,
-      accountId,
-      isTest: Boolean(flow.is_test),
-    };
     writer.write({ ...event, stage: "oauth_success" });
-    writer.write({ ...event, stage: flow.is_new_registration ? "registered" : "existing_login" });
+    writer.write({ ...event, stage: newAccount ? "registered" : "existing_login" });
   } catch {
     console.warn("Usage registration context read failed");
   }
 }
 
-export async function writeProfileCompletionUsage(env: Env, accountId: string, now: number) {
+export async function writeProfileCompletionUsage(env: Env, accountId: string, request: Request) {
   if (!env.USAGE_EVENTS) return;
   try {
-    const flow = await env.APP_DB.prepare(`SELECT f.id,f.entry,f.game,f.visitor_id,f.is_test
-      FROM analytics_registration_flows f
-      WHERE f.target_account_id=? AND f.profile_required=1 AND f.created_at_ms>?
-      AND EXISTS(SELECT 1 FROM analytics_registration_events e WHERE e.flow_id=f.id AND e.stage='oauth_success')
-      AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=?)
-      ORDER BY f.created_at_ms DESC,f.id LIMIT 1`)
-      .bind(accountId, now - analyticsRetentionMs, accountId)
-      .first<Flow>();
-    if (!flow) return;
+    const event = await completionEvent(env, request, accountId);
+    if (!event) return;
     createUsageEventWriter(env.USAGE_EVENTS).write({
-      name: "registration",
-      flowId: flow.id,
-      entry: flow.entry,
-      game: flow.game === "all" ? null : flow.game,
-      browserId: flow.visitor_id,
-      accountId,
-      isTest: Boolean(flow.is_test),
+      ...event,
       stage: "profile_complete",
     });
   } catch {
     console.warn("Usage registration context read failed");
   }
 }
+
+/** 計測の障害はOAuth開始を妨げません。 */
+export async function recordRegistrationOAuthStart(
+  request: Request,
+  env: AuthEnv,
+  input?: RegistrationAnalyticsInput,
+) {
+  const usage = registrationUsage(env, input, browserIdFromRequest(request));
+  try {
+    const user = await accountIdentity(request, env);
+    usage.identify(input ?? { id: crypto.randomUUID(), entry: "unknown", game: null }, user);
+  } catch {
+    console.warn("Usage registration context read failed");
+  } finally {
+    usage.write("oauth_start");
+  }
+}
+
+export const parseRegistrationAnalytics = (value: unknown) => {
+  const input = registrationAnalyticsInputSchema.safeParse(value);
+  return input.success ? input.data : undefined;
+};

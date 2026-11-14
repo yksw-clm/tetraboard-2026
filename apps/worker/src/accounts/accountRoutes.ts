@@ -1,12 +1,10 @@
 import {
-  rememberRegistrationAnalytics,
-  completeRegistrationAnalytics,
-  recordProfileCompletion,
+  recordRegistrationOAuthStart,
+  writeRegistrationCompletionUsage,
+  writeProfileCompletionUsage,
   parseRegistrationAnalytics,
-} from "../analytics/registration";
+} from "../usageEvents/registration";
 import type { RegistrationAnalyticsInput } from "@tetraboard/protocol";
-import { recordLoginUsage } from "./loginUsage";
-import { recordAccountUsage } from "./usage";
 import { matchmakingQueueKeys } from "@tetraboard/protocol";
 import {
   prepareGuestLink,
@@ -52,14 +50,6 @@ accountRoutes.use("*", async (c, next) => {
   if (/\/(auth|account)(\/|$)/.test(new URL(c.req.url).pathname))
     c.header("Cache-Control", "no-store");
   await next();
-  if (
-    ["/api/account/profile", "/api/account/setup"].includes(c.req.path) &&
-    ["POST", "PATCH"].includes(c.req.method) &&
-    c.res.ok
-  ) {
-    const user = c.get("user");
-    if (user) await recordAccountUsage(c.env.APP_DB, user.id);
-  }
 });
 accountRoutes.onError((err, c) => {
   if (err instanceof GuestLinkError) return c.json(error(err.message), 409);
@@ -79,11 +69,10 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
       new Request(`${c.env.APP_ORIGIN}/api${path}${new URL(c.req.url).search}`, c.req.raw),
     );
     await completeGuestLink(c.req.raw, response, c.env);
-    await recordLoginUsage(c.req.raw, response, c.env);
     await completeReauthentication(c.req.raw, response, c.env);
     await completeLegalAuthentication(c.req.raw, response, c.env);
     await completeRegistrationOAuth(c.req.raw, response, c.env);
-    await completeRegistrationAnalytics(c.req.raw, response, c.env, createdAccounts.size > 0);
+    await writeRegistrationCompletionUsage(c.env, c.req.raw, response, createdAccounts.size > 0);
     return response;
   }
   if (c.req.method !== "POST" || !["/auth/sign-in/social", "/auth/sign-out"].includes(path))
@@ -189,7 +178,7 @@ accountRoutes.on(["GET", "POST"], "/auth/*", async (c) => {
           provider,
           registration?.guest_account_id ? registration.id : undefined,
         );
-      await rememberRegistrationAnalytics(c.req.raw, c.env, state, provider, analytics);
+      await recordRegistrationOAuthStart(c.req.raw, c.env, analytics);
     }
   }
   return response;
@@ -448,7 +437,8 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
     if (registration) await validateRegistrationSetup(c.req.raw, c.env);
     return c.json(error("設定が更新されています。ページを開き直してください。"), 409);
   }
-  if (action === "setup" && !user.profileCompleted) await recordProfileCompletion(c.env, user.id);
+  if (action === "setup" && !user.profileCompleted)
+    await writeProfileCompletionUsage(c.env, user.id, c.req.raw);
   c.executionCtx.waitUntil(deleteUnusedAvatars(c.env));
   return c.json(
     publicProfile({

@@ -62,7 +62,7 @@
     "enabled": true
   },
   "triggers": {
-    "crons": ["0 * * * *", "*/5 * * * *"]
+    "crons": ["0 * * * *"]
   },
   "env": {
     "production": {
@@ -148,7 +148,7 @@
         "enabled": true
       },
       "triggers": {
-        "crons": ["0 * * * *", "*/5 * * * *"]
+        "crons": ["0 * * * *"]
       }
     },
     "development": {
@@ -229,7 +229,7 @@
         "enabled": true
       },
       "triggers": {
-        "crons": ["0 * * * *", "*/5 * * * *"]
+        "crons": ["0 * * * *"]
       }
     }
   }

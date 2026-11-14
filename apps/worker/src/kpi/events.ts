@@ -1,5 +1,5 @@
 import type { KpiQuery } from "@tetraboard/protocol";
-import { calculateEventKpi } from "./calculations";
+import { calculateEventKpi, registrationLookbackMs } from "./calculations";
 import { kpiPeriod } from "./period";
 import { usageDataset, type UsageEventQuery } from "./query";
 
@@ -10,7 +10,8 @@ export async function readEventKpi(
   nowMs: number,
 ) {
   const dataset = usageDataset(datasetName);
-  const { from, to, toMs } = kpiPeriod(period);
+  const bounds = kpiPeriod(period);
+  const { from, to, fromMs, toMs } = bounds;
   const grouped = (event: string, columns: string[], until = to) =>
     query.rows(
       `SELECT ${columns.join(", ")}, COUNT(*) AS count FROM ${dataset}
@@ -42,15 +43,15 @@ export async function readEventKpi(
     ["blob6", "blob7"],
     new Date(Math.max(toMs, nowMs)).toISOString(),
   );
-  const registration = await grouped("registration", [...identity, "blob6", "blob7", "blob8"]);
+  const registration = await query.rows(
+    `SELECT timestamp, blob2, blob4, blob5, blob6, blob7, blob8, blob3 FROM ${dataset}
+     WHERE blob1 = 'registration' AND timestamp >= $from AND timestamp < $to
+     ORDER BY timestamp ASC`,
+    { from: new Date(fromMs - registrationLookbackMs).toISOString(), to },
+  );
   const matchmaking = await grouped("matchmaking", [...identity, "blob7", "double1"]);
-  return calculateEventKpi({
-    tests,
-    visits,
-    participants,
-    starts,
-    ends,
-    registration,
-    matchmaking,
-  });
+  return calculateEventKpi(
+    { tests, visits, participants, starts, ends, registration, matchmaking },
+    bounds,
+  );
 }

@@ -1,7 +1,8 @@
+import type { AnalyticsMatch } from "../src/usageEvents/matches";
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import { legalVersion, analyticsRetentionMs, legalDocuments } from "@tetraboard/protocol/privacy";
+import { legalVersion, legalDocuments } from "@tetraboard/protocol/privacy";
 import { accountFixture, origin } from "./accountFixtures";
 import {
   challengeCookie,
@@ -25,9 +26,6 @@ import { fourGomokuMatchData } from "../src/accounts/fourGomokuMatchData";
 import reversi from "../../../test-fixtures/matches/reversi-standard-draw.json";
 import gomoku from "../../../test-fixtures/matches/gomoku-on-five.json";
 import fourGomoku from "../../../test-fixtures/matches/four-gomoku-singles-ranked.json";
-import { archiveAnalytics } from "../src/analytics/retention";
-import { analyticsVisitor, writeAnalyticsMatch, type AnalyticsMatch } from "../src/analytics/store";
-import { readAnalytics, japanDay } from "../src/admin/metrics";
 import worker from "../src/worker";
 import { authSecret, unsealToken } from "../src/privacy/tokens";
 import { symmetricEncrypt } from "better-auth/crypto";
@@ -530,102 +528,6 @@ test("R2失敗は処理中を維持して再試行し、完了時は認証・同
   ).not.toBeNull();
 });
 
-test("利用計測は常時有効で旧選択Cookieに依存せず、90日境界で集計・削除する", async () => {
-  const browser = crypto.randomUUID();
-  const cookies = `tetraboard-2026.analytics=${browser}; tetraboard-2026.analytics-choice=off`;
-  expect(analyticsVisitor(new Request(origin, { headers: { Cookie: cookies } }))).toBe(browser);
-  const viewId = crypto.randomUUID();
-  expect(
-    (
-      await request("/analytics/pageviews", {
-        method: "POST",
-        headers: { Origin: origin, Cookie: cookies, "Content-Type": "application/json" },
-        body: JSON.stringify({ id: viewId, page: "lobby", game: "four-reversi" }),
-      })
-    ).status,
-  ).toBe(204);
-  expect(
-    await env.APP_DB.prepare("SELECT visitor_id FROM analytics_pageviews WHERE id=?")
-      .bind(viewId)
-      .first(),
-  ).toEqual({ visitor_id: browser });
-  expect(
-    (
-      await request("/analytics/choice", {
-        method: "POST",
-        headers: { Origin: origin },
-        body: JSON.stringify({ enabled: false }),
-      })
-    ).status,
-  ).toBe(404);
-  const now = Date.now(),
-    cutoff = now - analyticsRetentionMs,
-    day = japanDay(cutoff),
-    nextDay = japanDay(cutoff + 86400000),
-    id = crypto.randomUUID();
-  await env.APP_DB.prepare(
-    "INSERT INTO analytics_pageviews(id,visitor_id,page,game,started_at_ms) VALUES (?,?,'lobby','gomoku',?)",
-  )
-    .bind(id, browser, cutoff)
-    .run();
-  await env.APP_DB.batch([
-    env.APP_DB.prepare("INSERT INTO analytics_dwell VALUES (?,?,?)").bind(id, day, 100),
-    env.APP_DB.prepare("INSERT INTO analytics_dwell VALUES (?,?,?)").bind(id, nextDay, 200),
-  ]);
-  const before = await env.APP_DB.prepare(
-    "SELECT SUM(page_views) count FROM analytics_daily WHERE game='gomoku' AND internal=0",
-  ).first<{ count: number | null }>();
-  await archiveAnalytics(env, now);
-  await archiveAnalytics(env, now);
-  expect(
-    await env.APP_DB.prepare("SELECT 1 FROM analytics_pageviews WHERE id=?").bind(id).first(),
-  ).toBeNull();
-  expect(
-    await env.APP_DB.prepare("SELECT 1 FROM analytics_dwell WHERE view_id=?").bind(id).first(),
-  ).toBeNull();
-  expect(
-    (await env.APP_DB.prepare(
-      "SELECT SUM(page_views) count FROM analytics_daily WHERE game='gomoku' AND internal=0",
-    ).first<{ count: number }>())!.count,
-  ).toBe((before?.count ?? 0) + 1);
-  expect(
-    (await env.APP_DB.prepare(
-      "SELECT dwell_ms FROM analytics_daily WHERE day=? AND game='gomoku' AND internal=0",
-    )
-      .bind(nextDay)
-      .first<{ dwell_ms: number }>())!.dwell_ms,
-  ).toBeGreaterThanOrEqual(200);
-  const record: AnalyticsMatch = {
-    id: crypto.randomUUID(),
-    game: "gomoku",
-    mode: "singles",
-    startedAtMs: cutoff,
-    endedAtMs: cutoff + 100,
-    status: "completed",
-    cpuCount: 0,
-    participants: [
-      { playerId: crypto.randomUUID(), accountId: null, visitorId: browser, isTest: false },
-    ],
-  };
-  await writeAnalyticsMatch(env.APP_DB, record);
-  expect(
-    await env.APP_DB.prepare("SELECT 1 FROM analytics_matches WHERE id=?").bind(record.id).first(),
-  ).toBeNull();
-  await env.APP_DB.prepare("INSERT OR REPLACE INTO analytics_metadata VALUES ('collected_from',?)")
-    .bind(cutoff - 1)
-    .run();
-  const data = await readAnalytics(env, {
-    from: day,
-    to: nextDay,
-    bucket: "day",
-    game: "gomoku",
-    includeInternal: "false",
-  });
-  expect(data.summary.visitors).toBeNull();
-  expect(data.summary.startRate).toBeNull();
-  expect(data.summary.pageViews).toBeGreaterThan(0);
-});
-
 test("OAuthトークンの平文を復号結果として受理しない", async () => {
   await expect(unsealToken(env, "plaintext-provider-token")).rejects.toThrow();
 });
@@ -741,21 +643,6 @@ for (const provider of ["google", "discord"] as const)
       .first<{ id: string; name: string; image: string | null }>())!;
     expect(user.name).toBe("");
     expect(user.image).toBeNull();
-    const stages = async (id: string) =>
-      (
-        await env.APP_DB.prepare(
-          "SELECT stage FROM analytics_registration_events WHERE flow_id=? ORDER BY stage",
-        )
-          .bind(id)
-          .all<{ stage: string }>()
-      ).results.map((row) => row.stage);
-    expect(await stages(firstFlow.analytics.id)).toEqual([
-      "entry",
-      "oauth_start",
-      "oauth_success",
-      "profile_required",
-      "registered",
-    ]);
     const form = new FormData();
     form.set("name", "計測登録");
     form.set("username", `metric_${user.id.slice(0, 8)}`);
@@ -772,47 +659,16 @@ for (const provider of ["google", "discord"] as const)
       body: await encoded.arrayBuffer(),
     });
     expect(setup.status).toBe(200);
-    expect(await stages(firstFlow.analytics.id)).toContain("profile_complete");
     const existingFlow = await signIn();
     await callback(existingFlow);
-    expect(await stages(existingFlow.analytics.id)).toEqual([
-      "entry",
-      "existing_login",
-      "oauth_start",
-      "oauth_success",
-    ]);
     await callback(existingFlow);
-    expect(await stages(existingFlow.analytics.id)).toEqual([
-      "entry",
-      "existing_login",
-      "oauth_start",
-      "oauth_success",
-    ]);
     const canceledLogin = await signIn();
     await callback(canceledLogin, true);
-    expect(await stages(canceledLogin.analytics.id)).toEqual(["entry", "oauth_start"]);
 
-    const loginUsage = await env.APP_DB.prepare(
-      "SELECT last_login_at_ms FROM account_usage WHERE account_id=?",
-    )
-      .bind(user.id)
-      .first<number>("last_login_at_ms");
-    expect(loginUsage).toBeGreaterThan(0);
     if (provider === "google") {
-      await env.APP_DB.prepare("DELETE FROM account_usage WHERE account_id=?").bind(user.id).run();
       const adminLogin = await callback(await signIn(true));
       expect(adminLogin.headers.get("Location")).toContain("/admin");
-      expect(
-        await env.APP_DB.prepare("SELECT last_login_at_ms FROM account_usage WHERE account_id=?")
-          .bind(user.id)
-          .first<number>("last_login_at_ms"),
-      ).toBeGreaterThan(0);
     }
-    // セッション期限更新や再認証が誤ってログイン扱いになれば、この既知の値が上書きされます。
-    const loginSentinel = Date.now() - 1000000;
-    await env.APP_DB.prepare("UPDATE account_usage SET last_login_at_ms=? WHERE account_id=?")
-      .bind(loginSentinel, user.id)
-      .run();
     expect(
       await env.APP_DB.prepare("SELECT version FROM legal_consents WHERE account_id=?")
         .bind(user.id)
@@ -890,19 +746,6 @@ for (const provider of ["google", "discord"] as const)
       .first<{ verified_at_ms: number; verified_session_id: string }>();
     expect(row!.verified_at_ms).toBeGreaterThan(0);
     expect(row!.verified_session_id).toBeTruthy();
-    expect(await stages(firstFlow.analytics.id)).toEqual([
-      "entry",
-      "oauth_start",
-      "oauth_success",
-      "profile_complete",
-      "profile_required",
-      "registered",
-    ]);
-    expect(
-      await env.APP_DB.prepare("SELECT last_login_at_ms FROM account_usage WHERE account_id=?")
-        .bind(user.id)
-        .first("last_login_at_ms"),
-    ).toBe(loginSentinel);
     expect(
       (await request("/account/deletion/confirmation", { headers: { Cookie: newCookie } })).status,
     ).toBe(200);
@@ -922,18 +765,10 @@ for (const provider of ["google", "discord"] as const)
       .bind(email)
       .first<{ id: string }>();
     expect(fresh!.id).not.toBe(user.id);
-    expect(await stages(firstFlow.analytics.id)).toEqual([]);
-    expect(
-      await env.APP_DB.prepare(
-        "SELECT COUNT(*) AS count FROM analytics_registration_flows WHERE target_account_id=? AND is_new_registration=1",
-      )
-        .bind(fresh!.id)
-        .first("count"),
-    ).toBe(1);
     mock.mockRestore();
   });
 
-test("退会はDOの計測識別を除去し、遅延した開始記録で本人識別を復活させない", async () => {
+test("退会はDOの計測識別を除去する", async () => {
   const user = await accountFixture(),
     browser = crypto.randomUUID();
   const record: AnalyticsMatch = {
@@ -952,14 +787,6 @@ test("退会はDOの計測識別を除去し、遅延した開始記録で本人
   await runInDurableObject(stub, async (_, ctx) => ctx.storage.kv.put("analytics-active", record));
   expect(await tombstone(user.id)).toBe(true);
   await stub.purgeAccount(user.id);
-  await writeAnalyticsMatch(env.APP_DB, record);
-  expect(
-    await env.APP_DB.prepare(
-      "SELECT 1 FROM analytics_participants WHERE match_id=? AND (account_id=? OR visitor_id=?)",
-    )
-      .bind(record.id, user.id, browser)
-      .first(),
-  ).toBeNull();
   await runInDurableObject(stub, async (_, ctx) =>
     expect(ctx.storage.kv.get<AnalyticsMatch>("analytics-active")!.participants[0]).toMatchObject({
       accountId: null,
@@ -1057,7 +884,7 @@ test("受付後はセッション・編集・画像の再作成を拒否し、�
   }
 });
 
-test("本人の新旧フィードバック・画像・編集履歴・計測・投稿制限を消し、他者の投稿を残す", async () => {
+test("本人の新旧フィードバック・画像・編集履歴・投稿制限を消し、他者の投稿を残す", async () => {
   const user = await accountFixture(),
     other = await accountFixture();
   const post = async (cookie: string) => {
@@ -1093,15 +920,6 @@ test("本人の新旧フィードバック・画像・編集履歴・計測・�
   await env.APP_DB.prepare("INSERT INTO feedback_history VALUES (?,?,?,?,?,?)")
     .bind(crypto.randomUUID(), ids[0], other.id, "編集者", Date.now(), '{"before":"原文"}')
     .run();
-  const view = crypto.randomUUID();
-  await env.APP_DB.prepare(
-    "INSERT INTO analytics_pageviews(id,visitor_id,account_id,page,game,started_at_ms) VALUES (?,?,?,'lobby','four-reversi',?)",
-  )
-    .bind(view, crypto.randomUUID(), user.id, Date.now())
-    .run();
-  await env.APP_DB.prepare("INSERT INTO analytics_dwell VALUES (?,?,1)")
-    .bind(view, japanDay(Date.now()))
-    .run();
   expect(await tombstone(user.id)).toBe(true);
   for (const id of ids)
     expect(
@@ -1121,55 +939,8 @@ test("本人の新旧フィードバック・画像・編集履歴・計測・�
   }
   expect(await env.OBJECT_STORAGE.get(key)).toBeNull();
   expect(
-    await env.APP_DB.prepare("SELECT 1 FROM analytics_pageviews WHERE id=?").bind(view).first(),
-  ).toBeNull();
-  expect(
-    await env.APP_DB.prepare("SELECT 1 FROM analytics_dwell WHERE view_id=?").bind(view).first(),
-  ).toBeNull();
-  expect(
     await env.APP_DB.prepare("SELECT 1 FROM feedback WHERE id=?").bind(others).first(),
   ).not.toBeNull();
-});
-
-test("長期集計は期限前に未完了だった対局の率・時間を推測せず、退会後も登録数の匿名集計を保つ", async () => {
-  const user = await accountFixture(),
-    at = Date.parse("2005-01-02T12:00:00+09:00");
-  await env.APP_DB.prepare("UPDATE user SET createdAt=? WHERE id=?").bind(at, user.id).run();
-  await env.APP_DB.prepare("INSERT OR REPLACE INTO analytics_metadata VALUES ('collected_from',?)")
-    .bind(at - 86400000)
-    .run();
-  const query = {
-    from: "2005-01-02",
-    to: "2005-01-02",
-    bucket: "day" as const,
-    game: "all" as const,
-    includeInternal: "false" as const,
-  };
-  expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
-  expect(await tombstone(user.id)).toBe(true);
-  expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
-  await env.APP_DB.prepare("DELETE FROM deletion_rooms WHERE account_id=?").bind(user.id).run();
-  await processFixtureDeletion(user.id);
-  await processFixtureDeletion(user.id);
-  expect((await readAnalytics(env, query)).summary.newUsers).toBe(1);
-  const id = crypto.randomUUID();
-  await env.APP_DB.prepare(
-    "INSERT INTO analytics_matches(id,game,mode,started_at_ms,ended_at_ms,status,cpu_count) VALUES (?,'four-reversi','singles',?,NULL,'playing',0)",
-  )
-    .bind(id, at)
-    .run();
-  await env.APP_DB.prepare(
-    "INSERT INTO analytics_participants(match_id,player_id,account_id,visitor_id,is_test) VALUES (?,?,NULL,?,0)",
-  )
-    .bind(id, crypto.randomUUID(), crypto.randomUUID())
-    .run();
-  await archiveAnalytics(env);
-  const data = await readAnalytics(env, query);
-  expect(data.summary.started).toBeGreaterThan(0);
-  expect(data.summary.playing).toBeNull();
-  expect(data.summary.completionRate).toBeNull();
-  expect(data.summary.participationMs).toBeNull();
-  expect(data.summary.registeredRetentionEligible).toBeNull();
 });
 
 test("退会と同時に失敗したDO棋譜保存は、現在のマスク済み保存待ちを保って再試行する", async () => {
@@ -1303,48 +1074,6 @@ test("同時に再認証を始めても1分5回を超えず、削除後のCookie
     body: JSON.stringify({ name: "ゲスト", mode: "singles", quickPlay: false }),
   });
   expect(guest.status).toBe(201);
-});
-
-test("集計後の削除が失敗してもD1 batchを巻き戻し、再試行で集計を二重加算しない", async () => {
-  const at = Date.now() - analyticsRetentionMs - 1,
-    day = japanDay(at),
-    id = crypto.randomUUID();
-  await env.APP_DB.prepare(
-    "INSERT INTO analytics_pageviews(id,visitor_id,page,game,started_at_ms) VALUES (?,?,'lobby','four-gomoku',?)",
-  )
-    .bind(id, crypto.randomUUID(), at)
-    .run();
-  const count = async () =>
-    Number(
-      (
-        await env.APP_DB.prepare(
-          "SELECT SUM(page_views) count FROM analytics_daily WHERE day=? AND game='four-gomoku' AND internal=0",
-        )
-          .bind(day)
-          .first<{ count: number | null }>()
-      )?.count ?? 0,
-    );
-  const before = await count();
-  const broken = {
-    ...env,
-    APP_DB: {
-      prepare: (sql: string) => env.APP_DB.prepare(sql),
-      batch: (statements: D1PreparedStatement[]) =>
-        env.APP_DB.batch([
-          ...statements.slice(0, 6),
-          env.APP_DB.prepare("DELETE FROM privacy_nonexistent_table"),
-          ...statements.slice(6),
-        ]),
-    } as unknown as D1Database,
-  };
-  await expect(archiveAnalytics(broken)).rejects.toThrow();
-  expect(await count()).toBe(before);
-  expect(
-    await env.APP_DB.prepare("SELECT 1 FROM analytics_pageviews WHERE id=?").bind(id).first(),
-  ).not.toBeNull();
-  await archiveAnalytics(env);
-  await archiveAnalytics(env);
-  expect(await count()).toBe(before + 1);
 });
 
 test("退会受付中に到着する新しいプロフィール画像も発見し、R2失敗を再試行する", async () => {

@@ -132,6 +132,7 @@ test.each(["shogi", "reversi"] as const)("%sの保存待ちも全ゲームの再
 });
 
 test("前局の保存待ちがある古い待機者も、成立処理で待機列から外す", async () => {
+  const usage = recordUsageEvents();
   const queue = shogiQueue();
   const [user] = await fixture(1, queue);
   await env.APP_DB.prepare(
@@ -143,9 +144,12 @@ test("前局の保存待ちがある古い待機者も、成立処理で待機�
   expect((await queue.status(user!.account.id, user!.controllerId)).status).toBe("idle");
   expect((await queue.status(null)).waitingCount).toBe(4);
   await runInDurableObject(shogiQueue(), (instance) => instance.alarm());
-  expect((await searchEvents(user!.operationId)).filter((e) => e.stage === "failed")).toEqual([
-    expect.objectContaining({ reason: "invalidated" }),
-  ]);
+  expect(
+    usage
+      .filter((e) => e.name === "matchmaking")
+      .filter((e) => e.operationId === user!.operationId)
+      .filter((e) => e.stage === "failed"),
+  ).toEqual([expect.objectContaining({ reason: "invalidated" })]);
 });
 
 test.each(["four-reversi", "four-shogi"] as const)(
@@ -1422,6 +1426,7 @@ test("待機・再読み込み・旧操作元の取消が重複割当や待機�
   expect((await stub().join(u!.account.id, u!.operationId, controllerId)).ok).toBe(false);
 });
 test("全員の接続後だけカウントダウンし、再起動しても1回だけ開始する", async () => {
+  const usage = recordUsageEvents();
   const users = await fixture(4);
   const states = await Promise.all(users.map((u) => stub().status(u.account.id, u.controllerId)));
   const a = states[0]!.assignment!;
@@ -1453,11 +1458,12 @@ test("全員の接続後だけカウントダウンし、再起動しても1回�
   expect(savedReservation.players.every((p) => p.search === undefined)).toBe(true);
 
   await vi.waitFor(async () =>
-    expect((await searchEvents(users[0]!.operationId)).map((e) => e.stage)).toEqual([
-      "accepted",
-      "matched",
-      "started",
-    ]),
+    expect(
+      usage
+        .filter((e) => e.name === "matchmaking")
+        .filter((e) => e.operationId === users[0]!.operationId)
+        .map((e) => e.stage),
+    ).toEqual(["accepted", "matched", "started"]),
   );
 
   expect((await roomStub.abortMatchmakingRoom(a.matchId, a.instanceId)).status).toBe(
@@ -1916,34 +1922,24 @@ test.each(["human", "random", "engine", "fallback"] as const)(
 );
 
 test("検索受付・取消は操作単位で一度だけ記録し、heartbeatと再送で計測を増やさない", async () => {
+  const usage = recordUsageEvents();
   const [u] = await fixture(1, shogiQueue());
   const input = { operationId: u!.operationId, controllerId: u!.controllerId, version: 1 };
   await shogiQueue().join(u!.account.id, u!.operationId, u!.controllerId);
   await shogiQueue().control(u!.account.id, input, "heartbeat");
   await shogiQueue().control(u!.account.id, input, "cancel");
   await shogiQueue().control(u!.account.id, input, "cancel");
-  const stages = (await searchEvents(u!.operationId)).map((r) => r.stage);
+  const stages = usage
+    .filter((e) => e.name === "matchmaking")
+    .filter((e) => e.operationId === u!.operationId)
+    .map((r) => r.stage);
   expect(stages).toEqual(["accepted", "cancelled"]);
 });
-
-async function searchEvents(operationId: string) {
-  return (
-    await env.APP_DB.prepare(
-      "SELECT stage,reason,humans,waiting_ms FROM analytics_matchmaking_events WHERE operation_id=? ORDER BY at_ms,stage",
-    )
-      .bind(operationId)
-      .all<{
-        stage: string;
-        reason: string | null;
-        humans: number | null;
-        waiting_ms: number | null;
-      }>()
-  ).results;
-}
 
 test.each(["four-reversi", "four-shogi"] as const)(
   "%sのCPU枠不足は再試行で、復旧・DO再起動後の成立を最終失敗にしない",
   async (game) => {
+    const usage = recordUsageEvents();
     let now = Date.now();
     vi.spyOn(Date, "now").mockImplementation(() => now);
     const prepare = GameRoom.prototype.prepareMatchmakingRoom;
@@ -1967,9 +1963,9 @@ test.each(["four-reversi", "four-shogi"] as const)(
     now += matchmakingQueues[game].fillAfterMs;
     await runInDurableObject(queue, (instance) => instance.alarm());
     expect((await queue.status(u!.account.id, u!.controllerId)).status).toBe("waiting");
-    expect(await searchEvents(u!.operationId)).toContainEqual(
-      expect.objectContaining({ stage: "retry", reason: "cpu_capacity" }),
-    );
+    expect(
+      usage.filter((e) => e.name === "matchmaking").filter((e) => e.operationId === u!.operationId),
+    ).toContainEqual(expect.objectContaining({ stage: "retry", reason: "cpu_capacity" }));
     await evictDurableObject(queue);
     blocked = false;
     now += 2001;
@@ -1977,12 +1973,14 @@ test.each(["four-reversi", "four-shogi"] as const)(
     const state = await queue.status(u!.account.id, u!.controllerId);
     expect(state.status).toBe("matched");
     rooms.add(state.assignment!.roomId);
-    const events = await searchEvents(u!.operationId);
+    const events = usage
+      .filter((e) => e.name === "matchmaking")
+      .filter((e) => e.operationId === u!.operationId);
     expect(events.filter((e) => e.stage === "failed")).toHaveLength(0);
     expect(events.filter((e) => e.stage === "matched")).toEqual([
       expect.objectContaining({
         humans: 1,
-        waiting_ms: matchmakingQueues[game].fillAfterMs + 2001,
+        waitingMs: matchmakingQueues[game].fillAfterMs + 2001,
       }),
     ]);
     expect(events.filter((e) => e.stage === "accepted")).toHaveLength(1);
@@ -1993,9 +1991,9 @@ test.each(["four-reversi", "four-shogi"] as const)(
       ctx.storage.kv.put(key, { ...reservation, phase: "closed", aiWarmup: { state: "failed" } });
     });
     await runInDurableObject(queue, (instance) => instance.alarm());
-    expect(await searchEvents(u!.operationId)).toContainEqual(
-      expect.objectContaining({ stage: "retry", reason: "ai_unavailable" }),
-    );
+    expect(
+      usage.filter((e) => e.name === "matchmaking").filter((e) => e.operationId === u!.operationId),
+    ).toContainEqual(expect.objectContaining({ stage: "retry", reason: "ai_unavailable" }));
     const closed = await runInDurableObject(
       env.GAME_ROOM.getByName(state.assignment!.roomId),
       (_, ctx) =>
@@ -2005,19 +2003,28 @@ test.each(["four-reversi", "four-shogi"] as const)(
     );
     expect(closed.players.every((p) => p.search === undefined)).toBe(true);
 
-    expect((await searchEvents(u!.operationId)).some((e) => e.stage === "failed")).toBe(false);
+    expect(
+      usage
+        .filter((e) => e.name === "matchmaking")
+        .filter((e) => e.operationId === u!.operationId)
+        .some((e) => e.stage === "failed"),
+    ).toBe(false);
     now += 5001;
     await runInDurableObject(queue, (instance) => instance.alarm());
     const again = await queue.status(u!.account.id, u!.controllerId);
     expect(again.status).toBe("matched");
     rooms.add(again.assignment!.roomId);
-    expect((await searchEvents(u!.operationId)).filter((e) => e.stage === "matched")).toHaveLength(
-      1,
-    );
+    expect(
+      usage
+        .filter((e) => e.name === "matchmaking")
+        .filter((e) => e.operationId === u!.operationId)
+        .filter((e) => e.stage === "matched"),
+    ).toHaveLength(2);
   },
 );
 
 test("リース切れで検索を終えた最終失敗は、Alarmの再実行でも一度だけ計測する", async () => {
+  const usage = recordUsageEvents();
   const [u] = await fixture(1, shogiQueue());
   await runInDurableObject(shogiQueue(), (_, ctx) => {
     const state = ctx.storage.kv.get<{ waiting: { expiresAtMs: number }[] }>("state")!;
@@ -2026,41 +2033,15 @@ test("リース切れで検索を終えた最終失敗は、Alarmの再実行で
   });
   await runInDurableObject(shogiQueue(), (instance) => instance.alarm());
   await runInDurableObject(shogiQueue(), (instance) => instance.alarm());
-  expect(await searchEvents(u!.operationId)).toContainEqual(
-    expect.objectContaining({ stage: "failed", reason: "lease_expired" }),
-  );
-  expect((await searchEvents(u!.operationId)).filter((e) => e.stage === "failed")).toHaveLength(1);
-});
-
-test("計測D1だけが失敗しても検索・取消は成功し、DO再起動後のAlarmで再送する", async () => {
-  const user = await accountFixture();
-  accounts.push(user.id);
-  const queue = shogiQueue(),
-    operationId = crypto.randomUUID(),
-    controllerId = crypto.randomUUID();
-  const trigger = "reject_queue_analytics";
-  await env.APP_DB.exec(
-    `CREATE TRIGGER ${trigger} BEFORE INSERT ON analytics_matchmaking_events WHEN NEW.operation_id='${operationId}' BEGIN SELECT RAISE(ABORT,'analytics unavailable'); END;`,
-  );
-  try {
-    expect((await queue.join(user.id, operationId, controllerId)).ok).toBe(true);
-    expect(
-      (await queue.control(user.id, { operationId, controllerId, version: 1 }, "cancel")).ok,
-    ).toBe(true);
-    expect((await queue.status(user.id, controllerId)).status).toBe("idle");
-    expect(await searchEvents(operationId)).toEqual([]);
-  } finally {
-    await env.APP_DB.exec(`DROP TRIGGER ${trigger}`);
-  }
-  await runInDurableObject(queue, (_, ctx) => {
-    for (const [key, job] of ctx.storage.kv.list<{ retryAtMs: number }>({
-      prefix: "matchmaking-analytics-pending:",
-    }))
-      ctx.storage.kv.put(key, { ...job, retryAtMs: Date.now() - 1 });
-  });
-  await evictDurableObject(queue);
-  await runInDurableObject(queue, (instance) => instance.alarm());
-  expect((await searchEvents(operationId)).map((e) => e.stage)).toEqual(["accepted", "cancelled"]);
+  expect(
+    usage.filter((e) => e.name === "matchmaking").filter((e) => e.operationId === u!.operationId),
+  ).toContainEqual(expect.objectContaining({ stage: "failed", reason: "lease_expired" }));
+  expect(
+    usage
+      .filter((e) => e.name === "matchmaking")
+      .filter((e) => e.operationId === u!.operationId)
+      .filter((e) => e.stage === "failed"),
+  ).toHaveLength(1);
 });
 
 test.each(["four-shogi", "four-reversi", "shogi", "reversi"] as const)(

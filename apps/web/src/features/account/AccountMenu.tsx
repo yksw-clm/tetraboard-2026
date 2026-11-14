@@ -1,4 +1,4 @@
-import { beginRegistrationEntry } from "../../analytics/registrationAnalytics";
+import { beginRegistrationEntry } from "./registrationAnalytics";
 import { gameCatalog, defaultGameId, type GameId } from "@tetraboard/protocol/games";
 import { Dropdown } from "@heroui/react";
 import { useState } from "react";

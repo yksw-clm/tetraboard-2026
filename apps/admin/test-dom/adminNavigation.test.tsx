@@ -1,7 +1,6 @@
 import { SidebarProvider } from "../src/components/ui/sidebar";
 import { ThemeProvider } from "../src/components/ThemeProvider";
 import { expect, test } from "bun:test";
-import { gameCatalog, gameIds } from "@tetraboard/protocol/games";
 import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { AdminNavigation } from "../src/AdminNavigation";
 import { act, render } from "../../web/test-dom/support";
@@ -31,11 +30,6 @@ test("画面選択は全管理メニューへadmin配下で移動し、PCリン�
   const select = view.querySelector("select")!;
   const destinations = [
     ["/kpi", "KPI"],
-    ["/", "全体概要"],
-    ["/acquisition", "集客・登録"],
-    ["/tracking-links", "計測リンク"],
-    ...gameIds.map((id) => [gameCatalog[id].lobbyPath, gameCatalog[id].name]),
-    ["/users", "ユーザー"],
     ["/lobby-chat", "公開チャット"],
     ["/feedback", "フィードバック"],
     ["/announcements", "お知らせ"],
@@ -86,10 +80,10 @@ test("詳細・新規作成への直接アクセスは親メニューを現在�
       `/admin${parent}`,
     );
     act(() => {
-      select.value = "/";
+      select.value = "/kpi";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(view.querySelector("output")?.textContent).toBe("/");
+    expect(view.querySelector("output")?.textContent).toBe("/kpi");
     act(() => [...view.querySelectorAll("button")].find((b) => b.textContent === "戻る")!.click());
     expect(select.value).toBe(parent);
     expect(view.querySelector("output")?.textContent).toBe(path);

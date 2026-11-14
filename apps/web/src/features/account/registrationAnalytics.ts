@@ -4,7 +4,7 @@ import {
   type RegistrationEntry,
 } from "@tetraboard/protocol";
 import type { GameId } from "@tetraboard/protocol/games";
-import { createUuid } from "../shared/createUuid";
+import { createUuid } from "../../shared/createUuid";
 const storageKey = "tetraboard:registration-analytics";
 const lifetimeMs = 1800000;
 function saved(): RegistrationAnalyticsInput | null {

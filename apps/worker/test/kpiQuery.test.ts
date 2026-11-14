@@ -84,7 +84,7 @@ test("retryable=true だけを2回まで再試行し、成功すれば次ペー�
   expect(fake).toHaveBeenCalledTimes(1);
 });
 
-test("全クエリにUTCの下限と上限を付け、集約と並び順だけをSQLへ渡す", async () => {
+test("登録だけは10分前から時刻順で1点ずつ読み、他のクエリは期間内で集約する", async () => {
   const calls: { query: string; params: Record<string, unknown> }[] = [];
   const now = Date.parse("2026-12-02T00:00:00Z");
   await readEventKpi(
@@ -102,11 +102,18 @@ test("全クエリにUTCの下限と上限を付け、集約と並び順だけ�
   for (const { query, params } of calls) {
     expect(query).toContain('FROM events.analyticsEngine."usage"');
     expect(query).toContain("timestamp >= $from AND timestamp < $to");
-    expect(query).toContain("COUNT(*)");
-    expect(query).toContain("GROUP BY");
     expect(query).toContain("ORDER BY");
     expect(query).not.toMatch(/JOIN|FORMAT|_sample_interval|quantile/i);
-    expect(params.from).toBe("2026-10-31T15:00:00.000Z");
+    if (query.includes("'registration'")) {
+      expect(query).toContain("SELECT timestamp, blob2, blob4, blob5, blob6, blob7, blob8, blob3");
+      expect(query).toContain("ORDER BY timestamp ASC");
+      expect(query).not.toMatch(/COUNT|GROUP BY/);
+      expect(params).toEqual({ from: "2026-10-31T14:50:00.000Z", to: "2026-11-30T15:00:00.000Z" });
+    } else {
+      expect(query).toContain("COUNT(*)");
+      expect(query).toContain("GROUP BY");
+      expect(params.from).toBe("2026-10-31T15:00:00.000Z");
+    }
   }
   expect(calls.find((call) => call.query.includes("'match_ended'"))?.params.to).toBe(
     new Date(now).toISOString(),

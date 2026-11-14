@@ -11,10 +11,7 @@ import {
   gameIdSchema,
   gameScopeSchema,
   matchGameSchema,
-  analyticsGameSchema,
   feedbackGameSchema,
-  adminAnalyticsQuerySchema,
-  pageViewInputSchema,
   listMatchesContract,
   getAccountStatsContract,
 } from "@tetraboard/protocol";
@@ -24,34 +21,18 @@ describe("ゲームIDとサービス全体の対象", () => {
   test("all はゲームとして扱わず、サービス全体の対象だけで受理する", () => {
     expectTypeOf<Extract<GameId, "all">>().toEqualTypeOf<never>();
     expectTypeOf<Extract<GameScope, "all">>().toEqualTypeOf<"all">();
-    for (const schema of [gameIdSchema, roomGameSchema, matchGameSchema, analyticsGameSchema])
+    for (const schema of [gameIdSchema, roomGameSchema, matchGameSchema])
       expect(schema.safeParse("all").success).toBe(false);
     expect(isGameId("all")).toBe(false);
     expect(isGameScope("all")).toBe(true);
     expect(gameScopeSchema.parse("all")).toBe("all");
     expect(feedbackGameSchema.parse("all")).toBe("all");
-    expect(
-      adminAnalyticsQuerySchema.parse({ from: "2026-10-01", to: "2026-10-04", game: "all" }).game,
-    ).toBe("all");
-    expect(
-      pageViewInputSchema.safeParse({
-        id: "00000000-0000-4000-8000-000000000001",
-        page: "lobby",
-        game: "all",
-      }).success,
-    ).toBe(false);
   });
 
   test.each(gameIds)("%s は各ゲーム入口と対象入口で受理する", (game) => {
     expect(isGameId(game)).toBe(true);
     expect(isGameScope(game)).toBe(true);
-    for (const schema of [
-      gameIdSchema,
-      roomGameSchema,
-      matchGameSchema,
-      analyticsGameSchema,
-      feedbackGameSchema,
-    ])
+    for (const schema of [gameIdSchema, roomGameSchema, matchGameSchema, feedbackGameSchema])
       expect(schema.parse(game)).toBe(game);
   });
 
@@ -65,12 +46,9 @@ describe("ゲームIDとサービス全体の対象", () => {
     },
   );
 
-  test("ゲーム省略時の履歴・戦績と集計の既定値を維持する", () => {
+  test("ゲーム省略時の履歴・戦績の既定値を維持する", () => {
     expect(listMatchesContract.query.parse({ mode: "singles" }).game).toBe("four-reversi");
     expect(getAccountStatsContract.query.parse({}).game).toBe("four-reversi");
-    expect(adminAnalyticsQuerySchema.parse({ from: "2026-10-01", to: "2026-10-04" }).game).toBe(
-      "all",
-    );
   });
 
   test("選択順・表示名・公開パスを維持し、サービス全体をゲームに表示しない", () => {
