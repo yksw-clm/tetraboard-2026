@@ -3,6 +3,10 @@ import { classifyDevice, classifyReferrer, referrerHostname, sanitizeUtm } from 
 import { analyticsCookie, browserIdFromRequest } from "./browserId";
 import { createUsageEventWriter } from "./writer";
 
+export function isBrowserUserAgent(userAgent: string | null): boolean {
+  return !!userAgent?.includes("Mozilla/") && !/bot|crawler|spider|headless/i.test(userAgent);
+}
+
 function pageType(path: string): string {
   return path === "/"
     ? "general-lobby"
@@ -36,7 +40,7 @@ export function withVisitStarted(
     ["/privacy", "/terms"].includes(path) ||
     path.startsWith("/admin") ||
     path.startsWith("/api") ||
-    /bot|crawler|spider/i.test(ua ?? "")
+    !isBrowserUserAgent(ua)
   )
     return response;
 
