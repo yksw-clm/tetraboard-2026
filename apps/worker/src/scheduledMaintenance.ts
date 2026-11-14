@@ -1,6 +1,5 @@
 import { cleanupLobbyChat } from "./lobby/chatStore";
 import { processDeletions } from "./privacy/deletion";
-import { purgeLegacyAnalytics } from "./legacyAnalyticsPurge";
 import { recoverAccountReservations } from "./accounts/roomAccounts";
 import { retryPendingMatchClaims } from "./accounts/matchClaims";
 import { deleteExpiredReports } from "./rooms/reportStore";
@@ -38,7 +37,6 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   await runMaintenanceTasks([
     { name: "account-deletions", run: () => processDeletions(env) },
     { name: "lobby-chat", run: () => cleanupLobbyChat(env.APP_DB) },
-    { name: "legacy-analytics-purge", run: () => purgeLegacyAnalytics(env) },
     { name: "kpi-monthly", run: () => savePreviousMonthKpi(env) },
     { name: "feedback", run: () => cleanupFeedback(env) },
     { name: "reports", run: () => deleteExpiredReports(env.APP_DB) },
