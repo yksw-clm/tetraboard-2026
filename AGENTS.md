@@ -48,7 +48,7 @@ AI エージェント（Claude Code / Codex）と開発者の作業規約。
 ## 検証
 
 - コードと設定を変えたら、PR を作る前にローカルで `bun run check` を通す。build と deploy の dry-run は GitHub CI が実行する。
-- マージは GitHub CI の成功を確かめてから行う。ローカルの成功で CI を代替しない。Fast CI の成功を、実行されなかったテストの成功とみなさない。
+- マージは GitHub CI の成功を確かめてから行う。ローカルの成功で CI を代替しない。AI のジョブが skip された PR では、AI の検査は実行されていない。skip を成功とみなさない。
 - PR を出した後にコードや設定を変えたら、`bun run check` をやり直して PR 本文の結果を更新する。
 - 文書だけの変更では、整形確認と `git diff --check` を最終差分で行う。
 - テストを消すときは、同じ振る舞いを別の層のテストで確かめ直す。速度のためだけに skip やタイムアウト延長をしない。テストの種類と実行方法は [docs/testing.md](docs/testing.md) にある。
