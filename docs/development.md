@@ -76,6 +76,8 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 ## 対局参加BOTの実装
 
+起動引数と任意の設定JSONは共通の`RunConfig`検証へ渡します。入力方式によって保存先や復帰scopeを分けず、両方式が混在した場合は起動前に拒否します。
+
 [確定仕様](specs/player-bot.md)と[CLIの案内](../apps/player-bot/README.md)を参照します。参加・待機は既存HTTP API、対局は既存WebSocket契約を使います。登録者Cookieと部屋専用tokenは別資格として扱い、状態不明時に新しい参加要求を発行しません。大会・レートで終局した後も席の解放と結果保存を確認してから再参加します。
 
 ローカルAIの`--port`は待受ポートだけを選択し、loopbackと既定3002を維持します。BOTは専用の子プロセスに動的ポートを割り当て、既存widgetのプロセスを操作しません。

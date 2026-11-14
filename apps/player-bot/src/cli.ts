@@ -1,6 +1,6 @@
-import { parseArgs } from "node:util";
 import { Api, cookieValue } from "./api";
-import { origin, profileNameSchema, runConfigSchema } from "./config";
+import { runConfigSchema } from "./config";
+import { cliHelp, parseCliArguments } from "./cliArguments";
 import { Store } from "./store";
 import { runBots } from "./bot";
 import { StopControl } from "./session";
@@ -52,41 +52,29 @@ async function secret(): Promise<string> {
   });
 }
 export async function main(args = process.argv.slice(2)) {
-  const parsed = parseArgs({
-    args,
-    allowPositionals: true,
-    strict: true,
-    options: { origin: { type: "string" }, help: { type: "boolean" } },
-  });
-  const [command, input] = parsed.positionals;
-  if (parsed.values.help || !command) {
-    console.log(
-      "auth <profile> --origin <接続先>  Cookieを非表示で取り込み\nrun <config.json>                BOTを起動（Ctrl+C: 完局後終了、2回目: 即退出）",
-    );
+  const command = parseCliArguments(args);
+  if (command.type === "help") {
+    console.log(cliHelp);
     return;
   }
-  if (command === "auth" && input && parsed.values.origin && parsed.positionals.length === 2) {
-    const name = profileNameSchema.parse(input),
-      url = origin(parsed.values.origin);
-    const store = new Store(url, name);
+  if (command.type === "auth") {
+    const store = new Store(command.origin, command.profile);
     const release = await store.lock();
     try {
       const previous = await store.loadProfile();
       const profile = { cookie: await secret(), identity: previous?.identity ?? "" };
-      const api = new Api(url, profile, async () => {});
+      const api = new Api(command.origin, profile, async () => {});
       profile.identity = await api.checkAccess();
       await store.saveProfile(profile);
-      console.log(`${name}: ログインと規約同意を確認し、認証情報を保存しました`);
+      console.log(`${command.profile}: ログインと規約同意を確認し、認証情報を保存しました`);
     } finally {
       await release();
     }
-  } else if (
-    command === "run" &&
-    input &&
-    parsed.positionals.length === 2 &&
-    !parsed.values.origin
-  ) {
-    const config = runConfigSchema.parse(await Bun.file(input).json());
+  } else {
+    const config =
+      command.type === "file"
+        ? runConfigSchema.parse(await Bun.file(command.path).json())
+        : command.config;
     const stop = new StopControl();
     const interrupt = () => {
       stop.request();
@@ -104,7 +92,7 @@ export async function main(args = process.argv.slice(2)) {
       process.off("SIGINT", interrupt);
       process.off("SIGTERM", interrupt);
     }
-  } else throw Error("使用方法は --help を参照してください");
+  }
 }
 if (import.meta.main) {
   main().catch((error) => {

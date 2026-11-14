@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { accountSessionSchema, createRoomContract } from "@tetraboard/protocol";
-import { legalVersion } from "@tetraboard/protocol/privacy";
 import type { Profile } from "./store";
 export type Fetcher = (input: Parameters<typeof fetch>[0], init?: RequestInit) => Promise<Response>;
 
@@ -21,6 +20,7 @@ export function cookieValue(value: string): string {
   return cookie;
 }
 export class Api {
+  private consentVersion?: string;
   constructor(
     readonly origin: string,
     readonly profile: Profile,
@@ -41,10 +41,13 @@ export class Api {
   ): Promise<T> {
     if (!path.startsWith("/api/") || new URL(path, this.origin).origin !== this.origin)
       throw Error("APIの接続先が不正です");
+    const consentVersion = options.consent
+      ? (this.consentVersion ?? (await this.verifyAccess()).version)
+      : undefined;
     const headers = new Headers(options.headers);
     headers.set("Cookie", `${cookieName(this.origin)}=${cookieValue(this.profile.cookie)}`);
     headers.set("Origin", this.origin);
-    if (options.consent) headers.set("X-Legal-Consent", legalVersion);
+    if (consentVersion) headers.set("X-Legal-Consent", consentVersion);
     if (options.bearer) headers.set("Authorization", `Bearer ${options.bearer}`);
     if (options.body !== undefined) headers.set("Content-Type", "application/json");
     let response: Response;
@@ -87,6 +90,10 @@ export class Api {
     return parsed.data;
   }
   async checkAccess(): Promise<string> {
+    return (await this.verifyAccess()).identity;
+  }
+  private async verifyAccess(): Promise<{ identity: string; version: string }> {
+    this.consentVersion = undefined;
     const { user } = await this.request("/api/account/session", accountSessionSchema);
     if (!user || user.isGuest || !user.profileCompleted || !user.username)
       throw new AccessRequired(
@@ -97,10 +104,13 @@ export class Api {
       throw new AccessRequired("保存したBOTと異なるアカウントです");
     const legal = await this.request(
       "/api/account/legal",
-      z.object({ accepted: z.boolean(), version: z.string() }),
+      z.object({ accepted: z.boolean(), version: z.iso.date() }),
     );
-    if (!legal.accepted || legal.version !== legalVersion)
-      throw new AccessRequired("ブラウザで現在の利用規約を確認・同意してください");
-    return identity;
+    if (!legal.accepted)
+      throw new AccessRequired(
+        `${this.origin}では利用規約（${legal.version}）が未同意です。ブラウザで同じアカウントの規約を確認・同意してから、authを再実行してください`,
+      );
+    this.consentVersion = legal.version;
+    return { identity, version: legal.version };
   }
 }
