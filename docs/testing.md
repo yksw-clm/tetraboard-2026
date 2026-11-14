@@ -74,7 +74,7 @@ Workerの`fourShogiRoom.test.ts`は進行中棋譜のHTTP取得、revision競合
 
 将棋の回帰確認では、既存のD1テーブルに保存した認定済みレートを本人向けAPIで読み出し、単独待機が14,999msでは継続し、15,000msでレートに近いCPU戦になることを確認します。対人戦・CPU戦のレート更新、保存待ち中の再参加制限、保存再試行での二重更新防止は `matchmaking.test.ts` と `shogiRating.test.ts` で検証します。
 
-部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。開発ServiceのWrangler dry-runは毎回のCI、本番はmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](development.md#本番aiと4ゲーム同時公開)で別途確認します。
+部分実行は`bun run --cwd apps/worker test test/matchmaking.test.ts`と`bun run --cwd packages/ai check`を使います。WebのDOMテストは`apps/web`で`bun test --preload ../../test-support/dom.ts ./test-dom/matchmaking.test.tsx ./test-dom/playerProfiles.test.tsx`を実行します。Wrangler dry-runは、開発Serviceを`ai`ジョブで毎回、本番をmainへのpushの`ai`ジョブで行います。`aiRatedOnly.test.ts` は本番相当設定で通常4ゲームのCPUが、外部枠が満杯でも外部要求なしに着手することと、二人・四人のレート戦を区別することを確認します。`packages/ai` の公開確認テストは不正な要求対応・版・profile・非法手・HTTP失敗を拒否し、実Rust Serviceとも照合します。CIの `ai` ジョブは3種類のlinux/amd64イメージで4コンテナを起動し、採用CPU設定・定跡・合法手とゲームごとの4並列を照合します。Cloudflare上の冷起動と実機確認は[公開前手順](development.md#本番aiと4ゲーム同時公開)で別途確認します。
 
 四人リバーシのレート保存は `bun run --cwd apps/worker test test/fourReversiRating.test.ts` で確認します。同順位、CPU混在と5局目の認定、代替手使用局の除外、同じ対局の再試行、別々の対局の同時保存、棋譜APIの内部レート非公開を実D1で検証します。CPU較正の再現手順は[較正仕様](../packages/ai/docs/calibration.md#2026-11-09の予備測定と本測定の手順)にあります。
 
@@ -123,7 +123,7 @@ Webの `matchmakingWaitTime.test.tsx` はサーバーと端末の時刻ずれ、
 CIの入口は `.github/workflows/ci.yml` です。設計判断は [ADR 0007](adr/0007-ci-and-tests.md) にあります。
 
 - `checks` ジョブは、PRとmain・developへのpushのたびに、`packages/ai` を除く全workspaceのformat・lint・型・全テスト、環境分離の検査、本番と開発のWeb・Adminビルド、Workerのdry-runを実行します。
-- `ai` ジョブは、AIのパス（ワークフローの `Detect AI changes` に列挙）に差分があるときと、mainへのpushのときだけ走ります。`bun run check:ai`（Rustのfmt・clippy・testとAIサービスの統合テスト）と、本番AIのコンテナ4つのビルドと起動確認を行います。mainへのpushでは本番AIのdry-runも行います。
+- `ai` ジョブは、AIのパス（ワークフローの `Detect AI changes` に列挙）に差分があるときと、mainへのpushのときだけ走ります。`bun run check:ai`（Rustのfmt・clippy・testとAIサービスの統合テスト）、本番AIのコンテナ4つのビルドと起動確認、開発AIのdry-runを行います。開発AIのdry-runもDockerイメージをビルドするため、`checks` では行いません。mainへのpushでは本番AIのdry-runも行います。
 - `ai` がskipされたら、AIの検査は実行されていません。skipを成功とみなしません。AIのテストやスクリプトが新しいファイルを読むようにしたら、同じ変更でAIのパスの一覧に足してください。
 - `deploy` ジョブは、main・developへのpushで `checks` が成功し、`ai` が成功またはskipのときに走ります。本番AIのデプロイは、AIのパスに差分があるときだけ行います。
 - 差分の基準は、PRではPRのベース、pushではpush前のコミットです。マージ後のpushでも `checks` を再実行し、PRの成果物をデプロイへ流用しません。PR更新時には同じPRの古い検証を取り消します。

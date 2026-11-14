@@ -118,7 +118,6 @@ jobs:
           bun run --cwd apps/admin build:assets
           bun scripts/buildAssets.ts
           bun run --cwd apps/worker deploy:dry-run:development
-          bun run --cwd packages/ai deploy:cloud:dry-run:development
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         with:
@@ -141,6 +140,8 @@ jobs:
       - run: bun run check:ai
       - name: Build and verify four production AI containers
         run: bun run --cwd packages/ai verify:images
+      - name: Verify development AI deployment dry-run
+        run: bun run --cwd packages/ai deploy:cloud:dry-run:development
       - name: Verify production AI deployment dry-run
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: bun run --cwd packages/ai deploy:cloud:dry-run:production
