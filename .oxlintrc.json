@@ -3,5 +3,130 @@
   "plugins": ["typescript", "oxc"],
   "rules": {
     "no-debugger": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["apps/worker/src/**/*.ts", "packages/contexts/**/*.ts"],
+      "excludeFiles": ["**/*.test.ts"],
+      "rules": {
+        "max-lines": [
+          "error",
+          {
+            "max": 300,
+            "skipBlankLines": false,
+            "skipComments": false
+          }
+        ],
+        "max-lines-per-function": [
+          "error",
+          {
+            "max": 60,
+            "skipBlankLines": false,
+            "skipComments": false,
+            "IIFEs": true
+          }
+        ]
+      }
+    },
+    {
+      "files": ["apps/worker/test/**", "packages/contexts/**/*.test.ts"],
+      "rules": {
+        "max-lines": [
+          "error",
+          {
+            "max": 500,
+            "skipBlankLines": false,
+            "skipComments": false
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "apps/worker/src/accounts/accountRoutes.ts",
+        "apps/worker/src/accounts/guestLinking.ts",
+        "apps/worker/src/accounts/matchDataContracts.ts",
+        "apps/worker/src/accounts/registrationRoutes.ts",
+        "apps/worker/src/feedback/routes.ts",
+        "apps/worker/src/feedback/store.ts",
+        "apps/worker/src/matchmaking/coordinator.ts",
+        "apps/worker/src/rooms/aiService.ts",
+        "apps/worker/src/rooms/fourGomokuProgress.ts",
+        "apps/worker/src/rooms/fourReversiProgress.ts",
+        "apps/worker/src/rooms/fourReversiRating.ts",
+        "apps/worker/src/rooms/fourShogiProgress.ts",
+        "apps/worker/src/rooms/gameRoom.ts",
+        "apps/worker/src/rooms/gomokuProgress.ts",
+        "apps/worker/src/rooms/reversiProgress.ts",
+        "apps/worker/src/rooms/roomIndex.ts",
+        "apps/worker/src/rooms/roomRoutes.ts",
+        "apps/worker/src/rooms/shogiMatchStore.ts",
+        "apps/worker/src/rooms/standardShogiProgress.ts",
+        "apps/worker/src/tournaments/coordinator.ts",
+        "apps/worker/src/tournaments/routes.ts",
+        "apps/worker/src/tournaments/store.ts",
+        "apps/worker/test/accountRooms.test.ts",
+        "apps/worker/test/feedback.test.ts",
+        "apps/worker/test/fourShogiRoom.test.ts",
+        "apps/worker/test/gameRoom.test.ts",
+        "apps/worker/test/guestAccounts.test.ts",
+        "apps/worker/test/guestRegistrationRooms.test.ts",
+        "apps/worker/test/lobbyRoomCards.test.ts",
+        "apps/worker/test/matchmaking.test.ts",
+        "apps/worker/test/privacy.test.ts",
+        "apps/worker/test/registrationApi.test.ts",
+        "apps/worker/test/roomDeadlineBoundary.test.ts",
+        "apps/worker/test/tournamentQueue.test.ts",
+        "apps/worker/test/tournamentRooms.test.ts",
+        "apps/worker/test/tournaments.test.ts"
+      ],
+      "rules": {
+        "max-lines": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/worker/src/accounts/accountRoutes.ts",
+        "apps/worker/src/accounts/auth.ts",
+        "apps/worker/src/accounts/guestAccounts.ts",
+        "apps/worker/src/accounts/guestLinking.ts",
+        "apps/worker/src/accounts/matchClaims.ts",
+        "apps/worker/src/accounts/playerProfileRoutes.ts",
+        "apps/worker/src/accounts/registrationFlows.ts",
+        "apps/worker/src/accounts/registrationRoutes.ts",
+        "apps/worker/src/accounts/roomAccounts.ts",
+        "apps/worker/src/accounts/statsRoutes.ts",
+        "apps/worker/src/feedback/routes.ts",
+        "apps/worker/src/feedback/store.ts",
+        "apps/worker/src/kpi/calculations.ts",
+        "apps/worker/src/lobby/chatRoutes.ts",
+        "apps/worker/src/lobby/chatStore.ts",
+        "apps/worker/src/matchmaking/coordinator.ts",
+        "apps/worker/src/matchmaking/routes.ts",
+        "apps/worker/src/notifications/store.ts",
+        "apps/worker/src/privacy/deletion.ts",
+        "apps/worker/src/privacy/deletionRoutes.ts",
+        "apps/worker/src/publicAssets.ts",
+        "apps/worker/src/rooms/aiService.ts",
+        "apps/worker/src/rooms/applyRoomSettings.ts",
+        "apps/worker/src/rooms/eloRating.ts",
+        "apps/worker/src/rooms/fourReversiProgress.ts",
+        "apps/worker/src/rooms/fourReversiRating.ts",
+        "apps/worker/src/rooms/fourShogiProgress.ts",
+        "apps/worker/src/rooms/gameRoom.ts",
+        "apps/worker/src/rooms/matchStore.ts",
+        "apps/worker/src/rooms/rankingRoutes.ts",
+        "apps/worker/src/rooms/roomIndex.ts",
+        "apps/worker/src/rooms/roomRoutes.ts",
+        "apps/worker/src/rooms/shogiMatchStore.ts",
+        "apps/worker/src/rooms/standardShogiProgress.ts",
+        "apps/worker/src/tournaments/coordinator.ts",
+        "apps/worker/src/tournaments/store.ts",
+        "apps/worker/src/usageEvents/visit.ts"
+      ],
+      "rules": {
+        "max-lines-per-function": "off"
+      }
+    }
+  ]
 }
