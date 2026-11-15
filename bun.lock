@@ -10,6 +10,7 @@
         "husky": "^9.1.7",
         "oxfmt": "^0.70.0",
         "oxlint": "^1.85.0",
+        "typescript": "^5.5.2",
       },
     },
     "apps/admin": {
@@ -106,9 +107,11 @@
       "name": "@tetraboard/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@tetraboard/context-room": "workspace:*",
         "@tetraboard/four-gomoku": "workspace:*",
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
+        "@tetraboard/game-contract": "workspace:*",
         "@tetraboard/gomoku": "workspace:*",
         "@tetraboard/protocol": "workspace:*",
         "@tetraboard/reversi": "workspace:*",
@@ -140,6 +143,81 @@
         "wrangler": "4.143.0",
       },
     },
+    "packages/contexts/account": {
+      "name": "@tetraboard/context-account",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/community": {
+      "name": "@tetraboard/context-community",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/matchmaking": {
+      "name": "@tetraboard/context-matchmaking",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/privacy": {
+      "name": "@tetraboard/context-privacy",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/rating": {
+      "name": "@tetraboard/context-rating",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/record": {
+      "name": "@tetraboard/context-record",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/room": {
+      "name": "@tetraboard/context-room",
+      "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/shared": {
+      "name": "@tetraboard/context-shared",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
+    "packages/contexts/tournament": {
+      "name": "@tetraboard/context-tournament",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
     "packages/four-gomoku": {
       "name": "@tetraboard/four-gomoku",
       "version": "0.0.0",
@@ -164,9 +242,20 @@
         "typescript": "^5.5.2",
       },
     },
+    "packages/game-contract": {
+      "name": "@tetraboard/game-contract",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
     "packages/gomoku": {
       "name": "@tetraboard/gomoku",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -1003,11 +1092,31 @@
 
     "@tetraboard/ai": ["@tetraboard/ai@workspace:packages/ai"],
 
+    "@tetraboard/context-account": ["@tetraboard/context-account@workspace:packages/contexts/account"],
+
+    "@tetraboard/context-community": ["@tetraboard/context-community@workspace:packages/contexts/community"],
+
+    "@tetraboard/context-matchmaking": ["@tetraboard/context-matchmaking@workspace:packages/contexts/matchmaking"],
+
+    "@tetraboard/context-privacy": ["@tetraboard/context-privacy@workspace:packages/contexts/privacy"],
+
+    "@tetraboard/context-rating": ["@tetraboard/context-rating@workspace:packages/contexts/rating"],
+
+    "@tetraboard/context-record": ["@tetraboard/context-record@workspace:packages/contexts/record"],
+
+    "@tetraboard/context-room": ["@tetraboard/context-room@workspace:packages/contexts/room"],
+
+    "@tetraboard/context-shared": ["@tetraboard/context-shared@workspace:packages/contexts/shared"],
+
+    "@tetraboard/context-tournament": ["@tetraboard/context-tournament@workspace:packages/contexts/tournament"],
+
     "@tetraboard/four-gomoku": ["@tetraboard/four-gomoku@workspace:packages/four-gomoku"],
 
     "@tetraboard/four-reversi": ["@tetraboard/four-reversi@workspace:packages/four-reversi"],
 
     "@tetraboard/four-shogi": ["@tetraboard/four-shogi@workspace:packages/four-shogi"],
+
+    "@tetraboard/game-contract": ["@tetraboard/game-contract@workspace:packages/game-contract"],
 
     "@tetraboard/gomoku": ["@tetraboard/gomoku@workspace:packages/gomoku"],
 
@@ -1647,7 +1756,7 @@
 
     "types-ramda": ["types-ramda@0.31.0", "", { "dependencies": { "ts-toolbelt": "^9.6.0" } }, "sha512-vaoC35CRC3xvL8Z6HkshDbi6KWM1ezK0LHN0YyxXWUn9HKzBNg/T3xSGlJZjCYspnOD3jE7bcizsp0bUXZDxnQ=="],
 
-    "typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici": ["undici@7.30.2", "", {}, "sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA=="],
 
@@ -1747,25 +1856,17 @@
 
     "@tailwindcss/oxide-wasm32-wasi/tslib": ["tslib@2.8.1", "", { "bundled": true }, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
-    "@tetraboard/ai/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@tetraboard/admin/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
-    "@tetraboard/four-gomoku/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@tetraboard/local-ai-widget/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
-    "@tetraboard/four-reversi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@tetraboard/player-bot/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
-    "@tetraboard/four-shogi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@tetraboard/shogi-ui/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
-    "@tetraboard/gomoku/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
-
-    "@tetraboard/protocol/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
-
-    "@tetraboard/reversi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
-
-    "@tetraboard/shogi/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@tetraboard/web/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@tetraboard/worker/@types/node": ["@types/node@22.20.4", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA=="],
-
-    "@tetraboard/worker/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@tetraboard/worker/wrangler": ["wrangler@4.162.0", "", { "dependencies": { "@cloudflare/kv-asset-handler": "0.5.0", "@cloudflare/unenv-preset": "2.16.2", "@cspotcode/source-map-support": "0.8.1", "blake3-wasm": "2.1.5", "esbuild": "0.28.2", "miniflare": "5.20261113.0-beta", "path-to-regexp": "6.3.0", "unenv": "2.0.0-rc.24", "workerd": "1.20261113.1" }, "optionalDependencies": { "fsevents": "2.3.3" }, "peerDependencies": { "@cloudflare/workers-types": "^5.20261113.1" }, "optionalPeers": ["@cloudflare/workers-types"], "bin": { "wrangler": "bin/wrangler.js", "wrangler2": "bin/wrangler.js", "cf-wrangler": "bin/cf-wrangler.js" } }, "sha512-jUnlzHKlWdW4MFXPgeYbe0+c4oTy/AAZfL/IUz921+dZBY5nJ48xjpvwff5djUR1MXoJRevzntAP/U97TUhPEw=="],
 

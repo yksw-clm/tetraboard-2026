@@ -3,13 +3,14 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "packages/contexts/*"
   ],
   "scripts": {
     "dev": "bun run --parallel --filter '@tetraboard/web' --filter '@tetraboard/worker' --filter '@tetraboard/admin' dev",
     "typecheck": "bun scripts/checkBunVersion.ts && bun run --filter '*' --filter '!@tetraboard/ai' --sequential typecheck && bun check --no-script --all -p scripts/ci/tsconfig.json",
     "typecheck:tsc": "bun run --workspaces typecheck:tsc",
-    "lint": "oxlint . && oxlint -c .oxlintrc.json --no-error-on-unmatched-pattern apps/worker/src apps/worker/test packages/contexts && bun scripts/checkLintExceptions.ts",
+    "lint": "oxlint . && oxlint -c .oxlintrc.json --no-error-on-unmatched-pattern apps/worker/src apps/worker/test packages/contexts && bun scripts/checkLintExceptions.ts && bun scripts/checkContextDependencies.ts",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "bun scripts/ci/run.ts test",
@@ -25,6 +26,7 @@
     "happy-dom": "^20.14.5",
     "husky": "^9.1.7",
     "oxfmt": "^0.70.0",
-    "oxlint": "^1.85.0"
+    "oxlint": "^1.85.0",
+    "typescript": "^5.5.2"
   }
 }

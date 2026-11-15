@@ -41,6 +41,16 @@ Webの最低対応Workerは2026-11-06時点の本番main `35ddc5ee32127425ea875f
 
 GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い、同期的な資格照合へ進みます。公開RPCの期限処理も維持します。保存待ちが空の索引・席解放・大会反映・対局保存ではAlarmの再同期を省きます。実行中のflushは引き続き待ち、保存や失敗再送が期限を変えた場合はAlarmを再同期します。
 
+## 文脈のパッケージ
+
+Worker の処理は、文脈ごとのパッケージ `packages/contexts/<文脈>/`（`@tetraboard/context-<文脈>`）へ順に移します（[ADR 0010](adr/0010-contexts-and-shell.md)）。中は `src/domain/` と `src/use-cases/` に分けます。
+
+`bun run lint` が、依存の向きを `scripts/checkContextDependencies.ts` で検査します。
+
+- 文脈が依存してよいのは、`@tetraboard/context-shared`、`@tetraboard/game-contract`、ゲームのパッケージ、`@tetraboard/protocol` だけです。`context-shared` はほかの文脈に依存しません。
+- 文脈のソースは、Cloudflare（`cloudflare:`、`@cloudflare/`）、`zod`、`drizzle-orm`、`hono`、`better-auth`、ほかの文脈を import しません。パッケージの外への相対パスも使いません。
+- `@tetraboard/protocol` からは `import type` だけを使います。入力の検証は Worker の殻が受け持ちます。
+
 ## D1 のスキーマと migration
 
 D1 のスキーマは `apps/worker/src/db/schema/` に drizzle で定義しています。トリガーは drizzle で表さず、SQL の migration に残しています。
@@ -385,6 +395,12 @@ GameIdを追加すると型付きの必須登録が一斉に必要になるた�
 | 7   | `docs: 四人五目並べの実装案内と検証範囲を更新する`             | 実装・テストへの入口、採用したCPU値、6ゲームの実装済み範囲を正本・開発・テスト・構成文書へ反映。対象コミット・検証環境・測定結果・未確認事項をPRへ記録                    |
 
 GameIdを登録すると各層の型付き登録が必要になるため、5番で未対応の画面・保存契約・集計を残しません。差分が大きい場合は、公開登録前に準備できる内部部品を先行コミットに分けます。コミットの分割は実装の都合で調整できますが、承認済みの仕様・初回範囲・完了条件は変更しません。
+
+## ゲーム契約
+
+6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱うように順に移しています（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。2026-11 時点で移したのは五目並べだけです。
+
+着手と投了の前の確認は、room の文脈の `checkGameCommand` が全ゲーム共通の順序（状態 → 本人 → 古い局面 → 時計 → 脱落 → 手番）で行います。投了では古い局面の照合を飛ばします。
 
 ## ゲームの必須登録と型の対応
 

@@ -23,3 +23,5 @@
 | [0007](0007-ci-and-tests.md) | CI は通常の PR で 4 分以内を目標にし、テストを層で分ける | 一部を 0008 で置き換え |
 | [0008](0008-ci-single-job.md) | CI は 1 つのジョブにまとめ、AI のジョブだけを差分があるときに分ける | 承認済み |
 | [0009](0009-analytics-on-cloudflare.md) | 分析は Cloudflare の中で作り直す | 承認済み |
+| [0010](0010-contexts-and-shell.md) | 文脈の境界と Worker の殻の形 | 承認済み |
+| [0011](0011-game-contract.md) | ゲーム契約の形 | 承認済み |

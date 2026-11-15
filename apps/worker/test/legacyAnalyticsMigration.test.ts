@@ -9,7 +9,7 @@ test("旧分析のテーブルと参照だけを削除し、業務スキーマ�
     TEST_MIGRATIONS: Parameters<typeof applyD1Migrations>[1];
   };
   const db = bindings.ANALYTICS_FOUNDATION_TEST_DB;
-  const migrations = bindings.TEST_MIGRATIONS;
+  const migrations = bindings.TEST_MIGRATIONS.filter((m) => m.name < "0046");
   await applyD1Migrations(
     db,
     migrations.filter((m) => m.name < "0045"),
