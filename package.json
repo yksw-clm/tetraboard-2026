@@ -9,7 +9,7 @@
     "dev": "bun run --parallel --filter '@tetraboard/web' --filter '@tetraboard/worker' --filter '@tetraboard/admin' dev",
     "typecheck": "bun scripts/checkBunVersion.ts && bun run --filter '*' --filter '!@tetraboard/ai' --sequential typecheck && bun check --no-script --all -p scripts/ci/tsconfig.json",
     "typecheck:tsc": "bun run --workspaces typecheck:tsc",
-    "lint": "oxlint .",
+    "lint": "oxlint . && oxlint -c .oxlintrc.json --no-error-on-unmatched-pattern apps/worker/src apps/worker/test packages/contexts && bun scripts/checkLintExceptions.ts",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "bun scripts/ci/run.ts test",
