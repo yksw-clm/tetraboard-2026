@@ -1,15 +1,7 @@
-import { savedProfileRatings } from "../accounts/profileRatings";
-import type { FourShogiAiFailure, FourShogiAiResult } from "./aiService";
-import { fourReversiRatingMethod } from "../../../../packages/ai/fourReversiRating";
-import {
-  calibratedFourShogiProfile,
-  type FourShogiRatingSource,
-} from "../matchmaking/fourShogiSelection";
 import {
   fourShogiRoomSchema,
   isFourShogiRoom,
   type FourShogiRoom,
-  type FourShogiLastRound,
   type FourShogiReplayEvent,
   type Room,
   type FourShogiEliminatedHands,
@@ -17,44 +9,22 @@ import {
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import {
-  applyAction as applyShogiAction,
-  captureEliminatedHands,
-  chooseCpuAction,
-  createInitialState as createShogiState,
-  eliminateSide,
-  setDrawProposal,
   getActionAvailability,
   getCheckState,
-  sides,
-  type Side,
-  type FourShogiAction,
   type FourShogiState,
   type ExternalEliminationReason,
 } from "@tetraboard/four-shogi";
+import {
+  fourShogiDefinition as definition,
+  type FourShogiGameAction,
+} from "@tetraboard/four-shogi/definition";
+import { checkGameCommand } from "@tetraboard/context-room";
 import { ShogiStore } from "./shogiStore";
 import type { TournamentRoomContext } from "./tournamentRoom";
-import {
-  emptyKnockouts,
-  pendingShogiMatchPrefix,
-  shogiMatchStartKey,
-  type ActiveShogiMatch,
-  type PendingShogiMatch,
-} from "./shogiMatchStore";
-import { createShogiClock, advanceShogiClock } from "./shogiClock";
+import type { FourShogiRatingSource } from "../matchmaking/fourShogiSelection";
+import { advanceShogiClock } from "./shogiClock";
 import { isClockExpired } from "./clock";
-import {
-  emptyFormationUsage,
-  isFormationMatchEligible,
-  recordFormationUsage,
-} from "./shogiFormationUsage";
-import {
-  roomStorageKey,
-  shogiCpuJobKey,
-  playerLabel,
-  playerAppearance,
-  nextPublicUpdateAt,
-  shuffledAssignments,
-} from "./progressHelpers";
+import { shogiCpuJobKey, nextPublicUpdateAt } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -63,47 +33,32 @@ import type {
   FinishedProgress,
   RematchFor,
 } from "./gameProgress";
-export const shogiEliminatedHandsKey = "shogi-eliminated-hands";
+import {
+  FourShogiCpu,
+  fourShogiAiJobKey,
+  type FourShogiAiWork,
+  type FourShogiCpuResponse,
+} from "./fourShogiCpu";
+import {
+  startFourShogiRound,
+  finalizeFourShogiRound,
+  waitingFourShogiRoom,
+} from "./fourShogiProgressStore";
+import { shogiEliminatedHandsKey, saveFourShogiTransition } from "./fourShogiProgressRecords";
+export { shogiEliminatedHandsKey } from "./fourShogiProgressRecords";
+export { fourShogiAiJobKey, type FourShogiAiWork, type ShogiCpuJob } from "./fourShogiCpu";
 export const eliminatedHandsTag = "eliminated-hands-v1";
 type Playing = PlayingFor<"four-shogi">;
 type Result = ProgressFor<"four-shogi">;
-export const fourShogiAiJobKey = "four-shogi-ai-job";
-type FourShogiAiJob = {
-  requestId: string;
-  roundId: string;
-  positionRevision: number;
-  side: Side;
-  expiresAt: number;
-};
-export type FourShogiAiWork = {
-  job: FourShogiAiJob;
-  events: FourShogiReplayEvent[];
-  profile: NonNullable<ReturnType<typeof calibratedFourShogiProfile>>;
-};
-type FourShogiFallbackReason =
-  | FourShogiAiFailure
-  | "expired_job"
-  | "invalid_profile"
-  | "capacity_unavailable"
-  | "replay_too_long"
-  | "illegal_move";
-
-export type ShogiCpuJob = {
-  roundId: string;
-  positionRevision: number;
-  side: Side;
-  action: FourShogiAction;
-  applyAt: number;
-  fallback?: true;
-  aiDiagnostic?: { requestId: string; reason?: FourShogiFallbackReason };
-};
 export class FourShogiProgress {
   private readonly storage: DurableObjectStorage;
   private readonly membership: ProgressDependencies["membership"];
   private readonly accountId: ProgressDependencies["accountId"];
+  private readonly cpuProgress: FourShogiCpu;
   private shogiStore: ShogiStore | null = null;
   constructor(dependencies: ProgressDependencies) {
     this.storage = dependencies.storage;
+    this.cpuProgress = new FourShogiCpu(this.storage, () => this.store());
     this.membership = dependencies.membership;
     this.accountId = dependencies.accountId;
   }
@@ -128,183 +83,97 @@ export class FourShogiProgress {
     const player = room.players.find((p) => p.id === playerId);
     return !!player && room.game.eliminations.some((e) => e.side === player.side);
   }
-
   play(
     room: FourShogiRoom,
     tokenHash: string,
     command: GameActionCommandFor<"four-shogi">,
   ): Result {
-    const { action, roundId, positionRevision } = command;
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    const membership = this.membership(tokenHash);
-    if (!membership) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((p) => p.id === membership.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (roundId !== room.roundId || positionRevision !== room.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-    if (this.isEliminated(room, player.id))
-      return { kind: "rejected", error: "already_eliminated" };
-    if (player.side !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-    const result = applyShogiAction(state, player.side, action, repetitionLookup);
-    if (!result.ok) return { kind: "rejected", error: "invalid_move" };
-    return this.accept(
-      room,
-      result.state,
-      { type: "action", side: player.side, action },
-      Date.now(),
-      true,
-    );
+    return this.command(room, tokenHash, command.action, command);
   }
-
-  resign(room: FourShogiRoom, tokenHash: string): Result {
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-    const membership = this.membership(tokenHash);
-    const player = room.players.find((p) => p.id === membership?.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (this.isEliminated(room, player.id))
-      return { kind: "rejected", error: "already_eliminated" };
-    if (player.side !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    return this.eliminate(room, player.id, "resigned", Date.now());
-  }
-
   draw(
     room: FourShogiRoom,
     tokenHash: string,
     command: Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>,
   ): Result {
     if (room.tournamentId !== undefined) return { kind: "rejected", error: "forbidden" };
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
+    return this.command(
+      room,
+      tokenHash,
+      { type: "drawProposal", proposed: command.proposed },
+      command,
+    );
+  }
+
+  private checkCommand(
+    room: FourShogiRoom,
+    tokenHash: string,
+    operation: "play" | "resign",
+    command?: { roundId: string; positionRevision: number },
+    action?: FourShogiGameAction,
+  ) {
     const membership = this.membership(tokenHash);
-    const player = room.players.find((entry) => entry.id === membership?.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (command.roundId !== room.roundId || command.positionRevision !== room.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    const at = Date.now();
-    if (isClockExpired(room.clock, at)) return { kind: "rejected", error: "time_expired" };
-    const { state } = this.store().loadTransition(room.roundId, room.game);
-    const result = setDrawProposal(state, player.side, command.proposed);
+    const player = room.players.find((p) => p.id === membership?.playerId);
+    const error = checkGameCommand({
+      operation,
+      status: room.status,
+      hasLastRound: room.lastRound !== null,
+      seat: player?.side ?? null,
+      eliminatedSeats: room.game?.eliminations.map((e) => e.side) ?? [],
+      turn: room.game ? definition.rules.getTurn({ ...room.game, repetitions: {} }) : null,
+      positionMatches:
+        room.status === "playing" &&
+        command?.roundId === room.roundId &&
+        command?.positionRevision === room.positionRevision,
+      clockExpired: room.clock !== null && isClockExpired(room.clock, Date.now()),
+      requiresTurn: action ? (definition.rules.requiresTurn?.(action) ?? true) : true,
+    });
+    return { error, player };
+  }
+
+  private command(
+    room: FourShogiRoom,
+    tokenHash: string,
+    action: FourShogiGameAction,
+    command: { roundId: string; positionRevision: number },
+  ): Result {
+    const { error, player } = this.checkCommand(room, tokenHash, "play", command, action);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing" || !player?.side) throw new Error("Expected playing seat");
+    const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
+    const result = definition.rules.applyAction(state, player.side, action, repetitionLookup);
     if (!result.ok)
       return {
         kind: "rejected",
-        error: result.reason === "invalid_proposal" ? "invalid_request" : result.reason,
+        error: action.type === "drawProposal" ? "invalid_request" : "invalid_move",
       };
     if (result.state === state) return { kind: "unchanged", gameId: "four-shogi", room };
     return this.accept(
       room,
       result.state,
-      { type: "drawProposal", side: player.side, proposed: command.proposed },
-      at,
-      false,
+      result.event,
+      Date.now(),
+      definition.rules.endsTurn?.(action) ?? true,
     );
   }
-
+  resign(room: FourShogiRoom, tokenHash: string): Result {
+    const { error, player } = this.checkCommand(room, tokenHash, "resign");
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing" || !player) throw new Error("Expected playing seat");
+    return this.eliminate(room, player.id, "resigned", Date.now());
+  }
   start(
-    room: Extract<FourShogiRoom, { status: "waiting" }>,
+    room: WaitingFor<"four-shogi">,
     tournament?: TournamentRoomContext,
     rating?: FourShogiRatingSource,
-  ): {
-    room: Playing;
-    roundId: string;
-    at: number;
-  } {
-    const assignments = shuffledAssignments(sides);
-    const players = room.players.map((player, index) => ({
-      ...player,
-      side: assignments[index],
-      ready: player.kind === "cpu",
-    }));
-    const seatId = (side: Side): string => {
-      const player = players.find((p) => p.side === side);
-      if (!player) throw new Error("Missing assigned Shogi seat");
-      return player.id;
-    };
-    const initial = {
-      mode: room.settings.mode,
-      threePlayerAttackProhibited: room.settings.threePlayerAttackProhibited,
-      players: {
-        south: seatId("south"),
-        west: seatId("west"),
-        north: seatId("north"),
-        east: seatId("east"),
-      },
-    };
-    const state = createShogiState(initial);
-    const roundId = (rating && room.matchmaking?.id) || tournament?.matchId || crypto.randomUUID();
-    const at = Date.now();
-    this.store().startReplay(roundId, initial);
-    this.storage.kv.put(shogiEliminatedHandsKey, { roundId, hands: {} });
-    this.storage.kv.delete(shogiCpuJobKey);
-    this.storage.kv.delete(fourShogiAiJobKey);
-    const { tournamentStartsAtMs: _tournamentStartsAtMs, ...waiting } = room;
-    const started = fourShogiRoomSchema.parse({
-      ...waiting,
-      status: "playing",
-      lastRound: null,
-      players,
-      roundId,
-      positionRevision: 0,
-      game: this.store().saveState(roundId, state),
-      ...getActionAvailability(state),
-      checkState: getCheckState(state),
-      eliminations: [],
-      clock: createShogiClock(at, room.settings.timeControl),
-      publicUpdatedAtMs: nextPublicUpdateAt(room),
-      lastActivityAtMs: at,
-    });
-    if (!isFourShogiRoom(started) || started.status !== "playing")
-      throw new Error("Shogi game did not start");
-    this.storage.kv.put(roomStorageKey, started);
-    this.storage.kv.put(shogiMatchStartKey, {
-      ...(tournament ? { tournament } : {}),
-      start: {
-        ...savedProfileRatings(this.storage, roundId),
-        id: roundId,
-        roomId: room.id,
-        instanceId: room.instanceId,
-        startedAtMs: at,
-        settings: room.settings,
-        ...(rating
-          ? {
-              fourShogiRating: {
-                method: fourReversiRatingMethod,
-                calibrationVersion: rating.calibrationVersion,
-                cpu: Object.fromEntries(
-                  started.players.flatMap((player) =>
-                    player.kind === "cpu" && rating.cpu ? [[player.side, rating.cpu]] : [],
-                  ),
-                ),
-              },
-            }
-          : {}),
-        participants: started.players.map((player, seat) => ({
-          id: player.id,
-          name: playerLabel(player),
-          side: player.side,
-          seat,
-          ...(player.kind === "cpu"
-            ? { kind: "cpu" as const, level: player.level }
-            : {
-                kind: "human" as const,
-                accountId: this.accountId(player.id),
-              }),
-        })),
-      },
-      knockouts: emptyKnockouts(),
-      ...(isFormationMatchEligible({
-        settings: room.settings,
-        participants: started.players,
-        rated: rating !== undefined,
-      })
-        ? { formationUsage: emptyFormationUsage() }
-        : {}),
-    } satisfies ActiveShogiMatch);
-    return { room: started, roundId, at };
+  ) {
+    return startFourShogiRound(
+      this.storage,
+      this.store(),
+      this.accountId,
+      room,
+      tournament,
+      rating,
+    );
   }
 
   accept(
@@ -314,39 +183,7 @@ export class FourShogiProgress {
     at: number,
     turnEnded: boolean,
   ): Result {
-    const stored = this.storage.kv.get<FourShogiEliminatedHands>(shogiEliminatedHandsKey);
-    const previous = stored?.roundId === room.roundId ? stored.hands : {};
-    const hands = captureEliminatedHands(previous, room.game, state);
-    if (hands !== previous)
-      this.storage.kv.put(shogiEliminatedHandsKey, { roundId: room.roundId, hands });
-    this.store().appendEvent(room.roundId, event);
-    const core = this.store().saveState(room.roundId, state);
-    const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
-    if (
-      active?.start.id === room.roundId &&
-      event.type === "action" &&
-      room.settings.mode === "singles"
-    ) {
-      const prior = new Set(room.game.eliminations.map((entry) => entry.side));
-      const count = state.eliminations.filter(
-        (entry) =>
-          entry.reason === "checkmate" && entry.side !== event.side && !prior.has(entry.side),
-      ).length;
-      active.knockouts[event.side] += count;
-      if (
-        active.formationUsage &&
-        active.start.participants.some(
-          (player) => player.side === event.side && player.kind === "human",
-        )
-      )
-        active.formationUsage = recordFormationUsage(
-          active.formationUsage,
-          room.game,
-          state,
-          event.side,
-        );
-      this.storage.kv.put(shogiMatchStartKey, active);
-    }
+    const core = saveFourShogiTransition(this.storage, this.store(), room, state, event);
     this.storage.kv.delete(shogiCpuJobKey);
     this.storage.kv.delete(fourShogiAiJobKey);
     if (state.status === "finished") {
@@ -373,43 +210,8 @@ export class FourShogiProgress {
     if (updated.status !== "playing") throw new Error("Expected playing room");
     return { kind: "playing", gameId: "four-shogi", room: updated };
   }
-
-  finalize(result: FinishedProgress<"four-shogi">): FourShogiLastRound {
-    const { room, game: core, at } = result;
-    const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
-    if (active?.start.id === room.roundId) {
-      this.store().protectArchive(room.roundId);
-      this.storage.kv.put(pendingShogiMatchPrefix + room.roundId, {
-        ...(active.tournament ? { tournament: active.tournament } : {}),
-        record: {
-          ...active.start,
-          endedAtMs: at,
-          game: core,
-          knockouts: active.knockouts,
-          replay: {
-            rulesVersion: 1,
-            initial: this.store().replayInfo(room.roundId),
-            eventCount: this.store().eventCount(room.roundId),
-          },
-        },
-        progress: { phase: "upload", cursor: 0 },
-        ...(active.formationUsage ? { formationUsage: active.formationUsage } : {}),
-        retryAtMs: Date.now(),
-      } satisfies PendingShogiMatch);
-    }
-    this.storage.kv.delete(shogiMatchStartKey);
-    const lastRound: FourShogiLastRound = {
-      roundId: room.roundId,
-      game: core,
-      players: room.players.map((player) => ({
-        id: player.id,
-        name: playerLabel(player),
-        side: player.side,
-        appearance: playerAppearance(player),
-      })),
-      eventCount: this.store().eventCount(room.roundId),
-    };
-    return lastRound;
+  finalize(result: FinishedProgress<"four-shogi">) {
+    return finalizeFourShogiRound(this.storage, this.store(), result);
   }
 
   eliminate(
@@ -432,53 +234,21 @@ export class FourShogiProgress {
         room: fourShogiRoomSchema.parse({ ...room, players }),
       };
     const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-    const result = eliminateSide(state, player.side, reason, repetitionLookup);
-    if (!result.ok) throw new Error(`Could not eliminate Shogi player: ${result.reason}`);
+    const result = definition.rules.eliminateSeat(state, player.side, reason, repetitionLookup);
     const input = fourShogiRoomSchema.parse({ ...room, players });
     if (input.status !== "playing") throw new Error("Expected playing room");
-    return this.accept(
-      input,
-      result.state,
-      { type: "eliminate", side: player.side, reason },
-      at,
-      result.state.turn !== room.game.turn,
-    );
+    return this.accept(input, result.state, result.event, at, result.state.turn !== room.game.turn);
   }
 
   cpuDraw(room: Playing, now: number): Result {
-    const cpu = room.players.find((p) => p.side === room.game.turn);
-    if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "four-shogi", room };
-    const humans = room.players.filter((p) => p.kind === "human" && !this.isEliminated(room, p.id));
-    const proposed =
-      humans.length > 0 && humans.every((p) => room.game.drawProposals.includes(p.side));
-    if (room.game.drawProposals.includes(cpu.side) === proposed)
-      return { kind: "unchanged", gameId: "four-shogi", room };
-    const { state } = this.store().loadTransition(room.roundId, room.game);
-    const result = setDrawProposal(state, cpu.side, proposed);
-    if (!result.ok) throw new Error("Could not update CPU draw proposal");
-    return this.accept(
-      room,
-      result.state,
-      { type: "drawProposal", side: cpu.side, proposed },
-      now,
-      false,
-    );
-  }
-
-  private currentJob(
-    room: Playing,
-    job: Pick<FourShogiAiJob, "roundId" | "positionRevision" | "side">,
-  ) {
-    return (
-      job.roundId === room.roundId &&
-      job.positionRevision === room.positionRevision &&
-      job.side === room.game.turn
-    );
+    const result = this.cpuProgress.cpuDraw(room);
+    return result
+      ? this.accept(room, result.state, result.event, now, false)
+      : { kind: "unchanged", gameId: "four-shogi", room };
   }
 
   externalCpuJob(room: Playing) {
-    const job = this.storage.kv.get<FourShogiAiJob>(fourShogiAiJobKey);
-    return job && this.currentJob(room, job) ? job : undefined;
+    return this.cpuProgress.externalCpuJob(room);
   }
 
   prepareExternalCpu(
@@ -486,145 +256,28 @@ export class FourShogiProgress {
     now: number,
     timeout: number,
     unavailable: "configuration" | "capacity_unavailable" | null,
-  ): FourShogiAiWork | null {
-    const pending = this.externalCpuJob(room);
-    if (pending) {
-      if (now >= pending.expiresAt)
-        this.completeExternalCpu(room, pending, { action: null, reason: "expired_job" }, now);
-      return null;
-    }
-    const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
-    const ref =
-      active?.start.id === room.roundId
-        ? active.start.fourShogiRating?.cpu[room.game.turn]
-        : undefined;
-    const profile = ref && calibratedFourShogiProfile(ref);
-    const job = {
-      requestId: crypto.randomUUID(),
-      roundId: room.roundId,
-      positionRevision: room.positionRevision,
-      side: room.game.turn,
-      expiresAt: Math.min(room.clock.turnExpiresAt, now + timeout),
-    };
-    this.storage.kv.put(fourShogiAiJobKey, job);
-    const count = this.store().eventCount(room.roundId);
-    if (!profile || unavailable || count > 1600) {
-      const reason = !profile ? "invalid_profile" : (unavailable ?? "replay_too_long");
-      this.completeExternalCpu(room, job, { action: null, reason }, now);
-      return null;
-    }
-    const events: FourShogiReplayEvent[] = [];
-    while (events.length < count) {
-      const page = this.store().replayEvents(room.roundId, events.length);
-      if (!page.length) throw Error("四人将棋の棋譜が不足しています");
-      events.push(...page);
-    }
-    return { job, events, profile };
+  ) {
+    return this.cpuProgress.prepareExternalCpu(room, now, timeout, unavailable);
   }
 
   completeExternalCpu(
     room: Playing,
-    job: FourShogiAiJob,
-    response: FourShogiAiResult | { action: null; reason: FourShogiFallbackReason },
+    job: FourShogiAiWork["job"],
+    response: FourShogiCpuResponse,
     now: number,
   ) {
-    if (this.externalCpuJob(room)?.requestId !== job.requestId || isClockExpired(room.clock, now))
-      return;
-    this.storage.kv.delete(fourShogiAiJobKey);
-    const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-    const { action } = response;
-    const legal =
-      action &&
-      now < job.expiresAt &&
-      applyShogiAction(state, job.side, action, repetitionLookup).ok;
-    const chosen = legal ? action : room.legalActions[0];
-    if (!chosen) throw Error("四人将棋のCPUに合法手がありません");
-    const aiDiagnostic = !legal
-      ? {
-          requestId: job.requestId,
-          reason: response.reason ?? (now >= job.expiresAt ? "timeout" : "illegal_move"),
-        }
-      : "retried" in response && response.retried
-        ? { requestId: job.requestId }
-        : undefined;
-    this.storage.kv.put(shogiCpuJobKey, {
-      roundId: job.roundId,
-      positionRevision: job.positionRevision,
-      side: job.side,
-      action: chosen,
-      applyAt: now + 1,
-      ...(!legal ? { fallback: true as const } : {}),
-      ...(aiDiagnostic ? { aiDiagnostic } : {}),
-    } satisfies ShogiCpuJob);
+    this.cpuProgress.completeExternalCpu(room, job, response, now);
   }
 
   cpu(room: Playing, now: number): Result {
-    const cpu = room.players.find((p) => p.side === room.game.turn);
-    if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "four-shogi", room };
-    const job = this.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey);
-    if (job) {
-      if (
-        job.roundId !== room.roundId ||
-        job.positionRevision !== room.positionRevision ||
-        job.side !== room.game.turn
-      )
-        this.storage.kv.delete(shogiCpuJobKey);
-      else if (job.applyAt <= now) {
-        const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-        const result = applyShogiAction(state, job.side, job.action, repetitionLookup);
-        if (!result.ok) throw new Error("Saved CPU action is no longer legal");
-        if (job.fallback) {
-          const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
-          if (active?.start.id === room.roundId && active.start.fourShogiRating) {
-            active.start.fourShogiRating.usedFallback = true;
-            this.storage.kv.put(shogiMatchStartKey, active);
-          }
-        }
-        return this.accept(
-          room,
-          result.state,
-          { type: "action", side: job.side, action: job.action },
-          now,
-          true,
-        );
-      }
-    } else if (!room.matchmaking?.rated) {
-      const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-      const action = chooseCpuAction(state, cpu.level, Math.random, repetitionLookup);
-      if (!action) throw new Error("Shogi CPU has no legal action");
-      this.storage.kv.put(shogiCpuJobKey, {
-        roundId: room.roundId,
-        positionRevision: room.positionRevision,
-        side: room.game.turn,
-        action,
-        applyAt: Date.now() + 1,
-      } satisfies ShogiCpuJob);
-    }
-    return { kind: "unchanged", gameId: "four-shogi", room };
+    const result = this.cpuProgress.cpu(room, now);
+    return result
+      ? this.accept(room, result.state, result.event, now, true)
+      : { kind: "unchanged", gameId: "four-shogi", room };
   }
 
-  waiting(
-    data: RematchFor<"four-shogi">,
-    players: FourShogiRoom["players"],
-  ): WaitingFor<"four-shogi"> {
-    const room = fourShogiRoomSchema.parse({
-      ...data.room,
-      status: "waiting",
-      eliminations: [],
-      publicUpdatedAtMs: nextPublicUpdateAt(data.room),
-      lastActivityAtMs: data.at,
-      players: players.map((p) => ({ ...p, side: null })),
-      game: null,
-      clock: null,
-      lastRound: data.lastRound,
-      roundId: null,
-      positionRevision: 0,
-      legalActions: [],
-      threePlayerAttackForbiddenActions: [],
-      checkState: { south: false, west: false, north: false, east: false },
-    });
-    if (room.status !== "waiting") throw new Error("Expected waiting room");
-    return room;
+  waiting(data: RematchFor<"four-shogi">, players: FourShogiRoom["players"]) {
+    return waitingFourShogiRoom(data, players);
   }
 
   normalize(room: FourShogiRoom, saved: object): void {

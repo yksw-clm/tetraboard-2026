@@ -398,7 +398,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## ゲーム契約
 
-6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱うように順に移しています（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。2026-11 時点で移したのは五目並べ、通常リバーシ、四人五目並べ、四人リバーシ、将棋です。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/rooms/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
+6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱うように順に移しています（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。6 ゲームとも移し終え、登録表は `Record<GameId, ...>` を満たすので、登録が欠けると型検査が失敗します。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/rooms/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
 
 着手と投了の前の確認は、room の文脈の `checkGameCommand` が全ゲーム共通の順序（状態 → 本人 → 古い局面 → 時計 → 脱落 → 手番）で行います。投了では古い局面の照合を飛ばします。
 

@@ -9,7 +9,10 @@ import { fourReversiDefinition, type FourReversiTypes } from "@tetraboard/four-r
 
 import { shogiDefinition, type ShogiTypes } from "@tetraboard/shogi/definition";
 
+import { fourShogiDefinition, type FourShogiTypes } from "@tetraboard/four-shogi/definition";
+
 interface DefinitionTypes {
+  "four-shogi": FourShogiTypes;
   shogi: ShogiTypes;
   "four-reversi": FourReversiTypes;
   "four-gomoku": FourGomokuTypes;
@@ -17,11 +20,12 @@ interface DefinitionTypes {
   gomoku: GomokuTypes;
 }
 
-type GameDefinitions = Partial<{
-  [G in GameId]: G extends keyof DefinitionTypes ? GameDefinition<DefinitionTypes[G], G> : never;
-}>;
+export type GameDefinitions = Record<GameId, unknown> & {
+  [G in GameId]: GameDefinition<DefinitionTypes[G], G>;
+};
 
 export const gameDefinitions = {
+  "four-shogi": fourShogiDefinition,
   shogi: shogiDefinition,
   "four-reversi": fourReversiDefinition,
   "four-gomoku": fourGomokuDefinition,

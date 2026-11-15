@@ -1,3 +1,4 @@
+import { fourShogiDefinition } from "@tetraboard/four-shogi/definition";
 import { createShogiAiRequest } from "@tetraboard/shogi/definition";
 import { createFourReversiAiRequest } from "./fourReversiAiRequest";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
@@ -495,16 +496,21 @@ export async function requestFourShogiAiMove(
   const revision = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+  const { api_version, rules_version, ...request } =
+    fourShogiDefinition.cpu.external!.createRequest(
+      fourShogiDefinition.rules.createInitialState(fourShogiDefinition.catalog.defaultSettings),
+      side,
+      2,
+      { events: work.events, profile: work.profile },
+    );
   const body = JSON.stringify({
-    api_version: 1,
-    rules_version: 1,
+    api_version,
+    rules_version,
     request_id: requestId,
     position_revision: revision,
-    profile_id: work.profile.profileId,
-    three_player_attack_prohibited: true,
-    turn: side,
-    events: work.events,
+    ...request,
   });
+
   for (let attempt = 1; ; attempt++) {
     const atMs = Date.now();
     const remaining = expiresAt - atMs;
