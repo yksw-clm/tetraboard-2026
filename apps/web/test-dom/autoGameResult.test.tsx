@@ -86,6 +86,8 @@ function rounds() {
     },
   };
   const reversi = reversiRoomSchema.parse({
+    roundId: null,
+    positionRevision: 0,
     ...waitingRoom(),
     settings: { game: "reversi", timeControl: waitingRoom().settings.timeControl },
     players: waitingRoom().players.slice(0, 2),
@@ -93,6 +95,7 @@ function rounds() {
   const reversiPlaying = reversiRoomSchema.parse({
     ...reversi,
     status: "playing",
+    roundId: "11111111-1111-4111-8111-111111111111",
     players: reversi.players.map((p, i) => ({ ...p, color: i === 0 ? "black" : "white" })),
     game: createInitialState(),
     clock: {

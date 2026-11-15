@@ -1802,6 +1802,8 @@ test.each(["human", "random", "engine", "fallback"] as const)(
         socket.send(
           JSON.stringify({
             type: "room.game.action",
+            roundId: started.roundId,
+            positionRevision: started.positionRevision,
             action: { type: "placeStone", position: getLegalMoves(started.game)[0] },
           }),
         );

@@ -39,7 +39,8 @@ function fixture(game: GameId): Room {
                   timeControl: base.settings.timeControl,
                   ...(game === "gomoku" ? { forbiddenRules: true } : {}),
                 },
-                ...(game === "gomoku" ? { roundId: null, positionRevision: 0 } : {}),
+                roundId: null,
+                positionRevision: 0,
               });
   return { ...room, players: room.players.slice(0, 1) } as Room;
 }

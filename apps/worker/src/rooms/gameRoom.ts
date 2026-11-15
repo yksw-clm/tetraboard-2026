@@ -1,3 +1,4 @@
+import { normalizeLegacyReversiState } from "./normalizeLegacyReversiState";
 import { matchEndFacts } from "../usageEvents/matchLifecycle";
 import { roomMatchKind, type MatchKind } from "@tetraboard/protocol";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
@@ -1314,7 +1315,12 @@ export class GameRoom extends DurableObject<Env> {
   private readRoom(): Room | null {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
     if (saved === undefined) return null;
-    const room = roomSchema.parse(normalizeLegacyShogiState(saved));
+    const room = roomSchema.parse(
+      normalizeLegacyReversiState(
+        normalizeLegacyShogiState(saved),
+        () => this.ctx.storage.kv.get<{ id: string }>(replayKey)?.id,
+      ),
+    );
     if (isFourGomokuRoom(room)) this.fourGomokuProgress.normalize(room);
     else if (isFourShogiRoom(room)) this.shogiProgress.normalize(room, saved);
     else if (isReversiRoom(room)) this.standardProgress.normalize(room, saved);
@@ -3364,7 +3370,10 @@ export class GameRoom extends DurableObject<Env> {
   async getShareMetadata(instanceId: string) {
     // ルームの進行や期限処理を呼ばず、クローラーの取得で対局・時計・保存を変更しません。
     const parsed = roomSchema.safeParse(
-      normalizeLegacyShogiState(this.ctx.storage.kv.get(roomStorageKey)),
+      normalizeLegacyReversiState(
+        normalizeLegacyShogiState(this.ctx.storage.kv.get(roomStorageKey)),
+        () => this.ctx.storage.kv.get<{ id: string }>(replayKey)?.id,
+      ),
     );
     if (!parsed.success) return null;
     const room = parsed.data;
@@ -4048,14 +4057,13 @@ export class GameRoom extends DurableObject<Env> {
             }
           }
         } else {
-          if (room.matchmaking && !applyCpu) return room;
+          if (!applyCpu) return room;
           if (
             roomAiAllowed(this.env, room) &&
             reversiAiEnabled(this.env) &&
             currentCpu(room)?.level === 2 &&
             (!room.matchmaking || this.hasCpuCapacity(room))
           ) {
-            if (!applyCpu) return room;
             reversiWork.current = this.standardProgress.prepareExternalCpu(
               room,
               now,
@@ -4784,7 +4792,11 @@ export class GameRoom extends DurableObject<Env> {
 
   private placeStone(
     tokenHash: string,
-    action: import("@tetraboard/protocol").ActionFor<"four-reversi">,
+    command: {
+      action: import("@tetraboard/protocol").ActionFor<"four-reversi">;
+      roundId?: string;
+      positionRevision?: number;
+    },
   ): { status: "placed"; room: Room | null } | { status: RoomSocketError } {
     return this.withIndexTransaction(() => {
       const room = this.readRoom();
@@ -4796,9 +4808,23 @@ export class GameRoom extends DurableObject<Env> {
         isShogiRoom(room)
       )
         return { status: "invalid_move" };
+      if (
+        isReversiRoom(room)
+          ? command.roundId === undefined || command.positionRevision === undefined
+          : command.roundId !== undefined || command.positionRevision !== undefined
+      )
+        return { status: "invalid_request" };
       const result = isReversiRoom(room)
-        ? this.standardProgress.play(room, tokenHash, { type: "room.game.action", action })
-        : this.reversiProgress.play(room, tokenHash, { type: "room.game.action", action });
+        ? this.standardProgress.play(room, tokenHash, {
+            type: "room.game.action",
+            action: command.action,
+            roundId: command.roundId!,
+            positionRevision: command.positionRevision!,
+          })
+        : this.reversiProgress.play(room, tokenHash, {
+            type: "room.game.action",
+            action: command.action,
+          });
       if (result.kind === "rejected") return { status: result.error };
       const updated = this.applyProgress(result);
       if (updated) this.ctx.storage.kv.put(roomStorageKey, updated);
@@ -5157,7 +5183,7 @@ export class GameRoom extends DurableObject<Env> {
       const command = parsed.data;
       const result =
         command.action.type === "placeStone"
-          ? this.placeStone(tokenHash.data, command.action)
+          ? this.placeStone(tokenHash.data, { ...command, action: command.action })
           : command.roundId !== undefined && command.positionRevision !== undefined
             ? command.action.type === "placeFourGomokuStone"
               ? this.playFourGomoku(tokenHash.data, {

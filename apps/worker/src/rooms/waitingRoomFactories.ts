@@ -102,6 +102,8 @@ export const waitingRoomFactories = {
     ...base(context),
     status: "waiting",
     settings: { game: "reversi", timeControl: context.request.timeControl ?? roomTimeControl },
+    roundId: null,
+    positionRevision: 0,
     players: players(context).map((p) => ({ ...p, color: null })),
     eliminations: [],
     game: null,
