@@ -398,7 +398,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## ゲーム契約
 
-6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱うように順に移しています（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。2026-11 時点で移したのは五目並べと通常リバーシです。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
+6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱うように順に移しています（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。2026-11 時点で移したのは五目並べ、通常リバーシ、四人五目並べです。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
 
 着手と投了の前の確認は、room の文脈の `checkGameCommand` が全ゲーム共通の順序（状態 → 本人 → 古い局面 → 時計 → 脱落 → 手番）で行います。投了では古い局面の照合を飛ばします。
 

@@ -7,7 +7,11 @@ import {
   type FourGomokuRoom,
   type RoomMode,
 } from "@tetraboard/protocol";
-import { fourGomokuCpuJobKey, type FourGomokuCpuJob } from "../src/rooms/fourGomokuProgress";
+import {
+  FourGomokuProgress,
+  fourGomokuCpuJobKey,
+  type FourGomokuCpuJob,
+} from "../src/rooms/fourGomokuProgress";
 import {
   RoomBoundaryFixtures,
   boundaryRequest,
@@ -393,4 +397,76 @@ test("各色の最終手を配信し、旧進行局の再読込でも永続棋�
   const next = await play(restored, clients, host, 5, 0);
   if (next.status !== "playing") throw Error();
   expect(next.game.lastMoves).toEqual({ ...expected, white: { x: 5, y: 0 } });
+});
+
+test("共通の確認順序で拒否し、投了は局面照合を要求せず盤面・時計・棋譜を保つ", async () => {
+  const { entry, host, clients, room: initial } = await setup();
+  const room = await firstWinner(initial, clients, host);
+  if (room.status !== "playing") throw Error("Expected playing");
+  await runInDurableObject(env.GAME_ROOM.getByName(entry.room.id), (_instance, state) => {
+    const before = structuredClone(room);
+    const replay = state.storage.kv.get("round-replay");
+    const progress = new FourGomokuProgress({
+      storage: state.storage,
+      membership: (color) => {
+        const player = room.players.find((p) => p.color === color);
+        return player ? { ...entry.membership, playerId: player.id } : null;
+      },
+      accountId: () => null,
+    });
+    const command = {
+      type: "room.game.action" as const,
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
+      action: { type: "placeFourGomokuStone" as const, position: { x: 7, y: 7 } },
+    };
+    const stale = { ...command, positionRevision: room.positionRevision - 1 };
+    const expired = { ...room, clock: { ...room.clock, turnExpiresAt: Date.now() - 1 } };
+    expect(progress.play(gameRoom(entry.room), "unknown", stale)).toEqual({
+      kind: "rejected",
+      error: "game_not_started",
+    });
+    expect(progress.play(expired, "unknown", stale)).toEqual({
+      kind: "rejected",
+      error: "unauthorized",
+    });
+    expect(progress.resign(expired, "unknown")).toEqual({
+      kind: "rejected",
+      error: "unauthorized",
+    });
+    for (const color of ["black", "red", "white"]) {
+      expect(progress.play(expired, color, stale)).toEqual({
+        kind: "rejected",
+        error: "stale_position",
+      });
+      expect(progress.play(expired, color, command)).toEqual({
+        kind: "rejected",
+        error: "time_expired",
+      });
+      expect(progress.resign(expired, color)).toEqual({ kind: "rejected", error: "time_expired" });
+    }
+    for (const operation of ["play", "resign"] as const) {
+      expect(progress[operation](room, "black", command)).toEqual({
+        kind: "rejected",
+        error: "already_eliminated",
+      });
+      expect(progress[operation](room, "red", command)).toEqual({
+        kind: "rejected",
+        error: "not_your_turn",
+      });
+    }
+    expect(room).toEqual(before);
+    expect(state.storage.kv.get("round-replay")).toEqual(replay);
+    expect(state.storage.kv.get("room")).toEqual(before);
+  });
+  current(room, clients).send({ type: "room.game.resign" });
+  const resigned = gameRoom(
+    (
+      await host.waitFor(
+        "room.snapshot",
+        (m) => isFourGomokuRoom(m.room) && m.room.game?.eliminatedColors.includes("white") === true,
+      )
+    ).room,
+  );
+  expect(resigned.eliminations).toEqual([{ color: "white", reason: "resigned" }]);
 });

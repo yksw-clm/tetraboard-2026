@@ -1,40 +1,28 @@
-import { activeTournamentContextKey, type TournamentRoomContext } from "./tournamentRoom";
-import { chooseCpuMove } from "@tetraboard/four-gomoku/cpu";
+import type { TournamentRoomContext } from "./tournamentRoom";
+import { checkGameCommand } from "@tetraboard/context-room";
+import { gameDefinitions } from "./gameDefinitions";
+import {
+  startFourGomokuRound,
+  recordFourGomokuTransition,
+  finalizeFourGomokuRound,
+} from "./fourGomokuProgressStore";
 import {
   fourGomokuStateSchema,
   fourGomokuRoomSchema,
-  fourGomokuReplaySchema as roundReplaySchema,
   type FourGomokuRoom,
   type FourGomokuLastRound as LastRound,
   type FourGomokuReplay as RoundReplay,
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import {
-  applyAction,
-  colors,
+  type ActionResult,
   getActiveColors,
-  createInitialState,
-  eliminateColor,
   type FourGomokuState,
   type Color,
   type Position,
 } from "@tetraboard/four-gomoku";
-import { advanceClock, createClock, isClockExpired } from "./clock";
-import {
-  matchStartKey,
-  pendingMatchPrefix,
-  type MatchStart,
-  type PendingMatch,
-} from "./fourGomokuMatchStore";
-import {
-  roomStorageKey,
-  replayKey,
-  playerLabel,
-  playerAppearance,
-  nextPublicUpdateAt,
-  shuffledAssignments,
-  cpuMoveDelayMs,
-} from "./progressHelpers";
+import { advanceClock, isClockExpired } from "./clock";
+import { replayKey, nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -45,6 +33,7 @@ import type {
 } from "./gameProgress";
 type Playing = PlayingFor<"four-gomoku">;
 type Result = ProgressFor<"four-gomoku">;
+const definition = gameDefinitions["four-gomoku"];
 export const fourGomokuCpuJobKey = "four-gomoku-cpu-job";
 export type FourGomokuCpuJob = {
   roundId: string;
@@ -79,59 +68,7 @@ export class FourGomokuProgress {
     tournament?: TournamentRoomContext,
   ): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(fourGomokuCpuJobKey);
-    const assignments = shuffledAssignments(colors);
-    const startedAtMs = Date.now();
-    const matchId = tournament?.matchId ?? crypto.randomUUID();
-    if (tournament) this.storage.kv.put(activeTournamentContextKey, tournament);
-    else this.storage.kv.delete(activeTournamentContextKey);
-    const { tournamentStartsAtMs: _countdown, ...waiting } = room;
-    const startedRoom = fourGomokuRoomSchema.parse({
-      ...waiting,
-      status: "playing",
-      roundId: matchId,
-      positionRevision: 0,
-      eliminations: [],
-      publicUpdatedAtMs: nextPublicUpdateAt(room),
-      lastActivityAtMs: startedAtMs,
-      lastRound: null,
-      players: room.players.map((player, index) => ({
-        ...player,
-        ready: player.kind === "cpu" ? true : false,
-        color: assignments[index],
-      })),
-      game: createInitialState(room.settings.mode),
-      clock: createClock(startedAtMs, room.settings.timeControl),
-    });
-    this.storage.kv.put(roomStorageKey, startedRoom);
-    this.storage.kv.put(
-      replayKey,
-      roundReplaySchema.parse({
-        id: matchId,
-        initial: startedRoom.game,
-        steps: [],
-      }),
-    );
-    if (startedRoom.status !== "playing") throw new Error("Game did not start");
-    this.storage.kv.put(matchStartKey, {
-      id: matchId,
-      roomId: startedRoom.id,
-      instanceId: startedRoom.instanceId,
-      startedAtMs,
-      settings: startedRoom.settings,
-      participants: startedRoom.players.map((player, seat) => ({
-        id: player.id,
-        name: playerLabel(player),
-        color: player.color,
-        seat,
-        ...(player.kind === "cpu"
-          ? { kind: "cpu" as const, level: player.level }
-          : {
-              kind: "human" as const,
-              accountId: this.accountId(player.id),
-            }),
-      })),
-    } satisfies MatchStart);
-    return { room: startedRoom, roundId: matchId, at: startedAtMs };
+    return startFourGomokuRound(this.storage, room, this.accountId, tournament);
   }
 
   play(
@@ -139,47 +76,51 @@ export class FourGomokuProgress {
     tokenHash: string,
     command: GameActionCommandFor<"four-gomoku">,
   ): Result {
-    const action = command.action;
-    if (room.status === "waiting")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-
-    const membership = this.membership(tokenHash);
-    if (membership === null) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (player !== undefined && !getActiveColors(room.game).includes(player.color)) {
-      return { kind: "rejected", error: "already_eliminated" };
-    }
-    if (player?.color !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    if (room.roundId !== command.roundId || room.positionRevision !== command.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    const result = applyAction(room.game, { type: "placeStone", position: action.position });
-    if (!result.ok) return { kind: "rejected", error: "invalid_move" };
-    this.recordReplayStep(
-      { type: "place", color: room.game.turn, position: action.position },
-      result,
+    const error = this.checkCommand(
+      room,
+      tokenHash,
+      "play",
+      room.roundId === command.roundId && room.positionRevision === command.positionRevision,
     );
-    const at = Date.now();
-    return this.accept(room, result.state, at, true);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing") throw new Error("Expected playing room");
+    const result = definition.rules.applyAction(room.game, room.game.turn, {
+      type: "placeStone",
+      position: command.action.position,
+    });
+    if (!result.ok) return { kind: "rejected", error: "invalid_move" };
+    recordFourGomokuTransition(this.storage, room, result);
+    return this.accept(room, result.state, Date.now(), true);
   }
 
   resign(room: FourGomokuRoom, tokenHash: string): Result {
-    if (room.status === "waiting")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
+    const error = this.checkCommand(room, tokenHash, "resign", true);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing") throw new Error("Expected playing room");
+    const result = definition.rules.eliminateSeat(room.game, room.game.turn, "resigned");
+    recordFourGomokuTransition(this.storage, room, result);
+    return this.accept(room, result.state, Date.now(), true);
+  }
+
+  private checkCommand(
+    room: FourGomokuRoom,
+    tokenHash: string,
+    operation: "play" | "resign",
+    positionMatches: boolean,
+  ) {
     const membership = this.membership(tokenHash);
-    if (membership === null) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (player === undefined) return { kind: "rejected", error: "unauthorized" };
-    if (!getActiveColors(room.game).includes(player.color)) {
-      return { kind: "rejected", error: "already_eliminated" };
-    }
-    if (room.game.turn !== player.color) return { kind: "rejected", error: "not_your_turn" };
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not resign current player");
-    this.recordElimination(room, player.color, "resigned", result);
-    const at = Date.now();
-    return this.accept(room, result.state, at, true);
+    const seat = room.players.find((player) => player.id === membership?.playerId)?.color ?? null;
+    return checkGameCommand({
+      operation,
+      status: room.status,
+      hasLastRound: room.lastRound !== null,
+      seat,
+      eliminatedSeats:
+        room.game === null ? [] : [...room.game.eliminatedColors, ...room.game.completedColors],
+      turn: room.game === null ? null : definition.rules.getTurn(room.game),
+      positionMatches,
+      clockExpired: room.clock !== null && isClockExpired(room.clock, Date.now()),
+    });
   }
 
   private accept(
@@ -213,14 +154,13 @@ export class FourGomokuProgress {
     return { kind: "playing", gameId: "four-gomoku", room: updated };
   }
 
-  prepareLeave(room: Playing, playerId: string) {
+  prepareLeave(room: Playing, playerId: string): Extract<ActionResult, { ok: true }> | null {
     const player = room.players.find((p) => p.id === playerId);
     if (!player) throw new Error("Unknown FourGomoku player");
     if (!getActiveColors(room.game).includes(player.color)) return null;
-    const result = eliminateColor(room.game, player.color, "left");
-    if (!result.ok) throw new Error("Could not eliminate leaving player");
-    this.recordElimination(room, player.color, "left", result);
-    return result;
+    const result = definition.rules.eliminateSeat(room.game, player.color, "left");
+    recordFourGomokuTransition(this.storage, room, result);
+    return { ok: true, state: result.state };
   }
 
   leave(
@@ -267,9 +207,8 @@ export class FourGomokuProgress {
           ),
         }),
       };
-    const result = eliminateColor(room.game, player.color, reason);
-    if (!result.ok) throw new Error("Could not eliminate player");
-    this.recordElimination(room, player.color, reason, result);
+    const result = definition.rules.eliminateSeat(room.game, player.color, reason);
+    recordFourGomokuTransition(this.storage, room, result);
     if (result.state.status === "finished") return this.accept(room, result.state, at, true);
     const input = fourGomokuRoomSchema.parse({
       ...room,
@@ -300,20 +239,23 @@ export class FourGomokuProgress {
       ) {
         this.storage.kv.delete(fourGomokuCpuJobKey);
       } else if (job.applyAt <= now) {
-        const result = applyAction(room.game, { type: "placeStone", position: job.move });
+        const result = definition.rules.applyAction(room.game, job.color, {
+          type: "placeStone",
+          position: job.move,
+        });
         if (!result.ok) throw new Error("Saved CPU move is no longer legal");
-        this.recordReplayStep({ type: "place", color: room.game.turn, position: job.move }, result);
+        recordFourGomokuTransition(this.storage, room, result);
         return this.accept(room, result.state, now, true);
       }
     } else {
-      const move = chooseCpuMove(room.game, cpu.level);
-      if (move === null) throw new Error("CPU has no legal move");
+      const action = definition.cpu.chooseAction(room.game, cpu.color, cpu.level, Math.random);
+      if (action === null) throw new Error("CPU has no legal move");
       // Workersの同期計算中は時刻が進まないため、次のAlarmで期限を再確認します。
       this.storage.kv.put(fourGomokuCpuJobKey, {
         roundId: room.roundId,
         positionRevision: room.positionRevision,
         color: room.game.turn,
-        move,
+        move: action.position,
         applyAt: Date.now() + 1,
       } satisfies FourGomokuCpuJob);
     }
@@ -321,7 +263,7 @@ export class FourGomokuProgress {
   }
 
   finalize(result: FinishedProgress<"four-gomoku">): LastRound {
-    return this.finalizeResult(result.room, result.game, result.at);
+    return finalizeFourGomokuRound(this.storage, result.room, result.game, result.at);
   }
 
   waiting(
@@ -343,63 +285,5 @@ export class FourGomokuProgress {
     });
     if (room.status !== "waiting") throw new Error("Expected waiting room");
     return room;
-  }
-
-  private recordElimination(
-    room: Extract<FourGomokuRoom, { status: "playing" }>,
-    color: Color,
-    reason: FourGomokuRoom["eliminations"][number]["reason"],
-    result: { state: FourGomokuState },
-  ): void {
-    // 呼び出し元のトランザクションで、理由を盤面・棋譜と一緒に保存します。
-    room.eliminations.push({ color, reason });
-    this.recordReplayStep({ type: "eliminate", color, reason }, result);
-  }
-
-  private recordReplayStep(
-    action: RoundReplay["steps"][number]["action"],
-    result: { state: FourGomokuState },
-  ): void {
-    const saved = this.storage.kv.get(replayKey);
-    if (saved === undefined) throw new Error("Missing FourGomoku replay");
-    const replay = roundReplaySchema.parse(saved);
-    replay.steps.push(
-      roundReplaySchema.shape.steps.element.parse({
-        action,
-        game: result.state,
-      }),
-    );
-    this.storage.kv.put(replayKey, replay);
-  }
-
-  private finalizeResult(
-    room: Extract<FourGomokuRoom, { status: "playing" }>,
-    game: LastRound["game"],
-    at: number,
-  ): LastRound {
-    const start = this.storage.kv.get<MatchStart>(matchStartKey);
-    const replay = this.storage.kv.get<RoundReplay>(replayKey);
-    if (start && replay && start.id === replay.id) {
-      this.storage.kv.put(`${pendingMatchPrefix}${start.id}`, {
-        record: { ...start, endedAtMs: at, game, eliminations: room.eliminations, replay },
-        tournament: this.storage.kv.get<TournamentRoomContext>(activeTournamentContextKey),
-        retryAtMs: Date.now(),
-      } satisfies PendingMatch);
-    }
-    this.storage.kv.delete(matchStartKey);
-    this.storage.kv.delete(activeTournamentContextKey);
-    const lastRound: LastRound = {
-      settings: room.settings,
-      game,
-      replay: roundReplaySchema.parse(this.storage.kv.get<RoundReplay>(replayKey)),
-      players: room.players.map((player) => ({
-        id: player.id,
-        name: playerLabel(player),
-        color: player.color,
-        appearance: playerAppearance(player),
-      })),
-    };
-    this.storage.kv.delete(replayKey);
-    return lastRound;
   }
 }
