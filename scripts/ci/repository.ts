@@ -3,12 +3,18 @@ import { resolve } from "node:path";
 
 export const root = resolve(import.meta.dir, "../..");
 
-export function readWorkspaces(): string[] {
+export function readWorkspaces(repositoryRoot = root): string[] {
   return ["apps", "packages"]
     .flatMap((group) =>
-      readdirSync(resolve(root, group), { withFileTypes: true })
+      readdirSync(resolve(repositoryRoot, group), { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
-        .map((entry) => `${group}/${entry.name}`),
+        .flatMap((entry) => {
+          const path = `${group}/${entry.name}`;
+          if (path !== "packages/contexts") return [path];
+          return readdirSync(resolve(repositoryRoot, path), { withFileTypes: true })
+            .filter((context) => context.isDirectory())
+            .map((context) => `${path}/${context.name}`);
+        }),
     )
     .sort();
 }

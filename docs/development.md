@@ -41,6 +41,16 @@ Webの最低対応Workerは2026-11-06時点の本番main `35ddc5ee32127425ea875f
 
 GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い、同期的な資格照合へ進みます。公開RPCの期限処理も維持します。保存待ちが空の索引・席解放・大会反映・対局保存ではAlarmの再同期を省きます。実行中のflushは引き続き待ち、保存や失敗再送が期限を変えた場合はAlarmを再同期します。
 
+## 文脈のパッケージ
+
+Worker の処理は、文脈ごとのパッケージ `packages/contexts/<文脈>/`（`@tetraboard/context-<文脈>`）へ順に移します（[ADR 0010](adr/0010-contexts-and-shell.md)）。中は `src/domain/` と `src/use-cases/` に分けます。
+
+`bun run lint` が、依存の向きを `scripts/checkContextDependencies.ts` で検査します。
+
+- 文脈が依存してよいのは、`@tetraboard/context-shared`、`@tetraboard/game-contract`、ゲームのパッケージ、`@tetraboard/protocol` だけです。`context-shared` はほかの文脈に依存しません。
+- 文脈のソースは、Cloudflare（`cloudflare:`、`@cloudflare/`）、`zod`、`drizzle-orm`、`hono`、`better-auth`、ほかの文脈を import しません。パッケージの外への相対パスも使いません。
+- `@tetraboard/protocol` からは `import type` だけを使います。入力の検証は Worker の殻が受け持ちます。
+
 ## D1 のスキーマと migration
 
 D1 のスキーマは `apps/worker/src/db/schema/` に drizzle で定義しています。トリガーは drizzle で表さず、SQL の migration に残しています。
