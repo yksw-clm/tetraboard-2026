@@ -13,6 +13,7 @@ import {
   type ShogiSaveProgress,
 } from "../src/rooms/shogiMatchStore";
 import { fourShogiReplayEventSchema } from "@tetraboard/protocol";
+import { migratedShogiArchiveJson } from "./legacyDataFixtures";
 // 不正JSONの保存テストが、別の部屋のAlarmによる退会処理へ干渉しない実D1を使います。
 const env = {
   ...bindings,
@@ -31,7 +32,7 @@ beforeAll(async () => {
     ).TEST_MIGRATIONS,
   );
 });
-// 旧形式は実DO storageに残る元データを保存処理へ渡します。読取り正規化の結果を再保存しません。
+// 実DO storageに残る元データを保存処理へ渡し、manifestとの文字列一致を検証します。
 async function persistedRecord(json: string) {
   readShogiMatchRecord(json);
   return runInDurableObject(
@@ -66,7 +67,9 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
   test(`${fixture.name}: 固定保存記録を本人限定で取得する`, async () => {
     const user = await accountFixture(true, crypto.randomUUID(), env.APP_DB);
     users.push(user.id);
-    const json = fixture.recordJson.replaceAll("fixture-self", user.id);
+    const source = fixture.recordJson.replaceAll("fixture-self", user.id);
+    const json =
+      fixture.name === "shogi-legacy" ? await migratedShogiArchiveJson(env.APP_DB, source) : source;
     const match = fixture.detail;
     if (match.settings.game === "four-shogi") {
       const record = await persistedRecord(json);
@@ -100,7 +103,12 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     });
     expect(response.status).toBe(200);
     const body = getMatchContract.response.parse(await response.json());
-    const expected = getMatchContract.response.parse({ match }).match;
+    const expected = getMatchContract.response.parse({
+      match:
+        fixture.name === "shogi-legacy"
+          ? { ...match, game: { ...match.game, drawProposals: [] } }
+          : match,
+    }).match;
     expected.participants.find((player) => player.id === match.selfPlayerId)!.name = "登録名";
     const self = expected.participants.find((player) => player.id === match.selfPlayerId)!;
     if (self.kind === "human") self.avatarUrl = avatarPresetUrl(accountAvatarPresetId(user.id));
@@ -119,10 +127,11 @@ for (const fixture of [...reversiArchives, ...shogiArchives]) {
     expect(stored?.record_json).toBe(json);
   });
 }
-test("旧形式の保存待ちは元JSONとmanifestを保持したまま再開する", async () => {
+test("migration後の保存待ちは元JSONとmanifestを保持したまま再開する", async () => {
   const fixture = shogiArchives.find((f) => f.name === "shogi-legacy");
   if (!fixture) throw new Error("Missing frozen legacy archive");
-  const record = await persistedRecord(fixture.recordJson);
+  const json = await migratedShogiArchiveJson(env.APP_DB, fixture.recordJson);
+  const record = await persistedRecord(json);
   const events = fixture.events.map((entry) => fourShogiReplayEventSchema.parse(entry.event));
   const source = (cursor: number) => events.slice(cursor, cursor + 100);
   const progress = await advanceShogiMatchSave(
@@ -140,7 +149,7 @@ test("旧形式の保存待ちは元JSONとmanifestを保持したまま再開�
   )
     .bind(record.id)
     .first<{ record_json: string }>();
-  expect(manifest?.record_json).toBe(fixture.recordJson);
+  expect(manifest?.record_json).toBe(json);
   if (!progress) throw new Error("Expected incomplete upload");
   expect(
     await advanceShogiMatchSave(
@@ -153,10 +162,19 @@ test("旧形式の保存待ちは元JSONとmanifestを保持したまま再開�
   const stored = await env.APP_DB.prepare("SELECT record_json FROM matches WHERE id=?")
     .bind(record.id)
     .first<{ record_json: string }>();
-  expect(stored?.record_json).toBe(fixture.recordJson);
+  expect(stored?.record_json).toBe(json);
 });
 
 const corruptions = [
+  {
+    name: "引分提案欠落",
+    json: (json: string) => {
+      const record = JSON.parse(json);
+      delete record.game.drawProposals;
+      return JSON.stringify(record);
+    },
+    game: "four-shogi",
+  },
   {
     name: "未知ゲーム",
     json: (json: string) => json.replace('"game":"four-shogi"', '"game":"unknown"'),

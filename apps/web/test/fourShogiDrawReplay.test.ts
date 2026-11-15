@@ -2,10 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import {
   applyAction,
   createInitialState,
-  eliminateSide,
   getLegalActions,
   setDrawProposal,
-  type FourShogiState,
   type Side,
 } from "@tetraboard/four-shogi";
 import {
@@ -119,40 +117,3 @@ for (const mode of ["singles", "doubles"] as const) {
     expect(game.result.reason).toBe("agreement");
   });
 }
-
-test("提案状態のない旧保存データと旧棋譜の最終状態を正規化して一致させる", async () => {
-  const initial = { mode: "singles" as const, players, threePlayerAttackProhibited: true };
-  let state: FourShogiState = createInitialState(initial);
-  const events: { index: number; event: FourShogiReplayEvent }[] = [];
-  for (const side of ["west", "north", "east"] as const) {
-    const result = eliminateSide(state, side, "left");
-    if (!result.ok) throw new Error(result.reason);
-    state = result.state;
-    events.push({ index: events.length, event: { type: "eliminate", side, reason: "left" } });
-  }
-  const { repetitions: _repetitions, drawProposals: _proposals, ...oldGame } = state;
-  expect(fourShogiPublicStateSchema.parse(oldGame).drawProposals).toEqual([]);
-  const lastRound = {
-    roundId,
-    game: oldGame,
-    eventCount: events.length,
-    players: directions.map((side) => ({ id: players[side], side, name: side })),
-  } as FourShogiLastRound;
-  globalThis.fetch = (async () =>
-    Response.json({
-      instanceId,
-      roundId,
-      rulesVersion: 1,
-      initial,
-      eventCount: events.length,
-      events,
-      nextCursor: null,
-    })) as typeof fetch;
-  const frames = await fetchFourShogiReplay({
-    roomId: "12345",
-    instanceId,
-    lastRound,
-    signal: new AbortController().signal,
-  });
-  expect(frames.at(-1)?.game.drawProposals).toEqual([]);
-});

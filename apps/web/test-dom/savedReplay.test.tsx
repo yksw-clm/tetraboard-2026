@@ -66,7 +66,10 @@ test("固定棋譜5種を表示し、局面・回転操作は通信せず参加�
     expect(requests).toHaveLength(0);
   }
   for (const fixture of shogiArchives) {
-    const match = fourShogiMatchDetailSchema.parse(fixture.detail);
+    const match = fourShogiMatchDetailSchema.parse({
+      ...fixture.detail,
+      game: { drawProposals: [], ...fixture.detail.game },
+    });
     const loaded = fetchFourShogiMatchReplay(match, new AbortController().signal);
     let cursor = 0;
     while (cursor < fixture.events.length) {

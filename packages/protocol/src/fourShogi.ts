@@ -75,8 +75,7 @@ const base = z.strictObject({
   drawProposals: z
     .array(fourShogiSideSchema)
     .max(4)
-    .refine((entries) => new Set(entries).size === entries.length)
-    .default([]),
+    .refine((entries) => new Set(entries).size === entries.length),
   attackRelations: z.array(
     z.strictObject({
       attacker: fourShogiSideSchema,
