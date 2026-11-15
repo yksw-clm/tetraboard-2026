@@ -1,45 +1,23 @@
-import { savedProfileRatings } from "../accounts/profileRatings";
+import { checkGameCommand } from "@tetraboard/context-room";
+import { shogiDefinition as definition, type ShogiGameAction } from "@tetraboard/shogi/definition";
 import {
   shogiRoomSchema,
-  isShogiRoom,
   type ShogiRoom,
-  type ShogiLastRound,
   type ShogiReplayEvent,
   type RoomSocketClientMessage,
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
 import {
-  applyAction as applyShogiAction,
-  chooseCpuAction,
-  createInitialState as createShogiState,
-  eliminateSide,
-  setDrawProposal,
   getActionAvailability,
   getCheckState,
-  sides,
-  type Side,
-  type ShogiAction,
+  canProposeImpasse,
   type ShogiState,
   type ExternalEliminationReason,
 } from "@tetraboard/shogi";
 import { StandardShogiStore } from "./standardShogiStore";
-import {
-  standardShogiMatchStartKey as shogiMatchStartKey,
-  pendingStandardShogiMatchPrefix as pendingShogiMatchPrefix,
-  type StandardShogiMatchRecord,
-  type PendingStandardShogiMatch,
-} from "./shogiMatchStore";
-import { initializeClock, advanceTurnClock } from "./clockCore";
-import { ratedTimeControls } from "./ratedTimeControls";
-import { declarationStatus, declareEnteringKing, canProposeImpasse } from "@tetraboard/shogi";
+import { advanceTurnClock } from "./clockCore";
 import { isClockExpired } from "./clock";
-import {
-  roomStorageKey,
-  playerLabel,
-  playerAppearance,
-  nextPublicUpdateAt,
-  shuffledAssignments,
-} from "./progressHelpers";
+import { nextPublicUpdateAt } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -50,43 +28,21 @@ import type {
 } from "./gameProgress";
 import type { ShogiAiWork } from "./aiService";
 import type { ShogiRatingSource } from "./shogiRating";
-import { shogiCpuProfile } from "../matchmaking/shogiCpuProfiles";
-const shogiCpuJobKey = "standard-shogi-cpu-job";
-const externalShogiCpuJobKey = "standard-shogi-external-cpu-job";
-type ActiveShogiMatch = { start: Omit<StandardShogiMatchRecord, "endedAtMs" | "game" | "replay"> };
+import { startShogiRound, finalizeShogiRound } from "./standardShogiProgressStore";
+import { StandardShogiCpu, shogiCpuJobKey, externalShogiCpuJobKey } from "./standardShogiCpu";
+export type { ShogiCpuJob } from "./standardShogiCpu";
 type Playing = PlayingFor<"shogi">;
 type Result = ProgressFor<"shogi">;
-export type ShogiCpuJob = {
-  roundId: string;
-  positionRevision: number;
-  side: Side;
-  action: ShogiAction | "declaration";
-  applyAt: number;
-  external?: true;
-};
 
-function usiMove(action: ShogiAction): string {
-  const square = ({ x, y }: { x: number; y: number }) => `${9 - x}${"abcdefghi"[y]}`;
-  if (action.type === "movePiece")
-    return `${square(action.from)}${square(action.to)}${action.promote ? "+" : ""}`;
-  const piece = {
-    rook: "R",
-    bishop: "B",
-    gold: "G",
-    silver: "S",
-    knight: "N",
-    lance: "L",
-    pawn: "P",
-  };
-  return `${piece[action.pieceKind]}*${square(action.to)}`;
-}
 export class ShogiProgress {
   private readonly storage: DurableObjectStorage;
   private readonly membership: ProgressDependencies["membership"];
   private readonly accountId: ProgressDependencies["accountId"];
   private shogiStore: StandardShogiStore | null = null;
+  private readonly cpuProgress: StandardShogiCpu;
   constructor(dependencies: ProgressDependencies) {
     this.storage = dependencies.storage;
+    this.cpuProgress = new StandardShogiCpu(dependencies.storage, () => this.store());
     this.membership = dependencies.membership;
     this.accountId = dependencies.accountId;
   }
@@ -102,42 +58,7 @@ export class ShogiProgress {
   }
 
   play(room: ShogiRoom, tokenHash: string, command: GameActionCommandFor<"shogi">): Result {
-    const { action, roundId, positionRevision } = command;
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    const membership = this.membership(tokenHash);
-    if (!membership) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((p) => p.id === membership.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (roundId !== room.roundId || positionRevision !== room.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-    if (this.isEliminated(room, player.id))
-      return { kind: "rejected", error: "already_eliminated" };
-    if (player.side !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-    const result = applyShogiAction(state, player.side, action, repetitionLookup);
-    if (!result.ok) return { kind: "rejected", error: "invalid_move" };
-    return this.accept(
-      room,
-      result.state,
-      { type: "action", side: player.side, action },
-      Date.now(),
-      true,
-    );
-  }
-
-  resign(room: ShogiRoom, tokenHash: string): Result {
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-    const membership = this.membership(tokenHash);
-    const player = room.players.find((p) => p.id === membership?.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (this.isEliminated(room, player.id))
-      return { kind: "rejected", error: "already_eliminated" };
-    if (player.side !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    return this.eliminate(room, player.id, "resigned", Date.now());
+    return this.command(room, tokenHash, command.action, command);
   }
 
   draw(
@@ -145,29 +66,11 @@ export class ShogiProgress {
     tokenHash: string,
     command: Extract<RoomSocketClientMessage, { type: "room.game.draw.set" }>,
   ): Result {
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    const membership = this.membership(tokenHash);
-    const player = room.players.find((entry) => entry.id === membership?.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (command.roundId !== room.roundId || command.positionRevision !== room.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    const at = Date.now();
-    if (isClockExpired(room.clock, at)) return { kind: "rejected", error: "time_expired" };
-    const { state } = this.store().loadTransition(room.roundId, room.game);
-    const result = setDrawProposal(state, player.side, command.proposed);
-    if (!result.ok)
-      return {
-        kind: "rejected",
-        error: "invalid_request",
-      };
-    if (result.state === state) return { kind: "unchanged", gameId: "shogi", room };
-    return this.accept(
+    return this.command(
       room,
-      result.state,
-      { type: "drawProposal", side: player.side, proposed: command.proposed },
-      at,
-      false,
+      tokenHash,
+      { type: "drawProposal", proposed: command.proposed },
+      command,
     );
   }
 
@@ -176,112 +79,79 @@ export class ShogiProgress {
     tokenHash: string,
     command: Extract<RoomSocketClientMessage, { type: "room.game.declare" }>,
   ): Result {
-    if (room.status !== "playing")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    const player = room.players.find((p) => p.id === this.membership(tokenHash)?.playerId);
-    if (!player) return { kind: "rejected", error: "unauthorized" };
-    if (command.roundId !== room.roundId || command.positionRevision !== room.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    const at = Date.now();
-    if (isClockExpired(room.clock, at)) return { kind: "rejected", error: "time_expired" };
-    if (player.side !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    const { state } = this.store().loadTransition(room.roundId, room.game);
-    const result = declareEnteringKing(state, player.side);
-    if (!result.ok) return { kind: "rejected", error: "invalid_request" };
-    return this.accept(room, result.state, { type: "declaration", side: player.side }, at, false);
+    return this.command(room, tokenHash, { type: "declaration" }, command);
   }
 
-  start(
-    room: Extract<ShogiRoom, { status: "waiting" }>,
-    rating?: ShogiRatingSource,
-  ): {
-    room: Playing;
-    roundId: string;
-    at: number;
-  } {
-    if (rating) {
-      const clock = room.settings.timeControl;
-      const cpuCount = room.players.filter((player) => player.kind === "cpu").length;
-      if (
-        !ratedTimeControls("shogi").some(
-          (time) => clock.mainTimeMs === time.mainTimeMs && clock.byoyomiMs === time.byoyomiMs,
-        ) ||
-        cpuCount !== Number(rating.kind === "cpu")
-      )
-        throw new Error("Invalid rated Shogi room");
-    }
-    const assignments = shuffledAssignments(sides);
-    const players = room.players.map((player, index) => ({
-      ...player,
-      side: assignments[index],
-      ready: player.kind === "cpu",
-    }));
-    const seatId = (side: Side): string => {
-      const player = players.find((p) => p.side === side);
-      if (!player) throw new Error("Missing assigned Shogi seat");
-      return player.id;
-    };
-    const initial = {
-      players: {
-        south: seatId("south"),
-        north: seatId("north"),
-      },
-    };
-    const state = createShogiState(initial);
-    const roundId = room.matchmaking?.id ?? crypto.randomUUID();
-    const at = Date.now();
-    this.store().startReplay(roundId, initial);
-    this.storage.kv.delete(shogiCpuJobKey);
-    this.storage.kv.delete(externalShogiCpuJobKey);
-    const started = shogiRoomSchema.parse({
-      ...room,
-      status: "playing",
-      lastRound: null,
-      players,
-      roundId,
-      positionRevision: 0,
-      game: this.store().saveState(roundId, state),
-      ...getActionAvailability(state),
-      checkState: getCheckState(state),
-      eliminations: [],
-      clock: initializeClock(
-        {
-          south: room.settings.timeControl.mainTimeMs,
-          north: room.settings.timeControl.mainTimeMs,
-        },
-        at,
-        room.settings.timeControl,
-      ),
-      publicUpdatedAtMs: nextPublicUpdateAt(room),
-      lastActivityAtMs: at,
+  private checkCommand(
+    room: ShogiRoom,
+    tokenHash: string,
+    operation: "play" | "resign",
+    command?: { roundId: string; positionRevision: number },
+    action?: ShogiGameAction,
+  ) {
+    const membership = this.membership(tokenHash);
+    const player = room.players.find((p) => p.id === membership?.playerId);
+    const error = checkGameCommand({
+      operation,
+      status: room.status,
+      hasLastRound: room.lastRound !== null,
+      seat: player?.side ?? null,
+      eliminatedSeats: room.game?.eliminations.map((e) => e.side) ?? [],
+      turn: room.game
+        ? definition.rules.getTurn({ ...room.game, repetitions: {} } as ShogiState)
+        : null,
+      positionMatches:
+        room.status === "playing" &&
+        command?.roundId === room.roundId &&
+        command?.positionRevision === room.positionRevision,
+      clockExpired: room.clock !== null && isClockExpired(room.clock, Date.now()),
+      requiresTurn: action ? (definition.rules.requiresTurn?.(action) ?? true) : true,
     });
-    if (!isShogiRoom(started) || started.status !== "playing")
-      throw new Error("Shogi game did not start");
-    this.storage.kv.put(roomStorageKey, started);
-    this.storage.kv.put(shogiMatchStartKey, {
-      start: {
-        ...savedProfileRatings(this.storage, roundId),
-        id: roundId,
-        roomId: room.id,
-        instanceId: room.instanceId,
-        startedAtMs: at,
-        settings: room.settings,
-        ...(rating ? { rating } : {}),
-        participants: started.players.map((player, seat) => ({
-          id: player.id,
-          name: playerLabel(player),
-          side: player.side,
-          seat,
-          ...(player.kind === "cpu"
-            ? { kind: "cpu" as const, level: player.level }
-            : {
-                kind: "human" as const,
-                accountId: this.accountId(player.id),
-              }),
-        })),
-      },
-    } satisfies ActiveShogiMatch);
-    return { room: started, roundId, at };
+    return { error, player };
+  }
+
+  private command(
+    room: ShogiRoom,
+    tokenHash: string,
+    action: ShogiGameAction,
+    command: { roundId: string; positionRevision: number },
+  ): Result {
+    const { error, player } = this.checkCommand(room, tokenHash, "play", command, action);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing" || !player?.side) throw new Error("Expected playing seat");
+    const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
+    const result = definition.rules.applyAction(state, player.side, action, repetitionLookup);
+    if (!result.ok)
+      return {
+        kind: "rejected",
+        error:
+          action.type === "drawProposal" || action.type === "declaration"
+            ? "invalid_request"
+            : "invalid_move",
+      };
+    if (result.state === state) return { kind: "unchanged", gameId: "shogi", room };
+    return this.accept(
+      room,
+      result.state,
+      result.event,
+      Date.now(),
+      definition.rules.endsTurn?.(action) ?? true,
+    );
+  }
+
+  resign(room: ShogiRoom, tokenHash: string): Result {
+    const { error, player } = this.checkCommand(room, tokenHash, "resign");
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing" || !player) throw new Error("Expected playing seat");
+    return this.eliminate(room, player.id, "resigned", Date.now());
+  }
+
+  start(room: WaitingFor<"shogi">, rating?: ShogiRatingSource) {
+    return startShogiRound(this.storage, this.store(), this.accountId, room, rating);
+  }
+
+  finalize(result: FinishedProgress<"shogi">) {
+    return finalizeShogiRound(this.storage, this.store(), result);
   }
 
   accept(
@@ -320,41 +190,6 @@ export class ShogiProgress {
     return { kind: "playing", gameId: "shogi", room: updated };
   }
 
-  finalize(result: FinishedProgress<"shogi">): ShogiLastRound {
-    const { room, game: core, at } = result;
-    const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
-    if (active?.start.id === room.roundId) {
-      this.store().protectArchive(room.roundId);
-      this.storage.kv.put(pendingShogiMatchPrefix + room.roundId, {
-        record: {
-          ...active.start,
-          endedAtMs: at,
-          game: core,
-          replay: {
-            rulesVersion: 1,
-            initial: this.store().replayInfo(room.roundId),
-            eventCount: this.store().eventCount(room.roundId),
-          },
-        },
-        progress: { phase: "upload", cursor: 0 },
-        retryAtMs: Date.now(),
-      } satisfies PendingStandardShogiMatch);
-    }
-    this.storage.kv.delete(shogiMatchStartKey);
-    const lastRound: ShogiLastRound = {
-      roundId: room.roundId,
-      game: core,
-      players: room.players.map((player) => ({
-        id: player.id,
-        name: playerLabel(player),
-        side: player.side,
-        appearance: playerAppearance(player),
-      })),
-      eventCount: this.store().eventCount(room.roundId),
-    };
-    return lastRound;
-  }
-
   eliminate(
     room: Extract<ShogiRoom, { status: "playing" }>,
     playerId: string,
@@ -375,17 +210,10 @@ export class ShogiProgress {
         room: shogiRoomSchema.parse({ ...room, players }),
       };
     const { state } = this.store().loadTransition(room.roundId, room.game);
-    const result = eliminateSide(state, player.side, reason);
-    if (!result.ok) throw new Error(`Could not eliminate Shogi player: ${result.reason}`);
+    const result = definition.rules.eliminateSeat(state, player.side, reason);
     const input = shogiRoomSchema.parse({ ...room, players });
     if (input.status !== "playing") throw new Error("Expected playing room");
-    return this.accept(
-      input,
-      result.state,
-      { type: "eliminate", side: player.side, reason },
-      at,
-      result.state.turn !== room.game.turn,
-    );
+    return this.accept(input, result.state, result.event, at, result.state.turn !== room.game.turn);
   }
 
   cpuDraw(room: Playing, now: number): Result {
@@ -397,125 +225,28 @@ export class ShogiProgress {
     if (room.game.drawProposals.includes(cpu.side) === proposed)
       return { kind: "unchanged", gameId: "shogi", room };
     const { state } = this.store().loadTransition(room.roundId, room.game);
-    const result = setDrawProposal(state, cpu.side, proposed);
+    const result = definition.rules.applyAction(state, cpu.side, {
+      type: "drawProposal",
+      proposed,
+    });
     if (!result.ok) throw new Error("Could not update CPU draw proposal");
-    return this.accept(
-      room,
-      result.state,
-      { type: "drawProposal", side: cpu.side, proposed },
-      now,
-      false,
-    );
+    return this.accept(room, result.state, result.event, now, false);
   }
 
-  externalCpuJob(room: Playing): ShogiAiWork["job"] | undefined {
-    const job = this.storage.kv.get<ShogiAiWork["job"]>(externalShogiCpuJobKey);
-    return job?.roundId === room.roundId && job.positionRevision === room.positionRevision
-      ? job
-      : undefined;
+  externalCpuJob(room: Playing) {
+    return this.cpuProgress.externalCpuJob(room);
   }
-
-  prepareExternalCpu(room: Playing, now: number, timeout: number): ShogiAiWork | null {
-    const cpu = room.players.find((player) => player.side === room.game.turn);
-    if (
-      cpu?.kind !== "cpu" ||
-      cpu.level !== 2 ||
-      this.storage.kv.get(shogiCpuJobKey) ||
-      this.externalCpuJob(room)
-    )
-      return null;
-    const rating = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey)?.start.rating;
-    const profile =
-      room.matchmaking && rating?.kind === "cpu" ? shogiCpuProfile(rating.profileId) : undefined;
-    if (room.matchmaking && !profile) return null;
-    const { state } = this.store().loadTransition(room.roundId, room.game);
-    if (declarationStatus(state, cpu.side).outcome === "win" || state.moveNumber > 1024)
-      return null;
-    const moves: string[] = [];
-    for (let cursor = 0; ; cursor += 100) {
-      const events = this.store().replayEvents(room.roundId, cursor);
-      for (const event of events) if (event.type === "action") moves.push(usiMove(event.action));
-      if (events.length < 100) break;
-    }
-    if (moves.length !== state.moveNumber) return null;
-    const job = {
-      requestId: crypto.randomUUID(),
-      roundId: room.roundId,
-      positionRevision: room.positionRevision,
-      expiresAt: Math.min(now + timeout, room.clock.turnExpiresAt),
-    };
-    this.storage.kv.put(externalShogiCpuJobKey, job);
-    return { job, moves, ...profile };
+  prepareExternalCpu(room: Playing, now: number, timeout: number) {
+    return this.cpuProgress.prepareExternalCpu(room, now, timeout);
   }
-
   completeExternalCpu(room: Playing, work: ShogiAiWork, move: string | null, now: number) {
-    const job = this.externalCpuJob(room);
-    if (
-      job?.requestId !== work.job.requestId ||
-      isClockExpired(room.clock, now) ||
-      this.storage.kv.get(shogiCpuJobKey)
-    )
-      return;
-    this.cpu(room, now, now < job.expiresAt ? move : null);
+    this.cpuProgress.completeExternalCpu(room, work, move, now);
   }
-
   cpu(room: Playing, now: number, externalMove: string | null = null): Result {
-    const cpu = room.players.find((p) => p.side === room.game.turn);
-    if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "shogi", room };
-    const job = this.storage.kv.get<ShogiCpuJob>(shogiCpuJobKey);
-    if (job) {
-      if (
-        job.roundId !== room.roundId ||
-        job.positionRevision !== room.positionRevision ||
-        job.side !== room.game.turn
-      )
-        this.storage.kv.delete(shogiCpuJobKey);
-      else if (job.applyAt <= now) {
-        const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-        const result =
-          job.action === "declaration"
-            ? declareEnteringKing(state, job.side)
-            : applyShogiAction(state, job.side, job.action, repetitionLookup);
-        if (!result.ok) throw new Error("Saved CPU action is no longer legal");
-        if (job.action !== "declaration" && !job.external) {
-          const active = this.storage.kv.get<ActiveShogiMatch>(shogiMatchStartKey);
-          if (active?.start.id === room.roundId && active.start.rating?.kind === "cpu") {
-            active.start.rating.usedFallback = true;
-            this.storage.kv.put(shogiMatchStartKey, active);
-          }
-        }
-        return this.accept(
-          room,
-          result.state,
-          job.action === "declaration"
-            ? { type: "declaration", side: job.side }
-            : { type: "action", side: job.side, action: job.action },
-          now,
-          true,
-        );
-      }
-    } else {
-      this.storage.kv.delete(externalShogiCpuJobKey);
-      const { state, repetitionLookup } = this.store().loadTransition(room.roundId, room.game);
-      const status = declarationStatus(state, cpu.side);
-      const externalAction = externalMove
-        ? room.legalActions.find((action) => usiMove(action) === externalMove)
-        : undefined;
-      const action =
-        status.eligible && status.outcome === "win"
-          ? "declaration"
-          : (externalAction ?? chooseCpuAction(state, cpu.level, Math.random, repetitionLookup));
-      if (!action) throw new Error("Shogi CPU has no legal action");
-      this.storage.kv.put(shogiCpuJobKey, {
-        roundId: room.roundId,
-        positionRevision: room.positionRevision,
-        side: room.game.turn,
-        action,
-        applyAt: Date.now() + 1,
-        ...(externalAction ? { external: true } : {}),
-      } satisfies ShogiCpuJob);
-    }
-    return { kind: "unchanged", gameId: "shogi", room };
+    const result = this.cpuProgress.cpu(room, now, externalMove);
+    return result
+      ? this.accept(room, result.state, result.event, now, true)
+      : { kind: "unchanged", gameId: "shogi", room };
   }
 
   waiting(data: RematchFor<"shogi">, players: ShogiRoom["players"]): WaitingFor<"shogi"> {

@@ -2,7 +2,7 @@ import type { ExternalCpuDefinition } from "@tetraboard/game-contract";
 import type { FourReversiTypes } from "./definition";
 import { getLegalMoves } from "./engine";
 
-export const fourReversiExternalCpu: ExternalCpuDefinition<FourReversiTypes> = {
+export const fourReversiExternalCpu: Required<ExternalCpuDefinition<FourReversiTypes>> = {
   getPositionKey: (game) =>
     JSON.stringify([
       game.mode,

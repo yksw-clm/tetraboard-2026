@@ -38,3 +38,25 @@ external.fallbackAction(0, "south");
 external.readMove({ x: 0, y: 0 });
 // @ts-expect-error 要求用の追加情報はゲームの指定した型に対応します。
 external.createRequest(0, "player", 1, { moves: [1] });
+
+interface HistoryTypes extends ExampleTypes {
+  history: (key: string) => number | undefined;
+  replayInitial: { players: readonly string[] };
+}
+declare const historical: GameDefinition<HistoryTypes, "example">;
+historical.rules.applyAction(0, "player", { amount: 1 }, (key) => key.length);
+historical.cpu.chooseAction(
+  0,
+  "player",
+  1,
+  () => 0,
+  () => undefined,
+);
+historical.replay({ players: ["player"] }, []);
+// @ts-expect-error 履歴はゲームごとの型を維持します。
+historical.rules.applyAction(0, "player", { amount: 1 }, new Map<string, number>());
+const wrongHistory = () => "wrong";
+// @ts-expect-error CPUにも別形式の履歴を渡せません。
+historical.cpu.chooseAction(0, "player", 1, () => 0, wrongHistory);
+// @ts-expect-error 初期化情報を使うゲームの再生に状態を渡せません。
+historical.replay(0, []);

@@ -57,7 +57,6 @@
         "apps/worker/src/rooms/roomIndex.ts",
         "apps/worker/src/rooms/roomRoutes.ts",
         "apps/worker/src/rooms/shogiMatchStore.ts",
-        "apps/worker/src/rooms/standardShogiProgress.ts",
         "apps/worker/src/tournaments/coordinator.ts",
         "apps/worker/src/tournaments/routes.ts",
         "apps/worker/src/tournaments/store.ts",
@@ -114,7 +113,6 @@
         "apps/worker/src/rooms/roomIndex.ts",
         "apps/worker/src/rooms/roomRoutes.ts",
         "apps/worker/src/rooms/shogiMatchStore.ts",
-        "apps/worker/src/rooms/standardShogiProgress.ts",
         "apps/worker/src/tournaments/coordinator.ts",
         "apps/worker/src/tournaments/store.ts",
         "apps/worker/src/usageEvents/visit.ts"

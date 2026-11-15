@@ -1,0 +1,3173 @@
+{
+  "detail": {
+    "generation": {
+      "command": "mise exec -- bun packages/shogi/test/generateContractFixtures.ts",
+      "cpuLevel": 1,
+      "seed": 1,
+      "random": "LCG: uint32(imul(value,1664525)+1013904223)/2^32",
+      "policy": "最初の入玉・王手なしで手番外の提案・取消を挿入し、CPU同士で終局まで続行"
+    },
+    "game": {
+      "rulesVersion": 1,
+      "players": {
+        "south": "cpu-south",
+        "north": "cpu-north"
+      },
+      "board": [
+        [
+          {
+            "id": 27,
+            "side": "north",
+            "kind": "silver",
+            "promoted": false
+          },
+          {
+            "id": 28,
+            "side": "north",
+            "kind": "knight",
+            "promoted": false
+          },
+          {
+            "id": 52,
+            "side": "north",
+            "kind": "gold",
+            "promoted": false
+          },
+          null,
+          null,
+          null,
+          {
+            "id": 23,
+            "side": "north",
+            "kind": "silver",
+            "promoted": false
+          },
+          null,
+          {
+            "id": 21,
+            "side": "north",
+            "kind": "lance",
+            "promoted": false
+          }
+        ],
+        [
+          {
+            "id": 25,
+            "side": "north",
+            "kind": "king",
+            "promoted": false
+          },
+          null,
+          null,
+          {
+            "id": 45,
+            "side": "north",
+            "kind": "gold",
+            "promoted": false
+          },
+          null,
+          null,
+          null,
+          null,
+          {
+            "id": 59,
+            "side": "north",
+            "kind": "gold",
+            "promoted": false
+          }
+        ],
+        [
+          null,
+          null,
+          {
+            "id": 38,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          {
+            "id": 37,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          {
+            "id": 36,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          null,
+          {
+            "id": 26,
+            "side": "north",
+            "kind": "gold",
+            "promoted": false
+          },
+          null,
+          {
+            "id": 41,
+            "side": "north",
+            "kind": "silver",
+            "promoted": false
+          }
+        ],
+        [
+          {
+            "id": 40,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          {
+            "id": 39,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          null,
+          {
+            "id": 15,
+            "side": "south",
+            "kind": "pawn",
+            "promoted": false
+          },
+          {
+            "id": 16,
+            "side": "south",
+            "kind": "pawn",
+            "promoted": false
+          },
+          null,
+          {
+            "id": 48,
+            "side": "north",
+            "kind": "knight",
+            "promoted": false
+          },
+          {
+            "id": 33,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          {
+            "id": 32,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          }
+        ],
+        [
+          null,
+          {
+            "id": 56,
+            "side": "south",
+            "kind": "lance",
+            "promoted": false
+          },
+          {
+            "id": 57,
+            "side": "south",
+            "kind": "pawn",
+            "promoted": false
+          },
+          null,
+          null,
+          null,
+          {
+            "id": 58,
+            "side": "north",
+            "kind": "rook",
+            "promoted": false
+          },
+          {
+            "id": 47,
+            "side": "south",
+            "kind": "silver",
+            "promoted": false
+          },
+          {
+            "id": 20,
+            "side": "south",
+            "kind": "pawn",
+            "promoted": false
+          }
+        ],
+        [
+          {
+            "id": 1,
+            "side": "south",
+            "kind": "lance",
+            "promoted": false
+          },
+          null,
+          null,
+          null,
+          null,
+          {
+            "id": 53,
+            "side": "south",
+            "kind": "rook",
+            "promoted": true
+          },
+          null,
+          null,
+          {
+            "id": 5,
+            "side": "south",
+            "kind": "king",
+            "promoted": false
+          }
+        ],
+        [
+          null,
+          null,
+          {
+            "id": 2,
+            "side": "south",
+            "kind": "knight",
+            "promoted": false
+          },
+          null,
+          {
+            "id": 44,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": true
+          },
+          {
+            "id": 54,
+            "side": "north",
+            "kind": "pawn",
+            "promoted": false
+          },
+          null,
+          null,
+          {
+            "id": 9,
+            "side": "south",
+            "kind": "lance",
+            "promoted": false
+          }
+        ],
+        [
+          null,
+          {
+            "id": 10,
+            "side": "south",
+            "kind": "bishop",
+            "promoted": false
+          },
+          null,
+          null,
+          null,
+          {
+            "id": 22,
+            "side": "north",
+            "kind": "knight",
+            "promoted": true
+          },
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "id": 46,
+            "side": "north",
+            "kind": "bishop",
+            "promoted": true
+          },
+          null,
+          null,
+          null
+        ]
+      ],
+      "nextPieceId": 60,
+      "hands": {
+        "south": {
+          "rook": 0,
+          "bishop": 0,
+          "gold": 0,
+          "silver": 0,
+          "knight": 0,
+          "lance": 0,
+          "pawn": 0
+        },
+        "north": {
+          "rook": 0,
+          "bishop": 0,
+          "gold": 0,
+          "silver": 0,
+          "knight": 0,
+          "lance": 0,
+          "pawn": 5
+        }
+      },
+      "status": "finished",
+      "turn": null,
+      "result": {
+        "winner": "north",
+        "reason": "checkmate"
+      },
+      "eliminations": [
+        {
+          "side": "south",
+          "reason": "checkmate",
+          "rank": 2,
+          "group": 0
+        }
+      ],
+      "drawProposals": [],
+      "moveNumber": 180,
+      "lastMove": {
+        "side": "north",
+        "action": {
+          "type": "movePiece",
+          "from": {
+            "x": 6,
+            "y": 7
+          },
+          "to": {
+            "x": 5,
+            "y": 7
+          },
+          "promote": false
+        },
+        "piece": {
+          "id": 22,
+          "side": "north",
+          "kind": "knight",
+          "promoted": true
+        },
+        "captured": null
+      },
+      "nonChecks": {
+        "south": 89,
+        "north": 84
+      }
+    },
+    "replay": {
+      "rulesVersion": 1,
+      "initial": {
+        "players": {
+          "south": "cpu-south",
+          "north": "cpu-north"
+        }
+      },
+      "eventCount": 180
+    }
+  },
+  "events": [
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 6
+        },
+        "to": {
+          "x": 7,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 0
+        },
+        "to": {
+          "x": 6,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 7
+        },
+        "to": {
+          "x": 8,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 2
+        },
+        "to": {
+          "x": 1,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 6
+        },
+        "to": {
+          "x": 0,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 0
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 6,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 5
+        },
+        "to": {
+          "x": 0,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 1
+        },
+        "to": {
+          "x": 1,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 6,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 0
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 8
+        },
+        "to": {
+          "x": 0,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "to": {
+          "x": 6,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 6
+        },
+        "to": {
+          "x": 5,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 3
+        },
+        "to": {
+          "x": 6,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 0
+        },
+        "to": {
+          "x": 4,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 8
+        },
+        "to": {
+          "x": 2,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 1
+        },
+        "to": {
+          "x": 6,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 6
+        },
+        "to": {
+          "x": 3,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 0
+        },
+        "to": {
+          "x": 1,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 5
+        },
+        "to": {
+          "x": 3,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 4,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 5
+        },
+        "to": {
+          "x": 7,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 2
+        },
+        "to": {
+          "x": 5,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 7
+        },
+        "to": {
+          "x": 5,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 1
+        },
+        "to": {
+          "x": 2,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 6
+        },
+        "to": {
+          "x": 8,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "to": {
+          "x": 5,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 8
+        },
+        "to": {
+          "x": 7,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 0
+        },
+        "to": {
+          "x": 3,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 7
+        },
+        "to": {
+          "x": 0,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 3
+        },
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 6
+        },
+        "to": {
+          "x": 1,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 1
+        },
+        "to": {
+          "x": 5,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 7
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 3
+        },
+        "to": {
+          "x": 3,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 2
+        },
+        "to": {
+          "x": 6,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 8
+        },
+        "to": {
+          "x": 5,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 5
+        },
+        "to": {
+          "x": 4,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 5
+        },
+        "to": {
+          "x": 1,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 0
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 7
+        },
+        "to": {
+          "x": 8,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 4
+        },
+        "to": {
+          "x": 6,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 5,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 0
+        },
+        "to": {
+          "x": 0,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 7
+        },
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 2
+        },
+        "to": {
+          "x": 8,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 6
+        },
+        "to": {
+          "x": 2,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 4
+        },
+        "to": {
+          "x": 2,
+          "y": 6
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 6
+        },
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 0
+        },
+        "to": {
+          "x": 3,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 6
+        },
+        "to": {
+          "x": 2,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 6
+        },
+        "to": {
+          "x": 8,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "to": {
+          "x": 5,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 7
+        },
+        "to": {
+          "x": 5,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 1
+        },
+        "to": {
+          "x": 3,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 8
+        },
+        "to": {
+          "x": 3,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 7
+        },
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 4
+        },
+        "to": {
+          "x": 3,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "silver",
+        "to": {
+          "x": 8,
+          "y": 2
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 7
+        },
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 5
+        },
+        "to": {
+          "x": 5,
+          "y": 6
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "bishop",
+        "to": {
+          "x": 6,
+          "y": 8
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "silver",
+        "to": {
+          "x": 6,
+          "y": 6
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 7
+        },
+        "to": {
+          "x": 2,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 6,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 8
+        },
+        "to": {
+          "x": 0,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "pawn",
+        "to": {
+          "x": 5,
+          "y": 5
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 1
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 6
+        },
+        "to": {
+          "x": 4,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 5,
+          "y": 7
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 8
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "to": {
+          "x": 5,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 7
+        },
+        "to": {
+          "x": 2,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 6,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 5
+        },
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 7
+        },
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 5
+        },
+        "to": {
+          "x": 0,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "gold",
+        "to": {
+          "x": 4,
+          "y": 1
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 8
+        },
+        "to": {
+          "x": 8,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 0
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 6
+        },
+        "to": {
+          "x": 4,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 0
+        },
+        "to": {
+          "x": 3,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 8
+        },
+        "to": {
+          "x": 4,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 7
+        },
+        "to": {
+          "x": 5,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 5
+        },
+        "to": {
+          "x": 1,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 6,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "to": {
+          "x": 6,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 6
+        },
+        "to": {
+          "x": 4,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 8,
+          "y": 5
+        },
+        "to": {
+          "x": 8,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "bishop",
+        "to": {
+          "x": 2,
+          "y": 5
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 4
+        },
+        "to": {
+          "x": 7,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 1
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 8
+        },
+        "to": {
+          "x": 2,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 5
+        },
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 8
+        },
+        "to": {
+          "x": 5,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 0
+        },
+        "to": {
+          "x": 6,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "silver",
+        "to": {
+          "x": 7,
+          "y": 4
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 5
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 7
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 1
+        },
+        "to": {
+          "x": 3,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 4
+        },
+        "to": {
+          "x": 7,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "knight",
+        "to": {
+          "x": 6,
+          "y": 3
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 5
+        },
+        "to": {
+          "x": 6,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 2
+        },
+        "to": {
+          "x": 5,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 5,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "pawn",
+        "to": {
+          "x": 6,
+          "y": 7
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 5
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 0
+        },
+        "to": {
+          "x": 1,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "pawn",
+        "to": {
+          "x": 6,
+          "y": 8
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 3
+        },
+        "to": {
+          "x": 4,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 5
+        },
+        "to": {
+          "x": 1,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 1
+        },
+        "to": {
+          "x": 0,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 6
+        },
+        "to": {
+          "x": 1,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 7
+        },
+        "to": {
+          "x": 6,
+          "y": 8
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 7
+        },
+        "to": {
+          "x": 0,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 6
+        },
+        "to": {
+          "x": 5,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 5
+        },
+        "to": {
+          "x": 4,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 8
+        },
+        "to": {
+          "x": 1,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "gold",
+        "to": {
+          "x": 2,
+          "y": 3
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 5
+        },
+        "to": {
+          "x": 5,
+          "y": 6
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 7,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "gold",
+        "to": {
+          "x": 2,
+          "y": 0
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 4
+        },
+        "to": {
+          "x": 0,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 2
+        },
+        "to": {
+          "x": 5,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 3
+        },
+        "to": {
+          "x": 1,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 6
+        },
+        "to": {
+          "x": 4,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "rook",
+        "to": {
+          "x": 4,
+          "y": 8
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 7
+        },
+        "to": {
+          "x": 3,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 6
+        },
+        "to": {
+          "x": 1,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 8
+        },
+        "to": {
+          "x": 6,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 4
+        },
+        "to": {
+          "x": 4,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 6
+        },
+        "to": {
+          "x": 4,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 8
+        },
+        "to": {
+          "x": 7,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 5,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 7
+        },
+        "to": {
+          "x": 0,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 4
+        },
+        "to": {
+          "x": 5,
+          "y": 8
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 5
+        },
+        "to": {
+          "x": 3,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 4
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 6
+        },
+        "to": {
+          "x": 8,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 7,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 5
+        },
+        "to": {
+          "x": 3,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 2
+        },
+        "to": {
+          "x": 0,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 2
+        },
+        "to": {
+          "x": 0,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "pawn",
+        "to": {
+          "x": 5,
+          "y": 6
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 6
+        },
+        "to": {
+          "x": 3,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 0
+        },
+        "to": {
+          "x": 4,
+          "y": 0
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 8
+        },
+        "to": {
+          "x": 1,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 1
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "pawn",
+        "to": {
+          "x": 2,
+          "y": 1
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 4,
+          "y": 0
+        },
+        "to": {
+          "x": 3,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 1
+        },
+        "to": {
+          "x": 0,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 0
+        },
+        "to": {
+          "x": 2,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "lance",
+        "to": {
+          "x": 1,
+          "y": 5
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 6
+        },
+        "to": {
+          "x": 6,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 5
+        },
+        "to": {
+          "x": 1,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 6,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 7
+        },
+        "to": {
+          "x": 6,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 6
+        },
+        "to": {
+          "x": 6,
+          "y": 7
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "pawn",
+        "to": {
+          "x": 2,
+          "y": 4
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 2
+        },
+        "to": {
+          "x": 7,
+          "y": 3
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 8
+        },
+        "to": {
+          "x": 7,
+          "y": 6
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "rook",
+        "to": {
+          "x": 3,
+          "y": 4
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 0,
+          "y": 2
+        },
+        "to": {
+          "x": 1,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 2,
+          "y": 1
+        },
+        "to": {
+          "x": 1,
+          "y": 2
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 6
+        },
+        "to": {
+          "x": 7,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 1,
+          "y": 2
+        },
+        "to": {
+          "x": 0,
+          "y": 1
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 7,
+          "y": 5
+        },
+        "to": {
+          "x": 5,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 3,
+          "y": 4
+        },
+        "to": {
+          "x": 6,
+          "y": 4
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 5
+        },
+        "to": {
+          "x": 5,
+          "y": 1
+        },
+        "promote": true
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "dropPiece",
+        "pieceKind": "gold",
+        "to": {
+          "x": 8,
+          "y": 1
+        }
+      }
+    },
+    {
+      "type": "action",
+      "side": "south",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 5,
+          "y": 1
+        },
+        "to": {
+          "x": 5,
+          "y": 5
+        },
+        "promote": false
+      }
+    },
+    {
+      "type": "action",
+      "side": "north",
+      "action": {
+        "type": "movePiece",
+        "from": {
+          "x": 6,
+          "y": 7
+        },
+        "to": {
+          "x": 5,
+          "y": 7
+        },
+        "promote": false
+      }
+    }
+  ]
+}
