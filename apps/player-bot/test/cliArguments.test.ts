@@ -115,6 +115,22 @@ test("従来の設定ファイル・認証指定・helpを維持する", () => {
   expect(cliHelp).toContain("--bot bot1 --room 12345");
 });
 
+test("--replaceは起動時の切替指定であり、復帰scopeや設定値に含めない", () => {
+  const normal = parseCliArguments([...base, "--tournament", "7"]);
+  if (normal.type !== "run") throw Error("run");
+  const replacing = parseCliArguments([...base, "--tournament", "7", "--replace"]);
+  expect(replacing).toEqual({ ...normal, replace: true });
+  expect(parseCliArguments(["run", "bots.json", "--replace"])).toEqual({
+    type: "file",
+    path: "bots.json",
+    replace: true,
+  });
+  expect(() =>
+    parseCliArguments(["auth", "bot1", "--origin", "https://tetraboard.net", "--replace"]),
+  ).toThrow();
+  expect(() => parseCliArguments(["run", "bots.json", "--replace", "--rated"])).toThrow();
+});
+
 const invalid = [
   ["run"],
   ["run", "--room", "12345", "--bot", "bot1"],

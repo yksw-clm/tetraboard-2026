@@ -87,7 +87,7 @@ export async function main(args = process.argv.slice(2)) {
     process.on("SIGINT", interrupt);
     process.on("SIGTERM", interrupt);
     try {
-      await runBots(config, stop);
+      await runBots(config, stop, { replace: command.replace });
     } finally {
       process.off("SIGINT", interrupt);
       process.off("SIGTERM", interrupt);

@@ -12,10 +12,12 @@ run <config.json>               保存した設定ファイルで起動（任意
   --create                     通常ルームを新規作成
 
 --botは1〜4体まで繰り返し指定できます。--originと--gameは必須です。
+--replace: 前回の待機を取り消し、割当済みなら退出して今回の指定へ切り替えます。
+           対局中は退出扱いです。解放・結果保存を確認できない間は切り替えません。
 --create専用: --main-time-minutes <0|1|3|5|10>（既定5）
               --byoyomi-seconds <0|10|30>（既定30）
               --three-player-attack-prohibited <on|off>（既定on）
-設定ファイルと起動引数は同時に指定できません。
+設定ファイルと起動引数は同時に指定できません（--replaceだけは併用可能）。
 Ctrl+C: 完局後終了、2回目: 即退出
 
 例: run --origin https://tetraboard.net --game four-reversi --bot bot1 --room 12345`;
@@ -23,8 +25,8 @@ Ctrl+C: 完局後終了、2回目: 即退出
 export type CliCommand =
   | { type: "help" }
   | { type: "auth"; profile: string; origin: string }
-  | { type: "file"; path: string }
-  | { type: "run"; config: RunConfig };
+  | { type: "file"; path: string; replace?: boolean }
+  | { type: "run"; config: RunConfig; replace?: boolean };
 
 function integer(value: string, name: string): number {
   if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))
@@ -45,6 +47,7 @@ export function parseCliArguments(args: string[]): CliCommand {
       tournament: { type: "string" },
       rated: { type: "boolean" },
       create: { type: "boolean" },
+      replace: { type: "boolean" },
       "main-time-minutes": { type: "string" },
       "byoyomi-seconds": { type: "string" },
       "three-player-attack-prohibited": { type: "string" },
@@ -67,8 +70,9 @@ export function parseCliArguments(args: string[]): CliCommand {
     throw Error("使用方法は --help を参照してください");
   if (input !== undefined) {
     if (!input) throw Error("設定ファイルのパスを指定してください");
-    if (Object.keys(values).length) throw Error("設定ファイルと起動引数は同時に指定できません");
-    return { type: "file", path: input };
+    if (Object.keys(values).some((key) => key !== "replace"))
+      throw Error("設定ファイルと起動引数は同時に指定できません");
+    return { type: "file", path: input, ...(values.replace ? { replace: true } : {}) };
   }
   if (!values.origin || !values.game || !values.bot?.length)
     throw Error("--origin <URL>、--game <ゲーム>、--bot <profile> を指定してください");
@@ -104,6 +108,7 @@ export function parseCliArguments(args: string[]): CliCommand {
             };
   return {
     type: "run",
+    ...(values.replace ? { replace: true } : {}),
     config: runConfigSchema.parse({
       origin: values.origin,
       game: values.game,
