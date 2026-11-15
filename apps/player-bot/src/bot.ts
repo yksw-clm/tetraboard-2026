@@ -7,7 +7,7 @@ import {
 } from "@tetraboard/protocol";
 import { Api, ApiError, AccessRequired, type Fetcher } from "./api";
 import { LocalAi, type Analysis } from "./ai";
-import { scope, sleep, type RunConfig, type Log } from "./config";
+import { gameSchema, runConfigSchema, scope, sleep, type RunConfig, type Log } from "./config";
 import { Store, type BotState, type Seat } from "./store";
 import { Queue } from "./queue";
 import { RoomSession, StopControl, StopRequested } from "./session";
@@ -133,16 +133,19 @@ export class Bot {
     delete this.state.seat;
     await this.save();
   }
+  private queue(config = this.config) {
+    return new Queue(this.api, config, this.state, this.save, this.stop, this.draining, this.log);
+  }
+  async replace(previousConfig: RunConfig): Promise<void> {
+    const queue = this.queue(previousConfig);
+    await queue.cancel();
+    await this.leave();
+    if (!(await queue.clearIfIdle()))
+      throw Error("前回の席解放・結果保存が完了していません。今回の参加先への切替を保留しました");
+    this.log("replaced");
+  }
   async run(): Promise<void> {
-    const queue = new Queue(
-      this.api,
-      this.config,
-      this.state,
-      this.save,
-      this.stop,
-      this.draining,
-      this.log,
-    );
+    const queue = this.queue();
     const pendingChecks = new Set<Promise<void>>();
     const interval = setInterval(() => {
       const check = this.access();
@@ -156,7 +159,7 @@ export class Bot {
           (this.config.target.type === "room" || this.config.target.type === "create")
         )
           break;
-        if (!this.state.seat && this.draining()) break;
+        if (!this.state.seat && !this.state.operationId && this.draining()) break;
         if (!this.state.seat && this.accessPending) {
           await this.access();
           await sleep(1000);
@@ -214,6 +217,7 @@ export class Bot {
           await this.save();
           await this.leave().catch(() => this.log("leave_pending"));
         }
+        if (!this.state.seat) await queue.clearIfIdle().catch(() => this.log("release_pending"));
       }
       await this.ai.close();
       this.log("stopped");
@@ -231,6 +235,7 @@ export async function runBots(
     delay?: typeof sendAt;
     pause?: () => Promise<void>;
     fetcher?: Fetcher;
+    replace?: boolean;
   } = {},
 ): Promise<void> {
   const releases: (() => Promise<void>)[] = [];
@@ -272,14 +277,14 @@ export async function runBots(
       if (identities.has(identity)) throw Error("複数のBOTに同じ登録アカウントが指定されています");
       identities.add(identity);
       const previous = await store.loadState();
-      if (
-        previous &&
-        previous.scope !== scope(config) &&
-        (previous.seat || previous.operationId || previous.uncertain)
-      )
-        throw Error(`${name}: 前回と同じ参加先で復帰・停止してください`);
+      const pending = !!(previous?.seat || previous?.operationId || previous?.uncertain);
+      if (previous && previous.scope !== scope(config) && pending && !options.replace)
+        throw Error(
+          `${name}: 前回と同じ参加先で復帰・停止するか、--replaceで前回の参加を終了して切り替えてください`,
+        );
+      const replacing = !!(previous && pending && options.replace);
       const state =
-        previous?.scope === scope(config)
+        previous && (previous.scope === scope(config) || replacing)
           ? previous
           : { scope: scope(config), controllerId: crypto.randomUUID() };
       if (state.uncertain) throw Error(`${name}: 前回の参加結果が不明です。状態確認が必要です`);
@@ -303,6 +308,20 @@ export async function runBots(
       );
       bots.push(bot);
       unlockers.set(bot, unlock);
+      if (replacing) {
+        let previousConfig: RunConfig;
+        try {
+          const [game, target] = z
+            .tuple([gameSchema, runConfigSchema.shape.target])
+            .parse(JSON.parse(state.scope));
+          previousConfig = runConfigSchema.parse({ ...config, profiles: [name], game, target });
+        } catch {
+          throw Error(`${name}: 前回の参加設定を読み取れないため切り替えられません`);
+        }
+        await bot.replace(previousConfig);
+        bot.state = { scope: scope(config), controllerId: crypto.randomUUID() };
+        await bot.save();
+      }
     }
     if (config.target.type === "create" && stop.mode === "running") {
       const existing = bots.flatMap((bot) => (bot.state.seat ? [bot.state.seat] : []));

@@ -236,66 +236,110 @@ export class Queue {
     delete this.state.tournamentToken;
     await this.save();
   }
-  async forceCancel(): Promise<Seat | null> {
-    try {
-      if (this.config.target.type === "rated") {
-        const current = await this.api.request(this.ratedPath(), matchmakingStateSchema);
-        const assigned = await this.rememberRated(current);
-        if (assigned) return assigned;
-        if (current.status === "waiting")
-          return this.rememberRated(
-            await this.api.request(this.ratedPath("cancel"), matchmakingStateSchema, {
-              method: "POST",
-              body: this.ratedControl(),
-              consent: true,
-            }),
-          );
-      } else if (this.config.target.type === "tournament") {
-        const p = await this.api.request(
-          this.tournamentPath("participation"),
-          tournamentParticipationSchema,
-          { headers: { "X-Tournament-Controller": this.state.controllerId } },
+  async cancel(retryConflict = true): Promise<Seat | null> {
+    if (this.config.target.type === "rated") {
+      const current = await this.api.request(this.ratedPath(), matchmakingStateSchema);
+      if (current.status === "idle" && !current.assignment && !current.previousMatch) {
+        // 未認証でもidleが返るため、資格を破棄する前に本人を再確認します。
+        await this.api.checkAccess();
+        delete this.state.seat;
+        await this.clear();
+        return null;
+      }
+      const assigned = await this.rememberRated(current);
+      if (assigned) return assigned;
+      if (current.status === "waiting")
+        return this.rememberRated(
+          await this.api.request(this.ratedPath("cancel"), matchmakingStateSchema, {
+            method: "POST",
+            body: this.ratedControl(),
+            consent: true,
+          }),
         );
-        if (p.controller === "other") return null;
-        if (p.operationId) this.state.operationId = p.operationId;
-        this.state.version = p.controllerVersion;
-        if (p.status === "waiting" || p.status === "matched")
+    } else if (this.config.target.type === "tournament") {
+      let p = await this.api.request(
+        this.tournamentPath("participation"),
+        tournamentParticipationSchema,
+        { headers: { "X-Tournament-Controller": this.state.controllerId } },
+      );
+      if (p.controller === "other") throw Error("別の操作元が大会のBOTを使用しています");
+      if (p.operationId) this.state.operationId = p.operationId;
+      this.state.version = p.controllerVersion;
+      if (p.status === "waiting") {
+        try {
           await this.api.request(this.tournamentPath("queue"), ok, {
             method: "DELETE",
             body: this.tournamentControl(),
           });
-        if (p.status === "playing") {
-          const restored = await this.api.request(
-            this.tournamentPath("controller"),
-            tournamentControllerResponseSchema,
-            {
-              method: "POST",
-              body: {
-                operationId: p.operationId,
-                controllerId: this.state.controllerId,
-                takeover: false,
-                expectedControllerVersion: p.controllerVersion,
-              },
-              consent: true,
+        } catch (error) {
+          if (retryConflict && error instanceof ApiError && error.status === 409)
+            return this.cancel(false);
+          throw error;
+        }
+        p = await this.api.request(
+          this.tournamentPath("participation"),
+          tournamentParticipationSchema,
+          { headers: { "X-Tournament-Controller": this.state.controllerId } },
+        );
+        if (p.controller === "other") throw Error("別の操作元が大会のBOTを使用しています");
+        if (p.operationId) this.state.operationId = p.operationId;
+        this.state.version = p.controllerVersion;
+      }
+      if (p.status === "matched" || p.status === "playing") {
+        const restored = await this.api.request(
+          this.tournamentPath("controller"),
+          tournamentControllerResponseSchema,
+          {
+            method: "POST",
+            body: {
+              operationId: p.operationId,
+              controllerId: this.state.controllerId,
+              takeover: false,
+              expectedControllerVersion: p.controllerVersion,
             },
+            consent: true,
+          },
+        );
+        const active = restored.participation;
+        if (active.roomId && active.instanceId) {
+          const membership = await this.api.request(
+            `/api${getRoomMembershipContract.pathFor(active.roomId)}`,
+            getRoomMembershipContract.response,
+            { bearer: restored.token },
           );
-          const active = restored.participation;
-          if (active.roomId && active.instanceId) {
-            const membership = await this.api.request(
-              `/api${getRoomMembershipContract.pathFor(active.roomId)}`,
-              getRoomMembershipContract.response,
-              { bearer: restored.token },
-            );
-            this.state.seat = {
-              roomId: active.roomId,
-              instanceId: active.instanceId,
-              token: restored.token,
-              playerId: membership.playerId,
-            };
-            await this.save();
-          }
+          this.state.seat = {
+            roomId: active.roomId,
+            instanceId: active.instanceId,
+            token: restored.token,
+            playerId: membership.playerId,
+          };
+          await this.save();
         }
       }
+    }
+    return this.state.seat ?? null;
+  }
+  async clearIfIdle(): Promise<boolean> {
+    if (this.state.seat || this.state.uncertain) return false;
+    if (this.config.target.type === "rated") {
+      const current = await this.api.request(this.ratedPath(), matchmakingStateSchema);
+      if (current.status !== "idle" || current.assignment || current.previousMatch) return false;
+      await this.api.checkAccess();
+    } else if (this.config.target.type === "tournament") {
+      const current = await this.api.request(
+        this.tournamentPath("participation"),
+        tournamentParticipationSchema,
+        { headers: { "X-Tournament-Controller": this.state.controllerId } },
+      );
+      if (current.controller === "other") throw Error("別の操作元が大会のBOTを使用しています");
+      if (current.status !== "idle") return false;
+    }
+    await this.clear();
+    return true;
+  }
+  async forceCancel(): Promise<Seat | null> {
+    try {
+      return await this.cancel();
     } catch (error) {
       this.log("cancel_pending", {
         reason: error instanceof ApiError ? error.code : "state_unavailable",
