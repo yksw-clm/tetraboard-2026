@@ -56,7 +56,6 @@
         "apps/worker/src/rooms/fourReversiRating.ts",
         "apps/worker/src/rooms/fourShogiProgress.ts",
         "apps/worker/src/rooms/gameRoom.ts",
-        "apps/worker/src/rooms/gomokuProgress.ts",
         "apps/worker/src/rooms/reversiProgress.ts",
         "apps/worker/src/rooms/roomIndex.ts",
         "apps/worker/src/rooms/roomRoutes.ts",
