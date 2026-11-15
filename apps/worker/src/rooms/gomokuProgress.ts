@@ -1,38 +1,21 @@
-import { chooseCpuMove } from "@tetraboard/gomoku/cpu";
+import { checkGameCommand } from "@tetraboard/context-room";
 import {
   gomokuStateSchema,
   gomokuRoomSchema,
-  gomokuReplaySchema as roundReplaySchema,
   type GomokuRoom,
   type GomokuLastRound as LastRound,
-  type GomokuReplay as RoundReplay,
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
+import type { ApplyActionResult, GomokuState, Color, Position } from "@tetraboard/gomoku";
+import { advanceClock, isClockExpired } from "./reversiClock";
+import { gameDefinitions } from "./gameDefinitions";
+import { gomokuMoveError } from "./gomokuProgressErrors";
 import {
-  applyAction,
-  colors,
-  createInitialState,
-  eliminateColor,
-  type GomokuState,
-  type Color,
-  type Position,
-} from "@tetraboard/gomoku";
-import { advanceClock, createClock, isClockExpired } from "./reversiClock";
-import {
-  matchStartKey,
-  pendingMatchPrefix,
-  type MatchStart,
-  type PendingMatch,
-} from "./gomokuMatchStore";
-import {
-  roomStorageKey,
-  replayKey,
-  playerLabel,
-  playerAppearance,
-  nextPublicUpdateAt,
-  shuffledAssignments,
-  cpuMoveDelayMs,
-} from "./progressHelpers";
+  startGomokuRound,
+  recordGomokuTransition,
+  finalizeGomokuRound,
+} from "./gomokuProgressStore";
+import { nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -43,6 +26,7 @@ import type {
 } from "./gameProgress";
 type Playing = PlayingFor<"gomoku">;
 type Result = ProgressFor<"gomoku">;
+const definition = gameDefinitions.gomoku;
 export const gomokuCpuJobKey = "gomoku-cpu-job";
 export type GomokuCpuJob = {
   roundId: string;
@@ -63,106 +47,54 @@ export class GomokuProgress {
 
   start(room: WaitingFor<"gomoku">): { room: Playing; roundId: string; at: number } {
     this.storage.kv.delete(gomokuCpuJobKey);
-    const assignments = shuffledAssignments(colors);
-    const startedAtMs = Date.now();
-    const matchId = crypto.randomUUID();
-    const startedRoom = gomokuRoomSchema.parse({
-      ...room,
-      status: "playing",
-      roundId: matchId,
-      positionRevision: 0,
-      eliminations: [],
-      publicUpdatedAtMs: nextPublicUpdateAt(room),
-      lastActivityAtMs: startedAtMs,
-      lastRound: null,
-      players: room.players.map((player, index) => ({
-        ...player,
-        ready: player.kind === "cpu" ? true : false,
-        color: assignments[index],
-      })),
-      game: createInitialState(room.settings.forbiddenRules),
-      clock: createClock(startedAtMs, room.settings.timeControl),
-    });
-    this.storage.kv.put(roomStorageKey, startedRoom);
-    this.storage.kv.put(
-      replayKey,
-      roundReplaySchema.parse({
-        id: matchId,
-        initial: startedRoom.game,
-        steps: [],
-      }),
-    );
-    if (startedRoom.status !== "playing") throw new Error("Game did not start");
-    this.storage.kv.put(matchStartKey, {
-      id: matchId,
-      roomId: startedRoom.id,
-      instanceId: startedRoom.instanceId,
-      startedAtMs,
-      settings: startedRoom.settings,
-      participants: startedRoom.players.map((player, seat) => ({
-        id: player.id,
-        name: playerLabel(player),
-        color: player.color,
-        seat,
-        ...(player.kind === "cpu"
-          ? { kind: "cpu" as const, level: player.level }
-          : {
-              kind: "human" as const,
-              accountId: this.accountId(player.id),
-            }),
-      })),
-    } satisfies MatchStart);
-    return { room: startedRoom, roundId: matchId, at: startedAtMs };
+    return startGomokuRound(this.storage, room, this.accountId);
   }
 
   play(room: GomokuRoom, tokenHash: string, command: GameActionCommandFor<"gomoku">): Result {
-    const action = command.action;
-    if (room.status === "waiting")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-
-    const membership = this.membership(tokenHash);
-    if (membership === null) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (player !== undefined && room.game.eliminatedColors.includes(player.color)) {
-      return { kind: "rejected", error: "already_eliminated" };
-    }
-    if (player?.color !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    if (room.roundId !== command.roundId || room.positionRevision !== command.positionRevision)
-      return { kind: "rejected", error: "stale_position" };
-    const result = applyAction(room.game, { type: "placeStone", position: action.position });
-    if (!result.ok) {
-      if (result.reason === "forbidden") {
-        const code = `gomoku_${["double_three", "double_four", "overline"].filter((reason) => result.forbidden.some((value) => value === reason)).join("_")}`;
-        return { kind: "rejected", error: gomokuMoveError(code) };
-      }
-      return { kind: "rejected", error: "invalid_move" };
-    }
-    this.recordReplayStep(
-      { type: "place", color: room.game.turn, position: action.position },
-      result,
+    const error = this.checkCommand(
+      room,
+      tokenHash,
+      "play",
+      room.roundId === command.roundId && room.positionRevision === command.positionRevision,
     );
-    const at = Date.now();
-    return this.accept(room, result.state, at, true);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing") throw new Error("Expected playing room");
+    const result = definition.rules.applyAction(room.game, room.game.turn, {
+      type: "placeStone",
+      position: command.action.position,
+    });
+    if (!result.ok) return { kind: "rejected", error: gomokuMoveError(result.reason) };
+    recordGomokuTransition(this.storage, room, result);
+    return this.accept(room, result.state, Date.now(), true);
   }
 
   resign(room: GomokuRoom, tokenHash: string): Result {
-    if (room.status === "waiting")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
+    const error = this.checkCommand(room, tokenHash, "resign", true);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing") throw new Error("Expected playing room");
+    const result = definition.rules.eliminateSeat(room.game, room.game.turn, "resigned");
+    recordGomokuTransition(this.storage, room, result);
+    return this.accept(room, result.state, Date.now(), true);
+  }
+
+  private checkCommand(
+    room: GomokuRoom,
+    tokenHash: string,
+    operation: "play" | "resign",
+    positionMatches: boolean,
+  ) {
     const membership = this.membership(tokenHash);
-    if (membership === null) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (player === undefined) return { kind: "rejected", error: "unauthorized" };
-    if (room.game.eliminatedColors.includes(player.color)) {
-      return { kind: "rejected", error: "already_eliminated" };
-    }
-    if (room.game.turn !== player.color) return { kind: "rejected", error: "not_your_turn" };
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not resign current player");
-    this.recordElimination(room, player.color, "resigned", result);
-    const at = Date.now();
-    return this.accept(room, result.state, at, true);
+    const seat = room.players.find((player) => player.id === membership?.playerId)?.color ?? null;
+    return checkGameCommand({
+      operation,
+      status: room.status,
+      hasLastRound: room.lastRound !== null,
+      seat,
+      eliminatedSeats: room.game?.eliminatedColors ?? [],
+      turn: room.game === null ? null : definition.rules.getTurn(room.game),
+      positionMatches,
+      clockExpired: room.clock !== null && isClockExpired(room.clock, Date.now()),
+    });
   }
 
   private accept(
@@ -196,14 +128,13 @@ export class GomokuProgress {
     return { kind: "playing", gameId: "gomoku", room: updated };
   }
 
-  prepareLeave(room: Playing, playerId: string) {
+  prepareLeave(room: Playing, playerId: string): Extract<ApplyActionResult, { ok: true }> | null {
     const player = room.players.find((p) => p.id === playerId);
     if (!player) throw new Error("Unknown Gomoku player");
     if (room.game.eliminatedColors.includes(player.color)) return null;
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not eliminate leaving player");
-    this.recordElimination(room, player.color, "left", result);
-    return result;
+    const result = definition.rules.eliminateSeat(room.game, player.color, "left");
+    recordGomokuTransition(this.storage, room, result);
+    return { ok: true, state: result.state };
   }
 
   leave(
@@ -250,9 +181,8 @@ export class GomokuProgress {
           ),
         }),
       };
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not eliminate player");
-    this.recordElimination(room, player.color, reason, result);
+    const result = definition.rules.eliminateSeat(room.game, player.color, reason);
+    recordGomokuTransition(this.storage, room, result);
     if (result.state.status === "finished") return this.accept(room, result.state, at, true);
     const input = gomokuRoomSchema.parse({
       ...room,
@@ -283,20 +213,23 @@ export class GomokuProgress {
       ) {
         this.storage.kv.delete(gomokuCpuJobKey);
       } else if (job.applyAt <= now) {
-        const result = applyAction(room.game, { type: "placeStone", position: job.move });
+        const result = definition.rules.applyAction(room.game, job.color, {
+          type: "placeStone",
+          position: job.move,
+        });
         if (!result.ok) throw new Error("Saved CPU move is no longer legal");
-        this.recordReplayStep({ type: "place", color: room.game.turn, position: job.move }, result);
+        recordGomokuTransition(this.storage, room, result);
         return this.accept(room, result.state, now, true);
       }
     } else {
-      const move = chooseCpuMove(room.game, cpu.level);
-      if (move === null) throw new Error("CPU has no legal move");
+      const action = definition.cpu.chooseAction(room.game, cpu.color, cpu.level, Math.random);
+      if (action === null) throw new Error("CPU has no legal move");
       // Workersの同期計算中は時刻が進まないため、次のAlarmで期限を再確認します。
       this.storage.kv.put(gomokuCpuJobKey, {
         roundId: room.roundId,
         positionRevision: room.positionRevision,
         color: room.game.turn,
-        move,
+        move: action.position,
         applyAt: Date.now() + 1,
       } satisfies GomokuCpuJob);
     }
@@ -304,7 +237,7 @@ export class GomokuProgress {
   }
 
   finalize(result: FinishedProgress<"gomoku">): LastRound {
-    return this.finalizeResult(result.room, result.game, result.at);
+    return finalizeGomokuRound(this.storage, result.room, result.game, result.at);
   }
 
   waiting(data: RematchFor<"gomoku">, players: GomokuRoom["players"]): WaitingFor<"gomoku"> {
@@ -323,76 +256,5 @@ export class GomokuProgress {
     });
     if (room.status !== "waiting") throw new Error("Expected waiting room");
     return room;
-  }
-
-  private recordElimination(
-    room: Extract<GomokuRoom, { status: "playing" }>,
-    color: Color,
-    reason: GomokuRoom["eliminations"][number]["reason"],
-    result: { state: GomokuState },
-  ): void {
-    // 呼び出し元のトランザクションで、理由を盤面・棋譜と一緒に保存します。
-    room.eliminations.push({ color, reason });
-    this.recordReplayStep({ type: "eliminate", color, reason }, result);
-  }
-
-  private recordReplayStep(
-    action: RoundReplay["steps"][number]["action"],
-    result: { state: GomokuState },
-  ): void {
-    const saved = this.storage.kv.get(replayKey);
-    if (saved === undefined) throw new Error("Missing Gomoku replay");
-    const replay = roundReplaySchema.parse(saved);
-    replay.steps.push(
-      roundReplaySchema.shape.steps.element.parse({
-        action,
-        game: result.state,
-      }),
-    );
-    this.storage.kv.put(replayKey, replay);
-  }
-
-  private finalizeResult(
-    room: Extract<GomokuRoom, { status: "playing" }>,
-    game: LastRound["game"],
-    at: number,
-  ): LastRound {
-    const start = this.storage.kv.get<MatchStart>(matchStartKey);
-    const replay = this.storage.kv.get<RoundReplay>(replayKey);
-    if (start && replay && start.id === replay.id) {
-      this.storage.kv.put(`${pendingMatchPrefix}${start.id}`, {
-        record: { ...start, endedAtMs: at, game, eliminations: room.eliminations, replay },
-        retryAtMs: Date.now(),
-      } satisfies PendingMatch);
-    }
-    this.storage.kv.delete(matchStartKey);
-    const lastRound: LastRound = {
-      settings: room.settings,
-      game,
-      replay: roundReplaySchema.parse(this.storage.kv.get<RoundReplay>(replayKey)),
-      players: room.players.map((player) => ({
-        id: player.id,
-        name: playerLabel(player),
-        color: player.color,
-        appearance: playerAppearance(player),
-      })),
-    };
-    this.storage.kv.delete(replayKey);
-    return lastRound;
-  }
-}
-
-function gomokuMoveError(code: string): import("./gameProgress").ProgressError {
-  switch (code) {
-    case "gomoku_double_three":
-    case "gomoku_double_four":
-    case "gomoku_overline":
-    case "gomoku_double_three_double_four":
-    case "gomoku_double_three_overline":
-    case "gomoku_double_four_overline":
-    case "gomoku_double_three_double_four_overline":
-      return code;
-    default:
-      throw new Error("Unknown forbidden pattern");
   }
 }

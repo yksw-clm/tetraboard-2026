@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./catalog": "./src/catalog.ts",
     "./cpu": "./src/cpu.ts",
+    "./definition": "./src/definition.ts",
     "./replay": "./src/replay.ts"
   },
   "scripts": {
@@ -19,5 +21,8 @@
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "typescript": "^5.5.2"
+  },
+  "dependencies": {
+    "@tetraboard/game-contract": "workspace:*"
   }
 }

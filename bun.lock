@@ -107,9 +107,11 @@
       "name": "@tetraboard/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@tetraboard/context-room": "workspace:*",
         "@tetraboard/four-gomoku": "workspace:*",
         "@tetraboard/four-reversi": "workspace:*",
         "@tetraboard/four-shogi": "workspace:*",
+        "@tetraboard/game-contract": "workspace:*",
         "@tetraboard/gomoku": "workspace:*",
         "@tetraboard/protocol": "workspace:*",
         "@tetraboard/reversi": "workspace:*",
@@ -192,6 +194,9 @@
     "packages/contexts/room": {
       "name": "@tetraboard/context-room",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -237,9 +242,20 @@
         "typescript": "^5.5.2",
       },
     },
+    "packages/game-contract": {
+      "name": "@tetraboard/game-contract",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5.5.2",
+      },
+    },
     "packages/gomoku": {
       "name": "@tetraboard/gomoku",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -1099,6 +1115,8 @@
     "@tetraboard/four-reversi": ["@tetraboard/four-reversi@workspace:packages/four-reversi"],
 
     "@tetraboard/four-shogi": ["@tetraboard/four-shogi@workspace:packages/four-shogi"],
+
+    "@tetraboard/game-contract": ["@tetraboard/game-contract@workspace:packages/game-contract"],
 
     "@tetraboard/gomoku": ["@tetraboard/gomoku@workspace:packages/gomoku"],
 
