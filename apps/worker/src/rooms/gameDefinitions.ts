@@ -5,7 +5,10 @@ import type { GameId } from "@tetraboard/protocol";
 
 import { reversiDefinition, type ReversiTypes } from "@tetraboard/reversi/definition";
 
+import { fourReversiDefinition, type FourReversiTypes } from "@tetraboard/four-reversi/definition";
+
 interface DefinitionTypes {
+  "four-reversi": FourReversiTypes;
   "four-gomoku": FourGomokuTypes;
   reversi: ReversiTypes;
   gomoku: GomokuTypes;
@@ -16,6 +19,7 @@ type GameDefinitions = Partial<{
 }>;
 
 export const gameDefinitions = {
+  "four-reversi": fourReversiDefinition,
   "four-gomoku": fourGomokuDefinition,
   reversi: reversiDefinition,
   gomoku: gomokuDefinition,

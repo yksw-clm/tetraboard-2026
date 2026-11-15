@@ -1,15 +1,11 @@
+import { createFourReversiAiRequest } from "./fourReversiAiRequest";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { fourShogiActionSchema, type Room } from "@tetraboard/protocol";
 import type { FourShogiAiWork } from "./fourShogiProgress";
 import { z } from "zod";
 import type { ExternalCpuWork } from "./fourReversiProgress";
 import type { Position } from "@tetraboard/four-reversi";
-import {
-  expectedProfileLimits,
-  profileIdSchema,
-  profileLimitsSchema,
-  profileMetadata,
-} from "./aiServiceProfiles";
+import { expectedProfileLimits, profileIdSchema, profileLimitsSchema } from "./aiServiceProfiles";
 
 export interface AiServiceBindings {
   AI_RATED_ONLY?: string;
@@ -377,38 +373,10 @@ export async function requestAiMove(
   const revision = Array.from(new Uint8Array(digest), (value) =>
     value.toString(16).padStart(2, "0"),
   ).join("");
-  const agentId = selectedProfile
-    ? profileMetadata(selectedProfile.profile_id).config.agent_id
-    : work.job.level === 1
-      ? "four-reversi-random-v1"
-      : "four-reversi-greedy-v1";
-  const rulesetVersion = work.job.extendedRules
-    ? "four-reversi-singles-v2"
-    : "four-reversi-singles-v1";
-  const stateVersion = work.job.extendedRules ? 2 : 1;
-  const body = JSON.stringify({
-    api_version: selectedProfile ? 2 : 1,
-    game_id: "four-reversi",
-    ruleset_version: rulesetVersion,
-    state_version: stateVersion,
-    request_id: requestId,
-    position_revision: revision,
-    ...(selectedProfile
-      ? {
-          profile_id: selectedProfile.profile_id,
-          ...(selectedProfile.limits ? { limits: selectedProfile.limits } : {}),
-        }
-      : { agent_id: agentId }),
-    seed: Number.parseInt(revision.slice(0, 8), 16),
-    state: {
-      board: work.game.board,
-      ...(work.job.extendedRules ? { eliminatedColors: work.game.eliminatedColors } : {}),
-      turn: work.game.turn,
-      moveNumber: work.game.moveNumber,
-      lastMove: work.game.lastMove,
-      consecutivePasses: work.game.consecutivePasses,
-    },
-  });
+  const { agentId, rulesetVersion, stateVersion, body } = createFourReversiAiRequest(
+    work,
+    revision,
+  );
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
