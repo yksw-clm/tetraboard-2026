@@ -72,8 +72,7 @@ const base = z.strictObject({
   drawProposals: z
     .array(shogiSideSchema)
     .max(2)
-    .refine((entries) => new Set(entries).size === entries.length)
-    .default([]),
+    .refine((entries) => new Set(entries).size === entries.length),
   nonChecks: sideRecord(z.int().nonnegative()),
   nextPieceId: z.int().nonnegative(),
   moveNumber: z.int().nonnegative(),

@@ -392,7 +392,7 @@ accountRoutes.on(["POST", "PATCH"], "/account/:action", async (c) => {
         details.data.favoriteGames === undefined
           ? null
           : JSON.stringify(details.data.favoriteGames),
-        Date.now(),
+        new Date().toISOString(),
         publicProfileId,
         user.id,
         expectedCompleted,

@@ -1,4 +1,6 @@
 import type { ProfileRatings } from "@tetraboard/protocol";
+import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
+import { ensureShogiMatchUpload } from "./shogiMatchUploads";
 import {
   applyFourShogiRating,
   fourShogiRatingStore,
@@ -80,7 +82,7 @@ export function emptyKnockouts(): Record<Side, number> {
   return { south: 0, west: 0, north: 0, east: 0 };
 }
 
-// 読取り用の正規化結果は保存manifestの照合文字列に使用しません。
+// 保存待ちの引分提案以外は、読取り用の正規化結果を保存manifestへ戻しません。
 export { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 import { readFourShogiMatchRecord as readShogiMatchRecord } from "../accounts/matchDataContracts";
 
@@ -146,7 +148,7 @@ export async function advanceShogiMatchSave(
   formationUsage?: ShogiFormationUsage,
   tournament?: TournamentRoomContext,
 ): Promise<ShogiSaveProgress | null> {
-  record = await redactParticipants(db, record);
+  record = await redactParticipants(db, normalizeLegacyShogiState(record) as typeof record);
   const game = record.settings.game;
   if (formationUsage) {
     shogiFormationUsageSchema.parse(formationUsage);
@@ -183,19 +185,8 @@ export async function advanceShogiMatchSave(
     await applyMatchClaims(db, record.id);
     return null;
   }
-  const canonical = JSON.stringify(record);
-  readRecord(canonical, game);
   const chunkCount = Math.ceil(record.replay.eventCount / chunkSize);
-  await db
-    .prepare(`INSERT INTO shogi_match_uploads VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO NOTHING`)
-    .bind(record.id, canonical, record.replay.eventCount, chunkCount)
-    .run();
-  const upload = await db
-    .prepare("SELECT record_json FROM shogi_match_uploads WHERE id = ?")
-    .bind(record.id)
-    .first<{ record_json: string }>();
-  if (upload?.record_json !== canonical) throw new Error("Conflicting Shogi match upload");
+  await ensureShogiMatchUpload(db, record, chunkCount);
   if (!Number.isInteger(progress.cursor) || progress.cursor < 0 || progress.cursor > chunkCount)
     throw new Error("Invalid Shogi save progress");
   const end = Math.min(progress.cursor + chunksPerPass, chunkCount);

@@ -114,7 +114,7 @@ async function promoteGuestLink(request: Request, env: AuthEnv, flow: MergeFlow)
       created!.email,
       target,
       Date.now(),
-      Date.now(),
+      new Date().toISOString(),
       source,
       hash,
       source,
@@ -183,12 +183,11 @@ export async function completeGuestLink(request: Request, response: Response, en
     .run();
   const created = await env.APP_DB.prepare("SELECT createdAt,email FROM user WHERE id=?")
     .bind(identity.user.id)
-    .first<{ createdAt: number | string; email: string }>();
+    .first<{ createdAt: string; email: string }>();
   const isNew =
     !identity.user.profileCompleted &&
-    (typeof created?.createdAt === "string"
-      ? Date.parse(created.createdAt)
-      : (created?.createdAt ?? 0)) >= flow.started_at_ms;
+    created !== null &&
+    Date.parse(created.createdAt) >= flow.started_at_ms;
   const claim = env.APP_DB.prepare(
     `UPDATE guest_oauth_flows SET target_id=?,target_session_id=?,is_new_target=?,expires_at_ms=?
      WHERE state=? AND target_id IS NULL AND (room_registration_id IS NULL OR EXISTS(

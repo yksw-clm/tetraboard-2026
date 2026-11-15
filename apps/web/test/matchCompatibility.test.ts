@@ -68,7 +68,10 @@ for (const fixture of reversiArchives) {
 }
 for (const fixture of shogiArchives) {
   test(`${fixture.name}: rulesVersion 1の初期・途中・終局を固定する`, async () => {
-    const match = fourShogiMatchDetailSchema.parse(fixture.detail);
+    const match = fourShogiMatchDetailSchema.parse({
+      ...fixture.detail,
+      game: { drawProposals: [], ...fixture.detail.game },
+    });
     const before = JSON.stringify(fixture);
     fetchSpies.push(
       spyOn(globalThis, "fetch").mockImplementation(async (input) => {

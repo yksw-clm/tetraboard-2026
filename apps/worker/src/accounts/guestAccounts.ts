@@ -82,8 +82,8 @@ export async function createGuestAccount(
           id,
           user.name,
           `${id}@guest.invalid`,
-          now,
-          now,
+          new Date(now).toISOString(),
+          new Date(now).toISOString(),
           username,
           user.guestNameCustomized,
           user.publicProfileId,
@@ -183,7 +183,12 @@ guestRoutes.post("/account/guest", async (c) => {
       const changed = await c.env.APP_DB.prepare(
         "UPDATE user SET name=?,avatarPresetId=?,guestNameCustomized=1,updatedAt=? WHERE id=? AND isAnonymous=1 AND guestNameCustomized=0 AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING id",
       )
-        .bind(name.data, avatarPresetId ?? existing.avatarPresetId ?? null, Date.now(), existing.id)
+        .bind(
+          name.data,
+          avatarPresetId ?? existing.avatarPresetId ?? null,
+          new Date().toISOString(),
+          existing.id,
+        )
         .first();
       if (!changed)
         return c.json({ message: "設定状態が変わりました。ページを開き直してください。" }, 409);
@@ -250,7 +255,7 @@ guestRoutes.patch("/account/guest/name", async (c) => {
   const changed = await c.env.APP_DB.prepare(
     "UPDATE user SET name=?,avatarPresetId=?,guestNameCustomized=1,updatedAt=? WHERE id=? AND isAnonymous=1 AND avatarPresetId IS ? AND NOT EXISTS(SELECT 1 FROM deleted_accounts WHERE id=user.id) AND NOT EXISTS(SELECT 1 FROM guest_account_merges WHERE guest_id=user.id) RETURNING id",
   )
-    .bind(name.data, avatarPresetId, Date.now(), user.id, user.avatarPresetId ?? null)
+    .bind(name.data, avatarPresetId, new Date().toISOString(), user.id, user.avatarPresetId ?? null)
     .first();
   if (!changed)
     return c.json({ message: "設定状態が変わりました。ページを開き直してください。" }, 409);

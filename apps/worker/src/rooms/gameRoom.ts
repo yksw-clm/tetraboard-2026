@@ -131,6 +131,7 @@ import {
 import { profileAvatarUrl } from "../accounts/auth";
 import { retryPendingMatchClaims } from "../accounts/matchClaims";
 import { readStoredMatch } from "../accounts/matchDataContracts";
+import { normalizeLegacyShogiState } from "./normalizeLegacyShogiState";
 import { releaseReservation, type AccountAdmission } from "../accounts/roomAccounts";
 import { DurableObject } from "cloudflare:workers";
 import { waitingRoomFactories } from "./waitingRoomFactories";
@@ -1313,7 +1314,7 @@ export class GameRoom extends DurableObject<Env> {
   private readRoom(): Room | null {
     const saved = this.ctx.storage.kv.get<Room>(roomStorageKey);
     if (saved === undefined) return null;
-    const room = roomSchema.parse(saved);
+    const room = roomSchema.parse(normalizeLegacyShogiState(saved));
     if (isFourGomokuRoom(room)) this.fourGomokuProgress.normalize(room);
     else if (isFourShogiRoom(room)) this.shogiProgress.normalize(room, saved);
     else if (isReversiRoom(room)) this.standardProgress.normalize(room, saved);
@@ -3361,8 +3362,10 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   async getShareMetadata(instanceId: string) {
-    // normalizeや期限処理を呼ばず、クローラーの取得で対局・時計・保存を変更しません。
-    const parsed = roomSchema.safeParse(this.ctx.storage.kv.get(roomStorageKey));
+    // ルームの進行や期限処理を呼ばず、クローラーの取得で対局・時計・保存を変更しません。
+    const parsed = roomSchema.safeParse(
+      normalizeLegacyShogiState(this.ctx.storage.kv.get(roomStorageKey)),
+    );
     if (!parsed.success) return null;
     const room = parsed.data;
     const now = Date.now();
