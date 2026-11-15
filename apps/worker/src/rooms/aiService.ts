@@ -1,15 +1,13 @@
+import { fourShogiDefinition } from "@tetraboard/four-shogi/definition";
+import { createShogiAiRequest } from "@tetraboard/shogi/definition";
+import { createFourReversiAiRequest } from "./fourReversiAiRequest";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { fourShogiActionSchema, type Room } from "@tetraboard/protocol";
 import type { FourShogiAiWork } from "./fourShogiProgress";
 import { z } from "zod";
 import type { ExternalCpuWork } from "./fourReversiProgress";
 import type { Position } from "@tetraboard/four-reversi";
-import {
-  expectedProfileLimits,
-  profileIdSchema,
-  profileLimitsSchema,
-  profileMetadata,
-} from "./aiServiceProfiles";
+import { expectedProfileLimits, profileIdSchema, profileLimitsSchema } from "./aiServiceProfiles";
 
 export interface AiServiceBindings {
   AI_RATED_ONLY?: string;
@@ -214,7 +212,6 @@ export type ShogiAiWork = {
   standardBook?: boolean;
 };
 
-const shogiNodes = 256;
 const shogiStandardBook = "standard-v1";
 const shogiResponseSchema = z.strictObject({
   request_id: z.string().uuid(),
@@ -229,8 +226,9 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
   const url = configuredUrl(bindings);
   if (!url || bindings.AI_SHOGI_ENABLED !== "true") return null;
   const { requestId, roundId, positionRevision, expiresAt } = work.job;
-  const nodes = work.nodes ?? shogiNodes;
-  const openingBook = work.standardBook && work.moves.length < 2 ? shogiStandardBook : undefined;
+  const request = createShogiAiRequest(work);
+  const nodes = request.nodes;
+  const openingBook = request.opening_book;
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(JSON.stringify([roundId, positionRevision, work.moves])),
@@ -252,9 +250,7 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
       body: JSON.stringify({
         request_id: requestId,
         position_revision: revision,
-        nodes,
-        moves: work.moves,
-        opening_book: openingBook,
+        ...request,
       }),
       redirect: "manual",
       signal: controller.signal,
@@ -377,38 +373,10 @@ export async function requestAiMove(
   const revision = Array.from(new Uint8Array(digest), (value) =>
     value.toString(16).padStart(2, "0"),
   ).join("");
-  const agentId = selectedProfile
-    ? profileMetadata(selectedProfile.profile_id).config.agent_id
-    : work.job.level === 1
-      ? "four-reversi-random-v1"
-      : "four-reversi-greedy-v1";
-  const rulesetVersion = work.job.extendedRules
-    ? "four-reversi-singles-v2"
-    : "four-reversi-singles-v1";
-  const stateVersion = work.job.extendedRules ? 2 : 1;
-  const body = JSON.stringify({
-    api_version: selectedProfile ? 2 : 1,
-    game_id: "four-reversi",
-    ruleset_version: rulesetVersion,
-    state_version: stateVersion,
-    request_id: requestId,
-    position_revision: revision,
-    ...(selectedProfile
-      ? {
-          profile_id: selectedProfile.profile_id,
-          ...(selectedProfile.limits ? { limits: selectedProfile.limits } : {}),
-        }
-      : { agent_id: agentId }),
-    seed: Number.parseInt(revision.slice(0, 8), 16),
-    state: {
-      board: work.game.board,
-      ...(work.job.extendedRules ? { eliminatedColors: work.game.eliminatedColors } : {}),
-      turn: work.game.turn,
-      moveNumber: work.game.moveNumber,
-      lastMove: work.game.lastMove,
-      consecutivePasses: work.game.consecutivePasses,
-    },
-  });
+  const { agentId, rulesetVersion, stateVersion, body } = createFourReversiAiRequest(
+    work,
+    revision,
+  );
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -528,16 +496,21 @@ export async function requestFourShogiAiMove(
   const revision = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+  const { api_version, rules_version, ...request } =
+    fourShogiDefinition.cpu.external!.createRequest(
+      fourShogiDefinition.rules.createInitialState(fourShogiDefinition.catalog.defaultSettings),
+      side,
+      2,
+      { events: work.events, profile: work.profile },
+    );
   const body = JSON.stringify({
-    api_version: 1,
-    rules_version: 1,
+    api_version,
+    rules_version,
     request_id: requestId,
     position_revision: revision,
-    profile_id: work.profile.profileId,
-    three_player_attack_prohibited: true,
-    turn: side,
-    events: work.events,
+    ...request,
   });
+
   for (let attempt = 1; ; attempt++) {
     const atMs = Date.now();
     const remaining = expiresAt - atMs;

@@ -97,7 +97,7 @@ Rustはmiseで固定し、`mise install`でrustfmt・Clippyも導入します。
 
 ## 対局参加BOTの実装
 
-起動引数と任意の設定JSONは共通の`RunConfig`検証へ渡します。入力方式によって保存先や復帰scopeを分けず、両方式が混在した場合は起動前に拒否します。
+起動引数と任意の設定JSONは共通の`RunConfig`検証へ渡します。入力方式によって保存先や復帰scopeを分けず、設定値が混在した場合は起動前に拒否します。`--replace`は実行時の指定として分離し、scopeへ含めません。前回の設定で取消・退出・席解放と結果保存を確認できた後に新しいscopeを保存します。
 
 [確定仕様](specs/player-bot.md)と[CLIの案内](../apps/player-bot/README.md)を参照します。参加・待機は既存HTTP API、対局は既存WebSocket契約を使います。登録者Cookieと部屋専用tokenは別資格として扱い、状態不明時に新しい参加要求を発行しません。大会・レートで終局した後も席の解放と結果保存を確認してから再参加します。
 
@@ -398,7 +398,7 @@ GameIdを登録すると各層の型付き登録が必要になるため、5番�
 
 ## ゲーム契約
 
-6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱うように順に移しています（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。2026-11 時点で移したのは五目並べと通常リバーシです。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
+6 ゲームは、`packages/game-contract` の `GameDefinition` を通して扱います（[ADR 0011](adr/0011-game-contract.md)）。各ゲームのパッケージが `./definition` で実装を書き出し、Worker の `apps/worker/src/rooms/gameDefinitions.ts` に登録します。6 ゲームとも移し終え、登録表は `Record<GameId, ...>` を満たすので、登録が欠けると型検査が失敗します。千日手のように過去の局面が要るゲームは、`applyAction` と `chooseAction` の任意の `history` で履歴の検索を受け取ります。引分提案のように手番に関係ない操作は、`rules.requiresTurn` と `rules.endsTurn` で表します。外部 AI を使うゲームは、契約の `cpu.external`（局面のキー、要求の本文、応答の手の読み方、予備の操作）を実装し、ジョブの保存と期限の扱いは Worker の `apps/worker/src/rooms/externalCpu.ts` が受け持ちます。通常リバーシの CPU は、他のゲームと同じく Alarm の処理の中だけで動きます。
 
 着手と投了の前の確認は、room の文脈の `checkGameCommand` が全ゲーム共通の順序（状態 → 本人 → 古い局面 → 時計 → 脱落 → 手番）で行います。投了では古い局面の照合を飛ばします。
 

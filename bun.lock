@@ -221,6 +221,9 @@
     "packages/four-gomoku": {
       "name": "@tetraboard/four-gomoku",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -229,6 +232,9 @@
     "packages/four-reversi": {
       "name": "@tetraboard/four-reversi",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -237,6 +243,9 @@
     "packages/four-shogi": {
       "name": "@tetraboard/four-shogi",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
@@ -285,6 +294,9 @@
     "packages/shogi": {
       "name": "@tetraboard/shogi",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",
