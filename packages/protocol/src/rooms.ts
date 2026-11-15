@@ -333,6 +333,8 @@ const reversiRemaining = z.strictObject({
 });
 export const reversiClockSchema = playingClockSchema.extend({ remainingMainMs: reversiRemaining });
 const reversiWaitingSchema = waitingRoomSchema.extend({
+  roundId: z.null(),
+  positionRevision: z.literal(0),
   matchmaking: duelRoomMatchmakingSchema.optional(),
   settings: reversiSettingsSchema,
   players: z
@@ -348,6 +350,8 @@ const reversiWaitingSchema = waitingRoomSchema.extend({
 });
 const reversiPlayingRoomSchema = z
   .strictObject({
+    roundId: z.uuid(),
+    positionRevision: z.int().nonnegative(),
     matchmaking: duelRoomMatchmakingSchema.optional(),
     id: roomCodeSchema,
     instanceId: z.uuid(),
@@ -1174,14 +1178,6 @@ export const roomSocketContract = {
           context.addIssue({
             code: "custom",
             message: "Shogi actions require roundId and positionRevision",
-          });
-        if (
-          message.action.type === "placeStone" &&
-          (message.roundId !== undefined || message.positionRevision !== undefined)
-        )
-          context.addIssue({
-            code: "custom",
-            message: "Reversi actions do not use Shogi position metadata",
           });
       }),
   ]),

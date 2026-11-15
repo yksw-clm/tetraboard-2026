@@ -97,7 +97,13 @@ test.each(["four-reversi", "four-shogi", "shogi", "reversi"] as const)(
           const position = isFourReversiRoom(room)
             ? fourMoves(room.game)[0]!
             : reversiMoves(room.game)[0]!;
-          host.send({ type: "room.game.action", action: { type: "placeStone", position } });
+          host.send({
+            type: "room.game.action",
+            action: { type: "placeStone", position },
+            ...(isReversiRoom(room)
+              ? { roundId: room.roundId, positionRevision: room.positionRevision }
+              : {}),
+          });
         }
         await host.waitFor("room.snapshot", (m) => (m.room.game?.moveNumber ?? 0) > 0);
         room = await stub.getRoom();

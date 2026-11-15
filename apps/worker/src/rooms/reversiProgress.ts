@@ -1,40 +1,23 @@
-import { savedProfileRatings } from "../accounts/profileRatings";
+import { checkGameCommand } from "@tetraboard/context-room";
 import {
   reversiStateSchema,
   reversiRoomSchema,
   reversiReplaySchema as roundReplaySchema,
   type ReversiRoom,
   type ReversiLastRound as LastRound,
-  type ReversiReplay as RoundReplay,
   type GameActionCommandFor,
 } from "@tetraboard/protocol";
+import type { ReversiState } from "@tetraboard/reversi";
+import { advanceClock, isClockExpired } from "./reversiClock";
+import { gameDefinitions } from "./gameDefinitions";
 import {
-  applyAction,
-  chooseCpuMove,
-  colors,
-  createInitialState,
-  eliminateColor,
-  getLegalMoves,
-  type Position,
-  type ReversiState,
-  type Color,
-} from "@tetraboard/reversi";
-import { advanceClock, createClock, isClockExpired } from "./reversiClock";
-import {
-  matchStartKey,
-  pendingMatchPrefix,
-  type MatchStart,
-  type PendingMatch,
-} from "./reversiMatchStore";
-import {
-  roomStorageKey,
-  replayKey,
-  playerLabel,
-  playerAppearance,
-  nextPublicUpdateAt,
-  shuffledAssignments,
-  cpuMoveDelayMs,
-} from "./progressHelpers";
+  startReversiRound,
+  recordReversiTransition,
+  finalizeReversiRound,
+  externalCpuJobKey,
+} from "./reversiProgressStore";
+import { ReversiExternalCpu } from "./reversiExternalCpu";
+import { replayKey, nextPublicUpdateAt, cpuMoveDelayMs } from "./progressHelpers";
 import type {
   ProgressDependencies,
   ProgressFor,
@@ -45,19 +28,17 @@ import type {
 } from "./gameProgress";
 import type { ReversiAiWork } from "./aiService";
 import type { EloRatingSource } from "./eloRating";
-import { reversiCpuProfile } from "../matchmaking/reversiCpuProfiles";
-
-const externalCpuJobKey = "reversi-external-cpu-job";
-type ExternalCpuJob = ReversiAiWork["job"] & { position?: Position | null };
-
 type Playing = PlayingFor<"reversi">;
 type Result = ProgressFor<"reversi">;
+const definition = gameDefinitions.reversi;
 export class ReversiProgress {
   private readonly storage: DurableObjectStorage;
   private readonly membership: ProgressDependencies["membership"];
   private readonly accountId: ProgressDependencies["accountId"];
+  private readonly external: ReversiExternalCpu;
   constructor(dependencies: ProgressDependencies) {
     this.storage = dependencies.storage;
+    this.external = new ReversiExternalCpu(this.storage);
     this.membership = dependencies.membership;
     this.accountId = dependencies.accountId;
   }
@@ -66,99 +47,51 @@ export class ReversiProgress {
     room: WaitingFor<"reversi">,
     rating?: EloRatingSource,
   ): { room: Playing; roundId: string; at: number } {
-    const assignments = shuffledAssignments(colors);
-    const startedAtMs = Date.now();
-    const matchId = room.matchmaking?.id ?? crypto.randomUUID();
-    const startedRoom = reversiRoomSchema.parse({
-      ...room,
-      status: "playing",
-      eliminations: [],
-      publicUpdatedAtMs: nextPublicUpdateAt(room),
-      lastActivityAtMs: startedAtMs,
-      lastRound: null,
-      players: room.players.map((player, index) => ({
-        ...player,
-        ready: player.kind === "cpu" ? true : false,
-        color: assignments[index],
-      })),
-      game: createInitialState(),
-      clock: createClock(startedAtMs, room.settings.timeControl),
-    });
-    this.storage.kv.delete(externalCpuJobKey);
-    this.storage.kv.put(roomStorageKey, startedRoom);
-    this.storage.kv.put(
-      replayKey,
-      roundReplaySchema.parse({
-        id: matchId,
-        initial: startedRoom.game,
-        steps: [],
-      }),
-    );
-    if (startedRoom.status !== "playing") throw new Error("Game did not start");
-    this.storage.kv.put(matchStartKey, {
-      ...savedProfileRatings(this.storage, matchId),
-      id: matchId,
-      roomId: startedRoom.id,
-      instanceId: startedRoom.instanceId,
-      startedAtMs,
-      settings: startedRoom.settings,
-      ...(rating ? { rating } : {}),
-      participants: startedRoom.players.map((player, seat) => ({
-        id: player.id,
-        name: playerLabel(player),
-        color: player.color,
-        seat,
-        ...(player.kind === "cpu"
-          ? { kind: "cpu" as const, level: player.level }
-          : {
-              kind: "human" as const,
-              accountId: this.accountId(player.id),
-            }),
-      })),
-    } satisfies MatchStart);
-    return { room: startedRoom, roundId: matchId, at: startedAtMs };
+    return startReversiRound(this.storage, room, this.accountId, rating);
   }
 
   play(room: ReversiRoom, tokenHash: string, command: GameActionCommandFor<"reversi">): Result {
-    const action = command.action;
-    if (room.status === "waiting")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
-
-    const membership = this.membership(tokenHash);
-    if (membership === null) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (player !== undefined && room.game.eliminatedColors.includes(player.color)) {
-      return { kind: "rejected", error: "already_eliminated" };
-    }
-    if (player?.color !== room.game.turn) return { kind: "rejected", error: "not_your_turn" };
-    const result = applyAction(room.game, action);
-    if (!result.ok) return { kind: "rejected", error: "invalid_move" };
-    this.recordReplayStep(
-      { type: "place", color: room.game.turn, position: action.position },
-      result,
+    const error = this.checkCommand(
+      room,
+      tokenHash,
+      "play",
+      room.roundId === command.roundId && room.positionRevision === command.positionRevision,
     );
-    const at = Date.now();
-    return this.accept(room, result.state, at, true);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing") throw new Error("Expected playing room");
+    const result = definition.rules.applyAction(room.game, room.game.turn, command.action);
+    if (!result.ok) return { kind: "rejected", error: "invalid_move" };
+    recordReversiTransition(this.storage, room, result);
+    return this.accept(room, result.state, Date.now(), true);
   }
 
   resign(room: ReversiRoom, tokenHash: string): Result {
-    if (room.status === "waiting")
-      return { kind: "rejected", error: room.lastRound ? "game_finished" : "game_not_started" };
-    if (isClockExpired(room.clock, Date.now())) return { kind: "rejected", error: "time_expired" };
+    const error = this.checkCommand(room, tokenHash, "resign", true);
+    if (error) return { kind: "rejected", error };
+    if (room.status !== "playing") throw new Error("Expected playing room");
+    const result = definition.rules.eliminateSeat(room.game, room.game.turn, "resigned");
+    recordReversiTransition(this.storage, room, result);
+    return this.accept(room, result.state, Date.now(), true);
+  }
+
+  private checkCommand(
+    room: ReversiRoom,
+    tokenHash: string,
+    operation: "play" | "resign",
+    positionMatches: boolean,
+  ) {
     const membership = this.membership(tokenHash);
-    if (membership === null) return { kind: "rejected", error: "unauthorized" };
-    const player = room.players.find((entry) => entry.id === membership.playerId);
-    if (player === undefined) return { kind: "rejected", error: "unauthorized" };
-    if (room.game.eliminatedColors.includes(player.color)) {
-      return { kind: "rejected", error: "already_eliminated" };
-    }
-    if (room.game.turn !== player.color) return { kind: "rejected", error: "not_your_turn" };
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not resign current player");
-    this.recordElimination(room, player.color, "resigned", result);
-    const at = Date.now();
-    return this.accept(room, result.state, at, true);
+    const seat = room.players.find((p) => p.id === membership?.playerId)?.color ?? null;
+    return checkGameCommand({
+      operation,
+      status: room.status,
+      hasLastRound: room.lastRound !== null,
+      seat,
+      eliminatedSeats: room.game?.eliminatedColors ?? [],
+      turn: room.game === null ? null : definition.rules.getTurn(room.game),
+      positionMatches,
+      clockExpired: room.clock !== null && isClockExpired(room.clock, Date.now()),
+    });
   }
 
   private accept(
@@ -171,11 +104,18 @@ export class ReversiProgress {
     if (state.status === "finished") {
       const game = reversiStateSchema.parse(state);
       if (game.status !== "finished") throw new Error("Expected finished state");
-      return { kind: "finished", gameId: "reversi", room, game, at };
+      return {
+        kind: "finished",
+        gameId: "reversi",
+        room: { ...room, positionRevision: room.positionRevision + 1 },
+        game,
+        at,
+      };
     }
     const updated = reversiRoomSchema.parse({
       ...room,
       game: state,
+      positionRevision: room.positionRevision + 1,
       clock: advanceClock(
         room.clock,
         room.game.turn,
@@ -194,10 +134,9 @@ export class ReversiProgress {
     const player = room.players.find((p) => p.id === playerId);
     if (!player) throw new Error("Unknown Reversi player");
     if (room.game.eliminatedColors.includes(player.color)) return null;
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not eliminate leaving player");
-    this.recordElimination(room, player.color, "left", result);
-    return result;
+    const result = definition.rules.eliminateSeat(room.game, player.color, "left");
+    recordReversiTransition(this.storage, room, result);
+    return { ok: true as const, state: result.state, passedColors: result.event.passedColors };
   }
 
   leave(
@@ -244,9 +183,8 @@ export class ReversiProgress {
           ),
         }),
       };
-    const result = eliminateColor(room.game, player.color);
-    if (!result.ok) throw new Error("Could not eliminate player");
-    this.recordElimination(room, player.color, reason, result);
+    const result = definition.rules.eliminateSeat(room.game, player.color, reason);
+    recordReversiTransition(this.storage, room, result);
     if (result.state.status === "finished") return this.accept(room, result.state, at, true);
     const input = reversiRoomSchema.parse({
       ...room,
@@ -263,56 +201,21 @@ export class ReversiProgress {
     );
   }
 
-  externalCpuJob(room: Playing): ExternalCpuJob | undefined {
-    const job = this.storage.kv.get<ExternalCpuJob>(externalCpuJobKey);
-    return job &&
-      job.moveNumber === room.game.moveNumber &&
-      job.roundId === this.storage.kv.get<MatchStart>(matchStartKey)?.id
-      ? job
-      : undefined;
+  externalCpuJob(room: Playing) {
+    return this.external.externalCpuJob(room);
   }
 
   prepareExternalCpu(room: Playing, now: number, timeout: number): ReversiAiWork | null {
-    const cpu = room.players.find((p) => p.color === room.game.turn);
-    const match = this.storage.kv.get<MatchStart>(matchStartKey);
-    if (cpu?.kind !== "cpu" || cpu.level !== 2 || !match || this.externalCpuJob(room)) return null;
-    const profile = match.rating?.kind === "cpu" ? reversiCpuProfile(match.rating) : undefined;
-    if (match.rating && !profile) return null;
-    const job = {
-      requestId: crypto.randomUUID(),
-      roundId: match.id,
-      moveNumber: room.game.moveNumber,
-      expiresAt: Math.min(now + timeout, room.clock.turnExpiresAt),
-    };
-    if (profile && profile.engineProbability < 1 && Math.random() >= profile.engineProbability) {
-      this.storage.kv.put(externalCpuJobKey, { ...job, position: chooseCpuMove(room.game, 1) });
-      return null;
-    }
-    this.storage.kv.put(externalCpuJobKey, job);
-    const board = room.game.board
-      .flat()
-      .map((cell) => (cell === "black" ? "B" : cell === "white" ? "W" : "-"))
-      .join("");
-    return { job, board, blackToMove: room.game.turn === "black", level: profile?.level ?? 4 };
+    return this.external.prepareExternalCpu(room, now, timeout);
   }
 
-  completeExternalCpu(room: Playing, work: ReversiAiWork, move: Position | null, now: number) {
-    const job = this.externalCpuJob(room);
-    if (
-      !job ||
-      job.requestId !== work.job.requestId ||
-      job.position !== undefined ||
-      isClockExpired(room.clock, now)
-    )
-      return "stale";
-    const position =
-      now < job.expiresAt &&
-      move &&
-      getLegalMoves(room.game).some(({ x, y }) => x === move.x && y === move.y)
-        ? move
-        : null;
-    this.storage.kv.put(externalCpuJobKey, { ...job, position });
-    return position ? "engine" : "fallback";
+  completeExternalCpu(
+    room: Playing,
+    work: ReversiAiWork,
+    move: import("@tetraboard/reversi").Position | null,
+    now: number,
+  ) {
+    return this.external.completeExternalCpu(room, work, move, now);
   }
 
   cpu(room: Playing, now: number): Result {
@@ -321,27 +224,21 @@ export class ReversiProgress {
     const cpu = room.players.find((p) => p.color === room.game.turn);
     if (cpu?.kind !== "cpu") return { kind: "unchanged", gameId: "reversi", room };
     const job = this.externalCpuJob(room);
-    const move = job?.position ?? chooseCpuMove(room.game, cpu.level);
-    if (move === null) throw new Error("CPU has no legal move");
+    const action = job?.position
+      ? { type: "placeStone" as const, position: job.position }
+      : definition.cpu.chooseAction(room.game, cpu.color, cpu.level, Math.random);
+    if (action === null) throw new Error("CPU has no legal move");
     const decidedAt = Date.now();
     const expired = isClockExpired(room.clock, decidedAt);
     const result = expired
-      ? eliminateColor(room.game, room.game.turn)
-      : applyAction(room.game, { type: "placeStone", position: move });
+      ? {
+          ok: true as const,
+          ...definition.rules.eliminateSeat(room.game, room.game.turn, "timeout"),
+        }
+      : definition.rules.applyAction(room.game, room.game.turn, action);
     if (!result.ok) throw new Error("CPU selected an invalid move");
-    if (expired) this.recordElimination(room, room.game.turn, "timeout", result);
-    else {
-      const match = this.storage.kv.get<MatchStart>(matchStartKey);
-      if ((job || match?.rating?.kind === "cpu") && !job?.position && match && !match.aiFallback) {
-        const rating = match.rating;
-        this.storage.kv.put(matchStartKey, {
-          ...match,
-          aiFallback: true,
-          ...(rating?.kind === "cpu" ? { rating: { ...rating, usedFallback: true } } : {}),
-        } satisfies MatchStart);
-      }
-      this.recordReplayStep({ type: "place", color: room.game.turn, position: move }, result);
-    }
+    if (!expired) this.external.recordFallback(job);
+    recordReversiTransition(this.storage, room, result);
     if (job) this.storage.kv.delete(externalCpuJobKey);
     return this.accept(
       room,
@@ -353,13 +250,15 @@ export class ReversiProgress {
   }
 
   finalize(result: FinishedProgress<"reversi">): LastRound {
-    return this.finalizeResult(result.room, result.game, result.at);
+    return finalizeReversiRound(this.storage, result.room, result.game, result.at);
   }
 
   waiting(data: RematchFor<"reversi">, players: ReversiRoom["players"]): WaitingFor<"reversi"> {
     const room = reversiRoomSchema.parse({
       ...data.room,
       status: "waiting",
+      roundId: null,
+      positionRevision: 0,
       eliminations: [],
       publicUpdatedAtMs: nextPublicUpdateAt(data.room),
       lastActivityAtMs: data.at,
@@ -383,63 +282,5 @@ export class ReversiProgress {
         !room.eliminations.some((e) => e.color === action.color)
       )
         room.eliminations.push({ color: action.color, reason: action.reason });
-  }
-
-  private recordElimination(
-    room: Extract<ReversiRoom, { status: "playing" }>,
-    color: Color,
-    reason: ReversiRoom["eliminations"][number]["reason"],
-    result: { state: ReversiState; passedColors: readonly Color[] },
-  ): void {
-    // 呼び出し元のトランザクションで、理由を盤面・棋譜と一緒に保存します。
-    room.eliminations.push({ color, reason });
-    this.recordReplayStep({ type: "eliminate", color, reason }, result);
-  }
-
-  private recordReplayStep(
-    action: RoundReplay["steps"][number]["action"],
-    result: { state: ReversiState; passedColors: readonly Color[] },
-  ): void {
-    const saved = this.storage.kv.get(replayKey);
-    // 記録導入前に開始した対局の棋譜は、途中から補完しません。
-    if (saved === undefined) return;
-    const replay = roundReplaySchema.parse(saved);
-    replay.steps.push(
-      roundReplaySchema.shape.steps.element.parse({
-        action,
-        game: result.state,
-        passedColors: result.passedColors,
-      }),
-    );
-    this.storage.kv.put(replayKey, replay);
-  }
-
-  private finalizeResult(
-    room: Extract<ReversiRoom, { status: "playing" }>,
-    game: LastRound["game"],
-    at: number,
-  ): LastRound {
-    const start = this.storage.kv.get<MatchStart>(matchStartKey);
-    const replay = this.storage.kv.get<RoundReplay>(replayKey);
-    if (start && replay && start.id === replay.id) {
-      this.storage.kv.put(`${pendingMatchPrefix}${start.id}`, {
-        record: { ...start, endedAtMs: at, game, eliminations: room.eliminations, replay },
-        retryAtMs: Date.now(),
-      } satisfies PendingMatch);
-    }
-    this.storage.kv.delete(matchStartKey);
-    this.storage.kv.delete(externalCpuJobKey);
-    const lastRound: LastRound = {
-      game,
-      replay: roundReplaySchema.parse(this.storage.kv.get<RoundReplay>(replayKey)),
-      players: room.players.map((player) => ({
-        id: player.id,
-        name: playerLabel(player),
-        color: player.color,
-        appearance: playerAppearance(player),
-      })),
-    };
-    this.storage.kv.delete(replayKey);
-    return lastRound;
   }
 }

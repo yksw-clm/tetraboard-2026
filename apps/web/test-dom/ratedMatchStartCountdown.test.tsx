@@ -59,6 +59,8 @@ test.each([
           : game === "shogi"
             ? standardWaitingRoom()
             : reversiRoomSchema.parse({
+                roundId: null,
+                positionRevision: 0,
                 ...base,
                 settings: { game, timeControl: base.settings.timeControl },
                 players: base.players.slice(0, 2),
@@ -109,6 +111,8 @@ test.each(["shogi", "reversi"] as const)(
       game === "shogi"
         ? standardWaitingRoom()
         : reversiRoomSchema.parse({
+            roundId: null,
+            positionRevision: 0,
             ...base,
             settings: { game, timeControl: base.settings.timeControl },
             players: base.players.slice(0, 2),
