@@ -34,6 +34,7 @@ if (mode === "test" || mode === "check") {
     await runTask({ name: "CI runner tests", command: ["bun", "test", "./scripts/ci/test"] });
   const tasks: Task[] = [];
   if (workspaces.includes("apps/worker")) {
+    tasks.push({ name: "Worker DB schema", command: command("apps/worker", "test:db") });
     const groups = serial ? [[]] : [["--shard=1/2"], ["--shard=2/2"]];
     for (const [index, group] of groups.entries())
       tasks.push({
