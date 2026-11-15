@@ -27,6 +27,8 @@ afterEach(() => restore());
 function waiting() {
   const room = waitingRoom();
   return reversiRoomSchema.parse({
+    roundId: null,
+    positionRevision: 0,
     ...room,
     settings: { game: "reversi", timeControl: roomTimeControl },
     players: room.players.slice(0, 2),
@@ -37,6 +39,7 @@ function playing() {
   return reversiRoomSchema.parse({
     ...room,
     status: "playing",
+    roundId: "11111111-1111-4111-8111-111111111111",
     players: room.players.map((p, i) => ({ ...p, color: i === 0 ? "black" : "white" })),
     game: createInitialState(),
     clock: {
@@ -199,10 +202,24 @@ test("通常リバーシの着手は合法手のみ送信し、重複を止め�
     h.current.handlePlaceStone({ x: 3, y: 2 });
   });
   expect(socket.sent.filter((m) => m.type === "room.game.action")).toHaveLength(1);
+  expect(socket.sent.filter((m) => m.type === "room.game.action")[0]).toEqual({
+    type: "room.game.action",
+    action: { type: "placeStone", position: { x: 3, y: 2 } },
+    roundId: room.roundId,
+    positionRevision: room.positionRevision,
+  });
   expect(h.current.pendingGameAction?.type).toBe("move");
   const moved = applyAction(room.game, { type: "placeStone", position: { x: 3, y: 2 } });
   if (!moved.ok) throw Error("Expected move");
   socket.snapshot(reversiRoomSchema.parse({ ...room, game: moved.state }));
+  expect(h.current.pendingGameAction?.type).toBe("move");
+  socket.snapshot(
+    reversiRoomSchema.parse({
+      ...room,
+      game: moved.state,
+      positionRevision: room.positionRevision + 1,
+    }),
+  );
   expect(h.current.pendingGameAction).toBeNull();
   expect(h.current.canPlay).toBe(false);
 });

@@ -82,7 +82,12 @@ test("2人が合法手で終局まで進み、棋譜を保存して再戦待機�
     const result = applyAction(room.game, { type: "placeStone", position: move });
     if (!result.ok) throw Error("illegal");
     const expected = result.state;
-    client.send({ type: "room.game.action", action: { type: "placeStone", position: move } });
+    client.send({
+      type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
+      action: { type: "placeStone", position: move },
+    });
     room = standard(
       (
         await host.waitFor(
@@ -165,6 +170,8 @@ test.each([1, 2] as const)("CPUレベル%dは期限を保存境界で進める�
   if (room.players.find((p) => p.color === turn)?.kind === "human") {
     host.send({
       type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
       action: { type: "placeStone", position: getLegalMoves(room.game)[0] },
     });
     room = standard(
@@ -185,7 +192,8 @@ test.each([1, 2] as const)("CPUレベル%dは期限を保存境界で進める�
     saved.clock.turnStartedAt = Date.now() - 2001;
     state.storage.kv.put("room", saved);
   });
-  await fixtures.snapshot(entry.room.id);
+  expect(standard((await fixtures.snapshot(entry.room.id)).room).game?.moveNumber).toBe(before);
+  await runDurableObjectAlarm(stub);
   const updated = standard(
     (
       await host.waitFor(

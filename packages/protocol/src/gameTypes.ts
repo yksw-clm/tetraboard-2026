@@ -79,6 +79,7 @@ export type GameActionCommandFor<G extends GameId> = G extends
   | "shogi"
   | "gomoku"
   | "four-gomoku"
+  | "reversi"
   ? { type: "room.game.action"; action: ActionFor<G>; roundId: string; positionRevision: number }
   : { type: "room.game.action"; action: ActionFor<G>; roundId?: never; positionRevision?: never };
 export type GameCommandFor<G extends GameId> =

@@ -24,8 +24,10 @@ import { installSocket, Socket } from "./socket";
 function standardReversiRoom() {
   const base = waitingRoom();
   return reversiRoomSchema.parse({
+    positionRevision: 0,
     ...base,
     status: "playing",
+    roundId: "11111111-1111-4111-8111-111111111111",
     settings: { game: "reversi", timeControl: base.settings.timeControl },
     players: base.players.slice(0, 2).map((p, i) => ({ ...p, color: i ? "white" : "black" })),
     game: createInitialState(),

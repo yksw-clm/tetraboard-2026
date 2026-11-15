@@ -45,6 +45,8 @@ async function setup() {
     if (room.status !== "playing") throw Error("Expected playing room");
     host.send({
       type: "room.game.action",
+      roundId: room.roundId,
+      positionRevision: room.positionRevision,
       action: { type: "placeStone", position: getLegalMoves(room.game)[0]! },
     });
     await host.waitFor(
