@@ -45,6 +45,7 @@ interface HistoryTypes extends ExampleTypes {
 }
 declare const historical: GameDefinition<HistoryTypes, "example">;
 historical.rules.applyAction(0, "player", { amount: 1 }, (key) => key.length);
+historical.rules.eliminateSeat(0, "player", "left", (key) => key.length);
 historical.cpu.chooseAction(
   0,
   "player",
@@ -56,6 +57,8 @@ historical.replay({ players: ["player"] }, []);
 // @ts-expect-error 履歴はゲームごとの型を維持します。
 historical.rules.applyAction(0, "player", { amount: 1 }, new Map<string, number>());
 const wrongHistory = () => "wrong";
+// @ts-expect-error 脱落でも履歴はゲームごとの型を維持します。
+historical.rules.eliminateSeat(0, "player", "left", wrongHistory);
 // @ts-expect-error CPUにも別形式の履歴を渡せません。
 historical.cpu.chooseAction(0, "player", 1, () => 0, wrongHistory);
 // @ts-expect-error 初期化情報を使うゲームの再生に状態を渡せません。

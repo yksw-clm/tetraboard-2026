@@ -64,6 +64,7 @@ export interface GameDefinition<T extends GameTypes, Id extends string> {
       state: T["state"],
       seat: T["seat"],
       reason: EliminationReason,
+      history?: T["history"],
     ) => GameTransition<T["state"], T["event"]>;
     getResult: (state: T["state"]) => T["result"] | null;
   };
