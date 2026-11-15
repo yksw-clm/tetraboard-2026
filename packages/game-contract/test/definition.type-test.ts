@@ -24,3 +24,17 @@ definition.rules.applyAction(0, "another-player", { amount: 1 });
 definition.rules.applyAction(0, { amount: 1 });
 // @ts-expect-error 脱落理由は共通の4種類に限定します。
 definition.rules.eliminateSeat(0, "player", "unknown");
+
+interface ExternalTypes extends ExampleTypes {
+  externalOptions: { moves: readonly string[] };
+  externalMove: string;
+}
+declare const external: NonNullable<GameDefinition<ExternalTypes, "example">["cpu"]["external"]>;
+external.createRequest(0, "player", 1, { moves: ["7g7f"] });
+external.readMove("7g7f");
+// @ts-expect-error 外部AIの席もゲームの席の型に対応します。
+external.fallbackAction(0, "south");
+// @ts-expect-error 検証後の手の表現はゲームごとに異なります。
+external.readMove({ x: 0, y: 0 });
+// @ts-expect-error 要求用の追加情報はゲームの指定した型に対応します。
+external.createRequest(0, "player", 1, { moves: [1] });
