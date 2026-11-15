@@ -41,6 +41,18 @@ Webの最低対応Workerは2026-11-06時点の本番main `35ddc5ee32127425ea875f
 
 GameRoomのWebSocket認証はtokenのhash計算後に期限処理を一度行い、同期的な資格照合へ進みます。公開RPCの期限処理も維持します。保存待ちが空の索引・席解放・大会反映・対局保存ではAlarmの再同期を省きます。実行中のflushは引き続き待ち、保存や失敗再送が期限を変えた場合はAlarmを再同期します。
 
+## D1 のスキーマと migration
+
+D1 のスキーマは `apps/worker/src/db/schema/` に drizzle で定義しています。トリガーは drizzle で表さず、SQL の migration に残しています。
+
+スキーマを変えるときは、drizzle の定義を直してから、次のコマンドで migration を作ります。drizzle-kit の出力を、`apps/worker/migrations/` の次の番号の `NNNN_<名前>.sql` として置きます。drizzle-kit のスナップショットとジャーナルは `apps/worker/drizzle/meta/` にあり、手で編集しません。
+
+```sh
+mise exec -- bun run --cwd apps/worker db:generate -- <名前>
+```
+
+`bun run --cwd apps/worker test:db` は、全 migration を適用した SQLite と drizzle の定義が一致すること、スナップショットから変更がないことを確かめます。`bun run check` と CI でも実行します。
+
 ## 変更対象別の案内
 
 実装・テスト欄は代表的な入口です。対象別の部分実行コマンドは [変更対象別の確認](testing.md#変更対象別の確認) にまとめています。PR前の必須検証は上の共通手順に従います。
@@ -922,6 +934,12 @@ bun run --cwd apps/worker test test/feedback.test.ts
 C#/.NET標準ライブラリのような、一貫性があり読みやすいコードを目指します。
 
 過度な抽象化より、意図が明確なコードを優先します。
+
+### ファイルと関数の長さ
+
+`apps/worker` と `packages/contexts` では、実装のファイルを 300 行以内、関数を 60 行以内、テストのファイルを 500 行以内にします。空行とコメントも数えます。`bun run lint` が oxlint で検査します。
+
+今これを超えているファイルは、`.oxlintrc.json` の規則ごとの例外一覧に載っています。一覧には足さず、ファイルを分けたら外します。規則を満たしたファイルが一覧に残っていると、`bun run lint` が外すよう求めて失敗します。
 
 ## Webの編集先
 

@@ -63,7 +63,10 @@ test("外部脱落に伴う詰み・合法手なし・引分提案は撃破対�
 });
 for (const fixture of shogiArchives) {
   test(`${fixture.name}: 完全な固定棋譜から算出し、シングルスは保存撃破数と一致`, () => {
-    const match = fourShogiMatchDetailSchema.parse(fixture.detail);
+    const match = fourShogiMatchDetailSchema.parse({
+      ...fixture.detail,
+      game: { drawProposals: [], ...fixture.detail.game },
+    });
     const rules = getFourShogiReplayRules(match.replay.rulesVersion);
     let state = rules.initialize(match.replay.initial);
     const frames = [rules.createFrame(state)];

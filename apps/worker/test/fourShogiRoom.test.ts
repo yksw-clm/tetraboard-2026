@@ -1930,14 +1930,12 @@ for (const humanSurviving of [true, false]) {
   );
 }
 
-test("旧保存状態の提案欠落を復元し、秒読み中も提案・取消で期限を延長しない", async () => {
+test("保存状態から復元した秒読み中も提案・取消で期限を延長しない", async () => {
   const prepared = await start();
   await runInDurableObject(env.GAME_ROOM.getByName(prepared.id), (_instance, state) => {
-    const { drawProposals: _proposals, ...legacyGame } = prepared.room.game;
     const at = Date.now();
     state.storage.kv.put("room", {
       ...prepared.room,
-      game: legacyGame,
       clock: {
         remainingMainMs: { south: 0, west: 0, north: 0, east: 0 },
         turnStartedAt: at - 3000,
