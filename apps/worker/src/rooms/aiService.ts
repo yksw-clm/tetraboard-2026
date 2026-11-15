@@ -1,3 +1,4 @@
+import { createShogiAiRequest } from "@tetraboard/shogi/definition";
 import { createFourReversiAiRequest } from "./fourReversiAiRequest";
 import { logFourShogiDiagnostic } from "../fourShogiDiagnostics";
 import { fourShogiActionSchema, type Room } from "@tetraboard/protocol";
@@ -210,7 +211,6 @@ export type ShogiAiWork = {
   standardBook?: boolean;
 };
 
-const shogiNodes = 256;
 const shogiStandardBook = "standard-v1";
 const shogiResponseSchema = z.strictObject({
   request_id: z.string().uuid(),
@@ -225,8 +225,9 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
   const url = configuredUrl(bindings);
   if (!url || bindings.AI_SHOGI_ENABLED !== "true") return null;
   const { requestId, roundId, positionRevision, expiresAt } = work.job;
-  const nodes = work.nodes ?? shogiNodes;
-  const openingBook = work.standardBook && work.moves.length < 2 ? shogiStandardBook : undefined;
+  const request = createShogiAiRequest(work);
+  const nodes = request.nodes;
+  const openingBook = request.opening_book;
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(JSON.stringify([roundId, positionRevision, work.moves])),
@@ -248,9 +249,7 @@ export async function requestShogiAiMove(bindings: AiServiceBindings, work: Shog
       body: JSON.stringify({
         request_id: requestId,
         position_revision: revision,
-        nodes,
-        moves: work.moves,
-        opening_book: openingBook,
+        ...request,
       }),
       redirect: "manual",
       signal: controller.signal,

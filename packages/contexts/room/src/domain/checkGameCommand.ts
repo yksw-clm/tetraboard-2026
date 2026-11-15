@@ -16,6 +16,7 @@ export interface GameCommandInput<Seat extends string> {
   turn: Seat | null;
   positionMatches: boolean;
   clockExpired: boolean;
+  requiresTurn?: boolean;
 }
 
 export function checkGameCommand<Seat extends string>(
@@ -25,6 +26,7 @@ export function checkGameCommand<Seat extends string>(
   if (input.seat === null) return "unauthorized";
   if (input.operation === "play" && !input.positionMatches) return "stale_position";
   if (input.clockExpired) return "time_expired";
+  if (input.requiresTurn === false) return null;
   if (input.eliminatedSeats.includes(input.seat)) return "already_eliminated";
   if (input.turn !== input.seat) return "not_your_turn";
   return null;

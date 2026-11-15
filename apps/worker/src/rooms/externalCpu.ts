@@ -5,6 +5,9 @@ export interface ExternalCpuRuntime<T extends GameTypes, Job extends ExternalCpu
   definition: GameDefinition<T, string>;
   state: T["state"];
   seat: T["seat"];
+  level: T["cpuLevel"];
+  random?: () => number;
+  history?: T["history"];
   loadJob: () => Job | null;
   hasJob: () => boolean;
   deleteJob: () => void;
@@ -74,8 +77,18 @@ export function completeExternalCpu<T extends GameTypes, Job extends ExternalCpu
   const proposed = move === null || now >= job.expiresAt ? null : external.readMove(move);
   const legal =
     proposed !== null &&
-    runtime.definition.rules.applyAction(runtime.state, runtime.seat, proposed).ok;
-  const action = legal ? proposed : external.fallbackAction(runtime.state, runtime.seat);
+    runtime.definition.rules.applyAction(runtime.state, runtime.seat, proposed, runtime.history).ok;
+  const action = legal
+    ? proposed
+    : external.fallbackAction
+      ? external.fallbackAction(runtime.state, runtime.seat)
+      : runtime.definition.cpu.chooseAction(
+          runtime.state,
+          runtime.seat,
+          runtime.level,
+          runtime.random ?? Math.random,
+          runtime.history,
+        );
   if (action === null) return false;
   runtime.saveAction(job, action, now, legal);
   runtime.deleteJob();

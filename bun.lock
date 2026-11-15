@@ -291,6 +291,9 @@
     "packages/shogi": {
       "name": "@tetraboard/shogi",
       "version": "0.0.0",
+      "dependencies": {
+        "@tetraboard/game-contract": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5.5.2",

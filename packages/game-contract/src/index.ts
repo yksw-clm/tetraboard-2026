@@ -10,6 +10,8 @@ export interface GameTypes {
   result: unknown;
   rejection: unknown;
   cpuLevel: unknown;
+  history?: unknown;
+  replayInitial?: unknown;
   externalOptions?: unknown;
   externalMove?: unknown;
 }
@@ -38,8 +40,12 @@ export interface ExternalCpuDefinition<T extends GameTypes> {
     options: T["externalOptions"],
   ) => JsonObject;
   readMove: (move: T["externalMove"]) => T["action"] | null;
-  fallbackAction: (state: T["state"], seat: T["seat"]) => T["action"] | null;
+  fallbackAction?: (state: T["state"], seat: T["seat"]) => T["action"] | null;
 }
+
+export type ReplayInitial<T extends GameTypes> = T extends { replayInitial: infer Initial }
+  ? Initial
+  : T["state"];
 
 export interface GameDefinition<T extends GameTypes, Id extends string> {
   readonly catalog: GameCatalog<Id, T["seat"], T["settings"]>;
@@ -50,7 +56,10 @@ export interface GameDefinition<T extends GameTypes, Id extends string> {
       state: T["state"],
       seat: T["seat"],
       action: T["action"],
+      history?: T["history"],
     ) => GameActionResult<T["state"], T["event"], T["rejection"]>;
+    requiresTurn?: (action: T["action"]) => boolean;
+    endsTurn?: (action: T["action"]) => boolean;
     eliminateSeat: (
       state: T["state"],
       seat: T["seat"],
@@ -65,12 +74,20 @@ export interface GameDefinition<T extends GameTypes, Id extends string> {
       seat: T["seat"],
       level: T["cpuLevel"],
       random: () => number,
+      history?: T["history"],
     ) => T["action"] | null;
   };
   // 初期局面を含めず、各イベントの適用後の状態を順に返します。
-  readonly replay: (initial: T["state"], events: readonly T["event"][]) => T["state"][];
+  readonly replay: (initial: ReplayInitial<T>, events: readonly T["event"][]) => T["state"][];
 }
 
+// 定義済みの予備操作は呼び出し側でも必須の型として保ちます。
+export function defineGame<T extends GameTypes, const Id extends string>(
+  definition: GameDefinition<T, Id> & { cpu: { external: Required<ExternalCpuDefinition<T>> } },
+): GameDefinition<T, Id> & { cpu: { external: Required<ExternalCpuDefinition<T>> } };
+export function defineGame<T extends GameTypes, const Id extends string>(
+  definition: GameDefinition<T, Id>,
+): GameDefinition<T, Id>;
 export function defineGame<T extends GameTypes, const Id extends string>(
   definition: GameDefinition<T, Id>,
 ): GameDefinition<T, Id> {

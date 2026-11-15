@@ -7,7 +7,10 @@ import { reversiDefinition, type ReversiTypes } from "@tetraboard/reversi/defini
 
 import { fourReversiDefinition, type FourReversiTypes } from "@tetraboard/four-reversi/definition";
 
+import { shogiDefinition, type ShogiTypes } from "@tetraboard/shogi/definition";
+
 interface DefinitionTypes {
+  shogi: ShogiTypes;
   "four-reversi": FourReversiTypes;
   "four-gomoku": FourGomokuTypes;
   reversi: ReversiTypes;
@@ -19,6 +22,7 @@ type GameDefinitions = Partial<{
 }>;
 
 export const gameDefinitions = {
+  shogi: shogiDefinition,
   "four-reversi": fourReversiDefinition,
   "four-gomoku": fourGomokuDefinition,
   reversi: reversiDefinition,

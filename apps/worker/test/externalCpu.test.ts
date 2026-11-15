@@ -52,6 +52,7 @@ function setup() {
     definition,
     state: 3,
     seat: "south",
+    level: 1,
     loadJob: () => stored,
     hasJob: () => stored !== null,
     deleteJob: () => {
@@ -104,4 +105,47 @@ test("古い局面を捨て、期限切れを予備へ回し、時計切れ・�
   expect(queued()).toBeNull();
   expect(prepareExternalCpu(runtime, { roundId: "round" }, 100, 200)).toBeNull();
   expect(queued()).toEqual({ action: { type: "dropPiece", to: 5 }, applyAt: 101, external: false });
+});
+
+test("予備操作の省略時は指定レベル・乱数・履歴を使い、合法性の確認にも履歴を渡す", () => {
+  interface HistoryTypes extends Types {
+    history: ReadonlyMap<number, number>;
+  }
+  const { fallbackAction: _fallback, ...external } = definition.cpu.external!;
+  const withHistory = defineGame<HistoryTypes, "example">({
+    ...definition,
+    rules: {
+      ...definition.rules,
+      applyAction: (state, _, action, history) =>
+        action.to === history?.get(state)
+          ? { ok: true, state: action.to, event: action.to }
+          : { ok: false, reason: "illegal" },
+    },
+    cpu: {
+      external,
+      chooseAction: (state, _, level, random, history) => {
+        const to = history?.get(state + level + random());
+        return to === undefined ? null : { type: "dropPiece", to };
+      },
+    },
+  });
+  for (const move of ["drop:12", "drop:99", null]) {
+    const { runtime, queued } = setup();
+    const historyRuntime: ExternalCpuRuntime<HistoryTypes, Job> = {
+      ...runtime,
+      definition: withHistory,
+      random: () => 0.5,
+      history: new Map([
+        [3, 12],
+        [4.5, 12],
+      ]),
+    };
+    const job = prepareExternalCpu(historyRuntime, { roundId: "round" }, 10, 100)!;
+    expect(completeExternalCpu(historyRuntime, job, move, 20)).toBe(true);
+    expect(queued()).toEqual({
+      action: { type: "dropPiece", to: 12 },
+      applyAt: 21,
+      external: move === "drop:12",
+    });
+  }
 });

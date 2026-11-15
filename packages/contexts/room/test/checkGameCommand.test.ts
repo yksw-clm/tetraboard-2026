@@ -66,3 +66,20 @@ test("投了では古い局面の段だけを飛ばす", () => {
   );
   expect(checkGameCommand({ ...resign, turn: null })).toBe("not_your_turn");
 });
+
+test("手番不要の操作は脱落と手番を飛ばし、本人・局面・時計は確認する", () => {
+  const offTurn: Input = {
+    ...allowed,
+    requiresTurn: false,
+    eliminatedSeats: ["black"],
+    turn: "white",
+  };
+  expect(checkGameCommand(offTurn)).toBeNull();
+  expect(checkGameCommand({ ...offTurn, seat: null })).toBe("unauthorized");
+  expect(checkGameCommand({ ...offTurn, positionMatches: false, clockExpired: true })).toBe(
+    "stale_position",
+  );
+  expect(checkGameCommand({ ...offTurn, clockExpired: true })).toBe("time_expired");
+  expect(checkGameCommand({ ...offTurn, status: "waiting" })).toBe("game_not_started");
+  expect(checkGameCommand({ ...offTurn, requiresTurn: true })).toBe("already_eliminated");
+});

@@ -129,10 +129,12 @@ export class FourReversiCpu {
   }
 
   private runtime(room: Playing): ExternalCpuRuntime<FourReversiTypes, ExternalCpuJob> {
+    const cpu = room.players.find((p) => p.color === room.game.turn);
     return {
       definition,
       state: room.game,
       seat: room.game.turn,
+      level: cpu?.kind === "cpu" ? cpu.level : 2,
       loadJob: () => {
         const parsed = externalJobSchema.safeParse(this.storage.kv.get(fourReversiAiJobKey));
         return parsed.success ? parsed.data : null;
